@@ -4,7 +4,16 @@ description: "Test workflow for code formatting"
 
 config:
   input:
-    $ref: local::schemas.#(id=="code_input")
+    type: object
+    properties:
+      code:
+        type: string
+        description: The code to format
+      language:
+        type: string
+        description: The programming language of the code
+    required:
+      - code
   env:
     WORKFLOW_VERSION: "1.0.0"
     MAX_RETRIES: "3"
@@ -34,16 +43,35 @@ tools:
   - id: code-formatter
     description: "A tool for formatting code"
     input:
-      $ref: local::schemas.#(id=="code_input")
+      type: object
+      properties:
+        code:
+          type: string
+          description: The code to format
+        language:
+          type: string
+          description: The programming language
+      required:
+        - code
     output:
-      $ref: local::schemas.#(id=="code_output")
+      type: object
+      properties:
+        formatted_code:
+          type: string
+          description: The formatted code
+      required:
+        - formatted_code
     env:
       FORMATTER_VERSION: "1.0.0"
 
 agents:
   - id: code-assistant
-    config:
-      $ref: global::models.#(id=="gpt-4o")
+    model:
+      provider: openai
+      model: gpt-4o
+      params:
+        temperature: 0.7
+        max_tokens: 4000
     instructions: |
       You are a code formatting assistant that helps format code according to language-specific style guides.
       When formatting code:
@@ -51,8 +79,6 @@ agents:
         - Maintain code functionality
         - Use consistent indentation
         - Add appropriate spacing
-    tools:
-      - $ref: local::tools.#(id="code-formatter")
     actions:
       - id: format-code
         prompt: |
@@ -61,14 +87,28 @@ agents:
           {{ .input.code }}
           ```
         input:
-          $ref: local::schemas.#(id=="code_input")
+          type: object
+          properties:
+            code:
+              type: string
+              description: The code to format
+            language:
+              type: string
+              description: The programming language of the code
+          required:
+            - code
         output:
-          $ref: local::schemas.#(id=="code_output")
+          type: object
+          properties:
+            formatted_code:
+              type: string
+              description: The formatted code
+          required:
+            - formatted_code
 
 tasks:
   - id: format-code
     type: basic
-    $use: agent(local::agents.#(id=="code-assistant"))
     action: format-code
     with:
       code: "{{ .trigger.input.code }}"
@@ -78,7 +118,6 @@ tasks:
 
   - id: save-formatted-code
     type: basic
-    $use: tool(local::tools.#(id="code-formatter"))
     final: true
     with:
       code: "{{ .tasks.format-code.output.formatted_code }}"

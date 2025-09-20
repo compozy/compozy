@@ -31,22 +31,19 @@ func NewManager(service Service) *Manager {
 	if service == nil {
 		service = NewService()
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
 	return &Manager{
-		Service:     service,
-		callbacks:   make([]func(*Config), 0),
-		watchCtx:    ctx,
-		watchCancel: cancel,
-		debounce:    100 * time.Millisecond, // default debounce
+		Service:   service,
+		callbacks: make([]func(*Config), 0),
+		debounce:  100 * time.Millisecond, // default debounce
 	}
 }
 
 // Load loads configuration from sources and starts watching for changes.
 func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) {
-	// Store sources for reload
-	m.sources = sources
+	// Store sources for reload (copy to avoid caller mutation)
+	m.reloadMu.Lock()
+	m.sources = append([]Source(nil), sources...)
+	m.reloadMu.Unlock()
 
 	// Initial load
 	config, err := m.Service.Load(ctx, sources...)
@@ -68,9 +65,21 @@ func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) 
 	}
 
 	// Start watching sources that support it
-	m.startWatching(ctx, sources)
+	m.startWatching(sources)
 
 	return config, nil
+}
+
+// Sources returns a copy of the currently configured sources.
+func (m *Manager) Sources() []Source {
+	m.reloadMu.Lock()
+	defer m.reloadMu.Unlock()
+	if len(m.sources) == 0 {
+		return []Source{}
+	}
+	out := make([]Source, len(m.sources))
+	copy(out, m.sources)
+	return out
 }
 
 // Get returns the current configuration atomically.
@@ -133,8 +142,11 @@ func (m *Manager) Close(ctx context.Context) error {
 		// Wait for all watchers to finish
 		m.watchWg.Wait()
 
-		// Close all sources
-		for _, source := range m.sources {
+		m.reloadMu.Lock()
+		sourcesCopy := append([]Source(nil), m.sources...)
+		m.reloadMu.Unlock()
+		// Close all sources using a copy to avoid holding locks during Close()
+		for _, source := range sourcesCopy {
 			if source != nil {
 				if err := source.Close(); err != nil {
 					logger.FromContext(ctx).Error("failed to close configuration source", "error", err)
@@ -147,14 +159,16 @@ func (m *Manager) Close(ctx context.Context) error {
 }
 
 // startWatching sets up file watching for sources that support it.
-func (m *Manager) startWatching(ctx context.Context, sources []Source) {
+func (m *Manager) startWatching(sources []Source) {
 	for _, source := range sources {
 		if source == nil {
 			continue
 		}
 		// Create a copy of source for the goroutine
 		src := source
-		m.watchWg.Go(func() {
+		m.watchWg.Add(1)
+		go func() {
+			defer m.watchWg.Done()
 			// Watch the source
 			err := src.Watch(m.watchCtx, func() {
 				// Debounce rapid changes
@@ -162,15 +176,15 @@ func (m *Manager) startWatching(ctx context.Context, sources []Source) {
 
 				// Reload configuration
 				if err := m.Reload(m.watchCtx); err != nil {
-					logger.FromContext(ctx).Error("failed to reload configuration", "error", err)
+					logger.FromContext(m.watchCtx).Error("failed to reload configuration", "error", err)
 				}
 			})
 
 			if err != nil {
 				// Source doesn't support watching or error occurred
-				logger.FromContext(ctx).Debug("source does not support watching", "error", err)
+				logger.FromContext(m.watchCtx).Debug("source does not support watching", "error", err)
 			}
-		})
+		}()
 	}
 }
 

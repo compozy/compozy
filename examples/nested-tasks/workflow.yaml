@@ -2,8 +2,8 @@ id: nested-tasks
 version: 0.1.0
 description: Test workflow for nested container tasks
 
-config:
-  input:
+schemas:
+  - id: nested_input
     type: object
     properties:
       test_data:
@@ -17,29 +17,34 @@ config:
       parallel_count:
         type: number
         default: 3
+  - id: echo_input
+    type: object
+    properties:
+      message:
+        type: string
+        description: Message to echo
+    required:
+      - message
+  - id: counter_input
+    type: object
+    properties:
+      count:
+        type: number
+        description: Number to count to
+    required:
+      - count
+
+config:
+  input: nested_input
 
 tools:
   - id: echo_tool
     description: Simple echo tool for testing
-    input:
-      type: object
-      properties:
-        message:
-          type: string
-          description: Message to echo
-      required:
-        - message
+    input: echo_input
 
   - id: counter_tool
     description: Simple counter tool for testing
-    input:
-      type: object
-      properties:
-        count:
-          type: number
-          description: Number to count to
-      required:
-        - count
+    input: counter_input
 
 tasks:
   # Root composite task containing nested tasks
@@ -54,19 +59,19 @@ tasks:
         tasks:
           - id: task_a
             type: basic
-            $use: tool(local::tools.#(id="echo_tool"))
+            tool: echo_tool
             with:
               message: "Parallel Task A executed"
 
           - id: task_b
             type: basic
-            $use: tool(local::tools.#(id="echo_tool"))
+            tool: echo_tool
             with:
               message: "Parallel Task B executed"
 
           - id: task_c
             type: basic
-            $use: tool(local::tools.#(id="counter_tool"))
+            tool: counter_tool
             with:
               count: 3
 
@@ -79,7 +84,7 @@ tasks:
         task:
           id: "process-{{ .index }}"
           type: basic
-          $use: tool(local::tools.#(id="echo_tool"))
+          tool: echo_tool
           with:
             message: "Processing item: {{ .item }} at index {{ .index }}"
 
@@ -93,13 +98,13 @@ tasks:
             tasks:
               - id: race_task_1
                 type: basic
-                $use: tool(local::tools.#(id="echo_tool"))
+                tool: echo_tool
                 with:
                   message: "Race task 1 - trying to win!"
 
               - id: race_task_2
                 type: basic
-                $use: tool(local::tools.#(id="echo_tool"))
+                tool: echo_tool
                 with:
                   message: "Race task 2 - trying to win!"
 
@@ -111,7 +116,7 @@ tasks:
             task:
               id: "final-{{ .index }}"
               type: basic
-              $use: tool(local::tools.#(id="echo_tool"))
+              tool: echo_tool
               with:
                 message: "Final processing: {{ .item }}"
 

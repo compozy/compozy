@@ -23,11 +23,8 @@ func TestMemoryOperationConsistency(t *testing.T) {
 
 	// Create test agent with memory configuration
 	testAgent := &agent.Config{
-		ID: "memory_test_agent",
-		Config: core.ProviderConfig{
-			Provider: "openai",
-			Model:    "gpt-4",
-		},
+		ID:           "memory_test_agent",
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: "openai", Model: "gpt-4"}},
 		Instructions: "Test agent with memory",
 		LLMProperties: agent.LLMProperties{
 			Memory: []core.MemoryReference{
@@ -198,11 +195,8 @@ func TestMemoryOperationConsistency(t *testing.T) {
 	t.Run("Should handle empty memory configuration gracefully", func(t *testing.T) {
 		// Create agent without memory configuration
 		agentNoMemory := &agent.Config{
-			ID: "agent_without_memory",
-			Config: core.ProviderConfig{
-				Provider: "openai",
-				Model:    "gpt-4",
-			},
+			ID:           "agent_without_memory",
+			Model:        agent.Model{Config: core.ProviderConfig{Provider: "openai", Model: "gpt-4"}},
 			Instructions: "Test agent without memory",
 			LLMProperties: agent.LLMProperties{
 				Memory: []core.MemoryReference{}, // Empty memory configuration

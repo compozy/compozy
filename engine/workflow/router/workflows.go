@@ -30,7 +30,7 @@ func getWorkflowByID(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	uc := wfuc.NewGetWorkflow(appState.Workflows, workflowID)
+	uc := wfuc.NewGetWorkflow(appState.GetWorkflows(), workflowID)
 	workflow, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
@@ -60,7 +60,7 @@ func listWorkflows(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	uc := wfuc.NewListWorkflows(appState.Workflows)
+	uc := wfuc.NewListWorkflows(appState.GetWorkflows())
 	workflows, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(

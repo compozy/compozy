@@ -7,15 +7,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+
+	"gopkg.in/yaml.v3"
 
 	"dario.cat/mergo"
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
-	"github.com/compozy/compozy/pkg/ref"
 )
 
 type LLMProperties struct {
@@ -151,6 +154,16 @@ type Config struct {
 	// This allows fields to be accessed directly on Config in YAML/JSON
 	LLMProperties `json:",inline" yaml:",inline" mapstructure:",squash"`
 
+	// Model selects which LLM model to use.
+	// Supports two forms:
+	//   - string: a model ID to be resolved via the ResourceStore (e.g. "openai-gpt-4o-mini")
+	//   - object: an inline core.ProviderConfig with provider/model/params
+	//
+	// During compile/link, string refs are resolved and merged with inline
+	// fields following project precedence rules. Defaults are filled from the
+	// project when neither ref nor inline identity is provided.
+	Model Model `json:"model,omitempty" yaml:"model,omitempty" mapstructure:"model,omitempty"`
+
 	// Attachments declared at the agent scope.
 	Attachments attachment.Attachments `json:"attachments,omitempty" yaml:"attachments,omitempty" mapstructure:"attachments,omitempty"`
 
@@ -162,12 +175,8 @@ type Config struct {
 	//
 	// - **Examples:** `"code-assistant"`, `"data-analyst"`, `"customer-support"`
 	ID string `json:"id"                 yaml:"id"                 mapstructure:"id"                 validate:"required"`
-	// LLM provider configuration defining which AI model to use and its parameters.
-	// Supports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.
-	//
-	// **Required fields:** provider, model
-	// **Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)
-	Config core.ProviderConfig `json:"config"             yaml:"config"             mapstructure:"config"             validate:"required"`
+	// Provider configuration is now expressed through the polymorphic `Model` field.
+	// The previous `Config core.ProviderConfig` field has been removed.
 	// System instructions that define the agent's personality, behavior, and constraints.
 	// These instructions guide how the agent interprets tasks and generates responses.
 	//
@@ -224,6 +233,30 @@ type Config struct {
 
 	filePath string
 	CWD      *core.PathCWD
+}
+
+// UnmarshalYAML supports both string-form selectors ("agent: \"writer\"") and
+// full object form. When a scalar string is provided, it is interpreted as the
+// agent ID selector (ID-only). Object form follows normal decoding.
+func (a *Config) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+	if value.Kind == yaml.ScalarNode {
+		var id string
+		if err := value.Decode(&id); err != nil {
+			return err
+		}
+		a.ID = id
+		return nil
+	}
+	type alias Config
+	var tmp alias
+	if err := value.Decode(&tmp); err != nil {
+		return err
+	}
+	*a = Config(tmp)
+	return nil
 }
 
 // Component returns the configuration type identifier for agents.
@@ -292,6 +325,12 @@ func (a *Config) GetEnv() core.EnvMap {
 	return *a.Env
 }
 
+// GetProviderConfig returns a pointer to the effective provider configuration associated
+// with this agent. Callers may modify the returned config in-place.
+func (a *Config) GetProviderConfig() *core.ProviderConfig {
+	return &a.Model.Config
+}
+
 // HasSchema indicates whether this configuration supports schema validation.
 // Returns false for agents since they operate on dynamic natural language prompts
 // rather than structured input/output schemas like tools.
@@ -318,9 +357,9 @@ func (a *Config) NormalizeAndValidateMemoryConfig() error {
 		if a.Memory[i].ID == "" {
 			return fmt.Errorf("memory reference %d missing required 'id' field", i)
 		}
-		if a.Memory[i].Key == "" {
-			return fmt.Errorf("memory reference %d (id: %s) missing required 'key' field", i, a.Memory[i].ID)
-		}
+		// Key can be empty when using ID-only form; runtime will fall back to
+		// memory.Config.default_key_template (if provided). ResolvedKey may also
+		// be provided directly by REST APIs.
 		if a.Memory[i].Mode == "" {
 			a.Memory[i].Mode = defaultMemoryMode
 		}
@@ -416,37 +455,62 @@ func (a *Config) AsMap() (map[string]any, error) {
 // This is used during configuration loading and template evaluation to
 // reconstruct agent configurations from deserialized data.
 func (a *Config) FromMap(data any) error {
-	config, err := core.FromMapDefault[*Config](data)
+	if data == nil {
+		return nil
+	}
+	// Use a local decoder to handle string→Model for the `model` field while
+	// preserving existing hooks for types like *schema.Schema.
+	var dst Config
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		WeaklyTypedInput: true,
+		Result:           &dst,
+		TagName:          "mapstructure",
+		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			core.StringToMapAliasPtrHook,
+			func(from reflect.Type, to reflect.Type, v any) (any, error) {
+				// Support assigning a scalar string to agent.Model
+				if from.Kind() == reflect.String && to == reflect.TypeOf(Model{}) {
+					if s, ok := v.(string); ok {
+						return Model{Ref: s}, nil
+					}
+					return v, nil
+				}
+				// Support assigning a scalar string to mcp.Config
+				if from.Kind() == reflect.String && to == reflect.TypeOf(mcp.Config{}) {
+					if s, ok := v.(string); ok {
+						return mcp.Config{ID: s}, nil
+					}
+					return v, nil
+				}
+				// Support assigning a scalar string to core.MemoryReference
+				if from.Kind() == reflect.String && to == reflect.TypeOf(core.MemoryReference{}) {
+					if s, ok := v.(string); ok {
+						return core.MemoryReference{ID: s}, nil
+					}
+					return v, nil
+				}
+				return v, nil
+			},
+		),
+	})
 	if err != nil {
 		return err
 	}
-	return a.Merge(config)
+	if err := decoder.Decode(data); err != nil {
+		return err
+	}
+	return a.Merge(&dst)
 }
 
 // Load reads an agent configuration from a YAML or JSON file.
 // This function resolves the file path relative to the provided working directory
 // and loads the configuration without template evaluation.
-func Load(cwd *core.PathCWD, path string) (*Config, error) {
+func Load(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
 	}
-	config, _, err := core.LoadConfig[*Config](filePath)
-	if err != nil {
-		return nil, err
-	}
-	return config, nil
-}
-
-// LoadAndEval loads a configuration with template evaluation support.
-// This function processes template expressions like {{.env.API_KEY}} and {{.workflow.input.value}}
-// before loading the agent configuration, enabling dynamic configuration patterns.
-func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
-	filePath, err := core.ResolvePath(cwd, path)
-	if err != nil {
-		return nil, err
-	}
-	config, _, err := core.LoadConfigWithEvaluator[*Config](filePath, ev)
+	config, _, err := core.LoadConfig[*Config](ctx, filePath)
 	if err != nil {
 		return nil, err
 	}

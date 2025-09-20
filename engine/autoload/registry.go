@@ -1,6 +1,7 @@
 package autoload
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -8,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/resources"
 )
 
 // configEntry represents a configuration entry in the registry
@@ -276,4 +278,79 @@ func (r *ConfigRegistry) CountByType(resourceType string) int {
 		return 0
 	}
 	return len(configs)
+}
+
+// SyncToResourceStore publishes all registered configurations to the provided
+// ResourceStore under stable (project,type,id) keys. This is intended for
+// development and tests where AutoLoad discovers resources from the filesystem.
+//
+// Notes:
+//   - We do a best-effort type mapping. When entries are map[string]any, they are
+//     stored as-is; typed entries (e.g., *agent.Config) are stored as pointers.
+//   - Compile/link expects typed values for agent/tool lookups; when possible,
+//     prefer registering typed configs via AutoLoader. This method still stores
+//     raw maps to aid schema/model indexing.
+func (r *ConfigRegistry) SyncToResourceStore(ctx context.Context, project string, store resources.ResourceStore) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if store == nil {
+		return fmt.Errorf("resource store is required")
+	}
+	if strings.TrimSpace(project) == "" {
+		return fmt.Errorf("project name is required")
+	}
+	// Helper to translate registry type keys to resources.ResourceType
+	toType := func(t string) (resources.ResourceType, bool) {
+		switch strings.ToLower(strings.TrimSpace(t)) {
+		case "workflow":
+			return resources.ResourceWorkflow, true
+		case "task":
+			return resources.ResourceTask, true
+		case "agent":
+			return resources.ResourceAgent, true
+		case "tool":
+			return resources.ResourceTool, true
+		case "mcp":
+			return resources.ResourceMCP, true
+		case "project":
+			return resources.ResourceProject, true
+		case "memory":
+			return resources.ResourceMemory, true
+		case "schema":
+			return resources.ResourceSchema, true
+		case "model":
+			return resources.ResourceModel, true
+		default:
+			return "", false
+		}
+	}
+	for t, byID := range r.configs {
+		rtype, ok := toType(t)
+		if !ok {
+			continue
+		}
+		if err := r.publishTypeBucket(ctx, project, rtype, byID, store); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *ConfigRegistry) publishTypeBucket(
+	ctx context.Context,
+	project string,
+	rtype resources.ResourceType,
+	byID map[string]*configEntry,
+	store resources.ResourceStore,
+) error {
+	for id, entry := range byID {
+		key := resources.ResourceKey{Project: project, Type: rtype, ID: id}
+		if _, err := store.Put(ctx, key, entry.config); err != nil {
+			return fmt.Errorf("failed to publish %s '%s' to store: %w", string(rtype), id, err)
+		}
+		if err := resources.WriteMetaForAutoload(ctx, store, project, rtype, id); err != nil {
+			return fmt.Errorf("failed to write autoload meta for %s '%s': %w", string(rtype), id, err)
+		}
+	}
+	return nil
 }

@@ -255,20 +255,17 @@ api:
 
 ### Reference Patterns
 
-Use `$ref` and `$use` for reusable components:
+Use simple ID-based references for reusable components:
 
 ```yaml
-# Reference to shared schema
-input:
-  $ref: "schemas/user-input.yaml"
+# Reference a shared schema by ID
+input: user_input
 
-# Use shared tool
-tool:
-  $use: "tools/data-validator.yaml"
+# Reference a tool by ID
+tool: data_validator
 
-# Reference with filters
-schema:
-  $ref: local::schemas.#(id=="user_schema")
+# Reference an agent by ID in a task
+agent: classifier
 ```
 
 ## References

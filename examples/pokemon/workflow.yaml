@@ -20,8 +20,7 @@ schemas:
       - ref
 
 config:
-  input:
-    $ref: local::schemas.#(id=="media_input")
+  input: media_input
 
 agents:
   - id: image_analyzer
@@ -89,7 +88,7 @@ tasks:
 
   - id: analyze_image
     type: basic
-    $use: agent(local::agents.#(id=="image_analyzer"))
+    agent: image_analyzer
     action: analyze_image
     attachments:
       - type: image
@@ -98,7 +97,7 @@ tasks:
 
   - id: analyze_audio
     type: basic
-    $use: agent(local::agents.#(id=="media_analyzer"))
+    agent: media_analyzer
     action: analyze_audio
     attachments:
       - type: audio
@@ -107,7 +106,7 @@ tasks:
 
   - id: analyze_video
     type: basic
-    $use: agent(local::agents.#(id=="media_analyzer"))
+    agent: media_analyzer
     action: analyze_video
     attachments:
       - type: video

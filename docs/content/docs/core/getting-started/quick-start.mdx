@@ -131,23 +131,22 @@ schemas:
 
 config:
   input:
-    $ref: schemas.#(id=="greeting_input")
+    greeting_input
 
 tools:
   - id: greeting_tool
     description: Generate personalized greetings
     input:
-      $ref: schemas.#(id=="greeting_input")
+      greeting_input
 
 agents:
   - id: greeter
-    config:
-      $ref: global::models.#(provider=="openai")
+    model: openai:gpt-4o-mini
     instructions: |
       You are a friendly assistant that creates personalized greetings.
       Use the greeting tool to generate an appropriate greeting, then enhance it with a thoughtful message.
     tools:
-      - $ref: local::tools.#(id=="greeting_tool")
+      - greeting_tool
     actions:
       - id: create_greeting
         prompt: |
@@ -157,7 +156,7 @@ agents:
 tasks:
   - id: greet
     type: basic
-    $use: agent(local::agents.#(id=="greeter"))
+    agent: greeter
     action: create_greeting
     final: true
 

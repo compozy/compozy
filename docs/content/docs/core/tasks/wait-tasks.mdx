@@ -204,7 +204,7 @@ Use TypeScript tools for structured data processing:
 
   processor:
     type: basic
-    $use: tool(local::tools.#(id=="data-processor"))
+    tool: data-processor
     with:
       signal_data: "{{ .signal.payload }}"
       received_at: "{{ .signal.metadata.received_at_utc }}"
@@ -241,7 +241,7 @@ Use [AI agents](/docs/core/agents/overview) for intelligent signal analysis:
 
   processor:
     type: basic
-    $use: agent(local::agents.#(id=="feedback-analyzer"))
+    agent: feedback-analyzer
     action: analyze_feedback
     with:
       feedback_text: "{{ .signal.payload.feedback }}"
@@ -321,7 +321,7 @@ Implement graceful degradation when primary services are unavailable:
 
   processor:
     type: basic
-    $use: tool(local::tools.#(id=="premium-processor"))
+    tool: premium-processor
     with:
       service_data: "{{ .signal.payload }}"
       service_level: "premium"
@@ -438,7 +438,7 @@ Always validate signal content to ensure data integrity:
 
   processor:
     type: basic
-    $use: tool(local::tools.#(id=="input-validator"))
+    tool: input-validator
     with:
       input_data: "{{ .signal.payload }}"
       validation_rules: "{{ .workflow.input.validation_rules }}"
@@ -458,7 +458,7 @@ Design processors for efficiency and minimal resource usage:
 # ✅ Efficient processor
 processor:
   type: basic
-  $use: tool(local::tools.#(id=="lightweight-processor"))
+  tool: lightweight-processor
   with:
     signal_id: "{{ .signal.metadata.signal_id }}"
     key_data: "{{ .signal.payload.essential_field }}"
@@ -469,7 +469,7 @@ processor:
   tasks:
     - id: heavy-task
       type: basic
-      $use: tool(local::tools.#(id=="heavy-processor"))
+      tool: heavy-processor
       with:
         entire_payload: "{{ .signal.payload }}"
 ```

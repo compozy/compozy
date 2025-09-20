@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	admincmd "github.com/compozy/compozy/cli/cmd/admin"
 	authcmd "github.com/compozy/compozy/cli/cmd/auth"
 	configcmd "github.com/compozy/compozy/cli/cmd/config"
 	"github.com/compozy/compozy/cli/cmd/dev"
@@ -74,6 +75,7 @@ and events with both interactive TUI and automation-friendly JSON output.`,
 		mcpproxycmd.NewMCPProxyCommand(),
 		configcmd.NewConfigCommand(),
 		authcmd.Cmd(),
+		admincmd.Cmd(),
 		workflowcmd.Cmd(),
 		versionCmd,
 	)

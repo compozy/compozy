@@ -30,7 +30,7 @@ instructions: |
   Always respond in valid JSON format when json_mode is enabled.
 
 tools:
-  - $ref: local::tools.#(id=="weather_tool")
+  - weather_tool
 
 actions:
   - id: get_weather
@@ -52,6 +52,44 @@ actions:
       required:
         - activities
 ```
+</agent_config_pattern>
+
+## Agent Referencing a Model Resource (preferred)
+
+<agent_config_pattern type="agent_with_model_id">
+Agents SHOULD reference a first-class model resource by ID. The model is stored in the `ResourceStore` under type `model` and linked during compile.
+
+```yaml
+resource: agent
+id: image_analyzer
+description: Analyze screenshots and PDFs
+
+# Preferred: link model by ID (see Resources API)
+model: openai-gpt-4o-mini
+
+instructions: |
+  You analyze images and documents for UI issues.
+
+tools:
+  - vision_tools
+```
+
+Example model resource (persisted via Resources API):
+
+```json
+{
+  "id": "openai-gpt-4o-mini",
+  "type": "model",
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "api_key": "{{ .env.OPENAI_API_KEY }}",
+  "temperature": 0.7
+}
+```
+
+Resolution rules:
+- The compiler resolves `model: <id>` to the provider configuration and applies it to the effective agent.
+- Inline `config` is still accepted for legacy examples, but new projects MUST prefer `model` IDs.
 </agent_config_pattern>
 
 ## Agent with MCP Integration

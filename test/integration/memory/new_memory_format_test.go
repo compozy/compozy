@@ -165,7 +165,7 @@ func createTestAgentWithNewMemoryFormat(t *testing.T, _ *TestEnvironment) *agent
 
 	agentConfig := &agent.Config{
 		ID:           "test-agent-new-format",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent with new memory format",
 		LLMProperties: agent.LLMProperties{
 			Memory: []core.MemoryReference{
@@ -201,7 +201,7 @@ func createTestAgentWithMultipleNewMemoryFormat(t *testing.T, _ *TestEnvironment
 
 	agentConfig := &agent.Config{
 		ID:           "test-agent-multi-new-format",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent with multiple memories in new format",
 		LLMProperties: agent.LLMProperties{
 			Memory: []core.MemoryReference{
@@ -238,7 +238,7 @@ func createTestAgentWithReadOnlyNewMemoryFormat(t *testing.T, _ *TestEnvironment
 
 	agentConfig := &agent.Config{
 		ID:           "test-agent-readonly-new-format",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent with read-only memory in new format",
 		LLMProperties: agent.LLMProperties{
 			Memory: []core.MemoryReference{

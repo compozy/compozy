@@ -6,7 +6,8 @@ id: multi-provider-example
 description: Memory with multi-provider token counting support
 version: 1.0.0
 
-key: "provider:{{.session_id}}"
+# Fallback key template for ID-only references
+default_key_template: "provider:{{.session_id}}"
 
 type: token_based
 max_tokens: 8000

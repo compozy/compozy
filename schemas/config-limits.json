@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://schemas.compozy.com/config-limits.json",
+  "$id": "config-limits.json",
   "properties": {
     "max_nesting_depth": {
       "type": "integer",

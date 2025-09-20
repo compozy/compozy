@@ -217,12 +217,6 @@ func (al *AutoLoader) GetConfig() *Config {
 	return al.config
 }
 
-// CreateResourceResolver creates a ResourceResolver for use with pkg/ref
-// This resolver can be used to enable resource:: scope references in the ref system
-func (al *AutoLoader) CreateResourceResolver() *ResourceResolver {
-	return NewResourceResolver(al.registry)
-}
-
 // Stats returns current statistics about loaded configurations
 func (al *AutoLoader) Stats() map[string]int {
 	return map[string]int{
@@ -260,13 +254,13 @@ func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 }
 
 // loadAndRegisterConfig loads a configuration file and registers it in the registry
-func (al *AutoLoader) loadAndRegisterConfig(_ context.Context, filePath string) error {
+func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string) error {
 	// Security: Verify the file path doesn't escape the project root
 	if err := al.validateFilePath(filePath); err != nil {
 		return err
 	}
 	// First, load the file as a map to determine the resource type
-	configMap, err := core.MapFromFilePath(filePath)
+	configMap, err := core.MapFromFilePath(ctx, filePath)
 	if err != nil {
 		return core.NewError(err, "PARSE_ERROR", map[string]any{
 			"file":       filePath,

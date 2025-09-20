@@ -178,7 +178,6 @@ After completing the analysis and generating all required files, present your re
 Remember:
 
 - Assume the primary reader is a junior developer
-- For large features (>10 parent tasks or high complexity), suggest breaking down into phases
 - Use the format X.0 for parent tasks, X.Y for subtasks
 - Clearly indicate task dependencies and explicitly mark which tasks can run in parallel
 - Suggest implementation phases and parallel workstreams for complex features

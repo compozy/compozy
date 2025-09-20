@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -62,6 +63,30 @@ func GetWorker(c *gin.Context) *worker.Worker {
 		return nil
 	}
 	return state.Worker
+}
+
+func GetResourceStore(c *gin.Context) (resources.ResourceStore, bool) {
+	state := GetAppState(c)
+	if state == nil {
+		if !c.Writer.Written() {
+			reqErr := NewRequestError(http.StatusInternalServerError, "application state not initialized", nil)
+			RespondWithError(c, reqErr.StatusCode, reqErr)
+		}
+		return nil, false
+	}
+	v, ok := state.ResourceStore()
+	if !ok || v == nil {
+		reqErr := NewRequestError(http.StatusServiceUnavailable, "resource store not available", nil)
+		RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil, false
+	}
+	rs, ok := v.(resources.ResourceStore)
+	if !ok || rs == nil {
+		reqErr := NewRequestError(http.StatusInternalServerError, "invalid resource store instance", nil)
+		RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil, false
+	}
+	return rs, true
 }
 
 func GetRequestBody[T any](c *gin.Context) *T {

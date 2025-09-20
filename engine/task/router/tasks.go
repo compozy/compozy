@@ -35,7 +35,7 @@ func getTaskByID(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	uc := uc.NewGetTask(appState.Workflows, workflowID, taskID)
+	uc := uc.NewGetTask(appState.GetWorkflows(), workflowID, taskID)
 	task, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
@@ -72,7 +72,7 @@ func listTasks(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	uc := uc.NewListTasks(appState.Workflows, workflowID)
+	uc := uc.NewListTasks(appState.GetWorkflows(), workflowID)
 	tasks, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(

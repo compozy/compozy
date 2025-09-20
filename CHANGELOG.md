@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## Unreleased
 
+### ⚠️ Breaking Changes
+
+- config: NewService now requires an explicit `resources.ResourceStore` parameter.
+  - Migration: replace calls to `config.NewService(envFilePath)` with `config.NewService(envFilePath, resources.NewMemoryResourceStore())` for in-memory usage, or pass your application store (e.g., Redis-backed or Postgres-backed via provider).
+  - Rationale: makes the source of truth explicit and avoids hidden globals; aligns with repository standards to avoid singletons and read configuration from context.
+
+### 📚 Docs
+
+- Documented `server.seed_from_repo_on_empty` (default: false) and `server.source_of_truth` in Server Configuration docs. See docs at `/docs/core/configuration/server#seed-from-repo-on-empty`.
+
 ### 🐛 Bug Fixes
 
 - *(repo)* Dispatcher uniqueness ([#256](https://github.com/compozy/compozy/issues/256))

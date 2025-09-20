@@ -70,7 +70,7 @@ func NewExecuteTask(
 
 // resolveModelConfig implements the model resolution fallback chain:
 // 1. Task-specific ModelConfig (if set)
-// 2. Agent-specific Config (if agent exists and has config)
+// 2. Agent-specific model config (if agent exists and has config)
 // 3. Project default model (if configured)
 func (uc *ExecuteTask) resolveModelConfig(input *ExecuteTaskInput) error {
 	if input == nil || input.TaskConfig == nil {
@@ -81,7 +81,7 @@ func (uc *ExecuteTask) resolveModelConfig(input *ExecuteTaskInput) error {
 		return nil
 	}
 	// Check if agent has a model config
-	if input.TaskConfig.Agent != nil && input.TaskConfig.Agent.Config.Provider != "" {
+	if input.TaskConfig.Agent != nil && input.TaskConfig.Agent.Model.Config.Provider != "" {
 		// Agent has config, will be used during agent execution
 		return nil
 	}
@@ -375,7 +375,7 @@ func (uc *ExecuteTask) executeAgent(
 	if err := uc.prepareAgentConfig(ctx, agentConfig, input, actionID); err != nil {
 		return nil, err
 	}
-	if agentConfig.Config.Provider == "" {
+	if agentConfig.Model.Config.Provider == "" {
 		log.Warn("No model provider configured for agent; execution may fail",
 			"agent_id", agentConfig.ID,
 			"task_id", input.TaskConfig.ID)
@@ -503,20 +503,20 @@ func (uc *ExecuteTask) prepareAgentConfig(
 ) error {
 	log := logger.FromContext(ctx)
 	// Apply default model to agent if it doesn't have one
-	if agentConfig.Config.Provider == "" && input.ProjectConfig != nil {
+	if agentConfig.Model.Config.Provider == "" && input.ProjectConfig != nil {
 		defaultModel := input.ProjectConfig.GetDefaultModel()
 		if defaultModel != nil {
-			agentConfig.Config = *defaultModel
+			agentConfig.Model.Config = *defaultModel
 		}
 	}
 	// If provider is set but model is empty, try to fill from project default (same provider)
-	if agentConfig.Config.Provider != "" && agentConfig.Config.Model == "" && input.ProjectConfig != nil {
-		if dm := input.ProjectConfig.GetDefaultModel(); dm != nil && dm.Provider == agentConfig.Config.Provider {
-			agentConfig.Config.Model = dm.Model
+	if agentConfig.Model.Config.Provider != "" && agentConfig.Model.Config.Model == "" && input.ProjectConfig != nil {
+		if dm := input.ProjectConfig.GetDefaultModel(); dm != nil && dm.Provider == agentConfig.Model.Config.Provider {
+			agentConfig.Model.Config.Model = dm.Model
 		}
 	}
 	// Ensure provider config templates (like API keys) are normalized with env
-	if err := uc.normalizeProviderConfigWithEnv(ctx, &agentConfig.Config, input); err != nil {
+	if err := uc.normalizeProviderConfigWithEnv(ctx, &agentConfig.Model.Config, input); err != nil {
 		return fmt.Errorf("failed to normalize provider config: %w", err)
 	}
 	// Ensure we operate on the latest workflow state so template parsing sees
@@ -707,7 +707,7 @@ func (uc *ExecuteTask) executeDirectLLM(ctx context.Context, input *ExecuteTaskI
 	syntheticAgent := &agent.Config{
 		ID:            fmt.Sprintf("task-%s-llm", input.TaskConfig.ID),
 		Instructions:  "Direct LLM task execution - follow the task prompt",
-		Config:        input.TaskConfig.ModelConfig,
+		Model:         agent.Model{Config: input.TaskConfig.ModelConfig},
 		LLMProperties: input.TaskConfig.LLMProperties,
 	}
 	logger.FromContext(ctx).Debug("Executing direct LLM task",
@@ -715,7 +715,7 @@ func (uc *ExecuteTask) executeDirectLLM(ctx context.Context, input *ExecuteTaskI
 		"provider", input.TaskConfig.ModelConfig.Provider,
 		"model", input.TaskConfig.ModelConfig.Model)
 	// Normalize provider config for direct LLM before execution
-	if err := uc.normalizeProviderConfigWithEnv(ctx, &syntheticAgent.Config, input); err != nil {
+	if err := uc.normalizeProviderConfigWithEnv(ctx, &syntheticAgent.Model.Config, input); err != nil {
 		return nil, fmt.Errorf("failed to normalize provider config for direct LLM: %w", err)
 	}
 	promptText := input.TaskConfig.Prompt

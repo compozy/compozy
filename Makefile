@@ -119,7 +119,7 @@ deps: check-go-version clean-go-cache swagger-deps
 	@echo "Installing goose for migrations..."
 	@$(GOCMD) install github.com/pressly/goose/v3/cmd/goose@latest
 	@echo "Installing golangci-lint v2..."
-	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$($(GOCMD) env GOPATH)/bin v2.2.1
+	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$($(GOCMD) env GOPATH)/bin v2.4.0
 	@echo "$(GREEN)✓ All dependencies installed successfully$(NC)"
 
 clean-go-cache:
@@ -208,7 +208,7 @@ release-major: release-deps
 
 test:
 	@bun run test
-	@gotestsum --format pkgname -- -race -parallel=4 ./...
+	@gotestsum --format pkgname  -- -race -parallel=4 ./...
 
 test-coverage:
 	@bun run test

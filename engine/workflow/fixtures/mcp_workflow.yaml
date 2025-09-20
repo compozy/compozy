@@ -4,7 +4,17 @@ description: "Test workflow with MCP server integration"
 
 config:
   input:
-    $ref: local::schemas.#(id=="search_input")
+    type: object
+    properties:
+      query:
+        type: string
+        description: Search query string
+      limit:
+        type: integer
+        description: Maximum number of results
+        default: 10
+    required:
+      - query
   env:
     WORKFLOW_VERSION: "1.0.0"
     MAX_RETRIES: "3"
@@ -58,8 +68,12 @@ mcps:
 
 agents:
   - id: search-assistant
-    config:
-      $ref: global::models.#(id=="gpt-4o")
+    model:
+      provider: openai
+      model: gpt-4o
+      params:
+        temperature: 0.7
+        max_tokens: 4000
     instructions: |
       You are a search assistant that helps users find relevant information.
       Use the available MCP tools to perform searches and retrieve data.
@@ -70,14 +84,38 @@ agents:
           Search for information about: {{ .input.query }}
           Limit results to: {{ .input.limit }}
         input:
-          $ref: local::schemas.#(id=="search_input")
+          type: object
+          properties:
+            query:
+              type: string
+              description: Search query string
+            limit:
+              type: integer
+              description: Maximum number of results
+              default: 10
+          required:
+            - query
         output:
-          $ref: local::schemas.#(id=="search_output")
+          type: object
+          properties:
+            results:
+              type: array
+              items:
+                type: object
+                properties:
+                  title:
+                    type: string
+                  url:
+                    type: string
+                  snippet:
+                    type: string
+              description: Search results
+          required:
+            - results
 
 tasks:
   - id: search-task
     type: basic
-    $use: agent(local::agents.#(id=="search-assistant"))
     action: perform-search
     with:
       query: "{{ .trigger.input.query }}"

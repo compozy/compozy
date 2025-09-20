@@ -83,7 +83,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
-	"github.com/compozy/compozy/pkg/ref"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/mitchellh/mapstructure"
 )
@@ -2479,11 +2478,29 @@ func (t *Config) Validate() error {
 			return fmt.Errorf("invalid wait task '%s': %w", t.ID, err)
 		}
 	}
+	if err := t.validateBasicSelectorRules(); err != nil {
+		return err
+	}
 	// Validate memory task specific fields
 	if t.Type == TaskTypeMemory {
 		if err := t.validateMemoryTask(); err != nil {
 			return fmt.Errorf("invalid memory task '%s': %w", t.ID, err)
 		}
+	}
+	return nil
+}
+
+// validateBasicSelectorRules enforces mutual exclusivity and presence rules
+// for basic task selectors across inline and explicit ref fields.
+func (t *Config) validateBasicSelectorRules() error {
+	if t.Type != TaskTypeBasic {
+		return nil
+	}
+	hasAgent := t.Agent != nil
+	hasTool := t.Tool != nil
+	// Enforce mutual exclusivity only; presence is enforced at compile time
+	if hasAgent && hasTool {
+		return fmt.Errorf("basic task '%s': agent and tool are mutually exclusive", t.ID)
 	}
 	return nil
 }
@@ -2672,11 +2689,31 @@ func (t *Config) FromMap(data any) error {
 		}
 		return v, nil
 	}
+	// Extend decode hook to coerce string-form selectors to IDs for agent/tool
+	agentPtr := reflect.TypeOf(&agent.Config{})
+	toolPtr := reflect.TypeOf(&tool.Config{})
+	extendedHook := func(from reflect.Type, to reflect.Type, v any) (any, error) {
+		if to == agentPtr {
+			if s, ok := v.(string); ok {
+				return &agent.Config{ID: s}, nil
+			}
+		}
+		if to == toolPtr {
+			if s, ok := v.(string); ok {
+				return &tool.Config{ID: s}, nil
+			}
+		}
+		nv, err := decodeHook(from, to, v)
+		if err != nil {
+			return nil, err
+		}
+		return nv, nil
+	}
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
 		Result:           &tmp,
 		TagName:          "mapstructure",
-		DecodeHook:       mapstructure.ComposeDecodeHookFunc(decodeHook),
+		DecodeHook:       mapstructure.ComposeDecodeHookFunc(extendedHook, core.StringToMapAliasPtrHook),
 	})
 	if err != nil {
 		return err
@@ -2899,12 +2936,12 @@ func normalizeAttachmentsPhase1(
 // Returns:
 //   - *Config: Parsed and validated task configuration
 //   - error: Any loading or validation errors
-func Load(cwd *core.PathCWD, path string) (*Config, error) {
+func Load(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
 	}
-	config, _, err := core.LoadConfig[*Config](filePath)
+	config, _, err := core.LoadConfig[*Config](ctx, filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -2915,49 +2952,8 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	if err := propagateCWDToSubTasks(config); err != nil {
 		return nil, err
 	}
-	if err := normalizeAttachmentsPhase1(context.TODO(), config,
+	if err := normalizeAttachmentsPhase1(ctx, config,
 		tplengine.NewEngine(tplengine.FormatJSON), nil); err != nil {
-		return nil, err
-	}
-	return config, nil
-}
-
-// LoadAndEval loads a task configuration and evaluates template expressions.
-// Uses the provided evaluator to resolve references and template variables.
-// This is typically used when loading tasks within a workflow context where
-// template expressions need to be resolved against workflow state.
-//
-// Parameters:
-//   - cwd: Current working directory for resolving relative paths
-//   - path: Path to the task configuration file (can be relative or absolute)
-//   - ev: Reference evaluator for resolving template expressions
-//
-// Returns:
-//   - *Config: Parsed, evaluated, and validated task configuration
-//   - error: Any loading, evaluation, or validation errors
-func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
-	filePath, err := core.ResolvePath(cwd, path)
-	if err != nil {
-		return nil, err
-	}
-	scope, err := core.MapFromFilePath(filePath)
-	if err != nil {
-		return nil, err
-	}
-	ev.WithLocalScope(scope)
-	config, _, err := core.LoadConfigWithEvaluator[*Config](filePath, ev)
-	if err != nil {
-		return nil, err
-	}
-	if string(config.Type) == "" {
-		config.Type = TaskTypeBasic
-	}
-	applyDefaults(config)
-	if err := propagateCWDToSubTasks(config); err != nil {
-		return nil, err
-	}
-	if err := normalizeAttachmentsPhase1(context.TODO(), config,
-		tplengine.NewEngine(tplengine.FormatJSON), scope); err != nil {
 		return nil, err
 	}
 	return config, nil

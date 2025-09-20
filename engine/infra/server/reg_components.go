@@ -4,6 +4,7 @@ import (
 	agentrouter "github.com/compozy/compozy/engine/agent/router"
 	"github.com/compozy/compozy/engine/memory"
 	memrouter "github.com/compozy/compozy/engine/memory/router"
+	resourcesrouter "github.com/compozy/compozy/engine/resources/router"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
 	toolrouter "github.com/compozy/compozy/engine/tool/router"
 	wfrouter "github.com/compozy/compozy/engine/workflow/router"
@@ -18,6 +19,7 @@ func setupComponentRoutes(apiBase *gin.RouterGroup, healthService *memory.Health
 	toolrouter.Register(apiBase)
 	schedulerouter.Register(apiBase)
 	memrouter.Register(apiBase)
+	resourcesrouter.Register(apiBase)
 	if healthService != nil {
 		memory.RegisterMemoryHealthRoutes(apiBase, healthService)
 	}

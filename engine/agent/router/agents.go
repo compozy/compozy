@@ -31,7 +31,7 @@ func getAgentByID(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	uc := uc.NewGetAgent(appState.Workflows, agentID)
+	uc := uc.NewGetAgent(appState.GetWorkflows(), agentID)
 	agent, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
@@ -61,7 +61,7 @@ func listAgents(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	uc := uc.NewListAgents(appState.Workflows)
+	uc := uc.NewListAgents(appState.GetWorkflows())
 	agents, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(

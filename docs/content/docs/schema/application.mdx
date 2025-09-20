@@ -13,6 +13,12 @@ import memorySchema from "@/schemas/config-memory.json";
 import llmSchema from "@/schemas/config-llm.json";
 import ratelimitSchema from "@/schemas/config-ratelimit.json";
 import cliSchema from "@/schemas/config-cli.json";
+import redisSchema from "@/schemas/config-redis.json";
+import cacheSchema from "@/schemas/config-cache.json";
+import workerSchema from "@/schemas/config-worker.json";
+import mcpproxySchema from "@/schemas/config-mcpproxy.json";
+import attachmentsSchema from "@/schemas/config-attachments.json";
+import webhooksSchema from "@/schemas/config-webhooks.json";
 
 ## Server
 
@@ -98,6 +104,66 @@ import cliSchema from "@/schemas/config-cli.json";
 
 <SchemaParams
   schema={ratelimitSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Redis
+
+<SchemaParams
+  schema={redisSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Cache
+
+<SchemaParams
+  schema={cacheSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Worker
+
+<SchemaParams
+  schema={workerSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## MCP Proxy
+
+<SchemaParams
+  schema={mcpproxySchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Attachments
+
+<SchemaParams
+  schema={attachmentsSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Webhooks
+
+<SchemaParams
+  schema={webhooksSchema}
   title="Schema Definition"
   collapsible={true}
   defaultExpanded={true}

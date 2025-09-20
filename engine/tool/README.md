@@ -154,9 +154,8 @@ func main() {
 #### Tool Configuration Management
 
 ```go
-// Load tool with template evaluation
-evaluator := ref.NewEvaluator()
-config, err := tool.LoadAndEval(cwd, "tools/api-client.yaml", evaluator)
+// Load tool configuration (legacy template evaluation removed)
+config, err := tool.Load(cwd, "tools/api-client.yaml")
 if err != nil {
     return err
 }
@@ -207,7 +206,7 @@ if err := config.ValidateOutput(ctx, output); err != nil {
 ```go
 // Get effective timeout (tool-specific or global fallback)
 globalTimeout := 60 * time.Second
-timeout, err := config.GetTimeout(globalTimeout)
+timeout, err := config.GetTimeout(ctx, globalTimeout)
 if err != nil {
     return fmt.Errorf("invalid timeout: %w", err)
 }
@@ -519,7 +518,7 @@ type Config struct {
 - `Validate() error` - Validates tool configuration
 - `ValidateInput(ctx context.Context, input *core.Input) error` - Validates input parameters
 - `ValidateOutput(ctx context.Context, output *core.Output) error` - Validates output data
-- `GetTimeout(globalTimeout time.Duration) (time.Duration, error)` - Gets effective timeout
+- `GetTimeout(ctx context.Context, globalTimeout time.Duration) (time.Duration, error)` - Gets effective timeout
 - `GetLLMDefinition() llms.Tool` - Generates LLM function definition
 - `HasSchema() bool` - Checks if tool has validation schemas
 
@@ -532,15 +531,6 @@ Loads tool configuration from file.
 ```go
 cwd, _ := core.CWDFromPath("/project")
 config, err := tool.Load(cwd, "tools/my-tool.yaml")
-```
-
-#### `LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error)`
-
-Loads tool configuration with template evaluation.
-
-```go
-evaluator := ref.NewEvaluator()
-config, err := tool.LoadAndEval(cwd, "tools/my-tool.yaml", evaluator)
 ```
 
 #### `IsTypeScript(path string) bool`

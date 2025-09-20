@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "config-redis.json",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "URL provides a complete Redis connection string.\n\nFormat: `redis://[user:password@]host:port/db`\nTakes precedence over individual connection parameters."
+    },
+    "host": {
+      "type": "string",
+      "description": "Host specifies the Redis server hostname or IP address.\n\nDefault: \"localhost\""
+    },
+    "port": {
+      "type": "string",
+      "description": "Port specifies the Redis server port as a string.\n\n**Format**: String representation of port number (1-65535)\n**YAML**: Both \"6379\" (quoted) and 6379 (numeric) are accepted\n**Breaking Change**: Changed from int to string in v2.0.0\n\nDefault: \"6379\""
+    },
+    "password": {
+      "type": "string",
+      "description": "Password authenticates with Redis.\n\n**Security**: Use environment variables in production."
+    },
+    "db": {
+      "type": "integer",
+      "description": "DB selects the Redis database number.\n\nDefault: 0"
+    },
+    "max_retries": {
+      "type": "integer",
+      "description": "MaxRetries sets the maximum number of retries before giving up.\n\nDefault: 3"
+    },
+    "pool_size": {
+      "type": "integer",
+      "description": "PoolSize sets the maximum number of socket connections.\n\nDefault: 10 per CPU"
+    },
+    "min_idle_conns": {
+      "type": "integer",
+      "description": "MinIdleConns sets the minimum number of idle connections.\n\nDefault: 0"
+    },
+    "max_idle_conns": {
+      "type": "integer",
+      "description": "MaxIdleConns sets the maximum number of idle connections.\n\nDefault: 0"
+    },
+    "dial_timeout": {
+      "type": "integer",
+      "description": "DialTimeout sets timeout for establishing new connections.\n\nDefault: 5s"
+    },
+    "read_timeout": {
+      "type": "integer",
+      "description": "ReadTimeout sets timeout for socket reads.\n\nDefault: 3s"
+    },
+    "write_timeout": {
+      "type": "integer",
+      "description": "WriteTimeout sets timeout for socket writes.\n\nDefault: ReadTimeout"
+    },
+    "pool_timeout": {
+      "type": "integer",
+      "description": "PoolTimeout sets timeout for getting connection from pool.\n\nDefault: ReadTimeout + 1s"
+    },
+    "ping_timeout": {
+      "type": "integer",
+      "description": "PingTimeout sets timeout for ping command.\n\nDefault: 1s"
+    },
+    "min_retry_backoff": {
+      "type": "integer",
+      "description": "MinRetryBackoff sets minimum backoff between retries.\n\nDefault: 8ms"
+    },
+    "max_retry_backoff": {
+      "type": "integer",
+      "description": "MaxRetryBackoff sets maximum backoff between retries.\n\nDefault: 512ms"
+    },
+    "notification_buffer_size": {
+      "type": "integer",
+      "description": "NotificationBufferSize sets buffer size for pub/sub notifications.\n\nDefault: 100"
+    },
+    "tls_enabled": {
+      "type": "boolean",
+      "description": "TLSEnabled enables TLS encryption.\n\nDefault: false"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "RedisConfig contains Redis connection configuration.",
+  "yamlCompatible": true
+}

@@ -3,7 +3,8 @@ id: customer_support_memory
 description: Customer support conversation with privacy protection
 version: 1.0.0
 
-key: "support:{{.conversation_id}}"
+# Fallback key template for ID-only references
+default_key_template: "support:{{.conversation_id}}"
 
 type: token_based
 max_tokens: 4000

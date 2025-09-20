@@ -106,9 +106,6 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	// Create a base URI for schema cross-references
-	baseSchemaURI := "https://schemas.compozy.com/"
-
 	// Define the structs for which to generate schemas
 	schemas := []struct {
 		name        string
@@ -142,6 +139,12 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 		{"config-llm", &config.LLMConfig{}, "pkg/config"},
 		{"config-ratelimit", &config.RateLimitConfig{}, "pkg/config"},
 		{"config-cli", &config.CLIConfig{}, "pkg/config"},
+		{"config-redis", &config.RedisConfig{}, "pkg/config"},
+		{"config-cache", &config.CacheConfig{}, "pkg/config"},
+		{"config-worker", &config.WorkerConfig{}, "pkg/config"},
+		{"config-mcpproxy", &config.MCPProxyConfig{}, "pkg/config"},
+		{"config-attachments", &config.AttachmentsConfig{}, "pkg/config"},
+		{"config-webhooks", &config.WebhooksConfig{}, "pkg/config"},
 	}
 
 	// Track runtime schemas for merging
@@ -154,15 +157,13 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 		if s.name == "runtime" || s.name == "config-runtime" {
 			// Create a separate reflector for each schema to avoid self-reference issues
 			schemaReflector := &jsonschema.Reflector{
-				RequiredFromJSONSchemaTags: true,  // Respect `validate:"required"` tags
-				AllowAdditionalProperties:  false, // Disallow additional properties
-				DoNotReference:             false, // Use $ref for nested types
-				BaseSchemaID: jsonschema.ID(
-					baseSchemaURI,
-				), // Use custom base URI for cross-references
-				ExpandedStruct: true,                   // Expand struct definitions to include full comments
-				FieldNameTag:   "json",                 // Use json tags for field names
-				IgnoredTypes:   []any{&core.PathCWD{}}, // Ignore time.Time type
+				RequiredFromJSONSchemaTags: true,                   // Respect `validate:"required"` tags
+				AllowAdditionalProperties:  false,                  // Disallow additional properties
+				DoNotReference:             false,                  // Use $ref for nested types; we inline selectively later
+				BaseSchemaID:               "",                     // Use relative paths for better bundling
+				ExpandedStruct:             true,                   // Expand struct definitions to include full comments
+				FieldNameTag:               "json",                 // Use json tags for field names
+				IgnoredTypes:               []any{&core.PathCWD{}}, // Ignore PathCWD type
 			}
 
 			// Apply basic pointer handling for all schemas
@@ -190,8 +191,8 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 			// Generate JSON schema
 			schema := schemaReflector.Reflect(s.data)
 
-			// Set proper schema ID for cross-references
-			schema.ID = jsonschema.ID(baseSchemaURI + s.name + ".json")
+			// Set proper schema ID for cross-references using relative paths
+			schema.ID = jsonschema.ID(s.name + ".json")
 
 			// Add YAML-specific metadata
 			schema.Extras = map[string]any{
@@ -218,15 +219,13 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 
 		// Create a separate reflector for each schema to avoid self-reference issues
 		schemaReflector := &jsonschema.Reflector{
-			RequiredFromJSONSchemaTags: true,  // Respect `validate:"required"` tags
-			AllowAdditionalProperties:  false, // Disallow additional properties
-			DoNotReference:             false, // Use $ref for nested types
-			BaseSchemaID: jsonschema.ID(
-				baseSchemaURI,
-			), // Use custom base URI for cross-references
-			ExpandedStruct: true,                   // Expand struct definitions to include full comments
-			FieldNameTag:   "json",                 // Use json tags for field names
-			IgnoredTypes:   []any{&core.PathCWD{}}, // Ignore time.Time type
+			RequiredFromJSONSchemaTags: true,                   // Respect `validate:"required"` tags
+			AllowAdditionalProperties:  false,                  // Disallow additional properties
+			DoNotReference:             false,                  // Use $ref for nested types; we inline selectively later
+			BaseSchemaID:               "",                     // Use relative paths for better bundling
+			ExpandedStruct:             true,                   // Expand struct definitions to include full comments
+			FieldNameTag:               "json",                 // Use json tags for field names
+			IgnoredTypes:               []any{&core.PathCWD{}}, // Ignore PathCWD type
 		}
 
 		// Now config package also uses json tags
@@ -257,8 +256,8 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 		// Generate JSON schema
 		schema := schemaReflector.Reflect(s.data)
 
-		// Set proper schema ID for cross-references
-		schema.ID = jsonschema.ID(baseSchemaURI + s.name + ".json")
+		// Set proper schema ID for cross-references using relative paths
+		schema.ID = jsonschema.ID(s.name + ".json")
 
 		// Add YAML-specific metadata
 		schema.Extras = map[string]any{
@@ -362,6 +361,18 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 							updated = true
 						}
 					}
+
+					// Also fix the top-level triggers[].items.webhook reference (alternate shape)
+					if triggers, ok := props["triggers"].(map[string]any); ok {
+						if items, ok := triggers["items"].(map[string]any); ok {
+							if tprops, ok := items["properties"].(map[string]any); ok {
+								if webhookProp, ok := tprops["webhook"].(map[string]any); ok {
+									webhookProp["$ref"] = "webhook.json"
+									updated = true
+								}
+							}
+						}
+					}
 				}
 
 			case "task":
@@ -376,6 +387,51 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 					if tool, ok := props["tool"].(map[string]any); ok {
 						tool["$ref"] = "tool.json"
 						updated = true
+					}
+					// Fix mcps array reference
+					if mcps, ok := props["mcps"].(map[string]any); ok {
+						if items, ok := mcps["items"].(map[string]any); ok {
+							items["$ref"] = "mcp.json"
+							updated = true
+						}
+					}
+					// Break UI recursion: avoid self-referencing the entire task schema.
+					// Represent nested task slots as opaque objects for form rendering.
+					if processor, ok := props["processor"].(map[string]any); ok {
+						delete(processor, "$ref")
+						processor["type"] = "object"
+						processor["additionalProperties"] = false
+						if _, ok := processor["description"]; !ok {
+							processor["description"] = "Nested processor task configuration (simplified to avoid infinite recursion in forms)."
+						}
+						updated = true
+					}
+					if taskProp, ok := props["task"].(map[string]any); ok {
+						delete(taskProp, "$ref")
+						taskProp["type"] = "object"
+						taskProp["additionalProperties"] = false
+						if _, ok := taskProp["description"]; !ok {
+							taskProp["description"] = "Nested task configuration (simplified for UI forms)."
+						}
+						updated = true
+					}
+					if tasks, ok := props["tasks"].(map[string]any); ok {
+						if items, ok := tasks["items"].(map[string]any); ok {
+							delete(items, "$ref")
+							items["type"] = "object"
+							items["additionalProperties"] = false
+							if _, ok := items["description"]; !ok {
+								items["description"] = "Task item (simplified for UI forms)."
+							}
+							updated = true
+						}
+					}
+					// Fix tools array reference
+					if tools, ok := props["tools"].(map[string]any); ok {
+						if items, ok := tools["items"].(map[string]any); ok {
+							items["$ref"] = "tool.json"
+							updated = true
+						}
 					}
 				}
 			case "project":
@@ -396,6 +452,34 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 						monitoring["$ref"] = "monitoring.json"
 						updated = true
 					}
+					// Fix tools array reference
+					if tools, ok := props["tools"].(map[string]any); ok {
+						if items, ok := tools["items"].(map[string]any); ok {
+							items["$ref"] = "tool.json"
+							updated = true
+						}
+					}
+					// Fix agents array reference
+					if agents, ok := props["agents"].(map[string]any); ok {
+						if items, ok := agents["items"].(map[string]any); ok {
+							items["$ref"] = "agent.json"
+							updated = true
+						}
+					}
+					// Fix mcps array reference
+					if mcps, ok := props["mcps"].(map[string]any); ok {
+						if items, ok := mcps["items"].(map[string]any); ok {
+							items["$ref"] = "mcp.json"
+							updated = true
+						}
+					}
+					// Fix memories array reference to point to memory.json
+					if memories, ok := props["memories"].(map[string]any); ok {
+						if items, ok := memories["items"].(map[string]any); ok {
+							items["$ref"] = "memory.json"
+							updated = true
+						}
+					}
 				}
 			}
 
@@ -415,12 +499,12 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 	}
 
 	// Generate the merged runtime schema
-	if err := generateMergedRuntimeSchema(ctx, outDir, baseSchemaURI, projectRuntimeSchema, configRuntimeSchema); err != nil {
+	if err := generateMergedRuntimeSchema(ctx, outDir, projectRuntimeSchema, configRuntimeSchema); err != nil {
 		return fmt.Errorf("failed to generate merged runtime schema: %w", err)
 	}
 
 	// Generate unified compozy.yaml schema
-	if err := generateUnifiedSchema(ctx, outDir, baseSchemaURI); err != nil {
+	if err := generateUnifiedSchema(ctx, outDir); err != nil {
 		return fmt.Errorf("failed to generate unified schema: %w", err)
 	}
 
@@ -429,7 +513,7 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 
 // generateUnifiedSchema creates a unified schema combining project.Config and config.Config
 // This provides a complete view of all settings available in compozy.yaml
-func generateUnifiedSchema(ctx context.Context, outDir string, baseSchemaURI string) error {
+func generateUnifiedSchema(ctx context.Context, outDir string) error {
 	log := logger.FromContext(ctx)
 	log.Info("Generating unified compozy.yaml schema")
 
@@ -438,7 +522,7 @@ func generateUnifiedSchema(ctx context.Context, outDir string, baseSchemaURI str
 		RequiredFromJSONSchemaTags: true,
 		AllowAdditionalProperties:  false,
 		DoNotReference:             false,
-		BaseSchemaID:               jsonschema.ID(baseSchemaURI),
+		BaseSchemaID:               "", // Use relative paths for better bundling
 		ExpandedStruct:             true,
 		FieldNameTag:               "json",
 		IgnoredTypes:               []any{&core.PathCWD{}},
@@ -449,7 +533,7 @@ func generateUnifiedSchema(ctx context.Context, outDir string, baseSchemaURI str
 		RequiredFromJSONSchemaTags: true,
 		AllowAdditionalProperties:  false,
 		DoNotReference:             false,
-		BaseSchemaID:               jsonschema.ID(baseSchemaURI),
+		BaseSchemaID:               "", // Use relative paths for better bundling
 		ExpandedStruct:             true,
 		FieldNameTag:               "json",
 		IgnoredTypes:               []any{&core.PathCWD{}},
@@ -516,8 +600,31 @@ func generateUnifiedSchema(ctx context.Context, outDir string, baseSchemaURI str
 		return fmt.Errorf("failed to merge schemas: %w", err)
 	}
 
+	// Post-merge fixups for cross-schema references that should point to standalone files
+	if props, ok := projectMap["properties"].(map[string]any); ok {
+		// Ensure tools items reference tool.json so bundlers can inline properly
+		if tools, ok := props["tools"].(map[string]any); ok {
+			if items, ok := tools["items"].(map[string]any); ok {
+				items["$ref"] = "tool.json"
+			}
+		}
+		// Ensure memories items reference memory.json for clarity and reuse
+		if memories, ok := props["memories"].(map[string]any); ok {
+			if items, ok := memories["items"].(map[string]any); ok {
+				items["$ref"] = "memory.json"
+			}
+		}
+		// Ensure autoload and monitoring reference their standalone schemas
+		if autoload, ok := props["autoload"].(map[string]any); ok {
+			autoload["$ref"] = "autoload.json"
+		}
+		if monitoring, ok := props["monitoring"].(map[string]any); ok {
+			monitoring["$ref"] = "monitoring.json"
+		}
+	}
+
 	// Update schema metadata
-	projectMap["$id"] = baseSchemaURI + "compozy.json"
+	projectMap["$id"] = "compozy.json"
 	projectMap["title"] = "Compozy Unified Configuration"
 	projectMap["description"] = "Complete configuration schema for compozy.yaml including both project and application settings"
 
@@ -565,7 +672,6 @@ func updateReferences(data any, oldPrefix, newPrefix string) {
 func generateMergedRuntimeSchema(
 	ctx context.Context,
 	outDir string,
-	baseSchemaURI string,
 	projectRuntimeJSON, configRuntimeJSON []byte,
 ) error {
 	log := logger.FromContext(ctx)
@@ -587,7 +693,10 @@ func generateMergedRuntimeSchema(
 	}
 
 	// Update schema metadata
-	projectRuntimeMap["$id"] = baseSchemaURI + "runtime.json"
+	projectRuntimeMap["$id"] = "runtime.json"
+
+	// Sanitize merged runtime schema
+	removeCWDProperties(projectRuntimeMap)
 	projectRuntimeMap["title"] = "Compozy Runtime Configuration"
 	projectRuntimeMap["description"] = "Complete runtime configuration for both tool execution and system behavior"
 

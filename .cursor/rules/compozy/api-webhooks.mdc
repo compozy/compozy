@@ -1,0 +1,97 @@
+---
+alwaysApply: false
+---
+
+# Webhooks — Public Ingress and Verification
+
+<api_group type="webhooks">
+Defines the public endpoint that accepts external webhooks and dispatches events to workflows configured with webhook triggers.
+
+Base prefix MUST be obtained from `routes.Base()` at runtime (currently `/api/v0`). Examples below omit the base and show only the group path.
+</api_group>
+
+## Endpoint
+
+<endpoint type="ingress">
+- Method/Path: `POST /hooks/{slug}`
+- Request: JSON body (arbitrary object) and optional headers for signature verification.
+- Response:
+  - 202 Accepted when the request is validated and enqueued for async processing; 200 OK when processed inline and a result payload is available.
+  - Unified success envelope: `{ data: any, message: "Success" }`.
+  - Unified error envelope: `{ error: string, details?: string }` with mapped status codes.
+- Error mapping:
+  - 400 invalid/oversized payload
+  - 401 signature verification failed
+  - 404 webhook slug not found
+  - 409 duplicate idempotency key
+  - 422 unprocessable entity
+  - 429 rate limit exceeded (if configured)
+  - 500 internal error (logged via `logger.FromContext`)
+</endpoint>
+
+## Headers
+
+<headers type="supported">
+- `X-Idempotency-Key`: Optional idempotency key to prevent duplicate processing.
+- `X-Correlation-ID` or `X-Request-ID`: Correlation identifier; generated if absent.
+- Signature headers (depending on strategy):
+  - HMAC: configurable header (e.g., `X-Sig`).
+  - Stripe: `Stripe-Signature`.
+  - GitHub: `X-Hub-Signature-256` with `sha256=` prefix.
+</headers>
+
+## Verification Strategies
+
+<verification type="strategies">
+Strategy enum: `none`, `hmac`, `stripe`, `github`.
+
+- `none`: no verification.
+- `hmac`: HMAC SHA-256 over raw body; header name is required; secret can be literal or template `{{ .env.KEY }}`.
+- `stripe`: timestamped signature with allowed skew (default 5m).
+- `github`: HMAC SHA-256 with `X-Hub-Signature-256` header.
+
+Secret resolution uses the standard template engine with `.env` only; missing envs produce clear errors.
+</verification>
+
+## Dedupe & Limits
+
+<dedupe_limits type="config">
+- Max body size: cap per request (uses `cfg.Webhooks.DefaultMaxBody`).
+- Dedupe: idempotency store with TTL (`cfg.Webhooks.DefaultDedupeTTL`).
+- Method: default HTTP method for routes (`cfg.Webhooks.DefaultMethod`, default `POST`).
+- Stripe skew: allowed timestamp skew for Stripe (`cfg.Webhooks.StripeSkew`).
+</dedupe_limits>
+
+## Workflow Configuration (YAML)
+
+<webhook_yaml type="trigger_config">
+```yaml
+triggers:
+  - type: webhook
+    webhook:
+      slug: "github"
+      method: POST
+      verify:
+        strategy: github
+        # secret can be a literal or an env template
+        secret: "{{ .env.GITHUB_WEBHOOK_SECRET }}"
+      dedupe:
+        enabled: true
+        ttl: "10m"
+        key: "{{ .headers['X-GitHub-Delivery'] }}"
+      events:
+        - name: push
+          filter: "{{ .headers['X-GitHub-Event'] == 'push' }}"
+          input:
+            repo: "{{ .body.repository.full_name }}"
+            ref:  "{{ .body.ref }}"
+```
+</webhook_yaml>
+
+## Swagger
+
+<swagger type="annotations">
+- Use `@Tags webhooks`.
+- Use `@Router /hooks/{slug} [post]` without the base.
+- Document headers with `@Param` where relevant (Idempotency, Correlation, Signature variants).
+</swagger>

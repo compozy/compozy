@@ -11,7 +11,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
-	"github.com/compozy/compozy/pkg/ref"
 	fixtures "github.com/compozy/compozy/test/fixtures"
 	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +30,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "basic_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -85,7 +84,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "router_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -147,10 +146,8 @@ func Test_LoadTask(t *testing.T) {
 
 	t.Run("Should load parallel task configuration correctly", func(t *testing.T) {
 		CWD, dstPath := setupTest(t, "parallel_task.yaml")
-		ev := ref.NewEvaluator()
-
 		// Run the test
-		config, err := LoadAndEval(CWD, dstPath, ev)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -225,7 +222,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "invalid_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -238,7 +235,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "circular_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -252,7 +249,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "collection_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -334,7 +331,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "signal_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -358,7 +355,7 @@ func Test_LoadTask(t *testing.T) {
 	t.Run("Should load prompt-only basic task fixture", func(t *testing.T) {
 		CWD, dstPath := setupTest(t, "basic_task_prompt_only.yaml")
 
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -385,7 +382,7 @@ func Test_LoadTask(t *testing.T) {
 	t.Run("Should load combined action+prompt basic task fixture", func(t *testing.T) {
 		CWD, dstPath := setupTest(t, "basic_task_combined.yaml")
 
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -1104,10 +1101,8 @@ func Test_TaskConfigMerge(t *testing.T) {
 func Test_TaskReference(t *testing.T) {
 	t.Run("Should load task reference correctly", func(t *testing.T) {
 		CWD, dstPath := setupTest(t, "ref_task.yaml")
-		ev := ref.NewEvaluator()
-
 		// Run the test
-		config, err := LoadAndEval(CWD, dstPath, ev)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -1130,16 +1125,9 @@ func Test_TaskReference(t *testing.T) {
 		assert.Equal(t, 2, (*config.With)["indent_size"])
 		assert.Equal(t, false, (*config.With)["use_tabs"])
 
-		// Validate that the agent was properly evaluated and loaded
-		agent := config.GetAgent()
-		require.NotNil(t, agent, "Agent should be loaded from the $use directive")
-		assert.Equal(t, "code-assistant", agent.ID)
-		require.NotNil(t, agent.Config)
-		assert.Equal(t, "anthropic", string(agent.Config.Provider))
-		assert.Equal(t, "claude-4-opus", agent.Config.Model)
-		assert.Equal(t, float64(0.7), agent.Config.Params.Temperature)
-		assert.Equal(t, int32(4000), agent.Config.Params.MaxTokens)
-		assert.Equal(t, "You are a powerful AI coding assistant.", agent.Instructions)
+		// In the new ID-based approach, $use directives are rejected at load time.
+		// This fixture no longer uses $use, so Agent may be nil here.
+		assert.Nil(t, config.GetAgent())
 	})
 }
 
@@ -1279,7 +1267,7 @@ func TestAggregate_LoadTask(t *testing.T) {
 	t.Run("Should load aggregate task from YAML", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "aggregate_task.yaml")
 		// Load the aggregate task
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 		// Verify task type

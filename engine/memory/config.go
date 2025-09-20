@@ -9,7 +9,6 @@ import (
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/core"
 	memcore "github.com/compozy/compozy/engine/memory/core"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // Config defines the structure for a memory resource configuration.
@@ -123,7 +122,7 @@ type Config struct {
 	// Resource type identifier, **must be "memory"**.
 	// This field is used by the autoloader system to identify and properly
 	// register this configuration as a memory resource.
-	Resource string `json:"resource"                    yaml:"resource"                    mapstructure:"resource"                    validate:"required,eq=memory"`
+	Resource string `json:"resource"                    yaml:"resource"                    mapstructure:"resource"                    validate:"required"`
 	// ID is the **unique identifier** for this memory resource within the project.
 	// This ID is used by agents to reference the memory in their configuration.
 	// - **Examples**: `"user_conversation"`, `"session_context"`, `"agent_workspace"`
@@ -207,6 +206,13 @@ type Config struct {
 	// Can specify API keys for **real-time token counting** or fallback strategies.
 	TokenProvider *memcore.TokenProviderConfig `json:"token_provider,omitempty" yaml:"token_provider,omitempty" mapstructure:"token_provider,omitempty"`
 
+	// DefaultKeyTemplate provides a fallback key template used when an
+	// agent's memory reference omits the `key` field and supplies only the
+	// memory ID. The template supports the same variables available to
+	// agent-level key templates and will be rendered at runtime.
+	// Example: "session:{{.workflow.input.session_id}}"
+	DefaultKeyTemplate string `json:"default_key_template,omitempty" yaml:"default_key_template,omitempty" mapstructure:"default_key_template,omitempty"`
+
 	// --- Internal fields for framework compatibility ---
 	// filePath stores the source configuration file path for debugging
 	filePath string `json:"-" yaml:"-"`
@@ -271,8 +277,7 @@ func (c *Config) GetCWD() *core.PathCWD {
 // Validate performs validation on the memory resource configuration.
 // This will be called by the autoload registry after loading.
 func (c *Config) Validate() error {
-	// Basic struct validation using tags will be done by schema.NewStructValidator(c) in the loader.
-	// Here, we add more complex or cross-field validation.
+	// Manual validation is the single source of truth for memory.Config
 	if err := c.validateResource(); err != nil {
 		return err
 	}
@@ -314,8 +319,8 @@ func (c *Config) validatePersistence() error {
 				err,
 			)
 		}
-		// TTL "0" means no expiration, which is valid
-		if parsedTTL < 0 && c.Persistence.Type != memcore.InMemoryPersistence {
+		// Reject negative TTLs for all backends to avoid timer misuse
+		if parsedTTL < 0 {
 			return fmt.Errorf(
 				"memory config ID '%s': persistence.ttl must be non-negative, got '%s'",
 				c.ID,
@@ -376,7 +381,8 @@ func (c *Config) validateLocking() error {
 		return nil
 	}
 	if c.Locking.AppendTTL != "" {
-		if _, err := time.ParseDuration(c.Locking.AppendTTL); err != nil {
+		d, err := time.ParseDuration(c.Locking.AppendTTL)
+		if err != nil {
 			return fmt.Errorf(
 				"memory config ID '%s': invalid locking.append_ttl duration format '%s': %w",
 				c.ID,
@@ -384,9 +390,11 @@ func (c *Config) validateLocking() error {
 				err,
 			)
 		}
+		c.Locking.ParsedAppendTTL = d
 	}
 	if c.Locking.ClearTTL != "" {
-		if _, err := time.ParseDuration(c.Locking.ClearTTL); err != nil {
+		d, err := time.ParseDuration(c.Locking.ClearTTL)
+		if err != nil {
 			return fmt.Errorf(
 				"memory config ID '%s': invalid locking.clear_ttl duration format '%s': %w",
 				c.ID,
@@ -394,9 +402,11 @@ func (c *Config) validateLocking() error {
 				err,
 			)
 		}
+		c.Locking.ParsedClearTTL = d
 	}
 	if c.Locking.FlushTTL != "" {
-		if _, err := time.ParseDuration(c.Locking.FlushTTL); err != nil {
+		d, err := time.ParseDuration(c.Locking.FlushTTL)
+		if err != nil {
 			return fmt.Errorf(
 				"memory config ID '%s': invalid locking.flush_ttl duration format '%s': %w",
 				c.ID,
@@ -404,6 +414,7 @@ func (c *Config) validateLocking() error {
 				err,
 			)
 		}
+		c.Locking.ParsedFlushTTL = d
 	}
 	return nil
 }
@@ -414,6 +425,13 @@ func (c *Config) validateTokenBased() error {
 			return fmt.Errorf(
 				"memory config ID '%s': token_based memory must have at least one limit configured "+
 					"(max_tokens, max_context_ratio, or max_messages)",
+				c.ID,
+			)
+		}
+		// Guardrail: if using max_context_ratio, require token provider info
+		if c.MaxContextRatio > 0 && c.TokenProvider == nil {
+			return fmt.Errorf(
+				"memory config ID '%s': max_context_ratio requires token_provider configuration",
 				c.ID,
 			)
 		}
@@ -445,7 +463,7 @@ type TTLManager struct {
 // - **Append operations**: `30 seconds` (quick operation, should complete fast)
 // - **Clear operations**: `10 seconds` (even quicker, just clearing data)
 // - **Flush operations**: `5 minutes` (may involve summarization with LLM calls)
-func NewTTLManager(lockConfig *memcore.LockConfig, memoryID string) *TTLManager {
+func NewTTLManager(lockConfig *memcore.LockConfig) *TTLManager {
 	tm := &TTLManager{
 		// Default TTLs
 		appendTTL: 30 * time.Second,
@@ -455,46 +473,32 @@ func NewTTLManager(lockConfig *memcore.LockConfig, memoryID string) *TTLManager 
 	if lockConfig == nil {
 		return tm
 	}
-	// Parse configured TTLs with error logging
-	ctx := context.Background()
-	tm.appendTTL = parseTTLWithDefault(ctx, lockConfig.AppendTTL, tm.appendTTL, "append", memoryID)
-	tm.clearTTL = parseTTLWithDefault(ctx, lockConfig.ClearTTL, tm.clearTTL, "clear", memoryID)
-	tm.flushTTL = parseTTLWithDefault(ctx, lockConfig.FlushTTL, tm.flushTTL, "flush", memoryID)
+	// Use parsed durations from validation if provided; otherwise keep defaults
+	if lockConfig.ParsedAppendTTL > 0 {
+		tm.appendTTL = lockConfig.ParsedAppendTTL
+	} else if lockConfig.AppendTTL != "" {
+		if d, err := time.ParseDuration(lockConfig.AppendTTL); err == nil && d > 0 {
+			tm.appendTTL = d
+		}
+	}
+	if lockConfig.ParsedClearTTL > 0 {
+		tm.clearTTL = lockConfig.ParsedClearTTL
+	} else if lockConfig.ClearTTL != "" {
+		if d, err := time.ParseDuration(lockConfig.ClearTTL); err == nil && d > 0 {
+			tm.clearTTL = d
+		}
+	}
+	if lockConfig.ParsedFlushTTL > 0 {
+		tm.flushTTL = lockConfig.ParsedFlushTTL
+	} else if lockConfig.FlushTTL != "" {
+		if d, err := time.ParseDuration(lockConfig.FlushTTL); err == nil && d > 0 {
+			tm.flushTTL = d
+		}
+	}
 	return tm
 }
 
-// parseTTLWithDefault parses a TTL string with **fallback and error logging**.
-// This helper function ensures **robust TTL parsing** with graceful degradation.
-// If the TTL string is empty or invalid, it falls back to the provided default
-// and logs a warning for debugging purposes.
-//
-// **Parameters**:
-//   - `ttlStr`: Duration string to parse (e.g., `"30s"`, `"5m"`, `"1h"`)
-//   - `defaultTTL`: Fallback duration if parsing fails
-//   - `operation`: Operation name for logging context (e.g., `"append"`, `"clear"`, `"flush"`)
-//   - `memoryID`: Memory resource ID for logging context
-//   - `log`: Logger instance for error reporting
-func parseTTLWithDefault(
-	ctx context.Context,
-	ttlStr string,
-	defaultTTL time.Duration,
-	operation, memoryID string,
-) time.Duration {
-	log := logger.FromContext(ctx)
-	if ttlStr == "" {
-		return defaultTTL
-	}
-	ttl, err := time.ParseDuration(ttlStr)
-	if err != nil {
-		log.Error("Failed to parse lock TTL",
-			"memory_id", memoryID,
-			"operation", operation,
-			"ttl_string", ttlStr,
-			"error", err)
-		return defaultTTL
-	}
-	return ttl
-}
+// Removed string parsing here; validation parses and stores durations.
 
 // GetAppendTTL returns the TTL for **append operations**.
 // This timeout is used when acquiring distributed locks for adding new messages to memory.
@@ -523,7 +527,7 @@ func (tm *TTLManager) GetFlushTTL() time.Duration {
 // Uses sync.Once to ensure thread-safe initialization in concurrent environments.
 func (c *Config) initTTLManager() {
 	c.ttlManagerOnce.Do(func() {
-		c.ttlManager = NewTTLManager(c.Locking, c.ID)
+		c.ttlManager = NewTTLManager(c.Locking)
 	})
 }
 
@@ -592,12 +596,42 @@ func (c *Config) copyConfigFields(from *Config) {
 	c.MaxTokens = from.MaxTokens
 	c.MaxMessages = from.MaxMessages
 	c.MaxContextRatio = from.MaxContextRatio
-	c.TokenAllocation = from.TokenAllocation
-	c.Flushing = from.Flushing
+	if from.TokenAllocation != nil {
+		if v, err := core.DeepCopy(from.TokenAllocation); err == nil {
+			c.TokenAllocation = v
+		}
+	} else {
+		c.TokenAllocation = nil
+	}
+	if from.Flushing != nil {
+		if v, err := core.DeepCopy(from.Flushing); err == nil {
+			c.Flushing = v
+		}
+	} else {
+		c.Flushing = nil
+	}
 	c.Persistence = from.Persistence
-	c.PrivacyPolicy = from.PrivacyPolicy
-	c.Locking = from.Locking
-	c.TokenProvider = from.TokenProvider
+	if from.PrivacyPolicy != nil {
+		if v, err := core.DeepCopy(from.PrivacyPolicy); err == nil {
+			c.PrivacyPolicy = v
+		}
+	} else {
+		c.PrivacyPolicy = nil
+	}
+	if from.Locking != nil {
+		if v, err := core.DeepCopy(from.Locking); err == nil {
+			c.Locking = v
+		}
+	} else {
+		c.Locking = nil
+	}
+	if from.TokenProvider != nil {
+		if v, err := core.DeepCopy(from.TokenProvider); err == nil {
+			c.TokenProvider = v
+		}
+	} else {
+		c.TokenProvider = nil
+	}
 	c.filePath = from.filePath
 	c.CWD = from.CWD
 	// Deliberately not copying ttlManager and ttlManagerOnce
@@ -628,6 +662,11 @@ func (c *Config) Merge(other any) error {
 	copiedOther.ttlManagerOnce = sync.Once{}
 	if err := mergo.Merge(c, copiedOther, mergo.WithOverride); err != nil {
 		return fmt.Errorf("failed to merge memory configs: %w", err)
+	}
+	// Invalidate cached TTL manager if Locking was provided to ensure fresh TTLs
+	if otherConfig.Locking != nil {
+		c.ttlManager = nil
+		c.ttlManagerOnce = sync.Once{}
 	}
 	// The sync fields in c remain untouched since we cleared them in copiedOther
 	return nil

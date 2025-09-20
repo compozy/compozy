@@ -118,7 +118,7 @@ tools:
 tasks:
   - id: analyze-issue
     type: basic
-    $use: agent(local::agents.#(id="support-agent"))
+    agent: support-agent
     with:
       prompt: |
         Analyze this customer issue:
@@ -134,7 +134,7 @@ tasks:
 
   - id: create-ticket
     type: basic
-    $use: tool(local::tools.#(id="ticket-creator"))
+    tool: ticket-creator
     with:
       title: "{{ .tasks.analyze-issue.output.category }}"
       description: "{{ .workflow.input.issue_description }}"
@@ -197,9 +197,8 @@ func main() {
 #### Workflow Configuration Management
 
 ```go
-// Load workflow with template evaluation
-evaluator := ref.NewEvaluator()
-config, err := workflow.LoadAndEval(cwd, "workflows/my-workflow.yaml", evaluator)
+// Load workflow configuration
+config, err := workflow.Load(cwd, "workflows/my-workflow.yaml")
 if err != nil {
     return err
 }
@@ -358,7 +357,7 @@ triggers:
 tasks:
   - id: "task-id"
     type: "basic"
-    $use: agent(local::agents.#(id="agent-id"))
+    agent: agent-id
     with:
       prompt: "Task prompt with {{ .workflow.input.param1 }}"
     on_success:
@@ -429,8 +428,7 @@ triggers:
 
   - type: signal
     name: "order-completed"
-    schema:
-      $ref: 'local::schemas.#(id="order_schema")'
+    schema: order_schema
 ```
 
 ---
@@ -493,7 +491,7 @@ tools:
 tasks:
   - id: generate-outline
     type: basic
-    $use: agent(local::agents.#(id="content-writer"))
+    agent: content-writer
     with:
       prompt: |
         Create a detailed outline for {{ .workflow.input.topic }}
@@ -504,7 +502,7 @@ tasks:
 
   - id: write-content
     type: basic
-    $use: agent(local::agents.#(id="content-writer"))
+    agent: content-writer
     with:
       prompt: |
         Write content based on this outline:
@@ -519,7 +517,7 @@ tasks:
 
   - id: check-plagiarism
     type: basic
-    $use: tool(local::tools.#(id="plagiarism-checker"))
+    tool: plagiarism-checker
     with:
       content: "{{ .tasks.write-content.output.content }}"
     on_success:
@@ -529,7 +527,7 @@ tasks:
 
   - id: optimize-content
     type: basic
-    $use: agent(local::agents.#(id="content-optimizer"))
+    agent: content-optimizer
     with:
       prompt: |
         Optimize this content for readability and SEO:
@@ -540,7 +538,7 @@ tasks:
 
   - id: revise-content
     type: basic
-    $use: agent(local::agents.#(id="content-writer"))
+    agent: content-writer
     with:
       prompt: |
         Revise this content to be more original:
@@ -634,7 +632,7 @@ tools:
 tasks:
   - id: extract-data
     type: basic
-    $use: tool(local::tools.#(id="data-extractor"))
+    tool: data-extractor
     with:
       source: "{{ .workflow.input.data_source }}"
       path: "{{ .workflow.input.source_path }}"
@@ -643,7 +641,7 @@ tasks:
 
   - id: validate-data
     type: basic
-    $use: tool(local::tools.#(id="data-validator"))
+    tool: data-validator
     with:
       records: "{{ .tasks.extract-data.output.records }}"
       schema: '{{ .local.schemas.#(id="data_record") }}'
@@ -652,7 +650,7 @@ tasks:
 
   - id: transform-data
     type: basic
-    $use: tool(local::tools.#(id="data-transformer"))
+    tool: data-transformer
     with:
       records: "{{ .tasks.validate-data.output.valid_records }}"
       rules: "{{ .workflow.input.transformation_rules }}"
@@ -661,7 +659,7 @@ tasks:
 
   - id: load-data
     type: basic
-    $use: tool(local::tools.#(id="data-loader"))
+    tool: data-loader
     with:
       records: "{{ .tasks.transform-data.output.transformed_records }}"
       destination: "processed_data_table"
@@ -740,8 +738,7 @@ tools:
 triggers:
   - type: signal
     name: user-registered
-    schema:
-      $ref: "local::config.input"
+    schema: workflow_input
 
   - type: signal
     name: email-verified
@@ -754,7 +751,7 @@ triggers:
 tasks:
   - id: create-profile
     type: basic
-    $use: tool(local::tools.#(id="user-profiler"))
+    tool: user-profiler
     with:
       user_id: "{{ .workflow.input.user_id }}"
       email: "{{ .workflow.input.email }}"
@@ -765,7 +762,7 @@ tasks:
 
   - id: generate-welcome-message
     type: basic
-    $use: agent(local::agents.#(id="onboarding-specialist"))
+    agent: onboarding-specialist
     with:
       prompt: |
         Create a personalized welcome message for:
@@ -783,7 +780,7 @@ tasks:
 
   - id: send-welcome-email
     type: basic
-    $use: tool(local::tools.#(id="email-sender"))
+    tool: email-sender
     with:
       to: "{{ .workflow.input.email }}"
       subject: "Welcome to Our Platform!"
@@ -805,7 +802,7 @@ tasks:
 
   - id: send-reminder
     type: basic
-    $use: tool(local::tools.#(id="email-sender"))
+    tool: email-sender
     with:
       to: "{{ .workflow.input.email }}"
       subject: "Don't forget to verify your email"
@@ -814,7 +811,7 @@ tasks:
 
   - id: send-getting-started
     type: basic
-    $use: agent(local::agents.#(id="onboarding-specialist"))
+    agent: onboarding-specialist
     with:
       prompt: |
         Create a getting started guide for {{ .workflow.input.user_type }} user.
@@ -824,7 +821,7 @@ tasks:
 
   - id: send-followup-email
     type: basic
-    $use: tool(local::tools.#(id="email-sender"))
+    tool: email-sender
     with:
       to: "{{ .workflow.input.email }}"
       subject: "Getting Started Guide"
@@ -933,15 +930,6 @@ cwd, _ := core.CWDFromPath("/project")
 config, err := workflow.Load(cwd, "workflows/my-workflow.yaml")
 ```
 
-#### `LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error)`
-
-Loads workflow configuration with template evaluation.
-
-```go
-evaluator := ref.NewEvaluator()
-config, err := workflow.LoadAndEval(cwd, "workflows/my-workflow.yaml", evaluator)
-```
-
 #### `FindConfig(workflows []*Config, workflowID string) (*Config, error)`
 
 Finds workflow configuration by ID.
@@ -958,12 +946,12 @@ Finds agent configuration across workflows.
 agentConfig, err := workflow.FindAgentConfig[*agent.Config](workflows, "my-agent")
 ```
 
-#### `WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error)`
+#### `WorkflowsFromProject(projectConfig *project.Config) ([]*Config, error)`
 
-Loads all workflows from project configuration.
+Loads all workflows from the project configuration.
 
 ```go
-workflows, err := workflow.WorkflowsFromProject(projectConfig, evaluator)
+workflows, err := workflow.WorkflowsFromProject(projectConfig)
 ```
 
 ### Validation
@@ -998,13 +986,13 @@ func TestConfig_Validate(t *testing.T) {
             config: &Config{
                 ID:          "test-workflow",
                 Description: "Test workflow",
-                Tasks: []task.Config{
-                    {
-                        ID:   "test-task",
-                        Type: "basic",
-                        Use:  "agent(test-agent)",
-                    },
+            Tasks: []task.Config{
+                {
+                    ID:   "test-task",
+                    Type: "basic",
+                    Agent: &agent.Config{ID: "test-agent"}, // or Agent: selector ID
                 },
+            },
             },
             wantErr: false,
         },
@@ -1043,7 +1031,7 @@ description: Test workflow
 tasks:
   - id: test-task
     type: basic
-    $use: agent(test-agent)
+    agent: test-agent
     with:
       prompt: "Test prompt"
 `)

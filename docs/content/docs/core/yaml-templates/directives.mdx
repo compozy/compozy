@@ -1,518 +1,142 @@
 ---
-title: "Template Directives"
-description: "Resource composition and references using $ref and $use directives"
+title: "ID References"
+description: "Simple, explicit ID-based references for agents, tools, MCPs, schemas, and tasks (replacing $ref/$use)."
 ---
 
-Template directives are special YAML keys that enable resource composition, references, and dynamic configuration in Compozy. They allow you to build modular, reusable configurations by referencing and composing other resources.
+<Callout type="warning" title="Directives deprecated">
+  `$ref`, `$use`, `resource::`, `local::`, `global::`, and selector expressions like `#(...)` were removed. Configs with `$`-prefixed directives fail validation. Use the ID-based patterns below.
+</Callout>
 
 ## Overview
 
-Compozy provides two main directive types that enable powerful composition patterns:
+Compozy now resolves resources by stable IDs through a Resource Store. You reference components directly by ID, and the engine links them at compile time.
 
-<FeatureCardList cols={2} size="default">
-  <FeatureCard
-    title="$ref Directive"
-    description="Reference existing resources by path and filter criteria"
-    icon="Link"
-  />
-  <FeatureCard
-    title="$use Directive"
-    description="Use and instantiate resources like tools and agents"
-    icon="Play"
-  />
-</FeatureCardList>
+- Agents: `agent: writer` or `agent: { id: writer }`
+- Tools: `tool: http_client` or `tools: [http_client, file_reader]`
+- MCP servers: `mcp: github` or in agents `mcps: [github, filesystem]`
+- Schemas: set fields to the schema ID, e.g. `config: { input: user_input }`
+- Models: `model: openai:gpt-4o-mini`
 
-<Callout type="info">
-  **Composition Benefits**: Directives enable clean, readable configurations while promoting reusability and modularity across your Compozy resources.
-</Callout>
+## Workflow References
 
-## `$ref` Directive
+```yaml title="workflow.yaml"
+id: example
 
-The `$ref` directive creates references to existing resources using path-based queries with optional filtering.
-
-### Basic Syntax
-
-```yaml title="Reference Syntax"
-$ref: scope::path.#(filter_expression)
-```
-
-**Components:**
-- **scope**: `local`, `global`, or `resource`
-- **path**: Dot-notation path to the resource collection
-- **filter**: JSONPath-style filter expression
-
-### Reference Types
-
-<Tabs items={["Local", "Global", "Resource", "Filters"]}>
-<Tab>
-**Local References** point to resources within the same file:
-
-```yaml title="Local References"
-# Reference a schema by ID
-input:
-  $ref: local::schemas.#(id=="user_input")
-
-# Reference a tool by ID
-tools:
-  - $ref: local::tools.#(id=="weather_tool")
-
-# Reference a task by ID
-on_success:
-  next:
-    $ref: local::tasks.#(id=="next_step")
-
-# Reference multiple tools by type
-tools:
-  - $ref: local::tools.#(category=="data_processing")
-```
-
-**Local reference patterns:**
-- Use for resources defined in the same file
-- Ideal for task chaining and schema reuse
-- Keeps related resources together
-</Tab>
-
-<Tab>
-**Global References** point to project-level resources from `compozy.yaml`:
-
-```yaml title="Global References"
-# Reference a model configuration
-model:
-  $ref: global::models.#(provider=="openai")
-
-# Reference environment configuration
-env:
-  $ref: global::environment.#(name=="production")
-```
-
-**Global reference patterns:**
-- Use for project-wide configurations
-- Ideal for models, environments, and shared settings
-- Promotes consistency across workflows
-</Tab>
-
-<Tab>
-**Resource References** point to resources from external files:
-
-```yaml title="Resource References"
-# Reference an agent from another file
-$use: agent(resource::agent::#(id=="classifier_agent"))
-
-# Reference a workflow component
-component:
-  $ref: resource::workflow::#(id=="data_processor")
-
-# Reference shared schemas
-schema:
-  $ref: resource::schema::#(type=="user_profile")
-```
-
-**Resource reference patterns:**
-- Use for external file resources
-- Ideal for shared components and libraries
-- Enables modularity across projects
-</Tab>
-
-<Tab>
-**Filter Expressions** use JSONPath-like syntax to select specific resources:
-
-```yaml title="Filter Expressions"
-# Exact match
-$ref: local::tools.#(id=="weather_tool")
-
-# Property equality
-$ref: local::agents.#(type=="classifier")
-
-# Multiple conditions (AND)
-$ref: local::tools.#(category=="api" && version=="1.0")
-
-# String matching
-$ref: local::schemas.#(name matches "user_.*")
-
-# Numeric comparisons
-$ref: local::tasks.#(priority > 5)
-
-# Array contains
-$ref: local::tools.#(tags contains "nlp")
-```
-
-**Filter operators:**
-- `==` for exact matches
-- `!=` for not equal
-- `>`, `>=`, `<`, `<=` for numeric comparisons
-- `matches` for regex patterns
-- `contains` for array membership
-- `&&` for logical AND
-- `||` for logical OR
-</Tab>
-</Tabs>
-
-## `$use` Directive
-
-The `$use` directive instantiates and configures tools, agents, and other executable resources.
-
-<Tabs items={["Using Tools", "Using Agents", "With Configuration"]}>
-<Tab>
-**Using Tools** enables tool execution within tasks:
-
-```yaml title="Tool Usage"
-# Basic tool usage
-- id: weather_check
-  type: basic
-  $use: tool(local::tools.#(id=="weather_tool"))
-  with:
-    city: "{{ .workflow.input.city }}"
-
-# Tool with specific version
-- id: data_processor
-  type: basic
-  $use: tool(local::tools.#(id=="processor" && version=="2.1"))
-  with:
-    input_data: "{{ .workflow.input.data }}"
-
-# External tool usage
-- id: external_api
-  type: basic
-  $use: tool(resource::tool::#(id=="external_service"))
-  with:
-    endpoint: "{{ .env.API_ENDPOINT }}"
-    api_key: "{{ .env.API_KEY }}"
-```
-
-**Tool usage patterns:**
-- Use `tool(reference)` syntax for tool instantiation
-- Pass parameters via `with` section
-- Filter tools by version, capabilities, or other criteria
-</Tab>
-
-<Tab>
-**Using Agents** enables AI agent execution within tasks:
-
-```yaml title="Agent Usage"
-# Basic agent usage
-- id: classify_intent
-  type: basic
-  $use: agent(local::agents.#(id=="intent_classifier"))
-
-# Agent with specific capabilities
-- id: nlp_processor
-  type: basic
-  $use: agent(local::agents.#(type=="nlp" && capabilities contains "sentiment"))
-
-# External agent usage
-- id: specialized_agent
-  type: basic
-  $use: agent(resource::agent::#(id=="domain_expert"))
-```
-
-**Agent usage patterns:**
-- Use `agent(reference)` syntax for agent instantiation
-- Filter agents by type, capabilities, or domain
-- Combine with actions for specific behavior
-</Tab>
-
-<Tab>
-**Configuration** allows customization of used resources:
-
-```yaml title="Configuration Usage"
-- id: configurable_tool
-  type: basic
-  $use: tool(local::tools.#(id=="http_client"))
-  with:
-    # Tool-specific configuration
-    base_url: "{{ .env.API_BASE_URL }}"
-    timeout: 30
-    headers:
-      Content-Type: "application/json"
-      Authorization: "Bearer {{ .env.API_TOKEN }}"
-  config:
-    # Override tool defaults
-    retry_attempts: 5
-    cache_enabled: true
-```
-
-**Configuration patterns:**
-- Use `with` for runtime parameters
-- Use `config` for tool/agent overrides
-- Combine templates for dynamic configuration
-</Tab>
-</Tabs>
-
-## Composition Patterns
-
-<Tabs items={["Schema Composition", "Tool Chains", "Conditional Usage"]}>
-<Tab>
-**Schema Composition** builds complex schemas from simpler ones:
-
-```yaml title="Schema Composition"
 schemas:
-  # Base user schema
-  - id: base_user
+  - id: user_input
     type: object
     properties:
-      id:
-        type: string
-      name:
-        type: string
-      email:
-        type: string
+      name: { type: string }
+    required: [name]
 
-  # Extended user schema
-  - id: full_user
-    type: object
-    allOf:
-      - $ref: local::schemas.#(id=="base_user")
-      - type: object
-        properties:
-          profile:
-            $ref: local::schemas.#(id=="user_profile")
-          preferences:
-            $ref: local::schemas.#(id=="user_preferences")
-```
+config:
+  input: user_input  # reference by ID (no $ref)
 
-**Schema composition benefits:**
-- Reuse common schema definitions
-- Build complex structures incrementally
-- Maintain consistency across schemas
-</Tab>
+agents:
+  - id: greeter
+    model: openai:gpt-4o-mini
+    instructions: |
+      Write a friendly greeting.
+    tools: [greeting_tool]   # reference tool IDs
 
-<Tab>
-**Tool Chains** connect multiple tools in sequence:
+tools:
+  - id: greeting_tool
+    input: user_input        # schema by ID
 
-```yaml title="Tool Chain Composition"
 tasks:
-  - id: data_pipeline
-    type: composite
-    tasks:
-      # Step 1: Extract data
-      - id: extract
-        type: basic
-        $use: tool(local::tools.#(id=="data_extractor"))
-        with:
-          source: "{{ .workflow.input.source_url }}"
-
-      # Step 2: Transform data
-      - id: transform
-        type: basic
-        $use: tool(local::tools.#(id=="data_transformer"))
-        with:
-          input: "{{ .tasks.extract.output }}"
-          rules: "{{ .workflow.input.transform_rules }}"
-
-      # Step 3: Load data
-      - id: load
-        type: basic
-        $use: tool(local::tools.#(id=="data_loader"))
-        with:
-          data: "{{ .tasks.transform.output }}"
-          destination: "{{ .workflow.input.destination }}"
+  - id: greet
+    type: basic
+    agent: greeter           # agent by ID
+    action: create_greeting
+    with:
+      name: "{{ .workflow.input.name }}"
+    final: true
 ```
 
-**Tool chain patterns:**
-- Use composite tasks for sequences
-- Chain outputs between tools
-- Build reusable processing pipelines
-</Tab>
+## Agent, Tool, MCP in Tasks
 
-<Tab>
-**Conditional Usage** selects resources based on conditions:
+Use exactly one of `agent`, `tool`, or `mcp` in a basic task.
 
-```yaml title="Conditional Resource Usage"
-# Router task with conditional tool usage
-- id: processor_router
-  type: router
-  condition: "{{ .workflow.input.data_type }}"
-  routes:
-    text:
-      - id: text_processor
-        type: basic
-        $use: tool(local::tools.#(id=="text_processor"))
+```yaml
+- id: run_with_agent
+  type: basic
+  agent: writer
+  action: draft
 
-    image:
-      - id: image_processor
-        type: basic
-        $use: tool(local::tools.#(id=="image_processor"))
+- id: run_with_tool
+  type: basic
+  tool: http_client
+  with:
+    url: https://api.example.com
 
-    video:
-      - id: video_processor
-        type: basic
-        $use: tool(local::tools.#(id=="video_processor"))
+- id: run_with_mcp
+  type: basic
+  mcp: github
+  with:
+    op: list_issues
 ```
 
-**Conditional patterns:**
-- Use router tasks for branching logic
-- Select tools based on input data
-- Adapt behavior dynamically
-</Tab>
-</Tabs>
+## Schema References
 
-## Advanced Patterns
+Provide schema IDs at any `input`/`output` schema field:
 
-<Tabs items={["Dynamic References", "Nested References", "Collection References"]}>
-<Tab>
-**Dynamic References** use templates in reference expressions:
+```yaml
+config:
+  input: order_input
 
-```yaml title="Dynamic References"
-# Dynamic tool selection
-$use: tool(local::tools.#(id=="{{ .workflow.input.processor_type }}_tool"))
+agents:
+  - id: order_agent
+    actions:
+      - id: analyze
+        output: analysis_result
 
-# Dynamic schema reference
-schema:
-  $ref: local::schemas.#(version=="{{ .config.schema_version }}")
-
-# Environment-based references
-model:
-  $ref: global::models.#(environment=="{{ .env.DEPLOYMENT_ENV }}")
+tools:
+  - id: validator
+    input: order_input
+    output: validation_result
 ```
 
-**Dynamic reference benefits:**
-- Adapt references based on runtime data
-- Support environment-specific configurations
-- Enable flexible resource selection
-</Tab>
+## Models as Resources
 
-<Tab>
-**Nested References** allow references within referenced resources:
+Agents can select a model by ID:
 
-```yaml title="Nested References"
-workflows:
-  - id: complex_workflow
-    tasks:
-      - $ref: local::task_templates.#(id=="data_validation")
-      - $ref: local::task_templates.#(id=="data_processing")
-      - $ref: local::task_templates.#(id=="result_storage")
-
-task_templates:
-  - id: data_validation
-    type: composite
-    tasks:
-      - id: schema_validation
-        type: basic
-        $use: tool(local::tools.#(id=="schema_validator"))
-        with:
-          schema:
-            $ref: local::schemas.#(id=="input_schema")
+```yaml
+agents:
+  - id: analyst
+    model: openai:gpt-4o-mini
 ```
 
-**Nested reference patterns:**
-- Create hierarchical compositions
-- Build complex resource structures
-- Enable deep modularity
-</Tab>
+During compile, the model config is resolved and merged according to project precedence.
 
-<Tab>
-**Collection References** reference groups of resources:
+## Autoload + Resource Store
 
-```yaml title="Collection References"
-# Include all validation tools
-validation_tools:
-  $ref: local::tools.#(category=="validation")
+When AutoLoad is enabled, discovered resources are registered in an in-memory registry and can be published to the Resource Store. ID-based linking then resolves all references during workflow compile. See [AutoLoad](/docs/core/configuration/autoload).
 
-# Include all NLP agents
-nlp_agents:
-  $ref: local::agents.#(type=="nlp")
+## Migration Notes
 
-# Include tools by tag
-data_tools:
-  $ref: local::tools.#(tags contains "data")
-```
-
-**Collection reference benefits:**
-- Include multiple resources at once
-- Group related resources
-- Simplify configuration management
-</Tab>
-</Tabs>
-
-## Error Handling
-
-<Tabs items={["Reference Fallbacks", "Validation", "Best Practices"]}>
-<Tab>
-**Reference Fallbacks** handle missing references gracefully:
-
-```yaml title="Reference Fallbacks"
-# Provide fallback options
-primary_tool:
-  $ref: local::tools.#(id=="preferred_tool")
-fallback_tool:
-  $ref: local::tools.#(id=="backup_tool")
-
-# Use conditional references
-tool_ref: |
-  {{- if .tools.advanced_tool -}}
-  local::tools.#(id=="advanced_tool")
-  {{- else -}}
-  local::tools.#(id=="basic_tool")
-  {{- end -}}
-```
-
-**Fallback strategies:**
-- Provide multiple fallback options
-- Use conditional logic for resource selection
-- Implement graceful degradation
-</Tab>
-
-<Tab>
-**Validation** ensures reference integrity:
-
-Compozy validates references at configuration load time:
-
-- **Missing references** generate clear error messages
-- **Type mismatches** are caught early
-- **Circular references** are detected and prevented
-
-**Validation features:**
-- Early error detection
-- Clear error messages
-- Circular reference detection
-- Type safety verification
-</Tab>
-
-<Tab>
-**Best Practices** for reliable directive usage:
-
-```yaml title="Best Practices"
-# ✅ Good - descriptive IDs
-- id: validate_user_input
-- id: process_payment_data
-- id: send_notification_email
-
-# ❌ Avoid - generic IDs
-- id: tool1
-- id: step_a
-- id: task_x
-```
-
-**Best practice guidelines:**
-- Use descriptive, meaningful IDs
-- Organize references by scope
-- Group related references together
-- Use meaningful filter expressions
-- Document complex reference patterns
-</Tab>
-</Tabs>
+- Remove all `$ref`/`$use`/`resource::`/`local::`/`global::` constructs.
+- Replace selector expressions with plain IDs.
+- Replace schema `$ref` blocks with a single schema ID string.
 
 ## References
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Sprig Functions"
-    description="Learn about data transformation capabilities with template functions"
-    href="/docs/core/yaml-templates/sprig-functions"
-    icon="Zap"
+    title="AutoLoad"
+    description="Discover and publish resources for ID-based linking"
+    href="/docs/core/configuration/autoload"
+    icon="RefreshCw"
   />
   <ReferenceCard
-    title="Context Variables"
-    description="Understand how to access and use context data in directives"
-    href="/docs/core/yaml-templates/context-variables"
-    icon="Database"
+    title="YAML Templates"
+    description="Template variables and functions (unchanged)"
+    href="/docs/core/yaml-templates/overview"
+    icon="Code"
   />
   <ReferenceCard
-    title="Basic Tasks"
-    description="See how directives work in basic task configuration"
-    href="/docs/core/tasks/basic-tasks"
-    icon="Play"
+    title="Workflow Configuration"
+    description="Schema, tasks, agents, tools, MCPs"
+    href="/docs/core/configuration/workflows"
+    icon="Workflow"
   />
 </ReferenceCardList>
-
-Template directives enable powerful composition and modularity in Compozy configurations, allowing you to build reusable, maintainable workflow configurations.

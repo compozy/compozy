@@ -376,8 +376,7 @@ Reference global models in agents:
 ```yaml
 agents:
   - id: code-reviewer
-    config:
-      $ref: global::models.#(provider=="anthropic")
+    model: anthropic-claude-4-opus
     instructions: "Review code for quality..."
 ```
 

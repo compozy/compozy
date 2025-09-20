@@ -13,7 +13,7 @@ description: Compozy's YAML template engine enables dynamic configuration by com
   />
   <FeatureCard
     title="Resource References"
-    description="Reference other resources using `$ref` and `$use` directives"
+    description="Reference components by ID (agent/tool/mcp/model/schema)"
     icon="Link"
   />
   <FeatureCard
@@ -113,7 +113,7 @@ Configure tasks based on runtime data:
 ```yaml
 - id: api_call
   type: basic
-  $use: tool(local::tools.#(id=="http_client"))
+  tool: http_client
   with:
     url: "{{ .env.API_BASE_URL }}/users/{{ .workflow.input.user_id }}"
     method: "{{ .workflow.input.method | default 'GET' }}"
@@ -137,9 +137,17 @@ Route workflows based on conditions:
   condition: '{{ .tasks.validation.output.valid | ternary "success" "failure" }}'
   routes:
     success:
-      $ref: local::tasks.#(id="process_success")
+      id: process_success
+      type: basic
+      tool: notifier
+      with:
+        message: "{{ .tasks.validate.output.summary }}"
     failure:
-      $ref: local::tasks.#(id="handle_error")
+      id: handle_error
+      type: basic
+      tool: notifier
+      with:
+        message: "Validation failed"
 ```
 
 **Use case**: When you need different workflow paths based on validation results, user types, or business logic.
@@ -159,7 +167,7 @@ Process collections of data:
   task:
     id: "process-{{ .index }}"
     type: basic
-    $use: tool(local::tools.#(id=="data_processor"))
+    tool: data_processor
     with:
       item: "{{ .item }}"
       batch_id: "{{ .workflow.id }}_{{ .index }}"
@@ -199,9 +207,9 @@ The template engine processes your YAML configurations in **5 phases**:
 
   </Step>
 
-  <Step title="Reference Resolution" description="Resource references are resolved to actual resources" icon="Link">
+  <Step title="Linking & ID Resolution" description="ID references are linked from the Resource Store" icon="Link">
 
-  `$ref` and `$use` directives are resolved to actual schemas, tools, and agents.
+  During compile/link, agent/tool/MCP/model/schema IDs are resolved against the Resource Store and deep‑copied into the workflow.
 
   </Step>
 </Steps>
@@ -264,8 +272,8 @@ Build your template expertise progressively:
     icon="Database"
   />
   <ReferenceCard
-    title="Template Directives"
-    description="Master resource references with `$ref` and `$use`"
+    title="ID References"
+    description="How to reference agents, tools, MCPs, models, and schemas by ID"
     href="./directives"
     icon="Link"
   />

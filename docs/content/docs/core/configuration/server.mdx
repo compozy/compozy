@@ -1,0 +1,61 @@
+---
+title: Server Configuration
+description: Configure server source of truth and seeding behavior
+icon: Cog
+---
+
+import serverSchema from "@/schemas/config-server.json";
+
+## Overview
+
+This page documents server-level configuration that affects how workflows are sourced and initialized at startup.
+
+### Source of Truth
+
+`server.source_of_truth` selects where the server loads workflows from.
+
+- `repo` (default): Load YAML from the repository and index to the ResourceStore.
+- `builder`: Load workflows directly from the ResourceStore (compile-from-store).
+
+Use project-level `opts.source_of_truth` to override for a specific project when needed.
+
+### Seed From Repo On Empty
+
+`server.seed_from_repo_on_empty` (boolean, default: `false`). When `true` and `source_of_truth` is `builder`, the server will initialize the ResourceStore by indexing repository YAML once when the store is empty.
+
+- Default: `false` (safe by default; avoids surprising mutations)
+- Behavior: On startup, if the store has no workflows, the server indexes project and workflow YAML (including AutoLoad content) into the store, then compiles from store
+- Subsequent startups do not re-seed unless the store is empty again
+
+Security and operational notes:
+
+- Ensure repository access and permissions are configured appropriately for the environment
+- Avoid enabling automatic seeding in production unless the operational model expects repo state to initialize the store
+- Consider RBAC and audit requirements if the store is shared
+
+Examples:
+
+YAML:
+
+```yaml
+server:
+  source_of_truth: builder
+  seed_from_repo_on_empty: true
+```
+
+Environment variables:
+
+```bash
+export SERVER_SOURCE_OF_TRUTH=builder
+export SERVER_SEED_FROM_REPO_ON_EMPTY=true
+```
+
+## Schema Reference
+
+<SchemaParams
+  schema={serverSchema}
+  title="Server Schema"
+  collapsible={true}
+  defaultExpanded={false}
+  paramType="path"
+/>

@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
-	"github.com/compozy/compozy/pkg/ref"
 	fixtures "github.com/compozy/compozy/test/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,18 +26,18 @@ func setupTest(t *testing.T, agentFile string) (*core.PathCWD, string) {
 func Test_LoadAgent(t *testing.T) {
 	t.Run("Should load basic agent configuration correctly", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_agent.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
 		require.NotNil(t, config.ID)
-		require.NotNil(t, config.Config)
+		// Model config is resolved via the Model field
 
 		assert.Equal(t, "code-assistant", config.ID)
-		assert.Equal(t, core.ProviderAnthropic, config.Config.Provider)
-		assert.Equal(t, "claude-4-opus", config.Config.Model)
-		assert.InDelta(t, 0.7, config.Config.Params.Temperature, 1e-6)
-		assert.Equal(t, int32(4000), config.Config.Params.MaxTokens)
+		assert.Equal(t, core.ProviderAnthropic, config.Model.Config.Provider)
+		assert.Equal(t, "claude-4-opus", config.Model.Config.Model)
+		assert.InDelta(t, 0.7, config.Model.Config.Params.Temperature, 1e-6)
+		assert.Equal(t, int32(4000), config.Model.Config.Params.MaxTokens)
 
 		require.Len(t, config.Actions, 1)
 		action := config.Actions[0]
@@ -79,6 +78,57 @@ func Test_LoadAgent(t *testing.T) {
 		assert.Contains(t, itemProps, "category")
 		assert.Contains(t, itemProps, "description")
 		assert.Contains(t, itemProps, "suggestion")
+	})
+}
+
+func Test_AgentMCPs_Decode_YAML_And_FromMap(t *testing.T) {
+	t.Run("Should decode mcps from YAML with scalar and object forms", func(t *testing.T) {
+		cwd, dstPath := setupTest(t, "agent_mcps_dual.yaml")
+		cfg, err := Load(context.Background(), cwd, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		require.Len(t, cfg.MCPs, 2)
+		assert.Equal(t, "fs", cfg.MCPs[0].ID)
+		assert.Equal(t, "http", cfg.MCPs[1].ID)
+		assert.Equal(t, "http://localhost:3000/mcp", cfg.MCPs[1].URL)
+	})
+
+	t.Run("Should decode mcps from map with string IDs", func(t *testing.T) {
+		var dst Config
+		m := map[string]any{
+			"id":           "x",
+			"instructions": "i",
+			"model": map[string]any{
+				"provider": string(core.ProviderOpenAI),
+				"model":    "gpt-4o-mini",
+			},
+			"mcps": []any{
+				"srv1",
+				map[string]any{"id": "srv2", "url": "http://example"},
+			},
+		}
+		err := dst.FromMap(m)
+		require.NoError(t, err)
+		require.Len(t, dst.MCPs, 2)
+		assert.Equal(t, "srv1", dst.MCPs[0].ID)
+		assert.Equal(t, "srv2", dst.MCPs[1].ID)
+		assert.Equal(t, "http://example", dst.MCPs[1].URL)
+	})
+
+	t.Run("Should fail when mcps contains invalid non-string value", func(t *testing.T) {
+		var dst Config
+		m := map[string]any{
+			"id":           "x",
+			"instructions": "i",
+			"model": map[string]any{
+				"provider": string(core.ProviderOpenAI),
+				"model":    "gpt-4o-mini",
+			},
+			// invalid element (number) should cause decode error
+			"mcps": []any{12345},
+		}
+		err := dst.FromMap(m)
+		require.Error(t, err)
 	})
 }
 
@@ -182,7 +232,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 	t.Run("Should validate config with all required fields", func(t *testing.T) {
 		config := &Config{
 			ID:           agentID,
-			Config:       core.ProviderConfig{},
+			Model:        Model{Config: core.ProviderConfig{}},
 			Instructions: "test instructions",
 			CWD:          agentCWD,
 		}
@@ -193,7 +243,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
 		config := &Config{
 			ID:           agentID,
-			Config:       core.ProviderConfig{},
+			Model:        Model{Config: core.ProviderConfig{}},
 			Instructions: "test instructions",
 		}
 		err := config.Validate()
@@ -279,7 +329,12 @@ func TestActionConfig_DeepCopy(t *testing.T) {
 func TestConfig_normalizeAndValidateMemoryConfig(t *testing.T) {
 	agentCWD, _ := core.CWDFromPath("/test")
 	validBaseConfig := func() *Config { // Helper to get a minimally valid config
-		return &Config{ID: "test-agent", Config: core.ProviderConfig{}, Instructions: "do stuff", CWD: agentCWD}
+		return &Config{
+			ID:           "test-agent",
+			Model:        Model{Config: core.ProviderConfig{}},
+			Instructions: "do stuff",
+			CWD:          agentCWD,
+		}
 	}
 
 	t.Run("Should handle single memory reference", func(t *testing.T) {
@@ -356,14 +411,13 @@ func TestConfig_normalizeAndValidateMemoryConfig(t *testing.T) {
 		assert.Contains(t, err.Error(), "missing required 'id' field")
 	})
 
-	t.Run("Should require Key in memory reference", func(t *testing.T) {
+	t.Run("Should allow missing Key in memory reference (fallback handled at runtime)", func(t *testing.T) {
 		cfg := validBaseConfig()
 		cfg.Memory = []core.MemoryReference{
-			{ID: "mem1"}, // Missing Key
+			{ID: "mem1"}, // Missing Key now allowed
 		}
 		err := cfg.NormalizeAndValidateMemoryConfig()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "missing required 'key' field")
+		require.NoError(t, err)
 	})
 
 	t.Run("Should reject invalid mode", func(t *testing.T) {
@@ -396,7 +450,7 @@ func TestConfig_normalizeAndValidateMemoryConfig(t *testing.T) {
 func Test_Config_Validate_WithMemory(t *testing.T) {
 	agentCWD, _ := core.CWDFromPath("/test")
 	baseCfg := func() Config {
-		return Config{ID: "test", Config: core.ProviderConfig{}, Instructions: "test", CWD: agentCWD}
+		return Config{ID: "test", Model: Model{Config: core.ProviderConfig{}}, Instructions: "test", CWD: agentCWD}
 	}
 
 	t.Run("Valid memory config passes full validation", func(t *testing.T) {
@@ -413,15 +467,13 @@ func Test_Config_Validate_WithMemory(t *testing.T) {
 		) // This will fail if AgentMemoryValidator tries to use a nil registry to check ID existence
 	})
 
-	t.Run("Invalid memory config (missing key) fails full validation", func(t *testing.T) {
+	t.Run("Missing key is allowed at validation (runtime will enforce via default_key_template)", func(t *testing.T) {
 		cfg := baseCfg()
 		cfg.Memory = []core.MemoryReference{
 			{ID: "mem1"}, // Missing Key
 		}
 		err := cfg.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid memory configuration")
-		assert.Contains(t, err.Error(), "missing required 'key' field")
+		assert.NoError(t, err)
 	})
 }
 
@@ -465,11 +517,10 @@ func Test_Config_Merge_Clone_AsMap_FromMap(t *testing.T) {
 	})
 }
 
-func Test_LoadAndEval_Basic(t *testing.T) {
-	t.Run("Should load with evaluator configured", func(t *testing.T) {
+func Test_Load_Basic_WithNoEvaluator(t *testing.T) {
+	t.Run("Should load agent without evaluator", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_agent.yaml")
-		ev := ref.NewEvaluator(ref.WithLocalScope(map[string]any{"x": 1}))
-		cfg, err := LoadAndEval(cwd, dstPath, ev)
+		cfg, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "code-assistant", cfg.ID)
@@ -479,7 +530,7 @@ func Test_LoadAndEval_Basic(t *testing.T) {
 func Test_Config_Validate_MCPErrorAggregation(t *testing.T) {
 	t.Run("Should aggregate MCP validation errors", func(t *testing.T) {
 		cwd, _ := core.CWDFromPath("/tmp")
-		cfg := &Config{ID: "a", Config: core.ProviderConfig{}, Instructions: "i", CWD: cwd}
+		cfg := &Config{ID: "a", Model: Model{Config: core.ProviderConfig{}}, Instructions: "i", CWD: cwd}
 		cfg.MCPs = []mcp.Config{{ID: "srv", Resource: "mcp", Transport: mcpproxy.TransportStdio}}
 		err := cfg.Validate()
 		assert.Error(t, err)

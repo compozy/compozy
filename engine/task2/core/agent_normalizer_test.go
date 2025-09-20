@@ -31,10 +31,10 @@ func TestAgentNormalizer_NormalizeAgent(t *testing.T) {
 		config := &agent.Config{
 			ID:           "test-agent",
 			Instructions: "Simple instructions without templates",
-			Config: enginecore.ProviderConfig{
+			Model: agent.Model{Config: enginecore.ProviderConfig{
 				Provider: "openai",
 				Model:    "gpt-4",
-			},
+			}},
 		}
 		ctx := &shared.NormalizationContext{
 			WorkflowConfig: &workflow.Config{ID: "test"},
@@ -54,7 +54,7 @@ func TestAgentNormalizer_NormalizeAgent(t *testing.T) {
 		config := &agent.Config{
 			ID:           "test-agent",
 			Instructions: "Test",
-			Config:       enginecore.ProviderConfig{},
+			Model:        agent.Model{Config: enginecore.ProviderConfig{}},
 			With:         &input,
 		}
 		ctx := &shared.NormalizationContext{
@@ -76,7 +76,7 @@ func TestAgentNormalizer_NormalizeAgent(t *testing.T) {
 		config := &agent.Config{
 			ID:           "test-agent",
 			Instructions: "Simple agent",
-			Config:       enginecore.ProviderConfig{},
+			Model:        agent.Model{Config: enginecore.ProviderConfig{}},
 			Actions:      nil,
 		}
 		ctx := &shared.NormalizationContext{
@@ -97,10 +97,10 @@ func TestAgentNormalizer_TemplateProcessing(t *testing.T) {
 		config := &agent.Config{
 			ID:           "test-agent",
 			Instructions: "Process {{.input.name}} with value {{.input.value}}",
-			Config: enginecore.ProviderConfig{
+			Model: agent.Model{Config: enginecore.ProviderConfig{
 				Provider: "openai",
 				Model:    "gpt-4",
-			},
+			}},
 		}
 		input := enginecore.NewInput(map[string]any{
 			"name":  "testItem",
@@ -133,7 +133,7 @@ func TestAgentNormalizer_TemplateProcessing(t *testing.T) {
 		config := &agent.Config{
 			ID:           "test-agent",
 			Instructions: "Template with {{.input.name}} and missing {{.input.missing}}",
-			Config:       enginecore.ProviderConfig{},
+			Model:        agent.Model{Config: enginecore.ProviderConfig{}},
 		}
 		input := enginecore.NewInput(map[string]any{
 			"name": "testItem",

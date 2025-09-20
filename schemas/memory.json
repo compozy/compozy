@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://schemas.compozy.com/memory.json",
+  "$id": "memory.json",
   "$defs": {
     "CircuitBreakerConfig": {
       "properties": {
@@ -229,6 +229,10 @@
     "token_provider": {
       "$ref": "#/$defs/TokenProviderConfig",
       "description": "TokenProvider configures **provider-specific token counting** for accurate limits.\nSupports OpenAI, Anthropic, and other providers with their specific tokenizers.\nCan specify API keys for **real-time token counting** or fallback strategies."
+    },
+    "default_key_template": {
+      "type": "string",
+      "description": "DefaultKeyTemplate provides a fallback key template used when an\nagent's memory reference omits the `key` field and supplies only the\nmemory ID. The template supports the same variables available to\nagent-level key templates and will be rendered at runtime.\nExample: \"session:{{.workflow.input.session_id}}\""
     }
   },
   "additionalProperties": false,

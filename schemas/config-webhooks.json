@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "config-webhooks.json",
+  "properties": {
+    "default_method": {
+      "type": "string",
+      "description": "DefaultMethod specifies the default HTTP method for webhook requests.\nDefault: \"POST\"\nValid values: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS"
+    },
+    "default_max_body": {
+      "type": "integer",
+      "description": "DefaultMaxBody caps the maximum size (in bytes) for webhook request bodies.\nDefault: 1,048,576 (1MB)\nMust be greater than 0"
+    },
+    "default_dedupe_ttl": {
+      "type": "integer",
+      "description": "DefaultDedupeTTL sets the default time-to-live for webhook deduplication.\nDefault: 10m (10 minutes)\nMust be non-negative"
+    },
+    "stripe_skew": {
+      "type": "integer",
+      "description": "StripeSkew sets the allowed timestamp skew for Stripe webhook verification.\nDefault: 5m (5 minutes)\nMust be non-negative"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "WebhooksConfig contains webhook processing and validation configuration.",
+  "yamlCompatible": true
+}

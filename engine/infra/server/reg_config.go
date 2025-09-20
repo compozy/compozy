@@ -37,7 +37,7 @@ func logRegistrationComplete(ctx context.Context, state *appstate.State) {
 		log.Warn("config manager not found in context; auth_enabled will default to false")
 	}
 	log.Info("Completed route registration",
-		"total_workflows", len(state.Workflows),
+		"total_workflows", len(state.GetWorkflows()),
 		"swagger_base_path", docs.SwaggerInfo.BasePath,
 		"auth_enabled", authEnabled,
 	)

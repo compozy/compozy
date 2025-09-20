@@ -18,12 +18,15 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	}
 	version, prefixURL := setupBasicConfiguration(ctx)
 	apiBase := router.Group(prefixURL)
-	if err := setupWebhookSystem(ctx, state, router, server, cfg); err != nil {
+	if err := setupWebhookSystem(ctx, state, router, server); err != nil {
 		return err
 	}
 	setupSwaggerAndDocs(router, prefixURL)
 	setupDiagnosticEndpoints(router, version, prefixURL, server)
 	if err := setupAuthSystem(ctx, apiBase, state, server); err != nil {
+		return err
+	}
+	if err := setupAdminRoutes(ctx, apiBase, state, server); err != nil {
 		return err
 	}
 	var memoryHealthService *memory.HealthService

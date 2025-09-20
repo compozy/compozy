@@ -72,7 +72,7 @@ routes:
   route_key_1: target-task-id
   route_key_2:
     type: basic
-    $use: agent(local::agents.#(id=="handler"))
+    agent: handler
     with:
       data: "{{ .workflow.input.data }}"
   route_key_3: another-task-id
@@ -179,7 +179,7 @@ routes:
 
   manager:
     type: basic
-    $use: agent(local::agents.#(id=="manager-approver"))
+    agent: manager-approver
     with:
       request: "{{ .workflow.input }}"
       amount: "{{ .tasks.calculate_total.output.amount }}"
@@ -217,7 +217,7 @@ condition: "{{ .tasks.analyze_content.output.content_type }}"
 routes:
   text:
     type: basic
-    $use: agent(local::agents.#(id=="text-processor"))
+    agent: text-processor
     action: process_text
     with:
       content: "{{ .workflow.input.content }}"
@@ -225,7 +225,7 @@ routes:
 
   image:
     type: basic
-    $use: tool(local::tools.#(id=="image-processor"))
+    tool: image-processor
     with:
       image_data: "{{ .workflow.input.content }}"
       operations:
@@ -237,14 +237,14 @@ routes:
     items: "{{ .workflow.input.video_segments }}"
     task:
       type: basic
-      $use: tool(local::tools.#(id=="video-processor"))
+      tool: video-processor
       with:
         segment: "{{ .item }}"
         quality: "{{ .workflow.input.quality }}"
 
 default:
     type: basic
-    $use: agent(local::agents.#(id=="generic-processor"))
+    agent: generic-processor
     action: process_unknown
     with:
       content: "{{ .workflow.input.content }}"
@@ -277,7 +277,7 @@ condition: "{{ .tasks.classify_request.output.category }}"
 routes:
   urgent:
     type: basic
-    $use: agent(local::agents.#(id=="urgent-handler"))
+    agent: urgent-handler
     with:
       request: "{{ .workflow.input.request }}"
       priority: high
@@ -297,7 +297,7 @@ routes:
     strategy: best_effort
     task:
       type: basic
-      $use: tool(local::tools.#(id=="batch-processor"))
+      tool: batch-processor
       with:
         item: "{{ .item }}"
 
@@ -312,7 +312,7 @@ on_error:
 # Default route when no condition matches
 default:
   type: basic
-  $use: agent(local::agents.#(id=="default-handler"))
+  agent: default-handler
   action: handle_unknown
   with:
     request: "{{ .workflow.input.request }}"
@@ -433,21 +433,21 @@ condition: |
 routes:
   cold:
     type: basic
-    $use: agent(local::agents.#(id=="activity-suggester"))
+    agent: activity-suggester
     with:
       weather_type: "cold"
       suggestions: ["indoor activities", "warm clothing", "hot drinks"]
 
   hot_sunny:
     type: basic
-    $use: agent(local::agents.#(id=="activity-suggester"))
+    agent: activity-suggester
     with:
       weather_type: "hot"
       suggestions: ["swimming", "beach", "air conditioning"]
 
   rainy:
     type: basic
-    $use: agent(local::agents.#(id=="activity-suggester"))
+    agent: activity-suggester
     with:
       weather_type: "rainy"
       suggestions: ["indoor activities", "umbrella", "movies"]
@@ -478,7 +478,7 @@ condition: |
 routes:
   premium_user:
     type: basic
-    $use: agent(local::agents.#(id=="premium-onboarding"))
+    agent: premium-onboarding
     with:
       user_data: "{{ .tasks.get_user.output }}"
 
@@ -521,7 +521,7 @@ routes:
 
   partial_success:
     type: basic
-    $use: agent(local::agents.#(id=="error-analyzer"))
+    agent: error-analyzer
     with:
       data: "{{ .tasks.process_data.output.data }}"
       errors: "{{ .tasks.process_data.output.errors }}"
@@ -529,7 +529,7 @@ routes:
 
   failed:
     type: basic
-    $use: tool(local::tools.#(id=="error-handler"))
+    tool: error-handler
     with:
       original_input: "{{ .workflow.input }}"
       error_details: "{{ .tasks.process_data.output.errors }}"

@@ -7,11 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"dario.cat/mergo"
+	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
+	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 )
@@ -312,6 +315,22 @@ type Config struct {
 	// ```
 	Tools []tool.Config `json:"tools,omitempty" yaml:"tools,omitempty" mapstructure:"tools,omitempty"`
 
+	// Memories declares project-scoped memory resources that agents and tasks can reference
+	// by ID. These are indexed into the ResourceStore under the current project and can be
+	// used across workflows for conversation and state sharing.
+	//
+	// Example:
+	//
+	//  memories:
+	//    - id: conversation
+	//      type: buffer
+	//      persistence:
+	//        type: in_memory
+	//
+	// The Resource field on memory.Config is optional in project-level definitions and will
+	// default to "memory" during validation.
+	Memories []memory.Config `json:"memories,omitempty" yaml:"memories,omitempty" mapstructure:"memories,omitempty"`
+
 	// MonitoringConfig enables observability and metrics collection for performance tracking.
 	//
 	// $ref: inline:#monitoring
@@ -398,6 +417,10 @@ func (p *Config) Validate() error {
 	if err := p.validateTools(); err != nil {
 		return fmt.Errorf("project tools validation failed: %w", err)
 	}
+	// Validate project-level memories
+	if err := p.validateMemories(); err != nil {
+		return fmt.Errorf("project memories validation failed: %w", err)
+	}
 	// Validate monitoring configuration if present
 	if p.MonitoringConfig != nil {
 		if err := p.MonitoringConfig.Validate(); err != nil {
@@ -414,7 +437,16 @@ func (p *Config) Validate() error {
 			return fmt.Errorf("autoload configuration validation failed: %w", p.autoloadValidError)
 		}
 	}
-
+	if p.Opts.SourceOfTruth != "" {
+		m := strings.ToLower(strings.TrimSpace(p.Opts.SourceOfTruth))
+		if m != "repo" && m != "builder" {
+			return fmt.Errorf(
+				"project configuration error: opts.source_of_truth must be 'repo' or 'builder', got '%s'",
+				p.Opts.SourceOfTruth,
+			)
+		}
+		p.Opts.SourceOfTruth = m
+	}
 	return nil
 }
 
@@ -468,6 +500,34 @@ func (p *Config) validateTools() error {
 			return fmt.Errorf("duplicate tool ID '%s' found in project tools", p.Tools[i].ID)
 		}
 		toolIDs[p.Tools[i].ID] = struct{}{}
+	}
+	return nil
+}
+
+// validateMemories validates project-level memory resources declared inline.
+// It normalizes missing Resource fields to "memory" for parity with autoloaded files
+// and REST validators, enforces unique IDs, and applies memory.Config.Validate().
+func (p *Config) validateMemories() error {
+	if len(p.Memories) == 0 {
+		return nil
+	}
+	ids := make(map[string]struct{}, len(p.Memories))
+	for i := range p.Memories {
+		// Default resource kind for inline definitions
+		if strings.TrimSpace(p.Memories[i].Resource) == "" {
+			p.Memories[i].Resource = string(core.ConfigMemory)
+		}
+		if p.Memories[i].ID == "" {
+			return fmt.Errorf("memory[%d] missing required ID field", i)
+		}
+		if _, ok := ids[p.Memories[i].ID]; ok {
+			return fmt.Errorf("duplicate memory ID '%s' found in project memories", p.Memories[i].ID)
+		}
+		// Reuse memory.Config.Validate to ensure parity with REST validation
+		if err := p.Memories[i].Validate(); err != nil {
+			return fmt.Errorf("memory[%d] validation failed: %w", i, err)
+		}
+		ids[p.Memories[i].ID] = struct{}{}
 	}
 	return nil
 }
@@ -616,7 +676,7 @@ func loadAndPrepareConfig(ctx context.Context, cwd *core.PathCWD, path string) (
 		return nil, ctx.Err()
 	default:
 	}
-	config, _, err := core.LoadConfig[*Config](filePath)
+	config, _, err := core.LoadConfig[*Config](ctx, filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -668,4 +728,26 @@ func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath strin
 	}
 	config.SetEnv(env)
 	return config, nil
+}
+
+func (p *Config) SetDefaultModel(agent *agent.Config) {
+	if agent == nil || p == nil {
+		return
+	}
+	if agent.Model.Config.Provider == "" || agent.Model.Config.Model == "" {
+		if def := p.GetDefaultModel(); def != nil {
+			if agent.Model.Config.Provider == "" {
+				agent.Model.Config.Provider = def.Provider
+			}
+			if agent.Model.Config.Model == "" {
+				agent.Model.Config.Model = def.Model
+			}
+			if agent.Model.Config.APIKey == "" {
+				agent.Model.Config.APIKey = def.APIKey
+			}
+			if agent.Model.Config.APIURL == "" {
+				agent.Model.Config.APIURL = def.APIURL
+			}
+		}
+	}
 }

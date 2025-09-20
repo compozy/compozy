@@ -62,7 +62,9 @@ func TestConfig_Default(t *testing.T) {
 
 		// Limits defaults
 		assert.Equal(t, 20, cfg.Limits.MaxNestingDepth)
+		assert.Equal(t, 100, cfg.Limits.MaxConfigFileNestingDepth)
 		assert.Equal(t, 10485760, cfg.Limits.MaxStringLength) // 10MB
+		assert.Equal(t, 10485760, cfg.Limits.MaxConfigFileSize)
 		assert.Equal(t, 10240, cfg.Limits.MaxMessageContent)
 		assert.Equal(t, 102400, cfg.Limits.MaxTotalContentSize)
 		assert.Equal(t, 5, cfg.Limits.MaxTaskContextDepth)

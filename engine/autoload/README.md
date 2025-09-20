@@ -34,7 +34,7 @@ This package handles:
 - Configuration parsing and validation
 - Centralized registry management
 - Error categorization and reporting
-- Resource resolution for `pkg/ref` integration
+- Publishes discovered resources to a ResourceStore for ID-based linking
 - Security validation (path traversal protection)
 
 ---
@@ -55,7 +55,7 @@ This package handles:
 - **Type-Safe Registry**: Centralized registry with type-safe configuration retrieval
 - **Error Categorization**: Comprehensive error classification (parse, validation, security, duplicate)
 - **Strict/Non-Strict Modes**: Choose between failing fast or collecting all errors
-- **Resource Resolution**: Integration with `pkg/ref` for `resource::` scope references
+- **Resource Linking**: ID-based selectors compiled via ResourceStore
 - **Thread-Safe Operations**: Concurrent-safe registry operations with proper locking
 - **Path Security**: Built-in protection against path traversal vulnerabilities
 
@@ -368,29 +368,34 @@ func main() {
 }
 ```
 
-### Resource Resolution Integration
+### Publishing to a Resource Store
+
+During application startup, publish autoloaded items to a ResourceStore so workflows can resolve IDs during compile/link:
 
 ```go
 import (
-    "github.com/compozy/compozy/engine/autoload"
-    "github.com/compozy/compozy/pkg/ref"
+    "context"
+    "github.com/compozy/compozy/engine/resources"
 )
 
-// Setup autoloader with resource resolution
-loader := autoload.New(projectRoot, config, registry)
-if err := loader.Load(ctx); err != nil {
-    log.Fatal(err)
+ctx := context.Background()
+store := resources.NewMemoryResourceStore()
+
+// projectName should match your loaded project config
+if err := registry.SyncToResourceStore(ctx, projectName, store); err != nil {
+    log.Fatalf("failed to publish resources: %v", err)
 }
+```
 
-// Create resource resolver for pkg/ref
-resolver := loader.CreateResourceResolver()
+### Resource Linking
 
-// Use with ref evaluator
-evaluator := ref.NewEvaluator(context)
-evaluator.AddResolver("resource", resolver)
-
-// Now you can use resource:: references in configurations
-// Example: resource::agent/code-assistant
+```go
+// Autoload + ResourceStore: use ID-based selectors at compile time
+// Example task selector (YAML):
+// tasks:
+//   - id: analyze
+//     type: basic
+//     agent: research-agent   # resolved by ResourceStore during compile
 ```
 
 ### Advanced Error Handling
@@ -535,7 +540,6 @@ func (al *AutoLoader) LoadWithResult(ctx context.Context) (*LoadResult, error)
 func (al *AutoLoader) Discover(ctx context.Context) ([]string, error)
 func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error)
 func (al *AutoLoader) Stats() map[string]int
-func (al *AutoLoader) CreateResourceResolver() *ResourceResolver
 ```
 
 #### Registry Methods

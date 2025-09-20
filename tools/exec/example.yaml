@@ -8,8 +8,7 @@ workflows:
       - id: list-files
         type: basic
         agent: assistant
-        tool:
-          $use: tools/exec
+        tool: exec
         instructions: |
           List all files in the current directory using the ls command
         input:
@@ -18,8 +17,7 @@ workflows:
       - id: get-date
         type: basic
         agent: assistant
-        tool:
-          $use: tools/exec
+        tool: exec
         instructions: |
           Get the current date and time
         input:
@@ -28,8 +26,7 @@ workflows:
       - id: check-environment
         type: basic
         agent: assistant
-        tool:
-          $use: tools/exec
+        tool: exec
         instructions: |
           Check a custom environment variable
         input:
@@ -40,8 +37,7 @@ workflows:
       - id: find-typescript-files
         type: basic
         agent: assistant
-        tool:
-          $use: tools/exec
+        tool: exec
         instructions: |
           Find all TypeScript files in the current directory
         input:

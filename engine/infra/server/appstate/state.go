@@ -27,6 +27,8 @@ type ExtensionKey string
 const (
 	extensionScheduleManagerKey ExtensionKey = "scheduleManager"
 	extensionWebhookRegistryKey ExtensionKey = "webhook.registry"
+	extensionResourceStoreKey   ExtensionKey = "resource.store"
+	extensionConfigRegistryKey  ExtensionKey = "config.registry"
 )
 
 type BaseDeps struct {
@@ -120,6 +122,58 @@ func (s *State) ScheduleManager() (any, bool) {
 	defer s.mu.RUnlock()
 	v, ok := s.Extensions[extensionScheduleManagerKey]
 	return v, ok
+}
+
+// SetResourceStore stores the resources.ResourceStore in extensions with type safety
+func (s *State) SetResourceStore(v any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Extensions == nil {
+		s.Extensions = make(map[ExtensionKey]any)
+	}
+	s.Extensions[extensionResourceStoreKey] = v
+}
+
+// ResourceStore retrieves the resources.ResourceStore from extensions with type safety
+func (s *State) ResourceStore() (any, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.Extensions[extensionResourceStoreKey]
+	return v, ok
+}
+
+// SetConfigRegistry stores the autoload.ConfigRegistry in extensions
+func (s *State) SetConfigRegistry(v any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Extensions == nil {
+		s.Extensions = make(map[ExtensionKey]any)
+	}
+	s.Extensions[extensionConfigRegistryKey] = v
+}
+
+// ConfigRegistry retrieves the autoload.ConfigRegistry from extensions
+func (s *State) ConfigRegistry() (any, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.Extensions[extensionConfigRegistryKey]
+	return v, ok
+}
+
+// ReplaceWorkflows swaps the compiled workflow set atomically under RW lock
+func (s *State) ReplaceWorkflows(workflows []*workflow.Config) {
+	s.mu.Lock()
+	s.Workflows = workflows
+	s.mu.Unlock()
+}
+
+// GetWorkflows returns the current compiled workflow set under read lock
+func (s *State) GetWorkflows() []*workflow.Config {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*workflow.Config, len(s.Workflows))
+	copy(out, s.Workflows)
+	return out
 }
 
 func StateMiddleware(state *State) gin.HandlerFunc {

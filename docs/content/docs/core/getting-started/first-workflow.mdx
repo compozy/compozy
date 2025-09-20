@@ -224,7 +224,7 @@ description: Specialized in Go code analysis for performance and best practices
 version: 1.0.0
 
 config:
-  $ref: global::models.#(provider=="openai")
+  model: openai:gpt-4o-mini
 
 instructions: |
   You are an expert Go developer and code reviewer with deep knowledge of:
@@ -313,7 +313,7 @@ schemas:
 
 config:
   input:
-    $ref: local::schemas.#(id=="review_input")
+    review_input
 
 tools:
   - id: list_files
@@ -343,7 +343,7 @@ tools:
 tasks:
   - id: review
     type: basic
-    $use: tool(local::tools.#(id=="list_files"))
+    tool: list_files
     with:
       dir: "{{ .workflow.input.directory }}"
       exclude: "!*.go"
@@ -364,13 +364,13 @@ tasks:
       tasks:
         - id: read_content
           type: basic
-          $use: tool(local::tools.#(id=="read_file"))
+          tool: read_file
           with:
             path: "{{ .input.dir }}/{{ .file }}"
 
         - id: analyze_content
           type: basic
-          $use: agent(resource::agent::#(id=="analyzer"))
+          agent: analyzer
           action: analyze
           with:
             file_path: "{{ .input.dir }}/{{ .file }}"

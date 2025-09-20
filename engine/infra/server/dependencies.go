@@ -12,17 +12,22 @@ import (
 	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
+	"github.com/compozy/compozy/engine/infra/server/reconciler"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
+	redis "github.com/redis/go-redis/v9"
 )
 
-func (s *Server) setupProjectConfig() (*project.Config, []*workflow.Config, *autoload.ConfigRegistry, error) {
+func (s *Server) setupProjectConfig(
+	store resources.ResourceStore,
+) (*project.Config, []*workflow.Config, *autoload.ConfigRegistry, error) {
 	log := logger.FromContext(s.ctx)
 	setupStart := time.Now()
-	configService := csvc.NewService(s.envFilePath)
+	configService := csvc.NewService(s.envFilePath, store)
 	projectConfig, workflows, configRegistry, err := configService.LoadProject(s.ctx, s.cwd, s.configFile)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to load project: %w", err)
@@ -125,7 +130,16 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
 	cfg := config.FromContext(s.ctx)
 	setupStart := time.Now()
-	projectConfig, workflows, configRegistry, err := s.setupProjectConfig()
+	redisClient, redisCleanup, err := s.SetupRedisClient(cfg)
+	if err != nil {
+		return nil, cleanupFuncs, err
+	}
+	s.redisClient = redisClient
+	if redisCleanup != nil {
+		cleanupFuncs = append(cleanupFuncs, redisCleanup)
+	}
+	resourceStore := chooseResourceStore(s.redisClient, cfg)
+	projectConfig, workflows, configRegistry, err := s.setupProjectConfig(resourceStore)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -145,14 +159,6 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 			cleanupFuncs = append(cleanupFuncs, mcpCleanup)
 		}
 	}
-	redisClient, redisCleanup, err := s.SetupRedisClient(cfg)
-	if err != nil {
-		return nil, cleanupFuncs, err
-	}
-	s.redisClient = redisClient
-	if redisCleanup != nil {
-		cleanupFuncs = append(cleanupFuncs, redisCleanup)
-	}
 	s.finalizeStartupLabels()
 	clientConfig := &worker.TemporalConfig{
 		HostPort:  cfg.Temporal.HostPort,
@@ -171,11 +177,36 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to create app state: %w", err)
 	}
+	state.SetResourceStore(resourceStore)
+	if configRegistry != nil {
+		state.SetConfigRegistry(configRegistry)
+	}
 	if w != nil {
 		s.initializeScheduleManager(state, w, workflows)
 	}
+	// Start live update reconciler in builder mode (watch ResourceStore and scoped recompile)
+	if r, err := reconciler.StartIfBuilderMode(s.ctx, state); err != nil {
+		return nil, cleanupFuncs, fmt.Errorf("failed to start reconciler: %w", err)
+	} else if r != nil {
+		cleanupFuncs = append(cleanupFuncs, func() { r.Stop() })
+	}
 	s.emitStartupSummary(time.Since(setupStart))
 	return state, cleanupFuncs, nil
+}
+
+func chooseResourceStore(redisClient *redis.Client, cfg *config.Config) resources.ResourceStore {
+	// In repo mode, workflows are loaded directly from YAML and require
+	// preserving concrete Go types in the ResourceStore for schema/agent/tool
+	// resolution. The Redis-backed store serializes values to JSON which loses
+	// type information and causes type mismatches during compilation.
+	// Use in-memory store for repo source of truth to retain types.
+	if cfg != nil && cfg.Server.SourceOfTruth == sourceRepo {
+		return resources.NewMemoryResourceStore()
+	}
+	if redisClient != nil {
+		return resources.NewRedisResourceStore(redisClient)
+	}
+	return resources.NewMemoryResourceStore()
 }
 
 func (s *Server) finalizeStartupLabels() {

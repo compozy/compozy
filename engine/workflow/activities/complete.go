@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/engine/task2/shared"
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/compozy/compozy/pkg/ref"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
@@ -158,13 +157,7 @@ func (a *CompleteWorkflow) loadWorkflowsFromProject(ctx context.Context) (map[st
 		return nil, ctx.Err()
 	default:
 	}
-	var evaluatorOptions []ref.EvalConfigOption
-	if scope, err := a.projectConfig.AsMap(); err == nil {
-		evaluatorOptions = append(evaluatorOptions, ref.WithGlobalScope(scope))
-	}
-	evaluatorOptions = append(evaluatorOptions, ref.WithCacheEnabled())
-	ev := ref.NewEvaluator(evaluatorOptions...)
-	reloaded, err := wf.WorkflowsFromProject(a.projectConfig, ev)
+	reloaded, err := wf.WorkflowsFromProject(ctx, a.projectConfig)
 	if err != nil {
 		return nil, err
 	}

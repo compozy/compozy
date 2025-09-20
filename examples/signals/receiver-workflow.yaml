@@ -11,6 +11,6 @@ tools:
 tasks:
   - id: process-signal
     type: basic
-    $use: tool(local::tools.#(id="log_tool"))
+    tool: log_tool
     with:
       message: 'Received: {{ .workflow.input.message | default "manually started" }}'

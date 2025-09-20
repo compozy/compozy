@@ -4,9 +4,27 @@ strategy: wait_all
 max_workers: 4
 timeout: 5m
 
-# Example of using task reference with $use
+# Example of referencing another task config by ID
 task:
-  $use: task(local::tasks_definitions.#(id=="validation_task"))
+  id: validation_task
+  type: basic
+  agent:
+    id: validation_agent
+    config:
+      provider: anthropic
+      model: claude-3-haiku
+      params:
+        temperature: 0.1
+        max_tokens: 500
+    instructions: Validate the input data structure and format.
+  action: validate
+  input:
+    type: object
+    properties:
+      data:
+        type: string
+    required:
+      - data
 
 tasks:
   - id: sentiment_analysis
@@ -38,33 +56,6 @@ tasks:
       max_keywords: 10
 
   # Example of inline task that references another task config
-  - $ref: local::tasks_definitions.#(id=="backup_task")
-    with:
-      content: "{{ .workflow.input.raw_data }}"
-      backup_location: "/tmp/backups"
-
-# Define some local tasks that can be referenced
-tasks_definitions:
-  - id: validation_task
-    type: basic
-    agent:
-      id: validation_agent
-      config:
-        provider: anthropic
-        model: claude-3-haiku
-        params:
-          temperature: 0.1
-          max_tokens: 500
-      instructions: Validate the input data structure and format.
-    action: validate
-    input:
-      type: object
-      properties:
-        data:
-          type: string
-      required:
-        - data
-
   - id: backup_task
     type: basic
     tool:
@@ -82,6 +73,11 @@ tasks_definitions:
       required:
         - content
         - backup_location
+    with:
+      content: "{{ .workflow.input.raw_data }}"
+      backup_location: "/tmp/backups"
+
+# Define some local tasks that can be referenced
 
 input:
   type: object

@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "config-worker.json",
+  "$defs": {
+    "WorkerDispatcherConfig": {
+      "properties": {
+        "heartbeat_ttl": {
+          "type": "integer"
+        },
+        "stale_threshold": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "WorkerDispatcherConfig holds dispatcher heartbeat tracking configuration."
+    }
+  },
+  "properties": {
+    "config_store_ttl": {
+      "type": "integer",
+      "description": "ConfigStoreTTL sets how long worker configurations are cached.\n\n**Default**: `24h`"
+    },
+    "heartbeat_cleanup_timeout": {
+      "type": "integer",
+      "description": "HeartbeatCleanupTimeout sets timeout for heartbeat cleanup operations.\n\n**Default**: `5s`"
+    },
+    "mcp_shutdown_timeout": {
+      "type": "integer",
+      "description": "MCPShutdownTimeout sets timeout for MCP server shutdown.\n\n**Default**: `30s`"
+    },
+    "dispatcher_retry_delay": {
+      "type": "integer",
+      "description": "DispatcherRetryDelay sets delay between dispatcher retry attempts.\n\n**Default**: `50ms`"
+    },
+    "dispatcher_max_retries": {
+      "type": "integer",
+      "description": "DispatcherMaxRetries sets maximum dispatcher retry attempts.\n\n**Default**: `2`"
+    },
+    "mcp_proxy_health_check_timeout": {
+      "type": "integer",
+      "description": "MCPProxyHealthCheckTimeout sets timeout for MCP proxy health checks.\n\n**Default**: `10s`"
+    },
+    "start_workflow_timeout": {
+      "type": "integer",
+      "description": "StartWorkflowTimeout bounds the HTTP handler's call to start a\nworkflow execution to avoid hanging requests when Temporal is slow\nor unreachable. If zero or negative, a safe default is used.\n\n**Default**: `5s`"
+    },
+    "dispatcher": {
+      "$ref": "#/$defs/WorkerDispatcherConfig",
+      "description": "Dispatcher defines heartbeat tracking for dispatcher leases."
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "WorkerConfig contains Temporal worker configuration.",
+  "yamlCompatible": true
+}

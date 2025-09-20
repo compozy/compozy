@@ -8,7 +8,7 @@ triggers:
       slug: github-issues
       verify:
         strategy: github
-        secret: "123"
+        secret: "{{ .env.GITHUB_WEBHOOK_SECRET }}"
       dedupe:
         enabled: true
         key: delivery.id
@@ -59,7 +59,7 @@ agents:
 tasks:
   - id: analyze
     type: basic
-    $use: agent(local::agents.#(id="comment_analyst"))
+    agent: comment_analyst
     action: analyze_comment
     with:
       repository: "{{ .workflow.input.repository }}"

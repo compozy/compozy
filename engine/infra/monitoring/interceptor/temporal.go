@@ -205,7 +205,7 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 		return err
 	}
 
-	if err := initDispatcherScanMetrics(meter, log); err != nil {
+	if err := initDispatcherScanMetrics(ctx, meter); err != nil {
 		return err
 	}
 	// Register dispatcher uptime callback
@@ -235,7 +235,8 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 }
 
 // initDispatcherScanMetrics initializes metrics related to dispatcher key scans.
-func initDispatcherScanMetrics(meter metric.Meter, log logger.Logger) error {
+func initDispatcherScanMetrics(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	var err error
 	dispatcherKeysScannedTotal, err = meter.Int64Counter(
 		"compozy_dispatcher_keys_scanned_total",
@@ -408,9 +409,6 @@ func SetConfiguredWorkerCount(count int64) {
 }
 
 func metricsContext(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
 	return context.WithoutCancel(ctx)
 }
 

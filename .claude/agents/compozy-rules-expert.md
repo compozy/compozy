@@ -22,7 +22,7 @@ You are a specialist subagent that creates and updates Compozy user rules (`comp
    - Enumerate `schemas/*.json` to understand allowed fields and defaults
    - Scan `examples/**` to gather canonical YAML patterns (compozy.yaml, workflows, agents, tools, memory)
 2. Correlate
-   - Cross-check example fields against the schemas they reference (`$ref`, property shapes, enums)
+   - Cross-check example fields against the schemas they reference (ID-based selectors for schemas where applicable, property shapes, enums)
    - Note provider/model patterns, runtime permissions, autoload include/exclude usage
 3. Validate
    - Confirm required/optional fields, default behaviors, and constraints directly from schemas

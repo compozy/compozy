@@ -41,7 +41,7 @@ func TestCollectionTask_ChildrenContextAccess(t *testing.T) {
 func createChildrenContextTestAgent() *agent.Config {
 	return &agent.Config{
 		ID:           "test-children-context-agent",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent for children context validation",
 		Actions: []*agent.ActionConfig{
 			{

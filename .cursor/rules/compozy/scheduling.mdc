@@ -37,7 +37,7 @@ schedule:
 tasks:
   - id: daily-task
     type: basic
-    $use: tool(local::tools.#(id="my_tool"))
+    tool: my_tool
     with:
       message: "Daily scheduled execution"
 ```
@@ -61,7 +61,7 @@ triggers:
 tasks:
   - id: process-event
     type: basic
-    $use: agent(local::agents.#(id="processor"))
+    agent: processor
     with:
       user_info: "{{ .workflow.input.user_id }}"
       email: "{{ .workflow.input.email }}"
@@ -165,7 +165,7 @@ triggers:
   - type: signal
     name: "user-action"
     schema:
-      $ref: 'local::schemas.#(id="user_action_schema")'
+      input: user_action_schema
 ```
 
 ### Webhook Triggers (External Events)
@@ -337,7 +337,7 @@ tasks:
     condition: |
       workflow.input.environment == "production" &&
       now().hour >= 9 && now().hour < 17
-    $use: agent(local::agents.#(id="processor"))
+    agent: processor
 ```
 
 ### Schedule Chaining (Event-Driven Workflows)
@@ -351,7 +351,7 @@ schedule:
 tasks:
   - id: process-data
     type: basic
-    $use: agent(local::agents.#(id="data-processor"))
+    agent: data-processor
 
   - id: signal-completion
     type: signal
@@ -371,7 +371,7 @@ triggers:
 tasks:
   - id: generate-report
     type: basic
-    $use: agent(local::agents.#(id="reporter"))
+    agent: reporter
     with:
       data_date: "{{ .workflow.input.date }}"
       record_count: "{{ .workflow.input.records }}"
@@ -401,11 +401,11 @@ config:
 tasks:
   - id: main-task
     type: basic
-    $use: agent(local::agents.#(id="processor"))
+    agent: processor
 
   - id: handle-schedule-failure
     type: basic
-    $use: agent(local::agents.#(id="error-handler"))
+    agent: error-handler
     condition: "task.id == 'handle-schedule-failure'"
 ```
 

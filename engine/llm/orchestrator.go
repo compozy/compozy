@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -474,67 +473,12 @@ func stableJSONFingerprint(raw []byte) string {
 		return hex.EncodeToString(sum[:])
 	}
 	var b bytes.Buffer
-	writeStableJSON(&b, v)
+	core.WriteStableJSON(&b, v)
 	sum := sha256.Sum256(b.Bytes())
 	return hex.EncodeToString(sum[:])
 }
 
-// writeStableJSON writes a canonical JSON-like representation with sorted keys.
-func writeStableJSON(b *bytes.Buffer, v any) {
-	switch t := v.(type) {
-	case map[string]any:
-		keys := make([]string, 0, len(t))
-		for k := range t {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		b.WriteByte('{')
-		for i, k := range keys {
-			if i > 0 {
-				b.WriteByte(',')
-			}
-			if bs, mErr := json.Marshal(k); mErr == nil {
-				b.Write(bs)
-			} else {
-				b.WriteString("\"")
-				b.WriteString(k)
-				b.WriteString("\"")
-			}
-			b.WriteByte(':')
-			writeStableJSON(b, t[k])
-		}
-		b.WriteByte('}')
-	case []any:
-		b.WriteByte('[')
-		for i, e := range t {
-			if i > 0 {
-				b.WriteByte(',')
-			}
-			writeStableJSON(b, e)
-		}
-		b.WriteByte(']')
-	case string:
-		if bs, mErr := json.Marshal(t); mErr == nil {
-			b.Write(bs)
-		} else {
-			b.WriteString("\"")
-			b.WriteString(t)
-			b.WriteString("\"")
-		}
-	case float64, bool, nil:
-		if bs, mErr := json.Marshal(t); mErr == nil {
-			b.Write(bs)
-		} else {
-			b.WriteString("null")
-		}
-	default:
-		if bs, mErr := json.Marshal(t); mErr == nil {
-			b.Write(bs)
-		} else {
-			b.WriteString("null")
-		}
-	}
-}
+// canonical JSON writer consolidated in core.WriteStableJSON
 
 // detectNoProgress updates counters and detects no-progress condition
 func (o *llmOrchestrator) detectNoProgress(threshold int, current string, last *string, counter *int) bool {
@@ -825,8 +769,8 @@ func extractTopLevelErrorMessage(s string) (string, bool) {
 // with precedence: agent model override > orchestrator config > default.
 func (o *llmOrchestrator) maxToolIterationsFor(request Request) int {
 	maxIterations := o.config.MaxToolIterations
-	if request.Agent != nil && request.Agent.Config.MaxToolIterations > 0 {
-		maxIterations = request.Agent.Config.MaxToolIterations
+	if request.Agent != nil && request.Agent.Model.Config.MaxToolIterations > 0 {
+		maxIterations = request.Agent.Model.Config.MaxToolIterations
 	}
 	if maxIterations <= 0 {
 		maxIterations = defaultMaxToolIterations
@@ -950,11 +894,11 @@ func (o *llmOrchestrator) createLLMClient(ctx context.Context, request Request) 
 	if factory == nil {
 		factory = llmadapter.NewDefaultFactory()
 	}
-	llmClient, err := factory.CreateClient(ctx, &request.Agent.Config)
+	llmClient, err := factory.CreateClient(ctx, &request.Agent.Model.Config)
 	if err != nil {
 		return nil, NewLLMError(err, ErrCodeLLMCreation, map[string]any{
-			"provider": request.Agent.Config.Provider,
-			"model":    request.Agent.Config.Model,
+			"provider": request.Agent.Model.Config.Provider,
+			"model":    request.Agent.Model.Config.Model,
 		})
 	}
 	return llmClient, nil
@@ -991,7 +935,7 @@ func (o *llmOrchestrator) buildLLMRequest(
 	}
 
 	// Determine temperature: use agent's configured value (explicit zero allowed; upstream default applies)
-	temperature := request.Agent.Config.Params.Temperature
+	temperature := request.Agent.Model.Config.Params.Temperature
 
 	// Determine tool choice: default to "auto" when tools are available
 	toolChoice := ""
@@ -1036,7 +980,7 @@ func (o *llmOrchestrator) buildPromptData(ctx context.Context, request Request) 
 		})
 	}
 	shouldUseStructured := o.config.PromptBuilder.ShouldUseStructuredOutput(
-		string(request.Agent.Config.Provider),
+		string(request.Agent.Model.Config.Provider),
 		request.Action,
 		request.Agent.Tools,
 	)

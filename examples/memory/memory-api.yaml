@@ -2,8 +2,8 @@ id: memory-api
 version: 0.1.0
 description: Simple agent with memory for testing REST API endpoints
 
-config:
-  input:
+schemas:
+  - id: memory_api_input
     type: object
     properties:
       user_id:
@@ -18,15 +18,18 @@ config:
       - user_id
       - message
 
+config:
+  input: memory_api_input
+
 agents:
   - id: memory_agent
+    model: groq:llama-3.3-70b-versatile
     config:
-      $ref: global::models.#(provider=="groq")
-      temperature: 0.7
-      max_tokens: 500
+      params:
+        temperature: 0.7
+        max_tokens: 500
     memory:
-      - id: user_memory
-        key: "user:{{.workflow.input.user_id}}"
+      - "user_memory"
     instructions: |
       You are a helpful assistant that can remember information about users.
       Use your memory to provide personalized responses based on what you know about the user.
@@ -52,7 +55,7 @@ tasks:
   # Simple chat with memory
   - id: chat
     type: basic
-    $use: agent(local::agents.#(id="memory_agent"))
+    agent: memory_agent
     action: chat
     final: true
 

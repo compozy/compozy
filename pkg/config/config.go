@@ -179,6 +179,20 @@ type ServerConfig struct {
 	//
 	// $ref: schema://application#server.timeouts
 	Timeouts ServerTimeouts `koanf:"timeouts" json:"timeouts" yaml:"timeouts" mapstructure:"timeouts"`
+
+	// SourceOfTruth selects where the server loads workflows from.
+	//
+	// Values:
+	//   - "repo": load YAML from repository and index to store (default)
+	//   - "builder": load workflows from ResourceStore (compile-from-store)
+	SourceOfTruth string `koanf:"source_of_truth" json:"source_of_truth" yaml:"source_of_truth" mapstructure:"source_of_truth" env:"SERVER_SOURCE_OF_TRUTH" validate:"oneof=repo builder"`
+
+	// SeedFromRepoOnEmpty controls whether builder mode seeds the store from
+	// repository YAML once when the store is empty. Disabled by default.
+	SeedFromRepoOnEmpty bool `koanf:"seed_from_repo_on_empty" json:"seed_from_repo_on_empty" yaml:"seed_from_repo_on_empty" mapstructure:"seed_from_repo_on_empty" env:"SERVER_SEED_FROM_REPO_ON_EMPTY"`
+
+	// Reconciler configures the workflow reconciler subsystem.
+	Reconciler ReconcilerConfig `koanf:"reconciler" json:"reconciler" yaml:"reconciler" mapstructure:"reconciler"`
 }
 
 // ServerTimeouts defines tunable durations for server operations.
@@ -203,6 +217,13 @@ type ServerTimeouts struct {
 	ScheduleRetryBackoffSeconds int           `koanf:"schedule_retry_backoff_seconds" json:"schedule_retry_backoff_seconds" yaml:"schedule_retry_backoff_seconds" mapstructure:"schedule_retry_backoff_seconds"`
 	TemporalReachability        time.Duration `koanf:"temporal_reachability"          json:"temporal_reachability"          yaml:"temporal_reachability"          mapstructure:"temporal_reachability"`
 	StartProbeDelay             time.Duration `koanf:"start_probe_delay"              json:"start_probe_delay"              yaml:"start_probe_delay"              mapstructure:"start_probe_delay"`
+}
+
+// ReconcilerConfig defines tunable options for the workflow reconciler.
+type ReconcilerConfig struct {
+	QueueCapacity   int           `koanf:"queue_capacity"    json:"queue_capacity"    yaml:"queue_capacity"    mapstructure:"queue_capacity"    env:"SERVER_RECONCILER_QUEUE_CAPACITY"    validate:"min=0"`
+	DebounceWait    time.Duration `koanf:"debounce_wait"     json:"debounce_wait"     yaml:"debounce_wait"     mapstructure:"debounce_wait"     env:"SERVER_RECONCILER_DEBOUNCE_WAIT"     validate:"min=0"`
+	DebounceMaxWait time.Duration `koanf:"debounce_max_wait" json:"debounce_max_wait" yaml:"debounce_max_wait" mapstructure:"debounce_max_wait" env:"SERVER_RECONCILER_DEBOUNCE_MAX_WAIT" validate:"min=0"`
 }
 
 // CORSConfig contains CORS configuration.
@@ -449,11 +470,23 @@ type LimitsConfig struct {
 	// Default: 20
 	MaxNestingDepth int `koanf:"max_nesting_depth" validate:"min=1" env:"LIMITS_MAX_NESTING_DEPTH" json:"max_nesting_depth" yaml:"max_nesting_depth" mapstructure:"max_nesting_depth"`
 
+	// MaxConfigFileNestingDepth limits nesting depth when parsing configuration files.
+	//
+	// Prevents stack overflow from deeply nested YAML documents supplied by users.
+	// Default: 100
+	MaxConfigFileNestingDepth int `koanf:"max_config_file_nesting_depth" validate:"min=1" env:"LIMITS_MAX_CONFIG_FILE_NESTING_DEPTH" json:"max_config_file_nesting_depth" yaml:"max_config_file_nesting_depth" mapstructure:"max_config_file_nesting_depth"`
+
 	// MaxStringLength limits individual string values.
 	//
 	// Applies to all string fields in requests and responses.
 	// Default: 10MB (10485760 bytes)
 	MaxStringLength int `koanf:"max_string_length" validate:"min=1" env:"LIMITS_MAX_STRING_LENGTH" json:"max_string_length" yaml:"max_string_length" mapstructure:"max_string_length"`
+
+	// MaxConfigFileSize limits configuration file size during loads.
+	//
+	// Prevents memory exhaustion when loading large YAML/JSON documents.
+	// Default: 10MB (10485760 bytes)
+	MaxConfigFileSize int `koanf:"max_config_file_size" validate:"min=1" env:"LIMITS_MAX_CONFIG_FILE_SIZE" json:"max_config_file_size" yaml:"max_config_file_size" mapstructure:"max_config_file_size"`
 
 	// MaxMessageContent limits LLM message content size.
 	//
@@ -1379,7 +1412,10 @@ func buildServerConfig(registry *definition.Registry) ServerConfig {
 			WorkflowExceptions: getStringSlice(registry, "server.auth.workflow_exceptions"),
 			AdminKey:           SensitiveString(getString(registry, "server.auth.admin_key")),
 		},
-		Timeouts: buildServerTimeouts(registry),
+		SourceOfTruth:       getString(registry, "server.source_of_truth"),
+		SeedFromRepoOnEmpty: getBool(registry, "server.seed_from_repo_on_empty"),
+		Timeouts:            buildServerTimeouts(registry),
+		Reconciler:          buildReconcilerConfig(registry),
 	}
 }
 
@@ -1401,6 +1437,30 @@ func buildServerTimeouts(registry *definition.Registry) ServerTimeouts {
 		TemporalReachability:        getDuration(registry, "server.timeouts.temporal_reachability"),
 		StartProbeDelay:             getDuration(registry, "server.timeouts.start_probe_delay"),
 	}
+}
+
+const (
+	DefaultReconcilerQueueCapacity   = 1024
+	DefaultReconcilerDebounceWait    = 300 * time.Millisecond
+	DefaultReconcilerDebounceMaxWait = 500 * time.Millisecond
+)
+
+func buildReconcilerConfig(registry *definition.Registry) ReconcilerConfig {
+	cfg := ReconcilerConfig{
+		QueueCapacity:   getInt(registry, "server.reconciler.queue_capacity"),
+		DebounceWait:    getDuration(registry, "server.reconciler.debounce_wait"),
+		DebounceMaxWait: getDuration(registry, "server.reconciler.debounce_max_wait"),
+	}
+	if cfg.QueueCapacity <= 0 {
+		cfg.QueueCapacity = DefaultReconcilerQueueCapacity
+	}
+	if cfg.DebounceWait <= 0 {
+		cfg.DebounceWait = DefaultReconcilerDebounceWait
+	}
+	if cfg.DebounceMaxWait <= 0 {
+		cfg.DebounceMaxWait = DefaultReconcilerDebounceMaxWait
+	}
+	return cfg
 }
 
 func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
@@ -1442,12 +1502,14 @@ func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
 
 func buildLimitsConfig(registry *definition.Registry) LimitsConfig {
 	return LimitsConfig{
-		MaxNestingDepth:       getInt(registry, "limits.max_nesting_depth"),
-		MaxStringLength:       getInt(registry, "limits.max_string_length"),
-		MaxMessageContent:     getInt(registry, "limits.max_message_content"),
-		MaxTotalContentSize:   getInt(registry, "limits.max_total_content_size"),
-		MaxTaskContextDepth:   getInt(registry, "limits.max_task_context_depth"),
-		ParentUpdateBatchSize: getInt(registry, "limits.parent_update_batch_size"),
+		MaxNestingDepth:           getInt(registry, "limits.max_nesting_depth"),
+		MaxConfigFileNestingDepth: getInt(registry, "limits.max_config_file_nesting_depth"),
+		MaxStringLength:           getInt(registry, "limits.max_string_length"),
+		MaxConfigFileSize:         getInt(registry, "limits.max_config_file_size"),
+		MaxMessageContent:         getInt(registry, "limits.max_message_content"),
+		MaxTotalContentSize:       getInt(registry, "limits.max_total_content_size"),
+		MaxTaskContextDepth:       getInt(registry, "limits.max_task_context_depth"),
+		ParentUpdateBatchSize:     getInt(registry, "limits.parent_update_batch_size"),
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"dario.cat/mergo"
@@ -12,11 +13,16 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/webhook"
-	"github.com/compozy/compozy/pkg/ref"
+	pkgcfg "github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // TriggerType defines the type of event that can initiate workflow execution.
@@ -447,9 +453,11 @@ func (w *Config) HasSchema() bool {
 	return w.Opts.InputSchema != nil
 }
 
+// Deprecated: Prefer ValidateWithContext(ctx); this uses a context without deadlines/cancellation.
+//
+
 func (w *Config) Validate() error {
-	// Backward-compatible entry point without context
-	return w.ValidateWithContext(context.Background())
+	return w.ValidateWithContext(context.TODO())
 }
 
 // ValidateWithContext validates the workflow configuration using the provided context.
@@ -578,12 +586,292 @@ func (w *Config) Clone() (*Config, error) {
 	return core.DeepCopy(w)
 }
 
-func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error) {
+func setupCompileMetrics() (metric.Float64Histogram, metric.Int64Counter) {
+	meter := otel.GetMeterProvider().Meter("compozy")
+	var hist metric.Float64Histogram
+	var cnt metric.Int64Counter
+	if meter == nil {
+		return nil, nil
+	}
+	if h, err := meter.Float64Histogram(
+		"compozy_compile_duration_seconds",
+		metric.WithDescription("Duration of workflow compile step"),
+	); err == nil {
+		hist = h
+	}
+	if c, err := meter.Int64Counter(
+		"compozy_compile_total",
+		metric.WithDescription("Count of workflow compile attempts"),
+	); err == nil {
+		cnt = c
+	}
+	return hist, cnt
+}
+
+// Compile materializes a workflow configuration by resolving ID-based selectors
+// (agent/tool) and applying precedence rules. It deep-copies resolved configs so
+// no mutable state is shared across tasks at runtime.
+//
+// Rules (MVP per PRD):
+// - For basic tasks, exactly one of agent/tool must be set
+// - If Agent/Tool contains only an ID (selector), resolve from ResourceStore
+// - If agent model is empty, fill from project default model (when available)
+// - Deep-copy all resolved configs
+//
+// NOTE: Schema ID linking and MCP selector support will be completed in later tasks
+// (see tasks/prd-refs/_task_6.0.md and _task_7.0.md).
+
+func (w *Config) Compile(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+) (compiled *Config, err error) {
+	_ = pkgcfg.FromContext(ctx)
+	log := logger.FromContext(ctx)
+	compileDur, compileCnt := setupCompileMetrics()
+	started := time.Now()
+	defer func() {
+		status := "ok"
+		if err != nil {
+			status = "error"
+		}
+		if compileCnt != nil {
+			compileCnt.Add(ctx, 1, metric.WithAttributes(attribute.String("status", status)))
+		}
+		if compileDur != nil {
+			dur := time.Since(started).Seconds()
+			compileDur.Record(ctx, dur, metric.WithAttributes(attribute.String("status", status)))
+		}
+	}()
+	if store == nil {
+		return nil, fmt.Errorf("compile failed: resource store is required")
+	}
+	if proj == nil || proj.Name == "" {
+		return nil, fmt.Errorf("compile failed: project with valid name is required")
+	}
+	compiled, err = w.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone workflow '%s': %w", w.ID, err)
+	}
+	// Link workflow-scoped schema references (config input, triggers)
+	if err = linkWorkflowSchemas(ctx, proj, store, compiled); err == nil {
+		for i := range compiled.Tasks {
+			if err = compileTaskRecursive(ctx, proj, store, &compiled.Tasks[i]); err != nil {
+				break
+			}
+		}
+	}
+	if err != nil {
+		if te, ok := err.(*compileTaskError); ok {
+			return nil, fmt.Errorf("compile failed for task '%s': %w", te.id, te.err)
+		}
+		return nil, fmt.Errorf("compile failed: %w", err)
+	}
+	log.Debug("Workflow compiled", "project", proj.Name, "workflow_id", compiled.ID)
+	return compiled, nil
+}
+
+func compileTaskRecursive(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	t *task.Config,
+) error {
+	if t == nil {
+		return nil
+	}
+	// Link task-level schema references
+	if err := linkTaskSchemas(ctx, proj, store, t); err != nil {
+		return withCompileTaskErr(t.ID, err)
+	}
+	if err := compileChildren(ctx, proj, store, t); err != nil {
+		return withCompileTaskErr(t.ID, err)
+	}
+	if err := compileRouterInline(ctx, proj, store, t); err != nil {
+		return withCompileTaskErr(t.ID, err)
+	}
+	if err := compileSelectors(ctx, proj, store, t); err != nil {
+		return withCompileTaskErr(t.ID, err)
+	}
+	return nil
+}
+
+func compileChildren(ctx context.Context, proj *project.Config, store resources.ResourceStore, t *task.Config) error {
+	if t.Type == task.TaskTypeParallel {
+		for i := range t.Tasks {
+			if err := compileTaskRecursive(ctx, proj, store, &t.Tasks[i]); err != nil {
+				return err
+			}
+		}
+	}
+	if t.Task != nil {
+		if err := compileTaskRecursive(ctx, proj, store, t.Task); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func compileRouterInline(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	t *task.Config,
+) error {
+	if t.Type != task.TaskTypeRouter || t.Routes == nil {
+		return nil
+	}
+	for rk, rv := range t.Routes {
+		switch route := rv.(type) {
+		case map[string]any:
+			var inline task.Config
+			if err := inline.FromMap(route); err != nil {
+				return fmt.Errorf("router route '%s' decode failed: %w", rk, err)
+			}
+			if err := compileTaskRecursive(ctx, proj, store, &inline); err != nil {
+				return fmt.Errorf("router route '%s' compile failed: %w", rk, err)
+			}
+			t.Routes[rk] = inline
+		case string:
+			// String routes refer to an existing task by ID.
+			// Leave as-is for resolution at runtime by ExecuteRouter.
+		case task.Config:
+			// Inline task config provided as value type; compile recursively
+			inline := route
+			if err := compileTaskRecursive(ctx, proj, store, &inline); err != nil {
+				return fmt.Errorf("router route '%s' compile failed: %w", rk, err)
+			}
+			t.Routes[rk] = inline
+		case *task.Config:
+			if route == nil {
+				return fmt.Errorf("router route '%s' has nil task config", rk)
+			}
+			if err := compileTaskRecursive(ctx, proj, store, route); err != nil {
+				return fmt.Errorf("router route '%s' compile failed: %w", rk, err)
+			}
+		default:
+			// For any other type, surface a helpful error
+			return fmt.Errorf("router route '%s' has unsupported type %T", rk, rv)
+		}
+	}
+	return nil
+}
+
+func compileSelectors(ctx context.Context, proj *project.Config, store resources.ResourceStore, t *task.Config) error {
+	// Enforce PRD selector grammar at compile time for basic tasks
+	if t.Type == task.TaskTypeBasic {
+		hasAgent := t.Agent != nil
+		hasTool := t.Tool != nil
+		// Direct LLM (prompt-only) mode: model_config (+fallbacks) + prompt
+		hasDirect := strings.TrimSpace(t.Prompt) != ""
+		// Note: provider/model defaults may be injected later; runtime validation ensures
+		// concrete availability. Compile-time only needs to gate on prompt presence.
+		// Exactly one executor must be selected among agent, tool, direct LLM.
+		execCount := 0
+		if hasAgent {
+			execCount++
+		}
+		if hasTool {
+			execCount++
+		}
+		if hasDirect {
+			execCount++
+		}
+		if execCount == 0 {
+			return fmt.Errorf(
+				"task '%s' invalid selectors: exactly one executor required: agent, tool, or direct LLM",
+				t.ID,
+			)
+		}
+		if execCount > 1 {
+			return fmt.Errorf(
+				"task '%s' invalid selectors: cannot specify multiple executor types; use only one",
+				t.ID,
+			)
+		}
+	}
+	if t.Agent != nil {
+		resolved, err := resolveAgent(ctx, proj, store, t.Agent)
+		if err != nil {
+			return err
+		}
+		t.Agent = resolved
+	}
+	if t.Tool != nil {
+		resolved, err := resolveTool(ctx, proj, store, t.Tool)
+		if err != nil {
+			return err
+		}
+		t.Tool = resolved
+	}
+	return nil
+}
+
+// validateBasicSelectors removed: validation is consolidated in task.Config.Validate
+// and compileSelectors enforces PRD grammar for presence.
+
+// SelectorNotFoundError signals a missing resource by type+ID
+type SelectorNotFoundError struct {
+	Type       resources.ResourceType
+	ID         string
+	Project    string
+	Candidates []string
+}
+
+func (e *SelectorNotFoundError) Error() string {
+	if len(e.Candidates) == 0 {
+		return fmt.Sprintf("%s '%s' not found in project '%s'", string(e.Type), e.ID, e.Project)
+	}
+	return fmt.Sprintf(
+		"%s '%s' not found in project '%s'. Did you mean: %s?",
+		string(e.Type),
+		e.ID,
+		e.Project,
+		strings.Join(e.Candidates, ", "),
+	)
+}
+
+// TypeMismatchError signals a resource type conflict in the store
+type TypeMismatchError struct {
+	Type resources.ResourceType
+	ID   string
+	Got  any
+}
+
+func (e *TypeMismatchError) Error() string {
+	return fmt.Sprintf("%s '%s' has incompatible type %T", string(e.Type), e.ID, e.Got)
+}
+
+// compileTaskError wraps an inner error with the task ID where it occurred.
+type compileTaskError struct {
+	id  string
+	err error
+}
+
+func (e *compileTaskError) Error() string {
+	return e.err.Error()
+}
+
+func (e *compileTaskError) Unwrap() error {
+	return e.err
+}
+
+func withCompileTaskErr(id string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &compileTaskError{id: id, err: err}
+}
+
+func WorkflowsFromProject(ctx context.Context, projectConfig *project.Config) ([]*Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	cwd := projectConfig.GetCWD()
 	projectEnv := projectConfig.GetEnv()
 	var ws []*Config
 	for _, wf := range projectConfig.Workflows {
-		config, err := LoadAndEval(cwd, wf.Source, ev)
+		config, err := Load(ctx, cwd, wf.Source)
 		if err != nil {
 			return nil, err
 		}
@@ -635,30 +923,15 @@ func setAgentsCWD(wc *Config, cwd *core.PathCWD) error {
 	return nil
 }
 
-func Load(cwd *core.PathCWD, path string) (*Config, error) {
+func Load(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
 	}
-	config, _, err := core.LoadConfig[*Config](filePath)
-	if err != nil {
-		return nil, err
-	}
-	config.SetDefaults()
-	return config, nil
-}
-
-func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
-	filePath, err := core.ResolvePath(cwd, path)
-	if err != nil {
-		return nil, err
-	}
-	scope, err := core.MapFromFilePath(filePath)
-	if err != nil {
-		return nil, err
-	}
-	ev.WithLocalScope(scope)
-	config, _, err := core.LoadConfigWithEvaluator[*Config](filePath, ev)
+	config, _, err := core.LoadConfig[*Config](ctx, filePath)
 	if err != nil {
 		return nil, err
 	}

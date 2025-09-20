@@ -14,8 +14,8 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/compozy/compozy/pkg/ref"
 	"github.com/tmc/langchaingo/llms"
+	"gopkg.in/yaml.v3"
 )
 
 // Config represents a tool configuration in Compozy.
@@ -183,6 +183,37 @@ type Config struct {
 	CWD *core.PathCWD
 }
 
+// UnmarshalYAML supports both string-form selectors ("tool: \"fmt\"") and
+// full object form. When a scalar string is provided, it is interpreted as the
+// tool ID selector (ID-only). Object form follows normal decoding.
+func (t *Config) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+	if value.Kind == yaml.ScalarNode {
+		var id string
+		if err := value.Decode(&id); err != nil {
+			return err
+		}
+		t.ID = id
+		t.Resource = "tool"
+		return nil
+	}
+	if value.Kind != yaml.MappingNode {
+		return fmt.Errorf("tool config must be scalar ID or mapping, got kind=%v", value.Kind)
+	}
+	type alias Config
+	var tmp alias
+	if err := value.Decode(&tmp); err != nil {
+		return err
+	}
+	*t = Config(tmp)
+	if t.Resource == "" {
+		t.Resource = "tool"
+	}
+	return nil
+}
+
 // Component returns the configuration type identifier for this tool config.
 // Used by the autoloader system to classify and route configurations appropriately.
 func (t *Config) Component() core.ConfigType {
@@ -230,18 +261,31 @@ func (t *Config) GetEnv() core.EnvMap {
 	return *t.Env
 }
 
-// GetTimeout returns the tool's configured timeout or falls back to the global timeout.
+// GetTimeout returns the tool's configured timeout or the provided global default.
 // Used by the runtime system to enforce execution time limits and prevent runaway tools.
-// Returns an error if the timeout format is invalid or the value is non-positive.
-func (t *Config) GetTimeout(globalTimeout time.Duration) (time.Duration, error) {
+// Returns an error if the tool timeout is invalid or non-positive. When Timeout is empty:
+// - with a ctx deadline: returns remaining time (or error if already expired);
+// - without a ctx deadline: returns globalTimeout (which may be 0 to mean "no limit").
+func (t *Config) GetTimeout(ctx context.Context, globalTimeout time.Duration) (time.Duration, error) {
 	if t.Timeout == "" {
+		if dl, ok := ctx.Deadline(); ok {
+			if rem := time.Until(dl); rem > 0 {
+				if globalTimeout == 0 || rem < globalTimeout {
+					return rem, nil
+				}
+			} else {
+				err := ctx.Err()
+				if err == nil {
+					err = context.DeadlineExceeded
+				}
+				return 0, fmt.Errorf("context deadline exceeded before resolving timeout: %w", err)
+			}
+		}
 		return globalTimeout, nil
 	}
 	timeout, err := time.ParseDuration(t.Timeout)
 	if err != nil {
-		// Log warning for debugging
-		// Note: We can't get activity context here, so using context.Background()
-		logger.FromContext(context.Background()).Warn(
+		logger.FromContext(ctx).Warn(
 			"Invalid tool timeout format",
 			"tool_id", t.ID,
 			"configured_timeout", t.Timeout,
@@ -250,7 +294,18 @@ func (t *Config) GetTimeout(globalTimeout time.Duration) (time.Duration, error) 
 		return 0, fmt.Errorf("invalid tool timeout '%s': %w", t.Timeout, err)
 	}
 	if timeout <= 0 {
-		return 0, fmt.Errorf("tool timeout must be positive, got: %v", timeout)
+		return 0, fmt.Errorf("timeout must be positive, got: %v", timeout)
+	}
+	if dl, ok := ctx.Deadline(); ok {
+		if rem := time.Until(dl); rem <= 0 {
+			err := ctx.Err()
+			if err == nil {
+				err = context.DeadlineExceeded
+			}
+			return 0, fmt.Errorf("context deadline exceeded before resolving timeout: %w", err)
+		} else if rem < timeout {
+			return rem, nil
+		}
 	}
 	return timeout, nil
 }
@@ -393,28 +448,12 @@ func IsTypeScript(path string) bool {
 // Load reads and parses a tool configuration from disk.
 // The path is resolved relative to the provided working directory.
 // Returns the parsed configuration or an error if loading fails.
-func Load(cwd *core.PathCWD, path string) (*Config, error) {
+func Load(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
 	}
-	config, _, err := core.LoadConfig[*Config](filePath)
-	if err != nil {
-		return nil, err
-	}
-	return config, nil
-}
-
-// LoadAndEval loads a tool configuration with template evaluation.
-// Template expressions in the configuration are evaluated using the provided evaluator.
-// This enables dynamic configuration based on environment variables and context.
-// The path is resolved relative to the provided working directory.
-func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
-	filePath, err := core.ResolvePath(cwd, path)
-	if err != nil {
-		return nil, err
-	}
-	config, _, err := core.LoadConfigWithEvaluator[*Config](filePath, ev)
+	config, _, err := core.LoadConfig[*Config](ctx, filePath)
 	if err != nil {
 		return nil, err
 	}

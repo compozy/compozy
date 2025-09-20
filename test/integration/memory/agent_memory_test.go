@@ -148,7 +148,12 @@ func TestAgentMemoryResolver(t *testing.T) {
 		// Should now fail due to invalid template resolution
 		memories, err := memoryResolver.ResolveAgentMemories(ctx, agentConfig)
 		assert.Error(t, err, "Should fail when template resolution produces invalid key")
-		assert.Contains(t, err.Error(), "memory key validation failed", "Error should indicate validation failure")
+		assert.Contains(
+			t,
+			err.Error(),
+			"failed to execute key template",
+			"Error should indicate template resolution failure",
+		)
 		assert.Nil(t, memories, "Should not return memories when resolution fails")
 	})
 
@@ -306,7 +311,7 @@ func createTestAgentWithMemory(t *testing.T, _ *TestEnvironment) *agent.Config {
 
 	agentConfig := &agent.Config{
 		ID:           "test-agent-with-memory",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent with memory integration",
 		LLMProperties: agent.LLMProperties{
 			Memory: []core.MemoryReference{
@@ -342,7 +347,7 @@ func createTestAgentWithMultipleMemories(t *testing.T, _ *TestEnvironment) *agen
 
 	agentConfig := &agent.Config{
 		ID:           "test-agent-multi-memory",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent with multiple memories",
 		LLMProperties: agent.LLMProperties{
 			Memory: []core.MemoryReference{
@@ -379,7 +384,7 @@ func createTestAgentWithInvalidTemplate(t *testing.T, _ *TestEnvironment) *agent
 
 	agentConfig := &agent.Config{
 		ID:           "test-agent-invalid-template",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent with invalid template",
 		LLMProperties: agent.LLMProperties{
 			Memory: []core.MemoryReference{
@@ -415,7 +420,7 @@ func createTestAgentWithReadOnlyMemory(t *testing.T, _ *TestEnvironment) *agent.
 
 	agentConfig := &agent.Config{
 		ID:           "test-agent-readonly",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent with read-only memory",
 		LLMProperties: agent.LLMProperties{
 			Memory: []core.MemoryReference{

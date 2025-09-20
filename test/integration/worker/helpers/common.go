@@ -107,7 +107,7 @@ func RegisterCommonActivities(env *testsuite.TestWorkflowEnvironment, activities
 func CreateBasicAgentConfig() *agent.Config {
 	return &agent.Config{
 		ID:           "test-agent",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent for integration testing",
 		Actions: []*agent.ActionConfig{
 			{
@@ -170,7 +170,7 @@ func CreateBasicAgentConfig() *agent.Config {
 func CreateCollectionAgentConfig() *agent.Config {
 	return &agent.Config{
 		ID:           "test-collection-agent",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent for collection workflow integration testing",
 		Actions:      createCollectionAgentActions(),
 	}
@@ -293,7 +293,7 @@ func createHandleEmptyCollectionAction() *agent.ActionConfig {
 func CreateParallelAgentConfig() *agent.Config {
 	return &agent.Config{
 		ID:           "test-parallel-agent",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent for parallel workflow integration testing",
 		Actions: []*agent.ActionConfig{
 			{

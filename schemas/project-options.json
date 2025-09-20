@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://schemas.compozy.com/project-options.json",
+  "$id": "project-options.json",
   "$defs": {
     "ErrorTransition": {
       "properties": {
@@ -75,6 +75,10 @@
     "heartbeat_timeout": {
       "type": "string",
       "description": "Interval for task heartbeat signals\nUsed for long-running tasks to indicate progress\n\n- **Example**: \"10s\", \"30s\", \"1m\""
+    },
+    "source_of_truth": {
+      "type": "string",
+      "description": "SourceOfTruth optionally overrides server default for this project.\nValues: \"repo\" or \"builder\"."
     }
   },
   "additionalProperties": false,

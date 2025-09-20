@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/kaptinlin/jsonschema"
+	"gopkg.in/yaml.v3"
 )
 
 // -----------------------------------------------------------------------------
@@ -17,12 +18,62 @@ import (
 type Schema map[string]any
 type Result = jsonschema.EvaluationResult
 
+// refKey is an internal sentinel key used when a schema is provided
+// in YAML as a scalar string referencing a schema ID. The loader rejects
+// '$' keys from YAML sources, so we use a non-dollar-prefixed key that
+// only ever appears in-memory after decoding.
+const refKey = "__schema_ref__"
+
 func (s *Schema) String() string {
 	bytes, err := json.Marshal(s)
 	if err != nil {
 		return ""
 	}
 	return string(bytes)
+}
+
+// UnmarshalYAML supports two forms:
+// 1) Mapping node -> decodes to a full JSON Schema object
+// 2) Scalar string  -> treated as a schema ID reference to be linked at compile time
+func (s *Schema) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+	switch value.Kind {
+	case yaml.ScalarNode:
+		var id string
+		if err := value.Decode(&id); err != nil {
+			return err
+		}
+		m := map[string]any{refKey: id}
+		*s = Schema(m)
+		return nil
+	case yaml.MappingNode, yaml.SequenceNode, yaml.DocumentNode:
+		var m map[string]any
+		if err := value.Decode(&m); err != nil {
+			return err
+		}
+		*s = Schema(m)
+		return nil
+	default:
+		// Treat other node kinds as empty schema
+		*s = Schema(map[string]any{})
+		return nil
+	}
+}
+
+// IsRef reports whether this schema is a reference created from scalar form
+// and returns the referenced ID when true.
+func (s *Schema) IsRef() (bool, string) {
+	if s == nil {
+		return false, ""
+	}
+	if v, ok := (*s)[refKey]; ok {
+		if id, ok2 := v.(string); ok2 && id != "" {
+			return true, id
+		}
+	}
+	return false, ""
 }
 
 func (s *Schema) Compile() (*jsonschema.Schema, error) {
@@ -61,6 +112,19 @@ func (s *Schema) Clone() (*Schema, error) {
 		return nil, nil
 	}
 	return core.DeepCopy(s)
+}
+
+// GetID extracts the id field from a schema when present, else returns empty string.
+func GetID(s *Schema) string {
+	if s == nil {
+		return ""
+	}
+	if v, ok := (*s)["id"]; ok {
+		if str, ok2 := v.(string); ok2 {
+			return str
+		}
+	}
+	return ""
 }
 
 // ApplyDefaults merges default values from the schema with the provided input

@@ -1,0 +1,93 @@
+package agent
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/compozy/compozy/engine/core"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+)
+
+const floatTol = 1e-6
+
+func TestModelDecoding(t *testing.T) {
+	t.Run("Should decode YAML scalar ref", func(t *testing.T) {
+		var a struct {
+			Model Model `yaml:"model"`
+		}
+		data := []byte("model: fast")
+		require.NoError(t, yaml.Unmarshal(data, &a))
+		assert.True(t, a.Model.HasRef())
+		assert.Equal(t, "fast", a.Model.Ref)
+		assert.False(t, a.Model.HasConfig())
+	})
+	t.Run("Should decode YAML inline object", func(t *testing.T) {
+		var a struct {
+			Model Model `yaml:"model"`
+		}
+		data := []byte(`model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0.1
+    max_tokens: 64
+`)
+		require.NoError(t, yaml.Unmarshal(data, &a))
+		assert.False(t, a.Model.HasRef())
+		assert.True(t, a.Model.HasConfig())
+		assert.Equal(t, core.ProviderOpenAI, a.Model.Config.Provider)
+		assert.Equal(t, "gpt-4o-mini", a.Model.Config.Model)
+		assert.InDelta(t, 0.1, a.Model.Config.Params.Temperature, floatTol)
+		assert.EqualValues(t, 64, a.Model.Config.Params.MaxTokens)
+	})
+	t.Run("Should decode JSON scalar ref", func(t *testing.T) {
+		var m Model
+		require.NoError(t, json.Unmarshal([]byte("\"fast\""), &m))
+		assert.True(t, m.HasRef())
+		assert.Equal(t, "fast", m.Ref)
+		assert.False(t, m.HasConfig())
+	})
+	t.Run("Should decode JSON inline object", func(t *testing.T) {
+		var m Model
+		require.NoError(t, json.Unmarshal([]byte(`{"provider":"anthropic","model":"claude-3-haiku"}`), &m))
+		assert.False(t, m.HasRef())
+		assert.True(t, m.HasConfig())
+		assert.Equal(t, core.ProviderAnthropic, m.Config.Provider)
+		assert.Equal(t, "claude-3-haiku", m.Config.Model)
+	})
+	t.Run("Should decode FromMap scalar and inline", func(t *testing.T) {
+		var cfg Config
+		require.NoError(t, cfg.FromMap(map[string]any{"id": "a1", "model": "fast", "instructions": "x"}))
+		assert.Equal(t, "a1", cfg.ID)
+		assert.True(t, cfg.Model.HasRef())
+		assert.Equal(t, "fast", cfg.Model.Ref)
+		var cfg2 Config
+		require.NoError(
+			t,
+			cfg2.FromMap(
+				map[string]any{
+					"id":           "a2",
+					"model":        map[string]any{"provider": "openai", "model": "gpt-4o"},
+					"instructions": "y",
+				},
+			),
+		)
+		assert.Equal(t, core.ProviderOpenAI, cfg2.Model.Config.Provider)
+		assert.Equal(t, "gpt-4o", cfg2.Model.Config.Model)
+		assert.False(t, cfg2.Model.HasRef())
+		assert.True(t, cfg2.Model.HasConfig())
+	})
+
+	t.Run("Should treat APIKey-only inline config as present", func(t *testing.T) {
+		m := Model{Ref: "fast", Config: core.ProviderConfig{APIKey: "{{.env.OPENAI_API_KEY}}"}}
+		assert.True(t, m.HasConfig())
+		by, err := m.MarshalJSON()
+		require.NoError(t, err)
+		require.NotEmpty(t, by)
+		var v any
+		require.NoError(t, json.Unmarshal(by, &v))
+		assert.IsType(t, map[string]any{}, v)
+	})
+}

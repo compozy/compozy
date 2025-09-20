@@ -23,17 +23,17 @@ Instead of manually registering every resource:
 ```yaml title="Manual Configuration (Without AutoLoad)"
 # workflow.yaml
 agents:
-  - $ref: ./agents/researcher.yaml
-  - $ref: ./agents/writer.yaml
-  - $ref: ./agents/reviewer.yaml
-  - $ref: ./agents/translator.yaml
-  - $ref: ./agents/analyzer.yaml
+  - ./agents/researcher.yaml
+  - ./agents/writer.yaml
+  - ./agents/reviewer.yaml
+  - ./agents/translator.yaml
+  - ./agents/analyzer.yaml
   # ... dozens more manual entries
 
 tools:
-  - $ref: ./tools/web-search.yaml
-  - $ref: ./tools/document-parser.yaml
-  - $ref: ./tools/email-sender.yaml
+  - ./tools/web-search.yaml
+  - ./tools/document-parser.yaml
+  - ./tools/email-sender.yaml
   # ... dozens more manual entries
 ```
 
@@ -459,8 +459,8 @@ instructions: |
   Use available tools to gather comprehensive data on any topic.
 
 tools:
-  - $ref: resource::tool::#(id=='web-search')
-  - $ref: resource::tool::#(id=='document-parser')
+  - web-search
+  - document-parser
 
 actions:
   - id: research_topic
@@ -558,29 +558,29 @@ config:
       - data_source
 
 agents:
-  - $ref: resource::agent::#(id=='data-processor')
+  - data-processor
 
 tools:
-  - $ref: resource::tool::#(id=='file-parser')
-  - $ref: resource::tool::#(id=='format-converter')
+  - file-parser
+  - format-converter
 
 tasks:
   - id: extract
     type: basic
-    $use: tool(resource::tool::#(id=='file-parser'))
+    tool: file-parser
     with:
       source: "{{ .workflow.input.data_source }}"
 
   - id: transform
     type: basic
-    $use: agent(resource::agent::#(id=='data-processor'))
+    agent: data-processor
     action: process_data
     with:
       data: "{{ .tasks.extract.output }}"
 
   - id: load
     type: basic
-    $use: tool(resource::tool::#(id=='format-converter'))
+    tool: format-converter
     with:
       data: "{{ .tasks.transform.output }}"
       format: "{{ .workflow.input.output_format }}"
@@ -598,7 +598,7 @@ outputs:
 
 ### Using AutoLoaded Resources
 
-AutoLoad integrates with Compozy's reference system, enabling `resource::` scope references:
+AutoLoad integrates with Compozy's reference system, enabling ID-based scope references:
 
 <Tabs items={["In Workflows", "In Agents", "In Tools"]}>
 
@@ -606,35 +606,35 @@ AutoLoad integrates with Compozy's reference system, enabling `resource::` scope
 ```yaml title="workflow.yaml"
 # Reference auto-loaded agents
 agents:
-  - $ref: resource::agent::#(id=='researcher')
-  - $ref: resource::agent::#(id=='writer')
-  - $ref: resource::agent::#(id=='reviewer')
+  - researcher
+  - writer
+  - reviewer
 
 # Reference auto-loaded tools
 tools:
-  - $ref: resource::tool::#(id=='web-search')
-  - $ref: resource::tool::#(id=='document-parser')
+  - web-search
+  - document-parser
 
 # Reference auto-loaded memory
 memory:
-  - $ref: resource::memory::#(id=='conversation')
+  - conversation
 
 tasks:
   - id: research
     type: basic
-    $use: agent(resource::agent::#(id=='researcher'))
+    agent: researcher
     action: research_topic
 
   - id: write
     type: basic
-    $use: agent(resource::agent::#(id=='writer'))
+    agent: writer
     action: create_content
     with:
       research_data: "{{ .tasks.research.output }}"
 
   - id: review
     type: basic
-    $use: agent(resource::agent::#(id=='reviewer'))
+    agent: reviewer
     action: review_content
     with:
       content: "{{ .tasks.write.output }}"
@@ -650,13 +650,13 @@ description: Content creation agent with tool access
 
 # Reference auto-loaded tools
 tools:
-  - $ref: resource::tool::#(id=='grammar-check')
-  - $ref: resource::tool::#(id=='style-analyzer')
-  - $ref: resource::tool::#(id=='plagiarism-detector')
+  - grammar-check
+  - style-analyzer
+  - plagiarism-detector
 
 # Reference auto-loaded memory
 memory:
-  - $ref: resource::memory::#(id=='style-guide')
+  - style-guide
 
 actions:
   - id: create_article
@@ -681,12 +681,12 @@ description: Content processing tool with memory access
 
 # Reference auto-loaded memory for context
 memory:
-  - $ref: resource::memory::#(id=='content-cache')
+  - content-cache
 
 # Reference other tools for processing pipeline
 dependencies:
-  - $ref: resource::tool::#(id=='text-analyzer')
-  - $ref: resource::tool::#(id=='format-converter')
+  - text-analyzer
+  - format-converter
 
 input:
   type: object

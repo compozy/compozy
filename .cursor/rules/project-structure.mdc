@@ -54,7 +54,7 @@ Port mappings and service details are included in the Technology Stack above.
 ## Architectural Patterns
 
 <patterns type="design_principles">
-1. **Declarative YAML Configuration**: All components use `$ref` for references and `$use` for dependency injection
+1. **Declarative YAML Configuration**: Components use simple ID-based selectors (e.g., `agent: <id>`, `tool: <id>`, `config.input: <schema_id>`) — legacy `$ref/$use/$merge` directives are not used
 2. **Tool Execution**: TypeScript files executed in Bun with JSON I/O communication
 3. **MCP Integration**: External tool servers via HTTP/SSE transport protocols
 4. **Microservice Architecture**: Modular components with clear boundaries

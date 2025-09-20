@@ -3,7 +3,6 @@
 
 id: enhanced-analysis
 type: basic
-$use: agent(local::agents.#(id=="analyzer"))
 
 # Combined mode: action provides structure, prompt adds context
 action: "standard-analysis"

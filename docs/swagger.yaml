@@ -107,15 +107,6 @@ definitions:
         description: Attachments declared at the agent scope.
         items: {}
         type: array
-      config:
-        allOf:
-          - $ref: '#/definitions/core.ProviderConfig'
-        description: |-
-          LLM provider configuration defining which AI model to use and its parameters.
-          Supports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.
-
-          **Required fields:** provider, model
-          **Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)
       cwd:
         $ref: '#/definitions/core.PathCWD'
       env:
@@ -140,6 +131,8 @@ definitions:
         type: string
       instructions:
         description: |-
+          Provider configuration is now expressed through the polymorphic `Model` field.
+          The previous `Config core.ProviderConfig` field has been removed.
           System instructions that define the agent's personality, behavior, and constraints.
           These instructions guide how the agent interprets tasks and generates responses.
 
@@ -209,6 +202,18 @@ definitions:
         items:
           $ref: '#/definitions/core.MemoryReference'
         type: array
+      model:
+        allOf:
+          - $ref: '#/definitions/agent.Model'
+        description: |-
+          Model selects which LLM model to use.
+          Supports two forms:
+            - string: a model ID to be resolved via the ResourceStore (e.g. "openai-gpt-4o-mini")
+            - object: an inline core.ProviderConfig with provider/model/params
+
+          During compile/link, string refs are resolved and merged with inline
+          fields following project precedence rules. Defaults are filled from the
+          project when neither ref nor inline identity is provided.
       resource:
         description: |-
           Resource identifier for the autoloader system (must be `"agent"`).
@@ -242,9 +247,17 @@ definitions:
           - Providing constant context or settings
           - Injecting workflow-level parameters
     required:
-      - config
       - id
       - instructions
+    type: object
+  agent.Model:
+    properties:
+      config:
+        allOf:
+          - $ref: '#/definitions/core.ProviderConfig'
+        description: |-
+          Config holds an inline provider configuration when specified as a mapping.
+          When Ref is set, Config may be merged with the resolved model during linking.
     type: object
   core.Author:
     properties:
@@ -362,7 +375,6 @@ definitions:
         type: string
     required:
       - id
-      - key
     type: object
   core.Output:
     additionalProperties: {}
@@ -2454,6 +2466,173 @@ paths:
       summary: Update an MCP definition
       tags:
         - MCP Management
+  /admin/meta/{type}/{id}:
+    get:
+      parameters:
+        - description: Resource type
+          in: path
+          name: type
+          required: true
+          type: string
+        - description: Resource ID
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Get resource provenance metadata (admin)
+      tags:
+        - admin
+  /admin/meta/changes:
+    get:
+      parameters:
+        - description: Project override
+          in: query
+          name: project
+          type: string
+        - description: Max results (default 50)
+          in: query
+          name: limit
+          type: integer
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: List recent provenance changes (admin)
+      tags:
+        - admin
+  /admin/reload:
+    post:
+      consumes:
+        - application/json
+      description: |-
+        Rebuild compiled workflows from repo|builder and trigger schedule reconciliation. Admin only.
+        Aliases: yaml -> repo, store -> builder.
+      parameters:
+        - description: 'Reload source (repo|builder). Aliases: yaml->repo, store->builder. Defaults to
+            ''repo''.'
+          enum:
+            - repo
+            - builder
+          in: query
+          name: source
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Reload completed
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Invalid parameters
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Reload configuration and reconcile schedules
+      tags:
+        - admin
   /admin/tools:
     get:
       description: Get a list of all tools available from all connected MCP servers
@@ -2532,6 +2711,122 @@ paths:
       summary: Call a tool on an MCP server
       tags:
         - MCP Tools
+  /api/v0/admin/export-yaml:
+    post:
+      description: |-
+        Writes deterministic YAML files to project directories.
+        Targets: agents/, tools/, workflows/, schemas/, mcps/, models/.
+        Admin only.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"workflow\":5,\"agent\":2},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export store contents to YAML
+      tags:
+        - admin
+  /api/v0/admin/import-yaml:
+    post:
+      description: |-
+        Reads YAML from project directories and upserts to ResourceStore.
+        Strategies: seed_only | overwrite_conflicts. Admin only.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Import YAML into store
+      tags:
+        - admin
   /api/v0/health:
     get:
       consumes:
@@ -3701,6 +3996,335 @@ paths:
       summary: Prometheus metrics endpoint
       tags:
         - Operations
+  /resources/{type}:
+    get:
+      description: List resource keys for a given type and project
+      parameters:
+        - description: Resource type
+          in: path
+          name: type
+          required: true
+          type: string
+        - description: Project override
+          in: query
+          name: project
+          type: string
+        - description: ID prefix filter
+          in: query
+          name: q
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Keys listed
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    properties:
+                      keys:
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: List resources
+      tags:
+        - resources
+    post:
+      consumes:
+        - application/json
+      description: Create a resource in the current project
+      parameters:
+        - description: Resource type (agent|tool|mcp|schema|model|workflow|memory|project)
+          in: path
+          name: type
+          required: true
+          type: string
+        - description: Resource payload (must include id; 'type' optional but if present must match path)
+          in: body
+          name: resource
+          required: true
+          schema:
+            type: object
+      produces:
+        - application/json
+      responses:
+        "201":
+          description: Created resource
+          headers:
+            ETag:
+              description: ETag for the stored value
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Create resource
+      tags:
+        - resources
+  /resources/{type}/{id}:
+    delete:
+      description: Delete a resource by ID (idempotent)
+      parameters:
+        - description: Resource type
+          in: path
+          name: type
+          required: true
+          type: string
+        - description: Resource ID
+          in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        "200":
+          description: Deleted
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Delete resource
+      tags:
+        - resources
+    get:
+      description: Get a resource by ID
+      parameters:
+        - description: Resource type
+          in: path
+          name: type
+          required: true
+          type: string
+        - description: Resource ID
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Resource returned
+          headers:
+            ETag:
+              description: ETag for the stored value
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Get resource
+      tags:
+        - resources
+    put:
+      consumes:
+        - application/json
+      description: Upserts a resource. If-Match enforces optimistic locking when provided.
+      parameters:
+        - description: Resource type
+          in: path
+          name: type
+          required: true
+          type: string
+        - description: Resource ID
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: Current ETag for optimistic locking
+          in: header
+          name: If-Match
+          type: string
+        - description: Resource payload (full object with id and fields; 'type' optional but if present
+            must match path)
+          in: body
+          name: resource
+          required: true
+          schema:
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Updated resource
+          headers:
+            ETag:
+              description: New ETag for the stored value
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Upsert resource
+      tags:
+        - resources
   /schedules:
     get:
       consumes:

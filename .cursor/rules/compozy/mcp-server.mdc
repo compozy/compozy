@@ -60,8 +60,7 @@ mcps:
 ```yaml
 # agents/data-processor.yaml
 id: data-processor
-config:
-  $ref: global::models.#(id="gpt-4")
+model: openai-gpt-4o-mini
 instructions: |
   You are a data processing agent with access to file system and database tools.
   Use MCP tools to read files, query databases, and process data.
@@ -199,14 +198,14 @@ config:
 tasks:
   - id: read-config-file
     type: basic
-    $use: agent(local::agents.#(id="file-processor"))
+    agent: file-processor
     with:
       file_path: "/config/settings.json"
       # Agent will use file-server MCP tools automatically
 
   - id: query-database
     type: basic
-    $use: agent(local::agents.#(id="data-analyst"))
+    agent: data-analyst
     with:
       query: "SELECT * FROM users WHERE active = true"
       # Agent will use database-server MCP tools

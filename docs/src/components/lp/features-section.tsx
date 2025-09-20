@@ -45,7 +45,7 @@ tasks:
     tasks:
       - id: performance_analysis
         type: basic
-        $use: agent(local::agents.#(id=="analyzer"))
+        agent: analyzer
         action: analyze
         with:
           file_path: "{{ .workflow.input.file_path }}"
@@ -53,7 +53,7 @@ tasks:
 
       - id: best_practices_analysis
         type: basic
-        $use: agent(local::agents.#(id=="analyzer"))
+        agent: analyzer
         action: analyze
         with:
           file_path: "{{ .workflow.input.file_path }}"
@@ -71,8 +71,7 @@ id: analyzer
 description: Specialized in Go code analysis for performance and best practices
 version: 1.0.0
 
-config:
-  $ref: global::models.#(provider=="openai")
+model: openai-gpt-4o-mini
 
 instructions: |
   You are an expert Go developer specializing in performance optimization,
@@ -80,7 +79,7 @@ instructions: |
   provide actionable reports with specific, implementable suggestions.
 
 tools:
-  - $ref: local::tools.#(id=="write_file")
+  - write_file
 
 actions:
   - id: analyze
@@ -100,7 +99,7 @@ actions:
 - id: analyze_code
   type: basic
   description: Analyze Go code for performance issues
-  $use: agent(local::agents.#(id=="analyzer"))
+  agent: analyzer
   with:
     file_path: "{{ .input.file_path }}"
     content: "{{ .input.file_content }}"
@@ -123,7 +122,7 @@ actions:
   items: "{{ .input.file_list }}"
   task:
     type: basic
-    $use: tool(local::tools.#(id=="file_processor"))
+    tool: file_processor
     with:
       file: "{{ .item }}"`,
     language: "yaml",
@@ -171,8 +170,7 @@ mcps:
 # Agent that uses the global MCP server
 agents:
   - id: docs-assistant
-    config:
-      $ref: global::models.#(provider=="openai")
+    model: openai-gpt-4o-mini
 
     instructions: |
       You are a documentation assistant. Use the Context7 MCP
@@ -208,7 +206,7 @@ agents:
   timeout: "5m"
   condition: 'signal.payload.analysis_id == "{{ .workflow.id }}"'
   processor:
-    $use: tool(local::tools.#(id=="some_tool"))
+    tool: some_tool
 
 # Event-triggered workflow
 id: deployment-workflow
@@ -233,7 +231,7 @@ schedule:
 tasks:
   - id: discover_repositories
     type: basic
-    $use: tool(local::tools.#(id=="git_scanner"))
+    tool: git_scanner
     with:
       scan_path: "/repos"
 
@@ -243,7 +241,7 @@ tasks:
     concurrency: 5  # Process 5 repos in parallel
     task:
       type: basic
-      $use: agent(local::agents.#(id=="analyzer"))
+      agent: analyzer
       with:
         file_path: "{{ .item.path }}"
         content: "{{ .item.content }}"`,
@@ -271,8 +269,7 @@ agents:
       - id: conversation_history
         key: "user:{{ .input.user_id }}:session:{{ .input.session_id }}"
         mode: read-write
-    config:
-      $ref: global::models.#(provider=="openai")
+    model: openai-gpt-4o-mini
     instructions: |
       You are a code reviewer with access to conversation history.
       Remember previous analysis and user preferences.`,

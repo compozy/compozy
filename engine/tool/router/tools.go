@@ -37,7 +37,7 @@ func getToolByID(c *gin.Context) {
 	if workflowID == "" {
 		return
 	}
-	wfCfg, err := workflow.FindConfig(appState.Workflows, workflowID)
+	wfCfg, err := workflow.FindConfig(appState.GetWorkflows(), workflowID)
 	if err != nil {
 		reqErr := router.NewRequestError(http.StatusNotFound, "workflow not found", err)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
@@ -78,7 +78,7 @@ func listTools(c *gin.Context) {
 	if workflowID == "" {
 		return
 	}
-	wfCfg, err := workflow.FindConfig(appState.Workflows, workflowID)
+	wfCfg, err := workflow.FindConfig(appState.GetWorkflows(), workflowID)
 	if err != nil {
 		reqErr := router.NewRequestError(http.StatusNotFound, "workflow not found", err)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)

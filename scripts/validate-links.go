@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -83,7 +85,7 @@ func main() {
 	fmt.Printf("👷 Workers: %d\n", maxWorkers)
 	fmt.Printf("🌐 Check external: %v\n\n", checkExternal)
 
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	result := &ValidationResult{
 		LinksByFile:   make(map[string][]Link),
 		BrokenByFile:  make(map[string][]Link),
@@ -94,6 +96,7 @@ func main() {
 	files, err := findMDXFiles(docsPath)
 	if err != nil {
 		fmt.Printf("❌ Error finding MDX files: %v\n", err)
+		cancel()
 		os.Exit(1)
 	}
 

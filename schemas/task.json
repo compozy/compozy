@@ -309,7 +309,7 @@
       "type": "object"
     }
   },
-  "$id": "https://schemas.compozy.com/task.json",
+  "$id": "task.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "description": "Config is the main task configuration structure in Compozy.",
@@ -413,7 +413,7 @@
     "mcps": {
       "description": "Model Context Protocol (MCP) server configurations.\nMCPs provide standardized interfaces for extending agent capabilities\nwith external services and data sources through protocol-based communication.\n\n**Common MCP integrations:**\n- Database connectors (PostgreSQL, Redis, MongoDB)\n- Search engines (Elasticsearch, Solr)\n- Knowledge bases (vector databases, documentation systems)\n- External APIs (REST, GraphQL, gRPC services)\n\nMCPs support both stdio and HTTP transport protocols.",
       "items": {
-        "$ref": "#/$defs/Config"
+        "$ref": "mcp.json"
       },
       "type": "array"
     },
@@ -464,8 +464,9 @@
       "description": "Payload data for write/append operations\nCan be any JSON-serializable data structure\nRequired for write and append operations"
     },
     "processor": {
-      "$ref": "#/$defs/Config",
-      "description": "Processor is an optional task configuration to process received signals\nAllows custom handling of signal data before continuing\nThe processor receives the signal payload as input\n$ref: inline:#"
+      "additionalProperties": false,
+      "description": "Processor is an optional task configuration to process received signals\nAllows custom handling of signal data before continuing\nThe processor receives the signal payload as input\n$ref: inline:#",
+      "type": "object"
     },
     "prompt": {
       "description": "Prompt provides direct instruction to agents when no specific action is needed\nUsed for ad-hoc agent interactions without predefined action definitions\n- **Example**: \"Analyze this code for security issues\", \"Summarize the following text\"",
@@ -500,13 +501,16 @@
       "type": "string"
     },
     "task": {
-      "$ref": "#/$defs/Config",
-      "description": "Task template for collection tasks\nThis configuration is replicated for each item in the collection\nThe item and index are available as template variables\n$ref: inline:#"
+      "additionalProperties": false,
+      "description": "Task template for collection tasks\nThis configuration is replicated for each item in the collection\nThe item and index are available as template variables\n$ref: inline:#",
+      "type": "object"
     },
     "tasks": {
       "description": "Tasks array for parallel, composite, and collection tasks\nContains the list of sub-tasks to execute\nFor parallel: tasks run concurrently\nFor composite: tasks run sequentially\nFor collection: not used (use Task field instead)\n$ref: inline:#",
       "items": {
-        "$ref": "#/$defs/Config"
+        "additionalProperties": false,
+        "description": "Task item (simplified for UI forms).",
+        "type": "object"
       },
       "type": "array"
     },
@@ -521,7 +525,7 @@
     "tools": {
       "description": "Tools available to the agent for extending its capabilities.\nWhen tools are defined, the agent automatically has `toolChoice` set to `\"auto\"`,\nenabling autonomous tool selection and invocation during task execution.\n\n**Tool types supported:**\n- File system operations (read, write, list)\n- API integrations (HTTP requests, webhooks)\n- Data processing utilities (parsing, transformation)\n- Custom business logic (TypeScript/JavaScript execution)\n\nTools are referenced by ID and can be shared across multiple agents.",
       "items": {
-        "$ref": "#/$defs/Config"
+        "$ref": "tool.json"
       },
       "type": "array"
     },

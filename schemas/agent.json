@@ -67,6 +67,45 @@
       },
       "type": "object"
     },
+    "Model": {
+      "additionalProperties": false,
+      "description": "Model represents an agent model that can be specified either as: - a string reference to a model resource ID (to be resolved during compile/link), or - an inline ProviderConfig defining provider/model and parameters.",
+      "properties": {
+        "api_key": {
+          "description": "APIKey contains the authentication key for the AI provider.\n\n- **Security**: Use template references to environment variables.\n- **Examples**: `\"{{ .env.OPENAI_API_KEY }}\"`, `\"{{ .secrets.ANTHROPIC_KEY }}\"`\n\u003e **Note:**: Required for most cloud providers, optional for local providers",
+          "type": "string"
+        },
+        "api_url": {
+          "description": "APIURL specifies a custom API endpoint for the provider.\n**Use Cases**:\n  - Local model hosting (Ollama, OpenAI-compatible servers)\n  - Enterprise API gateways\n  - Regional API endpoints\n  - Custom proxy servers\n\n**Examples**: `\"http://localhost:11434\"`, `\"https://api.openai.com/v1\"`",
+          "type": "string"
+        },
+        "default": {
+          "description": "Default indicates that this model should be used as the fallback when no explicit\nmodel configuration is provided at the task or agent level.\n\n**Behavior**:\n  - Only one model per project can be marked as default\n  - When set to true, this model will be used for tasks/agents without explicit model config\n  - Validation ensures at most one default model per project\n\n**Example**:\n```yaml\nmodels:\n  - provider: openai\n    model: gpt-4\n    default: true  # This will be used by default\n```",
+          "type": "boolean"
+        },
+        "max_tool_iterations": {
+          "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nWhen \u003e 0, overrides the global default for this model; 0 uses the global default.",
+          "type": "integer"
+        },
+        "model": {
+          "description": "Model defines the specific model identifier to use with the provider.\nModel names are provider-specific and determine capabilities and pricing.\n\n- **Examples**:\n  - OpenAI: `\"gpt-4-turbo\"`, `\"gpt-3.5-turbo\"`\n  - Anthropic: `\"claude-4-opus\"`, `\"claude-3-5-haiku-latest\"`\n  - Google: `\"gemini-pro\"`, `\"gemini-pro-vision\"`\n  - Ollama: `\"llama2:13b\"`, `\"mistral:7b\"`",
+          "type": "string"
+        },
+        "organization": {
+          "description": "Organization specifies the organization ID for providers that support it.\n- **Primary Use**: OpenAI organization management for billing and access control\n\n- **Example**: `\"org-123456789abcdef\"`\n\u003e **Note:**: Optional for most providers",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/PromptParams",
+          "description": "Params contains the generation parameters that control LLM behavior.\nThese parameters are applied to all requests using this provider configuration.\nCan be overridden at the task or action level for specific requirements."
+        },
+        "provider": {
+          "description": "Provider specifies which AI service to use for LLM operations.\nMust match one of the supported ProviderName constants.\n\n- **Examples**: `\"openai\"`, `\"anthropic\"`, `\"google\"`, `\"ollama\"`",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "PathCWD": {
       "additionalProperties": false,
       "properties": {
@@ -123,50 +162,11 @@
       },
       "type": "object"
     },
-    "ProviderConfig": {
-      "additionalProperties": false,
-      "description": "ProviderConfig represents the complete configuration for an LLM provider in Compozy workflows.",
-      "properties": {
-        "api_key": {
-          "description": "APIKey contains the authentication key for the AI provider.\n\n- **Security**: Use template references to environment variables.\n- **Examples**: `\"{{ .env.OPENAI_API_KEY }}\"`, `\"{{ .secrets.ANTHROPIC_KEY }}\"`\n\u003e **Note:**: Required for most cloud providers, optional for local providers",
-          "type": "string"
-        },
-        "api_url": {
-          "description": "APIURL specifies a custom API endpoint for the provider.\n**Use Cases**:\n  - Local model hosting (Ollama, OpenAI-compatible servers)\n  - Enterprise API gateways\n  - Regional API endpoints\n  - Custom proxy servers\n\n**Examples**: `\"http://localhost:11434\"`, `\"https://api.openai.com/v1\"`",
-          "type": "string"
-        },
-        "default": {
-          "description": "Default indicates that this model should be used as the fallback when no explicit\nmodel configuration is provided at the task or agent level.\n\n**Behavior**:\n  - Only one model per project can be marked as default\n  - When set to true, this model will be used for tasks/agents without explicit model config\n  - Validation ensures at most one default model per project\n\n**Example**:\n```yaml\nmodels:\n  - provider: openai\n    model: gpt-4\n    default: true  # This will be used by default\n```",
-          "type": "boolean"
-        },
-        "max_tool_iterations": {
-          "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nWhen \u003e 0, overrides the global default for this model; 0 uses the global default.",
-          "type": "integer"
-        },
-        "model": {
-          "description": "Model defines the specific model identifier to use with the provider.\nModel names are provider-specific and determine capabilities and pricing.\n\n- **Examples**:\n  - OpenAI: `\"gpt-4-turbo\"`, `\"gpt-3.5-turbo\"`\n  - Anthropic: `\"claude-4-opus\"`, `\"claude-3-5-haiku-latest\"`\n  - Google: `\"gemini-pro\"`, `\"gemini-pro-vision\"`\n  - Ollama: `\"llama2:13b\"`, `\"mistral:7b\"`",
-          "type": "string"
-        },
-        "organization": {
-          "description": "Organization specifies the organization ID for providers that support it.\n- **Primary Use**: OpenAI organization management for billing and access control\n\n- **Example**: `\"org-123456789abcdef\"`\n\u003e **Note:**: Optional for most providers",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/PromptParams",
-          "description": "Params contains the generation parameters that control LLM behavior.\nThese parameters are applied to all requests using this provider configuration.\nCan be overridden at the task or action level for specific requirements."
-        },
-        "provider": {
-          "description": "Provider specifies which AI service to use for LLM operations.\nMust match one of the supported ProviderName constants.\n\n- **Examples**: `\"openai\"`, `\"anthropic\"`, `\"google\"`, `\"ollama\"`",
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
     "Schema": {
       "type": "object"
     }
   },
-  "$id": "https://schemas.compozy.com/agent.json",
+  "$id": "agent.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "description": "Config represents an AI agent configuration in Compozy.",
@@ -182,10 +182,6 @@
       "$ref": "#/$defs/Attachments",
       "description": "Attachments declared at the agent scope."
     },
-    "config": {
-      "$ref": "#/$defs/ProviderConfig",
-      "description": "LLM provider configuration defining which AI model to use and its parameters.\nSupports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.\n\n**Required fields:** provider, model\n**Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)"
-    },
     "env": {
       "$ref": "#/$defs/EnvMap",
       "description": "Environment variables available during agent execution.\nUsed for configuration, secrets, and runtime settings.\n\n**Example:**\n```yaml\nenv:\n  API_KEY: \"{{.env.OPENAI_API_KEY}}\"\n  DEBUG_MODE: \"true\"\n```"
@@ -195,7 +191,7 @@
       "type": "string"
     },
     "instructions": {
-      "description": "System instructions that define the agent's personality, behavior, and constraints.\nThese instructions guide how the agent interprets tasks and generates responses.\n\n**Best practices:**\n- Be clear and specific about the agent's role\n- Define boundaries and ethical guidelines\n- Include domain-specific knowledge or constraints\n- Use markdown formatting for better structure",
+      "description": "Provider configuration is now expressed through the polymorphic `Model` field.\nThe previous `Config core.ProviderConfig` field has been removed.\nSystem instructions that define the agent's personality, behavior, and constraints.\nThese instructions guide how the agent interprets tasks and generates responses.\n\n**Best practices:**\n- Be clear and specific about the agent's role\n- Define boundaries and ethical guidelines\n- Include domain-specific knowledge or constraints\n- Use markdown formatting for better structure",
       "type": "string"
     },
     "json_mode": {
@@ -219,6 +215,10 @@
         "$ref": "#/$defs/MemoryReference"
       },
       "type": "array"
+    },
+    "model": {
+      "$ref": "#/$defs/Model",
+      "description": "Model selects which LLM model to use.\nSupports two forms:\n  - string: a model ID to be resolved via the ResourceStore (e.g. \"openai-gpt-4o-mini\")\n  - object: an inline core.ProviderConfig with provider/model/params\n\nDuring compile/link, string refs are resolved and merged with inline\nfields following project precedence rules. Defaults are filled from the\nproject when neither ref nor inline identity is provided."
     },
     "resource": {
       "description": "Resource identifier for the autoloader system (must be `\"agent\"`).\nThis field enables automatic discovery and registration of agent configurations.",

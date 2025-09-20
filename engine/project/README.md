@@ -681,3 +681,24 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md)
 ## 📄 License
 
 BSL-1.1 License - see [LICENSE](../../LICENSE)
+
+---
+
+## 🧠 Memories (Project-Level)
+
+Project-level memory resources can be declared inline and will be indexed into the ResourceStore for reuse across workflows and agents.
+
+Example in `compozy.yaml`:
+
+```yaml
+name: my-project
+
+memories:
+  - id: conversation
+    # Resource defaults to "memory" when omitted in project-level definitions
+    type: buffer
+    persistence:
+      type: in_memory
+```
+
+Inline definitions are equivalent to file-based entries discovered via AutoLoad (e.g., `memory/**/*.yaml`).

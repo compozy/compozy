@@ -41,6 +41,28 @@ func registerServerFields(registry *Registry) {
 func registerServerCoreFields(registry *Registry) {
 	registerServerHostPortCors(registry)
 	registerServerTimeoutField(registry)
+	// server.source_of_truth determines whether to load workflows from repo (YAML) or builder store
+	registry.Register(
+		&FieldDef{
+			Path:    "server.source_of_truth",
+			Default: "repo",
+			CLIFlag: "",
+			EnvVar:  "SERVER_SOURCE_OF_TRUTH",
+			Type:    reflect.TypeOf(""),
+			Help:    "Source of truth for workflows: repo|builder",
+		},
+	)
+	// server.seed_from_repo_on_empty controls optional seeding behavior in builder mode
+	registry.Register(
+		&FieldDef{
+			Path:    "server.seed_from_repo_on_empty",
+			Default: false,
+			CLIFlag: "",
+			EnvVar:  "SERVER_SEED_FROM_REPO_ON_EMPTY",
+			Type:    reflect.TypeOf(true),
+			Help:    "If true, seed store from repo YAML once when empty (builder mode)",
+		},
+	)
 }
 
 func registerServerHostPortCors(registry *Registry) {
@@ -520,12 +542,30 @@ func registerLimitsFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
+		Path:    "limits.max_config_file_nesting_depth",
+		Default: 100,
+		CLIFlag: "max-config-file-nesting-depth",
+		EnvVar:  "LIMITS_MAX_CONFIG_FILE_NESTING_DEPTH",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum nesting depth when parsing configuration files",
+	})
+
+	registry.Register(&FieldDef{
 		Path:    "limits.max_string_length",
 		Default: 10485760, // 10MB
 		CLIFlag: "max-string-length",
 		EnvVar:  "LIMITS_MAX_STRING_LENGTH",
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum string length",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "limits.max_config_file_size",
+		Default: 10485760, // 10MB
+		CLIFlag: "max-config-file-size",
+		EnvVar:  "LIMITS_MAX_CONFIG_FILE_SIZE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum configuration file size in bytes",
 	})
 
 	registry.Register(&FieldDef{

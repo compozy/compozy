@@ -1,6 +1,6 @@
 agents:
   - id: code-assistant
-    config:
+    model:
       provider: anthropic
       model: claude-4-opus
       params:
@@ -9,7 +9,6 @@ agents:
     instructions: You are a powerful AI coding assistant.
 
 id: code-format
-$use: agent(local::agents.#(id=="code-assistant"))
 action: format
 
 with:

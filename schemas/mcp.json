@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://schemas.compozy.com/mcp.json",
+  "$id": "mcp.json",
   "properties": {
     "resource": {
       "type": "string",

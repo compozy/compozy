@@ -360,6 +360,11 @@ func createServerDefaults(defaultConfig *Config) map[string]any {
 			"temporal_reachability":          defaultConfig.Server.Timeouts.TemporalReachability.String(),
 			"start_probe_delay":              defaultConfig.Server.Timeouts.StartProbeDelay.String(),
 		},
+		"reconciler": map[string]any{
+			"queue_capacity":    defaultConfig.Server.Reconciler.QueueCapacity,
+			"debounce_wait":     defaultConfig.Server.Reconciler.DebounceWait.String(),
+			"debounce_max_wait": defaultConfig.Server.Reconciler.DebounceMaxWait.String(),
+		},
 	}
 }
 
@@ -407,12 +412,14 @@ func createRuntimeDefaults(defaultConfig *Config) map[string]any {
 // createLimitsDefaults creates limits configuration defaults
 func createLimitsDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
-		"max_nesting_depth":        defaultConfig.Limits.MaxNestingDepth,
-		"max_string_length":        defaultConfig.Limits.MaxStringLength,
-		"max_message_content":      defaultConfig.Limits.MaxMessageContent,
-		"max_total_content_size":   defaultConfig.Limits.MaxTotalContentSize,
-		"max_task_context_depth":   defaultConfig.Limits.MaxTaskContextDepth,
-		"parent_update_batch_size": defaultConfig.Limits.ParentUpdateBatchSize,
+		"max_nesting_depth":             defaultConfig.Limits.MaxNestingDepth,
+		"max_config_file_nesting_depth": defaultConfig.Limits.MaxConfigFileNestingDepth,
+		"max_string_length":             defaultConfig.Limits.MaxStringLength,
+		"max_config_file_size":          defaultConfig.Limits.MaxConfigFileSize,
+		"max_message_content":           defaultConfig.Limits.MaxMessageContent,
+		"max_total_content_size":        defaultConfig.Limits.MaxTotalContentSize,
+		"max_task_context_depth":        defaultConfig.Limits.MaxTaskContextDepth,
+		"parent_update_batch_size":      defaultConfig.Limits.ParentUpdateBatchSize,
 	}
 }
 
