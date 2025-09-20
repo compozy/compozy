@@ -713,8 +713,16 @@ func compileRouterInline(
 				return fmt.Errorf("router route '%s' compile failed: %w", rk, err)
 			}
 			t.Routes[rk] = inline
+		case string:
+			// String routes refer to an existing task by ID.
+			// Leave as-is for resolution at runtime by ExecuteRouter.
 		case task.Config:
-			t.Routes[rk] = route
+			// Inline task config provided as value type; compile recursively
+			inline := route
+			if err := compileTaskRecursive(ctx, proj, store, &inline); err != nil {
+				return fmt.Errorf("router route '%s' compile failed: %w", rk, err)
+			}
+			t.Routes[rk] = inline
 		case *task.Config:
 			if route == nil {
 				return fmt.Errorf("router route '%s' has nil task config", rk)
@@ -723,6 +731,7 @@ func compileRouterInline(
 				return fmt.Errorf("router route '%s' compile failed: %w", rk, err)
 			}
 		default:
+			// For any other type, surface a helpful error
 			return fmt.Errorf("router route '%s' has unsupported type %T", rk, rv)
 		}
 	}
