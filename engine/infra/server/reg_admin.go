@@ -59,13 +59,16 @@ func setupAdminRoutes(
 	if state == nil {
 		return fmt.Errorf("application state not initialized")
 	}
+	if state.Store == nil {
+		return fmt.Errorf("auth store not initialized")
+	}
 	authRepo := state.Store.NewAuthRepo()
 	factory := authuc.NewFactory(authRepo)
 	admin := CreateAdminGroup(ctx, apiBase, factory)
 	admin.POST("/reload", func(c *gin.Context) {
 		adminReloadHandler(c, server)
 	})
-	admin.POST("/export-yaml", func(c *gin.Context) { adminExportYAMLHandler(c) })
+	admin.GET("/export-yaml", func(c *gin.Context) { adminExportYAMLHandler(c) })
 	admin.POST("/import-yaml", func(c *gin.Context) { adminImportYAMLHandler(c) })
 	registerMetaRoutes(admin)
 	return nil
@@ -74,12 +77,12 @@ func setupAdminRoutes(
 // adminReloadHandler handles the admin-triggered configuration reload.
 //
 //	@Summary      Reload configuration and reconcile schedules
-//	@Description  Rebuild compiled workflows from yaml|store and
-//	@Description  trigger schedule reconciliation. Admin only.
+//	@Description  Rebuild compiled workflows from repo|builder and trigger schedule reconciliation. Admin only.
+//	@Description  Aliases: yaml -> repo, store -> builder.
 //	@Tags         admin
 //	@Accept       json
 //	@Produce      json
-//	@Param        source  query  string  false  "The source to reload from. Defaults to 'repo'."  Enums(repo,builder)
+//	@Param        source  query  string  false  "Reload source (repo|builder). Aliases: yaml->repo, store->builder. Defaults to 'repo'."  Enums(repo,builder)
 //	@Success      200  {object}  router.Response{data=map[string]any}  "Reload completed"
 //	@Failure      400  {object}  router.Response{error=router.ErrorInfo} "Invalid parameters"
 //	@Failure      401  {object}  router.Response{error=router.ErrorInfo} "Unauthorized"
@@ -151,9 +154,22 @@ func resolveSourceMode(param string) string {
 }
 
 func buildOpContext(ctx context.Context, mode string) (context.Context, error) {
-	cm := config.NewManager(config.NewService())
+	base := config.ManagerFromContext(ctx)
+	if base == nil {
+		base = config.NewManager(config.NewService())
+		if _, err := base.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider()); err != nil {
+			return nil, err
+		}
+	}
 	override := &staticSource{data: map[string]any{"server": map[string]any{"source_of_truth": mode}}}
-	if _, err := cm.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider(), override); err != nil {
+	baseSources := base.Sources()
+	if len(baseSources) == 0 {
+		baseSources = []config.Source{config.NewDefaultProvider(), config.NewEnvProvider()}
+	}
+	sources := append(make([]config.Source, 0, len(baseSources)+1), baseSources...)
+	sources = append(sources, override)
+	cm := config.NewManager(base.Service)
+	if _, err := cm.Load(ctx, sources...); err != nil {
 		return nil, err
 	}
 	return config.ContextWithManager(ctx, cm), nil

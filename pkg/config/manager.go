@@ -73,6 +73,18 @@ func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) 
 	return config, nil
 }
 
+// Sources returns a copy of the currently configured sources.
+func (m *Manager) Sources() []Source {
+	m.reloadMu.Lock()
+	defer m.reloadMu.Unlock()
+	if len(m.sources) == 0 {
+		return nil
+	}
+	out := make([]Source, len(m.sources))
+	copy(out, m.sources)
+	return out
+}
+
 // Get returns the current configuration atomically.
 func (m *Manager) Get() *Config {
 	val := m.current.Load()

@@ -507,7 +507,7 @@ const docTemplate = `{
         },
         "/admin/reload": {
             "post": {
-                "description": "Rebuild compiled workflows from yaml|store and\ntrigger schedule reconciliation. Admin only.",
+                "description": "Rebuild compiled workflows from repo|builder and trigger schedule reconciliation. Admin only.\nAliases: yaml -\u003e repo, store -\u003e builder.",
                 "consumes": [
                     "application/json"
                 ],
@@ -525,7 +525,7 @@ const docTemplate = `{
                             "builder"
                         ],
                         "type": "string",
-                        "description": "The source to reload from. Defaults to 'repo'.",
+                        "description": "Reload source (repo|builder). Aliases: yaml-\u003erepo, store-\u003ebuilder. Defaults to 'repo'.",
                         "name": "source",
                         "in": "query"
                     }

@@ -10,7 +10,7 @@ import (
 )
 
 // WriteStableJSON writes a canonical JSON-like representation of v into b.
-// Objects (map[string]any) have keys sorted recursively to ensure stability.
+// Maps with string keys have keys sorted recursively to ensure stability.
 // Arrays preserve order. Primitive values are marshaled using encoding/json.
 func WriteStableJSON(b *bytes.Buffer, v any) {
 	switch t := v.(type) {
@@ -23,9 +23,9 @@ func WriteStableJSON(b *bytes.Buffer, v any) {
 		if err == nil {
 			b.Write(bs)
 		} else {
-			b.WriteString("\"")
+			b.WriteByte('"')
 			b.WriteString(t)
-			b.WriteString("\"")
+			b.WriteByte('"')
 		}
 	case float64, bool, nil:
 		bs, err := json.Marshal(t)
@@ -72,9 +72,9 @@ func writeMapStringAny(b *bytes.Buffer, m map[string]any) {
 		if err == nil {
 			b.Write(kb)
 		} else {
-			b.WriteString("\"")
+			b.WriteByte('"')
 			b.WriteString(k)
-			b.WriteString("\"")
+			b.WriteByte('"')
 		}
 		b.WriteByte(':')
 		WriteStableJSON(b, m[k])
@@ -109,9 +109,9 @@ func writeReflectedMap(b *bytes.Buffer, rv reflect.Value) {
 		if err == nil {
 			b.Write(kb)
 		} else {
-			b.WriteString("\"")
+			b.WriteByte('"')
 			b.WriteString(k)
-			b.WriteString("\"")
+			b.WriteByte('"')
 		}
 		b.WriteByte(':')
 		WriteStableJSON(b, rv.MapIndex(reflect.ValueOf(k)).Interface())

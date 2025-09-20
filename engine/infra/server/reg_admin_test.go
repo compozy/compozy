@@ -91,8 +91,7 @@ func setupAdminTestRouter(t *testing.T, withAdminUser bool, state *appstate.Stat
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	os.Setenv("SERVER_AUTH_ADMIN_KEY", "0123456789abcdef")
-	t.Cleanup(func() { os.Unsetenv("SERVER_AUTH_ADMIN_KEY") })
+	t.Setenv("SERVER_AUTH_ADMIN_KEY", "test_admin_key_123")
 	cfgMgr := config.NewManager(config.NewService())
 	_, err := cfgMgr.Load(
 		context.Background(),
@@ -112,72 +111,82 @@ func setupAdminTestRouter(t *testing.T, withAdminUser bool, state *appstate.Stat
 	factory := authuc.NewFactory(dummyRepo{})
 	ctx := config.ContextWithManager(context.Background(), cfgMgr)
 	admin := CreateAdminGroup(ctx, apiBase, factory)
-	admin.GET("/reload", func(c *gin.Context) { adminReloadHandler(c, &Server{envFilePath: ".env"}) })
+	admin.POST("/reload", func(c *gin.Context) { adminReloadHandler(c, &Server{envFilePath: ".env"}) })
 	return r
 }
 
 func TestAdminReload_Unauthorized(t *testing.T) {
-	state := &appstate.State{BaseDeps: appstate.BaseDeps{ProjectConfig: &project.Config{Name: "t"}}}
-	r := setupAdminTestRouter(t, false, state)
-	req := httptest.NewRequest(http.MethodGet, routes.Base()+"/admin/reload", http.NoBody)
-	res := httptest.NewRecorder()
-	r.ServeHTTP(res, req)
-	assert.Equal(t, http.StatusForbidden, res.Code)
+	t.Run("Should return 403 when no admin user", func(t *testing.T) {
+		state := &appstate.State{BaseDeps: appstate.BaseDeps{ProjectConfig: &project.Config{Name: "t"}}}
+		r := setupAdminTestRouter(t, false, state)
+		req := httptest.NewRequest(http.MethodPost, routes.Base()+"/admin/reload", http.NoBody)
+		res := httptest.NewRecorder()
+		r.ServeHTTP(res, req)
+		assert.Equal(t, http.StatusForbidden, res.Code)
+	})
 }
 
 func TestAdminReload_BadParam(t *testing.T) {
-	state := &appstate.State{BaseDeps: appstate.BaseDeps{ProjectConfig: &project.Config{Name: "t"}}}
-	r := setupAdminTestRouter(t, true, state)
-	req := httptest.NewRequest(http.MethodGet, routes.Base()+"/admin/reload?source=invalid", http.NoBody)
-	res := httptest.NewRecorder()
-	r.ServeHTTP(res, req)
-	assert.Equal(t, http.StatusBadRequest, res.Code)
+	t.Run("Should return 400 for invalid source", func(t *testing.T) {
+		state := &appstate.State{BaseDeps: appstate.BaseDeps{ProjectConfig: &project.Config{Name: "t"}}}
+		r := setupAdminTestRouter(t, true, state)
+		req := httptest.NewRequest(http.MethodPost, routes.Base()+"/admin/reload?source=invalid", http.NoBody)
+		res := httptest.NewRecorder()
+		r.ServeHTTP(res, req)
+		assert.Equal(t, http.StatusBadRequest, res.Code)
+	})
 }
 
 func TestAdminReload_YAMLAndStore(t *testing.T) {
-	tmp := t.TempDir()
-	wfContent := "id: test-wf\nversion: '1.0.0'\ndescription: minimal wf\ntasks: []\nagents: []\ntools: []\n"
-	wfPath := filepath.Join(tmp, "workflow.yaml")
-	require.NoError(t, os.WriteFile(wfPath, []byte(wfContent), 0o644))
-	projYAML := "name: test\nworkflows:\n  - source: " + wfPath + "\n"
-	err := os.WriteFile(filepath.Join(tmp, "compozy.yaml"), []byte(projYAML), 0o644)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(tmp, "tools.ts"), []byte(""), 0o644))
-	require.NoError(t, err)
-	proj := &project.Config{Name: "test"}
-	require.NoError(t, proj.SetCWD(tmp))
-	proj.SetFilePath("compozy.yaml")
-	state := &appstate.State{
-		BaseDeps:   appstate.BaseDeps{ProjectConfig: proj, Workflows: []*workflow.Config{}},
-		Extensions: map[appstate.ExtensionKey]any{},
-	}
-	state.SetResourceStore(resources.NewMemoryResourceStore())
-	mockMgr := &mockScheduleManager{}
-	state.SetScheduleManager(mockMgr)
-	r := setupAdminTestRouter(t, true, state)
-	// YAML mode
-	req := httptest.NewRequest(http.MethodGet, routes.Base()+"/admin/reload?source=yaml", http.NoBody)
-	req = req.WithContext(logger.ContextWithLogger(req.Context(), logger.NewForTests()))
-	res := httptest.NewRecorder()
-	r.ServeHTTP(res, req)
-	if res.Code != http.StatusOK {
-		t.Fatalf("unexpected status %d body=%s", res.Code, res.Body.String())
-	}
-	var body struct {
-		Data map[string]any `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
-	require.GreaterOrEqual(t, int(body.Data["recompiled"].(float64)), 1)
-	// Store mode (empty store is ok)
-	req2 := httptest.NewRequest(http.MethodGet, routes.Base()+"/admin/reload?source=store", http.NoBody)
-	req2 = req2.WithContext(logger.ContextWithLogger(req2.Context(), logger.NewForTests()))
-	res2 := httptest.NewRecorder()
-	r.ServeHTTP(res2, req2)
-	require.Equal(t, http.StatusOK, res2.Code)
-	var body2 struct {
-		Data map[string]any `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(res2.Body.Bytes(), &body2))
-	require.GreaterOrEqual(t, int(body2.Data["recompiled"].(float64)), 0)
-	require.True(t, mockMgr.called)
+	t.Run("Should reload from YAML and store and trigger schedule hook", func(t *testing.T) {
+		tmp := t.TempDir()
+		wfContent := "id: test-wf\nversion: '1.0.0'\ndescription: minimal wf\ntasks: []\nagents: []\ntools: []\n"
+		wfPath := filepath.Join(tmp, "workflow.yaml")
+		require.NoError(t, os.WriteFile(wfPath, []byte(wfContent), 0o644))
+		projYAML := "name: test\nworkflows:\n  - source: " + wfPath + "\n"
+		err := os.WriteFile(filepath.Join(tmp, "compozy.yaml"), []byte(projYAML), 0o644)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(tmp, "tools.ts"), []byte(""), 0o644)
+		require.NoError(t, err)
+		proj := &project.Config{Name: "test"}
+		require.NoError(t, proj.SetCWD(tmp))
+		proj.SetFilePath("compozy.yaml")
+		state := &appstate.State{
+			BaseDeps:   appstate.BaseDeps{ProjectConfig: proj, Workflows: []*workflow.Config{}},
+			Extensions: map[appstate.ExtensionKey]any{},
+		}
+		state.SetResourceStore(resources.NewMemoryResourceStore())
+		mockMgr := &mockScheduleManager{}
+		state.SetScheduleManager(mockMgr)
+		r := setupAdminTestRouter(t, true, state)
+		// YAML mode
+		req := httptest.NewRequest(http.MethodPost, routes.Base()+"/admin/reload?source=yaml", http.NoBody)
+		req = req.WithContext(logger.ContextWithLogger(req.Context(), logger.NewForTests()))
+		res := httptest.NewRecorder()
+		r.ServeHTTP(res, req)
+		if res.Code != http.StatusOK {
+			t.Fatalf("unexpected status %d body=%s", res.Code, res.Body.String())
+		}
+		var body struct {
+			Data    map[string]any `json:"data"`
+			Message string         `json:"message"`
+		}
+		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
+		require.GreaterOrEqual(t, int(body.Data["recompiled"].(float64)), 1)
+		assert.NotEmpty(t, body.Message)
+		// Store mode (empty store is ok)
+		req2 := httptest.NewRequest(http.MethodPost, routes.Base()+"/admin/reload?source=store", http.NoBody)
+		req2 = req2.WithContext(logger.ContextWithLogger(req2.Context(), logger.NewForTests()))
+		res2 := httptest.NewRecorder()
+		r.ServeHTTP(res2, req2)
+		require.Equal(t, http.StatusOK, res2.Code)
+		var body2 struct {
+			Data    map[string]any `json:"data"`
+			Message string         `json:"message"`
+		}
+		require.NoError(t, json.Unmarshal(res2.Body.Bytes(), &body2))
+		require.GreaterOrEqual(t, int(body2.Data["recompiled"].(float64)), 0)
+		assert.NotEmpty(t, body2.Message)
+		require.True(t, mockMgr.called)
+	})
 }

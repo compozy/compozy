@@ -42,6 +42,13 @@ func NewService(envFilePath string, store resources.ResourceStore) Service {
 	return &service{envFilePath: envFilePath, store: store}
 }
 
+// NewServiceWithDefaults creates a Service using the default in-memory
+// ResourceStore. Prefer passing an explicit store to NewService when possible.
+// This helper eases migration for code that previously did not provide a store.
+func NewServiceWithDefaults(envFilePath string) Service {
+	return NewService(envFilePath, resources.NewMemoryResourceStore())
+}
+
 // LoadProject loads a project configuration and handles AutoLoad integration
 func (s *service) LoadProject(
 	ctx context.Context,
@@ -113,32 +120,16 @@ func (s *service) indexAndCompile(
 	if s.store == nil {
 		return nil, fmt.Errorf("resource store not provided")
 	}
-	store := s.store
-	if err := projectConfig.IndexToResourceStore(ctx, store); err != nil {
-		log.Error("Failed to index project resources", "error", err)
+	if err := s.indexProjectAndWorkflows(ctx, projectConfig, workflows, configRegistry); err != nil {
+		log.Error("Failed to index resources", "error", err)
 		return nil, err
-	}
-	for _, wf := range workflows {
-		if wf == nil {
-			continue
-		}
-		if err := wf.IndexToResourceStore(ctx, projectConfig.Name, store); err != nil {
-			log.Error("Failed to index workflow resources", "workflow_id", wf.ID, "error", err)
-			return nil, err
-		}
-	}
-	if configRegistry != nil {
-		if err := configRegistry.SyncToResourceStore(ctx, projectConfig.Name, store); err != nil {
-			log.Error("Failed to publish autoload resources to store", "error", err)
-			return nil, err
-		}
 	}
 	compiled := make([]*workflow.Config, 0, len(workflows))
 	for _, wf := range workflows {
 		if wf == nil {
 			continue
 		}
-		c, err := wf.Compile(ctx, projectConfig, store)
+		c, err := wf.Compile(ctx, projectConfig, s.store)
 		if err != nil {
 			log.Error("Workflow compile failed", "workflow_id", wf.ID, "error", err)
 			return nil, err
@@ -146,6 +137,32 @@ func (s *service) indexAndCompile(
 		compiled = append(compiled, c)
 	}
 	return compiled, nil
+}
+
+// indexProjectAndWorkflows indexes the project, workflows, and autoload registry into the store.
+func (s *service) indexProjectAndWorkflows(
+	ctx context.Context,
+	projectConfig *project.Config,
+	wfs []*workflow.Config,
+	reg *autoload.ConfigRegistry,
+) error {
+	if err := projectConfig.IndexToResourceStore(ctx, s.store); err != nil {
+		return err
+	}
+	for _, wf := range wfs {
+		if wf == nil {
+			continue
+		}
+		if err := wf.IndexToResourceStore(ctx, projectConfig.Name, s.store); err != nil {
+			return err
+		}
+	}
+	if reg != nil {
+		if err := reg.SyncToResourceStore(ctx, projectConfig.Name, s.store); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // compileFromStore compiles workflows by enumerating them from the ResourceStore.
@@ -158,6 +175,11 @@ func (s *service) compileFromStore(
 	log := logger.FromContext(ctx)
 	if s.store == nil {
 		return nil, fmt.Errorf("resource store not provided")
+	}
+	if configRegistry != nil {
+		if err := configRegistry.SyncToResourceStore(ctx, projectConfig.Name, s.store); err != nil {
+			return nil, fmt.Errorf("publish autoload resources failed: %w", err)
+		}
 	}
 	keys, err := s.store.List(ctx, projectConfig.Name, resources.ResourceWorkflow)
 	if err != nil {

@@ -30,7 +30,7 @@ type watcher struct {
 	closed bool
 }
 
-const defaultWatchBuffer = 64
+const defaultWatchBuffer = 256
 
 // NewMemoryResourceStore constructs a new MemoryResourceStore.
 func NewMemoryResourceStore() *MemoryResourceStore {
@@ -59,6 +59,62 @@ func (s *MemoryResourceStore) Put(ctx context.Context, key ResourceKey, value an
 	}
 	s.items[key] = storedEntry{value: cp, etag: etag}
 	// Broadcast while holding the lock to prevent concurrent channel close.
+	evt := Event{Type: EventPut, Key: key, ETag: etag, At: time.Now().UTC()}
+	keyspace := watcherKeyspace(key.Project, key.Type)
+	for _, w := range s.watchers[keyspace] {
+		if w.closed {
+			continue
+		}
+		select {
+		case w.ch <- evt:
+		default:
+			log.Warn(
+				"watch channel full; dropping event",
+				"project", key.Project,
+				"type", string(key.Type),
+				"id", key.ID,
+			)
+		}
+	}
+	s.mu.Unlock()
+	return etag, nil
+}
+
+// PutIfMatch updates a resource only when the provided ETag matches the current value.
+func (s *MemoryResourceStore) PutIfMatch(
+	ctx context.Context,
+	key ResourceKey,
+	value any,
+	expectedETag string,
+) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("context canceled: %w", err)
+	}
+	_ = config.FromContext(ctx)
+	log := logger.FromContext(ctx)
+	if value == nil {
+		return "", fmt.Errorf("nil value is not allowed")
+	}
+	cp, err := core.DeepCopy[any](value)
+	if err != nil {
+		return "", fmt.Errorf("deep copy failed: %w", err)
+	}
+	etag := core.ETagFromAny(cp)
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return "", fmt.Errorf("store is closed")
+	}
+	entry, ok := s.items[key]
+	if !ok {
+		s.mu.Unlock()
+		return "", ErrNotFound
+	}
+	if entry.etag != expectedETag {
+		s.mu.Unlock()
+		return "", ErrETagMismatch
+	}
+	s.items[key] = storedEntry{value: cp, etag: etag}
 	evt := Event{Type: EventPut, Key: key, ETag: etag, At: time.Now().UTC()}
 	keyspace := watcherKeyspace(key.Project, key.Type)
 	for _, w := range s.watchers[keyspace] {

@@ -101,12 +101,16 @@ func TestRedisStore_Watch_PrimeAndEvents(t *testing.T) {
 			t.Fatalf("timeout waiting put event")
 		}
 		require.NoError(t, st.Delete(ctx, key))
-		select {
-		case e := <-ch:
-			require.Equal(t, EventDelete, e.Type)
-			require.Equal(t, key, e.Key)
-		case <-time.After(rshort):
-			t.Fatalf("timeout waiting delete event")
+		deadline := time.After(rshort)
+		for {
+			select {
+			case e := <-ch:
+				if e.Type == EventDelete && e.Key == key {
+					return
+				}
+			case <-deadline:
+				t.Fatalf("timeout waiting delete event")
+			}
 		}
 	})
 }

@@ -4,39 +4,37 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
 
-func TestMemoryReference_UnmarshalYAML_Scalar(t *testing.T) {
-	var m MemoryReference
-	if err := yaml.Unmarshal([]byte("conversation"), &m); err != nil {
-		t.Fatalf("unmarshal scalar: %v", err)
-	}
-	if m.ID != "conversation" {
-		t.Fatalf("id mismatch: %q", m.ID)
-	}
-	if m.Key != "" {
-		t.Fatalf("expected empty key on scalar form, got %q", m.Key)
-	}
-}
+func TestMemoryReference_Unmarshal(t *testing.T) {
+	t.Run("Should unmarshal YAML scalar as ID-only", func(t *testing.T) {
+		var m MemoryReference
+		err := yaml.Unmarshal([]byte("conversation"), &m)
+		require.NoError(t, err, "unmarshal scalar")
+		assert.Equal(t, "conversation", m.ID)
+		assert.Empty(t, m.Key)
+		assert.Empty(t, m.Mode)
+	})
 
-func TestMemoryReference_UnmarshalYAML_Object(t *testing.T) {
-	data := []byte("id: conv\nkey: user-1\nmode: read-write\n")
-	var m MemoryReference
-	if err := yaml.Unmarshal(data, &m); err != nil {
-		t.Fatalf("unmarshal object: %v", err)
-	}
-	if m.ID != "conv" || m.Key != "user-1" || m.Mode != "read-write" {
-		t.Fatalf("unexpected values: %+v", m)
-	}
-}
+	t.Run("Should unmarshal YAML object with fields", func(t *testing.T) {
+		data := []byte("id: conv\nkey: user-1\nmode: read-write\n")
+		var m MemoryReference
+		err := yaml.Unmarshal(data, &m)
+		require.NoError(t, err, "unmarshal object")
+		assert.Equal(t, "conv", m.ID)
+		assert.Equal(t, "user-1", m.Key)
+		assert.Equal(t, "read-write", m.Mode)
+	})
 
-func TestMemoryReference_UnmarshalJSON_Scalar(t *testing.T) {
-	var m MemoryReference
-	if err := json.Unmarshal([]byte("\"conversation\""), &m); err != nil {
-		t.Fatalf("json scalar: %v", err)
-	}
-	if m.ID != "conversation" || m.Key != "" {
-		t.Fatalf("unexpected: %+v", m)
-	}
+	t.Run("Should unmarshal JSON scalar as ID-only", func(t *testing.T) {
+		var m MemoryReference
+		err := json.Unmarshal([]byte(`"conversation"`), &m)
+		require.NoError(t, err, "json scalar")
+		assert.Equal(t, "conversation", m.ID)
+		assert.Empty(t, m.Key)
+		assert.Empty(t, m.Mode)
+	})
 }

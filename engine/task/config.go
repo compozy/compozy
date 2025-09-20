@@ -2693,23 +2693,21 @@ func (t *Config) FromMap(data any) error {
 	agentPtr := reflect.TypeOf(&agent.Config{})
 	toolPtr := reflect.TypeOf(&tool.Config{})
 	extendedHook := func(from reflect.Type, to reflect.Type, v any) (any, error) {
-		// Preserve existing behavior
-		if nv, err := decodeHook(from, to, v); nv != nil || err != nil {
-			return nv, err
-		}
-		// Support agent: "writer" → &agent.Config{ID:"writer"}
 		if to == agentPtr {
 			if s, ok := v.(string); ok {
 				return &agent.Config{ID: s}, nil
 			}
 		}
-		// Support tool: "fmt" → &tool.Config{ID:"fmt"}
 		if to == toolPtr {
 			if s, ok := v.(string); ok {
 				return &tool.Config{ID: s}, nil
 			}
 		}
-		return v, nil
+		nv, err := decodeHook(from, to, v)
+		if err != nil {
+			return nil, err
+		}
+		return nv, nil
 	}
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
@@ -2938,7 +2936,7 @@ func normalizeAttachmentsPhase1(
 // Returns:
 //   - *Config: Parsed and validated task configuration
 //   - error: Any loading or validation errors
-func Load(cwd *core.PathCWD, path string) (*Config, error) {
+func Load(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
@@ -2954,24 +2952,9 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	if err := propagateCWDToSubTasks(config); err != nil {
 		return nil, err
 	}
-	if err := normalizeAttachmentsPhase1(context.Background(), config,
+	if err := normalizeAttachmentsPhase1(ctx, config,
 		tplengine.NewEngine(tplengine.FormatJSON), nil); err != nil {
 		return nil, err
 	}
 	return config, nil
 }
-
-// LoadAndEval loads a task configuration and evaluates template expressions.
-// Uses the provided evaluator to resolve references and template variables.
-// This is typically used when loading tasks within a workflow context where
-// template expressions need to be resolved against workflow state.
-//
-// Parameters:
-//   - cwd: Current working directory for resolving relative paths
-//   - path: Path to the task configuration file (can be relative or absolute)
-//   - ev: Reference evaluator for resolving template expressions
-//
-// Returns:
-//   - *Config: Parsed, evaluated, and validated task configuration
-//   - error: Any loading, evaluation, or validation errors
-// LoadAndEval has been removed. Use Load() and the compile/link step instead.

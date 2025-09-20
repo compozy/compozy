@@ -360,6 +360,11 @@ func createServerDefaults(defaultConfig *Config) map[string]any {
 			"temporal_reachability":          defaultConfig.Server.Timeouts.TemporalReachability.String(),
 			"start_probe_delay":              defaultConfig.Server.Timeouts.StartProbeDelay.String(),
 		},
+		"reconciler": map[string]any{
+			"queue_capacity":    defaultConfig.Server.Reconciler.QueueCapacity,
+			"debounce_wait":     defaultConfig.Server.Reconciler.DebounceWait.String(),
+			"debounce_max_wait": defaultConfig.Server.Reconciler.DebounceMaxWait.String(),
+		},
 	}
 }
 

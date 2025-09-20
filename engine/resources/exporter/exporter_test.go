@@ -39,14 +39,12 @@ func TestExportToDir_Deterministic(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-
 		dir1 := t.TempDir()
 		dir2 := t.TempDir()
 		_, err = ExportToDir(ctx, project, store, dir1)
 		require.NoError(t, err)
 		_, err = ExportToDir(ctx, project, store, dir2)
 		require.NoError(t, err)
-
 		// Compare bytes of a sample file across exports
 		f1 := filepath.Join(dir1, "agents", "writer.yaml")
 		f2 := filepath.Join(dir2, "agents", "writer.yaml")

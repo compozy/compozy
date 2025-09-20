@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/auth/userctx"
@@ -41,18 +42,25 @@ func (uc *UpsertResource) Execute(ctx context.Context, in *UpsertInput) (*Upsert
 		return nil, err
 	}
 	key := resources.ResourceKey{Project: in.Project, Type: in.Type, ID: in.ID}
+	var (
+		etag string
+		err  error
+	)
 	if in.IfMatch != "" {
-		_, cur, err := uc.store.Get(ctx, key)
-		if err != nil {
+		etag, err = uc.store.PutIfMatch(ctx, key, in.Body, in.IfMatch)
+		switch {
+		case errors.Is(err, resources.ErrNotFound):
 			return nil, ErrIfMatchStaleOrMissing
-		}
-		if cur != in.IfMatch {
+		case errors.Is(err, resources.ErrETagMismatch):
 			return nil, ErrETagMismatch
+		case err != nil:
+			return nil, err
 		}
-	}
-	etag, err := uc.store.Put(ctx, key, in.Body)
-	if err != nil {
-		return nil, err
+	} else {
+		etag, err = uc.store.Put(ctx, key, in.Body)
+		if err != nil {
+			return nil, err
+		}
 	}
 	updatedBy := "api"
 	if u, ok := userctx.UserFromContext(ctx); ok && u != nil {

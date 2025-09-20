@@ -428,9 +428,3 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	}
 	return config, nil
 }
-
-// LoadAndEval loads a tool configuration with template evaluation.
-// Template expressions in the configuration are evaluated using the provided evaluator.
-// This enables dynamic configuration based on environment variables and context.
-// The path is resolved relative to the provided working directory.
-// LoadAndEval has been removed. Use Load() and the compile/link step instead.

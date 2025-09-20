@@ -2570,10 +2570,11 @@ paths:
       consumes:
         - application/json
       description: |-
-        Rebuild compiled workflows from yaml|store and
-        trigger schedule reconciliation. Admin only.
+        Rebuild compiled workflows from repo|builder and trigger schedule reconciliation. Admin only.
+        Aliases: yaml -> repo, store -> builder.
       parameters:
-        - description: The source to reload from. Defaults to 'repo'.
+        - description: 'Reload source (repo|builder). Aliases: yaml->repo, store->builder. Defaults to
+            ''repo''.'
           enum:
             - repo
             - builder

@@ -10,7 +10,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestModel_Decoding(t *testing.T) {
+const floatTol = 1e-6
+
+func TestModelDecoding(t *testing.T) {
 	t.Run("Should decode YAML scalar ref", func(t *testing.T) {
 		var a struct {
 			Model Model `yaml:"model"`
@@ -25,15 +27,19 @@ func TestModel_Decoding(t *testing.T) {
 		var a struct {
 			Model Model `yaml:"model"`
 		}
-		data := []byte(
-			"model:\n  provider: openai\n  model: gpt-4o-mini\n  params:\n    temperature: 0.1\n    max_tokens: 64\n",
-		)
+		data := []byte(`model:
+  provider: openai
+  model: gpt-4o-mini
+  params:
+    temperature: 0.1
+    max_tokens: 64
+`)
 		require.NoError(t, yaml.Unmarshal(data, &a))
 		assert.False(t, a.Model.HasRef())
 		assert.True(t, a.Model.HasConfig())
 		assert.Equal(t, core.ProviderOpenAI, a.Model.Config.Provider)
 		assert.Equal(t, "gpt-4o-mini", a.Model.Config.Model)
-		assert.InDelta(t, 0.1, a.Model.Config.Params.Temperature, 1e-6)
+		assert.InDelta(t, 0.1, a.Model.Config.Params.Temperature, floatTol)
 		assert.EqualValues(t, 64, a.Model.Config.Params.MaxTokens)
 	})
 	t.Run("Should decode JSON scalar ref", func(t *testing.T) {
@@ -70,6 +76,8 @@ func TestModel_Decoding(t *testing.T) {
 		)
 		assert.Equal(t, core.ProviderOpenAI, cfg2.Model.Config.Provider)
 		assert.Equal(t, "gpt-4o", cfg2.Model.Config.Model)
+		assert.False(t, cfg2.Model.HasRef())
+		assert.True(t, cfg2.Model.HasConfig())
 	})
 
 	t.Run("Should treat APIKey-only inline config as present", func(t *testing.T) {
@@ -77,6 +85,9 @@ func TestModel_Decoding(t *testing.T) {
 		assert.True(t, m.HasConfig())
 		by, err := m.MarshalJSON()
 		require.NoError(t, err)
-		assert.NotEqual(t, '"', rune(by[0]))
+		require.NotEmpty(t, by)
+		var v any
+		require.NoError(t, json.Unmarshal(by, &v))
+		assert.IsType(t, map[string]any{}, v)
 	})
 }

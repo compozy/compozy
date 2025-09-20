@@ -533,8 +533,6 @@ cwd, _ := core.CWDFromPath("/project")
 config, err := tool.Load(cwd, "tools/my-tool.yaml")
 ```
 
-// Removed: LoadAndEval (legacy)
-
 #### `IsTypeScript(path string) bool`
 
 Checks if file has TypeScript extension.

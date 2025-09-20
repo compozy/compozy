@@ -3,6 +3,7 @@ package uc
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -14,8 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testTimeout = 5 * time.Second
+
 // Helper function to create real memory manager for testing
 func setupTestMemoryManager(t *testing.T) (*testutil.TestRedisSetup, memcore.ManagerInterface) {
+	t.Helper()
 	setup := testutil.SetupTestRedis(t)
 	return setup, setup.Manager
 }
@@ -37,7 +41,8 @@ func TestNewMemoryResolver(t *testing.T) {
 	})
 }
 func TestMemoryResolver_GetMemory(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
 	t.Run("Should return nil when memory manager is nil", func(t *testing.T) {
 		resolver := &MemoryResolver{
 			memoryManager: nil,
@@ -90,7 +95,7 @@ func TestMemoryResolver_GetMemory(t *testing.T) {
 		memory, err := resolver.GetMemory(ctx, "test-memory", "invalid-{{ .missing }}")
 		assert.Error(t, err)
 		assert.Nil(t, memory)
-		assert.Contains(t, err.Error(), "failed to get memory instance")
+		assert.ErrorContains(t, err, "failed to get memory instance")
 	})
 	t.Run("Should handle memory instance error", func(t *testing.T) {
 		setup, memMgr := setupTestMemoryManager(t)
@@ -104,12 +109,13 @@ func TestMemoryResolver_GetMemory(t *testing.T) {
 		// Try to get a memory instance that doesn't exist
 		memory, err := resolver.GetMemory(ctx, "non-existent-memory", "key")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get memory instance")
+		assert.ErrorContains(t, err, "failed to get memory instance")
 		assert.Nil(t, memory)
 	})
 }
 func TestMemoryResolver_ResolveAgentMemories(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
 	t.Run("Should return nil for agent without memory", func(t *testing.T) {
 		setup, memMgr := setupTestMemoryManager(t)
 		defer setup.Cleanup()
@@ -137,8 +143,8 @@ func TestMemoryResolver_ResolveAgentMemories(t *testing.T) {
 		}
 		// Test the GetMemory method directly with template resolution
 		memory, err := resolver.GetMemory(ctx, "session-memory", "session-{{ .session }}")
-		assert.NoError(t, err)
-		assert.NotNil(t, memory)
+		require.NoError(t, err)
+		require.NotNil(t, memory)
 		assert.NotEmpty(t, memory.GetID())
 		// Test memory operations
 		testMsg := llm.Message{Role: llm.MessageRoleUser, Content: "Session-specific message"}
@@ -198,7 +204,8 @@ func TestMemoryResolver_ResolveAgentMemories(t *testing.T) {
 	})
 }
 func TestMemoryResolverAdapter(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
 	t.Run("Should adapt real memory interface correctly", func(t *testing.T) {
 		// Setup real Redis environment
 		setup := testutil.SetupTestRedis(t)
@@ -270,18 +277,16 @@ func TestMemoryResolverAdapter(t *testing.T) {
 
 // TestMemoryResolverTemplateResolution tests comprehensive template resolution scenarios
 func TestMemoryResolverTemplateResolution(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
 	t.Run("Should resolve simple template variables", func(t *testing.T) {
-		setup, memMgr := setupTestMemoryManager(t)
-		defer setup.Cleanup()
-		_ = setup.CreateTestMemoryInstance(t, "test-memory")
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
 		workflowContext := map[string]any{
 			"user_id": "user123",
 			"session": "session456",
 		}
 		resolver := &MemoryResolver{
-			memoryManager:   memMgr,
+			memoryManager:   nil,
 			templateEngine:  tplEngine,
 			workflowContext: workflowContext,
 		}
@@ -295,8 +300,6 @@ func TestMemoryResolverTemplateResolution(t *testing.T) {
 		assert.Equal(t, "user123:session456", resolved)
 	})
 	t.Run("Should resolve nested template variables", func(t *testing.T) {
-		setup, memMgr := setupTestMemoryManager(t)
-		defer setup.Cleanup()
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
 		workflowContext := map[string]any{
 			"workflow": map[string]any{
@@ -310,7 +313,7 @@ func TestMemoryResolverTemplateResolution(t *testing.T) {
 			},
 		}
 		resolver := &MemoryResolver{
-			memoryManager:   memMgr,
+			memoryManager:   nil,
 			templateEngine:  tplEngine,
 			workflowContext: workflowContext,
 		}
@@ -324,40 +327,34 @@ func TestMemoryResolverTemplateResolution(t *testing.T) {
 		assert.Equal(t, "project789:exec456:nested123", resolved)
 	})
 	t.Run("Should handle template with missing variables", func(t *testing.T) {
-		setup, memMgr := setupTestMemoryManager(t)
-		defer setup.Cleanup()
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
 		workflowContext := map[string]any{
 			"user_id": "user123",
 		}
 		resolver := &MemoryResolver{
-			memoryManager:   memMgr,
+			memoryManager:   nil,
 			templateEngine:  tplEngine,
 			workflowContext: workflowContext,
 		}
 		// Template with missing variable should fail at MemoryResolver level
 		key, err := resolver.resolveKey(ctx, "user:{{.missing_variable}}")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to execute key template")
+		assert.ErrorContains(t, err, "failed to execute key template")
 		assert.Empty(t, key)
 	})
 	t.Run("Should handle empty template engine", func(t *testing.T) {
-		setup, memMgr := setupTestMemoryManager(t)
-		defer setup.Cleanup()
 		resolver := &MemoryResolver{
-			memoryManager:   memMgr,
+			memoryManager:   nil,
 			templateEngine:  nil, // No template engine
 			workflowContext: map[string]any{},
 		}
 		// Should return error when template engine is nil and template syntax is detected
 		resolved, err := resolver.resolveKey(ctx, "static-key-{{.user_id}}")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "template engine is required")
+		assert.ErrorContains(t, err, "template engine is required")
 		assert.Empty(t, resolved)
 	})
 	t.Run("Should handle complex workflow context structures", func(t *testing.T) {
-		setup, memMgr := setupTestMemoryManager(t)
-		defer setup.Cleanup()
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
 		workflowContext := map[string]any{
 			"workflow": map[string]any{
@@ -386,7 +383,7 @@ func TestMemoryResolverTemplateResolution(t *testing.T) {
 			},
 		}
 		resolver := &MemoryResolver{
-			memoryManager:   memMgr,
+			memoryManager:   nil,
 			templateEngine:  tplEngine,
 			workflowContext: workflowContext,
 		}
@@ -496,7 +493,8 @@ func TestMemoryResolverTemplateResolution(t *testing.T) {
 
 // TestMemoryResolverWorkflowIntegration tests integration with workflow execution patterns
 func TestMemoryResolverWorkflowIntegration(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
 	t.Run("Should handle real workflow execution context", func(t *testing.T) {
 		setup, memMgr := setupTestMemoryManager(t)
 		defer setup.Cleanup()
@@ -571,7 +569,7 @@ func TestMemoryResolverWorkflowIntegration(t *testing.T) {
 			{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
 		}
 		// Create CWD for agent validation
-		cwd, err := core.CWDFromPath("/tmp/test-agent")
+		cwd, err := core.CWDFromPath(t.TempDir())
 		require.NoError(t, err)
 		agentConfig.CWD = cwd
 		// Validate to properly set up memory references

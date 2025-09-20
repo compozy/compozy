@@ -44,11 +44,14 @@ func registerPublicWebhookRoutes(
 	meter metric.Meter,
 ) error {
 	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("missing config in context; ensure middleware attaches config")
+	}
 	limiterMax := cfg.Webhooks.DefaultMaxBody
 	hooks := router.Group(routes.Hooks())
 	hooks.Use(sizemw.BodySizeLimiter(limiterMax))
 	if state.ProjectConfig.Name == "" {
-		return fmt.Errorf("project name is empty; set project.projectConfig.name")
+		return fmt.Errorf("project name is empty; set project.name")
 	}
 	hooks.Use(prmiddleware.Middleware(state.ProjectConfig.Name))
 	reg := resolveWebhookRegistry(state)

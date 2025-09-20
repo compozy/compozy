@@ -930,8 +930,6 @@ cwd, _ := core.CWDFromPath("/project")
 config, err := workflow.Load(cwd, "workflows/my-workflow.yaml")
 ```
 
-// Removed: LoadAndEval and ref.Evaluator (legacy). Use Load + Compile with ResourceStore.
-
 #### `FindConfig(workflows []*Config, workflowID string) (*Config, error)`
 
 Finds workflow configuration by ID.

@@ -33,7 +33,8 @@ func newServerWithStore(t *testing.T) *gin.Engine {
 	t.Helper()
 	r := gin.New()
 	prj := &project.Config{Name: "p", Version: "1.0"}
-	require.NoError(t, prj.SetCWD("."))
+	tmp := t.TempDir()
+	require.NoError(t, prj.SetCWD(tmp))
 	deps := appstate.NewBaseDeps(prj, nil, nil, nil)
 	st, err := appstate.NewState(deps, nil)
 	require.NoError(t, err)
@@ -46,13 +47,13 @@ func newServerWithStore(t *testing.T) *gin.Engine {
 }
 
 func TestResourcesRouter_CRUDAndETag(t *testing.T) {
-	t.Parallel()
 	srv := newServerWithStore(t)
 	t.Run("Should create and get with same ETag", func(t *testing.T) {
-		t.Parallel()
+		// Intentionally not parallel: shared srv
 		body := `{"id":"a1","type":"agent","name":"A"}`
 		res1 := httptest.NewRecorder()
 		req1 := httptest.NewRequest(http.MethodPost, "/api/v0/resources/agent", strings.NewReader(body))
+		req1.Header.Set("Content-Type", "application/json")
 		srv.ServeHTTP(res1, req1)
 		require.Equal(t, http.StatusCreated, res1.Code)
 		etag := res1.Header().Get("ETag")
@@ -61,20 +62,26 @@ func TestResourcesRouter_CRUDAndETag(t *testing.T) {
 		assert.Equal(t, "/api/v0/resources/agent/a1", loc)
 		res2 := httptest.NewRecorder()
 		req2 := httptest.NewRequest(http.MethodGet, "/api/v0/resources/agent/a1", http.NoBody)
+		req2.Header.Set("Accept", "application/json")
 		srv.ServeHTTP(res2, req2)
 		require.Equal(t, http.StatusOK, res2.Code)
 		assert.Equal(t, etag, res2.Header().Get("ETag"))
 	})
 	// Not found path
 	t.Run("Should return 404 when resource not found", func(t *testing.T) {
-		t.Parallel()
+		// Intentionally not parallel: shared srv
 		res := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/resources/agent/missing", http.NoBody)
 		srv.ServeHTTP(res, req)
 		require.Equal(t, http.StatusNotFound, res.Code)
+		var e apiError
+		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &e))
+		assert.Equal(t, http.StatusNotFound, e.Status)
+		assert.NotEmpty(t, e.Error.Code)
+		assert.NotEmpty(t, e.Error.Message)
 	})
 	t.Run("Should list and filter by prefix", func(t *testing.T) {
-		t.Parallel()
+		// Intentionally not parallel: shared srv
 		_ = sendJSON(srv, http.MethodPost, "/api/v0/resources/agent", `{"id":"pre1","type":"agent"}`)
 		_ = sendJSON(srv, http.MethodPost, "/api/v0/resources/agent", `{"id":"pre2","type":"agent"}`)
 		_ = sendJSON(srv, http.MethodPost, "/api/v0/resources/agent", `{"id":"x","type":"agent"}`)
@@ -92,17 +99,17 @@ func TestResourcesRouter_CRUDAndETag(t *testing.T) {
 		assert.ElementsMatch(t, []string{"pre1", "pre2"}, body.Data.Keys)
 	})
 	t.Run("Should reject project field in body", func(t *testing.T) {
-		t.Parallel()
+		// Intentionally not parallel: shared srv
 		res := sendJSON(srv, http.MethodPost, "/api/v0/resources/agent", `{"id":"bad1","type":"agent","project":"x"}`)
 		require.Equal(t, http.StatusBadRequest, res.Code)
 	})
 	t.Run("Should reject invalid id with whitespace", func(t *testing.T) {
-		t.Parallel()
+		// Intentionally not parallel: shared srv
 		res := sendJSON(srv, http.MethodPost, "/api/v0/resources/agent", `{"id":"a 1","type":"agent"}`)
 		require.Equal(t, http.StatusBadRequest, res.Code)
 	})
 	t.Run("Should handle PUT with If-Match and conflicts", func(t *testing.T) {
-		t.Parallel()
+		// Intentionally not parallel: shared srv
 		res := sendJSON(srv, http.MethodPost, "/api/v0/resources/tool", `{"id":"t1","type":"tool","v":1}`)
 		et := res.Header().Get("ETag")
 		resBad := httptest.NewRecorder()
@@ -129,7 +136,7 @@ func TestResourcesRouter_CRUDAndETag(t *testing.T) {
 		assert.NotEqual(t, et, resOK.Header().Get("ETag"))
 	})
 	t.Run("Should delete idempotently", func(t *testing.T) {
-		t.Parallel()
+		// Intentionally not parallel: shared srv
 		_ = sendJSON(srv, http.MethodPost, "/api/v0/resources/mcp", `{"id":"m1","type":"mcp"}`)
 		res1 := httptest.NewRecorder()
 		req1 := httptest.NewRequest(http.MethodDelete, "/api/v0/resources/mcp/m1", http.NoBody)
@@ -141,13 +148,15 @@ func TestResourcesRouter_CRUDAndETag(t *testing.T) {
 		require.Equal(t, http.StatusOK, res2.Code)
 	})
 	t.Run("Should return 400 for unknown type and bad JSON", func(t *testing.T) {
-		t.Parallel()
+		// Intentionally not parallel: shared srv
 		res := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/resources/unknown", strings.NewReader(`{"id":"a"}`))
+		req.Header.Set("Content-Type", "application/json")
 		srv.ServeHTTP(res, req)
 		require.Equal(t, http.StatusBadRequest, res.Code)
 		r2 := httptest.NewRecorder()
 		q := httptest.NewRequest(http.MethodPost, "/api/v0/resources/agent", strings.NewReader("{invalid json}"))
+		q.Header.Set("Content-Type", "application/json")
 		srv.ServeHTTP(r2, q)
 		require.Equal(t, http.StatusBadRequest, r2.Code)
 	})
@@ -163,6 +172,11 @@ func TestResourcesRouter_MissingState(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/resources/agent/a1", http.NoBody)
 	r.ServeHTTP(res, req)
 	require.Equal(t, http.StatusInternalServerError, res.Code)
+	var e apiError
+	require.NoError(t, json.Unmarshal(res.Body.Bytes(), &e))
+	assert.Equal(t, http.StatusInternalServerError, e.Status)
+	assert.NotEmpty(t, e.Error.Code)
+	assert.NotEmpty(t, e.Error.Message)
 }
 
 type errListStore struct{ resources.MemoryResourceStore }
@@ -176,7 +190,8 @@ func TestResourcesRouter_Errors(t *testing.T) {
 	t.Run("Should return 500 on list error", func(t *testing.T) {
 		r := gin.New()
 		prj := &project.Config{Name: "p", Version: "1.0"}
-		require.NoError(t, prj.SetCWD("."))
+		tmp := t.TempDir()
+		require.NoError(t, prj.SetCWD(tmp))
 		deps := appstate.NewBaseDeps(prj, nil, nil, nil)
 		st, err := appstate.NewState(deps, nil)
 		require.NoError(t, err)
@@ -187,8 +202,14 @@ func TestResourcesRouter_Errors(t *testing.T) {
 		Register(api)
 		res := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/resources/agent", http.NoBody)
+		req.Header.Set("Accept", "application/json")
 		r.ServeHTTP(res, req)
 		require.Equal(t, http.StatusInternalServerError, res.Code)
+		var e apiError
+		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &e))
+		assert.Equal(t, http.StatusInternalServerError, e.Status)
+		assert.NotEmpty(t, e.Error.Code)
+		assert.NotEmpty(t, e.Error.Message)
 	})
 	t.Run("Should return 400 on create without id", func(t *testing.T) {
 		srv := newServerWithStore(t)
@@ -198,6 +219,7 @@ func TestResourcesRouter_Errors(t *testing.T) {
 			"/api/v0/resources/agent",
 			strings.NewReader(`{"type":"agent","instructions":"x"}`),
 		)
+		req.Header.Set("Content-Type", "application/json")
 		srv.ServeHTTP(res, req)
 		require.Equal(t, http.StatusBadRequest, res.Code)
 	})
@@ -217,6 +239,7 @@ func TestResourcesRouter_Errors(t *testing.T) {
 			"/api/v0/resources/agent/%20",
 			strings.NewReader(`{"id":"a","type":"agent"}`),
 		)
+		q3.Header.Set("Content-Type", "application/json")
 		srv.ServeHTTP(r3, q3)
 		require.Equal(t, http.StatusBadRequest, r3.Code)
 	})
@@ -225,6 +248,8 @@ func TestResourcesRouter_Errors(t *testing.T) {
 func sendJSON(srv *gin.Engine, method, path, body string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 	srv.ServeHTTP(rec, req)
 	return rec
 }

@@ -2,18 +2,27 @@ package core
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestRejectDollarKeys_AllowsSchemaContexts(t *testing.T) {
-	y := []byte("input:\n  schema:\n    $schema: http://json-schema.org/draft-07/schema#\n    type: object\n")
-	if err := rejectDollarKeys(y, "test.yaml"); err != nil {
-		t.Fatalf("unexpected error allowing $ in schema context: %v", err)
-	}
-}
-
-func TestRejectDollarKeys_RejectsNonSchema(t *testing.T) {
-	y := []byte("$ref: something")
-	if err := rejectDollarKeys(y, "test.yaml"); err == nil {
-		t.Fatalf("expected error for $ at root outside schema context")
-	}
+func TestRejectDollarKeys(t *testing.T) {
+	t.Run("Should allow $schema under schema context", func(t *testing.T) {
+		y := []byte("input:\n  schema:\n    $schema: http://json-schema.org/draft-07/schema#\n    type: object\n")
+		require.NoError(t, rejectDollarKeys(y, "test.yaml"))
+	})
+	t.Run("Should reject $ at root outside schema context", func(t *testing.T) {
+		y := []byte("$ref: something")
+		require.Error(t, rejectDollarKeys(y, "test.yaml"))
+	})
+	t.Run("Should allow nested $ref inside schema", func(t *testing.T) {
+		y := []byte(
+			"input:\n  schema:\n    type: object\n    properties:\n      user:\n        $ref: '#/components/schemas/User'\n",
+		)
+		require.NoError(t, rejectDollarKeys(y, "test.yaml"))
+	})
+	t.Run("Should allow pure schema documents", func(t *testing.T) {
+		y := []byte("$schema: http://json-schema.org/draft-07/schema#\ntitle: T\n")
+		require.NoError(t, rejectDollarKeys(y, "schema.yaml"))
+	})
 }

@@ -1,7 +1,9 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 
 	"gopkg.in/yaml.v3"
 )
@@ -32,10 +34,15 @@ func (m *MemoryReference) UnmarshalYAML(value *yaml.Node) error {
 	if value == nil {
 		return nil
 	}
+	// Treat YAML null as zero value
+	if value.Tag == "!!null" {
+		*m = MemoryReference{}
+		return nil
+	}
 	if value.Kind == yaml.ScalarNode {
 		var id string
 		if err := value.Decode(&id); err != nil {
-			return err
+			return fmt.Errorf("memoryref: decode scalar id: %w", err)
 		}
 		m.ID = id
 		m.Key = ""
@@ -46,7 +53,7 @@ func (m *MemoryReference) UnmarshalYAML(value *yaml.Node) error {
 	type alias MemoryReference
 	var tmp alias
 	if err := value.Decode(&tmp); err != nil {
-		return err
+		return fmt.Errorf("memoryref: decode object: %w", err)
 	}
 	*m = MemoryReference(tmp)
 	return nil
@@ -54,6 +61,12 @@ func (m *MemoryReference) UnmarshalYAML(value *yaml.Node) error {
 
 // UnmarshalJSON accepts either a JSON string (ID ref) or a full object.
 func (m *MemoryReference) UnmarshalJSON(b []byte) error {
+	// Accept JSON null or empty as zero value
+	switch string(bytes.TrimSpace(b)) {
+	case "null", "":
+		*m = MemoryReference{}
+		return nil
+	}
 	var s string
 	if err := json.Unmarshal(b, &s); err == nil {
 		m.ID = s
@@ -65,7 +78,7 @@ func (m *MemoryReference) UnmarshalJSON(b []byte) error {
 	type alias MemoryReference
 	var tmp alias
 	if err := json.Unmarshal(b, &tmp); err != nil {
-		return err
+		return fmt.Errorf("memoryref: decode object: %w", err)
 	}
 	*m = MemoryReference(tmp)
 	return nil

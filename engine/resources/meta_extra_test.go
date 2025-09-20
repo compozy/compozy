@@ -60,6 +60,9 @@ func TestIndexPutWithMeta_ConflictAndErrors(t *testing.T) {
 type failingPutStore struct{ err error }
 
 func (f *failingPutStore) Put(context.Context, ResourceKey, any) (string, error) { return "", f.err }
+func (f *failingPutStore) PutIfMatch(context.Context, ResourceKey, any, string) (string, error) {
+	return "", f.err
+}
 func (f *failingPutStore) Get(context.Context, ResourceKey) (any, string, error) {
 	return nil, "", ErrNotFound
 }
@@ -92,6 +95,17 @@ func (s *failingMetaOnlyStore) Put(ctx context.Context, key ResourceKey, value a
 		return "", errors.New("meta-fail")
 	}
 	return s.inner.Put(ctx, key, value)
+}
+func (s *failingMetaOnlyStore) PutIfMatch(
+	ctx context.Context,
+	key ResourceKey,
+	value any,
+	expectedETag string,
+) (string, error) {
+	if key.Type == ResourceMeta {
+		return "", errors.New("meta-fail")
+	}
+	return s.inner.PutIfMatch(ctx, key, value, expectedETag)
 }
 func (s *failingMetaOnlyStore) Get(ctx context.Context, key ResourceKey) (any, string, error) {
 	return s.inner.Get(ctx, key)

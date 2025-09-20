@@ -195,53 +195,40 @@ func (c *client) parseResponse(resp *http.Response, result any) error {
 // CallGET performs a raw GET request to a path under the API base URL using the concrete client.
 // It parses the standard API envelope and returns any server-side error as Go error.
 func CallGET(ctx context.Context, ac AuthClient, path string) error {
-	impl, ok := ac.(*client)
-	if !ok {
-		return fmt.Errorf("unsupported client implementation")
-	}
-	resp, err := impl.doRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	var envelope models.APIResponse
-	if err := impl.parseResponse(resp, &envelope); err != nil {
-		return err
-	}
-	return nil
+	_, err := callDecode(ctx, ac, http.MethodGet, path, nil)
+	return err
 }
 
 // CallGETDecode performs GET and decodes the response envelope for callers who
 // want to display additional details.
 func CallGETDecode(ctx context.Context, ac AuthClient, path string) (*models.APIResponse, error) {
-	impl, ok := ac.(*client)
-	if !ok {
-		return nil, fmt.Errorf("unsupported client implementation")
-	}
-	resp, err := impl.doRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	var envelope models.APIResponse
-	if err := impl.parseResponse(resp, &envelope); err != nil {
-		return nil, err
-	}
-	return &envelope, nil
+	return callDecode(ctx, ac, http.MethodGet, path, nil)
 }
 
 // CallPOSTDecode performs POST and decodes the response envelope for callers who
 // want to display additional details. The body is JSON-encoded when non-nil.
 func CallPOSTDecode(ctx context.Context, ac AuthClient, path string, body any) (*models.APIResponse, error) {
+	return callDecode(ctx, ac, http.MethodPost, path, body)
+}
+
+// callDecode is an internal helper that executes the request and decodes the API envelope.
+func callDecode(ctx context.Context, ac AuthClient, method, path string, body any) (*models.APIResponse, error) {
 	impl, ok := ac.(*client)
 	if !ok {
 		return nil, fmt.Errorf("unsupported client implementation")
 	}
-	resp, err := impl.doRequest(ctx, http.MethodPost, path, body)
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	resp, err := impl.doRequest(ctx, method, path, body)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			logger.FromContext(ctx).Debug("Failed to close response body", "error", cerr)
+		}
+	}()
 	var envelope models.APIResponse
 	if err := impl.parseResponse(resp, &envelope); err != nil {
 		return nil, err

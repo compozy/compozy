@@ -87,9 +87,11 @@ func newReconcilerMetrics(
 	return evTot, evDrop, recTot, bDur
 }
 
-const queueCap = 1024
-const debounceWait = 300 * time.Millisecond
-const debounceMaxWait = 500 * time.Millisecond
+const (
+	defaultQueueCap        = 1024
+	defaultDebounceWait    = 300 * time.Millisecond
+	defaultDebounceMaxWait = 500 * time.Millisecond
+)
 
 func New(ctx context.Context, state *appstate.State) (*Reconciler, error) {
 	log := logger.FromContext(ctx)
@@ -115,8 +117,26 @@ func New(ctx context.Context, state *appstate.State) (*Reconciler, error) {
 	evTot, evDrop, recTot, bDur := newReconcilerMetrics(ctx)
 	cfg := pkgcfg.FromContext(ctx)
 	mode := "repo"
-	if cfg != nil && cfg.Server.SourceOfTruth == "builder" {
-		mode = "builder"
+	queueSize := defaultQueueCap
+	debWait := defaultDebounceWait
+	debMaxWait := defaultDebounceMaxWait
+	if cfg != nil {
+		if cfg.Server.SourceOfTruth == "builder" {
+			mode = "builder"
+		}
+		if v := cfg.Server.Reconciler.QueueCapacity; v > 0 {
+			queueSize = v
+		}
+		if v := cfg.Server.Reconciler.DebounceWait; v > 0 {
+			debWait = v
+		}
+		if v := cfg.Server.Reconciler.DebounceMaxWait; v > 0 {
+			debMaxWait = v
+		}
+	}
+	proj := state.ProjectConfig
+	if proj == nil || proj.Name == "" {
+		return nil, fmt.Errorf("project config is required")
 	}
 	var reg *autoload.ConfigRegistry
 	if v2, ok2 := state.ConfigRegistry(); ok2 {
@@ -127,21 +147,21 @@ func New(ctx context.Context, state *appstate.State) (*Reconciler, error) {
 	r := &Reconciler{
 		store:          store,
 		state:          state,
-		proj:           state.ProjectConfig,
+		proj:           proj,
 		sched:          sched,
 		mode:           mode,
 		registry:       reg,
 		idx:            make(map[resources.ResourceType]map[string]map[string]struct{}),
 		wfdep:          make(map[string][]depKey),
-		in:             make(chan resources.Event, queueCap),
+		in:             make(chan resources.Event, queueSize),
 		eventsTotal:    evTot,
 		eventsDropped:  evDrop,
 		recompileTotal: recTot,
 		batchDur:       bDur,
 	}
 	debFn, cancel := debounce.NewWithMaxWait(
-		debounceWait,
-		debounceMaxWait,
+		debWait,
+		debMaxWait,
 		func() { r.onDebounceFire(context.WithoutCancel(ctx)) },
 	)
 	r.deb = debFn

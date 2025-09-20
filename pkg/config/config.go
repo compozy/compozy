@@ -190,6 +190,9 @@ type ServerConfig struct {
 	// SeedFromRepoOnEmpty controls whether builder mode seeds the store from
 	// repository YAML once when the store is empty. Disabled by default.
 	SeedFromRepoOnEmpty bool `koanf:"seed_from_repo_on_empty" json:"seed_from_repo_on_empty" yaml:"seed_from_repo_on_empty" mapstructure:"seed_from_repo_on_empty" env:"SERVER_SEED_FROM_REPO_ON_EMPTY"`
+
+	// Reconciler configures the workflow reconciler subsystem.
+	Reconciler ReconcilerConfig `koanf:"reconciler" json:"reconciler" yaml:"reconciler" mapstructure:"reconciler"`
 }
 
 // ServerTimeouts defines tunable durations for server operations.
@@ -214,6 +217,13 @@ type ServerTimeouts struct {
 	ScheduleRetryBackoffSeconds int           `koanf:"schedule_retry_backoff_seconds" json:"schedule_retry_backoff_seconds" yaml:"schedule_retry_backoff_seconds" mapstructure:"schedule_retry_backoff_seconds"`
 	TemporalReachability        time.Duration `koanf:"temporal_reachability"          json:"temporal_reachability"          yaml:"temporal_reachability"          mapstructure:"temporal_reachability"`
 	StartProbeDelay             time.Duration `koanf:"start_probe_delay"              json:"start_probe_delay"              yaml:"start_probe_delay"              mapstructure:"start_probe_delay"`
+}
+
+// ReconcilerConfig defines tunable options for the workflow reconciler.
+type ReconcilerConfig struct {
+	QueueCapacity   int           `koanf:"queue_capacity"    json:"queue_capacity"    yaml:"queue_capacity"    mapstructure:"queue_capacity"`
+	DebounceWait    time.Duration `koanf:"debounce_wait"     json:"debounce_wait"     yaml:"debounce_wait"     mapstructure:"debounce_wait"`
+	DebounceMaxWait time.Duration `koanf:"debounce_max_wait" json:"debounce_max_wait" yaml:"debounce_max_wait" mapstructure:"debounce_max_wait"`
 }
 
 // CORSConfig contains CORS configuration.
@@ -1393,6 +1403,7 @@ func buildServerConfig(registry *definition.Registry) ServerConfig {
 		SourceOfTruth:       getString(registry, "server.source_of_truth"),
 		SeedFromRepoOnEmpty: getBool(registry, "server.seed_from_repo_on_empty"),
 		Timeouts:            buildServerTimeouts(registry),
+		Reconciler:          buildReconcilerConfig(registry),
 	}
 }
 
@@ -1414,6 +1425,24 @@ func buildServerTimeouts(registry *definition.Registry) ServerTimeouts {
 		TemporalReachability:        getDuration(registry, "server.timeouts.temporal_reachability"),
 		StartProbeDelay:             getDuration(registry, "server.timeouts.start_probe_delay"),
 	}
+}
+
+func buildReconcilerConfig(registry *definition.Registry) ReconcilerConfig {
+	cfg := ReconcilerConfig{
+		QueueCapacity:   getInt(registry, "server.reconciler.queue_capacity"),
+		DebounceWait:    getDuration(registry, "server.reconciler.debounce_wait"),
+		DebounceMaxWait: getDuration(registry, "server.reconciler.debounce_max_wait"),
+	}
+	if cfg.QueueCapacity <= 0 {
+		cfg.QueueCapacity = 1024
+	}
+	if cfg.DebounceWait <= 0 {
+		cfg.DebounceWait = 300 * time.Millisecond
+	}
+	if cfg.DebounceMaxWait <= 0 {
+		cfg.DebounceMaxWait = 500 * time.Millisecond
+	}
+	return cfg
 }
 
 func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {

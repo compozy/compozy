@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -85,8 +86,12 @@ func adminGetMeta(c *gin.Context) {
 	}
 	v, _, err := rs.Get(c.Request.Context(), metaKey)
 	if err != nil {
-		reqErr := router.NewRequestError(http.StatusNotFound, "meta not found", nil)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		if errors.Is(err, resources.ErrNotFound) {
+			reqErr := router.NewRequestError(http.StatusNotFound, "meta not found", nil)
+			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			return
+		}
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to get meta", err)
 		return
 	}
 	router.RespondOK(c, "meta", v)

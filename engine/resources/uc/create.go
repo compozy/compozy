@@ -10,6 +10,8 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+const apiMetaSource = "api"
+
 type CreateInput struct {
 	Project string
 	Type    resources.ResourceType
@@ -33,6 +35,15 @@ func NewCreateResource(store resources.ResourceStore) *CreateResource {
 func (uc *CreateResource) Execute(ctx context.Context, in *CreateInput) (*CreateOutput, error) {
 	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
+	if in == nil {
+		return nil, fmt.Errorf("create resource: nil input")
+	}
+	if in.Project == "" {
+		return nil, fmt.Errorf("create resource: project is required")
+	}
+	if in.Type == "" {
+		return nil, fmt.Errorf("create resource: type is required")
+	}
 	id, err := validateBody(in.Type, in.Body, "", true)
 	if err != nil {
 		return nil, err
@@ -43,14 +54,17 @@ func (uc *CreateResource) Execute(ctx context.Context, in *CreateInput) (*Create
 	key := resources.ResourceKey{Project: in.Project, Type: in.Type, ID: id}
 	etag, err := uc.store.Put(ctx, key, in.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store put %s/%s: %w", string(in.Type), id, err)
 	}
-	updatedBy := "api"
+	updatedBy := apiMetaSource
 	if u, ok := userctx.UserFromContext(ctx); ok && u != nil {
 		updatedBy = u.ID.String()
 	}
-	if err := resources.WriteMeta(ctx, uc.store, in.Project, in.Type, id, "api", updatedBy); err != nil {
+	if err := resources.WriteMeta(ctx, uc.store, in.Project, in.Type, id, apiMetaSource, updatedBy); err != nil {
 		log.Error("failed to write resource meta", "error", err, "type", string(in.Type), "id", id)
+		if delErr := uc.store.Delete(ctx, key); delErr != nil {
+			log.Error("rollback failed after meta write error", "error", delErr, "type", string(in.Type), "id", id)
+		}
 		return nil, fmt.Errorf("failed to write resource metadata: %w", err)
 	}
 	return &CreateOutput{Value: in.Body, ETag: etag, ID: id}, nil

@@ -120,8 +120,10 @@ func TestMemoryStore_ConcurrentAccess(t *testing.T) {
 		var wg sync.WaitGroup
 		ch, err := st.Watch(ctx, project, typ)
 		require.NoError(t, err)
-		for range 4 {
-			wg.Go(func() {
+		wg.Add(4)
+		for i := 0; i < 4; i++ {
+			go func() {
+				defer wg.Done()
 				for j := range 200 {
 					k := ResourceKey{Project: project, Type: typ, ID: "k"}
 					switch j % 3 {
@@ -133,7 +135,7 @@ func TestMemoryStore_ConcurrentAccess(t *testing.T) {
 						_ = st.Delete(ctx, k)
 					}
 				}
-			})
+			}()
 		}
 		done := make(chan struct{})
 		go func() {

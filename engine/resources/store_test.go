@@ -6,6 +6,10 @@ import (
 	"maps"
 	"sync"
 	"testing"
+
+	"github.com/compozy/compozy/engine/core"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type exampleStore struct {
@@ -27,7 +31,7 @@ func (s *exampleStore) Put(_ context.Context, key ResourceKey, value any) (strin
 	} else {
 		s.m[key] = value
 	}
-	return "", nil
+	return core.ETagFromAny(s.m[key]), nil
 }
 
 func (s *exampleStore) Get(_ context.Context, key ResourceKey) (any, string, error) {
@@ -40,9 +44,29 @@ func (s *exampleStore) Get(_ context.Context, key ResourceKey) (any, string, err
 	if m, ok := v.(map[string]any); ok {
 		c := make(map[string]any, len(m))
 		maps.Copy(c, m)
-		return c, "", nil
+		return c, core.ETagFromAny(c), nil
 	}
-	return v, "", nil
+	return v, core.ETagFromAny(v), nil
+}
+
+func (s *exampleStore) PutIfMatch(_ context.Context, key ResourceKey, value any, expectedETag string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cur, ok := s.m[key]
+	if !ok {
+		return "", ErrNotFound
+	}
+	if core.ETagFromAny(cur) != expectedETag {
+		return "", ErrETagMismatch
+	}
+	if m, ok := value.(map[string]any); ok {
+		c := make(map[string]any, len(m))
+		maps.Copy(c, m)
+		s.m[key] = c
+	} else {
+		s.m[key] = value
+	}
+	return core.ETagFromAny(s.m[key]), nil
 }
 
 func (s *exampleStore) Delete(_ context.Context, key ResourceKey) error {
@@ -89,18 +113,16 @@ func ExampleResourceStore_basic() {
 }
 
 func TestExampleStorePutGet(t *testing.T) {
-	ctx := context.Background()
-	st := newExampleStore()
-	key := ResourceKey{Project: "p", Type: ResourceTool, ID: "browser"}
-	if _, err := st.Put(ctx, key, map[string]any{"resource": "tool", "id": "browser"}); err != nil {
-		t.Fatalf("put failed: %v", err)
-	}
-	v, _, err := st.Get(ctx, key)
-	if err != nil {
-		t.Fatalf("get failed: %v", err)
-	}
-	m := v.(map[string]any)
-	if m["id"].(string) != "browser" {
-		t.Fatalf("unexpected value: %v", m)
-	}
+	t.Run("Should put and get a tool by key", func(t *testing.T) {
+		ctx := context.Background()
+		st := newExampleStore()
+		key := ResourceKey{Project: "p", Type: ResourceTool, ID: "browser"}
+		_, err := st.Put(ctx, key, map[string]any{"resource": "tool", "id": "browser"})
+		require.NoError(t, err)
+		v, _, err := st.Get(ctx, key)
+		require.NoError(t, err)
+		m, ok := v.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "browser", m["id"])
+	})
 }

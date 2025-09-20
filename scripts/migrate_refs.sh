@@ -36,7 +36,7 @@ echo "Scanning for legacy directive usage under docs/, examples/, and engine/*/R
 # Build file list (markdown + yaml) across docs/examples and engine READMEs
 MATCHED_FILES=$( (
   grep -rl --include=*.{md,mdx,yml,yaml} -E '(\$ref|\$use|\$merge|resource::|local::)' docs/ examples/ 2>/dev/null || true
-  find engine -type f -maxdepth 3 -name 'README.md' -print0 | xargs -0 rg -l -N -S '(\$ref|\$use|\$merge|resource::|local::|pkg/ref|LoadAndEval|LoadConfigWithEvaluator|ref\.Evaluator)' -- 2>/dev/null || true
+  find engine -type f -maxdepth 3 -name 'README.md' -print0 | xargs -0 rg -l -N -S '(\$ref|\$use|\$merge|resource::|local::|pkg/ref|LoadConfigWithEvaluator|ref\.Evaluator)' -- 2>/dev/null || true
 ) | sort -u )
 
 if [[ -z "${MATCHED_FILES}" ]]; then
@@ -143,7 +143,6 @@ while IFS= read -r file; do
   # Specific README deprecations
   # - Remove/replace pkg/ref evaluator references and legacy function names
   sed -E -i '' \
-    -e 's/LoadAndEval\(cwd \*core\.PathCWD, path string, ev \*ref\.Evaluator\)/Load\(cwd \*core\.PathCWD, path string\)/g' \
     -e 's/LoadConfigWithEvaluator\[/LoadConfig\[/g' \
     -e 's/ref\\.Evaluator/ID-based compile\/link/g' \
     -e 's/pkg\/ref/ResourceStore/g' \

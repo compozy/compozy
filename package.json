@@ -21,7 +21,8 @@
     "clean": "turbo run clean",
     "clean:deps": "rm -rf node_modules bun.lockb",
     "reinstall": "bun run clean:deps && bun install",
-    "update:deps": "turbo run update:deps"
+    "update:deps": "turbo run update:deps",
+    "pr:review": "bun scripts/pr-review.ts"
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^19.8.1",
@@ -52,6 +53,7 @@
   },
   "packageManager": "bun@1.2.21",
   "dependencies": {
+    "@octokit/graphql": "^9.0.1",
     "@types/micromatch": "^4.0.9",
     "lucide-static": "0.536.0",
     "micromatch": "^4.0.8"

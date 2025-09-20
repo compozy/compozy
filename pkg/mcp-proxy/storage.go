@@ -248,10 +248,10 @@ func (r *RedisStorage) DeleteMCP(ctx context.Context, name string) error {
 // loadDefinitionsBatch processes a batch of Redis keys into MCP definitions
 func (r *RedisStorage) loadDefinitionsBatch(ctx context.Context, keys []string) []*MCPDefinition {
 	log := logger.FromContext(ctx)
-	var definitions []*MCPDefinition
 	if len(keys) == 0 {
-		return definitions
+		return nil
 	}
+	definitions := make([]*MCPDefinition, 0, len(keys))
 	values, err := r.client.MGet(ctx, keys...).Result()
 	if err != nil {
 		log.Error("Failed to get values from Redis", "error", err)

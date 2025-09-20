@@ -30,7 +30,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "basic_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -84,7 +84,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "router_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -147,7 +147,7 @@ func Test_LoadTask(t *testing.T) {
 	t.Run("Should load parallel task configuration correctly", func(t *testing.T) {
 		CWD, dstPath := setupTest(t, "parallel_task.yaml")
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -222,7 +222,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "invalid_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -235,7 +235,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "circular_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -249,7 +249,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "collection_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -331,7 +331,7 @@ func Test_LoadTask(t *testing.T) {
 		CWD, dstPath := setupTest(t, "signal_task.yaml")
 
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -355,7 +355,7 @@ func Test_LoadTask(t *testing.T) {
 	t.Run("Should load prompt-only basic task fixture", func(t *testing.T) {
 		CWD, dstPath := setupTest(t, "basic_task_prompt_only.yaml")
 
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -382,7 +382,7 @@ func Test_LoadTask(t *testing.T) {
 	t.Run("Should load combined action+prompt basic task fixture", func(t *testing.T) {
 		CWD, dstPath := setupTest(t, "basic_task_combined.yaml")
 
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -1102,7 +1102,7 @@ func Test_TaskReference(t *testing.T) {
 	t.Run("Should load task reference correctly", func(t *testing.T) {
 		CWD, dstPath := setupTest(t, "ref_task.yaml")
 		// Run the test
-		config, err := Load(CWD, dstPath)
+		config, err := Load(context.Background(), CWD, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -1267,7 +1267,7 @@ func TestAggregate_LoadTask(t *testing.T) {
 	t.Run("Should load aggregate task from YAML", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "aggregate_task.yaml")
 		// Load the aggregate task
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 		// Verify task type

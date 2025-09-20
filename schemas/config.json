@@ -461,6 +461,22 @@
       },
       "type": "object"
     },
+    "ReconcilerConfig": {
+      "additionalProperties": false,
+      "description": "ReconcilerConfig defines tunable options for the workflow reconciler.",
+      "properties": {
+        "debounce_max_wait": {
+          "type": "integer"
+        },
+        "debounce_wait": {
+          "type": "integer"
+        },
+        "queue_capacity": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "RedisConfig": {
       "additionalProperties": false,
       "description": "RedisConfig contains Redis connection configuration.",
@@ -617,6 +633,10 @@
         "port": {
           "description": "Port specifies the TCP port for the HTTP server.\n\nValid range: 1-65535. Common ports:\n  - `8080`: Default development port\n  - `80`: Standard HTTP (requires privileges)\n  - `443`: Standard HTTPS (requires privileges)",
           "type": "integer"
+        },
+        "reconciler": {
+          "$ref": "#/$defs/ReconcilerConfig",
+          "description": "Reconciler configures the workflow reconciler subsystem."
         },
         "seed_from_repo_on_empty": {
           "description": "SeedFromRepoOnEmpty controls whether builder mode seeds the store from\nrepository YAML once when the store is empty. Disabled by default.",

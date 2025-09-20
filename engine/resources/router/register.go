@@ -12,11 +12,11 @@ import (
 
 func Register(apiBase *gin.RouterGroup) {
 	group := apiBase.Group("/resources")
-	group.POST(":type", createResource)
-	group.GET(":type", listResources)
-	group.GET(":type/:id", getResourceByID)
-	group.PUT(":type/:id", putResourceByID)
-	group.DELETE(":type/:id", deleteResourceByID)
+	group.POST("/:type", createResource)
+	group.GET("/:type", listResources)
+	group.GET("/:type/:id", getResourceByID)
+	group.PUT("/:type/:id", putResourceByID)
+	group.DELETE("/:type/:id", deleteResourceByID)
 }
 
 func resourceTypeFromPath(c *gin.Context) (resources.ResourceType, bool) {

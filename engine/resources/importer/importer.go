@@ -144,6 +144,7 @@ func listYAMLFiles(dir string) ([]string, error) {
 func parseTypeFiles(files []string) ([]map[string]any, []string, error) {
 	parsed := make([]map[string]any, 0, len(files))
 	ids := make([]string, 0, len(files))
+	seen := make(map[string]string, len(files))
 	for _, f := range files {
 		body, id, err := parseYAMLFile(f)
 		if err != nil {
@@ -152,6 +153,10 @@ func parseTypeFiles(files []string) ([]map[string]any, []string, error) {
 		if id == "" {
 			return nil, nil, fmt.Errorf("file %s missing id field", f)
 		}
+		if prev, ok := seen[id]; ok {
+			return nil, nil, fmt.Errorf("duplicate id '%s' in %s (first seen in %s)", id, f, prev)
+		}
+		seen[id] = f
 		ids = append(ids, id)
 		parsed = append(parsed, body)
 	}
@@ -257,12 +262,12 @@ func deepEqual(a, b any) bool {
 		if len(at) != len(bt) {
 			return false
 		}
-		keys := make([]string, 0, len(at))
-		for k := range at {
-			keys = append(keys, k)
-		}
-		for _, k := range keys {
-			if !deepEqual(at[k], bt[k]) {
+		for k, av := range at {
+			bv, ok := bt[k]
+			if !ok {
+				return false
+			}
+			if !deepEqual(av, bv) {
 				return false
 			}
 		}

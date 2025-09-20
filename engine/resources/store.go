@@ -73,6 +73,10 @@ type ResourceStore interface {
 	// Returns a deterministic ETag for the stored value.
 	Put(ctx context.Context, key ResourceKey, value any) (etag string, err error)
 
+	// PutIfMatch replaces a resource value only if the current ETag matches the expected value.
+	// Returns ErrNotFound if the resource does not exist and ErrETagMismatch when the ETag differs.
+	PutIfMatch(ctx context.Context, key ResourceKey, value any, expectedETag string) (etag string, err error)
+
 	// Get retrieves a resource by key. If not found, returns (nil, "", ErrNotFound).
 	// Implementations should return a deep copy of the stored value.
 	Get(ctx context.Context, key ResourceKey) (value any, etag string, err error)
@@ -107,4 +111,7 @@ type ResourceStore interface {
 }
 
 // ErrNotFound is returned by Get when a resource key does not exist.
-var ErrNotFound = errors.New("resource not found")
+var (
+	ErrNotFound     = errors.New("resource not found")
+	ErrETagMismatch = errors.New("etag mismatch")
+)

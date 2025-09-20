@@ -43,7 +43,7 @@ func LoadConfig[T Config](filePath string) (T, string, error) {
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return zero, "", fmt.Errorf("failed to open config file: %w", err)
+		return zero, "", fmt.Errorf("failed to read config file: %w", err)
 	}
 
 	// Pre-scan YAML to reject any directive keys starting with '$' outside schema contexts
@@ -53,11 +53,15 @@ func LoadConfig[T Config](filePath string) (T, string, error) {
 
 	var config T
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		return zero, "", fmt.Errorf("failed to decode YAML config: %w", err)
+		return zero, "", fmt.Errorf("failed to decode YAML config in %s: %w", filePath, err)
 	}
 
-	config.SetFilePath(filePath)
-	if err := config.SetCWD(filepath.Dir(filePath)); err != nil {
+	abs, err := ResolvePath(nil, filePath)
+	if err != nil {
+		return zero, "", err
+	}
+	config.SetFilePath(abs)
+	if err := config.SetCWD(filepath.Dir(abs)); err != nil {
 		return zero, "", err
 	}
 
@@ -73,7 +77,7 @@ func MapFromFilePath(path string) (map[string]any, error) {
 	var itemMap map[string]any
 	err = yaml.Unmarshal(data, &itemMap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal local scope: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal YAML in %s: %w", path, err)
 	}
 
 	return itemMap, nil
@@ -91,6 +95,9 @@ func rejectDollarKeys(data []byte, filePath string) error {
 				break
 			}
 			return fmt.Errorf("failed to parse YAML in %s: %w", filePath, err)
+		}
+		if isSchemaDocument(&doc) {
+			continue
 		}
 		if err := walkAndReject(&doc, filePath, nil); err != nil {
 			return err
@@ -117,9 +124,9 @@ func walkAndReject(n *yaml.Node, filePath string, path []string) error {
 			if key != nil && key.Kind == yaml.ScalarNode && strings.HasPrefix(key.Value, "$") {
 				if !inSchemaContext(path) {
 					return fmt.Errorf(
-						"%s:%d:%d: unsupported directive key '%s' detected; "+
-							"directives like $ref/$use/$merge/$ptr in configuration are deprecated. "+
-							"Use ID-based references and the compile/link step instead",
+						"%s:%d:%d: unsupported directive key '%s'; "+
+							"directives like $ref/$use/$merge/$ptr are deprecated. "+
+							"Use ID-based references instead",
 						filePath,
 						key.Line,
 						key.Column,
@@ -139,7 +146,25 @@ func walkAndReject(n *yaml.Node, filePath string, path []string) error {
 func inSchemaContext(path []string) bool {
 	for i := len(path) - 1; i >= 0; i-- {
 		switch path[i] {
-		case "input", "output", "schema", "schemas", "input_schema", "output_schema":
+		case "input", "output", "schema", "schemas", "input_schema", "output_schema", "jsonSchema", "json_schema":
+			return true
+		}
+	}
+	return false
+}
+
+// isSchemaDocument returns true if the root mapping contains a "$schema" key.
+func isSchemaDocument(n *yaml.Node) bool {
+	if n == nil || n.Kind != yaml.DocumentNode || len(n.Content) == 0 {
+		return false
+	}
+	root := n.Content[0]
+	if root == nil || root.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i < len(root.Content); i += 2 {
+		k := root.Content[i]
+		if k != nil && k.Kind == yaml.ScalarNode && k.Value == "$schema" {
 			return true
 		}
 	}

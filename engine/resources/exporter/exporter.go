@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 
-	"time"
-
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -109,50 +107,45 @@ func ExportToDir(ctx context.Context, project string, store resources.ResourceSt
 	return res, nil
 }
 
-// buildYAMLNode constructs a yaml.Node tree from a generic value with
-// lexicographically sorted mapping keys to ensure deterministic output.
+// buildYAMLNode marshals any Go value to a yaml.Node and canonicalizes mapping key order.
 func buildYAMLNode(v any) *yaml.Node {
-	switch t := v.(type) {
-	case map[string]any:
-		keys := make([]string, 0, len(t))
-		for k := range t {
-			keys = append(keys, k)
+	var n yaml.Node
+	b, err := yaml.Marshal(v)
+	if err != nil {
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: fmt.Sprintf("marshal-error: %v", err)}
+	}
+	if err := yaml.Unmarshal(b, &n); err != nil {
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: fmt.Sprintf("unmarshal-error: %v", err)}
+	}
+	canonicalizeYAML(&n)
+	if n.Kind == yaml.DocumentNode && len(n.Content) > 0 {
+		return n.Content[0]
+	}
+	return &n
+}
+
+// canonicalizeYAML sorts mapping node keys lexicographically, recursively.
+func canonicalizeYAML(n *yaml.Node) {
+	if n == nil || len(n.Content) == 0 {
+		return
+	}
+	switch n.Kind {
+	case yaml.DocumentNode, yaml.SequenceNode:
+		for _, c := range n.Content {
+			canonicalizeYAML(c)
 		}
-		sort.Strings(keys)
-		n := &yaml.Node{Kind: yaml.MappingNode}
-		for _, k := range keys {
-			n.Content = append(n.Content,
-				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: k},
-				buildYAMLNode(t[k]),
-			)
+	case yaml.MappingNode:
+		type kv struct{ k, v *yaml.Node }
+		pairs := make([]kv, 0, len(n.Content)/2)
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			pairs = append(pairs, kv{n.Content[i], n.Content[i+1]})
 		}
-		return n
-	case []any:
-		n := &yaml.Node{Kind: yaml.SequenceNode}
-		for i := range t {
-			n.Content = append(n.Content, buildYAMLNode(t[i]))
+		sort.Slice(pairs, func(i, j int) bool { return pairs[i].k.Value < pairs[j].k.Value })
+		n.Content = n.Content[:0]
+		for _, p := range pairs {
+			canonicalizeYAML(p.v)
+			n.Content = append(n.Content, p.k, p.v)
 		}
-		return n
-	case string:
-		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: t}
-	case bool:
-		if t {
-			return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"}
-		}
-		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "false"}
-	case int, int32, int64:
-		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: fmt.Sprintf("%v", t)}
-	case float32, float64:
-		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: fmt.Sprintf("%v", t)}
-	case nil:
-		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "null"}
-	default:
-		// Handle common complex types explicitly when possible
-		if tm, ok := t.(time.Time); ok {
-			return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!timestamp", Value: tm.Format(time.RFC3339Nano)}
-		}
-		// Fallback: rely on fmt and let encoder infer
-		return &yaml.Node{Kind: yaml.ScalarNode, Value: fmt.Sprintf("%v", t)}
 	}
 }
 

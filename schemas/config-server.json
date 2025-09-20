@@ -40,6 +40,22 @@
       "type": "object",
       "description": "CORSConfig contains CORS configuration."
     },
+    "ReconcilerConfig": {
+      "properties": {
+        "queue_capacity": {
+          "type": "integer"
+        },
+        "debounce_wait": {
+          "type": "integer"
+        },
+        "debounce_max_wait": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ReconcilerConfig defines tunable options for the workflow reconciler."
+    },
     "ServerTimeouts": {
       "properties": {
         "monitoring_init": {
@@ -131,6 +147,10 @@
     "seed_from_repo_on_empty": {
       "type": "boolean",
       "description": "SeedFromRepoOnEmpty controls whether builder mode seeds the store from\nrepository YAML once when the store is empty. Disabled by default."
+    },
+    "reconciler": {
+      "$ref": "#/$defs/ReconcilerConfig",
+      "description": "Reconciler configures the workflow reconciler subsystem."
     }
   },
   "additionalProperties": false,

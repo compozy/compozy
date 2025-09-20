@@ -25,6 +25,12 @@ type RedisResourceStore struct {
 	closed    atomic.Bool
 }
 
+const (
+	defaultPrefix    = "res"
+	defaultReconcile = 30 * time.Second
+	minReconcile     = time.Second
+)
+
 // RedisStoreOption configures RedisResourceStore.
 type RedisStoreOption func(*RedisResourceStore)
 
@@ -38,15 +44,25 @@ func WithPrefix(p string) RedisStoreOption {
 // WithReconcileInterval sets how often Watch emits synthetic PUTs for reconciliation (default 30s).
 func WithReconcileInterval(d time.Duration) RedisStoreOption {
 	return func(s *RedisResourceStore) {
+		if d < minReconcile {
+			s.reconcile = defaultReconcile
+			return
+		}
 		s.reconcile = d
 	}
 }
 
 // NewRedisResourceStore creates a new Redis-backed resource store.
 func NewRedisResourceStore(client cache.RedisInterface, opts ...RedisStoreOption) *RedisResourceStore {
-	s := &RedisResourceStore{r: client, prefix: "res", reconcile: 30 * time.Second}
+	if client == nil {
+		panic("NewRedisResourceStore: nil Redis client")
+	}
+	s := &RedisResourceStore{r: client, prefix: defaultPrefix, reconcile: defaultReconcile}
 	for _, o := range opts {
 		o(s)
+	}
+	if s.reconcile <= 0 {
+		s.reconcile = defaultReconcile
 	}
 	return s
 }
@@ -72,7 +88,11 @@ func (s *RedisResourceStore) Put(ctx context.Context, key ResourceKey, value any
 	sum := sha256.Sum256(jsonBytes)
 	etag := hex.EncodeToString(sum[:])
 	k := s.keyFor(key)
-	if err := s.r.Set(ctx, k, jsonBytes, 0).Err(); err != nil {
+	etagKey := s.etagKey(key)
+	pipe := s.r.TxPipeline()
+	pipe.Set(ctx, k, jsonBytes, 0)
+	pipe.Set(ctx, etagKey, etag, 0)
+	if _, err := pipe.Exec(ctx); err != nil {
 		return "", err
 	}
 	evt := Event{Type: EventPut, Key: key, ETag: etag, At: time.Now().UTC()}
@@ -80,6 +100,69 @@ func (s *RedisResourceStore) Put(ctx context.Context, key ResourceKey, value any
 		log.Warn("publish put failed", "error", err)
 	}
 	return etag, nil
+}
+
+// PutIfMatch updates a resource only when the supplied ETag matches the current value.
+func (s *RedisResourceStore) PutIfMatch(
+	ctx context.Context,
+	key ResourceKey,
+	value any,
+	expectedETag string,
+) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("context canceled: %w", err)
+	}
+	_ = config.FromContext(ctx)
+	log := logger.FromContext(ctx)
+	if s.closed.Load() {
+		return "", fmt.Errorf("store is closed")
+	}
+	if value == nil {
+		return "", fmt.Errorf("nil value is not allowed")
+	}
+	cp, err := core.DeepCopy[any](value)
+	if err != nil {
+		return "", fmt.Errorf("deep copy failed: %w", err)
+	}
+	jsonBytes := core.StableJSONBytes(cp)
+	newSum := sha256.Sum256(jsonBytes)
+	newETag := hex.EncodeToString(newSum[:])
+	valueKey := s.keyFor(key)
+	etagKey := s.etagKey(key)
+	current, err := s.r.Get(ctx, valueKey).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	curSum := sha256.Sum256(current)
+	curETag := hex.EncodeToString(curSum[:])
+	if curETag != expectedETag {
+		return "", ErrETagMismatch
+	}
+	const casScript = `local current = redis.call("GET", KEYS[1])
+if not current then return {err="NOT_FOUND"} end
+if current ~= ARGV[1] then return {err="MISMATCH"} end
+redis.call("SET", KEYS[1], ARGV[2])
+redis.call("SET", KEYS[2], ARGV[3])
+return ARGV[3]`
+	cmd := s.r.Eval(ctx, casScript, []string{valueKey, etagKey}, string(current), string(jsonBytes), newETag)
+	if err := cmd.Err(); err != nil {
+		switch {
+		case strings.Contains(err.Error(), "NOT_FOUND"):
+			return "", ErrNotFound
+		case strings.Contains(err.Error(), "MISMATCH"):
+			return "", ErrETagMismatch
+		default:
+			return "", err
+		}
+	}
+	evt := Event{Type: EventPut, Key: key, ETag: newETag, At: time.Now().UTC()}
+	if err := s.publish(ctx, key.Project, key.Type, &evt); err != nil {
+		log.Warn("publish put failed", "error", err)
+	}
+	return newETag, nil
 }
 
 // Get retrieves a resource by key. Returns ErrNotFound if not present.
@@ -103,8 +186,15 @@ func (s *RedisResourceStore) Get(ctx context.Context, key ResourceKey) (any, str
 	if err := json.Unmarshal(bs, &v); err != nil {
 		return nil, "", fmt.Errorf("unmarshal failed: %w", err)
 	}
-	sum := sha256.Sum256(bs)
-	etag := hex.EncodeToString(sum[:])
+	etag := ""
+	if et, err := s.r.Get(ctx, s.etagKey(key)).Result(); err == nil {
+		etag = et
+	} else if err == redis.Nil {
+		sum := sha256.Sum256(bs)
+		etag = hex.EncodeToString(sum[:])
+	} else if err != nil {
+		return nil, "", err
+	}
 	return v, etag, nil
 }
 
@@ -119,10 +209,12 @@ func (s *RedisResourceStore) Delete(ctx context.Context, key ResourceKey) error 
 		return fmt.Errorf("store is closed")
 	}
 	k := s.keyFor(key)
+	etagKey := s.etagKey(key)
 	// Atomic GET + DEL using Lua to preserve ETag of removed value
 	// Returns bulk string of previous value or nil
-	script := "local v=redis.call('GET', KEYS[1]); if v then redis.call('DEL', KEYS[1]); end; return v"
-	cmd := s.r.Eval(ctx, script, []string{k})
+	script := "local v=redis.call('GET', KEYS[1]); if v then " +
+		"redis.call('DEL', KEYS[1]); redis.call('DEL', KEYS[2]); end; return v"
+	cmd := s.r.Eval(ctx, script, []string{k, etagKey})
 	res, err := cmd.Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -314,42 +406,56 @@ func (s *RedisResourceStore) Watch(ctx context.Context, project string, typ Reso
 			evt := Event{Type: EventPut, Key: k, ETag: et, At: time.Now().UTC()}
 			select {
 			case ch <- evt:
-			default:
-				log.Warn("watch channel full during prime", "project", project, "type", string(typ))
+			case <-ctx.Done():
+				return
 			}
 		}
 	}
+	msgs := ps.Channel()
+	interval := s.reconcile
+	if interval <= 0 {
+		interval = defaultReconcile
+	}
+	go s.runWatchLoop(ctx, ch, ps, msgs, interval, prime, log)
+	return ch, nil
+}
+
+func (s *RedisResourceStore) runWatchLoop(
+	ctx context.Context,
+	ch chan Event,
+	ps *redis.PubSub,
+	msgs <-chan *redis.Message,
+	interval time.Duration,
+	prime func(),
+	log logger.Logger,
+) {
+	defer close(ch)
+	defer func() { _ = ps.Close() }()
 	prime()
-	go func() {
-		defer close(ch)
-		defer func() { _ = ps.Close() }()
-		ticker := time.NewTicker(s.reconcile)
-		defer ticker.Stop()
-		msgs := ps.Channel()
-		for {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			prime()
+		case m, ok := <-msgs:
+			if !ok {
+				return
+			}
+			var evt Event
+			if err := json.Unmarshal([]byte(m.Payload), &evt); err != nil {
+				log.Warn("event decode failed", "error", err)
+				continue
+			}
 			select {
+			case ch <- evt:
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
-				prime()
-			case m, ok := <-msgs:
-				if !ok {
-					return
-				}
-				var evt Event
-				if err := json.Unmarshal([]byte(m.Payload), &evt); err != nil {
-					log.Warn("event decode failed", "error", err)
-					continue
-				}
-				select {
-				case ch <- evt:
-				default:
-					log.Warn("watch channel full; dropping event", "project", project, "type", string(typ))
-				}
 			}
 		}
-	}()
-	return ch, nil
+	}
 }
 
 // Close closes the store; watchers will naturally close when contexts are canceled by callers.
@@ -380,6 +486,8 @@ func (s *RedisResourceStore) keyFor(k ResourceKey) string {
 	return b.String()
 }
 
+func (s *RedisResourceStore) etagKey(k ResourceKey) string { return s.keyFor(k) + ":etag" }
+
 func (s *RedisResourceStore) keyPrefix(project string, typ ResourceType) string {
 	b := strings.Builder{}
 	b.WriteString(s.prefix)
@@ -407,6 +515,9 @@ func (s *RedisResourceStore) parseKey(full string) (ResourceKey, bool) {
 	rest := strings.TrimPrefix(full, s.prefix+":")
 	parts := strings.Split(rest, ":")
 	if len(parts) < 3 {
+		return ResourceKey{}, false
+	}
+	if parts[len(parts)-1] == "etag" {
 		return ResourceKey{}, false
 	}
 	project := parts[0]

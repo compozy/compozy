@@ -39,6 +39,8 @@ func createResource(c *gin.Context) {
 	}
 	prj := projectFromQueryOrDefault(c)
 	if prj == "" {
+		reqErr := router.NewRequestError(http.StatusBadRequest, "project is required", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
 	usecase := uc.NewCreateResource(rs)
@@ -93,6 +95,8 @@ func listResources(c *gin.Context) {
 	}
 	prj := projectFromQueryOrDefault(c)
 	if prj == "" {
+		reqErr := router.NewRequestError(http.StatusBadRequest, "project is required", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
 	usecase := uc.NewListResources(rs)
@@ -134,6 +138,8 @@ func getResourceByID(c *gin.Context) {
 	}
 	prj := projectFromQueryOrDefault(c)
 	if prj == "" {
+		reqErr := router.NewRequestError(http.StatusBadRequest, "project is required", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
 	usecase := uc.NewGetResource(rs)
@@ -190,6 +196,8 @@ func putResourceByID(c *gin.Context) {
 	}
 	prj := projectFromQueryOrDefault(c)
 	if prj == "" {
+		reqErr := router.NewRequestError(http.StatusBadRequest, "project is required", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
 	ifMatch := strings.TrimSpace(c.GetHeader("If-Match"))
@@ -199,35 +207,39 @@ func putResourceByID(c *gin.Context) {
 		&uc.UpsertInput{Project: prj, Type: typ, ID: id, Body: body, IfMatch: ifMatch},
 	)
 	if err != nil {
-		switch err {
-		case uc.ErrInvalidPayload:
-			reqErr := router.NewRequestError(http.StatusBadRequest, "invalid input", nil)
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		case uc.ErrProjectInBody:
-			reqErr := router.NewRequestError(http.StatusBadRequest, "project field is not allowed in body", nil)
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		case uc.ErrIDMismatch:
-			reqErr := router.NewRequestError(http.StatusBadRequest, "id mismatch between path and body", nil)
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		case uc.ErrTypeMismatch:
-			reqErr := router.NewRequestError(http.StatusBadRequest, "type mismatch between path and body", nil)
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		case uc.ErrInvalidID:
-			reqErr := router.NewRequestError(http.StatusBadRequest, "invalid id", nil)
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		case uc.ErrIfMatchStaleOrMissing:
-			reqErr := router.NewRequestError(http.StatusConflict, "stale or missing resource for If-Match", err)
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		case uc.ErrETagMismatch:
-			reqErr := router.NewRequestError(http.StatusConflict, "etag mismatch", nil)
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		default:
-			router.RespondWithServerError(c, router.ErrInternalCode, "failed to upsert resource", err)
-		}
+		handleUpsertError(c, err)
 		return
 	}
 	setETag(c, out.ETag)
 	router.RespondOK(c, "resource updated", out.Value)
+}
+
+func handleUpsertError(c *gin.Context, err error) {
+	switch err {
+	case uc.ErrInvalidPayload:
+		reqErr := router.NewRequestError(http.StatusBadRequest, "invalid input", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	case uc.ErrProjectInBody:
+		reqErr := router.NewRequestError(http.StatusBadRequest, "project field is not allowed in body", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	case uc.ErrIDMismatch:
+		reqErr := router.NewRequestError(http.StatusBadRequest, "id mismatch between path and body", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	case uc.ErrTypeMismatch:
+		reqErr := router.NewRequestError(http.StatusBadRequest, "type mismatch between path and body", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	case uc.ErrInvalidID:
+		reqErr := router.NewRequestError(http.StatusBadRequest, "invalid id", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	case uc.ErrIfMatchStaleOrMissing:
+		reqErr := router.NewRequestError(http.StatusConflict, "stale or missing resource for If-Match", err)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	case uc.ErrETagMismatch:
+		reqErr := router.NewRequestError(http.StatusConflict, "etag mismatch", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	default:
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to upsert resource", err)
+	}
 }
 
 // @Summary Delete resource
@@ -256,6 +268,8 @@ func deleteResourceByID(c *gin.Context) {
 	}
 	prj := projectFromQueryOrDefault(c)
 	if prj == "" {
+		reqErr := router.NewRequestError(http.StatusBadRequest, "project is required", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
 	usecase := uc.NewDeleteResource(rs)

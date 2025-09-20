@@ -57,6 +57,17 @@ func (s *failingMetaStore) Put(ctx context.Context, key resources.ResourceKey, v
 	}
 	return s.inner.Put(ctx, key, value)
 }
+func (s *failingMetaStore) PutIfMatch(
+	ctx context.Context,
+	key resources.ResourceKey,
+	value any,
+	expectedETag string,
+) (string, error) {
+	if key.Type == resources.ResourceMeta {
+		return "", errAssert
+	}
+	return s.inner.PutIfMatch(ctx, key, value, expectedETag)
+}
 func (s *failingMetaStore) Get(ctx context.Context, key resources.ResourceKey) (any, string, error) {
 	return s.inner.Get(ctx, key)
 }

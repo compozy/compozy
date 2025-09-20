@@ -113,8 +113,6 @@ if err := config.Validate(); err != nil {
 }
 ```
 
-// Removed: LoadAndEval and ref.Evaluator (legacy). Use Load only; linking occurs at workflow compile time.
-
 ### Configuration Format
 
 #### Basic Agent YAML Configuration
@@ -444,8 +442,6 @@ type ActionConfig struct {
 #### `Load(cwd *core.PathCWD, path string) (*Config, error)`
 
 Loads an agent configuration from a file.
-
-// Removed: LoadAndEval (legacy)
 
 #### `FindActionConfig(actions []*ActionConfig, id string) (*ActionConfig, error)`
 
