@@ -6,6 +6,7 @@ package userctx
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/engine/auth/model"
 )
@@ -28,10 +29,10 @@ func UserFromContext(ctx context.Context) (*model.User, bool) {
 // WARNING: This function will panic if no user is present in the context.
 // Only use this in handlers that are protected by authentication middleware.
 // For safer access, use UserFromContext which returns a boolean indicating presence.
-func MustUserFromContext(ctx context.Context) *model.User {
+func MustUserFromContext(ctx context.Context) (*model.User, error) {
 	user, ok := UserFromContext(ctx)
 	if !ok {
-		panic("user not found in context")
+		return nil, fmt.Errorf("user not found in context")
 	}
-	return user
+	return user, nil
 }

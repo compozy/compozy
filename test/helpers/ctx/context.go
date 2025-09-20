@@ -1,4 +1,4 @@
-package testutil
+package ctxhelpers
 
 import (
 	"context"
@@ -9,5 +9,5 @@ import (
 
 func TestContext(t *testing.T) context.Context {
 	t.Helper()
-	return logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	return logger.ContextWithLogger(t.Context(), logger.NewForTests())
 }

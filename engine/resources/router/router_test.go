@@ -179,7 +179,9 @@ func TestResourcesRouter_MissingState(t *testing.T) {
 	assert.NotEmpty(t, e.Error.Message)
 }
 
-type errListStore struct{ resources.MemoryResourceStore }
+type errListStore struct {
+	resources.MemoryResourceStore
+}
 
 func (e *errListStore) List(_ context.Context, _ string, _ resources.ResourceType) ([]resources.ResourceKey, error) {
 	return nil, assert.AnError

@@ -13,7 +13,8 @@ import (
 
 func TestPolicyFactory_NewPolicyFactory(t *testing.T) {
 	t.Run("Should create factory with built-in policies", func(t *testing.T) {
-		factory := NewPolicyFactory()
+		factory, err := NewPolicyFactory()
+		require.NoError(t, err)
 		require.NotNil(t, factory)
 		require.NotNil(t, factory.policies)
 		// Should have built-in policies registered
@@ -26,9 +27,10 @@ func TestPolicyFactory_NewPolicyFactory(t *testing.T) {
 
 func TestPolicyFactory_Register(t *testing.T) {
 	t.Run("Should register new policy", func(t *testing.T) {
-		factory := NewPolicyFactory()
+		factory, err := NewPolicyFactory()
+		require.NoError(t, err)
 		// Create a custom policy
-		err := factory.Register("custom", func() instance.EvictionPolicy {
+		err = factory.Register("custom", func() instance.EvictionPolicy {
 			return &mockEvictionPolicy{name: "custom"}
 		})
 		require.NoError(t, err)
@@ -38,8 +40,9 @@ func TestPolicyFactory_Register(t *testing.T) {
 	})
 
 	t.Run("Should reject empty policy name", func(t *testing.T) {
-		factory := NewPolicyFactory()
-		err := factory.Register("", func() instance.EvictionPolicy {
+		factory, err := NewPolicyFactory()
+		require.NoError(t, err)
+		err = factory.Register("", func() instance.EvictionPolicy {
 			return &mockEvictionPolicy{}
 		})
 		assert.Error(t, err)
@@ -47,16 +50,18 @@ func TestPolicyFactory_Register(t *testing.T) {
 	})
 
 	t.Run("Should reject nil creator", func(t *testing.T) {
-		factory := NewPolicyFactory()
-		err := factory.Register("test", nil)
+		factory, err := NewPolicyFactory()
+		require.NoError(t, err)
+		err = factory.Register("test", nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "policy creator cannot be nil")
 	})
 
 	t.Run("Should allow overwriting existing policy", func(t *testing.T) {
-		factory := NewPolicyFactory()
+		factory, err := NewPolicyFactory()
+		require.NoError(t, err)
 		// Register initial policy
-		err := factory.Register("test", func() instance.EvictionPolicy {
+		err = factory.Register("test", func() instance.EvictionPolicy {
 			return &mockEvictionPolicy{name: "version1"}
 		})
 		require.NoError(t, err)
@@ -73,7 +78,8 @@ func TestPolicyFactory_Register(t *testing.T) {
 }
 
 func TestPolicyFactory_Create(t *testing.T) {
-	factory := NewPolicyFactory()
+	factory, err := NewPolicyFactory()
+	require.NoError(t, err)
 
 	t.Run("Should create FIFO policy", func(t *testing.T) {
 		policy, err := factory.Create("fifo")
@@ -114,7 +120,8 @@ func TestPolicyFactory_Create(t *testing.T) {
 }
 
 func TestPolicyFactory_CreateOrDefault(t *testing.T) {
-	factory := NewPolicyFactory()
+	factory, err := NewPolicyFactory()
+	require.NoError(t, err)
 
 	t.Run("Should create requested policy if exists", func(t *testing.T) {
 		policy := factory.CreateOrDefault("lru")
@@ -134,7 +141,8 @@ func TestPolicyFactory_CreateOrDefault(t *testing.T) {
 
 func TestPolicyFactory_ListAvailable(t *testing.T) {
 	t.Run("Should list all available policies sorted", func(t *testing.T) {
-		factory := NewPolicyFactory()
+		factory, err := NewPolicyFactory()
+		require.NoError(t, err)
 		available := factory.ListAvailable()
 		// Should have at least the built-in policies
 		assert.GreaterOrEqual(t, len(available), 3)
@@ -146,7 +154,8 @@ func TestPolicyFactory_ListAvailable(t *testing.T) {
 	})
 
 	t.Run("Should include custom registered policies", func(t *testing.T) {
-		factory := NewPolicyFactory()
+		factory, err := NewPolicyFactory()
+		require.NoError(t, err)
 		factory.Register("custom1", func() instance.EvictionPolicy {
 			return &mockEvictionPolicy{name: "custom1"}
 		})
@@ -160,7 +169,8 @@ func TestPolicyFactory_ListAvailable(t *testing.T) {
 }
 
 func TestPolicyFactory_IsSupported(t *testing.T) {
-	factory := NewPolicyFactory()
+	factory, err := NewPolicyFactory()
+	require.NoError(t, err)
 
 	t.Run("Should return true for built-in policies", func(t *testing.T) {
 		assert.True(t, factory.IsSupported("fifo"))
@@ -183,7 +193,8 @@ func TestPolicyFactory_IsSupported(t *testing.T) {
 
 func TestPolicyFactory_Clear(t *testing.T) {
 	t.Run("Should clear all registered policies", func(t *testing.T) {
-		factory := NewPolicyFactory()
+		factory, err := NewPolicyFactory()
+		require.NoError(t, err)
 		// Should have built-in policies initially
 		assert.True(t, len(factory.ListAvailable()) > 0)
 		// Clear all policies
@@ -236,7 +247,8 @@ func TestPolicyFactory_GlobalFunctions(t *testing.T) {
 
 func TestPolicyFactory_ConcurrentAccess(t *testing.T) {
 	t.Run("Should handle concurrent operations safely", func(t *testing.T) {
-		factory := NewPolicyFactory()
+		factory, err := NewPolicyFactory()
+		require.NoError(t, err)
 		done := make(chan bool, 4)
 		// Goroutine 1: Register policies
 		go func() {

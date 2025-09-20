@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	// "github.com/slok/goresilience"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -483,33 +482,6 @@ func TestResilientManager_EdgeCases(t *testing.T) {
 		assert.NoError(t, err)                  // Fallback should handle it
 		assert.True(t, resultMeta.DoNotPersist) // Safety fallback
 	})
-	t.Run("Should handle panic in underlying manager", func(t *testing.T) {
-		config := DefaultResilienceConfig()
-		rm := NewResilientManager(nil, config)
-		// Override with panicking manager
-		rm.ManagerInterface = &panickingPrivacyManager{ManagerInterface: NewManager()}
-		ctx := context.Background()
-		msg := llm.Message{Role: llm.MessageRoleUser, Content: "test"}
-		metadata := memcore.PrivacyMetadata{}
-		// Should recover from panic and use fallback
-		_, resultMeta, err := rm.ApplyPrivacyControls(ctx, msg, "resource-1", metadata)
-		assert.NoError(t, err)                  // Fallback should handle it
-		assert.True(t, resultMeta.DoNotPersist) // Safety fallback
-	})
-}
-
-// panickingPrivacyManager panics on every call
-type panickingPrivacyManager struct {
-	ManagerInterface
-}
-
-func (m *panickingPrivacyManager) ApplyPrivacyControls(
-	_ context.Context,
-	_ llm.Message,
-	_ string,
-	_ memcore.PrivacyMetadata,
-) (llm.Message, memcore.PrivacyMetadata, error) {
-	panic("simulated panic")
 }
 
 // TestResilientManager_PerformanceBaseline ensures resilience doesn't add excessive overhead

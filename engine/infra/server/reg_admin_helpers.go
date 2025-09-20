@@ -18,9 +18,6 @@ func CreateAdminGroup(
 	factory *authuc.Factory,
 ) *gin.RouterGroup {
 	cfg := config.FromContext(ctx)
-	if cfg == nil {
-		panic("CreateAdminGroup: missing configuration in context")
-	}
 	manager := authmw.NewManager(factory, cfg)
 	admin := apiBase.Group("/admin")
 	admin.Use(manager.RequireAdmin())

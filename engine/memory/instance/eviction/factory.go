@@ -16,16 +16,16 @@ type PolicyFactory struct {
 }
 
 // NewPolicyFactory creates a new eviction policy factory with built-in policies
-func NewPolicyFactory() *PolicyFactory {
+func NewPolicyFactory() (*PolicyFactory, error) {
 	factory := &PolicyFactory{
 		policies: make(map[string]func() instance.EvictionPolicy),
 	}
 	// Register built-in policies
 	if err := factory.registerBuiltInPolicies(); err != nil {
 		// This should never happen with built-in policies
-		panic(fmt.Errorf("failed to register built-in eviction policies: %w", err))
+		return nil, fmt.Errorf("failed to register built-in eviction policies: %w", err)
 	}
-	return factory
+	return factory, nil
 }
 
 // registerBuiltInPolicies registers all default eviction policies
@@ -114,7 +114,15 @@ func (f *PolicyFactory) Clear() {
 }
 
 // DefaultPolicyFactory is the global factory instance
-var DefaultPolicyFactory = NewPolicyFactory()
+var DefaultPolicyFactory = mustNewPolicyFactory()
+
+func mustNewPolicyFactory() *PolicyFactory {
+	factory, err := NewPolicyFactory()
+	if err != nil {
+		panic(err)
+	}
+	return factory
+}
 
 // CreatePolicy creates an eviction policy using the default factory
 func CreatePolicy(policyType string) (instance.EvictionPolicy, error) {

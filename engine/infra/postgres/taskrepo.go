@@ -64,9 +64,6 @@ type TaskRepo struct {
 }
 
 func NewTaskRepo(db DB) *TaskRepo {
-	if db == nil {
-		panic("NewTaskRepo: db must not be nil")
-	}
 	return &TaskRepo{db: db}
 }
 

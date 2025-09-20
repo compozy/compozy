@@ -70,7 +70,8 @@ func TestMustUserFromContext(t *testing.T) {
 		}
 		ctx := WithUser(context.Background(), user)
 
-		retrievedUser := MustUserFromContext(ctx)
+		retrievedUser, err := MustUserFromContext(ctx)
+		assert.NoError(t, err)
 
 		assert.Equal(t, user, retrievedUser)
 	})
@@ -78,20 +79,17 @@ func TestMustUserFromContext(t *testing.T) {
 	t.Run("Should panic when user not present", func(t *testing.T) {
 		ctx := context.Background()
 
-		assert.Panics(t, func() {
-			MustUserFromContext(ctx)
-		}, "MustUserFromContext should panic when user is not in context")
+		_, err := MustUserFromContext(ctx)
+		assert.Error(t, err)
+		assert.Equal(t, "user not found in context", err.Error())
 	})
 
 	t.Run("Should panic with correct message", func(t *testing.T) {
 		ctx := context.Background()
-
-		defer func() {
-			r := recover()
-			require.NotNil(t, r, "Should have panicked")
-			assert.Equal(t, "user not found in context", r)
-		}()
-
-		MustUserFromContext(ctx)
+		require.NotPanics(t, func() {
+			_, err := MustUserFromContext(ctx)
+			require.Error(t, err)
+			assert.Equal(t, "user not found in context", err.Error())
+		})
 	})
 }
