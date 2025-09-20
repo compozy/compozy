@@ -453,9 +453,9 @@ func (w *Config) HasSchema() bool {
 	return w.Opts.InputSchema != nil
 }
 
+// Deprecated: Prefer ValidateWithContext(ctx); this uses a context without deadlines/cancellation.
 func (w *Config) Validate() error {
-	// Backward-compatible entry point without context
-	return w.ValidateWithContext(context.Background())
+	return w.ValidateWithContext(context.TODO())
 }
 
 // ValidateWithContext validates the workflow configuration using the provided context.

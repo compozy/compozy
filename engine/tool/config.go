@@ -266,6 +266,15 @@ func (t *Config) GetEnv() core.EnvMap {
 // Returns an error if the timeout format is invalid or the value is non-positive.
 func (t *Config) GetTimeout(ctx context.Context, globalTimeout time.Duration) (time.Duration, error) {
 	if t.Timeout == "" {
+		if dl, ok := ctx.Deadline(); ok {
+			if rem := time.Until(dl); rem > 0 {
+				if globalTimeout == 0 || rem < globalTimeout {
+					return rem, nil
+				}
+			} else {
+				return 0, fmt.Errorf("context deadline exceeded before resolving timeout: %w", context.DeadlineExceeded)
+			}
+		}
 		return globalTimeout, nil
 	}
 	timeout, err := time.ParseDuration(t.Timeout)
@@ -280,6 +289,13 @@ func (t *Config) GetTimeout(ctx context.Context, globalTimeout time.Duration) (t
 	}
 	if timeout <= 0 {
 		return 0, fmt.Errorf("tool timeout must be positive, got: %v", timeout)
+	}
+	if dl, ok := ctx.Deadline(); ok {
+		if rem := time.Until(dl); rem <= 0 {
+			return 0, fmt.Errorf("context deadline exceeded before resolving timeout: %w", context.DeadlineExceeded)
+		} else if rem < timeout {
+			return rem, nil
+		}
 	}
 	return timeout, nil
 }

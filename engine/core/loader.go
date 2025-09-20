@@ -15,7 +15,6 @@ func ResolvePath(cwd *PathCWD, path string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("path cannot be empty")
 	}
-
 	if !filepath.IsAbs(path) {
 		if cwd != nil {
 			if err := cwd.Validate(); err != nil {
@@ -23,14 +22,12 @@ func ResolvePath(cwd *PathCWD, path string) (string, error) {
 			}
 			return cwd.JoinAndCheck(path)
 		}
-		// Fallback to os.Getwd() for relative paths when CWD is nil
 		absPath, err := filepath.Abs(path)
 		if err != nil {
 			return "", fmt.Errorf("failed to resolve absolute path: %w", err)
 		}
 		return absPath, nil
 	}
-
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve absolute path: %w", err)
@@ -65,7 +62,7 @@ func LoadConfig[T Config](filePath string) (T, string, error) {
 		return zero, "", err
 	}
 
-	return config, filePath, nil
+	return config, abs, nil
 }
 
 func MapFromFilePath(path string) (map[string]any, error) {
@@ -123,11 +120,12 @@ func walkAndReject(n *yaml.Node, filePath string, path []string) error {
 			}
 		}
 	case yaml.MappingNode:
+		schemaCtx := inSchemaContext(path) || isSchemaMapping(n)
 		for i := 0; i < len(n.Content); i += 2 {
 			key := n.Content[i]
 			val := n.Content[i+1]
 			if key != nil && key.Kind == yaml.ScalarNode && strings.HasPrefix(key.Value, "$") {
-				if !inSchemaContext(path) {
+				if !schemaCtx {
 					return fmt.Errorf(
 						"%s:%d:%d: unsupported directive key '%s'; "+
 							"directives like $ref/$use/$merge/$ptr are deprecated. "+
@@ -151,7 +149,9 @@ func walkAndReject(n *yaml.Node, filePath string, path []string) error {
 func inSchemaContext(path []string) bool {
 	for i := len(path) - 1; i >= 0; i-- {
 		switch path[i] {
-		case "input", "output", "schema", "schemas", "input_schema", "output_schema", "jsonSchema", "json_schema":
+		case "input", "output", "schema", "schemas", "input_schema", "output_schema", "jsonSchema", "json_schema",
+			"properties", "patternProperties", "additionalProperties", "$defs", "definitions",
+			"items", "prefixItems", "contains", "allOf", "anyOf", "oneOf", "not", "if", "then", "else":
 			return true
 		}
 	}
@@ -170,6 +170,26 @@ func isSchemaDocument(n *yaml.Node) bool {
 	for i := 0; i < len(root.Content); i += 2 {
 		k := root.Content[i]
 		if k != nil && k.Kind == yaml.ScalarNode && k.Value == "$schema" {
+			return true
+		}
+	}
+	return false
+}
+
+// isSchemaMapping returns true if a mapping node looks like a JSON Schema object.
+func isSchemaMapping(n *yaml.Node) bool {
+	if n == nil || n.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i < len(n.Content); i += 2 {
+		k := n.Content[i]
+		if k == nil || k.Kind != yaml.ScalarNode {
+			continue
+		}
+		switch k.Value {
+		case "$schema", "$id", "$defs", "definitions", "properties", "patternProperties",
+			"additionalProperties", "items", "prefixItems", "contains",
+			"type", "allOf", "anyOf", "oneOf", "not", "if", "then", "else":
 			return true
 		}
 	}

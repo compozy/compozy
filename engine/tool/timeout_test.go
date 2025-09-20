@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 	fixtures "github.com/compozy/compozy/test/fixtures"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +48,9 @@ func TestToolConfig_GetTimeout(t *testing.T) {
 			Timeout: "invalid-timeout",
 		}
 		globalTimeout := 60 * time.Second
-		result, err := config.GetTimeout(context.Background(), globalTimeout)
+		log := logger.NewForTests()
+		ctx := logger.ContextWithLogger(context.Background(), log)
+		result, err := config.GetTimeout(ctx, globalTimeout)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid tool timeout")
 		require.Equal(t, time.Duration(0), result)

@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/llm"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/testutil"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,6 +44,8 @@ func TestNewMemoryResolver(t *testing.T) {
 func TestMemoryResolver_GetMemory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
+	log := logger.NewForTests()
+	ctx = logger.ContextWithLogger(ctx, log)
 	t.Run("Should return nil when memory manager is nil", func(t *testing.T) {
 		resolver := &MemoryResolver{
 			memoryManager: nil,
@@ -116,6 +119,8 @@ func TestMemoryResolver_GetMemory(t *testing.T) {
 func TestMemoryResolver_ResolveAgentMemories(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
+	log := logger.NewForTests()
+	ctx = logger.ContextWithLogger(ctx, log)
 	t.Run("Should return nil for agent without memory", func(t *testing.T) {
 		setup, memMgr := setupTestMemoryManager(t)
 		defer setup.Cleanup()
@@ -206,6 +211,8 @@ func TestMemoryResolver_ResolveAgentMemories(t *testing.T) {
 func TestMemoryResolverAdapter(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
+	log := logger.NewForTests()
+	ctx = logger.ContextWithLogger(ctx, log)
 	t.Run("Should adapt real memory interface correctly", func(t *testing.T) {
 		// Setup real Redis environment
 		setup := testutil.SetupTestRedis(t)
@@ -279,6 +286,8 @@ func TestMemoryResolverAdapter(t *testing.T) {
 func TestMemoryResolverTemplateResolution(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
+	log := logger.NewForTests()
+	ctx = logger.ContextWithLogger(ctx, log)
 	t.Run("Should resolve simple template variables", func(t *testing.T) {
 		tplEngine := tplengine.NewEngine(tplengine.FormatText)
 		workflowContext := map[string]any{
@@ -495,6 +504,8 @@ func TestMemoryResolverTemplateResolution(t *testing.T) {
 func TestMemoryResolverWorkflowIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
+	log := logger.NewForTests()
+	ctx = logger.ContextWithLogger(ctx, log)
 	t.Run("Should handle real workflow execution context", func(t *testing.T) {
 		setup, memMgr := setupTestMemoryManager(t)
 		defer setup.Cleanup()
@@ -566,7 +577,7 @@ func TestMemoryResolverWorkflowIntegration(t *testing.T) {
 		// Manually set resolved memory references (simulating validation)
 		// In real code, this is done during agent.Validate() processing
 		agentConfig.Memory = []core.MemoryReference{
-			{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
+			{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: core.MemoryModeReadWrite},
 		}
 		// Create CWD for agent validation
 		cwd, err := core.CWDFromPath(t.TempDir())

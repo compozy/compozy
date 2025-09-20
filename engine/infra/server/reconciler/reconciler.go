@@ -210,6 +210,11 @@ func NewReconsiler(ctx context.Context, state *appstate.State) (*Reconciler, err
 	return r, nil
 }
 
+// NewReconciler is the canonical constructor (compat shim).
+func NewReconciler(ctx context.Context, state *appstate.State) (*Reconciler, error) {
+	return NewReconsiler(ctx, state)
+}
+
 func (r *Reconciler) Start(ctx context.Context) error {
 	if err := r.buildInitialIndex(ctx); err != nil {
 		return err
@@ -272,9 +277,17 @@ func (r *Reconciler) forward(ctx context.Context, typ resources.ResourceType, ch
 					r.eventsDropped.Add(ctx, 1, metric.WithAttributes(attribute.String("type", string(typ))))
 				}
 				log.Warn("reconciler queue full; dropping oldest")
+				sent := false
 				select {
 				case r.in <- evt:
+					sent = true
 				default:
+				}
+				if !sent {
+					if r.eventsDropped != nil {
+						r.eventsDropped.Add(ctx, 1, metric.WithAttributes(attribute.String("type", string(typ))))
+					}
+					log.Warn("reconciler queue still full; dropping incoming event")
 				}
 			}
 		}
@@ -363,7 +376,9 @@ func (r *Reconciler) recompileAndSwap(
 	if len(impacted) == 0 && len(deletes) == 0 {
 		return nil
 	}
-	r.recompileTotal.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "attempt")))
+	if r.recompileTotal != nil {
+		r.recompileTotal.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "attempt")))
+	}
 	compiled, err := r.compileImpacted(ctx, impacted, deletes)
 	if err != nil {
 		return err
@@ -378,7 +393,9 @@ func (r *Reconciler) recompileAndSwap(
 		log.Warn("schedule reconciliation on reload failed", "error", err)
 	}
 	r.updateReverseIndex(compiled, deletes)
-	r.recompileTotal.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "ok")))
+	if r.recompileTotal != nil {
+		r.recompileTotal.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "ok")))
+	}
 	return nil
 }
 

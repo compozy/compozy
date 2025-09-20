@@ -70,7 +70,10 @@ func (t *InternalTool) executeTool(ctx context.Context, input *core.Input, confi
 	toolExecID := core.MustNewID()
 	env := core.EnvMap{}
 	if t.env != nil {
-		env = *t.env
+		env = make(core.EnvMap, len(*t.env))
+		for k, v := range *t.env {
+			env[k] = v
+		}
 	}
 	globalTimeout := t.runtime.GetGlobalTimeout()
 	toolTimeout, err := t.config.GetTimeout(ctx, globalTimeout)

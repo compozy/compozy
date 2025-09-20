@@ -27,11 +27,12 @@ type RedisResourceStore struct {
 }
 
 const (
-	defaultPrefix         = "res"
-	defaultReconcile      = 30 * time.Second
-	minReconcile          = time.Second
-	watchBackpressureWarn = 500 * time.Millisecond
-	watchSendInterval     = 25 * time.Millisecond
+	defaultPrefix               = "res"
+	defaultReconcile            = 30 * time.Second
+	minReconcile                = time.Second
+	watchBackpressureWarn       = 500 * time.Millisecond
+	watchSendInterval           = 25 * time.Millisecond
+	scanCount             int64 = 256
 )
 
 // RedisStoreOption configures RedisResourceStore.
@@ -281,7 +282,7 @@ func (s *RedisResourceStore) List(ctx context.Context, project string, typ Resou
 	var cursor uint64
 	res := make([]ResourceKey, 0, 64)
 	for {
-		keys, next, err := s.r.Scan(ctx, cursor, pattern, 256).Result()
+		keys, next, err := s.r.Scan(ctx, cursor, pattern, scanCount).Result()
 		if err != nil {
 			return nil, err
 		}
@@ -312,25 +313,9 @@ func (s *RedisResourceStore) ListWithValues(
 		return nil, fmt.Errorf("store is closed")
 	}
 	// Collect keys using SCAN
-	pattern := s.keyPrefix(project, typ) + ":*"
-	var cursor uint64
-	redisKeys := make([]string, 0, 128)
-	resKeys := make([]ResourceKey, 0, 128)
-	for {
-		keys, next, err := s.r.Scan(ctx, cursor, pattern, 256).Result()
-		if err != nil {
-			return nil, err
-		}
-		for _, full := range keys {
-			if rk, ok := s.parseKey(full); ok {
-				resKeys = append(resKeys, rk)
-				redisKeys = append(redisKeys, full)
-			}
-		}
-		cursor = next
-		if cursor == 0 {
-			break
-		}
+	resKeys, redisKeys, etagKeys, err := s.scanResourceKeys(ctx, project, typ)
+	if err != nil {
+		return nil, err
 	}
 	if len(redisKeys) == 0 {
 		return []StoredItem{}, nil
@@ -340,6 +325,47 @@ func (s *RedisResourceStore) ListWithValues(
 	if err != nil {
 		return nil, err
 	}
+	// Batch fetch etags (best-effort; fall back to hashing on miss)
+	etVals, etErr := s.r.MGet(ctx, etagKeys...).Result()
+	if etErr != nil {
+		etVals = make([]any, len(redisKeys))
+	}
+	return s.buildStoredItems(vals, etVals, resKeys), nil
+}
+
+// scanResourceKeys scans Redis for resource keys and returns parsed keys, raw Redis keys, and ETag keys.
+func (s *RedisResourceStore) scanResourceKeys(
+	ctx context.Context,
+	project string,
+	typ ResourceType,
+) ([]ResourceKey, []string, []string, error) {
+	pattern := s.keyPrefix(project, typ) + ":*"
+	var cursor uint64
+	redisKeys := make([]string, 0, 128)
+	resKeys := make([]ResourceKey, 0, 128)
+	etagKeys := make([]string, 0, 128)
+	for {
+		keys, next, err := s.r.Scan(ctx, cursor, pattern, scanCount).Result()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		for _, full := range keys {
+			if rk, ok := s.parseKey(full); ok {
+				resKeys = append(resKeys, rk)
+				redisKeys = append(redisKeys, full)
+				etagKeys = append(etagKeys, s.etagKey(rk))
+			}
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+	return resKeys, redisKeys, etagKeys, nil
+}
+
+// buildStoredItems decodes MGET results and pairs them with corresponding ETags.
+func (s *RedisResourceStore) buildStoredItems(vals []any, etVals []any, resKeys []ResourceKey) []StoredItem {
 	out := make([]StoredItem, 0, len(vals))
 	for i, raw := range vals {
 		if raw == nil {
@@ -352,18 +378,30 @@ func (s *RedisResourceStore) ListWithValues(
 		case []byte:
 			bs = t
 		default:
-			// fallback to string representation
 			bs = []byte(fmt.Sprint(t))
 		}
 		var v any
 		if err := json.Unmarshal(bs, &v); err != nil {
 			continue
 		}
-		sum := sha256.Sum256(bs)
-		etag := ETag(hex.EncodeToString(sum[:]))
+		var etag ETag
+		if i < len(etVals) && etVals[i] != nil {
+			switch et := etVals[i].(type) {
+			case string:
+				etag = ETag(et)
+			case []byte:
+				etag = ETag(string(et))
+			default:
+				sum := sha256.Sum256(bs)
+				etag = ETag(hex.EncodeToString(sum[:]))
+			}
+		} else {
+			sum := sha256.Sum256(bs)
+			etag = ETag(hex.EncodeToString(sum[:]))
+		}
 		out = append(out, StoredItem{Key: resKeys[i], Value: v, ETag: etag})
 	}
-	return out, nil
+	return out
 }
 
 // ListWithValuesPage returns a page of items and the total count.
@@ -416,19 +454,14 @@ func (s *RedisResourceStore) Watch(ctx context.Context, project string, typ Reso
 		return nil, fmt.Errorf("subscribe failed: %w", err)
 	}
 	prime := func() {
-		keys, err := s.List(ctx, project, typ)
+		items, err := s.ListWithValues(ctx, project, typ)
 		if err != nil {
 			log.Warn("prime list failed", "error", err)
 			return
 		}
-		for _, k := range keys {
-			v, et, err := s.Get(ctx, k)
-			if err != nil {
-				continue
-			}
-			_ = v
-			evt := Event{Type: EventPut, Key: k, ETag: et, At: time.Now().UTC()}
-			if !deliverEvent(ctx, ch, &evt, log) {
+		for _, it := range items {
+			evt := Event{Type: EventPut, Key: it.Key, ETag: it.ETag, At: time.Now().UTC()}
+			if !deliverEvent(ctx, ch, &evt) {
 				return
 			}
 		}
@@ -438,7 +471,7 @@ func (s *RedisResourceStore) Watch(ctx context.Context, project string, typ Reso
 	if interval < minReconcile {
 		interval = defaultReconcile
 	}
-	go s.runWatchLoop(ctx, ch, ps, msgs, interval, prime, log)
+	go s.runWatchLoop(ctx, ch, ps, msgs, interval, prime)
 	return ch, nil
 }
 
@@ -449,8 +482,8 @@ func (s *RedisResourceStore) runWatchLoop(
 	msgs <-chan *redis.Message,
 	interval time.Duration,
 	prime func(),
-	log logger.Logger,
 ) {
+	log := logger.FromContext(ctx)
 	defer close(ch)
 	defer func() { _ = ps.Close() }()
 	prime()
@@ -478,17 +511,18 @@ func (s *RedisResourceStore) runWatchLoop(
 				log.Warn("event decode failed", "error", err)
 				continue
 			}
-			if !deliverEvent(ctx, ch, &evt, log) {
+			if !deliverEvent(ctx, ch, &evt) {
 				return
 			}
 		}
 	}
 }
 
-func deliverEvent(ctx context.Context, ch chan Event, evt *Event, log logger.Logger) bool {
+func deliverEvent(ctx context.Context, ch chan Event, evt *Event) bool {
 	if ch == nil {
 		return false
 	}
+	log := logger.FromContext(ctx)
 	var (
 		waitTimer *time.Timer
 		waitStart time.Time
@@ -542,7 +576,8 @@ func (s *RedisResourceStore) Close() error {
 	if !s.closed.CompareAndSwap(false, true) {
 		return nil
 	}
-	return s.r.Close()
+	// The store does not own the Redis client; caller manages its lifecycle.
+	return nil
 }
 
 func (s *RedisResourceStore) publish(ctx context.Context, project string, typ ResourceType, evt *Event) error {

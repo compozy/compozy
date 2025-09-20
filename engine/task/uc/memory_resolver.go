@@ -61,14 +61,13 @@ func NewMemoryResolver(
 // Returns nil if no memory is configured or available.
 func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemplate string) (llm.Memory, error) {
 	log := logger.FromContext(ctx)
-
 	log.Debug("Resolving memory access",
 		"memory_id", memoryID,
 		"key_template", keyTemplate,
 	)
 
 	if r.memoryManager == nil {
-		log.Error("Memory manager is nil")
+		log.Warn("Memory manager is nil")
 		return nil, nil
 	}
 
@@ -83,18 +82,17 @@ func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemp
 	}
 
 	// Create a memory reference for the manager
-	// IMPORTANT: We pass the template in the Key field, NOT in ResolvedKey
-	// The Manager's resolveMemoryKey method will handle the template resolution
-	memRef := core.MemoryReference{
-		ID:          memoryID,
-		Key:         keyTemplate, // This contains the template string
-		ResolvedKey: resolvedKey,
-		Mode:        core.MemoryModeReadWrite, // TODO: Get mode from agent memory configuration
+	// Precedence: when a pre-resolved key exists we set ResolvedKey and clear Key;
+	// otherwise we pass the template in Key and let the manager resolve it.
+	memRef := core.MemoryReference{ID: memoryID, Mode: core.MemoryModeReadWrite}
+	if strings.TrimSpace(resolvedKey) != "" {
+		memRef.ResolvedKey = resolvedKey
+		memRef.Key = ""
+	} else {
+		memRef.Key = keyTemplate
 	}
 
-	log.Debug("Passing memory reference to manager",
-		"memory_id", memoryID,
-		"key_template", keyTemplate)
+	log.Debug("Passing memory reference to manager", "memory_id", memoryID, "key_template", keyTemplate)
 
 	// Get the memory instance from the manager
 	memInstance, err := r.memoryManager.GetInstance(ctx, memRef, r.workflowContext)
