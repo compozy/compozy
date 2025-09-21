@@ -149,6 +149,14 @@
           "description": "PageSize sets the number of results per page in list operations.\n\nDefault: 50\nRange: 1-1000",
           "type": "integer"
         },
+        "PortReleasePollInterval": {
+          "description": "PortReleasePollInterval sets how often to check if a port has become available.\n\nDefault: 100ms",
+          "type": "integer"
+        },
+        "PortReleaseTimeout": {
+          "description": "PortReleaseTimeout sets the maximum time to wait for a port to become available.\n\nDefault: 5s",
+          "type": "integer"
+        },
         "Quiet": {
           "description": "Quiet suppresses all non-error output.\n\nUseful for scripting and automation.",
           "type": "boolean"

@@ -5,10 +5,10 @@ import (
 	"crypto/sha256"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
+	helpers "github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/core"
@@ -126,7 +126,7 @@ func TestAuthMiddleware_RateLimiting(t *testing.T) {
 				assert.Equal(t, http.StatusOK, w.Code, "Request %d should succeed", i+1)
 			} else {
 				assert.Equal(t, http.StatusTooManyRequests, w.Code)
-				assert.Contains(t, strings.ToLower(w.Body.String()), "rate limit exceeded")
+				assert.True(t, helpers.Contains(w.Body.String(), "rate limit exceeded"))
 				assert.Equal(t, "0", w.Header().Get("X-RateLimit-Remaining"))
 			}
 			assert.NotEmpty(t, w.Header().Get("X-RateLimit-Limit"))

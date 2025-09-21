@@ -6,21 +6,12 @@ import (
 	"net"
 	"time"
 
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
 const (
 	maxPortScanAttempts = 100
-)
-
-const (
-	defaultPortReleaseTimeout      = 5 * time.Second
-	defaultPortReleasePollInterval = 100 * time.Millisecond
-)
-
-var (
-	portReleaseTimeout      = defaultPortReleaseTimeout
-	portReleasePollInterval = defaultPortReleasePollInterval
 )
 
 // IsPortAvailable checks if a port is available for binding using the provided context
@@ -38,10 +29,12 @@ func IsPortAvailable(ctx context.Context, host string, port int) bool {
 // FindAvailablePort finds the next available port starting from the given port
 // It uses an exponential backoff strategy to efficiently find available ports
 func FindAvailablePort(ctx context.Context, host string, startPort int) (int, error) {
+	cfg := config.FromContext(ctx)
+
 	if IsPortAvailable(ctx, host, startPort) {
 		return startPort, nil
 	}
-	if waitForConfiguredPort(ctx, host, startPort) {
+	if waitForConfiguredPort(ctx, host, startPort, cfg.CLI.PortReleaseTimeout, cfg.CLI.PortReleasePollInterval) {
 		return startPort, nil
 	}
 	log := logger.FromContext(ctx)
@@ -50,7 +43,7 @@ func FindAvailablePort(ctx context.Context, host string, startPort int) (int, er
 		"port",
 		startPort,
 		"wait",
-		portReleaseTimeout,
+		cfg.CLI.PortReleaseTimeout,
 	)
 
 	// Common alternative ports for development servers
@@ -88,10 +81,10 @@ func FindAvailablePort(ctx context.Context, host string, startPort int) (int, er
 	return 0, fmt.Errorf("no available port found near %d after checking %d ports", startPort, maxPortScanAttempts)
 }
 
-func waitForConfiguredPort(ctx context.Context, host string, port int) bool {
+func waitForConfiguredPort(ctx context.Context, host string, port int, timeout, pollInterval time.Duration) bool {
 	log := logger.FromContext(ctx)
-	deadline := time.Now().Add(portReleaseTimeout)
-	ticker := time.NewTicker(portReleasePollInterval)
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 	notified := false
 	for {
@@ -108,7 +101,7 @@ func waitForConfiguredPort(ctx context.Context, host string, port int) bool {
 			return false
 		}
 		if !notified {
-			log.Info("Waiting for configured port to become available", "port", port, "timeout", portReleaseTimeout)
+			log.Info("Waiting for configured port to become available", "port", port, "timeout", timeout)
 			notified = true
 		}
 		select {

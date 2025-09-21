@@ -1,6 +1,7 @@
 package uc
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
@@ -13,7 +14,7 @@ func decodeWorkflowBody(body map[string]any, pathID string) (*workflow.Config, e
 	}
 	cfg, err := core.FromMapDefault[*workflow.Config](body)
 	if err != nil {
-		return nil, ErrInvalidInput
+		return nil, fmt.Errorf("decode workflow config: %w", err)
 	}
 	return normalizeWorkflowID(cfg, pathID)
 }
@@ -28,7 +29,7 @@ func decodeStoredWorkflow(value any, pathID string) (*workflow.Config, error) {
 	case map[string]any:
 		cfg, err := core.FromMapDefault[*workflow.Config](v)
 		if err != nil {
-			return nil, ErrInvalidInput
+			return nil, fmt.Errorf("decode workflow config: %w", err)
 		}
 		return normalizeWorkflowID(cfg, pathID)
 	default:
@@ -49,7 +50,7 @@ func normalizeWorkflowID(cfg *workflow.Config, pathID string) (*workflow.Config,
 		cfg.ID = routeID
 	}
 	if strings.TrimSpace(cfg.ID) == "" {
-		return nil, ErrInvalidInput
+		return nil, fmt.Errorf("workflow id is required: %w", ErrInvalidInput)
 	}
 	return cfg, nil
 }

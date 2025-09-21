@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"

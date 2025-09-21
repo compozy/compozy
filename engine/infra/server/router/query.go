@@ -4,24 +4,20 @@ import "strings"
 
 func ParseFieldsQuery(raw string) map[string]bool {
 	result := make(map[string]bool)
-	parts := strings.Split(raw, ",")
-	for i := range parts {
-		trimmed := strings.TrimSpace(parts[i])
-		if trimmed != "" {
-			result[trimmed] = true
-		}
+	normalized := strings.ReplaceAll(raw, ",", " ")
+	fields := strings.Fields(normalized)
+	for _, field := range fields {
+		result[field] = true
 	}
 	return result
 }
 
 func ParseExpandQuery(raw string) map[string]bool {
 	result := make(map[string]bool)
-	parts := strings.Split(raw, ",")
-	for i := range parts {
-		trimmed := strings.TrimSpace(parts[i])
-		if trimmed != "" {
-			result[strings.ToLower(trimmed)] = true
-		}
+	normalized := strings.ReplaceAll(raw, ",", " ")
+	fields := strings.Fields(normalized)
+	for _, field := range fields {
+		result[strings.ToLower(field)] = true
 	}
 	return result
 }

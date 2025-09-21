@@ -2,10 +2,10 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/pkg/config"
 )
 
 type GetInput struct {
@@ -27,7 +27,6 @@ func NewGet(store resources.ResourceStore) *Get {
 }
 
 func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
-	_ = config.FromContext(ctx)
 	if in == nil {
 		return nil, ErrInvalidInput
 	}
@@ -42,7 +41,7 @@ func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
 	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceAgent, ID: agentID}
 	value, etag, err := uc.store.Get(ctx, key)
 	if err != nil {
-		if err == resources.ErrNotFound {
+		if errors.Is(err, resources.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, err

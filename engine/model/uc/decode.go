@@ -17,7 +17,7 @@ func decodeModelBody(body map[string]any) (*core.ProviderConfig, error) {
 	return cfg, nil
 }
 
-func decodeStoredModel(value any) (*core.ProviderConfig, error) {
+func decodeStoredModel(value any, _ string) (*core.ProviderConfig, error) {
 	switch v := value.(type) {
 	case *core.ProviderConfig:
 		return v, nil

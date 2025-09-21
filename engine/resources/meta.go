@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -23,7 +22,6 @@ func writeMeta(
 	typ ResourceType,
 	id, source, updatedBy string,
 ) error {
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if store == nil {
 		return fmt.Errorf("resource store is nil")

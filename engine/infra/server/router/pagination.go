@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -60,7 +61,18 @@ func EncodeCursor(direction, value string) string {
 	return cursorCodec.EncodeToString([]byte(payload))
 }
 
-func LimitOrDefault(raw string, def int, maxLimit int) int {
+// LimitOrDefault returns a sanitized page size using request-scoped configuration
+// when available. It respects the provided defaults but allows operators to tune
+// the default via config (CLI.PageSize) while preserving the explicit query param
+// and max cap.
+func LimitOrDefault(c *gin.Context, raw string, def int, maxLimit int) int {
+	if c != nil {
+		if cfg := config.FromContext(c.Request.Context()); cfg != nil {
+			if def <= 0 && cfg.CLI.PageSize > 0 {
+				def = cfg.CLI.PageSize
+			}
+		}
+	}
 	if def <= 0 {
 		def = 50
 	}
@@ -91,11 +103,14 @@ func SetLinkHeaders(c *gin.Context, nextCursor string, prevCursor string) {
 }
 
 func buildLink(c *gin.Context, cursor string, rel string) string {
-	clone := *c.Request.URL
-	q := clone.Query()
+	u, err := url.Parse(c.Request.URL.String())
+	if err != nil || u == nil {
+		return ""
+	}
+	q := u.Query()
 	q.Set("cursor", cursor)
-	clone.RawQuery = q.Encode()
-	return fmt.Sprintf("<%s>; rel=%q", sanitizedURL(&clone), rel)
+	u.RawQuery = q.Encode()
+	return fmt.Sprintf("<%s>; rel=%q", sanitizedURL(u), rel)
 }
 
 func sanitizedURL(u *url.URL) string {

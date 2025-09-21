@@ -6,8 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/engine/resourceutil"
-	"github.com/compozy/compozy/pkg/config"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 )
 
 type ListInput struct {
@@ -36,7 +35,6 @@ func NewList(store resources.ResourceStore) *List {
 }
 
 func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error) {
-	_ = config.FromContext(ctx)
 	if in == nil {
 		return nil, ErrInvalidInput
 	}
@@ -58,7 +56,7 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 	)
 	payload := make([]map[string]any, 0, len(window))
 	for i := range window {
-		cfg, err := decodeStoredModel(window[i].Value)
+		cfg, err := decodeStoredModel(window[i].Value, window[i].Key.ID)
 		if err != nil {
 			return nil, err
 		}

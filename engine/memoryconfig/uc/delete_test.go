@@ -8,21 +8,25 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func createMemoryBody(id string) map[string]any {
+	return map[string]any{
+		"resource":    "memory",
+		"id":          id,
+		"type":        "buffer",
+		"persistence": map[string]any{"type": "in_memory"},
+	}
+}
 
 func TestDeleteMemory_ConfigConflictsWhenAgentReferences(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
 	ctx := context.Background()
 	project := "demo"
-	memBody := map[string]any{
-		"resource":    "memory",
-		"id":          "session",
-		"type":        "buffer",
-		"persistence": map[string]any{"type": "in_memory"},
-	}
+	memBody := createMemoryBody("session")
 	_, err := NewUpsert(store).Execute(ctx, &UpsertInput{Project: project, ID: "session", Body: memBody})
 	require.NoError(t, err)
 	ag := &agent.Config{ID: "assistant"}
@@ -42,7 +46,7 @@ func TestDeleteMemory_ConfigRemovesWhenUnused(t *testing.T) {
 	project := "demo"
 	_, err := NewUpsert(
 		store,
-	).Execute(ctx, &UpsertInput{Project: project, ID: "session", Body: map[string]any{"resource": "memory", "id": "session", "type": "buffer", "persistence": map[string]any{"type": "in_memory"}}})
+	).Execute(ctx, &UpsertInput{Project: project, ID: "session", Body: createMemoryBody("session")})
 	require.NoError(t, err)
 	err = NewDelete(store).Execute(ctx, &DeleteInput{Project: project, ID: "session"})
 	require.NoError(t, err)

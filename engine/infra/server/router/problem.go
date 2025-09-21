@@ -7,6 +7,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ProblemDocument models an RFC 7807 error envelope for API responses.
+type ProblemDocument struct {
+	Type     string `json:"type,omitempty"     example:"about:blank"`
+	Title    string `json:"title"              example:"Bad Request"`
+	Status   int    `json:"status"             example:"400"`
+	Detail   string `json:"detail,omitempty"   example:"Invalid cursor parameter"`
+	Instance string `json:"instance,omitempty" example:"/api/v0/workflows"`
+	Code     string `json:"code,omitempty"     example:"invalid_cursor"`
+}
+
 type Problem struct {
 	Type     string
 	Title    string
@@ -16,8 +26,9 @@ type Problem struct {
 	Extras   map[string]any
 }
 
-//nolint:gocritic // Accept by value so callers can pass temporary Problem literals without allocations.
-func RespondProblem(c *gin.Context, problem Problem) {
+// RespondProblem writes an RFC7807 problem+json response.
+// Accepts a pointer to avoid copying a potentially large struct and to satisfy linters.
+func RespondProblem(c *gin.Context, problem *Problem) {
 	if problem.Status == 0 {
 		problem.Status = http.StatusInternalServerError
 	}
@@ -79,5 +90,5 @@ func RespondProblemWithCode(c *gin.Context, status int, code string, detail stri
 		Detail: detail,
 		Extras: map[string]any{"code": code},
 	}
-	RespondProblem(c, problem)
+	RespondProblem(c, &problem)
 }

@@ -624,6 +624,8 @@ func flattenCLIConfig(cfg *config.Config, result map[string]string) {
 	result["cli.config_file"] = cfg.CLI.ConfigFile
 	result["cli.cwd"] = cfg.CLI.CWD
 	result["cli.env_file"] = cfg.CLI.EnvFile
+	result["cli.port_release_timeout"] = cfg.CLI.PortReleaseTimeout.String()
+	result["cli.port_release_poll_interval"] = cfg.CLI.PortReleasePollInterval.String()
 }
 
 // flattenRedisConfig flattens Redis configuration

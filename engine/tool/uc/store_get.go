@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/pkg/config"
 )
 
 type GetInput struct {
@@ -27,7 +26,6 @@ func NewGet(store resources.ResourceStore) *Get {
 }
 
 func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
-	_ = config.FromContext(ctx)
 	if in == nil {
 		return nil, ErrInvalidInput
 	}

@@ -89,26 +89,14 @@ func computeWindow(
 	switch direction {
 	case CursorDirectionAfter:
 		start := searchAfter(items, cursorValue)
-		end := start + limit
-		if end > len(items) {
-			end = len(items)
-		}
+		end := min(start+limit, len(items))
 		return start, end
 	case CursorDirectionBefore:
-		end := searchBefore(items, cursorValue)
-		if end < 0 {
-			end = 0
-		}
-		start := end - limit
-		if start < 0 {
-			start = 0
-		}
+		end := max(searchBefore(items, cursorValue), 0)
+		start := max(end-limit, 0)
 		return start, end
 	default:
-		end := limit
-		if end > len(items) {
-			end = len(items)
-		}
+		end := min(limit, len(items))
 		return 0, end
 	}
 }

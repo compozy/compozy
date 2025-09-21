@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
@@ -260,7 +259,7 @@ func collectWorkflowReferences(
 	}
 	refs := make([]string, 0)
 	for i := range items {
-		cfg, err := decodeWorkflow(items[i].Value, items[i].Key.ID)
+		cfg, err := DecodeStoredWorkflow(items[i].Value, items[i].Key.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -271,15 +270,24 @@ func collectWorkflowReferences(
 	return refs, nil
 }
 
-func decodeWorkflow(value any, id string) (*workflow.Config, error) {
+// DecodeStoredWorkflow decodes a workflow config from various stored representations
+// and normalizes the ID by setting it to the provided id when empty.
+func DecodeStoredWorkflow(value any, id string) (*workflow.Config, error) {
 	switch v := value.(type) {
 	case *workflow.Config:
+		if strings.TrimSpace(v.ID) == "" {
+			v.ID = id
+		}
 		return v, nil
 	case workflow.Config:
 		clone := v
+		if strings.TrimSpace(clone.ID) == "" {
+			clone.ID = id
+		}
 		return &clone, nil
 	case map[string]any:
-		cfg, err := core.FromMapDefault[*workflow.Config](v)
+		cfg := &workflow.Config{}
+		err := cfg.FromMap(v)
 		if err != nil {
 			return nil, fmt.Errorf("decode workflow: %w", err)
 		}
@@ -474,6 +482,61 @@ func TasksReferencingAgentResources(
 			return nil, err
 		}
 		if taskReferencesAgent(tk, agentID) {
+			refs = append(refs, tk.ID)
+		}
+	}
+	return refs, nil
+}
+
+func taskReferencesTask(cfg *task.Config, targetID string) bool {
+	if cfg == nil {
+		return false
+	}
+	id := strings.TrimSpace(targetID)
+	if id == "" {
+		return false
+	}
+	if cfg.OnSuccess != nil && cfg.OnSuccess.Next != nil {
+		if strings.TrimSpace(*cfg.OnSuccess.Next) == id {
+			return true
+		}
+	}
+	if cfg.OnError != nil && cfg.OnError.Next != nil {
+		if strings.TrimSpace(*cfg.OnError.Next) == id {
+			return true
+		}
+	}
+	if cfg.Routes != nil {
+		for _, v := range cfg.Routes {
+			if s, ok := v.(string); ok {
+				if strings.TrimSpace(s) == id {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// TasksReferencingTaskResources returns task IDs that reference the given task ID
+// via OnSuccess.Next, OnError.Next, or router Routes string targets.
+func TasksReferencingTaskResources(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	taskID string,
+) ([]string, error) {
+	items, err := store.ListWithValues(ctx, project, resources.ResourceTask)
+	if err != nil {
+		return nil, err
+	}
+	refs := make([]string, 0)
+	for i := range items {
+		tk, err := decodeTask(items[i].Value, items[i].Key.ID)
+		if err != nil {
+			return nil, err
+		}
+		if taskReferencesTask(tk, taskID) {
 			refs = append(refs, tk.ID)
 		}
 	}

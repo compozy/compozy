@@ -46,7 +46,7 @@ func normalizeTaskID(cfg *task.Config, pathID string) (*task.Config, error) {
 	}
 	bodyID := strings.TrimSpace(cfg.ID)
 	if bodyID != "" && bodyID != id {
-		return nil, fmt.Errorf("id mismatch: body=%s path=%s", bodyID, id)
+		return nil, fmt.Errorf("%w: body=%s path=%s", ErrIDMismatch, bodyID, id)
 	}
 	cfg.ID = id
 	return cfg, nil

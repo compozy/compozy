@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
@@ -57,7 +58,7 @@ func getWorkflowByID(c *gin.Context) {
 	}
 	body, buildErr := buildWorkflowResponse(out.Config, expandSet)
 	if buildErr != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: buildErr.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: buildErr.Error()})
 		return
 	}
 	body = filterWorkflowFields(body, fieldsSet)
@@ -96,10 +97,10 @@ func listWorkflows(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	prefix := strings.TrimSpace(c.Query("q"))
@@ -110,18 +111,18 @@ func listWorkflows(c *gin.Context) {
 			Project:         project,
 			Prefix:          prefix,
 			CursorValue:     cursor.Value,
-			CursorDirection: wfuc.CursorDirection(cursor.Direction),
+			CursorDirection: resourceutil.CursorDirection(cursor.Direction),
 			Limit:           limit,
 		})
 	if err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 		return
 	}
 	responses := make([]map[string]any, 0, len(out.Items))
 	for i := range out.Items {
 		body, buildErr := buildWorkflowResponse(out.Items[i].Config, expandSet)
 		if buildErr != nil {
-			router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: buildErr.Error()})
+			router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: buildErr.Error()})
 			return
 		}
 		body = filterWorkflowFields(body, fieldsSet)
@@ -130,10 +131,10 @@ func listWorkflows(c *gin.Context) {
 	}
 	nextCursor := ""
 	prevCursor := ""
-	if out.NextCursorValue != "" && out.NextCursorDirection != wfuc.CursorDirectionNone {
+	if out.NextCursorValue != "" && out.NextCursorDirection != resourceutil.CursorDirectionNone {
 		nextCursor = router.EncodeCursor(string(out.NextCursorDirection), out.NextCursorValue)
 	}
-	if out.PrevCursorValue != "" && out.PrevCursorDirection != wfuc.CursorDirectionNone {
+	if out.PrevCursorValue != "" && out.PrevCursorDirection != resourceutil.CursorDirectionNone {
 		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
 	}
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
@@ -191,12 +192,12 @@ func upsertWorkflow(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	out, execErr := wfuc.NewUpsert(store).
@@ -209,7 +210,7 @@ func upsertWorkflow(c *gin.Context) {
 	fieldsSet := router.ParseFieldsQuery(c.Query("fields"))
 	respBody, buildErr := buildWorkflowResponse(out.Config, expandSet)
 	if buildErr != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: buildErr.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: buildErr.Error()})
 		return
 	}
 	respBody = filterWorkflowFields(respBody, fieldsSet)
@@ -264,13 +265,13 @@ func deleteWorkflow(c *gin.Context) {
 func respondWorkflowError(c *gin.Context, err error) {
 	switch err {
 	case wfuc.ErrInvalidInput, wfuc.ErrProjectMissing, wfuc.ErrIDMismatch:
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case wfuc.ErrNotFound:
-		router.RespondProblem(c, router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case wfuc.ErrETagMismatch, wfuc.ErrStaleIfMatch:
-		router.RespondProblem(c, router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	default:
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }
 

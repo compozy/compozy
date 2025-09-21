@@ -5,8 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/engine/resourceutil"
-	"github.com/compozy/compozy/pkg/config"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 )
 
 type ListInput struct {
@@ -35,7 +34,6 @@ func NewList(store resources.ResourceStore) *List {
 }
 
 func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error) {
-	_ = config.FromContext(ctx)
 	if in == nil {
 		return nil, ErrInvalidInput
 	}

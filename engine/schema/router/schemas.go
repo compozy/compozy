@@ -7,7 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
-	"github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	schemauc "github.com/compozy/compozy/engine/schema/uc"
 	"github.com/gin-gonic/gin"
 )
@@ -41,10 +41,10 @@ func listSchemas(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	fields := router.ParseFieldsQuery(c.Query("fields"))
@@ -177,12 +177,12 @@ func upsertSchema(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	input := &schemauc.UpsertInput{Project: project, ID: schemaID, Body: body, IfMatch: ifMatch}
@@ -249,46 +249,25 @@ func deleteSchema(c *gin.Context) {
 }
 
 func respondSchemaError(c *gin.Context, err error) {
-	if err == nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: "unknown error"})
-		return
-	}
 	switch {
 	case errors.Is(err, schemauc.ErrInvalidInput),
 		errors.Is(err, schemauc.ErrProjectMissing),
 		errors.Is(err, schemauc.ErrIDMissing),
 		errors.Is(err, schemauc.ErrIDMismatch):
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrNotFound):
-		router.RespondProblem(c, router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrETagMismatch),
 		errors.Is(err, schemauc.ErrStaleIfMatch):
-		router.RespondProblem(c, router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrReferenced):
-		respondConflict(c, err, nil)
+		resourceutil.RespondConflict(c, err, nil)
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
-			respondConflict(c, err, conflict.Details)
+			resourceutil.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
-}
-
-func respondConflict(c *gin.Context, err error, details []resourceutil.ReferenceDetail) {
-	extras := map[string]any{}
-	if len(details) > 0 {
-		refs := make([]map[string]any, 0, len(details))
-		for i := range details {
-			d := map[string]any{"resource": details[i].Resource, "ids": details[i].IDs}
-			refs = append(refs, d)
-		}
-		extras["references"] = refs
-	}
-	detail := err.Error()
-	if detail == "" {
-		detail = "resource has active references"
-	}
-	router.RespondProblem(c, router.Problem{Status: http.StatusConflict, Detail: detail, Extras: extras})
 }

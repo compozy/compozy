@@ -8,9 +8,23 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	memoryuc "github.com/compozy/compozy/engine/memoryconfig/uc"
-	"github.com/compozy/compozy/engine/resourceutil"
+	"github.com/compozy/compozy/engine/resources"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	"github.com/gin-gonic/gin"
 )
+
+// validateRequestContext centralizes common store+project validation.
+func validateRequestContext(c *gin.Context) (resources.ResourceStore, string, bool) {
+	store, ok := router.GetResourceStore(c)
+	if !ok {
+		return nil, "", false
+	}
+	project := router.ProjectFromQueryOrDefault(c)
+	if project == "" {
+		return nil, "", false
+	}
+	return store, project, true
+}
 
 // listMemories handles GET /memories.
 //
@@ -33,18 +47,14 @@ import (
 // @Failure 500 {object} router.ProblemDocument "Internal server error"
 // @Router /memories [get]
 func listMemories(c *gin.Context) {
-	store, ok := router.GetResourceStore(c)
+	store, project, ok := validateRequestContext(c)
 	if !ok {
 		return
 	}
-	project := router.ProjectFromQueryOrDefault(c)
-	if project == "" {
-		return
-	}
-	limit := router.LimitOrDefault(c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	fields := router.ParseFieldsQuery(c.Query("fields"))
@@ -72,7 +82,7 @@ func listMemories(c *gin.Context) {
 	items := make([]map[string]any, 0, len(out.Items))
 	for i := range out.Items {
 		filtered := router.FilterMapFields(out.Items[i], fields)
-		if len(fields) != 0 && !fields["_etag"] {
+		if len(fields) == 0 || fields["_etag"] {
 			filtered["_etag"] = out.Items[i]["_etag"]
 		}
 		items = append(items, filtered)
@@ -126,7 +136,7 @@ func getMemory(c *gin.Context) {
 		return
 	}
 	filtered := router.FilterMapFields(out.Memory, fields)
-	if len(fields) != 0 && !fields["_etag"] {
+	if len(fields) == 0 || fields["_etag"] {
 		filtered["_etag"] = out.Memory["_etag"]
 	}
 	c.Header("ETag", string(out.ETag))
@@ -176,12 +186,12 @@ func upsertMemory(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	out, execErr := memoryuc.NewUpsert(store).
@@ -252,34 +262,17 @@ func respondMemoryError(c *gin.Context, err error) {
 	case errors.Is(err, memoryuc.ErrInvalidInput),
 		errors.Is(err, memoryuc.ErrProjectMissing),
 		errors.Is(err, memoryuc.ErrIDMissing):
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, memoryuc.ErrNotFound):
-		router.RespondProblem(c, router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, memoryuc.ErrETagMismatch), errors.Is(err, memoryuc.ErrStaleIfMatch):
-		router.RespondProblem(c, router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
-			respondConflict(c, err, conflict.Details)
+			resourceutil.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
-}
-
-func respondConflict(c *gin.Context, err error, details []resourceutil.ReferenceDetail) {
-	extras := map[string]any{}
-	if len(details) > 0 {
-		refs := make([]map[string]any, 0, len(details))
-		for i := range details {
-			d := map[string]any{"resource": details[i].Resource, "ids": details[i].IDs}
-			refs = append(refs, d)
-		}
-		extras["references"] = refs
-	}
-	detail := err.Error()
-	if detail == "" {
-		detail = "resource has active references"
-	}
-	router.RespondProblem(c, router.Problem{Status: http.StatusConflict, Detail: detail, Extras: extras})
 }

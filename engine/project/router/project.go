@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	projectuc "github.com/compozy/compozy/engine/project/uc"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,6 +30,8 @@ import (
 // @Failure 500 {object} router.ProblemDocument "Internal server error"
 // @Router /project [get]
 func getProject(c *gin.Context) {
+	log := logger.FromContext(c.Request.Context())
+	log.Debug("handling GET /project request")
 	store, ok := router.GetResourceStore(c)
 	if !ok {
 		return
@@ -45,7 +48,7 @@ func getProject(c *gin.Context) {
 	}
 	payload, err := out.Config.AsMap()
 	if err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 		return
 	}
 	response := router.FilterMapFields(payload, fields)
@@ -91,12 +94,12 @@ func upsertProject(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	out, execErr := projectuc.NewUpsert(store).
@@ -107,25 +110,19 @@ func upsertProject(c *gin.Context) {
 	}
 	payload, err := out.Config.AsMap()
 	if err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 		return
 	}
 	fields := router.ParseFieldsQuery(c.Query("fields"))
 	response := router.FilterMapFields(payload, fields)
 	response["_etag"] = string(out.ETag)
 	c.Header("ETag", string(out.ETag))
-	status := http.StatusOK
-	message := "project updated"
 	if out.Created {
-		status = http.StatusCreated
-		message = "project created"
 		c.Header("Location", routes.Project())
+		router.RespondCreated(c, "project created", response)
+	} else {
+		router.RespondOK(c, "project updated", response)
 	}
-	if status == http.StatusCreated {
-		router.RespondCreated(c, message, response)
-		return
-	}
-	router.RespondOK(c, message, response)
 }
 
 // deleteProject handles DELETE /project.
@@ -139,7 +136,7 @@ func upsertProject(c *gin.Context) {
 func deleteProject(c *gin.Context) {
 	router.RespondProblem(
 		c,
-		router.Problem{Status: http.StatusMethodNotAllowed, Detail: "project deletion not supported"},
+		&router.Problem{Status: http.StatusMethodNotAllowed, Detail: "project deletion not supported"},
 	)
 }
 
@@ -148,12 +145,12 @@ func respondProjectError(c *gin.Context, err error) {
 	case errors.Is(err, projectuc.ErrInvalidInput),
 		errors.Is(err, projectuc.ErrProjectMissing),
 		errors.Is(err, projectuc.ErrNameMismatch):
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, projectuc.ErrNotFound):
-		router.RespondProblem(c, router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, projectuc.ErrETagMismatch), errors.Is(err, projectuc.ErrStaleIfMatch):
-		router.RespondProblem(c, router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	default:
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

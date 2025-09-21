@@ -1,0 +1,83 @@
+package resources
+
+import (
+	"net/http"
+	"testing"
+
+	storepkg "github.com/compozy/compozy/engine/resources"
+	schemacfg "github.com/compozy/compozy/engine/schema"
+	workflowcfg "github.com/compozy/compozy/engine/workflow"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSchemasEndpoints(t *testing.T) {
+	t.Run("Should create and manage schemas", func(t *testing.T) {
+		client := newResourceClient(t)
+		createBody := schemaPayload(map[string]any{"name": map[string]any{"type": "string"}})
+		createRes := client.do(http.MethodPut, "/api/v0/schemas/user", createBody, nil)
+		require.Equal(t, http.StatusCreated, createRes.Code)
+		etag := createRes.Header().Get("ETag")
+		require.NotEmpty(t, etag)
+		require.Equal(t, "/api/v0/schemas/user", createRes.Header().Get("Location"))
+		getRes := client.do(http.MethodGet, "/api/v0/schemas/user", nil, nil)
+		require.Equal(t, http.StatusOK, getRes.Code)
+		data := decodeData(t, getRes)
+		assert.Equal(t, "object", data["type"])
+		updateBody := schemaPayload(map[string]any{
+			"name": map[string]any{"type": "string"},
+			"age":  map[string]any{"type": "number"},
+		})
+		updateRes := client.do(http.MethodPut, "/api/v0/schemas/user", updateBody, map[string]string{"If-Match": etag})
+		require.Equal(t, http.StatusOK, updateRes.Code)
+		newEtag := updateRes.Header().Get("ETag")
+		require.NotEmpty(t, newEtag)
+		afterRes := client.do(http.MethodGet, "/api/v0/schemas/user", nil, nil)
+		require.Equal(t, http.StatusOK, afterRes.Code)
+		assert.Equal(t, newEtag, afterRes.Header().Get("ETag"))
+		afterData := decodeData(t, afterRes)
+		props, ok := afterData["properties"].(map[string]any)
+		require.True(t, ok)
+		_, hasAge := props["age"]
+		assert.True(t, hasAge)
+		staleRes := client.do(
+			http.MethodPut,
+			"/api/v0/schemas/user",
+			updateBody,
+			map[string]string{"If-Match": "\"schema-bad\""},
+		)
+		require.Equal(t, http.StatusPreconditionFailed, staleRes.Code)
+		client.do(http.MethodPut, "/api/v0/schemas/audit", schemaPayload(map[string]any{}), nil)
+		ids := collectIDs(t, client, "/api/v0/schemas?limit=1", "schemas", "id")
+		assert.ElementsMatch(t, []string{"audit", "user"}, ids)
+		delRes := client.do(http.MethodDelete, "/api/v0/schemas/user", nil, nil)
+		require.Equal(t, http.StatusNoContent, delRes.Code)
+		missingRes := client.do(http.MethodGet, "/api/v0/schemas/user", nil, nil)
+		require.Equal(t, http.StatusNotFound, missingRes.Code)
+	})
+	t.Run("Should report conflict when workflow uses schema", func(t *testing.T) {
+		client := newResourceClient(t)
+		body := schemaPayload(map[string]any{})
+		res := client.do(http.MethodPut, "/api/v0/schemas/contact", body, nil)
+		require.Equal(t, http.StatusCreated, res.Code)
+		store := client.store()
+		schemaRef := schemacfg.Schema(map[string]any{"__schema_ref__": "contact"})
+		wf := &workflowcfg.Config{ID: "wf-schema", Opts: workflowcfg.Opts{InputSchema: &schemaRef}}
+		_, err := store.Put(
+			client.harness.Ctx,
+			storepkg.ResourceKey{Project: client.harness.Project.Name, Type: storepkg.ResourceWorkflow, ID: wf.ID},
+			wf,
+		)
+		require.NoError(t, err)
+		delRes := client.do(http.MethodDelete, "/api/v0/schemas/contact", nil, nil)
+		require.Equal(t, http.StatusConflict, delRes.Code)
+		assert.Equal(t, "application/problem+json", delRes.Header().Get("Content-Type"))
+		assert.Contains(t, delRes.Body.String(), "workflows")
+	})
+	t.Run("Should reject malformed schema payload", func(t *testing.T) {
+		client := newResourceClient(t)
+		res := client.do(http.MethodPut, "/api/v0/schemas/bad", nil, nil)
+		require.Equal(t, http.StatusBadRequest, res.Code)
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
+	})
+}

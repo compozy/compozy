@@ -2,13 +2,14 @@ package modelrouter
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	modeluc "github.com/compozy/compozy/engine/model/uc"
-	"github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,10 +42,10 @@ func listModels(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	fields := router.ParseFieldsQuery(c.Query("fields"))
@@ -72,7 +73,7 @@ func listModels(c *gin.Context) {
 	items := make([]map[string]any, 0, len(out.Items))
 	for i := range out.Items {
 		filtered := router.FilterMapFields(out.Items[i], fields)
-		if len(fields) != 0 && !fields["_etag"] {
+		if len(fields) == 0 || fields["_etag"] {
 			filtered["_etag"] = out.Items[i]["_etag"]
 		}
 		items = append(items, filtered)
@@ -126,10 +127,10 @@ func getModel(c *gin.Context) {
 		return
 	}
 	filtered := router.FilterMapFields(out.Model, fields)
-	if len(fields) != 0 && !fields["_etag"] {
+	if len(fields) == 0 || fields["_etag"] {
 		filtered["_etag"] = out.Model["_etag"]
 	}
-	c.Header("ETag", string(out.ETag))
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	router.RespondOK(c, "model retrieved", filtered)
 }
 
@@ -176,12 +177,12 @@ func upsertModel(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	out, execErr := modeluc.NewUpsert(store).
@@ -192,22 +193,20 @@ func upsertModel(c *gin.Context) {
 	}
 	fields := router.ParseFieldsQuery(c.Query("fields"))
 	filtered := router.FilterMapFields(out.Model, fields)
-	if len(fields) != 0 && !fields["_etag"] {
+	if len(fields) == 0 || fields["_etag"] {
 		filtered["_etag"] = out.Model["_etag"]
 	}
-	c.Header("ETag", string(out.ETag))
-	status := http.StatusOK
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	message := "model updated"
 	if out.Created {
-		status = http.StatusCreated
 		message = "model created"
 		c.Header("Location", routes.Models()+"/"+modelID)
 	}
-	if status == http.StatusCreated {
+	if out.Created {
 		router.RespondCreated(c, message, filtered)
-		return
+	} else {
+		router.RespondOK(c, message, filtered)
 	}
-	router.RespondOK(c, message, filtered)
 }
 
 // deleteModel handles DELETE /models/{model_id}.
@@ -252,34 +251,17 @@ func respondModelError(c *gin.Context, err error) {
 	case errors.Is(err, modeluc.ErrInvalidInput),
 		errors.Is(err, modeluc.ErrProjectMissing),
 		errors.Is(err, modeluc.ErrIDMissing):
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, modeluc.ErrNotFound):
-		router.RespondProblem(c, router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, modeluc.ErrETagMismatch), errors.Is(err, modeluc.ErrStaleIfMatch):
-		router.RespondProblem(c, router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
-			respondConflict(c, err, conflict.Details)
+			resourceutil.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
-}
-
-func respondConflict(c *gin.Context, err error, details []resourceutil.ReferenceDetail) {
-	extras := map[string]any{}
-	if len(details) > 0 {
-		refs := make([]map[string]any, 0, len(details))
-		for i := range details {
-			d := map[string]any{"resource": details[i].Resource, "ids": details[i].IDs}
-			refs = append(refs, d)
-		}
-		extras["references"] = refs
-	}
-	detail := err.Error()
-	if detail == "" {
-		detail = "resource has active references"
-	}
-	router.RespondProblem(c, router.Problem{Status: http.StatusConflict, Detail: detail, Extras: extras})
 }

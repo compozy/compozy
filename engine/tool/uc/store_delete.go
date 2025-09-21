@@ -5,8 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/engine/resourceutil"
-	"github.com/compozy/compozy/pkg/config"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 )
 
 type DeleteInput struct {
@@ -23,7 +22,6 @@ func NewDelete(store resources.ResourceStore) *Delete {
 }
 
 func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
-	_ = config.FromContext(ctx)
 	if in == nil {
 		return ErrInvalidInput
 	}

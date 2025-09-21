@@ -7,7 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
-	"github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	taskuc "github.com/compozy/compozy/engine/task/uc"
 	"github.com/gin-gonic/gin"
 )
@@ -43,10 +43,10 @@ func listTasksTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	fields := router.ParseFieldsQuery(c.Query("fields"))
@@ -177,12 +177,12 @@ func upsertTaskTop(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	input := &taskuc.UpsertInput{Project: project, ID: taskID, Body: body, IfMatch: ifMatch}
@@ -250,37 +250,20 @@ func respondTaskError(c *gin.Context, err error) {
 	case errors.Is(err, taskuc.ErrInvalidInput),
 		errors.Is(err, taskuc.ErrProjectMissing),
 		errors.Is(err, taskuc.ErrIDMissing):
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, taskuc.ErrNotFound):
-		router.RespondProblem(c, router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, taskuc.ErrETagMismatch),
 		errors.Is(err, taskuc.ErrStaleIfMatch):
-		router.RespondProblem(c, router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	case errors.Is(err, taskuc.ErrWorkflowNotFound):
-		router.RespondProblem(c, router.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
-			respondConflict(c, err, conflict.Details)
+			resourceutil.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
-}
-
-func respondConflict(c *gin.Context, err error, details []resourceutil.ReferenceDetail) {
-	extras := map[string]any{}
-	if len(details) > 0 {
-		refs := make([]map[string]any, 0, len(details))
-		for i := range details {
-			d := map[string]any{"resource": details[i].Resource, "ids": details[i].IDs}
-			refs = append(refs, d)
-		}
-		extras["references"] = refs
-	}
-	detail := err.Error()
-	if detail == "" {
-		detail = "resource has active references"
-	}
-	router.RespondProblem(c, router.Problem{Status: http.StatusConflict, Detail: detail, Extras: extras})
 }

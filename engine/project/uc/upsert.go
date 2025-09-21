@@ -9,12 +9,12 @@ import (
 	"github.com/compozy/compozy/engine/auth/userctx"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
 type UpsertInput struct {
 	Project string
+	ID      string
 	Body    map[string]any
 	IfMatch string
 }
@@ -34,7 +34,6 @@ func NewUpsert(store resources.ResourceStore) *Upsert {
 }
 
 func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, error) {
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if in == nil {
 		return nil, ErrInvalidInput

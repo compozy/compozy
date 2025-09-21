@@ -7,7 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
-	"github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	tooluc "github.com/compozy/compozy/engine/tool/uc"
 	"github.com/gin-gonic/gin"
 )
@@ -43,10 +43,10 @@ func listToolsTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	fields := router.ParseFieldsQuery(c.Query("fields"))
@@ -174,12 +174,12 @@ func upsertToolTop(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	input := &tooluc.UpsertInput{Project: project, ID: toolID, Body: body, IfMatch: ifMatch}
@@ -243,41 +243,28 @@ func deleteToolTop(c *gin.Context) {
 }
 
 func respondToolError(c *gin.Context, err error) {
+	if err == nil {
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: "unknown error"})
+		return
+	}
 	switch {
 	case errors.Is(err, tooluc.ErrInvalidInput),
 		errors.Is(err, tooluc.ErrProjectMissing),
 		errors.Is(err, tooluc.ErrIDMissing):
-		router.RespondProblem(c, router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, tooluc.ErrNotFound):
-		router.RespondProblem(c, router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, tooluc.ErrETagMismatch),
 		errors.Is(err, tooluc.ErrStaleIfMatch):
-		router.RespondProblem(c, router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	case errors.Is(err, tooluc.ErrWorkflowNotFound):
-		router.RespondProblem(c, router.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
-			respondConflict(c, err, conflict.Details)
+			resourceutil.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		router.RespondProblem(c, router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
-}
-
-func respondConflict(c *gin.Context, err error, details []resourceutil.ReferenceDetail) {
-	extras := map[string]any{}
-	if len(details) > 0 {
-		refs := make([]map[string]any, 0, len(details))
-		for i := range details {
-			d := map[string]any{"resource": details[i].Resource, "ids": details[i].IDs}
-			refs = append(refs, d)
-		}
-		extras["references"] = refs
-	}
-	detail := err.Error()
-	if detail == "" {
-		detail = "resource has active references"
-	}
-	router.RespondProblem(c, router.Problem{Status: http.StatusConflict, Detail: detail, Extras: extras})
 }

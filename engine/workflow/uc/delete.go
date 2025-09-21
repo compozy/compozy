@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/pkg/config"
 )
 
 type DeleteInput struct {
@@ -22,14 +21,17 @@ func NewDelete(store resources.ResourceStore) *Delete {
 }
 
 func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
-	_ = config.FromContext(ctx)
-	if in == nil || strings.TrimSpace(in.ID) == "" {
+	if in == nil {
 		return ErrInvalidInput
 	}
 	project := strings.TrimSpace(in.Project)
 	if project == "" {
 		return ErrProjectMissing
 	}
-	key := resources.ResourceKey{Project: project, Type: resources.ResourceWorkflow, ID: strings.TrimSpace(in.ID)}
+	workflowID := strings.TrimSpace(in.ID)
+	if workflowID == "" {
+		return ErrInvalidInput
+	}
+	key := resources.ResourceKey{Project: project, Type: resources.ResourceWorkflow, ID: workflowID}
 	return uc.store.Delete(ctx, key)
 }

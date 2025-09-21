@@ -9,9 +9,15 @@ import (
 	"github.com/compozy/compozy/engine/auth/userctx"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
+
+func getUserIDOrDefault(ctx context.Context) string {
+	if usr, ok := userctx.UserFromContext(ctx); ok && usr != nil {
+		return usr.ID.String()
+	}
+	return "api"
+}
 
 type UpsertInput struct {
 	Project string
@@ -35,7 +41,6 @@ func NewUpsert(store resources.ResourceStore) *Upsert {
 }
 
 func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, error) {
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if in == nil || strings.TrimSpace(in.ID) == "" {
 		return nil, ErrInvalidInput
@@ -53,10 +58,7 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 	if err != nil {
 		return nil, err
 	}
-	updatedBy := "api"
-	if usr, ok := userctx.UserFromContext(ctx); ok && usr != nil {
-		updatedBy = usr.ID.String()
-	}
+	updatedBy := getUserIDOrDefault(ctx)
 	metaErr := resources.WriteMeta(ctx, uc.store, project, resources.ResourceWorkflow, cfg.ID, "api", updatedBy)
 	if metaErr != nil {
 		log.Error("failed to write workflow meta", "error", metaErr, "workflow_id", cfg.ID)

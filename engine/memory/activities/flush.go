@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	memcore "github.com/compozy/compozy/engine/memory/core"
-	"github.com/compozy/compozy/pkg/logger"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 )
@@ -21,10 +20,9 @@ type MemoryActivities struct {
 
 // NewMemoryActivities creates a new instance of MemoryActivities.
 func NewMemoryActivities(
-	ctx context.Context,
+	_ context.Context,
 	manager memcore.ManagerInterface,
 ) *MemoryActivities {
-	_ = logger.FromContext(ctx)
 	return &MemoryActivities{
 		MemoryManager: manager,
 	}

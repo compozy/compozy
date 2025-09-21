@@ -22,7 +22,6 @@ import (
 	schemauc "github.com/compozy/compozy/engine/schema/uc"
 	tooluc "github.com/compozy/compozy/engine/tool/uc"
 	wfuc "github.com/compozy/compozy/engine/workflow/uc"
-	"github.com/compozy/compozy/pkg/config"
 	"gopkg.in/yaml.v3"
 )
 
@@ -74,7 +73,6 @@ func ImportFromDir(
 	strategy Strategy,
 	updatedBy string,
 ) (*Result, error) {
-	_ = config.FromContext(ctx)
 	if project == "" {
 		return nil, fmt.Errorf("project is required")
 	}
@@ -122,7 +120,6 @@ func ImportFromDir(
 			bodies,
 			ids,
 			strategy,
-			trimmedUpdatedBy,
 		)
 		if err != nil {
 			return nil, err
@@ -186,9 +183,7 @@ func applyForType(
 	bodies []map[string]any,
 	ids []string,
 	strategy Strategy,
-	updatedBy string,
 ) (imported int, skipped int, overwritten int, err error) {
-	trimmedUpdatedBy := strings.TrimSpace(updatedBy)
 	for i := range bodies {
 		id := ids[i]
 		body := bodies[i]
@@ -201,7 +196,7 @@ func applyForType(
 			} else if err != nil && !errors.Is(err, resources.ErrNotFound) {
 				return 0, 0, 0, fmt.Errorf("get existing %s/%s: %w", string(typ), id, err)
 			}
-			if _, _, err := upsertResource(ctx, store, typ, project, id, "", trimmedUpdatedBy, body); err != nil {
+			if _, _, err := upsertResource(ctx, store, typ, project, id, "", body); err != nil {
 				return 0, 0, 0, fmt.Errorf("create %s/%s: %w", string(typ), id, err)
 			}
 			imported++
@@ -209,7 +204,7 @@ func applyForType(
 			_, existingETag, err := store.Get(ctx, key)
 			if err != nil {
 				if errors.Is(err, resources.ErrNotFound) {
-					if _, _, err := upsertResource(ctx, store, typ, project, id, "", trimmedUpdatedBy, body); err != nil {
+					if _, _, err := upsertResource(ctx, store, typ, project, id, "", body); err != nil {
 						return 0, 0, 0, fmt.Errorf("create %s/%s: %w", string(typ), id, err)
 					}
 					imported++
@@ -224,7 +219,6 @@ func applyForType(
 				project,
 				id,
 				string(existingETag),
-				trimmedUpdatedBy,
 				body,
 			)
 			if err != nil {
@@ -273,10 +267,8 @@ func upsertResource(
 	project string,
 	id string,
 	ifMatch string,
-	updatedBy string,
 	body map[string]any,
 ) (resources.ETag, bool, error) {
-	_ = updatedBy
 	if handler, ok := standardUpsertHandlers[typ]; ok {
 		return handler(ctx, store, project, id, ifMatch, body)
 	}

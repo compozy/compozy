@@ -18,7 +18,6 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/webhook"
-	pkgcfg "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -626,7 +625,6 @@ func (w *Config) Compile(
 	proj *project.Config,
 	store resources.ResourceStore,
 ) (compiled *Config, err error) {
-	_ = pkgcfg.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	compileDur, compileCnt := setupCompileMetrics()
 	started := time.Now()

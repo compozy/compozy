@@ -2,13 +2,11 @@ package uc
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/engine/resourceutil"
-	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/config"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 )
 
 type ListInput struct {
@@ -38,7 +36,6 @@ func NewList(store resources.ResourceStore) *List {
 }
 
 func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error) {
-	_ = config.FromContext(ctx)
 	if in == nil {
 		return nil, ErrInvalidInput
 	}
@@ -98,12 +95,12 @@ func (uc *List) workflowTasks(ctx context.Context, project string, workflowID st
 	key := resources.ResourceKey{Project: project, Type: resources.ResourceWorkflow, ID: workflowID}
 	value, _, err := uc.store.Get(ctx, key)
 	if err != nil {
-		if err == resources.ErrNotFound {
+		if errors.Is(err, resources.ErrNotFound) {
 			return nil, ErrWorkflowNotFound
 		}
 		return nil, err
 	}
-	wf, err := decodeWorkflow(value, workflowID)
+	wf, err := resourceutil.DecodeStoredWorkflow(value, workflowID)
 	if err != nil {
 		return nil, err
 	}
@@ -134,29 +131,4 @@ func filterTasksBySet(items []resources.StoredItem, allow map[string]struct{}) [
 	return out
 }
 
-func decodeWorkflow(value any, id string) (*workflow.Config, error) {
-	switch v := value.(type) {
-	case *workflow.Config:
-		if strings.TrimSpace(v.ID) == "" {
-			v.ID = id
-		}
-		return v, nil
-	case workflow.Config:
-		clone := v
-		if strings.TrimSpace(clone.ID) == "" {
-			clone.ID = id
-		}
-		return &clone, nil
-	case map[string]any:
-		cfg := &workflow.Config{}
-		if err := cfg.FromMap(v); err != nil {
-			return nil, fmt.Errorf("decode workflow: %w", err)
-		}
-		if strings.TrimSpace(cfg.ID) == "" {
-			cfg.ID = id
-		}
-		return cfg, nil
-	default:
-		return nil, fmt.Errorf("decode workflow: unsupported type %T", value)
-	}
-}
+// unified workflow decoding is provided by resourceutil.DecodeStoredWorkflow

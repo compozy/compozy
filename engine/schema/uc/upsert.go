@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/engine/auth/userctx"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -35,7 +34,6 @@ func NewUpsert(store resources.ResourceStore) *Upsert {
 }
 
 func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, error) {
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if in == nil {
 		return nil, ErrInvalidInput
@@ -86,27 +84,14 @@ func (uc *Upsert) storeSchema(
 	sc *schema.Schema,
 	ifMatch string,
 ) (resources.ETag, bool, error) {
-	trimmed := strings.TrimSpace(ifMatch)
-	if trimmed != "" {
-		etag, err := uc.store.PutIfMatch(ctx, key, sc, resources.ETag(trimmed))
-		switch {
-		case errors.Is(err, resources.ErrETagMismatch):
-			return "", false, ErrETagMismatch
-		case errors.Is(err, resources.ErrNotFound):
-			return "", false, ErrStaleIfMatch
-		case err != nil:
-			return "", false, fmt.Errorf("upsert schema: %w", err)
-		}
-		return etag, false, nil
-	}
-	_, _, err := uc.store.Get(ctx, key)
-	created := errors.Is(err, resources.ErrNotFound)
-	if err != nil && !created {
-		return "", false, fmt.Errorf("inspect schema: %w", err)
-	}
-	etag, putErr := uc.store.Put(ctx, key, sc)
-	if putErr != nil {
-		return "", false, fmt.Errorf("put schema: %w", putErr)
+	etag, created, err := resources.ConditionalUpsert(ctx, uc.store, key, sc, ifMatch)
+	switch {
+	case errors.Is(err, resources.ErrETagMismatch):
+		return "", false, ErrETagMismatch
+	case errors.Is(err, resources.ErrNotFound) && strings.TrimSpace(ifMatch) != "":
+		return "", false, ErrStaleIfMatch
+	case err != nil:
+		return "", false, fmt.Errorf("upsert schema: %w", err)
 	}
 	return etag, created, nil
 }
