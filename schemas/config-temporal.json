@@ -1,22 +1,23 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "config-temporal.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "TemporalConfig contains Temporal workflow engine configuration.",
   "properties": {
     "host_port": {
-      "type": "string",
-      "description": "HostPort specifies the Temporal server endpoint.\n\nFormat: `host:port`\nDefault: \"localhost:7233\""
+      "description": "HostPort specifies the Temporal server endpoint.\n\nFormat: `host:port`\nDefault: \"localhost:7233\"",
+      "type": "string"
     },
     "namespace": {
-      "type": "string",
-      "description": "Namespace isolates workflows within Temporal.\n\nUse different namespaces for:\n  - Environment separation (dev, staging, prod)\n  - Multi-tenant deployments\n  - Workflow versioning\nDefault: \"default\""
+      "description": "Namespace isolates workflows within Temporal.\n\nUse different namespaces for:\n  - Environment separation (dev, staging, prod)\n  - Multi-tenant deployments\n  - Workflow versioning\nDefault: \"default\"",
+      "type": "string"
     },
     "task_queue": {
-      "type": "string",
-      "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-tasks\""
+      "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-tasks\"",
+      "type": "string"
     }
   },
-  "additionalProperties": false,
+  "title": "Temporal Configuration",
   "type": "object",
-  "description": "TemporalConfig contains Temporal workflow engine configuration.",
   "yamlCompatible": true
 }

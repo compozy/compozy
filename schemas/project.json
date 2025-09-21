@@ -340,6 +340,7 @@
       "type": "array"
     }
   },
+  "title": "Project Configuration",
   "type": "object",
   "yamlCompatible": true
 }

@@ -1,28 +1,25 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "webhook.json",
   "$defs": {
     "DedupeSpec": {
+      "additionalProperties": false,
+      "description": "DedupeSpec controls idempotency behavior for webhook requests.",
       "properties": {
         "enabled": {
           "type": "boolean"
         },
-        "ttl": {
+        "key": {
           "type": "string"
         },
-        "key": {
+        "ttl": {
           "type": "string"
         }
       },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "DedupeSpec controls idempotency behavior for webhook requests."
+      "type": "object"
     },
     "EventConfig": {
+      "additionalProperties": false,
+      "description": "EventConfig defines a single routable event within a webhook trigger.",
       "properties": {
-        "name": {
-          "type": "string"
-        },
         "filter": {
           "type": "string"
         },
@@ -32,43 +29,45 @@
           },
           "type": "object"
         },
+        "name": {
+          "type": "string"
+        },
         "schema": {
           "$ref": "#/$defs/Schema"
         }
       },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "EventConfig defines a single routable event within a webhook trigger."
+      "type": "object"
     },
     "Schema": {
       "type": "object"
     },
     "VerifySpec": {
+      "additionalProperties": false,
+      "description": "VerifySpec defines signature verification options for webhook requests.",
       "properties": {
-        "strategy": {
+        "header": {
           "type": "string"
         },
         "secret": {
           "type": "string"
         },
-        "header": {
-          "type": "string"
-        },
         "skew": {
           "type": "integer"
+        },
+        "strategy": {
+          "type": "string"
         }
       },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "VerifySpec defines signature verification options for webhook requests."
+      "type": "object"
     }
   },
+  "$id": "webhook.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Config represents per-workflow webhook settings and routing events.",
   "properties": {
-    "slug": {
-      "type": "string"
-    },
-    "method": {
-      "type": "string"
+    "dedupe": {
+      "$ref": "#/$defs/DedupeSpec"
     },
     "events": {
       "items": {
@@ -76,15 +75,17 @@
       },
       "type": "array"
     },
+    "method": {
+      "type": "string"
+    },
+    "slug": {
+      "type": "string"
+    },
     "verify": {
       "$ref": "#/$defs/VerifySpec"
-    },
-    "dedupe": {
-      "$ref": "#/$defs/DedupeSpec"
     }
   },
-  "additionalProperties": false,
+  "title": "Webhook Configuration",
   "type": "object",
-  "description": "Config represents per-workflow webhook settings and routing events.",
   "yamlCompatible": true
 }

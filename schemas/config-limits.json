@@ -1,34 +1,43 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "config-limits.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "LimitsConfig contains system limits and constraints.",
   "properties": {
-    "max_nesting_depth": {
-      "type": "integer",
-      "description": "MaxNestingDepth limits JSON/YAML structure nesting.\n\nPrevents stack overflow from deeply nested data.\nDefault: 20"
+    "max_config_file_nesting_depth": {
+      "description": "MaxConfigFileNestingDepth limits nesting depth when parsing configuration files.\n\nPrevents stack overflow from deeply nested YAML documents supplied by users.\nDefault: 100",
+      "type": "integer"
     },
-    "max_string_length": {
-      "type": "integer",
-      "description": "MaxStringLength limits individual string values.\n\nApplies to all string fields in requests and responses.\nDefault: 10MB (10485760 bytes)"
+    "max_config_file_size": {
+      "description": "MaxConfigFileSize limits configuration file size during loads.\n\nPrevents memory exhaustion when loading large YAML/JSON documents.\nDefault: 10MB (10485760 bytes)",
+      "type": "integer"
     },
     "max_message_content": {
-      "type": "integer",
-      "description": "MaxMessageContent limits LLM message content size.\n\nPrevents excessive API costs and timeouts.\nDefault: 50MB (52428800 bytes)"
+      "description": "MaxMessageContent limits LLM message content size.\n\nPrevents excessive API costs and timeouts.\nDefault: 50MB (52428800 bytes)",
+      "type": "integer"
     },
-    "max_total_content_size": {
-      "type": "integer",
-      "description": "MaxTotalContentSize limits total request/response size.\n\nPrevents memory exhaustion from large payloads.\nDefault: 100MB (104857600 bytes)"
+    "max_nesting_depth": {
+      "description": "MaxNestingDepth limits JSON/YAML structure nesting.\n\nPrevents stack overflow from deeply nested data.\nDefault: 20",
+      "type": "integer"
+    },
+    "max_string_length": {
+      "description": "MaxStringLength limits individual string values.\n\nApplies to all string fields in requests and responses.\nDefault: 10MB (10485760 bytes)",
+      "type": "integer"
     },
     "max_task_context_depth": {
-      "type": "integer",
-      "description": "MaxTaskContextDepth limits task execution stack depth.\n\nPrevents infinite recursion in workflow execution.\nDefault: 10"
+      "description": "MaxTaskContextDepth limits task execution stack depth.\n\nPrevents infinite recursion in workflow execution.\nDefault: 10",
+      "type": "integer"
+    },
+    "max_total_content_size": {
+      "description": "MaxTotalContentSize limits total request/response size.\n\nPrevents memory exhaustion from large payloads.\nDefault: 100MB (104857600 bytes)",
+      "type": "integer"
     },
     "parent_update_batch_size": {
-      "type": "integer",
-      "description": "ParentUpdateBatchSize controls database update batching.\n\nLarger batches improve throughput but increase memory usage.\nDefault: 100"
+      "description": "ParentUpdateBatchSize controls database update batching.\n\nLarger batches improve throughput but increase memory usage.\nDefault: 100",
+      "type": "integer"
     }
   },
-  "additionalProperties": false,
+  "title": "Limits Configuration",
   "type": "object",
-  "description": "LimitsConfig contains system limits and constraints.",
   "yamlCompatible": true
 }

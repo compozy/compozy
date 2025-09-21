@@ -326,6 +326,7 @@
       "type": "string"
     }
   },
+  "title": "Workflow Configuration",
   "type": "object",
   "yamlCompatible": true
 }

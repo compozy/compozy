@@ -1,80 +1,81 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "config-llm.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "LLMConfig contains LLM service configuration.",
   "properties": {
-    "proxy_url": {
-      "type": "string",
-      "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"\" (empty; supply MCP proxy URL explicitly or derive from MCPProxy.BaseURL)"
-    },
-    "mcp_readiness_timeout": {
-      "type": "integer",
-      "description": "MCPReadinessTimeout bounds how long to wait for MCP clients to connect during setup.\nDefault: 60s"
-    },
-    "mcp_readiness_poll_interval": {
-      "type": "integer",
-      "description": "MCPReadinessPollInterval sets how often to poll the proxy for MCP connection status.\nDefault: 200ms"
-    },
-    "mcp_header_template_strict": {
-      "type": "boolean",
-      "description": "MCPHeaderTemplateStrict enables strict template validation for MCP HTTP headers.\nWhen true, allows only simple lookups (no pipelines/function calls/inclusions).\nDefault: false"
-    },
-    "retry_attempts": {
-      "type": "integer",
-      "description": "RetryAttempts configures the number of retry attempts for LLM operations.\n\nControls how many times the orchestrator will retry failed LLM requests\nbefore giving up. Higher values improve reliability but may increase latency.\nDefault: 3"
-    },
-    "retry_backoff_base": {
-      "type": "integer",
-      "description": "RetryBackoffBase sets the base delay for exponential backoff retry strategy.\n\nThe actual delay will be calculated as base * (2 ^ attempt) with optional jitter.\nLower values retry faster, higher values reduce server load.\nDefault: 100ms"
-    },
-    "retry_backoff_max": {
-      "type": "integer",
-      "description": "RetryBackoffMax limits the maximum delay between retry attempts.\n\nPrevents exponential backoff from creating extremely long delays.\nShould be set based on user tolerance for response time.\nDefault: 10s"
-    },
-    "retry_jitter": {
-      "type": "boolean",
-      "description": "RetryJitter enables random jitter in retry delays to avoid thundering herd.\n\nWhen enabled, adds randomness to retry delays to prevent all clients\nfrom retrying simultaneously. Improves system stability under load.\nDefault: true"
-    },
-    "max_concurrent_tools": {
-      "type": "integer",
-      "description": "MaxConcurrentTools limits the number of tools that can execute in parallel.\n\nControls resource usage and prevents overwhelming downstream services.\nHigher values improve throughput, lower values reduce resource contention.\nDefault: 10"
-    },
-    "max_tool_iterations": {
-      "type": "integer",
-      "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 100 (registry default)"
-    },
-    "max_sequential_tool_errors": {
-      "type": "integer",
-      "description": "MaxSequentialToolErrors caps how many sequential tool execution/content errors\nare tolerated for the same tool before aborting the task. Set to 0 to use\nthe orchestrator's built-in default.\nDefault: 10 (registry default)"
-    },
     "allowed_mcp_names": {
+      "description": "AllowedMCPNames restricts which MCP servers/tools are considered eligible\nfor advertisement and invocation. When empty, all discovered MCP tools\nare eligible.",
       "items": {
         "type": "string"
       },
-      "type": "array",
-      "description": "AllowedMCPNames restricts which MCP servers/tools are considered eligible\nfor advertisement and invocation. When empty, all discovered MCP tools\nare eligible."
+      "type": "array"
     },
     "fail_on_mcp_registration_error": {
-      "type": "boolean",
-      "description": "FailOnMCPRegistrationError enforces fail-fast behavior when registering\nMCP configurations sourced from agents/projects. When true, MCP\nregistration failures cause service initialization to error."
+      "description": "FailOnMCPRegistrationError enforces fail-fast behavior when registering\nMCP configurations sourced from agents/projects. When true, MCP\nregistration failures cause service initialization to error.",
+      "type": "boolean"
+    },
+    "max_concurrent_tools": {
+      "description": "MaxConcurrentTools limits the number of tools that can execute in parallel.\n\nControls resource usage and prevents overwhelming downstream services.\nHigher values improve throughput, lower values reduce resource contention.\nDefault: 10",
+      "type": "integer"
+    },
+    "max_sequential_tool_errors": {
+      "description": "MaxSequentialToolErrors caps how many sequential tool execution/content errors\nare tolerated for the same tool before aborting the task. Set to 0 to use\nthe orchestrator's built-in default.\nDefault: 10 (registry default)",
+      "type": "integer"
+    },
+    "max_tool_iterations": {
+      "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 100 (registry default)",
+      "type": "integer"
+    },
+    "mcp_client_timeout": {
+      "description": "MCPClientTimeout sets the HTTP client timeout for MCP proxy communication.",
+      "type": "integer"
+    },
+    "mcp_header_template_strict": {
+      "description": "MCPHeaderTemplateStrict enables strict template validation for MCP HTTP headers.\nWhen true, allows only simple lookups (no pipelines/function calls/inclusions).\nDefault: false",
+      "type": "boolean"
+    },
+    "mcp_readiness_poll_interval": {
+      "description": "MCPReadinessPollInterval sets how often to poll the proxy for MCP connection status.\nDefault: 200ms",
+      "type": "integer"
+    },
+    "mcp_readiness_timeout": {
+      "description": "MCPReadinessTimeout bounds how long to wait for MCP clients to connect during setup.\nDefault: 60s",
+      "type": "integer"
+    },
+    "proxy_url": {
+      "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"\" (empty; supply MCP proxy URL explicitly or derive from MCPProxy.BaseURL)",
+      "type": "string"
     },
     "register_mcps": {
+      "description": "RegisterMCPs contains additional MCP configurations to be registered\nwith the MCP proxy at runtime. Represented as a generic slice to avoid\nimport cycles with engine packages.",
       "items": {
         "type": "object"
       },
-      "type": "array",
-      "description": "RegisterMCPs contains additional MCP configurations to be registered\nwith the MCP proxy at runtime. Represented as a generic slice to avoid\nimport cycles with engine packages."
+      "type": "array"
     },
-    "mcp_client_timeout": {
-      "type": "integer",
-      "description": "MCPClientTimeout sets the HTTP client timeout for MCP proxy communication."
+    "retry_attempts": {
+      "description": "RetryAttempts configures the number of retry attempts for LLM operations.\n\nControls how many times the orchestrator will retry failed LLM requests\nbefore giving up. Higher values improve reliability but may increase latency.\nDefault: 3",
+      "type": "integer"
+    },
+    "retry_backoff_base": {
+      "description": "RetryBackoffBase sets the base delay for exponential backoff retry strategy.\n\nThe actual delay will be calculated as base * (2 ^ attempt) with optional jitter.\nLower values retry faster, higher values reduce server load.\nDefault: 100ms",
+      "type": "integer"
+    },
+    "retry_backoff_max": {
+      "description": "RetryBackoffMax limits the maximum delay between retry attempts.\n\nPrevents exponential backoff from creating extremely long delays.\nShould be set based on user tolerance for response time.\nDefault: 10s",
+      "type": "integer"
+    },
+    "retry_jitter": {
+      "description": "RetryJitter enables random jitter in retry delays to avoid thundering herd.\n\nWhen enabled, adds randomness to retry delays to prevent all clients\nfrom retrying simultaneously. Improves system stability under load.\nDefault: true",
+      "type": "boolean"
     },
     "retry_jitter_percent": {
-      "type": "integer",
-      "description": "RetryJitterPercent controls jitter strength when retry_jitter is enabled."
+      "description": "RetryJitterPercent controls jitter strength when retry_jitter is enabled.",
+      "type": "integer"
     }
   },
-  "additionalProperties": false,
+  "title": "LLM Configuration",
   "type": "object",
-  "description": "LLMConfig contains LLM service configuration.",
   "yamlCompatible": true
 }

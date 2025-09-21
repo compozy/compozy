@@ -1,9 +1,12 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "config-server.json",
   "$defs": {
     "AuthConfig": {
+      "additionalProperties": false,
+      "description": "AuthConfig contains authentication configuration.",
       "properties": {
+        "admin_key": {
+          "type": "string"
+        },
         "enabled": {
           "type": "boolean"
         },
@@ -12,65 +15,53 @@
             "type": "string"
           },
           "type": "array"
-        },
-        "admin_key": {
-          "type": "string"
         }
       },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "AuthConfig contains authentication configuration."
+      "type": "object"
     },
     "CORSConfig": {
+      "additionalProperties": false,
+      "description": "CORSConfig contains CORS configuration.",
       "properties": {
+        "allow_credentials": {
+          "type": "boolean"
+        },
         "allowed_origins": {
           "items": {
             "type": "string"
           },
           "type": "array"
         },
-        "allow_credentials": {
-          "type": "boolean"
-        },
         "max_age": {
           "type": "integer"
         }
       },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "CORSConfig contains CORS configuration."
+      "type": "object"
     },
     "ReconcilerConfig": {
+      "additionalProperties": false,
+      "description": "ReconcilerConfig defines tunable options for the workflow reconciler.",
       "properties": {
-        "queue_capacity": {
+        "debounce_max_wait": {
           "type": "integer"
         },
         "debounce_wait": {
           "type": "integer"
         },
-        "debounce_max_wait": {
+        "queue_capacity": {
           "type": "integer"
         }
       },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "ReconcilerConfig defines tunable options for the workflow reconciler."
+      "type": "object"
     },
     "ServerTimeouts": {
+      "additionalProperties": false,
+      "description": "ServerTimeouts defines tunable durations for server operations.",
       "properties": {
-        "monitoring_init": {
-          "type": "integer"
-        },
-        "monitoring_shutdown": {
-          "type": "integer"
-        },
         "db_shutdown": {
           "type": "integer"
         },
-        "worker_shutdown": {
-          "type": "integer"
-        },
-        "server_shutdown": {
+        "http_idle": {
           "type": "integer"
         },
         "http_read": {
@@ -79,82 +70,92 @@
         "http_write": {
           "type": "integer"
         },
-        "http_idle": {
+        "monitoring_init": {
           "type": "integer"
         },
-        "schedule_retry_max_duration": {
+        "monitoring_shutdown": {
+          "type": "integer"
+        },
+        "schedule_retry_backoff_seconds": {
+          "description": "ScheduleRetryBackoffSeconds sets the base backoff in seconds used to build\nthe exponential backoff for reconciliation retries. If zero, a sensible\ndefault is applied in code.",
           "type": "integer"
         },
         "schedule_retry_base_delay": {
           "type": "integer"
         },
+        "schedule_retry_max_attempts": {
+          "description": "ScheduleRetryMaxAttempts limits the number of reconciliation retry attempts.\nWhen set to a value \u003e= 1, this takes precedence over ScheduleRetryMaxDuration.",
+          "type": "integer"
+        },
         "schedule_retry_max_delay": {
           "type": "integer"
         },
-        "schedule_retry_max_attempts": {
-          "type": "integer",
-          "description": "ScheduleRetryMaxAttempts limits the number of reconciliation retry attempts.\nWhen set to a value \u003e= 1, this takes precedence over ScheduleRetryMaxDuration."
+        "schedule_retry_max_duration": {
+          "type": "integer"
         },
-        "schedule_retry_backoff_seconds": {
-          "type": "integer",
-          "description": "ScheduleRetryBackoffSeconds sets the base backoff in seconds used to build\nthe exponential backoff for reconciliation retries. If zero, a sensible\ndefault is applied in code."
-        },
-        "temporal_reachability": {
+        "server_shutdown": {
           "type": "integer"
         },
         "start_probe_delay": {
           "type": "integer"
+        },
+        "temporal_reachability": {
+          "type": "integer"
+        },
+        "worker_shutdown": {
+          "type": "integer"
         }
       },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "ServerTimeouts defines tunable durations for server operations."
+      "type": "object"
     }
   },
+  "$id": "config-server.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "ServerConfig contains HTTP server configuration.",
   "properties": {
-    "host": {
-      "type": "string",
-      "description": "Host specifies the network interface to bind the server to.\n\nCommon values:\n  - `\"0.0.0.0\"`: Listen on all interfaces (default)\n  - `\"127.0.0.1\"` or `\"localhost\"`: Local access only\n  - Specific IP: Bind to a specific network interface"
-    },
-    "port": {
-      "type": "integer",
-      "description": "Port specifies the TCP port for the HTTP server.\n\nValid range: 1-65535. Common ports:\n  - `8080`: Default development port\n  - `80`: Standard HTTP (requires privileges)\n  - `443`: Standard HTTPS (requires privileges)"
-    },
-    "cors_enabled": {
-      "type": "boolean",
-      "description": "CORSEnabled enables Cross-Origin Resource Sharing headers.\n\nSet to `true` when the API is accessed from web browsers on different origins."
+    "auth": {
+      "$ref": "#/$defs/AuthConfig",
+      "description": "Auth configures API authentication settings."
     },
     "cors": {
       "$ref": "#/$defs/CORSConfig",
       "description": "CORS configures Cross-Origin Resource Sharing policies.\n\nOnly applies when CORSEnabled is true."
     },
-    "timeout": {
-      "type": "integer",
-      "description": "Timeout sets the maximum duration for processing requests.\n\nApplies to all HTTP operations including request reading, processing, and response writing.\nDefault: 30s. Increase for long-running operations."
+    "cors_enabled": {
+      "description": "CORSEnabled enables Cross-Origin Resource Sharing headers.\n\nSet to `true` when the API is accessed from web browsers on different origins.",
+      "type": "boolean"
     },
-    "auth": {
-      "$ref": "#/$defs/AuthConfig",
-      "description": "Auth configures API authentication settings."
+    "host": {
+      "description": "Host specifies the network interface to bind the server to.\n\nCommon values:\n  - `\"0.0.0.0\"`: Listen on all interfaces (default)\n  - `\"127.0.0.1\"` or `\"localhost\"`: Local access only\n  - Specific IP: Bind to a specific network interface",
+      "type": "string"
     },
-    "timeouts": {
-      "$ref": "#/$defs/ServerTimeouts",
-      "description": "Timeouts contains operator-tunable timeouts and retry/backoff settings\nfor server startup, shutdown, and HTTP behavior.\n\n$ref: schema://application#server.timeouts"
-    },
-    "source_of_truth": {
-      "type": "string",
-      "description": "SourceOfTruth selects where the server loads workflows from.\n\nValues:\n  - \"repo\": load YAML from repository and index to store (default)\n  - \"builder\": load workflows from ResourceStore (compile-from-store)"
-    },
-    "seed_from_repo_on_empty": {
-      "type": "boolean",
-      "description": "SeedFromRepoOnEmpty controls whether builder mode seeds the store from\nrepository YAML once when the store is empty. Disabled by default."
+    "port": {
+      "description": "Port specifies the TCP port for the HTTP server.\n\nValid range: 1-65535. Common ports:\n  - `8080`: Default development port\n  - `80`: Standard HTTP (requires privileges)\n  - `443`: Standard HTTPS (requires privileges)",
+      "type": "integer"
     },
     "reconciler": {
       "$ref": "#/$defs/ReconcilerConfig",
       "description": "Reconciler configures the workflow reconciler subsystem."
+    },
+    "seed_from_repo_on_empty": {
+      "description": "SeedFromRepoOnEmpty controls whether builder mode seeds the store from\nrepository YAML once when the store is empty. Disabled by default.",
+      "type": "boolean"
+    },
+    "source_of_truth": {
+      "description": "SourceOfTruth selects where the server loads workflows from.\n\nValues:\n  - \"repo\": load YAML from repository and index to store (default)\n  - \"builder\": load workflows from ResourceStore (compile-from-store)",
+      "type": "string"
+    },
+    "timeout": {
+      "description": "Timeout sets the maximum duration for processing requests.\n\nApplies to all HTTP operations including request reading, processing, and response writing.\nDefault: 30s. Increase for long-running operations.",
+      "type": "integer"
+    },
+    "timeouts": {
+      "$ref": "#/$defs/ServerTimeouts",
+      "description": "Timeouts contains operator-tunable timeouts and retry/backoff settings\nfor server startup, shutdown, and HTTP behavior.\n\n$ref: schema://application#server.timeouts"
     }
   },
-  "additionalProperties": false,
+  "title": "Server Configuration",
   "type": "object",
-  "description": "ServerConfig contains HTTP server configuration.",
   "yamlCompatible": true
 }

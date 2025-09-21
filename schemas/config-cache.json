@@ -1,46 +1,47 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "config-cache.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "CacheConfig contains cache-specific configuration settings.",
   "properties": {
-    "enabled": {
-      "type": "boolean",
-      "description": "Enabled determines if caching is active.\n\nWhen disabled, all cache operations become no-ops.\nUseful for debugging or when Redis is unavailable.\n\n**Default**: `true`"
-    },
-    "ttl": {
-      "type": "integer",
-      "description": "TTL sets the default time-to-live for cached items.\n\nBalances data freshness with cache efficiency.\nCan be overridden per operation.\n\n**Default**: `24h`"
-    },
-    "prefix": {
-      "type": "string",
-      "description": "Prefix namespaces cache keys in Redis.\n\nPrevents key collisions when sharing Redis with other applications.\nFormat: `\"\u003capp\u003e:\u003cenvironment\u003e:cache:\"`\n\n**Default**: `\"compozy:cache:\"`"
-    },
-    "max_item_size": {
-      "type": "integer",
-      "description": "MaxItemSize limits the maximum size of a single cached item.\n\nPrevents large objects from consuming excessive memory.\nItems larger than this are not cached.\n\n**Default**: `1048576` (1MB)"
-    },
     "compression_enabled": {
-      "type": "boolean",
-      "description": "CompressionEnabled activates data compression for cached items.\n\nReduces memory usage and network bandwidth at the cost of CPU.\nUses gzip compression for items above CompressionThreshold.\n\n**Default**: `true`"
+      "description": "CompressionEnabled activates data compression for cached items.\n\nReduces memory usage and network bandwidth at the cost of CPU.\nUses gzip compression for items above CompressionThreshold.\n\n**Default**: `true`",
+      "type": "boolean"
     },
     "compression_threshold": {
-      "type": "integer",
-      "description": "CompressionThreshold sets the minimum size for compression.\n\nItems smaller than this are stored uncompressed to avoid\nCPU overhead for minimal space savings.\n\n**Default**: `1024` (1KB)"
+      "description": "CompressionThreshold sets the minimum size for compression.\n\nItems smaller than this are stored uncompressed to avoid\nCPU overhead for minimal space savings.\n\n**Default**: `1024` (1KB)",
+      "type": "integer"
+    },
+    "enabled": {
+      "description": "Enabled determines if caching is active.\n\nWhen disabled, all cache operations become no-ops.\nUseful for debugging or when Redis is unavailable.\n\n**Default**: `true`",
+      "type": "boolean"
     },
     "eviction_policy": {
-      "type": "string",
-      "description": "EvictionPolicy controls how items are removed when cache is full.\n\nOptions:\n  - `\"lru\"`: Least Recently Used (default)\n  - `\"lfu\"`: Least Frequently Used\n  - `\"ttl\"`: Time-based expiration only\n\n**Default**: `\"lru\"`"
-    },
-    "stats_interval": {
-      "type": "integer",
-      "description": "StatsInterval controls how often cache statistics are logged.\n\nSet to 0 to disable statistics logging.\nUseful for monitoring cache hit rates and performance.\n\n**Default**: `5m`"
+      "description": "EvictionPolicy controls how items are removed when cache is full.\n\nOptions:\n  - `\"lru\"`: Least Recently Used (default)\n  - `\"lfu\"`: Least Frequently Used\n  - `\"ttl\"`: Time-based expiration only\n\n**Default**: `\"lru\"`",
+      "type": "string"
     },
     "key_scan_count": {
-      "type": "integer",
-      "description": "KeyScanCount controls the COUNT hint used by Redis SCAN for key iteration.\nLarger values reduce round-trips but may increase per-iteration latency.\nSet to a positive integer; defaults to 100."
+      "description": "KeyScanCount controls the COUNT hint used by Redis SCAN for key iteration.\nLarger values reduce round-trips but may increase per-iteration latency.\nSet to a positive integer; defaults to 100.",
+      "type": "integer"
+    },
+    "max_item_size": {
+      "description": "MaxItemSize limits the maximum size of a single cached item.\n\nPrevents large objects from consuming excessive memory.\nItems larger than this are not cached.\n\n**Default**: `1048576` (1MB)",
+      "type": "integer"
+    },
+    "prefix": {
+      "description": "Prefix namespaces cache keys in Redis.\n\nPrevents key collisions when sharing Redis with other applications.\nFormat: `\"\u003capp\u003e:\u003cenvironment\u003e:cache:\"`\n\n**Default**: `\"compozy:cache:\"`",
+      "type": "string"
+    },
+    "stats_interval": {
+      "description": "StatsInterval controls how often cache statistics are logged.\n\nSet to 0 to disable statistics logging.\nUseful for monitoring cache hit rates and performance.\n\n**Default**: `5m`",
+      "type": "integer"
+    },
+    "ttl": {
+      "description": "TTL sets the default time-to-live for cached items.\n\nBalances data freshness with cache efficiency.\nCan be overridden per operation.\n\n**Default**: `24h`",
+      "type": "integer"
     }
   },
-  "additionalProperties": false,
+  "title": "Cache Configuration",
   "type": "object",
-  "description": "CacheConfig contains cache-specific configuration settings.",
   "yamlCompatible": true
 }

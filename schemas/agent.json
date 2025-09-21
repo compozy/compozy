@@ -5,8 +5,33 @@
       "description": "ActionConfig defines a structured action that an agent can perform.",
       "properties": {
         "attachments": {
-          "$ref": "#/$defs/Attachments",
-          "description": "Attachments at action scope"
+          "description": "Attachments available at this configuration scope.",
+          "items": {
+            "discriminator": {
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/AttachmentImage"
+              },
+              {
+                "$ref": "#/$defs/AttachmentPDF"
+              },
+              {
+                "$ref": "#/$defs/AttachmentAudio"
+              },
+              {
+                "$ref": "#/$defs/AttachmentVideo"
+              },
+              {
+                "$ref": "#/$defs/AttachmentURL"
+              },
+              {
+                "$ref": "#/$defs/AttachmentFile"
+              }
+            ]
+          },
+          "type": "array"
         },
         "id": {
           "description": "Unique identifier for the action within the agent's scope.\nUsed to invoke specific actions programmatically.\n\n- **Examples:** `\"analyze-code\"`, `\"generate-summary\"`, `\"validate-data\"`",
@@ -35,10 +60,236 @@
       },
       "type": "object"
     },
-    "Attachments": {
-      "description": "Attachments is a slice of polymorphic Attachment values with custom decoding.",
-      "items": true,
-      "type": "array"
+    "AttachmentAudio": {
+      "$id": "https://github.com/compozy/compozy/engine/attachment/audio-attachment",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Audio attachment supporting URL or path sources.",
+      "properties": {
+        "meta": {
+          "type": "object"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "audio",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "urls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "AttachmentFile": {
+      "$id": "https://github.com/compozy/compozy/engine/attachment/file-attachment",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Local file attachment resolved from the project workspace.",
+      "properties": {
+        "meta": {
+          "type": "object"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "const": "file",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "AttachmentImage": {
+      "$id": "https://github.com/compozy/compozy/engine/attachment/image-attachment",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Image attachment supporting URL or path sources.",
+      "properties": {
+        "meta": {
+          "type": "object"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "image",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "urls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "AttachmentPDF": {
+      "$id": "https://github.com/compozy/compozy/engine/attachment/pdf-attachment",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "PDF attachment with optional page limits and multiple sources.",
+      "properties": {
+        "max_pages": {
+          "type": "integer"
+        },
+        "meta": {
+          "type": "object"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "pdf",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "urls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "AttachmentURL": {
+      "$id": "https://github.com/compozy/compozy/engine/attachment/url-attachment",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "External URL attachment.",
+      "properties": {
+        "meta": {
+          "type": "object"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "const": "url",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "AttachmentVideo": {
+      "$id": "https://github.com/compozy/compozy/engine/attachment/video-attachment",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Video attachment supporting URL or path sources.",
+      "properties": {
+        "meta": {
+          "type": "object"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "video",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "urls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
     },
     "EnvMap": {
       "additionalProperties": {
@@ -179,8 +430,33 @@
       "type": "array"
     },
     "attachments": {
-      "$ref": "#/$defs/Attachments",
-      "description": "Attachments declared at the agent scope."
+      "description": "Attachments available at this configuration scope.",
+      "items": {
+        "discriminator": {
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/AttachmentImage"
+          },
+          {
+            "$ref": "#/$defs/AttachmentPDF"
+          },
+          {
+            "$ref": "#/$defs/AttachmentAudio"
+          },
+          {
+            "$ref": "#/$defs/AttachmentVideo"
+          },
+          {
+            "$ref": "#/$defs/AttachmentURL"
+          },
+          {
+            "$ref": "#/$defs/AttachmentFile"
+          }
+        ]
+      },
+      "type": "array"
     },
     "env": {
       "$ref": "#/$defs/EnvMap",
@@ -236,6 +512,7 @@
       "description": "Default input parameters passed to the agent on every invocation.\nThese values are merged with runtime inputs, with runtime values taking precedence.\n\n**Use cases:**\n- Setting default configuration values\n- Providing constant context or settings\n- Injecting workflow-level parameters"
     }
   },
+  "title": "Agent Configuration",
   "type": "object",
   "yamlCompatible": true
 }

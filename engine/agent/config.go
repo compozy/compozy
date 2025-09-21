@@ -162,7 +162,7 @@ type Config struct {
 	// During compile/link, string refs are resolved and merged with inline
 	// fields following project precedence rules. Defaults are filled from the
 	// project when neither ref nor inline identity is provided.
-	Model Model `json:"model,omitempty" yaml:"model,omitempty" mapstructure:"model,omitempty"`
+	Model Model `json:"model" yaml:"model,omitempty" mapstructure:"model,omitempty"`
 
 	// Attachments declared at the agent scope.
 	Attachments attachment.Attachments `json:"attachments,omitempty" yaml:"attachments,omitempty" mapstructure:"attachments,omitempty"`

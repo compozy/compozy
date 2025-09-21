@@ -1,8 +1,8 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "config-worker.json",
   "$defs": {
     "WorkerDispatcherConfig": {
+      "additionalProperties": false,
+      "description": "WorkerDispatcherConfig holds dispatcher heartbeat tracking configuration.",
       "properties": {
         "heartbeat_ttl": {
           "type": "integer"
@@ -11,47 +11,48 @@
           "type": "integer"
         }
       },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "WorkerDispatcherConfig holds dispatcher heartbeat tracking configuration."
+      "type": "object"
     }
   },
+  "$id": "config-worker.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "WorkerConfig contains Temporal worker configuration.",
   "properties": {
     "config_store_ttl": {
-      "type": "integer",
-      "description": "ConfigStoreTTL sets how long worker configurations are cached.\n\n**Default**: `24h`"
-    },
-    "heartbeat_cleanup_timeout": {
-      "type": "integer",
-      "description": "HeartbeatCleanupTimeout sets timeout for heartbeat cleanup operations.\n\n**Default**: `5s`"
-    },
-    "mcp_shutdown_timeout": {
-      "type": "integer",
-      "description": "MCPShutdownTimeout sets timeout for MCP server shutdown.\n\n**Default**: `30s`"
-    },
-    "dispatcher_retry_delay": {
-      "type": "integer",
-      "description": "DispatcherRetryDelay sets delay between dispatcher retry attempts.\n\n**Default**: `50ms`"
-    },
-    "dispatcher_max_retries": {
-      "type": "integer",
-      "description": "DispatcherMaxRetries sets maximum dispatcher retry attempts.\n\n**Default**: `2`"
-    },
-    "mcp_proxy_health_check_timeout": {
-      "type": "integer",
-      "description": "MCPProxyHealthCheckTimeout sets timeout for MCP proxy health checks.\n\n**Default**: `10s`"
-    },
-    "start_workflow_timeout": {
-      "type": "integer",
-      "description": "StartWorkflowTimeout bounds the HTTP handler's call to start a\nworkflow execution to avoid hanging requests when Temporal is slow\nor unreachable. If zero or negative, a safe default is used.\n\n**Default**: `5s`"
+      "description": "ConfigStoreTTL sets how long worker configurations are cached.\n\n**Default**: `24h`",
+      "type": "integer"
     },
     "dispatcher": {
       "$ref": "#/$defs/WorkerDispatcherConfig",
       "description": "Dispatcher defines heartbeat tracking for dispatcher leases."
+    },
+    "dispatcher_max_retries": {
+      "description": "DispatcherMaxRetries sets maximum dispatcher retry attempts.\n\n**Default**: `2`",
+      "type": "integer"
+    },
+    "dispatcher_retry_delay": {
+      "description": "DispatcherRetryDelay sets delay between dispatcher retry attempts.\n\n**Default**: `50ms`",
+      "type": "integer"
+    },
+    "heartbeat_cleanup_timeout": {
+      "description": "HeartbeatCleanupTimeout sets timeout for heartbeat cleanup operations.\n\n**Default**: `5s`",
+      "type": "integer"
+    },
+    "mcp_proxy_health_check_timeout": {
+      "description": "MCPProxyHealthCheckTimeout sets timeout for MCP proxy health checks.\n\n**Default**: `10s`",
+      "type": "integer"
+    },
+    "mcp_shutdown_timeout": {
+      "description": "MCPShutdownTimeout sets timeout for MCP server shutdown.\n\n**Default**: `30s`",
+      "type": "integer"
+    },
+    "start_workflow_timeout": {
+      "description": "StartWorkflowTimeout bounds the HTTP handler's call to start a\nworkflow execution to avoid hanging requests when Temporal is slow\nor unreachable. If zero or negative, a safe default is used.\n\n**Default**: `5s`",
+      "type": "integer"
     }
   },
-  "additionalProperties": false,
+  "title": "Worker Configuration",
   "type": "object",
-  "description": "WorkerConfig contains Temporal worker configuration.",
   "yamlCompatible": true
 }

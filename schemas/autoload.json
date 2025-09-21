@@ -1,36 +1,37 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "autoload.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Config represents the autoload configuration for automatically discovering and loading resources.",
   "properties": {
     "enabled": {
-      "type": "boolean",
-      "description": "Enabled determines whether autoload functionality is active.\n\nWhen `true`, Compozy will automatically discover and load resources\nmatching the patterns specified in `include`. When `false`, all resources\nmust be explicitly defined in workflow configurations.\n\n**Default**: `false` (explicit resource definition required)"
-    },
-    "strict": {
-      "type": "boolean",
-      "description": "Strict controls error handling when resources cannot be loaded.\n\nWhen `true` (default), any failure to load a discovered resource\nwill cause the workflow to fail immediately. When `false`, load\nerrors are logged but workflow execution continues.\n\n**Use cases for non-strict mode**:\n  - Development environments with partial resources\n  - Graceful degradation in production\n  - Migration periods when refactoring resources\n\n**Default**: `true` (fail on any load error)"
-    },
-    "include": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array",
-      "description": "Include specifies glob patterns for discovering resources.\n\n**Common patterns**:\n  - `\"agents/*.yaml\"` - Direct children only\n  - `\"agents/**/*.yaml\"` - All nested files\n  - `\"tools/*-tool.yaml\"` - Files ending with \"-tool\"\n  - `\"memory/*/config.yaml\"` - Config files in subdirectories\n\n**Required when**: `enabled` is `true`"
+      "description": "Enabled determines whether autoload functionality is active.\n\nWhen `true`, Compozy will automatically discover and load resources\nmatching the patterns specified in `include`. When `false`, all resources\nmust be explicitly defined in workflow configurations.\n\n**Default**: `false` (explicit resource definition required)",
+      "type": "boolean"
     },
     "exclude": {
+      "description": "Exclude specifies patterns for files to ignore during discovery.\n\n**Common exclusion patterns**:\n  - `\"**/*-test.yaml\"` - Test fixtures\n  - `\"**/*-draft.yaml\"` - Work in progress\n  - `\"**/archive/**\"` - Archived resources\n  - `\"**/.backup/**\"` - Backup directories",
       "items": {
         "type": "string"
       },
-      "type": "array",
-      "description": "Exclude specifies patterns for files to ignore during discovery.\n\n**Common exclusion patterns**:\n  - `\"**/*-test.yaml\"` - Test fixtures\n  - `\"**/*-draft.yaml\"` - Work in progress\n  - `\"**/archive/**\"` - Archived resources\n  - `\"**/.backup/**\"` - Backup directories"
+      "type": "array"
+    },
+    "include": {
+      "description": "Include specifies glob patterns for discovering resources.\n\n**Common patterns**:\n  - `\"agents/*.yaml\"` - Direct children only\n  - `\"agents/**/*.yaml\"` - All nested files\n  - `\"tools/*-tool.yaml\"` - Files ending with \"-tool\"\n  - `\"memory/*/config.yaml\"` - Config files in subdirectories\n\n**Required when**: `enabled` is `true`",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "strict": {
+      "description": "Strict controls error handling when resources cannot be loaded.\n\nWhen `true` (default), any failure to load a discovered resource\nwill cause the workflow to fail immediately. When `false`, load\nerrors are logged but workflow execution continues.\n\n**Use cases for non-strict mode**:\n  - Development environments with partial resources\n  - Graceful degradation in production\n  - Migration periods when refactoring resources\n\n**Default**: `true` (fail on any load error)",
+      "type": "boolean"
     },
     "watch_enabled": {
-      "type": "boolean",
-      "description": "WatchEnabled activates file system monitoring for hot reloading.\n\nWhen `true`, Compozy monitors included directories for changes\nand automatically reloads modified resources without restarting.\nThis is particularly useful during development.\n\n**Note**: Watch mode may impact performance in directories with\nmany files. Use specific include patterns to limit scope.\n\n**Default**: `false`"
+      "description": "WatchEnabled activates file system monitoring for hot reloading.\n\nWhen `true`, Compozy monitors included directories for changes\nand automatically reloads modified resources without restarting.\nThis is particularly useful during development.\n\n**Note**: Watch mode may impact performance in directories with\nmany files. Use specific include patterns to limit scope.\n\n**Default**: `false`",
+      "type": "boolean"
     }
   },
-  "additionalProperties": false,
+  "title": "Autoload Configuration",
   "type": "object",
-  "description": "Config represents the autoload configuration for automatically discovering and loading resources.",
   "yamlCompatible": true
 }

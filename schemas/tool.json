@@ -65,6 +65,7 @@
       "description": "Default input parameters merged with runtime parameters provided by agents.\nProvides a way to set tool defaults while allowing runtime customization.\n\n- **Merge strategy:** Runtime parameters override defaults (shallow merge)\n- **Use cases:** Default API URLs, fallback configurations, preset options\n- **Security note:** Avoid storing secrets here; use environment variables instead"
     }
   },
+  "title": "Tool Configuration",
   "type": "object",
   "yamlCompatible": true
 }

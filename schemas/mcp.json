@@ -1,56 +1,57 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "mcp.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Config represents a **Model Context Protocol (MCP)** server configuration.",
   "properties": {
-    "resource": {
-      "type": "string",
-      "description": "Resource reference for the MCP server (optional)\n\nIf not specified, defaults to the value of ID.\nUsed for resource identification and referencing in Compozy's resource system."
-    },
-    "id": {
-      "type": "string",
-      "description": "ID is the **unique identifier** for this MCP server configuration.\n\nThis identifier is used throughout the system to reference this specific MCP server.\nChoose descriptive IDs that reflect the server's purpose.\n\n- **Examples**:\n- `filesystem` - for file system operations\n- `postgres-db` - for PostgreSQL database access\n- `github-api` - for GitHub integration\n- `python-runtime` - for Python code execution"
-    },
-    "url": {
-      "type": "string",
-      "description": "URL is the **endpoint for remote MCP servers**.\n\nRequired for HTTP-based transports (SSE, streamable-http).\nMust be a valid HTTP or HTTPS URL pointing to an MCP-compatible endpoint.\n\n**Format**: `http[s]://host[:port]/path`\n\n- **Examples**:\n```yaml\nurl: \"http://localhost:3000/mcp\"\nurl: \"https://api.example.com/v1/mcp\"\nurl: \"http://mcp-proxy:6001/filesystem\"\n```\n\n**Note**: Mutually exclusive with `command` - use either URL or Command, not both."
-    },
     "command": {
-      "type": "string",
-      "description": "Command is the **executable command** to spawn a local MCP server process.\n\nUsed for stdio transport to run MCP servers as child processes.\nSupports both direct executables and complex commands with arguments.\n\n- **Examples**:\n```yaml\n# Simple executable\ncommand: \"mcp-server-filesystem\"\n\n# Command with arguments\ncommand: \"python /app/mcp_server.py --mode production\"\n\n# Docker container\ncommand: \"docker run --rm -i mcp/postgres:latest\"\n```\n\n**Security Note**: Commands are parsed using shell lexing for safety.\nAvoid user-provided input in commands."
-    },
-    "headers": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "type": "object",
-      "description": "Headers contains HTTP headers to include when connecting to remote MCP servers (SSE/HTTP).\nUseful for passing Authorization tokens, custom auth headers, or version negotiation.\nExample:\nheaders:\n  Authorization: \"Bearer {{ .env.GITHUB_MCP_OAUTH_TOKEN }}\""
+      "description": "Command is the **executable command** to spawn a local MCP server process.\n\nUsed for stdio transport to run MCP servers as child processes.\nSupports both direct executables and complex commands with arguments.\n\n- **Examples**:\n```yaml\n# Simple executable\ncommand: \"mcp-server-filesystem\"\n\n# Command with arguments\ncommand: \"python /app/mcp_server.py --mode production\"\n\n# Docker container\ncommand: \"docker run --rm -i mcp/postgres:latest\"\n```\n\n**Security Note**: Commands are parsed using shell lexing for safety.\nAvoid user-provided input in commands.",
+      "type": "string"
     },
     "env": {
       "additionalProperties": {
         "type": "string"
       },
-      "type": "object",
-      "description": "Env contains **environment variables** to pass to the MCP server process.\n\nOnly used when `command` is specified for spawning local processes.\nUseful for passing configuration, secrets, or runtime parameters.\n\n- **Examples**:\n```yaml\nenv:\n  DATABASE_URL: \"postgres://user:pass@localhost/db\"\n  API_KEY: \"{{ .env.GITHUB_TOKEN }}\"\n  LOG_LEVEL: \"debug\"\n  WORKSPACE_DIR: \"/data/workspace\"\n```\n\n**Template Support**: Values can use Go template syntax to reference\nenvironment variables from the host system."
+      "description": "Env contains **environment variables** to pass to the MCP server process.\n\nOnly used when `command` is specified for spawning local processes.\nUseful for passing configuration, secrets, or runtime parameters.\n\n- **Examples**:\n```yaml\nenv:\n  DATABASE_URL: \"postgres://user:pass@localhost/db\"\n  API_KEY: \"{{ .env.GITHUB_TOKEN }}\"\n  LOG_LEVEL: \"debug\"\n  WORKSPACE_DIR: \"/data/workspace\"\n```\n\n**Template Support**: Values can use Go template syntax to reference\nenvironment variables from the host system.",
+      "type": "object"
     },
-    "proto": {
-      "type": "string",
-      "description": "Proto specifies the **MCP protocol version** to use.\n\nDifferent protocol versions may support different features, message formats,\nor capabilities. Always use the version compatible with your MCP server.\n\n**Format**: `YYYY-MM-DD` (e.g., \"2025-03-26\")\n\n**Default**: `DefaultProtocolVersion` (\"2025-03-26\")\n\n**Version History**:\n- `2025-03-26` - Latest version with streaming support\n- `2024-12-01` - Initial protocol release"
+    "headers": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Headers contains HTTP headers to include when connecting to remote MCP servers (SSE/HTTP).\nUseful for passing Authorization tokens, custom auth headers, or version negotiation.\nExample:\nheaders:\n  Authorization: \"Bearer {{ .env.GITHUB_MCP_OAUTH_TOKEN }}\"",
+      "type": "object"
     },
-    "transport": {
-      "type": "string",
-      "description": "Transport defines the **communication transport mechanism**.\n\nChoose the transport based on your MCP server's capabilities and deployment model.\n\n**Supported Values**:\n\n| Transport | Description | Use Case |\n|-----------|-------------|----------|\n| `sse` | Server-Sent Events | HTTP servers with real-time streaming |\n| `streamable-http` | HTTP with streaming | Large responses, file transfers |\n| `stdio` | Standard I/O | Local processes, Docker containers |\n\n**Default**: `sse`\n\n- **Examples**:\n```yaml\n# Remote server with SSE\ntransport: sse\n\n# Local process with stdio\ntransport: stdio\n\n# HTTP server with large file support\ntransport: streamable-http\n```"
-    },
-    "start_timeout": {
-      "type": "integer",
-      "description": "StartTimeout is the **maximum time to wait** for the MCP server to start.\n\nOnly applicable when using `command` to spawn local processes.\nHelps detect and handle startup failures gracefully.\n\n**Format**: Go duration string (e.g., \"30s\", \"1m\", \"500ms\")\n\n**Default**: No timeout (waits indefinitely)\n\n- **Examples**:\n```yaml\nstart_timeout: 30s   # Wait up to 30 seconds\nstart_timeout: 2m    # Wait up to 2 minutes\nstart_timeout: 500ms # Wait up to 500 milliseconds\n```\n\n**Recommendation**: Set to at least 10-30s for Docker-based servers."
+    "id": {
+      "description": "ID is the **unique identifier** for this MCP server configuration.\n\nThis identifier is used throughout the system to reference this specific MCP server.\nChoose descriptive IDs that reflect the server's purpose.\n\n- **Examples**:\n- `filesystem` - for file system operations\n- `postgres-db` - for PostgreSQL database access\n- `github-api` - for GitHub integration\n- `python-runtime` - for Python code execution",
+      "type": "string"
     },
     "max_sessions": {
-      "type": "integer",
-      "description": "MaxSessions defines the **maximum number of concurrent sessions** allowed.\n\nHelps manage resource usage and prevent server overload.\nEach agent connection typically creates one session.\n\n**Values**:\n- `0` or negative: Unlimited sessions (default)\n- Positive number: Maximum concurrent sessions\n\n- **Examples**:\n```yaml\nmax_sessions: 10  # Allow up to 10 concurrent connections\nmax_sessions: 1   # Single session only (useful for stateful servers)\nmax_sessions: 0   # Unlimited sessions\n```"
+      "description": "MaxSessions defines the **maximum number of concurrent sessions** allowed.\n\nHelps manage resource usage and prevent server overload.\nEach agent connection typically creates one session.\n\n**Values**:\n- `0` or negative: Unlimited sessions (default)\n- Positive number: Maximum concurrent sessions\n\n- **Examples**:\n```yaml\nmax_sessions: 10  # Allow up to 10 concurrent connections\nmax_sessions: 1   # Single session only (useful for stateful servers)\nmax_sessions: 0   # Unlimited sessions\n```",
+      "type": "integer"
+    },
+    "proto": {
+      "description": "Proto specifies the **MCP protocol version** to use.\n\nDifferent protocol versions may support different features, message formats,\nor capabilities. Always use the version compatible with your MCP server.\n\n**Format**: `YYYY-MM-DD` (e.g., \"2025-03-26\")\n\n**Default**: `DefaultProtocolVersion` (\"2025-03-26\")\n\n**Version History**:\n- `2025-03-26` - Latest version with streaming support\n- `2024-12-01` - Initial protocol release",
+      "type": "string"
+    },
+    "resource": {
+      "description": "Resource reference for the MCP server (optional)\n\nIf not specified, defaults to the value of ID.\nUsed for resource identification and referencing in Compozy's resource system.",
+      "type": "string"
+    },
+    "start_timeout": {
+      "description": "StartTimeout is the **maximum time to wait** for the MCP server to start.\n\nOnly applicable when using `command` to spawn local processes.\nHelps detect and handle startup failures gracefully.\n\n**Format**: Go duration string (e.g., \"30s\", \"1m\", \"500ms\")\n\n**Default**: No timeout (waits indefinitely)\n\n- **Examples**:\n```yaml\nstart_timeout: 30s   # Wait up to 30 seconds\nstart_timeout: 2m    # Wait up to 2 minutes\nstart_timeout: 500ms # Wait up to 500 milliseconds\n```\n\n**Recommendation**: Set to at least 10-30s for Docker-based servers.",
+      "type": "integer"
+    },
+    "transport": {
+      "description": "Transport defines the **communication transport mechanism**.\n\nChoose the transport based on your MCP server's capabilities and deployment model.\n\n**Supported Values**:\n\n| Transport | Description | Use Case |\n|-----------|-------------|----------|\n| `sse` | Server-Sent Events | HTTP servers with real-time streaming |\n| `streamable-http` | HTTP with streaming | Large responses, file transfers |\n| `stdio` | Standard I/O | Local processes, Docker containers |\n\n**Default**: `sse`\n\n- **Examples**:\n```yaml\n# Remote server with SSE\ntransport: sse\n\n# Local process with stdio\ntransport: stdio\n\n# HTTP server with large file support\ntransport: streamable-http\n```",
+      "type": "string"
+    },
+    "url": {
+      "description": "URL is the **endpoint for remote MCP servers**.\n\nRequired for HTTP-based transports (SSE, streamable-http).\nMust be a valid HTTP or HTTPS URL pointing to an MCP-compatible endpoint.\n\n**Format**: `http[s]://host[:port]/path`\n\n- **Examples**:\n```yaml\nurl: \"http://localhost:3000/mcp\"\nurl: \"https://api.example.com/v1/mcp\"\nurl: \"http://mcp-proxy:6001/filesystem\"\n```\n\n**Note**: Mutually exclusive with `command` - use either URL or Command, not both.",
+      "type": "string"
     }
   },
-  "additionalProperties": false,
+  "title": "MCP Configuration",
   "type": "object",
-  "description": "Config represents a **Model Context Protocol (MCP)** server configuration.",
   "yamlCompatible": true
 }

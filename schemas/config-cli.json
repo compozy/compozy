@@ -65,6 +65,7 @@
       "type": "integer"
     }
   },
+  "title": "CLI Configuration",
   "type": "object",
   "yamlCompatible": true
 }

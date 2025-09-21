@@ -1,46 +1,47 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "config-database.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "DatabaseConfig contains database connection configuration.",
   "properties": {
+    "auto_migrate": {
+      "description": "AutoMigrate enables automatic database migrations on startup.\n\nWhen enabled, the system will automatically apply any pending database\nmigrations when establishing a database connection. This eliminates\nthe need for manual migration commands.\n\nDefault: true",
+      "type": "boolean"
+    },
     "conn_string": {
-      "type": "string",
-      "description": "ConnString provides a complete PostgreSQL connection URL.\n\nFormat: `postgres://user:password@host:port/database?sslmode=mode`\nTakes precedence over individual connection parameters."
+      "description": "ConnString provides a complete PostgreSQL connection URL.\n\nFormat: `postgres://user:password@host:port/database?sslmode=mode`\nTakes precedence over individual connection parameters.",
+      "type": "string"
     },
     "host": {
-      "type": "string",
-      "description": "Host specifies the database server hostname or IP address.\n\nDefault: \"localhost\""
-    },
-    "port": {
-      "type": "string",
-      "description": "Port specifies the database server port.\n\nDefault: \"5432\" (PostgreSQL default)"
-    },
-    "user": {
-      "type": "string",
-      "description": "User specifies the database username for authentication."
-    },
-    "password": {
-      "type": "string",
-      "description": "Password specifies the database password for authentication.\n\n**Security**: Use environment variables in production."
-    },
-    "name": {
-      "type": "string",
-      "description": "DBName specifies the database name to connect to.\n\nDefault: \"compozy\""
-    },
-    "ssl_mode": {
-      "type": "string",
-      "description": "SSLMode configures SSL/TLS connection security.\n\nOptions:\n  - `\"disable\"`: No SSL (development only)\n  - `\"prefer\"`: Try SSL, fallback to non-SSL\n  - `\"require\"`: SSL required (recommended)\n  - `\"verify-ca\"`: SSL with CA verification\n  - `\"verify-full\"`: SSL with full verification"
-    },
-    "auto_migrate": {
-      "type": "boolean",
-      "description": "AutoMigrate enables automatic database migrations on startup.\n\nWhen enabled, the system will automatically apply any pending database\nmigrations when establishing a database connection. This eliminates\nthe need for manual migration commands.\n\nDefault: true"
+      "description": "Host specifies the database server hostname or IP address.\n\nDefault: \"localhost\"",
+      "type": "string"
     },
     "migration_timeout": {
-      "type": "integer",
-      "description": "MigrationTimeout sets the maximum allowed time for applying database\nmigrations during startup. It must be equal to or greater than the\nadvisory lock acquisition window used by ApplyMigrationsWithLock (45s).\n\nDefault: 2m"
+      "description": "MigrationTimeout sets the maximum allowed time for applying database\nmigrations during startup. It must be equal to or greater than the\nadvisory lock acquisition window used by ApplyMigrationsWithLock (45s).\n\nDefault: 2m",
+      "type": "integer"
+    },
+    "name": {
+      "description": "DBName specifies the database name to connect to.\n\nDefault: \"compozy\"",
+      "type": "string"
+    },
+    "password": {
+      "description": "Password specifies the database password for authentication.\n\n**Security**: Use environment variables in production.",
+      "type": "string"
+    },
+    "port": {
+      "description": "Port specifies the database server port.\n\nDefault: \"5432\" (PostgreSQL default)",
+      "type": "string"
+    },
+    "ssl_mode": {
+      "description": "SSLMode configures SSL/TLS connection security.\n\nOptions:\n  - `\"disable\"`: No SSL (development only)\n  - `\"prefer\"`: Try SSL, fallback to non-SSL\n  - `\"require\"`: SSL required (recommended)\n  - `\"verify-ca\"`: SSL with CA verification\n  - `\"verify-full\"`: SSL with full verification",
+      "type": "string"
+    },
+    "user": {
+      "description": "User specifies the database username for authentication.",
+      "type": "string"
     }
   },
-  "additionalProperties": false,
+  "title": "Database Configuration",
   "type": "object",
-  "description": "DatabaseConfig contains database connection configuration.",
   "yamlCompatible": true
 }

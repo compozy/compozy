@@ -1,18 +1,19 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "monitoring.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Config defines the monitoring and observability configuration for Compozy.",
   "properties": {
     "enabled": {
-      "type": "boolean",
-      "description": "Enabled activates the monitoring endpoint and metric collection.\n\nWhen `true`, Compozy will:\n  - Start collecting internal metrics (CPU, memory, goroutines)\n  - Track workflow and task execution metrics\n  - Expose metrics at the configured path\n  - Enable custom metric registration\n\n**Default**: `false` (no metrics collection)\n\n**Environment variable**: `MONITORING_ENABLED`"
+      "description": "Enabled activates the monitoring endpoint and metric collection.\n\nWhen `true`, Compozy will:\n  - Start collecting internal metrics (CPU, memory, goroutines)\n  - Track workflow and task execution metrics\n  - Expose metrics at the configured path\n  - Enable custom metric registration\n\n**Default**: `false` (no metrics collection)\n\n**Environment variable**: `MONITORING_ENABLED`",
+      "type": "boolean"
     },
     "path": {
-      "type": "string",
-      "description": "Path specifies the HTTP endpoint for exposing metrics.\n\nThis endpoint returns metrics in Prometheus exposition format,\ncompatible with:\n  - Prometheus scraping\n  - Grafana agent\n  - VictoriaMetrics\n  - Other Prometheus-compatible systems\n\n**Requirements**:\n  - Must start with `/`\n  - Cannot conflict with API routes (`/api/*`)\n  - Should not contain query parameters\n\n**Common paths**:\n  - `/metrics` - Standard Prometheus convention\n  - `/internal/metrics` - For internal-only access\n  - `/monitoring/metrics` - Namespaced approach\n\n**Default**: `/metrics`\n\n**Environment variable**: `MONITORING_PATH`"
+      "description": "Path specifies the HTTP endpoint for exposing metrics.\n\nThis endpoint returns metrics in Prometheus exposition format,\ncompatible with:\n  - Prometheus scraping\n  - Grafana agent\n  - VictoriaMetrics\n  - Other Prometheus-compatible systems\n\n**Requirements**:\n  - Must start with `/`\n  - Cannot conflict with API routes (`/api/*`)\n  - Should not contain query parameters\n\n**Common paths**:\n  - `/metrics` - Standard Prometheus convention\n  - `/internal/metrics` - For internal-only access\n  - `/monitoring/metrics` - Namespaced approach\n\n**Default**: `/metrics`\n\n**Environment variable**: `MONITORING_PATH`",
+      "type": "string"
     }
   },
-  "additionalProperties": false,
+  "title": "Monitoring Configuration",
   "type": "object",
-  "description": "Config defines the monitoring and observability configuration for Compozy.",
   "yamlCompatible": true
 }

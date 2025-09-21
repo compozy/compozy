@@ -2,7 +2,7 @@ Title: Compozy Tech Spec — Replace PostgreSQL With Redis
 
 Status: Draft for review
 Owner: Platform/Infra
-Last updated: 2025-09-19
+Last updated: 2025-09-20
 
 Summary
 
@@ -70,9 +70,13 @@ High-Level Design (To-Be)
 3. Data modeling in Redis (keys, values, indexes)
    General guidance:
    - Store primary entities as JSON values under object keys; maintain secondary indexes explicitly. Prefer SET (string) with JSON payloads for objects; use SETs (SADD/SMEMBERS) or sorted sets (ZADD/ZSCORE/ZRANGE) for indexes. Use Lua for multi-key atomic updates where a write touches multiple keys.
-   - Namespacing: prefix all keys with a clear domain. Examples below use compozy: prefix for clarity.
+   - Namespacing: prefix all keys with an explicit version and environment to support multi-tenant safety and future clustering. Recommended form: `compozy:v1:<env>:<domain>:...` and include a tenant slug when applicable: `{compozy:v1:<env>:<tenant>}:<domain>:...` (hash tag braces group tenant keys on a single slot in Redis Cluster).
+   - Index correctness guardrails (required):
+     - Single write funnel: expose only one internal Upsert API per entity; all writes must go through the corresponding Lua script.
+     - Sentinel hash per object: maintain a tiny `:idx` HASH adjacent to each object containing only fields that indexes depend on (e.g., for tasks: `status`, `agent_id`, `tool_id`, `parent_id`, `workflow_exec_id`, `task_id`). Scripts read previous values from this hash to remove stale index memberships without JSON parsing.
+     - Version field: persist a monotonically increasing `version` for every object and increment it on each write. Scripts can short-circuit when no indexed field changed and callers can detect lost-update races.
 
-     3.1) Auth
+       3.1) Auth
 
    - User
      - Key: compozy:auth:user:<user_id> → JSON(User)
@@ -90,7 +94,7 @@ High-Level Design (To-Be)
    - Object: compozy:wf:state:<workflow_exec_id> → JSON(workflow.State)
    - Index by workflow_id: compozy:wf:states_by_id:<workflow_id> (SET of workflow_exec_id)
    - Index by status: compozy:wf:states_by_id_status:<workflow_id>:<status> (SET)
-   - Optional sorted order: compozy:wf:created_at (ZSET score=unix_ts, member=workflow_exec_id) if ordering becomes necessary.
+   - Required sorted order: maintain compozy:wf:created_at (ZSET score=unix_ts, member=workflow_exec_id) to provide "latest first" listings without client-side sorts.
 
      3.3) Task state
 
@@ -102,16 +106,16 @@ High-Level Design (To-Be)
    - Parent-child mapping:
      - compozy:task:children:<parent_state_id> (SET of child task_exec_ids)
      - compozy:task:child_by_taskid:<parent_state_id> (HASH task_id → task_exec_id) for GetChildByTaskID
-   - Optional sorted views (created_at desc): ZSETs per parent for fast “latest first” queries when needed, e.g. compozy:task:by_parent_created:<parent_state_id> (ZSET score=created_unix_ts, member=task_exec_id).
+   - Required sorted views (created_at desc): ZSETs per parent and per workflow for fast "latest first" queries, e.g. compozy:task:by_parent_created:<parent_state_id> and compozy:task:by_wfexec_created:<workflow_exec_id> (ZSET score=created_unix_ts, member=task_exec_id).
 
    Notes:
    - We do not rely on RedisJSON; plain JSON values and explicit indexes keep dependencies minimal and align with existing patterns in engine/resources and engine/memory.
    - Consistency is maintained by updating the object and all affected index keys atomically via Lua scripts or WATCH+TxPipelined (see Transactions section).
 
 4. Transactions, locking, and atomicity
-   - Optimistic transactions: Use go-redis WATCH with TxPipelined to implement Repository.WithTransaction where callers perform multiple operations that must be consistent. WATCH the primary object keys involved; inside the Tx pipeline, update the object and all indexes. If watched keys change, retry.
-   - Row-level “for update”: Implement task.Repository.GetStateForUpdate via Redis distributed locking using the existing lock manager (engine/infra/cache/lock_manager.go) with a lock key compozy:lock:task:<task_exec_id>. Acquire before read-modify-write critical sections.
-   - Lua for multi-key atomic updates: For single upsert operations that touch an object and several index keys (e.g., UpsertState), use EVAL with a script that (a) writes object (SET), (b) SADD/ZADD index entries, (c) removes stale index entries if key exists and fields changed. This ensures atomicity without extra round-trips and avoids WATCH retries in hot paths.
+   - Optimistic transactions: Use go-redis WATCH with TxPipelined to implement Repository.WithTransaction where callers perform multiple operations that must be consistent. WATCH the primary object keys involved; inside the Tx pipeline, update the object and all indexes. If watched keys change, retry with jittered backoff.
+   - Row-level “for update”: Implement task.Repository.GetStateForUpdate via Redis distributed locking using the existing lock manager (engine/infra/cache/lock_manager.go) with a lock key compozy:lock:task:<task_exec_id>. Standardize lock TTL to 5s, acquisition timeout to 50ms with jittered backoff (cap 500ms), and emit metrics for lock_wait, lock_acquired, lock_timeout, and hold_duration.
+   - Lua for multi-key atomic updates: For single upsert operations that touch an object and several index keys (e.g., UpsertState), use EVAL with a script that (a) writes object (SET), (b) SADD/ZADD index entries, (c) removes stale index entries based on previous values read from the `:idx` HASH, and (d) updates `version` and the sentinel hash. This ensures atomicity without extra round-trips and avoids WATCH retries in hot paths.
 
    References used to validate patterns (2025):
    - go-redis v9 supports WATCH/TxPipelined for optimistic transactions and Lua via Eval. See Redis client docs on pipelines/transactions and Redis optimistic locking.
@@ -147,6 +151,7 @@ High-Level Design (To-Be)
 6. Serialization & schema
    - Store the Go structs as canonical JSON using existing StableJSONBytes where applicable. Keep timestamps as RFC3339 or unix seconds consistently; choose unix seconds for ZSET scores.
    - Keep core.ID values as strings.
+   - Add `version` (int) to each persisted object and increment on each successful write.
 
 7. Error handling and observability
    - Always attach logger.FromContext(ctx). On Redis failures, include key type not sensitive values (e.g., log key kind like "apikey_fp" not the raw fingerprint) to avoid leaking secrets in logs.
@@ -167,6 +172,11 @@ High-Level Design (To-Be)
    - Backups: recommend AOF + periodic RDB snapshots for faster reload; include a short doc in /docs on redis persistence and backup strategy.
    - Security: enforce password, TLS as needed (config.Redis.TLSEnabled); consider ACLs in production.
    - Metrics: leverage existing OpenTelemetry and add counters around repo operations similar to Postgres code paths.
+   - Retention policy & TTLs:
+     - Terminal task states: apply TTL (configurable) with recommended range 7–30 days.
+     - Workflow states: apply TTL (configurable) with recommended range 30–90 days.
+     - Auth objects (users, API keys): no TTL.
+     - Document AOF rewrite cadence and snapshot schedule; add alerts when keyspace size exceeds configured budgets.
 
 10. Performance expectations
 
@@ -179,6 +189,7 @@ High-Level Design (To-Be)
 - Remove testcontainers Postgres dependencies from tests touching repos; retain Temporal and other unrelated tests.
 - Ensure race-free behavior using lock manager tests already present in engine/infra/cache.
 - Keep existing behavior-focused tests in domains (engine/auth/uc, engine/task, engine/workflow) unchanged; only swap repo implementations beneath them.
+- Shadow mode (dual read) in CI/E2E before flipping default: for a subset of requests, compare Redis responses with the existing Postgres path (or a golden snapshot) and surface any drift. Keep this validation green for at least one week prior to Phase 2.
 
 12. Migration Plan (phased PRs)
     Phase 0 — Prep (no behavior change)
@@ -192,9 +203,18 @@ Phase 1 — Wire Redis provider (behind feature flag initially)
 - Update server to choose provider based on config toggle (e.g., STORE_BACKEND=redis|postgres). Default to Postgres temporarily.
 - Add end-to-end tests that boot server with Redis backend using miniredis.
 
+Required improvements gating Phase 2 (must be merged while in Phase 1):
+
+- Index correctness guardrails in place: single write funnel per entity, `:idx` sentinel hash, and `version` field with scripts updated to add/remove stale index memberships.
+- Ordering ZSETs implemented for workflows and per-parent/per-wfexec task listings.
+- Retention policy implemented with config-driven TTLs for terminal tasks and workflows; auth without TTLs.
+- `compozy admin reindex` tool (dry-run + repair) for at least `task` and `workflow` entities; wired for nightly CI.
+- Shadow mode (dual-read) tests running in CI with discrepancy budget at 0 for 7 consecutive days.
+- Lock semantics standardized (TTL, acquisition timeout/backoff) with contention and WATCH retry metrics.
+
 Phase 2 — Default to Redis
 
-- Flip default STORE_BACKEND to redis.
+- Flip default STORE_BACKEND to redis only after all Phase-1 gates above are met.
 - Ensure make test and make lint green in CI.
 
 Phase 3 — Remove Postgres
@@ -206,20 +226,21 @@ Phase 3 — Remove Postgres
 13. Detailed Implementation Notes per Repository
 
 - AuthRepo (Redis):
-  - CreateUser(user): Lua script validates unique email via SETNX, writes object, SADD users; on error, roll back mappings.
+  - CreateUser(user): Lua script validates unique email via SETNX (normalize/lowercase email), writes object, SADD users; on error, roll back mappings. Maintain `compozy:auth:user:<id>:idx` with fields used by indexes and bump `version` on success.
   - GetUserByEmail: GET mapping then GET object.
-  - UpdateUser(user): If email changed, Lua to check/set new mapping, del old mapping, update object atomically.
+  - UpdateUser(user): If email changed, Lua to check/set new mapping, del old mapping, update object atomically; update `:idx` and `version`.
   - CreateAPIKey: Lua for SETNX fp mapping, write object, SADD keys_by_user. Keep prefix uniqueness via a mapping if required by current API.
-  - UpdateAPIKeyLastUsed: PATCH object; consider storing last_used in HASH if we switch APIKey storage to HASH in the future.
+  - UpdateAPIKeyLastUsed: PATCH object; consider storing last_used in a HASH to avoid full JSON rewrites (post-flip optimization).
 
 - WorkflowRepo (Redis):
-  - UpsertState: Lua to set object + ensure index membership for (workflow_id) and (workflow_id,status). Consider precomputing task membership snapshot only if required by callers.
-  - UpdateStatus: Lua that updates status sets (SREM from old, SADD to new) and rewrites object.
+  - UpsertState: Lua to set object + ensure index membership for (workflow_id) and (workflow_id,status); update `compozy:wf:state:<id>:idx` and `version`. Maintain membership in `compozy:wf:created_at` ZSET with score = created_unix_ts.
+  - UpdateStatus: Lua that updates status sets (SREM from old, SADD to new) and rewrites object; use previous values from `:idx` to avoid stale membership.
 
 - TaskRepo (Redis):
-  - UpsertState: Lua that writes object and updates all affected indexes (wfexec, status, agent, tool, parent mappings). If TaskID, Status, AgentID, ToolID change, the script removes stale memberships and adds new ones.
+  - UpsertState: Lua that writes object and updates all affected indexes (wfexec, status, agent, tool, parent mappings). Use values stored in `compozy:task:state:<id>:idx` to remove stale memberships when TaskID, Status, AgentID, ToolID, ParentID change; refresh the sentinel hash and bump `version`.
   - WithTransaction: provide WATCH-based wrapper for callers that need multi-object ops; expose a closure with a repo bound to a local key prefix (or capture the tx client) so all operations are guaranteed to run under the same WATCH context.
   - GetStateForUpdate: acquire lock via lock manager; document that lock is required for cross-object consistency where WATCH is not used.
+  - Ordering: maintain `compozy:task:by_parent_created:<parent_state_id>` and `compozy:task:by_wfexec_created:<workflow_exec_id>` ZSETs scored by created_unix_ts.
 
 14. Code Changes Checklist (surgical paths)
 
@@ -229,18 +250,19 @@ Phase 3 — Remove Postgres
 - Update: go.mod (remove pgx deps at Phase 3)
 - Remove (Phase 3): engine/infra/postgres/_; Makefile migrate-_ targets (or gate them behind Temporal only); cluster/docker-compose.yml app-postgresql service + volume
 - Docs: add /docs/redis-persistence.md with AOF/RDB guidance; update README quick start.
+- Admin tool: add `cmd/compozy-admin` with `redis reindex` (scan, diff, dry-run/repair) and `redis check-consistency` commands.
 
 15. Risks & Mitigations
 
-- Consistency: Multi-key updates can get out of sync if not done atomically → enforce Lua for writes that touch multiple keys; keep WATCH for complex cross-entity workflows.
+- Consistency: Multi-key updates can get out of sync if not done atomically → enforce Lua for writes that touch multiple keys; keep WATCH for complex cross-entity workflows; add sentinel `:idx` hashes + `version` fields per object and ship a reindex/consistency checker tool.
 - Query surface: Some SQL queries map to multiple SCAN/SMEMBERS calls → design dedicated indexes to match hot paths (already listed). Avoid SCAN in critical request paths; rely on sets.
-- Memory growth: Explicit indexes increase memory → monitor with Redis INFO and keyspace scans; prune indexes where rarely used.
+- Memory growth: Explicit indexes increase memory → apply TTLs to terminal states, add budgets and alerts, monitor with Redis INFO and keyspace scans; prune indexes where rarely used.
 - Locking semantics: Redlock vs simple locks → we already ship a lock manager; for single Redis deployment in dev/alpha, SET NX with TTL is adequate. Re-evaluate when sharding/cluster is introduced.
 - Durability: Enable AOF everysec; combine with RDB snapshots for faster recovery. Document trade-offs.
 
 16. Open Questions
 
-- Do we need ordering guarantees for task listings? If so, maintain per-parent ZSETs and per-workflow-exec ZSETs (created_at scores) to avoid client-side sorting.
+- (resolved) Ordering guarantees for task listings: ZSETs are required and implemented per parent and per workflow exec (see sections 3.2 and 3.3).
 - Do we need additional search/indexing (e.g., by action_id beyond exact match)? If fuzzy search emerges, consider Redis Search, but avoid adding Redis Stack in alpha.
 
 17. Rollout Plan
@@ -249,6 +271,13 @@ Phase 3 — Remove Postgres
 - Add CI job to run the whole test suite with STORE_BACKEND=redis using miniredis.
 - Flip default to Redis; monitor test flakes locally and in CI.
 - Remove Postgres code and targets; archive migrations in a /legacy folder if needed.
+
+18. Post-flip follow-ups (nice-to-haves)
+
+- Memory budgeting doc: per-object size estimates and index fan-out; alerts at 60/80/90% memory.
+- Hot index sharding plan: for very large sets (e.g., `task:by_wfexec:*`), shard by time buckets like `:d:YYYYMMDD` with union strategy if needed.
+- API Key fast-path: store `last_used` as a small HASH to avoid full JSON rewrites.
+- Extended property-based/chaos tests for write concurrency and index invariants.
 
 Appendix A — Example Key Schema (Auth)
 
@@ -283,6 +312,7 @@ Appendix C — Testing Notes
 
 - Use github.com/alicebob/miniredis/v2 in repo tests. Follow patterns in engine/infra/cache/\*\_test.go and engine/resources/redis_store_test.go.
 - Avoid external Docker dependencies for unit tests; reserve integration runs for end-to-end validation.
+- Add property-based tests that generate random upsert/delete sequences and assert object/index equivalence; include chaos tests with concurrent writers to validate sentinel-hash scripts and locking.
 
 Appendix D — What we will remove at Phase 3
 
@@ -295,3 +325,10 @@ Compliance Checklist
 - Context usage: All new code paths accept ctx and use logger.FromContext(ctx) and config.FromContext(ctx).
 - No globals: Use cache.SetupCache/NewRedis to obtain a client passed via provider wiring.
 - Tests: Ensure make lint and make test pass on each phase before merge.
+- Zen MCP: Run pre-change analysis for complex flows and post-change codereview; surface all recommendations/issues.
+
+Appendix E — Admin reindex tool (skeleton)
+
+- `compozy admin reindex --entity=task --dry-run` scans canonical object keys, recomputes expected index memberships, diffs, and can repair.
+- `compozy admin check-consistency` verifies sentinel `:idx` hashes and reports drift.
+- Run nightly in CI and before Phase 3 removal.

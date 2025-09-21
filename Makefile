@@ -154,10 +154,11 @@ swagger-validate:
 # Schema Generation
 # -----------------------------------------------------------------------------
 schemagen:
-	$(GOCMD) run pkg/schemagen/main.go -out=./schemas
+	$(GOCMD) run ./pkg/schemagen -out=./schemas
+	@cp -Rf ./schemas ../compozy-ui/backend/
 
 schemagen-watch:
-	$(GOCMD) run pkg/schemagen/main.go -out=./schemas -watch
+	$(GOCMD) run ./pkg/schemagen -out=./schemas -watch
 
 # -----------------------------------------------------------------------------
 # Release Management

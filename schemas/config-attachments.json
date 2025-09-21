@@ -1,22 +1,16 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "config-attachments.json",
   "$defs": {
     "AttachmentMIMEAllowlist": {
+      "additionalProperties": false,
+      "description": "AttachmentMIMEAllowlist holds allowed MIME types per category.",
       "properties": {
-        "image": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "audio": {
           "items": {
             "type": "string"
           },
           "type": "array"
         },
-        "video": {
+        "image": {
           "items": {
             "type": "string"
           },
@@ -27,57 +21,64 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "video": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "AttachmentMIMEAllowlist holds allowed MIME types per category."
+      "type": "object"
     }
   },
+  "$id": "config-attachments.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "AttachmentsConfig contains global limits and policies for attachment handling.",
   "properties": {
-    "max_download_size_bytes": {
-      "type": "integer",
-      "description": "MaxDownloadSizeBytes caps the maximum size (in bytes) for any single download.\nDefault: 10_000_000 (10MB)"
-    },
-    "download_timeout": {
-      "type": "integer",
-      "description": "DownloadTimeout sets the timeout for downloading a single attachment.\nDefault: 30s"
-    },
-    "max_redirects": {
-      "type": "integer",
-      "description": "MaxRedirects limits the number of HTTP redirects followed during download.\nDefault: 3"
-    },
     "allowed_mime_types": {
       "$ref": "#/$defs/AttachmentMIMEAllowlist",
       "description": "AllowedMIMETypes specifies MIME allowlists by content category.\n\nEmpty lists do not allow everything; they mean \"use built-in defaults\"\nper attachment type. Resolvers fall back to type heuristics when the\nallowlist for a category is empty."
     },
-    "temp_dir_quota_bytes": {
-      "type": "integer",
-      "description": "TempDirQuotaBytes optionally caps total temp storage used by attachment resolution.\n0 disables the quota."
-    },
-    "text_part_max_bytes": {
-      "type": "integer",
-      "description": "TextPartMaxBytes caps the number of bytes loaded from text files into LLM parts.\nDefault: 5_242_880 (5MB)"
-    },
-    "pdf_extract_max_chars": {
-      "type": "integer",
-      "description": "PDFExtractMaxChars caps the number of characters extracted from PDFs.\nDefault: 1_000_000"
+    "download_timeout": {
+      "description": "DownloadTimeout sets the timeout for downloading a single attachment.\nDefault: 30s",
+      "type": "integer"
     },
     "http_user_agent": {
-      "type": "string",
-      "description": "HTTPUserAgent sets the User-Agent header for outbound downloads.\nDefault: \"Compozy/1.0\""
+      "description": "HTTPUserAgent sets the User-Agent header for outbound downloads.\nDefault: \"Compozy/1.0\"",
+      "type": "string"
+    },
+    "max_download_size_bytes": {
+      "description": "MaxDownloadSizeBytes caps the maximum size (in bytes) for any single download.\nDefault: 10_000_000 (10MB)",
+      "type": "integer"
+    },
+    "max_redirects": {
+      "description": "MaxRedirects limits the number of HTTP redirects followed during download.\nDefault: 3",
+      "type": "integer"
     },
     "mime_head_max_bytes": {
-      "type": "integer",
-      "description": "MIMEHeadMaxBytes controls how many initial bytes are used for MIME detection.\nDefault: 512"
+      "description": "MIMEHeadMaxBytes controls how many initial bytes are used for MIME detection.\nDefault: 512",
+      "type": "integer"
+    },
+    "pdf_extract_max_chars": {
+      "description": "PDFExtractMaxChars caps the number of characters extracted from PDFs.\nDefault: 1_000_000",
+      "type": "integer"
     },
     "ssrf_strict": {
-      "type": "boolean",
-      "description": "SSRFStrict enforces blocking of local/loopback/private/multicast destinations even in tests.\nDefault: false"
+      "description": "SSRFStrict enforces blocking of local/loopback/private/multicast destinations even in tests.\nDefault: false",
+      "type": "boolean"
+    },
+    "temp_dir_quota_bytes": {
+      "description": "TempDirQuotaBytes optionally caps total temp storage used by attachment resolution.\n0 disables the quota.",
+      "type": "integer"
+    },
+    "text_part_max_bytes": {
+      "description": "TextPartMaxBytes caps the number of bytes loaded from text files into LLM parts.\nDefault: 5_242_880 (5MB)",
+      "type": "integer"
     }
   },
-  "additionalProperties": false,
+  "title": "Attachments Configuration",
   "type": "object",
-  "description": "AttachmentsConfig contains global limits and policies for attachment handling.",
   "yamlCompatible": true
 }

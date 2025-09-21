@@ -1,22 +1,23 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "config-memory.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "MemoryConfig contains memory service configuration.",
   "properties": {
+    "max_entries": {
+      "description": "MaxEntries limits memory entries per conversation.\n\nPrevents unbounded memory growth.\nDefault: 10000",
+      "type": "integer"
+    },
     "prefix": {
-      "type": "string",
-      "description": "Prefix namespaces memory keys in Redis.\n\nPrevents key collisions when sharing Redis.\nDefault: \"compozy:memory:\""
+      "description": "Prefix namespaces memory keys in Redis.\n\nPrevents key collisions when sharing Redis.\nDefault: \"compozy:memory:\"",
+      "type": "string"
     },
     "ttl": {
-      "type": "integer",
-      "description": "TTL sets memory entry expiration time.\n\nBalances context retention with storage costs.\nDefault: 24h"
-    },
-    "max_entries": {
-      "type": "integer",
-      "description": "MaxEntries limits memory entries per conversation.\n\nPrevents unbounded memory growth.\nDefault: 10000"
+      "description": "TTL sets memory entry expiration time.\n\nBalances context retention with storage costs.\nDefault: 24h",
+      "type": "integer"
     }
   },
-  "additionalProperties": false,
+  "title": "Memory Configuration",
   "type": "object",
-  "description": "MemoryConfig contains memory service configuration.",
   "yamlCompatible": true
 }

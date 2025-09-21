@@ -616,6 +616,14 @@
       "additionalProperties": false,
       "description": "LimitsConfig contains system limits and constraints.",
       "properties": {
+        "max_config_file_nesting_depth": {
+          "description": "MaxConfigFileNestingDepth limits nesting depth when parsing configuration files.\n\nPrevents stack overflow from deeply nested YAML documents supplied by users.\nDefault: 100",
+          "type": "integer"
+        },
+        "max_config_file_size": {
+          "description": "MaxConfigFileSize limits configuration file size during loads.\n\nPrevents memory exhaustion when loading large YAML/JSON documents.\nDefault: 10MB (10485760 bytes)",
+          "type": "integer"
+        },
         "max_message_content": {
           "description": "MaxMessageContent limits LLM message content size.\n\nPrevents excessive API costs and timeouts.\nDefault: 50MB (52428800 bytes)",
           "type": "integer"

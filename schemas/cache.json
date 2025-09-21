@@ -1,118 +1,119 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "cache.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Config represents the cache-specific configuration This combines Redis connection settings with cache behavior settings",
   "properties": {
-    "enabled": {
-      "type": "boolean",
-      "description": "Enabled determines if caching is active.\n\nWhen disabled, all cache operations become no-ops.\nUseful for debugging or when Redis is unavailable.\n\n**Default**: `true`"
-    },
-    "ttl": {
-      "type": "integer",
-      "description": "TTL sets the default time-to-live for cached items.\n\nBalances data freshness with cache efficiency.\nCan be overridden per operation.\n\n**Default**: `24h`"
-    },
-    "prefix": {
-      "type": "string",
-      "description": "Prefix namespaces cache keys in Redis.\n\nPrevents key collisions when sharing Redis with other applications.\nFormat: `\"\u003capp\u003e:\u003cenvironment\u003e:cache:\"`\n\n**Default**: `\"compozy:cache:\"`"
-    },
-    "max_item_size": {
-      "type": "integer",
-      "description": "MaxItemSize limits the maximum size of a single cached item.\n\nPrevents large objects from consuming excessive memory.\nItems larger than this are not cached.\n\n**Default**: `1048576` (1MB)"
-    },
     "compression_enabled": {
-      "type": "boolean",
-      "description": "CompressionEnabled activates data compression for cached items.\n\nReduces memory usage and network bandwidth at the cost of CPU.\nUses gzip compression for items above CompressionThreshold.\n\n**Default**: `true`"
+      "description": "CompressionEnabled activates data compression for cached items.\n\nReduces memory usage and network bandwidth at the cost of CPU.\nUses gzip compression for items above CompressionThreshold.\n\n**Default**: `true`",
+      "type": "boolean"
     },
     "compression_threshold": {
-      "type": "integer",
-      "description": "CompressionThreshold sets the minimum size for compression.\n\nItems smaller than this are stored uncompressed to avoid\nCPU overhead for minimal space savings.\n\n**Default**: `1024` (1KB)"
-    },
-    "eviction_policy": {
-      "type": "string",
-      "description": "EvictionPolicy controls how items are removed when cache is full.\n\nOptions:\n  - `\"lru\"`: Least Recently Used (default)\n  - `\"lfu\"`: Least Frequently Used\n  - `\"ttl\"`: Time-based expiration only\n\n**Default**: `\"lru\"`"
-    },
-    "stats_interval": {
-      "type": "integer",
-      "description": "StatsInterval controls how often cache statistics are logged.\n\nSet to 0 to disable statistics logging.\nUseful for monitoring cache hit rates and performance.\n\n**Default**: `5m`"
-    },
-    "key_scan_count": {
-      "type": "integer",
-      "description": "KeyScanCount controls the COUNT hint used by Redis SCAN for key iteration.\nLarger values reduce round-trips but may increase per-iteration latency.\nSet to a positive integer; defaults to 100."
-    },
-    "url": {
-      "type": "string",
-      "description": "URL provides a complete Redis connection string.\n\nFormat: `redis://[user:password@]host:port/db`\nTakes precedence over individual connection parameters."
-    },
-    "host": {
-      "type": "string",
-      "description": "Host specifies the Redis server hostname or IP address.\n\nDefault: \"localhost\""
-    },
-    "port": {
-      "type": "string",
-      "description": "Port specifies the Redis server port as a string.\n\n**Format**: String representation of port number (1-65535)\n**YAML**: Both \"6379\" (quoted) and 6379 (numeric) are accepted\n**Breaking Change**: Changed from int to string in v2.0.0\n\nDefault: \"6379\""
-    },
-    "password": {
-      "type": "string",
-      "description": "Password authenticates with Redis.\n\n**Security**: Use environment variables in production."
+      "description": "CompressionThreshold sets the minimum size for compression.\n\nItems smaller than this are stored uncompressed to avoid\nCPU overhead for minimal space savings.\n\n**Default**: `1024` (1KB)",
+      "type": "integer"
     },
     "db": {
-      "type": "integer",
-      "description": "DB selects the Redis database number.\n\nDefault: 0"
-    },
-    "max_retries": {
-      "type": "integer",
-      "description": "MaxRetries sets the maximum number of retries before giving up.\n\nDefault: 3"
-    },
-    "pool_size": {
-      "type": "integer",
-      "description": "PoolSize sets the maximum number of socket connections.\n\nDefault: 10 per CPU"
-    },
-    "min_idle_conns": {
-      "type": "integer",
-      "description": "MinIdleConns sets the minimum number of idle connections.\n\nDefault: 0"
-    },
-    "max_idle_conns": {
-      "type": "integer",
-      "description": "MaxIdleConns sets the maximum number of idle connections.\n\nDefault: 0"
+      "description": "DB selects the Redis database number.\n\nDefault: 0",
+      "type": "integer"
     },
     "dial_timeout": {
-      "type": "integer",
-      "description": "DialTimeout sets timeout for establishing new connections.\n\nDefault: 5s"
+      "description": "DialTimeout sets timeout for establishing new connections.\n\nDefault: 5s",
+      "type": "integer"
     },
-    "read_timeout": {
-      "type": "integer",
-      "description": "ReadTimeout sets timeout for socket reads.\n\nDefault: 3s"
+    "enabled": {
+      "description": "Enabled determines if caching is active.\n\nWhen disabled, all cache operations become no-ops.\nUseful for debugging or when Redis is unavailable.\n\n**Default**: `true`",
+      "type": "boolean"
     },
-    "write_timeout": {
-      "type": "integer",
-      "description": "WriteTimeout sets timeout for socket writes.\n\nDefault: ReadTimeout"
+    "eviction_policy": {
+      "description": "EvictionPolicy controls how items are removed when cache is full.\n\nOptions:\n  - `\"lru\"`: Least Recently Used (default)\n  - `\"lfu\"`: Least Frequently Used\n  - `\"ttl\"`: Time-based expiration only\n\n**Default**: `\"lru\"`",
+      "type": "string"
     },
-    "pool_timeout": {
-      "type": "integer",
-      "description": "PoolTimeout sets timeout for getting connection from pool.\n\nDefault: ReadTimeout + 1s"
+    "host": {
+      "description": "Host specifies the Redis server hostname or IP address.\n\nDefault: \"localhost\"",
+      "type": "string"
     },
-    "ping_timeout": {
-      "type": "integer",
-      "description": "PingTimeout sets timeout for ping command.\n\nDefault: 1s"
+    "key_scan_count": {
+      "description": "KeyScanCount controls the COUNT hint used by Redis SCAN for key iteration.\nLarger values reduce round-trips but may increase per-iteration latency.\nSet to a positive integer; defaults to 100.",
+      "type": "integer"
     },
-    "min_retry_backoff": {
-      "type": "integer",
-      "description": "MinRetryBackoff sets minimum backoff between retries.\n\nDefault: 8ms"
+    "max_idle_conns": {
+      "description": "MaxIdleConns sets the maximum number of idle connections.\n\nDefault: 0",
+      "type": "integer"
+    },
+    "max_item_size": {
+      "description": "MaxItemSize limits the maximum size of a single cached item.\n\nPrevents large objects from consuming excessive memory.\nItems larger than this are not cached.\n\n**Default**: `1048576` (1MB)",
+      "type": "integer"
+    },
+    "max_retries": {
+      "description": "MaxRetries sets the maximum number of retries before giving up.\n\nDefault: 3",
+      "type": "integer"
     },
     "max_retry_backoff": {
-      "type": "integer",
-      "description": "MaxRetryBackoff sets maximum backoff between retries.\n\nDefault: 512ms"
+      "description": "MaxRetryBackoff sets maximum backoff between retries.\n\nDefault: 512ms",
+      "type": "integer"
+    },
+    "min_idle_conns": {
+      "description": "MinIdleConns sets the minimum number of idle connections.\n\nDefault: 0",
+      "type": "integer"
+    },
+    "min_retry_backoff": {
+      "description": "MinRetryBackoff sets minimum backoff between retries.\n\nDefault: 8ms",
+      "type": "integer"
     },
     "notification_buffer_size": {
-      "type": "integer",
-      "description": "NotificationBufferSize sets buffer size for pub/sub notifications.\n\nDefault: 100"
+      "description": "NotificationBufferSize sets buffer size for pub/sub notifications.\n\nDefault: 100",
+      "type": "integer"
+    },
+    "password": {
+      "description": "Password authenticates with Redis.\n\n**Security**: Use environment variables in production.",
+      "type": "string"
+    },
+    "ping_timeout": {
+      "description": "PingTimeout sets timeout for ping command.\n\nDefault: 1s",
+      "type": "integer"
+    },
+    "pool_size": {
+      "description": "PoolSize sets the maximum number of socket connections.\n\nDefault: 10 per CPU",
+      "type": "integer"
+    },
+    "pool_timeout": {
+      "description": "PoolTimeout sets timeout for getting connection from pool.\n\nDefault: ReadTimeout + 1s",
+      "type": "integer"
+    },
+    "port": {
+      "description": "Port specifies the Redis server port as a string.\n\n**Format**: String representation of port number (1-65535)\n**YAML**: Both \"6379\" (quoted) and 6379 (numeric) are accepted\n**Breaking Change**: Changed from int to string in v2.0.0\n\nDefault: \"6379\"",
+      "type": "string"
+    },
+    "prefix": {
+      "description": "Prefix namespaces cache keys in Redis.\n\nPrevents key collisions when sharing Redis with other applications.\nFormat: `\"\u003capp\u003e:\u003cenvironment\u003e:cache:\"`\n\n**Default**: `\"compozy:cache:\"`",
+      "type": "string"
+    },
+    "read_timeout": {
+      "description": "ReadTimeout sets timeout for socket reads.\n\nDefault: 3s",
+      "type": "integer"
+    },
+    "stats_interval": {
+      "description": "StatsInterval controls how often cache statistics are logged.\n\nSet to 0 to disable statistics logging.\nUseful for monitoring cache hit rates and performance.\n\n**Default**: `5m`",
+      "type": "integer"
     },
     "tls_enabled": {
-      "type": "boolean",
-      "description": "TLSEnabled enables TLS encryption.\n\nDefault: false"
+      "description": "TLSEnabled enables TLS encryption.\n\nDefault: false",
+      "type": "boolean"
+    },
+    "ttl": {
+      "description": "TTL sets the default time-to-live for cached items.\n\nBalances data freshness with cache efficiency.\nCan be overridden per operation.\n\n**Default**: `24h`",
+      "type": "integer"
+    },
+    "url": {
+      "description": "URL provides a complete Redis connection string.\n\nFormat: `redis://[user:password@]host:port/db`\nTakes precedence over individual connection parameters.",
+      "type": "string"
+    },
+    "write_timeout": {
+      "description": "WriteTimeout sets timeout for socket writes.\n\nDefault: ReadTimeout",
+      "type": "integer"
     }
   },
-  "additionalProperties": false,
+  "title": "Cache Configuration",
   "type": "object",
-  "description": "Config represents the cache-specific configuration This combines Redis connection settings with cache behavior settings",
   "yamlCompatible": true
 }
