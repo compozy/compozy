@@ -5,6 +5,13 @@ import (
 )
 
 func Register(apiBase *gin.RouterGroup) {
+	toolsGroup := apiBase.Group("/tools")
+	{
+		toolsGroup.GET("", listToolsTop)
+		toolsGroup.GET("/:tool_id", getToolTop)
+		toolsGroup.PUT("/:tool_id", upsertToolTop)
+		toolsGroup.DELETE("/:tool_id", deleteToolTop)
+	}
 	// Tool definition routes under workflows
 	workflowsGroup := apiBase.Group("/workflows/:workflow_id")
 	{

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,7 +126,7 @@ func TestAuthMiddleware_RateLimiting(t *testing.T) {
 				assert.Equal(t, http.StatusOK, w.Code, "Request %d should succeed", i+1)
 			} else {
 				assert.Equal(t, http.StatusTooManyRequests, w.Code)
-				assert.Contains(t, w.Body.String(), "Rate limit exceeded")
+				assert.Contains(t, strings.ToLower(w.Body.String()), "rate limit exceeded")
 				assert.Equal(t, "0", w.Header().Get("X-RateLimit-Remaining"))
 			}
 			assert.NotEmpty(t, w.Header().Get("X-RateLimit-Limit"))

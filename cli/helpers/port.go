@@ -4,10 +4,23 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
+
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 const (
 	maxPortScanAttempts = 100
+)
+
+const (
+	defaultPortReleaseTimeout      = 5 * time.Second
+	defaultPortReleasePollInterval = 100 * time.Millisecond
+)
+
+var (
+	portReleaseTimeout      = defaultPortReleaseTimeout
+	portReleasePollInterval = defaultPortReleasePollInterval
 )
 
 // IsPortAvailable checks if a port is available for binding using the provided context
@@ -25,10 +38,20 @@ func IsPortAvailable(ctx context.Context, host string, port int) bool {
 // FindAvailablePort finds the next available port starting from the given port
 // It uses an exponential backoff strategy to efficiently find available ports
 func FindAvailablePort(ctx context.Context, host string, startPort int) (int, error) {
-	// First, try the requested port
 	if IsPortAvailable(ctx, host, startPort) {
 		return startPort, nil
 	}
+	if waitForConfiguredPort(ctx, host, startPort) {
+		return startPort, nil
+	}
+	log := logger.FromContext(ctx)
+	log.Warn(
+		"Configured port still unavailable after wait, scanning for alternative",
+		"port",
+		startPort,
+		"wait",
+		portReleaseTimeout,
+	)
 
 	// Common alternative ports for development servers
 	commonPorts := []int{5000, 5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009, 5010}
@@ -63,4 +86,35 @@ func FindAvailablePort(ctx context.Context, host string, startPort int) (int, er
 	}
 
 	return 0, fmt.Errorf("no available port found near %d after checking %d ports", startPort, maxPortScanAttempts)
+}
+
+func waitForConfiguredPort(ctx context.Context, host string, port int) bool {
+	log := logger.FromContext(ctx)
+	deadline := time.Now().Add(portReleaseTimeout)
+	ticker := time.NewTicker(portReleasePollInterval)
+	defer ticker.Stop()
+	notified := false
+	for {
+		if IsPortAvailable(ctx, host, port) {
+			if notified {
+				log.Info("Configured port became available", "port", port)
+			}
+			return true
+		}
+		if ctx.Err() != nil {
+			return false
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		if !notified {
+			log.Info("Waiting for configured port to become available", "port", port, "timeout", portReleaseTimeout)
+			notified = true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-ticker.C:
+		}
+	}
 }

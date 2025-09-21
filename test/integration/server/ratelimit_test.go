@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -61,7 +62,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 				assert.NotEmpty(t, w.Header().Get("X-RateLimit-Limit"))
 			} else {
 				assert.Equal(t, http.StatusTooManyRequests, w.Code)
-				assert.Contains(t, w.Body.String(), "Rate limit exceeded")
+				assert.Contains(t, strings.ToLower(w.Body.String()), "rate limit exceeded")
 			}
 		}
 		// Test different API key has separate limit

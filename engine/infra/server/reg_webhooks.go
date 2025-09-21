@@ -119,10 +119,7 @@ func attachWebhookRegistry(ctx context.Context, state *appstate.State) error {
 	}
 	state.SetWebhookRegistry(reg)
 	slugs := reg.Slugs()
-	limit := len(slugs)
-	if limit > 5 {
-		limit = 5
-	}
+	limit := min(len(slugs), 5)
 	log := logger.FromContext(ctx)
 	if limit > 0 {
 		sort.Strings(slugs)

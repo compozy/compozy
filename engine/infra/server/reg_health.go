@@ -18,7 +18,7 @@ import (
 //	@Produce      json
 //	@Success      200 {object} map[string]interface{} "Service is healthy"
 //	@Failure      503 {object} map[string]interface{} "Service is not ready"
-//	@Router       /api/v0/health [get]
+//	@Router       /health [get]
 func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()

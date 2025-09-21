@@ -41,6 +41,34 @@ func Workflows() string {
 	return Base() + "/workflows"
 }
 
+func Project() string {
+	return Base() + "/project"
+}
+
+func Schemas() string {
+	return Base() + "/schemas"
+}
+
+func Models() string {
+	return Base() + "/models"
+}
+
+func Memories() string {
+	return Base() + "/memories"
+}
+
+func Agents() string {
+	return Base() + "/agents"
+}
+
+func Tools() string {
+	return Base() + "/tools"
+}
+
+func Tasks() string {
+	return Base() + "/tasks"
+}
+
 // HealthVersioned returns the versioned health path (e.g., "/api/v0/health").
 // The primary health endpoint is versioned and mounted under the API base path.
 func HealthVersioned() string {

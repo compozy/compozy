@@ -7,15 +7,22 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
-	"time"
 
+	agentuc "github.com/compozy/compozy/engine/agent/uc"
+	"github.com/compozy/compozy/engine/auth/model"
+	"github.com/compozy/compozy/engine/auth/userctx"
+	"github.com/compozy/compozy/engine/core"
+	mcpuc "github.com/compozy/compozy/engine/mcp/uc"
+	memoryuc "github.com/compozy/compozy/engine/memoryconfig/uc"
+	modeluc "github.com/compozy/compozy/engine/model/uc"
+	projectuc "github.com/compozy/compozy/engine/project/uc"
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/engine/resources/uc"
+	schemauc "github.com/compozy/compozy/engine/schema/uc"
+	tooluc "github.com/compozy/compozy/engine/tool/uc"
+	wfuc "github.com/compozy/compozy/engine/workflow/uc"
 	"github.com/compozy/compozy/pkg/config"
-	"github.com/compozy/compozy/pkg/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -48,6 +55,10 @@ func dirToType(dir string) (resources.ResourceType, bool) {
 		return resources.ResourceMCP, true
 	case "models":
 		return resources.ResourceModel, true
+	case "memories":
+		return resources.ResourceMemory, true
+	case "project":
+		return resources.ResourceProject, true
 	default:
 		return "", false
 	}
@@ -78,6 +89,10 @@ func ImportFromDir(
 		Skipped:     map[resources.ResourceType]int{},
 		Overwritten: map[resources.ResourceType]int{},
 	}
+	trimmedUpdatedBy := strings.TrimSpace(updatedBy)
+	if trimmedUpdatedBy != "" {
+		ctx = userctx.WithUser(ctx, &model.User{ID: core.ID(trimmedUpdatedBy)})
+	}
 	entries, err := os.ReadDir(rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("read root directory: %w", err)
@@ -107,7 +122,7 @@ func ImportFromDir(
 			bodies,
 			ids,
 			strategy,
-			strings.TrimSpace(updatedBy),
+			trimmedUpdatedBy,
 		)
 		if err != nil {
 			return nil, err
@@ -173,12 +188,10 @@ func applyForType(
 	strategy Strategy,
 	updatedBy string,
 ) (imported int, skipped int, overwritten int, err error) {
-	log := logger.FromContext(ctx)
-	createUC := uc.NewCreateResource(store)
-	upsertUC := uc.NewUpsertResource(store)
+	trimmedUpdatedBy := strings.TrimSpace(updatedBy)
 	for i := range bodies {
 		id := ids[i]
-		b := bodies[i]
+		body := bodies[i]
 		key := resources.ResourceKey{Project: project, Type: typ, ID: id}
 		switch strategy {
 		case SeedOnly:
@@ -188,51 +201,253 @@ func applyForType(
 			} else if err != nil && !errors.Is(err, resources.ErrNotFound) {
 				return 0, 0, 0, fmt.Errorf("get existing %s/%s: %w", string(typ), id, err)
 			}
-			if _, err := createUC.Execute(ctx, &uc.CreateInput{Project: project, Type: typ, Body: b}); err != nil {
+			if _, _, err := upsertResource(ctx, store, typ, project, id, "", trimmedUpdatedBy, body); err != nil {
 				return 0, 0, 0, fmt.Errorf("create %s/%s: %w", string(typ), id, err)
 			}
 			imported++
 		case OverwriteConflicts:
-			prev, etag, err := store.Get(ctx, key)
-			switch {
-			case err == nil:
-				if deepEqual(prev, b) {
-					skipped++
+			_, existingETag, err := store.Get(ctx, key)
+			if err != nil {
+				if errors.Is(err, resources.ErrNotFound) {
+					if _, _, err := upsertResource(ctx, store, typ, project, id, "", trimmedUpdatedBy, body); err != nil {
+						return 0, 0, 0, fmt.Errorf("create %s/%s: %w", string(typ), id, err)
+					}
+					imported++
 					continue
 				}
-				if _, err := upsertUC.Execute(
-					ctx,
-					&uc.UpsertInput{Project: project, Type: typ, ID: id, Body: b, IfMatch: string(etag)},
-				); err != nil {
-					return 0, 0, 0, fmt.Errorf("upsert %s/%s: %w", string(typ), id, err)
-				}
-				overwritten++
-			case errors.Is(err, resources.ErrNotFound):
-				if _, err := createUC.Execute(ctx, &uc.CreateInput{Project: project, Type: typ, Body: b}); err != nil {
-					return 0, 0, 0, fmt.Errorf("create %s/%s: %w", string(typ), id, err)
-				}
-				imported++
-			default:
 				return 0, 0, 0, fmt.Errorf("get existing %s/%s: %w", string(typ), id, err)
+			}
+			newETag, created, err := upsertResource(
+				ctx,
+				store,
+				typ,
+				project,
+				id,
+				string(existingETag),
+				trimmedUpdatedBy,
+				body,
+			)
+			if err != nil {
+				return 0, 0, 0, fmt.Errorf("upsert %s/%s: %w", string(typ), id, err)
+			}
+			if created {
+				imported++
+				continue
+			}
+			if newETag == existingETag {
+				skipped++
+			} else {
+				overwritten++
 			}
 		default:
 			return 0, 0, 0, fmt.Errorf("unknown strategy: %s", strategy)
 		}
-		metaID := project + ":" + string(typ) + ":" + id
-		meta := map[string]any{
-			"source":     "yaml",
-			"updated_at": time.Now().UTC().Format(time.RFC3339),
-			"updated_by": updatedBy,
-		}
-		if _, err := store.Put(
-			ctx,
-			resources.ResourceKey{Project: project, Type: resources.ResourceMeta, ID: metaID},
-			meta,
-		); err != nil {
-			log.Warn("failed to write meta record", "error", err, "id", metaID)
-		}
 	}
 	return imported, skipped, overwritten, nil
+}
+
+type upsertHandler func(
+	context.Context,
+	resources.ResourceStore,
+	string,
+	string,
+	string,
+	map[string]any,
+) (resources.ETag, bool, error)
+
+var standardUpsertHandlers = map[resources.ResourceType]upsertHandler{
+	resources.ResourceWorkflow: workflowUpsert,
+	resources.ResourceAgent:    agentUpsert,
+	resources.ResourceTool:     toolUpsert,
+	resources.ResourceSchema:   schemaUpsert,
+	resources.ResourceModel:    modelUpsert,
+	resources.ResourceMemory:   memoryUpsert,
+	resources.ResourceProject:  projectUpsert,
+	resources.ResourceMCP:      mcpUpsert,
+}
+
+func upsertResource(
+	ctx context.Context,
+	store resources.ResourceStore,
+	typ resources.ResourceType,
+	project string,
+	id string,
+	ifMatch string,
+	updatedBy string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	_ = updatedBy
+	if handler, ok := standardUpsertHandlers[typ]; ok {
+		return handler(ctx, store, project, id, ifMatch, body)
+	}
+	return "", false, fmt.Errorf("unsupported resource type: %s", typ)
+}
+
+func workflowUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &wfuc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: strings.TrimSpace(ifMatch),
+	}
+	out, err := wfuc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func agentUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &agentuc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: strings.TrimSpace(ifMatch),
+	}
+	out, err := agentuc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func toolUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &tooluc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: strings.TrimSpace(ifMatch),
+	}
+	out, err := tooluc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func schemaUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &schemauc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: strings.TrimSpace(ifMatch),
+	}
+	out, err := schemauc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func modelUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &modeluc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: strings.TrimSpace(ifMatch),
+	}
+	out, err := modeluc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func memoryUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &memoryuc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: strings.TrimSpace(ifMatch),
+	}
+	out, err := memoryuc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func projectUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	_ string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &projectuc.UpsertInput{
+		Project: project,
+		Body:    body,
+		IfMatch: strings.TrimSpace(ifMatch),
+	}
+	out, err := projectuc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func mcpUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &mcpuc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: strings.TrimSpace(ifMatch),
+	}
+	out, err := mcpuc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
 }
 
 func parseYAMLFile(path string) (map[string]any, string, error) {
@@ -249,44 +464,4 @@ func parseYAMLFile(path string) (map[string]any, string, error) {
 		id = strings.TrimSpace(v)
 	}
 	return m, id, nil
-}
-
-// deepEqual is a conservative equality check for map[string]any and slices.
-func deepEqual(a, b any) bool {
-	switch at := a.(type) {
-	case map[string]any:
-		bt, ok := b.(map[string]any)
-		if !ok {
-			return false
-		}
-		if len(at) != len(bt) {
-			return false
-		}
-		for k, av := range at {
-			bv, ok := bt[k]
-			if !ok {
-				return false
-			}
-			if !deepEqual(av, bv) {
-				return false
-			}
-		}
-		return true
-	case []any:
-		bs, ok := b.([]any)
-		if !ok {
-			return false
-		}
-		if len(at) != len(bs) {
-			return false
-		}
-		for i := range at {
-			if !deepEqual(at[i], bs[i]) {
-				return false
-			}
-		}
-		return true
-	default:
-		return reflect.DeepEqual(a, b)
-	}
 }

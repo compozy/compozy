@@ -23,6 +23,14 @@ func Register(apiBase *gin.RouterGroup) {
 		// Get workflow definition
 		workflowsGroup.GET("/:workflow_id", getWorkflowByID)
 
+		// PUT /api/v0/workflows/:workflow_id
+		// Create or update workflow definition
+		workflowsGroup.PUT("/:workflow_id", upsertWorkflow)
+
+		// DELETE /api/v0/workflows/:workflow_id
+		// Delete workflow definition
+		workflowsGroup.DELETE("/:workflow_id", deleteWorkflow)
+
 		// GET /api/v0/workflows/:workflow_id/executions
 		// List all executions for a workflow
 		workflowsGroup.GET("/:workflow_id/executions", listExecutionsByID)

@@ -21,7 +21,7 @@ import (
 //	@Failure      401  {object}  router.Response{error=router.ErrorInfo}
 //	@Failure      403  {object}  router.Response{error=router.ErrorInfo}
 //	@Failure      500  {object}  router.Response{error=router.ErrorInfo}
-//	@Router       /api/v0/admin/export-yaml [post]
+//	@Router       /admin/export-yaml [post]
 func adminExportYAMLHandler(c *gin.Context) {
 	st := router.GetAppState(c)
 	if st == nil {
