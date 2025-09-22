@@ -33,6 +33,18 @@ const (
 	OverwriteConflicts Strategy = "overwrite_conflicts"
 )
 
+// well-known directory names
+const (
+	dirWorkflows = "workflows"
+	dirAgents    = "agents"
+	dirTools     = "tools"
+	dirSchemas   = "schemas"
+	dirMCPs      = "mcps"
+	dirModels    = "models"
+	dirMemories  = "memories"
+	dirProject   = "project"
+)
+
 // Result summarizes import operation
 type Result struct {
 	Imported    map[resources.ResourceType]int
@@ -42,21 +54,21 @@ type Result struct {
 
 func dirToType(dir string) (resources.ResourceType, bool) {
 	switch dir {
-	case "workflows":
+	case dirWorkflows:
 		return resources.ResourceWorkflow, true
-	case "agents":
+	case dirAgents:
 		return resources.ResourceAgent, true
-	case "tools":
+	case dirTools:
 		return resources.ResourceTool, true
-	case "schemas":
+	case dirSchemas:
 		return resources.ResourceSchema, true
-	case "mcps":
+	case dirMCPs:
 		return resources.ResourceMCP, true
-	case "models":
+	case dirModels:
 		return resources.ResourceModel, true
-	case "memories":
+	case dirMemories:
 		return resources.ResourceMemory, true
-	case "project":
+	case dirProject:
 		return resources.ResourceProject, true
 	default:
 		return "", false

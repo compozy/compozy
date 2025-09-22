@@ -2,6 +2,7 @@ package server
 
 import (
 	agentrouter "github.com/compozy/compozy/engine/agent/router"
+	mcprouter "github.com/compozy/compozy/engine/mcp/router"
 	memory "github.com/compozy/compozy/engine/memory"
 	memrouter "github.com/compozy/compozy/engine/memory/router"
 	memoryrouter "github.com/compozy/compozy/engine/memoryconfig/router"
@@ -19,6 +20,7 @@ func setupComponentRoutes(apiBase *gin.RouterGroup, healthService *memory.Health
 	projectrouter.Register(apiBase)
 	schemarouter.Register(apiBase)
 	modelrouter.Register(apiBase)
+	mcprouter.Register(apiBase)
 	memoryrouter.Register(apiBase)
 	wfrouter.Register(apiBase)
 	tkrouter.Register(apiBase)

@@ -26,7 +26,9 @@ type TaskResponse struct {
 }
 
 // TaskDTO is the single-item typed transport shape (alias via embedding for flexibility)
-type TaskDTO struct{ TaskResponse }
+type TaskDTO struct {
+	TaskResponse
+}
 
 // TaskListItem is the list item wrapper including optional strong ETag
 type TaskListItem struct {
@@ -41,7 +43,9 @@ type TasksListResponse struct {
 }
 
 // ToTaskDTOForWorkflow is an exported helper for workflow DTO expansion mapping.
-func ToTaskDTOForWorkflow(src map[string]any) TaskDTO { return toTaskDTO(src) }
+func ToTaskDTOForWorkflow(src map[string]any) TaskDTO {
+	return toTaskDTO(src)
+}
 
 // ConvertTaskConfigToResponse converts a task.Config to TaskResponse
 func ConvertTaskConfigToResponse(cfg *task.Config) TaskResponse {

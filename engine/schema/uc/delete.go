@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
@@ -41,7 +42,13 @@ func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
 		return resourceutil.ConflictError{Details: referenceDetails}
 	}
 	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceSchema, ID: schemaID}
-	return uc.store.Delete(ctx, key)
+	if err := uc.store.Delete(ctx, key); err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return nil
 }
 
 func (uc *Delete) collectReferences(

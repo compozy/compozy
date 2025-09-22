@@ -109,3 +109,31 @@ func TestSchemasEndpoints(t *testing.T) {
 		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 }
+
+func TestSchemasQueries(t *testing.T) {
+	t.Run("Should filter by prefix q", func(t *testing.T) {
+		client := newResourceClient(t)
+		client.do(
+			http.MethodPut,
+			"/api/v0/schemas/a-user",
+			schemaPayload(map[string]any{"n": map[string]any{"type": "string"}}),
+			nil,
+		)
+		client.do(http.MethodPut, "/api/v0/schemas/b-audit", schemaPayload(map[string]any{}), nil)
+		res := client.do(http.MethodGet, "/api/v0/schemas?q=a-", nil, nil)
+		require.Equal(t, http.StatusOK, res.Code)
+		items, page := decodeList(t, res, "schemas")
+		assert.Equal(t, float64(1), page["total"])
+		// list item wraps schema under body.id
+		body, ok := items[0]["body"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "a-user", body["id"].(string))
+	})
+	t.Run("Should reject invalid cursor on list", func(t *testing.T) {
+		client := newResourceClient(t)
+		client.do(http.MethodPut, "/api/v0/schemas/c1", schemaPayload(map[string]any{}), nil)
+		res := client.do(http.MethodGet, "/api/v0/schemas?cursor=abc", nil, nil)
+		require.Equal(t, http.StatusBadRequest, res.Code)
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
+	})
+}

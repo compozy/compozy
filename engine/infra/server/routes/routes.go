@@ -50,6 +50,7 @@ func Memories() string { return buildResourceRoute("memories") }
 func Agents() string   { return buildResourceRoute("agents") }
 func Tools() string    { return buildResourceRoute("tools") }
 func Tasks() string    { return buildResourceRoute("tasks") }
+func Mcps() string     { return buildResourceRoute("mcps") }
 
 // HealthVersioned returns the versioned health path (e.g., "/api/v0/health").
 // The primary health endpoint is versioned and mounted under the API base path.

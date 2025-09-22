@@ -46,11 +46,11 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 	if modelID == "" {
 		return nil, ErrIDMissing
 	}
-	cfg, err := decodeModelBody(in.Body)
+	cfg, cfgID, err := decodeModelBody(in.Body, modelID)
 	if err != nil {
 		return nil, err
 	}
-	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceModel, ID: modelID}
+	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceModel, ID: cfgID}
 	etag, created, err := uc.storeModel(ctx, key, cfg, in.IfMatch)
 	if err != nil {
 		return nil, err
@@ -64,16 +64,15 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 		uc.store,
 		projectID,
 		resources.ResourceModel,
-		modelID,
+		cfgID,
 		"api",
 		updatedBy,
 	); err != nil {
-		log.Error("failed to write model meta", "error", err, "model", modelID)
-		return nil, fmt.Errorf("write model meta: %w", err)
+		log.Error("failed to write model meta", "error", err, "model", cfgID)
 	}
 	entry, err := core.AsMapDefault(cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encode model config: %w", err)
 	}
 	return &UpsertOutput{Model: entry, ETag: etag, Created: created}, nil
 }

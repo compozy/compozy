@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/workflow"
 )
@@ -28,17 +29,30 @@ func NewGet(store resources.ResourceStore) *Get {
 }
 
 func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
-	if in == nil || strings.TrimSpace(in.ID) == "" {
-		return nil, ErrInvalidInput
+	if in == nil {
+		return nil, errors.Join(
+			ErrInvalidInput,
+			core.NewError(nil, "INVALID_INPUT", map[string]any{"reason": "input cannot be nil"}),
+		)
+	}
+	workflowID := strings.TrimSpace(in.ID)
+	if workflowID == "" {
+		return nil, errors.Join(
+			ErrInvalidInput,
+			core.NewError(nil, "INVALID_INPUT", map[string]any{"reason": "workflow ID is required"}),
+		)
 	}
 	project := strings.TrimSpace(in.Project)
 	if project == "" {
-		return nil, ErrProjectMissing
+		return nil, errors.Join(
+			ErrProjectMissing,
+			core.NewError(nil, "INVALID_INPUT", map[string]any{"reason": "project is required"}),
+		)
 	}
-	key := resources.ResourceKey{Project: project, Type: resources.ResourceWorkflow, ID: strings.TrimSpace(in.ID)}
+	key := resources.ResourceKey{Project: project, Type: resources.ResourceWorkflow, ID: workflowID}
 	value, etag, err := uc.store.Get(ctx, key)
 	if errors.Is(err, resources.ErrNotFound) {
-		return nil, ErrNotFound
+		return nil, errors.Join(ErrNotFound, core.NewError(nil, "NOT_FOUND", map[string]any{"workflow_id": workflowID}))
 	}
 	if err != nil {
 		return nil, err

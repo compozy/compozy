@@ -17,7 +17,7 @@ type ProjectDTO struct {
 	Models      []map[string]any `json:"models,omitempty"`
 	Schemas     []map[string]any `json:"schemas,omitempty"`
 	Config      map[string]any   `json:"config,omitempty"`
-	Runtime     map[string]any   `json:"runtime"`
+	Runtime     map[string]any   `json:"runtime,omitempty"`
 	AutoLoad    map[string]any   `json:"autoload,omitempty"`
 	Tools       []map[string]any `json:"tools,omitempty"`
 	Memories    []map[string]any `json:"memories,omitempty"`
@@ -73,7 +73,9 @@ func toSliceOfMaps(v any) []map[string]any {
 	case []any:
 		res := make([]map[string]any, 0, len(t))
 		for i := range t {
-			res = append(res, router.AsMap(t[i]))
+			if m := router.AsMap(t[i]); m != nil {
+				res = append(res, m)
+			}
 		}
 		return res
 	default:

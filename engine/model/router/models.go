@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	modeluc "github.com/compozy/compozy/engine/model/uc"
@@ -29,8 +30,8 @@ import (
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid cursor"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid cursor"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /models [get]
 func listModels(c *gin.Context) {
 	store, ok := router.GetResourceStore(c)
@@ -44,7 +45,7 @@ func listModels(c *gin.Context) {
 	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	input := &modeluc.ListInput{
@@ -90,9 +91,9 @@ func listModels(c *gin.Context) {
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid input"
-// @Failure 404 {object} router.ProblemDocument "Model not found"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid input"
+// @Failure 404 {object} core.ProblemDocument "Model not found"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /models/{model_id} [get]
 func getModel(c *gin.Context) {
 	modelID := router.GetURLParam(c, "model_id")
@@ -133,15 +134,15 @@ func getModel(c *gin.Context) {
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Header 201 {string} Location "Absolute URL for the model"
+// @Header 201 {string} Location "Relative URL for the model"
 // @Header 201 {string} ETag "Strong entity tag for concurrency control"
 // @Header 201 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 201 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 201 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid request"
-// @Failure 409 {object} router.ProblemDocument "Model referenced"
-// @Failure 412 {object} router.ProblemDocument "ETag mismatch"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid request"
+// @Failure 409 {object} core.ProblemDocument "Model referenced"
+// @Failure 412 {object} core.ProblemDocument "ETag mismatch"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /models/{model_id} [put]
 func upsertModel(c *gin.Context) {
 	modelID := router.GetURLParam(c, "model_id")
@@ -158,12 +159,12 @@ func upsertModel(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	out, execErr := modeluc.NewUpsert(store).
@@ -198,9 +199,9 @@ func upsertModel(c *gin.Context) {
 // @Header 204 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 204 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 204 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 404 {object} router.ProblemDocument "Model not found"
-// @Failure 409 {object} router.ProblemDocument "Model referenced"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 404 {object} core.ProblemDocument "Model not found"
+// @Failure 409 {object} core.ProblemDocument "Model referenced"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /models/{model_id} [delete]
 func deleteModel(c *gin.Context) {
 	modelID := router.GetURLParam(c, "model_id")
@@ -222,23 +223,22 @@ func deleteModel(c *gin.Context) {
 	}
 	router.RespondNoContent(c)
 }
-
 func respondModelError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, modeluc.ErrInvalidInput),
 		errors.Is(err, modeluc.ErrProjectMissing),
 		errors.Is(err, modeluc.ErrIDMissing):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, modeluc.ErrNotFound):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, modeluc.ErrETagMismatch), errors.Is(err, modeluc.ErrStaleIfMatch):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
 			resourceutil.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

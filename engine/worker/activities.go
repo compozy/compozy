@@ -76,7 +76,7 @@ func NewActivities(
 	}
 	// Create memory activities instance
 	// Note: MemoryActivities will use activity.GetLogger(ctx) internally for proper logging
-	memoryActivities := memacts.NewMemoryActivities(ctx, memoryManager)
+	memoryActivities := memacts.NewMemoryActivities(memoryManager)
 
 	// Create task2 factory
 	envMerger := core.NewEnvMerger()

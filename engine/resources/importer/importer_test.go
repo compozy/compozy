@@ -17,7 +17,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const testMCPProxyURL = "https://proxy.example.com"
+func getTestMCPProxyURL() string {
+	if url := os.Getenv("TEST_MCP_PROXY_URL"); url != "" {
+		return url
+	}
+	return "https://proxy.example.com"
+}
 
 func writeFile(t *testing.T, dir, rel, content string) string {
 	t.Helper()
@@ -32,7 +37,7 @@ func TestImporter_StrategiesAndRoundTrip(t *testing.T) {
 		ctx := context.Background()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
-		t.Setenv("MCP_PROXY_URL", testMCPProxyURL)
+		t.Setenv("MCP_PROXY_URL", getTestMCPProxyURL())
 
 		// Prepare repo-like directory with YAML files
 		repo := t.TempDir()

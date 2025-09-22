@@ -2,9 +2,10 @@ package uc
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
 )
 
@@ -14,8 +15,8 @@ type GetInput struct {
 }
 
 type GetOutput struct {
-	Memory map[string]any
-	ETag   resources.ETag
+	MCP  map[string]any
+	ETag resources.ETag
 }
 
 type Get struct {
@@ -34,25 +35,25 @@ func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
 	if projectID == "" {
 		return nil, ErrProjectMissing
 	}
-	memoryID := strings.TrimSpace(in.ID)
-	if memoryID == "" {
+	mcpID := strings.TrimSpace(in.ID)
+	if mcpID == "" {
 		return nil, ErrIDMissing
 	}
-	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceMemory, ID: memoryID}
+	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceMCP, ID: mcpID}
 	value, etag, err := uc.store.Get(ctx, key)
 	if err != nil {
-		if errors.Is(err, resources.ErrNotFound) {
+		if err == resources.ErrNotFound {
 			return nil, ErrNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("get mcp %q in project %q: %w", mcpID, projectID, err)
 	}
-	cfg, err := decodeStoredMemory(value, memoryID)
+	cfg, err := decodeStoredMCP(value, mcpID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode stored mcp %q: %w", mcpID, err)
 	}
-	entry, err := cfg.AsMap()
+	payload, err := core.AsMapDefault(cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("map mcp %q: %w", mcpID, err)
 	}
-	return &GetOutput{Memory: entry, ETag: etag}, nil
+	return &GetOutput{MCP: payload, ETag: etag}, nil
 }

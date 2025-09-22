@@ -1210,12 +1210,12 @@ type CLIConfig struct {
 	// PortReleaseTimeout sets the maximum time to wait for a port to become available.
 	//
 	// Default: 5s
-	PortReleaseTimeout time.Duration `koanf:"port_release_timeout" env:"CLI_PORT_RELEASE_TIMEOUT" json:"PortReleaseTimeout" yaml:"port_release_timeout" mapstructure:"port_release_timeout"`
+	PortReleaseTimeout time.Duration `koanf:"port_release_timeout" env:"COMPOZY_PORT_RELEASE_TIMEOUT" json:"PortReleaseTimeout" yaml:"port_release_timeout" mapstructure:"port_release_timeout"`
 
 	// PortReleasePollInterval sets how often to check if a port has become available.
 	//
 	// Default: 100ms
-	PortReleasePollInterval time.Duration `koanf:"port_release_poll_interval" env:"CLI_PORT_RELEASE_POLL_INTERVAL" json:"PortReleasePollInterval" yaml:"port_release_poll_interval" mapstructure:"port_release_poll_interval"`
+	PortReleasePollInterval time.Duration `koanf:"port_release_poll_interval" env:"COMPOZY_PORT_RELEASE_POLL_INTERVAL" json:"PortReleasePollInterval" yaml:"port_release_poll_interval" mapstructure:"port_release_poll_interval"`
 }
 
 // WebhooksConfig contains webhook processing and validation configuration.
@@ -1568,6 +1568,14 @@ func buildRateLimitConfig(registry *definition.Registry) RateLimitConfig {
 }
 
 func buildCLIConfig(registry *definition.Registry) CLIConfig {
+	prt := getDuration(registry, "cli.port_release_timeout")
+	if prt <= 0 {
+		prt = 5 * time.Second
+	}
+	prpi := getDuration(registry, "cli.port_release_poll_interval")
+	if prpi <= 0 {
+		prpi = 100 * time.Millisecond
+	}
 	return CLIConfig{
 		APIKey:                  SensitiveString(getString(registry, "cli.api_key")),
 		BaseURL:                 getString(registry, "cli.base_url"),
@@ -1584,8 +1592,8 @@ func buildCLIConfig(registry *definition.Registry) CLIConfig {
 		ConfigFile:              getString(registry, "cli.config_file"),
 		CWD:                     getString(registry, "cli.cwd"),
 		EnvFile:                 getString(registry, "cli.env_file"),
-		PortReleaseTimeout:      getDuration(registry, "cli.port_release_timeout"),
-		PortReleasePollInterval: getDuration(registry, "cli.port_release_poll_interval"),
+		PortReleaseTimeout:      prt,
+		PortReleasePollInterval: prpi,
 	}
 }
 

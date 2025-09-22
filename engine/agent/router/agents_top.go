@@ -2,10 +2,12 @@ package agentrouter
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
 	agentuc "github.com/compozy/compozy/engine/agent/uc"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
@@ -29,9 +31,9 @@ import (
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid cursor"
-// @Failure 404 {object} router.ProblemDocument "Workflow not found"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid cursor"
+// @Failure 404 {object} core.ProblemDocument "Workflow not found"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /agents [get]
 func listAgentsTop(c *gin.Context) {
 	store, ok := router.GetResourceStore(c)
@@ -45,7 +47,7 @@ func listAgentsTop(c *gin.Context) {
 	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	input := &agentuc.ListInput{
@@ -92,9 +94,9 @@ func listAgentsTop(c *gin.Context) {
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid input"
-// @Failure 404 {object} router.ProblemDocument "Agent not found"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid input"
+// @Failure 404 {object} core.ProblemDocument "Agent not found"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /agents/{agent_id} [get]
 func getAgentTop(c *gin.Context) {
 	agentID := router.GetAgentID(c)
@@ -114,7 +116,7 @@ func getAgentTop(c *gin.Context) {
 		respondAgentError(c, err)
 		return
 	}
-	c.Header("ETag", string(out.ETag))
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	router.RespondOK(c, "agent retrieved", toAgentDTO(out.Agent))
 }
 
@@ -140,11 +142,11 @@ func getAgentTop(c *gin.Context) {
 // @Header 201 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 201 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 201 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid request"
-// @Failure 404 {object} router.ProblemDocument "Agent not found"
-// @Failure 409 {object} router.ProblemDocument "Agent referenced"
-// @Failure 412 {object} router.ProblemDocument "ETag mismatch"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid request"
+// @Failure 404 {object} core.ProblemDocument "Agent not found"
+// @Failure 409 {object} core.ProblemDocument "Agent referenced"
+// @Failure 412 {object} core.ProblemDocument "ETag mismatch"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /agents/{agent_id} [put]
 func upsertAgentTop(c *gin.Context) {
 	agentID := router.GetAgentID(c)
@@ -161,12 +163,12 @@ func upsertAgentTop(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	input := &agentuc.UpsertInput{Project: project, ID: agentID, Body: body, IfMatch: ifMatch}
@@ -175,7 +177,7 @@ func upsertAgentTop(c *gin.Context) {
 		respondAgentError(c, execErr)
 		return
 	}
-	c.Header("ETag", string(out.ETag))
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	status := http.StatusOK
 	message := "agent updated"
 	if out.Created {
@@ -202,9 +204,9 @@ func upsertAgentTop(c *gin.Context) {
 // @Header 204 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 204 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 204 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 404 {object} router.ProblemDocument "Agent not found"
-// @Failure 409 {object} router.ProblemDocument "Agent referenced"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 404 {object} core.ProblemDocument "Agent not found"
+// @Failure 409 {object} core.ProblemDocument "Agent referenced"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /agents/{agent_id} [delete]
 func deleteAgentTop(c *gin.Context) {
 	agentID := router.GetAgentID(c)
@@ -232,19 +234,19 @@ func respondAgentError(c *gin.Context, err error) {
 	case errors.Is(err, agentuc.ErrInvalidInput),
 		errors.Is(err, agentuc.ErrProjectMissing),
 		errors.Is(err, agentuc.ErrIDMissing):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, agentuc.ErrNotFound):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, agentuc.ErrETagMismatch), errors.Is(err, agentuc.ErrStaleIfMatch):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	case errors.Is(err, agentuc.ErrWorkflowNotFound):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
 			resourceutil.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

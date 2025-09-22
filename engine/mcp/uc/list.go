@@ -2,12 +2,11 @@ package uc
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
-	"github.com/compozy/compozy/engine/workflow"
 )
 
 type ListInput struct {
@@ -18,13 +17,8 @@ type ListInput struct {
 	Limit           int
 }
 
-type ListItem struct {
-	Config *workflow.Config
-	ETag   resources.ETag
-}
-
 type ListOutput struct {
-	Items               []ListItem
+	Items               []map[string]any
 	NextCursorValue     string
 	NextCursorDirection resourceutil.CursorDirection
 	PrevCursorValue     string
@@ -44,40 +38,41 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 	if in == nil {
 		return nil, ErrInvalidInput
 	}
-	project := strings.TrimSpace(in.Project)
-	if project == "" {
+	projectID := strings.TrimSpace(in.Project)
+	if projectID == "" {
 		return nil, ErrProjectMissing
 	}
 	limit := resourceutil.ClampLimit(in.Limit)
-	items, err := uc.store.ListWithValues(ctx, project, resources.ResourceWorkflow)
+	items, err := uc.store.ListWithValues(ctx, projectID, resources.ResourceMCP)
 	if err != nil {
-		return nil, fmt.Errorf("list workflows for project %q: %w", project, err)
+		return nil, err
 	}
 	filtered := resourceutil.FilterStoredItems(items, strings.TrimSpace(in.Prefix))
-	slice, nextValue, nextDir, prevValue, prevDir := resourceutil.ApplyCursorWindow(
+	window, nextValue, nextDir, prevValue, prevDir := resourceutil.ApplyCursorWindow(
 		filtered,
 		strings.TrimSpace(in.CursorValue),
 		in.CursorDirection,
 		limit,
 	)
-	list := make([]ListItem, 0, len(slice))
-	for i := range slice {
-		cfg, decErr := decodeStoredWorkflow(slice[i].Value, slice[i].Key.ID)
-		if decErr != nil {
-			return nil, fmt.Errorf("decode workflow %q: %w", slice[i].Key.ID, decErr)
+	payload := make([]map[string]any, 0, len(window))
+	for i := range window {
+		cfg, err := decodeStoredMCP(window[i].Value, window[i].Key.ID)
+		if err != nil {
+			return nil, err
 		}
-		list = append(list, ListItem{Config: cfg, ETag: slice[i].ETag})
+		entry, err := core.AsMapDefault(cfg)
+		if err != nil {
+			return nil, err
+		}
+		entry["_etag"] = string(window[i].ETag)
+		payload = append(payload, entry)
 	}
-	nextCursorValue := nextValue
-	nextCursorDirection := nextDir
-	prevCursorValue := prevValue
-	prevCursorDirection := prevDir
 	return &ListOutput{
-		Items:               list,
-		NextCursorValue:     nextCursorValue,
-		NextCursorDirection: nextCursorDirection,
-		PrevCursorValue:     prevCursorValue,
-		PrevCursorDirection: prevCursorDirection,
+		Items:               payload,
+		NextCursorValue:     nextValue,
+		NextCursorDirection: nextDir,
+		PrevCursorValue:     prevValue,
+		PrevCursorDirection: prevDir,
 		Total:               len(filtered),
 	}, nil
 }

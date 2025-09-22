@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
@@ -30,8 +31,8 @@ import (
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid cursor"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid cursor"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /schemas [get]
 func listSchemas(c *gin.Context) {
 	store, ok := router.GetResourceStore(c)
@@ -45,7 +46,7 @@ func listSchemas(c *gin.Context) {
 	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	input := &schemauc.ListInput{
@@ -78,16 +79,16 @@ func listSchemas(c *gin.Context) {
 	for i := range out.Items {
 		dto, n, err := toSchemaListItem(out.Items[i])
 		if err != nil {
-			router.RespondProblem(
+			core.RespondProblem(
 				c,
-				&router.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
+				&core.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
 			)
 			return
 		}
 		if maxBytes > 0 && n > maxBytes {
-			router.RespondProblem(
+			core.RespondProblem(
 				c,
-				&router.Problem{
+				&core.Problem{
 					Status: http.StatusInternalServerError,
 					Detail: "stored schema exceeds configured size limit",
 				},
@@ -114,9 +115,9 @@ func listSchemas(c *gin.Context) {
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid input"
-// @Failure 404 {object} router.ProblemDocument "Schema not found"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid input"
+// @Failure 404 {object} core.ProblemDocument "Schema not found"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /schemas/{schema_id} [get]
 func getSchema(c *gin.Context) {
 	schemaID := router.GetURLParam(c, "schema_id")
@@ -143,16 +144,16 @@ func getSchema(c *gin.Context) {
 	}
 	dto, n, err := toSchemaDTO(out.Schema)
 	if err != nil {
-		router.RespondProblem(
+		core.RespondProblem(
 			c,
-			&router.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
+			&core.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
 		)
 		return
 	}
 	if maxBytes > 0 && n > maxBytes {
-		router.RespondProblem(
+		core.RespondProblem(
 			c,
-			&router.Problem{
+			&core.Problem{
 				Status: http.StatusInternalServerError,
 				Detail: "stored schema exceeds configured size limit",
 			},
@@ -184,11 +185,11 @@ func getSchema(c *gin.Context) {
 // @Header 201 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 201 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 201 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid request"
-// @Failure 404 {object} router.ProblemDocument "Schema not found"
-// @Failure 412 {object} router.ProblemDocument "ETag mismatch"
-// @Failure 409 {object} router.ProblemDocument "Schema referenced"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid request"
+// @Failure 404 {object} core.ProblemDocument "Schema not found"
+// @Failure 412 {object} core.ProblemDocument "ETag mismatch"
+// @Failure 409 {object} core.ProblemDocument "Schema referenced"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /schemas/{schema_id} [put]
 func upsertSchema(c *gin.Context) {
 	schemaID := router.GetURLParam(c, "schema_id")
@@ -215,21 +216,21 @@ func upsertSchema(c *gin.Context) {
 	if err := c.ShouldBindJSON(&body); err != nil {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
-			router.RespondProblem(
+			core.RespondProblem(
 				c,
-				&router.Problem{
+				&core.Problem{
 					Status: http.StatusRequestEntityTooLarge,
 					Detail: "request body exceeds configured size limit",
 				},
 			)
 			return
 		}
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	input := &schemauc.UpsertInput{Project: project, ID: schemaID, Body: body, IfMatch: ifMatch}
@@ -242,9 +243,9 @@ func upsertSchema(c *gin.Context) {
 	// Marshal response DTO (no size check here—ingress already enforced)
 	dto, _, err := toSchemaDTO(out.Schema)
 	if err != nil {
-		router.RespondProblem(
+		core.RespondProblem(
 			c,
-			&router.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
+			&core.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
 		)
 		return
 	}
@@ -274,9 +275,9 @@ func upsertSchema(c *gin.Context) {
 // @Header 204 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 204 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 204 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 404 {object} router.ProblemDocument "Schema not found"
-// @Failure 409 {object} router.ProblemDocument "Schema referenced"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 404 {object} core.ProblemDocument "Schema not found"
+// @Failure 409 {object} core.ProblemDocument "Schema referenced"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /schemas/{schema_id} [delete]
 func deleteSchema(c *gin.Context) {
 	schemaID := router.GetURLParam(c, "schema_id")
@@ -305,12 +306,12 @@ func respondSchemaError(c *gin.Context, err error) {
 		errors.Is(err, schemauc.ErrProjectMissing),
 		errors.Is(err, schemauc.ErrIDMissing),
 		errors.Is(err, schemauc.ErrIDMismatch):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrNotFound):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrETagMismatch),
 		errors.Is(err, schemauc.ErrStaleIfMatch):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrReferenced):
 		resourceutil.RespondConflict(c, err, nil)
 	default:
@@ -319,6 +320,6 @@ func respondSchemaError(c *gin.Context, err error) {
 			resourceutil.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
@@ -44,15 +45,15 @@ func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
 		if err == resources.ErrNotFound {
 			return nil, ErrNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("get model %q in project %q: %w", modelID, projectID, err)
 	}
 	cfg, err := decodeStoredModel(value, modelID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode stored model %q: %w", modelID, err)
 	}
 	payload, err := core.AsMapDefault(cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("map model %q: %w", modelID, err)
 	}
 	return &GetOutput{Model: payload, ETag: etag}, nil
 }

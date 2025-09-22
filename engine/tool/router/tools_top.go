@@ -2,9 +2,11 @@ package toolrouter
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
@@ -29,9 +31,9 @@ import (
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid cursor"
-// @Failure 404 {object} router.ProblemDocument "Workflow not found"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid cursor"
+// @Failure 404 {object} core.ProblemDocument "Workflow not found"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /tools [get]
 func listToolsTop(c *gin.Context) {
 	store, ok := router.GetResourceStore(c)
@@ -45,7 +47,7 @@ func listToolsTop(c *gin.Context) {
 	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	input := &tooluc.ListInput{
@@ -89,9 +91,9 @@ func listToolsTop(c *gin.Context) {
 // @Param project query string false "Project override" example("demo")
 // @Success 200 {object} router.Response{data=ToolDTO} "Tool retrieved"
 // @Header 200 {string} ETag "Strong ETag for the resource"
-// @Failure 400 {object} router.ProblemDocument "Invalid input"
-// @Failure 404 {object} router.ProblemDocument "Tool not found"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid input"
+// @Failure 404 {object} core.ProblemDocument "Tool not found"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /tools/{tool_id} [get]
 func getToolTop(c *gin.Context) {
 	toolID := router.GetToolID(c)
@@ -111,7 +113,7 @@ func getToolTop(c *gin.Context) {
 		respondToolError(c, err)
 		return
 	}
-	c.Header("ETag", string(out.ETag))
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	router.RespondOK(c, "tool retrieved", toToolDTO(out.Tool))
 }
 
@@ -132,16 +134,16 @@ func getToolTop(c *gin.Context) {
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
 // @Header 200 {string} ETag "Strong ETag for the resource"
-// @Header 201 {string} Location "Absolute URL for the tool"
+// @Header 201 {string} Location "Relative URL for the tool"
 // @Header 201 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 201 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 201 {string} RateLimit-Reset "Seconds until the window resets"
 // @Header 201 {string} ETag "Strong ETag for the resource"
-// @Failure 400 {object} router.ProblemDocument "Invalid request"
-// @Failure 404 {object} router.ProblemDocument "Tool not found"
-// @Failure 409 {object} router.ProblemDocument "Tool referenced"
-// @Failure 412 {object} router.ProblemDocument "ETag mismatch"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid request"
+// @Failure 404 {object} core.ProblemDocument "Tool not found"
+// @Failure 409 {object} core.ProblemDocument "Tool referenced"
+// @Failure 412 {object} core.ProblemDocument "ETag mismatch"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /tools/{tool_id} [put]
 func upsertToolTop(c *gin.Context) {
 	toolID := router.GetToolID(c)
@@ -158,12 +160,12 @@ func upsertToolTop(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	input := &tooluc.UpsertInput{Project: project, ID: toolID, Body: body, IfMatch: ifMatch}
@@ -172,7 +174,7 @@ func upsertToolTop(c *gin.Context) {
 		respondToolError(c, execErr)
 		return
 	}
-	c.Header("ETag", string(out.ETag))
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	if out.Created {
 		c.Header("Location", routes.Tools()+"/"+toolID)
 		router.RespondCreated(c, "tool created", toToolDTO(out.Tool))
@@ -190,9 +192,9 @@ func upsertToolTop(c *gin.Context) {
 // @Param tool_id path string true "Tool ID" example("http-client")
 // @Param project query string false "Project override" example("demo")
 // @Success 204 {string} string ""
-// @Failure 404 {object} router.ProblemDocument "Tool not found"
-// @Failure 409 {object} router.ProblemDocument "Tool referenced"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 404 {object} core.ProblemDocument "Tool not found"
+// @Failure 409 {object} core.ProblemDocument "Tool referenced"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /tools/{tool_id} [delete]
 func deleteToolTop(c *gin.Context) {
 	toolID := router.GetToolID(c)
@@ -214,30 +216,29 @@ func deleteToolTop(c *gin.Context) {
 	}
 	router.RespondNoContent(c)
 }
-
 func respondToolError(c *gin.Context, err error) {
 	if err == nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: "unknown error"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: "unknown error"})
 		return
 	}
 	switch {
 	case errors.Is(err, tooluc.ErrInvalidInput),
 		errors.Is(err, tooluc.ErrProjectMissing),
 		errors.Is(err, tooluc.ErrIDMissing):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, tooluc.ErrNotFound):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, tooluc.ErrETagMismatch),
 		errors.Is(err, tooluc.ErrStaleIfMatch):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	case errors.Is(err, tooluc.ErrWorkflowNotFound):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
 			resourceutil.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

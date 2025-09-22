@@ -42,8 +42,11 @@ func NewUpsert(store resources.ResourceStore) *Upsert {
 
 func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, error) {
 	log := logger.FromContext(ctx)
-	if in == nil || strings.TrimSpace(in.ID) == "" {
+	if in == nil {
 		return nil, ErrInvalidInput
+	}
+	if strings.TrimSpace(in.ID) == "" {
+		return nil, ErrIDMissing
 	}
 	project := strings.TrimSpace(in.Project)
 	if project == "" {
@@ -59,10 +62,16 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 		return nil, err
 	}
 	updatedBy := getUserIDOrDefault(ctx)
-	metaErr := resources.WriteMeta(ctx, uc.store, project, resources.ResourceWorkflow, cfg.ID, "api", updatedBy)
-	if metaErr != nil {
-		log.Error("failed to write workflow meta", "error", metaErr, "workflow_id", cfg.ID)
-		return nil, fmt.Errorf("write workflow meta: %w", metaErr)
+	if err := resources.WriteMeta(
+		ctx,
+		uc.store,
+		project,
+		resources.ResourceWorkflow,
+		cfg.ID,
+		"api",
+		updatedBy,
+	); err != nil {
+		log.Error("failed to write workflow meta", "error", err, "workflow_id", cfg.ID)
 	}
 	return &UpsertOutput{Config: cfg, ETag: etag, Created: created}, nil
 }

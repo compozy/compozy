@@ -2,19 +2,37 @@ package uc
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 )
 
-func decodeModelBody(body map[string]any) (*core.ProviderConfig, error) {
+func decodeModelBody(body map[string]any, pathID string) (*core.ProviderConfig, string, error) {
 	if body == nil {
-		return nil, ErrInvalidInput
+		return nil, "", ErrInvalidInput
 	}
 	cfg, err := core.FromMapDefault[*core.ProviderConfig](body)
 	if err != nil {
-		return nil, fmt.Errorf("decode model config: %w", err)
+		return nil, "", fmt.Errorf("decode model config: %w", err)
 	}
-	return cfg, nil
+	trimmedPath := strings.TrimSpace(pathID)
+	provider := strings.TrimSpace(string(cfg.Provider))
+	model := strings.TrimSpace(cfg.Model)
+	if provider == "" || model == "" {
+		if trimmedPath == "" {
+			return nil, "", ErrIDMissing
+		}
+		return cfg, trimmedPath, nil
+	}
+	colonID := provider + ":" + model
+	hyphenID := provider + "-" + model
+	if trimmedPath != "" {
+		if trimmedPath != colonID && trimmedPath != hyphenID {
+			return nil, "", ErrIDMismatch
+		}
+		return cfg, trimmedPath, nil
+	}
+	return cfg, colonID, nil
 }
 
 func decodeStoredModel(value any, _ string) (*core.ProviderConfig, error) {

@@ -23,7 +23,7 @@ func ConditionalUpsert(
 	if trimmed != "" {
 		etag, err := store.PutIfMatch(ctx, key, value, ETag(trimmed))
 		if err != nil {
-			return "", false, err
+			return "", false, fmt.Errorf("conditional put failed: %w", err)
 		}
 		return etag, false, nil
 	}

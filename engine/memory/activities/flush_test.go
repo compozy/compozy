@@ -46,7 +46,7 @@ func (m *MockFlushableMemory) MarkFlushPending(ctx context.Context, pending bool
 func TestNewMemoryActivities(t *testing.T) {
 	t.Run("Should create with manager", func(t *testing.T) {
 		mockManager := &MockMemoryManager{}
-		activities := NewMemoryActivities(context.Background(), mockManager)
+		activities := NewMemoryActivities(mockManager)
 		assert.NotNil(t, activities)
 		assert.Equal(t, mockManager, activities.MemoryManager)
 	})
@@ -57,7 +57,7 @@ func TestMemoryActivities_FlushMemory(t *testing.T) {
 	// a Temporal activity context. This is a basic structure test.
 	t.Run("Should create activities structure", func(t *testing.T) {
 		mockManager := &MockMemoryManager{}
-		activities := NewMemoryActivities(context.Background(), mockManager)
+		activities := NewMemoryActivities(mockManager)
 		assert.NotNil(t, activities)
 		assert.Equal(t, mockManager, activities.MemoryManager)
 	})

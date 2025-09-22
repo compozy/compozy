@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	memoryuc "github.com/compozy/compozy/engine/memoryconfig/uc"
@@ -43,8 +44,8 @@ func validateRequestContext(c *gin.Context) (resources.ResourceStore, string, bo
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid cursor"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid cursor"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /memories [get]
 func listMemories(c *gin.Context) {
 	store, project, ok := validateRequestContext(c)
@@ -54,7 +55,7 @@ func listMemories(c *gin.Context) {
 	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	input := &memoryuc.ListInput{
@@ -100,21 +101,17 @@ func listMemories(c *gin.Context) {
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid input"
-// @Failure 404 {object} router.ProblemDocument "Memory not found"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid input"
+// @Failure 404 {object} core.ProblemDocument "Memory not found"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /memories/{memory_id} [get]
 func getMemory(c *gin.Context) {
 	memoryID := router.GetURLParam(c, "memory_id")
 	if memoryID == "" {
 		return
 	}
-	store, ok := router.GetResourceStore(c)
+	store, project, ok := validateRequestContext(c)
 	if !ok {
-		return
-	}
-	project := router.ProjectFromQueryOrDefault(c)
-	if project == "" {
 		return
 	}
 	out, err := memoryuc.NewGet(store).Execute(c.Request.Context(), &memoryuc.GetInput{Project: project, ID: memoryID})
@@ -148,32 +145,28 @@ func getMemory(c *gin.Context) {
 // @Header 201 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 201 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 201 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid request"
-// @Failure 409 {object} router.ProblemDocument "Memory referenced"
-// @Failure 412 {object} router.ProblemDocument "ETag mismatch"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid request"
+// @Failure 409 {object} core.ProblemDocument "Memory referenced"
+// @Failure 412 {object} core.ProblemDocument "ETag mismatch"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /memories/{memory_id} [put]
 func upsertMemory(c *gin.Context) {
 	memoryID := router.GetURLParam(c, "memory_id")
 	if memoryID == "" {
 		return
 	}
-	store, ok := router.GetResourceStore(c)
+	store, project, ok := validateRequestContext(c)
 	if !ok {
-		return
-	}
-	project := router.ProjectFromQueryOrDefault(c)
-	if project == "" {
 		return
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	out, execErr := memoryuc.NewUpsert(store).
@@ -188,7 +181,16 @@ func upsertMemory(c *gin.Context) {
 	if out.Created {
 		status = http.StatusCreated
 		message = "memory created"
-		c.Header("Location", routes.Memories()+"/"+memoryID)
+		scheme := "http"
+		if xfp := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto")); xfp != "" {
+			scheme = xfp
+		} else if c.Request.URL.Scheme != "" {
+			scheme = c.Request.URL.Scheme
+		} else if c.Request.TLS != nil {
+			scheme = "https"
+		}
+		host := c.Request.Host
+		c.Header("Location", fmt.Sprintf("%s://%s%s/%s", scheme, host, routes.Memories(), memoryID))
 	}
 	if status == http.StatusCreated {
 		router.RespondCreated(c, message, toMemoryDTO(out.Memory))
@@ -209,21 +211,17 @@ func upsertMemory(c *gin.Context) {
 // @Header 204 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 204 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 204 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 404 {object} router.ProblemDocument "Memory not found"
-// @Failure 409 {object} router.ProblemDocument "Memory referenced"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 404 {object} core.ProblemDocument "Memory not found"
+// @Failure 409 {object} core.ProblemDocument "Memory referenced"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /memories/{memory_id} [delete]
 func deleteMemory(c *gin.Context) {
 	memoryID := router.GetURLParam(c, "memory_id")
 	if memoryID == "" {
 		return
 	}
-	store, ok := router.GetResourceStore(c)
+	store, project, ok := validateRequestContext(c)
 	if !ok {
-		return
-	}
-	project := router.ProjectFromQueryOrDefault(c)
-	if project == "" {
 		return
 	}
 	deleteInput := &memoryuc.DeleteInput{Project: project, ID: memoryID}
@@ -239,17 +237,17 @@ func respondMemoryError(c *gin.Context, err error) {
 	case errors.Is(err, memoryuc.ErrInvalidInput),
 		errors.Is(err, memoryuc.ErrProjectMissing),
 		errors.Is(err, memoryuc.ErrIDMissing):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, memoryuc.ErrNotFound):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, memoryuc.ErrETagMismatch), errors.Is(err, memoryuc.ErrStaleIfMatch):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
 			resourceutil.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

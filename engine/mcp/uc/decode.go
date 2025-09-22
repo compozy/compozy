@@ -38,3 +38,33 @@ func normalizeMCPConfig(cfg *mcp.Config, pathID string) (*mcp.Config, error) {
 	}
 	return cfg, nil
 }
+
+func decodeStoredMCP(value any, id string) (*mcp.Config, error) {
+	switch v := value.(type) {
+	case *mcp.Config:
+		if strings.TrimSpace(v.ID) == "" {
+			v.ID = id
+		}
+		v.SetDefaults()
+		return v, nil
+	case mcp.Config:
+		clone := v
+		if strings.TrimSpace(clone.ID) == "" {
+			clone.ID = id
+		}
+		clone.SetDefaults()
+		return &clone, nil
+	case map[string]any:
+		cfg, err := core.FromMapDefault[*mcp.Config](v)
+		if err != nil {
+			return nil, fmt.Errorf("decode mcp config: %w", err)
+		}
+		if strings.TrimSpace(cfg.ID) == "" {
+			cfg.ID = strings.TrimSpace(id)
+		}
+		cfg.SetDefaults()
+		return cfg, nil
+	default:
+		return nil, ErrInvalidInput
+	}
+}

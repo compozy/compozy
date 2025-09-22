@@ -49,7 +49,7 @@ func (c *resourceClient) do(
 		req.Header.Set("Content-Type", "application/json")
 	}
 	for k, v := range headers {
-		req.Header.Add(k, v)
+		req.Header.Set(k, v)
 	}
 	res := httptest.NewRecorder()
 	c.harness.Engine.ServeHTTP(res, req)
@@ -110,6 +110,14 @@ func memoryPayload(id string) map[string]any {
 		"id":          id,
 		"type":        "buffer",
 		"persistence": map[string]any{"type": "in_memory"},
+	}
+}
+
+func mcpPayload(id string) map[string]any {
+	return map[string]any{
+		"id":        id,
+		"transport": "sse",
+		"url":       "http://localhost:6001/" + id,
 	}
 }
 

@@ -28,7 +28,6 @@ type ModelCoreDTO struct {
 	ID           string         `json:"id"`
 	Provider     string         `json:"provider"`
 	Model        string         `json:"model"`
-	APIKey       string         `json:"api_key,omitempty"`
 	APIURL       string         `json:"api_url,omitempty"`
 	Params       map[string]any `json:"params,omitempty"`
 	Organization string         `json:"organization,omitempty"`
@@ -44,7 +43,6 @@ func toModelDTO(src map[string]any) ModelDTO {
 		ID:           id,
 		Provider:     provider,
 		Model:        model,
-		APIKey:       router.AsString(src["api_key"]),
 		APIURL:       router.AsString(src["api_url"]),
 		Params:       router.AsMap(src["params"]),
 		Organization: router.AsString(src["organization"]),
@@ -61,7 +59,6 @@ func toModelListItem(src map[string]any) ModelListItem {
 		ID:           id,
 		Provider:     provider,
 		Model:        model,
-		APIKey:       router.AsString(src["api_key"]),
 		APIURL:       router.AsString(src["api_url"]),
 		Params:       router.AsMap(src["params"]),
 		Organization: router.AsString(src["organization"]),

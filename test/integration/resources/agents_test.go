@@ -44,7 +44,7 @@ func TestAgentsEndpoints(t *testing.T) {
 			map[string]string{"If-Match": "\"bogus\""},
 		)
 		require.Equal(t, http.StatusPreconditionFailed, staleRes.Code)
-		assert.Equal(t, "application/problem+json", staleRes.Header().Get("Content-Type"))
+		assert.Contains(t, staleRes.Header().Get("Content-Type"), "application/problem+json")
 		client.do(http.MethodPut, "/api/v0/agents/reserve", agentPayload("reserve", "assist"), nil)
 		ids := collectIDs(t, client, "/api/v0/agents?limit=1", "agents", "id")
 		assert.ElementsMatch(t, []string{"reserve", "support"}, ids)
@@ -94,7 +94,7 @@ func TestAgentsEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		delRes := client.do(http.MethodDelete, "/api/v0/agents/planner", nil, nil)
 		require.Equal(t, http.StatusConflict, delRes.Code)
-		assert.Equal(t, "application/problem+json", delRes.Header().Get("Content-Type"))
+		assert.Contains(t, delRes.Header().Get("Content-Type"), "application/problem+json")
 		bodyStr := delRes.Body.String()
 		assert.Contains(t, bodyStr, "workflows")
 		assert.Contains(t, bodyStr, "tasks")
@@ -103,6 +103,63 @@ func TestAgentsEndpoints(t *testing.T) {
 		client := newResourceClient(t)
 		res := client.do(http.MethodPut, "/api/v0/agents/bad", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
+		assert.Contains(t, res.Header().Get("Content-Type"), "application/problem+json")
+	})
+}
+
+func TestAgentsQueries(t *testing.T) {
+	t.Run("Should list with pagination", func(t *testing.T) {
+		client := newResourceClient(t)
+		client.do(http.MethodPut, "/api/v0/agents/a1", agentPayload("a1", "a1"), nil)
+		client.do(http.MethodPut, "/api/v0/agents/a2", agentPayload("a2", "a2"), nil)
+		client.do(http.MethodPut, "/api/v0/agents/a3", agentPayload("a3", "a3"), nil)
+		res := client.do(http.MethodGet, "/api/v0/agents?limit=1", nil, nil)
+		require.Equal(t, http.StatusOK, res.Code)
+		items, page := decodeList(t, res, "agents")
+		require.Len(t, items, 1)
+		_, hasNext := page["next_cursor"]
+		assert.True(t, hasNext)
+		assert.Equal(t, float64(3), page["total"])
+		assert.Contains(t, res.Header().Get("Link"), "rel=\"next\"")
+		next := page["next_cursor"].(string)
+		res2 := client.do(http.MethodGet, "/api/v0/agents?limit=1&cursor="+next, nil, nil)
+		require.Equal(t, http.StatusOK, res2.Code)
+		assert.Contains(t, res2.Header().Get("Link"), "rel=\"prev\"")
+	})
+	t.Run("Should filter by prefix q", func(t *testing.T) {
+		client := newResourceClient(t)
+		client.do(http.MethodPut, "/api/v0/agents/planner-x", agentPayload("planner-x", "p"), nil)
+		client.do(http.MethodPut, "/api/v0/agents/helper-y", agentPayload("helper-y", "h"), nil)
+		res := client.do(http.MethodGet, "/api/v0/agents?q=planner-", nil, nil)
+		require.Equal(t, http.StatusOK, res.Code)
+		items, page := decodeList(t, res, "agents")
+		assert.Equal(t, float64(1), page["total"])
+		assert.Equal(t, "planner-x", items[0]["id"].(string))
+	})
+	t.Run("Should filter by workflow_id relations", func(t *testing.T) {
+		client := newResourceClient(t)
+		client.do(http.MethodPut, "/api/v0/agents/router-a", agentPayload("router-a", "r"), nil)
+		client.do(http.MethodPut, "/api/v0/agents/reviewer-a", agentPayload("reviewer-a", "r"), nil)
+		client.do(http.MethodPut, "/api/v0/agents/misc-a", agentPayload("misc-a", "m"), nil)
+		wf := workflowPayload("wf-agents-rel", "rel")
+		wf["agents"] = []map[string]any{{"id": "router-a"}, {"id": "reviewer-a"}, {"id": "ghost"}}
+		client.do(http.MethodPut, "/api/v0/workflows/wf-agents-rel", wf, nil)
+		res := client.do(http.MethodGet, "/api/v0/agents?workflow_id=wf-agents-rel", nil, nil)
+		require.Equal(t, http.StatusOK, res.Code)
+		items, page := decodeList(t, res, "agents")
+		assert.Equal(t, float64(2), page["total"])
+		ids := make([]string, 0, len(items))
+		for i := range items {
+			ids = append(ids, items[i]["id"].(string))
+		}
+		assert.ElementsMatch(t, []string{"router-a", "reviewer-a"}, ids)
+		assert.NotContains(t, ids, "ghost")
+	})
+	t.Run("Should reject invalid cursor on list", func(t *testing.T) {
+		client := newResourceClient(t)
+		client.do(http.MethodPut, "/api/v0/agents/c1", agentPayload("c1", "c"), nil)
+		res := client.do(http.MethodGet, "/api/v0/agents?cursor=abc", nil, nil)
+		require.Equal(t, http.StatusBadRequest, res.Code)
+		assert.Contains(t, res.Header().Get("Content-Type"), "application/problem+json")
 	})
 }

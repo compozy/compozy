@@ -2,8 +2,10 @@ package projectrouter
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	projectuc "github.com/compozy/compozy/engine/project/uc"
@@ -24,9 +26,9 @@ import (
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid input"
-// @Failure 404 {object} router.ProblemDocument "Project not found"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid input"
+// @Failure 404 {object} core.ProblemDocument "Project not found"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /project [get]
 func getProject(c *gin.Context) {
 	log := logger.FromContext(c.Request.Context())
@@ -46,10 +48,10 @@ func getProject(c *gin.Context) {
 	}
 	payload, err := out.Config.AsMap()
 	if err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 		return
 	}
-	c.Header("ETag", string(out.ETag))
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	router.RespondOK(c, "project retrieved", toProjectDTO(payload))
 }
 
@@ -69,14 +71,14 @@ func getProject(c *gin.Context) {
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Header 201 {string} Location "Absolute URL for the project"
+// @Header 201 {string} Location "Relative URL for the project"
 // @Header 201 {string} ETag "Strong entity tag for concurrency control"
 // @Header 201 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 201 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 201 {string} RateLimit-Reset "Seconds until the window resets"
-// @Failure 400 {object} router.ProblemDocument "Invalid request"
-// @Failure 412 {object} router.ProblemDocument "ETag mismatch"
-// @Failure 500 {object} router.ProblemDocument "Internal server error"
+// @Failure 400 {object} core.ProblemDocument "Invalid request"
+// @Failure 412 {object} core.ProblemDocument "ETag mismatch"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
 // @Router /project [put]
 func upsertProject(c *gin.Context) {
 	store, ok := router.GetResourceStore(c)
@@ -89,12 +91,12 @@ func upsertProject(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	out, execErr := projectuc.NewUpsert(store).
@@ -105,10 +107,10 @@ func upsertProject(c *gin.Context) {
 	}
 	payload, err := out.Config.AsMap()
 	if err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 		return
 	}
-	c.Header("ETag", string(out.ETag))
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	if out.Created {
 		c.Header("Location", routes.Project())
 		router.RespondCreated(c, "project created", toProjectDTO(payload))
@@ -123,12 +125,12 @@ func upsertProject(c *gin.Context) {
 // @Description Project deletion is not supported; returns 405.
 // @Tags project
 // @Produce json
-// @Failure 405 {object} router.ProblemDocument "Method not allowed"
+// @Failure 405 {object} core.ProblemDocument "Method not allowed"
 // @Router /project [delete]
 func deleteProject(c *gin.Context) {
-	router.RespondProblem(
+	core.RespondProblem(
 		c,
-		&router.Problem{Status: http.StatusMethodNotAllowed, Detail: "project deletion not supported"},
+		&core.Problem{Status: http.StatusMethodNotAllowed, Detail: "project deletion not supported"},
 	)
 }
 
@@ -137,12 +139,12 @@ func respondProjectError(c *gin.Context, err error) {
 	case errors.Is(err, projectuc.ErrInvalidInput),
 		errors.Is(err, projectuc.ErrProjectMissing),
 		errors.Is(err, projectuc.ErrNameMismatch):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, projectuc.ErrNotFound):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, projectuc.ErrETagMismatch), errors.Is(err, projectuc.ErrStaleIfMatch):
-		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	default:
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

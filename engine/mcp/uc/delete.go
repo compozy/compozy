@@ -23,9 +23,6 @@ func NewDelete(store resources.ResourceStore) *Delete {
 }
 
 func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
-	if uc == nil || uc.store == nil {
-		return ErrInvalidInput
-	}
 	if in == nil {
 		return ErrInvalidInput
 	}
@@ -33,29 +30,29 @@ func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
 	if projectID == "" {
 		return ErrProjectMissing
 	}
-	toolID := strings.TrimSpace(in.ID)
-	if toolID == "" {
+	mcpID := strings.TrimSpace(in.ID)
+	if mcpID == "" {
 		return ErrIDMissing
 	}
 	references := make([]resourceutil.ReferenceDetail, 0)
-	wfRefs, err := resourceutil.WorkflowsReferencingTool(ctx, uc.store, projectID, toolID)
+	wfRefs, err := resourceutil.WorkflowsReferencingMCP(ctx, uc.store, projectID, mcpID)
 	if err != nil {
 		return err
 	}
 	if len(wfRefs) > 0 {
 		references = append(references, resourceutil.ReferenceDetail{Resource: "workflows", IDs: wfRefs})
 	}
-	taskRefs, err := resourceutil.TasksReferencingToolResources(ctx, uc.store, projectID, toolID)
+	agentRefs, err := resourceutil.AgentsReferencingMCP(ctx, uc.store, projectID, mcpID)
 	if err != nil {
 		return err
 	}
-	if len(taskRefs) > 0 {
-		references = append(references, resourceutil.ReferenceDetail{Resource: "tasks", IDs: taskRefs})
+	if len(agentRefs) > 0 {
+		references = append(references, resourceutil.ReferenceDetail{Resource: "agents", IDs: agentRefs})
 	}
 	if len(references) > 0 {
 		return resourceutil.ConflictError{Details: references}
 	}
-	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceTool, ID: toolID}
+	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceMCP, ID: mcpID}
 	if err := uc.store.Delete(ctx, key); err != nil {
 		if errors.Is(err, resources.ErrNotFound) {
 			return ErrNotFound

@@ -3,6 +3,7 @@ package uc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
@@ -38,11 +39,11 @@ func NewList(store resources.ResourceStore) *List {
 
 func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error) {
 	if in == nil {
-		return nil, ErrInvalidInput
+		return nil, fmt.Errorf("input cannot be nil: %w", ErrInvalidInput)
 	}
 	projectID := strings.TrimSpace(in.Project)
 	if projectID == "" {
-		return nil, ErrProjectMissing
+		return nil, fmt.Errorf("project ID is required: %w", ErrProjectMissing)
 	}
 	limit := resourceutil.ClampLimit(in.Limit)
 	filterIDs := map[string]struct{}{}
@@ -105,6 +106,9 @@ func (uc *List) workflowAgents(ctx context.Context, project string, workflowID s
 	if err != nil {
 		return nil, err
 	}
+	if len(wf.Agents) == 0 && len(wf.Tasks) == 0 {
+		return []string{}, nil
+	}
 	set := map[string]struct{}{}
 	for i := range wf.Agents {
 		id := strings.TrimSpace(wf.Agents[i].ID)
@@ -114,6 +118,9 @@ func (uc *List) workflowAgents(ctx context.Context, project string, workflowID s
 	}
 	for i := range wf.Tasks {
 		collectTaskAgents(&wf.Tasks[i], set)
+	}
+	if len(set) == 0 {
+		return []string{}, nil
 	}
 	ids := make([]string, 0, len(set))
 	for id := range set {

@@ -12,6 +12,8 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+const sourceAPI = "api"
+
 type UpsertInput struct {
 	Project string
 	ID      string
@@ -48,14 +50,14 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 	}
 	cfg, err := decodeAgentBody(in.Body, agentID)
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidInput
 	}
 	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceAgent, ID: agentID}
 	etag, created, err := uc.storeAgent(ctx, key, cfg, in.IfMatch)
 	if err != nil {
 		return nil, err
 	}
-	updatedBy := "api"
+	updatedBy := sourceAPI
 	if usr, ok := userctx.UserFromContext(ctx); ok && usr != nil {
 		updatedBy = usr.ID.String()
 	}
@@ -65,7 +67,7 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 		projectID,
 		resources.ResourceAgent,
 		agentID,
-		"api",
+		sourceAPI,
 		updatedBy,
 	); err != nil {
 		log.Error("failed to write agent meta", "error", err, "agent", agentID)

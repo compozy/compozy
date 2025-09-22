@@ -15,7 +15,9 @@ type AgentCoreDTO struct {
 }
 
 // AgentDTO is the single-item representation.
-type AgentDTO struct{ AgentCoreDTO }
+type AgentDTO struct {
+	AgentCoreDTO
+}
 
 // AgentListItem is the collection item; includes public ETag for optimistic updates.
 type AgentListItem struct {
@@ -30,7 +32,9 @@ type AgentsListResponse struct {
 }
 
 // ToAgentDTOForWorkflow is an exported helper for workflow DTO expansion mapping.
-func ToAgentDTOForWorkflow(src map[string]any) AgentDTO { return toAgentDTO(src) }
+func ToAgentDTOForWorkflow(src map[string]any) AgentDTO {
+	return toAgentDTO(src)
+}
 
 // toAgentDTO maps a generic UC map payload to AgentDTO.
 func toAgentDTO(src map[string]any) AgentDTO {
@@ -46,6 +50,10 @@ func toAgentDTO(src map[string]any) AgentDTO {
 
 // toAgentListItem maps a UC map payload to AgentListItem, normalizing _etag → etag.
 func toAgentListItem(src map[string]any) AgentListItem {
+	etag := router.AsString(src["_etag"])
+	if etag == "" {
+		etag = router.AsString(src["etag"])
+	}
 	return AgentListItem{AgentCoreDTO: AgentCoreDTO{
 		Resource:     router.AsString(src["resource"]),
 		ID:           router.AsString(src["id"]),
@@ -53,5 +61,5 @@ func toAgentListItem(src map[string]any) AgentListItem {
 		Model:        router.AsMap(src["model"]),
 		With:         router.AsMap(src["with"]),
 		Env:          router.AsMap(src["env"]),
-	}, ETag: router.AsString(src["_etag"])}
+	}, ETag: etag}
 }

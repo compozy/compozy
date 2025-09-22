@@ -1,12 +1,14 @@
 package wfrouter
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
 	agentrouter "github.com/compozy/compozy/engine/agent/router"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
@@ -34,9 +36,9 @@ import (
 //	@Header			200		{string}	RateLimit-Limit		"Requests allowed in the current window"
 //	@Header			200		{string}	RateLimit-Remaining	"Remaining requests in the current window"
 //	@Header			200		{string}	RateLimit-Reset		"Seconds until the window resets"
-//	@Failure		400		{object}	router.ProblemDocument	"Invalid request"
-//	@Failure		404		{object}	router.ProblemDocument	"Workflow not found"
-//	@Failure		500		{object}	router.ProblemDocument	"Internal server error"
+//	@Failure		400		{object}	core.ProblemDocument	"Invalid request"
+//	@Failure		404		{object}	core.ProblemDocument	"Workflow not found"
+//	@Failure		500		{object}	core.ProblemDocument	"Internal server error"
 //	@Router			/workflows/{workflow_id} [get]
 func getWorkflowByID(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
@@ -51,14 +53,14 @@ func getWorkflowByID(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	expandSet := router.ParseExpandQuery(c.Query("expand"))
+	expandSet := router.ParseExpandQueries(c.QueryArray("expand"))
 	out, err := wfuc.NewGet(store).Execute(c.Request.Context(), &wfuc.GetInput{Project: project, ID: workflowID})
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
 	}
 	dto := makeWorkflowDTO(out.Config, expandSet)
-	c.Header("ETag", string(out.ETag))
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	router.RespondOK(c, "workflow retrieved", dto)
 }
 
@@ -74,13 +76,13 @@ func getWorkflowByID(c *gin.Context) {
 //	@Param			cursor	query	string	false	"Opaque pagination cursor"\t	example("djI6YWZ0ZXI6d29ya2Zsb3ctMDAwMQ==")
 //	@Param			q		query	string	false	"Filter by workflow ID prefix"\t	example("data-")
 //	@Param			expand	query	string	false	"Comma-separated child collections to expand (tasks,agents,tools)"\texample("tasks")
-//	@Success		200	{object}	router.Response{data=wfrouter.WorkflowsListResponse}	"Workflows retrieved"
+//	@Success		200	{object}	router.Response{data=wfrouter.WorkflowsListResponse}	"workflows retrieved"
 //	@Header			200	{string}	Link		"RFC 8288 pagination links for next/prev"
 //	@Header			200	{string}	RateLimit-Limit		"Requests allowed in the current window"
 //	@Header			200	{string}	RateLimit-Remaining	"Remaining requests in the current window"
 //	@Header			200	{string}	RateLimit-Reset		"Seconds until the window resets"
-//	@Failure		400	{object}	router.ProblemDocument	"Invalid cursor"
-//	@Failure		500	{object}	router.ProblemDocument	"Internal server error"
+//	@Failure		400	{object}	core.ProblemDocument	"Invalid cursor"
+//	@Failure		500	{object}	core.ProblemDocument	"Internal server error"
 //	@Router			/workflows [get]
 func listWorkflows(c *gin.Context) {
 	store, ok := router.GetResourceStore(c)
@@ -94,11 +96,11 @@ func listWorkflows(c *gin.Context) {
 	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	prefix := strings.TrimSpace(c.Query("q"))
-	expandSet := router.ParseExpandQuery(c.Query("expand"))
+	expandSet := router.ParseExpandQueries(c.QueryArray("expand"))
 	out, err := wfuc.NewList(store).
 		Execute(c.Request.Context(), &wfuc.ListInput{
 			Project:         project,
@@ -108,7 +110,7 @@ func listWorkflows(c *gin.Context) {
 			Limit:           limit,
 		})
 	if err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		respondWorkflowError(c, err)
 		return
 	}
 	list := make([]WorkflowListItem, 0, len(out.Items))
@@ -141,21 +143,21 @@ func listWorkflows(c *gin.Context) {
 //	@Param			expand		query	string	false	"Comma-separated child collections to expand (tasks,agents,tools)"\texample("tasks,agents")
 //	@Param			If-Match	header	string	false	"Strong ETag for optimistic concurrency"\texample("\"6b1c1d7f448c1c76\"")
 //	@Param			payload		body	workflow.Config	true	"Workflow definition payload"
-//	@Success		200		{object}	router.Response{data=wfrouter.WorkflowDTO}	"Workflow updated"
+//	@Success		200		{object}	router.Response{data=wfrouter.WorkflowDTO}	"workflow updated"
 //	@Header			200		{string}	ETag		"Strong entity tag for the stored workflow"
 //	@Header			200		{string}	RateLimit-Limit		"Requests allowed in the current window"
 //	@Header			200		{string}	RateLimit-Remaining	"Remaining requests in the current window"
 //	@Header			200		{string}	RateLimit-Reset		"Seconds until the window resets"
-//	@Success		201		{object}	router.Response{data=wfrouter.WorkflowDTO}	"Workflow created"
+//	@Success		201		{object}	router.Response{data=wfrouter.WorkflowDTO}	"workflow created"
 //	@Header			201		{string}	ETag		"Strong entity tag for the stored workflow"
-//	@Header			201		{string}	Location	"Absolute URL for the created workflow"
+//	@Header			201		{string}	Location	"Relative URL for the created workflow"
 //	@Header			201		{string}	RateLimit-Limit		"Requests allowed in the current window"
 //	@Header			201		{string}	RateLimit-Remaining	"Remaining requests in the current window"
 //	@Header			201		{string}	RateLimit-Reset		"Seconds until the window resets"
-//	@Failure		400		{object}	router.ProblemDocument	"Invalid request body"
-//	@Failure		404		{object}	router.ProblemDocument	"Workflow not found"
-//	@Failure		412		{object}	router.ProblemDocument	"ETag mismatch"
-//	@Failure		500		{object}	router.ProblemDocument	"Internal server error"
+//	@Failure		400		{object}	core.ProblemDocument	"Invalid request body"
+//	@Failure		404		{object}	core.ProblemDocument	"Workflow not found"
+//	@Failure		412		{object}	core.ProblemDocument	"ETag mismatch"
+//	@Failure		500		{object}	core.ProblemDocument	"Internal server error"
 //	@Router			/workflows/{workflow_id} [put]
 func upsertWorkflow(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
@@ -172,12 +174,12 @@ func upsertWorkflow(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	out, execErr := wfuc.NewUpsert(store).
@@ -186,15 +188,15 @@ func upsertWorkflow(c *gin.Context) {
 		respondWorkflowError(c, execErr)
 		return
 	}
-	expandSet := router.ParseExpandQuery(c.Query("expand"))
+	expandSet := router.ParseExpandQueries(c.QueryArray("expand"))
 	respBody := makeWorkflowDTO(out.Config, expandSet)
-	c.Header("ETag", string(out.ETag))
-	status := http.StatusOK
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	if out.Created {
-		status = http.StatusCreated
 		c.Header("Location", fmt.Sprintf("%s/workflows/%s", routes.Base(), out.Config.ID))
+		router.RespondCreated(c, "workflow created", respBody)
+		return
 	}
-	c.JSON(status, router.NewResponse(status, "workflow stored", respBody))
+	router.RespondOK(c, "workflow updated", respBody)
 }
 
 // deleteWorkflow removes a workflow definition.
@@ -209,10 +211,10 @@ func upsertWorkflow(c *gin.Context) {
 //	@Header			204		{string}	RateLimit-Limit		"Requests allowed in the current window"
 //	@Header			204		{string}	RateLimit-Remaining	"Remaining requests in the current window"
 //	@Header			204		{string}	RateLimit-Reset		"Seconds until the window resets"
-//	@Failure		400		{object}	router.ProblemDocument	"Invalid input"
-//	@Failure		404		{object}	router.ProblemDocument	"Workflow not found"
-//	@Failure		412		{object}	router.ProblemDocument	"ETag mismatch"
-//	@Failure		500		{object}	router.ProblemDocument	"Internal server error"
+//	@Failure		400		{object}	core.ProblemDocument	"Invalid input"
+//	@Failure		404		{object}	core.ProblemDocument	"Workflow not found"
+//	@Failure		412		{object}	core.ProblemDocument	"ETag mismatch"
+//	@Failure		500		{object}	core.ProblemDocument	"Internal server error"
 //	@Router			/workflows/{workflow_id} [delete]
 func deleteWorkflow(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
@@ -236,15 +238,17 @@ func deleteWorkflow(c *gin.Context) {
 }
 
 func respondWorkflowError(c *gin.Context, err error) {
-	switch err {
-	case wfuc.ErrInvalidInput, wfuc.ErrProjectMissing, wfuc.ErrIDMismatch:
-		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
-	case wfuc.ErrNotFound:
-		router.RespondProblem(c, &router.Problem{Status: http.StatusNotFound, Detail: err.Error()})
-	case wfuc.ErrETagMismatch, wfuc.ErrStaleIfMatch:
-		router.RespondProblem(c, &router.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+	switch {
+	case errors.Is(err, wfuc.ErrInvalidInput) ||
+		errors.Is(err, wfuc.ErrProjectMissing) ||
+		errors.Is(err, wfuc.ErrIDMismatch):
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+	case errors.Is(err, wfuc.ErrNotFound):
+		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+	case errors.Is(err, wfuc.ErrETagMismatch) || errors.Is(err, wfuc.ErrStaleIfMatch):
+		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	default:
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }
 

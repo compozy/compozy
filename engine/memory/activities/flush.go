@@ -7,8 +7,19 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	memcore "github.com/compozy/compozy/engine/memory/core"
+	"github.com/compozy/compozy/pkg/logger"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
+)
+
+const (
+	ErrCodeInstanceNotFound       = "INSTANCE_NOT_FOUND"
+	ErrCodeMemoryConfigError      = "MEMORY_CONFIG_ERROR"
+	ErrCodeInstanceCreationFailed = "INSTANCE_CREATION_FAILED"
+	ErrCodeNotFlushable           = "NOT_FLUSHABLE"
+	ErrCodeLockContention         = "LOCK_CONTENTION"
+	ErrCodeFlushFailed            = "FLUSH_FAILED"
+	ErrCodeMemoryNotFlushable     = "MEMORY_NOT_FLUSHABLE"
 )
 
 // MemoryActivities encapsulates Temporal activities related to memory management.
@@ -19,10 +30,7 @@ type MemoryActivities struct {
 }
 
 // NewMemoryActivities creates a new instance of MemoryActivities.
-func NewMemoryActivities(
-	_ context.Context,
-	manager memcore.ManagerInterface,
-) *MemoryActivities {
+func NewMemoryActivities(manager memcore.ManagerInterface) *MemoryActivities {
 	return &MemoryActivities{
 		MemoryManager: manager,
 	}
@@ -34,7 +42,7 @@ func (ma *MemoryActivities) FlushMemory(
 	ctx context.Context,
 	input memcore.FlushMemoryActivityInput,
 ) (*memcore.FlushMemoryActivityOutput, error) {
-	log := activity.GetLogger(ctx)
+	log := logger.FromContext(ctx)
 	log.Info("FlushMemory activity started", "MemoryKey", input.MemoryInstanceKey, "ResourceID", input.MemoryResourceID)
 	memInstance, err := ma.getMemoryInstance(ctx, input)
 	if err != nil {
@@ -58,7 +66,7 @@ func (ma *MemoryActivities) getMemoryInstance(
 	ctx context.Context,
 	input memcore.FlushMemoryActivityInput,
 ) (memcore.Memory, error) {
-	log := activity.GetLogger(ctx)
+	log := logger.FromContext(ctx)
 	memRef := core.MemoryReference{
 		ID:  input.MemoryResourceID,
 		Key: input.MemoryInstanceKey,
@@ -76,7 +84,7 @@ func (ma *MemoryActivities) getMemoryInstance(
 	if memInstance == nil {
 		return nil, temporal.NewNonRetryableApplicationError(
 			"memory instance is nil",
-			"INSTANCE_NOT_FOUND",
+			ErrCodeInstanceNotFound,
 			nil,
 		)
 	}
@@ -89,13 +97,13 @@ func (ma *MemoryActivities) handleInstanceError(err error) error {
 	if errors.As(err, &configErr) {
 		return temporal.NewNonRetryableApplicationError(
 			fmt.Sprintf("memory configuration error: %s", err.Error()),
-			"MEMORY_CONFIG_ERROR",
+			ErrCodeMemoryConfigError,
 			err,
 		)
 	}
 	return temporal.NewApplicationError(
 		"failed to get memory instance",
-		"INSTANCE_CREATION_FAILED",
+		ErrCodeInstanceCreationFailed,
 		err,
 	)
 }
@@ -106,7 +114,7 @@ func (ma *MemoryActivities) validateFlushable(memInstance memcore.Memory) (memco
 	if !ok {
 		return nil, temporal.NewNonRetryableApplicationError(
 			"memory instance does not support flushing",
-			"NOT_FLUSHABLE",
+			ErrCodeNotFlushable,
 			nil,
 		)
 	}
@@ -118,7 +126,7 @@ func (ma *MemoryActivities) performFlushOperation(
 	ctx context.Context,
 	flushable memcore.FlushableMemory,
 ) (*memcore.FlushMemoryActivityOutput, error) {
-	log := activity.GetLogger(ctx)
+	log := logger.FromContext(ctx)
 	output, err := flushable.PerformFlush(ctx)
 	if err != nil {
 		log.Error("Memory flush operation failed", "Error", err)
@@ -133,13 +141,13 @@ func (ma *MemoryActivities) handleFlushError(err error) error {
 	if errors.As(err, &lockErr) {
 		return temporal.NewApplicationError(
 			fmt.Sprintf("flush failed due to lock contention: %s", err.Error()),
-			"LOCK_CONTENTION",
+			ErrCodeLockContention,
 			err,
 		)
 	}
 	return temporal.NewNonRetryableApplicationError(
 		fmt.Sprintf("flush operation failed: %s", err.Error()),
-		"FLUSH_FAILED",
+		ErrCodeFlushFailed,
 		err,
 	)
 }
@@ -164,7 +172,7 @@ func (ma *MemoryActivities) ClearFlushPendingFlag(
 	ctx context.Context,
 	input memcore.ClearFlushPendingFlagInput,
 ) error {
-	log := activity.GetLogger(ctx)
+	log := logger.FromContext(ctx)
 	log.Info("ClearFlushPendingFlag activity started", "MemoryKey", input.MemoryInstanceKey)
 	// Use the real resource ID to get a proper memory instance
 	memRef := core.MemoryReference{
@@ -194,7 +202,7 @@ func (ma *MemoryActivities) ClearFlushPendingFlag(
 			"ResourceID", input.MemoryResourceID)
 		return temporal.NewNonRetryableApplicationError(
 			"memory instance does not support flush operations",
-			"MEMORY_NOT_FLUSHABLE",
+			ErrCodeMemoryNotFlushable,
 			fmt.Errorf("memory instance %s does not implement FlushableMemory", input.MemoryInstanceKey),
 		)
 	}

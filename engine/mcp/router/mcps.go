@@ -1,4 +1,4 @@
-package tkrouter
+package mcprouter
 
 import (
 	"errors"
@@ -9,33 +9,31 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
+	mcpuc "github.com/compozy/compozy/engine/mcp/uc"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
-	taskuc "github.com/compozy/compozy/engine/task/uc"
 	"github.com/gin-gonic/gin"
 )
 
-// listTasksTop handles GET /tasks.
+// listMCPs handles GET /mcps.
 //
-// @Summary List tasks
-// @Description List tasks with cursor pagination. Optionally filter by workflow usage.
-// @Tags tasks
+// @Summary List MCP servers
+// @Description List MCP server configurations with cursor pagination.
+// @Tags mcps
 // @Accept json
 // @Produce json
 // @Param project query string false "Project override" example("demo")
-// @Param workflow_id query string false "Return only tasks referenced by the given workflow" example("wf1")
 // @Param limit query int false "Page size (max 500)" example(50)
 // @Param cursor query string false "Opaque pagination cursor"
-// @Param q query string false "Filter by task ID prefix"
-// @Success 200 {object} router.Response{data=tkrouter.TasksListResponse} "Tasks retrieved"
+// @Param q query string false "Filter by MCP ID prefix"
+// @Success 200 {object} router.Response{data=mcprouter.MCPsListResponse} "MCPs retrieved"
 // @Header 200 {string} Link "RFC 8288 pagination links for next/prev"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
 // @Failure 400 {object} core.ProblemDocument "Invalid cursor"
-// @Failure 404 {object} core.ProblemDocument "Workflow not found"
 // @Failure 500 {object} core.ProblemDocument "Internal server error"
-// @Router /tasks [get]
-func listTasksTop(c *gin.Context) {
+// @Router /mcps [get]
+func listMCPs(c *gin.Context) {
 	store, ok := router.GetResourceStore(c)
 	if !ok {
 		return
@@ -50,17 +48,16 @@ func listTasksTop(c *gin.Context) {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
-	input := &taskuc.ListInput{
+	input := &mcpuc.ListInput{
 		Project:         project,
 		Prefix:          strings.TrimSpace(c.Query("q")),
 		CursorValue:     cursor.Value,
 		CursorDirection: resourceutil.CursorDirection(cursor.Direction),
 		Limit:           limit,
-		WorkflowID:      strings.TrimSpace(c.Query("workflow_id")),
 	}
-	out, err := taskuc.NewList(store).Execute(c.Request.Context(), input)
+	out, err := mcpuc.NewList(store).Execute(c.Request.Context(), input)
 	if err != nil {
-		respondTaskError(c, err)
+		respondMCPError(c, err)
 		return
 	}
 	nextCursor := ""
@@ -72,34 +69,35 @@ func listTasksTop(c *gin.Context) {
 		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
 	}
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
-	items := make([]TaskListItem, 0, len(out.Items))
+	list := make([]MCPListItem, 0, len(out.Items))
 	for i := range out.Items {
-		items = append(items, toTaskListItem(out.Items[i]))
+		list = append(list, toMCPListItem(out.Items[i]))
 	}
 	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
-	router.RespondOK(c, "tasks retrieved", TasksListResponse{Tasks: items, Page: page})
+	router.RespondOK(c, "mcps retrieved", MCPsListResponse{MCPs: list, Page: page})
 }
 
-// getTaskTop handles GET /tasks/{task_id}.
+// getMCP handles GET /mcps/{mcp_id}.
 //
-// @Summary Get task
-// @Description Retrieve a task configuration by ID.
-// @Tags tasks
+// @Summary Get MCP server
+// @Description Retrieve an MCP server configuration by ID.
+// @Tags mcps
 // @Accept json
 // @Produce json
-// @Param task_id path string true "Task ID" example("approve-request")
+// @Param mcp_id path string true "MCP ID" example("filesystem")
 // @Param project query string false "Project override" example("demo")
-// @Success 200 {object} router.Response{data=tkrouter.TaskDTO} "Task retrieved"
+// @Success 200 {object} router.Response{data=mcprouter.MCPDTO} "MCP retrieved"
+// @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
 // @Failure 400 {object} core.ProblemDocument "Invalid input"
-// @Failure 404 {object} core.ProblemDocument "Task not found"
+// @Failure 404 {object} core.ProblemDocument "MCP not found"
 // @Failure 500 {object} core.ProblemDocument "Internal server error"
-// @Router /tasks/{task_id} [get]
-func getTaskTop(c *gin.Context) {
-	taskID := router.GetTaskID(c)
-	if taskID == "" {
+// @Router /mcps/{mcp_id} [get]
+func getMCP(c *gin.Context) {
+	mcpID := router.GetURLParam(c, "mcp_id")
+	if mcpID == "" {
 		return
 	}
 	store, ok := router.GetResourceStore(c)
@@ -110,44 +108,45 @@ func getTaskTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	out, err := taskuc.NewGet(store).Execute(c.Request.Context(), &taskuc.GetInput{Project: project, ID: taskID})
+	out, err := mcpuc.NewGet(store).Execute(c.Request.Context(), &mcpuc.GetInput{Project: project, ID: mcpID})
 	if err != nil {
-		respondTaskError(c, err)
+		respondMCPError(c, err)
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	router.RespondOK(c, "task retrieved", toTaskDTO(out.Task))
+	router.RespondOK(c, "mcp retrieved", toMCPDTO(out.MCP))
 }
 
-// upsertTaskTop handles PUT /tasks/{task_id}.
+// upsertMCP handles PUT /mcps/{mcp_id}.
 //
-// @Summary Create or update task
-// @Description Create a task configuration when absent or update an existing one using strong ETag concurrency.
-// @Tags tasks
+// @Summary Create or update MCP server
+// @Description Create an MCP server when absent or update an existing one using strong ETag concurrency.
+// @Tags mcps
 // @Accept json
 // @Produce json
-// @Param task_id path string true "Task ID" example("approve-request")
+// @Param mcp_id path string true "MCP ID" example("filesystem")
 // @Param project query string false "Project override" example("demo")
 // @Param If-Match header string false "Strong ETag for optimistic concurrency" example("\"abc123\"")
-// @Param payload body map[string]any true "Task configuration payload"
-// @Success 200 {object} router.Response{data=tkrouter.TaskDTO} "Task updated"
-// @Success 201 {object} router.Response{data=tkrouter.TaskDTO} "Task created"
+// @Param payload body map[string]any true "MCP configuration payload"
+// @Success 200 {object} router.Response{data=mcprouter.MCPDTO} "MCP updated"
+// @Success 201 {object} router.Response{data=mcprouter.MCPDTO} "MCP created"
+// @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
-// @Header 201 {string} Location "Relative URL for the task"
+// @Header 201 {string} Location "Relative URL for the MCP"
+// @Header 201 {string} ETag "Strong entity tag for concurrency control"
 // @Header 201 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 201 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 201 {string} RateLimit-Reset "Seconds until the window resets"
 // @Failure 400 {object} core.ProblemDocument "Invalid request"
-// @Failure 404 {object} core.ProblemDocument "Task not found"
-// @Failure 409 {object} core.ProblemDocument "Task referenced"
+// @Failure 409 {object} core.ProblemDocument "MCP referenced"
 // @Failure 412 {object} core.ProblemDocument "ETag mismatch"
 // @Failure 500 {object} core.ProblemDocument "Internal server error"
-// @Router /tasks/{task_id} [put]
-func upsertTaskTop(c *gin.Context) {
-	taskID := router.GetTaskID(c)
-	if taskID == "" {
+// @Router /mcps/{mcp_id} [put]
+func upsertMCP(c *gin.Context) {
+	mcpID := router.GetURLParam(c, "mcp_id")
+	if mcpID == "" {
 		return
 	}
 	store, ok := router.GetResourceStore(c)
@@ -168,43 +167,45 @@ func upsertTaskTop(c *gin.Context) {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
-	input := &taskuc.UpsertInput{Project: project, ID: taskID, Body: body, IfMatch: ifMatch}
-	out, execErr := taskuc.NewUpsert(store).Execute(c.Request.Context(), input)
+	out, execErr := mcpuc.NewUpsert(store).
+		Execute(c.Request.Context(), &mcpuc.UpsertInput{Project: project, ID: mcpID, Body: body, IfMatch: ifMatch})
 	if execErr != nil {
-		respondTaskError(c, execErr)
+		respondMCPError(c, execErr)
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	status := http.StatusOK
-	message := "task updated"
+	message := "mcp updated"
 	if out.Created {
-		status = http.StatusCreated
-		message = "task created"
-		c.Header("Location", routes.Tasks()+"/"+taskID)
+		message = "mcp created"
+		c.Header("Location", routes.Mcps()+"/"+mcpID)
 	}
-	if status == http.StatusCreated {
-		router.RespondCreated(c, message, toTaskDTO(out.Task))
+	dto := toMCPDTO(out.Config)
+	if out.Created {
+		router.RespondCreated(c, message, dto)
 		return
 	}
-	router.RespondOK(c, message, toTaskDTO(out.Task))
+	router.RespondOK(c, message, dto)
 }
 
-// deleteTaskTop handles DELETE /tasks/{task_id}.
+// deleteMCP handles DELETE /mcps/{mcp_id}.
 //
-// @Summary Delete task
-// @Description Delete a task configuration. Returns conflict when referenced.
-// @Tags tasks
+// @Summary Delete MCP server
+// @Description Delete an MCP server configuration. Returns conflict when referenced.
+// @Tags mcps
 // @Produce json
-// @Param task_id path string true "Task ID" example("approve-request")
+// @Param mcp_id path string true "MCP ID" example("filesystem")
 // @Param project query string false "Project override" example("demo")
 // @Success 204 {string} string ""
-// @Failure 404 {object} core.ProblemDocument "Task not found"
-// @Failure 409 {object} core.ProblemDocument "Task referenced"
+// @Header 204 {string} RateLimit-Limit "Requests allowed in the current window"
+// @Header 204 {string} RateLimit-Remaining "Remaining requests in the current window"
+// @Header 204 {string} RateLimit-Reset "Seconds until the window resets"
+// @Failure 404 {object} core.ProblemDocument "MCP not found"
+// @Failure 409 {object} core.ProblemDocument "MCP referenced"
 // @Failure 500 {object} core.ProblemDocument "Internal server error"
-// @Router /tasks/{task_id} [delete]
-func deleteTaskTop(c *gin.Context) {
-	taskID := router.GetTaskID(c)
-	if taskID == "" {
+// @Router /mcps/{mcp_id} [delete]
+func deleteMCP(c *gin.Context) {
+	mcpID := router.GetURLParam(c, "mcp_id")
+	if mcpID == "" {
 		return
 	}
 	store, ok := router.GetResourceStore(c)
@@ -215,26 +216,24 @@ func deleteTaskTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	deleteInput := &taskuc.DeleteInput{Project: project, ID: taskID}
-	if err := taskuc.NewDelete(store).Execute(c.Request.Context(), deleteInput); err != nil {
-		respondTaskError(c, err)
+	deleteInput := &mcpuc.DeleteInput{Project: project, ID: mcpID}
+	if err := mcpuc.NewDelete(store).Execute(c.Request.Context(), deleteInput); err != nil {
+		respondMCPError(c, err)
 		return
 	}
 	router.RespondNoContent(c)
 }
-func respondTaskError(c *gin.Context, err error) {
+
+func respondMCPError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, taskuc.ErrInvalidInput),
-		errors.Is(err, taskuc.ErrProjectMissing),
-		errors.Is(err, taskuc.ErrIDMissing):
+	case errors.Is(err, mcpuc.ErrInvalidInput),
+		errors.Is(err, mcpuc.ErrProjectMissing),
+		errors.Is(err, mcpuc.ErrIDMissing):
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
-	case errors.Is(err, taskuc.ErrNotFound):
+	case errors.Is(err, mcpuc.ErrNotFound):
 		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
-	case errors.Is(err, taskuc.ErrETagMismatch),
-		errors.Is(err, taskuc.ErrStaleIfMatch):
+	case errors.Is(err, mcpuc.ErrETagMismatch), errors.Is(err, mcpuc.ErrStaleIfMatch):
 		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
-	case errors.Is(err, taskuc.ErrWorkflowNotFound):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {

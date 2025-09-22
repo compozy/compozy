@@ -1,11 +1,16 @@
 package memoryrouter
 
 import (
+	"encoding/json"
+	"strconv"
+
 	"github.com/compozy/compozy/engine/infra/server/router"
 )
 
 // MemoryDTO represents the typed API shape for a memory configuration.
-type MemoryDTO struct{ MemoryCoreDTO }
+type MemoryDTO struct {
+	MemoryCoreDTO
+}
 
 // MemoryListItem is the list representation with optional strong ETag.
 type MemoryListItem struct {
@@ -89,9 +94,22 @@ func intPtrFromAny(v any) *int {
 	case float64:
 		x := int(t)
 		return &x
+	case string:
+		if t == "" {
+			return nil
+		}
+		if n, err := strconv.Atoi(t); err == nil {
+			return &n
+		}
+	case json.Number:
+		if n, err := t.Int64(); err == nil {
+			x := int(n)
+			return &x
+		}
 	default:
 		return nil
 	}
+	return nil
 }
 
 func floatPtrFromAny(v any) *float64 {
@@ -105,7 +123,19 @@ func floatPtrFromAny(v any) *float64 {
 	case int64:
 		x := float64(t)
 		return &x
+	case string:
+		if t == "" {
+			return nil
+		}
+		if f, err := strconv.ParseFloat(t, 64); err == nil {
+			return &f
+		}
+	case json.Number:
+		if f, err := t.Float64(); err == nil {
+			return &f
+		}
 	default:
 		return nil
 	}
+	return nil
 }

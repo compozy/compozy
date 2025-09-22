@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/engine/project"
@@ -36,7 +37,7 @@ func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
 	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceProject, ID: projectID}
 	value, etag, err := uc.store.Get(ctx, key)
 	if err != nil {
-		if err == resources.ErrNotFound {
+		if errors.Is(err, resources.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, err

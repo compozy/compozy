@@ -69,7 +69,6 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 		updatedBy,
 	); err != nil {
 		log.Error("failed to write memory meta", "error", err, "memory", memoryID)
-		return nil, fmt.Errorf("write memory meta: %w", err)
 	}
 	entry, err := cfg.AsMap()
 	if err != nil {

@@ -12,6 +12,9 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+const SourceAPI = "api"
+
+// UpsertInput carries parameters to create or update a tool configuration.
 type UpsertInput struct {
 	Project string
 	ID      string
@@ -19,16 +22,19 @@ type UpsertInput struct {
 	IfMatch string
 }
 
+// UpsertOutput returns the stored tool, its ETag, and whether the upsert created it.
 type UpsertOutput struct {
 	Tool    map[string]any
 	ETag    resources.ETag
 	Created bool
 }
 
+// Upsert orchestrates the tool upsert workflow against a ResourceStore.
 type Upsert struct {
 	store resources.ResourceStore
 }
 
+// NewUpsert constructs a tool Upsert use case bound to the given store.
 func NewUpsert(store resources.ResourceStore) *Upsert {
 	return &Upsert{store: store}
 }
@@ -55,11 +61,19 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 	if err != nil {
 		return nil, err
 	}
-	updatedBy := "api"
+	updatedBy := SourceAPI
 	if usr, ok := userctx.UserFromContext(ctx); ok && usr != nil {
 		updatedBy = usr.ID.String()
 	}
-	if err := resources.WriteMeta(ctx, uc.store, projectID, resources.ResourceTool, toolID, "api", updatedBy); err != nil {
+	if err := resources.WriteMeta(
+		ctx,
+		uc.store,
+		projectID,
+		resources.ResourceTool,
+		toolID,
+		SourceAPI,
+		updatedBy,
+	); err != nil {
 		log.Error("failed to write tool meta", "error", err, "tool", toolID)
 		return nil, fmt.Errorf("write tool meta: %w", err)
 	}

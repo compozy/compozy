@@ -476,6 +476,27 @@ definitions:
         description: Path holds the absolute working directory.
         type: string
     type: object
+  core.ProblemDocument:
+    properties:
+      code:
+        example: invalid_cursor
+        type: string
+      detail:
+        example: Invalid cursor parameter
+        type: string
+      instance:
+        example: /api/v0/workflows
+        type: string
+      status:
+        example: 400
+        type: integer
+      title:
+        example: Bad Request
+        type: string
+      type:
+        example: about:blank
+        type: string
+    type: object
   core.PromptParams:
     properties:
       max_length:
@@ -1064,6 +1085,72 @@ definitions:
       - TransportStdio
       - TransportSSE
       - TransportStreamableHTTP
+  mcprouter.MCPDTO:
+    properties:
+      command:
+        type: string
+      env:
+        additionalProperties:
+          type: string
+        type: object
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      id:
+        type: string
+      max_sessions:
+        type: integer
+      proto:
+        type: string
+      resource:
+        type: string
+      start_timeout:
+        type: string
+      transport:
+        type: string
+      url:
+        type: string
+    type: object
+  mcprouter.MCPListItem:
+    properties:
+      command:
+        type: string
+      env:
+        additionalProperties:
+          type: string
+        type: object
+      etag:
+        example: abc123
+        type: string
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      id:
+        type: string
+      max_sessions:
+        type: integer
+      proto:
+        type: string
+      resource:
+        type: string
+      start_timeout:
+        type: string
+      transport:
+        type: string
+      url:
+        type: string
+    type: object
+  mcprouter.MCPsListResponse:
+    properties:
+      mcps:
+        items:
+          $ref: '#/definitions/mcprouter.MCPListItem'
+        type: array
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+    type: object
   memory.InstanceHealth:
     properties:
       consecutive_failures:
@@ -1259,8 +1346,6 @@ definitions:
     type: object
   modelrouter.ModelDTO:
     properties:
-      api_key:
-        type: string
       api_url:
         type: string
       id:
@@ -1279,8 +1364,6 @@ definitions:
     type: object
   modelrouter.ModelListItem:
     properties:
-      api_key:
-        type: string
       api_url:
         type: string
       etag:
@@ -1408,27 +1491,6 @@ definitions:
       total:
         example: 2
         type: integer
-    type: object
-  router.ProblemDocument:
-    properties:
-      code:
-        example: invalid_cursor
-        type: string
-      detail:
-        example: Invalid cursor parameter
-        type: string
-      instance:
-        example: /api/v0/workflows
-        type: string
-      status:
-        example: 400
-        type: integer
-      title:
-        example: Bad Request
-        type: string
-      type:
-        example: about:blank
-        type: string
     type: object
   router.Response:
     properties:
@@ -4092,15 +4154,15 @@ paths:
         "400":
           description: Invalid cursor
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Workflow not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: List agents
       tags:
         - agents
@@ -4139,15 +4201,15 @@ paths:
         "404":
           description: Agent not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Agent referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Delete agent
       tags:
         - agents
@@ -4195,15 +4257,15 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Agent not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Get agent
       tags:
         - agents
@@ -4288,23 +4350,23 @@ paths:
         "400":
           description: Invalid request
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Agent not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Agent referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "412":
           description: ETag mismatch
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update agent
       tags:
         - agents
@@ -4940,6 +5002,266 @@ paths:
         data:
           result: ok
         message: Success
+  /mcps:
+    get:
+      consumes:
+        - application/json
+      description: List MCP server configurations with cursor pagination.
+      parameters:
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Page size (max 500)
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Opaque pagination cursor
+          in: query
+          name: cursor
+          type: string
+        - description: Filter by MCP ID prefix
+          in: query
+          name: q
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: MCPs retrieved
+          headers:
+            Link:
+              description: RFC 8288 pagination links for next/prev
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/mcprouter.MCPsListResponse'
+                type: object
+        "400":
+          description: Invalid cursor
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: List MCP servers
+      tags:
+        - mcps
+  /mcps/{mcp_id}:
+    delete:
+      description: Delete an MCP server configuration. Returns conflict when referenced.
+      parameters:
+        - description: MCP ID
+          example: '"filesystem"'
+          in: path
+          name: mcp_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "204":
+          description: No Content
+          headers:
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            type: string
+        "404":
+          description: MCP not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: MCP referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Delete MCP server
+      tags:
+        - mcps
+    get:
+      consumes:
+        - application/json
+      description: Retrieve an MCP server configuration by ID.
+      parameters:
+        - description: MCP ID
+          example: '"filesystem"'
+          in: path
+          name: mcp_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: MCP retrieved
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/mcprouter.MCPDTO'
+                type: object
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: MCP not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Get MCP server
+      tags:
+        - mcps
+    put:
+      consumes:
+        - application/json
+      description: Create an MCP server when absent or update an existing one using strong ETag concurrency.
+      parameters:
+        - description: MCP ID
+          example: '"filesystem"'
+          in: path
+          name: mcp_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Strong ETag for optimistic concurrency
+          example: '"\"abc123\""'
+          in: header
+          name: If-Match
+          type: string
+        - description: MCP configuration payload
+          in: body
+          name: payload
+          required: true
+          schema:
+            additionalProperties: true
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: MCP updated
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/mcprouter.MCPDTO'
+                type: object
+        "201":
+          description: MCP created
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            Location:
+              description: Relative URL for the MCP
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/mcprouter.MCPDTO'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: MCP referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Create or update MCP server
+      tags:
+        - mcps
   /memories:
     get:
       consumes:
@@ -4992,11 +5314,11 @@ paths:
         "400":
           description: Invalid cursor
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: List memories
       tags:
         - memories
@@ -5035,15 +5357,15 @@ paths:
         "404":
           description: Memory not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Memory referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Delete memory
       tags:
         - memories
@@ -5091,15 +5413,15 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Memory not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Get memory
       tags:
         - memories
@@ -5185,19 +5507,19 @@ paths:
         "400":
           description: Invalid request
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Memory referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "412":
           description: ETag mismatch
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update memory
       tags:
         - memories
@@ -5790,11 +6112,11 @@ paths:
         "400":
           description: Invalid cursor
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: List models
       tags:
         - models
@@ -5833,15 +6155,15 @@ paths:
         "404":
           description: Model not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Model referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Delete model
       tags:
         - models
@@ -5889,15 +6211,15 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Model not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Get model
       tags:
         - models
@@ -5961,7 +6283,7 @@ paths:
               description: Strong entity tag for concurrency control
               type: string
             Location:
-              description: Absolute URL for the model
+              description: Relative URL for the model
               type: string
             RateLimit-Limit:
               description: Requests allowed in the current window
@@ -5982,19 +6304,19 @@ paths:
         "400":
           description: Invalid request
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Model referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "412":
           description: ETag mismatch
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update model
       tags:
         - models
@@ -6007,7 +6329,7 @@ paths:
         "405":
           description: Method not allowed
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Delete project
       tags:
         - project
@@ -6049,15 +6371,15 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Project not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Get project
       tags:
         - project
@@ -6116,7 +6438,7 @@ paths:
               description: Strong entity tag for concurrency control
               type: string
             Location:
-              description: Absolute URL for the project
+              description: Relative URL for the project
               type: string
             RateLimit-Limit:
               description: Requests allowed in the current window
@@ -6137,15 +6459,15 @@ paths:
         "400":
           description: Invalid request
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "412":
           description: ETag mismatch
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update project
       tags:
         - project
@@ -6391,11 +6713,11 @@ paths:
         "400":
           description: Invalid cursor
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: List schemas
       tags:
         - schemas
@@ -6434,15 +6756,15 @@ paths:
         "404":
           description: Schema not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Schema referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Delete schema
       tags:
         - schemas
@@ -6490,15 +6812,15 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Schema not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Get schema
       tags:
         - schemas
@@ -6583,23 +6905,23 @@ paths:
         "400":
           description: Invalid request
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Schema not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Schema referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "412":
           description: ETag mismatch
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update schema
       tags:
         - schemas
@@ -6660,15 +6982,15 @@ paths:
         "400":
           description: Invalid cursor
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Workflow not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: List tasks
       tags:
         - tasks
@@ -6697,15 +7019,15 @@ paths:
         "404":
           description: Task not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Task referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Delete task
       tags:
         - tasks
@@ -6750,15 +7072,15 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Task not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Get task
       tags:
         - tasks
@@ -6817,7 +7139,7 @@ paths:
           description: Task created
           headers:
             Location:
-              description: Absolute URL for the task
+              description: Relative URL for the task
               type: string
             RateLimit-Limit:
               description: Requests allowed in the current window
@@ -6838,23 +7160,23 @@ paths:
         "400":
           description: Invalid request
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Task not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Task referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "412":
           description: ETag mismatch
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update task
       tags:
         - tasks
@@ -6915,15 +7237,15 @@ paths:
         "400":
           description: Invalid cursor
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Workflow not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: List tools
       tags:
         - tools
@@ -6952,15 +7274,15 @@ paths:
         "404":
           description: Tool not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Tool referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Delete tool
       tags:
         - tools
@@ -6999,15 +7321,15 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Tool not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Get tool
       tags:
         - tools
@@ -7072,7 +7394,7 @@ paths:
               description: Strong ETag for the resource
               type: string
             Location:
-              description: Absolute URL for the tool
+              description: Relative URL for the tool
               type: string
             RateLimit-Limit:
               description: Requests allowed in the current window
@@ -7093,23 +7415,23 @@ paths:
         "400":
           description: Invalid request
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Tool not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
           description: Tool referenced
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "412":
           description: ETag mismatch
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update tool
       tags:
         - tools
@@ -7353,7 +7675,7 @@ paths:
         - application/json
       responses:
         "200":
-          description: Workflows retrieved
+          description: workflows retrieved
           headers:
             Link:
               description: RFC 8288 pagination links for next/prev
@@ -7377,11 +7699,11 @@ paths:
         "400":
           description: Invalid cursor
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: List workflows
       tags:
         - workflows
@@ -7420,19 +7742,19 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Workflow not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "412":
           description: ETag mismatch
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Delete workflow
       tags:
         - workflows
@@ -7484,15 +7806,15 @@ paths:
         "400":
           description: Invalid request
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Workflow not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Get workflow
       tags:
         - workflows
@@ -7530,7 +7852,7 @@ paths:
         - application/json
       responses:
         "200":
-          description: Workflow updated
+          description: workflow updated
           headers:
             ETag:
               description: Strong entity tag for the stored workflow
@@ -7552,13 +7874,13 @@ paths:
                     $ref: '#/definitions/wfrouter.WorkflowDTO'
                 type: object
         "201":
-          description: Workflow created
+          description: workflow created
           headers:
             ETag:
               description: Strong entity tag for the stored workflow
               type: string
             Location:
-              description: Absolute URL for the created workflow
+              description: Relative URL for the created workflow
               type: string
             RateLimit-Limit:
               description: Requests allowed in the current window
@@ -7579,19 +7901,19 @@ paths:
         "400":
           description: Invalid request body
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Workflow not found
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "412":
           description: ETag mismatch
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/router.ProblemDocument'
+            $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update workflow
       tags:
         - workflows

@@ -9,6 +9,7 @@ var (
 	ErrInvalidInput   = errors.New("invalid input")
 	ErrNotFound       = errors.New("workflow not found")
 	ErrProjectMissing = errors.New("project missing")
+	ErrIDMissing      = errors.New("id missing")
 	ErrIDMismatch     = errors.New("id mismatch")
 	ErrWeakETag       = errors.New("weak etag not allowed")
 	ErrETagMismatch   = errors.New("etag mismatch")

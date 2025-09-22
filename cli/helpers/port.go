@@ -83,6 +83,12 @@ func FindAvailablePort(ctx context.Context, host string, startPort int) (int, er
 
 func waitForConfiguredPort(ctx context.Context, host string, port int, timeout, pollInterval time.Duration) bool {
 	log := logger.FromContext(ctx)
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	if pollInterval <= 0 {
+		pollInterval = 100 * time.Millisecond
+	}
 	deadline := time.Now().Add(timeout)
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()

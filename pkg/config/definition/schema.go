@@ -1292,7 +1292,7 @@ func registerBehaviorFlags(registry *Registry) {
 		Path:    "cli.port_release_timeout",
 		Default: 5 * time.Second,
 		CLIFlag: "port-release-timeout",
-		EnvVar:  "CLI_PORT_RELEASE_TIMEOUT",
+		EnvVar:  "COMPOZY_PORT_RELEASE_TIMEOUT",
 		Type:    durationType,
 		Help:    "Maximum time to wait for a port to become available",
 	})
@@ -1300,7 +1300,7 @@ func registerBehaviorFlags(registry *Registry) {
 		Path:    "cli.port_release_poll_interval",
 		Default: 100 * time.Millisecond,
 		CLIFlag: "port-release-poll-interval",
-		EnvVar:  "CLI_PORT_RELEASE_POLL_INTERVAL",
+		EnvVar:  "COMPOZY_PORT_RELEASE_POLL_INTERVAL",
 		Type:    durationType,
 		Help:    "How often to check if a port has become available",
 	})

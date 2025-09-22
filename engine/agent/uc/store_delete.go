@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
@@ -48,5 +49,11 @@ func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
 		return resourceutil.ConflictError{Details: references}
 	}
 	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceAgent, ID: agentID}
-	return uc.store.Delete(ctx, key)
+	if err := uc.store.Delete(ctx, key); err != nil {
+		if err == resources.ErrNotFound {
+			return ErrNotFound
+		}
+		return fmt.Errorf("delete agent %q in project %q: %w", agentID, projectID, err)
+	}
+	return nil
 }

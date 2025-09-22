@@ -61,6 +61,26 @@ func WorkflowsReferencingTask(
 	})
 }
 
+func WorkflowsReferencingMCP(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	mcpID string,
+) ([]string, error) {
+	id := strings.TrimSpace(mcpID)
+	if id == "" {
+		return nil, nil
+	}
+	return collectWorkflowReferences(ctx, store, project, func(cfg *workflow.Config) bool {
+		for i := range cfg.MCPs {
+			if strings.TrimSpace(cfg.MCPs[i].ID) == id {
+				return true
+			}
+		}
+		return false
+	})
+}
+
 func WorkflowsReferencingSchema(
 	ctx context.Context,
 	store resources.ResourceStore,
@@ -318,6 +338,36 @@ func AgentsReferencingModel(
 		}
 		if ag.Model.HasRef() && strings.TrimSpace(ag.Model.Ref) == modelID {
 			refs = append(refs, ag.ID)
+		}
+	}
+	return refs, nil
+}
+
+func AgentsReferencingMCP(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	mcpID string,
+) ([]string, error) {
+	id := strings.TrimSpace(mcpID)
+	if id == "" {
+		return nil, nil
+	}
+	items, err := store.ListWithValues(ctx, project, resources.ResourceAgent)
+	if err != nil {
+		return nil, err
+	}
+	refs := make([]string, 0)
+	for i := range items {
+		ag, err := decodeAgent(items[i].Value, items[i].Key.ID)
+		if err != nil {
+			return nil, err
+		}
+		for j := range ag.MCPs {
+			if strings.TrimSpace(ag.MCPs[j].ID) == id {
+				refs = append(refs, ag.ID)
+				break
+			}
 		}
 	}
 	return refs, nil

@@ -1036,19 +1036,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid cursor",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Workflow not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -1124,19 +1124,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Agent not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -1267,31 +1267,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Agent not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Agent referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "412": {
                         "description": "ETag mismatch",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -1346,19 +1346,19 @@ const docTemplate = `{
                     "404": {
                         "description": "Agent not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Agent referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -2450,6 +2450,403 @@ const docTemplate = `{
                 }
             }
         },
+        "/mcps": {
+            "get": {
+                "description": "List MCP server configurations with cursor pagination.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcps"
+                ],
+                "summary": "List MCP servers",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 50,
+                        "description": "Page size (max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by MCP ID prefix",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "MCPs retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/mcprouter.MCPsListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Link": {
+                                "type": "string",
+                                "description": "RFC 8288 pagination links for next/prev"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid cursor",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/mcps/{mcp_id}": {
+            "get": {
+                "description": "Retrieve an MCP server configuration by ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcps"
+                ],
+                "summary": "Get MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"filesystem\"",
+                        "description": "MCP ID",
+                        "name": "mcp_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "MCP retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/mcprouter.MCPDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Create an MCP server when absent or update an existing one using strong ETag concurrency.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcps"
+                ],
+                "summary": "Create or update MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"filesystem\"",
+                        "description": "MCP ID",
+                        "name": "mcp_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"\\\"abc123\\\"\"",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    },
+                    {
+                        "description": "MCP configuration payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "MCP updated",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/mcprouter.MCPDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "MCP created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/mcprouter.MCPDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "Location": {
+                                "type": "string",
+                                "description": "Relative URL for the MCP"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "MCP referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an MCP server configuration. Returns conflict when referenced.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcps"
+                ],
+                "summary": "Delete MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"filesystem\"",
+                        "description": "MCP ID",
+                        "name": "mcp_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "MCP referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
         "/memories": {
             "get": {
                 "description": "List memory configurations with cursor pagination.",
@@ -2531,13 +2928,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid cursor",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -2613,19 +3010,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Memory not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -2756,25 +3153,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Memory referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "412": {
                         "description": "ETag mismatch",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -2829,19 +3226,19 @@ const docTemplate = `{
                     "404": {
                         "description": "Memory not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Memory referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -3824,13 +4221,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid cursor",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -3906,19 +4303,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Model not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -4030,7 +4427,7 @@ const docTemplate = `{
                             },
                             "Location": {
                                 "type": "string",
-                                "description": "Absolute URL for the model"
+                                "description": "Relative URL for the model"
                             },
                             "RateLimit-Limit": {
                                 "type": "string",
@@ -4049,25 +4446,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Model referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "412": {
                         "description": "ETag mismatch",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -4122,19 +4519,19 @@ const docTemplate = `{
                     "404": {
                         "description": "Model not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Model referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -4202,19 +4599,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Project not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -4318,7 +4715,7 @@ const docTemplate = `{
                             },
                             "Location": {
                                 "type": "string",
-                                "description": "Absolute URL for the project"
+                                "description": "Relative URL for the project"
                             },
                             "RateLimit-Limit": {
                                 "type": "string",
@@ -4337,19 +4734,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "412": {
                         "description": "ETag mismatch",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -4367,7 +4764,7 @@ const docTemplate = `{
                     "405": {
                         "description": "Method not allowed",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -4794,13 +5191,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid cursor",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -4876,19 +5273,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Schema not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -5019,31 +5416,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Schema not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Schema referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "412": {
                         "description": "ETag mismatch",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -5098,19 +5495,19 @@ const docTemplate = `{
                     "404": {
                         "description": "Schema not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Schema referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -5204,19 +5601,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid cursor",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Workflow not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -5288,19 +5685,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Task not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -5404,7 +5801,7 @@ const docTemplate = `{
                         "headers": {
                             "Location": {
                                 "type": "string",
-                                "description": "Absolute URL for the task"
+                                "description": "Relative URL for the task"
                             },
                             "RateLimit-Limit": {
                                 "type": "string",
@@ -5423,31 +5820,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Task not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Task referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "412": {
                         "description": "ETag mismatch",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -5488,19 +5885,19 @@ const docTemplate = `{
                     "404": {
                         "description": "Task not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Task referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -5594,19 +5991,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid cursor",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Workflow not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -5670,19 +6067,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Tool not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -5794,7 +6191,7 @@ const docTemplate = `{
                             },
                             "Location": {
                                 "type": "string",
-                                "description": "Absolute URL for the tool"
+                                "description": "Relative URL for the tool"
                             },
                             "RateLimit-Limit": {
                                 "type": "string",
@@ -5813,31 +6210,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Tool not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Tool referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "412": {
                         "description": "ETag mismatch",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -5878,19 +6275,19 @@ const docTemplate = `{
                     "404": {
                         "description": "Tool not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "409": {
                         "description": "Tool referenced",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -6253,7 +6650,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Workflows retrieved",
+                        "description": "workflows retrieved",
                         "schema": {
                             "allOf": [
                                 {
@@ -6291,13 +6688,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid cursor",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -6379,19 +6776,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Workflow not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -6448,7 +6845,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Workflow updated",
+                        "description": "workflow updated",
                         "schema": {
                             "allOf": [
                                 {
@@ -6484,7 +6881,7 @@ const docTemplate = `{
                         }
                     },
                     "201": {
-                        "description": "Workflow created",
+                        "description": "workflow created",
                         "schema": {
                             "allOf": [
                                 {
@@ -6507,7 +6904,7 @@ const docTemplate = `{
                             },
                             "Location": {
                                 "type": "string",
-                                "description": "Absolute URL for the created workflow"
+                                "description": "Relative URL for the created workflow"
                             },
                             "RateLimit-Limit": {
                                 "type": "string",
@@ -6526,25 +6923,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request body",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Workflow not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "412": {
                         "description": "ETag mismatch",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -6599,25 +6996,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Workflow not found",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "412": {
                         "description": "ETag mismatch",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/router.ProblemDocument"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -8411,6 +8808,35 @@ const docTemplate = `{
                 }
             }
         },
+        "core.ProblemDocument": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "invalid_cursor"
+                },
+                "detail": {
+                    "type": "string",
+                    "example": "Invalid cursor parameter"
+                },
+                "instance": {
+                    "type": "string",
+                    "example": "/api/v0/workflows"
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 400
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Bad Request"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "about:blank"
+                }
+            }
+        },
         "core.PromptParams": {
             "type": "object",
             "properties": {
@@ -8895,6 +9321,106 @@ const docTemplate = `{
                 "TransportStreamableHTTP"
             ]
         },
+        "mcprouter.MCPDTO": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "max_sessions": {
+                    "type": "integer"
+                },
+                "proto": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "start_timeout": {
+                    "type": "string"
+                },
+                "transport": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "mcprouter.MCPListItem": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "max_sessions": {
+                    "type": "integer"
+                },
+                "proto": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "start_timeout": {
+                    "type": "string"
+                },
+                "transport": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "mcprouter.MCPsListResponse": {
+            "type": "object",
+            "properties": {
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcprouter.MCPListItem"
+                    }
+                },
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                }
+            }
+        },
         "memory.InstanceHealth": {
             "type": "object",
             "properties": {
@@ -9184,9 +9710,6 @@ const docTemplate = `{
         "modelrouter.ModelDTO": {
             "type": "object",
             "properties": {
-                "api_key": {
-                    "type": "string"
-                },
                 "api_url": {
                     "type": "string"
                 },
@@ -9214,9 +9737,6 @@ const docTemplate = `{
         "modelrouter.ModelListItem": {
             "type": "object",
             "properties": {
-                "api_key": {
-                    "type": "string"
-                },
                 "api_url": {
                     "type": "string"
                 },
@@ -9403,35 +9923,6 @@ const docTemplate = `{
                 "total": {
                     "type": "integer",
                     "example": 2
-                }
-            }
-        },
-        "router.ProblemDocument": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string",
-                    "example": "invalid_cursor"
-                },
-                "detail": {
-                    "type": "string",
-                    "example": "Invalid cursor parameter"
-                },
-                "instance": {
-                    "type": "string",
-                    "example": "/api/v0/workflows"
-                },
-                "status": {
-                    "type": "integer",
-                    "example": 400
-                },
-                "title": {
-                    "type": "string",
-                    "example": "Bad Request"
-                },
-                "type": {
-                    "type": "string",
-                    "example": "about:blank"
                 }
             }
         },
