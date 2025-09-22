@@ -3130,122 +3130,6 @@ info:
   version: "1.0"
 
 paths:
-  /admin/export-yaml:
-    post:
-      description: |-
-        Writes deterministic YAML files to project directories.
-        Targets: agents/, tools/, workflows/, schemas/, mcps/, models/.
-        Admin only.
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: 'Example: {\"data\":{\"workflow\":5,\"agent\":2},\"message\":\"export completed\"}'
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    additionalProperties: true
-                    type: object
-                type: object
-        "401":
-          description: Unauthorized
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "403":
-          description: Forbidden
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      security:
-        - ApiKeyAuth: []
-      summary: Export store contents to YAML
-      tags:
-        - admin
-  /admin/import-yaml:
-    post:
-      description: |-
-        Reads YAML from project directories and upserts to ResourceStore.
-        Strategies: seed_only | overwrite_conflicts. Admin only.
-      parameters:
-        - description: seed_only|overwrite_conflicts
-          enum:
-            - seed_only
-            - overwrite_conflicts
-          in: query
-          name: strategy
-          type: string
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    additionalProperties: true
-                    type: object
-                type: object
-        "401":
-          description: Unauthorized
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "403":
-          description: Forbidden
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "409":
-          description: Conflict
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Import YAML into store
-      tags:
-        - admin
   /admin/mcps:
     get:
       description: Get a list of all configured Model Context Protocol servers
@@ -3968,6 +3852,85 @@ paths:
           schema:
             $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update agent
+      tags:
+        - agents
+  /agents/export:
+    post:
+      description: Write agent YAML files for the active project.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"written\":2},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties:
+                      type: integer
+                    type: object
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export agents
+      tags:
+        - agents
+  /agents/import:
+    post:
+      description: Read agent YAML files from the project directory.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"imported\":1,\"skipped\":1,\"overwritten\":0,\"strategy\":\"seed_only\"},\"message\":\"import
+            completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Import agents
       tags:
         - agents
   /auth/generate:
@@ -5262,6 +5225,85 @@ paths:
       summary: Create or update MCP server
       tags:
         - mcps
+  /mcps/export:
+    post:
+      description: Write MCP YAML files for the active project.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"written\":3},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties:
+                      type: integer
+                    type: object
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export MCPs
+      tags:
+        - mcps
+  /mcps/import:
+    post:
+      description: Read MCP YAML files from the project directory.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"imported\":1,\"skipped\":0,\"overwritten\":0,\"strategy\":\"seed_only\"},\"message\":\"import
+            completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Import MCPs
+      tags:
+        - mcps
   /memories:
     get:
       consumes:
@@ -5521,6 +5563,85 @@ paths:
           schema:
             $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update memory
+      tags:
+        - memories
+  /memories/export:
+    post:
+      description: Write memory YAML files for the active project.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"written\":5},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties:
+                      type: integer
+                    type: object
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export memories
+      tags:
+        - memories
+  /memories/import:
+    post:
+      description: Read memory YAML files from the project directory.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"imported\":3,\"skipped\":1,\"overwritten\":1,\"strategy\":\"seed_only\"},\"message\":\"import
+            completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Import memories
       tags:
         - memories
   /memory/{memory_ref}/append:
@@ -6320,6 +6441,85 @@ paths:
       summary: Create or update model
       tags:
         - models
+  /models/export:
+    post:
+      description: Write model YAML files for the active project.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"written\":4},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties:
+                      type: integer
+                    type: object
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export models
+      tags:
+        - models
+  /models/import:
+    post:
+      description: Read model YAML files from the project directory.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"imported\":2,\"skipped\":0,\"overwritten\":1,\"strategy\":\"seed_only\"},\"message\":\"import
+            completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Import models
+      tags:
+        - models
   /project:
     delete:
       description: Project deletion is not supported; returns 405.
@@ -6469,6 +6669,85 @@ paths:
           schema:
             $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update project
+      tags:
+        - project
+  /project/export:
+    post:
+      description: Write the project YAML file for the active project.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"written\":1},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties:
+                      type: integer
+                    type: object
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export project
+      tags:
+        - project
+  /project/import:
+    post:
+      description: Read the project YAML file from the project directory.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"imported\":1,\"skipped\":0,\"overwritten\":0,\"strategy\":\"seed_only\"},\"message\":\"import
+            completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Import project
       tags:
         - project
   /schedules:
@@ -6925,6 +7204,85 @@ paths:
       summary: Create or update schema
       tags:
         - schemas
+  /schemas/export:
+    post:
+      description: Write schema YAML files for the active project.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"written\":2},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties:
+                      type: integer
+                    type: object
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export schemas
+      tags:
+        - schemas
+  /schemas/import:
+    post:
+      description: Read schema YAML files from the project directory.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"imported\":1,\"skipped\":1,\"overwritten\":0,\"strategy\":\"overwrite_conflicts\"},\"message\":\"import
+            completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Import schemas
+      tags:
+        - schemas
   /tasks:
     get:
       consumes:
@@ -7180,6 +7538,85 @@ paths:
       summary: Create or update task
       tags:
         - tasks
+  /tasks/export:
+    post:
+      description: Write task YAML files for the active project.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"written\":6},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties:
+                      type: integer
+                    type: object
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export tasks
+      tags:
+        - tasks
+  /tasks/import:
+    post:
+      description: Read task YAML files from the project directory.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"imported\":4,\"skipped\":1,\"overwritten\":0,\"strategy\":\"seed_only\"},\"message\":\"import
+            completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Import tasks
+      tags:
+        - tasks
   /tools:
     get:
       consumes:
@@ -7433,6 +7870,85 @@ paths:
           schema:
             $ref: '#/definitions/core.ProblemDocument'
       summary: Create or update tool
+      tags:
+        - tools
+  /tools/export:
+    post:
+      description: Write tool YAML files for the active project.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"written\":3},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties:
+                      type: integer
+                    type: object
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export tools
+      tags:
+        - tools
+  /tools/import:
+    post:
+      description: Read tool YAML files from the project directory.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"imported\":2,\"skipped\":1,\"overwritten\":0,\"strategy\":\"seed_only\"},\"message\":\"import
+            completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Import tools
       tags:
         - tools
   /users:
@@ -8361,6 +8877,85 @@ paths:
       summary: Get tool by ID
       tags:
         - tools
+  /workflows/export:
+    post:
+      description: Write workflow YAML files for the active project.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"written\":2},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties:
+                      type: integer
+                    type: object
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export workflows
+      tags:
+        - workflows
+  /workflows/import:
+    post:
+      description: Read workflow YAML files from the project directory.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"imported\":2,\"skipped\":0,\"overwritten\":0,\"strategy\":\"seed_only\"},\"message\":\"import
+            completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Import workflows
+      tags:
+        - workflows
 
 securityDefinitions:
   BearerAuth:

@@ -33,7 +33,6 @@ Note: All tasks MUST follow `.cursor/rules/go-coding-standards.mdc` and `.cursor
 ## Tasks
 
 - [ ] 1.0 Importer/Exporter symmetry + type‑specific functions
-- [ ] 2.0 EXCLUDED — Router admin guard helper (not required)
 - [ ] 3.0 Resource routers: workflows/agents/tools/tasks
 - [ ] 4.0 Resource routers: mcps/schemas/models/memories/project
 - [ ] 5.0 Swagger updates and regeneration

@@ -5,6 +5,8 @@ import "github.com/gin-gonic/gin"
 func Register(apiBase *gin.RouterGroup) {
 	memories := apiBase.Group("/memories")
 	{
+		memories.POST("/export", exportMemories)
+		memories.POST("/import", importMemories)
 		memories.GET("", listMemories)
 		memories.GET("/:memory_id", getMemory)
 		memories.PUT("/:memory_id", upsertMemory)

@@ -7,6 +7,14 @@ import (
 func Register(apiBase *gin.RouterGroup) {
 	agentsGroup := apiBase.Group("/agents")
 	{
+		// POST /api/v0/agents/export
+		// Export agents to YAML
+		agentsGroup.POST("/export", exportAgents)
+
+		// POST /api/v0/agents/import
+		// Import agents from YAML
+		agentsGroup.POST("/import", importAgents)
+
 		agentsGroup.GET("", listAgentsTop)
 		agentsGroup.GET("/:agent_id", getAgentTop)
 		agentsGroup.PUT("/:agent_id", upsertAgentTop)

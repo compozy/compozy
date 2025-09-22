@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/pkg/logger"
@@ -22,12 +23,18 @@ func DirForType(t resources.ResourceType) (string, bool) {
 		return "agents", true
 	case resources.ResourceTool:
 		return "tools", true
+	case resources.ResourceTask:
+		return "tasks", true
 	case resources.ResourceSchema:
 		return "schemas", true
 	case resources.ResourceMCP:
 		return "mcps", true
 	case resources.ResourceModel:
 		return "models", true
+	case resources.ResourceMemory:
+		return "memories", true
+	case resources.ResourceProject:
+		return "project", true
 	default:
 		return "", false
 	}
@@ -41,7 +48,6 @@ type Result struct {
 // ExportToDir walks the ResourceStore for the given project and writes
 // deterministic YAML files under rootDir per type directory.
 func ExportToDir(ctx context.Context, project string, store resources.ResourceStore, rootDir string) (*Result, error) {
-	log := logger.FromContext(ctx)
 	if project == "" {
 		return nil, fmt.Errorf("project is required")
 	}
@@ -55,52 +61,84 @@ func ExportToDir(ctx context.Context, project string, store resources.ResourceSt
 		resources.ResourceWorkflow,
 		resources.ResourceAgent,
 		resources.ResourceTool,
+		resources.ResourceTask,
 		resources.ResourceSchema,
 		resources.ResourceMCP,
 		resources.ResourceModel,
+		resources.ResourceMemory,
+		resources.ResourceProject,
 	}
 	res := &Result{Written: make(map[resources.ResourceType]int)}
 	for _, typ := range types {
-		dir, ok := DirForType(typ)
-		if !ok {
-			continue
-		}
-		keys, err := store.List(ctx, project, typ)
+		out, err := ExportTypeToDir(ctx, project, store, rootDir, typ)
 		if err != nil {
-			return nil, fmt.Errorf("list %s: %w", typ, err)
+			return nil, err
 		}
-		if len(keys) == 0 {
-			continue
+		for k, v := range out.Written {
+			res.Written[k] += v
 		}
-		absDir := filepath.Join(rootDir, dir)
-		if err := os.MkdirAll(absDir, 0o755); err != nil {
-			return nil, fmt.Errorf("mkdir %s: %w", absDir, err)
-		}
-		sort.Slice(keys, func(i, j int) bool { return keys[i].ID < keys[j].ID })
-		for i := range keys {
-			key := keys[i]
-			val, _, err := store.Get(ctx, key)
-			if err != nil {
-				if err == resources.ErrNotFound {
-					continue
-				}
-				return nil, fmt.Errorf("get %s/%s: %w", string(typ), key.ID, err)
+	}
+	return res, nil
+}
+
+// ExportTypeToDir writes YAML files for a single resource type under its directory.
+func ExportTypeToDir(
+	ctx context.Context,
+	project string,
+	store resources.ResourceStore,
+	rootDir string,
+	typ resources.ResourceType,
+) (*Result, error) {
+	log := logger.FromContext(ctx)
+	if project == "" {
+		return nil, fmt.Errorf("project is required")
+	}
+	if store == nil {
+		return nil, fmt.Errorf("resource store is required")
+	}
+	if rootDir == "" {
+		return nil, fmt.Errorf("root directory is required")
+	}
+	dir, ok := DirForType(typ)
+	if !ok {
+		return nil, fmt.Errorf("unsupported resource type: %s", typ)
+	}
+	keys, err := store.List(ctx, project, typ)
+	if err != nil {
+		return nil, fmt.Errorf("list %s: %w", typ, err)
+	}
+	res := &Result{Written: make(map[resources.ResourceType]int)}
+	if len(keys) == 0 {
+		return res, nil
+	}
+	absDir := filepath.Join(rootDir, dir)
+	if err := os.MkdirAll(absDir, 0o755); err != nil {
+		return nil, fmt.Errorf("mkdir %s: %w", absDir, err)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i].ID < keys[j].ID })
+	for i := range keys {
+		key := keys[i]
+		val, _, getErr := store.Get(ctx, key)
+		if getErr != nil {
+			if getErr == resources.ErrNotFound {
+				continue
 			}
-			node := buildYAMLNode(val)
-			var buf bytes.Buffer
-			enc := yaml.NewEncoder(&buf)
-			enc.SetIndent(2)
-			if err := enc.Encode(node); err != nil {
-				return nil, fmt.Errorf("encode yaml for %s/%s: %w", string(typ), key.ID, err)
-			}
-			_ = enc.Close()
-			filename := filepath.Join(absDir, sanitizeID(key.ID)+".yaml")
-			if err := os.WriteFile(filename, buf.Bytes(), 0o600); err != nil {
-				return nil, fmt.Errorf("write file %s: %w", filename, err)
-			}
-			res.Written[typ]++
-			log.Debug("exported yaml", "type", string(typ), "id", key.ID, "file", filename)
+			return nil, fmt.Errorf("get %s/%s: %w", string(typ), key.ID, getErr)
 		}
+		node := buildYAMLNode(val)
+		var buf bytes.Buffer
+		enc := yaml.NewEncoder(&buf)
+		enc.SetIndent(2)
+		if err := enc.Encode(node); err != nil {
+			return nil, fmt.Errorf("encode yaml for %s/%s: %w", string(typ), key.ID, err)
+		}
+		_ = enc.Close()
+		filename := filepath.Join(absDir, sanitizeID(key.ID)+".yaml")
+		if err := os.WriteFile(filename, buf.Bytes(), 0o600); err != nil {
+			return nil, fmt.Errorf("write file %s: %w", filename, err)
+		}
+		res.Written[typ]++
+		log.Debug("exported yaml", "type", string(typ), "id", key.ID, "file", filename)
 	}
 	return res, nil
 }
@@ -156,5 +194,9 @@ func sanitizeID(id string) string {
 			out = append(out, '-')
 		}
 	}
-	return string(out)
+	clean := strings.TrimLeft(string(out), ".")
+	if clean == "" {
+		return "-"
+	}
+	return clean
 }

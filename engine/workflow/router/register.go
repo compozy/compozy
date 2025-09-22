@@ -15,6 +15,14 @@ func Register(apiBase *gin.RouterGroup) {
 	workflowsGroup := apiBase.Group("/workflows")
 
 	{
+		// POST /api/v0/workflows/export
+		// Export workflows to YAML
+		workflowsGroup.POST("/export", exportWorkflows)
+
+		// POST /api/v0/workflows/import
+		// Import workflows from YAML
+		workflowsGroup.POST("/import", importWorkflows)
+
 		// GET /api/v0/workflows
 		// List all workflows
 		workflowsGroup.GET("", listWorkflows)

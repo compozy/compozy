@@ -7,6 +7,14 @@ import (
 func Register(apiBase *gin.RouterGroup) {
 	toolsGroup := apiBase.Group("/tools")
 	{
+		// POST /api/v0/tools/export
+		// Export tools to YAML
+		toolsGroup.POST("/export", exportTools)
+
+		// POST /api/v0/tools/import
+		// Import tools from YAML
+		toolsGroup.POST("/import", importTools)
+
 		toolsGroup.GET("", listToolsTop)
 		toolsGroup.GET("/:tool_id", getToolTop)
 		toolsGroup.PUT("/:tool_id", upsertToolTop)
