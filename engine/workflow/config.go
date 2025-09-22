@@ -617,8 +617,6 @@ func setupCompileMetrics() (metric.Float64Histogram, metric.Int64Counter) {
 // - If agent model is empty, fill from project default model (when available)
 // - Deep-copy all resolved configs
 //
-// NOTE: Schema ID linking and MCP selector support will be completed in later tasks
-// (see tasks/prd-refs/_task_6.0.md and _task_7.0.md).
 
 func (w *Config) Compile(
 	ctx context.Context,
