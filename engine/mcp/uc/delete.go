@@ -3,6 +3,7 @@ package uc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
@@ -34,17 +35,17 @@ func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
 	if mcpID == "" {
 		return ErrIDMissing
 	}
-	references := make([]resourceutil.ReferenceDetail, 0)
+	references := make([]resourceutil.ReferenceDetail, 0, 2)
 	wfRefs, err := resourceutil.WorkflowsReferencingMCP(ctx, uc.store, projectID, mcpID)
 	if err != nil {
-		return err
+		return fmt.Errorf("list workflows referencing mcp %q: %w", mcpID, err)
 	}
 	if len(wfRefs) > 0 {
 		references = append(references, resourceutil.ReferenceDetail{Resource: "workflows", IDs: wfRefs})
 	}
 	agentRefs, err := resourceutil.AgentsReferencingMCP(ctx, uc.store, projectID, mcpID)
 	if err != nil {
-		return err
+		return fmt.Errorf("list agents referencing mcp %q: %w", mcpID, err)
 	}
 	if len(agentRefs) > 0 {
 		references = append(references, resourceutil.ReferenceDetail{Resource: "agents", IDs: agentRefs})
@@ -57,7 +58,7 @@ func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
 		if errors.Is(err, resources.ErrNotFound) {
 			return ErrNotFound
 		}
-		return err
+		return fmt.Errorf("delete mcp %q: %w", mcpID, err)
 	}
 	return nil
 }

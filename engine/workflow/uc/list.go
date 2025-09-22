@@ -68,16 +68,12 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 		}
 		list = append(list, ListItem{Config: cfg, ETag: slice[i].ETag})
 	}
-	nextCursorValue := nextValue
-	nextCursorDirection := nextDir
-	prevCursorValue := prevValue
-	prevCursorDirection := prevDir
 	return &ListOutput{
 		Items:               list,
-		NextCursorValue:     nextCursorValue,
-		NextCursorDirection: nextCursorDirection,
-		PrevCursorValue:     prevCursorValue,
-		PrevCursorDirection: prevCursorDirection,
+		NextCursorValue:     nextValue,
+		NextCursorDirection: nextDir,
+		PrevCursorValue:     prevValue,
+		PrevCursorDirection: prevDir,
 		Total:               len(filtered),
 	}, nil
 }

@@ -3130,406 +3130,6 @@ info:
   version: "1.0"
 
 paths:
-  /{name}/sse:
-    get:
-      description: Proxy Server-Sent Events requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-      responses:
-        "200":
-          description: SSE stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy SSE requests to MCP server
-      tags:
-        - MCP Proxy
-  /{name}/sse/{path}:
-    get:
-      description: Proxy Server-Sent Events requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
-      responses:
-        "200":
-          description: SSE stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy SSE requests to MCP server
-      tags:
-        - MCP Proxy
-  /{name}/stream:
-    delete:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    get:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    patch:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    post:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    put:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-  /{name}/stream/{path}:
-    delete:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    get:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    patch:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    post:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    put:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
   /admin/export-yaml:
     post:
       description: |-
@@ -5002,6 +4602,406 @@ paths:
         data:
           result: ok
         message: Success
+  /mcp/{name}/sse:
+    get:
+      description: Proxy Server-Sent Events requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: SSE stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy SSE requests to MCP server
+      tags:
+        - MCP Proxy
+  /mcp/{name}/sse/{path}:
+    get:
+      description: Proxy Server-Sent Events requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: SSE stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy SSE requests to MCP server
+      tags:
+        - MCP Proxy
+  /mcp/{name}/stream:
+    delete:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    get:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    patch:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    post:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    put:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+  /mcp/{name}/stream/{path}:
+    delete:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    get:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    patch:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    post:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    put:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
   /mcps:
     get:
       consumes:

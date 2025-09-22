@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -42,7 +43,7 @@ func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
 	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceMCP, ID: mcpID}
 	value, etag, err := uc.store.Get(ctx, key)
 	if err != nil {
-		if err == resources.ErrNotFound {
+		if errors.Is(err, resources.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get mcp %q in project %q: %w", mcpID, projectID, err)

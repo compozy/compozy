@@ -133,6 +133,7 @@ func TestAgentsQueries(t *testing.T) {
 		res := client.do(http.MethodGet, "/api/v0/agents?q=planner-", nil, nil)
 		require.Equal(t, http.StatusOK, res.Code)
 		items, page := decodeList(t, res, "agents")
+		require.Len(t, items, 1)
 		assert.Equal(t, float64(1), page["total"])
 		assert.Equal(t, "planner-x", items[0]["id"].(string))
 	})

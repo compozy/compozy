@@ -14,6 +14,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	defaultAgentsLimit = 50
+	maxAgentsLimit     = 500
+)
+
 // listAgentsTop handles GET /agents.
 //
 // @Summary List agents
@@ -34,7 +39,7 @@ import (
 // @Failure 400 {object} core.ProblemDocument "Invalid cursor"
 // @Failure 404 {object} core.ProblemDocument "Workflow not found"
 // @Failure 500 {object} core.ProblemDocument "Internal server error"
-// @Router /agents [get]
+// @Router /api/v0/agents [get]
 func listAgentsTop(c *gin.Context) {
 	store, ok := router.GetResourceStore(c)
 	if !ok {
@@ -44,7 +49,7 @@ func listAgentsTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), defaultAgentsLimit, maxAgentsLimit)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
@@ -97,7 +102,7 @@ func listAgentsTop(c *gin.Context) {
 // @Failure 400 {object} core.ProblemDocument "Invalid input"
 // @Failure 404 {object} core.ProblemDocument "Agent not found"
 // @Failure 500 {object} core.ProblemDocument "Internal server error"
-// @Router /agents/{agent_id} [get]
+// @Router /api/v0/agents/{agent_id} [get]
 func getAgentTop(c *gin.Context) {
 	agentID := router.GetAgentID(c)
 	if agentID == "" {
@@ -147,7 +152,7 @@ func getAgentTop(c *gin.Context) {
 // @Failure 409 {object} core.ProblemDocument "Agent referenced"
 // @Failure 412 {object} core.ProblemDocument "ETag mismatch"
 // @Failure 500 {object} core.ProblemDocument "Internal server error"
-// @Router /agents/{agent_id} [put]
+// @Router /api/v0/agents/{agent_id} [put]
 func upsertAgentTop(c *gin.Context) {
 	agentID := router.GetAgentID(c)
 	if agentID == "" {
@@ -207,7 +212,7 @@ func upsertAgentTop(c *gin.Context) {
 // @Failure 404 {object} core.ProblemDocument "Agent not found"
 // @Failure 409 {object} core.ProblemDocument "Agent referenced"
 // @Failure 500 {object} core.ProblemDocument "Internal server error"
-// @Router /agents/{agent_id} [delete]
+// @Router /api/v0/agents/{agent_id} [delete]
 func deleteAgentTop(c *gin.Context) {
 	agentID := router.GetAgentID(c)
 	if agentID == "" {

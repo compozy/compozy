@@ -41,7 +41,9 @@ func Workflows() string {
 	return Base() + "/workflows"
 }
 
-func buildResourceRoute(resource string) string { return Base() + "/" + resource }
+func buildResourceRoute(resource string) string {
+	return Base() + "/" + resource
+}
 
 func Project() string  { return buildResourceRoute("project") }
 func Schemas() string  { return buildResourceRoute("schemas") }

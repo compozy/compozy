@@ -29,6 +29,9 @@ type Problem struct {
 // RespondProblem writes an RFC7807 problem+json response.
 // Accepts a pointer to avoid copying a potentially large struct and to satisfy linters.
 func RespondProblem(c *gin.Context, problem *Problem) {
+	if problem == nil {
+		problem = &Problem{}
+	}
 	if problem.Status == 0 {
 		problem.Status = http.StatusInternalServerError
 	}

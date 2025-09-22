@@ -75,9 +75,8 @@ func NewActivities(
 		return nil, fmt.Errorf("activities: create CEL evaluator: %w", err)
 	}
 	// Create memory activities instance
-	// Note: MemoryActivities will use activity.GetLogger(ctx) internally for proper logging
+	// Note: MemoryActivities will use logger.FromContext(ctx) internally for logging
 	memoryActivities := memacts.NewMemoryActivities(memoryManager)
-
 	// Create task2 factory
 	envMerger := core.NewEnvMerger()
 	task2Factory, err := task2.NewFactory(&task2.FactoryConfig{

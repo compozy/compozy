@@ -1111,6 +1111,11 @@ type MCPProxyConfig struct {
 //	  debug: false                      # Debug logging
 //	  quiet: false                      # Suppress output
 //	  interactive: true                 # Interactive prompts
+const (
+	DefaultPortReleaseTimeout      = 5 * time.Second
+	DefaultPortReleasePollInterval = 100 * time.Millisecond
+)
+
 type CLIConfig struct {
 	// APIKey authenticates CLI requests to the Compozy API.
 	//
@@ -1210,12 +1215,12 @@ type CLIConfig struct {
 	// PortReleaseTimeout sets the maximum time to wait for a port to become available.
 	//
 	// Default: 5s
-	PortReleaseTimeout time.Duration `koanf:"port_release_timeout" env:"COMPOZY_PORT_RELEASE_TIMEOUT" json:"PortReleaseTimeout" yaml:"port_release_timeout" mapstructure:"port_release_timeout"`
+	PortReleaseTimeout time.Duration `koanf:"port_release_timeout" env:"COMPOZY_PORT_RELEASE_TIMEOUT" json:"PortReleaseTimeout" yaml:"port_release_timeout" mapstructure:"port_release_timeout" validate:"min=0"`
 
 	// PortReleasePollInterval sets how often to check if a port has become available.
 	//
 	// Default: 100ms
-	PortReleasePollInterval time.Duration `koanf:"port_release_poll_interval" env:"COMPOZY_PORT_RELEASE_POLL_INTERVAL" json:"PortReleasePollInterval" yaml:"port_release_poll_interval" mapstructure:"port_release_poll_interval"`
+	PortReleasePollInterval time.Duration `koanf:"port_release_poll_interval" env:"COMPOZY_PORT_RELEASE_POLL_INTERVAL" json:"PortReleasePollInterval" yaml:"port_release_poll_interval" mapstructure:"port_release_poll_interval" validate:"min=0"`
 }
 
 // WebhooksConfig contains webhook processing and validation configuration.
@@ -1570,11 +1575,11 @@ func buildRateLimitConfig(registry *definition.Registry) RateLimitConfig {
 func buildCLIConfig(registry *definition.Registry) CLIConfig {
 	prt := getDuration(registry, "cli.port_release_timeout")
 	if prt <= 0 {
-		prt = 5 * time.Second
+		prt = DefaultPortReleaseTimeout
 	}
 	prpi := getDuration(registry, "cli.port_release_poll_interval")
 	if prpi <= 0 {
-		prpi = 100 * time.Millisecond
+		prpi = DefaultPortReleasePollInterval
 	}
 	return CLIConfig{
 		APIKey:                  SensitiveString(getString(registry, "cli.api_key")),

@@ -14,6 +14,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	defaultMCPListLimit = 50
+	maxMCPListLimit     = 500
+)
+
 // listMCPs handles GET /mcps.
 //
 // @Summary List MCP servers
@@ -42,7 +47,7 @@ func listMCPs(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), defaultMCPListLimit, maxMCPListLimit)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})

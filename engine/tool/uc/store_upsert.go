@@ -75,7 +75,6 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 		updatedBy,
 	); err != nil {
 		log.Error("failed to write tool meta", "error", err, "tool", toolID)
-		return nil, fmt.Errorf("write tool meta: %w", err)
 	}
 	entry, err := cfg.AsMap()
 	if err != nil {

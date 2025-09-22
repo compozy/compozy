@@ -34,6 +34,7 @@ func TestSchemasEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, updateRes.Code)
 		newEtag := updateRes.Header().Get("ETag")
 		require.NotEmpty(t, newEtag)
+		assert.NotEqual(t, etag, newEtag)
 		afterRes := client.do(http.MethodGet, "/api/v0/schemas/user", nil, nil)
 		require.Equal(t, http.StatusOK, afterRes.Code)
 		assert.Equal(t, newEtag, afterRes.Header().Get("ETag"))
@@ -51,6 +52,7 @@ func TestSchemasEndpoints(t *testing.T) {
 			map[string]string{"If-Match": "\"schema-bad\""},
 		)
 		require.Equal(t, http.StatusPreconditionFailed, staleRes.Code)
+		assert.Contains(t, staleRes.Header().Get("Content-Type"), "application/problem+json")
 		client.do(http.MethodPut, "/api/v0/schemas/audit", schemaPayload(map[string]any{}), nil)
 		// Walk paginated list and collect schema IDs from typed items (body.id)
 		path := "/api/v0/schemas?limit=1"

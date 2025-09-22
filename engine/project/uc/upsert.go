@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
-const sourceAPI = "api"
+const defaultUpdatedBySource = "api"
 
 type UpsertInput struct {
 	Project string
@@ -56,7 +56,7 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 	if err != nil {
 		return nil, err
 	}
-	updatedBy := sourceAPI
+	updatedBy := defaultUpdatedBySource
 	if usr, ok := userctx.UserFromContext(ctx); ok && usr != nil {
 		updatedBy = usr.ID.String()
 	}
@@ -66,7 +66,7 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 		projectID,
 		resources.ResourceProject,
 		projectID,
-		sourceAPI,
+		defaultUpdatedBySource,
 		updatedBy,
 	); err != nil {
 		log.Error("failed to write project meta", "error", err, "project", projectID)

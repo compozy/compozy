@@ -1,6 +1,8 @@
 package agentrouter
 
 import (
+	"strings"
+
 	"github.com/compozy/compozy/engine/infra/server/router"
 )
 
@@ -36,16 +38,20 @@ func ToAgentDTOForWorkflow(src map[string]any) AgentDTO {
 	return toAgentDTO(src)
 }
 
-// toAgentDTO maps a generic UC map payload to AgentDTO.
-func toAgentDTO(src map[string]any) AgentDTO {
-	return AgentDTO{AgentCoreDTO: AgentCoreDTO{
+func agentCoreDTOFromMap(src map[string]any) AgentCoreDTO {
+	return AgentCoreDTO{
 		Resource:     router.AsString(src["resource"]),
 		ID:           router.AsString(src["id"]),
 		Instructions: router.AsString(src["instructions"]),
 		Model:        router.AsMap(src["model"]),
 		With:         router.AsMap(src["with"]),
-		Env:          router.AsMap(src["env"]),
-	}}
+		Env:          maskSecrets(router.AsMap(src["env"])),
+	}
+}
+
+// toAgentDTO maps a generic UC map payload to AgentDTO.
+func toAgentDTO(src map[string]any) AgentDTO {
+	return AgentDTO{AgentCoreDTO: agentCoreDTOFromMap(src)}
 }
 
 // toAgentListItem maps a UC map payload to AgentListItem, normalizing _etag → etag.
@@ -54,12 +60,24 @@ func toAgentListItem(src map[string]any) AgentListItem {
 	if etag == "" {
 		etag = router.AsString(src["etag"])
 	}
-	return AgentListItem{AgentCoreDTO: AgentCoreDTO{
-		Resource:     router.AsString(src["resource"]),
-		ID:           router.AsString(src["id"]),
-		Instructions: router.AsString(src["instructions"]),
-		Model:        router.AsMap(src["model"]),
-		With:         router.AsMap(src["with"]),
-		Env:          router.AsMap(src["env"]),
-	}, ETag: etag}
+	return AgentListItem{AgentCoreDTO: agentCoreDTOFromMap(src), ETag: etag}
+}
+
+func maskSecrets(values map[string]any) map[string]any {
+	if values == nil {
+		return nil
+	}
+	masked := make(map[string]any, len(values))
+	for k, v := range values {
+		lower := strings.ToLower(k)
+		if strings.Contains(lower, "secret") ||
+			strings.Contains(lower, "token") ||
+			strings.Contains(lower, "key") ||
+			strings.Contains(lower, "password") {
+			masked[k] = "********"
+			continue
+		}
+		masked[k] = v
+	}
+	return masked
 }

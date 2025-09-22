@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
@@ -45,7 +46,7 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 	limit := resourceutil.ClampLimit(in.Limit)
 	items, err := uc.store.ListWithValues(ctx, projectID, resources.ResourceMCP)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list mcps for project %q: %w", projectID, err)
 	}
 	filtered := resourceutil.FilterStoredItems(items, strings.TrimSpace(in.Prefix))
 	window, nextValue, nextDir, prevValue, prevDir := resourceutil.ApplyCursorWindow(
@@ -58,11 +59,11 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 	for i := range window {
 		cfg, err := decodeStoredMCP(window[i].Value, window[i].Key.ID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decode mcp %q: %w", window[i].Key.ID, err)
 		}
 		entry, err := core.AsMapDefault(cfg)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("map mcp %q: %w", window[i].Key.ID, err)
 		}
 		entry["_etag"] = string(window[i].ETag)
 		payload = append(payload, entry)

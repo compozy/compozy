@@ -37,6 +37,9 @@ func NewUpsert(store resources.ResourceStore) *Upsert {
 
 func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, error) {
 	log := logger.FromContext(ctx)
+	if uc == nil || uc.store == nil {
+		return nil, ErrInvalidInput
+	}
 	if in == nil {
 		return nil, ErrInvalidInput
 	}

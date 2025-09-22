@@ -181,16 +181,7 @@ func upsertMemory(c *gin.Context) {
 	if out.Created {
 		status = http.StatusCreated
 		message = "memory created"
-		scheme := "http"
-		if xfp := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto")); xfp != "" {
-			scheme = xfp
-		} else if c.Request.URL.Scheme != "" {
-			scheme = c.Request.URL.Scheme
-		} else if c.Request.TLS != nil {
-			scheme = "https"
-		}
-		host := c.Request.Host
-		c.Header("Location", fmt.Sprintf("%s://%s%s/%s", scheme, host, routes.Memories(), memoryID))
+		c.Header("Location", routes.Memories()+"/"+memoryID)
 	}
 	if status == http.StatusCreated {
 		router.RespondCreated(c, message, toMemoryDTO(out.Memory))

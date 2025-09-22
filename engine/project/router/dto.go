@@ -60,6 +60,9 @@ func toAuthor(v any) *core.Author {
 	if org, ok2 := m["organization"].(string); ok2 {
 		a.Organization = org
 	}
+	if url, ok2 := m["url"].(string); ok2 {
+		a.URL = url
+	}
 	return a
 }
 

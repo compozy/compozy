@@ -55,7 +55,10 @@ func RespondConflict(c *gin.Context, err error, details []ReferenceDetail) {
 		}
 		extras["references"] = refs
 	}
-	detail := err.Error()
+	var detail string
+	if err != nil {
+		detail = strings.TrimSpace(err.Error())
+	}
 	if detail == "" {
 		detail = "resource has active references"
 	}

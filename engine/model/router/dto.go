@@ -4,6 +4,8 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 )
 
+const resourceModel = "model"
+
 // ModelDTO represents the typed API shape for a model configuration.
 // Mirrors public fields from core.ProviderConfig while keeping transport concerns
 // out of DTOs.
@@ -39,7 +41,7 @@ func toModelDTO(src map[string]any) ModelDTO {
 	model := router.AsString(src["model"])
 	id := buildModelID(provider, model, router.AsString(src["id"]))
 	return ModelDTO{ModelCoreDTO: ModelCoreDTO{
-		Resource:     "model",
+		Resource:     resourceModel,
 		ID:           id,
 		Provider:     provider,
 		Model:        model,
@@ -55,7 +57,7 @@ func toModelListItem(src map[string]any) ModelListItem {
 	model := router.AsString(src["model"])
 	id := buildModelID(provider, model, router.AsString(src["id"]))
 	return ModelListItem{ModelCoreDTO: ModelCoreDTO{
-		Resource:     "model",
+		Resource:     resourceModel,
 		ID:           id,
 		Provider:     provider,
 		Model:        model,

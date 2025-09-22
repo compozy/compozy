@@ -2,6 +2,7 @@ package mcprouter
 
 import (
 	"encoding/json"
+	"math"
 	"strconv"
 	"time"
 
@@ -82,56 +83,76 @@ func stringMapFromAny(v any) map[string]string {
 		}
 		return out
 	default:
-		return nil
+		return map[string]string{}
 	}
 }
 
 func intPtrFromAny(v any) *int {
 	switch t := v.(type) {
 	case int:
-		if t == 0 {
-			return nil
-		}
-		x := t
-		return &x
+		return intFromInt64(int64(t))
 	case int64:
-		if t == 0 {
-			return nil
-		}
-		x := int(t)
-		return &x
+		return intFromInt64(t)
 	case float64:
-		if t == 0 {
-			return nil
-		}
-		x := int(t)
-		return &x
+		return intFromFloat64(t)
 	case string:
-		if t == "" {
-			return nil
-		}
-		if n, err := strconv.Atoi(t); err == nil {
-			if n == 0 {
-				return nil
-			}
-			x := n
-			return &x
-		}
+		return intFromString(t)
 	case json.Number:
-		if n, err := t.Int64(); err == nil {
-			if n == 0 {
-				return nil
-			}
-			x := int(n)
-			return &x
-		}
+		return intFromJSONNumber(t)
 	}
 	return nil
+}
+
+func intFromInt64(n int64) *int {
+	if n == 0 {
+		return nil
+	}
+	if n > int64(math.MaxInt) || n < int64(math.MinInt) {
+		return nil
+	}
+	x := int(n)
+	return &x
+}
+
+func intFromFloat64(f float64) *int {
+	if f == 0 {
+		return nil
+	}
+	n := int64(f)
+	if n == 0 {
+		return nil
+	}
+	return intFromInt64(n)
+}
+
+func intFromString(s string) *int {
+	if s == "" {
+		return nil
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return nil
+	}
+	return intFromInt64(n)
+}
+
+func intFromJSONNumber(num json.Number) *int {
+	if n, err := num.Int64(); err == nil {
+		return intFromInt64(n)
+	}
+	f, err := num.Float64()
+	if err != nil {
+		return nil
+	}
+	return intFromFloat64(f)
 }
 
 func durationStringFromAny(v any) string {
 	switch t := v.(type) {
 	case string:
+		if t == "" {
+			return ""
+		}
 		return t
 	case time.Duration:
 		if t == 0 {
@@ -142,23 +163,23 @@ func durationStringFromAny(v any) string {
 		if t == 0 {
 			return ""
 		}
-		return time.Duration(t).String()
+		return (time.Duration(t) * time.Second).String()
 	case int64:
 		if t == 0 {
 			return ""
 		}
-		return time.Duration(t).String()
+		return (time.Duration(t) * time.Second).String()
 	case float64:
 		if t == 0 {
 			return ""
 		}
-		return time.Duration(int64(t)).String()
+		return (time.Duration(int64(t)) * time.Second).String()
 	case json.Number:
-		if n, err := t.Int64(); err == nil {
+		if n, err := t.Float64(); err == nil {
 			if n == 0 {
 				return ""
 			}
-			return time.Duration(n).String()
+			return (time.Duration(int64(n)) * time.Second).String()
 		}
 	}
 	return ""
