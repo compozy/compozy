@@ -64,12 +64,12 @@ func TestWorkflowsEndpoints(t *testing.T) {
 }
 
 func TestWorkflowsQueries(t *testing.T) {
-	t.Run("Should support list pagination, filter and fields", func(t *testing.T) {
+	t.Run("Should support list pagination and filter", func(t *testing.T) {
 		client := newResourceClient(t)
 		client.do(http.MethodPut, "/api/v0/workflows/wf-a", workflowPayload("wf-a", "alpha"), nil)
 		client.do(http.MethodPut, "/api/v0/workflows/wf-b", workflowPayload("wf-b", "beta"), nil)
 		client.do(http.MethodPut, "/api/v0/workflows/other", workflowPayload("other", "other"), nil)
-		res := client.do(http.MethodGet, "/api/v0/workflows?q=wf-&fields=id,task_count", nil, nil)
+		res := client.do(http.MethodGet, "/api/v0/workflows?q=wf-", nil, nil)
 		require.Equal(t, http.StatusOK, res.Code)
 		items, page := decodeList(t, res, "workflows")
 		require.Equal(t, float64(2), page["total"]) // only wf-a,wf-b
@@ -79,15 +79,13 @@ func TestWorkflowsQueries(t *testing.T) {
 		}
 		assert.ElementsMatch(t, []string{"wf-a", "wf-b"}, ids)
 		for i := range items {
-			_, hasEtag := items[i]["_etag"]
-			_, onlyID := items[i]["id"]
+			_, hasEtag := items[i]["etag"]
+			_, hasID := items[i]["id"]
 			_, hasTaskCount := items[i]["task_count"]
 			assert.True(t, hasEtag)
-			assert.True(t, onlyID)
+			assert.True(t, hasID)
 			assert.True(t, hasTaskCount)
 			assert.Equal(t, 0, int(items[i]["task_count"].(float64)))
-			assert.NotContains(t, items[i], "description")
-			assert.Len(t, items[i], 3)
 		}
 		pageLink := res.Header().Get("Link")
 		assert.NotContains(t, pageLink, "rel=\"prev\"")
@@ -108,31 +106,20 @@ func TestWorkflowsQueries(t *testing.T) {
 		assert.Contains(t, page2Res.Header().Get("Link"), "rel=\"prev\"")
 		assert.Equal(t, float64(3), page3["total"])
 	})
-	t.Run("Should expand tasks on get and respect fields", func(t *testing.T) {
+	t.Run("Should expand tasks on get", func(t *testing.T) {
 		client := newResourceClient(t)
 		payload := workflowPayload("wf-exp", "expand test")
 		payload["tasks"] = []map[string]any{{"id": "t1", "type": "basic"}, {"id": "t2", "type": "basic"}}
 		putRes := client.do(http.MethodPut, "/api/v0/workflows/wf-exp", payload, nil)
 		require.Equal(t, http.StatusCreated, putRes.Code)
-		getCompact := client.do(
-			http.MethodGet,
-			"/api/v0/workflows/wf-exp?fields=id,tasks,task_ids,task_count",
-			nil,
-			nil,
-		)
+		getCompact := client.do(http.MethodGet, "/api/v0/workflows/wf-exp", nil, nil)
 		require.Equal(t, http.StatusOK, getCompact.Code)
 		data := decodeData(t, getCompact)
 		assert.Equal(t, "wf-exp", data["id"])
 		assert.ElementsMatch(t, []any{"t1", "t2"}, data["tasks"].([]any))
 		assert.ElementsMatch(t, []any{"t1", "t2"}, data["task_ids"].([]any))
 		assert.Equal(t, float64(2), data["task_count"])
-		assert.NotContains(t, data, "description")
-		getExpanded := client.do(
-			http.MethodGet,
-			"/api/v0/workflows/wf-exp?expand=tasks&fields=id,tasks,task_count",
-			nil,
-			nil,
-		)
+		getExpanded := client.do(http.MethodGet, "/api/v0/workflows/wf-exp?expand=tasks", nil, nil)
 		require.Equal(t, http.StatusOK, getExpanded.Code)
 		expanded := decodeData(t, getExpanded)
 		assert.Equal(t, "wf-exp", expanded["id"])
@@ -160,7 +147,7 @@ func TestWorkflowsQueries(t *testing.T) {
 		wf := workflowPayload("wf-list-exp", "list expand")
 		wf["tasks"] = []map[string]any{{"id": "ex1", "type": "basic"}}
 		client.do(http.MethodPut, "/api/v0/workflows/wf-list-exp", wf, nil)
-		res := client.do(http.MethodGet, "/api/v0/workflows?q=wf-list-exp&expand=tasks&fields=id,tasks", nil, nil)
+		res := client.do(http.MethodGet, "/api/v0/workflows?q=wf-list-exp&expand=tasks", nil, nil)
 		require.Equal(t, http.StatusOK, res.Code)
 		items, _ := decodeList(t, res, "workflows")
 		require.Len(t, items, 1)
@@ -174,10 +161,10 @@ func TestWorkflowsQueries(t *testing.T) {
 		assert.Equal(t, "basic", taskObj["type"])
 	})
 
-	t.Run("Should ignore unknown expand and fields", func(t *testing.T) {
+	t.Run("Should ignore unknown expand", func(t *testing.T) {
 		client := newResourceClient(t)
 		client.do(http.MethodPut, "/api/v0/workflows/wf-unk", workflowPayload("wf-unk", "unk"), nil)
-		res := client.do(http.MethodGet, "/api/v0/workflows/wf-unk?expand=unknown&fields=id,unknown", nil, nil)
+		res := client.do(http.MethodGet, "/api/v0/workflows/wf-unk?expand=unknown", nil, nil)
 		require.Equal(t, http.StatusOK, res.Code)
 		data := decodeData(t, res)
 		assert.Equal(t, "wf-unk", data["id"])

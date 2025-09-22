@@ -994,12 +994,6 @@ const docTemplate = `{
                         "description": "Filter by agent ID prefix",
                         "name": "q",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1014,19 +1008,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "agents": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "object",
-                                                        "additionalProperties": true
-                                                    }
-                                                },
-                                                "page": {
-                                                    "type": "object"
-                                                }
-                                            }
+                                            "$ref": "#/definitions/agentrouter.AgentsListResponse"
                                         }
                                     }
                                 }
@@ -1100,12 +1082,6 @@ const docTemplate = `{
                         "description": "Project override",
                         "name": "project",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1120,8 +1096,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/agentrouter.AgentDTO"
                                         }
                                     }
                                 }
@@ -1196,12 +1171,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "example": "\"\\\"abc123\\\"\"",
                         "description": "Strong ETag for optimistic concurrency",
                         "name": "If-Match",
@@ -1230,8 +1199,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/agentrouter.AgentDTO"
                                         }
                                     }
                                 }
@@ -1267,8 +1235,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/agentrouter.AgentDTO"
                                         }
                                     }
                                 }
@@ -2522,12 +2489,6 @@ const docTemplate = `{
                         "description": "Filter by memory ID prefix",
                         "name": "q",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2542,19 +2503,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "memories": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "object",
-                                                        "additionalProperties": true
-                                                    }
-                                                },
-                                                "page": {
-                                                    "type": "object"
-                                                }
-                                            }
+                                            "$ref": "#/definitions/memoryrouter.MemoriesListResponse"
                                         }
                                     }
                                 }
@@ -2622,12 +2571,6 @@ const docTemplate = `{
                         "description": "Project override",
                         "name": "project",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2642,8 +2585,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/memoryrouter.MemoryDTO"
                                         }
                                     }
                                 }
@@ -2718,12 +2660,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "example": "\"\\\"abc123\\\"\"",
                         "description": "Strong ETag for optimistic concurrency",
                         "name": "If-Match",
@@ -2752,8 +2688,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/memoryrouter.MemoryDTO"
                                         }
                                     }
                                 }
@@ -2789,8 +2724,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/memoryrouter.MemoryDTO"
                                         }
                                     }
                                 }
@@ -3848,12 +3782,6 @@ const docTemplate = `{
                         "description": "Filter by model ID prefix",
                         "name": "q",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3868,19 +3796,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "models": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "object",
-                                                        "additionalProperties": true
-                                                    }
-                                                },
-                                                "page": {
-                                                    "type": "object"
-                                                }
-                                            }
+                                            "$ref": "#/definitions/modelrouter.ModelsListResponse"
                                         }
                                     }
                                 }
@@ -3948,12 +3864,6 @@ const docTemplate = `{
                         "description": "Project override",
                         "name": "project",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3968,8 +3878,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/modelrouter.ModelDTO"
                                         }
                                     }
                                 }
@@ -4044,12 +3953,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "example": "\"\\\"abc123\\\"\"",
                         "description": "Strong ETag for optimistic concurrency",
                         "name": "If-Match",
@@ -4078,8 +3981,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/modelrouter.ModelDTO"
                                         }
                                     }
                                 }
@@ -4115,8 +4017,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/modelrouter.ModelDTO"
                                         }
                                     }
                                 }
@@ -4259,12 +4160,6 @@ const docTemplate = `{
                         "description": "Project override",
                         "name": "project",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -4279,8 +4174,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/projectrouter.ProjectDTO"
                                         }
                                     }
                                 }
@@ -4347,12 +4241,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "example": "\"\\\"abc123\\\"\"",
                         "description": "Strong ETag for optimistic concurrency",
                         "name": "If-Match",
@@ -4381,8 +4269,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/projectrouter.ProjectDTO"
                                         }
                                     }
                                 }
@@ -4418,8 +4305,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/projectrouter.ProjectDTO"
                                         }
                                     }
                                 }
@@ -4866,12 +4752,6 @@ const docTemplate = `{
                         "description": "Filter by schema ID prefix",
                         "name": "q",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -4886,19 +4766,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "page": {
-                                                    "type": "object"
-                                                },
-                                                "schemas": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "object",
-                                                        "additionalProperties": true
-                                                    }
-                                                }
-                                            }
+                                            "$ref": "#/definitions/schemarouter.SchemasListResponse"
                                         }
                                     }
                                 }
@@ -4966,12 +4834,6 @@ const docTemplate = `{
                         "description": "Project override",
                         "name": "project",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -4986,8 +4848,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/schemarouter.SchemaDTO"
                                         }
                                     }
                                 }
@@ -5062,12 +4923,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "example": "\"\\\"abc123\\\"\"",
                         "description": "Strong ETag for optimistic concurrency",
                         "name": "If-Match",
@@ -5096,8 +4951,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/schemarouter.SchemaDTO"
                                         }
                                     }
                                 }
@@ -5133,8 +4987,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/schemarouter.SchemaDTO"
                                         }
                                     }
                                 }
@@ -5309,12 +5162,6 @@ const docTemplate = `{
                         "description": "Filter by task ID prefix",
                         "name": "q",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5329,19 +5176,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "page": {
-                                                    "type": "object"
-                                                },
-                                                "tasks": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "object",
-                                                        "additionalProperties": true
-                                                    }
-                                                }
-                                            }
+                                            "$ref": "#/definitions/tkrouter.TasksListResponse"
                                         }
                                     }
                                 }
@@ -5415,12 +5250,6 @@ const docTemplate = `{
                         "description": "Project override",
                         "name": "project",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5435,8 +5264,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/tkrouter.TaskDTO"
                                         }
                                     }
                                 }
@@ -5507,12 +5335,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "example": "\"\\\"abc123\\\"\"",
                         "description": "Strong ETag for optimistic concurrency",
                         "name": "If-Match",
@@ -5541,8 +5363,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/tkrouter.TaskDTO"
                                         }
                                     }
                                 }
@@ -5574,8 +5395,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/tkrouter.TaskDTO"
                                         }
                                     }
                                 }
@@ -5732,12 +5552,6 @@ const docTemplate = `{
                         "description": "Filter by tool ID prefix",
                         "name": "q",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5752,19 +5566,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "page": {
-                                                    "type": "object"
-                                                },
-                                                "tools": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "object",
-                                                        "additionalProperties": true
-                                                    }
-                                                }
-                                            }
+                                            "$ref": "#/definitions/toolrouter.ToolsListResponse"
                                         }
                                     }
                                 }
@@ -5838,12 +5640,6 @@ const docTemplate = `{
                         "description": "Project override",
                         "name": "project",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5858,12 +5654,17 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/toolrouter.ToolDTO"
                                         }
                                     }
                                 }
                             ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong ETag for the resource"
+                            }
                         }
                     },
                     "400": {
@@ -5916,12 +5717,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "example": "\"\\\"abc123\\\"\"",
                         "description": "Strong ETag for optimistic concurrency",
                         "name": "If-Match",
@@ -5950,14 +5745,17 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/toolrouter.ToolDTO"
                                         }
                                     }
                                 }
                             ]
                         },
                         "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong ETag for the resource"
+                            },
                             "RateLimit-Limit": {
                                 "type": "string",
                                 "description": "Requests allowed in the current window"
@@ -5983,14 +5781,17 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/toolrouter.ToolDTO"
                                         }
                                     }
                                 }
                             ]
                         },
                         "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong ETag for the resource"
+                            },
                             "Location": {
                                 "type": "string",
                                 "description": "Absolute URL for the tool"
@@ -6445,13 +6246,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "\"id,name,_etag\"",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "description": "Comma-separated child collections to expand (tasks,agents,tools)",
                         "name": "expand",
                         "in": "query"
@@ -6469,7 +6263,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/wfrouter.WorkflowListDocument"
+                                            "$ref": "#/definitions/wfrouter.WorkflowsListResponse"
                                         }
                                     }
                                 }
@@ -6540,13 +6334,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "\"id,name,tasks,_etag\"",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "description": "Comma-separated child collections to expand (tasks,agents,tools)",
                         "name": "expand",
                         "in": "query"
@@ -6564,7 +6351,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/wfrouter.WorkflowDocument"
+                                            "$ref": "#/definitions/wfrouter.WorkflowDTO"
                                         }
                                     }
                                 }
@@ -6639,13 +6426,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "\"id,name,_etag\"",
-                        "description": "Comma-separated list of fields to include",
-                        "name": "fields",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "description": "Comma-separated child collections to expand (tasks,agents,tools)",
                         "name": "expand",
                         "in": "query"
@@ -6678,7 +6458,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/wfrouter.WorkflowDocument"
+                                            "$ref": "#/definitions/wfrouter.WorkflowDTO"
                                         }
                                     }
                                 }
@@ -6714,7 +6494,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/wfrouter.WorkflowDocument"
+                                            "$ref": "#/definitions/wfrouter.WorkflowDTO"
                                         }
                                     }
                                 }
@@ -8380,6 +8160,76 @@ const docTemplate = `{
                 }
             }
         },
+        "agentrouter.AgentDTO": {
+            "type": "object",
+            "properties": {
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "instructions": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "with": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "agentrouter.AgentListItem": {
+            "type": "object",
+            "properties": {
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "instructions": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "with": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "agentrouter.AgentsListResponse": {
+            "type": "object",
+            "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentrouter.AgentListItem"
+                    }
+                },
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                }
+            }
+        },
         "core.Author": {
             "type": "object",
             "properties": {
@@ -9117,6 +8967,130 @@ const docTemplate = `{
                 }
             }
         },
+        "memoryrouter.MemoriesListResponse": {
+            "type": "object",
+            "properties": {
+                "memories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/memoryrouter.MemoryListItem"
+                    }
+                },
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                }
+            }
+        },
+        "memoryrouter.MemoryDTO": {
+            "type": "object",
+            "properties": {
+                "default_key_template": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "flushing": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "locking": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "max_context_ratio": {
+                    "type": "number"
+                },
+                "max_messages": {
+                    "type": "integer"
+                },
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "persistence": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "privacy_policy": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "token_allocation": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "token_provider": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "memoryrouter.MemoryListItem": {
+            "type": "object",
+            "properties": {
+                "default_key_template": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "flushing": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "locking": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "max_context_ratio": {
+                    "type": "number"
+                },
+                "max_messages": {
+                    "type": "integer"
+                },
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "persistence": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "privacy_policy": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "token_allocation": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "token_provider": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "memrouter.AppendMemoryRequest": {
             "type": "object",
             "required": [
@@ -9207,6 +9181,152 @@ const docTemplate = `{
                 }
             }
         },
+        "modelrouter.ModelDTO": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                },
+                "api_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "organization": {
+                    "type": "string"
+                },
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                }
+            }
+        },
+        "modelrouter.ModelListItem": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                },
+                "api_url": {
+                    "type": "string"
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "organization": {
+                    "type": "string"
+                },
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                }
+            }
+        },
+        "modelrouter.ModelsListResponse": {
+            "type": "object",
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/modelrouter.ModelListItem"
+                    }
+                },
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                }
+            }
+        },
+        "projectrouter.ProjectDTO": {
+            "type": "object",
+            "properties": {
+                "author": {
+                    "$ref": "#/definitions/core.Author"
+                },
+                "autoload": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "config": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "description": {
+                    "type": "string"
+                },
+                "memories": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "monitoring": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string"
+                },
+                "runtime": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "version": {
+                    "type": "string"
+                },
+                "workflows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            }
+        },
         "router.CreateUserRequest": {
             "type": "object",
             "required": [
@@ -9262,6 +9382,27 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "router.PageInfoDTO": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "example": "v2:after:tool-001"
+                },
+                "prev_cursor": {
+                    "type": "string",
+                    "example": "v2:before:tool-000"
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 2
                 }
             }
         },
@@ -9395,6 +9536,46 @@ const docTemplate = `{
         "schema.Schema": {
             "type": "object",
             "additionalProperties": {}
+        },
+        "schemarouter.SchemaDTO": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "schemarouter.SchemaListItem": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                }
+            }
+        },
+        "schemarouter.SchemasListResponse": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/schemarouter.SchemaListItem"
+                    }
+                }
+            }
         },
         "service.AppendResponse": {
             "type": "object",
@@ -10016,25 +10197,22 @@ const docTemplate = `{
                 "Hour"
             ]
         },
-        "tkrouter.TaskResponse": {
+        "tkrouter.TaskDTO": {
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string"
                 },
                 "condition": {
-                    "description": "Task-specific fields (without recursive Tasks/Task fields)",
                     "type": "string"
                 },
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
                 },
                 "has_subtasks": {
-                    "description": "Metadata",
                     "type": "boolean"
                 },
                 "id": {
-                    "description": "BaseConfig fields",
                     "type": "string"
                 },
                 "items": {},
@@ -10068,6 +10246,128 @@ const docTemplate = `{
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
+                }
+            }
+        },
+        "tkrouter.TaskListItem": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "condition": {
+                    "type": "string"
+                },
+                "env": {
+                    "$ref": "#/definitions/core.EnvMap"
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "has_subtasks": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "items": {},
+                "mode": {
+                    "type": "string"
+                },
+                "outputs": {
+                    "$ref": "#/definitions/core.Input"
+                },
+                "routes": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "signal_name": {
+                    "type": "string"
+                },
+                "strategy": {
+                    "type": "string"
+                },
+                "subtask_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "timeout": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/task.Type"
+                },
+                "with": {
+                    "$ref": "#/definitions/core.Input"
+                }
+            }
+        },
+        "tkrouter.TaskResponse": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "condition": {
+                    "type": "string"
+                },
+                "env": {
+                    "$ref": "#/definitions/core.EnvMap"
+                },
+                "has_subtasks": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "items": {},
+                "mode": {
+                    "type": "string"
+                },
+                "outputs": {
+                    "$ref": "#/definitions/core.Input"
+                },
+                "routes": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "signal_name": {
+                    "type": "string"
+                },
+                "strategy": {
+                    "type": "string"
+                },
+                "subtask_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "timeout": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/task.Type"
+                },
+                "with": {
+                    "$ref": "#/definitions/core.Input"
+                }
+            }
+        },
+        "tkrouter.TasksListResponse": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tkrouter.TaskListItem"
+                    }
                 }
             }
         },
@@ -10137,6 +10437,106 @@ const docTemplate = `{
                             "$ref": "#/definitions/core.Input"
                         }
                     ]
+                }
+            }
+        },
+        "toolrouter.ToolDTO": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "description": {
+                    "type": "string",
+                    "example": "HTTP client tool"
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "id": {
+                    "type": "string",
+                    "example": "http"
+                },
+                "input": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "output": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string",
+                    "example": "tool"
+                },
+                "timeout": {
+                    "type": "string",
+                    "example": "30s"
+                },
+                "with": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "toolrouter.ToolListItem": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "description": {
+                    "type": "string",
+                    "example": "HTTP client tool"
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "http"
+                },
+                "input": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "output": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string",
+                    "example": "tool"
+                },
+                "timeout": {
+                    "type": "string",
+                    "example": "30s"
+                },
+                "with": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "toolrouter.ToolsListResponse": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/toolrouter.ToolListItem"
+                    }
                 }
             }
         },
@@ -10358,6 +10758,23 @@ const docTemplate = `{
                 }
             }
         },
+        "wfrouter.AgentsOrDTOs": {
+            "type": "object",
+            "properties": {
+                "expanded": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentrouter.AgentDTO"
+                    }
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "wfrouter.EventRequest": {
             "type": "object",
             "required": [
@@ -10430,148 +10847,177 @@ const docTemplate = `{
                 }
             }
         },
-        "wfrouter.WorkflowDocument": {
+        "wfrouter.TasksOrDTOs": {
             "type": "object",
             "properties": {
-                "_etag": {
-                    "type": "string",
-                    "example": "6b1c1d7f448c1c76"
+                "expanded": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tkrouter.TaskDTO"
+                    }
                 },
-                "agent_count": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "agent_ids": {
+                "ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
-                    },
-                    "example": [
-                        "coordination-agent"
-                    ]
+                    }
+                }
+            }
+        },
+        "wfrouter.ToolsOrDTOs": {
+            "type": "object",
+            "properties": {
+                "expanded": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/toolrouter.ToolDTO"
+                    }
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "wfrouter.WorkflowDTO": {
+            "type": "object",
+            "properties": {
+                "agent_count": {
+                    "type": "integer"
                 },
                 "agents": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "coordination-agent"
-                    ]
+                    "$ref": "#/definitions/wfrouter.AgentsOrDTOs"
+                },
+                "author": {
+                    "$ref": "#/definitions/core.Author"
+                },
+                "config": {
+                    "$ref": "#/definitions/workflow.Opts"
                 },
                 "description": {
-                    "type": "string",
-                    "example": "Ingests raw data and executes nightly transformations."
+                    "type": "string"
                 },
                 "id": {
-                    "type": "string",
-                    "example": "data-processing"
+                    "type": "string"
                 },
-                "name": {
-                    "type": "string",
-                    "example": "Data Processing Workflow"
+                "mcp_count": {
+                    "type": "integer"
                 },
-                "project": {
-                    "type": "string",
-                    "example": "production"
-                },
-                "state": {
-                    "type": "string",
-                    "example": "active"
-                },
-                "tags": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "nightly",
-                        "batch"
-                    ]
+                "schedule": {
+                    "$ref": "#/definitions/workflow.Schedule"
                 },
                 "task_count": {
-                    "type": "integer",
-                    "example": 3
+                    "type": "integer"
                 },
                 "task_ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
-                    },
-                    "example": [
-                        "validate-input",
-                        "transform-data"
-                    ]
+                    }
                 },
                 "tasks": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "validate-input"
+                    "description": "Expandable collections: marshaled as either []string or []\u003cDTO\u003e",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/wfrouter.TasksOrDTOs"
+                        }
                     ]
                 },
                 "tool_count": {
-                    "type": "integer",
-                    "example": 2
-                },
-                "tool_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "s3-writer"
-                    ]
+                    "type": "integer"
                 },
                 "tools": {
+                    "$ref": "#/definitions/wfrouter.ToolsOrDTOs"
+                },
+                "triggers": {
                     "type": "array",
                     "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "s3-writer"
-                    ]
+                        "$ref": "#/definitions/workflow.Trigger"
+                    }
                 },
                 "version": {
-                    "type": "string",
-                    "example": "2025-09-20T12:30:00Z"
+                    "type": "string"
                 }
             }
         },
-        "wfrouter.WorkflowListDocument": {
+        "wfrouter.WorkflowListItem": {
+            "type": "object",
+            "properties": {
+                "agent_count": {
+                    "type": "integer"
+                },
+                "agents": {
+                    "$ref": "#/definitions/wfrouter.AgentsOrDTOs"
+                },
+                "author": {
+                    "$ref": "#/definitions/core.Author"
+                },
+                "config": {
+                    "$ref": "#/definitions/workflow.Opts"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "mcp_count": {
+                    "type": "integer"
+                },
+                "schedule": {
+                    "$ref": "#/definitions/workflow.Schedule"
+                },
+                "task_count": {
+                    "type": "integer"
+                },
+                "task_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tasks": {
+                    "description": "Expandable collections: marshaled as either []string or []\u003cDTO\u003e",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/wfrouter.TasksOrDTOs"
+                        }
+                    ]
+                },
+                "tool_count": {
+                    "type": "integer"
+                },
+                "tools": {
+                    "$ref": "#/definitions/wfrouter.ToolsOrDTOs"
+                },
+                "triggers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflow.Trigger"
+                    }
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "wfrouter.WorkflowsListResponse": {
             "type": "object",
             "properties": {
                 "page": {
-                    "$ref": "#/definitions/wfrouter.WorkflowListPageDocument"
+                    "$ref": "#/definitions/router.PageInfoDTO"
                 },
                 "workflows": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/wfrouter.WorkflowDocument"
+                        "$ref": "#/definitions/wfrouter.WorkflowListItem"
                     }
-                }
-            }
-        },
-        "wfrouter.WorkflowListPageDocument": {
-            "type": "object",
-            "properties": {
-                "limit": {
-                    "type": "integer",
-                    "example": 50
-                },
-                "next_cursor": {
-                    "type": "string",
-                    "example": "djI6YWZ0ZXI6d29ya2Zsb3ctMDAwMQ=="
-                },
-                "prev_cursor": {
-                    "type": "string",
-                    "example": "djI6YmVmb3JlOndvcmtmbG93LTAwMDE="
-                },
-                "total": {
-                    "type": "integer",
-                    "example": 120
                 }
             }
         },

@@ -6,11 +6,14 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
+	agentrouter "github.com/compozy/compozy/engine/agent/router"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	"github.com/compozy/compozy/engine/task"
+	tkrouter "github.com/compozy/compozy/engine/task/router"
 	"github.com/compozy/compozy/engine/tool"
+	toolrouter "github.com/compozy/compozy/engine/tool/router"
 	"github.com/compozy/compozy/engine/workflow"
 	wfuc "github.com/compozy/compozy/engine/workflow/uc"
 	"github.com/gin-gonic/gin"
@@ -25,9 +28,8 @@ import (
 //	@Produce		json
 //	@Param			workflow_id	path		string		true	"Workflow ID"\t		example("data-processing")
 //	@Param			project		query	string	false	"Project override"\t		example("staging")
-//	@Param			fields		query	string	false	"Comma-separated list of fields to include"\t	example("id,name,tasks,_etag")
 //	@Param			expand		query	string	false	"Comma-separated child collections to expand (tasks,agents,tools)"\texample("tasks,agents")
-//	@Success		200		{object}	router.Response{data=wfrouter.WorkflowDocument}	"Workflow retrieved"
+//	@Success		200		{object}	router.Response{data=wfrouter.WorkflowDTO}	"Workflow retrieved"
 //	@Header			200		{string}	ETag		"Strong entity tag for concurrency control"
 //	@Header			200		{string}	RateLimit-Limit		"Requests allowed in the current window"
 //	@Header			200		{string}	RateLimit-Remaining	"Remaining requests in the current window"
@@ -50,21 +52,14 @@ func getWorkflowByID(c *gin.Context) {
 		return
 	}
 	expandSet := router.ParseExpandQuery(c.Query("expand"))
-	fieldsSet := router.ParseFieldsQuery(c.Query("fields"))
 	out, err := wfuc.NewGet(store).Execute(c.Request.Context(), &wfuc.GetInput{Project: project, ID: workflowID})
 	if err != nil {
 		respondWorkflowError(c, err)
 		return
 	}
-	body, buildErr := buildWorkflowResponse(out.Config, expandSet)
-	if buildErr != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: buildErr.Error()})
-		return
-	}
-	body = filterWorkflowFields(body, fieldsSet)
-	body["_etag"] = string(out.ETag)
+	dto := makeWorkflowDTO(out.Config, expandSet)
 	c.Header("ETag", string(out.ETag))
-	router.RespondOK(c, "workflow retrieved", body)
+	router.RespondOK(c, "workflow retrieved", dto)
 }
 
 // listWorkflows returns paginated workflows for the active project.
@@ -78,9 +73,8 @@ func getWorkflowByID(c *gin.Context) {
 //	@Param			limit	query	int		false	"Page size (max 500)"\t		example(50)
 //	@Param			cursor	query	string	false	"Opaque pagination cursor"\t	example("djI6YWZ0ZXI6d29ya2Zsb3ctMDAwMQ==")
 //	@Param			q		query	string	false	"Filter by workflow ID prefix"\t	example("data-")
-//	@Param			fields	query	string	false	"Comma-separated list of fields to include"\t	example("id,name,_etag")
 //	@Param			expand	query	string	false	"Comma-separated child collections to expand (tasks,agents,tools)"\texample("tasks")
-//	@Success		200	{object}	router.Response{data=wfrouter.WorkflowListDocument}	"Workflows retrieved"
+//	@Success		200	{object}	router.Response{data=wfrouter.WorkflowsListResponse}	"Workflows retrieved"
 //	@Header			200	{string}	Link		"RFC 8288 pagination links for next/prev"
 //	@Header			200	{string}	RateLimit-Limit		"Requests allowed in the current window"
 //	@Header			200	{string}	RateLimit-Remaining	"Remaining requests in the current window"
@@ -105,7 +99,6 @@ func listWorkflows(c *gin.Context) {
 	}
 	prefix := strings.TrimSpace(c.Query("q"))
 	expandSet := router.ParseExpandQuery(c.Query("expand"))
-	fieldsSet := router.ParseFieldsQuery(c.Query("fields"))
 	out, err := wfuc.NewList(store).
 		Execute(c.Request.Context(), &wfuc.ListInput{
 			Project:         project,
@@ -118,16 +111,10 @@ func listWorkflows(c *gin.Context) {
 		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 		return
 	}
-	responses := make([]map[string]any, 0, len(out.Items))
+	list := make([]WorkflowListItem, 0, len(out.Items))
 	for i := range out.Items {
-		body, buildErr := buildWorkflowResponse(out.Items[i].Config, expandSet)
-		if buildErr != nil {
-			router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: buildErr.Error()})
-			return
-		}
-		body = filterWorkflowFields(body, fieldsSet)
-		body["_etag"] = string(out.Items[i].ETag)
-		responses = append(responses, body)
+		dto := makeWorkflowDTO(out.Items[i].Config, expandSet)
+		list = append(list, WorkflowListItem{WorkflowDTO: dto, ETag: string(out.Items[i].ETag)})
 	}
 	nextCursor := ""
 	prevCursor := ""
@@ -138,14 +125,8 @@ func listWorkflows(c *gin.Context) {
 		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
 	}
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
-	page := map[string]any{"limit": limit, "total": out.Total}
-	if nextCursor != "" {
-		page["next_cursor"] = nextCursor
-	}
-	if prevCursor != "" {
-		page["prev_cursor"] = prevCursor
-	}
-	router.RespondOK(c, "workflows retrieved", gin.H{"workflows": responses, "page": page})
+	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	router.RespondOK(c, "workflows retrieved", WorkflowsListResponse{Workflows: list, Page: page})
 }
 
 // upsertWorkflow creates or updates a workflow configuration.
@@ -157,16 +138,15 @@ func listWorkflows(c *gin.Context) {
 //	@Produce		json
 //	@Param			workflow_id	path		string		true	"Workflow ID"\t		example("data-processing")
 //	@Param			project		query	string	false	"Project override"\t		example("staging")
-//	@Param			fields		query	string	false	"Comma-separated list of fields to include"\t	example("id,name,_etag")
 //	@Param			expand		query	string	false	"Comma-separated child collections to expand (tasks,agents,tools)"\texample("tasks,agents")
 //	@Param			If-Match	header	string	false	"Strong ETag for optimistic concurrency"\texample("\"6b1c1d7f448c1c76\"")
 //	@Param			payload		body	workflow.Config	true	"Workflow definition payload"
-//	@Success		200		{object}	router.Response{data=wfrouter.WorkflowDocument}	"Workflow updated"
+//	@Success		200		{object}	router.Response{data=wfrouter.WorkflowDTO}	"Workflow updated"
 //	@Header			200		{string}	ETag		"Strong entity tag for the stored workflow"
 //	@Header			200		{string}	RateLimit-Limit		"Requests allowed in the current window"
 //	@Header			200		{string}	RateLimit-Remaining	"Remaining requests in the current window"
 //	@Header			200		{string}	RateLimit-Reset		"Seconds until the window resets"
-//	@Success		201		{object}	router.Response{data=wfrouter.WorkflowDocument}	"Workflow created"
+//	@Success		201		{object}	router.Response{data=wfrouter.WorkflowDTO}	"Workflow created"
 //	@Header			201		{string}	ETag		"Strong entity tag for the stored workflow"
 //	@Header			201		{string}	Location	"Absolute URL for the created workflow"
 //	@Header			201		{string}	RateLimit-Limit		"Requests allowed in the current window"
@@ -207,14 +187,7 @@ func upsertWorkflow(c *gin.Context) {
 		return
 	}
 	expandSet := router.ParseExpandQuery(c.Query("expand"))
-	fieldsSet := router.ParseFieldsQuery(c.Query("fields"))
-	respBody, buildErr := buildWorkflowResponse(out.Config, expandSet)
-	if buildErr != nil {
-		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: buildErr.Error()})
-		return
-	}
-	respBody = filterWorkflowFields(respBody, fieldsSet)
-	respBody["_etag"] = string(out.ETag)
+	respBody := makeWorkflowDTO(out.Config, expandSet)
 	c.Header("ETag", string(out.ETag))
 	status := http.StatusOK
 	if out.Created {
@@ -275,78 +248,63 @@ func respondWorkflowError(c *gin.Context, err error) {
 	}
 }
 
-func buildWorkflowResponse(cfg *workflow.Config, expand map[string]bool) (map[string]any, error) {
-	m, err := cfg.AsMap()
-	if err != nil {
-		return nil, err
+func makeWorkflowDTO(cfg *workflow.Config, expand map[string]bool) WorkflowDTO {
+	dto := ConvertWorkflowConfigToDTO(cfg)
+	if expand["tasks"] {
+		dto.Tasks = TasksOrDTOs{Expanded: projectTasksExpanded(cfg)}
+	} else {
+		dto.Tasks = TasksOrDTOs{IDs: collectIDs(cfg.Tasks, func(t task.Config) string { return t.ID })}
 	}
-	m["tasks"] = projectTasks(cfg.Tasks, expand["tasks"])
-	m["agents"] = projectAgents(cfg.Agents, expand["agents"])
-	m["tools"] = projectTools(cfg.Tools, expand["tools"])
-	m["task_count"] = len(cfg.Tasks)
-	m["agent_count"] = len(cfg.Agents)
-	m["tool_count"] = len(cfg.Tools)
-	m["task_ids"] = collectIDs(cfg.Tasks, func(t task.Config) string { return t.ID })
-	m["agent_ids"] = collectIDs(cfg.Agents, func(a agent.Config) string { return a.ID })
-	m["tool_ids"] = collectIDs(cfg.Tools, func(t tool.Config) string { return t.ID })
-	return m, nil
-}
-
-func projectTasks(items []task.Config, expanded bool) any {
-	return projectCollection(
-		items,
-		expanded,
-		func(cfg task.Config) string { return cfg.ID },
-		func(cfg task.Config) (map[string]any, error) {
-			clone := cfg
-			return clone.AsMap()
-		},
-	)
-}
-
-func projectAgents(items []agent.Config, expanded bool) any {
-	return projectCollection(
-		items,
-		expanded,
-		func(cfg agent.Config) string { return cfg.ID },
-		func(cfg agent.Config) (map[string]any, error) {
-			clone := cfg
-			return clone.AsMap()
-		},
-	)
-}
-
-func projectTools(items []tool.Config, expanded bool) any {
-	return projectCollection(
-		items,
-		expanded,
-		func(cfg tool.Config) string { return cfg.ID },
-		func(cfg tool.Config) (map[string]any, error) {
-			clone := cfg
-			return clone.AsMap()
-		},
-	)
-}
-
-func projectCollection[T any](
-	items []T,
-	expanded bool,
-	idFn func(T) string,
-	mapFn func(T) (map[string]any, error),
-) any {
-	if !expanded {
-		return collectIDs(items, idFn)
+	if expand["agents"] {
+		dto.Agents = AgentsOrDTOs{Expanded: projectAgentsExpanded(cfg)}
+	} else {
+		dto.Agents = AgentsOrDTOs{IDs: collectIDs(cfg.Agents, func(a agent.Config) string { return a.ID })}
 	}
-	out := make([]map[string]any, 0, len(items))
-	for i := range items {
-		mapped, err := mapFn(items[i])
+	if expand["tools"] {
+		dto.Tools = ToolsOrDTOs{Expanded: projectToolsExpanded(cfg)}
+	} else {
+		dto.Tools = ToolsOrDTOs{IDs: collectIDs(cfg.Tools, func(t tool.Config) string { return t.ID })}
+	}
+	return dto
+}
+
+func projectTasksExpanded(cfg *workflow.Config) []tkrouter.TaskDTO {
+	out := make([]tkrouter.TaskDTO, 0, len(cfg.Tasks))
+	for i := range cfg.Tasks {
+		m, err := cfg.Tasks[i].AsMap()
 		if err != nil {
 			continue
 		}
-		out = append(out, mapped)
+		out = append(out, tkrouter.ToTaskDTOForWorkflow(m))
 	}
 	return out
 }
+
+func projectAgentsExpanded(cfg *workflow.Config) []agentrouter.AgentDTO {
+	out := make([]agentrouter.AgentDTO, 0, len(cfg.Agents))
+	for i := range cfg.Agents {
+		m, err := cfg.Agents[i].AsMap()
+		if err != nil {
+			continue
+		}
+		out = append(out, agentrouter.ToAgentDTOForWorkflow(m))
+	}
+	return out
+}
+
+func projectToolsExpanded(cfg *workflow.Config) []toolrouter.ToolDTO {
+	out := make([]toolrouter.ToolDTO, 0, len(cfg.Tools))
+	for i := range cfg.Tools {
+		m, err := cfg.Tools[i].AsMap()
+		if err != nil {
+			continue
+		}
+		out = append(out, toolrouter.ToToolDTOForWorkflow(m))
+	}
+	return out
+}
+
+// projectCollection no longer used (typed expand implemented)
 
 func collectIDs[T any](items []T, idFn func(T) string) []string {
 	out := make([]string, 0, len(items))
@@ -359,20 +317,4 @@ func collectIDs[T any](items []T, idFn func(T) string) []string {
 	return out
 }
 
-func filterWorkflowFields(body map[string]any, fields map[string]bool) map[string]any {
-	if len(fields) == 0 {
-		return body
-	}
-	filtered := make(map[string]any, len(fields))
-	for field := range fields {
-		if value, ok := body[field]; ok {
-			filtered[field] = value
-		}
-	}
-	if _, ok := filtered["id"]; !ok {
-		if value, has := body["id"]; has {
-			filtered["id"] = value
-		}
-	}
-	return filtered
-}
+// fields filtering removed project-wide (legacy `fields=` feature deleted)

@@ -23,7 +23,9 @@ func TestSchemasEndpoints(t *testing.T) {
 		getRes := client.do(http.MethodGet, "/api/v0/schemas/user", nil, nil)
 		require.Equal(t, http.StatusOK, getRes.Code)
 		data := decodeData(t, getRes)
-		assert.Equal(t, "object", data["type"])
+		body, ok := data["body"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "object", body["type"])
 		updateBody := schemaPayload(map[string]any{
 			"name": map[string]any{"type": "string"},
 			"age":  map[string]any{"type": "number"},
@@ -36,7 +38,9 @@ func TestSchemasEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, afterRes.Code)
 		assert.Equal(t, newEtag, afterRes.Header().Get("ETag"))
 		afterData := decodeData(t, afterRes)
-		props, ok := afterData["properties"].(map[string]any)
+		afterBody, ok := afterData["body"].(map[string]any)
+		require.True(t, ok)
+		props, ok := afterBody["properties"].(map[string]any)
 		require.True(t, ok)
 		_, hasAge := props["age"]
 		assert.True(t, hasAge)
@@ -48,8 +52,32 @@ func TestSchemasEndpoints(t *testing.T) {
 		)
 		require.Equal(t, http.StatusPreconditionFailed, staleRes.Code)
 		client.do(http.MethodPut, "/api/v0/schemas/audit", schemaPayload(map[string]any{}), nil)
-		ids := collectIDs(t, client, "/api/v0/schemas?limit=1", "schemas", "id")
-		assert.ElementsMatch(t, []string{"audit", "user"}, ids)
+		// Walk paginated list and collect schema IDs from typed items (body.id)
+		path := "/api/v0/schemas?limit=1"
+		visited := map[string]bool{}
+		collected := make([]string, 0)
+		for path != "" {
+			if visited[path] {
+				break
+			}
+			visited[path] = true
+			res := client.do(http.MethodGet, path, nil, nil)
+			require.Equal(t, http.StatusOK, res.Code)
+			items, _ := decodeList(t, res, "schemas")
+			for i := range items {
+				body, ok := items[i]["body"].(map[string]any)
+				require.True(t, ok)
+				if id, _ := body["id"].(string); id != "" {
+					collected = append(collected, id)
+				}
+			}
+			nextLink := extractLink(res.Header().Get("Link"), "next")
+			if nextLink == "" {
+				break
+			}
+			path = normalizeLink(nextLink)
+		}
+		assert.ElementsMatch(t, []string{"audit", "user"}, collected)
 		delRes := client.do(http.MethodDelete, "/api/v0/schemas/user", nil, nil)
 		require.Equal(t, http.StatusNoContent, delRes.Code)
 		missingRes := client.do(http.MethodGet, "/api/v0/schemas/user", nil, nil)

@@ -2,6 +2,7 @@ package memoryrouter
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -37,8 +38,7 @@ func validateRequestContext(c *gin.Context) (resources.ResourceStore, string, bo
 // @Param limit query int false "Page size (max 500)" example(50)
 // @Param cursor query string false "Opaque pagination cursor"
 // @Param q query string false "Filter by memory ID prefix"
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=object{memories=[]map[string]any,page=object}} "Memories retrieved"
+// @Success 200 {object} router.Response{data=memoryrouter.MemoriesListResponse} "Memories retrieved"
 // @Header 200 {string} Link "RFC 8288 pagination links for next/prev"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -57,7 +57,6 @@ func listMemories(c *gin.Context) {
 		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	input := &memoryuc.ListInput{
 		Project:         project,
 		Prefix:          strings.TrimSpace(c.Query("q")),
@@ -79,22 +78,12 @@ func listMemories(c *gin.Context) {
 		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
 	}
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
-	items := make([]map[string]any, 0, len(out.Items))
+	items := make([]MemoryListItem, 0, len(out.Items))
 	for i := range out.Items {
-		filtered := router.FilterMapFields(out.Items[i], fields)
-		if len(fields) == 0 || fields["_etag"] {
-			filtered["_etag"] = out.Items[i]["_etag"]
-		}
-		items = append(items, filtered)
+		items = append(items, toMemoryListItem(out.Items[i]))
 	}
-	page := map[string]any{"limit": limit, "total": out.Total}
-	if nextCursor != "" {
-		page["next_cursor"] = nextCursor
-	}
-	if prevCursor != "" {
-		page["prev_cursor"] = prevCursor
-	}
-	router.RespondOK(c, "memories retrieved", gin.H{"memories": items, "page": page})
+	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	router.RespondOK(c, "memories retrieved", MemoriesListResponse{Memories: items, Page: page})
 }
 
 // getMemory handles GET /memories/{memory_id}.
@@ -106,8 +95,7 @@ func listMemories(c *gin.Context) {
 // @Produce json
 // @Param memory_id path string true "Memory ID" example("conversation")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=map[string]any} "Memory retrieved"
+// @Success 200 {object} router.Response{data=memoryrouter.MemoryDTO} "Memory retrieved"
 // @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -129,18 +117,13 @@ func getMemory(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	out, err := memoryuc.NewGet(store).Execute(c.Request.Context(), &memoryuc.GetInput{Project: project, ID: memoryID})
 	if err != nil {
 		respondMemoryError(c, err)
 		return
 	}
-	filtered := router.FilterMapFields(out.Memory, fields)
-	if len(fields) == 0 || fields["_etag"] {
-		filtered["_etag"] = out.Memory["_etag"]
-	}
-	c.Header("ETag", string(out.ETag))
-	router.RespondOK(c, "memory retrieved", filtered)
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
+	router.RespondOK(c, "memory retrieved", toMemoryDTO(out.Memory))
 }
 
 // upsertMemory handles PUT /memories/{memory_id}.
@@ -152,11 +135,10 @@ func getMemory(c *gin.Context) {
 // @Produce json
 // @Param memory_id path string true "Memory ID" example("conversation")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
 // @Param If-Match header string false "Strong ETag for optimistic concurrency" example("\"abc123\"")
 // @Param payload body map[string]any true "Memory configuration payload"
-// @Success 200 {object} router.Response{data=map[string]any} "Memory updated"
-// @Success 201 {object} router.Response{data=map[string]any} "Memory created"
+// @Success 200 {object} router.Response{data=memoryrouter.MemoryDTO} "Memory updated"
+// @Success 201 {object} router.Response{data=memoryrouter.MemoryDTO} "Memory created"
 // @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -200,12 +182,7 @@ func upsertMemory(c *gin.Context) {
 		respondMemoryError(c, execErr)
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
-	filtered := router.FilterMapFields(out.Memory, fields)
-	if len(fields) != 0 && !fields["_etag"] {
-		filtered["_etag"] = out.Memory["_etag"]
-	}
-	c.Header("ETag", string(out.ETag))
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	status := http.StatusOK
 	message := "memory updated"
 	if out.Created {
@@ -214,10 +191,10 @@ func upsertMemory(c *gin.Context) {
 		c.Header("Location", routes.Memories()+"/"+memoryID)
 	}
 	if status == http.StatusCreated {
-		router.RespondCreated(c, message, filtered)
+		router.RespondCreated(c, message, toMemoryDTO(out.Memory))
 		return
 	}
-	router.RespondOK(c, message, filtered)
+	router.RespondOK(c, message, toMemoryDTO(out.Memory))
 }
 
 // deleteMemory handles DELETE /memories/{memory_id}.

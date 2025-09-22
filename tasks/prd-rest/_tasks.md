@@ -27,7 +27,7 @@
 
 ## Tasks
 
-- [ ] 1.0 Baseline & Swagger Pipeline Check
+- [x] 1.0 Baseline & Swagger Pipeline Check
 - [x] 2.0 Workflow PUT/DELETE endpoints (idempotent upsert, strong ETag)
 - [x] 3.0 Workflow GET rewiring + cursor pagination + `Link`
 - [x] 4.0 Router helpers: ETag, pagination, problem, project defaults
@@ -37,6 +37,17 @@
 - [x] 8.0 Promote Agents/Tools/Tasks CRUD + referential integrity
 - [ ] 9.0 Tests: unit + integration + OpenAPI validation gate
 - [ ] 10.0 Rollout & Cleanup (delete legacy UC, docs/examples, org‑wide `/resources` scan)
+- [ ] 11.0 Remove `fields=` feature project‑wide (Step 0)
+- [ ] 12.0 Introduce shared DTO scaffolding & naming
+- [x] 13.0 Tools — typed top‑level endpoints (pilot)
+- [x] 14.0 Workflows — typed top‑level endpoints
+- [x] 15.0 Agents — typed top‑level endpoints
+- [x] 16.0 Tasks — typed top‑level endpoints
+- [x] 17.0 Models — typed top‑level endpoints
+- [x] 18.0 Schemas — typed top‑level endpoints
+- [x] 19.0 Memories — typed top‑level endpoints
+- [ ] 20.0 Project — typed top‑level endpoint
+- [ ] 21.0 Swagger drift gate & docs polish
 
 ## Execution Plan
 

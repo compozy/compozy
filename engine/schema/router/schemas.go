@@ -2,6 +2,7 @@ package schemarouter
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	schemauc "github.com/compozy/compozy/engine/schema/uc"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,8 +25,7 @@ import (
 // @Param limit query int false "Page size (max 500)" example(50)
 // @Param cursor query string false "Opaque pagination cursor"
 // @Param q query string false "Filter by schema ID prefix"
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=object{schemas=[]map[string]any,page=object}} "Schemas retrieved"
+// @Success 200 {object} router.Response{data=schemarouter.SchemasListResponse} "Schemas retrieved"
 // @Header 200 {string} Link "RFC 8288 pagination links for next/prev"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -47,7 +48,6 @@ func listSchemas(c *gin.Context) {
 		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	input := &schemauc.ListInput{
 		Project:         project,
 		Prefix:          strings.TrimSpace(c.Query("q")),
@@ -69,22 +69,35 @@ func listSchemas(c *gin.Context) {
 		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
 	}
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
-	items := make([]map[string]any, 0, len(out.Items))
+	// Enforce size limits via config for the marshaled schema body
+	maxBytes := 0
+	if cfg := config.FromContext(c.Request.Context()); cfg != nil {
+		maxBytes = cfg.Limits.MaxConfigFileSize
+	}
+	items := make([]SchemaListItem, 0, len(out.Items))
 	for i := range out.Items {
-		filtered := router.FilterMapFields(out.Items[i], fields)
-		if len(fields) != 0 && !fields["_etag"] {
-			filtered["_etag"] = out.Items[i]["_etag"]
+		dto, n, err := toSchemaListItem(out.Items[i])
+		if err != nil {
+			router.RespondProblem(
+				c,
+				&router.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
+			)
+			return
 		}
-		items = append(items, filtered)
+		if maxBytes > 0 && n > maxBytes {
+			router.RespondProblem(
+				c,
+				&router.Problem{
+					Status: http.StatusInternalServerError,
+					Detail: "stored schema exceeds configured size limit",
+				},
+			)
+			return
+		}
+		items = append(items, dto)
 	}
-	page := map[string]any{"limit": limit, "total": out.Total}
-	if nextCursor != "" {
-		page["next_cursor"] = nextCursor
-	}
-	if prevCursor != "" {
-		page["prev_cursor"] = prevCursor
-	}
-	router.RespondOK(c, "schemas retrieved", gin.H{"schemas": items, "page": page})
+	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	router.RespondOK(c, "schemas retrieved", SchemasListResponse{Schemas: items, Page: page})
 }
 
 // getSchema handles GET /schemas/{schema_id}.
@@ -96,8 +109,7 @@ func listSchemas(c *gin.Context) {
 // @Produce json
 // @Param schema_id path string true "Schema ID" example("user-profile")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=map[string]any} "Schema retrieved"
+// @Success 200 {object} router.Response{data=schemarouter.SchemaDTO} "Schema retrieved"
 // @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -119,18 +131,35 @@ func getSchema(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	out, err := schemauc.NewGet(store).Execute(c.Request.Context(), &schemauc.GetInput{Project: project, ID: schemaID})
 	if err != nil {
 		respondSchemaError(c, err)
 		return
 	}
-	filtered := router.FilterMapFields(out.Schema, fields)
-	if len(fields) != 0 && !fields["_etag"] {
-		filtered["_etag"] = out.Schema["_etag"]
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
+	maxBytes := 0
+	if cfg := config.FromContext(c.Request.Context()); cfg != nil {
+		maxBytes = cfg.Limits.MaxConfigFileSize
 	}
-	c.Header("ETag", string(out.ETag))
-	router.RespondOK(c, "schema retrieved", filtered)
+	dto, n, err := toSchemaDTO(out.Schema)
+	if err != nil {
+		router.RespondProblem(
+			c,
+			&router.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
+		)
+		return
+	}
+	if maxBytes > 0 && n > maxBytes {
+		router.RespondProblem(
+			c,
+			&router.Problem{
+				Status: http.StatusInternalServerError,
+				Detail: "stored schema exceeds configured size limit",
+			},
+		)
+		return
+	}
+	router.RespondOK(c, "schema retrieved", dto)
 }
 
 // upsertSchema handles PUT /schemas/{schema_id}.
@@ -142,11 +171,10 @@ func getSchema(c *gin.Context) {
 // @Produce json
 // @Param schema_id path string true "Schema ID" example("user-profile")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
 // @Param If-Match header string false "Strong ETag for optimistic concurrency" example("\"abc123\"")
 // @Param payload body map[string]any true "Schema definition payload"
-// @Success 200 {object} router.Response{data=map[string]any} "Schema updated"
-// @Success 201 {object} router.Response{data=map[string]any} "Schema created"
+// @Success 200 {object} router.Response{data=schemarouter.SchemaDTO} "Schema updated"
+// @Success 201 {object} router.Response{data=schemarouter.SchemaDTO} "Schema created"
 // @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -175,8 +203,27 @@ func upsertSchema(c *gin.Context) {
 	if project == "" {
 		return
 	}
+	// Enforce request body size before binding
+	maxReq := int64(0)
+	if cfg := config.FromContext(c.Request.Context()); cfg != nil {
+		maxReq = int64(cfg.Limits.MaxConfigFileSize)
+	}
+	if maxReq > 0 {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxReq)
+	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			router.RespondProblem(
+				c,
+				&router.Problem{
+					Status: http.StatusRequestEntityTooLarge,
+					Detail: "request body exceeds configured size limit",
+				},
+			)
+			return
+		}
 		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
@@ -191,12 +238,16 @@ func upsertSchema(c *gin.Context) {
 		respondSchemaError(c, execErr)
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
-	filtered := router.FilterMapFields(out.Schema, fields)
-	if len(fields) != 0 && !fields["_etag"] {
-		filtered["_etag"] = out.Schema["_etag"]
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
+	// Marshal response DTO (no size check here—ingress already enforced)
+	dto, _, err := toSchemaDTO(out.Schema)
+	if err != nil {
+		router.RespondProblem(
+			c,
+			&router.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
+		)
+		return
 	}
-	c.Header("ETag", string(out.ETag))
 	status := http.StatusOK
 	message := "schema updated"
 	if out.Created {
@@ -205,10 +256,10 @@ func upsertSchema(c *gin.Context) {
 		c.Header("Location", routes.Schemas()+"/"+schemaID)
 	}
 	if status == http.StatusCreated {
-		router.RespondCreated(c, message, filtered)
+		router.RespondCreated(c, message, dto)
 		return
 	}
-	router.RespondOK(c, message, filtered)
+	router.RespondOK(c, message, dto)
 }
 
 // deleteSchema handles DELETE /schemas/{schema_id}.

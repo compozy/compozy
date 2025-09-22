@@ -88,7 +88,8 @@ func TestWorkflowEndpointsIntegration(t *testing.T) {
 		require.NoError(t, json.Unmarshal(getRes.Body.Bytes(), &body))
 		data, ok := body["data"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, etag, data["_etag"])
+		_, hasBodyETag := data["_etag"]
+		assert.False(t, hasBodyETag) // ETag only in header for single GET
 	})
 
 	t.Run("Should paginate workflows and surface Link header", func(t *testing.T) {

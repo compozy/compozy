@@ -24,8 +24,7 @@ import (
 // @Param limit query int false "Page size (max 500)" example(50)
 // @Param cursor query string false "Opaque pagination cursor"
 // @Param q query string false "Filter by agent ID prefix"
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=object{agents=[]map[string]any,page=object}} "Agents retrieved"
+// @Success 200 {object} router.Response{data=agentrouter.AgentsListResponse} "Agents retrieved"
 // @Header 200 {string} Link "RFC 8288 pagination links for next/prev"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -49,7 +48,6 @@ func listAgentsTop(c *gin.Context) {
 		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	input := &agentuc.ListInput{
 		Project:         project,
 		Prefix:          strings.TrimSpace(c.Query("q")),
@@ -72,22 +70,12 @@ func listAgentsTop(c *gin.Context) {
 		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
 	}
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
-	items := make([]map[string]any, 0, len(out.Items))
+	items := make([]AgentListItem, 0, len(out.Items))
 	for i := range out.Items {
-		filtered := router.FilterMapFields(out.Items[i], fields)
-		if len(fields) != 0 && !fields["_etag"] {
-			filtered["_etag"] = out.Items[i]["_etag"]
-		}
-		items = append(items, filtered)
+		items = append(items, toAgentListItem(out.Items[i]))
 	}
-	page := map[string]any{"limit": limit, "total": out.Total}
-	if nextCursor != "" {
-		page["next_cursor"] = nextCursor
-	}
-	if prevCursor != "" {
-		page["prev_cursor"] = prevCursor
-	}
-	router.RespondOK(c, "agents retrieved", gin.H{"agents": items, "page": page})
+	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	router.RespondOK(c, "agents retrieved", AgentsListResponse{Agents: items, Page: page})
 }
 
 // getAgentTop handles GET /agents/{agent_id}.
@@ -99,8 +87,7 @@ func listAgentsTop(c *gin.Context) {
 // @Produce json
 // @Param agent_id path string true "Agent ID" example("assistant")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=map[string]any} "Agent retrieved"
+// @Success 200 {object} router.Response{data=agentrouter.AgentDTO} "Agent retrieved"
 // @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -122,18 +109,13 @@ func getAgentTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	out, err := agentuc.NewGet(store).Execute(c.Request.Context(), &agentuc.GetInput{Project: project, ID: agentID})
 	if err != nil {
 		respondAgentError(c, err)
 		return
 	}
-	filtered := router.FilterMapFields(out.Agent, fields)
-	if len(fields) != 0 && !fields["_etag"] {
-		filtered["_etag"] = out.Agent["_etag"]
-	}
 	c.Header("ETag", string(out.ETag))
-	router.RespondOK(c, "agent retrieved", filtered)
+	router.RespondOK(c, "agent retrieved", toAgentDTO(out.Agent))
 }
 
 // upsertAgentTop handles PUT /agents/{agent_id}.
@@ -145,11 +127,10 @@ func getAgentTop(c *gin.Context) {
 // @Produce json
 // @Param agent_id path string true "Agent ID" example("assistant")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
 // @Param If-Match header string false "Strong ETag for optimistic concurrency" example("\"abc123\"")
 // @Param payload body map[string]any true "Agent configuration payload"
-// @Success 200 {object} router.Response{data=map[string]any} "Agent updated"
-// @Success 201 {object} router.Response{data=map[string]any} "Agent created"
+// @Success 200 {object} router.Response{data=agentrouter.AgentDTO} "Agent updated"
+// @Success 201 {object} router.Response{data=agentrouter.AgentDTO} "Agent created"
 // @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -194,11 +175,6 @@ func upsertAgentTop(c *gin.Context) {
 		respondAgentError(c, execErr)
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
-	filtered := router.FilterMapFields(out.Agent, fields)
-	if len(fields) != 0 && !fields["_etag"] {
-		filtered["_etag"] = out.Agent["_etag"]
-	}
 	c.Header("ETag", string(out.ETag))
 	status := http.StatusOK
 	message := "agent updated"
@@ -208,10 +184,10 @@ func upsertAgentTop(c *gin.Context) {
 		c.Header("Location", routes.Agents()+"/"+agentID)
 	}
 	if status == http.StatusCreated {
-		router.RespondCreated(c, message, filtered)
+		router.RespondCreated(c, message, toAgentDTO(out.Agent))
 		return
 	}
-	router.RespondOK(c, message, filtered)
+	router.RespondOK(c, message, toAgentDTO(out.Agent))
 }
 
 // deleteAgentTop handles DELETE /agents/{agent_id}.

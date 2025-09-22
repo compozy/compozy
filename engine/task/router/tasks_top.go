@@ -24,8 +24,7 @@ import (
 // @Param limit query int false "Page size (max 500)" example(50)
 // @Param cursor query string false "Opaque pagination cursor"
 // @Param q query string false "Filter by task ID prefix"
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=object{tasks=[]map[string]any,page=object}} "Tasks retrieved"
+// @Success 200 {object} router.Response{data=tkrouter.TasksListResponse} "Tasks retrieved"
 // @Header 200 {string} Link "RFC 8288 pagination links for next/prev"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -49,7 +48,6 @@ func listTasksTop(c *gin.Context) {
 		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	input := &taskuc.ListInput{
 		Project:         project,
 		Prefix:          strings.TrimSpace(c.Query("q")),
@@ -72,22 +70,12 @@ func listTasksTop(c *gin.Context) {
 		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
 	}
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
-	items := make([]map[string]any, 0, len(out.Items))
+	items := make([]TaskListItem, 0, len(out.Items))
 	for i := range out.Items {
-		filtered := router.FilterMapFields(out.Items[i], fields)
-		if len(fields) != 0 && !fields["_etag"] {
-			filtered["_etag"] = out.Items[i]["_etag"]
-		}
-		items = append(items, filtered)
+		items = append(items, toTaskListItem(out.Items[i]))
 	}
-	page := map[string]any{"limit": limit, "total": out.Total}
-	if nextCursor != "" {
-		page["next_cursor"] = nextCursor
-	}
-	if prevCursor != "" {
-		page["prev_cursor"] = prevCursor
-	}
-	router.RespondOK(c, "tasks retrieved", gin.H{"tasks": items, "page": page})
+	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	router.RespondOK(c, "tasks retrieved", TasksListResponse{Tasks: items, Page: page})
 }
 
 // getTaskTop handles GET /tasks/{task_id}.
@@ -99,8 +87,7 @@ func listTasksTop(c *gin.Context) {
 // @Produce json
 // @Param task_id path string true "Task ID" example("approve-request")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=map[string]any} "Task retrieved"
+// @Success 200 {object} router.Response{data=tkrouter.TaskDTO} "Task retrieved"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
@@ -121,18 +108,13 @@ func getTaskTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	out, err := taskuc.NewGet(store).Execute(c.Request.Context(), &taskuc.GetInput{Project: project, ID: taskID})
 	if err != nil {
 		respondTaskError(c, err)
 		return
 	}
-	filtered := router.FilterMapFields(out.Task, fields)
-	if len(fields) != 0 && !fields["_etag"] {
-		filtered["_etag"] = out.Task["_etag"]
-	}
 	c.Header("ETag", string(out.ETag))
-	router.RespondOK(c, "task retrieved", filtered)
+	router.RespondOK(c, "task retrieved", toTaskDTO(out.Task))
 }
 
 // upsertTaskTop handles PUT /tasks/{task_id}.
@@ -144,11 +126,10 @@ func getTaskTop(c *gin.Context) {
 // @Produce json
 // @Param task_id path string true "Task ID" example("approve-request")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
 // @Param If-Match header string false "Strong ETag for optimistic concurrency" example("\"abc123\"")
 // @Param payload body map[string]any true "Task configuration payload"
-// @Success 200 {object} router.Response{data=map[string]any} "Task updated"
-// @Success 201 {object} router.Response{data=map[string]any} "Task created"
+// @Success 200 {object} router.Response{data=tkrouter.TaskDTO} "Task updated"
+// @Success 201 {object} router.Response{data=tkrouter.TaskDTO} "Task created"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
@@ -191,11 +172,6 @@ func upsertTaskTop(c *gin.Context) {
 		respondTaskError(c, execErr)
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
-	filtered := router.FilterMapFields(out.Task, fields)
-	if len(fields) != 0 && !fields["_etag"] {
-		filtered["_etag"] = out.Task["_etag"]
-	}
 	c.Header("ETag", string(out.ETag))
 	status := http.StatusOK
 	message := "task updated"
@@ -205,10 +181,10 @@ func upsertTaskTop(c *gin.Context) {
 		c.Header("Location", routes.Tasks()+"/"+taskID)
 	}
 	if status == http.StatusCreated {
-		router.RespondCreated(c, message, filtered)
+		router.RespondCreated(c, message, toTaskDTO(out.Task))
 		return
 	}
-	router.RespondOK(c, message, filtered)
+	router.RespondOK(c, message, toTaskDTO(out.Task))
 }
 
 // deleteTaskTop handles DELETE /tasks/{task_id}.

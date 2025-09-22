@@ -55,8 +55,8 @@ This plan covers: workflows, agents, tools, tasks, mcps, schemas, models, and me
 Create colocated DTOs per router package to avoid leaking transport concerns into domain types:
 
 - `engine/workflow/router/dto.go`
-  - `WorkflowDTO` — stable top-level fields (id, version, description, author, config opts, triggers, schedule, counts, id arrays).
-  - `WorkflowListItem` — `{ ETag string `json:"\_etag"`, Workflow WorkflowDTO `json:"workflow"` }`.
+  - `WorkflowDTO` — stable top-level fields (id, version, description, author, config opts, triggers, schedule, counts, id arrays, expandable collections).
+  - `WorkflowListItem` — embed core fields at root and include `etag` (Tool DTO pattern).
   - `WorkflowsListResponse` — `{ Workflows []WorkflowListItem `json:"workflows"`, Page PageInfoDTO `json:"page"` }`.
 - `engine/tool/router/dto.go`
   - `ToolDTO` — maps from `tool.Config` (id, description, timeout, input/output schema, with, config, env, cwd where appropriate).
@@ -82,7 +82,7 @@ Notes:
 
 - Introduce a shared `PageInfoDTO` (limit, total, next_cursor, prev_cursor) in a common package.
 - DTOs are transport-facing; keep domain `Config` types untouched. Mappers must not import `gin`.
-- For dynamic content (e.g., schema bodies), the DTO uses `json.RawMessage`. Handlers should enforce reasonable size limits.
+- For workflow `expand` collections, typed union fields are used with custom JSON marshaling to return either `[]string` (IDs) or typed DTO slices, while keeping the `tasks|agents|tools` property names stable.
 
 ## Router Changes (per resource)
 

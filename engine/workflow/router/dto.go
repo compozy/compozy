@@ -1,36 +1,51 @@
 package wfrouter
 
 import (
+	"encoding/json"
+
+	agentrouter "github.com/compozy/compozy/engine/agent/router"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/server/router"
+	tkrouter "github.com/compozy/compozy/engine/task/router"
+	toolrouter "github.com/compozy/compozy/engine/tool/router"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
-// WorkflowResponse is a DTO for workflow responses that avoids circular references
-type WorkflowResponse struct {
-	// Basic workflow fields
-	ID          string       `json:"id"`
-	Version     string       `json:"version,omitempty"`
-	Description string       `json:"description,omitempty"`
-	Author      *core.Author `json:"author,omitempty"`
-
-	// Configuration
-	Config   workflow.Opts      `json:"config"`
-	Triggers []workflow.Trigger `json:"triggers,omitempty"`
-	Schedule *workflow.Schedule `json:"schedule,omitempty"`
-
-	// Task information (without circular references)
-	TaskCount int      `json:"task_count"`
-	TaskIDs   []string `json:"task_ids,omitempty"`
-
-	// Other counts
-	ToolCount  int `json:"tool_count"`
-	AgentCount int `json:"agent_count"`
-	MCPCount   int `json:"mcp_count"`
+// WorkflowDTO is the canonical typed representation for workflows
+type WorkflowDTO struct {
+	ID          string             `json:"id"`
+	Version     string             `json:"version,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Author      *core.Author       `json:"author,omitempty"`
+	Config      workflow.Opts      `json:"config"`
+	Triggers    []workflow.Trigger `json:"triggers,omitempty"`
+	Schedule    *workflow.Schedule `json:"schedule,omitempty"`
+	TaskCount   int                `json:"task_count"`
+	TaskIDs     []string           `json:"task_ids,omitempty"`
+	ToolCount   int                `json:"tool_count"`
+	AgentCount  int                `json:"agent_count"`
+	MCPCount    int                `json:"mcp_count"`
+	// Expandable collections: marshaled as either []string or []<DTO>
+	Tasks  TasksOrDTOs  `json:"tasks,omitempty"`
+	Agents AgentsOrDTOs `json:"agents,omitempty"`
+	Tools  ToolsOrDTOs  `json:"tools,omitempty"`
 }
 
-// ConvertWorkflowConfigToResponse converts a workflow.Config to WorkflowResponse
-func ConvertWorkflowConfigToResponse(cfg *workflow.Config) WorkflowResponse {
-	resp := WorkflowResponse{
+// WorkflowListItem is the list item wrapper including optional strong ETag
+type WorkflowListItem struct {
+	WorkflowDTO
+	ETag string `json:"etag,omitempty" example:"abc123"`
+}
+
+// WorkflowsListResponse is the typed list payload returned from GET /workflows.
+type WorkflowsListResponse struct {
+	Workflows []WorkflowListItem `json:"workflows"`
+	Page      router.PageInfoDTO `json:"page"`
+}
+
+// ConvertWorkflowConfigToDTO converts a workflow.Config to WorkflowDTO
+func ConvertWorkflowConfigToDTO(cfg *workflow.Config) WorkflowDTO {
+	resp := WorkflowDTO{
 		ID:          cfg.ID,
 		Version:     cfg.Version,
 		Description: cfg.Description,
@@ -43,23 +58,57 @@ func ConvertWorkflowConfigToResponse(cfg *workflow.Config) WorkflowResponse {
 		AgentCount:  len(cfg.Agents),
 		MCPCount:    len(cfg.MCPs),
 	}
-
-	// Add task IDs if present
 	if len(cfg.Tasks) > 0 {
 		resp.TaskIDs = make([]string, len(cfg.Tasks))
 		for i := range cfg.Tasks {
 			resp.TaskIDs[i] = cfg.Tasks[i].ID
 		}
 	}
-
 	return resp
 }
 
-// ConvertWorkflowConfigsToResponses converts multiple workflow.Config to WorkflowResponse
-func ConvertWorkflowConfigsToResponses(configs []*workflow.Config) []WorkflowResponse {
-	responses := make([]WorkflowResponse, len(configs))
+// ConvertWorkflowConfigsToDTOs converts multiple workflow.Config to WorkflowDTO
+func ConvertWorkflowConfigsToDTOs(configs []*workflow.Config) []WorkflowDTO {
+	responses := make([]WorkflowDTO, len(configs))
 	for i := range configs {
-		responses[i] = ConvertWorkflowConfigToResponse(configs[i])
+		responses[i] = ConvertWorkflowConfigToDTO(configs[i])
 	}
 	return responses
+}
+
+// Union field types with custom JSON marshalers for expand behavior
+type TasksOrDTOs struct {
+	IDs      []string
+	Expanded []tkrouter.TaskDTO
+}
+
+func (t TasksOrDTOs) MarshalJSON() ([]byte, error) {
+	if len(t.Expanded) > 0 {
+		return json.Marshal(t.Expanded)
+	}
+	return json.Marshal(t.IDs)
+}
+
+type AgentsOrDTOs struct {
+	IDs      []string
+	Expanded []agentrouter.AgentDTO
+}
+
+func (a AgentsOrDTOs) MarshalJSON() ([]byte, error) {
+	if len(a.Expanded) > 0 {
+		return json.Marshal(a.Expanded)
+	}
+	return json.Marshal(a.IDs)
+}
+
+type ToolsOrDTOs struct {
+	IDs      []string
+	Expanded []toolrouter.ToolDTO
+}
+
+func (t ToolsOrDTOs) MarshalJSON() ([]byte, error) {
+	if len(t.Expanded) > 0 {
+		return json.Marshal(t.Expanded)
+	}
+	return json.Marshal(t.IDs)
 }

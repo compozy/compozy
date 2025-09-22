@@ -19,8 +19,7 @@ import (
 // @Accept json
 // @Produce json
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=map[string]any} "Project retrieved"
+// @Success 200 {object} router.Response{data=projectrouter.ProjectDTO} "Project retrieved"
 // @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -40,7 +39,6 @@ func getProject(c *gin.Context) {
 	if projectID == "" {
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	out, err := projectuc.NewGet(store).Execute(c.Request.Context(), &projectuc.GetInput{Project: projectID})
 	if err != nil {
 		respondProjectError(c, err)
@@ -51,10 +49,8 @@ func getProject(c *gin.Context) {
 		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 		return
 	}
-	response := router.FilterMapFields(payload, fields)
-	response["_etag"] = string(out.ETag)
 	c.Header("ETag", string(out.ETag))
-	router.RespondOK(c, "project retrieved", response)
+	router.RespondOK(c, "project retrieved", toProjectDTO(payload))
 }
 
 // upsertProject handles PUT /project.
@@ -65,11 +61,10 @@ func getProject(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
 // @Param If-Match header string false "Strong ETag for optimistic concurrency" example("\"abc123\"")
 // @Param payload body map[string]any true "Project configuration payload"
-// @Success 200 {object} router.Response{data=map[string]any} "Project updated"
-// @Success 201 {object} router.Response{data=map[string]any} "Project created"
+// @Success 200 {object} router.Response{data=projectrouter.ProjectDTO} "Project updated"
+// @Success 201 {object} router.Response{data=projectrouter.ProjectDTO} "Project created"
 // @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -113,16 +108,13 @@ func upsertProject(c *gin.Context) {
 		router.RespondProblem(c, &router.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
-	response := router.FilterMapFields(payload, fields)
-	response["_etag"] = string(out.ETag)
 	c.Header("ETag", string(out.ETag))
 	if out.Created {
 		c.Header("Location", routes.Project())
-		router.RespondCreated(c, "project created", response)
-	} else {
-		router.RespondOK(c, "project updated", response)
+		router.RespondCreated(c, "project created", toProjectDTO(payload))
+		return
 	}
+	router.RespondOK(c, "project updated", toProjectDTO(payload))
 }
 
 // deleteProject handles DELETE /project.

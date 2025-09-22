@@ -24,8 +24,7 @@ import (
 // @Param limit query int false "Page size (max 500)" example(50)
 // @Param cursor query string false "Opaque pagination cursor"
 // @Param q query string false "Filter by tool ID prefix"
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=object{tools=[]map[string]any,page=object}} "Tools retrieved"
+// @Success 200 {object} router.Response{data=ToolsListResponse} "Tools retrieved"
 // @Header 200 {string} Link "RFC 8288 pagination links for next/prev"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -49,7 +48,6 @@ func listToolsTop(c *gin.Context) {
 		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	input := &tooluc.ListInput{
 		Project:         project,
 		Prefix:          strings.TrimSpace(c.Query("q")),
@@ -72,22 +70,12 @@ func listToolsTop(c *gin.Context) {
 		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
 	}
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
-	items := make([]map[string]any, 0, len(out.Items))
+	list := make([]ToolListItem, 0, len(out.Items))
 	for i := range out.Items {
-		filtered := router.FilterMapFields(out.Items[i], fields)
-		if len(fields) != 0 && !fields["_etag"] {
-			filtered["_etag"] = out.Items[i]["_etag"]
-		}
-		items = append(items, filtered)
+		list = append(list, toToolListItem(out.Items[i]))
 	}
-	page := map[string]any{"limit": limit, "total": out.Total}
-	if nextCursor != "" {
-		page["next_cursor"] = nextCursor
-	}
-	if prevCursor != "" {
-		page["prev_cursor"] = prevCursor
-	}
-	router.RespondOK(c, "tools retrieved", gin.H{"tools": items, "page": page})
+	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	router.RespondOK(c, "tools retrieved", ToolsListResponse{Tools: list, Page: page})
 }
 
 // getToolTop handles GET /tools/{tool_id}.
@@ -99,8 +87,8 @@ func listToolsTop(c *gin.Context) {
 // @Produce json
 // @Param tool_id path string true "Tool ID" example("http-client")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=map[string]any} "Tool retrieved"
+// @Success 200 {object} router.Response{data=ToolDTO} "Tool retrieved"
+// @Header 200 {string} ETag "Strong ETag for the resource"
 // @Failure 400 {object} router.ProblemDocument "Invalid input"
 // @Failure 404 {object} router.ProblemDocument "Tool not found"
 // @Failure 500 {object} router.ProblemDocument "Internal server error"
@@ -118,18 +106,13 @@ func getToolTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	out, err := tooluc.NewGet(store).Execute(c.Request.Context(), &tooluc.GetInput{Project: project, ID: toolID})
 	if err != nil {
 		respondToolError(c, err)
 		return
 	}
-	filtered := router.FilterMapFields(out.Tool, fields)
-	if len(fields) != 0 && !fields["_etag"] {
-		filtered["_etag"] = out.Tool["_etag"]
-	}
 	c.Header("ETag", string(out.ETag))
-	router.RespondOK(c, "tool retrieved", filtered)
+	router.RespondOK(c, "tool retrieved", toToolDTO(out.Tool))
 }
 
 // upsertToolTop handles PUT /tools/{tool_id}.
@@ -141,18 +124,19 @@ func getToolTop(c *gin.Context) {
 // @Produce json
 // @Param tool_id path string true "Tool ID" example("http-client")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
 // @Param If-Match header string false "Strong ETag for optimistic concurrency" example("\"abc123\"")
 // @Param payload body map[string]any true "Tool configuration payload"
-// @Success 200 {object} router.Response{data=map[string]any} "Tool updated"
-// @Success 201 {object} router.Response{data=map[string]any} "Tool created"
+// @Success 200 {object} router.Response{data=ToolDTO} "Tool updated"
+// @Success 201 {object} router.Response{data=ToolDTO} "Tool created"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
+// @Header 200 {string} ETag "Strong ETag for the resource"
 // @Header 201 {string} Location "Absolute URL for the tool"
 // @Header 201 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 201 {string} RateLimit-Remaining "Remaining requests in the current window"
 // @Header 201 {string} RateLimit-Reset "Seconds until the window resets"
+// @Header 201 {string} ETag "Strong ETag for the resource"
 // @Failure 400 {object} router.ProblemDocument "Invalid request"
 // @Failure 404 {object} router.ProblemDocument "Tool not found"
 // @Failure 409 {object} router.ProblemDocument "Tool referenced"
@@ -188,24 +172,13 @@ func upsertToolTop(c *gin.Context) {
 		respondToolError(c, execErr)
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
-	filtered := router.FilterMapFields(out.Tool, fields)
-	if len(fields) != 0 && !fields["_etag"] {
-		filtered["_etag"] = out.Tool["_etag"]
-	}
 	c.Header("ETag", string(out.ETag))
-	status := http.StatusOK
-	message := "tool updated"
 	if out.Created {
-		status = http.StatusCreated
-		message = "tool created"
 		c.Header("Location", routes.Tools()+"/"+toolID)
-	}
-	if status == http.StatusCreated {
-		router.RespondCreated(c, message, filtered)
+		router.RespondCreated(c, "tool created", toToolDTO(out.Tool))
 		return
 	}
-	router.RespondOK(c, message, filtered)
+	router.RespondOK(c, "tool updated", toToolDTO(out.Tool))
 }
 
 // deleteToolTop handles DELETE /tools/{tool_id}.

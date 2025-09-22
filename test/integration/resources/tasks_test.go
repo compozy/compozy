@@ -85,12 +85,12 @@ func TestTasksEndpoints(t *testing.T) {
 }
 
 func TestTasksQueries(t *testing.T) {
-	t.Run("Should list with pagination and fields", func(t *testing.T) {
+	t.Run("Should list with pagination", func(t *testing.T) {
 		client := newResourceClient(t)
 		client.do(http.MethodPut, "/api/v0/tasks/a1", taskPayload("a1", "a1"), nil)
 		client.do(http.MethodPut, "/api/v0/tasks/a2", taskPayload("a2", "a2"), nil)
 		client.do(http.MethodPut, "/api/v0/tasks/a3", taskPayload("a3", "a3"), nil)
-		res := client.do(http.MethodGet, "/api/v0/tasks?limit=1&fields=id,type", nil, nil)
+		res := client.do(http.MethodGet, "/api/v0/tasks?limit=1", nil, nil)
 		require.Equal(t, http.StatusOK, res.Code)
 		items, page := decodeList(t, res, "tasks")
 		require.Len(t, items, 1)
@@ -99,12 +99,10 @@ func TestTasksQueries(t *testing.T) {
 		assert.Equal(t, float64(3), page["total"])
 		_, hasID := items[0]["id"]
 		_, hasType := items[0]["type"]
-		_, hasETag := items[0]["_etag"]
+		_, hasETag := items[0]["etag"]
 		assert.True(t, hasID)
 		assert.True(t, hasType)
 		assert.True(t, hasETag)
-		assert.NotContains(t, items[0], "description")
-		assert.Len(t, items[0], 3)
 		assert.Contains(t, res.Header().Get("Link"), "rel=\"next\"")
 		next := page["next_cursor"].(string)
 		res2 := client.do(http.MethodGet, "/api/v0/tasks?limit=1&cursor="+next, nil, nil)
@@ -154,14 +152,5 @@ func TestTasksQueries(t *testing.T) {
 		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 
-	t.Run("Should ignore unknown fields in list", func(t *testing.T) {
-		client := newResourceClient(t)
-		client.do(http.MethodPut, "/api/v0/tasks/ff1", taskPayload("ff1", "x"), nil)
-		res := client.do(http.MethodGet, "/api/v0/tasks?fields=id,unknown_field", nil, nil)
-		require.Equal(t, http.StatusOK, res.Code)
-		items, _ := decodeList(t, res, "tasks")
-		require.True(t, len(items) > 0)
-		assert.Contains(t, items[0], "id")
-		assert.NotContains(t, items[0], "unknown_field")
-	})
+	// fields= feature removed; no filtering behavior to test
 }

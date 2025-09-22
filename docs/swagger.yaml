@@ -259,6 +259,54 @@ definitions:
           Config holds an inline provider configuration when specified as a mapping.
           When Ref is set, Config may be merged with the resolved model during linking.
     type: object
+  agentrouter.AgentDTO:
+    properties:
+      env:
+        additionalProperties: {}
+        type: object
+      id:
+        type: string
+      instructions:
+        type: string
+      model:
+        additionalProperties: {}
+        type: object
+      resource:
+        type: string
+      with:
+        additionalProperties: {}
+        type: object
+    type: object
+  agentrouter.AgentListItem:
+    properties:
+      env:
+        additionalProperties: {}
+        type: object
+      etag:
+        example: abc123
+        type: string
+      id:
+        type: string
+      instructions:
+        type: string
+      model:
+        additionalProperties: {}
+        type: object
+      resource:
+        type: string
+      with:
+        additionalProperties: {}
+        type: object
+    type: object
+  agentrouter.AgentsListResponse:
+    properties:
+      agents:
+        items:
+          $ref: '#/definitions/agentrouter.AgentListItem'
+        type: array
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+    type: object
   core.Author:
     properties:
       contributors:
@@ -1063,6 +1111,92 @@ definitions:
       used:
         type: integer
     type: object
+  memoryrouter.MemoriesListResponse:
+    properties:
+      memories:
+        items:
+          $ref: '#/definitions/memoryrouter.MemoryListItem'
+        type: array
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+    type: object
+  memoryrouter.MemoryDTO:
+    properties:
+      default_key_template:
+        type: string
+      description:
+        type: string
+      flushing:
+        additionalProperties: {}
+        type: object
+      id:
+        type: string
+      locking:
+        additionalProperties: {}
+        type: object
+      max_context_ratio:
+        type: number
+      max_messages:
+        type: integer
+      max_tokens:
+        type: integer
+      persistence:
+        additionalProperties: {}
+        type: object
+      privacy_policy:
+        additionalProperties: {}
+        type: object
+      resource:
+        type: string
+      token_allocation:
+        additionalProperties: {}
+        type: object
+      token_provider:
+        additionalProperties: {}
+        type: object
+      type:
+        type: string
+    type: object
+  memoryrouter.MemoryListItem:
+    properties:
+      default_key_template:
+        type: string
+      description:
+        type: string
+      etag:
+        example: abc123
+        type: string
+      flushing:
+        additionalProperties: {}
+        type: object
+      id:
+        type: string
+      locking:
+        additionalProperties: {}
+        type: object
+      max_context_ratio:
+        type: number
+      max_messages:
+        type: integer
+      max_tokens:
+        type: integer
+      persistence:
+        additionalProperties: {}
+        type: object
+      privacy_policy:
+        additionalProperties: {}
+        type: object
+      resource:
+        type: string
+      token_allocation:
+        additionalProperties: {}
+        type: object
+      token_provider:
+        additionalProperties: {}
+        type: object
+      type:
+        type: string
+    type: object
   memrouter.AppendMemoryRequest:
     properties:
       key:
@@ -1123,6 +1257,106 @@ definitions:
       - key
       - messages
     type: object
+  modelrouter.ModelDTO:
+    properties:
+      api_key:
+        type: string
+      api_url:
+        type: string
+      id:
+        type: string
+      model:
+        type: string
+      organization:
+        type: string
+      params:
+        additionalProperties: {}
+        type: object
+      provider:
+        type: string
+      resource:
+        type: string
+    type: object
+  modelrouter.ModelListItem:
+    properties:
+      api_key:
+        type: string
+      api_url:
+        type: string
+      etag:
+        example: abc123
+        type: string
+      id:
+        type: string
+      model:
+        type: string
+      organization:
+        type: string
+      params:
+        additionalProperties: {}
+        type: object
+      provider:
+        type: string
+      resource:
+        type: string
+    type: object
+  modelrouter.ModelsListResponse:
+    properties:
+      models:
+        items:
+          $ref: '#/definitions/modelrouter.ModelListItem'
+        type: array
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+    type: object
+  projectrouter.ProjectDTO:
+    properties:
+      author:
+        $ref: '#/definitions/core.Author'
+      autoload:
+        additionalProperties: {}
+        type: object
+      config:
+        additionalProperties: {}
+        type: object
+      description:
+        type: string
+      memories:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      models:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      monitoring:
+        additionalProperties: {}
+        type: object
+      name:
+        type: string
+      runtime:
+        additionalProperties: {}
+        type: object
+      schemas:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      tools:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      version:
+        type: string
+      workflows:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+    type: object
   router.CreateUserRequest:
     properties:
       email:
@@ -1159,6 +1393,21 @@ definitions:
         $ref: '#/definitions/router.GenerateKeyData'
       message:
         type: string
+    type: object
+  router.PageInfoDTO:
+    properties:
+      limit:
+        example: 50
+        type: integer
+      next_cursor:
+        example: v2:after:tool-001
+        type: string
+      prev_cursor:
+        example: v2:before:tool-000
+        type: string
+      total:
+        example: 2
+        type: integer
     type: object
   router.ProblemDocument:
     properties:
@@ -1251,6 +1500,32 @@ definitions:
     type: object
   schema.Schema:
     additionalProperties: {}
+    type: object
+  schemarouter.SchemaDTO:
+    properties:
+      body:
+        items:
+          type: integer
+        type: array
+    type: object
+  schemarouter.SchemaListItem:
+    properties:
+      body:
+        items:
+          type: integer
+        type: array
+      etag:
+        example: abc123
+        type: string
+    type: object
+  schemarouter.SchemasListResponse:
+    properties:
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+      schemas:
+        items:
+          $ref: '#/definitions/schemarouter.SchemaListItem'
+        type: array
     type: object
   service.AppendResponse:
     properties:
@@ -1897,20 +2172,17 @@ definitions:
       - Second
       - Minute
       - Hour
-  tkrouter.TaskResponse:
+  tkrouter.TaskDTO:
     properties:
       action:
         type: string
       condition:
-        description: Task-specific fields (without recursive Tasks/Task fields)
         type: string
       env:
         $ref: '#/definitions/core.EnvMap'
       has_subtasks:
-        description: Metadata
         type: boolean
       id:
-        description: BaseConfig fields
         type: string
       items: {}
       mode:
@@ -1934,6 +2206,88 @@ definitions:
         $ref: '#/definitions/task.Type'
       with:
         $ref: '#/definitions/core.Input'
+    type: object
+  tkrouter.TaskListItem:
+    properties:
+      action:
+        type: string
+      condition:
+        type: string
+      env:
+        $ref: '#/definitions/core.EnvMap'
+      etag:
+        example: abc123
+        type: string
+      has_subtasks:
+        type: boolean
+      id:
+        type: string
+      items: {}
+      mode:
+        type: string
+      outputs:
+        $ref: '#/definitions/core.Input'
+      routes:
+        additionalProperties: {}
+        type: object
+      signal_name:
+        type: string
+      strategy:
+        type: string
+      subtask_ids:
+        items:
+          type: string
+        type: array
+      timeout:
+        type: string
+      type:
+        $ref: '#/definitions/task.Type'
+      with:
+        $ref: '#/definitions/core.Input'
+    type: object
+  tkrouter.TaskResponse:
+    properties:
+      action:
+        type: string
+      condition:
+        type: string
+      env:
+        $ref: '#/definitions/core.EnvMap'
+      has_subtasks:
+        type: boolean
+      id:
+        type: string
+      items: {}
+      mode:
+        type: string
+      outputs:
+        $ref: '#/definitions/core.Input'
+      routes:
+        additionalProperties: {}
+        type: object
+      signal_name:
+        type: string
+      strategy:
+        type: string
+      subtask_ids:
+        items:
+          type: string
+        type: array
+      timeout:
+        type: string
+      type:
+        $ref: '#/definitions/task.Type'
+      with:
+        $ref: '#/definitions/core.Input'
+    type: object
+  tkrouter.TasksListResponse:
+    properties:
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+      tasks:
+        items:
+          $ref: '#/definitions/tkrouter.TaskListItem'
+        type: array
     type: object
   tool.Config:
     properties:
@@ -2045,6 +2399,78 @@ definitions:
           - **Merge strategy:** Runtime parameters override defaults (shallow merge)
           - **Use cases:** Default API URLs, fallback configurations, preset options
           - **Security note:** Avoid storing secrets here; use environment variables instead
+    type: object
+  toolrouter.ToolDTO:
+    properties:
+      config:
+        additionalProperties: {}
+        type: object
+      description:
+        example: HTTP client tool
+        type: string
+      env:
+        additionalProperties: {}
+        type: object
+      id:
+        example: http
+        type: string
+      input:
+        additionalProperties: {}
+        type: object
+      output:
+        additionalProperties: {}
+        type: object
+      resource:
+        example: tool
+        type: string
+      timeout:
+        example: 30s
+        type: string
+      with:
+        additionalProperties: {}
+        type: object
+    type: object
+  toolrouter.ToolListItem:
+    properties:
+      config:
+        additionalProperties: {}
+        type: object
+      description:
+        example: HTTP client tool
+        type: string
+      env:
+        additionalProperties: {}
+        type: object
+      etag:
+        example: abc123
+        type: string
+      id:
+        example: http
+        type: string
+      input:
+        additionalProperties: {}
+        type: object
+      output:
+        additionalProperties: {}
+        type: object
+      resource:
+        example: tool
+        type: string
+      timeout:
+        example: 30s
+        type: string
+      with:
+        additionalProperties: {}
+        type: object
+    type: object
+  toolrouter.ToolsListResponse:
+    properties:
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+      tools:
+        items:
+          $ref: '#/definitions/toolrouter.ToolListItem'
+        type: array
     type: object
   uc.ClearMemoryResult:
     properties:
@@ -2188,6 +2614,17 @@ definitions:
       strategy:
         type: string
     type: object
+  wfrouter.AgentsOrDTOs:
+    properties:
+      expanded:
+        items:
+          $ref: '#/definitions/agentrouter.AgentDTO'
+        type: array
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
   wfrouter.EventRequest:
     properties:
       name:
@@ -2235,106 +2672,117 @@ definitions:
         example: Signal sent successfully
         type: string
     type: object
-  wfrouter.WorkflowDocument:
+  wfrouter.TasksOrDTOs:
     properties:
-      _etag:
-        example: 6b1c1d7f448c1c76
-        type: string
+      expanded:
+        items:
+          $ref: '#/definitions/tkrouter.TaskDTO'
+        type: array
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
+  wfrouter.ToolsOrDTOs:
+    properties:
+      expanded:
+        items:
+          $ref: '#/definitions/toolrouter.ToolDTO'
+        type: array
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
+  wfrouter.WorkflowDTO:
+    properties:
       agent_count:
-        example: 1
         type: integer
-      agent_ids:
-        example:
-          - coordination-agent
-        items:
-          type: string
-        type: array
       agents:
-        example:
-          - coordination-agent
-        items:
-          type: string
-        type: array
+        $ref: '#/definitions/wfrouter.AgentsOrDTOs'
+      author:
+        $ref: '#/definitions/core.Author'
+      config:
+        $ref: '#/definitions/workflow.Opts'
       description:
-        example: Ingests raw data and executes nightly transformations.
         type: string
       id:
-        example: data-processing
         type: string
-      name:
-        example: Data Processing Workflow
-        type: string
-      project:
-        example: production
-        type: string
-      state:
-        example: active
-        type: string
-      tags:
-        example:
-          - nightly
-          - batch
-        items:
-          type: string
-        type: array
+      mcp_count:
+        type: integer
+      schedule:
+        $ref: '#/definitions/workflow.Schedule'
       task_count:
-        example: 3
         type: integer
       task_ids:
-        example:
-          - validate-input
-          - transform-data
         items:
           type: string
         type: array
       tasks:
-        example:
-          - validate-input
-        items:
-          type: string
-        type: array
+        allOf:
+          - $ref: '#/definitions/wfrouter.TasksOrDTOs'
+        description: 'Expandable collections: marshaled as either []string or []<DTO>'
       tool_count:
-        example: 2
         type: integer
-      tool_ids:
-        example:
-          - s3-writer
-        items:
-          type: string
-        type: array
       tools:
-        example:
-          - s3-writer
+        $ref: '#/definitions/wfrouter.ToolsOrDTOs'
+      triggers:
         items:
-          type: string
+          $ref: '#/definitions/workflow.Trigger'
         type: array
       version:
-        example: "2025-09-20T12:30:00Z"
         type: string
     type: object
-  wfrouter.WorkflowListDocument:
+  wfrouter.WorkflowListItem:
+    properties:
+      agent_count:
+        type: integer
+      agents:
+        $ref: '#/definitions/wfrouter.AgentsOrDTOs'
+      author:
+        $ref: '#/definitions/core.Author'
+      config:
+        $ref: '#/definitions/workflow.Opts'
+      description:
+        type: string
+      etag:
+        example: abc123
+        type: string
+      id:
+        type: string
+      mcp_count:
+        type: integer
+      schedule:
+        $ref: '#/definitions/workflow.Schedule'
+      task_count:
+        type: integer
+      task_ids:
+        items:
+          type: string
+        type: array
+      tasks:
+        allOf:
+          - $ref: '#/definitions/wfrouter.TasksOrDTOs'
+        description: 'Expandable collections: marshaled as either []string or []<DTO>'
+      tool_count:
+        type: integer
+      tools:
+        $ref: '#/definitions/wfrouter.ToolsOrDTOs'
+      triggers:
+        items:
+          $ref: '#/definitions/workflow.Trigger'
+        type: array
+      version:
+        type: string
+    type: object
+  wfrouter.WorkflowsListResponse:
     properties:
       page:
-        $ref: '#/definitions/wfrouter.WorkflowListPageDocument'
+        $ref: '#/definitions/router.PageInfoDTO'
       workflows:
         items:
-          $ref: '#/definitions/wfrouter.WorkflowDocument'
+          $ref: '#/definitions/wfrouter.WorkflowListItem'
         type: array
-    type: object
-  wfrouter.WorkflowListPageDocument:
-    properties:
-      limit:
-        example: 50
-        type: integer
-      next_cursor:
-        example: djI6YWZ0ZXI6d29ya2Zsb3ctMDAwMQ==
-        type: string
-      prev_cursor:
-        example: djI6YmVmb3JlOndvcmtmbG93LTAwMDE=
-        type: string
-      total:
-        example: 120
-        type: integer
     type: object
   workflow.Config:
     properties:
@@ -3616,10 +4064,6 @@ paths:
           in: query
           name: q
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -3643,15 +4087,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    properties:
-                      agents:
-                        items:
-                          additionalProperties: true
-                          type: object
-                        type: array
-                      page:
-                        type: object
-                    type: object
+                    $ref: '#/definitions/agentrouter.AgentsListResponse'
                 type: object
         "400":
           description: Invalid cursor
@@ -3731,10 +4167,6 @@ paths:
           in: query
           name: project
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -3758,8 +4190,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/agentrouter.AgentDTO'
                 type: object
         "400":
           description: Invalid input
@@ -3791,10 +4222,6 @@ paths:
           example: '"demo"'
           in: query
           name: project
-          type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
           type: string
         - description: Strong ETag for optimistic concurrency
           example: '"\"abc123\""'
@@ -3831,8 +4258,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/agentrouter.AgentDTO'
                 type: object
         "201":
           description: Agent created
@@ -3857,8 +4283,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/agentrouter.AgentDTO'
                 type: object
         "400":
           description: Invalid request
@@ -4539,10 +4964,6 @@ paths:
           in: query
           name: q
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -4566,15 +4987,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    properties:
-                      memories:
-                        items:
-                          additionalProperties: true
-                          type: object
-                        type: array
-                      page:
-                        type: object
-                    type: object
+                    $ref: '#/definitions/memoryrouter.MemoriesListResponse'
                 type: object
         "400":
           description: Invalid cursor
@@ -4650,10 +5063,6 @@ paths:
           in: query
           name: project
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -4677,8 +5086,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/memoryrouter.MemoryDTO'
                 type: object
         "400":
           description: Invalid input
@@ -4711,10 +5119,6 @@ paths:
           example: '"demo"'
           in: query
           name: project
-          type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
           type: string
         - description: Strong ETag for optimistic concurrency
           example: '"\"abc123\""'
@@ -4751,8 +5155,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/memoryrouter.MemoryDTO'
                 type: object
         "201":
           description: Memory created
@@ -4777,8 +5180,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/memoryrouter.MemoryDTO'
                 type: object
         "400":
           description: Invalid request
@@ -5360,10 +5762,6 @@ paths:
           in: query
           name: q
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -5387,15 +5785,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    properties:
-                      models:
-                        items:
-                          additionalProperties: true
-                          type: object
-                        type: array
-                      page:
-                        type: object
-                    type: object
+                    $ref: '#/definitions/modelrouter.ModelsListResponse'
                 type: object
         "400":
           description: Invalid cursor
@@ -5471,10 +5861,6 @@ paths:
           in: query
           name: project
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -5498,8 +5884,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/modelrouter.ModelDTO'
                 type: object
         "400":
           description: Invalid input
@@ -5531,10 +5916,6 @@ paths:
           example: '"demo"'
           in: query
           name: project
-          type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
           type: string
         - description: Strong ETag for optimistic concurrency
           example: '"\"abc123\""'
@@ -5571,8 +5952,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/modelrouter.ModelDTO'
                 type: object
         "201":
           description: Model created
@@ -5597,8 +5977,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/modelrouter.ModelDTO'
                 type: object
         "400":
           description: Invalid request
@@ -5642,10 +6021,6 @@ paths:
           in: query
           name: project
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -5669,8 +6044,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/projectrouter.ProjectDTO'
                 type: object
         "400":
           description: Invalid input
@@ -5697,10 +6071,6 @@ paths:
           example: '"demo"'
           in: query
           name: project
-          type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
           type: string
         - description: Strong ETag for optimistic concurrency
           example: '"\"abc123\""'
@@ -5737,8 +6107,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/projectrouter.ProjectDTO'
                 type: object
         "201":
           description: Project created
@@ -5763,8 +6132,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/projectrouter.ProjectDTO'
                 type: object
         "400":
           description: Invalid request
@@ -5995,10 +6363,6 @@ paths:
           in: query
           name: q
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -6022,15 +6386,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    properties:
-                      page:
-                        type: object
-                      schemas:
-                        items:
-                          additionalProperties: true
-                          type: object
-                        type: array
-                    type: object
+                    $ref: '#/definitions/schemarouter.SchemasListResponse'
                 type: object
         "400":
           description: Invalid cursor
@@ -6106,10 +6462,6 @@ paths:
           in: query
           name: project
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -6133,8 +6485,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/schemarouter.SchemaDTO'
                 type: object
         "400":
           description: Invalid input
@@ -6166,10 +6517,6 @@ paths:
           example: '"demo"'
           in: query
           name: project
-          type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
           type: string
         - description: Strong ETag for optimistic concurrency
           example: '"\"abc123\""'
@@ -6206,8 +6553,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/schemarouter.SchemaDTO'
                 type: object
         "201":
           description: Schema created
@@ -6232,8 +6578,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/schemarouter.SchemaDTO'
                 type: object
         "400":
           description: Invalid request
@@ -6287,10 +6632,6 @@ paths:
           in: query
           name: q
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -6314,15 +6655,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    properties:
-                      page:
-                        type: object
-                      tasks:
-                        items:
-                          additionalProperties: true
-                          type: object
-                        type: array
-                    type: object
+                    $ref: '#/definitions/tkrouter.TasksListResponse'
                 type: object
         "400":
           description: Invalid cursor
@@ -6392,10 +6725,6 @@ paths:
           in: query
           name: project
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -6416,8 +6745,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/tkrouter.TaskDTO'
                 type: object
         "400":
           description: Invalid input
@@ -6451,10 +6779,6 @@ paths:
           in: query
           name: project
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
         - description: Strong ETag for optimistic concurrency
           example: '"\"abc123\""'
           in: header
@@ -6487,8 +6811,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/tkrouter.TaskDTO'
                 type: object
         "201":
           description: Task created
@@ -6510,8 +6833,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/tkrouter.TaskDTO'
                 type: object
         "400":
           description: Invalid request
@@ -6565,10 +6887,6 @@ paths:
           in: query
           name: q
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
@@ -6592,15 +6910,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    properties:
-                      page:
-                        type: object
-                      tools:
-                        items:
-                          additionalProperties: true
-                          type: object
-                        type: array
-                    type: object
+                    $ref: '#/definitions/toolrouter.ToolsListResponse'
                 type: object
         "400":
           description: Invalid cursor
@@ -6670,22 +6980,21 @@ paths:
           in: query
           name: project
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
       produces:
         - application/json
       responses:
         "200":
           description: Tool retrieved
+          headers:
+            ETag:
+              description: Strong ETag for the resource
+              type: string
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/toolrouter.ToolDTO'
                 type: object
         "400":
           description: Invalid input
@@ -6719,10 +7028,6 @@ paths:
           in: query
           name: project
           type: string
-        - description: Comma-separated list of fields to include
-          in: query
-          name: fields
-          type: string
         - description: Strong ETag for optimistic concurrency
           example: '"\"abc123\""'
           in: header
@@ -6741,6 +7046,9 @@ paths:
         "200":
           description: Tool updated
           headers:
+            ETag:
+              description: Strong ETag for the resource
+              type: string
             RateLimit-Limit:
               description: Requests allowed in the current window
               type: string
@@ -6755,12 +7063,14 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/toolrouter.ToolDTO'
                 type: object
         "201":
           description: Tool created
           headers:
+            ETag:
+              description: Strong ETag for the resource
+              type: string
             Location:
               description: Absolute URL for the tool
               type: string
@@ -6778,8 +7088,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties: true
-                    type: object
+                    $ref: '#/definitions/toolrouter.ToolDTO'
                 type: object
         "400":
           description: Invalid request
@@ -7036,11 +7345,6 @@ paths:
           in: query
           name: q
           type: string
-        - description: Comma-separated list of fields to include
-          example: '"id,name,_etag"'
-          in: query
-          name: fields
-          type: string
         - description: Comma-separated child collections to expand (tasks,agents,tools)
           in: query
           name: expand
@@ -7068,7 +7372,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: '#/definitions/wfrouter.WorkflowListDocument'
+                    $ref: '#/definitions/wfrouter.WorkflowsListResponse'
                 type: object
         "400":
           description: Invalid cursor
@@ -7148,11 +7452,6 @@ paths:
           in: query
           name: project
           type: string
-        - description: Comma-separated list of fields to include
-          example: '"id,name,tasks,_etag"'
-          in: query
-          name: fields
-          type: string
         - description: Comma-separated child collections to expand (tasks,agents,tools)
           in: query
           name: expand
@@ -7180,7 +7479,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: '#/definitions/wfrouter.WorkflowDocument'
+                    $ref: '#/definitions/wfrouter.WorkflowDTO'
                 type: object
         "400":
           description: Invalid request
@@ -7212,11 +7511,6 @@ paths:
           example: '"staging"'
           in: query
           name: project
-          type: string
-        - description: Comma-separated list of fields to include
-          example: '"id,name,_etag"'
-          in: query
-          name: fields
           type: string
         - description: Comma-separated child collections to expand (tasks,agents,tools)
           in: query
@@ -7255,7 +7549,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: '#/definitions/wfrouter.WorkflowDocument'
+                    $ref: '#/definitions/wfrouter.WorkflowDTO'
                 type: object
         "201":
           description: Workflow created
@@ -7280,7 +7574,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: '#/definitions/wfrouter.WorkflowDocument'
+                    $ref: '#/definitions/wfrouter.WorkflowDTO'
                 type: object
         "400":
           description: Invalid request body

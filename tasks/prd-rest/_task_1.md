@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: []
 ---
@@ -29,9 +29,9 @@ Establish a clean baseline and validate the Swagger/OpenAPI generation pipeline 
 
 ## Subtasks
 
-- [ ] 1.1 Run baseline `make lint && make test` and record versions.
-- [ ] 1.2 Run Swagger generation and confirm updated docs are produced.
-- [ ] 1.3 Ensure Problem Details schemas are present in OpenAPI.
+- [x] 1.1 Run baseline `make lint && make test` and record versions.
+- [x] 1.2 Run Swagger generation and confirm updated docs are produced.
+- [x] 1.3 Ensure Problem Details schemas are present in OpenAPI.
 
 ## Sequencing
 

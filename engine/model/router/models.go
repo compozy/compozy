@@ -24,8 +24,7 @@ import (
 // @Param limit query int false "Page size (max 500)" example(50)
 // @Param cursor query string false "Opaque pagination cursor"
 // @Param q query string false "Filter by model ID prefix"
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=object{models=[]map[string]any,page=object}} "Models retrieved"
+// @Success 200 {object} router.Response{data=modelrouter.ModelsListResponse} "Models retrieved"
 // @Header 200 {string} Link "RFC 8288 pagination links for next/prev"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -48,7 +47,6 @@ func listModels(c *gin.Context) {
 		router.RespondProblem(c, &router.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	input := &modeluc.ListInput{
 		Project:         project,
 		Prefix:          strings.TrimSpace(c.Query("q")),
@@ -70,22 +68,12 @@ func listModels(c *gin.Context) {
 		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
 	}
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
-	items := make([]map[string]any, 0, len(out.Items))
+	list := make([]ModelListItem, 0, len(out.Items))
 	for i := range out.Items {
-		filtered := router.FilterMapFields(out.Items[i], fields)
-		if len(fields) == 0 || fields["_etag"] {
-			filtered["_etag"] = out.Items[i]["_etag"]
-		}
-		items = append(items, filtered)
+		list = append(list, toModelListItem(out.Items[i]))
 	}
-	page := map[string]any{"limit": limit, "total": out.Total}
-	if nextCursor != "" {
-		page["next_cursor"] = nextCursor
-	}
-	if prevCursor != "" {
-		page["prev_cursor"] = prevCursor
-	}
-	router.RespondOK(c, "models retrieved", gin.H{"models": items, "page": page})
+	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	router.RespondOK(c, "models retrieved", ModelsListResponse{Models: list, Page: page})
 }
 
 // getModel handles GET /models/{model_id}.
@@ -97,8 +85,7 @@ func listModels(c *gin.Context) {
 // @Produce json
 // @Param model_id path string true "Model ID" example("openai:gpt-4o-mini")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
-// @Success 200 {object} router.Response{data=map[string]any} "Model retrieved"
+// @Success 200 {object} router.Response{data=modelrouter.ModelDTO} "Model retrieved"
 // @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -120,18 +107,13 @@ func getModel(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
 	out, err := modeluc.NewGet(store).Execute(c.Request.Context(), &modeluc.GetInput{Project: project, ID: modelID})
 	if err != nil {
 		respondModelError(c, err)
 		return
 	}
-	filtered := router.FilterMapFields(out.Model, fields)
-	if len(fields) == 0 || fields["_etag"] {
-		filtered["_etag"] = out.Model["_etag"]
-	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	router.RespondOK(c, "model retrieved", filtered)
+	router.RespondOK(c, "model retrieved", toModelDTO(out.Model))
 }
 
 // upsertModel handles PUT /models/{model_id}.
@@ -143,11 +125,10 @@ func getModel(c *gin.Context) {
 // @Produce json
 // @Param model_id path string true "Model ID" example("openai:gpt-4o-mini")
 // @Param project query string false "Project override" example("demo")
-// @Param fields query string false "Comma-separated list of fields to include"
 // @Param If-Match header string false "Strong ETag for optimistic concurrency" example("\"abc123\"")
 // @Param payload body map[string]any true "Model configuration payload"
-// @Success 200 {object} router.Response{data=map[string]any} "Model updated"
-// @Success 201 {object} router.Response{data=map[string]any} "Model created"
+// @Success 200 {object} router.Response{data=modelrouter.ModelDTO} "Model updated"
+// @Success 201 {object} router.Response{data=modelrouter.ModelDTO} "Model created"
 // @Header 200 {string} ETag "Strong entity tag for concurrency control"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -191,21 +172,17 @@ func upsertModel(c *gin.Context) {
 		respondModelError(c, execErr)
 		return
 	}
-	fields := router.ParseFieldsQuery(c.Query("fields"))
-	filtered := router.FilterMapFields(out.Model, fields)
-	if len(fields) == 0 || fields["_etag"] {
-		filtered["_etag"] = out.Model["_etag"]
-	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	message := "model updated"
 	if out.Created {
 		message = "model created"
 		c.Header("Location", routes.Models()+"/"+modelID)
 	}
+	dto := toModelDTO(out.Model)
 	if out.Created {
-		router.RespondCreated(c, message, filtered)
+		router.RespondCreated(c, message, dto)
 	} else {
-		router.RespondOK(c, message, filtered)
+		router.RespondOK(c, message, dto)
 	}
 }
 

@@ -33,9 +33,9 @@ func TestProjectEndpoint(t *testing.T) {
 		assert.Equal(t, "2.1.0", afterData["version"])
 		staleRes := client.do(http.MethodPut, "/api/v0/project", updateBody, map[string]string{"If-Match": "\"old\""})
 		require.Equal(t, http.StatusPreconditionFailed, staleRes.Code)
-		fieldsRes := client.do(http.MethodGet, "/api/v0/project?fields=name", nil, nil)
-		require.Equal(t, http.StatusOK, fieldsRes.Code)
-		dataFiltered := decodeData(t, fieldsRes)
+		nameRes := client.do(http.MethodGet, "/api/v0/project", nil, nil)
+		require.Equal(t, http.StatusOK, nameRes.Code)
+		dataFiltered := decodeData(t, nameRes)
 		assert.Equal(t, client.harness.Project.Name, dataFiltered["name"])
 	})
 	t.Run("Should refuse project deletion", func(t *testing.T) {
