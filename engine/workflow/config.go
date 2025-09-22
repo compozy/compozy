@@ -18,7 +18,6 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/webhook"
-	pkgcfg "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -618,15 +617,12 @@ func setupCompileMetrics() (metric.Float64Histogram, metric.Int64Counter) {
 // - If agent model is empty, fill from project default model (when available)
 // - Deep-copy all resolved configs
 //
-// NOTE: Schema ID linking and MCP selector support will be completed in later tasks
-// (see tasks/prd-refs/_task_6.0.md and _task_7.0.md).
 
 func (w *Config) Compile(
 	ctx context.Context,
 	proj *project.Config,
 	store resources.ResourceStore,
 ) (compiled *Config, err error) {
-	_ = pkgcfg.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	compileDur, compileCnt := setupCompileMetrics()
 	started := time.Now()

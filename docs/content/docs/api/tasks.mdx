@@ -9,12 +9,16 @@ _openapi:
   structuredData:
     headings: []
     contents:
-      - content: Retrieve a list of all tasks within a specific workflow
-      - content: Retrieve a specific task configuration by its ID within a workflow
+      - content: List tasks with pagination and optional workflow filtering
+      - content: Retrieve a task configuration by ID
+      - content: Create or update a task with strong ETag concurrency control
+      - content: Delete a task while enforcing reference conflict checks
+      - content: Retrieve all tasks associated with a specific workflow
+      - content: Retrieve a workflow-scoped task configuration by ID
 ---
 
 {/* <!-- This file was auto-generated from OpenAPI\/Swagger. Do not edit manually. --> */}
 
 Task management operations
 
-<APIPage document={"swagger.json"} operations={[{"path":"/workflows/{workflow_id}/tasks","method":"get"},{"path":"/workflows/{workflow_id}/tasks/{task_id}","method":"get"}]} webhooks={[]} hasHead={true} />
+<APIPage document={"swagger.json"} operations={[{"path":"/tasks","method":"get"},{"path":"/tasks/{task_id}","method":"get"},{"path":"/tasks/{task_id}","method":"put"},{"path":"/tasks/{task_id}","method":"delete"},{"path":"/workflows/{workflow_id}/tasks","method":"get"},{"path":"/workflows/{workflow_id}/tasks/{task_id}","method":"get"}]} webhooks={[]} hasHead={true} />

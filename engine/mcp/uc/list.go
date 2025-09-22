@@ -1,0 +1,79 @@
+package uc
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/resources"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+)
+
+type ListInput struct {
+	Project         string
+	Prefix          string
+	CursorValue     string
+	CursorDirection resourceutil.CursorDirection
+	Limit           int
+}
+
+type ListOutput struct {
+	Items               []map[string]any
+	NextCursorValue     string
+	NextCursorDirection resourceutil.CursorDirection
+	PrevCursorValue     string
+	PrevCursorDirection resourceutil.CursorDirection
+	Total               int
+}
+
+type List struct {
+	store resources.ResourceStore
+}
+
+func NewList(store resources.ResourceStore) *List {
+	return &List{store: store}
+}
+
+func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error) {
+	if in == nil {
+		return nil, ErrInvalidInput
+	}
+	projectID := strings.TrimSpace(in.Project)
+	if projectID == "" {
+		return nil, ErrProjectMissing
+	}
+	limit := resourceutil.ClampLimit(in.Limit)
+	items, err := uc.store.ListWithValues(ctx, projectID, resources.ResourceMCP)
+	if err != nil {
+		return nil, fmt.Errorf("list mcps for project %q: %w", projectID, err)
+	}
+	filtered := resourceutil.FilterStoredItems(items, strings.TrimSpace(in.Prefix))
+	window, nextValue, nextDir, prevValue, prevDir := resourceutil.ApplyCursorWindow(
+		filtered,
+		strings.TrimSpace(in.CursorValue),
+		in.CursorDirection,
+		limit,
+	)
+	payload := make([]map[string]any, 0, len(window))
+	for i := range window {
+		cfg, err := decodeStoredMCP(window[i].Value, window[i].Key.ID)
+		if err != nil {
+			return nil, fmt.Errorf("decode mcp %q: %w", window[i].Key.ID, err)
+		}
+		entry, err := core.AsMapDefault(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("map mcp %q: %w", window[i].Key.ID, err)
+		}
+		entry["_etag"] = string(window[i].ETag)
+		payload = append(payload, entry)
+	}
+	return &ListOutput{
+		Items:               payload,
+		NextCursorValue:     nextValue,
+		NextCursorDirection: nextDir,
+		PrevCursorValue:     prevValue,
+		PrevCursorDirection: prevDir,
+		Total:               len(filtered),
+	}, nil
+}

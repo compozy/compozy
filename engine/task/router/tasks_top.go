@@ -1,0 +1,246 @@
+package tkrouter
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/infra/server/routes"
+	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	taskuc "github.com/compozy/compozy/engine/task/uc"
+	"github.com/gin-gonic/gin"
+)
+
+// listTasksTop handles GET /tasks.
+//
+// @Summary List tasks
+// @Description List tasks with cursor pagination. Optionally filter by workflow usage.
+// @Tags tasks
+// @Accept json
+// @Produce json
+// @Param project query string false "Project override" example("demo")
+// @Param workflow_id query string false "Return only tasks referenced by the given workflow" example("wf1")
+// @Param limit query int false "Page size (max 500)" example(50)
+// @Param cursor query string false "Opaque pagination cursor"
+// @Param q query string false "Filter by task ID prefix"
+// @Success 200 {object} router.Response{data=tkrouter.TasksListResponse} "Tasks retrieved"
+// @Header 200 {string} Link "RFC 8288 pagination links for next/prev"
+// @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
+// @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
+// @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
+// @Failure 400 {object} core.ProblemDocument "Invalid cursor"
+// @Failure 404 {object} core.ProblemDocument "Workflow not found"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
+// @Router /tasks [get]
+func listTasksTop(c *gin.Context) {
+	store, ok := router.GetResourceStore(c)
+	if !ok {
+		return
+	}
+	project := router.ProjectFromQueryOrDefault(c)
+	if project == "" {
+		return
+	}
+	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
+	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
+	if cursorErr != nil {
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		return
+	}
+	input := &taskuc.ListInput{
+		Project:         project,
+		Prefix:          strings.TrimSpace(c.Query("q")),
+		CursorValue:     cursor.Value,
+		CursorDirection: resourceutil.CursorDirection(cursor.Direction),
+		Limit:           limit,
+		WorkflowID:      strings.TrimSpace(c.Query("workflow_id")),
+	}
+	out, err := taskuc.NewList(store).Execute(c.Request.Context(), input)
+	if err != nil {
+		respondTaskError(c, err)
+		return
+	}
+	nextCursor := ""
+	prevCursor := ""
+	if out.NextCursorValue != "" && out.NextCursorDirection != resourceutil.CursorDirectionNone {
+		nextCursor = router.EncodeCursor(string(out.NextCursorDirection), out.NextCursorValue)
+	}
+	if out.PrevCursorValue != "" && out.PrevCursorDirection != resourceutil.CursorDirectionNone {
+		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
+	}
+	router.SetLinkHeaders(c, nextCursor, prevCursor)
+	items := make([]TaskListItem, 0, len(out.Items))
+	for i := range out.Items {
+		items = append(items, toTaskListItem(out.Items[i]))
+	}
+	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	router.RespondOK(c, "tasks retrieved", TasksListResponse{Tasks: items, Page: page})
+}
+
+// getTaskTop handles GET /tasks/{task_id}.
+//
+// @Summary Get task
+// @Description Retrieve a task configuration by ID.
+// @Tags tasks
+// @Accept json
+// @Produce json
+// @Param task_id path string true "Task ID" example("approve-request")
+// @Param project query string false "Project override" example("demo")
+// @Success 200 {object} router.Response{data=tkrouter.TaskDTO} "Task retrieved"
+// @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
+// @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
+// @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
+// @Failure 400 {object} core.ProblemDocument "Invalid input"
+// @Failure 404 {object} core.ProblemDocument "Task not found"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
+// @Router /tasks/{task_id} [get]
+func getTaskTop(c *gin.Context) {
+	taskID := router.GetTaskID(c)
+	if taskID == "" {
+		return
+	}
+	store, ok := router.GetResourceStore(c)
+	if !ok {
+		return
+	}
+	project := router.ProjectFromQueryOrDefault(c)
+	if project == "" {
+		return
+	}
+	out, err := taskuc.NewGet(store).Execute(c.Request.Context(), &taskuc.GetInput{Project: project, ID: taskID})
+	if err != nil {
+		respondTaskError(c, err)
+		return
+	}
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
+	router.RespondOK(c, "task retrieved", toTaskDTO(out.Task))
+}
+
+// upsertTaskTop handles PUT /tasks/{task_id}.
+//
+// @Summary Create or update task
+// @Description Create a task configuration when absent or update an existing one using strong ETag concurrency.
+// @Tags tasks
+// @Accept json
+// @Produce json
+// @Param task_id path string true "Task ID" example("approve-request")
+// @Param project query string false "Project override" example("demo")
+// @Param If-Match header string false "Strong ETag for optimistic concurrency" example("\"abc123\"")
+// @Param payload body map[string]any true "Task configuration payload"
+// @Success 200 {object} router.Response{data=tkrouter.TaskDTO} "Task updated"
+// @Success 201 {object} router.Response{data=tkrouter.TaskDTO} "Task created"
+// @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
+// @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
+// @Header 200 {string} RateLimit-Reset "Seconds until the window resets"
+// @Header 201 {string} Location "Relative URL for the task"
+// @Header 201 {string} RateLimit-Limit "Requests allowed in the current window"
+// @Header 201 {string} RateLimit-Remaining "Remaining requests in the current window"
+// @Header 201 {string} RateLimit-Reset "Seconds until the window resets"
+// @Failure 400 {object} core.ProblemDocument "Invalid request"
+// @Failure 404 {object} core.ProblemDocument "Task not found"
+// @Failure 409 {object} core.ProblemDocument "Task referenced"
+// @Failure 412 {object} core.ProblemDocument "ETag mismatch"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
+// @Router /tasks/{task_id} [put]
+func upsertTaskTop(c *gin.Context) {
+	taskID := router.GetTaskID(c)
+	if taskID == "" {
+		return
+	}
+	store, ok := router.GetResourceStore(c)
+	if !ok {
+		return
+	}
+	project := router.ProjectFromQueryOrDefault(c)
+	if project == "" {
+		return
+	}
+	body := make(map[string]any)
+	if err := c.ShouldBindJSON(&body); err != nil {
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		return
+	}
+	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
+	if err != nil {
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		return
+	}
+	input := &taskuc.UpsertInput{Project: project, ID: taskID, Body: body, IfMatch: ifMatch}
+	out, execErr := taskuc.NewUpsert(store).Execute(c.Request.Context(), input)
+	if execErr != nil {
+		respondTaskError(c, execErr)
+		return
+	}
+	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
+	status := http.StatusOK
+	message := "task updated"
+	if out.Created {
+		status = http.StatusCreated
+		message = "task created"
+		c.Header("Location", routes.Tasks()+"/"+taskID)
+	}
+	if status == http.StatusCreated {
+		router.RespondCreated(c, message, toTaskDTO(out.Task))
+		return
+	}
+	router.RespondOK(c, message, toTaskDTO(out.Task))
+}
+
+// deleteTaskTop handles DELETE /tasks/{task_id}.
+//
+// @Summary Delete task
+// @Description Delete a task configuration. Returns conflict when referenced.
+// @Tags tasks
+// @Produce json
+// @Param task_id path string true "Task ID" example("approve-request")
+// @Param project query string false "Project override" example("demo")
+// @Success 204 {string} string ""
+// @Failure 404 {object} core.ProblemDocument "Task not found"
+// @Failure 409 {object} core.ProblemDocument "Task referenced"
+// @Failure 500 {object} core.ProblemDocument "Internal server error"
+// @Router /tasks/{task_id} [delete]
+func deleteTaskTop(c *gin.Context) {
+	taskID := router.GetTaskID(c)
+	if taskID == "" {
+		return
+	}
+	store, ok := router.GetResourceStore(c)
+	if !ok {
+		return
+	}
+	project := router.ProjectFromQueryOrDefault(c)
+	if project == "" {
+		return
+	}
+	deleteInput := &taskuc.DeleteInput{Project: project, ID: taskID}
+	if err := taskuc.NewDelete(store).Execute(c.Request.Context(), deleteInput); err != nil {
+		respondTaskError(c, err)
+		return
+	}
+	router.RespondNoContent(c)
+}
+func respondTaskError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, taskuc.ErrInvalidInput),
+		errors.Is(err, taskuc.ErrProjectMissing),
+		errors.Is(err, taskuc.ErrIDMissing):
+		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+	case errors.Is(err, taskuc.ErrNotFound):
+		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+	case errors.Is(err, taskuc.ErrETagMismatch),
+		errors.Is(err, taskuc.ErrStaleIfMatch):
+		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+	case errors.Is(err, taskuc.ErrWorkflowNotFound):
+		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
+	default:
+		var conflict resourceutil.ConflictError
+		if errors.As(err, &conflict) {
+			resourceutil.RespondConflict(c, err, conflict.Details)
+			return
+		}
+		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+	}
+}

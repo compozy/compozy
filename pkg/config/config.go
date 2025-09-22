@@ -1111,6 +1111,11 @@ type MCPProxyConfig struct {
 //	  debug: false                      # Debug logging
 //	  quiet: false                      # Suppress output
 //	  interactive: true                 # Interactive prompts
+const (
+	DefaultPortReleaseTimeout      = 5 * time.Second
+	DefaultPortReleasePollInterval = 100 * time.Millisecond
+)
+
 type CLIConfig struct {
 	// APIKey authenticates CLI requests to the Compozy API.
 	//
@@ -1206,6 +1211,16 @@ type CLIConfig struct {
 	//
 	// Variables in this file are loaded before processing configuration.
 	EnvFile string `koanf:"env_file" env:"COMPOZY_ENV_FILE" json:"EnvFile" yaml:"env_file" mapstructure:"env_file"`
+
+	// PortReleaseTimeout sets the maximum time to wait for a port to become available.
+	//
+	// Default: 5s
+	PortReleaseTimeout time.Duration `koanf:"port_release_timeout" env:"COMPOZY_PORT_RELEASE_TIMEOUT" json:"PortReleaseTimeout" yaml:"port_release_timeout" mapstructure:"port_release_timeout" validate:"min=0"`
+
+	// PortReleasePollInterval sets how often to check if a port has become available.
+	//
+	// Default: 100ms
+	PortReleasePollInterval time.Duration `koanf:"port_release_poll_interval" env:"COMPOZY_PORT_RELEASE_POLL_INTERVAL" json:"PortReleasePollInterval" yaml:"port_release_poll_interval" mapstructure:"port_release_poll_interval" validate:"min=0"`
 }
 
 // WebhooksConfig contains webhook processing and validation configuration.
@@ -1558,22 +1573,32 @@ func buildRateLimitConfig(registry *definition.Registry) RateLimitConfig {
 }
 
 func buildCLIConfig(registry *definition.Registry) CLIConfig {
+	prt := getDuration(registry, "cli.port_release_timeout")
+	if prt <= 0 {
+		prt = DefaultPortReleaseTimeout
+	}
+	prpi := getDuration(registry, "cli.port_release_poll_interval")
+	if prpi <= 0 {
+		prpi = DefaultPortReleasePollInterval
+	}
 	return CLIConfig{
-		APIKey:            SensitiveString(getString(registry, "cli.api_key")),
-		BaseURL:           getString(registry, "cli.base_url"),
-		Timeout:           getDuration(registry, "cli.timeout"),
-		Mode:              getString(registry, "cli.mode"),
-		DefaultFormat:     getString(registry, "cli.default_format"),
-		ColorMode:         getString(registry, "cli.color_mode"),
-		PageSize:          getInt(registry, "cli.page_size"),
-		OutputFormatAlias: getString(registry, "cli.output_format_alias"),
-		NoColor:           getBool(registry, "cli.no_color"),
-		Debug:             getBool(registry, "cli.debug"),
-		Quiet:             getBool(registry, "cli.quiet"),
-		Interactive:       getBool(registry, "cli.interactive"),
-		ConfigFile:        getString(registry, "cli.config_file"),
-		CWD:               getString(registry, "cli.cwd"),
-		EnvFile:           getString(registry, "cli.env_file"),
+		APIKey:                  SensitiveString(getString(registry, "cli.api_key")),
+		BaseURL:                 getString(registry, "cli.base_url"),
+		Timeout:                 getDuration(registry, "cli.timeout"),
+		Mode:                    getString(registry, "cli.mode"),
+		DefaultFormat:           getString(registry, "cli.default_format"),
+		ColorMode:               getString(registry, "cli.color_mode"),
+		PageSize:                getInt(registry, "cli.page_size"),
+		OutputFormatAlias:       getString(registry, "cli.output_format_alias"),
+		NoColor:                 getBool(registry, "cli.no_color"),
+		Debug:                   getBool(registry, "cli.debug"),
+		Quiet:                   getBool(registry, "cli.quiet"),
+		Interactive:             getBool(registry, "cli.interactive"),
+		ConfigFile:              getString(registry, "cli.config_file"),
+		CWD:                     getString(registry, "cli.cwd"),
+		EnvFile:                 getString(registry, "cli.env_file"),
+		PortReleaseTimeout:      prt,
+		PortReleasePollInterval: prpi,
 	}
 }
 

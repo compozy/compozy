@@ -9,7 +9,6 @@ import (
 	"sort"
 
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"gopkg.in/yaml.v3"
 )
@@ -42,7 +41,6 @@ type Result struct {
 // ExportToDir walks the ResourceStore for the given project and writes
 // deterministic YAML files under rootDir per type directory.
 func ExportToDir(ctx context.Context, project string, store resources.ResourceStore, rootDir string) (*Result, error) {
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if project == "" {
 		return nil, fmt.Errorf("project is required")

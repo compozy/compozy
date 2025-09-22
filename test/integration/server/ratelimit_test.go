@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	helpers "github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/middleware/ratelimit"
 	"github.com/gin-gonic/gin"
@@ -61,7 +62,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 				assert.NotEmpty(t, w.Header().Get("X-RateLimit-Limit"))
 			} else {
 				assert.Equal(t, http.StatusTooManyRequests, w.Code)
-				assert.Contains(t, w.Body.String(), "Rate limit exceeded")
+				assert.True(t, helpers.Contains(w.Body.String(), "rate limit exceeded"))
 			}
 		}
 		// Test different API key has separate limit

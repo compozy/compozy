@@ -13,7 +13,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/redis/go-redis/v9"
 )
@@ -94,7 +93,6 @@ func (s *RedisResourceStore) Put(ctx context.Context, key ResourceKey, value any
 	if err := ctx.Err(); err != nil {
 		return ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if s.closed.Load() {
 		return ETag(""), fmt.Errorf("store is closed")
@@ -134,7 +132,6 @@ func (s *RedisResourceStore) PutIfMatch(
 	if err := ctx.Err(); err != nil {
 		return ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if s.closed.Load() {
 		return ETag(""), fmt.Errorf("store is closed")
@@ -193,7 +190,6 @@ func (s *RedisResourceStore) Get(ctx context.Context, key ResourceKey) (any, ETa
 	if err := ctx.Err(); err != nil {
 		return nil, ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	if s.closed.Load() {
 		return nil, ETag(""), fmt.Errorf("store is closed")
 	}
@@ -228,7 +224,6 @@ func (s *RedisResourceStore) Delete(ctx context.Context, key ResourceKey) error 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if s.closed.Load() {
 		return fmt.Errorf("store is closed")
@@ -278,7 +273,6 @@ func (s *RedisResourceStore) List(ctx context.Context, project string, typ Resou
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	if s.closed.Load() {
 		return nil, fmt.Errorf("store is closed")
 	}
@@ -312,7 +306,6 @@ func (s *RedisResourceStore) ListWithValues(
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if s.closed.Load() {
 		return nil, fmt.Errorf("store is closed")
@@ -459,7 +452,6 @@ func (s *RedisResourceStore) Watch(ctx context.Context, project string, typ Reso
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if s.closed.Load() {
 		return nil, fmt.Errorf("store is closed")

@@ -167,10 +167,10 @@ curl http://127.0.0.1:6001/healthz
 ```go
 // Access MCP servers through the proxy
 // For SSE transport
-resp, err := http.Get("http://127.0.0.1:6001/chat-llm/sse")
+resp, err := http.Get("http://127.0.0.1:6001/mcp/chat-llm/sse")
 
 // For streamable-http transport
-resp, err := http.Post("http://127.0.0.1:6001/api-server/stream",
+resp, err := http.Post("http://127.0.0.1:6001/mcp/api-server/stream",
     "application/json", bytes.NewBuffer(payload))
 ```
 
@@ -407,7 +407,7 @@ version: "0.1.0"
 
 mcps:
   - id: search-mcp
-    url: http://127.0.0.1:6001/search-engine/sse
+    url: http://127.0.0.1:6001/mcp/search-engine/sse
     transport: sse
     use_proxy: true
     start_timeout: 10s
@@ -469,8 +469,8 @@ type MCPStatus struct { ... }
 
 #### Proxy Endpoints
 
-- `/{name}/sse[/{path}]` - SSE proxy endpoint
-- `/{name}/stream[/{path}]` - Streamable HTTP proxy endpoint
+- `/mcp/{name}/sse[/{path}]` - SSE proxy endpoint
+- `/mcp/{name}/stream[/{path}]` - Streamable HTTP proxy endpoint
 
 ### Factory Functions
 

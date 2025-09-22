@@ -10,6 +10,7 @@ package ratelimit
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -200,6 +201,17 @@ func (m *Manager) setRateLimitHeaders(c *gin.Context, lctx limiter.Context) {
 		c.Header("X-RateLimit-Limit", fmt.Sprintf("%d", lctx.Limit))
 		c.Header("X-RateLimit-Remaining", fmt.Sprintf("%d", lctx.Remaining))
 		c.Header("X-RateLimit-Reset", fmt.Sprintf("%d", lctx.Reset))
+		resetIn := lctx.Reset - time.Now().Unix()
+		if resetIn < 0 {
+			resetIn = 0
+		}
+		c.Header("RateLimit-Limit", fmt.Sprintf("%d", lctx.Limit))
+		if lctx.Remaining < 0 {
+			c.Header("RateLimit-Remaining", "0")
+		} else {
+			c.Header("RateLimit-Remaining", fmt.Sprintf("%d", lctx.Remaining))
+		}
+		c.Header("RateLimit-Reset", fmt.Sprintf("%d", resetIn))
 	}
 }
 
@@ -208,12 +220,21 @@ func (m *Manager) handleRateLimitExceeded(c *gin.Context, lctx limiter.Context, 
 	// Increment blocked requests metric
 	keyType := m.getKeyType(key)
 	IncrementBlockedRequests(c.Request.Context(), path, keyType)
-
-	// Respond with 429 Too Many Requests
-	c.JSON(429, gin.H{
-		"error":   "Rate limit exceeded",
-		"details": fmt.Sprintf("API rate limit exceeded. Retry after %d seconds", lctx.Reset-time.Now().Unix()),
-	})
+	resetIn := lctx.Reset - time.Now().Unix()
+	if resetIn < 0 {
+		resetIn = 0
+	}
+	detail := fmt.Sprintf("API rate limit exceeded. Retry after %d seconds", resetIn)
+	body := gin.H{
+		"type":        "https://docs.compozy.com/problems/rate-limit-exceeded",
+		"title":       "Too Many Requests",
+		"status":      http.StatusTooManyRequests,
+		"detail":      detail,
+		"retry_after": resetIn,
+	}
+	c.Header("Retry-After", fmt.Sprintf("%d", resetIn))
+	c.Header("Content-Type", "application/problem+json")
+	c.JSON(http.StatusTooManyRequests, body)
 	c.Abort()
 }
 

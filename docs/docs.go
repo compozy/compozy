@@ -24,6 +24,215 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/export-yaml": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Writes deterministic YAML files to project directories.\nTargets: agents/, tools/, workflows/, schemas/, mcps/, models/.\nAdmin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Export store contents to YAML",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"workflow\\\":5,\\\"agent\\\":2},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/import-yaml": {
+            "post": {
+                "description": "Reads YAML from project directories and upserts to ResourceStore.\nStrategies: seed_only | overwrite_conflicts. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Import YAML into store",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/admin/mcps": {
             "get": {
                 "description": "Get a list of all configured Model Context Protocol servers",
@@ -739,123 +948,57 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v0/admin/export-yaml": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
+        "/agents": {
+            "get": {
+                "description": "List agents with cursor pagination. Optionally filter by workflow usage.",
+                "consumes": [
+                    "application/json"
                 ],
-                "description": "Writes deterministic YAML files to project directories.\nTargets: agents/, tools/, workflows/, schemas/, mcps/, models/.\nAdmin only.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "admin"
+                    "agents"
                 ],
-                "summary": "Export store contents to YAML",
-                "responses": {
-                    "200": {
-                        "description": "Example: {\\\"data\\\":{\\\"workflow\\\":5,\\\"agent\\\":2},\\\"message\\\":\\\"export completed\\\"}",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v0/admin/import-yaml": {
-            "post": {
-                "description": "Reads YAML from project directories and upserts to ResourceStore.\nStrategies: seed_only | overwrite_conflicts. Admin only.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "admin"
-                ],
-                "summary": "Import YAML into store",
+                "summary": "List agents",
                 "parameters": [
                     {
-                        "enum": [
-                            "seed_only",
-                            "overwrite_conflicts"
-                        ],
                         "type": "string",
-                        "description": "seed_only|overwrite_conflicts",
-                        "name": "strategy",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"wf1\"",
+                        "description": "Return only agents referenced by the given workflow",
+                        "name": "workflow_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 50,
+                        "description": "Page size (max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by agent ID prefix",
+                        "name": "q",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Agents retrieved",
                         "schema": {
                             "allOf": [
                                 {
@@ -865,253 +1008,359 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/agentrouter.AgentsListResponse"
                                         }
                                     }
                                 }
                             ]
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v0/health": {
-            "get": {
-                "description": "Returns overall service health, readiness and components status",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "health",
-                    "diagnostics"
-                ],
-                "summary": "Get server health",
-                "responses": {
-                    "200": {
-                        "description": "Service is healthy",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "503": {
-                        "description": "Service is not ready",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v0/hooks/{slug}": {
-            "post": {
-                "description": "Accepts webhook payloads and triggers matching workflow events.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "webhooks"
-                ],
-                "summary": "Trigger webhook",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"my-webhook\"",
-                        "description": "Webhook slug",
-                        "name": "slug",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"idemp-123\"",
-                        "description": "Optional idempotency key to prevent duplicate processing",
-                        "name": "X-Idempotency-Key",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"corr-456\"",
-                        "description": "Optional correlation ID for request tracing",
-                        "name": "X-Correlation-ID",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"sha256=abc123...\"",
-                        "description": "Optional HMAC signature header (configurable per webhook)",
-                        "name": "X-Sig",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"t=123,v1=def...\"",
-                        "description": "Stripe webhook signature (when using stripe verification)",
-                        "name": "Stripe-Signature",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"sha256=ghi789...\"",
-                        "description": "GitHub webhook signature (when using github verification)",
-                        "name": "X-Hub-Signature-256",
-                        "in": "header"
-                    },
-                    {
-                        "description": "Arbitrary JSON payload",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Processed successfully",
-                        "schema": {
-                            "$ref": "#/definitions/webhook.SuccessResponse"
-                        }
-                    },
-                    "202": {
-                        "description": "Accepted and enqueued",
-                        "schema": {
-                            "$ref": "#/definitions/webhook.SuccessResponse"
+                        },
+                        "headers": {
+                            "Link": {
+                                "type": "string",
+                                "description": "RFC 8288 pagination links for next/prev"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
                         }
                     },
                     "400": {
-                        "description": "Invalid or oversized payload",
+                        "description": "Invalid cursor",
                         "schema": {
-                            "$ref": "#/definitions/webhook.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Signature verification failed",
-                        "schema": {
-                            "$ref": "#/definitions/webhook.ErrorResponse"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
-                        "description": "Webhook not found",
+                        "description": "Workflow not found",
                         "schema": {
-                            "$ref": "#/definitions/webhook.ErrorResponse"
-                        }
-                    },
-                    "409": {
-                        "description": "Duplicate idempotency key",
-                        "schema": {
-                            "$ref": "#/definitions/webhook.ErrorResponse"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable entity",
-                        "schema": {
-                            "$ref": "#/definitions/webhook.ErrorResponse"
-                        }
-                    },
-                    "429": {
-                        "description": "Rate limit exceeded",
-                        "schema": {
-                            "$ref": "#/definitions/webhook.ErrorResponse"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/webhook.ErrorResponse"
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
-                },
-                "x-example-error": {
-                    "details": "invalid JSON payload",
-                    "error": "bad_request"
-                },
-                "x-example-success": {
-                    "data": {
-                        "result": "ok"
+                }
+            }
+        },
+        "/agents/{agent_id}": {
+            "get": {
+                "description": "Retrieve an agent configuration by ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Get agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"assistant\"",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "path",
+                        "required": true
                     },
-                    "message": "Success"
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Agent retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/agentrouter.AgentDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Agent not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Create an agent when absent or update an existing one using strong ETag concurrency.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Create or update agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"assistant\"",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"\\\"abc123\\\"\"",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Agent configuration payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Agent updated",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/agentrouter.AgentDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Agent created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/agentrouter.AgentDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "Location": {
+                                "type": "string",
+                                "description": "Absolute URL for the agent"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Agent not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Agent referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an agent configuration. Returns conflict when referenced.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Delete agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"assistant\"",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Agent not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Agent referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
                 }
             }
         },
@@ -2034,6 +2283,1551 @@ const docTemplate = `{
                 }
             }
         },
+        "/health": {
+            "get": {
+                "description": "Returns overall service health, readiness and components status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health",
+                    "diagnostics"
+                ],
+                "summary": "Get server health",
+                "responses": {
+                    "200": {
+                        "description": "Service is healthy",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service is not ready",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/hooks/{slug}": {
+            "post": {
+                "description": "Accepts webhook payloads and triggers matching workflow events.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Trigger webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"my-webhook\"",
+                        "description": "Webhook slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"idemp-123\"",
+                        "description": "Optional idempotency key to prevent duplicate processing",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"corr-456\"",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"sha256=abc123...\"",
+                        "description": "Optional HMAC signature header (configurable per webhook)",
+                        "name": "X-Sig",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"t=123,v1=def...\"",
+                        "description": "Stripe webhook signature (when using stripe verification)",
+                        "name": "Stripe-Signature",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"sha256=ghi789...\"",
+                        "description": "GitHub webhook signature (when using github verification)",
+                        "name": "X-Hub-Signature-256",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Arbitrary JSON payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Processed successfully",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.SuccessResponse"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted and enqueued",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid or oversized payload",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Signature verification failed",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Webhook not found",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable entity",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    }
+                },
+                "x-example-error": {
+                    "details": "invalid JSON payload",
+                    "error": "bad_request"
+                },
+                "x-example-success": {
+                    "data": {
+                        "result": "ok"
+                    },
+                    "message": "Success"
+                }
+            }
+        },
+        "/mcp/{name}/sse": {
+            "get": {
+                "description": "Proxy Server-Sent Events requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy SSE requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/mcp/{name}/sse/{path}": {
+            "get": {
+                "description": "Proxy Server-Sent Events requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy SSE requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Additional path",
+                        "name": "path",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/mcp/{name}/stream": {
+            "get": {
+                "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy streamable HTTP requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTTP stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy streamable HTTP requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTTP stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy streamable HTTP requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTTP stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy streamable HTTP requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTTP stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy streamable HTTP requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTTP stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/mcp/{name}/stream/{path}": {
+            "get": {
+                "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy streamable HTTP requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Additional path",
+                        "name": "path",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTTP stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy streamable HTTP requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Additional path",
+                        "name": "path",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTTP stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy streamable HTTP requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Additional path",
+                        "name": "path",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTTP stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy streamable HTTP requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Additional path",
+                        "name": "path",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTTP stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "tags": [
+                    "MCP Proxy"
+                ],
+                "summary": "Proxy streamable HTTP requests to MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "MCP name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Additional path",
+                        "name": "path",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTTP stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/mcps": {
+            "get": {
+                "description": "List MCP server configurations with cursor pagination.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcps"
+                ],
+                "summary": "List MCP servers",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 50,
+                        "description": "Page size (max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by MCP ID prefix",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "MCPs retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/mcprouter.MCPsListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Link": {
+                                "type": "string",
+                                "description": "RFC 8288 pagination links for next/prev"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid cursor",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/mcps/{mcp_id}": {
+            "get": {
+                "description": "Retrieve an MCP server configuration by ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcps"
+                ],
+                "summary": "Get MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"filesystem\"",
+                        "description": "MCP ID",
+                        "name": "mcp_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "MCP retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/mcprouter.MCPDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Create an MCP server when absent or update an existing one using strong ETag concurrency.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcps"
+                ],
+                "summary": "Create or update MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"filesystem\"",
+                        "description": "MCP ID",
+                        "name": "mcp_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"\\\"abc123\\\"\"",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    },
+                    {
+                        "description": "MCP configuration payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "MCP updated",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/mcprouter.MCPDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "MCP created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/mcprouter.MCPDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "Location": {
+                                "type": "string",
+                                "description": "Relative URL for the MCP"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "MCP referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an MCP server configuration. Returns conflict when referenced.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcps"
+                ],
+                "summary": "Delete MCP server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"filesystem\"",
+                        "description": "MCP ID",
+                        "name": "mcp_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "MCP not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "MCP referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/memories": {
+            "get": {
+                "description": "List memory configurations with cursor pagination.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memories"
+                ],
+                "summary": "List memories",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 50,
+                        "description": "Page size (max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by memory ID prefix",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Memories retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/memoryrouter.MemoriesListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Link": {
+                                "type": "string",
+                                "description": "RFC 8288 pagination links for next/prev"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid cursor",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/memories/{memory_id}": {
+            "get": {
+                "description": "Retrieve a memory configuration by ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memories"
+                ],
+                "summary": "Get memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"conversation\"",
+                        "description": "Memory ID",
+                        "name": "memory_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Memory retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/memoryrouter.MemoryDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Memory not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Create a memory configuration when absent or update an existing one using strong ETag concurrency.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memories"
+                ],
+                "summary": "Create or update memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"conversation\"",
+                        "description": "Memory ID",
+                        "name": "memory_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"\\\"abc123\\\"\"",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Memory configuration payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Memory updated",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/memoryrouter.MemoryDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Memory created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/memoryrouter.MemoryDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "Location": {
+                                "type": "string",
+                                "description": "Absolute URL for the memory"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Memory referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a memory configuration. Returns conflict when referenced.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memories"
+                ],
+                "summary": "Delete memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"conversation\"",
+                        "description": "Memory ID",
+                        "name": "memory_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Memory not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Memory referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
         "/memory/health": {
             "get": {
                 "description": "Returns comprehensive health information for the memory system",
@@ -2930,40 +4724,50 @@ const docTemplate = `{
                 }
             }
         },
-        "/resources/{type}": {
+        "/models": {
             "get": {
-                "description": "List resource keys for a given type and project",
+                "description": "List models with cursor pagination.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "resources"
+                    "models"
                 ],
-                "summary": "List resources",
+                "summary": "List models",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Resource type",
-                        "name": "type",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
+                        "example": "\"demo\"",
                         "description": "Project override",
                         "name": "project",
                         "in": "query"
                     },
                     {
+                        "type": "integer",
+                        "example": 50,
+                        "description": "Page size (max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
-                        "description": "ID prefix filter",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by model ID prefix",
                         "name": "q",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Keys listed",
+                        "description": "Models retrieved",
                         "schema": {
                             "allOf": [
                                 {
@@ -2973,316 +4777,49 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "keys": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "string"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Create a resource in the current project",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "resources"
-                ],
-                "summary": "Create resource",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Resource type (agent|tool|mcp|schema|model|workflow|memory|project)",
-                        "name": "type",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Resource payload (must include id; 'type' optional but if present must match path)",
-                        "name": "resource",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created resource",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object"
+                                            "$ref": "#/definitions/modelrouter.ModelsListResponse"
                                         }
                                     }
                                 }
                             ]
                         },
                         "headers": {
-                            "ETag": {
+                            "Link": {
                                 "type": "string",
-                                "description": "ETag for the stored value"
+                                "description": "RFC 8288 pagination links for next/prev"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
                             }
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid cursor",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
             }
         },
-        "/resources/{type}/{id}": {
+        "/models/{model_id}": {
             "get": {
-                "description": "Get a resource by ID",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "resources"
-                ],
-                "summary": "Get resource",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Resource type",
-                        "name": "type",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Resource ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Resource returned",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object"
-                                        }
-                                    }
-                                }
-                            ]
-                        },
-                        "headers": {
-                            "ETag": {
-                                "type": "string",
-                                "description": "ETag for the stored value"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Upserts a resource. If-Match enforces optimistic locking when provided.",
+                "description": "Retrieve a model configuration by ID.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3290,43 +4827,29 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "resources"
+                    "models"
                 ],
-                "summary": "Upsert resource",
+                "summary": "Get model",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Resource type",
-                        "name": "type",
+                        "example": "\"openai:gpt-4o-mini\"",
+                        "description": "Model ID",
+                        "name": "model_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Resource ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Current ETag for optimistic locking",
-                        "name": "If-Match",
-                        "in": "header"
-                    },
-                    {
-                        "description": "Resource payload (full object with id and fields; 'type' optional but if present must match path)",
-                        "name": "resource",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Updated resource",
+                        "description": "Model retrieved",
                         "schema": {
                             "allOf": [
                                 {
@@ -3336,7 +4859,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object"
+                                            "$ref": "#/definitions/modelrouter.ModelDTO"
                                         }
                                     }
                                 }
@@ -3345,109 +4868,91 @@ const docTemplate = `{
                         "headers": {
                             "ETag": {
                                 "type": "string",
-                                "description": "New ETag for the stored value"
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
                             }
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
+                    "404": {
+                        "description": "Model not found",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
-                    "403": {
-                        "description": "Forbidden",
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
             },
-            "delete": {
-                "description": "Delete a resource by ID (idempotent)",
-                "tags": [
-                    "resources"
+            "put": {
+                "description": "Create a model when absent or update an existing one using strong ETag concurrency.",
+                "consumes": [
+                    "application/json"
                 ],
-                "summary": "Delete resource",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "models"
+                ],
+                "summary": "Create or update model",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Resource type",
-                        "name": "type",
+                        "example": "\"openai:gpt-4o-mini\"",
+                        "description": "Model ID",
+                        "name": "model_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Resource ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"\\\"abc123\\\"\"",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Model configuration payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Deleted",
+                        "description": "Model updated",
                         "schema": {
                             "allOf": [
                                 {
@@ -3457,51 +4962,190 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object"
+                                            "$ref": "#/definitions/modelrouter.ModelDTO"
                                         }
                                     }
                                 }
                             ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Model created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/modelrouter.ModelDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "Location": {
+                                "type": "string",
+                                "description": "Relative URL for the model"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid request",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
+                    "409": {
+                        "description": "Model referenced",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
-                    "403": {
-                        "description": "Forbidden",
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a model configuration. Returns conflict when referenced.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "models"
+                ],
+                "summary": "Delete model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"openai:gpt-4o-mini\"",
+                        "description": "Model ID",
+                        "name": "model_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Model not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Model referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/project": {
+            "get": {
+                "description": "Retrieve the active project configuration.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "project"
+                ],
+                "summary": "Get project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Project retrieved",
                         "schema": {
                             "allOf": [
                                 {
@@ -3510,12 +5154,201 @@ const docTemplate = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        "data": {
+                                            "$ref": "#/definitions/projectrouter.ProjectDTO"
                                         }
                                     }
                                 }
                             ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Project not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Create the project configuration when absent or update an existing one using strong ETag concurrency.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "project"
+                ],
+                "summary": "Create or update project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"\\\"abc123\\\"\"",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Project configuration payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Project updated",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/projectrouter.ProjectDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Project created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/projectrouter.ProjectDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "Location": {
+                                "type": "string",
+                                "description": "Relative URL for the project"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Project deletion is not supported; returns 405.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "project"
+                ],
+                "summary": "Delete project",
+                "responses": {
+                    "405": {
+                        "description": "Method not allowed",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -3861,6 +5694,1189 @@ const docTemplate = `{
                 }
             }
         },
+        "/schemas": {
+            "get": {
+                "description": "List schemas with cursor pagination.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schemas"
+                ],
+                "summary": "List schemas",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 50,
+                        "description": "Page size (max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by schema ID prefix",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Schemas retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/schemarouter.SchemasListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Link": {
+                                "type": "string",
+                                "description": "RFC 8288 pagination links for next/prev"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid cursor",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/schemas/{schema_id}": {
+            "get": {
+                "description": "Retrieve a schema by ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schemas"
+                ],
+                "summary": "Get schema",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"user-profile\"",
+                        "description": "Schema ID",
+                        "name": "schema_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Schema retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/schemarouter.SchemaDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Schema not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Create a schema when absent or update an existing schema using strong ETag concurrency.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schemas"
+                ],
+                "summary": "Create or update schema",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"user-profile\"",
+                        "description": "Schema ID",
+                        "name": "schema_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"\\\"abc123\\\"\"",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Schema definition payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Schema updated",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/schemarouter.SchemaDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Schema created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/schemarouter.SchemaDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "Location": {
+                                "type": "string",
+                                "description": "Absolute URL for the created schema"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Schema not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Schema referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a schema configuration. Returns conflict when referenced.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schemas"
+                ],
+                "summary": "Delete schema",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"user-profile\"",
+                        "description": "Schema ID",
+                        "name": "schema_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Schema not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Schema referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks": {
+            "get": {
+                "description": "List tasks with cursor pagination. Optionally filter by workflow usage.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "List tasks",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"wf1\"",
+                        "description": "Return only tasks referenced by the given workflow",
+                        "name": "workflow_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 50,
+                        "description": "Page size (max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by task ID prefix",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tasks retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/tkrouter.TasksListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Link": {
+                                "type": "string",
+                                "description": "RFC 8288 pagination links for next/prev"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid cursor",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Workflow not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{task_id}": {
+            "get": {
+                "description": "Retrieve a task configuration by ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Get task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"approve-request\"",
+                        "description": "Task ID",
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Task retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/tkrouter.TaskDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Task not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Create a task configuration when absent or update an existing one using strong ETag concurrency.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Create or update task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"approve-request\"",
+                        "description": "Task ID",
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"\\\"abc123\\\"\"",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Task configuration payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Task updated",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/tkrouter.TaskDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Task created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/tkrouter.TaskDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Relative URL for the task"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Task not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Task referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a task configuration. Returns conflict when referenced.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Delete task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"approve-request\"",
+                        "description": "Task ID",
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Task not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Task referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/tools": {
+            "get": {
+                "description": "List tools with cursor pagination. Optionally filter by workflow usage.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "List tools",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"wf1\"",
+                        "description": "Return only tools referenced by the given workflow",
+                        "name": "workflow_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 50,
+                        "description": "Page size (max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by tool ID prefix",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tools retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/toolrouter.ToolsListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Link": {
+                                "type": "string",
+                                "description": "RFC 8288 pagination links for next/prev"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid cursor",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Workflow not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/tools/{tool_id}": {
+            "get": {
+                "description": "Retrieve a tool configuration by ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Get tool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"http-client\"",
+                        "description": "Tool ID",
+                        "name": "tool_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tool retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/toolrouter.ToolDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong ETag for the resource"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Tool not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Create a tool configuration when absent or update an existing one using strong ETag concurrency.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Create or update tool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"http-client\"",
+                        "description": "Tool ID",
+                        "name": "tool_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"\\\"abc123\\\"\"",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Tool configuration payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tool updated",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/toolrouter.ToolDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong ETag for the resource"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Tool created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/toolrouter.ToolDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong ETag for the resource"
+                            },
+                            "Location": {
+                                "type": "string",
+                                "description": "Relative URL for the tool"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Tool not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Tool referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a tool configuration. Returns conflict when referenced.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Delete tool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"http-client\"",
+                        "description": "Tool ID",
+                        "name": "tool_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Tool not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Tool referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
         "/users": {
             "get": {
                 "description": "List all users in the system",
@@ -4169,7 +7185,7 @@ const docTemplate = `{
         },
         "/workflows": {
             "get": {
-                "description": "Retrieve a list of all available workflow configurations",
+                "description": "List workflows with cursor pagination, optional prefix search, field selection, or expansion.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4179,10 +7195,46 @@ const docTemplate = `{
                 "tags": [
                     "workflows"
                 ],
-                "summary": "List all workflows",
+                "summary": "List workflows",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"staging\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 50,
+                        "description": "Page size (max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"djI6YWZ0ZXI6d29ya2Zsb3ctMDAwMQ==\"",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"data-\"",
+                        "description": "Filter by workflow ID prefix",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated child collections to expand (tasks,agents,tools)",
+                        "name": "expand",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "Workflows retrieved successfully",
+                        "description": "workflows retrieved",
                         "schema": {
                             "allOf": [
                                 {
@@ -4192,37 +7244,41 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "workflows": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/definitions/wfrouter.WorkflowResponse"
-                                                    }
-                                                }
-                                            }
+                                            "$ref": "#/definitions/wfrouter.WorkflowsListResponse"
                                         }
                                     }
                                 }
                             ]
+                        },
+                        "headers": {
+                            "Link": {
+                                "type": "string",
+                                "description": "RFC 8288 pagination links for next/prev"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid cursor",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -4230,7 +7286,7 @@ const docTemplate = `{
         },
         "/workflows/{workflow_id}": {
             "get": {
-                "description": "Retrieve a specific workflow configuration by its ID",
+                "description": "Retrieve a workflow configuration with optional field selection and expansion.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4240,7 +7296,7 @@ const docTemplate = `{
                 "tags": [
                     "workflows"
                 ],
-                "summary": "Get workflow by ID",
+                "summary": "Get workflow",
                 "parameters": [
                     {
                         "type": "string",
@@ -4249,11 +7305,24 @@ const docTemplate = `{
                         "name": "workflow_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"staging\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated child collections to expand (tasks,agents,tools)",
+                        "name": "expand",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Workflow retrieved successfully",
+                        "description": "Workflow retrieved",
                         "schema": {
                             "allOf": [
                                 {
@@ -4263,51 +7332,104 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/wfrouter.WorkflowResponse"
+                                            "$ref": "#/definitions/wfrouter.WorkflowDTO"
                                         }
                                     }
                                 }
                             ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for concurrency control"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
                         }
                     },
                     "400": {
-                        "description": "Invalid workflow ID",
+                        "description": "Invalid request",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "404": {
                         "description": "Workflow not found",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Create a workflow when absent or update an existing workflow using strong ETag concurrency.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Create or update workflow",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"data-processing\"",
+                        "description": "Workflow ID",
+                        "name": "workflow_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"staging\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated child collections to expand (tasks,agents,tools)",
+                        "name": "expand",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Workflow definition payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflow.Config"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "workflow updated",
                         "schema": {
                             "allOf": [
                                 {
@@ -4316,12 +7438,167 @@ const docTemplate = `{
                                 {
                                     "type": "object",
                                     "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        "data": {
+                                            "$ref": "#/definitions/wfrouter.WorkflowDTO"
                                         }
                                     }
                                 }
                             ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for the stored workflow"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "workflow created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/wfrouter.WorkflowDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for the stored workflow"
+                            },
+                            "Location": {
+                                "type": "string",
+                                "description": "Relative URL for the created workflow"
+                            },
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Workflow not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a workflow configuration using strong ETag concurrency.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Delete workflow",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"data-processing\"",
+                        "description": "Workflow ID",
+                        "name": "workflow_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"staging\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "RateLimit-Limit": {
+                                "type": "string",
+                                "description": "Requests allowed in the current window"
+                            },
+                            "RateLimit-Remaining": {
+                                "type": "string",
+                                "description": "Remaining requests in the current window"
+                            },
+                            "RateLimit-Reset": {
+                                "type": "string",
+                                "description": "Seconds until the window resets"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Workflow not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
                         }
                     }
                 }
@@ -5123,590 +8400,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "/{name}/sse": {
-            "get": {
-                "description": "Proxy Server-Sent Events requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy SSE requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "SSE stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
-        "/{name}/sse/{path}": {
-            "get": {
-                "description": "Proxy Server-Sent Events requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy SSE requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Additional path",
-                        "name": "path",
-                        "in": "path"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "SSE stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
-        "/{name}/stream": {
-            "get": {
-                "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy streamable HTTP requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "HTTP stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy streamable HTTP requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "HTTP stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy streamable HTTP requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "HTTP stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy streamable HTTP requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "HTTP stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy streamable HTTP requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "HTTP stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
-        "/{name}/stream/{path}": {
-            "get": {
-                "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy streamable HTTP requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Additional path",
-                        "name": "path",
-                        "in": "path"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "HTTP stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy streamable HTTP requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Additional path",
-                        "name": "path",
-                        "in": "path"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "HTTP stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy streamable HTTP requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Additional path",
-                        "name": "path",
-                        "in": "path"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "HTTP stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy streamable HTTP requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Additional path",
-                        "name": "path",
-                        "in": "path"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "HTTP stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "description": "Proxy streamable HTTP requests to a specific MCP server",
-                "tags": [
-                    "MCP Proxy"
-                ],
-                "summary": "Proxy streamable HTTP requests to MCP server",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "MCP name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Additional path",
-                        "name": "path",
-                        "in": "path"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "HTTP stream",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "MCP not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
         }
     },
     "definitions": {
@@ -5864,6 +8557,76 @@ const docTemplate = `{
                 }
             }
         },
+        "agentrouter.AgentDTO": {
+            "type": "object",
+            "properties": {
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "instructions": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "with": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "agentrouter.AgentListItem": {
+            "type": "object",
+            "properties": {
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "instructions": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "with": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "agentrouter.AgentsListResponse": {
+            "type": "object",
+            "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentrouter.AgentListItem"
+                    }
+                },
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                }
+            }
+        },
         "core.Author": {
             "type": "object",
             "properties": {
@@ -5968,6 +8731,43 @@ const docTemplate = `{
                 }
             }
         },
+        "core.GlobalOpts": {
+            "type": "object",
+            "properties": {
+                "heartbeat_timeout": {
+                    "description": "Interval for task heartbeat signals\nUsed for long-running tasks to indicate progress\n\n- **Example**: \"10s\", \"30s\", \"1m\"",
+                    "type": "string"
+                },
+                "on_error": {
+                    "description": "Error handler configuration\nDefines what happens when a task fails after all retries",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.ErrorTransition"
+                        }
+                    ]
+                },
+                "retry_policy": {
+                    "description": "Retry configuration for transient failures\nAutomatically retries failed tasks with exponential backoff",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.RetryPolicyConfig"
+                        }
+                    ]
+                },
+                "schedule_to_close_timeout": {
+                    "description": "Total timeout from scheduling to completion\nDefault: \"6m\"\n\n- **Example**: \"1m\", \"15m\", \"2h\"",
+                    "type": "string"
+                },
+                "schedule_to_start_timeout": {
+                    "description": "Maximum time to wait for a task to start executing\nDefault: \"1m\"\n\n- **Example**: \"30s\", \"5m\", \"1h\"",
+                    "type": "string"
+                },
+                "start_to_close_timeout": {
+                    "description": "Maximum time for task execution once started\nDefault: \"5m\"\n\n- **Example**: \"30s\", \"10m\", \"1h\"",
+                    "type": "string"
+                }
+            }
+        },
         "core.Input": {
             "type": "object",
             "additionalProperties": {}
@@ -6005,6 +8805,35 @@ const docTemplate = `{
                 "path": {
                     "description": "Path holds the absolute working directory.",
                     "type": "string"
+                }
+            }
+        },
+        "core.ProblemDocument": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "invalid_cursor"
+                },
+                "detail": {
+                    "type": "string",
+                    "example": "Invalid cursor parameter"
+                },
+                "instance": {
+                    "type": "string",
+                    "example": "/api/v0/workflows"
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 400
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Bad Request"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "about:blank"
                 }
             }
         },
@@ -6191,6 +9020,23 @@ const docTemplate = `{
                 "StatusWaiting",
                 "StatusPaused"
             ]
+        },
+        "core.SuccessTransition": {
+            "type": "object",
+            "properties": {
+                "next": {
+                    "description": "ID of the next task to execute\n- **Example:** ` + "`" + `\"process-results\"` + "`" + `, ` + "`" + `\"send-notification\"` + "`" + `",
+                    "type": "string"
+                },
+                "with": {
+                    "description": "Input parameters to pass to the next task\n- **Supports:** Template expressions like ` + "`" + `{ \"data\": \"{{ .output.result }}\" }` + "`" + `",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
+                }
+            }
         },
         "gin.H": {
             "type": "object",
@@ -6475,6 +9321,106 @@ const docTemplate = `{
                 "TransportStreamableHTTP"
             ]
         },
+        "mcprouter.MCPDTO": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "max_sessions": {
+                    "type": "integer"
+                },
+                "proto": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "start_timeout": {
+                    "type": "string"
+                },
+                "transport": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "mcprouter.MCPListItem": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "max_sessions": {
+                    "type": "integer"
+                },
+                "proto": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "start_timeout": {
+                    "type": "string"
+                },
+                "transport": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "mcprouter.MCPsListResponse": {
+            "type": "object",
+            "properties": {
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcprouter.MCPListItem"
+                    }
+                },
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                }
+            }
+        },
         "memory.InstanceHealth": {
             "type": "object",
             "properties": {
@@ -6544,6 +9490,130 @@ const docTemplate = `{
                 },
                 "used": {
                     "type": "integer"
+                }
+            }
+        },
+        "memoryrouter.MemoriesListResponse": {
+            "type": "object",
+            "properties": {
+                "memories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/memoryrouter.MemoryListItem"
+                    }
+                },
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                }
+            }
+        },
+        "memoryrouter.MemoryDTO": {
+            "type": "object",
+            "properties": {
+                "default_key_template": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "flushing": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "locking": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "max_context_ratio": {
+                    "type": "number"
+                },
+                "max_messages": {
+                    "type": "integer"
+                },
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "persistence": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "privacy_policy": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "token_allocation": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "token_provider": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "memoryrouter.MemoryListItem": {
+            "type": "object",
+            "properties": {
+                "default_key_template": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "flushing": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "locking": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "max_context_ratio": {
+                    "type": "number"
+                },
+                "max_messages": {
+                    "type": "integer"
+                },
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "persistence": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "privacy_policy": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "token_allocation": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "token_provider": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },
@@ -6637,6 +9707,146 @@ const docTemplate = `{
                 }
             }
         },
+        "modelrouter.ModelDTO": {
+            "type": "object",
+            "properties": {
+                "api_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "organization": {
+                    "type": "string"
+                },
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                }
+            }
+        },
+        "modelrouter.ModelListItem": {
+            "type": "object",
+            "properties": {
+                "api_url": {
+                    "type": "string"
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "organization": {
+                    "type": "string"
+                },
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                }
+            }
+        },
+        "modelrouter.ModelsListResponse": {
+            "type": "object",
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/modelrouter.ModelListItem"
+                    }
+                },
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                }
+            }
+        },
+        "projectrouter.ProjectDTO": {
+            "type": "object",
+            "properties": {
+                "author": {
+                    "$ref": "#/definitions/core.Author"
+                },
+                "autoload": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "config": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "description": {
+                    "type": "string"
+                },
+                "memories": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "monitoring": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string"
+                },
+                "runtime": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "version": {
+                    "type": "string"
+                },
+                "workflows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            }
+        },
         "router.CreateUserRequest": {
             "type": "object",
             "required": [
@@ -6692,6 +9902,27 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "router.PageInfoDTO": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "example": "v2:after:tool-001"
+                },
+                "prev_cursor": {
+                    "type": "string",
+                    "example": "v2:before:tool-000"
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 2
                 }
             }
         },
@@ -6797,6 +10028,46 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {}
         },
+        "schemarouter.SchemaDTO": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "schemarouter.SchemaListItem": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                }
+            }
+        },
+        "schemarouter.SchemasListResponse": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/schemarouter.SchemaListItem"
+                    }
+                }
+            }
+        },
         "service.AppendResponse": {
             "type": "object",
             "properties": {
@@ -6839,6 +10110,341 @@ const docTemplate = `{
                 }
             }
         },
+        "task.ClearConfig": {
+            "type": "object",
+            "properties": {
+                "backup": {
+                    "description": "Backup data before clearing\nImplementation-dependent, may not be available for all backends",
+                    "type": "boolean"
+                },
+                "confirm": {
+                    "description": "Confirm must be true to execute clear operation\nRequired safety check to prevent accidental data loss",
+                    "type": "boolean"
+                }
+            }
+        },
+        "task.CollectionMode": {
+            "type": "string",
+            "enum": [
+                "parallel",
+                "sequential"
+            ],
+            "x-enum-varnames": [
+                "CollectionModeParallel",
+                "CollectionModeSequential"
+            ]
+        },
+        "task.Config": {
+            "type": "object",
+            "properties": {
+                "CWD": {
+                    "description": "Current working directory for file operations within the task\nInherited from parent context if not explicitly set",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.PathCWD"
+                        }
+                    ]
+                },
+                "action": {
+                    "description": "Action identifier that describes what this task does\nUsed for logging and debugging purposes\n- **Example**: \"process-user-data\", \"send-notification\"",
+                    "type": "string"
+                },
+                "agent": {
+                    "description": "Agent configuration for AI-powered task execution\nOnly used when the task needs to interact with an LLM agent\nMutually exclusive with Tool field\n$ref: schema://agents",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agent.Config"
+                        }
+                    ]
+                },
+                "attachments": {
+                    "description": "Attachments declared at the task scope are available to all nested agents/actions.",
+                    "type": "array",
+                    "items": {}
+                },
+                "batch": {
+                    "description": "Batch size for processing items in groups (0 = no batching)\nUseful for rate limiting or managing resource usage\n- **Example**: 10 means process 10 items at a time",
+                    "type": "integer"
+                },
+                "batch_size": {
+                    "description": "BatchSize for operations that process multiple keys\nControls how many keys are processed in each batch\nDefault: 100, Maximum: 10,000",
+                    "type": "integer"
+                },
+                "clear_config": {
+                    "description": "Configuration for clear operations\nOnly used when operation is \"clear\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.ClearConfig"
+                        }
+                    ]
+                },
+                "condition": {
+                    "description": "CEL expression for conditional task execution or routing decisions\nTask only executes if condition evaluates to true\n- **Example**: \"input.status == 'approved' \u0026\u0026 input.amount \u003e 1000\"",
+                    "type": "string"
+                },
+                "config": {
+                    "description": "Global configuration options inherited from parent contexts\nIncludes provider settings, API keys, and other global parameters",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.GlobalOpts"
+                        }
+                    ]
+                },
+                "env": {
+                    "description": "Environment variables available during task execution\nCan override or extend workflow-level environment variables\n- **Example**: { \"API_KEY\": \"{{ .env.SECRET_KEY }}\" }",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.EnvMap"
+                        }
+                    ]
+                },
+                "file_path": {
+                    "description": "Absolute file path where this task configuration was loaded from\nSet automatically during configuration loading",
+                    "type": "string"
+                },
+                "filter": {
+                    "description": "Filter is an optional CEL expression to filter items before processing\nEach item is available as 'item' in the expression\n- **Example**: \"item.status != 'inactive'\" or \"item.age \u003e 18\"",
+                    "type": "string"
+                },
+                "final": {
+                    "description": "Marks this task as a terminal node in the workflow\nNo subsequent tasks will execute after a final task",
+                    "type": "boolean"
+                },
+                "flush_config": {
+                    "description": "Configuration for flush operations\nOnly used when operation is \"flush\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.FlushConfig"
+                        }
+                    ]
+                },
+                "health_config": {
+                    "description": "Configuration for health check operations\nOnly used when operation is \"health\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.HealthConfig"
+                        }
+                    ]
+                },
+                "id": {
+                    "description": "Unique identifier for the task instance within a workflow\nMust be unique within the workflow scope",
+                    "type": "string"
+                },
+                "index_var": {
+                    "description": "IndexVar is the variable name for the current index (default: \"index\")\nAvailable in task templates as {{ .index }} or custom name\nZero-based index of the current item",
+                    "type": "string"
+                },
+                "input": {
+                    "description": "Schema definition for validating task input parameters\nFollows JSON Schema specification for type validation\nFormat:\n  type: object\n  properties:\n    user_id: { type: string, description: \"User identifier\" }\n  required: [\"user_id\"]",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/schema.Schema"
+                        }
+                    ]
+                },
+                "item_var": {
+                    "description": "ItemVar is the variable name for the current item (default: \"item\")\nAvailable in task templates as {{ .item }} or custom name\n- **Example**: Set to \"user\" to access as {{ .user }} in templates",
+                    "type": "string"
+                },
+                "items": {
+                    "description": "Items is a template expression that evaluates to an array\nThe expression should resolve to a list of items to iterate over\n- **Example**: \"{{ .workflow.input.users }}\" or \"{{ range(1, 10) }}\"",
+                    "type": "string"
+                },
+                "json_mode": {
+                    "description": "Forces the agent to always respond in valid JSON format.\nWhen enabled, the agent's responses must be parseable JSON objects.\n\n**Use cases:**\n- API integrations requiring structured data\n- Automated processing of agent outputs\n- Ensuring consistent response formats\n\n⚠️ **Note:** May limit the agent's ability to provide explanatory text",
+                    "type": "boolean"
+                },
+                "key_template": {
+                    "description": "KeyTemplate is a template expression for the memory key\nSupports template variables for dynamic key generation\n- **Example**: \"user:{{ .workflow.input.user_id }}:profile\"",
+                    "type": "string"
+                },
+                "max_iterations": {
+                    "description": "Maximum number of reasoning iterations the agent can perform.\nThe agent may self-correct and refine its response across multiple iterations\nto improve accuracy and address complex multi-step problems.\n\n**Default:** ` + "`" + `5` + "`" + ` iterations\n\n**Trade-offs:**\n- Higher values enable more thorough problem-solving and self-correction\n- Each iteration consumes additional tokens and increases response latency\n- Configure based on task complexity, accuracy requirements, and cost constraints",
+                    "type": "integer"
+                },
+                "max_keys": {
+                    "description": "MaxKeys limits the number of keys processed\nSafety limit to prevent runaway operations\nDefault: 1,000, Maximum: 50,000",
+                    "type": "integer"
+                },
+                "max_workers": {
+                    "description": "MaxWorkers limits the number of concurrent task executions\n0 means no limit (all tasks run concurrently)\n- **Example**: 5 means at most 5 tasks run at the same time",
+                    "type": "integer"
+                },
+                "mcps": {
+                    "description": "Model Context Protocol (MCP) server configurations.\nMCPs provide standardized interfaces for extending agent capabilities\nwith external services and data sources through protocol-based communication.\n\n**Common MCP integrations:**\n- Database connectors (PostgreSQL, Redis, MongoDB)\n- Search engines (Elasticsearch, Solr)\n- Knowledge bases (vector databases, documentation systems)\n- External APIs (REST, GraphQL, gRPC services)\n\nMCPs support both stdio and HTTP transport protocols.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "memory": {
+                    "description": "Memory references enabling the agent to access persistent context.\nMemory provides stateful interactions across workflow steps and sessions.\n\n**Configuration format:**\n` + "`" + `` + "`" + `` + "`" + `yaml\nmemory:\n  - id: \"user_context\"           # Memory resource ID\n    key: \"user:{{.user_id}}\"     # Dynamic key with template\n    mode: \"read-write\"           # Access mode (default: \"read-write\")\n` + "`" + `` + "`" + `` + "`" + `\n\n**Access modes:**\n- ` + "`" + `\"read-write\"` + "`" + `: Full access to read and modify memory\n- ` + "`" + `\"read-only\"` + "`" + `: Can only read existing memory entries",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
+                },
+                "memory_ref": {
+                    "description": "MemoryRef identifies which memory store to use\nReferences a memory configuration defined at the project level\n- **Example**: \"user-sessions\", \"workflow-state\", \"cache\"",
+                    "type": "string"
+                },
+                "mode": {
+                    "description": "Mode determines if items are processed in parallel or sequentially\nDefaults to \"parallel\"\nOptions: parallel, sequential",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.CollectionMode"
+                        }
+                    ]
+                },
+                "model_config": {
+                    "description": "LLM provider configuration defining which AI model to use and its parameters.\nSupports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.\n\n**Required fields:** provider, model\n**Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.ProviderConfig"
+                        }
+                    ]
+                },
+                "on_error": {
+                    "description": "Error handling configuration\nDefines fallback behavior when task execution fails\nCan specify error task ID or retry configuration",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.ErrorTransition"
+                        }
+                    ]
+                },
+                "on_success": {
+                    "description": "Task execution control\nDefines what happens after successful task completion\nCan specify next task ID or conditional routing",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.SuccessTransition"
+                        }
+                    ]
+                },
+                "on_timeout": {
+                    "description": "OnTimeout specifies the next task to execute if the wait times out\nUses the timeout value from BaseConfig\nIf not specified, the task fails on timeout",
+                    "type": "string"
+                },
+                "operation": {
+                    "description": "Operation type to perform on memory\nRequired field that determines the action to take",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.MemoryOpType"
+                        }
+                    ]
+                },
+                "output": {
+                    "description": "Schema definition for validating task output data\nEnsures task results conform to expected structure\nUses same format as InputSchema",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/schema.Schema"
+                        }
+                    ]
+                },
+                "outputs": {
+                    "description": "Output mappings that define what data this task exposes to subsequent tasks\nUses template expressions to transform task results\n- **Example**: { \"processed_data\": \"{{ .task.output.result }}\" }",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
+                },
+                "payload": {
+                    "description": "Payload data for write/append operations\nCan be any JSON-serializable data structure\nRequired for write and append operations"
+                },
+                "processor": {
+                    "description": "Processor is an optional task configuration to process received signals\nAllows custom handling of signal data before continuing\nThe processor receives the signal payload as input\n$ref: inline:#",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.Config"
+                        }
+                    ]
+                },
+                "prompt": {
+                    "description": "Prompt provides direct instruction to agents when no specific action is needed\nUsed for ad-hoc agent interactions without predefined action definitions\n- **Example**: \"Analyze this code for security issues\", \"Summarize the following text\"",
+                    "type": "string"
+                },
+                "resource": {
+                    "description": "Resource reference for the task\nFormat: \"compozy:task:\u003cname\u003e\" (e.g., \"compozy:task:process-data\")",
+                    "type": "string"
+                },
+                "retries": {
+                    "description": "Number of retry attempts for failed task executions\nDefault: 0 (no retries)",
+                    "type": "integer"
+                },
+                "routes": {
+                    "description": "Routes maps condition values to task IDs or inline task configurations\nThe condition field in BaseConfig is evaluated, and its result is used\nas the key to select the appropriate route\nValues can be:\n  - Task ID (string): References an existing task\n  - Inline task config (object): Defines task configuration directly\n- **Example**:\n  routes:\n    approved: \"process-payment\"  # Task ID reference\n    rejected:                    # Inline task config\n      type: basic\n      agent: { id: rejection-handler }\n    pending: \"wait-for-approval\"",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "signal": {
+                    "description": "Signal configuration containing the signal ID and payload",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.SignalConfig"
+                        }
+                    ]
+                },
+                "sleep": {
+                    "description": "Sleep duration after task completion\nFormat: \"5s\", \"1m\", \"500ms\", \"1h30m\"\nUseful for rate limiting or giving external systems time to process",
+                    "type": "string"
+                },
+                "stats_config": {
+                    "description": "Configuration for statistics operations\nOnly used when operation is \"stats\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.StatsConfig"
+                        }
+                    ]
+                },
+                "strategy": {
+                    "description": "Strategy determines how the parallel execution handles task completion\nDefaults to \"wait_all\" if not specified\nOptions: wait_all, fail_fast, best_effort, race",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.ParallelStrategy"
+                        }
+                    ]
+                },
+                "timeout": {
+                    "description": "Maximum execution time for parallel or composite tasks\nFormat: \"30s\", \"5m\", \"1h\"\nTask will be canceled if it exceeds this duration",
+                    "type": "string"
+                },
+                "tool": {
+                    "description": "Tool configuration for executing specific tool operations\nUsed when the task needs to execute a predefined tool\nMutually exclusive with Agent field\n$ref: schema://tools",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/tool.Config"
+                        }
+                    ]
+                },
+                "tools": {
+                    "description": "Tools available to the agent for extending its capabilities.\nWhen tools are defined, the agent automatically has ` + "`" + `toolChoice` + "`" + ` set to ` + "`" + `\"auto\"` + "`" + `,\nenabling autonomous tool selection and invocation during task execution.\n\n**Tool types supported:**\n- File system operations (read, write, list)\n- API integrations (HTTP requests, webhooks)\n- Data processing utilities (parsing, transformation)\n- Custom business logic (TypeScript/JavaScript execution)\n\nTools are referenced by ID and can be shared across multiple agents.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
+                "type": {
+                    "description": "Type of task that determines execution behavior\nIf not specified, defaults to \"basic\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.Type"
+                        }
+                    ]
+                },
+                "wait_for": {
+                    "description": "WaitFor specifies the signal ID to wait for\nThe task will pause until a signal with this ID is received\nMust match the ID used in a SignalTask\n- **Example**: \"user-approved\", \"payment-completed\"",
+                    "type": "string"
+                },
+                "with": {
+                    "description": "Input parameters passed to the task at execution time\nCan include references to workflow inputs, previous task outputs, etc.\n- **Example**: { \"user_id\": \"{{ .workflow.input.user_id }}\" }",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
+                }
+            }
+        },
         "task.ExecutionType": {
             "type": "string",
             "enum": [
@@ -6863,6 +10469,96 @@ const docTemplate = `{
                 "ExecutionAggregate",
                 "ExecutionMemory"
             ]
+        },
+        "task.FlushConfig": {
+            "type": "object",
+            "properties": {
+                "dry_run": {
+                    "description": "DryRun simulates flush without actually removing data\nUseful for testing what would be removed",
+                    "type": "boolean"
+                },
+                "force": {
+                    "description": "Force flush even if below threshold\nBypasses normal threshold checks",
+                    "type": "boolean"
+                },
+                "max_keys": {
+                    "description": "Maximum number of keys to flush in one operation\nDefault: 100",
+                    "type": "integer"
+                },
+                "strategy": {
+                    "description": "Strategy for selecting keys to flush\nOptions: \"simple_fifo\" (oldest first), \"lru\" (least recently used)\nDefault: \"simple_fifo\"",
+                    "type": "string"
+                },
+                "threshold": {
+                    "description": "Threshold (0-1) for triggering flush based on memory usage\n- **Example**: 0.8 means flush when 80% full",
+                    "type": "number"
+                }
+            }
+        },
+        "task.HealthConfig": {
+            "type": "object",
+            "properties": {
+                "check_connectivity": {
+                    "description": "CheckConnectivity verifies connection to memory backend\nTests actual read/write operations",
+                    "type": "boolean"
+                },
+                "include_stats": {
+                    "description": "IncludeStats adds memory statistics to health check results\nProvides additional diagnostic information",
+                    "type": "boolean"
+                }
+            }
+        },
+        "task.MemoryOpType": {
+            "type": "string",
+            "enum": [
+                "read",
+                "write",
+                "append",
+                "delete",
+                "flush",
+                "health",
+                "clear",
+                "stats"
+            ],
+            "x-enum-varnames": [
+                "MemoryOpRead",
+                "MemoryOpWrite",
+                "MemoryOpAppend",
+                "MemoryOpDelete",
+                "MemoryOpFlush",
+                "MemoryOpHealth",
+                "MemoryOpClear",
+                "MemoryOpStats"
+            ]
+        },
+        "task.ParallelStrategy": {
+            "type": "string",
+            "enum": [
+                "wait_all",
+                "fail_fast",
+                "best_effort",
+                "race"
+            ],
+            "x-enum-varnames": [
+                "StrategyWaitAll",
+                "StrategyFailFast",
+                "StrategyBestEffort",
+                "StrategyRace"
+            ]
+        },
+        "task.SignalConfig": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "ID is the unique identifier for the signal\nWait tasks with matching wait_for values will receive this signal\n- **Example**: \"user-approved\", \"payment-completed\", \"data-ready\"",
+                    "type": "string"
+                },
+                "payload": {
+                    "description": "Payload contains data to send with the signal\nThis data is available to the receiving wait task for processing\nCan be any JSON-serializable data structure\n- **Example**: { \"user_id\": \"123\", \"status\": \"approved\", \"timestamp\": \"2024-01-01T00:00:00Z\" }",
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
         },
         "task.State": {
             "type": "object",
@@ -6930,6 +10626,19 @@ const docTemplate = `{
                 }
             }
         },
+        "task.StatsConfig": {
+            "type": "object",
+            "properties": {
+                "group_by": {
+                    "description": "GroupBy field for aggregating statistics\n- **Example**: \"user\", \"session\", \"workflow\"\nGroups stats by the specified field in stored data",
+                    "type": "string"
+                },
+                "include_content": {
+                    "description": "IncludeContent includes actual memory content in stats\nWARNING: May return large amounts of data",
+                    "type": "boolean"
+                }
+            }
+        },
         "task.Type": {
             "type": "string",
             "enum": [
@@ -6979,25 +10688,22 @@ const docTemplate = `{
                 "Hour"
             ]
         },
-        "tkrouter.TaskResponse": {
+        "tkrouter.TaskDTO": {
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string"
                 },
                 "condition": {
-                    "description": "Task-specific fields (without recursive Tasks/Task fields)",
                     "type": "string"
                 },
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
                 },
                 "has_subtasks": {
-                    "description": "Metadata",
                     "type": "boolean"
                 },
                 "id": {
-                    "description": "BaseConfig fields",
                     "type": "string"
                 },
                 "items": {},
@@ -7031,6 +10737,128 @@ const docTemplate = `{
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
+                }
+            }
+        },
+        "tkrouter.TaskListItem": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "condition": {
+                    "type": "string"
+                },
+                "env": {
+                    "$ref": "#/definitions/core.EnvMap"
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "has_subtasks": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "items": {},
+                "mode": {
+                    "type": "string"
+                },
+                "outputs": {
+                    "$ref": "#/definitions/core.Input"
+                },
+                "routes": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "signal_name": {
+                    "type": "string"
+                },
+                "strategy": {
+                    "type": "string"
+                },
+                "subtask_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "timeout": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/task.Type"
+                },
+                "with": {
+                    "$ref": "#/definitions/core.Input"
+                }
+            }
+        },
+        "tkrouter.TaskResponse": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "condition": {
+                    "type": "string"
+                },
+                "env": {
+                    "$ref": "#/definitions/core.EnvMap"
+                },
+                "has_subtasks": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "items": {},
+                "mode": {
+                    "type": "string"
+                },
+                "outputs": {
+                    "$ref": "#/definitions/core.Input"
+                },
+                "routes": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "signal_name": {
+                    "type": "string"
+                },
+                "strategy": {
+                    "type": "string"
+                },
+                "subtask_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "timeout": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/task.Type"
+                },
+                "with": {
+                    "$ref": "#/definitions/core.Input"
+                }
+            }
+        },
+        "tkrouter.TasksListResponse": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tkrouter.TaskListItem"
+                    }
                 }
             }
         },
@@ -7100,6 +10928,106 @@ const docTemplate = `{
                             "$ref": "#/definitions/core.Input"
                         }
                     ]
+                }
+            }
+        },
+        "toolrouter.ToolDTO": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "description": {
+                    "type": "string",
+                    "example": "HTTP client tool"
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "id": {
+                    "type": "string",
+                    "example": "http"
+                },
+                "input": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "output": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string",
+                    "example": "tool"
+                },
+                "timeout": {
+                    "type": "string",
+                    "example": "30s"
+                },
+                "with": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "toolrouter.ToolListItem": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "description": {
+                    "type": "string",
+                    "example": "HTTP client tool"
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "http"
+                },
+                "input": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "output": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "resource": {
+                    "type": "string",
+                    "example": "tool"
+                },
+                "timeout": {
+                    "type": "string",
+                    "example": "30s"
+                },
+                "with": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "toolrouter.ToolsListResponse": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/toolrouter.ToolListItem"
+                    }
                 }
             }
         },
@@ -7321,6 +11249,23 @@ const docTemplate = `{
                 }
             }
         },
+        "wfrouter.AgentsOrDTOs": {
+            "type": "object",
+            "properties": {
+                "expanded": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentrouter.AgentDTO"
+                    }
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "wfrouter.EventRequest": {
             "type": "object",
             "required": [
@@ -7393,28 +11338,59 @@ const docTemplate = `{
                 }
             }
         },
-        "wfrouter.WorkflowResponse": {
+        "wfrouter.TasksOrDTOs": {
+            "type": "object",
+            "properties": {
+                "expanded": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tkrouter.TaskDTO"
+                    }
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "wfrouter.ToolsOrDTOs": {
+            "type": "object",
+            "properties": {
+                "expanded": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/toolrouter.ToolDTO"
+                    }
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "wfrouter.WorkflowDTO": {
             "type": "object",
             "properties": {
                 "agent_count": {
                     "type": "integer"
                 },
+                "agents": {
+                    "$ref": "#/definitions/wfrouter.AgentsOrDTOs"
+                },
                 "author": {
                     "$ref": "#/definitions/core.Author"
                 },
                 "config": {
-                    "description": "Configuration",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/workflow.Opts"
-                        }
-                    ]
+                    "$ref": "#/definitions/workflow.Opts"
                 },
                 "description": {
                     "type": "string"
                 },
                 "id": {
-                    "description": "Basic workflow fields",
                     "type": "string"
                 },
                 "mcp_count": {
@@ -7424,7 +11400,6 @@ const docTemplate = `{
                     "$ref": "#/definitions/workflow.Schedule"
                 },
                 "task_count": {
-                    "description": "Task information (without circular references)",
                     "type": "integer"
                 },
                 "task_ids": {
@@ -7433,9 +11408,19 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "tasks": {
+                    "description": "Expandable collections: marshaled as either []string or []\u003cDTO\u003e",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/wfrouter.TasksOrDTOs"
+                        }
+                    ]
+                },
                 "tool_count": {
-                    "description": "Other counts",
                     "type": "integer"
+                },
+                "tools": {
+                    "$ref": "#/definitions/wfrouter.ToolsOrDTOs"
                 },
                 "triggers": {
                     "type": "array",
@@ -7444,6 +11429,188 @@ const docTemplate = `{
                     }
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "wfrouter.WorkflowListItem": {
+            "type": "object",
+            "properties": {
+                "agent_count": {
+                    "type": "integer"
+                },
+                "agents": {
+                    "$ref": "#/definitions/wfrouter.AgentsOrDTOs"
+                },
+                "author": {
+                    "$ref": "#/definitions/core.Author"
+                },
+                "config": {
+                    "$ref": "#/definitions/workflow.Opts"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "mcp_count": {
+                    "type": "integer"
+                },
+                "schedule": {
+                    "$ref": "#/definitions/workflow.Schedule"
+                },
+                "task_count": {
+                    "type": "integer"
+                },
+                "task_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tasks": {
+                    "description": "Expandable collections: marshaled as either []string or []\u003cDTO\u003e",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/wfrouter.TasksOrDTOs"
+                        }
+                    ]
+                },
+                "tool_count": {
+                    "type": "integer"
+                },
+                "tools": {
+                    "$ref": "#/definitions/wfrouter.ToolsOrDTOs"
+                },
+                "triggers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflow.Trigger"
+                    }
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "wfrouter.WorkflowsListResponse": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "$ref": "#/definitions/router.PageInfoDTO"
+                },
+                "workflows": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/wfrouter.WorkflowListItem"
+                    }
+                }
+            }
+        },
+        "workflow.Config": {
+            "type": "object",
+            "properties": {
+                "agents": {
+                    "description": "AI agents with specific instructions and capabilities\nConfigure LLM-powered agents with custom prompts, tools access, and behavior\nAgents can be referenced by tasks using $use: agent(...) syntax\n$ref: schema://agents",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agent.Config"
+                    }
+                },
+                "author": {
+                    "description": "Author information for workflow attribution\nHelps track ownership and responsibility for workflow maintenance",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Author"
+                        }
+                    ]
+                },
+                "config": {
+                    "description": "Configuration options including input schema and environment variables\nControls workflow behavior, validation, and runtime environment",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflow.Opts"
+                        }
+                    ]
+                },
+                "cwd": {
+                    "description": "Internal field for the current working directory context",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.PathCWD"
+                        }
+                    ]
+                },
+                "description": {
+                    "description": "Human-readable description of the workflow's purpose\nShould clearly explain what the workflow does and when to use it",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "Unique identifier for the workflow (required)\nMust be unique within the project scope. Used for referencing and execution.\n- **Example**: \"customer-support\", \"data-processing\", \"content-generation\"",
+                    "type": "string"
+                },
+                "mcps": {
+                    "description": "Model Context Protocol servers for extending AI capabilities\nMCP servers provide specialized tools and knowledge to agents\nEnable integration with external services and domain-specific functionality\n$ref: schema://mcp",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "outputs": {
+                    "description": "Output mappings to structure the final workflow results\nUse template expressions to extract and transform task outputs\n- **Example**: ticket_id: \"{{ .tasks.create-ticket.output.id }}\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Output"
+                        }
+                    ]
+                },
+                "resource": {
+                    "description": "Resource reference for external workflow definitions\nFormat: \"compozy:workflow:\u003cname\u003e\" - allows referencing pre-built workflows",
+                    "type": "string"
+                },
+                "schedule": {
+                    "description": "Schedule configuration for automated workflow execution\nEnable cron-based scheduling with timezone support and overlap policies",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflow.Schedule"
+                        }
+                    ]
+                },
+                "schemas": {
+                    "description": "JSON schemas for validating data structures used in the workflow\nDefine reusable schemas that can be referenced throughout the workflow\nusing $ref syntax (e.g., $ref: local::schemas.#(id=\"user_schema\"))",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/schema.Schema"
+                    }
+                },
+                "tasks": {
+                    "description": "Sequential tasks that define the workflow execution plan (required)\nTasks are the core execution units, processed in order with conditional branching\nEach task uses either an agent or tool to perform its operation\n$ref: schema://tasks",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/task.Config"
+                    }
+                },
+                "tools": {
+                    "description": "External tools that can be invoked by agents or tasks\nDefine executable scripts or programs that perform specific operations\nTools provide deterministic, non-AI functionality like API calls or data processing\n$ref: schema://tools",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
+                "triggers": {
+                    "description": "Event triggers that can initiate workflow execution\nDefine external events (webhooks, signals) that can start the workflow\nEach trigger can have its own input schema for validation",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflow.Trigger"
+                    }
+                },
+                "version": {
+                    "description": "Version of the workflow for tracking changes\nFollows semantic versioning (e.g., \"1.0.0\", \"2.1.3\")\nUseful for managing workflow evolution and backwards compatibility",
                     "type": "string"
                 }
             }

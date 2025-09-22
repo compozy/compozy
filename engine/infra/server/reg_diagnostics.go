@@ -9,6 +9,7 @@ import (
 
 func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string, server *Server) {
 	router.GET("/", createRootHandler(version, prefixURL))
+	router.GET(prefixURL, createRootHandler(version, prefixURL))
 	router.GET(prefixURL+"/health", CreateHealthHandler(server, version))
 	router.GET("/mcp/health", func(c *gin.Context) {
 		ready := false

@@ -5,6 +5,13 @@ import (
 )
 
 func Register(apiBase *gin.RouterGroup) {
+	agentsGroup := apiBase.Group("/agents")
+	{
+		agentsGroup.GET("", listAgentsTop)
+		agentsGroup.GET("/:agent_id", getAgentTop)
+		agentsGroup.PUT("/:agent_id", upsertAgentTop)
+		agentsGroup.DELETE("/:agent_id", deleteAgentTop)
+	}
 	// Agent definition routes under workflows
 	workflowsGroup := apiBase.Group("/workflows/:workflow_id")
 	{

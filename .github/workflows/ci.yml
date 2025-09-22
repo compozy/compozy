@@ -211,6 +211,12 @@ jobs:
           make swagger
         continue-on-error: false
 
+      - name: Validate Swagger documentation
+        run: |
+          echo "Validating API documentation..."
+          make swagger-validate
+        continue-on-error: false
+
       - name: Run tests
         run: |
           echo "Running unit and integration tests..."

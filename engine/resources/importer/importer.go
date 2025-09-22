@@ -7,25 +7,48 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
-	"time"
 
+	agentuc "github.com/compozy/compozy/engine/agent/uc"
+	"github.com/compozy/compozy/engine/auth/model"
+	"github.com/compozy/compozy/engine/auth/userctx"
+	"github.com/compozy/compozy/engine/core"
+	mcpuc "github.com/compozy/compozy/engine/mcp/uc"
+	memoryuc "github.com/compozy/compozy/engine/memoryconfig/uc"
+	modeluc "github.com/compozy/compozy/engine/model/uc"
+	projectuc "github.com/compozy/compozy/engine/project/uc"
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/engine/resources/uc"
-	"github.com/compozy/compozy/pkg/config"
-	"github.com/compozy/compozy/pkg/logger"
+	schemauc "github.com/compozy/compozy/engine/schema/uc"
+	tooluc "github.com/compozy/compozy/engine/tool/uc"
+	wfuc "github.com/compozy/compozy/engine/workflow/uc"
 	"gopkg.in/yaml.v3"
 )
 
 // Strategy defines import conflict behavior
 type Strategy string
 
+// -----------------------------------------------------------------------------
+// Well-known directory names
+// -----------------------------------------------------------------------------
 const (
 	SeedOnly           Strategy = "seed_only"
 	OverwriteConflicts Strategy = "overwrite_conflicts"
 )
+
+// well-known directory names
+const (
+	dirWorkflows = "workflows"
+	dirAgents    = "agents"
+	dirTools     = "tools"
+	dirSchemas   = "schemas"
+	dirMCPs      = "mcps"
+	dirModels    = "models"
+	dirMemories  = "memories"
+	dirProject   = "project"
+)
+
+const defaultYAMLListCap = 16
 
 // Result summarizes import operation
 type Result struct {
@@ -36,18 +59,22 @@ type Result struct {
 
 func dirToType(dir string) (resources.ResourceType, bool) {
 	switch dir {
-	case "workflows":
+	case dirWorkflows:
 		return resources.ResourceWorkflow, true
-	case "agents":
+	case dirAgents:
 		return resources.ResourceAgent, true
-	case "tools":
+	case dirTools:
 		return resources.ResourceTool, true
-	case "schemas":
+	case dirSchemas:
 		return resources.ResourceSchema, true
-	case "mcps":
+	case dirMCPs:
 		return resources.ResourceMCP, true
-	case "models":
+	case dirModels:
 		return resources.ResourceModel, true
+	case dirMemories:
+		return resources.ResourceMemory, true
+	case dirProject:
+		return resources.ResourceProject, true
 	default:
 		return "", false
 	}
@@ -63,7 +90,6 @@ func ImportFromDir(
 	strategy Strategy,
 	updatedBy string,
 ) (*Result, error) {
-	_ = config.FromContext(ctx)
 	if project == "" {
 		return nil, fmt.Errorf("project is required")
 	}
@@ -77,6 +103,10 @@ func ImportFromDir(
 		Imported:    map[resources.ResourceType]int{},
 		Skipped:     map[resources.ResourceType]int{},
 		Overwritten: map[resources.ResourceType]int{},
+	}
+	trimmedUpdatedBy := strings.TrimSpace(updatedBy)
+	if trimmedUpdatedBy != "" {
+		ctx = userctx.WithUser(ctx, &model.User{ID: core.ID(trimmedUpdatedBy)})
 	}
 	entries, err := os.ReadDir(rootDir)
 	if err != nil {
@@ -107,7 +137,6 @@ func ImportFromDir(
 			bodies,
 			ids,
 			strategy,
-			strings.TrimSpace(updatedBy),
 		)
 		if err != nil {
 			return nil, err
@@ -120,7 +149,7 @@ func ImportFromDir(
 }
 
 func listYAMLFiles(dir string) ([]string, error) {
-	files := make([]string, 0, 16)
+	files := make([]string, 0, defaultYAMLListCap)
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -171,68 +200,304 @@ func applyForType(
 	bodies []map[string]any,
 	ids []string,
 	strategy Strategy,
-	updatedBy string,
 ) (imported int, skipped int, overwritten int, err error) {
-	log := logger.FromContext(ctx)
-	createUC := uc.NewCreateResource(store)
-	upsertUC := uc.NewUpsertResource(store)
+	switch strategy {
+	case SeedOnly:
+		return applySeedOnly(ctx, store, project, typ, bodies, ids)
+	case OverwriteConflicts:
+		return applyOverwriteConflicts(ctx, store, project, typ, bodies, ids)
+	default:
+		return 0, 0, 0, fmt.Errorf("unknown strategy: %s", strategy)
+	}
+}
+
+func applySeedOnly(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	typ resources.ResourceType,
+	bodies []map[string]any,
+	ids []string,
+) (imported int, skipped int, overwritten int, err error) {
 	for i := range bodies {
 		id := ids[i]
-		b := bodies[i]
+		body := bodies[i]
 		key := resources.ResourceKey{Project: project, Type: typ, ID: id}
-		switch strategy {
-		case SeedOnly:
-			if _, _, err := store.Get(ctx, key); err == nil {
-				skipped++
-				continue
-			} else if err != nil && !errors.Is(err, resources.ErrNotFound) {
-				return 0, 0, 0, fmt.Errorf("get existing %s/%s: %w", string(typ), id, err)
-			}
-			if _, err := createUC.Execute(ctx, &uc.CreateInput{Project: project, Type: typ, Body: b}); err != nil {
-				return 0, 0, 0, fmt.Errorf("create %s/%s: %w", string(typ), id, err)
-			}
-			imported++
-		case OverwriteConflicts:
-			prev, etag, err := store.Get(ctx, key)
-			switch {
-			case err == nil:
-				if deepEqual(prev, b) {
-					skipped++
-					continue
-				}
-				if _, err := upsertUC.Execute(
-					ctx,
-					&uc.UpsertInput{Project: project, Type: typ, ID: id, Body: b, IfMatch: string(etag)},
-				); err != nil {
-					return 0, 0, 0, fmt.Errorf("upsert %s/%s: %w", string(typ), id, err)
-				}
-				overwritten++
-			case errors.Is(err, resources.ErrNotFound):
-				if _, err := createUC.Execute(ctx, &uc.CreateInput{Project: project, Type: typ, Body: b}); err != nil {
+		if _, _, err := store.Get(ctx, key); err == nil {
+			skipped++
+			continue
+		} else if err != nil && !errors.Is(err, resources.ErrNotFound) {
+			return 0, 0, 0, fmt.Errorf("get existing %s/%s: %w", string(typ), id, err)
+		}
+		if _, _, err := upsertResource(ctx, store, typ, project, id, "", body); err != nil {
+			return 0, 0, 0, fmt.Errorf("create %s/%s: %w", string(typ), id, err)
+		}
+		imported++
+	}
+	return imported, skipped, overwritten, nil
+}
+
+func applyOverwriteConflicts(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	typ resources.ResourceType,
+	bodies []map[string]any,
+	ids []string,
+) (imported int, skipped int, overwritten int, err error) {
+	for i := range bodies {
+		id := ids[i]
+		body := bodies[i]
+		key := resources.ResourceKey{Project: project, Type: typ, ID: id}
+		_, existingETag, getErr := store.Get(ctx, key)
+		if getErr != nil {
+			if errors.Is(getErr, resources.ErrNotFound) {
+				if _, _, err := upsertResource(ctx, store, typ, project, id, "", body); err != nil {
 					return 0, 0, 0, fmt.Errorf("create %s/%s: %w", string(typ), id, err)
 				}
 				imported++
-			default:
-				return 0, 0, 0, fmt.Errorf("get existing %s/%s: %w", string(typ), id, err)
+				continue
 			}
-		default:
-			return 0, 0, 0, fmt.Errorf("unknown strategy: %s", strategy)
+			return 0, 0, 0, fmt.Errorf("get existing %s/%s: %w", string(typ), id, getErr)
 		}
-		metaID := project + ":" + string(typ) + ":" + id
-		meta := map[string]any{
-			"source":     "yaml",
-			"updated_at": time.Now().UTC().Format(time.RFC3339),
-			"updated_by": updatedBy,
+		newETag, created, err := upsertResource(ctx, store, typ, project, id, string(existingETag), body)
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("upsert %s/%s: %w", string(typ), id, err)
 		}
-		if _, err := store.Put(
-			ctx,
-			resources.ResourceKey{Project: project, Type: resources.ResourceMeta, ID: metaID},
-			meta,
-		); err != nil {
-			log.Warn("failed to write meta record", "error", err, "id", metaID)
+		if created {
+			imported++
+			continue
 		}
+		if newETag == existingETag {
+			skipped++
+			continue
+		}
+		overwritten++
 	}
 	return imported, skipped, overwritten, nil
+}
+
+type upsertHandler func(
+	context.Context,
+	resources.ResourceStore,
+	string,
+	string,
+	string,
+	map[string]any,
+) (resources.ETag, bool, error)
+
+var standardUpsertHandlers = map[resources.ResourceType]upsertHandler{
+	resources.ResourceWorkflow: workflowUpsert,
+	resources.ResourceAgent:    agentUpsert,
+	resources.ResourceTool:     toolUpsert,
+	resources.ResourceSchema:   schemaUpsert,
+	resources.ResourceModel:    modelUpsert,
+	resources.ResourceMemory:   memoryUpsert,
+	resources.ResourceProject:  projectUpsert,
+	resources.ResourceMCP:      mcpUpsert,
+}
+
+var _ = ensureStandardUpsertHandlers()
+
+func ensureStandardUpsertHandlers() bool {
+	required := []resources.ResourceType{
+		resources.ResourceWorkflow,
+		resources.ResourceAgent,
+		resources.ResourceTool,
+		resources.ResourceSchema,
+		resources.ResourceModel,
+		resources.ResourceMemory,
+		resources.ResourceProject,
+		resources.ResourceMCP,
+	}
+	for _, typ := range required {
+		if _, ok := standardUpsertHandlers[typ]; !ok {
+			panic(fmt.Sprintf("importer: missing standard handler for type %s", typ))
+		}
+	}
+	return true
+}
+
+func upsertResource(
+	ctx context.Context,
+	store resources.ResourceStore,
+	typ resources.ResourceType,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	if handler, ok := standardUpsertHandlers[typ]; ok {
+		return handler(ctx, store, project, id, strings.TrimSpace(ifMatch), body)
+	}
+	return "", false, fmt.Errorf("unsupported resource type: %s", typ)
+}
+
+func workflowUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &wfuc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: ifMatch,
+	}
+	out, err := wfuc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func agentUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &agentuc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: ifMatch,
+	}
+	out, err := agentuc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func toolUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &tooluc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: ifMatch,
+	}
+	out, err := tooluc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func schemaUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &schemauc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: ifMatch,
+	}
+	out, err := schemauc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func modelUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &modeluc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: ifMatch,
+	}
+	out, err := modeluc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func memoryUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &memoryuc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: ifMatch,
+	}
+	out, err := memoryuc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func projectUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	_ string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &projectuc.UpsertInput{
+		Project: project,
+		Body:    body,
+		IfMatch: ifMatch,
+	}
+	out, err := projectuc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func mcpUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &mcpuc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: ifMatch,
+	}
+	out, err := mcpuc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
 }
 
 func parseYAMLFile(path string) (map[string]any, string, error) {
@@ -249,44 +514,4 @@ func parseYAMLFile(path string) (map[string]any, string, error) {
 		id = strings.TrimSpace(v)
 	}
 	return m, id, nil
-}
-
-// deepEqual is a conservative equality check for map[string]any and slices.
-func deepEqual(a, b any) bool {
-	switch at := a.(type) {
-	case map[string]any:
-		bt, ok := b.(map[string]any)
-		if !ok {
-			return false
-		}
-		if len(at) != len(bt) {
-			return false
-		}
-		for k, av := range at {
-			bv, ok := bt[k]
-			if !ok {
-				return false
-			}
-			if !deepEqual(av, bv) {
-				return false
-			}
-		}
-		return true
-	case []any:
-		bs, ok := b.([]any)
-		if !ok {
-			return false
-		}
-		if len(at) != len(bs) {
-			return false
-		}
-		for i := range at {
-			if !deepEqual(at[i], bs[i]) {
-				return false
-			}
-		}
-		return true
-	default:
-		return reflect.DeepEqual(a, b)
-	}
 }

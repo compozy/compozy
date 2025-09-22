@@ -53,7 +53,7 @@ type Processor interface {
 // @Failure 500 {object} ErrorResponse "Internal server error"
 // @x-example-success {"data":{"result":"ok"},"message":"Success"}
 // @x-example-error {"error":"bad_request","details":"invalid JSON payload"}
-// @Router /api/v0/hooks/{slug} [post]
+// @Router /hooks/{slug} [post]
 func RegisterPublic(r *gin.RouterGroup, p Processor) {
 	r.POST("/:slug", func(c *gin.Context) {
 		slug := c.Param("slug")

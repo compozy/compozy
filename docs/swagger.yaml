@@ -259,6 +259,54 @@ definitions:
           Config holds an inline provider configuration when specified as a mapping.
           When Ref is set, Config may be merged with the resolved model during linking.
     type: object
+  agentrouter.AgentDTO:
+    properties:
+      env:
+        additionalProperties: {}
+        type: object
+      id:
+        type: string
+      instructions:
+        type: string
+      model:
+        additionalProperties: {}
+        type: object
+      resource:
+        type: string
+      with:
+        additionalProperties: {}
+        type: object
+    type: object
+  agentrouter.AgentListItem:
+    properties:
+      env:
+        additionalProperties: {}
+        type: object
+      etag:
+        example: abc123
+        type: string
+      id:
+        type: string
+      instructions:
+        type: string
+      model:
+        additionalProperties: {}
+        type: object
+      resource:
+        type: string
+      with:
+        additionalProperties: {}
+        type: object
+    type: object
+  agentrouter.AgentsListResponse:
+    properties:
+      agents:
+        items:
+          $ref: '#/definitions/agentrouter.AgentListItem'
+        type: array
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+    type: object
   core.Author:
     properties:
       contributors:
@@ -355,6 +403,49 @@ definitions:
           Error context passed to the handler
           Includes error details: { "error": "{{ .error }}", "attempt": "{{ .retryCount }}" }
     type: object
+  core.GlobalOpts:
+    properties:
+      heartbeat_timeout:
+        description: |-
+          Interval for task heartbeat signals
+          Used for long-running tasks to indicate progress
+
+          - **Example**: "10s", "30s", "1m"
+        type: string
+      on_error:
+        allOf:
+          - $ref: '#/definitions/core.ErrorTransition'
+        description: |-
+          Error handler configuration
+          Defines what happens when a task fails after all retries
+      retry_policy:
+        allOf:
+          - $ref: '#/definitions/core.RetryPolicyConfig'
+        description: |-
+          Retry configuration for transient failures
+          Automatically retries failed tasks with exponential backoff
+      schedule_to_close_timeout:
+        description: |-
+          Total timeout from scheduling to completion
+          Default: "6m"
+
+          - **Example**: "1m", "15m", "2h"
+        type: string
+      schedule_to_start_timeout:
+        description: |-
+          Maximum time to wait for a task to start executing
+          Default: "1m"
+
+          - **Example**: "30s", "5m", "1h"
+        type: string
+      start_to_close_timeout:
+        description: |-
+          Maximum time for task execution once started
+          Default: "5m"
+
+          - **Example**: "30s", "10m", "1h"
+        type: string
+    type: object
   core.Input:
     additionalProperties: {}
     type: object
@@ -383,6 +474,27 @@ definitions:
     properties:
       path:
         description: Path holds the absolute working directory.
+        type: string
+    type: object
+  core.ProblemDocument:
+    properties:
+      code:
+        example: invalid_cursor
+        type: string
+      detail:
+        example: Invalid cursor parameter
+        type: string
+      instance:
+        example: /api/v0/workflows
+        type: string
+      status:
+        example: 400
+        type: integer
+      title:
+        example: Bad Request
+        type: string
+      type:
+        example: about:blank
         type: string
     type: object
   core.PromptParams:
@@ -629,6 +741,20 @@ definitions:
       - StatusCanceled
       - StatusWaiting
       - StatusPaused
+  core.SuccessTransition:
+    properties:
+      next:
+        description: |-
+          ID of the next task to execute
+          - **Example:** `"process-results"`, `"send-notification"`
+        type: string
+      with:
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: |-
+          Input parameters to pass to the next task
+          - **Supports:** Template expressions like `{ "data": "{{ .output.result }}" }`
+    type: object
   gin.H:
     additionalProperties: {}
     type: object
@@ -959,6 +1085,72 @@ definitions:
       - TransportStdio
       - TransportSSE
       - TransportStreamableHTTP
+  mcprouter.MCPDTO:
+    properties:
+      command:
+        type: string
+      env:
+        additionalProperties:
+          type: string
+        type: object
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      id:
+        type: string
+      max_sessions:
+        type: integer
+      proto:
+        type: string
+      resource:
+        type: string
+      start_timeout:
+        type: string
+      transport:
+        type: string
+      url:
+        type: string
+    type: object
+  mcprouter.MCPListItem:
+    properties:
+      command:
+        type: string
+      env:
+        additionalProperties:
+          type: string
+        type: object
+      etag:
+        example: abc123
+        type: string
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      id:
+        type: string
+      max_sessions:
+        type: integer
+      proto:
+        type: string
+      resource:
+        type: string
+      start_timeout:
+        type: string
+      transport:
+        type: string
+      url:
+        type: string
+    type: object
+  mcprouter.MCPsListResponse:
+    properties:
+      mcps:
+        items:
+          $ref: '#/definitions/mcprouter.MCPListItem'
+        type: array
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+    type: object
   memory.InstanceHealth:
     properties:
       consecutive_failures:
@@ -1005,6 +1197,92 @@ definitions:
         type: number
       used:
         type: integer
+    type: object
+  memoryrouter.MemoriesListResponse:
+    properties:
+      memories:
+        items:
+          $ref: '#/definitions/memoryrouter.MemoryListItem'
+        type: array
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+    type: object
+  memoryrouter.MemoryDTO:
+    properties:
+      default_key_template:
+        type: string
+      description:
+        type: string
+      flushing:
+        additionalProperties: {}
+        type: object
+      id:
+        type: string
+      locking:
+        additionalProperties: {}
+        type: object
+      max_context_ratio:
+        type: number
+      max_messages:
+        type: integer
+      max_tokens:
+        type: integer
+      persistence:
+        additionalProperties: {}
+        type: object
+      privacy_policy:
+        additionalProperties: {}
+        type: object
+      resource:
+        type: string
+      token_allocation:
+        additionalProperties: {}
+        type: object
+      token_provider:
+        additionalProperties: {}
+        type: object
+      type:
+        type: string
+    type: object
+  memoryrouter.MemoryListItem:
+    properties:
+      default_key_template:
+        type: string
+      description:
+        type: string
+      etag:
+        example: abc123
+        type: string
+      flushing:
+        additionalProperties: {}
+        type: object
+      id:
+        type: string
+      locking:
+        additionalProperties: {}
+        type: object
+      max_context_ratio:
+        type: number
+      max_messages:
+        type: integer
+      max_tokens:
+        type: integer
+      persistence:
+        additionalProperties: {}
+        type: object
+      privacy_policy:
+        additionalProperties: {}
+        type: object
+      resource:
+        type: string
+      token_allocation:
+        additionalProperties: {}
+        type: object
+      token_provider:
+        additionalProperties: {}
+        type: object
+      type:
+        type: string
     type: object
   memrouter.AppendMemoryRequest:
     properties:
@@ -1066,6 +1344,102 @@ definitions:
       - key
       - messages
     type: object
+  modelrouter.ModelDTO:
+    properties:
+      api_url:
+        type: string
+      id:
+        type: string
+      model:
+        type: string
+      organization:
+        type: string
+      params:
+        additionalProperties: {}
+        type: object
+      provider:
+        type: string
+      resource:
+        type: string
+    type: object
+  modelrouter.ModelListItem:
+    properties:
+      api_url:
+        type: string
+      etag:
+        example: abc123
+        type: string
+      id:
+        type: string
+      model:
+        type: string
+      organization:
+        type: string
+      params:
+        additionalProperties: {}
+        type: object
+      provider:
+        type: string
+      resource:
+        type: string
+    type: object
+  modelrouter.ModelsListResponse:
+    properties:
+      models:
+        items:
+          $ref: '#/definitions/modelrouter.ModelListItem'
+        type: array
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+    type: object
+  projectrouter.ProjectDTO:
+    properties:
+      author:
+        $ref: '#/definitions/core.Author'
+      autoload:
+        additionalProperties: {}
+        type: object
+      config:
+        additionalProperties: {}
+        type: object
+      description:
+        type: string
+      memories:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      models:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      monitoring:
+        additionalProperties: {}
+        type: object
+      name:
+        type: string
+      runtime:
+        additionalProperties: {}
+        type: object
+      schemas:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      tools:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      version:
+        type: string
+      workflows:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+    type: object
   router.CreateUserRequest:
     properties:
       email:
@@ -1102,6 +1476,21 @@ definitions:
         $ref: '#/definitions/router.GenerateKeyData'
       message:
         type: string
+    type: object
+  router.PageInfoDTO:
+    properties:
+      limit:
+        example: 50
+        type: integer
+      next_cursor:
+        example: v2:after:tool-001
+        type: string
+      prev_cursor:
+        example: v2:before:tool-000
+        type: string
+      total:
+        example: 2
+        type: integer
     type: object
   router.Response:
     properties:
@@ -1174,6 +1563,32 @@ definitions:
   schema.Schema:
     additionalProperties: {}
     type: object
+  schemarouter.SchemaDTO:
+    properties:
+      body:
+        items:
+          type: integer
+        type: array
+    type: object
+  schemarouter.SchemaListItem:
+    properties:
+      body:
+        items:
+          type: integer
+        type: array
+      etag:
+        example: abc123
+        type: string
+    type: object
+  schemarouter.SchemasListResponse:
+    properties:
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+      schemas:
+        items:
+          $ref: '#/definitions/schemarouter.SchemaListItem'
+        type: array
+    type: object
   service.AppendResponse:
     properties:
       appended:
@@ -1201,6 +1616,412 @@ definitions:
       success:
         type: boolean
     type: object
+  task.ClearConfig:
+    properties:
+      backup:
+        description: |-
+          Backup data before clearing
+          Implementation-dependent, may not be available for all backends
+        type: boolean
+      confirm:
+        description: |-
+          Confirm must be true to execute clear operation
+          Required safety check to prevent accidental data loss
+        type: boolean
+    type: object
+  task.CollectionMode:
+    enum:
+      - parallel
+      - sequential
+    type: string
+    x-enum-varnames:
+      - CollectionModeParallel
+      - CollectionModeSequential
+  task.Config:
+    properties:
+      CWD:
+        allOf:
+          - $ref: '#/definitions/core.PathCWD'
+        description: |-
+          Current working directory for file operations within the task
+          Inherited from parent context if not explicitly set
+      action:
+        description: |-
+          Action identifier that describes what this task does
+          Used for logging and debugging purposes
+          - **Example**: "process-user-data", "send-notification"
+        type: string
+      agent:
+        allOf:
+          - $ref: '#/definitions/agent.Config'
+        description: |-
+          Agent configuration for AI-powered task execution
+          Only used when the task needs to interact with an LLM agent
+          Mutually exclusive with Tool field
+          $ref: schema://agents
+      attachments:
+        description: Attachments declared at the task scope are available to all nested agents/actions.
+        items: {}
+        type: array
+      batch:
+        description: |-
+          Batch size for processing items in groups (0 = no batching)
+          Useful for rate limiting or managing resource usage
+          - **Example**: 10 means process 10 items at a time
+        type: integer
+      batch_size:
+        description: |-
+          BatchSize for operations that process multiple keys
+          Controls how many keys are processed in each batch
+          Default: 100, Maximum: 10,000
+        type: integer
+      clear_config:
+        allOf:
+          - $ref: '#/definitions/task.ClearConfig'
+        description: |-
+          Configuration for clear operations
+          Only used when operation is "clear"
+      condition:
+        description: |-
+          CEL expression for conditional task execution or routing decisions
+          Task only executes if condition evaluates to true
+          - **Example**: "input.status == 'approved' && input.amount > 1000"
+        type: string
+      config:
+        allOf:
+          - $ref: '#/definitions/core.GlobalOpts'
+        description: |-
+          Global configuration options inherited from parent contexts
+          Includes provider settings, API keys, and other global parameters
+      env:
+        allOf:
+          - $ref: '#/definitions/core.EnvMap'
+        description: |-
+          Environment variables available during task execution
+          Can override or extend workflow-level environment variables
+          - **Example**: { "API_KEY": "{{ .env.SECRET_KEY }}" }
+      file_path:
+        description: |-
+          Absolute file path where this task configuration was loaded from
+          Set automatically during configuration loading
+        type: string
+      filter:
+        description: |-
+          Filter is an optional CEL expression to filter items before processing
+          Each item is available as 'item' in the expression
+          - **Example**: "item.status != 'inactive'" or "item.age > 18"
+        type: string
+      final:
+        description: |-
+          Marks this task as a terminal node in the workflow
+          No subsequent tasks will execute after a final task
+        type: boolean
+      flush_config:
+        allOf:
+          - $ref: '#/definitions/task.FlushConfig'
+        description: |-
+          Configuration for flush operations
+          Only used when operation is "flush"
+      health_config:
+        allOf:
+          - $ref: '#/definitions/task.HealthConfig'
+        description: |-
+          Configuration for health check operations
+          Only used when operation is "health"
+      id:
+        description: |-
+          Unique identifier for the task instance within a workflow
+          Must be unique within the workflow scope
+        type: string
+      index_var:
+        description: |-
+          IndexVar is the variable name for the current index (default: "index")
+          Available in task templates as {{ .index }} or custom name
+          Zero-based index of the current item
+        type: string
+      input:
+        allOf:
+          - $ref: '#/definitions/schema.Schema'
+        description: |-
+          Schema definition for validating task input parameters
+          Follows JSON Schema specification for type validation
+          Format:
+            type: object
+            properties:
+              user_id: { type: string, description: "User identifier" }
+            required: ["user_id"]
+      item_var:
+        description: |-
+          ItemVar is the variable name for the current item (default: "item")
+          Available in task templates as {{ .item }} or custom name
+          - **Example**: Set to "user" to access as {{ .user }} in templates
+        type: string
+      items:
+        description: |-
+          Items is a template expression that evaluates to an array
+          The expression should resolve to a list of items to iterate over
+          - **Example**: "{{ .workflow.input.users }}" or "{{ range(1, 10) }}"
+        type: string
+      json_mode:
+        description: |-
+          Forces the agent to always respond in valid JSON format.
+          When enabled, the agent's responses must be parseable JSON objects.
+
+          **Use cases:**
+          - API integrations requiring structured data
+          - Automated processing of agent outputs
+          - Ensuring consistent response formats
+
+          ⚠️ **Note:** May limit the agent's ability to provide explanatory text
+        type: boolean
+      key_template:
+        description: |-
+          KeyTemplate is a template expression for the memory key
+          Supports template variables for dynamic key generation
+          - **Example**: "user:{{ .workflow.input.user_id }}:profile"
+        type: string
+      max_iterations:
+        description: |-
+          Maximum number of reasoning iterations the agent can perform.
+          The agent may self-correct and refine its response across multiple iterations
+          to improve accuracy and address complex multi-step problems.
+
+          **Default:** `5` iterations
+
+          **Trade-offs:**
+          - Higher values enable more thorough problem-solving and self-correction
+          - Each iteration consumes additional tokens and increases response latency
+          - Configure based on task complexity, accuracy requirements, and cost constraints
+        type: integer
+      max_keys:
+        description: |-
+          MaxKeys limits the number of keys processed
+          Safety limit to prevent runaway operations
+          Default: 1,000, Maximum: 50,000
+        type: integer
+      max_workers:
+        description: |-
+          MaxWorkers limits the number of concurrent task executions
+          0 means no limit (all tasks run concurrently)
+          - **Example**: 5 means at most 5 tasks run at the same time
+        type: integer
+      mcps:
+        description: |-
+          Model Context Protocol (MCP) server configurations.
+          MCPs provide standardized interfaces for extending agent capabilities
+          with external services and data sources through protocol-based communication.
+
+          **Common MCP integrations:**
+          - Database connectors (PostgreSQL, Redis, MongoDB)
+          - Search engines (Elasticsearch, Solr)
+          - Knowledge bases (vector databases, documentation systems)
+          - External APIs (REST, GraphQL, gRPC services)
+
+          MCPs support both stdio and HTTP transport protocols.
+        items:
+          $ref: '#/definitions/mcp.Config'
+        type: array
+      memory:
+        description: |-
+          Memory references enabling the agent to access persistent context.
+          Memory provides stateful interactions across workflow steps and sessions.
+
+          **Configuration format:**
+          ```yaml
+          memory:
+            - id: "user_context"  # Memory resource ID
+              key: "user:{{.user_id}}"  # Dynamic key with template
+              mode: "read-write"  # Access mode (default: "read-write")
+          ```
+
+          **Access modes:**
+          - `"read-write"`: Full access to read and modify memory
+          - `"read-only"`: Can only read existing memory entries
+        items:
+          $ref: '#/definitions/core.MemoryReference'
+        type: array
+      memory_ref:
+        description: |-
+          MemoryRef identifies which memory store to use
+          References a memory configuration defined at the project level
+          - **Example**: "user-sessions", "workflow-state", "cache"
+        type: string
+      mode:
+        allOf:
+          - $ref: '#/definitions/task.CollectionMode'
+        description: |-
+          Mode determines if items are processed in parallel or sequentially
+          Defaults to "parallel"
+          Options: parallel, sequential
+      model_config:
+        allOf:
+          - $ref: '#/definitions/core.ProviderConfig'
+        description: |-
+          LLM provider configuration defining which AI model to use and its parameters.
+          Supports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.
+
+          **Required fields:** provider, model
+          **Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)
+      on_error:
+        allOf:
+          - $ref: '#/definitions/core.ErrorTransition'
+        description: |-
+          Error handling configuration
+          Defines fallback behavior when task execution fails
+          Can specify error task ID or retry configuration
+      on_success:
+        allOf:
+          - $ref: '#/definitions/core.SuccessTransition'
+        description: |-
+          Task execution control
+          Defines what happens after successful task completion
+          Can specify next task ID or conditional routing
+      on_timeout:
+        description: |-
+          OnTimeout specifies the next task to execute if the wait times out
+          Uses the timeout value from BaseConfig
+          If not specified, the task fails on timeout
+        type: string
+      operation:
+        allOf:
+          - $ref: '#/definitions/task.MemoryOpType'
+        description: |-
+          Operation type to perform on memory
+          Required field that determines the action to take
+      output:
+        allOf:
+          - $ref: '#/definitions/schema.Schema'
+        description: |-
+          Schema definition for validating task output data
+          Ensures task results conform to expected structure
+          Uses same format as InputSchema
+      outputs:
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: |-
+          Output mappings that define what data this task exposes to subsequent tasks
+          Uses template expressions to transform task results
+          - **Example**: { "processed_data": "{{ .task.output.result }}" }
+      payload:
+        description: |-
+          Payload data for write/append operations
+          Can be any JSON-serializable data structure
+          Required for write and append operations
+      processor:
+        allOf:
+          - $ref: '#/definitions/task.Config'
+        description: |-
+          Processor is an optional task configuration to process received signals
+          Allows custom handling of signal data before continuing
+          The processor receives the signal payload as input
+          $ref: inline:#
+      prompt:
+        description: |-
+          Prompt provides direct instruction to agents when no specific action is needed
+          Used for ad-hoc agent interactions without predefined action definitions
+          - **Example**: "Analyze this code for security issues", "Summarize the following text"
+        type: string
+      resource:
+        description: |-
+          Resource reference for the task
+          Format: "compozy:task:<name>" (e.g., "compozy:task:process-data")
+        type: string
+      retries:
+        description: |-
+          Number of retry attempts for failed task executions
+          Default: 0 (no retries)
+        type: integer
+      routes:
+        additionalProperties: {}
+        description: |-
+          Routes maps condition values to task IDs or inline task configurations
+          The condition field in BaseConfig is evaluated, and its result is used
+          as the key to select the appropriate route
+          Values can be:
+            - Task ID (string): References an existing task
+            - Inline task config (object): Defines task configuration directly
+          - **Example**:
+            routes:
+              approved: "process-payment"  # Task ID reference
+              rejected:  # Inline task config
+                type: basic
+                agent: { id: rejection-handler }
+              pending: "wait-for-approval"
+        type: object
+      signal:
+        allOf:
+          - $ref: '#/definitions/task.SignalConfig'
+        description: Signal configuration containing the signal ID and payload
+      sleep:
+        description: |-
+          Sleep duration after task completion
+          Format: "5s", "1m", "500ms", "1h30m"
+          Useful for rate limiting or giving external systems time to process
+        type: string
+      stats_config:
+        allOf:
+          - $ref: '#/definitions/task.StatsConfig'
+        description: |-
+          Configuration for statistics operations
+          Only used when operation is "stats"
+      strategy:
+        allOf:
+          - $ref: '#/definitions/task.ParallelStrategy'
+        description: |-
+          Strategy determines how the parallel execution handles task completion
+          Defaults to "wait_all" if not specified
+          Options: wait_all, fail_fast, best_effort, race
+      timeout:
+        description: |-
+          Maximum execution time for parallel or composite tasks
+          Format: "30s", "5m", "1h"
+          Task will be canceled if it exceeds this duration
+        type: string
+      tool:
+        allOf:
+          - $ref: '#/definitions/tool.Config'
+        description: |-
+          Tool configuration for executing specific tool operations
+          Used when the task needs to execute a predefined tool
+          Mutually exclusive with Agent field
+          $ref: schema://tools
+      tools:
+        description: |-
+          Tools available to the agent for extending its capabilities.
+          When tools are defined, the agent automatically has `toolChoice` set to `"auto"`,
+          enabling autonomous tool selection and invocation during task execution.
+
+          **Tool types supported:**
+          - File system operations (read, write, list)
+          - API integrations (HTTP requests, webhooks)
+          - Data processing utilities (parsing, transformation)
+          - Custom business logic (TypeScript/JavaScript execution)
+
+          Tools are referenced by ID and can be shared across multiple agents.
+        items:
+          $ref: '#/definitions/tool.Config'
+        type: array
+      type:
+        allOf:
+          - $ref: '#/definitions/task.Type'
+        description: |-
+          Type of task that determines execution behavior
+          If not specified, defaults to "basic"
+      wait_for:
+        description: |-
+          WaitFor specifies the signal ID to wait for
+          The task will pause until a signal with this ID is received
+          Must match the ID used in a SignalTask
+          - **Example**: "user-approved", "payment-completed"
+        type: string
+      with:
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: |-
+          Input parameters passed to the task at execution time
+          Can include references to workflow inputs, previous task outputs, etc.
+          - **Example**: { "user_id": "{{ .workflow.input.user_id }}" }
+    type: object
   task.ExecutionType:
     enum:
       - basic
@@ -1223,6 +2044,97 @@ definitions:
       - ExecutionSignal
       - ExecutionAggregate
       - ExecutionMemory
+  task.FlushConfig:
+    properties:
+      dry_run:
+        description: |-
+          DryRun simulates flush without actually removing data
+          Useful for testing what would be removed
+        type: boolean
+      force:
+        description: |-
+          Force flush even if below threshold
+          Bypasses normal threshold checks
+        type: boolean
+      max_keys:
+        description: |-
+          Maximum number of keys to flush in one operation
+          Default: 100
+        type: integer
+      strategy:
+        description: |-
+          Strategy for selecting keys to flush
+          Options: "simple_fifo" (oldest first), "lru" (least recently used)
+          Default: "simple_fifo"
+        type: string
+      threshold:
+        description: |-
+          Threshold (0-1) for triggering flush based on memory usage
+          - **Example**: 0.8 means flush when 80% full
+        type: number
+    type: object
+  task.HealthConfig:
+    properties:
+      check_connectivity:
+        description: |-
+          CheckConnectivity verifies connection to memory backend
+          Tests actual read/write operations
+        type: boolean
+      include_stats:
+        description: |-
+          IncludeStats adds memory statistics to health check results
+          Provides additional diagnostic information
+        type: boolean
+    type: object
+  task.MemoryOpType:
+    enum:
+      - read
+      - write
+      - append
+      - delete
+      - flush
+      - health
+      - clear
+      - stats
+    type: string
+    x-enum-varnames:
+      - MemoryOpRead
+      - MemoryOpWrite
+      - MemoryOpAppend
+      - MemoryOpDelete
+      - MemoryOpFlush
+      - MemoryOpHealth
+      - MemoryOpClear
+      - MemoryOpStats
+  task.ParallelStrategy:
+    enum:
+      - wait_all
+      - fail_fast
+      - best_effort
+      - race
+    type: string
+    x-enum-varnames:
+      - StrategyWaitAll
+      - StrategyFailFast
+      - StrategyBestEffort
+      - StrategyRace
+  task.SignalConfig:
+    properties:
+      id:
+        description: |-
+          ID is the unique identifier for the signal
+          Wait tasks with matching wait_for values will receive this signal
+          - **Example**: "user-approved", "payment-completed", "data-ready"
+        type: string
+      payload:
+        additionalProperties: {}
+        description: |-
+          Payload contains data to send with the signal
+          This data is available to the receiving wait task for processing
+          Can be any JSON-serializable data structure
+          - **Example**: { "user_id": "123", "status": "approved", "timestamp": "2024-01-01T00:00:00Z" }
+        type: object
+    type: object
   task.State:
     properties:
       action_id:
@@ -1264,6 +2176,20 @@ definitions:
         type: string
       workflow_id:
         type: string
+    type: object
+  task.StatsConfig:
+    properties:
+      group_by:
+        description: |-
+          GroupBy field for aggregating statistics
+          - **Example**: "user", "session", "workflow"
+          Groups stats by the specified field in stored data
+        type: string
+      include_content:
+        description: |-
+          IncludeContent includes actual memory content in stats
+          WARNING: May return large amounts of data
+        type: boolean
     type: object
   task.Type:
     enum:
@@ -1308,20 +2234,17 @@ definitions:
       - Second
       - Minute
       - Hour
-  tkrouter.TaskResponse:
+  tkrouter.TaskDTO:
     properties:
       action:
         type: string
       condition:
-        description: Task-specific fields (without recursive Tasks/Task fields)
         type: string
       env:
         $ref: '#/definitions/core.EnvMap'
       has_subtasks:
-        description: Metadata
         type: boolean
       id:
-        description: BaseConfig fields
         type: string
       items: {}
       mode:
@@ -1345,6 +2268,88 @@ definitions:
         $ref: '#/definitions/task.Type'
       with:
         $ref: '#/definitions/core.Input'
+    type: object
+  tkrouter.TaskListItem:
+    properties:
+      action:
+        type: string
+      condition:
+        type: string
+      env:
+        $ref: '#/definitions/core.EnvMap'
+      etag:
+        example: abc123
+        type: string
+      has_subtasks:
+        type: boolean
+      id:
+        type: string
+      items: {}
+      mode:
+        type: string
+      outputs:
+        $ref: '#/definitions/core.Input'
+      routes:
+        additionalProperties: {}
+        type: object
+      signal_name:
+        type: string
+      strategy:
+        type: string
+      subtask_ids:
+        items:
+          type: string
+        type: array
+      timeout:
+        type: string
+      type:
+        $ref: '#/definitions/task.Type'
+      with:
+        $ref: '#/definitions/core.Input'
+    type: object
+  tkrouter.TaskResponse:
+    properties:
+      action:
+        type: string
+      condition:
+        type: string
+      env:
+        $ref: '#/definitions/core.EnvMap'
+      has_subtasks:
+        type: boolean
+      id:
+        type: string
+      items: {}
+      mode:
+        type: string
+      outputs:
+        $ref: '#/definitions/core.Input'
+      routes:
+        additionalProperties: {}
+        type: object
+      signal_name:
+        type: string
+      strategy:
+        type: string
+      subtask_ids:
+        items:
+          type: string
+        type: array
+      timeout:
+        type: string
+      type:
+        $ref: '#/definitions/task.Type'
+      with:
+        $ref: '#/definitions/core.Input'
+    type: object
+  tkrouter.TasksListResponse:
+    properties:
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+      tasks:
+        items:
+          $ref: '#/definitions/tkrouter.TaskListItem'
+        type: array
     type: object
   tool.Config:
     properties:
@@ -1456,6 +2461,78 @@ definitions:
           - **Merge strategy:** Runtime parameters override defaults (shallow merge)
           - **Use cases:** Default API URLs, fallback configurations, preset options
           - **Security note:** Avoid storing secrets here; use environment variables instead
+    type: object
+  toolrouter.ToolDTO:
+    properties:
+      config:
+        additionalProperties: {}
+        type: object
+      description:
+        example: HTTP client tool
+        type: string
+      env:
+        additionalProperties: {}
+        type: object
+      id:
+        example: http
+        type: string
+      input:
+        additionalProperties: {}
+        type: object
+      output:
+        additionalProperties: {}
+        type: object
+      resource:
+        example: tool
+        type: string
+      timeout:
+        example: 30s
+        type: string
+      with:
+        additionalProperties: {}
+        type: object
+    type: object
+  toolrouter.ToolListItem:
+    properties:
+      config:
+        additionalProperties: {}
+        type: object
+      description:
+        example: HTTP client tool
+        type: string
+      env:
+        additionalProperties: {}
+        type: object
+      etag:
+        example: abc123
+        type: string
+      id:
+        example: http
+        type: string
+      input:
+        additionalProperties: {}
+        type: object
+      output:
+        additionalProperties: {}
+        type: object
+      resource:
+        example: tool
+        type: string
+      timeout:
+        example: 30s
+        type: string
+      with:
+        additionalProperties: {}
+        type: object
+    type: object
+  toolrouter.ToolsListResponse:
+    properties:
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+      tools:
+        items:
+          $ref: '#/definitions/toolrouter.ToolListItem'
+        type: array
     type: object
   uc.ClearMemoryResult:
     properties:
@@ -1599,6 +2676,17 @@ definitions:
       strategy:
         type: string
     type: object
+  wfrouter.AgentsOrDTOs:
+    properties:
+      expanded:
+        items:
+          $ref: '#/definitions/agentrouter.AgentDTO'
+        type: array
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
   wfrouter.EventRequest:
     properties:
       name:
@@ -1646,40 +2734,222 @@ definitions:
         example: Signal sent successfully
         type: string
     type: object
-  wfrouter.WorkflowResponse:
+  wfrouter.TasksOrDTOs:
+    properties:
+      expanded:
+        items:
+          $ref: '#/definitions/tkrouter.TaskDTO'
+        type: array
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
+  wfrouter.ToolsOrDTOs:
+    properties:
+      expanded:
+        items:
+          $ref: '#/definitions/toolrouter.ToolDTO'
+        type: array
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
+  wfrouter.WorkflowDTO:
     properties:
       agent_count:
         type: integer
+      agents:
+        $ref: '#/definitions/wfrouter.AgentsOrDTOs'
       author:
         $ref: '#/definitions/core.Author'
       config:
-        allOf:
-          - $ref: '#/definitions/workflow.Opts'
-        description: Configuration
+        $ref: '#/definitions/workflow.Opts'
       description:
         type: string
       id:
-        description: Basic workflow fields
         type: string
       mcp_count:
         type: integer
       schedule:
         $ref: '#/definitions/workflow.Schedule'
       task_count:
-        description: Task information (without circular references)
         type: integer
       task_ids:
         items:
           type: string
         type: array
+      tasks:
+        allOf:
+          - $ref: '#/definitions/wfrouter.TasksOrDTOs'
+        description: 'Expandable collections: marshaled as either []string or []<DTO>'
       tool_count:
-        description: Other counts
         type: integer
+      tools:
+        $ref: '#/definitions/wfrouter.ToolsOrDTOs'
       triggers:
         items:
           $ref: '#/definitions/workflow.Trigger'
         type: array
       version:
+        type: string
+    type: object
+  wfrouter.WorkflowListItem:
+    properties:
+      agent_count:
+        type: integer
+      agents:
+        $ref: '#/definitions/wfrouter.AgentsOrDTOs'
+      author:
+        $ref: '#/definitions/core.Author'
+      config:
+        $ref: '#/definitions/workflow.Opts'
+      description:
+        type: string
+      etag:
+        example: abc123
+        type: string
+      id:
+        type: string
+      mcp_count:
+        type: integer
+      schedule:
+        $ref: '#/definitions/workflow.Schedule'
+      task_count:
+        type: integer
+      task_ids:
+        items:
+          type: string
+        type: array
+      tasks:
+        allOf:
+          - $ref: '#/definitions/wfrouter.TasksOrDTOs'
+        description: 'Expandable collections: marshaled as either []string or []<DTO>'
+      tool_count:
+        type: integer
+      tools:
+        $ref: '#/definitions/wfrouter.ToolsOrDTOs'
+      triggers:
+        items:
+          $ref: '#/definitions/workflow.Trigger'
+        type: array
+      version:
+        type: string
+    type: object
+  wfrouter.WorkflowsListResponse:
+    properties:
+      page:
+        $ref: '#/definitions/router.PageInfoDTO'
+      workflows:
+        items:
+          $ref: '#/definitions/wfrouter.WorkflowListItem'
+        type: array
+    type: object
+  workflow.Config:
+    properties:
+      agents:
+        description: |-
+          AI agents with specific instructions and capabilities
+          Configure LLM-powered agents with custom prompts, tools access, and behavior
+          Agents can be referenced by tasks using $use: agent(...) syntax
+          $ref: schema://agents
+        items:
+          $ref: '#/definitions/agent.Config'
+        type: array
+      author:
+        allOf:
+          - $ref: '#/definitions/core.Author'
+        description: |-
+          Author information for workflow attribution
+          Helps track ownership and responsibility for workflow maintenance
+      config:
+        allOf:
+          - $ref: '#/definitions/workflow.Opts'
+        description: |-
+          Configuration options including input schema and environment variables
+          Controls workflow behavior, validation, and runtime environment
+      cwd:
+        allOf:
+          - $ref: '#/definitions/core.PathCWD'
+        description: Internal field for the current working directory context
+      description:
+        description: |-
+          Human-readable description of the workflow's purpose
+          Should clearly explain what the workflow does and when to use it
+        type: string
+      id:
+        description: |-
+          Unique identifier for the workflow (required)
+          Must be unique within the project scope. Used for referencing and execution.
+          - **Example**: "customer-support", "data-processing", "content-generation"
+        type: string
+      mcps:
+        description: |-
+          Model Context Protocol servers for extending AI capabilities
+          MCP servers provide specialized tools and knowledge to agents
+          Enable integration with external services and domain-specific functionality
+          $ref: schema://mcp
+        items:
+          $ref: '#/definitions/mcp.Config'
+        type: array
+      outputs:
+        allOf:
+          - $ref: '#/definitions/core.Output'
+        description: |-
+          Output mappings to structure the final workflow results
+          Use template expressions to extract and transform task outputs
+          - **Example**: ticket_id: "{{ .tasks.create-ticket.output.id }}"
+      resource:
+        description: |-
+          Resource reference for external workflow definitions
+          Format: "compozy:workflow:<name>" - allows referencing pre-built workflows
+        type: string
+      schedule:
+        allOf:
+          - $ref: '#/definitions/workflow.Schedule'
+        description: |-
+          Schedule configuration for automated workflow execution
+          Enable cron-based scheduling with timezone support and overlap policies
+      schemas:
+        description: |-
+          JSON schemas for validating data structures used in the workflow
+          Define reusable schemas that can be referenced throughout the workflow
+          using $ref syntax (e.g., $ref: local::schemas.#(id="user_schema"))
+        items:
+          $ref: '#/definitions/schema.Schema'
+        type: array
+      tasks:
+        description: |-
+          Sequential tasks that define the workflow execution plan (required)
+          Tasks are the core execution units, processed in order with conditional branching
+          Each task uses either an agent or tool to perform its operation
+          $ref: schema://tasks
+        items:
+          $ref: '#/definitions/task.Config'
+        type: array
+      tools:
+        description: |-
+          External tools that can be invoked by agents or tasks
+          Define executable scripts or programs that perform specific operations
+          Tools provide deterministic, non-AI functionality like API calls or data processing
+          $ref: schema://tools
+        items:
+          $ref: '#/definitions/tool.Config'
+        type: array
+      triggers:
+        description: |-
+          Event triggers that can initiate workflow execution
+          Define external events (webhooks, signals) that can start the workflow
+          Each trigger can have its own input schema for validation
+        items:
+          $ref: '#/definitions/workflow.Trigger'
+        type: array
+      version:
+        description: |-
+          Version of the workflow for tracking changes
+          Follows semantic versioning (e.g., "1.0.0", "2.1.3")
+          Useful for managing workflow evolution and backwards compatibility
         type: string
     type: object
   workflow.Opts:
@@ -1860,406 +3130,122 @@ info:
   version: "1.0"
 
 paths:
-  /{name}/sse:
-    get:
-      description: Proxy Server-Sent Events requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-      responses:
-        "200":
-          description: SSE stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy SSE requests to MCP server
-      tags:
-        - MCP Proxy
-  /{name}/sse/{path}:
-    get:
-      description: Proxy Server-Sent Events requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
-      responses:
-        "200":
-          description: SSE stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy SSE requests to MCP server
-      tags:
-        - MCP Proxy
-  /{name}/stream:
-    delete:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    get:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    patch:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
+  /admin/export-yaml:
     post:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
+      description: |-
+        Writes deterministic YAML files to project directories.
+        Targets: agents/, tools/, workflows/, schemas/, mcps/, models/.
+        Admin only.
+      produces:
+        - application/json
       responses:
         "200":
-          description: HTTP stream
+          description: 'Example: {\"data\":{\"workflow\":5,\"agent\":2},\"message\":\"export completed\"}'
           schema:
-            type: string
-        "400":
-          description: Bad request
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
           schema:
-            additionalProperties: true
-            type: object
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
         "500":
-          description: Internal server error
+          description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export store contents to YAML
       tags:
-        - MCP Proxy
-    put:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-  /{name}/stream/{path}:
-    delete:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    get:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
-    patch:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
+        - admin
+  /admin/import-yaml:
     post:
-      description: Proxy streamable HTTP requests to a specific MCP server
+      description: |-
+        Reads YAML from project directories and upserts to ResourceStore.
+        Strategies: seed_only | overwrite_conflicts. Admin only.
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
           type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
+      produces:
+        - application/json
       responses:
         "200":
-          description: HTTP stream
+          description: OK
           schema:
-            type: string
-        "400":
-          description: Bad request
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
           schema:
-            additionalProperties: true
-            type: object
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
         "500":
-          description: Internal server error
+          description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Import YAML into store
       tags:
-        - MCP Proxy
-    put:
-      description: Proxy streamable HTTP requests to a specific MCP server
-      parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
-      responses:
-        "200":
-          description: HTTP stream
-          schema:
-            type: string
-        "400":
-          description: Bad request
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: MCP not found
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Proxy streamable HTTP requests to MCP server
-      tags:
-        - MCP Proxy
+        - admin
   /admin/mcps:
     get:
       description: Get a list of all configured Model Context Protocol servers
@@ -2711,236 +3697,279 @@ paths:
       summary: Call a tool on an MCP server
       tags:
         - MCP Tools
-  /api/v0/admin/export-yaml:
-    post:
-      description: |-
-        Writes deterministic YAML files to project directories.
-        Targets: agents/, tools/, workflows/, schemas/, mcps/, models/.
-        Admin only.
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: 'Example: {\"data\":{\"workflow\":5,\"agent\":2},\"message\":\"export completed\"}'
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    additionalProperties: true
-                    type: object
-                type: object
-        "401":
-          description: Unauthorized
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "403":
-          description: Forbidden
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      security:
-        - ApiKeyAuth: []
-      summary: Export store contents to YAML
-      tags:
-        - admin
-  /api/v0/admin/import-yaml:
-    post:
-      description: |-
-        Reads YAML from project directories and upserts to ResourceStore.
-        Strategies: seed_only | overwrite_conflicts. Admin only.
-      parameters:
-        - description: seed_only|overwrite_conflicts
-          enum:
-            - seed_only
-            - overwrite_conflicts
-          in: query
-          name: strategy
-          type: string
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    additionalProperties: true
-                    type: object
-                type: object
-        "401":
-          description: Unauthorized
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "403":
-          description: Forbidden
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "409":
-          description: Conflict
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Import YAML into store
-      tags:
-        - admin
-  /api/v0/health:
+  /agents:
     get:
       consumes:
         - application/json
-      description: Returns overall service health, readiness and components status
+      description: List agents with cursor pagination. Optionally filter by workflow usage.
+      parameters:
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Return only agents referenced by the given workflow
+          example: '"wf1"'
+          in: query
+          name: workflow_id
+          type: string
+        - description: Page size (max 500)
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Opaque pagination cursor
+          in: query
+          name: cursor
+          type: string
+        - description: Filter by agent ID prefix
+          in: query
+          name: q
+          type: string
       produces:
         - application/json
       responses:
         "200":
-          description: Service is healthy
+          description: Agents retrieved
+          headers:
+            Link:
+              description: RFC 8288 pagination links for next/prev
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
           schema:
-            additionalProperties: true
-            type: object
-        "503":
-          description: Service is not ready
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/agentrouter.AgentsListResponse'
+                type: object
+        "400":
+          description: Invalid cursor
           schema:
-            additionalProperties: true
-            type: object
-      summary: Get server health
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Workflow not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: List agents
       tags:
-        - health
-        - diagnostics
-  /api/v0/hooks/{slug}:
-    post:
-      consumes:
-        - application/json
-      description: Accepts webhook payloads and triggers matching workflow events.
+        - agents
+  /agents/{agent_id}:
+    delete:
+      description: Delete an agent configuration. Returns conflict when referenced.
       parameters:
-        - description: Webhook slug
-          example: '"my-webhook"'
+        - description: Agent ID
+          example: '"assistant"'
           in: path
-          name: slug
+          name: agent_id
           required: true
           type: string
-        - description: Optional idempotency key to prevent duplicate processing
-          example: '"idemp-123"'
-          in: header
-          name: X-Idempotency-Key
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
           type: string
-        - description: Optional correlation ID for request tracing
-          example: '"corr-456"'
-          in: header
-          name: X-Correlation-ID
+      produces:
+        - application/json
+      responses:
+        "204":
+          description: No Content
+          headers:
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            type: string
+        "404":
+          description: Agent not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: Agent referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Delete agent
+      tags:
+        - agents
+    get:
+      consumes:
+        - application/json
+      description: Retrieve an agent configuration by ID.
+      parameters:
+        - description: Agent ID
+          example: '"assistant"'
+          in: path
+          name: agent_id
+          required: true
           type: string
-        - description: Optional HMAC signature header (configurable per webhook)
-          example: '"sha256=abc123..."'
-          in: header
-          name: X-Sig
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
           type: string
-        - description: Stripe webhook signature (when using stripe verification)
-          example: '"t=123,v1=def..."'
-          in: header
-          name: Stripe-Signature
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Agent retrieved
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/agentrouter.AgentDTO'
+                type: object
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Agent not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Get agent
+      tags:
+        - agents
+    put:
+      consumes:
+        - application/json
+      description: Create an agent when absent or update an existing one using strong ETag concurrency.
+      parameters:
+        - description: Agent ID
+          example: '"assistant"'
+          in: path
+          name: agent_id
+          required: true
           type: string
-        - description: GitHub webhook signature (when using github verification)
-          example: '"sha256=ghi789..."'
-          in: header
-          name: X-Hub-Signature-256
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
           type: string
-        - description: Arbitrary JSON payload
+        - description: Strong ETag for optimistic concurrency
+          example: '"\"abc123\""'
+          in: header
+          name: If-Match
+          type: string
+        - description: Agent configuration payload
           in: body
           name: payload
           required: true
           schema:
+            additionalProperties: true
             type: object
       produces:
         - application/json
       responses:
         "200":
-          description: Processed successfully
+          description: Agent updated
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
           schema:
-            $ref: '#/definitions/webhook.SuccessResponse'
-        "202":
-          description: Accepted and enqueued
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/agentrouter.AgentDTO'
+                type: object
+        "201":
+          description: Agent created
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            Location:
+              description: Absolute URL for the agent
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
           schema:
-            $ref: '#/definitions/webhook.SuccessResponse'
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/agentrouter.AgentDTO'
+                type: object
         "400":
-          description: Invalid or oversized payload
+          description: Invalid request
           schema:
-            $ref: '#/definitions/webhook.ErrorResponse'
-        "401":
-          description: Signature verification failed
-          schema:
-            $ref: '#/definitions/webhook.ErrorResponse'
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
-          description: Webhook not found
+          description: Agent not found
           schema:
-            $ref: '#/definitions/webhook.ErrorResponse'
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
-          description: Duplicate idempotency key
+          description: Agent referenced
           schema:
-            $ref: '#/definitions/webhook.ErrorResponse'
-        "422":
-          description: Unprocessable entity
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
           schema:
-            $ref: '#/definitions/webhook.ErrorResponse'
-        "429":
-          description: Rate limit exceeded
-          schema:
-            $ref: '#/definitions/webhook.ErrorResponse'
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/webhook.ErrorResponse'
-      summary: Trigger webhook
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Create or update agent
       tags:
-        - webhooks
-      x-example-error:
-        details: invalid JSON payload
-        error: bad_request
-      x-example-success:
-        data:
-          result: ok
-        message: Success
+        - agents
   /auth/generate:
     post:
       consumes:
@@ -3459,6 +4488,1041 @@ paths:
       summary: Send signal to workflow execution
       tags:
         - executions
+  /health:
+    get:
+      consumes:
+        - application/json
+      description: Returns overall service health, readiness and components status
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Service is healthy
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service is not ready
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get server health
+      tags:
+        - health
+        - diagnostics
+  /hooks/{slug}:
+    post:
+      consumes:
+        - application/json
+      description: Accepts webhook payloads and triggers matching workflow events.
+      parameters:
+        - description: Webhook slug
+          example: '"my-webhook"'
+          in: path
+          name: slug
+          required: true
+          type: string
+        - description: Optional idempotency key to prevent duplicate processing
+          example: '"idemp-123"'
+          in: header
+          name: X-Idempotency-Key
+          type: string
+        - description: Optional correlation ID for request tracing
+          example: '"corr-456"'
+          in: header
+          name: X-Correlation-ID
+          type: string
+        - description: Optional HMAC signature header (configurable per webhook)
+          example: '"sha256=abc123..."'
+          in: header
+          name: X-Sig
+          type: string
+        - description: Stripe webhook signature (when using stripe verification)
+          example: '"t=123,v1=def..."'
+          in: header
+          name: Stripe-Signature
+          type: string
+        - description: GitHub webhook signature (when using github verification)
+          example: '"sha256=ghi789..."'
+          in: header
+          name: X-Hub-Signature-256
+          type: string
+        - description: Arbitrary JSON payload
+          in: body
+          name: payload
+          required: true
+          schema:
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Processed successfully
+          schema:
+            $ref: '#/definitions/webhook.SuccessResponse'
+        "202":
+          description: Accepted and enqueued
+          schema:
+            $ref: '#/definitions/webhook.SuccessResponse'
+        "400":
+          description: Invalid or oversized payload
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "401":
+          description: Signature verification failed
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "404":
+          description: Webhook not found
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "409":
+          description: Duplicate idempotency key
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "422":
+          description: Unprocessable entity
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "429":
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+      summary: Trigger webhook
+      tags:
+        - webhooks
+      x-example-error:
+        details: invalid JSON payload
+        error: bad_request
+      x-example-success:
+        data:
+          result: ok
+        message: Success
+  /mcp/{name}/sse:
+    get:
+      description: Proxy Server-Sent Events requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: SSE stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy SSE requests to MCP server
+      tags:
+        - MCP Proxy
+  /mcp/{name}/sse/{path}:
+    get:
+      description: Proxy Server-Sent Events requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: SSE stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy SSE requests to MCP server
+      tags:
+        - MCP Proxy
+  /mcp/{name}/stream:
+    delete:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    get:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    patch:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    post:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    put:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+  /mcp/{name}/stream/{path}:
+    delete:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    get:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    patch:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    post:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+    put:
+      description: Proxy streamable HTTP requests to a specific MCP server
+      parameters:
+        - description: MCP name
+          in: path
+          name: name
+          required: true
+          type: string
+        - description: Additional path
+          in: path
+          name: path
+          type: string
+      responses:
+        "200":
+          description: HTTP stream
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy streamable HTTP requests to MCP server
+      tags:
+        - MCP Proxy
+  /mcps:
+    get:
+      consumes:
+        - application/json
+      description: List MCP server configurations with cursor pagination.
+      parameters:
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Page size (max 500)
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Opaque pagination cursor
+          in: query
+          name: cursor
+          type: string
+        - description: Filter by MCP ID prefix
+          in: query
+          name: q
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: MCPs retrieved
+          headers:
+            Link:
+              description: RFC 8288 pagination links for next/prev
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/mcprouter.MCPsListResponse'
+                type: object
+        "400":
+          description: Invalid cursor
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: List MCP servers
+      tags:
+        - mcps
+  /mcps/{mcp_id}:
+    delete:
+      description: Delete an MCP server configuration. Returns conflict when referenced.
+      parameters:
+        - description: MCP ID
+          example: '"filesystem"'
+          in: path
+          name: mcp_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "204":
+          description: No Content
+          headers:
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            type: string
+        "404":
+          description: MCP not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: MCP referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Delete MCP server
+      tags:
+        - mcps
+    get:
+      consumes:
+        - application/json
+      description: Retrieve an MCP server configuration by ID.
+      parameters:
+        - description: MCP ID
+          example: '"filesystem"'
+          in: path
+          name: mcp_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: MCP retrieved
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/mcprouter.MCPDTO'
+                type: object
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: MCP not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Get MCP server
+      tags:
+        - mcps
+    put:
+      consumes:
+        - application/json
+      description: Create an MCP server when absent or update an existing one using strong ETag concurrency.
+      parameters:
+        - description: MCP ID
+          example: '"filesystem"'
+          in: path
+          name: mcp_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Strong ETag for optimistic concurrency
+          example: '"\"abc123\""'
+          in: header
+          name: If-Match
+          type: string
+        - description: MCP configuration payload
+          in: body
+          name: payload
+          required: true
+          schema:
+            additionalProperties: true
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: MCP updated
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/mcprouter.MCPDTO'
+                type: object
+        "201":
+          description: MCP created
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            Location:
+              description: Relative URL for the MCP
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/mcprouter.MCPDTO'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: MCP referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Create or update MCP server
+      tags:
+        - mcps
+  /memories:
+    get:
+      consumes:
+        - application/json
+      description: List memory configurations with cursor pagination.
+      parameters:
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Page size (max 500)
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Opaque pagination cursor
+          in: query
+          name: cursor
+          type: string
+        - description: Filter by memory ID prefix
+          in: query
+          name: q
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memories retrieved
+          headers:
+            Link:
+              description: RFC 8288 pagination links for next/prev
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/memoryrouter.MemoriesListResponse'
+                type: object
+        "400":
+          description: Invalid cursor
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: List memories
+      tags:
+        - memories
+  /memories/{memory_id}:
+    delete:
+      description: Delete a memory configuration. Returns conflict when referenced.
+      parameters:
+        - description: Memory ID
+          example: '"conversation"'
+          in: path
+          name: memory_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "204":
+          description: No Content
+          headers:
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            type: string
+        "404":
+          description: Memory not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: Memory referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Delete memory
+      tags:
+        - memories
+    get:
+      consumes:
+        - application/json
+      description: Retrieve a memory configuration by ID.
+      parameters:
+        - description: Memory ID
+          example: '"conversation"'
+          in: path
+          name: memory_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory retrieved
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/memoryrouter.MemoryDTO'
+                type: object
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Memory not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Get memory
+      tags:
+        - memories
+    put:
+      consumes:
+        - application/json
+      description: Create a memory configuration when absent or update an existing one using strong ETag
+        concurrency.
+      parameters:
+        - description: Memory ID
+          example: '"conversation"'
+          in: path
+          name: memory_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Strong ETag for optimistic concurrency
+          example: '"\"abc123\""'
+          in: header
+          name: If-Match
+          type: string
+        - description: Memory configuration payload
+          in: body
+          name: payload
+          required: true
+          schema:
+            additionalProperties: true
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory updated
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/memoryrouter.MemoryDTO'
+                type: object
+        "201":
+          description: Memory created
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            Location:
+              description: Absolute URL for the memory
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/memoryrouter.MemoryDTO'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: Memory referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Create or update memory
+      tags:
+        - memories
   /memory/{memory_ref}/append:
     post:
       consumes:
@@ -3996,20 +6060,27 @@ paths:
       summary: Prometheus metrics endpoint
       tags:
         - Operations
-  /resources/{type}:
+  /models:
     get:
-      description: List resource keys for a given type and project
+      consumes:
+        - application/json
+      description: List models with cursor pagination.
       parameters:
-        - description: Resource type
-          in: path
-          name: type
-          required: true
-          type: string
         - description: Project override
+          example: '"demo"'
           in: query
           name: project
           type: string
-        - description: ID prefix filter
+        - description: Page size (max 500)
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Opaque pagination cursor
+          in: query
+          name: cursor
+          type: string
+        - description: Filter by model ID prefix
           in: query
           name: q
           type: string
@@ -4017,314 +6088,389 @@ paths:
         - application/json
       responses:
         "200":
-          description: Keys listed
+          description: Models retrieved
+          headers:
+            Link:
+              description: RFC 8288 pagination links for next/prev
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    properties:
-                      keys:
-                        items:
-                          type: string
-                        type: array
-                    type: object
+                    $ref: '#/definitions/modelrouter.ModelsListResponse'
                 type: object
         "400":
-          description: Bad Request
+          description: Invalid cursor
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "401":
-          description: Unauthorized
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "403":
-          description: Forbidden
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: List resources
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: List models
       tags:
-        - resources
-    post:
+        - models
+  /models/{model_id}:
+    delete:
+      description: Delete a model configuration. Returns conflict when referenced.
+      parameters:
+        - description: Model ID
+          example: '"openai:gpt-4o-mini"'
+          in: path
+          name: model_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "204":
+          description: No Content
+          headers:
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            type: string
+        "404":
+          description: Model not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: Model referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Delete model
+      tags:
+        - models
+    get:
       consumes:
         - application/json
-      description: Create a resource in the current project
+      description: Retrieve a model configuration by ID.
       parameters:
-        - description: Resource type (agent|tool|mcp|schema|model|workflow|memory|project)
+        - description: Model ID
+          example: '"openai:gpt-4o-mini"'
           in: path
-          name: type
+          name: model_id
           required: true
           type: string
-        - description: Resource payload (must include id; 'type' optional but if present must match path)
-          in: body
-          name: resource
-          required: true
-          schema:
-            type: object
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
       produces:
         - application/json
       responses:
-        "201":
-          description: Created resource
+        "200":
+          description: Model retrieved
           headers:
             ETag:
-              description: ETag for the stored value
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
               type: string
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    type: object
+                    $ref: '#/definitions/modelrouter.ModelDTO'
                 type: object
         "400":
-          description: Bad Request
+          description: Invalid input
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "401":
-          description: Unauthorized
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "403":
-          description: Forbidden
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Create resource
-      tags:
-        - resources
-  /resources/{type}/{id}:
-    delete:
-      description: Delete a resource by ID (idempotent)
-      parameters:
-        - description: Resource type
-          in: path
-          name: type
-          required: true
-          type: string
-        - description: Resource ID
-          in: path
-          name: id
-          required: true
-          type: string
-      responses:
-        "200":
-          description: Deleted
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    type: object
-                type: object
-        "400":
-          description: Bad Request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "401":
-          description: Unauthorized
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "403":
-          description: Forbidden
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Delete resource
-      tags:
-        - resources
-    get:
-      description: Get a resource by ID
-      parameters:
-        - description: Resource type
-          in: path
-          name: type
-          required: true
-          type: string
-        - description: Resource ID
-          in: path
-          name: id
-          required: true
-          type: string
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: Resource returned
-          headers:
-            ETag:
-              description: ETag for the stored value
-              type: string
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    type: object
-                type: object
-        "400":
-          description: Bad Request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "401":
-          description: Unauthorized
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "403":
-          description: Forbidden
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
-          description: Not Found
+          description: Model not found
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Get resource
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Get model
       tags:
-        - resources
+        - models
     put:
       consumes:
         - application/json
-      description: Upserts a resource. If-Match enforces optimistic locking when provided.
+      description: Create a model when absent or update an existing one using strong ETag concurrency.
       parameters:
-        - description: Resource type
+        - description: Model ID
+          example: '"openai:gpt-4o-mini"'
           in: path
-          name: type
+          name: model_id
           required: true
           type: string
-        - description: Resource ID
-          in: path
-          name: id
-          required: true
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
           type: string
-        - description: Current ETag for optimistic locking
+        - description: Strong ETag for optimistic concurrency
+          example: '"\"abc123\""'
           in: header
           name: If-Match
           type: string
-        - description: Resource payload (full object with id and fields; 'type' optional but if present
-            must match path)
+        - description: Model configuration payload
           in: body
-          name: resource
+          name: payload
           required: true
           schema:
+            additionalProperties: true
             type: object
       produces:
         - application/json
       responses:
         "200":
-          description: Updated resource
+          description: Model updated
           headers:
             ETag:
-              description: New ETag for the stored value
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
               type: string
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    type: object
+                    $ref: '#/definitions/modelrouter.ModelDTO'
+                type: object
+        "201":
+          description: Model created
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            Location:
+              description: Relative URL for the model
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/modelrouter.ModelDTO'
                 type: object
         "400":
-          description: Bad Request
+          description: Invalid request
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "401":
-          description: Unauthorized
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "403":
-          description: Forbidden
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
+            $ref: '#/definitions/core.ProblemDocument'
         "409":
-          description: Conflict
+          description: Model referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Create or update model
+      tags:
+        - models
+  /project:
+    delete:
+      description: Project deletion is not supported; returns 405.
+      produces:
+        - application/json
+      responses:
+        "405":
+          description: Method not allowed
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Delete project
+      tags:
+        - project
+    get:
+      consumes:
+        - application/json
+      description: Retrieve the active project configuration.
+      parameters:
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Project retrieved
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
               - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
+                  data:
+                    $ref: '#/definitions/projectrouter.ProjectDTO'
                 type: object
-      summary: Upsert resource
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Project not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Get project
       tags:
-        - resources
+        - project
+    put:
+      consumes:
+        - application/json
+      description: Create the project configuration when absent or update an existing one using strong
+        ETag concurrency.
+      parameters:
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Strong ETag for optimistic concurrency
+          example: '"\"abc123\""'
+          in: header
+          name: If-Match
+          type: string
+        - description: Project configuration payload
+          in: body
+          name: payload
+          required: true
+          schema:
+            additionalProperties: true
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Project updated
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/projectrouter.ProjectDTO'
+                type: object
+        "201":
+          description: Project created
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            Location:
+              description: Relative URL for the project
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/projectrouter.ProjectDTO'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Create or update project
+      tags:
+        - project
   /schedules:
     get:
       consumes:
@@ -4515,6 +6661,780 @@ paths:
       summary: Update schedule
       tags:
         - schedules
+  /schemas:
+    get:
+      consumes:
+        - application/json
+      description: List schemas with cursor pagination.
+      parameters:
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Page size (max 500)
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Opaque pagination cursor
+          in: query
+          name: cursor
+          type: string
+        - description: Filter by schema ID prefix
+          in: query
+          name: q
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Schemas retrieved
+          headers:
+            Link:
+              description: RFC 8288 pagination links for next/prev
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/schemarouter.SchemasListResponse'
+                type: object
+        "400":
+          description: Invalid cursor
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: List schemas
+      tags:
+        - schemas
+  /schemas/{schema_id}:
+    delete:
+      description: Delete a schema configuration. Returns conflict when referenced.
+      parameters:
+        - description: Schema ID
+          example: '"user-profile"'
+          in: path
+          name: schema_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "204":
+          description: No Content
+          headers:
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            type: string
+        "404":
+          description: Schema not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: Schema referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Delete schema
+      tags:
+        - schemas
+    get:
+      consumes:
+        - application/json
+      description: Retrieve a schema by ID.
+      parameters:
+        - description: Schema ID
+          example: '"user-profile"'
+          in: path
+          name: schema_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Schema retrieved
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/schemarouter.SchemaDTO'
+                type: object
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Schema not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Get schema
+      tags:
+        - schemas
+    put:
+      consumes:
+        - application/json
+      description: Create a schema when absent or update an existing schema using strong ETag concurrency.
+      parameters:
+        - description: Schema ID
+          example: '"user-profile"'
+          in: path
+          name: schema_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Strong ETag for optimistic concurrency
+          example: '"\"abc123\""'
+          in: header
+          name: If-Match
+          type: string
+        - description: Schema definition payload
+          in: body
+          name: payload
+          required: true
+          schema:
+            additionalProperties: true
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Schema updated
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/schemarouter.SchemaDTO'
+                type: object
+        "201":
+          description: Schema created
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            Location:
+              description: Absolute URL for the created schema
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/schemarouter.SchemaDTO'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Schema not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: Schema referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Create or update schema
+      tags:
+        - schemas
+  /tasks:
+    get:
+      consumes:
+        - application/json
+      description: List tasks with cursor pagination. Optionally filter by workflow usage.
+      parameters:
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Return only tasks referenced by the given workflow
+          example: '"wf1"'
+          in: query
+          name: workflow_id
+          type: string
+        - description: Page size (max 500)
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Opaque pagination cursor
+          in: query
+          name: cursor
+          type: string
+        - description: Filter by task ID prefix
+          in: query
+          name: q
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Tasks retrieved
+          headers:
+            Link:
+              description: RFC 8288 pagination links for next/prev
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/tkrouter.TasksListResponse'
+                type: object
+        "400":
+          description: Invalid cursor
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Workflow not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: List tasks
+      tags:
+        - tasks
+  /tasks/{task_id}:
+    delete:
+      description: Delete a task configuration. Returns conflict when referenced.
+      parameters:
+        - description: Task ID
+          example: '"approve-request"'
+          in: path
+          name: task_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "404":
+          description: Task not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: Task referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Delete task
+      tags:
+        - tasks
+    get:
+      consumes:
+        - application/json
+      description: Retrieve a task configuration by ID.
+      parameters:
+        - description: Task ID
+          example: '"approve-request"'
+          in: path
+          name: task_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Task retrieved
+          headers:
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/tkrouter.TaskDTO'
+                type: object
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Task not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Get task
+      tags:
+        - tasks
+    put:
+      consumes:
+        - application/json
+      description: Create a task configuration when absent or update an existing one using strong ETag
+        concurrency.
+      parameters:
+        - description: Task ID
+          example: '"approve-request"'
+          in: path
+          name: task_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Strong ETag for optimistic concurrency
+          example: '"\"abc123\""'
+          in: header
+          name: If-Match
+          type: string
+        - description: Task configuration payload
+          in: body
+          name: payload
+          required: true
+          schema:
+            additionalProperties: true
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Task updated
+          headers:
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/tkrouter.TaskDTO'
+                type: object
+        "201":
+          description: Task created
+          headers:
+            Location:
+              description: Relative URL for the task
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/tkrouter.TaskDTO'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Task not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: Task referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Create or update task
+      tags:
+        - tasks
+  /tools:
+    get:
+      consumes:
+        - application/json
+      description: List tools with cursor pagination. Optionally filter by workflow usage.
+      parameters:
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Return only tools referenced by the given workflow
+          example: '"wf1"'
+          in: query
+          name: workflow_id
+          type: string
+        - description: Page size (max 500)
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Opaque pagination cursor
+          in: query
+          name: cursor
+          type: string
+        - description: Filter by tool ID prefix
+          in: query
+          name: q
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Tools retrieved
+          headers:
+            Link:
+              description: RFC 8288 pagination links for next/prev
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/toolrouter.ToolsListResponse'
+                type: object
+        "400":
+          description: Invalid cursor
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Workflow not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: List tools
+      tags:
+        - tools
+  /tools/{tool_id}:
+    delete:
+      description: Delete a tool configuration. Returns conflict when referenced.
+      parameters:
+        - description: Tool ID
+          example: '"http-client"'
+          in: path
+          name: tool_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "404":
+          description: Tool not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: Tool referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Delete tool
+      tags:
+        - tools
+    get:
+      consumes:
+        - application/json
+      description: Retrieve a tool configuration by ID.
+      parameters:
+        - description: Tool ID
+          example: '"http-client"'
+          in: path
+          name: tool_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Tool retrieved
+          headers:
+            ETag:
+              description: Strong ETag for the resource
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/toolrouter.ToolDTO'
+                type: object
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Tool not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Get tool
+      tags:
+        - tools
+    put:
+      consumes:
+        - application/json
+      description: Create a tool configuration when absent or update an existing one using strong ETag
+        concurrency.
+      parameters:
+        - description: Tool ID
+          example: '"http-client"'
+          in: path
+          name: tool_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Strong ETag for optimistic concurrency
+          example: '"\"abc123\""'
+          in: header
+          name: If-Match
+          type: string
+        - description: Tool configuration payload
+          in: body
+          name: payload
+          required: true
+          schema:
+            additionalProperties: true
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Tool updated
+          headers:
+            ETag:
+              description: Strong ETag for the resource
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/toolrouter.ToolDTO'
+                type: object
+        "201":
+          description: Tool created
+          headers:
+            ETag:
+              description: Strong ETag for the resource
+              type: string
+            Location:
+              description: Relative URL for the tool
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/toolrouter.ToolDTO'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Tool not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: Tool referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Create or update tool
+      tags:
+        - tools
   /users:
     get:
       consumes:
@@ -4724,41 +7644,72 @@ paths:
     get:
       consumes:
         - application/json
-      description: Retrieve a list of all available workflow configurations
+      description: List workflows with cursor pagination, optional prefix search, field selection, or
+        expansion.
+      parameters:
+        - description: Project override
+          example: '"staging"'
+          in: query
+          name: project
+          type: string
+        - description: Page size (max 500)
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Opaque pagination cursor
+          example: '"djI6YWZ0ZXI6d29ya2Zsb3ctMDAwMQ=="'
+          in: query
+          name: cursor
+          type: string
+        - description: Filter by workflow ID prefix
+          example: '"data-"'
+          in: query
+          name: q
+          type: string
+        - description: Comma-separated child collections to expand (tasks,agents,tools)
+          in: query
+          name: expand
+          type: string
       produces:
         - application/json
       responses:
         "200":
-          description: Workflows retrieved successfully
+          description: workflows retrieved
+          headers:
+            Link:
+              description: RFC 8288 pagination links for next/prev
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    properties:
-                      workflows:
-                        items:
-                          $ref: '#/definitions/wfrouter.WorkflowResponse'
-                        type: array
-                    type: object
+                    $ref: '#/definitions/wfrouter.WorkflowsListResponse'
                 type: object
+        "400":
+          description: Invalid cursor
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: List all workflows
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: List workflows
       tags:
         - workflows
   /workflows/{workflow_id}:
-    get:
-      consumes:
-        - application/json
-      description: Retrieve a specific workflow configuration by its ID
+    delete:
+      description: Delete a workflow configuration using strong ETag concurrency.
       parameters:
         - description: Workflow ID
           example: '"data-processing"'
@@ -4766,46 +7717,204 @@ paths:
           name: workflow_id
           required: true
           type: string
+        - description: Project override
+          example: '"staging"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "204":
+          description: No Content
+          headers:
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            type: string
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Workflow not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Delete workflow
+      tags:
+        - workflows
+    get:
+      consumes:
+        - application/json
+      description: Retrieve a workflow configuration with optional field selection and expansion.
+      parameters:
+        - description: Workflow ID
+          example: '"data-processing"'
+          in: path
+          name: workflow_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"staging"'
+          in: query
+          name: project
+          type: string
+        - description: Comma-separated child collections to expand (tasks,agents,tools)
+          in: query
+          name: expand
+          type: string
       produces:
         - application/json
       responses:
         "200":
-          description: Workflow retrieved successfully
+          description: Workflow retrieved
+          headers:
+            ETag:
+              description: Strong entity tag for concurrency control
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: '#/definitions/wfrouter.WorkflowResponse'
+                    $ref: '#/definitions/wfrouter.WorkflowDTO'
                 type: object
         "400":
-          description: Invalid workflow ID
+          description: Invalid request
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
+            $ref: '#/definitions/core.ProblemDocument'
         "404":
           description: Workflow not found
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
+            $ref: '#/definitions/core.ProblemDocument'
         "500":
           description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Get workflow
+      tags:
+        - workflows
+    put:
+      consumes:
+        - application/json
+      description: Create a workflow when absent or update an existing workflow using strong ETag concurrency.
+      parameters:
+        - description: Workflow ID
+          example: '"data-processing"'
+          in: path
+          name: workflow_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"staging"'
+          in: query
+          name: project
+          type: string
+        - description: Comma-separated child collections to expand (tasks,agents,tools)
+          in: query
+          name: expand
+          type: string
+        - description: Strong ETag for optimistic concurrency
+          in: header
+          name: If-Match
+          type: string
+        - description: Workflow definition payload
+          in: body
+          name: payload
+          required: true
+          schema:
+            $ref: '#/definitions/workflow.Config'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: workflow updated
+          headers:
+            ETag:
+              description: Strong entity tag for the stored workflow
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
               - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
+                  data:
+                    $ref: '#/definitions/wfrouter.WorkflowDTO'
                 type: object
-      summary: Get workflow by ID
+        "201":
+          description: workflow created
+          headers:
+            ETag:
+              description: Strong entity tag for the stored workflow
+              type: string
+            Location:
+              description: Relative URL for the created workflow
+              type: string
+            RateLimit-Limit:
+              description: Requests allowed in the current window
+              type: string
+            RateLimit-Remaining:
+              description: Remaining requests in the current window
+              type: string
+            RateLimit-Reset:
+              description: Seconds until the window resets
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/wfrouter.WorkflowDTO'
+                type: object
+        "400":
+          description: Invalid request body
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Workflow not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Create or update workflow
       tags:
         - workflows
   /workflows/{workflow_id}/agents:

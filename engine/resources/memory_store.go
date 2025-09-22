@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -42,7 +41,6 @@ func (s *MemoryResourceStore) Put(ctx context.Context, key ResourceKey, value an
 	if err := ctx.Err(); err != nil {
 		return ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if value == nil {
 		return ETag(""), fmt.Errorf("nil value is not allowed")
@@ -90,7 +88,6 @@ func (s *MemoryResourceStore) PutIfMatch(
 	if err := ctx.Err(); err != nil {
 		return ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if value == nil {
 		return ETag(""), fmt.Errorf("nil value is not allowed")
@@ -141,7 +138,6 @@ func (s *MemoryResourceStore) Get(ctx context.Context, key ResourceKey) (any, ET
 	if err := ctx.Err(); err != nil {
 		return nil, ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
@@ -164,7 +160,6 @@ func (s *MemoryResourceStore) Delete(ctx context.Context, key ResourceKey) error
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	existed := false
 	var etag ETag
@@ -207,7 +202,6 @@ func (s *MemoryResourceStore) List(ctx context.Context, project string, typ Reso
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
@@ -228,7 +222,6 @@ func (s *MemoryResourceStore) Watch(ctx context.Context, project string, typ Res
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	keyspace := watcherKeyspace(project, typ)
 	ch := make(chan Event, defaultWatchBuffer)
@@ -324,7 +317,6 @@ func (s *MemoryResourceStore) ListWithValues(
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
@@ -355,7 +347,6 @@ func (s *MemoryResourceStore) ListWithValuesPage(
 	if err := ctx.Err(); err != nil {
 		return nil, 0, fmt.Errorf("context canceled: %w", err)
 	}
-	_ = config.FromContext(ctx)
 	if offset < 0 {
 		offset = 0
 	}
