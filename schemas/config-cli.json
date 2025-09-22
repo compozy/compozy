@@ -2,7 +2,6 @@
   "$id": "config-cli.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
-  "description": "CLIConfig contains CLI-specific configuration.",
   "properties": {
     "APIKey": {
       "description": "APIKey authenticates CLI requests to the Compozy API.\n\n**Security**: Always use environment variables for API keys.\nNever commit API keys to version control.",

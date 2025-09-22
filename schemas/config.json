@@ -99,7 +99,6 @@
     },
     "CLIConfig": {
       "additionalProperties": false,
-      "description": "CLIConfig contains CLI-specific configuration.",
       "properties": {
         "APIKey": {
           "description": "APIKey authenticates CLI requests to the Compozy API.\n\n**Security**: Always use environment variables for API keys.\nNever commit API keys to version control.",

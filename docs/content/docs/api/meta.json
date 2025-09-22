@@ -5,10 +5,15 @@
   "root": true,
   "pages": [
     "overview",
+    "project",
     "workflows",
     "tasks",
     "agents",
     "tools",
+    "models",
+    "schemas",
+    "mcps",
+    "memories",
     "schedules",
     "memory",
     "operations"
