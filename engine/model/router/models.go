@@ -71,7 +71,12 @@ func listModels(c *gin.Context) {
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
 	list := make([]ModelListItem, 0, len(out.Items))
 	for i := range out.Items {
-		list = append(list, toModelListItem(out.Items[i]))
+		item, err := toModelListItem(out.Items[i])
+		if err != nil {
+			router.RespondWithServerError(c, router.ErrInternalCode, "failed to map model", err)
+			return
+		}
+		list = append(list, item)
 	}
 	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "models retrieved", ModelsListResponse{Models: list, Page: page})
@@ -114,7 +119,12 @@ func getModel(c *gin.Context) {
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	router.RespondOK(c, "model retrieved", toModelDTO(out.Model))
+	dto, err := toModelDTO(out.Model)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map model", err)
+		return
+	}
+	router.RespondOK(c, "model retrieved", dto)
 }
 
 // upsertModel handles PUT /models/{model_id}.
@@ -179,7 +189,11 @@ func upsertModel(c *gin.Context) {
 		message = "model created"
 		c.Header("Location", routes.Models()+"/"+modelID)
 	}
-	dto := toModelDTO(out.Model)
+	dto, mapErr := toModelDTO(out.Model)
+	if mapErr != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map model", mapErr)
+		return
+	}
 	if out.Created {
 		router.RespondCreated(c, message, dto)
 	} else {

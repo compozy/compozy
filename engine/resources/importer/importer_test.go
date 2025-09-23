@@ -205,4 +205,28 @@ func TestImportTypeFromDir(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, "Updated description", stored.Description)
 	})
+	t.Run("Should error when YAML file is missing id", func(t *testing.T) {
+		ctx := context.Background()
+		project := "proj"
+		store := resources.NewMemoryResourceStore()
+		repo := t.TempDir()
+		writeFile(t, repo, "tasks/invalid.yaml", "type: basic")
+		_, err := ImportTypeFromDir(ctx, project, store, repo, SeedOnly, "tester", resources.ResourceTask)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "missing id field")
+	})
+	t.Run("Should error when duplicate ids exist in directory", func(t *testing.T) {
+		ctx := context.Background()
+		project := "proj"
+		store := resources.NewMemoryResourceStore()
+		repo := t.TempDir()
+		cfg := tool.Config{ID: "fmt"}
+		bytes, err := yaml.Marshal(cfg)
+		require.NoError(t, err)
+		writeFile(t, repo, "tools/fmt.yaml", string(bytes))
+		writeFile(t, repo, "tools/fmt_copy.yaml", string(bytes))
+		_, err = ImportTypeFromDir(ctx, project, store, repo, SeedOnly, "tester", resources.ResourceTool)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "duplicate id")
+	})
 }

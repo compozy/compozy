@@ -29,10 +29,13 @@ func TestToolsEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, getRes.Code)
 		data := decodeData(t, getRes)
 		assert.Equal(t, "http", data["id"])
+		updateBody := toolPayload("http", "POST", "https://example.com")
+		updateBody["with"] = map[string]any{"mode": "plain"}
+		updateBody["env"] = map[string]any{"LOG_LEVEL": "debug"}
 		updateRes := client.do(
 			http.MethodPut,
 			"/api/v0/tools/http",
-			toolPayload("http", "POST", "https://example.com"),
+			updateBody,
 			map[string]string{"If-Match": etag},
 		)
 		require.Equal(t, http.StatusOK, updateRes.Code)
@@ -46,6 +49,14 @@ func TestToolsEndpoints(t *testing.T) {
 		cfg, ok := afterData["config"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "POST", cfg["method"])
+		with, ok := afterData["with"].(map[string]any)
+		if ok {
+			assert.Equal(t, "plain", with["mode"])
+		}
+		env, ok := afterData["env"].(map[string]any)
+		if ok {
+			assert.Equal(t, "debug", env["LOG_LEVEL"])
+		}
 		staleRes := client.do(
 			http.MethodPut,
 			"/api/v0/tools/http",
@@ -60,6 +71,25 @@ func TestToolsEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, delRes.Code)
 		missingRes := client.do(http.MethodGet, "/api/v0/tools/http", nil, nil)
 		require.Equal(t, http.StatusNotFound, missingRes.Code)
+	})
+
+	t.Run("Should expose tool CWD from stored configuration", func(t *testing.T) {
+		client := newResourceClient(t)
+		store := client.store()
+		cfg := &toolcfg.Config{Resource: "tool", ID: "with-cwd"}
+		require.NoError(t, cfg.SetCWD("."))
+		_, err := store.Put(
+			client.harness.Ctx,
+			storepkg.ResourceKey{Project: client.harness.Project.Name, Type: storepkg.ResourceTool, ID: cfg.ID},
+			cfg,
+		)
+		require.NoError(t, err)
+		res := client.do(http.MethodGet, "/api/v0/tools/with-cwd", nil, nil)
+		require.Equal(t, http.StatusOK, res.Code)
+		data := decodeData(t, res)
+		cwd, ok := data["cwd"].(string)
+		require.True(t, ok)
+		assert.Equal(t, cfg.GetCWD().PathStr(), cwd)
 	})
 	t.Run("Should surface conflict when tool is referenced", func(t *testing.T) {
 		client := newResourceClient(t)

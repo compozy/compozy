@@ -611,6 +611,11 @@ func deriveLLMTimeout(ctx context.Context, input *ExecuteTaskInput, appCfg *conf
 			"error", "parse_failed",
 		)
 	}
+	if input != nil && input.ProjectConfig != nil {
+		if d := input.ProjectConfig.Runtime.ToolExecutionTimeout; d > 0 {
+			return d
+		}
+	}
 	if appCfg != nil && appCfg.Runtime.ToolExecutionTimeout > 0 {
 		return appCfg.Runtime.ToolExecutionTimeout
 	}

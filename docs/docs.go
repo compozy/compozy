@@ -2385,7 +2385,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/mcp/{name}/sse": {
+        "/mcp-proxy/{name}/sse": {
             "get": {
                 "description": "Proxy Server-Sent Events requests to a specific MCP server",
                 "tags": [
@@ -2432,7 +2432,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/mcp/{name}/sse/{path}": {
+        "/mcp-proxy/{name}/sse/{path}": {
             "get": {
                 "description": "Proxy Server-Sent Events requests to a specific MCP server",
                 "tags": [
@@ -2485,7 +2485,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/mcp/{name}/stream": {
+        "/mcp-proxy/{name}/stream": {
             "get": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
                 "tags": [
@@ -2712,7 +2712,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/mcp/{name}/stream/{path}": {
+        "/mcp-proxy/{name}/stream/{path}": {
             "get": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
                 "tags": [
@@ -5749,9 +5749,7 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "type": "object",
-                                            "additionalProperties": {
-                                                "type": "integer"
-                                            }
+                                            "additionalProperties": true
                                         }
                                     }
                                 }
@@ -6326,9 +6324,7 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "type": "object",
-                                            "additionalProperties": {
-                                                "type": "integer"
-                                            }
+                                            "additionalProperties": true
                                         }
                                     }
                                 }
@@ -6886,9 +6882,7 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "type": "object",
-                                            "additionalProperties": {
-                                                "type": "integer"
-                                            }
+                                            "additionalProperties": true
                                         }
                                     }
                                 }
@@ -9644,12 +9638,51 @@ const docTemplate = `{
                 }
             }
         },
+        "agentrouter.AgentActionDTO": {
+            "type": "object",
+            "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "input": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "output": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "with": {
+                    "$ref": "#/definitions/core.Input"
+                }
+            }
+        },
         "agentrouter.AgentDTO": {
             "type": "object",
             "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentrouter.AgentActionDTO"
+                    }
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
                 "env": {
                     "type": "object",
-                    "additionalProperties": {}
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "id": {
                     "type": "string"
@@ -9657,25 +9690,59 @@ const docTemplate = `{
                 "instructions": {
                     "type": "string"
                 },
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "max_iterations": {
+                    "type": "integer"
+                },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "memory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
+                },
                 "model": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/agentrouter.AgentModelDTO"
                 },
                 "resource": {
                     "type": "string"
                 },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
                 "with": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
                 }
             }
         },
         "agentrouter.AgentListItem": {
             "type": "object",
             "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentrouter.AgentActionDTO"
+                    }
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
                 "env": {
                     "type": "object",
-                    "additionalProperties": {}
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "etag": {
                     "type": "string",
@@ -9687,16 +9754,49 @@ const docTemplate = `{
                 "instructions": {
                     "type": "string"
                 },
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "max_iterations": {
+                    "type": "integer"
+                },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "memory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
+                },
                 "model": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/agentrouter.AgentModelDTO"
                 },
                 "resource": {
                     "type": "string"
                 },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
                 "with": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
+                }
+            }
+        },
+        "agentrouter.AgentModelDTO": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "$ref": "#/definitions/core.ProviderConfig"
+                },
+                "ref": {
+                    "type": "string"
                 }
             }
         },
@@ -9738,6 +9838,25 @@ const docTemplate = `{
                 },
                 "url": {
                     "description": "URL to author's profile, repository, or team page.\n\nExamples: ` + "`" + `\"https://github.com/username\"` + "`" + `, ` + "`" + `\"https://company.com/team/ai\"` + "`" + `",
+                    "type": "string"
+                }
+            }
+        },
+        "core.CircuitBreakerConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "max_failures": {
+                    "type": "integer"
+                },
+                "reset_timeout": {
+                    "description": "e.g., \"30s\"",
+                    "type": "string"
+                },
+                "timeout": {
+                    "description": "e.g., \"100ms\"",
                     "type": "string"
                 }
             }
@@ -9818,6 +9937,81 @@ const docTemplate = `{
                 }
             }
         },
+        "core.FlushingStrategyConfig": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "summarize_oldest_percent": {
+                    "description": "SummarizeOldestPercent is the percentage of the oldest messages to summarize. Only for hybrid_summary.\nE.g., 0.3 means summarize the oldest 30% of messages.",
+                    "type": "number",
+                    "maximum": 1
+                },
+                "summarize_threshold": {
+                    "description": "SummarizeThreshold is the percentage of MaxTokens/MaxMessages at which summarization should trigger.\nE.g., 0.8 means trigger summarization when memory is 80% full. Only for hybrid_summary.",
+                    "type": "number",
+                    "maximum": 1
+                },
+                "summary_tokens": {
+                    "description": "SummaryTokens is the target token count for generated summaries. Only for hybrid_summary.",
+                    "type": "integer"
+                },
+                "type": {
+                    "description": "Type is the kind of flushing strategy to apply (e.g., hybrid_summary).",
+                    "enum": [
+                        "hybrid_summary",
+                        "simple_fifo",
+                        "lru",
+                        "token_aware_lru"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.FlushingStrategyType"
+                        }
+                    ]
+                }
+            }
+        },
+        "core.FlushingStrategyType": {
+            "type": "string",
+            "enum": [
+                "token_count",
+                "message_count",
+                "hybrid_summary",
+                "simple_fifo",
+                "time_based",
+                "fifo",
+                "lru",
+                "token_aware_lru",
+                "simple_fifo"
+            ],
+            "x-enum-comments": {
+                "TokenAwareLRUFlushing": "#nosec G101"
+            },
+            "x-enum-descriptions": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "#nosec G101",
+                ""
+            ],
+            "x-enum-varnames": [
+                "TokenCountFlushing",
+                "MessageCountFlushing",
+                "HybridSummaryFlushing",
+                "SimpleFIFOFlushing",
+                "TimeBased",
+                "FIFOFlushing",
+                "LRUFlushing",
+                "TokenAwareLRUFlushing",
+                "DefaultFlushingStrategy"
+            ]
+        },
         "core.GlobalOpts": {
             "type": "object",
             "properties": {
@@ -9859,6 +10053,23 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {}
         },
+        "core.LockConfig": {
+            "type": "object",
+            "properties": {
+                "append_ttl": {
+                    "description": "AppendTTL is the lock timeout for append operations (default: \"30s\")",
+                    "type": "string"
+                },
+                "clear_ttl": {
+                    "description": "ClearTTL is the lock timeout for clear operations (default: \"10s\")",
+                    "type": "string"
+                },
+                "flush_ttl": {
+                    "description": "FlushTTL is the lock timeout for flush operations (default: \"5m\")",
+                    "type": "string"
+                }
+            }
+        },
         "core.MemoryReference": {
             "type": "object",
             "required": [
@@ -9892,6 +10103,72 @@ const docTemplate = `{
                 "path": {
                     "description": "Path holds the absolute working directory.",
                     "type": "string"
+                }
+            }
+        },
+        "core.PersistenceConfig": {
+            "type": "object",
+            "required": [
+                "ttl",
+                "type"
+            ],
+            "properties": {
+                "circuit_breaker": {
+                    "description": "CircuitBreaker configures resilience for persistence operations.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.CircuitBreakerConfig"
+                        }
+                    ]
+                },
+                "ttl": {
+                    "description": "TTL is the time-to-live for memory instances in this resource.\nParsed as a duration string (e.g., \"24h\", \"30m\").",
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "redis",
+                        "in_memory"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.PersistenceType"
+                        }
+                    ]
+                }
+            }
+        },
+        "core.PersistenceType": {
+            "type": "string",
+            "enum": [
+                "redis",
+                "in_memory"
+            ],
+            "x-enum-varnames": [
+                "RedisPersistence",
+                "InMemoryPersistence"
+            ]
+        },
+        "core.PrivacyPolicyConfig": {
+            "type": "object",
+            "properties": {
+                "default_redaction_string": {
+                    "description": "DefaultRedactionString is the string to replace redacted content with. Defaults to \"[REDACTED]\".",
+                    "type": "string"
+                },
+                "non_persistable_message_types": {
+                    "description": "NonPersistableMessageTypes is a list of message types/roles that should not be persisted.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "redact_patterns": {
+                    "description": "RedactPatterns is a list of regex patterns to apply for redacting content.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -10124,6 +10401,86 @@ const docTemplate = `{
                     ]
                 }
             }
+        },
+        "core.TokenAllocation": {
+            "type": "object",
+            "properties": {
+                "long_term": {
+                    "description": "LongTerm is the percentage of tokens allocated for summarized or older important context.",
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0
+                },
+                "short_term": {
+                    "description": "ShortTerm is the percentage of tokens allocated for recent messages.",
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0
+                },
+                "system": {
+                    "description": "System is the percentage of tokens reserved for system prompts or critical instructions.",
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0
+                },
+                "user_defined": {
+                    "description": "UserDefined is a map for additional custom allocations if needed.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number",
+                        "format": "float64"
+                    }
+                }
+            }
+        },
+        "core.TokenProviderConfig": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "description": "API key for real-time counting (can be env var reference like ${OPENAI_API_KEY})",
+                    "type": "string"
+                },
+                "api_key_env": {
+                    "description": "Environment variable name containing the API key",
+                    "type": "string"
+                },
+                "endpoint": {
+                    "description": "Optional custom endpoint",
+                    "type": "string"
+                },
+                "fallback": {
+                    "description": "Fallback strategy",
+                    "type": "string"
+                },
+                "model": {
+                    "description": "Model name",
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "\"openai\", \"anthropic\", etc.",
+                    "type": "string"
+                },
+                "settings": {
+                    "description": "Provider-specific settings",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "core.Type": {
+            "type": "string",
+            "enum": [
+                "token_based",
+                "message_count_based",
+                "buffer"
+            ],
+            "x-enum-varnames": [
+                "TokenBasedMemory",
+                "MessageCountBasedMemory",
+                "BufferMemory"
+            ]
         },
         "gin.H": {
             "type": "object",
@@ -10439,7 +10796,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "start_timeout": {
-                    "type": "string"
+                    "$ref": "#/definitions/time.Duration"
                 },
                 "transport": {
                     "type": "string"
@@ -10484,7 +10841,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "start_timeout": {
-                    "type": "string"
+                    "$ref": "#/definitions/time.Duration"
                 },
                 "transport": {
                     "type": "string"
@@ -10604,15 +10961,13 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "flushing": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.FlushingStrategyConfig"
                 },
                 "id": {
                     "type": "string"
                 },
                 "locking": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.LockConfig"
                 },
                 "max_context_ratio": {
                     "type": "number"
@@ -10624,25 +10979,24 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "persistence": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PersistenceConfig"
                 },
                 "privacy_policy": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PrivacyPolicyConfig"
                 },
                 "resource": {
                     "type": "string"
                 },
                 "token_allocation": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.TokenAllocation"
                 },
                 "token_provider": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.TokenProviderConfig"
                 },
                 "type": {
+                    "$ref": "#/definitions/core.Type"
+                },
+                "version": {
                     "type": "string"
                 }
             }
@@ -10661,15 +11015,13 @@ const docTemplate = `{
                     "example": "abc123"
                 },
                 "flushing": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.FlushingStrategyConfig"
                 },
                 "id": {
                     "type": "string"
                 },
                 "locking": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.LockConfig"
                 },
                 "max_context_ratio": {
                     "type": "number"
@@ -10681,25 +11033,24 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "persistence": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PersistenceConfig"
                 },
                 "privacy_policy": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PrivacyPolicyConfig"
                 },
                 "resource": {
                     "type": "string"
                 },
                 "token_allocation": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.TokenAllocation"
                 },
                 "token_provider": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.TokenProviderConfig"
                 },
                 "type": {
+                    "$ref": "#/definitions/core.Type"
+                },
+                "version": {
                     "type": "string"
                 }
             }
@@ -10797,11 +11148,20 @@ const docTemplate = `{
         "modelrouter.ModelDTO": {
             "type": "object",
             "properties": {
+                "api_key": {
+                    "type": "string"
+                },
                 "api_url": {
                     "type": "string"
                 },
+                "default": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string"
+                },
+                "max_tool_iterations": {
+                    "type": "integer"
                 },
                 "model": {
                     "type": "string"
@@ -10810,8 +11170,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "params": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PromptParams"
                 },
                 "provider": {
                     "type": "string"
@@ -10824,8 +11183,14 @@ const docTemplate = `{
         "modelrouter.ModelListItem": {
             "type": "object",
             "properties": {
+                "api_key": {
+                    "type": "string"
+                },
                 "api_url": {
                     "type": "string"
+                },
+                "default": {
+                    "type": "boolean"
                 },
                 "etag": {
                     "type": "string",
@@ -10834,6 +11199,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "max_tool_iterations": {
+                    "type": "integer"
+                },
                 "model": {
                     "type": "string"
                 },
@@ -10841,8 +11209,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "params": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PromptParams"
                 },
                 "provider": {
                     "type": "string"
@@ -11781,31 +12148,138 @@ const docTemplate = `{
                 "action": {
                     "type": "string"
                 },
+                "agent": {
+                    "$ref": "#/definitions/agent.Config"
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
+                "batch": {
+                    "type": "integer"
+                },
+                "batch_size": {
+                    "type": "integer"
+                },
+                "clear_config": {
+                    "$ref": "#/definitions/task.ClearConfig"
+                },
                 "condition": {
                     "type": "string"
+                },
+                "config": {
+                    "$ref": "#/definitions/core.GlobalOpts"
                 },
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
                 },
+                "filter": {
+                    "type": "string"
+                },
+                "final": {
+                    "type": "boolean"
+                },
+                "flush_config": {
+                    "$ref": "#/definitions/task.FlushConfig"
+                },
                 "has_subtasks": {
                     "type": "boolean"
+                },
+                "health_config": {
+                    "$ref": "#/definitions/task.HealthConfig"
                 },
                 "id": {
                     "type": "string"
                 },
+                "index_var": {
+                    "type": "string"
+                },
+                "input": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
+                "item_var": {
+                    "type": "string"
+                },
                 "items": {},
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "key_template": {
+                    "type": "string"
+                },
+                "max_iterations": {
+                    "type": "integer"
+                },
+                "max_keys": {
+                    "type": "integer"
+                },
+                "max_workers": {
+                    "type": "integer"
+                },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "memory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
+                },
+                "memory_ref": {
+                    "type": "string"
+                },
                 "mode": {
                     "type": "string"
                 },
+                "model_config": {
+                    "$ref": "#/definitions/core.ProviderConfig"
+                },
+                "on_error": {
+                    "$ref": "#/definitions/core.ErrorTransition"
+                },
+                "on_success": {
+                    "$ref": "#/definitions/core.SuccessTransition"
+                },
+                "on_timeout": {
+                    "type": "string"
+                },
+                "operation": {
+                    "$ref": "#/definitions/task.MemoryOpType"
+                },
+                "output": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
                 "outputs": {
                     "$ref": "#/definitions/core.Input"
+                },
+                "payload": {},
+                "prompt": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "retries": {
+                    "type": "integer"
                 },
                 "routes": {
                     "type": "object",
                     "additionalProperties": {}
                 },
+                "signal": {
+                    "$ref": "#/definitions/task.SignalConfig"
+                },
                 "signal_name": {
                     "type": "string"
+                },
+                "sleep": {
+                    "type": "string"
+                },
+                "stats_config": {
+                    "$ref": "#/definitions/task.StatsConfig"
                 },
                 "strategy": {
                     "type": "string"
@@ -11816,11 +12290,32 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "task": {
+                    "$ref": "#/definitions/tkrouter.TaskDTO"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tkrouter.TaskDTO"
+                    }
+                },
                 "timeout": {
                     "type": "string"
                 },
+                "tool": {
+                    "$ref": "#/definitions/tool.Config"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
                 "type": {
                     "$ref": "#/definitions/task.Type"
+                },
+                "wait_for": {
+                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -11833,8 +12328,27 @@ const docTemplate = `{
                 "action": {
                     "type": "string"
                 },
+                "agent": {
+                    "$ref": "#/definitions/agent.Config"
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
+                "batch": {
+                    "type": "integer"
+                },
+                "batch_size": {
+                    "type": "integer"
+                },
+                "clear_config": {
+                    "$ref": "#/definitions/task.ClearConfig"
+                },
                 "condition": {
                     "type": "string"
+                },
+                "config": {
+                    "$ref": "#/definitions/core.GlobalOpts"
                 },
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
@@ -11843,25 +12357,113 @@ const docTemplate = `{
                     "type": "string",
                     "example": "abc123"
                 },
+                "filter": {
+                    "type": "string"
+                },
+                "final": {
+                    "type": "boolean"
+                },
+                "flush_config": {
+                    "$ref": "#/definitions/task.FlushConfig"
+                },
                 "has_subtasks": {
                     "type": "boolean"
+                },
+                "health_config": {
+                    "$ref": "#/definitions/task.HealthConfig"
                 },
                 "id": {
                     "type": "string"
                 },
+                "index_var": {
+                    "type": "string"
+                },
+                "input": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
+                "item_var": {
+                    "type": "string"
+                },
                 "items": {},
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "key_template": {
+                    "type": "string"
+                },
+                "max_iterations": {
+                    "type": "integer"
+                },
+                "max_keys": {
+                    "type": "integer"
+                },
+                "max_workers": {
+                    "type": "integer"
+                },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "memory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
+                },
+                "memory_ref": {
+                    "type": "string"
+                },
                 "mode": {
                     "type": "string"
                 },
+                "model_config": {
+                    "$ref": "#/definitions/core.ProviderConfig"
+                },
+                "on_error": {
+                    "$ref": "#/definitions/core.ErrorTransition"
+                },
+                "on_success": {
+                    "$ref": "#/definitions/core.SuccessTransition"
+                },
+                "on_timeout": {
+                    "type": "string"
+                },
+                "operation": {
+                    "$ref": "#/definitions/task.MemoryOpType"
+                },
+                "output": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
                 "outputs": {
                     "$ref": "#/definitions/core.Input"
+                },
+                "payload": {},
+                "prompt": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "retries": {
+                    "type": "integer"
                 },
                 "routes": {
                     "type": "object",
                     "additionalProperties": {}
                 },
+                "signal": {
+                    "$ref": "#/definitions/task.SignalConfig"
+                },
                 "signal_name": {
                     "type": "string"
+                },
+                "sleep": {
+                    "type": "string"
+                },
+                "stats_config": {
+                    "$ref": "#/definitions/task.StatsConfig"
                 },
                 "strategy": {
                     "type": "string"
@@ -11872,11 +12474,32 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "task": {
+                    "$ref": "#/definitions/tkrouter.TaskDTO"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tkrouter.TaskDTO"
+                    }
+                },
                 "timeout": {
                     "type": "string"
                 },
+                "tool": {
+                    "$ref": "#/definitions/tool.Config"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
                 "type": {
                     "$ref": "#/definitions/task.Type"
+                },
+                "wait_for": {
+                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -11889,31 +12512,138 @@ const docTemplate = `{
                 "action": {
                     "type": "string"
                 },
+                "agent": {
+                    "$ref": "#/definitions/agent.Config"
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
+                "batch": {
+                    "type": "integer"
+                },
+                "batch_size": {
+                    "type": "integer"
+                },
+                "clear_config": {
+                    "$ref": "#/definitions/task.ClearConfig"
+                },
                 "condition": {
                     "type": "string"
+                },
+                "config": {
+                    "$ref": "#/definitions/core.GlobalOpts"
                 },
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
                 },
+                "filter": {
+                    "type": "string"
+                },
+                "final": {
+                    "type": "boolean"
+                },
+                "flush_config": {
+                    "$ref": "#/definitions/task.FlushConfig"
+                },
                 "has_subtasks": {
                     "type": "boolean"
+                },
+                "health_config": {
+                    "$ref": "#/definitions/task.HealthConfig"
                 },
                 "id": {
                     "type": "string"
                 },
+                "index_var": {
+                    "type": "string"
+                },
+                "input": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
+                "item_var": {
+                    "type": "string"
+                },
                 "items": {},
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "key_template": {
+                    "type": "string"
+                },
+                "max_iterations": {
+                    "type": "integer"
+                },
+                "max_keys": {
+                    "type": "integer"
+                },
+                "max_workers": {
+                    "type": "integer"
+                },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "memory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
+                },
+                "memory_ref": {
+                    "type": "string"
+                },
                 "mode": {
                     "type": "string"
                 },
+                "model_config": {
+                    "$ref": "#/definitions/core.ProviderConfig"
+                },
+                "on_error": {
+                    "$ref": "#/definitions/core.ErrorTransition"
+                },
+                "on_success": {
+                    "$ref": "#/definitions/core.SuccessTransition"
+                },
+                "on_timeout": {
+                    "type": "string"
+                },
+                "operation": {
+                    "$ref": "#/definitions/task.MemoryOpType"
+                },
+                "output": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
                 "outputs": {
                     "$ref": "#/definitions/core.Input"
+                },
+                "payload": {},
+                "prompt": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "retries": {
+                    "type": "integer"
                 },
                 "routes": {
                     "type": "object",
                     "additionalProperties": {}
                 },
+                "signal": {
+                    "$ref": "#/definitions/task.SignalConfig"
+                },
                 "signal_name": {
                     "type": "string"
+                },
+                "sleep": {
+                    "type": "string"
+                },
+                "stats_config": {
+                    "$ref": "#/definitions/task.StatsConfig"
                 },
                 "strategy": {
                     "type": "string"
@@ -11927,8 +12657,20 @@ const docTemplate = `{
                 "timeout": {
                     "type": "string"
                 },
+                "tool": {
+                    "$ref": "#/definitions/tool.Config"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
                 "type": {
                     "$ref": "#/definitions/task.Type"
+                },
+                "wait_for": {
+                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -12022,40 +12764,34 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "config": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
+                },
+                "cwd": {
+                    "type": "string"
                 },
                 "description": {
-                    "type": "string",
-                    "example": "HTTP client tool"
+                    "type": "string"
                 },
                 "env": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.EnvMap"
                 },
                 "id": {
-                    "type": "string",
-                    "example": "http"
+                    "type": "string"
                 },
                 "input": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "output": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "resource": {
-                    "type": "string",
-                    "example": "tool"
+                    "type": "string"
                 },
                 "timeout": {
-                    "type": "string",
-                    "example": "30s"
+                    "type": "string"
                 },
                 "with": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
                 }
             }
         },
@@ -12063,44 +12799,38 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "config": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
+                },
+                "cwd": {
+                    "type": "string"
                 },
                 "description": {
-                    "type": "string",
-                    "example": "HTTP client tool"
+                    "type": "string"
                 },
                 "env": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.EnvMap"
                 },
                 "etag": {
                     "type": "string",
                     "example": "abc123"
                 },
                 "id": {
-                    "type": "string",
-                    "example": "http"
+                    "type": "string"
                 },
                 "input": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "output": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "resource": {
-                    "type": "string",
-                    "example": "tool"
+                    "type": "string"
                 },
                 "timeout": {
-                    "type": "string",
-                    "example": "30s"
+                    "type": "string"
                 },
                 "with": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
                 }
             }
         },
@@ -12483,8 +13213,26 @@ const docTemplate = `{
                 "mcp_count": {
                     "type": "integer"
                 },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "outputs": {
+                    "$ref": "#/definitions/core.Output"
+                },
+                "resource": {
+                    "type": "string"
+                },
                 "schedule": {
                     "$ref": "#/definitions/workflow.Schedule"
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/schema.Schema"
+                    }
                 },
                 "task_count": {
                     "type": "integer"
@@ -12548,8 +13296,26 @@ const docTemplate = `{
                 "mcp_count": {
                     "type": "integer"
                 },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "outputs": {
+                    "$ref": "#/definitions/core.Output"
+                },
+                "resource": {
+                    "type": "string"
+                },
                 "schedule": {
                     "$ref": "#/definitions/workflow.Schedule"
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/schema.Schema"
+                    }
                 },
                 "task_count": {
                     "type": "integer"

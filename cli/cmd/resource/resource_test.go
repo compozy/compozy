@@ -97,4 +97,19 @@ func TestResourceCommands(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Should reject invalid strategy flag", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+		cmdObj := tools.Cmd()
+		cmdObj.SetContext(newCLIContext(t, server.URL))
+		cmdObj.SetOut(&bytes.Buffer{})
+		cmdObj.SetErr(&bytes.Buffer{})
+		cmdObj.SilenceErrors = true
+		cmdObj.SilenceUsage = true
+		cmdObj.SetArgs([]string{"import", "--strategy", "invalid"})
+		require.Error(t, cmdObj.Execute())
+	})
 }

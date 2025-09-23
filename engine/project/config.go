@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/agent"
@@ -34,6 +35,10 @@ type RuntimeConfig struct {
 	// Permissions defines runtime security permissions.
 	// Overrides global runtime.bun_permissions setting if specified.
 	Permissions []string `json:"permissions,omitempty" yaml:"permissions,omitempty" mapstructure:"permissions"`
+
+	// ToolExecutionTimeout overrides the global runtime.tool_execution_timeout when provided.
+	// Accepts Go duration strings (e.g., "120s", "2m").
+	ToolExecutionTimeout time.Duration `json:"tool_execution_timeout,omitempty" yaml:"tool_execution_timeout,omitempty" mapstructure:"tool_execution_timeout"`
 }
 
 // WorkflowSourceConfig defines the source location for a workflow file.
@@ -553,6 +558,11 @@ func (p *Config) validateRuntimeConfig() error {
 		}
 	}
 
+	// Validate tool execution timeout if specified
+	if runtime.ToolExecutionTimeout < 0 {
+		return fmt.Errorf("runtime configuration error: tool_execution_timeout must be positive if specified")
+	}
+
 	return nil
 }
 
@@ -748,6 +758,74 @@ func (p *Config) SetDefaultModel(agent *agent.Config) {
 			if agent.Model.Config.APIURL == "" {
 				agent.Model.Config.APIURL = def.APIURL
 			}
+			if agent.Model.Config.Organization == "" {
+				agent.Model.Config.Organization = def.Organization
+			}
+			copyPromptParams(&agent.Model.Config.Params, &def.Params)
 		}
+	}
+}
+
+func copyPromptParams(dst, src *core.PromptParams) {
+	if dst == nil || src == nil {
+		return
+	}
+	copyPromptMaxTokens(dst, src)
+	copyPromptTemperature(dst, src)
+	copyPromptStopWords(dst, src)
+	copyPromptTopK(dst, src)
+	copyPromptTopP(dst, src)
+	copyPromptSeed(dst, src)
+	copyPromptMinLength(dst, src)
+	copyPromptRepetitionPenalty(dst, src)
+}
+
+func copyPromptMaxTokens(dst, src *core.PromptParams) {
+	if !dst.IsSetMaxTokens() && src.IsSetMaxTokens() {
+		dst.MaxTokens = src.MaxTokens
+	}
+}
+
+func copyPromptTemperature(dst, src *core.PromptParams) {
+	if !dst.IsSetTemperature() && src.IsSetTemperature() {
+		dst.Temperature = src.Temperature
+	}
+}
+
+func copyPromptStopWords(dst, src *core.PromptParams) {
+	if !dst.IsSetStopWords() && src.IsSetStopWords() {
+		if len(src.StopWords) > 0 {
+			dst.StopWords = append([]string(nil), src.StopWords...)
+		}
+	}
+}
+
+func copyPromptTopK(dst, src *core.PromptParams) {
+	if !dst.IsSetTopK() && src.IsSetTopK() {
+		dst.TopK = src.TopK
+	}
+}
+
+func copyPromptTopP(dst, src *core.PromptParams) {
+	if !dst.IsSetTopP() && src.IsSetTopP() {
+		dst.TopP = src.TopP
+	}
+}
+
+func copyPromptSeed(dst, src *core.PromptParams) {
+	if !dst.IsSetSeed() && src.IsSetSeed() {
+		dst.Seed = src.Seed
+	}
+}
+
+func copyPromptMinLength(dst, src *core.PromptParams) {
+	if !dst.IsSetMinLength() && src.IsSetMinLength() {
+		dst.MinLength = src.MinLength
+	}
+}
+
+func copyPromptRepetitionPenalty(dst, src *core.PromptParams) {
+	if !dst.IsSetRepetitionPenalty() && src.IsSetRepetitionPenalty() {
+		dst.RepetitionPenalty = src.RepetitionPenalty
 	}
 }

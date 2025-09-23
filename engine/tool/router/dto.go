@@ -1,18 +1,31 @@
 package toolrouter
 
 import (
+	"fmt"
+
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/engine/tool"
 )
 
-// ToolDTO represents the typed API shape for a tool configuration.
-// It mirrors public fields from tool.Config while keeping transport concerns
-// (headers, envelopes) out of DTOs.
-type ToolDTO struct{ ToolCoreDTO }
+// ToolDTO is the canonical typed representation for tools.
+type ToolDTO struct {
+	Resource     string         `json:"resource,omitempty"`
+	ID           string         `json:"id"`
+	Description  string         `json:"description,omitempty"`
+	Timeout      string         `json:"timeout,omitempty"`
+	InputSchema  *schema.Schema `json:"input,omitempty"`
+	OutputSchema *schema.Schema `json:"output,omitempty"`
+	With         *core.Input    `json:"with,omitempty"`
+	Config       *core.Input    `json:"config,omitempty"`
+	Env          *core.EnvMap   `json:"env,omitempty"`
+	Cwd          string         `json:"cwd,omitempty"`
+}
 
-// ToolListItem is the list representation. Includes an optional strong ETag
-// for clients that want to optimistically update items fetched from a list.
+// ToolListItem is the list representation and includes an optional ETag.
 type ToolListItem struct {
-	ToolCoreDTO
+	ToolDTO
 	ETag string `json:"etag,omitempty" example:"abc123"`
 }
 
@@ -22,54 +35,53 @@ type ToolsListResponse struct {
 	Page  router.PageInfoDTO `json:"page"`
 }
 
-// ToToolDTOForWorkflow is an exported helper for workflow DTO expansion mapping.
-func ToToolDTOForWorkflow(src map[string]any) ToolDTO { return toToolDTO(src) }
-
-// ToolCoreDTO defines fields shared between single and list tool representations.
-type ToolCoreDTO struct {
-	Resource     string         `json:"resource,omitempty"    example:"tool"`
-	ID           string         `json:"id"                    example:"http"`
-	Description  string         `json:"description,omitempty" example:"HTTP client tool"`
-	Timeout      string         `json:"timeout,omitempty"     example:"30s"`
-	InputSchema  map[string]any `json:"input,omitempty"`
-	OutputSchema map[string]any `json:"output,omitempty"`
-	With         map[string]any `json:"with,omitempty"`
-	Config       map[string]any `json:"config,omitempty"`
-	Env          map[string]any `json:"env,omitempty"`
+// ToToolDTOForWorkflow converts UC map payloads for workflow expansion.
+func ToToolDTOForWorkflow(src map[string]any) (ToolDTO, error) {
+	return toToolDTO(src)
 }
 
-// toToolDTO maps a generic map payload (from UC.AsMap) to ToolDTO.
-// Mapper is intentionally pure: do not import gin or depend on HTTP context.
-func toToolDTO(src map[string]any) ToolDTO {
-	return ToolDTO{ToolCoreDTO: ToolCoreDTO{
-		Resource:     router.AsString(src["resource"]),
-		ID:           router.AsString(src["id"]),
-		Description:  router.AsString(src["description"]),
-		Timeout:      router.AsString(src["timeout"]),
-		InputSchema:  router.AsMap(src["input"]),
-		OutputSchema: router.AsMap(src["output"]),
-		With:         router.AsMap(src["with"]),
-		Config:       router.AsMap(src["config"]),
-		Env:          router.AsMap(src["env"]),
-	}}
+// ConvertToolConfigToDTO converts a tool.Config to ToolDTO with deep-copy semantics.
+func ConvertToolConfigToDTO(cfg *tool.Config) (ToolDTO, error) {
+	if cfg == nil {
+		return ToolDTO{}, fmt.Errorf("tool config is nil")
+	}
+	clone, err := core.DeepCopy[*tool.Config](cfg)
+	if err != nil {
+		return ToolDTO{}, fmt.Errorf("deep copy tool config: %w", err)
+	}
+	return ToolDTO{
+		Resource:     clone.Resource,
+		ID:           clone.ID,
+		Description:  clone.Description,
+		Timeout:      clone.Timeout,
+		InputSchema:  clone.InputSchema,
+		OutputSchema: clone.OutputSchema,
+		With:         clone.With,
+		Config:       clone.Config,
+		Env:          clone.Env,
+		Cwd:          cwdPath(clone.GetCWD()),
+	}, nil
 }
 
-// toToolListItem maps a generic map payload to ToolListItem. If a UC provided
-// an internal "_etag" field in the map, it is normalized to the public
-// "etag" field on the DTO.
-func toToolListItem(src map[string]any) ToolListItem {
-	dto := ToolListItem{ToolCoreDTO: ToolCoreDTO{
-		Resource:     router.AsString(src["resource"]),
-		ID:           router.AsString(src["id"]),
-		Description:  router.AsString(src["description"]),
-		Timeout:      router.AsString(src["timeout"]),
-		InputSchema:  router.AsMap(src["input"]),
-		OutputSchema: router.AsMap(src["output"]),
-		With:         router.AsMap(src["with"]),
-		Config:       router.AsMap(src["config"]),
-		Env:          router.AsMap(src["env"]),
-	}, ETag: router.AsString(src["_etag"])}
-	return dto
+func cwdPath(cwd *core.PathCWD) string {
+	if cwd == nil {
+		return ""
+	}
+	return cwd.PathStr()
 }
 
-// helper functions centralized in router (AsString/AsMap)
+func toToolDTO(src map[string]any) (ToolDTO, error) {
+	cfg := &tool.Config{}
+	if err := cfg.FromMap(src); err != nil {
+		return ToolDTO{}, fmt.Errorf("map to tool config: %w", err)
+	}
+	return ConvertToolConfigToDTO(cfg)
+}
+
+func toToolListItem(src map[string]any) (ToolListItem, error) {
+	dto, err := toToolDTO(src)
+	if err != nil {
+		return ToolListItem{}, err
+	}
+	return ToolListItem{ToolDTO: dto, ETag: router.AsString(src["_etag"])}, nil
+}

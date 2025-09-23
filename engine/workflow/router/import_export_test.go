@@ -6,30 +6,22 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
+	testhelpers "github.com/compozy/compozy/test/helpers"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
-
-var wfGinModeOnce sync.Once
-
-func ensureWorkflowGinTestMode() {
-	wfGinModeOnce.Do(func() {
-		gin.SetMode(gin.TestMode)
-	})
-}
 
 func TestWorkflowRouter_Export(t *testing.T) {
 	t.Parallel()
 	t.Run("Should export workflows to project root", func(t *testing.T) {
 		t.Parallel()
-		ensureWorkflowGinTestMode()
+		testhelpers.EnsureGinTestMode()
 		ctx := context.Background()
 		projectID := "demo"
 		store := resources.NewMemoryResourceStore()

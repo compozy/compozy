@@ -31,26 +31,40 @@ func TestResolveEnvFilePath(t *testing.T) {
 		require.Equal(t, expected, resolved)
 	})
 
-	t.Run("ShouldFallbackToOriginalWorkingDirectoryWhenBaseDirMissing", func(t *testing.T) {
+	t.Run("ShouldFallbackToWorkingDirWhenBaseDirMissing", func(t *testing.T) {
 		cmd := &cobra.Command{Use: "test"}
 		cmd.Flags().String("env-file", "", "")
 		require.NoError(t, cmd.Flags().Set("env-file", ".env"))
+
+		baseDir := filepath.Join(t.TempDir(), "example")
+		require.NoError(t, os.MkdirAll(baseDir, 0o755))
+
+		fallbackDir := t.TempDir()
+		fallbackEnv := filepath.Join(fallbackDir, ".env")
+		require.NoError(t, os.WriteFile(fallbackEnv, []byte("KEY=fallback"), 0o600))
+
 		originalWD, err := os.Getwd()
 		require.NoError(t, err)
-		rootDir := t.TempDir()
-		require.NoError(t, os.Chdir(rootDir))
+		require.NoError(t, os.Chdir(fallbackDir))
 		t.Cleanup(func() {
 			require.NoError(t, os.Chdir(originalWD))
 		})
-		fallback := filepath.Join(rootDir, ".env")
-		require.NoError(t, os.WriteFile(fallback, []byte("KEY=root"), 0o600))
-		baseDir := filepath.Join(rootDir, "example")
-		require.NoError(t, os.MkdirAll(baseDir, 0o755))
+
 		resolved := resolveEnvFilePath(cmd, baseDir)
 		resolvedEval, err := filepath.EvalSymlinks(resolved)
 		require.NoError(t, err)
-		expectedEval, err := filepath.EvalSymlinks(fallback)
+		expectedEval, err := filepath.EvalSymlinks(fallbackEnv)
 		require.NoError(t, err)
 		require.Equal(t, expectedEval, resolvedEval)
+	})
+
+	t.Run("ShouldReturnBaseDirPathEvenWhenFileMissing", func(t *testing.T) {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.Flags().String("env-file", "", "")
+		require.NoError(t, cmd.Flags().Set("env-file", ".env"))
+		baseDir := filepath.Join(t.TempDir(), "example")
+		require.NoError(t, os.MkdirAll(baseDir, 0o755))
+		resolved := resolveEnvFilePath(cmd, baseDir)
+		require.Equal(t, filepath.Join(baseDir, ".env"), resolved)
 	})
 }

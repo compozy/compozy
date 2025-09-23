@@ -9,10 +9,20 @@ import (
 	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
 	"github.com/compozy/compozy/cli/helpers"
+	"github.com/compozy/compozy/engine/resources/importer"
 	"github.com/spf13/cobra"
 )
 
-var allowedStrategies = map[string]struct{}{"seed_only": {}, "overwrite_conflicts": {}}
+const defaultStrategy = string(importer.SeedOnly)
+
+var (
+	allowedStrategyValues = []string{defaultStrategy, string(importer.OverwriteConflicts)}
+	allowedStrategies     = map[string]struct{}{
+		defaultStrategy:                     {},
+		string(importer.OverwriteConflicts): {},
+	}
+	allowedStrategyHint = strings.Join(allowedStrategyValues, "|")
+)
 
 type CommandConfig struct {
 	Use              string
@@ -47,7 +57,7 @@ func newImportCommand(cfg *CommandConfig) *cobra.Command {
 			strategy := ""
 			if cfg.SupportsStrategy {
 				s := cmdObj.Flags().Lookup("strategy")
-				value := "seed_only"
+				value := defaultStrategy
 				if s != nil {
 					value = s.Value.String()
 				}
@@ -61,7 +71,7 @@ func newImportCommand(cfg *CommandConfig) *cobra.Command {
 		},
 	}
 	if cfg.SupportsStrategy {
-		c.Flags().String("strategy", "seed_only", "Import strategy: seed_only|overwrite_conflicts")
+		c.Flags().String("strategy", defaultStrategy, "Import strategy: "+allowedStrategyHint)
 	}
 	helpers.AddGlobalFlags(c)
 	return c
@@ -70,10 +80,10 @@ func newImportCommand(cfg *CommandConfig) *cobra.Command {
 func normalizeStrategy(value string) (string, error) {
 	v := strings.TrimSpace(strings.ToLower(value))
 	if v == "" {
-		return "seed_only", nil
+		return defaultStrategy, nil
 	}
 	if _, ok := allowedStrategies[v]; !ok {
-		return "", fmt.Errorf("invalid --strategy: %q (allowed: seed_only|overwrite_conflicts)", value)
+		return "", fmt.Errorf("invalid --strategy: %q (allowed: %s)", value, allowedStrategyHint)
 	}
 	return v, nil
 }

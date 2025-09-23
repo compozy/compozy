@@ -3,6 +3,7 @@ package exporter
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,32 +14,6 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 	"gopkg.in/yaml.v3"
 )
-
-// DirForType maps a ResourceType to a repository subdirectory name
-func DirForType(t resources.ResourceType) (string, bool) {
-	switch t {
-	case resources.ResourceWorkflow:
-		return "workflows", true
-	case resources.ResourceAgent:
-		return "agents", true
-	case resources.ResourceTool:
-		return "tools", true
-	case resources.ResourceTask:
-		return "tasks", true
-	case resources.ResourceSchema:
-		return "schemas", true
-	case resources.ResourceMCP:
-		return "mcps", true
-	case resources.ResourceModel:
-		return "models", true
-	case resources.ResourceMemory:
-		return "memories", true
-	case resources.ResourceProject:
-		return "project", true
-	default:
-		return "", false
-	}
-}
 
 // Result summarizes export operation
 type Result struct {
@@ -99,7 +74,7 @@ func ExportTypeToDir(
 	if rootDir == "" {
 		return nil, fmt.Errorf("root directory is required")
 	}
-	dir, ok := DirForType(typ)
+	dir, ok := resources.DirForType(typ)
 	if !ok {
 		return nil, fmt.Errorf("unsupported resource type: %s", typ)
 	}
@@ -120,7 +95,7 @@ func ExportTypeToDir(
 		key := keys[i]
 		val, _, getErr := store.Get(ctx, key)
 		if getErr != nil {
-			if getErr == resources.ErrNotFound {
+			if errors.Is(getErr, resources.ErrNotFound) {
 				continue
 			}
 			return nil, fmt.Errorf("get %s/%s: %w", string(typ), key.ID, getErr)
@@ -132,7 +107,9 @@ func ExportTypeToDir(
 		if err := enc.Encode(node); err != nil {
 			return nil, fmt.Errorf("encode yaml for %s/%s: %w", string(typ), key.ID, err)
 		}
-		_ = enc.Close()
+		if cerr := enc.Close(); cerr != nil {
+			return nil, fmt.Errorf("close yaml encoder for %s/%s: %w", string(typ), key.ID, cerr)
+		}
 		filename := filepath.Join(absDir, sanitizeID(key.ID)+".yaml")
 		if err := os.WriteFile(filename, buf.Bytes(), 0o600); err != nil {
 			return nil, fmt.Errorf("write file %s: %w", filename, err)

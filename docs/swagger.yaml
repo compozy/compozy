@@ -259,28 +259,76 @@ definitions:
           Config holds an inline provider configuration when specified as a mapping.
           When Ref is set, Config may be merged with the resolved model during linking.
     type: object
+  agentrouter.AgentActionDTO:
+    properties:
+      attachments:
+        items: {}
+        type: array
+      id:
+        type: string
+      input:
+        $ref: '#/definitions/schema.Schema'
+      json_mode:
+        type: boolean
+      output:
+        $ref: '#/definitions/schema.Schema'
+      prompt:
+        type: string
+      with:
+        $ref: '#/definitions/core.Input'
+    type: object
   agentrouter.AgentDTO:
     properties:
+      actions:
+        items:
+          $ref: '#/definitions/agentrouter.AgentActionDTO'
+        type: array
+      attachments:
+        items: {}
+        type: array
       env:
-        additionalProperties: {}
+        additionalProperties:
+          type: string
         type: object
       id:
         type: string
       instructions:
         type: string
+      json_mode:
+        type: boolean
+      max_iterations:
+        type: integer
+      mcps:
+        items:
+          $ref: '#/definitions/mcp.Config'
+        type: array
+      memory:
+        items:
+          $ref: '#/definitions/core.MemoryReference'
+        type: array
       model:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/agentrouter.AgentModelDTO'
       resource:
         type: string
+      tools:
+        items:
+          $ref: '#/definitions/tool.Config'
+        type: array
       with:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.Input'
     type: object
   agentrouter.AgentListItem:
     properties:
+      actions:
+        items:
+          $ref: '#/definitions/agentrouter.AgentActionDTO'
+        type: array
+      attachments:
+        items: {}
+        type: array
       env:
-        additionalProperties: {}
+        additionalProperties:
+          type: string
         type: object
       etag:
         example: abc123
@@ -289,14 +337,35 @@ definitions:
         type: string
       instructions:
         type: string
+      json_mode:
+        type: boolean
+      max_iterations:
+        type: integer
+      mcps:
+        items:
+          $ref: '#/definitions/mcp.Config'
+        type: array
+      memory:
+        items:
+          $ref: '#/definitions/core.MemoryReference'
+        type: array
       model:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/agentrouter.AgentModelDTO'
       resource:
         type: string
+      tools:
+        items:
+          $ref: '#/definitions/tool.Config'
+        type: array
       with:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.Input'
+    type: object
+  agentrouter.AgentModelDTO:
+    properties:
+      config:
+        $ref: '#/definitions/core.ProviderConfig'
+      ref:
+        type: string
     type: object
   agentrouter.AgentsListResponse:
     properties:
@@ -340,6 +409,19 @@ definitions:
           URL to author's profile, repository, or team page.
 
           Examples: `"https://github.com/username"`, `"https://company.com/team/ai"`
+        type: string
+    type: object
+  core.CircuitBreakerConfig:
+    properties:
+      enabled:
+        type: boolean
+      max_failures:
+        type: integer
+      reset_timeout:
+        description: e.g., "30s"
+        type: string
+      timeout:
+        description: e.g., "100ms"
         type: string
     type: object
   core.ComponentType:
@@ -403,6 +485,69 @@ definitions:
           Error context passed to the handler
           Includes error details: { "error": "{{ .error }}", "attempt": "{{ .retryCount }}" }
     type: object
+  core.FlushingStrategyConfig:
+    properties:
+      summarize_oldest_percent:
+        description: |-
+          SummarizeOldestPercent is the percentage of the oldest messages to summarize. Only for hybrid_summary.
+          E.g., 0.3 means summarize the oldest 30% of messages.
+        maximum: 1
+        type: number
+      summarize_threshold:
+        description: |-
+          SummarizeThreshold is the percentage of MaxTokens/MaxMessages at which summarization should trigger.
+          E.g., 0.8 means trigger summarization when memory is 80% full. Only for hybrid_summary.
+        maximum: 1
+        type: number
+      summary_tokens:
+        description: SummaryTokens is the target token count for generated summaries. Only for hybrid_summary.
+        type: integer
+      type:
+        allOf:
+          - $ref: '#/definitions/core.FlushingStrategyType'
+        description: Type is the kind of flushing strategy to apply (e.g., hybrid_summary).
+        enum:
+          - hybrid_summary
+          - simple_fifo
+          - lru
+          - token_aware_lru
+    required:
+      - type
+    type: object
+  core.FlushingStrategyType:
+    enum:
+      - token_count
+      - message_count
+      - hybrid_summary
+      - simple_fifo
+      - time_based
+      - fifo
+      - lru
+      - token_aware_lru
+      - simple_fifo
+    type: string
+    x-enum-comments:
+      TokenAwareLRUFlushing: '#nosec G101'
+    x-enum-descriptions:
+      - ""
+      - ""
+      - ""
+      - ""
+      - ""
+      - ""
+      - ""
+      - '#nosec G101'
+      - ""
+    x-enum-varnames:
+      - TokenCountFlushing
+      - MessageCountFlushing
+      - HybridSummaryFlushing
+      - SimpleFIFOFlushing
+      - TimeBased
+      - FIFOFlushing
+      - LRUFlushing
+      - TokenAwareLRUFlushing
+      - DefaultFlushingStrategy
   core.GlobalOpts:
     properties:
       heartbeat_timeout:
@@ -449,6 +594,18 @@ definitions:
   core.Input:
     additionalProperties: {}
     type: object
+  core.LockConfig:
+    properties:
+      append_ttl:
+        description: 'AppendTTL is the lock timeout for append operations (default: "30s")'
+        type: string
+      clear_ttl:
+        description: 'ClearTTL is the lock timeout for clear operations (default: "10s")'
+        type: string
+      flush_ttl:
+        description: 'FlushTTL is the lock timeout for flush operations (default: "5m")'
+        type: string
+    type: object
   core.MemoryReference:
     properties:
       id:
@@ -475,6 +632,52 @@ definitions:
       path:
         description: Path holds the absolute working directory.
         type: string
+    type: object
+  core.PersistenceConfig:
+    properties:
+      circuit_breaker:
+        allOf:
+          - $ref: '#/definitions/core.CircuitBreakerConfig'
+        description: CircuitBreaker configures resilience for persistence operations.
+      ttl:
+        description: |-
+          TTL is the time-to-live for memory instances in this resource.
+          Parsed as a duration string (e.g., "24h", "30m").
+        type: string
+      type:
+        allOf:
+          - $ref: '#/definitions/core.PersistenceType'
+        enum:
+          - redis
+          - in_memory
+    required:
+      - ttl
+      - type
+    type: object
+  core.PersistenceType:
+    enum:
+      - redis
+      - in_memory
+    type: string
+    x-enum-varnames:
+      - RedisPersistence
+      - InMemoryPersistence
+  core.PrivacyPolicyConfig:
+    properties:
+      default_redaction_string:
+        description: DefaultRedactionString is the string to replace redacted content with. Defaults to
+          "[REDACTED]".
+        type: string
+      non_persistable_message_types:
+        description: NonPersistableMessageTypes is a list of message types/roles that should not be persisted.
+        items:
+          type: string
+        type: array
+      redact_patterns:
+        description: RedactPatterns is a list of regex patterns to apply for redacting content.
+        items:
+          type: string
+        type: array
     type: object
   core.ProblemDocument:
     properties:
@@ -755,6 +958,67 @@ definitions:
           Input parameters to pass to the next task
           - **Supports:** Template expressions like `{ "data": "{{ .output.result }}" }`
     type: object
+  core.TokenAllocation:
+    properties:
+      long_term:
+        description: LongTerm is the percentage of tokens allocated for summarized or older important
+          context.
+        maximum: 1
+        minimum: 0
+        type: number
+      short_term:
+        description: ShortTerm is the percentage of tokens allocated for recent messages.
+        maximum: 1
+        minimum: 0
+        type: number
+      system:
+        description: System is the percentage of tokens reserved for system prompts or critical instructions.
+        maximum: 1
+        minimum: 0
+        type: number
+      user_defined:
+        additionalProperties:
+          format: float64
+          type: number
+        description: UserDefined is a map for additional custom allocations if needed.
+        type: object
+    type: object
+  core.TokenProviderConfig:
+    properties:
+      api_key:
+        description: API key for real-time counting (can be env var reference like ${OPENAI_API_KEY})
+        type: string
+      api_key_env:
+        description: Environment variable name containing the API key
+        type: string
+      endpoint:
+        description: Optional custom endpoint
+        type: string
+      fallback:
+        description: Fallback strategy
+        type: string
+      model:
+        description: Model name
+        type: string
+      provider:
+        description: '"openai", "anthropic", etc.'
+        type: string
+      settings:
+        additionalProperties:
+          type: string
+        description: Provider-specific settings
+        type: object
+    type: object
+  core.Type:
+    enum:
+      - token_based
+      - message_count_based
+      - buffer
+    type: string
+    x-enum-varnames:
+      - TokenBasedMemory
+      - MessageCountBasedMemory
+      - BufferMemory
   gin.H:
     additionalProperties: {}
     type: object
@@ -1106,7 +1370,7 @@ definitions:
       resource:
         type: string
       start_timeout:
-        type: string
+        $ref: '#/definitions/time.Duration'
       transport:
         type: string
       url:
@@ -1136,7 +1400,7 @@ definitions:
       resource:
         type: string
       start_timeout:
-        type: string
+        $ref: '#/definitions/time.Duration'
       transport:
         type: string
       url:
@@ -1214,13 +1478,11 @@ definitions:
       description:
         type: string
       flushing:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.FlushingStrategyConfig'
       id:
         type: string
       locking:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.LockConfig'
       max_context_ratio:
         type: number
       max_messages:
@@ -1228,20 +1490,18 @@ definitions:
       max_tokens:
         type: integer
       persistence:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.PersistenceConfig'
       privacy_policy:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.PrivacyPolicyConfig'
       resource:
         type: string
       token_allocation:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.TokenAllocation'
       token_provider:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.TokenProviderConfig'
       type:
+        $ref: '#/definitions/core.Type'
+      version:
         type: string
     type: object
   memoryrouter.MemoryListItem:
@@ -1254,13 +1514,11 @@ definitions:
         example: abc123
         type: string
       flushing:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.FlushingStrategyConfig'
       id:
         type: string
       locking:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.LockConfig'
       max_context_ratio:
         type: number
       max_messages:
@@ -1268,20 +1526,18 @@ definitions:
       max_tokens:
         type: integer
       persistence:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.PersistenceConfig'
       privacy_policy:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.PrivacyPolicyConfig'
       resource:
         type: string
       token_allocation:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.TokenAllocation'
       token_provider:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.TokenProviderConfig'
       type:
+        $ref: '#/definitions/core.Type'
+      version:
         type: string
     type: object
   memrouter.AppendMemoryRequest:
@@ -1346,17 +1602,22 @@ definitions:
     type: object
   modelrouter.ModelDTO:
     properties:
+      api_key:
+        type: string
       api_url:
         type: string
+      default:
+        type: boolean
       id:
         type: string
+      max_tool_iterations:
+        type: integer
       model:
         type: string
       organization:
         type: string
       params:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.PromptParams'
       provider:
         type: string
       resource:
@@ -1364,20 +1625,25 @@ definitions:
     type: object
   modelrouter.ModelListItem:
     properties:
+      api_key:
+        type: string
       api_url:
         type: string
+      default:
+        type: boolean
       etag:
         example: abc123
         type: string
       id:
         type: string
+      max_tool_iterations:
+        type: integer
       model:
         type: string
       organization:
         type: string
       params:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.PromptParams'
       provider:
         type: string
       resource:
@@ -2238,34 +2504,120 @@ definitions:
     properties:
       action:
         type: string
+      agent:
+        $ref: '#/definitions/agent.Config'
+      attachments:
+        items: {}
+        type: array
+      batch:
+        type: integer
+      batch_size:
+        type: integer
+      clear_config:
+        $ref: '#/definitions/task.ClearConfig'
       condition:
         type: string
+      config:
+        $ref: '#/definitions/core.GlobalOpts'
       env:
         $ref: '#/definitions/core.EnvMap'
+      filter:
+        type: string
+      final:
+        type: boolean
+      flush_config:
+        $ref: '#/definitions/task.FlushConfig'
       has_subtasks:
         type: boolean
+      health_config:
+        $ref: '#/definitions/task.HealthConfig'
       id:
         type: string
+      index_var:
+        type: string
+      input:
+        $ref: '#/definitions/schema.Schema'
+      item_var:
+        type: string
       items: {}
+      json_mode:
+        type: boolean
+      key_template:
+        type: string
+      max_iterations:
+        type: integer
+      max_keys:
+        type: integer
+      max_workers:
+        type: integer
+      mcps:
+        items:
+          $ref: '#/definitions/mcp.Config'
+        type: array
+      memory:
+        items:
+          $ref: '#/definitions/core.MemoryReference'
+        type: array
+      memory_ref:
+        type: string
       mode:
         type: string
+      model_config:
+        $ref: '#/definitions/core.ProviderConfig'
+      on_error:
+        $ref: '#/definitions/core.ErrorTransition'
+      on_success:
+        $ref: '#/definitions/core.SuccessTransition'
+      on_timeout:
+        type: string
+      operation:
+        $ref: '#/definitions/task.MemoryOpType'
+      output:
+        $ref: '#/definitions/schema.Schema'
       outputs:
         $ref: '#/definitions/core.Input'
+      payload: {}
+      prompt:
+        type: string
+      resource:
+        type: string
+      retries:
+        type: integer
       routes:
         additionalProperties: {}
         type: object
+      signal:
+        $ref: '#/definitions/task.SignalConfig'
       signal_name:
         type: string
+      sleep:
+        type: string
+      stats_config:
+        $ref: '#/definitions/task.StatsConfig'
       strategy:
         type: string
       subtask_ids:
         items:
           type: string
         type: array
+      task:
+        $ref: '#/definitions/tkrouter.TaskDTO'
+      tasks:
+        items:
+          $ref: '#/definitions/tkrouter.TaskDTO'
+        type: array
       timeout:
         type: string
+      tool:
+        $ref: '#/definitions/tool.Config'
+      tools:
+        items:
+          $ref: '#/definitions/tool.Config'
+        type: array
       type:
         $ref: '#/definitions/task.Type'
+      wait_for:
+        type: string
       with:
         $ref: '#/definitions/core.Input'
     type: object
@@ -2273,37 +2625,123 @@ definitions:
     properties:
       action:
         type: string
+      agent:
+        $ref: '#/definitions/agent.Config'
+      attachments:
+        items: {}
+        type: array
+      batch:
+        type: integer
+      batch_size:
+        type: integer
+      clear_config:
+        $ref: '#/definitions/task.ClearConfig'
       condition:
         type: string
+      config:
+        $ref: '#/definitions/core.GlobalOpts'
       env:
         $ref: '#/definitions/core.EnvMap'
       etag:
         example: abc123
         type: string
+      filter:
+        type: string
+      final:
+        type: boolean
+      flush_config:
+        $ref: '#/definitions/task.FlushConfig'
       has_subtasks:
         type: boolean
+      health_config:
+        $ref: '#/definitions/task.HealthConfig'
       id:
         type: string
+      index_var:
+        type: string
+      input:
+        $ref: '#/definitions/schema.Schema'
+      item_var:
+        type: string
       items: {}
+      json_mode:
+        type: boolean
+      key_template:
+        type: string
+      max_iterations:
+        type: integer
+      max_keys:
+        type: integer
+      max_workers:
+        type: integer
+      mcps:
+        items:
+          $ref: '#/definitions/mcp.Config'
+        type: array
+      memory:
+        items:
+          $ref: '#/definitions/core.MemoryReference'
+        type: array
+      memory_ref:
+        type: string
       mode:
         type: string
+      model_config:
+        $ref: '#/definitions/core.ProviderConfig'
+      on_error:
+        $ref: '#/definitions/core.ErrorTransition'
+      on_success:
+        $ref: '#/definitions/core.SuccessTransition'
+      on_timeout:
+        type: string
+      operation:
+        $ref: '#/definitions/task.MemoryOpType'
+      output:
+        $ref: '#/definitions/schema.Schema'
       outputs:
         $ref: '#/definitions/core.Input'
+      payload: {}
+      prompt:
+        type: string
+      resource:
+        type: string
+      retries:
+        type: integer
       routes:
         additionalProperties: {}
         type: object
+      signal:
+        $ref: '#/definitions/task.SignalConfig'
       signal_name:
         type: string
+      sleep:
+        type: string
+      stats_config:
+        $ref: '#/definitions/task.StatsConfig'
       strategy:
         type: string
       subtask_ids:
         items:
           type: string
         type: array
+      task:
+        $ref: '#/definitions/tkrouter.TaskDTO'
+      tasks:
+        items:
+          $ref: '#/definitions/tkrouter.TaskDTO'
+        type: array
       timeout:
         type: string
+      tool:
+        $ref: '#/definitions/tool.Config'
+      tools:
+        items:
+          $ref: '#/definitions/tool.Config'
+        type: array
       type:
         $ref: '#/definitions/task.Type'
+      wait_for:
+        type: string
       with:
         $ref: '#/definitions/core.Input'
     type: object
@@ -2311,24 +2749,96 @@ definitions:
     properties:
       action:
         type: string
+      agent:
+        $ref: '#/definitions/agent.Config'
+      attachments:
+        items: {}
+        type: array
+      batch:
+        type: integer
+      batch_size:
+        type: integer
+      clear_config:
+        $ref: '#/definitions/task.ClearConfig'
       condition:
         type: string
+      config:
+        $ref: '#/definitions/core.GlobalOpts'
       env:
         $ref: '#/definitions/core.EnvMap'
+      filter:
+        type: string
+      final:
+        type: boolean
+      flush_config:
+        $ref: '#/definitions/task.FlushConfig'
       has_subtasks:
         type: boolean
+      health_config:
+        $ref: '#/definitions/task.HealthConfig'
       id:
         type: string
+      index_var:
+        type: string
+      input:
+        $ref: '#/definitions/schema.Schema'
+      item_var:
+        type: string
       items: {}
+      json_mode:
+        type: boolean
+      key_template:
+        type: string
+      max_iterations:
+        type: integer
+      max_keys:
+        type: integer
+      max_workers:
+        type: integer
+      mcps:
+        items:
+          $ref: '#/definitions/mcp.Config'
+        type: array
+      memory:
+        items:
+          $ref: '#/definitions/core.MemoryReference'
+        type: array
+      memory_ref:
+        type: string
       mode:
         type: string
+      model_config:
+        $ref: '#/definitions/core.ProviderConfig'
+      on_error:
+        $ref: '#/definitions/core.ErrorTransition'
+      on_success:
+        $ref: '#/definitions/core.SuccessTransition'
+      on_timeout:
+        type: string
+      operation:
+        $ref: '#/definitions/task.MemoryOpType'
+      output:
+        $ref: '#/definitions/schema.Schema'
       outputs:
         $ref: '#/definitions/core.Input'
+      payload: {}
+      prompt:
+        type: string
+      resource:
+        type: string
+      retries:
+        type: integer
       routes:
         additionalProperties: {}
         type: object
+      signal:
+        $ref: '#/definitions/task.SignalConfig'
       signal_name:
         type: string
+      sleep:
+        type: string
+      stats_config:
+        $ref: '#/definitions/task.StatsConfig'
       strategy:
         type: string
       subtask_ids:
@@ -2337,8 +2847,16 @@ definitions:
         type: array
       timeout:
         type: string
+      tool:
+        $ref: '#/definitions/tool.Config'
+      tools:
+        items:
+          $ref: '#/definitions/tool.Config'
+        type: array
       type:
         $ref: '#/definitions/task.Type'
+      wait_for:
+        type: string
       with:
         $ref: '#/definitions/core.Input'
     type: object
@@ -2465,65 +2983,51 @@ definitions:
   toolrouter.ToolDTO:
     properties:
       config:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.Input'
+      cwd:
+        type: string
       description:
-        example: HTTP client tool
         type: string
       env:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.EnvMap'
       id:
-        example: http
         type: string
       input:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/schema.Schema'
       output:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/schema.Schema'
       resource:
-        example: tool
         type: string
       timeout:
-        example: 30s
         type: string
       with:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.Input'
     type: object
   toolrouter.ToolListItem:
     properties:
       config:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.Input'
+      cwd:
+        type: string
       description:
-        example: HTTP client tool
         type: string
       env:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.EnvMap'
       etag:
         example: abc123
         type: string
       id:
-        example: http
         type: string
       input:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/schema.Schema'
       output:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/schema.Schema'
       resource:
-        example: tool
         type: string
       timeout:
-        example: 30s
         type: string
       with:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/core.Input'
     type: object
   toolrouter.ToolsListResponse:
     properties:
@@ -2772,8 +3276,20 @@ definitions:
         type: string
       mcp_count:
         type: integer
+      mcps:
+        items:
+          $ref: '#/definitions/mcp.Config'
+        type: array
+      outputs:
+        $ref: '#/definitions/core.Output'
+      resource:
+        type: string
       schedule:
         $ref: '#/definitions/workflow.Schedule'
+      schemas:
+        items:
+          $ref: '#/definitions/schema.Schema'
+        type: array
       task_count:
         type: integer
       task_ids:
@@ -2814,8 +3330,20 @@ definitions:
         type: string
       mcp_count:
         type: integer
+      mcps:
+        items:
+          $ref: '#/definitions/mcp.Config'
+        type: array
+      outputs:
+        $ref: '#/definitions/core.Output'
+      resource:
+        type: string
       schedule:
         $ref: '#/definitions/workflow.Schedule'
+      schemas:
+        items:
+          $ref: '#/definitions/schema.Schema'
+        type: array
       task_count:
         type: integer
       task_ids:
@@ -4565,7 +5093,7 @@ paths:
         data:
           result: ok
         message: Success
-  /mcp/{name}/sse:
+  /mcp-proxy/{name}/sse:
     get:
       description: Proxy Server-Sent Events requests to a specific MCP server
       parameters:
@@ -4597,7 +5125,7 @@ paths:
       summary: Proxy SSE requests to MCP server
       tags:
         - MCP Proxy
-  /mcp/{name}/sse/{path}:
+  /mcp-proxy/{name}/sse/{path}:
     get:
       description: Proxy Server-Sent Events requests to a specific MCP server
       parameters:
@@ -4633,7 +5161,7 @@ paths:
       summary: Proxy SSE requests to MCP server
       tags:
         - MCP Proxy
-  /mcp/{name}/stream:
+  /mcp-proxy/{name}/stream:
     delete:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
@@ -4789,7 +5317,7 @@ paths:
       summary: Proxy streamable HTTP requests to MCP server
       tags:
         - MCP Proxy
-  /mcp/{name}/stream/{path}:
+  /mcp-proxy/{name}/stream/{path}:
     delete:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
@@ -6684,8 +7212,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties:
-                      type: integer
+                    additionalProperties: true
                     type: object
                 type: object
         "500":
@@ -7217,8 +7744,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties:
-                      type: integer
+                    additionalProperties: true
                     type: object
                 type: object
         "500":
@@ -7551,8 +8077,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    additionalProperties:
-                      type: integer
+                    additionalProperties: true
                     type: object
                 type: object
         "500":

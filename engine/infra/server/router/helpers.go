@@ -175,7 +175,7 @@ func ParseImportStrategyParam(value string) (importer.Strategy, error) {
 	case string(importer.OverwriteConflicts):
 		return importer.OverwriteConflicts, nil
 	default:
-		return "", fmt.Errorf("invalid strategy")
+		return "", fmt.Errorf("invalid strategy (allowed: %q|%q)", importer.SeedOnly, importer.OverwriteConflicts)
 	}
 }
 

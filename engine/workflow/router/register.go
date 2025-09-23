@@ -8,7 +8,7 @@ import (
 // It adds endpoints for events, workflow definitions, and workflow executions.
 // Authentication is handled globally at the server level.
 func Register(apiBase *gin.RouterGroup) {
-	// Event routes (v1)
+	// Event routes (v0)
 	apiBase.POST("/events", handleEvent)
 
 	// Workflow definition routes
@@ -18,7 +18,6 @@ func Register(apiBase *gin.RouterGroup) {
 		// POST /api/v0/workflows/export
 		// Export workflows to YAML
 		workflowsGroup.POST("/export", exportWorkflows)
-
 		// POST /api/v0/workflows/import
 		// Import workflows from YAML
 		workflowsGroup.POST("/import", importWorkflows)

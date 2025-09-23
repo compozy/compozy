@@ -10,11 +10,9 @@ func Register(apiBase *gin.RouterGroup) {
 		// POST /api/v0/tasks/export
 		// Export tasks to YAML
 		tasksGroup.POST("/export", exportTasks)
-
 		// POST /api/v0/tasks/import
 		// Import tasks from YAML
 		tasksGroup.POST("/import", importTasks)
-
 		tasksGroup.GET("", listTasksTop)
 		tasksGroup.GET("/:task_id", getTaskTop)
 		tasksGroup.PUT("/:task_id", upsertTaskTop)

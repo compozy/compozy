@@ -1169,7 +1169,7 @@ func (o *llmOrchestrator) collectConfiguredToolDefs(
 			Description: t.Description(),
 		}
 		if toolConfig.InputSchema != nil {
-			def.Parameters = *toolConfig.InputSchema
+			def.Parameters = normalizeToolParameters(*toolConfig.InputSchema)
 		} else {
 			// Initialize empty parameters object for API compatibility
 			def.Parameters = map[string]any{
@@ -1182,6 +1182,37 @@ func (o *llmOrchestrator) collectConfiguredToolDefs(
 		included[canonical(def.Name)] = struct{}{}
 	}
 	return defs, included, nil
+}
+
+func normalizeToolParameters(input map[string]any) map[string]any {
+	params := cloneMap(input)
+	if !isObjectType(params["type"]) {
+		params["type"] = "object"
+	}
+	if _, ok := params["properties"]; !ok {
+		params["properties"] = map[string]any{}
+	}
+	return params
+}
+
+func cloneMap(src map[string]any) map[string]any {
+	if src == nil {
+		return map[string]any{}
+	}
+	clone := make(map[string]any, len(src))
+	for k, v := range src {
+		clone[k] = v
+	}
+	return clone
+}
+
+func isObjectType(value any) bool {
+	switch v := value.(type) {
+	case string:
+		return strings.EqualFold(strings.TrimSpace(v), "object")
+	default:
+		return false
+	}
 }
 
 // appendRegistryToolDefs adds any additional tools from the registry (e.g., MCP tools)

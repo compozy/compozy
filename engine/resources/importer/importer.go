@@ -37,19 +37,6 @@ const (
 	OverwriteConflicts Strategy = "overwrite_conflicts"
 )
 
-// well-known directory names
-const (
-	dirWorkflows = "workflows"
-	dirAgents    = "agents"
-	dirTools     = "tools"
-	dirTasks     = "tasks"
-	dirSchemas   = "schemas"
-	dirMCPs      = "mcps"
-	dirModels    = "models"
-	dirMemories  = "memories"
-	dirProject   = "project"
-)
-
 const defaultYAMLListCap = 16
 
 // Result summarizes import operation
@@ -57,31 +44,6 @@ type Result struct {
 	Imported    map[resources.ResourceType]int
 	Skipped     map[resources.ResourceType]int
 	Overwritten map[resources.ResourceType]int
-}
-
-func typeToDir(typ resources.ResourceType) (string, bool) {
-	switch typ {
-	case resources.ResourceWorkflow:
-		return dirWorkflows, true
-	case resources.ResourceAgent:
-		return dirAgents, true
-	case resources.ResourceTool:
-		return dirTools, true
-	case resources.ResourceTask:
-		return dirTasks, true
-	case resources.ResourceSchema:
-		return dirSchemas, true
-	case resources.ResourceMCP:
-		return dirMCPs, true
-	case resources.ResourceModel:
-		return dirModels, true
-	case resources.ResourceMemory:
-		return dirMemories, true
-	case resources.ResourceProject:
-		return dirProject, true
-	default:
-		return "", false
-	}
 }
 
 func newResult() *Result {
@@ -133,7 +95,7 @@ func ImportFromDir(
 		resources.ResourceProject,
 	}
 	for _, typ := range types {
-		out, err := ImportTypeFromDir(ctx, project, store, rootDir, strategy, "", typ)
+		out, err := ImportTypeFromDir(ctx, project, store, rootDir, strategy, updatedBy, typ)
 		if err != nil {
 			return nil, err
 		}
@@ -169,7 +131,7 @@ func ImportTypeFromDir(
 	if rootDir == "" {
 		return nil, fmt.Errorf("root directory is required")
 	}
-	dirName, ok := typeToDir(typ)
+	dirName, ok := resources.DirForType(typ)
 	if !ok {
 		return nil, fmt.Errorf("unsupported resource type: %s", typ)
 	}

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
@@ -313,9 +314,10 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 			Version: "0.1.0",
 			CWD:     cwd,
 			Runtime: RuntimeConfig{
-				Type:        "bun",
-				Entrypoint:  "tools.ts",
-				Permissions: []string{"read"},
+				Type:                 "bun",
+				Entrypoint:           "tools.ts",
+				Permissions:          []string{"read"},
+				ToolExecutionTimeout: 90 * time.Second,
 			},
 		}
 		err = cfg.validateRuntimeConfig()
@@ -401,6 +403,28 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 		err = cfg.validateRuntimeConfig()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "has unsupported extension '.py'")
+	})
+
+	t.Run("Should fail validation for negative tool execution timeout", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		entrypoint := filepath.Join(tmpDir, "tools.ts")
+		require.NoError(t, os.WriteFile(entrypoint, []byte("export {}"), 0o644))
+		cwd, err := core.CWDFromPath(tmpDir)
+		require.NoError(t, err)
+		cfg := &Config{
+			Name:    "test-project",
+			Version: "0.1.0",
+			CWD:     cwd,
+			Runtime: RuntimeConfig{
+				Type:                 "bun",
+				Entrypoint:           "tools.ts",
+				Permissions:          []string{"read"},
+				ToolExecutionTimeout: -5 * time.Second,
+			},
+		}
+		err = cfg.validateRuntimeConfig()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "tool_execution_timeout must be positive")
 	})
 
 	t.Run(

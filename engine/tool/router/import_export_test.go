@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/compozy/compozy/engine/infra/server/appstate"
@@ -14,24 +13,17 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/tool"
+	testhelpers "github.com/compozy/compozy/test/helpers"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
 
-var ginModeOnce sync.Once
-
-func ensureGinTestMode() {
-	ginModeOnce.Do(func() {
-		gin.SetMode(gin.TestMode)
-	})
-}
-
 func TestToolRouter_Import(t *testing.T) {
 	t.Parallel()
 	t.Run("Should import tools and echo strategy", func(t *testing.T) {
 		t.Parallel()
-		ensureGinTestMode()
+		testhelpers.EnsureGinTestMode()
 		ctx := context.Background()
 		projectID := "demo"
 		store := resources.NewMemoryResourceStore()

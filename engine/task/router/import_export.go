@@ -6,21 +6,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// exportTasks handles POST /tasks/export.
+// exportTasks handles POST /api/v0/tasks/export.
 //
 //	@Summary      Export tasks
 //	@Description  Write task YAML files for the active project.
 //	@Tags         tasks
 //	@Produce      json
 //	@Security     ApiKeyAuth
-//	@Success      200  {object}  router.Response{data=map[string]int}  "Example: {\"data\":{\"written\":6},\"message\":\"export completed\"}"
+//	@Success      200  {object}  router.Response{data=map[string]any}  "Example: {\"data\":{\"written\":6},\"message\":\"export completed\"}"
 //	@Failure      500  {object}  router.Response{error=router.ErrorInfo}
 //	@Router       /tasks/export [post]
 func exportTasks(c *gin.Context) {
 	router.ExportResource(c, resources.ResourceTask)
 }
 
-// importTasks handles POST /tasks/import.
+// importTasks handles POST /api/v0/tasks/import.
 //
 //	@Summary      Import tasks
 //	@Description  Read task YAML files from the project directory.

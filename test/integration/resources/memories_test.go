@@ -23,6 +23,10 @@ func TestMemoriesEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, getRes.Code)
 		data := decodeData(t, getRes)
 		assert.Equal(t, "memory", data["resource"])
+		assert.Equal(t, "buffer", data["type"])
+		persist, ok := data["persistence"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "in_memory", persist["type"])
 		updateBody := cloneMap(memoryPayload("session"))
 		updateBody["max_tokens"] = 256
 		updateRes := client.do(

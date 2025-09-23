@@ -11,7 +11,7 @@ func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string, ser
 	router.GET("/", createRootHandler(version, prefixURL))
 	router.GET(prefixURL, createRootHandler(version, prefixURL))
 	router.GET(prefixURL+"/health", CreateHealthHandler(server, version))
-	router.GET("/mcp/health", func(c *gin.Context) {
+	router.GET("/mcp-proxy/health", func(c *gin.Context) {
 		ready := false
 		if server != nil {
 			ready = server.isMCPReady()
@@ -65,11 +65,10 @@ func createRootHandler(version, prefixURL string) gin.HandlerFunc {
 				"version":     version,
 				"description": "Next-level Agentic Orchestration Platform, tasks, and tools",
 				"endpoints": gin.H{
-					"health":  fmt.Sprintf("%s%s/health", baseURL, prefixURL),
-					"api":     fmt.Sprintf("%s%s", baseURL, prefixURL),
-					"swagger": fmt.Sprintf("%s/swagger/index.html", baseURL),
-					"docs":    fmt.Sprintf("%s/docs/index.html", baseURL),
-					"openapi": fmt.Sprintf("%s/swagger/doc.json", baseURL),
+					"health":       fmt.Sprintf("%s%s/health", baseURL, prefixURL),
+					"api":          fmt.Sprintf("%s%s", baseURL, prefixURL),
+					"docs":         fmt.Sprintf("%s/docs/index.html", baseURL),
+					"openapi_json": fmt.Sprintf("%s/openapi.json", baseURL),
 				},
 			},
 			"message": "Success",

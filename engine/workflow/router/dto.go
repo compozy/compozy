@@ -2,10 +2,13 @@ package wfrouter
 
 import (
 	"encoding/json"
+	"fmt"
 
 	agentrouter "github.com/compozy/compozy/engine/agent/router"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/schema"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
 	toolrouter "github.com/compozy/compozy/engine/tool/router"
 	"github.com/compozy/compozy/engine/workflow"
@@ -18,6 +21,9 @@ type WorkflowDTO struct {
 	Description string             `json:"description,omitempty"`
 	Author      *core.Author       `json:"author,omitempty"`
 	Config      workflow.Opts      `json:"config"`
+	Resource    string             `json:"resource,omitempty"`
+	Schemas     []schema.Schema    `json:"schemas,omitempty"`
+	Outputs     *core.Output       `json:"outputs,omitempty"`
 	Triggers    []workflow.Trigger `json:"triggers,omitempty"`
 	Schedule    *workflow.Schedule `json:"schedule,omitempty"`
 	TaskCount   int                `json:"task_count"`
@@ -25,6 +31,7 @@ type WorkflowDTO struct {
 	ToolCount   int                `json:"tool_count"`
 	AgentCount  int                `json:"agent_count"`
 	MCPCount    int                `json:"mcp_count"`
+	MCPs        []mcp.Config       `json:"mcps,omitempty"`
 	// Expandable collections: marshaled as either []string or []<DTO>
 	Tasks  TasksOrDTOs  `json:"tasks,omitempty"`
 	Agents AgentsOrDTOs `json:"agents,omitempty"`
@@ -51,12 +58,16 @@ func ConvertWorkflowConfigToDTO(cfg *workflow.Config) WorkflowDTO {
 		Description: cfg.Description,
 		Author:      cfg.Author,
 		Config:      cfg.Opts,
+		Resource:    cfg.Resource,
+		Schemas:     cfg.Schemas,
+		Outputs:     cfg.Outputs,
 		Triggers:    cfg.Triggers,
 		Schedule:    cfg.Schedule,
 		TaskCount:   len(cfg.Tasks),
 		ToolCount:   len(cfg.Tools),
 		AgentCount:  len(cfg.Agents),
 		MCPCount:    len(cfg.MCPs),
+		MCPs:        cfg.MCPs,
 	}
 	if len(cfg.Tasks) > 0 {
 		resp.TaskIDs = make([]string, len(cfg.Tasks))
@@ -83,6 +94,9 @@ type TasksOrDTOs struct {
 }
 
 func (t TasksOrDTOs) MarshalJSON() ([]byte, error) {
+	if len(t.IDs) > 0 && len(t.Expanded) > 0 {
+		return nil, fmt.Errorf("tasks payload has both ids and expanded values set")
+	}
 	if len(t.Expanded) > 0 {
 		return json.Marshal(t.Expanded)
 	}
@@ -95,6 +109,9 @@ type AgentsOrDTOs struct {
 }
 
 func (a AgentsOrDTOs) MarshalJSON() ([]byte, error) {
+	if len(a.IDs) > 0 && len(a.Expanded) > 0 {
+		return nil, fmt.Errorf("agents payload has both ids and expanded values set")
+	}
 	if len(a.Expanded) > 0 {
 		return json.Marshal(a.Expanded)
 	}
@@ -107,6 +124,9 @@ type ToolsOrDTOs struct {
 }
 
 func (t ToolsOrDTOs) MarshalJSON() ([]byte, error) {
+	if len(t.IDs) > 0 && len(t.Expanded) > 0 {
+		return nil, fmt.Errorf("tools payload has both ids and expanded values set")
+	}
 	if len(t.Expanded) > 0 {
 		return json.Marshal(t.Expanded)
 	}

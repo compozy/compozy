@@ -79,7 +79,12 @@ func listAgentsTop(c *gin.Context) {
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
 	items := make([]AgentListItem, 0, len(out.Items))
 	for i := range out.Items {
-		items = append(items, toAgentListItem(out.Items[i]))
+		item, err := toAgentListItem(out.Items[i])
+		if err != nil {
+			router.RespondWithServerError(c, router.ErrInternalCode, "failed to map agent", err)
+			return
+		}
+		items = append(items, item)
 	}
 	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "agents retrieved", AgentsListResponse{Agents: items, Page: page})
@@ -122,7 +127,12 @@ func getAgentTop(c *gin.Context) {
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	router.RespondOK(c, "agent retrieved", toAgentDTO(out.Agent))
+	dto, err := toAgentDTO(out.Agent)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map agent", err)
+		return
+	}
+	router.RespondOK(c, "agent retrieved", dto)
 }
 
 // upsertAgentTop handles PUT /agents/{agent_id}.
@@ -190,11 +200,16 @@ func upsertAgentTop(c *gin.Context) {
 		message = "agent created"
 		c.Header("Location", routes.Agents()+"/"+agentID)
 	}
-	if status == http.StatusCreated {
-		router.RespondCreated(c, message, toAgentDTO(out.Agent))
+	dto, err := toAgentDTO(out.Agent)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map agent", err)
 		return
 	}
-	router.RespondOK(c, message, toAgentDTO(out.Agent))
+	if status == http.StatusCreated {
+		router.RespondCreated(c, message, dto)
+		return
+	}
+	router.RespondOK(c, message, dto)
 }
 
 // deleteAgentTop handles DELETE /agents/{agent_id}.

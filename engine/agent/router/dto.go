@@ -1,83 +1,167 @@
 package agentrouter
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/attachment"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/schema"
+	tool "github.com/compozy/compozy/engine/tool"
 )
 
-// AgentCoreDTO defines stable, transport-facing fields for an agent.
-type AgentCoreDTO struct {
-	Resource     string         `json:"resource,omitempty"`
-	ID           string         `json:"id"`
-	Instructions string         `json:"instructions,omitempty"`
-	Model        map[string]any `json:"model,omitempty"`
-	With         map[string]any `json:"with,omitempty"`
-	Env          map[string]any `json:"env,omitempty"`
+// AgentModelDTO exposes both reference and inline provider configuration.
+type AgentModelDTO struct {
+	Ref    string               `json:"ref,omitempty"`
+	Config *core.ProviderConfig `json:"config,omitempty"`
 }
 
-// AgentDTO is the single-item representation.
+// AgentActionDTO mirrors agent.ActionConfig for transport.
+type AgentActionDTO struct {
+	ID           string                 `json:"id"`
+	Prompt       string                 `json:"prompt"`
+	InputSchema  *schema.Schema         `json:"input,omitempty"`
+	OutputSchema *schema.Schema         `json:"output,omitempty"`
+	With         *core.Input            `json:"with,omitempty"`
+	JSONMode     bool                   `json:"json_mode,omitempty"`
+	Attachments  attachment.Attachments `json:"attachments,omitempty"`
+}
+
+// AgentDTO is the canonical typed representation for agents.
 type AgentDTO struct {
-	AgentCoreDTO
+	Resource      string                 `json:"resource,omitempty"`
+	ID            string                 `json:"id"`
+	Instructions  string                 `json:"instructions,omitempty"`
+	Model         AgentModelDTO          `json:"model"`
+	MaxIterations int                    `json:"max_iterations,omitempty"`
+	JSONMode      bool                   `json:"json_mode,omitempty"`
+	Actions       []AgentActionDTO       `json:"actions,omitempty"`
+	With          *core.Input            `json:"with,omitempty"`
+	Env           map[string]string      `json:"env,omitempty"`
+	Tools         []tool.Config          `json:"tools,omitempty"`
+	MCPs          []mcp.Config           `json:"mcps,omitempty"`
+	Memory        []core.MemoryReference `json:"memory,omitempty"`
+	Attachments   attachment.Attachments `json:"attachments,omitempty"`
 }
 
-// AgentListItem is the collection item; includes public ETag for optimistic updates.
+// AgentListItem is the list representation and carries the item ETag.
 type AgentListItem struct {
-	AgentCoreDTO
+	AgentDTO
 	ETag string `json:"etag,omitempty" example:"abc123"`
 }
 
-// AgentsListResponse is the list envelope.
+// AgentsListResponse is the typed list payload returned from GET /agents.
 type AgentsListResponse struct {
 	Agents []AgentListItem    `json:"agents"`
 	Page   router.PageInfoDTO `json:"page"`
 }
 
-// ToAgentDTOForWorkflow is an exported helper for workflow DTO expansion mapping.
-func ToAgentDTOForWorkflow(src map[string]any) AgentDTO {
+// ToAgentDTOForWorkflow converts UC map payloads into typed DTOs for workflow expansion.
+func ToAgentDTOForWorkflow(src map[string]any) (AgentDTO, error) {
 	return toAgentDTO(src)
 }
 
-func agentCoreDTOFromMap(src map[string]any) AgentCoreDTO {
-	return AgentCoreDTO{
-		Resource:     router.AsString(src["resource"]),
-		ID:           router.AsString(src["id"]),
-		Instructions: router.AsString(src["instructions"]),
-		Model:        router.AsMap(src["model"]),
-		With:         router.AsMap(src["with"]),
-		Env:          maskSecrets(router.AsMap(src["env"])),
+// ConvertAgentConfigToDTO converts an agent.Config to AgentDTO using deep-copy semantics.
+func ConvertAgentConfigToDTO(cfg *agent.Config) (AgentDTO, error) {
+	if cfg == nil {
+		return AgentDTO{}, fmt.Errorf("agent config is nil")
 	}
+	clone, err := core.DeepCopy[*agent.Config](cfg)
+	if err != nil {
+		return AgentDTO{}, fmt.Errorf("deep copy agent config: %w", err)
+	}
+	dto := AgentDTO{
+		Resource:      clone.Resource,
+		ID:            clone.ID,
+		Instructions:  clone.Instructions,
+		MaxIterations: clone.MaxIterations,
+		JSONMode:      clone.JSONMode,
+		With:          clone.With,
+		Tools:         clone.Tools,
+		MCPs:          clone.MCPs,
+		Memory:        clone.Memory,
+		Attachments:   clone.Attachments,
+	}
+	dto.Model = exportAgentModel(&clone.Model)
+	dto.Actions = exportAgentActions(clone.Actions)
+	dto.Env = maskEnv(clone.Env)
+	return dto, nil
 }
 
-// toAgentDTO maps a generic UC map payload to AgentDTO.
-func toAgentDTO(src map[string]any) AgentDTO {
-	return AgentDTO{AgentCoreDTO: agentCoreDTOFromMap(src)}
+func exportAgentModel(model *agent.Model) AgentModelDTO {
+	if model == nil {
+		return AgentModelDTO{}
+	}
+	var cfgCopy *core.ProviderConfig
+	if model.HasConfig() {
+		cfg := model.Config
+		cfgCopy = &cfg
+	}
+	return AgentModelDTO{Ref: model.Ref, Config: cfgCopy}
 }
 
-// toAgentListItem maps a UC map payload to AgentListItem, normalizing _etag → etag.
-func toAgentListItem(src map[string]any) AgentListItem {
+func exportAgentActions(actions []*agent.ActionConfig) []AgentActionDTO {
+	if len(actions) == 0 {
+		return nil
+	}
+	out := make([]AgentActionDTO, 0, len(actions))
+	for i := range actions {
+		action := actions[i]
+		if action == nil {
+			continue
+		}
+		out = append(out, AgentActionDTO{
+			ID:           action.ID,
+			Prompt:       action.Prompt,
+			InputSchema:  action.InputSchema,
+			OutputSchema: action.OutputSchema,
+			With:         action.With,
+			JSONMode:     action.JSONMode,
+			Attachments:  action.Attachments,
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func maskEnv(env *core.EnvMap) map[string]string {
+	if env == nil || len(*env) == 0 {
+		return nil
+	}
+	masked := make(map[string]string, len(*env))
+	for key, value := range *env {
+		lower := strings.ToLower(key)
+		if strings.Contains(lower, "secret") || strings.Contains(lower, "token") ||
+			strings.Contains(lower, "key") || strings.Contains(lower, "password") {
+			masked[key] = "********"
+			continue
+		}
+		masked[key] = value
+	}
+	return masked
+}
+
+func toAgentDTO(src map[string]any) (AgentDTO, error) {
+	cfg := &agent.Config{}
+	if err := cfg.FromMap(src); err != nil {
+		return AgentDTO{}, fmt.Errorf("map to agent config: %w", err)
+	}
+	return ConvertAgentConfigToDTO(cfg)
+}
+
+func toAgentListItem(src map[string]any) (AgentListItem, error) {
+	dto, err := toAgentDTO(src)
+	if err != nil {
+		return AgentListItem{}, err
+	}
 	etag := router.AsString(src["_etag"])
 	if etag == "" {
 		etag = router.AsString(src["etag"])
 	}
-	return AgentListItem{AgentCoreDTO: agentCoreDTOFromMap(src), ETag: etag}
-}
-
-func maskSecrets(values map[string]any) map[string]any {
-	if values == nil {
-		return nil
-	}
-	masked := make(map[string]any, len(values))
-	for k, v := range values {
-		lower := strings.ToLower(k)
-		if strings.Contains(lower, "secret") ||
-			strings.Contains(lower, "token") ||
-			strings.Contains(lower, "key") ||
-			strings.Contains(lower, "password") {
-			masked[k] = "********"
-			continue
-		}
-		masked[k] = v
-	}
-	return masked
+	return AgentListItem{AgentDTO: dto, ETag: etag}, nil
 }

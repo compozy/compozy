@@ -245,6 +245,10 @@
           },
           "type": "array"
         },
+        "tool_execution_timeout": {
+          "description": "ToolExecutionTimeout overrides the global runtime.tool_execution_timeout when provided.\nAccepts Go duration strings (e.g., \"120s\", \"2m\").",
+          "type": "integer"
+        },
         "type": {
           "description": "Type specifies the JavaScript runtime to use for tool execution.\nOverrides global runtime.runtime_type setting if specified.",
           "type": "string"
