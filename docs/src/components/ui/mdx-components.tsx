@@ -53,6 +53,8 @@ import defaultMdxComponents from "fumadocs-ui/mdx";
 import type { MDXComponents } from "mdx/types";
 import { openapi } from "../../lib/source";
 
+// APIPageClient is a client component wrapper to avoid SSR recursion
+
 // use this function to get MDX components, you will need it for rendering MDX
 export function getMDXComponents(components?: MDXComponents): MDXComponents {
   return {
