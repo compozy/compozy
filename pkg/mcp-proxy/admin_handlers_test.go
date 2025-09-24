@@ -32,7 +32,7 @@ func setupAdminHandlerTest() (*gin.Engine, *MCPService) {
 }
 
 func TestAdminHandlers_AddMCP(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 
 	t.Run("Should create new MCP definition and return success response", func(t *testing.T) {
 		router, _ := setupAdminHandlerTest()
@@ -62,7 +62,7 @@ func TestAdminHandlers_AddMCP(t *testing.T) {
 }
 
 func TestAdminHandlers_ListMCPs(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 
 	t.Run("Should return list of all MCP definitions with count", func(t *testing.T) {
 		router, service := setupAdminHandlerTest()
@@ -92,7 +92,7 @@ func TestAdminHandlers_ListMCPs(t *testing.T) {
 }
 
 func TestAdminHandlers_GetMCP(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 
 	t.Run("Should return specific MCP definition by name", func(t *testing.T) {
 		router, service := setupAdminHandlerTest()
@@ -137,7 +137,7 @@ func TestAdminHandlers_GetMCP(t *testing.T) {
 }
 
 func TestAdminHandlers_UpdateMCP(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 
 	t.Run("Should update existing MCP definition successfully", func(t *testing.T) {
 		router, service := setupAdminHandlerTest()
@@ -179,7 +179,7 @@ func TestAdminHandlers_UpdateMCP(t *testing.T) {
 }
 
 func TestAdminHandlers_DeleteMCP(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 
 	t.Run("Should delete existing MCP definition successfully", func(t *testing.T) {
 		router, service := setupAdminHandlerTest()
@@ -201,7 +201,7 @@ func TestAdminHandlers_DeleteMCP(t *testing.T) {
 }
 
 func TestAdminHandlers_ErrorCases(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 
 	t.Run("Should reject duplicate MCP definition with conflict error", func(t *testing.T) {
 		router, _ := setupAdminHandlerTest()

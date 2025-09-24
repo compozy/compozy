@@ -15,7 +15,7 @@ import (
 //	@Security     ApiKeyAuth
 //	@Success      200  {object}  router.Response{data=map[string]int}  "Example: {\"data\":{\"written\":2},\"message\":\"export completed\"}"
 //	@Failure      500  {object}  router.Response{error=router.ErrorInfo}
-//	@Router       /workflows/export [post]
+//	@Router       /api/v0/workflows/export [post]
 func exportWorkflows(c *gin.Context) {
 	router.ExportResource(c, resources.ResourceWorkflow)
 }
@@ -31,7 +31,7 @@ func exportWorkflows(c *gin.Context) {
 //	@Success      200  {object}  router.Response{data=map[string]any}  "Example: {\"data\":{\"imported\":2,\"skipped\":0,\"overwritten\":0,\"strategy\":\"seed_only\"},\"message\":\"import completed\"}"
 //	@Failure      400  {object}  router.Response{error=router.ErrorInfo}
 //	@Failure      500  {object}  router.Response{error=router.ErrorInfo}
-//	@Router       /workflows/import [post]
+//	@Router       /api/v0/workflows/import [post]
 func importWorkflows(c *gin.Context) {
 	router.ImportResource(c, resources.ResourceWorkflow)
 }

@@ -1299,6 +1299,150 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v0/workflows/export": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Write workflow YAML files for the active project.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Export workflows",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"written\\\":2},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v0/workflows/import": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Read workflow YAML files from the project directory.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Import workflows",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":2,\\\"skipped\\\":0,\\\"overwritten\\\":0,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/auth/generate": {
             "post": {
                 "description": "Generate a new API key for the authenticated user",
@@ -1609,7 +1753,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "executions"
+                    "workflows"
                 ],
                 "summary": "List all workflow executions",
                 "responses": {
@@ -2388,6 +2532,13 @@ const docTemplate = `{
         "/mcp-proxy/{name}/sse": {
             "get": {
                 "description": "Proxy Server-Sent Events requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*",
+                    "text/event-stream"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2435,6 +2586,13 @@ const docTemplate = `{
         "/mcp-proxy/{name}/sse/{path}": {
             "get": {
                 "description": "Proxy Server-Sent Events requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*",
+                    "text/event-stream"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2488,6 +2646,12 @@ const docTemplate = `{
         "/mcp-proxy/{name}/stream": {
             "get": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2533,6 +2697,12 @@ const docTemplate = `{
             },
             "put": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2578,6 +2748,12 @@ const docTemplate = `{
             },
             "post": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2623,6 +2799,12 @@ const docTemplate = `{
             },
             "delete": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2668,6 +2850,12 @@ const docTemplate = `{
             },
             "patch": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2715,6 +2903,12 @@ const docTemplate = `{
         "/mcp-proxy/{name}/stream/{path}": {
             "get": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2766,6 +2960,12 @@ const docTemplate = `{
             },
             "put": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2817,6 +3017,12 @@ const docTemplate = `{
             },
             "post": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2868,6 +3074,12 @@ const docTemplate = `{
             },
             "delete": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2919,6 +3131,12 @@ const docTemplate = `{
             },
             "patch": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -6794,6 +7012,16 @@ const docTemplate = `{
                         "description": "Filter by task ID prefix",
                         "name": "q",
                         "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Expand fields (repeatable). E.g., expand=tools\u0026expand=subtasks",
+                        "name": "expand",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -7024,6 +7252,16 @@ const docTemplate = `{
                         "description": "Project override",
                         "name": "project",
                         "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Expand fields (repeatable). E.g., expand=tools\u0026expand=subtasks",
+                        "name": "expand",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -7105,6 +7343,16 @@ const docTemplate = `{
                         "example": "\"demo\"",
                         "description": "Project override",
                         "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Expand fields (repeatable). E.g., expand=tools\u0026expand=subtasks",
+                        "name": "expand",
                         "in": "query"
                     },
                     {
@@ -8221,150 +8469,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/workflows/export": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Write workflow YAML files for the active project.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
-                "summary": "Export workflows",
-                "responses": {
-                    "200": {
-                        "description": "Example: {\\\"data\\\":{\\\"written\\\":2},\\\"message\\\":\\\"export completed\\\"}",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "type": "integer"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/workflows/import": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Read workflow YAML files from the project directory.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "workflows"
-                ],
-                "summary": "Import workflows",
-                "parameters": [
-                    {
-                        "enum": [
-                            "seed_only",
-                            "overwrite_conflicts"
-                        ],
-                        "type": "string",
-                        "description": "seed_only|overwrite_conflicts",
-                        "name": "strategy",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":2,\\\"skipped\\\":0,\\\"overwritten\\\":0,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
         "/workflows/{workflow_id}": {
             "get": {
                 "description": "Retrieve a workflow configuration with optional field selection and expansion.",
@@ -8695,7 +8799,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "workflows"
+                    "agents"
                 ],
                 "summary": "List all agents",
                 "parameters": [
@@ -8765,7 +8869,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "workflows"
+                    "agents"
                 ],
                 "summary": "Get agent by ID",
                 "parameters": [
@@ -9102,7 +9206,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "workflows"
+                    "tasks"
                 ],
                 "summary": "List tasks for a workflow",
                 "parameters": [
@@ -9209,7 +9313,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "workflows"
+                    "tasks"
                 ],
                 "summary": "Get task by ID",
                 "parameters": [
@@ -9316,7 +9420,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "workflows"
+                    "tools"
                 ],
                 "summary": "List all tools",
                 "parameters": [
@@ -9386,7 +9490,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "workflows"
+                    "tools"
                 ],
                 "summary": "Get tool by ID",
                 "parameters": [
@@ -9810,7 +9914,7 @@ const docTemplate = `{
                     }
                 },
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 }
             }
         },
@@ -10486,6 +10590,27 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {}
         },
+        "httpdto.PageInfoDTO": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "example": "v2:after:tool-001"
+                },
+                "prev_cursor": {
+                    "type": "string",
+                    "example": "v2:before:tool-000"
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
         "mcp.Config": {
             "type": "object",
             "properties": {
@@ -10861,7 +10986,7 @@ const docTemplate = `{
                     }
                 },
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 }
             }
         },
@@ -10947,7 +11072,7 @@ const docTemplate = `{
                     }
                 },
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 }
             }
         },
@@ -11229,7 +11354,7 @@ const docTemplate = `{
                     }
                 },
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 }
             }
         },
@@ -11356,27 +11481,6 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
-                }
-            }
-        },
-        "router.PageInfoDTO": {
-            "type": "object",
-            "properties": {
-                "limit": {
-                    "type": "integer",
-                    "example": 50
-                },
-                "next_cursor": {
-                    "type": "string",
-                    "example": "v2:after:tool-001"
-                },
-                "prev_cursor": {
-                    "type": "string",
-                    "example": "v2:before:tool-000"
-                },
-                "total": {
-                    "type": "integer",
-                    "example": 2
                 }
             }
         },
@@ -11512,7 +11616,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 },
                 "schemas": {
                     "type": "array",
@@ -12681,7 +12785,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 },
                 "tasks": {
                     "type": "array",
@@ -12838,7 +12942,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 },
                 "tools": {
                     "type": "array",
@@ -13355,7 +13459,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 },
                 "workflows": {
                     "type": "array",

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	memoryuc "github.com/compozy/compozy/engine/memoryconfig/uc"
@@ -88,7 +89,7 @@ func listMemories(c *gin.Context) {
 		}
 		items = append(items, item)
 	}
-	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	page := httpdto.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "memories retrieved", MemoriesListResponse{Memories: items, Page: page})
 }
 

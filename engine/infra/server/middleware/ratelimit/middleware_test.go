@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func buildRouterForTest(t *testing.T, cfg *Config) *gin.Engine {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	r := gin.New()
 	m, err := NewManager(cfg, nil) // nil redis -> in-memory store
 	require.NoError(t, err)

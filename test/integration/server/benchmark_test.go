@@ -8,12 +8,13 @@ import (
 
 	"github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/engine/infra/server/middleware/ratelimit"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 )
 
 // BenchmarkHealthEndpoint measures health endpoint performance
 func BenchmarkHealthEndpoint(b *testing.B) {
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	router := gin.New()
 	router.GET("/health", server.CreateHealthHandler(nil, "v1.0.0"))
 	req := httptest.NewRequest("GET", "/health", http.NoBody)
@@ -34,7 +35,7 @@ func BenchmarkRateLimitMiddleware(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		if apiKey := c.GetHeader("X-API-Key"); apiKey != "" {

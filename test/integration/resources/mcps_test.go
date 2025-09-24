@@ -7,6 +7,7 @@ import (
 	agentcfg "github.com/compozy/compozy/engine/agent"
 	mcppkg "github.com/compozy/compozy/engine/mcp"
 	storepkg "github.com/compozy/compozy/engine/resources"
+	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +32,7 @@ func TestMCPSEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, getRes.Code)
 		data := decodeData(t, getRes)
 		assert.Equal(t, "filesystem", data["id"])
-		assert.Equal(t, "sse", data["transport"])
+		assert.Equal(t, mcpproxy.TransportSSE.String(), data["transport"])
 		env, ok := data["env"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "true", env["MCP_DEBUG"])

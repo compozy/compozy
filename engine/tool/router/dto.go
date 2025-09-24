@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 )
@@ -31,8 +31,8 @@ type ToolListItem struct {
 
 // ToolsListResponse is the typed list payload returned from GET /tools.
 type ToolsListResponse struct {
-	Tools []ToolListItem     `json:"tools"`
-	Page  router.PageInfoDTO `json:"page"`
+	Tools []ToolListItem      `json:"tools"`
+	Page  httpdto.PageInfoDTO `json:"page"`
 }
 
 // ToToolDTOForWorkflow converts UC map payloads for workflow expansion.
@@ -83,5 +83,5 @@ func toToolListItem(src map[string]any) (ToolListItem, error) {
 	if err != nil {
 		return ToolListItem{}, err
 	}
-	return ToolListItem{ToolDTO: dto, ETag: router.AsString(src["_etag"])}, nil
+	return ToolListItem{ToolDTO: dto, ETag: httpdto.AsString(src["_etag"])}, nil
 }

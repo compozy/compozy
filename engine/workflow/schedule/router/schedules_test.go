@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/engine/workflow/schedule"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -81,7 +82,7 @@ func (m *MockScheduleManager) StopPeriodicReconciliation() {
 }
 
 func setupTest(_ *testing.T) (*gin.Engine, *MockScheduleManager) {
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	router := gin.New()
 	// Create mock schedule manager
 	mockManager := new(MockScheduleManager)
@@ -209,7 +210,7 @@ func TestListSchedules(t *testing.T) {
 		mockManager.AssertExpectations(t)
 	})
 	t.Run("Should return 500 when schedule manager not initialized", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		router := gin.New()
 		// Create app state WITHOUT schedule manager
 		state := &appstate.State{
@@ -239,7 +240,7 @@ func TestListSchedules(t *testing.T) {
 		assert.Equal(t, "schedule manager not initialized", response.Error.Message)
 	})
 	t.Run("Should return 500 when schedule manager has wrong type", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		router := gin.New()
 		// Create app state with wrong type for schedule manager
 		state := &appstate.State{

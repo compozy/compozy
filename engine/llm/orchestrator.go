@@ -1189,8 +1189,12 @@ func normalizeToolParameters(input map[string]any) map[string]any {
 	if !isObjectType(params["type"]) {
 		params["type"] = "object"
 	}
-	if _, ok := params["properties"]; !ok {
+	if raw, ok := params["properties"]; !ok {
 		params["properties"] = map[string]any{}
+	} else {
+		if _, ok := raw.(map[string]any); !ok {
+			params["properties"] = map[string]any{}
+		}
 	}
 	return params
 }
@@ -1210,6 +1214,20 @@ func isObjectType(value any) bool {
 	switch v := value.(type) {
 	case string:
 		return strings.EqualFold(strings.TrimSpace(v), "object")
+	case []string:
+		for _, s := range v {
+			if strings.EqualFold(strings.TrimSpace(s), "object") {
+				return true
+			}
+		}
+		return false
+	case []any:
+		for _, it := range v {
+			if s, ok := it.(string); ok && strings.EqualFold(strings.TrimSpace(s), "object") {
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}
@@ -1251,7 +1269,7 @@ func (o *llmOrchestrator) appendRegistryToolDefs(
 		if at, ok := any(rt).(argsTyper); ok {
 			if v := at.ArgsType(); v != nil {
 				if m, isMap := v.(map[string]any); isMap && len(m) > 0 {
-					params = m
+					params = normalizeToolParameters(m)
 				}
 			}
 		}

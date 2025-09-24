@@ -132,9 +132,9 @@ func (s *Server) setupRoutes() {
 
 	// MCP Proxy endpoints - direct routes for each transport type
 	{
-		// SSE transport proxy - all methods for SSE endpoint
-		s.Router.Any("/mcp-proxy/:name/sse", s.proxyHandlers.SSEProxyHandler)
-		s.Router.Any("/mcp-proxy/:name/sse/*path", s.proxyHandlers.SSEProxyHandler)
+		// SSE transport proxy - GET only (SSE semantics)
+		s.Router.GET("/mcp-proxy/:name/sse", s.proxyHandlers.SSEProxyHandler)
+		s.Router.GET("/mcp-proxy/:name/sse/*path", s.proxyHandlers.SSEProxyHandler)
 
 		// Streamable HTTP transport proxy
 		s.Router.Any("/mcp-proxy/:name/stream", s.proxyHandlers.StreamableHTTPProxyHandler)

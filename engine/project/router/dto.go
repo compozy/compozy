@@ -2,7 +2,7 @@ package projectrouter
 
 import (
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/core/httpdto"
 )
 
 // ProjectDTO represents the typed API shape for the singleton project configuration.
@@ -28,19 +28,19 @@ type ProjectDTO struct {
 // Keep mappers pure and independent from HTTP frameworks.
 func toProjectDTO(src map[string]any) ProjectDTO {
 	dto := ProjectDTO{
-		Name:        router.AsString(src["name"]),
-		Version:     router.AsString(src["version"]),
-		Description: router.AsString(src["description"]),
+		Name:        httpdto.AsString(src["name"]),
+		Version:     httpdto.AsString(src["version"]),
+		Description: httpdto.AsString(src["description"]),
 		Author:      toAuthor(src["author"]),
 		Workflows:   toSliceOfMaps(src["workflows"]),
 		Models:      toSliceOfMaps(src["models"]),
 		Schemas:     toSliceOfMaps(src["schemas"]),
-		Config:      router.AsMap(src["config"]),
-		Runtime:     router.AsMap(src["runtime"]),
-		AutoLoad:    router.AsMap(src["autoload"]),
+		Config:      httpdto.AsMap(src["config"]),
+		Runtime:     httpdto.AsMap(src["runtime"]),
+		AutoLoad:    httpdto.AsMap(src["autoload"]),
 		Tools:       toSliceOfMaps(src["tools"]),
 		Memories:    toSliceOfMaps(src["memories"]),
-		Monitoring:  router.AsMap(src["monitoring"]),
+		Monitoring:  httpdto.AsMap(src["monitoring"]),
 	}
 	return dto
 }
@@ -76,7 +76,7 @@ func toSliceOfMaps(v any) []map[string]any {
 	case []any:
 		res := make([]map[string]any, 0, len(t))
 		for i := range t {
-			if m := router.AsMap(t[i]); m != nil {
+			if m := httpdto.AsMap(t[i]); m != nil {
 				res = append(res, m)
 			}
 		}

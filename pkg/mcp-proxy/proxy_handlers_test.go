@@ -12,7 +12,7 @@ import (
 )
 
 func TestProxyHandlers_SSEProxy(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
@@ -32,11 +32,23 @@ func TestProxyHandlers_SSEProxy(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
+
+		// Cover wildcard SSE route path as well
+		req2, err := http.NewRequestWithContext(
+			context.Background(),
+			"GET",
+			"/mcp-proxy/nonexistent/sse/anything",
+			http.NoBody,
+		)
+		require.NoError(t, err)
+		w2 := httptest.NewRecorder()
+		router.ServeHTTP(w2, req2)
+		assert.Equal(t, http.StatusNotFound, w2.Code)
 	})
 }
 
 func TestProxyHandlers_StreamableHTTPProxy(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
@@ -65,7 +77,7 @@ func TestProxyHandlers_StreamableHTTPProxy(t *testing.T) {
 }
 
 func TestProxyHandlers_ProxyRegistration(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
@@ -106,7 +118,9 @@ func TestProxyHandlers_ProxyRegistration(t *testing.T) {
 		// Create a new router for this test
 		successRouter := gin.New()
 		successRouter.Any("/mcp-proxy/:name/sse", proxyHandlers.SSEProxyHandler)
+		successRouter.Any("/mcp-proxy/:name/sse/*path", proxyHandlers.SSEProxyHandler)
 		successRouter.Any("/mcp-proxy/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
+		successRouter.Any("/mcp-proxy/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
 
 		// Manually add a mock proxy server to simulate successful registration
 		// This tests the routing logic without the complex MCP initialization

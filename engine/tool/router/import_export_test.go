@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/tool"
-	testhelpers "github.com/compozy/compozy/test/helpers"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -23,7 +23,7 @@ func TestToolRouter_Import(t *testing.T) {
 	t.Parallel()
 	t.Run("Should import tools and echo strategy", func(t *testing.T) {
 		t.Parallel()
-		testhelpers.EnsureGinTestMode()
+		ginmode.EnsureGinTestMode()
 		ctx := context.Background()
 		projectID := "demo"
 		store := resources.NewMemoryResourceStore()

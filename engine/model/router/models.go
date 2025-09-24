@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	modeluc "github.com/compozy/compozy/engine/model/uc"
@@ -78,7 +79,7 @@ func listModels(c *gin.Context) {
 		}
 		list = append(list, item)
 	}
-	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	page := httpdto.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "models retrieved", ModelsListResponse{Models: list, Page: page})
 }
 

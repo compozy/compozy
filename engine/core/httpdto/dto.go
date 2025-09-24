@@ -1,4 +1,4 @@
-package router
+package httpdto
 
 // PageInfoDTO defines the standard pagination block embedded in list responses.
 //

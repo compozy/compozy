@@ -7,13 +7,14 @@ import (
 
 	engserver "github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/pkg/config"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestMCPHealth_EndpointExposed(t *testing.T) {
 	t.Setenv("MCP_PROXY_MODE", "standalone")
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	m := config.NewManager(config.NewService())
 	if _, err := m.Load(t.Context(), config.NewDefaultProvider(), config.NewEnvProvider()); err != nil {
 		t.Fatalf("load config: %v", err)

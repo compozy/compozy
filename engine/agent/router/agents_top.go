@@ -8,6 +8,7 @@ import (
 
 	agentuc "github.com/compozy/compozy/engine/agent/uc"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
@@ -86,7 +87,7 @@ func listAgentsTop(c *gin.Context) {
 		}
 		items = append(items, item)
 	}
-	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	page := httpdto.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "agents retrieved", AgentsListResponse{Agents: items, Page: page})
 }
 

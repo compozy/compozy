@@ -7,11 +7,17 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	tooluc "github.com/compozy/compozy/engine/tool/uc"
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	defaultToolsLimit = 50
+	maxToolsLimit     = 500
 )
 
 // listToolsTop handles GET /tools.
@@ -44,7 +50,7 @@ func listToolsTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), defaultToolsLimit, maxToolsLimit)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
@@ -81,7 +87,7 @@ func listToolsTop(c *gin.Context) {
 		}
 		list = append(list, item)
 	}
-	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	page := httpdto.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "tools retrieved", ToolsListResponse{Tools: list, Page: page})
 }
 

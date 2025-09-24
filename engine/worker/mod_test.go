@@ -29,6 +29,7 @@ func TestBuildDispatcherWorkflowID(t *testing.T) {
 		id := buildDispatcherWorkflowID("", longQueue)
 		assert.True(t, strings.HasPrefix(id, "dispatcher-"))
 		assert.LessOrEqual(t, len(id), maxDispatcherWorkflowIDLength)
+		assert.NotContains(t, id, "-segment-", "should not include placeholder segment when project name is empty")
 	})
 }
 

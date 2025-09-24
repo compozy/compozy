@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/engine/workflow/schedule"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,7 +90,7 @@ func (m *mockScheduleManager) StopPeriodicReconciliation() {}
 
 func setupAdminTestRouter(t *testing.T, withAdminUser bool, state *appstate.State) *gin.Engine {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	r := gin.New()
 	t.Setenv("SERVER_AUTH_ADMIN_KEY", "test_admin_key_123")
 	cfgMgr := config.NewManager(config.NewService())

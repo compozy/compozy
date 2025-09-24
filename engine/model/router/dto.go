@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/core/httpdto"
 )
 
 const resourceModel = "model"
@@ -23,8 +23,8 @@ type ModelListItem struct {
 
 // ModelsListResponse is the typed list payload returned from GET /models.
 type ModelsListResponse struct {
-	Models []ModelListItem    `json:"models"`
-	Page   router.PageInfoDTO `json:"page"`
+	Models []ModelListItem     `json:"models"`
+	Page   httpdto.PageInfoDTO `json:"page"`
 }
 
 // ModelCoreDTO defines fields shared between single and list model representations.
@@ -47,7 +47,7 @@ func toModelDTO(src map[string]any) (ModelDTO, error) {
 	if err != nil {
 		return ModelDTO{}, err
 	}
-	fallbackID := router.AsString(src["id"])
+	fallbackID := httpdto.AsString(src["id"])
 	coreDTO, err := convertProviderConfigToDTO(cfg, fallbackID)
 	if err != nil {
 		return ModelDTO{}, err
@@ -61,7 +61,7 @@ func toModelListItem(src map[string]any) (ModelListItem, error) {
 	if err != nil {
 		return ModelListItem{}, err
 	}
-	return ModelListItem{ModelCoreDTO: dto.ModelCoreDTO, ETag: router.AsString(src["_etag"])}, nil
+	return ModelListItem{ModelCoreDTO: dto.ModelCoreDTO, ETag: httpdto.AsString(src["_etag"])}, nil
 }
 
 func buildModelID(provider, model, fallback string) string {

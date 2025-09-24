@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	authmiddleware "github.com/compozy/compozy/engine/infra/server/middleware/auth"
 	"github.com/compozy/compozy/engine/infra/server/middleware/ratelimit"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -78,7 +79,7 @@ type authTestFixture struct {
 
 // setupAuthTestFixture creates a reusable test fixture
 func setupAuthTestFixture(t *testing.T) *authTestFixture {
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	userID, _ := core.NewID()
 	keyID, _ := core.NewID()
 	apiKey := "test-api-key"

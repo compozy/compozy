@@ -144,7 +144,9 @@ func TestImporter_StrategiesAndRoundTrip(t *testing.T) {
 }
 
 func TestImportTypeFromDir(t *testing.T) {
+	t.Parallel()
 	t.Run("Should import tasks directory", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
@@ -166,6 +168,7 @@ func TestImportTypeFromDir(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Run("Should return zero counts when directory missing", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
@@ -175,6 +178,7 @@ func TestImportTypeFromDir(t *testing.T) {
 		require.Equal(t, 0, out.Imported[resources.ResourceTask])
 	})
 	t.Run("Should skip then overwrite existing tools based on strategy", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
@@ -206,6 +210,7 @@ func TestImportTypeFromDir(t *testing.T) {
 		require.Equal(t, "Updated description", stored.Description)
 	})
 	t.Run("Should error when YAML file is missing id", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
@@ -216,6 +221,7 @@ func TestImportTypeFromDir(t *testing.T) {
 		require.ErrorContains(t, err, "missing id field")
 	})
 	t.Run("Should error when duplicate ids exist in directory", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()

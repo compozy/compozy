@@ -178,6 +178,9 @@ func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) err
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 404 {object} map[string]interface{} "MCP not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Accept */*
+// @Produce */*
+// @Produce text/event-stream
 // @Router /mcp-proxy/{name}/sse [get]
 // @Router /mcp-proxy/{name}/sse/{path} [get]
 func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
@@ -241,6 +244,8 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 404 {object} map[string]interface{} "MCP not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Accept */*
+// @Produce */*
 // @Router /mcp-proxy/{name}/stream [get]
 // @Router /mcp-proxy/{name}/stream [post]
 // @Router /mcp-proxy/{name}/stream [put]

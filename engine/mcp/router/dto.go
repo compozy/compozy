@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/mcp"
 )
 
@@ -19,8 +19,8 @@ type MCPListItem struct {
 }
 
 type MCPsListResponse struct {
-	MCPs []MCPListItem      `json:"mcps"`
-	Page router.PageInfoDTO `json:"page"`
+	MCPs []MCPListItem       `json:"mcps"`
+	Page httpdto.PageInfoDTO `json:"page"`
 }
 
 type MCPCoreDTO struct {
@@ -53,7 +53,7 @@ func toMCPListItem(src map[string]any) (MCPListItem, error) {
 	if err != nil {
 		return MCPListItem{}, err
 	}
-	return MCPListItem{MCPCoreDTO: dto.MCPCoreDTO, ETag: router.AsString(src["_etag"])}, nil
+	return MCPListItem{MCPCoreDTO: dto.MCPCoreDTO, ETag: httpdto.AsString(src["_etag"])}, nil
 }
 
 func mapToMCPConfig(src map[string]any) (*mcp.Config, error) {

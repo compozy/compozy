@@ -70,6 +70,7 @@ func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 			"/mcp-proxy/health",      // MCP readiness probe
 			"/metrics",               // Prometheus
 			"/docs",                  // Docs UI (OpenAPI v3)
+			"/docs/index.html",       // Docs UI entry
 			"/openapi.json",          // OpenAPI 3 spec
 		},
 	}

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	agentuc "github.com/compozy/compozy/engine/agent/uc"
 	"github.com/compozy/compozy/engine/auth/model"
@@ -23,6 +24,7 @@ import (
 	taskuc "github.com/compozy/compozy/engine/task/uc"
 	tooluc "github.com/compozy/compozy/engine/tool/uc"
 	wfuc "github.com/compozy/compozy/engine/workflow/uc"
+	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v3"
 )
 
@@ -94,20 +96,31 @@ func ImportFromDir(
 		resources.ResourceMemory,
 		resources.ResourceProject,
 	}
+	var mu sync.Mutex
+	eg, egCtx := errgroup.WithContext(ctx)
 	for _, typ := range types {
-		out, err := ImportTypeFromDir(ctx, project, store, rootDir, strategy, updatedBy, typ)
-		if err != nil {
-			return nil, err
-		}
-		for k, v := range out.Imported {
-			res.Imported[k] += v
-		}
-		for k, v := range out.Skipped {
-			res.Skipped[k] += v
-		}
-		for k, v := range out.Overwritten {
-			res.Overwritten[k] += v
-		}
+		typ := typ
+		eg.Go(func() error {
+			out, err := ImportTypeFromDir(egCtx, project, store, rootDir, strategy, updatedBy, typ)
+			if err != nil {
+				return err
+			}
+			mu.Lock()
+			for k, v := range out.Imported {
+				res.Imported[k] += v
+			}
+			for k, v := range out.Skipped {
+				res.Skipped[k] += v
+			}
+			for k, v := range out.Overwritten {
+				res.Overwritten[k] += v
+			}
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		return nil, err
 	}
 	return res, nil
 }

@@ -374,7 +374,7 @@ definitions:
           $ref: '#/definitions/agentrouter.AgentListItem'
         type: array
       page:
-        $ref: '#/definitions/router.PageInfoDTO'
+        $ref: '#/definitions/httpdto.PageInfoDTO'
     type: object
   core.Author:
     properties:
@@ -1022,6 +1022,21 @@ definitions:
   gin.H:
     additionalProperties: {}
     type: object
+  httpdto.PageInfoDTO:
+    properties:
+      limit:
+        example: 50
+        type: integer
+      next_cursor:
+        example: v2:after:tool-001
+        type: string
+      prev_cursor:
+        example: v2:before:tool-000
+        type: string
+      total:
+        example: 2
+        type: integer
+    type: object
   mcp.Config:
     properties:
       command:
@@ -1413,7 +1428,7 @@ definitions:
           $ref: '#/definitions/mcprouter.MCPListItem'
         type: array
       page:
-        $ref: '#/definitions/router.PageInfoDTO'
+        $ref: '#/definitions/httpdto.PageInfoDTO'
     type: object
   memory.InstanceHealth:
     properties:
@@ -1469,7 +1484,7 @@ definitions:
           $ref: '#/definitions/memoryrouter.MemoryListItem'
         type: array
       page:
-        $ref: '#/definitions/router.PageInfoDTO'
+        $ref: '#/definitions/httpdto.PageInfoDTO'
     type: object
   memoryrouter.MemoryDTO:
     properties:
@@ -1656,7 +1671,7 @@ definitions:
           $ref: '#/definitions/modelrouter.ModelListItem'
         type: array
       page:
-        $ref: '#/definitions/router.PageInfoDTO'
+        $ref: '#/definitions/httpdto.PageInfoDTO'
     type: object
   projectrouter.ProjectDTO:
     properties:
@@ -1742,21 +1757,6 @@ definitions:
         $ref: '#/definitions/router.GenerateKeyData'
       message:
         type: string
-    type: object
-  router.PageInfoDTO:
-    properties:
-      limit:
-        example: 50
-        type: integer
-      next_cursor:
-        example: v2:after:tool-001
-        type: string
-      prev_cursor:
-        example: v2:before:tool-000
-        type: string
-      total:
-        example: 2
-        type: integer
     type: object
   router.Response:
     properties:
@@ -1849,7 +1849,7 @@ definitions:
   schemarouter.SchemasListResponse:
     properties:
       page:
-        $ref: '#/definitions/router.PageInfoDTO'
+        $ref: '#/definitions/httpdto.PageInfoDTO'
       schemas:
         items:
           $ref: '#/definitions/schemarouter.SchemaListItem'
@@ -2863,7 +2863,7 @@ definitions:
   tkrouter.TasksListResponse:
     properties:
       page:
-        $ref: '#/definitions/router.PageInfoDTO'
+        $ref: '#/definitions/httpdto.PageInfoDTO'
       tasks:
         items:
           $ref: '#/definitions/tkrouter.TaskListItem'
@@ -3032,7 +3032,7 @@ definitions:
   toolrouter.ToolsListResponse:
     properties:
       page:
-        $ref: '#/definitions/router.PageInfoDTO'
+        $ref: '#/definitions/httpdto.PageInfoDTO'
       tools:
         items:
           $ref: '#/definitions/toolrouter.ToolListItem'
@@ -3368,7 +3368,7 @@ definitions:
   wfrouter.WorkflowsListResponse:
     properties:
       page:
-        $ref: '#/definitions/router.PageInfoDTO'
+        $ref: '#/definitions/httpdto.PageInfoDTO'
       workflows:
         items:
           $ref: '#/definitions/wfrouter.WorkflowListItem'
@@ -4461,6 +4461,85 @@ paths:
       summary: Import agents
       tags:
         - agents
+  /api/v0/workflows/export:
+    post:
+      description: Write workflow YAML files for the active project.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"written\":2},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties:
+                      type: integer
+                    type: object
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export workflows
+      tags:
+        - workflows
+  /api/v0/workflows/import:
+    post:
+      description: Read workflow YAML files from the project directory.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"imported\":2,\"skipped\":0,\"overwritten\":0,\"strategy\":\"seed_only\"},\"message\":\"import
+            completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Import workflows
+      tags:
+        - workflows
   /auth/generate:
     post:
       consumes:
@@ -4684,7 +4763,7 @@ paths:
                 type: object
       summary: List all workflow executions
       tags:
-        - executions
+        - workflows
   /executions/workflows/{exec_id}:
     get:
       consumes:
@@ -5095,6 +5174,8 @@ paths:
         message: Success
   /mcp-proxy/{name}/sse:
     get:
+      consumes:
+        - '*/*'
       description: Proxy Server-Sent Events requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5102,6 +5183,9 @@ paths:
           name: name
           required: true
           type: string
+      produces:
+        - '*/*'
+        - text/event-stream
       responses:
         "200":
           description: SSE stream
@@ -5127,6 +5211,8 @@ paths:
         - MCP Proxy
   /mcp-proxy/{name}/sse/{path}:
     get:
+      consumes:
+        - '*/*'
       description: Proxy Server-Sent Events requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5138,6 +5224,9 @@ paths:
           in: path
           name: path
           type: string
+      produces:
+        - '*/*'
+        - text/event-stream
       responses:
         "200":
           description: SSE stream
@@ -5163,6 +5252,8 @@ paths:
         - MCP Proxy
   /mcp-proxy/{name}/stream:
     delete:
+      consumes:
+        - '*/*'
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5170,6 +5261,8 @@ paths:
           name: name
           required: true
           type: string
+      produces:
+        - '*/*'
       responses:
         "200":
           description: HTTP stream
@@ -5194,6 +5287,8 @@ paths:
       tags:
         - MCP Proxy
     get:
+      consumes:
+        - '*/*'
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5201,6 +5296,8 @@ paths:
           name: name
           required: true
           type: string
+      produces:
+        - '*/*'
       responses:
         "200":
           description: HTTP stream
@@ -5225,6 +5322,8 @@ paths:
       tags:
         - MCP Proxy
     patch:
+      consumes:
+        - '*/*'
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5232,6 +5331,8 @@ paths:
           name: name
           required: true
           type: string
+      produces:
+        - '*/*'
       responses:
         "200":
           description: HTTP stream
@@ -5256,6 +5357,8 @@ paths:
       tags:
         - MCP Proxy
     post:
+      consumes:
+        - '*/*'
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5263,6 +5366,8 @@ paths:
           name: name
           required: true
           type: string
+      produces:
+        - '*/*'
       responses:
         "200":
           description: HTTP stream
@@ -5287,6 +5392,8 @@ paths:
       tags:
         - MCP Proxy
     put:
+      consumes:
+        - '*/*'
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5294,6 +5401,8 @@ paths:
           name: name
           required: true
           type: string
+      produces:
+        - '*/*'
       responses:
         "200":
           description: HTTP stream
@@ -5319,6 +5428,8 @@ paths:
         - MCP Proxy
   /mcp-proxy/{name}/stream/{path}:
     delete:
+      consumes:
+        - '*/*'
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5330,6 +5441,8 @@ paths:
           in: path
           name: path
           type: string
+      produces:
+        - '*/*'
       responses:
         "200":
           description: HTTP stream
@@ -5354,6 +5467,8 @@ paths:
       tags:
         - MCP Proxy
     get:
+      consumes:
+        - '*/*'
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5365,6 +5480,8 @@ paths:
           in: path
           name: path
           type: string
+      produces:
+        - '*/*'
       responses:
         "200":
           description: HTTP stream
@@ -5389,6 +5506,8 @@ paths:
       tags:
         - MCP Proxy
     patch:
+      consumes:
+        - '*/*'
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5400,6 +5519,8 @@ paths:
           in: path
           name: path
           type: string
+      produces:
+        - '*/*'
       responses:
         "200":
           description: HTTP stream
@@ -5424,6 +5545,8 @@ paths:
       tags:
         - MCP Proxy
     post:
+      consumes:
+        - '*/*'
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5435,6 +5558,8 @@ paths:
           in: path
           name: path
           type: string
+      produces:
+        - '*/*'
       responses:
         "200":
           description: HTTP stream
@@ -5459,6 +5584,8 @@ paths:
       tags:
         - MCP Proxy
     put:
+      consumes:
+        - '*/*'
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
         - description: MCP name
@@ -5470,6 +5597,8 @@ paths:
           in: path
           name: path
           type: string
+      produces:
+        - '*/*'
       responses:
         "200":
           description: HTTP stream
@@ -7838,6 +7967,13 @@ paths:
           in: query
           name: q
           type: string
+        - collectionFormat: csv
+          description: Expand fields (repeatable). E.g., expand=tools&expand=subtasks
+          in: query
+          items:
+            type: string
+          name: expand
+          type: array
       produces:
         - application/json
       responses:
@@ -7931,6 +8067,13 @@ paths:
           in: query
           name: project
           type: string
+        - collectionFormat: csv
+          description: Expand fields (repeatable). E.g., expand=tools&expand=subtasks
+          in: query
+          items:
+            type: string
+          name: expand
+          type: array
       produces:
         - application/json
       responses:
@@ -7985,6 +8128,13 @@ paths:
           in: query
           name: project
           type: string
+        - collectionFormat: csv
+          description: Expand fields (repeatable). E.g., expand=tools&expand=subtasks
+          in: query
+          items:
+            type: string
+          name: expand
+          type: array
         - description: Strong ETag for optimistic concurrency
           example: '"\"abc123\""'
           in: header
@@ -8997,7 +9147,7 @@ paths:
                 type: object
       summary: List all agents
       tags:
-        - workflows
+        - agents
   /workflows/{workflow_id}/agents/{agent_id}:
     get:
       consumes:
@@ -9056,7 +9206,7 @@ paths:
                 type: object
       summary: Get agent by ID
       tags:
-        - workflows
+        - agents
   /workflows/{workflow_id}/executions:
     get:
       consumes:
@@ -9242,7 +9392,7 @@ paths:
                 type: object
       summary: List tasks for a workflow
       tags:
-        - workflows
+        - tasks
   /workflows/{workflow_id}/tasks/{task_id}:
     get:
       consumes:
@@ -9302,7 +9452,7 @@ paths:
                 type: object
       summary: Get task by ID
       tags:
-        - workflows
+        - tasks
   /workflows/{workflow_id}/tools:
     get:
       consumes:
@@ -9342,7 +9492,7 @@ paths:
                 type: object
       summary: List all tools
       tags:
-        - workflows
+        - tools
   /workflows/{workflow_id}/tools/{tool_id}:
     get:
       consumes:
@@ -9401,86 +9551,7 @@ paths:
                 type: object
       summary: Get tool by ID
       tags:
-        - workflows
-  /workflows/export:
-    post:
-      description: Write workflow YAML files for the active project.
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: 'Example: {\"data\":{\"written\":2},\"message\":\"export completed\"}'
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    additionalProperties:
-                      type: integer
-                    type: object
-                type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      security:
-        - ApiKeyAuth: []
-      summary: Export workflows
-      tags:
-        - workflows
-  /workflows/import:
-    post:
-      description: Read workflow YAML files from the project directory.
-      parameters:
-        - description: seed_only|overwrite_conflicts
-          enum:
-            - seed_only
-            - overwrite_conflicts
-          in: query
-          name: strategy
-          type: string
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: 'Example: {\"data\":{\"imported\":2,\"skipped\":0,\"overwritten\":0,\"strategy\":\"seed_only\"},\"message\":\"import
-            completed\"}'
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    additionalProperties: true
-                    type: object
-                type: object
-        "400":
-          description: Bad Request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      security:
-        - ApiKeyAuth: []
-      summary: Import workflows
-      tags:
-        - workflows
+        - tools
 
 securityDefinitions:
   BearerAuth:

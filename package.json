@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^19.8.1",
+    "@octokit/rest": "^22.0.0",
     "@storybook/nextjs": "9.1.0",
     "@types/bun": "1.2.19",
     "@types/minimatch": "^6.0.0",

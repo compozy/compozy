@@ -255,6 +255,7 @@ func initDispatcherTakeoverMetrics(ctx context.Context, meter metric.Meter) erro
 	dispatcherTakeoverLatency, err = meter.Float64Histogram(
 		"compozy_dispatcher_takeover_latency_seconds",
 		metric.WithDescription("Dispatcher takeover latency in seconds"),
+		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
 	)
 	if err != nil {
 		log.Error(
@@ -551,15 +552,17 @@ func RecordDispatcherRestart(ctx context.Context, dispatcherID string) {
 
 func RecordDispatcherTakeover(ctx context.Context, dispatcherID string, duration time.Duration, outcome string) {
 	metricsMutex.RLock()
-	defer metricsMutex.RUnlock()
+	takeoverTotal := dispatcherTakeoverTotal
+	takeoverLatency := dispatcherTakeoverLatency
+	metricsMutex.RUnlock()
 	attrs := []attribute.KeyValue{attribute.String("dispatcher_id", dispatcherID)}
 	if outcome != "" {
 		attrs = append(attrs, attribute.String("outcome", outcome))
 	}
-	if dispatcherTakeoverTotal != nil {
-		dispatcherTakeoverTotal.Add(metricsContext(ctx), 1, metric.WithAttributes(attrs...))
+	if takeoverTotal != nil {
+		takeoverTotal.Add(metricsContext(ctx), 1, metric.WithAttributes(attrs...))
 	}
-	if dispatcherTakeoverLatency != nil {
-		dispatcherTakeoverLatency.Record(metricsContext(ctx), duration.Seconds(), metric.WithAttributes(attrs...))
+	if takeoverLatency != nil {
+		takeoverLatency.Record(metricsContext(ctx), duration.Seconds(), metric.WithAttributes(attrs...))
 	}
 }

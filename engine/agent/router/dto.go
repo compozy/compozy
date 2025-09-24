@@ -7,13 +7,38 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
 	tool "github.com/compozy/compozy/engine/tool"
 )
 
-// AgentModelDTO exposes both reference and inline provider configuration.
+const redaction = "********"
+
+var sensitiveEnvKeySubstrings = []string{
+	"secret",
+	"token",
+	"password",
+	"passwd",
+	"pwd",
+	"apikey",
+	"api_key",
+	"private",
+	"credential",
+	"bearer",
+}
+
+func isSensitiveEnvKey(k string) bool {
+	lower := strings.ToLower(k)
+	for i := range sensitiveEnvKeySubstrings {
+		if strings.Contains(lower, sensitiveEnvKeySubstrings[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+// AgentModelDTO exposes the configured provider reference without leaking inline configuration.
 type AgentModelDTO struct {
 	Ref    string               `json:"ref,omitempty"`
 	Config *core.ProviderConfig `json:"config,omitempty"`
@@ -26,7 +51,7 @@ type AgentActionDTO struct {
 	InputSchema  *schema.Schema         `json:"input,omitempty"`
 	OutputSchema *schema.Schema         `json:"output,omitempty"`
 	With         *core.Input            `json:"with,omitempty"`
-	JSONMode     bool                   `json:"json_mode,omitempty"`
+	JSONMode     bool                   `json:"json_mode"`
 	Attachments  attachment.Attachments `json:"attachments,omitempty"`
 }
 
@@ -37,7 +62,7 @@ type AgentDTO struct {
 	Instructions  string                 `json:"instructions,omitempty"`
 	Model         AgentModelDTO          `json:"model"`
 	MaxIterations int                    `json:"max_iterations,omitempty"`
-	JSONMode      bool                   `json:"json_mode,omitempty"`
+	JSONMode      bool                   `json:"json_mode"`
 	Actions       []AgentActionDTO       `json:"actions,omitempty"`
 	With          *core.Input            `json:"with,omitempty"`
 	Env           map[string]string      `json:"env,omitempty"`
@@ -55,8 +80,8 @@ type AgentListItem struct {
 
 // AgentsListResponse is the typed list payload returned from GET /agents.
 type AgentsListResponse struct {
-	Agents []AgentListItem    `json:"agents"`
-	Page   router.PageInfoDTO `json:"page"`
+	Agents []AgentListItem     `json:"agents"`
+	Page   httpdto.PageInfoDTO `json:"page"`
 }
 
 // ToAgentDTOForWorkflow converts UC map payloads into typed DTOs for workflow expansion.
@@ -95,12 +120,7 @@ func exportAgentModel(model *agent.Model) AgentModelDTO {
 	if model == nil {
 		return AgentModelDTO{}
 	}
-	var cfgCopy *core.ProviderConfig
-	if model.HasConfig() {
-		cfg := model.Config
-		cfgCopy = &cfg
-	}
-	return AgentModelDTO{Ref: model.Ref, Config: cfgCopy}
+	return AgentModelDTO{Ref: model.Ref}
 }
 
 func exportAgentActions(actions []*agent.ActionConfig) []AgentActionDTO {
@@ -135,10 +155,8 @@ func maskEnv(env *core.EnvMap) map[string]string {
 	}
 	masked := make(map[string]string, len(*env))
 	for key, value := range *env {
-		lower := strings.ToLower(key)
-		if strings.Contains(lower, "secret") || strings.Contains(lower, "token") ||
-			strings.Contains(lower, "key") || strings.Contains(lower, "password") {
-			masked[key] = "********"
+		if isSensitiveEnvKey(key) {
+			masked[key] = redaction
 			continue
 		}
 		masked[key] = value
@@ -159,9 +177,9 @@ func toAgentListItem(src map[string]any) (AgentListItem, error) {
 	if err != nil {
 		return AgentListItem{}, err
 	}
-	etag := router.AsString(src["_etag"])
+	etag := httpdto.AsString(src["_etag"])
 	if etag == "" {
-		etag = router.AsString(src["etag"])
+		etag = httpdto.AsString(src["etag"])
 	}
 	return AgentListItem{AgentDTO: dto, ETag: etag}, nil
 }

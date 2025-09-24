@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
-	testhelpers "github.com/compozy/compozy/test/helpers"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +21,7 @@ func TestWorkflowRouter_Export(t *testing.T) {
 	t.Parallel()
 	t.Run("Should export workflows to project root", func(t *testing.T) {
 		t.Parallel()
-		testhelpers.EnsureGinTestMode()
+		ginmode.EnsureGinTestMode()
 		ctx := context.Background()
 		projectID := "demo"
 		store := resources.NewMemoryResourceStore()

@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/test/helpers"
 	ctxhelpers "github.com/compozy/compozy/test/helpers/ctx"
+	"github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -89,7 +90,7 @@ func NewServerHarness(t *testing.T, opts ...Option) *ServerHarness {
 	require.NoError(t, err)
 	store := resources.NewMemoryResourceStore()
 	state.SetResourceStore(store)
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	srv, err := server.NewServer(ctx, tempDir, projFile, "")
 	require.NoError(t, err)
 	r := gin.New()

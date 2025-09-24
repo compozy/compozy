@@ -560,7 +560,7 @@ func (p *Config) validateRuntimeConfig() error {
 
 	// Validate tool execution timeout if specified
 	if runtime.ToolExecutionTimeout < 0 {
-		return fmt.Errorf("runtime configuration error: tool_execution_timeout must be positive if specified")
+		return fmt.Errorf("runtime configuration error: tool_execution_timeout must be non-negative if specified")
 	}
 
 	return nil

@@ -14,7 +14,6 @@ import (
 	"github.com/compozy/compozy/engine/task2"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
@@ -37,7 +36,6 @@ type ExecuteBasic struct {
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 	projectConfig  *project.Config
-	appConfig      *config.Config
 }
 
 // NewExecuteBasic creates and returns a configured ExecuteBasic activity.
@@ -57,19 +55,17 @@ func NewExecuteBasic(
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
 	task2Factory task2.Factory,
-	appConfig *config.Config,
 ) (*ExecuteBasic, error) {
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configStore),
-		executeUC:      uc.NewExecuteTask(runtime, workflowRepo, memoryManager, templateEngine, appConfig, nil),
+		executeUC:      uc.NewExecuteTask(runtime, workflowRepo, memoryManager, templateEngine, nil),
 		task2Factory:   task2Factory,
 		workflowRepo:   workflowRepo,
 		taskRepo:       taskRepo,
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
 		projectConfig:  projectConfig,
-		appConfig:      appConfig,
 	}, nil
 }
 

@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const requestPathTimeout = 2 * time.Second
+
 func newCLIContext(t *testing.T, baseURL string) context.Context {
 	t.Helper()
 	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
@@ -52,7 +54,12 @@ func TestResourceCommands(t *testing.T) {
 		cmdObj.SilenceUsage = true
 		cmdObj.SetArgs([]string{"export"})
 		require.NoError(t, cmdObj.Execute())
-		require.Equal(t, "/workflows/export", <-pathCh)
+		select {
+		case p := <-pathCh:
+			require.Equal(t, "/workflows/export", p)
+		case <-time.After(requestPathTimeout):
+			t.Fatal("timed out waiting for request path")
+		}
 	})
 	t.Run("Should include strategy query for tool imports", func(t *testing.T) {
 		t.Parallel()
@@ -93,7 +100,12 @@ func TestResourceCommands(t *testing.T) {
 				cmdObj.SilenceUsage = true
 				cmdObj.SetArgs(tc.args)
 				require.NoError(t, cmdObj.Execute())
-				require.Equal(t, tc.expectedPath, <-pathCh)
+				select {
+				case p := <-pathCh:
+					require.Equal(t, tc.expectedPath, p)
+				case <-time.After(requestPathTimeout):
+					t.Fatal("timed out waiting for request path")
+				}
 			})
 		}
 	})

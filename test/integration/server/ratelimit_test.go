@@ -12,6 +12,7 @@ import (
 	helpers "github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/middleware/ratelimit"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ func setupRateLimitFixture(t *testing.T, globalLimit, apiKeyLimit int64) *rateLi
 	}
 	manager, err := ratelimit.NewManager(config, nil)
 	require.NoError(t, err)
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		if apiKey := c.GetHeader("X-API-Key"); apiKey != "" {
@@ -184,7 +185,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 		}
 		manager, err := ratelimit.NewManager(config, nil)
 		require.NoError(t, err)
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		router := gin.New()
 		router.Use(manager.Middleware())
 		router.GET("/health", func(c *gin.Context) { c.JSON(200, gin.H{"status": "healthy"}) })
@@ -225,7 +226,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 		}
 		manager, err := ratelimit.NewManagerWithMetrics(ctx, config, nil, monitoringService.Meter())
 		require.NoError(t, err)
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
 			if apiKey := c.GetHeader("X-API-Key"); apiKey != "" {
@@ -264,7 +265,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 		}
 		manager, err := ratelimit.NewManager(config, nil)
 		require.NoError(t, err)
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		// Test with API key - should get API key limiter info
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 		c.Request = httptest.NewRequest("GET", "/api/test", http.NoBody)

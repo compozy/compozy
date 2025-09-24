@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/webhook"
 	pkgcfg "github.com/compozy/compozy/pkg/config"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +41,7 @@ func (m *memRedis) SetNX(_ context.Context, key string, value any, _ time.Durati
 
 func setupWebhookRouter(t *testing.T, o *webhook.Orchestrator, maxBody int64) *gin.Engine {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	r := gin.New()
 	g := r.Group(routes.Hooks())
 	g.Use(sizemw.BodySizeLimiter(maxBody))

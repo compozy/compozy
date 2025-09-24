@@ -500,9 +500,12 @@ func queueScopeParts(ctx context.Context) []string {
 }
 
 func sanitizeQueueSegment(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
 	slugged := slug.Make(value)
 	if slugged == "" {
-		return "segment"
+		return ""
 	}
 	return slugged
 }
@@ -629,10 +632,9 @@ func setupMemoryManager(
 func buildDispatcherWorkflowID(projectName string, taskQueue string) string {
 	queueSegment := sanitizeQueueSegment(taskQueue)
 	queueSegment = truncateWithHash(queueSegment, maxDispatcherQueueSegment)
-	projectSegment := sanitizeQueueSegment(projectName)
 	parts := []string{"dispatcher"}
-	if projectSegment != "" {
-		parts = append(parts, projectSegment)
+	if strings.TrimSpace(projectName) != "" {
+		parts = append(parts, sanitizeQueueSegment(projectName))
 	}
 	parts = append(parts, queueSegment)
 	dispatcherID := strings.Join(parts, "-")

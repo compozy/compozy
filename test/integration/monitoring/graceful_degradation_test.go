@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		degradedService, err := monitoring.NewMonitoringService(t.Context(), config)
 		require.NoError(t, err)
 		// Create router with degraded middleware
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		router := gin.New()
 		router.Use(degradedService.GinMiddleware(t.Context()))
 		// Add test route
@@ -50,7 +51,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		degradedService, err := monitoring.NewMonitoringService(t.Context(), config)
 		require.NoError(t, err)
 		// Create metrics endpoint with degraded handler
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		router := gin.New()
 		router.GET("/metrics", gin.WrapH(degradedService.ExporterHandler()))
 		// Create test server
@@ -79,7 +80,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		monitoringService, err := monitoring.NewMonitoringService(t.Context(), config)
 		require.NoError(t, err)
 		// Create router with monitoring middleware
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		router := gin.New()
 		router.Use(monitoringService.GinMiddleware(t.Context()))
 		// Add test route
@@ -119,7 +120,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		monitoringService := monitoring.NewMonitoringServiceWithFallback(t.Context(), invalidConfig)
 		assert.NotNil(t, monitoringService)
 		// Verify it's using degraded service by checking metrics endpoint
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		router := gin.New()
 		router.GET("/metrics", gin.WrapH(monitoringService.ExporterHandler()))
 		server := httptest.NewServer(router)

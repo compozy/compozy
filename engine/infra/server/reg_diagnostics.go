@@ -3,8 +3,15 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	schemeHTTPS = "https"
+	schemeHTTP  = "http"
 )
 
 func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string, server *Server) {
@@ -53,10 +60,28 @@ func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string, ser
 
 func createRootHandler(version, prefixURL string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		host := c.Request.Host
-		scheme := "http"
-		if c.Request.TLS != nil {
-			scheme = "https"
+		host := sanitizeHost(c.Request.Host)
+		scheme := strings.ToLower(strings.TrimSpace(c.Request.Header.Get("X-Forwarded-Proto")))
+		if scheme == "" {
+			if c.Request.TLS != nil {
+				scheme = schemeHTTPS
+			} else {
+				scheme = schemeHTTP
+			}
+		} else {
+			if comma := strings.IndexByte(scheme, ','); comma >= 0 {
+				scheme = scheme[:comma]
+			}
+		}
+		scheme = normalizeScheme(scheme)
+		if host == "" {
+			host = sanitizeHost(c.Request.Header.Get("X-Forwarded-Host"))
+		}
+		if host == "" {
+			host = sanitizeHost(c.Request.URL.Host)
+		}
+		if host == "" {
+			host = "localhost"
 		}
 		baseURL := fmt.Sprintf("%s://%s", scheme, host)
 		c.JSON(http.StatusOK, gin.H{
@@ -68,10 +93,39 @@ func createRootHandler(version, prefixURL string) gin.HandlerFunc {
 					"health":       fmt.Sprintf("%s%s/health", baseURL, prefixURL),
 					"api":          fmt.Sprintf("%s%s", baseURL, prefixURL),
 					"docs":         fmt.Sprintf("%s/docs/index.html", baseURL),
+					"swagger":      fmt.Sprintf("%s/swagger/index.html", baseURL),
 					"openapi_json": fmt.Sprintf("%s/openapi.json", baseURL),
 				},
 			},
 			"message": "Success",
 		})
 	}
+}
+
+func normalizeScheme(raw string) string {
+	switch raw {
+	case schemeHTTPS:
+		return schemeHTTPS
+	default:
+		return schemeHTTP
+	}
+}
+
+func sanitizeHost(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if comma := strings.IndexByte(raw, ','); comma >= 0 {
+		raw = raw[:comma]
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	parsed, err := url.Parse("//" + raw)
+	if err != nil {
+		return ""
+	}
+	return parsed.Host
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	memory "github.com/compozy/compozy/engine/memory"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 )
@@ -22,8 +22,8 @@ type MemoryListItem struct {
 
 // MemoriesListResponse is the typed list payload returned from GET /memories.
 type MemoriesListResponse struct {
-	Memories []MemoryListItem   `json:"memories"`
-	Page     router.PageInfoDTO `json:"page"`
+	Memories []MemoryListItem    `json:"memories"`
+	Page     httpdto.PageInfoDTO `json:"page"`
 }
 
 // MemoryCoreDTO defines fields shared between single and list representations.
@@ -64,7 +64,7 @@ func toMemoryListItem(src map[string]any) (MemoryListItem, error) {
 	if err != nil {
 		return MemoryListItem{}, err
 	}
-	return MemoryListItem{MemoryCoreDTO: dto.MemoryCoreDTO, ETag: router.AsString(src["_etag"])}, nil
+	return MemoryListItem{MemoryCoreDTO: dto.MemoryCoreDTO, ETag: httpdto.AsString(src["_etag"])}, nil
 }
 
 func mapToMemoryConfig(src map[string]any) (*memory.Config, error) {
@@ -82,25 +82,21 @@ func convertMemoryConfigToDTO(cfg *memory.Config) (MemoryCoreDTO, error) {
 	if cfg == nil {
 		return MemoryCoreDTO{}, fmt.Errorf("memory config is nil")
 	}
-	clone, err := core.DeepCopy[*memory.Config](cfg)
-	if err != nil {
-		return MemoryCoreDTO{}, fmt.Errorf("deep copy memory config: %w", err)
-	}
 	return MemoryCoreDTO{
-		Resource:           clone.Resource,
-		ID:                 clone.ID,
-		Description:        clone.Description,
-		Version:            clone.Version,
-		Type:               clone.Type,
-		MaxTokens:          clone.MaxTokens,
-		MaxMessages:        clone.MaxMessages,
-		MaxContextRatio:    clone.MaxContextRatio,
-		TokenAllocation:    clone.TokenAllocation,
-		Flushing:           clone.Flushing,
-		Persistence:        clone.Persistence,
-		PrivacyPolicy:      clone.PrivacyPolicy,
-		Locking:            clone.Locking,
-		TokenProvider:      clone.TokenProvider,
-		DefaultKeyTemplate: clone.DefaultKeyTemplate,
+		Resource:           cfg.Resource,
+		ID:                 cfg.ID,
+		Description:        cfg.Description,
+		Version:            cfg.Version,
+		Type:               cfg.Type,
+		MaxTokens:          cfg.MaxTokens,
+		MaxMessages:        cfg.MaxMessages,
+		MaxContextRatio:    cfg.MaxContextRatio,
+		TokenAllocation:    cfg.TokenAllocation,
+		Flushing:           cfg.Flushing,
+		Persistence:        cfg.Persistence,
+		PrivacyPolicy:      cfg.PrivacyPolicy,
+		Locking:            cfg.Locking,
+		TokenProvider:      cfg.TokenProvider,
+		DefaultKeyTemplate: cfg.DefaultKeyTemplate,
 	}, nil
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
@@ -42,7 +42,7 @@ type TaskResponse struct {
 	Tools         []tool.Config           `json:"tools,omitempty"`
 	MCPs          []mcp.Config            `json:"mcps,omitempty"`
 	MaxIterations int                     `json:"max_iterations,omitempty"`
-	JSONMode      bool                    `json:"json_mode,omitempty"`
+	JSONMode      bool                    `json:"json_mode"`
 	Memory        []core.MemoryReference  `json:"memory,omitempty"`
 	Routes        map[string]any          `json:"routes,omitempty"`
 	Items         any                     `json:"items,omitempty"`
@@ -86,8 +86,8 @@ type TaskListItem struct {
 
 // TasksListResponse is the typed list payload returned from GET /tasks.
 type TasksListResponse struct {
-	Tasks []TaskListItem     `json:"tasks"`
-	Page  router.PageInfoDTO `json:"page"`
+	Tasks []TaskListItem      `json:"tasks"`
+	Page  httpdto.PageInfoDTO `json:"page"`
 }
 
 // ToTaskDTOForWorkflow is an exported helper for workflow DTO expansion mapping.
@@ -152,12 +152,10 @@ func ConvertTaskConfigToResponse(cfg *task.Config) (TaskResponse, error) {
 		ClearConfig:   clone.ClearConfig,
 	}
 	if clone.Config != (core.GlobalOpts{}) {
-		opts := clone.Config
-		resp.Config = &opts
+		resp.Config = &clone.Config
 	}
 	if hasProviderConfig(&clone.ModelConfig) {
-		model := clone.ModelConfig
-		resp.ModelConfig = &model
+		resp.ModelConfig = &clone.ModelConfig
 	}
 	if clone.Mode != "" {
 		resp.Mode = string(clone.Mode)
@@ -202,7 +200,7 @@ func toTaskListItem(src map[string]any, expand map[string]bool) (TaskListItem, e
 	if err != nil {
 		return TaskListItem{}, err
 	}
-	return TaskListItem{TaskDTO: dto, ETag: router.AsString(src["_etag"])}, nil
+	return TaskListItem{TaskDTO: dto, ETag: httpdto.AsString(src["_etag"])}, nil
 }
 
 func taskConfigToDTO(cfg *task.Config, expand map[string]bool) (TaskDTO, error) {
@@ -266,11 +264,15 @@ func providerParamsHaveValues(params *core.PromptParams) bool {
 	if params == nil {
 		return false
 	}
-	if params.MaxTokens != 0 || params.TopK != 0 || params.Seed != 0 || params.MinLength != 0 || params.MaxLength != 0 {
+	if params.IsSetMaxTokens() || params.IsSetTopK() || params.IsSetSeed() || params.IsSetMinLength() ||
+		params.MaxLength != 0 {
 		return true
 	}
-	if params.Temperature != 0 || params.TopP != 0 || params.RepetitionPenalty != 0 {
+	if params.IsSetTemperature() || params.IsSetTopP() || params.IsSetRepetitionPenalty() {
 		return true
 	}
-	return len(params.StopWords) > 0
+	if params.IsSetStopWords() && len(params.StopWords) > 0 {
+		return true
+	}
+	return false
 }
