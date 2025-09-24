@@ -7,6 +7,7 @@ import (
 	agentcfg "github.com/compozy/compozy/engine/agent"
 	mcppkg "github.com/compozy/compozy/engine/mcp"
 	storepkg "github.com/compozy/compozy/engine/resources"
+	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,10 +16,12 @@ func TestMCPSEndpoints(t *testing.T) {
 	t.Setenv("MCP_PROXY_URL", "http://localhost:6001")
 	t.Run("Should upsert and retrieve mcps", func(t *testing.T) {
 		client := newResourceClient(t)
+		payload := mcpPayload("filesystem")
+		payload["env"] = map[string]any{"MCP_DEBUG": "true"}
 		createRes := client.do(
 			http.MethodPut,
 			"/api/v0/mcps/filesystem",
-			mcpPayload("filesystem"),
+			payload,
 			nil,
 		)
 		require.Equal(t, http.StatusCreated, createRes.Code)
@@ -29,8 +32,13 @@ func TestMCPSEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, getRes.Code)
 		data := decodeData(t, getRes)
 		assert.Equal(t, "filesystem", data["id"])
+		assert.Equal(t, mcpproxy.TransportSSE.String(), data["transport"])
+		env, ok := data["env"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "true", env["MCP_DEBUG"])
 		updateBody := cloneMap(mcpPayload("filesystem"))
 		updateBody["headers"] = map[string]any{"Authorization": "Bearer token"}
+		updateBody["env"] = map[string]any{"MCP_DEBUG": "false"}
 		updateRes := client.do(
 			http.MethodPut,
 			"/api/v0/mcps/filesystem",
@@ -47,6 +55,9 @@ func TestMCPSEndpoints(t *testing.T) {
 		headers, ok := afterData["headers"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "Bearer token", headers["Authorization"])
+		afterEnv, ok := afterData["env"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "false", afterEnv["MCP_DEBUG"])
 		staleRes := client.do(
 			http.MethodPut,
 			"/api/v0/mcps/filesystem",

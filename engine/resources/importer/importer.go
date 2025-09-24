@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	agentuc "github.com/compozy/compozy/engine/agent/uc"
 	"github.com/compozy/compozy/engine/auth/model"
@@ -20,8 +21,10 @@ import (
 	projectuc "github.com/compozy/compozy/engine/project/uc"
 	"github.com/compozy/compozy/engine/resources"
 	schemauc "github.com/compozy/compozy/engine/schema/uc"
+	taskuc "github.com/compozy/compozy/engine/task/uc"
 	tooluc "github.com/compozy/compozy/engine/tool/uc"
 	wfuc "github.com/compozy/compozy/engine/workflow/uc"
+	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v3"
 )
 
@@ -36,18 +39,6 @@ const (
 	OverwriteConflicts Strategy = "overwrite_conflicts"
 )
 
-// well-known directory names
-const (
-	dirWorkflows = "workflows"
-	dirAgents    = "agents"
-	dirTools     = "tools"
-	dirSchemas   = "schemas"
-	dirMCPs      = "mcps"
-	dirModels    = "models"
-	dirMemories  = "memories"
-	dirProject   = "project"
-)
-
 const defaultYAMLListCap = 16
 
 // Result summarizes import operation
@@ -57,27 +48,20 @@ type Result struct {
 	Overwritten map[resources.ResourceType]int
 }
 
-func dirToType(dir string) (resources.ResourceType, bool) {
-	switch dir {
-	case dirWorkflows:
-		return resources.ResourceWorkflow, true
-	case dirAgents:
-		return resources.ResourceAgent, true
-	case dirTools:
-		return resources.ResourceTool, true
-	case dirSchemas:
-		return resources.ResourceSchema, true
-	case dirMCPs:
-		return resources.ResourceMCP, true
-	case dirModels:
-		return resources.ResourceModel, true
-	case dirMemories:
-		return resources.ResourceMemory, true
-	case dirProject:
-		return resources.ResourceProject, true
-	default:
-		return "", false
+func newResult() *Result {
+	return &Result{
+		Imported:    map[resources.ResourceType]int{},
+		Skipped:     map[resources.ResourceType]int{},
+		Overwritten: map[resources.ResourceType]int{},
 	}
+}
+
+func contextWithUpdatedBy(ctx context.Context, updatedBy string) context.Context {
+	trimmed := strings.TrimSpace(updatedBy)
+	if trimmed == "" {
+		return ctx
+	}
+	return userctx.WithUser(ctx, &model.User{ID: core.ID(trimmed)})
 }
 
 // ImportFromDir reads YAML files under the well-known type directories in rootDir
@@ -99,52 +83,102 @@ func ImportFromDir(
 	if rootDir == "" {
 		return nil, fmt.Errorf("root directory is required")
 	}
-	res := &Result{
-		Imported:    map[resources.ResourceType]int{},
-		Skipped:     map[resources.ResourceType]int{},
-		Overwritten: map[resources.ResourceType]int{},
+	ctx = contextWithUpdatedBy(ctx, updatedBy)
+	res := newResult()
+	types := []resources.ResourceType{
+		resources.ResourceWorkflow,
+		resources.ResourceAgent,
+		resources.ResourceTool,
+		resources.ResourceTask,
+		resources.ResourceSchema,
+		resources.ResourceMCP,
+		resources.ResourceModel,
+		resources.ResourceMemory,
+		resources.ResourceProject,
 	}
-	trimmedUpdatedBy := strings.TrimSpace(updatedBy)
-	if trimmedUpdatedBy != "" {
-		ctx = userctx.WithUser(ctx, &model.User{ID: core.ID(trimmedUpdatedBy)})
+	var mu sync.Mutex
+	eg, egCtx := errgroup.WithContext(ctx)
+	for _, typ := range types {
+		typ := typ
+		eg.Go(func() error {
+			out, err := ImportTypeFromDir(egCtx, project, store, rootDir, strategy, updatedBy, typ)
+			if err != nil {
+				return err
+			}
+			mu.Lock()
+			for k, v := range out.Imported {
+				res.Imported[k] += v
+			}
+			for k, v := range out.Skipped {
+				res.Skipped[k] += v
+			}
+			for k, v := range out.Overwritten {
+				res.Overwritten[k] += v
+			}
+			mu.Unlock()
+			return nil
+		})
 	}
-	entries, err := os.ReadDir(rootDir)
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// ImportTypeFromDir reads YAML files for a specific resource type under rootDir.
+func ImportTypeFromDir(
+	ctx context.Context,
+	project string,
+	store resources.ResourceStore,
+	rootDir string,
+	strategy Strategy,
+	updatedBy string,
+	typ resources.ResourceType,
+) (*Result, error) {
+	if project == "" {
+		return nil, fmt.Errorf("project is required")
+	}
+	if store == nil {
+		return nil, fmt.Errorf("resource store is required")
+	}
+	if rootDir == "" {
+		return nil, fmt.Errorf("root directory is required")
+	}
+	dirName, ok := resources.DirForType(typ)
+	if !ok {
+		return nil, fmt.Errorf("unsupported resource type: %s", typ)
+	}
+	ctx = contextWithUpdatedBy(ctx, updatedBy)
+	res := newResult()
+	absDir := filepath.Join(rootDir, dirName)
+	info, err := os.Stat(absDir)
 	if err != nil {
-		return nil, fmt.Errorf("read root directory: %w", err)
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, os.ErrNotExist) {
+			return res, nil
+		}
+		return nil, fmt.Errorf("stat %s: %w", absDir, err)
 	}
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		typ, ok := dirToType(e.Name())
-		if !ok {
-			continue
-		}
-		dir := filepath.Join(rootDir, e.Name())
-		files, err := listYAMLFiles(dir)
-		if err != nil {
-			return nil, err
-		}
-		bodies, ids, err := parseTypeFiles(files)
-		if err != nil {
-			return nil, err
-		}
-		imp, skp, owr, err := applyForType(
-			ctx,
-			store,
-			project,
-			typ,
-			bodies,
-			ids,
-			strategy,
-		)
-		if err != nil {
-			return nil, err
-		}
-		res.Imported[typ] += imp
-		res.Skipped[typ] += skp
-		res.Overwritten[typ] += owr
+	if !info.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory", absDir)
 	}
+	files, err := listYAMLFiles(absDir)
+	if err != nil {
+		return nil, err
+	}
+	if len(files) == 0 {
+		return res, nil
+	}
+	bodies, ids, err := parseTypeFiles(files)
+	if err != nil {
+		return nil, err
+	}
+	imp, skp, owr, err := applyForType(ctx, store, project, typ, bodies, ids, strategy)
+	if err != nil {
+		return nil, err
+	}
+	res.Imported[typ] = imp
+	res.Skipped[typ] = skp
+	res.Overwritten[typ] = owr
 	return res, nil
 }
 
@@ -290,6 +324,7 @@ var standardUpsertHandlers = map[resources.ResourceType]upsertHandler{
 	resources.ResourceWorkflow: workflowUpsert,
 	resources.ResourceAgent:    agentUpsert,
 	resources.ResourceTool:     toolUpsert,
+	resources.ResourceTask:     taskUpsert,
 	resources.ResourceSchema:   schemaUpsert,
 	resources.ResourceModel:    modelUpsert,
 	resources.ResourceMemory:   memoryUpsert,
@@ -304,6 +339,7 @@ func ensureStandardUpsertHandlers() bool {
 		resources.ResourceWorkflow,
 		resources.ResourceAgent,
 		resources.ResourceTool,
+		resources.ResourceTask,
 		resources.ResourceSchema,
 		resources.ResourceModel,
 		resources.ResourceMemory,
@@ -390,6 +426,27 @@ func toolUpsert(
 		IfMatch: ifMatch,
 	}
 	out, err := tooluc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func taskUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &taskuc.UpsertInput{
+		Project: project,
+		ID:      id,
+		Body:    body,
+		IfMatch: ifMatch,
+	}
+	out, err := taskuc.NewUpsert(store).Execute(ctx, input)
 	if err != nil {
 		return "", false, err
 	}

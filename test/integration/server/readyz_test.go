@@ -7,6 +7,7 @@ import (
 
 	engserver "github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/pkg/config"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func newIntegrationServer(t *testing.T) *engserver.Server {
 }
 
 func TestServer_Health_And_Liveness_Endpoints(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	srv := newIntegrationServer(t)
 	r := gin.New()
 	r.GET("/health", engserver.CreateHealthHandler(srv, "v0"))

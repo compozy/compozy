@@ -1,10 +1,12 @@
 package memoryrouter
 
 import (
-	"encoding/json"
-	"strconv"
+	"fmt"
 
-	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/core/httpdto"
+	memory "github.com/compozy/compozy/engine/memory"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 )
 
 // MemoryDTO represents the typed API shape for a memory configuration.
@@ -20,122 +22,81 @@ type MemoryListItem struct {
 
 // MemoriesListResponse is the typed list payload returned from GET /memories.
 type MemoriesListResponse struct {
-	Memories []MemoryListItem   `json:"memories"`
-	Page     router.PageInfoDTO `json:"page"`
+	Memories []MemoryListItem    `json:"memories"`
+	Page     httpdto.PageInfoDTO `json:"page"`
 }
 
 // MemoryCoreDTO defines fields shared between single and list representations.
 type MemoryCoreDTO struct {
-	Resource           string         `json:"resource,omitempty"`
-	ID                 string         `json:"id"`
-	Description        string         `json:"description,omitempty"`
-	Type               string         `json:"type"`
-	MaxTokens          *int           `json:"max_tokens,omitempty"`
-	MaxMessages        *int           `json:"max_messages,omitempty"`
-	MaxContextRatio    *float64       `json:"max_context_ratio,omitempty"`
-	TokenAllocation    map[string]any `json:"token_allocation,omitempty"`
-	Flushing           map[string]any `json:"flushing,omitempty"`
-	Persistence        map[string]any `json:"persistence"`
-	PrivacyPolicy      map[string]any `json:"privacy_policy,omitempty"`
-	Locking            map[string]any `json:"locking,omitempty"`
-	TokenProvider      map[string]any `json:"token_provider,omitempty"`
-	DefaultKeyTemplate string         `json:"default_key_template,omitempty"`
+	Resource           string                          `json:"resource,omitempty"`
+	ID                 string                          `json:"id"`
+	Description        string                          `json:"description,omitempty"`
+	Version            string                          `json:"version,omitempty"`
+	Type               memcore.Type                    `json:"type"`
+	MaxTokens          int                             `json:"max_tokens,omitempty"`
+	MaxMessages        int                             `json:"max_messages,omitempty"`
+	MaxContextRatio    float64                         `json:"max_context_ratio,omitempty"`
+	TokenAllocation    *memcore.TokenAllocation        `json:"token_allocation,omitempty"`
+	Flushing           *memcore.FlushingStrategyConfig `json:"flushing,omitempty"`
+	Persistence        memcore.PersistenceConfig       `json:"persistence"`
+	PrivacyPolicy      *memcore.PrivacyPolicyConfig    `json:"privacy_policy,omitempty"`
+	Locking            *memcore.LockConfig             `json:"locking,omitempty"`
+	TokenProvider      *memcore.TokenProviderConfig    `json:"token_provider,omitempty"`
+	DefaultKeyTemplate string                          `json:"default_key_template,omitempty"`
 }
 
 // toMemoryDTO maps a generic UC map payload to MemoryDTO.
-func toMemoryDTO(src map[string]any) MemoryDTO {
-	return MemoryDTO{MemoryCoreDTO: MemoryCoreDTO{
-		Resource:           router.AsString(src["resource"]),
-		ID:                 router.AsString(src["id"]),
-		Description:        router.AsString(src["description"]),
-		Type:               router.AsString(src["type"]),
-		MaxTokens:          intPtrFromAny(src["max_tokens"]),
-		MaxMessages:        intPtrFromAny(src["max_messages"]),
-		MaxContextRatio:    floatPtrFromAny(src["max_context_ratio"]),
-		TokenAllocation:    router.AsMap(src["token_allocation"]),
-		Flushing:           router.AsMap(src["flushing"]),
-		Persistence:        router.AsMap(src["persistence"]),
-		PrivacyPolicy:      router.AsMap(src["privacy_policy"]),
-		Locking:            router.AsMap(src["locking"]),
-		TokenProvider:      router.AsMap(src["token_provider"]),
-		DefaultKeyTemplate: router.AsString(src["default_key_template"]),
-	}}
+func toMemoryDTO(src map[string]any) (MemoryDTO, error) {
+	cfg, err := mapToMemoryConfig(src)
+	if err != nil {
+		return MemoryDTO{}, err
+	}
+	coreDTO, err := convertMemoryConfigToDTO(cfg)
+	if err != nil {
+		return MemoryDTO{}, err
+	}
+	return MemoryDTO{MemoryCoreDTO: coreDTO}, nil
 }
 
 // toMemoryListItem maps a UC map payload to MemoryListItem, normalizing _etag → etag.
-func toMemoryListItem(src map[string]any) MemoryListItem {
-	return MemoryListItem{MemoryCoreDTO: MemoryCoreDTO{
-		Resource:           router.AsString(src["resource"]),
-		ID:                 router.AsString(src["id"]),
-		Description:        router.AsString(src["description"]),
-		Type:               router.AsString(src["type"]),
-		MaxTokens:          intPtrFromAny(src["max_tokens"]),
-		MaxMessages:        intPtrFromAny(src["max_messages"]),
-		MaxContextRatio:    floatPtrFromAny(src["max_context_ratio"]),
-		TokenAllocation:    router.AsMap(src["token_allocation"]),
-		Flushing:           router.AsMap(src["flushing"]),
-		Persistence:        router.AsMap(src["persistence"]),
-		PrivacyPolicy:      router.AsMap(src["privacy_policy"]),
-		Locking:            router.AsMap(src["locking"]),
-		TokenProvider:      router.AsMap(src["token_provider"]),
-		DefaultKeyTemplate: router.AsString(src["default_key_template"]),
-	}, ETag: router.AsString(src["_etag"])}
+func toMemoryListItem(src map[string]any) (MemoryListItem, error) {
+	dto, err := toMemoryDTO(src)
+	if err != nil {
+		return MemoryListItem{}, err
+	}
+	return MemoryListItem{MemoryCoreDTO: dto.MemoryCoreDTO, ETag: httpdto.AsString(src["_etag"])}, nil
 }
 
-// helpers for numeric conversions from interface{}
-func intPtrFromAny(v any) *int {
-	switch t := v.(type) {
-	case int:
-		x := t
-		return &x
-	case int64:
-		x := int(t)
-		return &x
-	case float64:
-		x := int(t)
-		return &x
-	case string:
-		if t == "" {
-			return nil
-		}
-		if n, err := strconv.Atoi(t); err == nil {
-			return &n
-		}
-	case json.Number:
-		if n, err := t.Int64(); err == nil {
-			x := int(n)
-			return &x
-		}
-	default:
-		return nil
+func mapToMemoryConfig(src map[string]any) (*memory.Config, error) {
+	if src == nil {
+		return nil, fmt.Errorf("memory payload is nil")
 	}
-	return nil
+	cfg, err := core.FromMapDefault[*memory.Config](src)
+	if err != nil {
+		return nil, fmt.Errorf("map to memory config: %w", err)
+	}
+	return cfg, nil
 }
 
-func floatPtrFromAny(v any) *float64 {
-	switch t := v.(type) {
-	case float64:
-		x := t
-		return &x
-	case int:
-		x := float64(t)
-		return &x
-	case int64:
-		x := float64(t)
-		return &x
-	case string:
-		if t == "" {
-			return nil
-		}
-		if f, err := strconv.ParseFloat(t, 64); err == nil {
-			return &f
-		}
-	case json.Number:
-		if f, err := t.Float64(); err == nil {
-			return &f
-		}
-	default:
-		return nil
+func convertMemoryConfigToDTO(cfg *memory.Config) (MemoryCoreDTO, error) {
+	if cfg == nil {
+		return MemoryCoreDTO{}, fmt.Errorf("memory config is nil")
 	}
-	return nil
+	return MemoryCoreDTO{
+		Resource:           cfg.Resource,
+		ID:                 cfg.ID,
+		Description:        cfg.Description,
+		Version:            cfg.Version,
+		Type:               cfg.Type,
+		MaxTokens:          cfg.MaxTokens,
+		MaxMessages:        cfg.MaxMessages,
+		MaxContextRatio:    cfg.MaxContextRatio,
+		TokenAllocation:    cfg.TokenAllocation,
+		Flushing:           cfg.Flushing,
+		Persistence:        cfg.Persistence,
+		PrivacyPolicy:      cfg.PrivacyPolicy,
+		Locking:            cfg.Locking,
+		TokenProvider:      cfg.TokenProvider,
+		DefaultKeyTemplate: cfg.DefaultKeyTemplate,
+	}, nil
 }

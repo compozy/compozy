@@ -50,6 +50,7 @@ const (
 	maxDispatcherQueueSegment     = 200
 	maxDispatcherWorkflowIDLength = 240
 	hashSuffixLen                 = 8 // hex-encoded 4 bytes
+	dispatcherTakeoverReason      = "terminate stale dispatcher for takeover"
 )
 
 // -----------------------------------------------------------------------------
@@ -285,6 +286,14 @@ func buildRuntimeManager(
 		mergedRuntimeConfig.BunPermissions = projectConfig.Runtime.Permissions
 		log.Debug("Using project-specific permissions", "permissions", projectConfig.Runtime.Permissions)
 	}
+	if projectConfig.Runtime.ToolExecutionTimeout > 0 {
+		mergedRuntimeConfig.ToolExecutionTimeout = projectConfig.Runtime.ToolExecutionTimeout
+		log.Debug(
+			"Using project-specific tool execution timeout",
+			"timeout",
+			projectConfig.Runtime.ToolExecutionTimeout,
+		)
+	}
 
 	// Log final configuration being used for debugging
 	log.Debug("Using unified runtime configuration",
@@ -334,7 +343,11 @@ func NewWorker(
 	if err != nil {
 		return nil, err
 	}
-	dispatcher := createDispatcher(workerCore.taskQueue, client)
+	projectName := ""
+	if projectConfig != nil {
+		projectName = projectConfig.Name
+	}
+	dispatcher := createDispatcher(workerCore.taskQueue, projectName, client)
 	activities, err := NewActivities(
 		ctx,
 		projectConfig,
@@ -487,9 +500,12 @@ func queueScopeParts(ctx context.Context) []string {
 }
 
 func sanitizeQueueSegment(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
 	slugged := slug.Make(value)
 	if slugged == "" {
-		return "segment"
+		return ""
 	}
 	return slugged
 }
@@ -612,13 +628,22 @@ func setupMemoryManager(
 	return memoryManager, nil
 }
 
-// createDispatcher creates dispatcher components with unique IDs
-func createDispatcher(taskQueue string, client *Client) *dispatcherComponents {
-	serverID := core.MustNewID().String()
+// createDispatcher creates dispatcher components with deterministic workflow IDs
+func buildDispatcherWorkflowID(projectName string, taskQueue string) string {
 	queueSegment := sanitizeQueueSegment(taskQueue)
 	queueSegment = truncateWithHash(queueSegment, maxDispatcherQueueSegment)
-	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", queueSegment, serverID)
-	dispatcherID = truncateWithHash(dispatcherID, maxDispatcherWorkflowIDLength)
+	parts := []string{"dispatcher"}
+	if strings.TrimSpace(projectName) != "" {
+		parts = append(parts, sanitizeQueueSegment(projectName))
+	}
+	parts = append(parts, queueSegment)
+	dispatcherID := strings.Join(parts, "-")
+	return truncateWithHash(dispatcherID, maxDispatcherWorkflowIDLength)
+}
+
+func createDispatcher(taskQueue string, projectName string, client *Client) *dispatcherComponents {
+	serverID := core.MustNewID().String()
+	dispatcherID := buildDispatcherWorkflowID(projectName, taskQueue)
 	signalDispatcher := NewSignalDispatcher(client, dispatcherID, taskQueue, serverID)
 	return &dispatcherComponents{
 		dispatcherID:     dispatcherID,
@@ -803,56 +828,109 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 	if maxRetries > 0 {
 		backoff = retry.WithMaxRetries(uint64(maxRetries), backoff)
 	}
-	err := retry.Do(
-		ctx,
-		backoff,
-		func(ctx context.Context) error {
-			// Bound each attempt to avoid hanging when Temporal is slow/unreachable
-			attemptTimeout := workflowStartTimeoutDefault
-			if cfg.Worker.StartWorkflowTimeout > 0 {
-				attemptTimeout = cfg.Worker.StartWorkflowTimeout
-			}
-			actx, cancel := context.WithTimeout(ctx, attemptTimeout)
-			defer cancel()
-			_, err := o.client.SignalWithStartWorkflow(
-				actx,
-				o.dispatcherID,
-				DispatcherEventChannel,
-				nil,
-				client.StartWorkflowOptions{
-					ID:                    o.dispatcherID,
-					TaskQueue:             o.taskQueue,
-					WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
-				},
-				DispatcherWorkflow,
-				o.projectConfig.Name,
-				o.serverID,
-			)
-			if err != nil {
-				if _, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); ok {
-					log.Debug(
-						"Dispatcher already running",
-						"dispatcher_id",
-						o.dispatcherID,
-						"project",
-						o.projectConfig.Name,
-					)
-					// Dispatcher is already running, no need to record start metrics
-					return nil
-				}
-				log.Warn("Failed to start dispatcher, retrying", "error", err, "dispatcher_id", o.dispatcherID)
-				return retry.RetryableError(err)
-			}
-			// Successfully started new dispatcher
-			interceptor.StartDispatcher(ctx, o.dispatcherID)
-			return nil
-		},
-	)
+	err := retry.Do(ctx, backoff, func(ctx context.Context) error {
+		return o.startDispatcherWithTakeover(ctx, cfg)
+	})
 	if err != nil {
 		log.Error("Failed to start dispatcher after all retries", "error", err, "dispatcher_id", o.dispatcherID)
 	} else {
 		log.Info("Started new dispatcher", "dispatcher_id", o.dispatcherID, "project", o.projectConfig.Name)
 	}
+}
+
+func (o *Worker) startDispatcherWithTakeover(ctx context.Context, cfg *appconfig.Config) error {
+	attemptStart := time.Now()
+	attemptTimeout := workflowStartTimeoutDefault
+	if cfg.Worker.StartWorkflowTimeout > 0 {
+		attemptTimeout = cfg.Worker.StartWorkflowTimeout
+	}
+	actx, cancel := context.WithTimeout(ctx, attemptTimeout)
+	defer cancel()
+	_, err := o.client.SignalWithStartWorkflow(
+		actx,
+		o.dispatcherID,
+		DispatcherEventChannel,
+		nil,
+		client.StartWorkflowOptions{
+			ID:                    o.dispatcherID,
+			TaskQueue:             o.taskQueue,
+			WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING,
+		},
+		DispatcherWorkflow,
+		o.projectConfig.Name,
+		o.serverID,
+	)
+	if err == nil {
+		o.recordDispatcherStart(ctx, attemptStart)
+		return nil
+	}
+	return o.handleDispatcherStartError(ctx, attemptStart, attemptTimeout, err)
+}
+
+func (o *Worker) recordDispatcherStart(ctx context.Context, startedAt time.Time) {
+	monitoring.RecordDispatcherTakeover(ctx, o.dispatcherID, time.Since(startedAt), monitoring.TakeoverOutcomeStarted)
+	interceptor.StartDispatcher(ctx, o.dispatcherID)
+}
+
+func (o *Worker) handleDispatcherStartError(
+	ctx context.Context,
+	attemptStart time.Time,
+	attemptTimeout time.Duration,
+	startErr error,
+) error {
+	var alreadyStarted *serviceerror.WorkflowExecutionAlreadyStarted
+	if errors.As(startErr, &alreadyStarted) {
+		o.logStaleDispatcher(ctx)
+		return o.terminateStaleDispatcher(ctx, attemptStart, attemptTimeout, startErr)
+	}
+	logger.FromContext(ctx).Warn(
+		"Failed to start dispatcher, retrying",
+		"error",
+		startErr,
+		"dispatcher_id",
+		o.dispatcherID,
+	)
+	monitoring.RecordDispatcherTakeover(ctx, o.dispatcherID, time.Since(attemptStart), monitoring.TakeoverOutcomeError)
+	return retry.RetryableError(startErr)
+}
+
+func (o *Worker) logStaleDispatcher(ctx context.Context) {
+	logger.FromContext(ctx).Info(
+		"Dispatcher already running, terminating stale execution",
+		"dispatcher_id",
+		o.dispatcherID,
+		"project",
+		o.projectConfig.Name,
+	)
+}
+
+func (o *Worker) terminateStaleDispatcher(
+	ctx context.Context,
+	attemptStart time.Time,
+	attemptTimeout time.Duration,
+	startErr error,
+) error {
+	terminateCtx, terminateCancel := context.WithTimeout(ctx, attemptTimeout)
+	defer terminateCancel()
+	terminateErr := o.client.TerminateWorkflow(terminateCtx, o.dispatcherID, "", dispatcherTakeoverReason)
+	duration := time.Since(attemptStart)
+	if terminateErr != nil {
+		if _, ok := terminateErr.(*serviceerror.NotFound); ok {
+			monitoring.RecordDispatcherTakeover(ctx, o.dispatcherID, duration, monitoring.TakeoverOutcomeTerminated)
+			return retry.RetryableError(startErr)
+		}
+		logger.FromContext(ctx).Warn(
+			"Failed to terminate stale dispatcher",
+			"error",
+			terminateErr,
+			"dispatcher_id",
+			o.dispatcherID,
+		)
+		monitoring.RecordDispatcherTakeover(ctx, o.dispatcherID, duration, monitoring.TakeoverOutcomeTerminateError)
+		return retry.RetryableError(terminateErr)
+	}
+	monitoring.RecordDispatcherTakeover(ctx, o.dispatcherID, duration, monitoring.TakeoverOutcomeTerminated)
+	return retry.RetryableError(startErr)
 }
 
 // HealthCheck performs a comprehensive health check including cache connectivity

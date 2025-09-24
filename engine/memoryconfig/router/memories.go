@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	memoryuc "github.com/compozy/compozy/engine/memoryconfig/uc"
@@ -81,9 +82,14 @@ func listMemories(c *gin.Context) {
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
 	items := make([]MemoryListItem, 0, len(out.Items))
 	for i := range out.Items {
-		items = append(items, toMemoryListItem(out.Items[i]))
+		item, err := toMemoryListItem(out.Items[i])
+		if err != nil {
+			router.RespondWithServerError(c, router.ErrInternalCode, "failed to map memory", err)
+			return
+		}
+		items = append(items, item)
 	}
-	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	page := httpdto.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "memories retrieved", MemoriesListResponse{Memories: items, Page: page})
 }
 
@@ -120,7 +126,12 @@ func getMemory(c *gin.Context) {
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	router.RespondOK(c, "memory retrieved", toMemoryDTO(out.Memory))
+	dto, mapErr := toMemoryDTO(out.Memory)
+	if mapErr != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map memory", mapErr)
+		return
+	}
+	router.RespondOK(c, "memory retrieved", dto)
 }
 
 // upsertMemory handles PUT /memories/{memory_id}.
@@ -183,11 +194,16 @@ func upsertMemory(c *gin.Context) {
 		message = "memory created"
 		c.Header("Location", routes.Memories()+"/"+memoryID)
 	}
-	if status == http.StatusCreated {
-		router.RespondCreated(c, message, toMemoryDTO(out.Memory))
+	dto, mapErr := toMemoryDTO(out.Memory)
+	if mapErr != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map memory", mapErr)
 		return
 	}
-	router.RespondOK(c, message, toMemoryDTO(out.Memory))
+	if status == http.StatusCreated {
+		router.RespondCreated(c, message, dto)
+		return
+	}
+	router.RespondOK(c, message, dto)
 }
 
 // deleteMemory handles DELETE /memories/{memory_id}.

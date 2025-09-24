@@ -26,12 +26,14 @@ var (
 	initOnce                   sync.Once
 	metricsMutex               sync.RWMutex
 	// Dispatcher-specific metrics
-	dispatcherActive         metric.Int64UpDownCounter
-	dispatcherHeartbeatTotal metric.Int64Counter
-	dispatcherLifecycleTotal metric.Int64Counter
-	dispatcherUptimeSeconds  metric.Float64ObservableGauge
-	dispatcherUptimeCallback metric.Registration
-	dispatcherStartTimes     sync.Map // map[string]time.Time for tracking uptime per dispatcher
+	dispatcherActive          metric.Int64UpDownCounter
+	dispatcherHeartbeatTotal  metric.Int64Counter
+	dispatcherLifecycleTotal  metric.Int64Counter
+	dispatcherTakeoverTotal   metric.Int64Counter
+	dispatcherTakeoverLatency metric.Float64Histogram
+	dispatcherUptimeSeconds   metric.Float64ObservableGauge
+	dispatcherUptimeCallback  metric.Registration
+	dispatcherStartTimes      sync.Map // map[string]time.Time for tracking uptime per dispatcher
 	// Dispatcher key scan metrics
 	dispatcherKeysScannedTotal metric.Int64Counter
 	dispatcherStaleFoundTotal  metric.Int64Counter
@@ -74,6 +76,8 @@ func resetMetrics(ctx context.Context) {
 	dispatcherActive = nil
 	dispatcherHeartbeatTotal = nil
 	dispatcherLifecycleTotal = nil
+	dispatcherTakeoverTotal = nil
+	dispatcherTakeoverLatency = nil
 	dispatcherUptimeSeconds = nil
 	dispatcherKeysScannedTotal = nil
 	dispatcherStaleFoundTotal = nil
@@ -196,6 +200,9 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 		log.Error("Failed to create dispatcher lifecycle counter", "error", err, "component", "temporal_metrics")
 		return err
 	}
+	if err := initDispatcherTakeoverMetrics(ctx, meter); err != nil {
+		return err
+	}
 	dispatcherUptimeSeconds, err = meter.Float64ObservableGauge(
 		"compozy_dispatcher_uptime_seconds",
 		metric.WithDescription("Dispatcher uptime in seconds"),
@@ -229,6 +236,35 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 	}, dispatcherUptimeSeconds)
 	if err != nil {
 		log.Error("Failed to register dispatcher uptime callback", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	return nil
+}
+
+func initDispatcherTakeoverMetrics(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
+	var err error
+	dispatcherTakeoverTotal, err = meter.Int64Counter(
+		"compozy_dispatcher_takeover_total",
+		metric.WithDescription("Total dispatcher takeover attempts"),
+	)
+	if err != nil {
+		log.Error("Failed to create dispatcher takeover counter", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	dispatcherTakeoverLatency, err = meter.Float64Histogram(
+		"compozy_dispatcher_takeover_latency_seconds",
+		metric.WithDescription("Dispatcher takeover latency in seconds"),
+		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
+	)
+	if err != nil {
+		log.Error(
+			"Failed to create dispatcher takeover latency histogram",
+			"error",
+			err,
+			"component",
+			"temporal_metrics",
+		)
 		return err
 	}
 	return nil
@@ -512,4 +548,21 @@ func RecordDispatcherRestart(ctx context.Context, dispatcherID string) {
 	}
 	// Update start time for uptime calculation
 	dispatcherStartTimes.Store(dispatcherID, time.Now())
+}
+
+func RecordDispatcherTakeover(ctx context.Context, dispatcherID string, duration time.Duration, outcome string) {
+	metricsMutex.RLock()
+	takeoverTotal := dispatcherTakeoverTotal
+	takeoverLatency := dispatcherTakeoverLatency
+	metricsMutex.RUnlock()
+	attrs := []attribute.KeyValue{attribute.String("dispatcher_id", dispatcherID)}
+	if outcome != "" {
+		attrs = append(attrs, attribute.String("outcome", outcome))
+	}
+	if takeoverTotal != nil {
+		takeoverTotal.Add(metricsContext(ctx), 1, metric.WithAttributes(attrs...))
+	}
+	if takeoverLatency != nil {
+		takeoverLatency.Record(metricsContext(ctx), duration.Seconds(), metric.WithAttributes(attrs...))
+	}
 }

@@ -12,7 +12,7 @@ import (
 //
 //	@Summary		Get task by ID
 //	@Description	Retrieve a specific task configuration by its ID within a workflow
-//	@Tags			tasks
+//	@Tags			workflows
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string									true	"Workflow ID"	example("data-processing")
@@ -46,8 +46,12 @@ func getTaskByID(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	taskResponse := ConvertTaskConfigToResponse(task)
-	router.RespondOK(c, "task retrieved", taskResponse)
+	resp, mapErr := ConvertTaskConfigToResponse(task)
+	if mapErr != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map task configuration", mapErr)
+		return
+	}
+	router.RespondOK(c, "task retrieved", resp)
 }
 
 // listTasks retrieves all tasks for a workflow
@@ -83,7 +87,11 @@ func listTasks(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	taskResponses := ConvertTaskConfigsToResponses(tasks)
+	taskResponses, mapErr := ConvertTaskConfigsToResponses(tasks)
+	if mapErr != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map workflow tasks", mapErr)
+		return
+	}
 	router.RespondOK(c, "tasks retrieved", gin.H{
 		"tasks": taskResponses,
 	})

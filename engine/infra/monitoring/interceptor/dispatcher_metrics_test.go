@@ -3,6 +3,7 @@ package interceptor
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -44,6 +45,12 @@ func TestDispatcherMetrics(t *testing.T) {
 			RecordDispatcherHeartbeat(ctx, dispatcherID)
 			RecordDispatcherRestart(ctx, dispatcherID)
 			StopDispatcher(ctx, dispatcherID)
+		})
+	})
+	t.Run("Should record takeover metrics without panics", func(t *testing.T) {
+		dispatcherID := "test-dispatcher-takeover"
+		assert.NotPanics(t, func() {
+			RecordDispatcherTakeover(ctx, dispatcherID, 25*time.Millisecond, "started")
 		})
 	})
 }

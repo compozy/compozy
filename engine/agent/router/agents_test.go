@@ -10,6 +10,7 @@ import (
 	router "github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/workflow"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ import (
 // setupRouterWithState creates a test gin router with app state middleware installed.
 func setupRouterWithState(t *testing.T, state *appstatepkg.State) *gin.Engine {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	r := gin.New()
 	r.Use(appstatepkg.StateMiddleware(state))
 	r.Use(router.ErrorHandler())
@@ -86,7 +87,7 @@ func Test_getAgentByID_Handler(t *testing.T) {
 
 func Test_AgentHandlers_MissingAppState(t *testing.T) {
 	t.Run("Should return 500 when app state is missing - listAgents", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		r := gin.New()
 		api := r.Group("/api/v0")
 		Register(api)
@@ -97,7 +98,7 @@ func Test_AgentHandlers_MissingAppState(t *testing.T) {
 	})
 
 	t.Run("Should return 500 when app state is missing - getAgentByID", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		r := gin.New()
 		api := r.Group("/api/v0")
 		Register(api)

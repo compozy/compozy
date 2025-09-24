@@ -24,215 +24,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/admin/export-yaml": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "Writes deterministic YAML files to project directories.\nTargets: agents/, tools/, workflows/, schemas/, mcps/, models/.\nAdmin only.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "admin"
-                ],
-                "summary": "Export store contents to YAML",
-                "responses": {
-                    "200": {
-                        "description": "Example: {\\\"data\\\":{\\\"workflow\\\":5,\\\"agent\\\":2},\\\"message\\\":\\\"export completed\\\"}",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/import-yaml": {
-            "post": {
-                "description": "Reads YAML from project directories and upserts to ResourceStore.\nStrategies: seed_only | overwrite_conflicts. Admin only.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "admin"
-                ],
-                "summary": "Import YAML into store",
-                "parameters": [
-                    {
-                        "enum": [
-                            "seed_only",
-                            "overwrite_conflicts"
-                        ],
-                        "type": "string",
-                        "description": "seed_only|overwrite_conflicts",
-                        "name": "strategy",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
         "/admin/mcps": {
             "get": {
                 "description": "Get a list of all configured Model Context Protocol servers",
@@ -1054,6 +845,150 @@ const docTemplate = `{
                 }
             }
         },
+        "/agents/export": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Write agent YAML files for the active project.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Export agents",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"written\\\":2},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/import": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Read agent YAML files from the project directory.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Import agents",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":1,\\\"skipped\\\":1,\\\"overwritten\\\":0,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/agents/{agent_id}": {
             "get": {
                 "description": "Retrieve an agent configuration by ID.",
@@ -1359,6 +1294,150 @@ const docTemplate = `{
                         "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v0/workflows/export": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Write workflow YAML files for the active project.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Export workflows",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"written\\\":2},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v0/workflows/import": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Read workflow YAML files from the project directory.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Import workflows",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":2,\\\"skipped\\\":0,\\\"overwritten\\\":0,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -2450,9 +2529,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/mcp/{name}/sse": {
+        "/mcp-proxy/{name}/sse": {
             "get": {
                 "description": "Proxy Server-Sent Events requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*",
+                    "text/event-stream"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2497,9 +2583,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/mcp/{name}/sse/{path}": {
+        "/mcp-proxy/{name}/sse/{path}": {
             "get": {
                 "description": "Proxy Server-Sent Events requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*",
+                    "text/event-stream"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2550,9 +2643,15 @@ const docTemplate = `{
                 }
             }
         },
-        "/mcp/{name}/stream": {
+        "/mcp-proxy/{name}/stream": {
             "get": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2598,6 +2697,12 @@ const docTemplate = `{
             },
             "put": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2643,6 +2748,12 @@ const docTemplate = `{
             },
             "post": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2688,6 +2799,12 @@ const docTemplate = `{
             },
             "delete": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2733,6 +2850,12 @@ const docTemplate = `{
             },
             "patch": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2777,9 +2900,15 @@ const docTemplate = `{
                 }
             }
         },
-        "/mcp/{name}/stream/{path}": {
+        "/mcp-proxy/{name}/stream/{path}": {
             "get": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2831,6 +2960,12 @@ const docTemplate = `{
             },
             "put": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2882,6 +3017,12 @@ const docTemplate = `{
             },
             "post": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2933,6 +3074,12 @@ const docTemplate = `{
             },
             "delete": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -2984,6 +3131,12 @@ const docTemplate = `{
             },
             "patch": {
                 "description": "Proxy streamable HTTP requests to a specific MCP server",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "*/*"
+                ],
                 "tags": [
                     "MCP Proxy"
                 ],
@@ -3122,6 +3275,150 @@ const docTemplate = `{
                         "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/mcps/export": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Write MCP YAML files for the active project.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcps"
+                ],
+                "summary": "Export MCPs",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"written\\\":3},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/mcps/import": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Read MCP YAML files from the project directory.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "mcps"
+                ],
+                "summary": "Import MCPs",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":1,\\\"skipped\\\":0,\\\"overwritten\\\":0,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -3519,6 +3816,150 @@ const docTemplate = `{
                         "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/memories/export": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Write memory YAML files for the active project.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memories"
+                ],
+                "summary": "Export memories",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"written\\\":5},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/memories/import": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Read memory YAML files from the project directory.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memories"
+                ],
+                "summary": "Import memories",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":3,\\\"skipped\\\":1,\\\"overwritten\\\":1,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -4817,6 +5258,150 @@ const docTemplate = `{
                 }
             }
         },
+        "/models/export": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Write model YAML files for the active project.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "models"
+                ],
+                "summary": "Export models",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"written\\\":4},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/models/import": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Read model YAML files from the project directory.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "models"
+                ],
+                "summary": "Import models",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":2,\\\"skipped\\\":0,\\\"overwritten\\\":1,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/models/{model_id}": {
             "get": {
                 "description": "Retrieve a model configuration by ID.",
@@ -5354,6 +5939,148 @@ const docTemplate = `{
                 }
             }
         },
+        "/project/export": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Write the project YAML file for the active project.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "project"
+                ],
+                "summary": "Export project",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"written\\\":1},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/project/import": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Read the project YAML file from the project directory.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "project"
+                ],
+                "summary": "Import project",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":1,\\\"skipped\\\":0,\\\"overwritten\\\":0,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/schedules": {
             "get": {
                 "description": "Retrieve a list of all scheduled workflows with their current status and override information",
@@ -5787,6 +6514,148 @@ const docTemplate = `{
                 }
             }
         },
+        "/schemas/export": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Write schema YAML files for the active project.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schemas"
+                ],
+                "summary": "Export schemas",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"written\\\":2},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/schemas/import": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Read schema YAML files from the project directory.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schemas"
+                ],
+                "summary": "Import schemas",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":1,\\\"skipped\\\":1,\\\"overwritten\\\":0,\\\"strategy\\\":\\\"overwrite_conflicts\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/schemas/{schema_id}": {
             "get": {
                 "description": "Retrieve a schema by ID.",
@@ -6143,6 +7012,16 @@ const docTemplate = `{
                         "description": "Filter by task ID prefix",
                         "name": "q",
                         "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Expand fields (repeatable). E.g., expand=tools\u0026expand=subtasks",
+                        "name": "expand",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6203,6 +7082,148 @@ const docTemplate = `{
                 }
             }
         },
+        "/tasks/export": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Write task YAML files for the active project.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Export tasks",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"written\\\":6},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/import": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Read task YAML files from the project directory.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Import tasks",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":4,\\\"skipped\\\":1,\\\"overwritten\\\":0,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/tasks/{task_id}": {
             "get": {
                 "description": "Retrieve a task configuration by ID.",
@@ -6230,6 +7251,16 @@ const docTemplate = `{
                         "example": "\"demo\"",
                         "description": "Project override",
                         "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Expand fields (repeatable). E.g., expand=tools\u0026expand=subtasks",
+                        "name": "expand",
                         "in": "query"
                     }
                 ],
@@ -6312,6 +7343,16 @@ const docTemplate = `{
                         "example": "\"demo\"",
                         "description": "Project override",
                         "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Expand fields (repeatable). E.g., expand=tools\u0026expand=subtasks",
+                        "name": "expand",
                         "in": "query"
                     },
                     {
@@ -6588,6 +7629,150 @@ const docTemplate = `{
                         "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/tools/export": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Write tool YAML files for the active project.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Export tools",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"written\\\":3},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/tools/import": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Read tool YAML files from the project directory.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Import tools",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":2,\\\"skipped\\\":1,\\\"overwritten\\\":0,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -7684,7 +8869,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "agents"
+                    "workflows"
                 ],
                 "summary": "Get agent by ID",
                 "parameters": [
@@ -8128,7 +9313,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "tasks"
+                    "workflows"
                 ],
                 "summary": "Get task by ID",
                 "parameters": [
@@ -8305,7 +9490,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "tools"
+                    "workflows"
                 ],
                 "summary": "Get tool by ID",
                 "parameters": [
@@ -8557,12 +9742,51 @@ const docTemplate = `{
                 }
             }
         },
+        "agentrouter.AgentActionDTO": {
+            "type": "object",
+            "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "input": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "output": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "with": {
+                    "$ref": "#/definitions/core.Input"
+                }
+            }
+        },
         "agentrouter.AgentDTO": {
             "type": "object",
             "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentrouter.AgentActionDTO"
+                    }
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
                 "env": {
                     "type": "object",
-                    "additionalProperties": {}
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "id": {
                     "type": "string"
@@ -8570,25 +9794,59 @@ const docTemplate = `{
                 "instructions": {
                     "type": "string"
                 },
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "max_iterations": {
+                    "type": "integer"
+                },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "memory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
+                },
                 "model": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/agentrouter.AgentModelDTO"
                 },
                 "resource": {
                     "type": "string"
                 },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
                 "with": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
                 }
             }
         },
         "agentrouter.AgentListItem": {
             "type": "object",
             "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentrouter.AgentActionDTO"
+                    }
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
                 "env": {
                     "type": "object",
-                    "additionalProperties": {}
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "etag": {
                     "type": "string",
@@ -8600,16 +9858,49 @@ const docTemplate = `{
                 "instructions": {
                     "type": "string"
                 },
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "max_iterations": {
+                    "type": "integer"
+                },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "memory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
+                },
                 "model": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/agentrouter.AgentModelDTO"
                 },
                 "resource": {
                     "type": "string"
                 },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
                 "with": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
+                }
+            }
+        },
+        "agentrouter.AgentModelDTO": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "$ref": "#/definitions/core.ProviderConfig"
+                },
+                "ref": {
+                    "type": "string"
                 }
             }
         },
@@ -8623,7 +9914,7 @@ const docTemplate = `{
                     }
                 },
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 }
             }
         },
@@ -8651,6 +9942,25 @@ const docTemplate = `{
                 },
                 "url": {
                     "description": "URL to author's profile, repository, or team page.\n\nExamples: ` + "`" + `\"https://github.com/username\"` + "`" + `, ` + "`" + `\"https://company.com/team/ai\"` + "`" + `",
+                    "type": "string"
+                }
+            }
+        },
+        "core.CircuitBreakerConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "max_failures": {
+                    "type": "integer"
+                },
+                "reset_timeout": {
+                    "description": "e.g., \"30s\"",
+                    "type": "string"
+                },
+                "timeout": {
+                    "description": "e.g., \"100ms\"",
                     "type": "string"
                 }
             }
@@ -8731,6 +10041,81 @@ const docTemplate = `{
                 }
             }
         },
+        "core.FlushingStrategyConfig": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "summarize_oldest_percent": {
+                    "description": "SummarizeOldestPercent is the percentage of the oldest messages to summarize. Only for hybrid_summary.\nE.g., 0.3 means summarize the oldest 30% of messages.",
+                    "type": "number",
+                    "maximum": 1
+                },
+                "summarize_threshold": {
+                    "description": "SummarizeThreshold is the percentage of MaxTokens/MaxMessages at which summarization should trigger.\nE.g., 0.8 means trigger summarization when memory is 80% full. Only for hybrid_summary.",
+                    "type": "number",
+                    "maximum": 1
+                },
+                "summary_tokens": {
+                    "description": "SummaryTokens is the target token count for generated summaries. Only for hybrid_summary.",
+                    "type": "integer"
+                },
+                "type": {
+                    "description": "Type is the kind of flushing strategy to apply (e.g., hybrid_summary).",
+                    "enum": [
+                        "hybrid_summary",
+                        "simple_fifo",
+                        "lru",
+                        "token_aware_lru"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.FlushingStrategyType"
+                        }
+                    ]
+                }
+            }
+        },
+        "core.FlushingStrategyType": {
+            "type": "string",
+            "enum": [
+                "token_count",
+                "message_count",
+                "hybrid_summary",
+                "simple_fifo",
+                "time_based",
+                "fifo",
+                "lru",
+                "token_aware_lru",
+                "simple_fifo"
+            ],
+            "x-enum-comments": {
+                "TokenAwareLRUFlushing": "#nosec G101"
+            },
+            "x-enum-descriptions": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "#nosec G101",
+                ""
+            ],
+            "x-enum-varnames": [
+                "TokenCountFlushing",
+                "MessageCountFlushing",
+                "HybridSummaryFlushing",
+                "SimpleFIFOFlushing",
+                "TimeBased",
+                "FIFOFlushing",
+                "LRUFlushing",
+                "TokenAwareLRUFlushing",
+                "DefaultFlushingStrategy"
+            ]
+        },
         "core.GlobalOpts": {
             "type": "object",
             "properties": {
@@ -8772,6 +10157,23 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {}
         },
+        "core.LockConfig": {
+            "type": "object",
+            "properties": {
+                "append_ttl": {
+                    "description": "AppendTTL is the lock timeout for append operations (default: \"30s\")",
+                    "type": "string"
+                },
+                "clear_ttl": {
+                    "description": "ClearTTL is the lock timeout for clear operations (default: \"10s\")",
+                    "type": "string"
+                },
+                "flush_ttl": {
+                    "description": "FlushTTL is the lock timeout for flush operations (default: \"5m\")",
+                    "type": "string"
+                }
+            }
+        },
         "core.MemoryReference": {
             "type": "object",
             "required": [
@@ -8805,6 +10207,72 @@ const docTemplate = `{
                 "path": {
                     "description": "Path holds the absolute working directory.",
                     "type": "string"
+                }
+            }
+        },
+        "core.PersistenceConfig": {
+            "type": "object",
+            "required": [
+                "ttl",
+                "type"
+            ],
+            "properties": {
+                "circuit_breaker": {
+                    "description": "CircuitBreaker configures resilience for persistence operations.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.CircuitBreakerConfig"
+                        }
+                    ]
+                },
+                "ttl": {
+                    "description": "TTL is the time-to-live for memory instances in this resource.\nParsed as a duration string (e.g., \"24h\", \"30m\").",
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "redis",
+                        "in_memory"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.PersistenceType"
+                        }
+                    ]
+                }
+            }
+        },
+        "core.PersistenceType": {
+            "type": "string",
+            "enum": [
+                "redis",
+                "in_memory"
+            ],
+            "x-enum-varnames": [
+                "RedisPersistence",
+                "InMemoryPersistence"
+            ]
+        },
+        "core.PrivacyPolicyConfig": {
+            "type": "object",
+            "properties": {
+                "default_redaction_string": {
+                    "description": "DefaultRedactionString is the string to replace redacted content with. Defaults to \"[REDACTED]\".",
+                    "type": "string"
+                },
+                "non_persistable_message_types": {
+                    "description": "NonPersistableMessageTypes is a list of message types/roles that should not be persisted.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "redact_patterns": {
+                    "description": "RedactPatterns is a list of regex patterns to apply for redacting content.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -9038,9 +10506,110 @@ const docTemplate = `{
                 }
             }
         },
+        "core.TokenAllocation": {
+            "type": "object",
+            "properties": {
+                "long_term": {
+                    "description": "LongTerm is the percentage of tokens allocated for summarized or older important context.",
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0
+                },
+                "short_term": {
+                    "description": "ShortTerm is the percentage of tokens allocated for recent messages.",
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0
+                },
+                "system": {
+                    "description": "System is the percentage of tokens reserved for system prompts or critical instructions.",
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0
+                },
+                "user_defined": {
+                    "description": "UserDefined is a map for additional custom allocations if needed.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number",
+                        "format": "float64"
+                    }
+                }
+            }
+        },
+        "core.TokenProviderConfig": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "description": "API key for real-time counting (can be env var reference like ${OPENAI_API_KEY})",
+                    "type": "string"
+                },
+                "api_key_env": {
+                    "description": "Environment variable name containing the API key",
+                    "type": "string"
+                },
+                "endpoint": {
+                    "description": "Optional custom endpoint",
+                    "type": "string"
+                },
+                "fallback": {
+                    "description": "Fallback strategy",
+                    "type": "string"
+                },
+                "model": {
+                    "description": "Model name",
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "\"openai\", \"anthropic\", etc.",
+                    "type": "string"
+                },
+                "settings": {
+                    "description": "Provider-specific settings",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "core.Type": {
+            "type": "string",
+            "enum": [
+                "token_based",
+                "message_count_based",
+                "buffer"
+            ],
+            "x-enum-varnames": [
+                "TokenBasedMemory",
+                "MessageCountBasedMemory",
+                "BufferMemory"
+            ]
+        },
         "gin.H": {
             "type": "object",
             "additionalProperties": {}
+        },
+        "httpdto.PageInfoDTO": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "example": "v2:after:tool-001"
+                },
+                "prev_cursor": {
+                    "type": "string",
+                    "example": "v2:before:tool-000"
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
         },
         "mcp.Config": {
             "type": "object",
@@ -9352,7 +10921,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "start_timeout": {
-                    "type": "string"
+                    "$ref": "#/definitions/time.Duration"
                 },
                 "transport": {
                     "type": "string"
@@ -9397,7 +10966,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "start_timeout": {
-                    "type": "string"
+                    "$ref": "#/definitions/time.Duration"
                 },
                 "transport": {
                     "type": "string"
@@ -9417,7 +10986,7 @@ const docTemplate = `{
                     }
                 },
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 }
             }
         },
@@ -9503,7 +11072,7 @@ const docTemplate = `{
                     }
                 },
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 }
             }
         },
@@ -9517,15 +11086,13 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "flushing": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.FlushingStrategyConfig"
                 },
                 "id": {
                     "type": "string"
                 },
                 "locking": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.LockConfig"
                 },
                 "max_context_ratio": {
                     "type": "number"
@@ -9537,25 +11104,24 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "persistence": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PersistenceConfig"
                 },
                 "privacy_policy": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PrivacyPolicyConfig"
                 },
                 "resource": {
                     "type": "string"
                 },
                 "token_allocation": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.TokenAllocation"
                 },
                 "token_provider": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.TokenProviderConfig"
                 },
                 "type": {
+                    "$ref": "#/definitions/core.Type"
+                },
+                "version": {
                     "type": "string"
                 }
             }
@@ -9574,15 +11140,13 @@ const docTemplate = `{
                     "example": "abc123"
                 },
                 "flushing": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.FlushingStrategyConfig"
                 },
                 "id": {
                     "type": "string"
                 },
                 "locking": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.LockConfig"
                 },
                 "max_context_ratio": {
                     "type": "number"
@@ -9594,25 +11158,24 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "persistence": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PersistenceConfig"
                 },
                 "privacy_policy": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PrivacyPolicyConfig"
                 },
                 "resource": {
                     "type": "string"
                 },
                 "token_allocation": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.TokenAllocation"
                 },
                 "token_provider": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.TokenProviderConfig"
                 },
                 "type": {
+                    "$ref": "#/definitions/core.Type"
+                },
+                "version": {
                     "type": "string"
                 }
             }
@@ -9710,11 +11273,20 @@ const docTemplate = `{
         "modelrouter.ModelDTO": {
             "type": "object",
             "properties": {
+                "api_key": {
+                    "type": "string"
+                },
                 "api_url": {
                     "type": "string"
                 },
+                "default": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string"
+                },
+                "max_tool_iterations": {
+                    "type": "integer"
                 },
                 "model": {
                     "type": "string"
@@ -9723,8 +11295,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "params": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PromptParams"
                 },
                 "provider": {
                     "type": "string"
@@ -9737,8 +11308,14 @@ const docTemplate = `{
         "modelrouter.ModelListItem": {
             "type": "object",
             "properties": {
+                "api_key": {
+                    "type": "string"
+                },
                 "api_url": {
                     "type": "string"
+                },
+                "default": {
+                    "type": "boolean"
                 },
                 "etag": {
                     "type": "string",
@@ -9747,6 +11324,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "max_tool_iterations": {
+                    "type": "integer"
+                },
                 "model": {
                     "type": "string"
                 },
@@ -9754,8 +11334,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "params": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.PromptParams"
                 },
                 "provider": {
                     "type": "string"
@@ -9775,7 +11354,7 @@ const docTemplate = `{
                     }
                 },
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 }
             }
         },
@@ -9902,27 +11481,6 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
-                }
-            }
-        },
-        "router.PageInfoDTO": {
-            "type": "object",
-            "properties": {
-                "limit": {
-                    "type": "integer",
-                    "example": 50
-                },
-                "next_cursor": {
-                    "type": "string",
-                    "example": "v2:after:tool-001"
-                },
-                "prev_cursor": {
-                    "type": "string",
-                    "example": "v2:before:tool-000"
-                },
-                "total": {
-                    "type": "integer",
-                    "example": 2
                 }
             }
         },
@@ -10058,7 +11616,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 },
                 "schemas": {
                     "type": "array",
@@ -10694,31 +12252,138 @@ const docTemplate = `{
                 "action": {
                     "type": "string"
                 },
+                "agent": {
+                    "$ref": "#/definitions/agent.Config"
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
+                "batch": {
+                    "type": "integer"
+                },
+                "batch_size": {
+                    "type": "integer"
+                },
+                "clear_config": {
+                    "$ref": "#/definitions/task.ClearConfig"
+                },
                 "condition": {
                     "type": "string"
+                },
+                "config": {
+                    "$ref": "#/definitions/core.GlobalOpts"
                 },
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
                 },
+                "filter": {
+                    "type": "string"
+                },
+                "final": {
+                    "type": "boolean"
+                },
+                "flush_config": {
+                    "$ref": "#/definitions/task.FlushConfig"
+                },
                 "has_subtasks": {
                     "type": "boolean"
+                },
+                "health_config": {
+                    "$ref": "#/definitions/task.HealthConfig"
                 },
                 "id": {
                     "type": "string"
                 },
+                "index_var": {
+                    "type": "string"
+                },
+                "input": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
+                "item_var": {
+                    "type": "string"
+                },
                 "items": {},
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "key_template": {
+                    "type": "string"
+                },
+                "max_iterations": {
+                    "type": "integer"
+                },
+                "max_keys": {
+                    "type": "integer"
+                },
+                "max_workers": {
+                    "type": "integer"
+                },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "memory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
+                },
+                "memory_ref": {
+                    "type": "string"
+                },
                 "mode": {
                     "type": "string"
                 },
+                "model_config": {
+                    "$ref": "#/definitions/core.ProviderConfig"
+                },
+                "on_error": {
+                    "$ref": "#/definitions/core.ErrorTransition"
+                },
+                "on_success": {
+                    "$ref": "#/definitions/core.SuccessTransition"
+                },
+                "on_timeout": {
+                    "type": "string"
+                },
+                "operation": {
+                    "$ref": "#/definitions/task.MemoryOpType"
+                },
+                "output": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
                 "outputs": {
                     "$ref": "#/definitions/core.Input"
+                },
+                "payload": {},
+                "prompt": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "retries": {
+                    "type": "integer"
                 },
                 "routes": {
                     "type": "object",
                     "additionalProperties": {}
                 },
+                "signal": {
+                    "$ref": "#/definitions/task.SignalConfig"
+                },
                 "signal_name": {
                     "type": "string"
+                },
+                "sleep": {
+                    "type": "string"
+                },
+                "stats_config": {
+                    "$ref": "#/definitions/task.StatsConfig"
                 },
                 "strategy": {
                     "type": "string"
@@ -10729,11 +12394,32 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "task": {
+                    "$ref": "#/definitions/tkrouter.TaskDTO"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tkrouter.TaskDTO"
+                    }
+                },
                 "timeout": {
                     "type": "string"
                 },
+                "tool": {
+                    "$ref": "#/definitions/tool.Config"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
                 "type": {
                     "$ref": "#/definitions/task.Type"
+                },
+                "wait_for": {
+                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -10746,8 +12432,27 @@ const docTemplate = `{
                 "action": {
                     "type": "string"
                 },
+                "agent": {
+                    "$ref": "#/definitions/agent.Config"
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
+                "batch": {
+                    "type": "integer"
+                },
+                "batch_size": {
+                    "type": "integer"
+                },
+                "clear_config": {
+                    "$ref": "#/definitions/task.ClearConfig"
+                },
                 "condition": {
                     "type": "string"
+                },
+                "config": {
+                    "$ref": "#/definitions/core.GlobalOpts"
                 },
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
@@ -10756,25 +12461,113 @@ const docTemplate = `{
                     "type": "string",
                     "example": "abc123"
                 },
+                "filter": {
+                    "type": "string"
+                },
+                "final": {
+                    "type": "boolean"
+                },
+                "flush_config": {
+                    "$ref": "#/definitions/task.FlushConfig"
+                },
                 "has_subtasks": {
                     "type": "boolean"
+                },
+                "health_config": {
+                    "$ref": "#/definitions/task.HealthConfig"
                 },
                 "id": {
                     "type": "string"
                 },
+                "index_var": {
+                    "type": "string"
+                },
+                "input": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
+                "item_var": {
+                    "type": "string"
+                },
                 "items": {},
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "key_template": {
+                    "type": "string"
+                },
+                "max_iterations": {
+                    "type": "integer"
+                },
+                "max_keys": {
+                    "type": "integer"
+                },
+                "max_workers": {
+                    "type": "integer"
+                },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "memory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
+                },
+                "memory_ref": {
+                    "type": "string"
+                },
                 "mode": {
                     "type": "string"
                 },
+                "model_config": {
+                    "$ref": "#/definitions/core.ProviderConfig"
+                },
+                "on_error": {
+                    "$ref": "#/definitions/core.ErrorTransition"
+                },
+                "on_success": {
+                    "$ref": "#/definitions/core.SuccessTransition"
+                },
+                "on_timeout": {
+                    "type": "string"
+                },
+                "operation": {
+                    "$ref": "#/definitions/task.MemoryOpType"
+                },
+                "output": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
                 "outputs": {
                     "$ref": "#/definitions/core.Input"
+                },
+                "payload": {},
+                "prompt": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "retries": {
+                    "type": "integer"
                 },
                 "routes": {
                     "type": "object",
                     "additionalProperties": {}
                 },
+                "signal": {
+                    "$ref": "#/definitions/task.SignalConfig"
+                },
                 "signal_name": {
                     "type": "string"
+                },
+                "sleep": {
+                    "type": "string"
+                },
+                "stats_config": {
+                    "$ref": "#/definitions/task.StatsConfig"
                 },
                 "strategy": {
                     "type": "string"
@@ -10785,11 +12578,32 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "task": {
+                    "$ref": "#/definitions/tkrouter.TaskDTO"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tkrouter.TaskDTO"
+                    }
+                },
                 "timeout": {
                     "type": "string"
                 },
+                "tool": {
+                    "$ref": "#/definitions/tool.Config"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
                 "type": {
                     "$ref": "#/definitions/task.Type"
+                },
+                "wait_for": {
+                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -10802,31 +12616,138 @@ const docTemplate = `{
                 "action": {
                     "type": "string"
                 },
+                "agent": {
+                    "$ref": "#/definitions/agent.Config"
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {}
+                },
+                "batch": {
+                    "type": "integer"
+                },
+                "batch_size": {
+                    "type": "integer"
+                },
+                "clear_config": {
+                    "$ref": "#/definitions/task.ClearConfig"
+                },
                 "condition": {
                     "type": "string"
+                },
+                "config": {
+                    "$ref": "#/definitions/core.GlobalOpts"
                 },
                 "env": {
                     "$ref": "#/definitions/core.EnvMap"
                 },
+                "filter": {
+                    "type": "string"
+                },
+                "final": {
+                    "type": "boolean"
+                },
+                "flush_config": {
+                    "$ref": "#/definitions/task.FlushConfig"
+                },
                 "has_subtasks": {
                     "type": "boolean"
+                },
+                "health_config": {
+                    "$ref": "#/definitions/task.HealthConfig"
                 },
                 "id": {
                     "type": "string"
                 },
+                "index_var": {
+                    "type": "string"
+                },
+                "input": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
+                "item_var": {
+                    "type": "string"
+                },
                 "items": {},
+                "json_mode": {
+                    "type": "boolean"
+                },
+                "key_template": {
+                    "type": "string"
+                },
+                "max_iterations": {
+                    "type": "integer"
+                },
+                "max_keys": {
+                    "type": "integer"
+                },
+                "max_workers": {
+                    "type": "integer"
+                },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "memory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.MemoryReference"
+                    }
+                },
+                "memory_ref": {
+                    "type": "string"
+                },
                 "mode": {
                     "type": "string"
                 },
+                "model_config": {
+                    "$ref": "#/definitions/core.ProviderConfig"
+                },
+                "on_error": {
+                    "$ref": "#/definitions/core.ErrorTransition"
+                },
+                "on_success": {
+                    "$ref": "#/definitions/core.SuccessTransition"
+                },
+                "on_timeout": {
+                    "type": "string"
+                },
+                "operation": {
+                    "$ref": "#/definitions/task.MemoryOpType"
+                },
+                "output": {
+                    "$ref": "#/definitions/schema.Schema"
+                },
                 "outputs": {
                     "$ref": "#/definitions/core.Input"
+                },
+                "payload": {},
+                "prompt": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "retries": {
+                    "type": "integer"
                 },
                 "routes": {
                     "type": "object",
                     "additionalProperties": {}
                 },
+                "signal": {
+                    "$ref": "#/definitions/task.SignalConfig"
+                },
                 "signal_name": {
                     "type": "string"
+                },
+                "sleep": {
+                    "type": "string"
+                },
+                "stats_config": {
+                    "$ref": "#/definitions/task.StatsConfig"
                 },
                 "strategy": {
                     "type": "string"
@@ -10840,8 +12761,20 @@ const docTemplate = `{
                 "timeout": {
                     "type": "string"
                 },
+                "tool": {
+                    "$ref": "#/definitions/tool.Config"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
+                },
                 "type": {
                     "$ref": "#/definitions/task.Type"
+                },
+                "wait_for": {
+                    "type": "string"
                 },
                 "with": {
                     "$ref": "#/definitions/core.Input"
@@ -10852,7 +12785,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 },
                 "tasks": {
                     "type": "array",
@@ -10935,40 +12868,34 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "config": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
+                },
+                "cwd": {
+                    "type": "string"
                 },
                 "description": {
-                    "type": "string",
-                    "example": "HTTP client tool"
+                    "type": "string"
                 },
                 "env": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.EnvMap"
                 },
                 "id": {
-                    "type": "string",
-                    "example": "http"
+                    "type": "string"
                 },
                 "input": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "output": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "resource": {
-                    "type": "string",
-                    "example": "tool"
+                    "type": "string"
                 },
                 "timeout": {
-                    "type": "string",
-                    "example": "30s"
+                    "type": "string"
                 },
                 "with": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
                 }
             }
         },
@@ -10976,44 +12903,38 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "config": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
+                },
+                "cwd": {
+                    "type": "string"
                 },
                 "description": {
-                    "type": "string",
-                    "example": "HTTP client tool"
+                    "type": "string"
                 },
                 "env": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.EnvMap"
                 },
                 "etag": {
                     "type": "string",
                     "example": "abc123"
                 },
                 "id": {
-                    "type": "string",
-                    "example": "http"
+                    "type": "string"
                 },
                 "input": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "output": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/schema.Schema"
                 },
                 "resource": {
-                    "type": "string",
-                    "example": "tool"
+                    "type": "string"
                 },
                 "timeout": {
-                    "type": "string",
-                    "example": "30s"
+                    "type": "string"
                 },
                 "with": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/core.Input"
                 }
             }
         },
@@ -11021,7 +12942,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 },
                 "tools": {
                     "type": "array",
@@ -11396,8 +13317,26 @@ const docTemplate = `{
                 "mcp_count": {
                     "type": "integer"
                 },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "outputs": {
+                    "$ref": "#/definitions/core.Output"
+                },
+                "resource": {
+                    "type": "string"
+                },
                 "schedule": {
                     "$ref": "#/definitions/workflow.Schedule"
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/schema.Schema"
+                    }
                 },
                 "task_count": {
                     "type": "integer"
@@ -11461,8 +13400,26 @@ const docTemplate = `{
                 "mcp_count": {
                     "type": "integer"
                 },
+                "mcps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/mcp.Config"
+                    }
+                },
+                "outputs": {
+                    "$ref": "#/definitions/core.Output"
+                },
+                "resource": {
+                    "type": "string"
+                },
                 "schedule": {
                     "$ref": "#/definitions/workflow.Schedule"
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/schema.Schema"
+                    }
                 },
                 "task_count": {
                     "type": "integer"
@@ -11502,7 +13459,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "page": {
-                    "$ref": "#/definitions/router.PageInfoDTO"
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
                 },
                 "workflows": {
                     "type": "array",

@@ -54,6 +54,40 @@ func TestWorkflowsEndpoints(t *testing.T) {
 		missingRes := client.do(http.MethodGet, "/api/v0/workflows/wf-int", nil, nil)
 		require.Equal(t, http.StatusNotFound, missingRes.Code)
 	})
+
+	t.Run("Should expose workflow metadata fields", func(t *testing.T) {
+		client := newResourceClient(t)
+		payload := workflowPayload("wf-meta", "metadata")
+		payload["resource"] = "compozy:workflow:wf-meta"
+		payload["schemas"] = []map[string]any{{"id": "wf-schema", "type": "object"}}
+		payload["outputs"] = map[string]any{"result": "{{ .tasks.step.output.value }}"}
+		payload["mcps"] = []map[string]any{{"id": "linker", "transport": "sse", "url": "http://localhost:6001/linker"}}
+		wfTasks := []map[string]any{{"id": "step", "type": "basic", "on_success": map[string]any{"next": "done"}}}
+		payload["tasks"] = wfTasks
+		res := client.do(http.MethodPut, "/api/v0/workflows/wf-meta", payload, nil)
+		require.Equal(t, http.StatusCreated, res.Code)
+		getRes := client.do(http.MethodGet, "/api/v0/workflows/wf-meta?expand=tasks", nil, nil)
+		require.Equal(t, http.StatusOK, getRes.Code)
+		data := decodeData(t, getRes)
+		assert.Equal(t, "compozy:workflow:wf-meta", data["resource"])
+		schemas, ok := data["schemas"].([]any)
+		require.True(t, ok)
+		require.Len(t, schemas, 1)
+		outputs, ok := data["outputs"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "{{ .tasks.step.output.value }}", outputs["result"])
+		mcps, ok := data["mcps"].([]any)
+		require.True(t, ok)
+		require.Len(t, mcps, 1)
+		tasks, ok := data["tasks"].([]any)
+		require.True(t, ok)
+		require.Len(t, tasks, 1)
+		taskEntry, ok := tasks[0].(map[string]any)
+		require.True(t, ok)
+		success, ok := taskEntry["on_success"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "done", success["next"])
+	})
 	t.Run("Should reject malformed workflow payload", func(t *testing.T) {
 		client := newResourceClient(t)
 		invalid := workflowPayload("other", "mismatch")
@@ -133,6 +167,76 @@ func TestWorkflowsQueries(t *testing.T) {
 			assert.Equal(t, "basic", row["type"])
 		}
 		assert.Equal(t, float64(2), expanded["task_count"])
+	})
+
+	t.Run("Should expand nested subtasks when requested", func(t *testing.T) {
+		client := newResourceClient(t)
+		nested := workflowPayload("wf-nested", "nested expand")
+		nested["tasks"] = []map[string]any{
+			{
+				"id":    "parent",
+				"type":  "composite",
+				"tasks": []map[string]any{{"id": "child-a", "type": "basic"}, {"id": "child-b", "type": "basic"}},
+			},
+		}
+		client.do(http.MethodPut, "/api/v0/workflows/wf-nested", nested, nil)
+		res := client.do(http.MethodGet, "/api/v0/workflows/wf-nested?expand=tasks", nil, nil)
+		require.Equal(t, http.StatusOK, res.Code)
+		data := decodeData(t, res)
+		tasks, ok := data["tasks"].([]any)
+		require.True(t, ok)
+		require.Len(t, tasks, 1)
+		parentTask, ok := tasks[0].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "parent", parentTask["id"])
+		nestedTasks, ok := parentTask["tasks"].([]any)
+		require.True(t, ok)
+		require.Len(t, nestedTasks, 2)
+		ids := make([]any, 0, len(nestedTasks))
+		for i := range nestedTasks {
+			child, ok := nestedTasks[i].(map[string]any)
+			require.True(t, ok)
+			ids = append(ids, child["id"])
+		}
+		assert.ElementsMatch(t, []any{"child-a", "child-b"}, ids)
+	})
+
+	t.Run("Should expand tools with typed DTO", func(t *testing.T) {
+		client := newResourceClient(t)
+		client.do(http.MethodPut, "/api/v0/tools/logger", toolPayload("logger", "GET", "https://example.com/log"), nil)
+		wf := workflowPayload("wf-tools-expand", "expand tools")
+		wf["tools"] = []map[string]any{{"id": "logger"}}
+		client.do(http.MethodPut, "/api/v0/workflows/wf-tools-expand", wf, nil)
+		res := client.do(http.MethodGet, "/api/v0/workflows/wf-tools-expand?expand=tools", nil, nil)
+		require.Equal(t, http.StatusOK, res.Code)
+		data := decodeData(t, res)
+		toolsVal, ok := data["tools"]
+		require.True(t, ok)
+		tools, ok := toolsVal.([]any)
+		require.True(t, ok)
+		require.Len(t, tools, 1)
+		entry, ok := tools[0].(map[string]any)
+		require.True(t, ok)
+		id, ok := entry["id"].(string)
+		require.True(t, ok)
+		assert.Equal(t, "logger", id)
+	})
+
+	t.Run("Should ignore unknown workflow expand keys", func(t *testing.T) {
+		client := newResourceClient(t)
+		payload := workflowPayload("wf-expand-mixed", "mixed expand")
+		payload["tasks"] = []map[string]any{{"id": "wf-child", "type": "basic"}}
+		res := client.do(http.MethodPut, "/api/v0/workflows/wf-expand-mixed", payload, nil)
+		require.Equal(t, http.StatusCreated, res.Code)
+		getRes := client.do(http.MethodGet, "/api/v0/workflows/wf-expand-mixed?expand=tasks,unknown", nil, nil)
+		require.Equal(t, http.StatusOK, getRes.Code)
+		data := decodeData(t, getRes)
+		items, ok := data["tasks"].([]any)
+		require.True(t, ok)
+		require.Len(t, items, 1)
+		child, ok := items[0].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "wf-child", child["id"])
 	})
 	t.Run("Should reject invalid cursor on list", func(t *testing.T) {
 		client := newResourceClient(t)

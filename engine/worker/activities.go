@@ -205,7 +205,6 @@ func (a *Activities) ExecuteBasicTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	cfg := config.FromContext(ctx)
 	act, err := tkfacts.NewExecuteBasic(
 		a.workflows,
 		a.workflowRepo,
@@ -216,7 +215,6 @@ func (a *Activities) ExecuteBasicTask(
 		a.templateEngine,
 		a.projectConfig,
 		a.task2Factory,
-		cfg,
 	)
 	if err != nil {
 		return nil, err
@@ -277,7 +275,6 @@ func (a *Activities) ExecuteSubtask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	cfg := config.FromContext(ctx)
 	act := tkfacts.NewExecuteSubtask(
 		a.workflows,
 		a.workflowRepo,
@@ -286,7 +283,6 @@ func (a *Activities) ExecuteSubtask(
 		a.configStore,
 		a.task2Factory,
 		a.templateEngine,
-		cfg,
 		a.projectConfig,
 	)
 	return act.Run(ctx, input)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/engine/memory"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ type healthTestFixture struct {
 // setupHealthTestFixture creates a reusable test fixture
 func setupHealthTestFixture(_ *testing.T) *healthTestFixture {
 	ctx := context.Background()
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	router := gin.New()
 	memory.ResetGlobalHealthServiceForTesting()
 	return &healthTestFixture{router, ctx}

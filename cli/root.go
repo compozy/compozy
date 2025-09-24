@@ -5,14 +5,22 @@ import (
 	"fmt"
 	"os"
 
-	admincmd "github.com/compozy/compozy/cli/cmd/admin"
+	agentscmd "github.com/compozy/compozy/cli/cmd/agents"
 	authcmd "github.com/compozy/compozy/cli/cmd/auth"
 	configcmd "github.com/compozy/compozy/cli/cmd/config"
 	"github.com/compozy/compozy/cli/cmd/dev"
 	initcmd "github.com/compozy/compozy/cli/cmd/init"
 	mcpproxycmd "github.com/compozy/compozy/cli/cmd/mcpproxy"
+	mcpcmd "github.com/compozy/compozy/cli/cmd/mcps"
+	memoriescmd "github.com/compozy/compozy/cli/cmd/memories"
+	modelscmd "github.com/compozy/compozy/cli/cmd/models"
+	projectcmd "github.com/compozy/compozy/cli/cmd/project"
+	schemascmd "github.com/compozy/compozy/cli/cmd/schemas"
 	"github.com/compozy/compozy/cli/cmd/start"
+	taskscmd "github.com/compozy/compozy/cli/cmd/tasks"
+	toolscmd "github.com/compozy/compozy/cli/cmd/tools"
 	workflowcmd "github.com/compozy/compozy/cli/cmd/workflow"
+	workflowscmd "github.com/compozy/compozy/cli/cmd/workflows"
 	"github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -75,8 +83,16 @@ and events with both interactive TUI and automation-friendly JSON output.`,
 		mcpproxycmd.NewMCPProxyCommand(),
 		configcmd.NewConfigCommand(),
 		authcmd.Cmd(),
-		admincmd.Cmd(),
+		agentscmd.Cmd(),
 		workflowcmd.Cmd(),
+		workflowscmd.Cmd(),
+		taskscmd.Cmd(),
+		toolscmd.Cmd(),
+		mcpcmd.Cmd(),
+		schemascmd.Cmd(),
+		modelscmd.Cmd(),
+		memoriescmd.Cmd(),
+		projectcmd.Cmd(),
 		versionCmd,
 	)
 

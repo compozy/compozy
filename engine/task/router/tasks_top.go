@@ -7,11 +7,17 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	taskuc "github.com/compozy/compozy/engine/task/uc"
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	defaultTasksLimit = 50
+	maxTasksLimit     = 500
 )
 
 // listTasksTop handles GET /tasks.
@@ -26,6 +32,7 @@ import (
 // @Param limit query int false "Page size (max 500)" example(50)
 // @Param cursor query string false "Opaque pagination cursor"
 // @Param q query string false "Filter by task ID prefix"
+// @Param expand query []string false "Expand fields (repeatable). E.g., expand=tools&expand=subtasks"
 // @Success 200 {object} router.Response{data=tkrouter.TasksListResponse} "Tasks retrieved"
 // @Header 200 {string} Link "RFC 8288 pagination links for next/prev"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
@@ -44,7 +51,8 @@ func listTasksTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), defaultTasksLimit, maxTasksLimit)
+	expandSet := router.ParseExpandQueries(c.QueryArray("expand"))
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
@@ -74,9 +82,14 @@ func listTasksTop(c *gin.Context) {
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
 	items := make([]TaskListItem, 0, len(out.Items))
 	for i := range out.Items {
-		items = append(items, toTaskListItem(out.Items[i]))
+		item, err := toTaskListItem(out.Items[i], expandSet)
+		if err != nil {
+			router.RespondWithServerError(c, router.ErrInternalCode, "failed to map task", err)
+			return
+		}
+		items = append(items, item)
 	}
-	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	page := httpdto.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "tasks retrieved", TasksListResponse{Tasks: items, Page: page})
 }
 
@@ -89,6 +102,7 @@ func listTasksTop(c *gin.Context) {
 // @Produce json
 // @Param task_id path string true "Task ID" example("approve-request")
 // @Param project query string false "Project override" example("demo")
+// @Param expand query []string false "Expand fields (repeatable). E.g., expand=tools&expand=subtasks"
 // @Success 200 {object} router.Response{data=tkrouter.TaskDTO} "Task retrieved"
 // @Header 200 {string} RateLimit-Limit "Requests allowed in the current window"
 // @Header 200 {string} RateLimit-Remaining "Remaining requests in the current window"
@@ -110,13 +124,19 @@ func getTaskTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
+	expandSet := router.ParseExpandQueries(c.QueryArray("expand"))
 	out, err := taskuc.NewGet(store).Execute(c.Request.Context(), &taskuc.GetInput{Project: project, ID: taskID})
 	if err != nil {
 		respondTaskError(c, err)
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	router.RespondOK(c, "task retrieved", toTaskDTO(out.Task))
+	dto, err := toTaskDTO(out.Task, expandSet)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map task", err)
+		return
+	}
+	router.RespondOK(c, "task retrieved", dto)
 }
 
 // upsertTaskTop handles PUT /tasks/{task_id}.
@@ -128,6 +148,7 @@ func getTaskTop(c *gin.Context) {
 // @Produce json
 // @Param task_id path string true "Task ID" example("approve-request")
 // @Param project query string false "Project override" example("demo")
+// @Param expand query []string false "Expand fields (repeatable). E.g., expand=tools&expand=subtasks"
 // @Param If-Match header string false "Strong ETag for optimistic concurrency" example("\"abc123\"")
 // @Param payload body map[string]any true "Task configuration payload"
 // @Success 200 {object} router.Response{data=tkrouter.TaskDTO} "Task updated"
@@ -158,6 +179,7 @@ func upsertTaskTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
+	expandSet := router.ParseExpandQueries(c.QueryArray("expand"))
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
@@ -182,11 +204,16 @@ func upsertTaskTop(c *gin.Context) {
 		message = "task created"
 		c.Header("Location", routes.Tasks()+"/"+taskID)
 	}
-	if status == http.StatusCreated {
-		router.RespondCreated(c, message, toTaskDTO(out.Task))
+	dto, err := toTaskDTO(out.Task, expandSet)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map task", err)
 		return
 	}
-	router.RespondOK(c, message, toTaskDTO(out.Task))
+	if status == http.StatusCreated {
+		router.RespondCreated(c, message, dto)
+		return
+	}
+	router.RespondOK(c, message, dto)
 }
 
 // deleteTaskTop handles DELETE /tasks/{task_id}.

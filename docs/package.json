@@ -48,11 +48,11 @@
     "cmdk": "1.1.1",
     "embla-carousel-react": "8.6.0",
     "fumadocs-core": "15.6.9",
-    "fumadocs-mdx": "11.7.3",
+    "fumadocs-mdx": "12.0.0",
     "fumadocs-openapi": "9.1.8",
     "fumadocs-ui": "15.6.9",
     "geist": "1.4.2",
-    "lucide-react": "^0.536.0",
+    "lucide-react": "0.544.0",
     "mermaid": "11.9.0",
     "mermaid-isomorphic": "3.0.4",
     "motion": "12.23.12",
@@ -70,7 +70,7 @@
     "sonner": "^2.0.7",
     "svg-pan-zoom": "3.6.2",
     "tailwind-merge": "^3.3.1",
-    "tailwind-variants": "2.1.0"
+    "tailwind-variants": "3.1.1"
   },
   "devDependencies": {
     "@emotion/is-prop-valid": "1.3.1",

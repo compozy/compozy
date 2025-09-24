@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/resources/exporter"
+	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,9 @@ func TestImporter_StrategiesAndRoundTrip(t *testing.T) {
 		ctx := context.Background()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
-		t.Setenv("MCP_PROXY_URL", getTestMCPProxyURL())
+		proxyURL := getTestMCPProxyURL()
+		t.Setenv("TEST_MCP_PROXY_URL", proxyURL)
+		t.Setenv("MCP_PROXY_URL", proxyURL)
 
 		// Prepare repo-like directory with YAML files
 		repo := t.TempDir()
@@ -132,5 +135,104 @@ func TestImporter_StrategiesAndRoundTrip(t *testing.T) {
 		b4, err := os.ReadFile(filepath.Join(dir2, "mcps", "github.yaml"))
 		require.NoError(t, err)
 		require.Equal(t, string(b3), string(b4))
+		b5, err := os.ReadFile(filepath.Join(dir1, "tools", "fmt.yaml"))
+		require.NoError(t, err)
+		b6, err := os.ReadFile(filepath.Join(dir2, "tools", "fmt.yaml"))
+		require.NoError(t, err)
+		require.Equal(t, string(b5), string(b6))
+	})
+}
+
+func TestImportTypeFromDir(t *testing.T) {
+	t.Parallel()
+	t.Run("Should import tasks directory", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		project := "proj"
+		store := resources.NewMemoryResourceStore()
+		repo := t.TempDir()
+		taskCfg := task.Config{
+			BaseConfig: task.BaseConfig{ID: "compile-report", Type: task.TaskTypeBasic},
+			BasicTask:  task.BasicTask{Action: "mock"},
+		}
+		bytes, err := yaml.Marshal(taskCfg)
+		require.NoError(t, err)
+		writeFile(t, repo, "tasks/compile-report.yaml", string(bytes))
+		out, err := ImportTypeFromDir(ctx, project, store, repo, SeedOnly, "tester", resources.ResourceTask)
+		require.NoError(t, err)
+		require.Equal(t, 1, out.Imported[resources.ResourceTask])
+		_, _, err = store.Get(
+			ctx,
+			resources.ResourceKey{Project: project, Type: resources.ResourceTask, ID: "compile-report"},
+		)
+		require.NoError(t, err)
+	})
+	t.Run("Should return zero counts when directory missing", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		project := "proj"
+		store := resources.NewMemoryResourceStore()
+		repo := t.TempDir()
+		out, err := ImportTypeFromDir(ctx, project, store, repo, SeedOnly, "", resources.ResourceTask)
+		require.NoError(t, err)
+		require.Equal(t, 0, out.Imported[resources.ResourceTask])
+	})
+	t.Run("Should skip then overwrite existing tools based on strategy", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		project := "proj"
+		store := resources.NewMemoryResourceStore()
+		repo := t.TempDir()
+		cfg := tool.Config{ID: "fmt", Description: "Format values"}
+		bytes, err := yaml.Marshal(cfg)
+		require.NoError(t, err)
+		writeFile(t, repo, "tools/fmt.yaml", string(bytes))
+		res, err := ImportTypeFromDir(ctx, project, store, repo, SeedOnly, "tester", resources.ResourceTool)
+		require.NoError(t, err)
+		require.Equal(t, 1, res.Imported[resources.ResourceTool])
+		res, err = ImportTypeFromDir(ctx, project, store, repo, SeedOnly, "tester", resources.ResourceTool)
+		require.NoError(t, err)
+		require.Equal(t, 1, res.Skipped[resources.ResourceTool])
+		cfg.Description = "Updated description"
+		bytes, err = yaml.Marshal(cfg)
+		require.NoError(t, err)
+		writeFile(t, repo, "tools/fmt.yaml", string(bytes))
+		res, err = ImportTypeFromDir(ctx, project, store, repo, OverwriteConflicts, "tester", resources.ResourceTool)
+		require.NoError(t, err)
+		require.Equal(t, 1, res.Overwritten[resources.ResourceTool])
+		value, _, err := store.Get(
+			ctx,
+			resources.ResourceKey{Project: project, Type: resources.ResourceTool, ID: "fmt"},
+		)
+		require.NoError(t, err)
+		stored, ok := value.(*tool.Config)
+		require.True(t, ok)
+		require.Equal(t, "Updated description", stored.Description)
+	})
+	t.Run("Should error when YAML file is missing id", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		project := "proj"
+		store := resources.NewMemoryResourceStore()
+		repo := t.TempDir()
+		writeFile(t, repo, "tasks/invalid.yaml", "type: basic")
+		_, err := ImportTypeFromDir(ctx, project, store, repo, SeedOnly, "tester", resources.ResourceTask)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "missing id field")
+	})
+	t.Run("Should error when duplicate ids exist in directory", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		project := "proj"
+		store := resources.NewMemoryResourceStore()
+		repo := t.TempDir()
+		cfg := tool.Config{ID: "fmt"}
+		bytes, err := yaml.Marshal(cfg)
+		require.NoError(t, err)
+		writeFile(t, repo, "tools/fmt.yaml", string(bytes))
+		writeFile(t, repo, "tools/fmt_copy.yaml", string(bytes))
+		_, err = ImportTypeFromDir(ctx, project, store, repo, SeedOnly, "tester", resources.ResourceTool)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "duplicate id")
 	})
 }

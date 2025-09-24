@@ -27,8 +27,12 @@ func TestModelsEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, getRes.Code)
 		data := decodeData(t, getRes)
 		assert.Equal(t, "gpt-4o-mini", data["model"])
+		assert.Equal(t, "model", data["resource"])
 		updateBody := cloneMap(modelPayload("openai", "gpt-4o-mini"))
 		updateBody["params"] = map[string]any{"temperature": 0.1}
+		updateBody["default"] = true
+		updateBody["max_tool_iterations"] = 5
+		updateBody["api_url"] = "https://api.openai.com/v1"
 		updateRes := client.do(
 			http.MethodPut,
 			"/api/v0/models/openai-gpt-4o-mini",
@@ -45,6 +49,9 @@ func TestModelsEndpoints(t *testing.T) {
 		params, ok := afterData["params"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, 0.1, params["temperature"])
+		assert.Equal(t, true, afterData["default"])
+		assert.Equal(t, float64(5), afterData["max_tool_iterations"])
+		assert.Equal(t, "https://api.openai.com/v1", afterData["api_url"])
 		staleRes := client.do(
 			http.MethodPut,
 			"/api/v0/models/openai-gpt-4o-mini",

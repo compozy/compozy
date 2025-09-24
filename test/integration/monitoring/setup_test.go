@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/testsuite"
@@ -47,7 +48,7 @@ func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 	monitoringService, err := monitoring.NewMonitoringService(t.Context(), config)
 	require.NoError(t, err)
 	// Initialize Gin router with monitoring middleware
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	r := gin.New()
 	r.Use(monitoringService.GinMiddleware(t.Context()))
 	// Add test routes

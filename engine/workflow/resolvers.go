@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/adrg/strutil"
 	"github.com/adrg/strutil/metrics"
@@ -18,6 +19,11 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
+)
+
+var (
+	jaroWinklerPool = sync.Pool{New: func() any { return metrics.NewJaroWinkler() }}
+	levenshteinPool = sync.Pool{New: func() any { return metrics.NewLevenshtein() }}
 )
 
 func resolveAgent(
@@ -52,8 +58,11 @@ func resolveAgentBySelector(
 		}
 		return nil, fmt.Errorf("agent lookup failed for '%s': %w", in.ID, err)
 	}
-	got, ok := val.(*agent.Config)
-	if !ok {
+	got, err := agentConfigFromStore(val)
+	if err != nil {
+		return nil, fmt.Errorf("agent decode failed for '%s': %w", in.ID, err)
+	}
+	if got == nil {
 		return nil, &TypeMismatchError{Type: resources.ResourceAgent, ID: in.ID, Got: val}
 	}
 	clone, err := got.Clone()
@@ -90,6 +99,7 @@ func finishAgentSetup(
 	agentCfg *agent.Config,
 	modelRefProvider *agent.Config,
 ) error {
+	ensureAgentDefaults(agentCfg)
 	if modelRefProvider != nil && modelRefProvider.Model.HasRef() {
 		if err := applyAgentModelSelector(ctx, proj, store, agentCfg, modelRefProvider.Model.Ref); err != nil {
 			return err
@@ -104,6 +114,74 @@ func finishAgentSetup(
 		return err
 	}
 	return nil
+}
+
+func agentConfigFromStore(value any) (*agent.Config, error) {
+	return configFromStore[agent.Config](value, ensureAgentDefaults)
+}
+
+func toolConfigFromStore(value any) (*tool.Config, error) {
+	return configFromStore[tool.Config](value, ensureToolDefaults)
+}
+
+func mcpConfigFromStore(value any) (*mcp.Config, error) {
+	return configFromStore[mcp.Config](value, func(cfg *mcp.Config) {
+		cfg.SetDefaults()
+	})
+}
+
+func modelConfigFromStore(value any) (*core.ProviderConfig, error) {
+	return configFromStore[core.ProviderConfig](value, ensureProviderDefaults)
+}
+
+func configFromStore[T any](value any, mapNormalizer func(*T)) (*T, error) {
+	switch tv := value.(type) {
+	case *T:
+		return tv, nil
+	case map[string]any:
+		cfg, err := core.FromMapDefault[*T](tv)
+		if err != nil {
+			return nil, err
+		}
+		if mapNormalizer != nil {
+			mapNormalizer(cfg)
+		}
+		return cfg, nil
+	case T:
+		tmp := tv
+		return &tmp, nil
+	default:
+		return nil, nil
+	}
+}
+
+func ensureAgentDefaults(cfg *agent.Config) {
+	if cfg == nil {
+		return
+	}
+	if strings.TrimSpace(cfg.Resource) == "" {
+		cfg.Resource = string(core.ConfigAgent)
+	}
+}
+
+func ensureToolDefaults(cfg *tool.Config) {
+	if cfg == nil {
+		return
+	}
+	if strings.TrimSpace(cfg.Resource) == "" {
+		cfg.Resource = string(core.ConfigTool)
+	}
+}
+
+func ensureProviderDefaults(cfg *core.ProviderConfig) {
+	if cfg == nil {
+		return
+	}
+	cfg.Provider = core.ProviderName(strings.TrimSpace(string(cfg.Provider)))
+	cfg.Model = strings.TrimSpace(cfg.Model)
+	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
+	cfg.APIURL = strings.TrimSpace(cfg.APIURL)
+	cfg.Organization = strings.TrimSpace(cfg.Organization)
 }
 
 func resolveTool(
@@ -127,14 +205,18 @@ func resolveTool(
 			}
 			return nil, fmt.Errorf("tool lookup failed for '%s': %w", in.ID, err)
 		}
-		got, ok := val.(*tool.Config)
-		if !ok {
+		got, err := toolConfigFromStore(val)
+		if err != nil {
+			return nil, fmt.Errorf("tool decode failed for '%s': %w", in.ID, err)
+		}
+		if got == nil {
 			return nil, &TypeMismatchError{Type: resources.ResourceTool, ID: in.ID, Got: val}
 		}
 		clone, err := got.Clone()
 		if err != nil {
 			return nil, fmt.Errorf("failed to clone tool '%s': %w", in.ID, err)
 		}
+		ensureToolDefaults(clone)
 		if err := linkToolSchemas(ctx, proj, store, clone); err != nil {
 			return nil, err
 		}
@@ -145,6 +227,7 @@ func resolveTool(
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone inline tool '%s': %w", in.ID, err)
 	}
+	ensureToolDefaults(clone)
 	if err := linkToolSchemas(ctx, proj, store, clone); err != nil {
 		return nil, err
 	}
@@ -273,8 +356,11 @@ func fetchSchema(
 		}
 		return nil, fmt.Errorf("schema lookup failed for '%s': %w", id, err)
 	}
-	sc, ok := val.(*schema.Schema)
-	if !ok {
+	sc, err := schemaFromStore(val)
+	if err != nil {
+		return nil, fmt.Errorf("schema decode failed for '%s': %w", id, err)
+	}
+	if sc == nil {
 		return nil, &TypeMismatchError{Type: resources.ResourceSchema, ID: id, Got: val}
 	}
 	clone, err := sc.Clone()
@@ -282,6 +368,119 @@ func fetchSchema(
 		return nil, fmt.Errorf("failed to clone schema '%s': %w", id, err)
 	}
 	return clone, nil
+}
+
+func schemaFromStore(value any) (*schema.Schema, error) {
+	switch tv := value.(type) {
+	case *schema.Schema:
+		return tv, nil
+	case schema.Schema:
+		tmp := tv
+		return &tmp, nil
+	case map[string]any:
+		return core.FromMapDefault[*schema.Schema](tv)
+	default:
+		return nil, nil
+	}
+}
+
+func hasAgentInlineContent(a *agent.Config) bool {
+	if a == nil {
+		return false
+	}
+	if strings.TrimSpace(a.Instructions) != "" {
+		return true
+	}
+	if len(a.Actions) > 0 {
+		return true
+	}
+	if !a.Model.IsEmpty() {
+		return true
+	}
+	if a.Tools != nil {
+		return true
+	}
+	if a.MCPs != nil {
+		return true
+	}
+	if a.Memory != nil {
+		return true
+	}
+	if len(a.Attachments) > 0 {
+		return true
+	}
+	if a.Env != nil {
+		return true
+	}
+	if a.MaxIterations != 0 {
+		return true
+	}
+	if a.JSONMode {
+		return true
+	}
+	return false
+}
+
+func hasToolInlineContent(t *tool.Config) bool {
+	if t == nil {
+		return false
+	}
+	if strings.TrimSpace(t.Description) != "" {
+		return true
+	}
+	if strings.TrimSpace(t.Timeout) != "" {
+		return true
+	}
+	if t.InputSchema != nil {
+		return true
+	}
+	if t.OutputSchema != nil {
+		return true
+	}
+	if t.With != nil {
+		return true
+	}
+	if t.Config != nil {
+		return true
+	}
+	if t.Env != nil {
+		return true
+	}
+	if t.CWD != nil {
+		return true
+	}
+	return false
+}
+
+func hasMCPInlineContent(mc *mcp.Config) bool {
+	if mc == nil {
+		return false
+	}
+	if strings.TrimSpace(mc.URL) != "" {
+		return true
+	}
+	if strings.TrimSpace(mc.Command) != "" {
+		return true
+	}
+	if mc.Headers != nil {
+		return true
+	}
+	if mc.Env != nil {
+		return true
+	}
+	if strings.TrimSpace(mc.Proto) != "" {
+		return true
+	}
+	if mc.Transport != "" {
+		return true
+	}
+	if mc.StartTimeout != 0 {
+		return true
+	}
+	if mc.MaxSessions != 0 {
+		return true
+	}
+	return false
 }
 
 func resolveSchemaRef(
@@ -308,30 +507,32 @@ func isAgentSelector(a *agent.Config) bool {
 	if a == nil {
 		return false
 	}
-	hasID := a.ID != ""
-	noModelCfg := a.Model.Config.Provider == "" && a.Model.Config.Model == "" && !a.Model.HasRef()
-	noInstr := a.Instructions == ""
-	return hasID && noModelCfg && noInstr && len(a.Tools) == 0 && len(a.MCPs) == 0
+	if strings.TrimSpace(a.ID) == "" {
+		return false
+	}
+	return !hasAgentInlineContent(a)
 }
 
 func isToolSelector(t *tool.Config) bool {
 	if t == nil {
 		return false
 	}
-	return t.ID != "" && t.Description == "" && t.Timeout == "" && t.InputSchema == nil && t.OutputSchema == nil
+	if strings.TrimSpace(t.ID) == "" {
+		return false
+	}
+	return !hasToolInlineContent(t)
 }
 
 // isMCPSelector returns true when an MCP config is an ID-only selector.
-// We detect selectors using the same principle as tools: ID present and the
-// rest of identifying fields empty (no URL/Command provided).
+// We detect selectors using the absence of substantive configuration fields.
 func isMCPSelector(mc *mcp.Config) bool {
 	if mc == nil {
 		return false
 	}
-	// Treat as a selector only when it is strictly ID-only with no other
-	// substantive fields set. This avoids misclassifying partially-defined
-	// inline MCP configs (e.g., headers/env) as selectors.
-	return mc.ID != "" && mc.URL == "" && mc.Command == "" && len(mc.Headers) == 0 && len(mc.Env) == 0
+	if strings.TrimSpace(mc.ID) == "" {
+		return false
+	}
+	return !hasMCPInlineContent(mc)
 }
 
 // resolveMCPs resolves any ID-only MCP selectors on the provided agent config
@@ -368,8 +569,11 @@ func resolveMCPs(
 			}
 			return fmt.Errorf("mcp lookup failed for '%s': %w", id, err)
 		}
-		got, ok := val.(*mcp.Config)
-		if !ok {
+		got, err := mcpConfigFromStore(val)
+		if err != nil {
+			return fmt.Errorf("mcp decode failed for '%s': %w", id, err)
+		}
+		if got == nil {
 			return &TypeMismatchError{Type: resources.ResourceMCP, ID: id, Got: val}
 		}
 		clone, err := got.Clone()
@@ -408,8 +612,11 @@ func applyAgentModelSelector(
 		return fmt.Errorf("model lookup failed for '%s': %w", modelID, err)
 	}
 	// Models are stored as *core.ProviderConfig
-	pc, ok := val.(*core.ProviderConfig)
-	if !ok {
+	pc, err := modelConfigFromStore(val)
+	if err != nil {
+		return fmt.Errorf("model decode failed for '%s': %w", modelID, err)
+	}
+	if pc == nil {
 		return &TypeMismatchError{Type: resources.ResourceModel, ID: modelID, Got: val}
 	}
 	// Task-level/agent-level model selector takes precedence over defaults per PRD
@@ -501,9 +708,9 @@ func nearestIDs(
 		log.Debug("list for suggestions failed", "project", project, "type", string(typ), "err", err)
 		return nil
 	}
-	ids := make([]string, 0, len(keys))
+	ids := make([]string, len(keys))
 	for i := range keys {
-		ids = append(ids, keys[i].ID)
+		ids[i] = keys[i].ID
 	}
 	const suggestionLimit = 5
 	return rankAndSelectTopIDs(target, ids, suggestionLimit)
@@ -518,8 +725,18 @@ func rankAndSelectTopIDs(target string, ids []string, limit int) []string {
 	}
 	cands := make([]cand, 0, len(ids))
 	lower := strings.ToLower(target)
-	jw := metrics.NewJaroWinkler()
-	levm := metrics.NewLevenshtein()
+	jwVal := jaroWinklerPool.Get()
+	jw, ok := jwVal.(*metrics.JaroWinkler)
+	if !ok || jw == nil {
+		jw = metrics.NewJaroWinkler()
+	}
+	defer jaroWinklerPool.Put(jw)
+	levVal := levenshteinPool.Get()
+	levm, ok := levVal.(*metrics.Levenshtein)
+	if !ok || levm == nil {
+		levm = metrics.NewLevenshtein()
+	}
+	defer levenshteinPool.Put(levm)
 	for _, id := range ids {
 		s := strings.ToLower(id)
 		c := cand{id: id}
@@ -551,5 +768,3 @@ func rankAndSelectTopIDs(target string, ids []string, limit int) []string {
 	}
 	return out
 }
-
-// removed local Levenshtein in favor of github.com/adrg/strutil/metrics

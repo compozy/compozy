@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/workflow"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func setupSchemaRouter(t *testing.T, store resources.ResourceStore) *gin.Engine 
 	state, err := appstate.NewState(appstate.NewBaseDeps(proj, nil, nil, nil), nil)
 	require.NoError(t, err)
 	state.SetResourceStore(store)
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	r := gin.New()
 	r.Use(appstate.StateMiddleware(state))
 	r.Use(router.ErrorHandler())

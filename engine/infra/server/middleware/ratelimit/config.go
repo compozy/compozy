@@ -108,7 +108,7 @@ func DefaultConfig() *Config {
 			routes.HealthVersioned(), // versioned API health
 			"/healthz",               // k8s liveness probe
 			"/readyz",                // k8s readiness probe
-			"/mcp/health",            // MCP readiness probe
+			"/mcp-proxy/health",      // MCP readiness probe
 			"/metrics",               // Prometheus
 			"/swagger",               // docs
 		},

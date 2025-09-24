@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
@@ -313,9 +314,10 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 			Version: "0.1.0",
 			CWD:     cwd,
 			Runtime: RuntimeConfig{
-				Type:        "bun",
-				Entrypoint:  "tools.ts",
-				Permissions: []string{"read"},
+				Type:                 "bun",
+				Entrypoint:           "tools.ts",
+				Permissions:          []string{"read"},
+				ToolExecutionTimeout: 90 * time.Second,
 			},
 		}
 		err = cfg.validateRuntimeConfig()
@@ -403,6 +405,28 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 		assert.Contains(t, err.Error(), "has unsupported extension '.py'")
 	})
 
+	t.Run("Should fail validation for negative tool execution timeout", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		entrypoint := filepath.Join(tmpDir, "tools.ts")
+		require.NoError(t, os.WriteFile(entrypoint, []byte("export {}"), 0o644))
+		cwd, err := core.CWDFromPath(tmpDir)
+		require.NoError(t, err)
+		cfg := &Config{
+			Name:    "test-project",
+			Version: "0.1.0",
+			CWD:     cwd,
+			Runtime: RuntimeConfig{
+				Type:                 "bun",
+				Entrypoint:           "tools.ts",
+				Permissions:          []string{"read"},
+				ToolExecutionTimeout: -5 * time.Second,
+			},
+		}
+		err = cfg.validateRuntimeConfig()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "tool_execution_timeout must be non-negative")
+	})
+
 	t.Run(
 		"Should pass validation when runtime config has empty values (will be filled by defaults later)",
 		func(t *testing.T) {
@@ -419,102 +443,6 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 			assert.NoError(t, err)
 		},
 	)
-}
-
-func TestRuntimeConfig_Defaults(t *testing.T) {
-	t.Run("Should set default runtime config when zero value", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		cwd, err := core.CWDFromPath(tmpDir)
-		require.NoError(t, err)
-		cfg := &Config{
-			Name:    "test-project",
-			Version: "0.1.0",
-			CWD:     cwd,
-			// Runtime field will be zero value
-		}
-		// Runtime defaults are now handled globally in pkg/config
-		// Project-specific runtime config only holds overrides
-		assert.Equal(t, "", cfg.Runtime.Type)                   // Empty means use global default
-		assert.Equal(t, "", cfg.Runtime.Entrypoint)             // Empty means use global default
-		assert.Equal(t, []string(nil), cfg.Runtime.Permissions) // Empty means use global default
-	})
-
-	t.Run("Should preserve existing runtime config", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		cwd, err := core.CWDFromPath(tmpDir)
-		require.NoError(t, err)
-		cfg := &Config{
-			Name:    "test-project",
-			Version: "0.1.0",
-			CWD:     cwd,
-			Runtime: RuntimeConfig{
-				Type:        "node",
-				Entrypoint:  "custom.js",
-				Permissions: []string{"read", "write"},
-			},
-		}
-		// Runtime defaults are now handled globally in pkg/config
-		assert.Equal(t, "node", cfg.Runtime.Type)
-		assert.Equal(t, "custom.js", cfg.Runtime.Entrypoint)
-		assert.Equal(t, []string{"read", "write"}, cfg.Runtime.Permissions)
-	})
-
-	t.Run("Should set default type when empty", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		cwd, err := core.CWDFromPath(tmpDir)
-		require.NoError(t, err)
-		cfg := &Config{
-			Name:    "test-project",
-			Version: "0.1.0",
-			CWD:     cwd,
-			Runtime: RuntimeConfig{
-				Type:        "",
-				Entrypoint:  "tools.ts",
-				Permissions: []string{"read"},
-			},
-		}
-		// Runtime defaults are now handled globally in pkg/config
-		// Project-specific config only holds overrides, so empty type means use global default
-		assert.Equal(t, "", cfg.Runtime.Type) // Empty means use global default
-	})
-
-	t.Run("Should set default entrypoint when empty", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		cwd, err := core.CWDFromPath(tmpDir)
-		require.NoError(t, err)
-		cfg := &Config{
-			Name:    "test-project",
-			Version: "0.1.0",
-			CWD:     cwd,
-			Runtime: RuntimeConfig{
-				Type:        "bun",
-				Entrypoint:  "",
-				Permissions: []string{"read"},
-			},
-		}
-		// Runtime defaults are now handled globally in pkg/config
-		// Project-specific config only holds overrides, so empty entrypoint means use global default
-		assert.Equal(t, "", cfg.Runtime.Entrypoint) // Empty means use global default
-	})
-
-	t.Run("Should set default permissions when nil", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		cwd, err := core.CWDFromPath(tmpDir)
-		require.NoError(t, err)
-		cfg := &Config{
-			Name:    "test-project",
-			Version: "0.1.0",
-			CWD:     cwd,
-			Runtime: RuntimeConfig{
-				Type:        "bun",
-				Entrypoint:  "tools.ts",
-				Permissions: nil,
-			},
-		}
-		// Runtime defaults are now handled globally in pkg/config
-		// Project-specific config only holds overrides, so nil permissions means use global default
-		assert.Equal(t, []string(nil), cfg.Runtime.Permissions) // Empty means use global default
-	})
 }
 
 func TestDefaultModel_GetDefaultModel(t *testing.T) {

@@ -238,7 +238,7 @@ LIMITS_MAX_MESSAGE_CONTENT_LENGTH=10240
     ```bash
     # Example with Docker Swarm secrets
     echo "your-api-key" | docker secret create openai_key -
-    
+
     docker service create \
       --secret openai_key \
       -e OPENAI_API_KEY_FILE=/run/secrets/openai_key \
@@ -254,10 +254,10 @@ LIMITS_MAX_MESSAGE_CONTENT_LENGTH=10240
     ```bash
     # PostgreSQL
     DB_SSL_MODE=verify-full
-    
+
     # Redis
     REDIS_TLS_ENABLED=true
-    
+
     # Server (behind reverse proxy)
     SERVER_AUTH_ENABLED=true
     ```
@@ -320,7 +320,7 @@ The Compozy Docker image defines these volumes:
   <ListItem title="/app/data" icon="Database">
     Application data and file storage
   </ListItem>
-  <ListItem title="/app/tools" icon="Tool">
+  <ListItem title="/app/tools" icon="Wrench">
     Custom TypeScript tools for your workflows
   </ListItem>
   <ListItem title="/app/logs" icon="FileText">

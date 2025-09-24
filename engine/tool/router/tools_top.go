@@ -7,11 +7,17 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
 	tooluc "github.com/compozy/compozy/engine/tool/uc"
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	defaultToolsLimit = 50
+	maxToolsLimit     = 500
 )
 
 // listToolsTop handles GET /tools.
@@ -44,7 +50,7 @@ func listToolsTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), defaultToolsLimit, maxToolsLimit)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
@@ -74,9 +80,14 @@ func listToolsTop(c *gin.Context) {
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
 	list := make([]ToolListItem, 0, len(out.Items))
 	for i := range out.Items {
-		list = append(list, toToolListItem(out.Items[i]))
+		item, err := toToolListItem(out.Items[i])
+		if err != nil {
+			router.RespondWithServerError(c, router.ErrInternalCode, "failed to map tool", err)
+			return
+		}
+		list = append(list, item)
 	}
-	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	page := httpdto.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "tools retrieved", ToolsListResponse{Tools: list, Page: page})
 }
 
@@ -114,7 +125,12 @@ func getToolTop(c *gin.Context) {
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	router.RespondOK(c, "tool retrieved", toToolDTO(out.Tool))
+	dto, err := toToolDTO(out.Tool)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map tool", err)
+		return
+	}
+	router.RespondOK(c, "tool retrieved", dto)
 }
 
 // upsertToolTop handles PUT /tools/{tool_id}.
@@ -175,12 +191,17 @@ func upsertToolTop(c *gin.Context) {
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	if out.Created {
-		c.Header("Location", routes.Tools()+"/"+toolID)
-		router.RespondCreated(c, "tool created", toToolDTO(out.Tool))
+	dto, err := toToolDTO(out.Tool)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map tool", err)
 		return
 	}
-	router.RespondOK(c, "tool updated", toToolDTO(out.Tool))
+	if out.Created {
+		c.Header("Location", routes.Tools()+"/"+toolID)
+		router.RespondCreated(c, "tool created", dto)
+		return
+	}
+	router.RespondOK(c, "tool updated", dto)
 }
 
 // deleteToolTop handles DELETE /tools/{tool_id}.

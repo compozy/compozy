@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ import (
 
 func setupWorkflowTestRouter(t *testing.T) *gin.Engine {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	proj := &project.Config{Name: "demo"}
 	require.NoError(t, proj.SetCWD(t.TempDir()))
 	state, err := appstate.NewState(appstate.NewBaseDeps(proj, nil, nil, nil), nil)

@@ -5,6 +5,8 @@ import "github.com/gin-gonic/gin"
 func Register(apiBase *gin.RouterGroup) {
 	models := apiBase.Group("/models")
 	{
+		models.POST("/export", exportModels)
+		models.POST("/import", importModels)
 		models.GET("", listModels)
 		models.GET("/:model_id", getModel)
 		models.PUT("/:model_id", upsertModel)

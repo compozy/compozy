@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	agentrouter "github.com/compozy/compozy/engine/agent/router"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
@@ -59,7 +60,11 @@ func getWorkflowByID(c *gin.Context) {
 		respondWorkflowError(c, err)
 		return
 	}
-	dto := makeWorkflowDTO(out.Config, expandSet)
+	dto, err := makeWorkflowDTO(out.Config, expandSet)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map workflow", err)
+		return
+	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	router.RespondOK(c, "workflow retrieved", dto)
 }
@@ -115,7 +120,11 @@ func listWorkflows(c *gin.Context) {
 	}
 	list := make([]WorkflowListItem, 0, len(out.Items))
 	for i := range out.Items {
-		dto := makeWorkflowDTO(out.Items[i].Config, expandSet)
+		dto, err := makeWorkflowDTO(out.Items[i].Config, expandSet)
+		if err != nil {
+			router.RespondWithServerError(c, router.ErrInternalCode, "failed to map workflow", err)
+			return
+		}
 		list = append(list, WorkflowListItem{WorkflowDTO: dto, ETag: string(out.Items[i].ETag)})
 	}
 	nextCursor := ""
@@ -127,7 +136,7 @@ func listWorkflows(c *gin.Context) {
 		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
 	}
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
-	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	page := httpdto.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "workflows retrieved", WorkflowsListResponse{Workflows: list, Page: page})
 }
 
@@ -189,7 +198,11 @@ func upsertWorkflow(c *gin.Context) {
 		return
 	}
 	expandSet := router.ParseExpandQueries(c.QueryArray("expand"))
-	respBody := makeWorkflowDTO(out.Config, expandSet)
+	respBody, err := makeWorkflowDTO(out.Config, expandSet)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map workflow", err)
+		return
+	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	if out.Created {
 		c.Header("Location", fmt.Sprintf("%s/workflows/%s", routes.Base(), out.Config.ID))
@@ -252,60 +265,84 @@ func respondWorkflowError(c *gin.Context, err error) {
 	}
 }
 
-func makeWorkflowDTO(cfg *workflow.Config, expand map[string]bool) WorkflowDTO {
+func makeWorkflowDTO(cfg *workflow.Config, expand map[string]bool) (WorkflowDTO, error) {
 	dto := ConvertWorkflowConfigToDTO(cfg)
 	if expand["tasks"] {
-		dto.Tasks = TasksOrDTOs{Expanded: projectTasksExpanded(cfg)}
+		expanded, err := projectTasksExpanded(cfg)
+		if err != nil {
+			return WorkflowDTO{}, err
+		}
+		dto.Tasks = TasksOrDTOs{Expanded: expanded}
 	} else {
 		dto.Tasks = TasksOrDTOs{IDs: collectIDs(cfg.Tasks, func(t task.Config) string { return t.ID })}
 	}
 	if expand["agents"] {
-		dto.Agents = AgentsOrDTOs{Expanded: projectAgentsExpanded(cfg)}
+		expanded, err := projectAgentsExpanded(cfg)
+		if err != nil {
+			return WorkflowDTO{}, err
+		}
+		dto.Agents = AgentsOrDTOs{Expanded: expanded}
 	} else {
 		dto.Agents = AgentsOrDTOs{IDs: collectIDs(cfg.Agents, func(a agent.Config) string { return a.ID })}
 	}
 	if expand["tools"] {
-		dto.Tools = ToolsOrDTOs{Expanded: projectToolsExpanded(cfg)}
+		expanded, err := projectToolsExpanded(cfg)
+		if err != nil {
+			return WorkflowDTO{}, err
+		}
+		dto.Tools = ToolsOrDTOs{Expanded: expanded}
 	} else {
 		dto.Tools = ToolsOrDTOs{IDs: collectIDs(cfg.Tools, func(t tool.Config) string { return t.ID })}
 	}
-	return dto
+	return dto, nil
 }
 
-func projectTasksExpanded(cfg *workflow.Config) []tkrouter.TaskDTO {
+func projectTasksExpanded(cfg *workflow.Config) ([]tkrouter.TaskDTO, error) {
 	out := make([]tkrouter.TaskDTO, 0, len(cfg.Tasks))
 	for i := range cfg.Tasks {
 		m, err := cfg.Tasks[i].AsMap()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("map workflow task: %w", err)
 		}
-		out = append(out, tkrouter.ToTaskDTOForWorkflow(m))
+		dto, err := tkrouter.ToTaskDTOForWorkflow(m)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, dto)
 	}
-	return out
+	return out, nil
 }
 
-func projectAgentsExpanded(cfg *workflow.Config) []agentrouter.AgentDTO {
+func projectAgentsExpanded(cfg *workflow.Config) ([]agentrouter.AgentDTO, error) {
 	out := make([]agentrouter.AgentDTO, 0, len(cfg.Agents))
 	for i := range cfg.Agents {
 		m, err := cfg.Agents[i].AsMap()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("map workflow agent: %w", err)
 		}
-		out = append(out, agentrouter.ToAgentDTOForWorkflow(m))
+		dto, err := agentrouter.ToAgentDTOForWorkflow(m)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, dto)
 	}
-	return out
+	return out, nil
 }
 
-func projectToolsExpanded(cfg *workflow.Config) []toolrouter.ToolDTO {
+func projectToolsExpanded(cfg *workflow.Config) ([]toolrouter.ToolDTO, error) {
 	out := make([]toolrouter.ToolDTO, 0, len(cfg.Tools))
 	for i := range cfg.Tools {
 		m, err := cfg.Tools[i].AsMap()
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("map workflow tool: %w", err)
 		}
-		out = append(out, toolrouter.ToToolDTOForWorkflow(m))
+		dto, err := toolrouter.ToToolDTOForWorkflow(m)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, dto)
 	}
-	return out
+	return out, nil
 }
 
 // projectCollection no longer used (typed expand implemented)

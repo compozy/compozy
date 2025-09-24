@@ -173,17 +173,18 @@ Example response:
 **Core MCP server communication endpoints:**
 
 ```bash
-POST /mcp/{server_id}    # Proxy requests to MCP servers
-GET  /mcp/{server_id}    # Get MCP server information
+GET    /mcp-proxy/{server_id}/sse           # Proxy SSE requests to MCP servers
+POST   /mcp-proxy/{server_id}/stream        # Proxy streamable HTTP requests to MCP servers
+GET    /mcp-proxy/{server_id}/stream/{path} # Proxy streamable HTTP requests (subpaths)
 ```
 
 Example usage:
 ```bash
-# Get server information
-curl http://localhost:6001/mcp/my-server
+# Subscribe to SSE
+curl http://localhost:6001/mcp-proxy/my-server/sse
 
-# Proxy MCP request
-curl -X POST http://localhost:6001/mcp/my-server \
+# Proxy MCP request via streamable HTTP
+curl -X POST http://localhost:6001/mcp-proxy/my-server/stream \
   -H "Content-Type: application/json" \
   -d '{"method": "tools/list", "params": {}}'
 ```

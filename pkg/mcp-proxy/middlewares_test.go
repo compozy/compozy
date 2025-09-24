@@ -18,7 +18,7 @@ import (
 
 func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 	t.Run("Should recover from handler panics and return 500 error", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+		ensureGinTestMode()
 
 		// Create a handler that panics
 		panicHandler := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
@@ -48,7 +48,7 @@ func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 	})
 
 	t.Run("Should handle nil handler gracefully with error response", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+		ensureGinTestMode()
 
 		wrappedHandler := wrapWithGinMiddlewares(nil)
 
@@ -68,7 +68,7 @@ func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 	})
 
 	t.Run("Should execute middlewares in correct order with proper chaining", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+		ensureGinTestMode()
 
 		var executionOrder []string
 

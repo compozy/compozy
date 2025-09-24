@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/auth/userctx"
 	"github.com/compozy/compozy/engine/core"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -75,7 +76,7 @@ func (m *MockRepository) CreateInitialAdminIfNone(_ context.Context, _ *model.Us
 }
 
 func TestManager_Middleware(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 
 	t.Run("Should allow request without authorization header", func(t *testing.T) {
 		mockRepo := &MockRepository{}
@@ -160,7 +161,7 @@ func TestManager_Middleware(t *testing.T) {
 }
 
 func TestManager_RequireAuth(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 
 	t.Run("Should reject request without authentication", func(t *testing.T) {
 		manager := NewManager(nil, nil)
@@ -207,7 +208,7 @@ func TestManager_RequireAuth(t *testing.T) {
 }
 
 func TestManager_RequireAdmin(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 
 	t.Run("Should reject request without admin role", func(t *testing.T) {
 		manager := NewManager(nil, nil)
@@ -276,7 +277,7 @@ func TestManager_RequireAdmin(t *testing.T) {
 }
 
 func TestManager_AdminOnly(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 
 	t.Run("Should be an alias for RequireAdmin", func(t *testing.T) {
 		manager := NewManager(nil, nil)

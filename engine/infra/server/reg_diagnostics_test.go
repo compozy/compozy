@@ -8,12 +8,13 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/routes"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSetupDiagnosticEndpoints(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	version := core.GetVersion()
 	base := routes.Base()
 	engine := gin.New()

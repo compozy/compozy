@@ -19,7 +19,6 @@ import (
 	"github.com/compozy/compozy/engine/task2"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/sethvargo/go-retry"
@@ -42,7 +41,6 @@ type ExecuteSubtask struct {
 	templateEngine *tplengine.TemplateEngine
 	taskRepo       task.Repository
 	configStore    services.ConfigStore
-	appConfig      *config.Config
 	projectConfig  *project.Config
 }
 
@@ -58,7 +56,6 @@ func NewExecuteSubtask(
 	configStore services.ConfigStore,
 	task2Factory task2.Factory,
 	templateEngine *tplengine.TemplateEngine,
-	appConfig *config.Config,
 	projectConfig *project.Config,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
@@ -68,14 +65,12 @@ func NewExecuteSubtask(
 			workflowRepo,
 			nil,            // Subtasks don't need memory manager
 			templateEngine, // Ensure templating is available to subtasks
-			appConfig,
 			nil,
 		),
 		task2Factory:   task2Factory,
 		templateEngine: templateEngine,
 		taskRepo:       taskRepo,
 		configStore:    configStore,
-		appConfig:      appConfig,
 		projectConfig:  projectConfig,
 	}
 }

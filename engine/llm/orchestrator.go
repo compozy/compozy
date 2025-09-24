@@ -1169,7 +1169,7 @@ func (o *llmOrchestrator) collectConfiguredToolDefs(
 			Description: t.Description(),
 		}
 		if toolConfig.InputSchema != nil {
-			def.Parameters = *toolConfig.InputSchema
+			def.Parameters = normalizeToolParameters(*toolConfig.InputSchema)
 		} else {
 			// Initialize empty parameters object for API compatibility
 			def.Parameters = map[string]any{
@@ -1182,6 +1182,55 @@ func (o *llmOrchestrator) collectConfiguredToolDefs(
 		included[canonical(def.Name)] = struct{}{}
 	}
 	return defs, included, nil
+}
+
+func normalizeToolParameters(input map[string]any) map[string]any {
+	params := cloneMap(input)
+	if !isObjectType(params["type"]) {
+		params["type"] = "object"
+	}
+	if raw, ok := params["properties"]; !ok {
+		params["properties"] = map[string]any{}
+	} else {
+		if _, ok := raw.(map[string]any); !ok {
+			params["properties"] = map[string]any{}
+		}
+	}
+	return params
+}
+
+func cloneMap(src map[string]any) map[string]any {
+	if src == nil {
+		return map[string]any{}
+	}
+	clone := make(map[string]any, len(src))
+	for k, v := range src {
+		clone[k] = v
+	}
+	return clone
+}
+
+func isObjectType(value any) bool {
+	switch v := value.(type) {
+	case string:
+		return strings.EqualFold(strings.TrimSpace(v), "object")
+	case []string:
+		for _, s := range v {
+			if strings.EqualFold(strings.TrimSpace(s), "object") {
+				return true
+			}
+		}
+		return false
+	case []any:
+		for _, it := range v {
+			if s, ok := it.(string); ok && strings.EqualFold(strings.TrimSpace(s), "object") {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
 }
 
 // appendRegistryToolDefs adds any additional tools from the registry (e.g., MCP tools)
@@ -1220,7 +1269,7 @@ func (o *llmOrchestrator) appendRegistryToolDefs(
 		if at, ok := any(rt).(argsTyper); ok {
 			if v := at.ArgsType(); v != nil {
 				if m, isMap := v.(map[string]any); isMap && len(m) > 0 {
-					params = m
+					params = normalizeToolParameters(m)
 				}
 			}
 		}

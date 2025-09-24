@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,7 +90,7 @@ func TestMonitoringService_GinMiddleware(t *testing.T) {
 		require.NoError(t, err)
 		middleware := service.GinMiddleware(t.Context())
 		assert.NotNil(t, middleware)
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		router := gin.New()
 		router.Use(middleware)
 		router.GET("/test", func(c *gin.Context) {
@@ -106,7 +107,7 @@ func TestMonitoringService_GinMiddleware(t *testing.T) {
 		require.NoError(t, err)
 		middleware := service.GinMiddleware(t.Context())
 		assert.NotNil(t, middleware)
-		gin.SetMode(gin.TestMode)
+		ginmode.EnsureGinTestMode()
 		router := gin.New()
 		router.Use(middleware)
 		router.GET("/test", func(c *gin.Context) {

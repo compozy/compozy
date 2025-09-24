@@ -114,19 +114,20 @@ func resolveEnvFilePath(cobraCmd *cobra.Command, baseDir string) string {
 	if filepath.IsAbs(envFilePath) {
 		return envFilePath
 	}
-	joined := filepath.Join(baseDir, envFilePath)
-	if _, err := os.Stat(joined); err == nil {
-		return joined
+
+	candidate := filepath.Join(baseDir, envFilePath)
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
 	}
-	originalCWD, cwdErr := os.Getwd()
-	if cwdErr != nil {
-		return joined
+
+	if wd, err := os.Getwd(); err == nil {
+		fallback := filepath.Join(wd, envFilePath)
+		if _, statErr := os.Stat(fallback); statErr == nil {
+			return fallback
+		}
 	}
-	fallback := filepath.Join(originalCWD, envFilePath)
-	if _, err := os.Stat(fallback); err == nil {
-		return fallback
-	}
-	return joined
+
+	return candidate
 }
 
 // setupWorkingDirectory changes to the specified working directory and returns the absolute path
@@ -150,16 +151,10 @@ func setupWorkingDirectory(ctx context.Context, cfg *config.Config) (string, err
 	return cfg.CLI.CWD, nil
 }
 
-// setupServerPort finds and configures an available port for the server
+// setupServerPort verifies the configured server port is available before starting
 func setupServerPort(ctx context.Context, cfg *config.Config) error {
-	availablePort, err := cliutils.FindAvailablePort(ctx, cfg.Server.Host, cfg.Server.Port)
-	if err != nil {
-		return fmt.Errorf("no free port found near %d: %w", cfg.Server.Port, err)
-	}
-	if availablePort != cfg.Server.Port {
-		log := logger.FromContext(ctx)
-		log.Info("server port reassigned", "from", cfg.Server.Port, "to", availablePort)
-		cfg.Server.Port = availablePort
+	if err := cliutils.EnsurePortAvailable(ctx, cfg.Server.Host, cfg.Server.Port); err != nil {
+		return fmt.Errorf("development server port unavailable: %w", err)
 	}
 	return nil
 }

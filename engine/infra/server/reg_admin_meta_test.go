@@ -16,12 +16,13 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/pkg/config"
+	ginmode "github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAdminMetaEndpoints(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ginmode.EnsureGinTestMode()
 	r := gin.New()
 	prj := &project.Config{Name: "p"}
 	require.NoError(t, prj.SetCWD("."))

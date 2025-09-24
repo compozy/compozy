@@ -67,9 +67,11 @@ func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 			routes.HealthVersioned(), // versioned API health
 			"/healthz",               // k8s liveness probe
 			"/readyz",                // k8s readiness probe
-			"/mcp/health",            // MCP readiness probe
+			"/mcp-proxy/health",      // MCP readiness probe
 			"/metrics",               // Prometheus
-			"/swagger",               // docs
+			"/docs",                  // Docs UI (OpenAPI v3)
+			"/docs/index.html",       // Docs UI entry
+			"/openapi.json",          // OpenAPI 3 spec
 		},
 	}
 }
@@ -164,8 +166,8 @@ func (s *Server) logStartupBanner() {
 	fh := friendlyHost(host)
 	httpURL := fmt.Sprintf("http://%s:%d", fh, port)
 	apiURL := fmt.Sprintf("%s%s", httpURL, routes.Base())
-	swaggerURL := fmt.Sprintf("%s/swagger/index.html", httpURL)
 	docsURL := fmt.Sprintf("%s/docs/index.html", httpURL)
+	openapiJSON := fmt.Sprintf("%s/openapi.json", httpURL)
 	hooksURL := fmt.Sprintf("%s%s", httpURL, routes.Hooks())
 	mcp := s.mcpBaseURL
 	temporalHP := ""
@@ -178,8 +180,8 @@ func (s *Server) logStartupBanner() {
 		fmt.Sprintf("  API           > %s", apiURL),
 		fmt.Sprintf("  Health        > %s%s/health", httpURL, routes.Base()),
 		fmt.Sprintf("  Readyz        > %s/readyz", httpURL),
-		fmt.Sprintf("  Swagger       > %s", swaggerURL),
 		fmt.Sprintf("  Docs          > %s", docsURL),
+		fmt.Sprintf("  OpenAPI JSON  > %s", openapiJSON),
 		fmt.Sprintf("  Webhooks      > %s", hooksURL),
 	}
 	if mcp != "" {

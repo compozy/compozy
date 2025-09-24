@@ -32,6 +32,9 @@ var compozyHTTPTemplate string
 //go:embed gitignore.tmpl
 var gitignoreTemplate string
 
+//go:embed README.md.tmpl
+var readmeTemplate string
+
 // Template implements the Template interface for the basic project template
 type Template struct{}
 
@@ -81,6 +84,10 @@ func (t *Template) GetFiles() []template.File {
 		{
 			Name:    ".gitignore",
 			Content: gitignoreTemplate,
+		},
+		{
+			Name:    "README.md",
+			Content: readmeTemplate,
 		},
 	}
 	return files

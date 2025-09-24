@@ -38,7 +38,6 @@ type ExecuteTask struct {
 	workflowRepo   workflow.Repository
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
-	appConfig      *config.Config
 	toolResolver   resolver.ToolResolver
 }
 
@@ -50,7 +49,6 @@ func NewExecuteTask(
 	workflowRepo workflow.Repository,
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
-	appConfig *config.Config,
 	toolResolver resolver.ToolResolver,
 ) *ExecuteTask {
 	return &ExecuteTask{
@@ -58,7 +56,6 @@ func NewExecuteTask(
 		workflowRepo:   workflowRepo,
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
-		appConfig:      appConfig,
 		toolResolver: func() resolver.ToolResolver {
 			if toolResolver != nil {
 				return toolResolver
@@ -305,11 +302,6 @@ func (uc *ExecuteTask) setupMemoryResolver(
 ) ([]llm.Option, bool) {
 	var llmOpts []llm.Option
 	hasMemoryConfig := false
-
-	// Add app config if available
-	if uc.appConfig != nil {
-		llmOpts = append(llmOpts, llm.WithAppConfig(uc.appConfig))
-	}
 
 	// Integrate memory resolver if memory manager is available
 	hasMemoryDependencies := uc.memoryManager != nil && uc.templateEngine != nil
@@ -584,8 +576,8 @@ func (uc *ExecuteTask) createLLMService(
 		llmOpts = append(llmOpts, llm.WithAllowedMCPNames(ids))
 	}
 	// Note: Attachment parts are now passed directly to GenerateContent method
-	// Derive LLM timeout from task -> runtime defaults
-	effectiveTimeout := deriveLLMTimeout(ctx, input, uc.appConfig)
+	// Derive LLM timeout from task -> project -> app defaults
+	effectiveTimeout := deriveLLMTimeout(ctx, input)
 	if effectiveTimeout > 0 {
 		llmOpts = append(llmOpts, llm.WithTimeout(effectiveTimeout))
 		log.Debug("Configured LLM timeout", "timeout", effectiveTimeout.String())
@@ -599,20 +591,26 @@ func (uc *ExecuteTask) createLLMService(
 	return llmService, nil
 }
 
-func deriveLLMTimeout(ctx context.Context, input *ExecuteTaskInput, appCfg *config.Config) time.Duration {
+func deriveLLMTimeout(ctx context.Context, input *ExecuteTaskInput) time.Duration {
 	log := logger.FromContext(ctx)
 	if input != nil && input.TaskConfig != nil && input.TaskConfig.Timeout != "" {
-		if d, err := time.ParseDuration(strings.TrimSpace(input.TaskConfig.Timeout)); err == nil && d > 0 {
+		d, err := time.ParseDuration(strings.TrimSpace(input.TaskConfig.Timeout))
+		if err == nil && d > 0 {
 			return d
 		}
 		log.Warn(
 			"Invalid task timeout; falling back to defaults",
 			"timeout", input.TaskConfig.Timeout,
-			"error", "parse_failed",
+			"error", err,
 		)
 	}
-	if appCfg != nil && appCfg.Runtime.ToolExecutionTimeout > 0 {
-		return appCfg.Runtime.ToolExecutionTimeout
+	if input != nil && input.ProjectConfig != nil {
+		if d := input.ProjectConfig.Runtime.ToolExecutionTimeout; d > 0 {
+			return d
+		}
+	}
+	if cfg := config.FromContext(ctx); cfg != nil && cfg.Runtime.ToolExecutionTimeout > 0 {
+		return cfg.Runtime.ToolExecutionTimeout
 	}
 	return 0
 }

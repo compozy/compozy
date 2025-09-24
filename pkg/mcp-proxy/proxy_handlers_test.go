@@ -12,44 +12,61 @@ import (
 )
 
 func TestProxyHandlers_SSEProxy(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
 	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001")
 
 	router := gin.New()
-	router.Any("/mcp/:name/sse", proxyHandlers.SSEProxyHandler)
-	router.Any("/mcp/:name/sse/*path", proxyHandlers.SSEProxyHandler)
-	router.Any("/mcp/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
-	router.Any("/mcp/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
+	router.Any("/mcp-proxy/:name/sse", proxyHandlers.SSEProxyHandler)
+	router.Any("/mcp-proxy/:name/sse/*path", proxyHandlers.SSEProxyHandler)
+	router.Any("/mcp-proxy/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
+	router.Any("/mcp-proxy/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
 
 	t.Run("Should return 404 for non-existent MCP server", func(t *testing.T) {
-		req, err := http.NewRequestWithContext(context.Background(), "GET", "/mcp/nonexistent/sse", http.NoBody)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", "/mcp-proxy/nonexistent/sse", http.NoBody)
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
+
+		// Cover wildcard SSE route path as well
+		req2, err := http.NewRequestWithContext(
+			context.Background(),
+			"GET",
+			"/mcp-proxy/nonexistent/sse/anything",
+			http.NoBody,
+		)
+		require.NoError(t, err)
+		w2 := httptest.NewRecorder()
+		router.ServeHTTP(w2, req2)
+		assert.Equal(t, http.StatusNotFound, w2.Code)
 	})
 }
 
 func TestProxyHandlers_StreamableHTTPProxy(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
 	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001")
 
 	router := gin.New()
-	router.Any("/mcp/:name/sse", proxyHandlers.SSEProxyHandler)
-	router.Any("/mcp/:name/sse/*path", proxyHandlers.SSEProxyHandler)
-	router.Any("/mcp/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
-	router.Any("/mcp/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
+	router.Any("/mcp-proxy/:name/sse", proxyHandlers.SSEProxyHandler)
+	router.Any("/mcp-proxy/:name/sse/*path", proxyHandlers.SSEProxyHandler)
+	router.Any("/mcp-proxy/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
+	router.Any("/mcp-proxy/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
 
 	t.Run("Should return 404 for non-existent MCP server in stream endpoint", func(t *testing.T) {
-		req, err := http.NewRequestWithContext(context.Background(), "POST", "/mcp/nonexistent/stream", http.NoBody)
+		req, err := http.NewRequestWithContext(
+			context.Background(),
+			"POST",
+			"/mcp-proxy/nonexistent/stream",
+			http.NoBody,
+		)
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
@@ -60,17 +77,17 @@ func TestProxyHandlers_StreamableHTTPProxy(t *testing.T) {
 }
 
 func TestProxyHandlers_ProxyRegistration(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	ensureGinTestMode()
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
 	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001")
 
 	router := gin.New()
-	router.Any("/mcp/:name/sse", proxyHandlers.SSEProxyHandler)
-	router.Any("/mcp/:name/sse/*path", proxyHandlers.SSEProxyHandler)
-	router.Any("/mcp/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
-	router.Any("/mcp/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
+	router.Any("/mcp-proxy/:name/sse", proxyHandlers.SSEProxyHandler)
+	router.Any("/mcp-proxy/:name/sse/*path", proxyHandlers.SSEProxyHandler)
+	router.Any("/mcp-proxy/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
+	router.Any("/mcp-proxy/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
 
 	t.Run("Should route to proxy endpoint even when client registration fails", func(t *testing.T) {
 		mcpDef := MCPDefinition{
@@ -84,7 +101,7 @@ func TestProxyHandlers_ProxyRegistration(t *testing.T) {
 		err := storage.SaveMCP(context.Background(), &mcpDef)
 		require.NoError(t, err)
 
-		req, err := http.NewRequestWithContext(context.Background(), "GET", "/mcp/test-mcp/sse", http.NoBody)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", "/mcp-proxy/test-mcp/sse", http.NoBody)
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
@@ -100,8 +117,10 @@ func TestProxyHandlers_ProxyRegistration(t *testing.T) {
 
 		// Create a new router for this test
 		successRouter := gin.New()
-		successRouter.Any("/mcp/:name/sse", proxyHandlers.SSEProxyHandler)
-		successRouter.Any("/mcp/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
+		successRouter.Any("/mcp-proxy/:name/sse", proxyHandlers.SSEProxyHandler)
+		successRouter.Any("/mcp-proxy/:name/sse/*path", proxyHandlers.SSEProxyHandler)
+		successRouter.Any("/mcp-proxy/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
+		successRouter.Any("/mcp-proxy/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
 
 		// Manually add a mock proxy server to simulate successful registration
 		// This tests the routing logic without the complex MCP initialization
@@ -124,7 +143,12 @@ func TestProxyHandlers_ProxyRegistration(t *testing.T) {
 		proxyHandlers.serversMutex.Unlock()
 
 		// Test SSE endpoint access
-		req, err := http.NewRequestWithContext(context.Background(), "GET", "/mcp/registered-mcp/sse", http.NoBody)
+		req, err := http.NewRequestWithContext(
+			context.Background(),
+			"GET",
+			"/mcp-proxy/registered-mcp/sse",
+			http.NoBody,
+		)
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()

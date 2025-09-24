@@ -26,12 +26,14 @@ compozy dev --port 3000
 # Enable debug logging
 compozy dev --debug
 
-# Disable hot reload
-compozy dev --no-watch
+# Enable hot reload (disabled by default)
+compozy dev --watch
 
 # Specify custom config
 compozy dev --config ./dev-config.yaml
 ```
+
+> **Important:** If the port specified in your configuration or via `--port` is already in use, `compozy dev` exits so you can stop the conflicting process or choose a different port.
 
 ### Development Features
 
@@ -85,8 +87,8 @@ compozy dev --config ./dev-config.yaml
       <TableCell>false</TableCell>
     </TableRow>
     <TableRow>
-      <TableCell>`--no-watch`</TableCell>
-      <TableCell>Disable file watching</TableCell>
+      <TableCell>`--watch`</TableCell>
+      <TableCell>Enable file watcher to restart server on change</TableCell>
       <TableCell>false</TableCell>
     </TableRow>
     <TableRow>

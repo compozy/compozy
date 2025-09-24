@@ -3,10 +3,13 @@ package router
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/compozy/compozy/engine/auth/userctx"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/engine/resources/importer"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -152,4 +155,40 @@ func GetToolID(c *gin.Context) string {
 
 func GetToolExecID(c *gin.Context) core.ID {
 	return core.ID(GetURLParam(c, "tool_exec_id"))
+}
+
+func ProjectRootPath(st *appstate.State) (string, bool) {
+	if st == nil || st.CWD == nil {
+		return "", false
+	}
+	path := st.CWD.PathStr()
+	if path == "" {
+		return "", false
+	}
+	return path, true
+}
+
+func ParseImportStrategyParam(value string) (importer.Strategy, error) {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "", string(importer.SeedOnly):
+		return importer.SeedOnly, nil
+	case string(importer.OverwriteConflicts):
+		return importer.OverwriteConflicts, nil
+	default:
+		return "", fmt.Errorf("invalid strategy (allowed: %q|%q)", importer.SeedOnly, importer.OverwriteConflicts)
+	}
+}
+
+func UpdatedBy(c *gin.Context) string {
+	usr, ok := userctx.UserFromContext(c.Request.Context())
+	if !ok || usr == nil {
+		return ""
+	}
+	if usr.Email != "" {
+		return usr.Email
+	}
+	if usr.ID != "" {
+		return usr.ID.String()
+	}
+	return ""
 }

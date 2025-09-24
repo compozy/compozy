@@ -16,6 +16,8 @@ func TestTasksEndpoints(t *testing.T) {
 		client := newResourceClient(t)
 		createBody := taskPayload("approve", "approve request")
 		createBody["sleep"] = "1s"
+		createBody["on_success"] = map[string]any{"next": "review"}
+		createBody["on_error"] = map[string]any{"next": "fallback"}
 		createRes := client.do(http.MethodPut, "/api/v0/tasks/approve", createBody, nil)
 		require.Equal(t, http.StatusCreated, createRes.Code)
 		etag := createRes.Header().Get("ETag")
@@ -25,6 +27,12 @@ func TestTasksEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, getRes.Code)
 		data := decodeData(t, getRes)
 		assert.Equal(t, "approve", data["id"])
+		success, ok := data["on_success"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "review", success["next"])
+		errorTransition, ok := data["on_error"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "fallback", errorTransition["next"])
 		updateBody := taskPayload("approve", "approve immediately")
 		updateBody["sleep"] = "2s"
 		updateRes := client.do(
@@ -54,6 +62,49 @@ func TestTasksEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, delRes.Code)
 		missingRes := client.do(http.MethodGet, "/api/v0/tasks/approve", nil, nil)
 		require.Equal(t, http.StatusNotFound, missingRes.Code)
+	})
+	t.Run("Should expand subtasks on get", func(t *testing.T) {
+		client := newResourceClient(t)
+		composite := map[string]any{
+			"id":    "comp-parent",
+			"type":  "composite",
+			"tasks": []map[string]any{{"id": "comp-child-a", "type": "basic"}, {"id": "comp-child-b", "type": "basic"}},
+		}
+		res := client.do(http.MethodPut, "/api/v0/tasks/comp-parent", composite, nil)
+		require.Equal(t, http.StatusCreated, res.Code, res.Body.String())
+		getRes := client.do(http.MethodGet, "/api/v0/tasks/comp-parent?expand=subtasks", nil, nil)
+		require.Equal(t, http.StatusOK, getRes.Code)
+		data := decodeData(t, getRes)
+		assert.Equal(t, "comp-parent", data["id"])
+		hasSubtasks, ok := data["has_subtasks"].(bool)
+		require.True(t, ok)
+		assert.True(t, hasSubtasks)
+		ids, ok := data["subtask_ids"].([]any)
+		require.True(t, ok)
+		assert.ElementsMatch(t, []any{"comp-child-a", "comp-child-b"}, ids)
+		subtasks, ok := data["tasks"].([]any)
+		require.True(t, ok)
+		require.Len(t, subtasks, 2)
+		child0, ok := subtasks[0].(map[string]any)
+		require.True(t, ok)
+		assert.Contains(t, []any{"comp-child-a", "comp-child-b"}, child0["id"])
+		collection := map[string]any{
+			"id":    "collect-parent",
+			"type":  "collection",
+			"items": "{{ .input.items }}",
+			"task":  map[string]any{"id": "collect-child", "type": "basic"},
+		}
+		collRes := client.do(http.MethodPut, "/api/v0/tasks/collect-parent", collection, nil)
+		require.Equal(t, http.StatusCreated, collRes.Code, collRes.Body.String())
+		collGet := client.do(http.MethodGet, "/api/v0/tasks/collect-parent?expand=subtasks", nil, nil)
+		require.Equal(t, http.StatusOK, collGet.Code)
+		collData := decodeData(t, collGet)
+		collHas, ok := collData["has_subtasks"].(bool)
+		require.True(t, ok)
+		assert.True(t, collHas)
+		template, ok := collData["task"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "collect-child", template["id"])
 	})
 	t.Run("Should return conflict when workflow references task", func(t *testing.T) {
 		client := newResourceClient(t)
@@ -150,6 +201,61 @@ func TestTasksQueries(t *testing.T) {
 		res := client.do(http.MethodGet, "/api/v0/tasks?cursor=abc", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
 		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
+	})
+
+	t.Run("Should expand subtasks in list when requested", func(t *testing.T) {
+		client := newResourceClient(t)
+		parent := map[string]any{
+			"id":    "list-parent",
+			"type":  "composite",
+			"tasks": []map[string]any{{"id": "list-child-a", "type": "basic"}, {"id": "list-child-b", "type": "basic"}},
+		}
+		client.do(http.MethodPut, "/api/v0/tasks/list-parent", parent, nil)
+		res := client.do(http.MethodGet, "/api/v0/tasks?q=list-parent&expand=subtasks", nil, nil)
+		require.Equal(t, http.StatusOK, res.Code)
+		items, _ := decodeList(t, res, "tasks")
+		require.Len(t, items, 1)
+		entry := items[0]
+		subtasks, ok := entry["tasks"].([]any)
+		require.True(t, ok)
+		require.Len(t, subtasks, 2)
+		ids, ok := entry["subtask_ids"].([]any)
+		require.True(t, ok)
+		assert.ElementsMatch(t, []any{"list-child-a", "list-child-b"}, ids)
+	})
+
+	t.Run("Should expose transitions in list payload", func(t *testing.T) {
+		client := newResourceClient(t)
+		body := taskPayload("transition-task", "transition")
+		body["on_success"] = map[string]any{"next": "final-task"}
+		client.do(http.MethodPut, "/api/v0/tasks/transition-task", body, nil)
+		res := client.do(http.MethodGet, "/api/v0/tasks?q=transition-task", nil, nil)
+		require.Equal(t, http.StatusOK, res.Code)
+		items, _ := decodeList(t, res, "tasks")
+		require.Len(t, items, 1)
+		success, ok := items[0]["on_success"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "final-task", success["next"])
+	})
+
+	t.Run("Should ignore unknown expand keys", func(t *testing.T) {
+		client := newResourceClient(t)
+		payload := map[string]any{
+			"id":    "expand-mixed",
+			"type":  "composite",
+			"tasks": []map[string]any{{"id": "mixed-child", "type": "basic"}},
+		}
+		res := client.do(http.MethodPut, "/api/v0/tasks/expand-mixed", payload, nil)
+		require.Equal(t, http.StatusCreated, res.Code, res.Body.String())
+		getRes := client.do(http.MethodGet, "/api/v0/tasks/expand-mixed?expand=subtasks,unknown", nil, nil)
+		require.Equal(t, http.StatusOK, getRes.Code)
+		data := decodeData(t, getRes)
+		subtasks, ok := data["tasks"].([]any)
+		require.True(t, ok)
+		require.Len(t, subtasks, 1)
+		child, ok := subtasks[0].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "mixed-child", child["id"])
 	})
 
 	// fields= feature removed; no filtering behavior to test

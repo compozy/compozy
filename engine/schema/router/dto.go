@@ -3,7 +3,7 @@ package schemarouter
 import (
 	"encoding/json"
 
-	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/core/httpdto"
 )
 
 // SchemaDTO wraps the JSON Schema body as raw JSON bytes to keep a stable
@@ -20,8 +20,8 @@ type SchemaListItem struct {
 
 // SchemasListResponse is the typed list payload returned from GET /schemas.
 type SchemasListResponse struct {
-	Schemas []SchemaListItem   `json:"schemas"`
-	Page    router.PageInfoDTO `json:"page"`
+	Schemas []SchemaListItem    `json:"schemas"`
+	Page    httpdto.PageInfoDTO `json:"page"`
 }
 
 // toSchemaDTO marshals a dynamic map to SchemaDTO.
@@ -39,5 +39,5 @@ func toSchemaListItem(src map[string]any) (SchemaListItem, int, error) {
 	if err != nil {
 		return SchemaListItem{}, 0, err
 	}
-	return SchemaListItem{Body: json.RawMessage(b), ETag: router.AsString(src["_etag"])}, len(b), nil
+	return SchemaListItem{Body: json.RawMessage(b), ETag: httpdto.AsString(src["_etag"])}, len(b), nil
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	mcpuc "github.com/compozy/compozy/engine/mcp/uc"
@@ -76,9 +77,14 @@ func listMCPs(c *gin.Context) {
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
 	list := make([]MCPListItem, 0, len(out.Items))
 	for i := range out.Items {
-		list = append(list, toMCPListItem(out.Items[i]))
+		item, err := toMCPListItem(out.Items[i])
+		if err != nil {
+			router.RespondWithServerError(c, router.ErrInternalCode, "failed to map mcp", err)
+			return
+		}
+		list = append(list, item)
 	}
-	page := router.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
+	page := httpdto.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "mcps retrieved", MCPsListResponse{MCPs: list, Page: page})
 }
 
@@ -119,7 +125,12 @@ func getMCP(c *gin.Context) {
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	router.RespondOK(c, "mcp retrieved", toMCPDTO(out.MCP))
+	dto, mapErr := toMCPDTO(out.MCP)
+	if mapErr != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map mcp", mapErr)
+		return
+	}
+	router.RespondOK(c, "mcp retrieved", dto)
 }
 
 // upsertMCP handles PUT /mcps/{mcp_id}.
@@ -184,7 +195,11 @@ func upsertMCP(c *gin.Context) {
 		message = "mcp created"
 		c.Header("Location", routes.Mcps()+"/"+mcpID)
 	}
-	dto := toMCPDTO(out.Config)
+	dto, mapErr := toMCPDTO(out.Config)
+	if mapErr != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map mcp", mapErr)
+		return
+	}
 	if out.Created {
 		router.RespondCreated(c, message, dto)
 		return
