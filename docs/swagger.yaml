@@ -9206,7 +9206,7 @@ paths:
                 type: object
       summary: Get agent by ID
       tags:
-        - agents
+        - workflows
   /workflows/{workflow_id}/executions:
     get:
       consumes:
@@ -9452,7 +9452,7 @@ paths:
                 type: object
       summary: Get task by ID
       tags:
-        - tasks
+        - workflows
   /workflows/{workflow_id}/tools:
     get:
       consumes:
@@ -9551,7 +9551,7 @@ paths:
                 type: object
       summary: Get tool by ID
       tags:
-        - tools
+        - workflows
 
 securityDefinitions:
   BearerAuth:

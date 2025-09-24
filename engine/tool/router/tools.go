@@ -14,7 +14,7 @@ import (
 //
 //	@Summary		Get tool by ID
 //	@Description	Retrieve a specific tool configuration by its ID
-//	@Tags			tools
+//	@Tags			workflows
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string									true	"Workflow ID"

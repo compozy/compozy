@@ -12,7 +12,7 @@ import (
 //
 //	@Summary		Get agent by ID
 //	@Description	Retrieve a specific agent configuration by its ID
-//	@Tags			agents
+//	@Tags			workflows
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string									true	"Workflow ID"

@@ -7,10 +7,10 @@ import (
 func Register(apiBase *gin.RouterGroup) {
 	tasksGroup := apiBase.Group("/tasks")
 	{
-		// POST /api/v0/tasks/export
+		// POST /tasks/export
 		// Export tasks to YAML
 		tasksGroup.POST("/export", exportTasks)
-		// POST /api/v0/tasks/import
+		// POST /tasks/import
 		// Import tasks from YAML
 		tasksGroup.POST("/import", importTasks)
 		tasksGroup.GET("", listTasksTop)
@@ -23,11 +23,11 @@ func Register(apiBase *gin.RouterGroup) {
 	{
 		tasksGroup := workflowsGroup.Group("/tasks")
 		{
-			// GET /api/v0/workflows/:workflow_id/tasks
+			// GET /workflows/:workflow_id/tasks
 			// List tasks for a workflow
 			tasksGroup.GET("", listTasks)
 
-			// GET /api/v0/workflows/:workflow_id/tasks/:task_id
+			// GET /workflows/:workflow_id/tasks/:task_id
 			// Get task definition
 			tasksGroup.GET("/:task_id", getTaskByID)
 		}

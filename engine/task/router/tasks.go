@@ -12,7 +12,7 @@ import (
 //
 //	@Summary		Get task by ID
 //	@Description	Retrieve a specific task configuration by its ID within a workflow
-//	@Tags			tasks
+//	@Tags			workflows
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string									true	"Workflow ID"	example("data-processing")

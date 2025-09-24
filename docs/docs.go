@@ -8869,7 +8869,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "agents"
+                    "workflows"
                 ],
                 "summary": "Get agent by ID",
                 "parameters": [
@@ -9313,7 +9313,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "tasks"
+                    "workflows"
                 ],
                 "summary": "Get task by ID",
                 "parameters": [
@@ -9490,7 +9490,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "tools"
+                    "workflows"
                 ],
                 "summary": "Get tool by ID",
                 "parameters": [

@@ -1,5 +1,6 @@
 import { docs } from "@/.source";
 import { Icon } from "@/components/ui/icon";
+import { loadOpenAPIDocumentSync } from "@/lib/openapi-loader";
 import { loader } from "fumadocs-core/source";
 import { attachFile, createOpenAPI } from "fumadocs-openapi/server";
 import { createElement } from "react";
@@ -26,5 +27,20 @@ export const source = loader({
 // });
 
 export const openapi = createOpenAPI();
+
+const originalGetAPIPageProps = openapi.getAPIPageProps.bind(openapi);
+type ApiPageProps = Parameters<typeof originalGetAPIPageProps>[0];
+type ApiPageReturn = ReturnType<typeof originalGetAPIPageProps>;
+
+openapi.getAPIPageProps = (props: ApiPageProps): ApiPageReturn => {
+  const resolved = originalGetAPIPageProps(props);
+  if (typeof resolved.document === "string" && resolved.document === "swagger.json") {
+    return {
+      ...resolved,
+      document: structuredClone(loadOpenAPIDocumentSync()),
+    };
+  }
+  return resolved;
+};
 
 export const { getPage, getPages, pageTree } = source;
