@@ -62,7 +62,7 @@ func getExecution(c *gin.Context) {
 //
 //	@Summary		List all workflow executions
 //	@Description	Retrieve a list of all workflow executions across all workflows
-//	@Tags			workflows
+//	@Tags			executions
 //	@Accept			json
 //	@Produce		json
 //	@Success		200	{object}	router.Response{data=object{executions=[]workflow.State}}	"Workflow executions retrieved successfully"

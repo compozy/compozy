@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,7 +19,7 @@ import (
 
 func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 	t.Run("Should recover from handler panics and return 500 error", func(t *testing.T) {
-		ensureGinTestMode()
+		ginmode.EnsureGinTestMode()
 
 		// Create a handler that panics
 		panicHandler := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
@@ -48,7 +49,7 @@ func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 	})
 
 	t.Run("Should handle nil handler gracefully with error response", func(t *testing.T) {
-		ensureGinTestMode()
+		ginmode.EnsureGinTestMode()
 
 		wrappedHandler := wrapWithGinMiddlewares(nil)
 
@@ -68,7 +69,7 @@ func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 	})
 
 	t.Run("Should execute middlewares in correct order with proper chaining", func(t *testing.T) {
-		ensureGinTestMode()
+		ginmode.EnsureGinTestMode()
 
 		var executionOrder []string
 

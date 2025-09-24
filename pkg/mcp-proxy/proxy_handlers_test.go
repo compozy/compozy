@@ -6,13 +6,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestProxyHandlers_SSEProxy(t *testing.T) {
-	ensureGinTestMode()
+	ginmode.EnsureGinTestMode()
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
@@ -48,7 +49,7 @@ func TestProxyHandlers_SSEProxy(t *testing.T) {
 }
 
 func TestProxyHandlers_StreamableHTTPProxy(t *testing.T) {
-	ensureGinTestMode()
+	ginmode.EnsureGinTestMode()
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
@@ -77,7 +78,7 @@ func TestProxyHandlers_StreamableHTTPProxy(t *testing.T) {
 }
 
 func TestProxyHandlers_ProxyRegistration(t *testing.T) {
-	ensureGinTestMode()
+	ginmode.EnsureGinTestMode()
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 

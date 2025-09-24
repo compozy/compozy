@@ -14,6 +14,8 @@ import (
 	"github.com/compozy/compozy/pkg/config"
 )
 
+const defaultStructuredOutputRetries = 2
+
 // Config represents the configuration for the LLM service
 type Config struct {
 	// MCP proxy configuration

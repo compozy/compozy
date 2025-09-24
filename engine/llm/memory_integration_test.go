@@ -10,19 +10,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// Mock memory provider
-type mockMemoryProvider struct {
-	mock.Mock
-}
-
-func (m *mockMemoryProvider) GetMemory(ctx context.Context, memoryID string, keyTemplate string) (Memory, error) {
-	args := m.Called(ctx, memoryID, keyTemplate)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(Memory), args.Error(1)
-}
-
 // Mock memory
 type mockMemory struct {
 	mock.Mock

@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	orchestratorpkg "github.com/compozy/compozy/engine/llm/orchestrator"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
@@ -20,8 +21,37 @@ const directPromptActionID = "direct-prompt"
 
 // Service provides LLM integration capabilities using clean architecture
 type Service struct {
-	orchestrator Orchestrator
+	orchestrator orchestratorpkg.Orchestrator
 	config       *Config
+	toolRegistry ToolRegistry
+}
+
+type orchestratorToolRegistryAdapter struct {
+	registry ToolRegistry
+}
+
+func (a *orchestratorToolRegistryAdapter) Find(ctx context.Context, name string) (orchestratorpkg.RegistryTool, bool) {
+	tool, ok := a.registry.Find(ctx, name)
+	if !ok {
+		return nil, false
+	}
+	return tool, true
+}
+
+func (a *orchestratorToolRegistryAdapter) ListAll(ctx context.Context) ([]orchestratorpkg.RegistryTool, error) {
+	tools, err := a.registry.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]orchestratorpkg.RegistryTool, 0, len(tools))
+	for _, t := range tools {
+		out = append(out, t)
+	}
+	return out, nil
+}
+
+func (a *orchestratorToolRegistryAdapter) Close() error {
+	return a.registry.Close()
 }
 
 // NewService creates a new LLM service with clean architecture
@@ -79,12 +109,13 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	// Create components
 	promptBuilder := NewPromptBuilder()
 	// Create orchestrator
-	orchestratorConfig := OrchestratorConfig{
-		ToolRegistry:                  toolRegistry,
+	orchestratorConfig := orchestratorpkg.Config{
+		ToolRegistry:                  &orchestratorToolRegistryAdapter{registry: toolRegistry},
 		PromptBuilder:                 promptBuilder,
 		RuntimeManager:                runtime,
 		LLMFactory:                    config.LLMFactory,
 		MemoryProvider:                config.MemoryProvider,
+		MemorySync:                    NewMemorySync(),
 		Timeout:                       config.Timeout,
 		MaxConcurrentTools:            config.MaxConcurrentTools,
 		MaxToolIterations:             config.MaxToolIterations,
@@ -95,10 +126,14 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		RetryBackoffMax:               config.RetryBackoffMax,
 		RetryJitter:                   config.RetryJitter,
 	}
-	llmOrchestrator := NewOrchestrator(&orchestratorConfig)
+	llmOrchestrator, err := orchestratorpkg.New(orchestratorConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create orchestrator: %w", err)
+	}
 	return &Service{
 		orchestrator: llmOrchestrator,
 		config:       config,
+		toolRegistry: toolRegistry,
 	}, nil
 }
 
@@ -142,7 +177,7 @@ func (s *Service) GenerateContent(
 		return nil, err
 	}
 
-	request := Request{
+	request := orchestratorpkg.Request{
 		Agent:           effectiveAgent,
 		Action:          actionCopy,
 		AttachmentParts: attachmentParts,
@@ -203,8 +238,8 @@ func (s *Service) buildEffectiveAgent(agentConfig *agent.Config) (*agent.Config,
 
 // InvalidateToolsCache invalidates the tools cache
 func (s *Service) InvalidateToolsCache(ctx context.Context) {
-	if orchestrator, ok := s.orchestrator.(*llmOrchestrator); ok {
-		orchestrator.config.ToolRegistry.InvalidateCache(ctx)
+	if s.toolRegistry != nil {
+		s.toolRegistry.InvalidateCache(ctx)
 	}
 }
 
