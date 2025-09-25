@@ -70,7 +70,7 @@ func createRootHandler(version, prefixURL string) gin.HandlerFunc {
 			}
 		} else {
 			if comma := strings.IndexByte(scheme, ','); comma >= 0 {
-				scheme = scheme[:comma]
+				scheme = strings.TrimSpace(scheme[:comma])
 			}
 		}
 		scheme = normalizeScheme(scheme)

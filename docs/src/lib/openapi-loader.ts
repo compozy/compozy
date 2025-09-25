@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 let cachedDocument: unknown;
+const SWAGGER_PATH = path.join(process.cwd(), "swagger.json");
 
 export async function loadOpenAPIDocument(): Promise<unknown> {
   if (cachedDocument) {
@@ -23,21 +23,31 @@ export function loadOpenAPIDocumentSync(): unknown {
 }
 
 async function readAndProcess(): Promise<unknown> {
-  const swaggerPath = path.join(process.cwd(), "swagger.json");
-  const raw = await readFile(swaggerPath, "utf8");
+  const file = Bun.file(SWAGGER_PATH);
+  if (!(await file.exists())) {
+    throw new Error(`OpenAPI loader: swagger.json not found at ${SWAGGER_PATH}`);
+  }
+  const raw = await file.text();
   return parseDocument(raw);
 }
 
 function readAndProcessSync(): unknown {
-  const swaggerPath = path.join(process.cwd(), "swagger.json");
-  const raw = readFileSync(swaggerPath, "utf8");
-  return parseDocument(raw);
+  try {
+    const raw = readFileSync(SWAGGER_PATH, "utf8");
+    return parseDocument(raw);
+  } catch (err) {
+    throw new Error(`OpenAPI loader: failed to read ${SWAGGER_PATH}: ${(err as Error).message}`);
+  }
 }
 
 function parseDocument(raw: string): unknown {
-  const document = JSON.parse(raw) as Record<string, unknown>;
-  ensureSchemaTitles(document);
-  return document;
+  try {
+    const document = JSON.parse(raw) as Record<string, unknown>;
+    ensureSchemaTitles(document);
+    return document;
+  } catch (err) {
+    throw new Error(`OpenAPI loader: invalid JSON in swagger.json: ${(err as Error).message}`);
+  }
 }
 
 function ensureSchemaTitles(document: Record<string, unknown>): void {

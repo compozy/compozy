@@ -19,4 +19,6 @@ func TestResponseHandler_ParseContent_SchemaError(t *testing.T) {
 	action := &agent.ActionConfig{OutputSchema: &sc}
 	_, err := h.(*responseHandler).parseContent(context.Background(), `{"x": 1}`, action)
 	require.Error(t, err)
+	require.ErrorContains(t, err, "schema validation failed")
+	require.ErrorContains(t, err, "x")
 }

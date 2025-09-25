@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
@@ -27,11 +28,17 @@ func (c *clientManager) Create(
 	if factory == nil {
 		factory = llmadapter.NewDefaultFactory()
 	}
-	client, err := factory.CreateClient(ctx, &request.Agent.Model.Config)
+	if request.Agent == nil {
+		return nil, NewLLMError(fmt.Errorf("agent configuration is nil"), ErrCodeLLMCreation, map[string]any{
+			"reason": "nil agent config",
+		})
+	}
+	cfg := &request.Agent.Model.Config
+	client, err := factory.CreateClient(ctx, cfg)
 	if err != nil {
 		return nil, NewLLMError(err, ErrCodeLLMCreation, map[string]any{
-			"provider": request.Agent.Model.Config.Provider,
-			"model":    request.Agent.Model.Config.Model,
+			"provider": cfg.Provider,
+			"model":    cfg.Model,
 		})
 	}
 	return client, nil

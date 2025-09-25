@@ -782,50 +782,48 @@ func copyPromptParams(dst, src *core.PromptParams) {
 
 func copyPromptMaxTokens(dst, src *core.PromptParams) {
 	if !dst.IsSetMaxTokens() && src.IsSetMaxTokens() {
-		dst.MaxTokens = src.MaxTokens
+		dst.SetMaxTokens(src.MaxTokens)
 	}
 }
 
 func copyPromptTemperature(dst, src *core.PromptParams) {
 	if !dst.IsSetTemperature() && src.IsSetTemperature() {
-		dst.Temperature = src.Temperature
+		dst.SetTemperature(src.Temperature)
 	}
 }
 
 func copyPromptStopWords(dst, src *core.PromptParams) {
 	if !dst.IsSetStopWords() && src.IsSetStopWords() {
-		if len(src.StopWords) > 0 {
-			dst.StopWords = append([]string(nil), src.StopWords...)
-		}
+		dst.SetStopWords(src.StopWords)
 	}
 }
 
 func copyPromptTopK(dst, src *core.PromptParams) {
 	if !dst.IsSetTopK() && src.IsSetTopK() {
-		dst.TopK = src.TopK
+		dst.SetTopK(src.TopK)
 	}
 }
 
 func copyPromptTopP(dst, src *core.PromptParams) {
 	if !dst.IsSetTopP() && src.IsSetTopP() {
-		dst.TopP = src.TopP
+		dst.SetTopP(src.TopP)
 	}
 }
 
 func copyPromptSeed(dst, src *core.PromptParams) {
 	if !dst.IsSetSeed() && src.IsSetSeed() {
-		dst.Seed = src.Seed
+		dst.SetSeed(src.Seed)
 	}
 }
 
 func copyPromptMinLength(dst, src *core.PromptParams) {
 	if !dst.IsSetMinLength() && src.IsSetMinLength() {
-		dst.MinLength = src.MinLength
+		dst.SetMinLength(src.MinLength)
 	}
 }
 
 func copyPromptRepetitionPenalty(dst, src *core.PromptParams) {
 	if !dst.IsSetRepetitionPenalty() && src.IsSetRepetitionPenalty() {
-		dst.RepetitionPenalty = src.RepetitionPenalty
+		dst.SetRepetitionPenalty(src.RepetitionPenalty)
 	}
 }

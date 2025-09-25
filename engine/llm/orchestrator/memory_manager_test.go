@@ -126,9 +126,9 @@ func TestMemoryManager_StoreAsync(t *testing.T) {
 
 		stored := memory.snapshot()
 		require.Len(t, stored, 2)
-		assert.Equal(t, contracts.MessageRole("user"), stored[0].Role)
+		assert.Equal(t, contracts.MessageRoleUser, stored[0].Role)
 		assert.Equal(t, "hello", stored[0].Content)
-		assert.Equal(t, contracts.MessageRole("assistant"), stored[1].Role)
+		assert.Equal(t, contracts.MessageRoleAssistant, stored[1].Role)
 		assert.Equal(t, "world", stored[1].Content)
 	})
 }

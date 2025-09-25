@@ -6,6 +6,7 @@ import (
 
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestToolExecutor_UpdateBudgets_ErrorBudgetExceeded(t *testing.T) {
@@ -13,7 +14,8 @@ func TestToolExecutor_UpdateBudgets_ErrorBudgetExceeded(t *testing.T) {
 	st := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
 	results := []llmadapter.ToolResult{{Name: "t", Content: `{"error":"x"}`}, {Name: "t", Content: `{"error":"x"}`}}
 	err := exec.UpdateBudgets(context.Background(), results, st)
-	assert.Error(t, err)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "tool error budget exceeded for t")
 }
 
 func TestToolExecutor_UpdateBudgets_ConsecutiveSuccessExceeded(t *testing.T) {
@@ -24,5 +26,6 @@ func TestToolExecutor_UpdateBudgets_ConsecutiveSuccessExceeded(t *testing.T) {
 		{Name: "t", JSONContent: []byte(`{"ok":true}`)},
 	}
 	err := exec.UpdateBudgets(context.Background(), results, st)
-	assert.Error(t, err)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "tool t called successfully 2 times without progress")
 }

@@ -81,6 +81,7 @@ func DefaultConfig() *Config {
 		EnableStructuredOutput:        true,
 		EnableToolCaching:             true,
 		FailOnMCPRegistrationError:    false,
+		LLMFactory:                    llmadapter.NewDefaultFactory(),
 	}
 }
 
@@ -352,6 +353,12 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Enforce bounds for structured output retries: 0–10; non-positive → default
+	if c.StructuredOutputRetryAttempts <= 0 {
+		c.StructuredOutputRetryAttempts = defaultStructuredOutputRetries
+	} else if c.StructuredOutputRetryAttempts > 10 {
+		c.StructuredOutputRetryAttempts = 10
+	}
 	return nil
 }
 

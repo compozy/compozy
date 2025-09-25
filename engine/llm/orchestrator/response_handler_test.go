@@ -11,10 +11,10 @@ import (
 )
 
 func TestResponseHandler_JSONModeAndContentErrors(t *testing.T) {
-	h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
-	req := &llmadapter.LLMRequest{Options: llmadapter.CallOptions{UseJSONMode: true}}
-	state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
 	t.Run("Should continue loop when non-JSON in JSON mode", func(t *testing.T) {
+		h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
+		req := &llmadapter.LLMRequest{Options: llmadapter.CallOptions{UseJSONMode: true}}
+		state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
 		cont, err := h.(*responseHandler).handleJSONMode(context.Background(), "not-json", req, state)
 		require.NoError(t, err)
 		assert.True(t, cont)
@@ -23,7 +23,15 @@ func TestResponseHandler_JSONModeAndContentErrors(t *testing.T) {
 		assert.Equal(t, "tool", req.Messages[len(req.Messages)-1].Role)
 	})
 	t.Run("Should error after exceeding JSON-mode budget", func(t *testing.T) {
-		_, err := h.(*responseHandler).handleJSONMode(context.Background(), "still-not-json", req, state)
+		h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
+		req := &llmadapter.LLMRequest{Options: llmadapter.CallOptions{UseJSONMode: true}}
+		state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
+		// First attempt: continue
+		cont, err := h.(*responseHandler).handleJSONMode(context.Background(), "still-not-json", req, state)
+		require.NoError(t, err)
+		assert.True(t, cont)
+		// Second attempt: exceeds budget → error
+		_, err = h.(*responseHandler).handleJSONMode(context.Background(), "still-not-json", req, state)
 		require.Error(t, err)
 	})
 }
@@ -47,16 +55,24 @@ func TestResponseHandler_ParseContent(t *testing.T) {
 }
 
 func TestResponseHandler_ContentErrorExtraction(t *testing.T) {
-	h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
-	req := &llmadapter.LLMRequest{}
-	state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
 	t.Run("Should continue when top-level error present", func(t *testing.T) {
+		h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
+		req := &llmadapter.LLMRequest{}
+		state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
 		cont, err := h.(*responseHandler).handleContentError(context.Background(), `{"error":"bad"}`, req, state)
 		require.NoError(t, err)
 		assert.True(t, cont)
 	})
 	t.Run("Should error after budget exhausted", func(t *testing.T) {
-		_, err := h.(*responseHandler).handleContentError(context.Background(), `{"error":"bad"}`, req, state)
+		h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
+		req := &llmadapter.LLMRequest{}
+		state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
+		// First attempt: continue
+		cont, err := h.(*responseHandler).handleContentError(context.Background(), `{"error":"bad"}`, req, state)
+		require.NoError(t, err)
+		assert.True(t, cont)
+		// Second attempt: exceeds budget → error
+		_, err = h.(*responseHandler).handleContentError(context.Background(), `{"error":"bad"}`, req, state)
 		require.Error(t, err)
 	})
 }

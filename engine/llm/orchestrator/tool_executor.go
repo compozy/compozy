@@ -38,6 +38,9 @@ func (e *toolExecutor) Execute(ctx context.Context, toolCalls []llmadapter.ToolC
 	log.Debug("Executing tool calls", "tool_calls_count", len(toolCalls), "tools", extractToolNames(toolCalls))
 
 	limit := e.cfg.maxConcurrentTools
+	if limit <= 0 {
+		limit = defaultMaxConcurrentTools
+	}
 	sem := make(chan struct{}, limit)
 	results := make([]llmadapter.ToolResult, len(toolCalls))
 	g, ctx := errgroup.WithContext(ctx)
@@ -78,12 +81,16 @@ func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCa
 	t, found := e.registry.Find(ctx, call.Name)
 	if !found || t == nil {
 		log.Debug("Tool not found", "tool_name", call.Name, "tool_call_id", call.ID)
-		errJSON := fmt.Sprintf("{\"error\":\"tool not found: %s\"}", call.Name)
+		errObj := map[string]any{"error": fmt.Sprintf("tool not found: %s", call.Name)}
+		b, merr := json.Marshal(errObj)
+		if merr != nil {
+			b = []byte(fmt.Sprintf(`{"error":"tool not found: %s"}`, call.Name))
+		}
 		return llmadapter.ToolResult{
 			ID:          call.ID,
 			Name:        call.Name,
-			Content:     errJSON,
-			JSONContent: json.RawMessage(errJSON),
+			Content:     string(b),
+			JSONContent: json.RawMessage(b),
 		}
 	}
 
@@ -227,6 +234,16 @@ func isSuccessJSONRaw(raw json.RawMessage) (bool, bool) {
 	}
 	if _, hasErr := obj["error"]; hasErr {
 		return false, true
+	}
+	if v, ok := obj["success"]; ok {
+		if b, ok := v.(bool); ok && !b {
+			return false, true
+		}
+	}
+	if v, ok := obj["ok"]; ok {
+		if b, ok := v.(bool); ok && !b {
+			return false, true
+		}
 	}
 	return true, true
 }

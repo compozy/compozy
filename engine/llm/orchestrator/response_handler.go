@@ -34,6 +34,12 @@ func NewResponseHandler(cfg *settings) ResponseHandler {
 	return &responseHandler{cfg: *cfg}
 }
 
+const (
+	keyContentValidator = "content_validator"
+	keyOutputParser     = "output_parser"
+	keyOutputValidator  = "output_validator"
+)
+
 func (h *responseHandler) HandleNoToolCalls(
 	ctx context.Context,
 	response *llmadapter.LLMResponse,
@@ -41,73 +47,26 @@ func (h *responseHandler) HandleNoToolCalls(
 	llmReq *llmadapter.LLMRequest,
 	state *loopState,
 ) (*core.Output, bool, error) {
-	log := logger.FromContext(ctx)
-
 	if cont, err := h.handleContentError(ctx, response.Content, llmReq, state); cont || err != nil {
 		if err != nil {
 			return nil, false, err
 		}
 		return nil, true, nil
 	}
-
 	if cont, err := h.handleJSONMode(ctx, response.Content, llmReq, state); cont || err != nil {
 		if err != nil {
 			return nil, false, err
 		}
 		return nil, true, nil
 	}
-
 	output, err := h.parseContent(ctx, response.Content, request.Action)
 	if err != nil {
-		key := "output_validator"
-		state.toolErrors[key]++
-		log.Debug("Output validation failed; continuing loop",
-			"error", core.RedactError(err),
-			"attempt", state.toolErrors[key],
-			"max", state.budgetFor(key),
-		)
-		if state.toolErrors[key] >= state.budgetFor(key) {
-			log.Warn("Error budget exceeded - output validation", "key", key)
-			return nil, false, fmt.Errorf("tool error budget exceeded for %s: %v", key, err)
+		if cont, hErr := h.continueAfterOutputValidationFailure(ctx, err, llmReq, state); hErr != nil {
+			return nil, false, hErr
+		} else if cont {
+			return nil, true, nil
 		}
-
-		pseudoID := fmt.Sprintf("call_%s_%d", key, time.Now().UnixNano())
-		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-			Role: "assistant",
-			ToolCalls: []llmadapter.ToolCall{{
-				ID:        pseudoID,
-				Name:      key,
-				Arguments: json.RawMessage("{}"),
-			}},
-		})
-		obs := map[string]any{
-			"error":   "Invalid final response: schema/format check failed",
-			"details": err.Error(),
-			"attempt": state.toolErrors[key],
-		}
-		if payload, merr := json.Marshal(obs); merr == nil {
-			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: "tool",
-				ToolResults: []llmadapter.ToolResult{{
-					ID:          pseudoID,
-					Name:        key,
-					Content:     string(payload),
-					JSONContent: json.RawMessage(payload),
-				}},
-			})
-		} else {
-			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: "tool",
-				ToolResults: []llmadapter.ToolResult{{
-					ID:      pseudoID,
-					Name:    key,
-					Content: fmt.Sprintf("{\\\"error\\\":%q}", err.Error()),
-				}},
-			})
-		}
-		return nil, true, nil
 	}
-
 	return output, false, nil
 }
 
@@ -125,14 +84,23 @@ func (h *responseHandler) handleJSONMode(
 		return false, nil
 	}
 
-	key := "output_parser"
+	key := keyOutputParser
 	state.toolErrors[key]++
 	logger.FromContext(ctx).Debug("Non-JSON content with JSON mode; continuing loop",
 		"consecutive_errors", state.toolErrors[key],
 		"max", state.budgetFor(key),
 	)
 	if state.toolErrors[key] >= state.budgetFor(key) {
-		return false, fmt.Errorf("tool error budget exceeded for %s: expected JSON object in JSON mode", key)
+		return false, core.NewError(
+			fmt.Errorf("tool error budget exceeded for %s", key),
+			ErrCodeBudgetExceeded,
+			map[string]any{
+				"key":     key,
+				"attempt": state.toolErrors[key],
+				"max":     state.budgetFor(key),
+				"details": "expected JSON object in JSON mode",
+			},
+		)
 	}
 
 	pseudoID := fmt.Sprintf("call_%s_%d", key, time.Now().UnixNano())
@@ -160,14 +128,104 @@ func (h *responseHandler) handleJSONMode(
 			}},
 		})
 	} else {
+		fb := map[string]any{"error": "Invalid final response: expected JSON object (json_mode=true)"}
+		if b, e := json.Marshal(fb); e == nil {
+			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
+				Role: "tool",
+				ToolResults: []llmadapter.ToolResult{{
+					ID:          pseudoID,
+					Name:        key,
+					Content:     string(b),
+					JSONContent: json.RawMessage(b),
+				}},
+			})
+		} else {
+			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
+				Role: "tool",
+				ToolResults: []llmadapter.ToolResult{{
+					ID:      pseudoID,
+					Name:    key,
+					Content: `{"error":"Invalid final response"}`,
+				}},
+			})
+		}
+	}
+	return true, nil
+}
+
+func (h *responseHandler) continueAfterOutputValidationFailure(
+	ctx context.Context,
+	valErr error,
+	llmReq *llmadapter.LLMRequest,
+	state *loopState,
+) (bool, error) {
+	log := logger.FromContext(ctx)
+	key := keyOutputValidator
+	state.toolErrors[key]++
+	log.Debug("Output validation failed; continuing loop",
+		"error", core.RedactError(valErr),
+		"attempt", state.toolErrors[key],
+		"max", state.budgetFor(key),
+	)
+	if state.toolErrors[key] >= state.budgetFor(key) {
+		log.Warn("Error budget exceeded - output validation", "key", key)
+		return false, core.NewError(
+			fmt.Errorf("tool error budget exceeded for %s", key),
+			ErrCodeBudgetExceeded,
+			map[string]any{
+				"key":     key,
+				"attempt": state.toolErrors[key],
+				"max":     state.budgetFor(key),
+				"details": valErr.Error(),
+			},
+		)
+	}
+	pseudoID := fmt.Sprintf("call_%s_%d", key, time.Now().UnixNano())
+	llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
+		Role: "assistant",
+		ToolCalls: []llmadapter.ToolCall{{
+			ID:        pseudoID,
+			Name:      key,
+			Arguments: json.RawMessage("{}"),
+		}},
+	})
+	obs := map[string]any{
+		"error":   "Invalid final response: schema/format check failed",
+		"details": valErr.Error(),
+		"attempt": state.toolErrors[key],
+	}
+	if payload, merr := json.Marshal(obs); merr == nil {
 		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
 			Role: "tool",
 			ToolResults: []llmadapter.ToolResult{{
-				ID:      pseudoID,
-				Name:    key,
-				Content: `{"error":"Invalid final response: expected JSON object"}`,
+				ID:          pseudoID,
+				Name:        key,
+				Content:     string(payload),
+				JSONContent: json.RawMessage(payload),
 			}},
 		})
+	} else {
+		fb := map[string]any{"error": valErr.Error()}
+		if b, e := json.Marshal(fb); e == nil {
+			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
+				Role: "tool",
+				ToolResults: []llmadapter.ToolResult{{
+					ID:          pseudoID,
+					Name:        key,
+					Content:     string(b),
+					JSONContent: json.RawMessage(b),
+				}},
+			})
+		} else {
+			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
+				Role: "tool",
+				ToolResults: []llmadapter.ToolResult{{
+					ID:      pseudoID,
+					Name:    key,
+					Content: `{"error":"output validation failed"}`,
+				}},
+			})
+		}
 	}
 	return true, nil
 }
@@ -183,7 +241,7 @@ func (h *responseHandler) handleContentError(
 		return false, nil
 	}
 
-	key := "content_validator"
+	key := keyContentValidator
 	state.toolErrors[key]++
 	logger.FromContext(ctx).Debug("Content-level error detected; continuing loop",
 		"error_message", msg,
@@ -191,7 +249,11 @@ func (h *responseHandler) handleContentError(
 		"max", state.budgetFor(key),
 	)
 	if state.toolErrors[key] >= state.budgetFor(key) {
-		return false, fmt.Errorf("tool error budget exceeded for %s: %s", key, msg)
+		return false, core.NewError(
+			fmt.Errorf("tool error budget exceeded for %s", key),
+			ErrCodeBudgetExceeded,
+			map[string]any{"key": key, "attempt": state.toolErrors[key], "max": state.budgetFor(key), "details": msg},
+		)
 	}
 
 	pseudoID := fmt.Sprintf("call_%s_%d", key, time.Now().UnixNano())
@@ -216,14 +278,27 @@ func (h *responseHandler) handleContentError(
 			}},
 		})
 	} else {
-		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-			Role: "tool",
-			ToolResults: []llmadapter.ToolResult{{
-				ID:      pseudoID,
-				Name:    key,
-				Content: fmt.Sprintf("{\\\"error\\\":%q}", msg),
-			}},
-		})
+		fb := map[string]any{"error": msg}
+		if b, e := json.Marshal(fb); e == nil {
+			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
+				Role: "tool",
+				ToolResults: []llmadapter.ToolResult{{
+					ID:          pseudoID,
+					Name:        key,
+					Content:     string(b),
+					JSONContent: json.RawMessage(b),
+				}},
+			})
+		} else {
+			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
+				Role: "tool",
+				ToolResults: []llmadapter.ToolResult{{
+					ID:      pseudoID,
+					Name:    key,
+					Content: `{"error":"content validation failed"}`,
+				}},
+			})
+		}
 	}
 	return true, nil
 }
@@ -281,25 +356,67 @@ func extractTopLevelErrorMessage(s string) (string, bool) {
 		return "", false
 	}
 	if ev, ok := obj["error"]; ok && ev != nil {
-		switch v := ev.(type) {
-		case string:
-			if strings.TrimSpace(v) != "" {
-				return v, true
-			}
-		case map[string]any:
-			if msg, ok := v["message"].(string); ok && strings.TrimSpace(msg) != "" {
-				return msg, true
-			}
-			if b, err := json.Marshal(v); err == nil && len(b) > 0 {
-				return string(b), true
-			}
-			return fmt.Sprintf("%v", v), true
-		default:
-			if b, err := json.Marshal(v); err == nil && len(b) > 0 {
-				return string(b), true
-			}
-			return fmt.Sprintf("%v", v), true
+		if msg, ok := stringifyErrorValue(ev); ok {
+			return msg, true
 		}
 	}
 	return "", false
+}
+
+func stringifyErrorValue(v any) (string, bool) {
+	switch x := v.(type) {
+	case string:
+		return stringifyErrorString(x)
+	case map[string]any:
+		return stringifyErrorMap(x)
+	case []any:
+		return stringifyErrorSlice(x)
+	default:
+		return stringifyErrorDefault(x)
+	}
+}
+
+func stringifyErrorString(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", false
+	}
+	return s, true
+}
+
+func stringifyErrorMap(m map[string]any) (string, bool) {
+	if msg, ok := m["message"].(string); ok {
+		if s, ok := stringifyErrorString(msg); ok {
+			return s, true
+		}
+	}
+	if b, err := json.Marshal(m); err == nil && len(b) > 0 {
+		return string(b), true
+	}
+	return fmt.Sprintf("%v", m), true
+}
+
+func stringifyErrorSlice(arr []any) (string, bool) {
+	parts := make([]string, 0, len(arr))
+	for _, it := range arr {
+		if s, ok := it.(string); ok {
+			if s, ok := stringifyErrorString(s); ok {
+				parts = append(parts, s)
+			}
+		}
+	}
+	if len(parts) > 0 {
+		return strings.Join(parts, "; "), true
+	}
+	if b, err := json.Marshal(arr); err == nil && len(b) > 0 {
+		return string(b), true
+	}
+	return fmt.Sprintf("%v", arr), true
+}
+
+func stringifyErrorDefault(x any) (string, bool) {
+	if b, err := json.Marshal(x); err == nil && len(b) > 0 {
+		return string(b), true
+	}
+	return fmt.Sprintf("%v", x), true
 }

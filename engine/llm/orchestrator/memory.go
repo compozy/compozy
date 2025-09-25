@@ -116,8 +116,12 @@ func (m *memoryManager) StoreAsync(
 	if ctxData == nil || len(ctxData.memories) == 0 || response == nil || response.Content == "" {
 		return
 	}
+	if len(messages) == 0 {
+		return
+	}
+	userMsg := messages[len(messages)-1]
 
-	go func() {
+	go func(lastUser llmadapter.Message) {
 		log := logger.FromContext(ctx)
 		bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
@@ -130,12 +134,8 @@ func (m *memoryManager) StoreAsync(
 		}
 
 		storeFn := func() error {
-			if len(messages) == 0 {
-				return nil
-			}
 			assistantMsg := llmadapter.Message{Role: "assistant", Content: response.Content}
-			lastMsg := messages[len(messages)-1]
-			return m.store(bgCtx, ctxData.memories, ctxData.references, &assistantMsg, &lastMsg)
+			return m.store(bgCtx, ctxData.memories, ctxData.references, &assistantMsg, &lastUser)
 		}
 
 		var err error
@@ -161,7 +161,7 @@ func (m *memoryManager) StoreAsync(
 		if m.hook != nil {
 			m.hook.OnMemoryStoreComplete(err)
 		}
-	}()
+	}(userMsg)
 }
 
 func (m *memoryManager) store(

@@ -128,6 +128,9 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	}
 	llmOrchestrator, err := orchestratorpkg.New(orchestratorConfig)
 	if err != nil {
+		if closeErr := toolRegistry.Close(); closeErr != nil {
+			log.Warn("Failed to close tool registry after orchestrator init error", "error", core.RedactError(closeErr))
+		}
 		return nil, fmt.Errorf("failed to create orchestrator: %w", err)
 	}
 	return &Service{

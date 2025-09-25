@@ -6,9 +6,11 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
+	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type closableRegistry struct{ closeErr error }
@@ -30,13 +32,25 @@ func (promptNoop) ShouldUseStructuredOutput(_ string, _ *agent.ActionConfig, _ [
 }
 
 func TestOrchestrator_Close_ErrorPropagation(t *testing.T) {
-	orc, err := New(Config{ToolRegistry: closableRegistry{closeErr: errors.New("bye")}, PromptBuilder: promptNoop{}})
-	assert.NoError(t, err)
-	assert.Error(t, orc.Close())
+	t.Run("Should propagate error from registry Close", func(t *testing.T) {
+		orc, err := New(Config{
+			ToolRegistry:  closableRegistry{closeErr: errors.New("bye")},
+			PromptBuilder: promptNoop{},
+			LLMFactory:    llmadapter.NewDefaultFactory(),
+		})
+		require.NoError(t, err)
+		assert.Error(t, orc.Close())
+	})
 }
 
 func TestOrchestrator_Close_NoRegistry(t *testing.T) {
-	orc, err := New(Config{ToolRegistry: closableRegistry{closeErr: nil}, PromptBuilder: promptNoop{}})
-	assert.NoError(t, err)
-	assert.NoError(t, orc.Close())
+	t.Run("Should return nil when registry Close succeeds", func(t *testing.T) {
+		orc, err := New(Config{
+			ToolRegistry:  closableRegistry{closeErr: nil},
+			PromptBuilder: promptNoop{},
+			LLMFactory:    llmadapter.NewDefaultFactory(),
+		})
+		require.NoError(t, err)
+		assert.NoError(t, orc.Close())
+	})
 }

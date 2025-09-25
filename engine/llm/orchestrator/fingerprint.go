@@ -13,7 +13,7 @@ import (
 var fingerprintPool = sync.Pool{New: func() any { return &bytes.Buffer{} }}
 
 func stableJSONFingerprint(raw []byte) string {
-	if len(raw) == 0 || !json.Valid(raw) {
+	if len(raw) == 0 {
 		sum := sha256.Sum256(raw)
 		return hex.EncodeToString(sum[:])
 	}

@@ -34,7 +34,15 @@ const (
 
 	ErrCodeInvalidConfig = "INVALID_CONFIGURATION"
 	ErrCodeMissingConfig = "MISSING_CONFIGURATION"
+
+	ErrCodeBudgetExceeded = "BUDGET_EXCEEDED"
 )
+
+// ErrNoProgress is returned when the loop detects no progress across iterations.
+var ErrNoProgress = errors.New("no progress")
+
+// transientRetryPattern is compiled once and reused to avoid overhead.
+var transientRetryPattern = regexp.MustCompile(`(?i)(timeout|temporarily|try again|temporarily unavailable)`)
 
 type ToolExecutionResult struct {
 	Success bool           `json:"success"`
@@ -176,6 +184,5 @@ func isRetryableError(err error) bool {
 			return false
 		}
 	}
-	transientPattern := regexp.MustCompile(`(?i)(timeout|temporarily|try again|temporarily unavailable)`)
-	return transientPattern.MatchString(err.Error())
+	return transientRetryPattern.MatchString(err.Error())
 }

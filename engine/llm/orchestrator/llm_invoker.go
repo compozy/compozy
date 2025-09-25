@@ -21,6 +21,8 @@ type llmInvoker struct {
 	cfg settings
 }
 
+const defaultRetryJitter = 50 * time.Millisecond
+
 func NewLLMInvoker(cfg *settings) LLMInvoker {
 	if cfg == nil {
 		cfg = &settings{}
@@ -46,17 +48,14 @@ func (i *llmInvoker) Invoke(
 	exponential := retry.NewExponential(backoffBase)
 	exponential = retry.WithMaxDuration(backoffMax, exponential)
 
-	if attempts <= 0 {
-		attempts = defaultRetryAttempts
-	}
-	if attempts < 0 || attempts > 100 {
+	if attempts <= 0 || attempts > 100 {
 		attempts = defaultRetryAttempts
 	}
 
 	maxRetries := uint64(attempts) // #nosec G115 -- attempts sanitized above
 	var backoff retry.Backoff
 	if i.cfg.retryJitter {
-		backoff = retry.WithMaxRetries(maxRetries, retry.WithJitter(50*time.Millisecond, exponential))
+		backoff = retry.WithMaxRetries(maxRetries, retry.WithJitter(defaultRetryJitter, exponential))
 	} else {
 		backoff = retry.WithMaxRetries(maxRetries, exponential)
 	}

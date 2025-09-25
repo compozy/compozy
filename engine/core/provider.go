@@ -181,6 +181,51 @@ func (p *PromptParams) IsSetSeed() bool              { return p._set.Seed }
 func (p *PromptParams) IsSetMinLength() bool         { return p._set.MinLength }
 func (p *PromptParams) IsSetRepetitionPenalty() bool { return p._set.RepetitionPenalty }
 
+func (p *PromptParams) SetMaxTokens(value int32) {
+	p.MaxTokens = value
+	p._set.MaxTokens = true
+}
+
+func (p *PromptParams) SetTemperature(value float64) {
+	p.Temperature = value
+	p._set.Temperature = true
+}
+
+func (p *PromptParams) SetStopWords(words []string) {
+	if len(words) == 0 {
+		p.StopWords = nil
+		p._set.StopWords = true
+		return
+	}
+	p.StopWords = append([]string(nil), words...)
+	p._set.StopWords = true
+}
+
+func (p *PromptParams) SetTopK(value int) {
+	p.TopK = value
+	p._set.TopK = true
+}
+
+func (p *PromptParams) SetTopP(value float64) {
+	p.TopP = value
+	p._set.TopP = true
+}
+
+func (p *PromptParams) SetSeed(value int) {
+	p.Seed = value
+	p._set.Seed = true
+}
+
+func (p *PromptParams) SetMinLength(value int) {
+	p.MinLength = value
+	p._set.MinLength = true
+}
+
+func (p *PromptParams) SetRepetitionPenalty(value float64) {
+	p.RepetitionPenalty = value
+	p._set.RepetitionPenalty = true
+}
+
 // ProviderConfig represents the complete configuration for an LLM provider in Compozy workflows.
 // This configuration defines how agents connect to and interact with specific AI services.
 //

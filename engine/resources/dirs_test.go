@@ -7,7 +7,6 @@ import (
 )
 
 func TestDirForType_KnownTypes(t *testing.T) {
-	// Map of types to expected non-empty dir result
 	cases := []ResourceType{
 		ResourceWorkflow,
 		ResourceAgent,
@@ -20,15 +19,19 @@ func TestDirForType_KnownTypes(t *testing.T) {
 		ResourceProject,
 	}
 	for _, typ := range cases {
-		dir, ok := DirForType(typ)
-		assert.True(t, ok, "expected ok for %v", typ)
-		assert.NotEmpty(t, dir, "dir should not be empty for %v", typ)
+		tc := typ
+		t.Run("Should return directory for "+string(tc), func(t *testing.T) {
+			dir, ok := DirForType(tc)
+			assert.True(t, ok, "expected ok for %v", tc)
+			assert.NotEmpty(t, dir, "dir should not be empty for %v", tc)
+		})
 	}
 }
 
 func TestDirForType_Unknown(t *testing.T) {
-	// Unknown types should return ok=false and empty dir
-	dir, ok := DirForType("unknown-type")
-	assert.False(t, ok)
-	assert.Empty(t, dir)
+	t.Run("Should return no directory for unknown type", func(t *testing.T) {
+		dir, ok := DirForType("unknown-type")
+		assert.False(t, ok)
+		assert.Empty(t, dir)
+	})
 }

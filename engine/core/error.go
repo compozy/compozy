@@ -4,6 +4,7 @@ type Error struct {
 	Message string         `json:"message,omitempty"`
 	Code    string         `json:"code,omitempty"`
 	Details map[string]any `json:"details,omitempty"`
+	cause   error
 }
 
 func NewError(err error, code string, details map[string]any) *Error {
@@ -17,6 +18,7 @@ func NewError(err error, code string, details map[string]any) *Error {
 		Message: message,
 		Code:    code,
 		Details: details,
+		cause:   err,
 	}
 }
 
@@ -25,6 +27,13 @@ func (e *Error) Error() string {
 		return ""
 	}
 	return e.Message
+}
+
+func (e *Error) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
 }
 
 func (e *Error) AsMap() map[string]any {

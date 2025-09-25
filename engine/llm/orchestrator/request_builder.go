@@ -152,6 +152,13 @@ func (b *requestBuilder) collectConfiguredToolDefs(
 	ctx context.Context,
 	tools []tool.Config,
 ) ([]llmadapter.ToolDefinition, map[string]struct{}, error) {
+	if len(tools) > 0 && b.tools == nil {
+		return nil, nil, NewLLMError(
+			fmt.Errorf("tool registry unavailable"),
+			ErrCodeToolNotFound,
+			map[string]any{"configured_tools": len(tools)},
+		)
+	}
 	defs := make([]llmadapter.ToolDefinition, 0, len(tools))
 	included := make(map[string]struct{}, len(tools))
 	canonical := func(name string) string {
@@ -225,7 +232,7 @@ func (b *requestBuilder) appendRegistryToolDefs(
 		if at, ok := any(rt).(argsTyper); ok {
 			if v := at.ArgsType(); v != nil {
 				if m, isMap := v.(map[string]any); isMap && len(m) > 0 {
-					params = m
+					params = normalizeToolParameters(m)
 				}
 			}
 		}
@@ -267,6 +274,20 @@ func isObjectType(value any) bool {
 	switch v := value.(type) {
 	case string:
 		return strings.EqualFold(strings.TrimSpace(v), "object")
+	case []string:
+		for _, t := range v {
+			if strings.EqualFold(strings.TrimSpace(t), "object") {
+				return true
+			}
+		}
+		return false
+	case []any:
+		for _, t := range v {
+			if s, ok := t.(string); ok && strings.EqualFold(strings.TrimSpace(s), "object") {
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}

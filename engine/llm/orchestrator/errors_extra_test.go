@@ -6,6 +6,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,12 +34,32 @@ func TestErrorHelpers_Wrappers(t *testing.T) {
 	t.Run("Should wrap tool error with tool name", func(t *testing.T) {
 		err := NewToolError(errors.New("x"), ErrCodeToolInvalidInput, "fmt", map[string]any{"k": "v"})
 		require.Error(t, err)
+		var cerr *core.Error
+		require.ErrorAs(t, err, &cerr)
+		assert.Equal(t, ErrCodeToolInvalidInput, cerr.Code)
+		if assert.NotNil(t, cerr.Details) {
+			assert.Equal(t, "fmt", cerr.Details["tool"])
+			assert.Equal(t, "v", cerr.Details["k"])
+		}
 	})
 	t.Run("Should wrap validation and MCP errors", func(t *testing.T) {
 		verr := NewValidationError(errors.New("bad"), "field", 123)
 		require.Error(t, verr)
+		var vce *core.Error
+		require.ErrorAs(t, verr, &vce)
+		assert.Equal(t, ErrCodeInputValidation, vce.Code)
+		if assert.NotNil(t, vce.Details) {
+			assert.Equal(t, "field", vce.Details["field"])
+			assert.Equal(t, 123, vce.Details["value"])
+		}
 		merr := WrapMCPError(errors.New("conn"), "dial")
 		require.Error(t, merr)
+		var mce *core.Error
+		require.ErrorAs(t, merr, &mce)
+		assert.Equal(t, ErrCodeMCPConnection, mce.Code)
+		if assert.NotNil(t, mce.Details) {
+			assert.Equal(t, "dial", mce.Details["operation"])
+		}
 	})
 }
 

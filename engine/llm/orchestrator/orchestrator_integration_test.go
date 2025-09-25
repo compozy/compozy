@@ -85,6 +85,7 @@ func TestOrchestrator_Execute(t *testing.T) {
 		require.NoError(t, err)
 
 		ag := &agent.Config{
+			ID:           "agent-1",
 			Instructions: "instruct",
 			Model:        agent.Model{Config: enginecore.ProviderConfig{Provider: "openai", Model: "gpt"}},
 		}

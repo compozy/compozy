@@ -21,10 +21,25 @@ type orchestrator struct {
 //nolint:gocritic // Config must be passed by value to ensure defensive copy semantics.
 func New(cfg Config) (Orchestrator, error) {
 	if cfg.PromptBuilder == nil {
-		return nil, fmt.Errorf("prompt builder cannot be nil")
+		return nil, core.NewError(
+			fmt.Errorf("prompt builder cannot be nil"),
+			ErrCodeInvalidConfig,
+			map[string]any{"field": "PromptBuilder"},
+		)
 	}
 	if cfg.ToolRegistry == nil {
-		return nil, fmt.Errorf("tool registry cannot be nil")
+		return nil, core.NewError(
+			fmt.Errorf("tool registry cannot be nil"),
+			ErrCodeInvalidConfig,
+			map[string]any{"field": "ToolRegistry"},
+		)
+	}
+	if cfg.LLMFactory == nil {
+		return nil, core.NewError(
+			fmt.Errorf("llm factory cannot be nil"),
+			ErrCodeInvalidConfig,
+			map[string]any{"field": "LLMFactory"},
+		)
 	}
 	cfgCopy := cfg
 	settings := buildSettings(&cfgCopy)
@@ -80,6 +95,12 @@ func validateRequest(ctx context.Context, request Request) error {
 	}
 	if request.Action == nil {
 		return NewValidationError(fmt.Errorf("action config is required"), "action", nil)
+	}
+	if strings.TrimSpace(request.Agent.ID) == "" {
+		return NewValidationError(fmt.Errorf("agent ID is required"), "agent.id", nil)
+	}
+	if strings.TrimSpace(request.Action.ID) == "" {
+		return NewValidationError(fmt.Errorf("action ID is required"), "action.id", nil)
 	}
 	if strings.TrimSpace(request.Agent.Instructions) == "" {
 		return NewValidationError(fmt.Errorf("agent instructions are required"), "agent.instructions", nil)

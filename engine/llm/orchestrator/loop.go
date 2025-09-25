@@ -9,6 +9,11 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+const (
+	roleAssistant = "assistant"
+	roleTool      = "tool"
+)
+
 type conversationLoop struct {
 	cfg       settings
 	tools     ToolExecutor
@@ -54,7 +59,10 @@ func (l *conversationLoop) Run(
 			return output, response, nil
 		}
 
-		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{Role: "assistant", ToolCalls: response.ToolCalls})
+		llmReq.Messages = append(
+			llmReq.Messages,
+			llmadapter.Message{Role: roleAssistant, ToolCalls: response.ToolCalls},
+		)
 
 		toolResults, err := l.tools.Execute(ctx, response.ToolCalls)
 		if err != nil {
@@ -65,12 +73,12 @@ func (l *conversationLoop) Run(
 			return nil, nil, err
 		}
 
-		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{Role: "tool", ToolResults: toolResults})
+		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{Role: roleTool, ToolResults: toolResults})
 
 		if l.cfg.enableProgressTracking {
 			fingerprint := buildIterationFingerprint(response.ToolCalls, toolResults)
 			if state.detectNoProgress(l.cfg.noProgressThreshold, fingerprint) {
-				return nil, nil, fmt.Errorf("no progress for %d consecutive iterations", state.noProgressCount)
+				return nil, nil, fmt.Errorf("%w: %d consecutive iterations", ErrNoProgress, state.noProgressCount)
 			}
 		}
 	}
