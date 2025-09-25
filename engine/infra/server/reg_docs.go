@@ -51,13 +51,19 @@ func setupSwaggerAndDocs(router *gin.Engine, prefixURL string) {
 		}
 		if raw == "" || !json.Valid([]byte(raw)) {
 			log.Error("swagger v2 JSON not available or invalid")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "swagger spec not available"})
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "swagger spec not available",
+				"details": "swagger v2 JSON not available or invalid",
+			})
 			return
 		}
 		var v2 openapi2.T
 		if err := json.Unmarshal([]byte(raw), &v2); err != nil {
 			log.Error("failed to unmarshal swagger v2 JSON", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unmarshal swagger v2"})
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "failed to unmarshal swagger v2",
+				"details": err.Error(),
+			})
 			return
 		}
 		// Best-effort dynamic host propagation so OpenAPI shows Servers
@@ -67,14 +73,20 @@ func setupSwaggerAndDocs(router *gin.Engine, prefixURL string) {
 		v3, err := openapi2conv.ToV3(&v2)
 		if err != nil {
 			log.Error("failed to convert swagger v2 to openapi v3", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to convert to openapi v3"})
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "failed to convert to openapi v3",
+				"details": err.Error(),
+			})
 			return
 		}
 		// Marshal as JSON
 		b, err := json.MarshalIndent(v3, "", "  ")
 		if err != nil {
 			log.Error("failed to marshal openapi v3", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal openapi v3"})
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "failed to marshal openapi v3",
+				"details": err.Error(),
+			})
 			return
 		}
 		c.Data(http.StatusOK, "application/json; charset=utf-8", b)

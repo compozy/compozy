@@ -15,7 +15,7 @@ This project was initialized with [Compozy](https://github.com/compozy/compozy),
 
 1. **Navigate to your project directory:**
    ```bash
-   cd {{ .Name | replace " " "" | lower }}
+   cd "{{ .Name }}"
    ```
 
 2. **Set up environment variables:**
@@ -72,7 +72,7 @@ Tip: You can also use the generated `api.http` file to run these requests from a
 ## Project Structure
 
 ```
-{{ .Name | replace " " "" | lower }}/
+{{ .Name }}/
 ├── compozy.yaml          # Project configuration
 ├── env.example           # Environment variables template
 ├── api.http              # API test requests

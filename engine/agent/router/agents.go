@@ -49,7 +49,7 @@ func getAgentByID(c *gin.Context) {
 //
 //	@Summary		List all agents
 //	@Description	Retrieve a list of all available agent configurations
-//	@Tags			agents
+//	@Tags			workflows
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string									true	"Workflow ID"

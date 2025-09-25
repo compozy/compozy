@@ -1746,7 +1746,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "workflows"
+                    "executions"
                 ],
                 "summary": "List all workflow executions",
                 "responses": {
@@ -8792,7 +8792,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "agents"
+                    "workflows"
                 ],
                 "summary": "List all agents",
                 "parameters": [
@@ -9199,7 +9199,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "tasks"
+                    "workflows"
                 ],
                 "summary": "List tasks for a workflow",
                 "parameters": [
@@ -9413,7 +9413,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "tools"
+                    "workflows"
                 ],
                 "summary": "List all tools",
                 "parameters": [

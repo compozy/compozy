@@ -1753,7 +1753,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "workflows"
+                    "executions"
                 ],
                 "summary": "List all workflow executions",
                 "responses": {
@@ -8799,7 +8799,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "agents"
+                    "workflows"
                 ],
                 "summary": "List all agents",
                 "parameters": [
@@ -9206,7 +9206,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "tasks"
+                    "workflows"
                 ],
                 "summary": "List tasks for a workflow",
                 "parameters": [
@@ -9420,7 +9420,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "tools"
+                    "workflows"
                 ],
                 "summary": "List all tools",
                 "parameters": [

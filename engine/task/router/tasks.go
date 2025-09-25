@@ -58,7 +58,7 @@ func getTaskByID(c *gin.Context) {
 //
 //	@Summary		List tasks for a workflow
 //	@Description	Retrieve a list of all tasks within a specific workflow
-//	@Tags			tasks
+//	@Tags			workflows
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string												true	"Workflow ID"	example("data-processing")

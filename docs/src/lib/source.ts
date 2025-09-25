@@ -28,16 +28,24 @@ export const source = loader({
 
 export const openapi = createOpenAPI();
 
+const OPENAPI_DOC = loadOpenAPIDocumentSync();
+
 const originalGetAPIPageProps = openapi.getAPIPageProps.bind(openapi);
 type ApiPageProps = Parameters<typeof originalGetAPIPageProps>[0];
 type ApiPageReturn = ReturnType<typeof originalGetAPIPageProps>;
 
 openapi.getAPIPageProps = (props: ApiPageProps): ApiPageReturn => {
   const resolved = originalGetAPIPageProps(props);
-  if (typeof resolved.document === "string" && resolved.document === "swagger.json") {
+  const docRef = resolved.document;
+  const isSwaggerRef =
+    typeof docRef === "string" &&
+    (docRef === "swagger.json" ||
+      docRef.endsWith("/swagger.json") ||
+      docRef.endsWith("\\swagger.json"));
+  if (isSwaggerRef) {
     return {
       ...resolved,
-      document: structuredClone(loadOpenAPIDocumentSync()),
+      document: structuredClone(OPENAPI_DOC),
     };
   }
   return resolved;

@@ -93,14 +93,17 @@ func convertProviderConfigToDTO(cfg *core.ProviderConfig, fallbackID string) (Mo
 	provider := string(clone.Provider)
 	model := clone.Model
 	id := buildModelID(provider, model, fallbackID)
+	paramsCopy, err := core.DeepCopy[core.PromptParams](clone.Params)
+	if err != nil {
+		return ModelCoreDTO{}, fmt.Errorf("deep copy provider params: %w", err)
+	}
 	return ModelCoreDTO{
 		Resource:          resourceModel,
 		ID:                id,
 		Provider:          provider,
 		Model:             model,
-		APIKey:            clone.APIKey,
 		APIURL:            clone.APIURL,
-		Params:            clone.Params,
+		Params:            paramsCopy,
 		Organization:      clone.Organization,
 		Default:           clone.Default,
 		MaxToolIterations: clone.MaxToolIterations,

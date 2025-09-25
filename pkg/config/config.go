@@ -626,6 +626,21 @@ type LLMConfig struct {
 	// Default: 10 (registry default)
 	MaxSequentialToolErrors int `koanf:"max_sequential_tool_errors" env:"LLM_MAX_SEQUENTIAL_TOOL_ERRORS" json:"max_sequential_tool_errors" yaml:"max_sequential_tool_errors" mapstructure:"max_sequential_tool_errors" validate:"min=0"`
 
+	// MaxConsecutiveSuccesses controls how many consecutive successful tool calls
+	// without progress are tolerated before the orchestrator halts the loop.
+	// Default: 3 (orchestrator default)
+	MaxConsecutiveSuccesses int `koanf:"max_consecutive_successes" env:"LLM_MAX_CONSECUTIVE_SUCCESSES" json:"max_consecutive_successes" yaml:"max_consecutive_successes" mapstructure:"max_consecutive_successes" validate:"min=0"`
+
+	// EnableProgressTracking toggles loop progress tracking to detect stalled
+	// conversations or repeated tool usage without advancement.
+	// Default: false
+	EnableProgressTracking bool `koanf:"enable_progress_tracking" env:"LLM_ENABLE_PROGRESS_TRACKING" json:"enable_progress_tracking" yaml:"enable_progress_tracking" mapstructure:"enable_progress_tracking"`
+
+	// NoProgressThreshold configures how many loop iterations without progress are
+	// tolerated before the orchestrator considers the interaction stalled.
+	// Default: 3 (orchestrator default)
+	NoProgressThreshold int `koanf:"no_progress_threshold" env:"LLM_NO_PROGRESS_THRESHOLD" json:"no_progress_threshold" yaml:"no_progress_threshold" mapstructure:"no_progress_threshold" validate:"min=0"`
+
 	// AllowedMCPNames restricts which MCP servers/tools are considered eligible
 	// for advertisement and invocation. When empty, all discovered MCP tools
 	// are eligible.
@@ -1549,6 +1564,9 @@ func buildLLMConfig(registry *definition.Registry) LLMConfig {
 		MaxConcurrentTools:         getInt(registry, "llm.max_concurrent_tools"),
 		MaxToolIterations:          getInt(registry, "llm.max_tool_iterations"),
 		MaxSequentialToolErrors:    getInt(registry, "llm.max_sequential_tool_errors"),
+		MaxConsecutiveSuccesses:    getInt(registry, "llm.max_consecutive_successes"),
+		EnableProgressTracking:     getBool(registry, "llm.enable_progress_tracking"),
+		NoProgressThreshold:        getInt(registry, "llm.no_progress_threshold"),
 		AllowedMCPNames:            getStringSlice(registry, "llm.allowed_mcp_names"),
 		FailOnMCPRegistrationError: getBool(registry, "llm.fail_on_mcp_registration_error"),
 		RegisterMCPs:               getMapSlice(registry, "llm.register_mcps"),

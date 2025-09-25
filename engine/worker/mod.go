@@ -633,8 +633,8 @@ func buildDispatcherWorkflowID(projectName string, taskQueue string) string {
 	queueSegment := sanitizeQueueSegment(taskQueue)
 	queueSegment = truncateWithHash(queueSegment, maxDispatcherQueueSegment)
 	parts := []string{"dispatcher"}
-	if strings.TrimSpace(projectName) != "" {
-		parts = append(parts, sanitizeQueueSegment(projectName))
+	if projectSegment := sanitizeQueueSegment(projectName); projectSegment != "" {
+		parts = append(parts, projectSegment)
 	}
 	parts = append(parts, queueSegment)
 	dispatcherID := strings.Join(parts, "-")

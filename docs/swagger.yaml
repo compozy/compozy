@@ -4763,7 +4763,7 @@ paths:
                 type: object
       summary: List all workflow executions
       tags:
-        - workflows
+        - executions
   /executions/workflows/{exec_id}:
     get:
       consumes:
@@ -9147,7 +9147,7 @@ paths:
                 type: object
       summary: List all agents
       tags:
-        - agents
+        - workflows
   /workflows/{workflow_id}/agents/{agent_id}:
     get:
       consumes:
@@ -9392,7 +9392,7 @@ paths:
                 type: object
       summary: List tasks for a workflow
       tags:
-        - tasks
+        - workflows
   /workflows/{workflow_id}/tasks/{task_id}:
     get:
       consumes:
@@ -9492,7 +9492,7 @@ paths:
                 type: object
       summary: List all tools
       tags:
-        - tools
+        - workflows
   /workflows/{workflow_id}/tools/{tool_id}:
     get:
       consumes:

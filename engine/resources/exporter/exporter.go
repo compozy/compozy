@@ -66,7 +66,6 @@ func ExportTypeToDir(
 	rootDir string,
 	typ resources.ResourceType,
 ) (*Result, error) {
-	log := logger.FromContext(ctx)
 	if project == "" {
 		return nil, fmt.Errorf("project is required")
 	}
@@ -95,7 +94,7 @@ func ExportTypeToDir(
 	sort.Slice(keys, func(i, j int) bool { return keys[i].ID < keys[j].ID })
 	used := make(map[string]string, len(keys))
 	for i := range keys {
-		written, err := exportResourceToFile(ctx, log, store, typ, keys[i], absDir, used)
+		written, err := exportResourceToFile(ctx, store, typ, keys[i], absDir, used)
 		if err != nil {
 			return nil, err
 		}
@@ -108,13 +107,13 @@ func ExportTypeToDir(
 
 func exportResourceToFile(
 	ctx context.Context,
-	log logger.Logger,
 	store resources.ResourceStore,
 	typ resources.ResourceType,
 	key resources.ResourceKey,
 	absDir string,
 	used map[string]string,
 ) (bool, error) {
+	log := logger.FromContext(ctx)
 	val, _, getErr := store.Get(ctx, key)
 	if getErr != nil {
 		if errors.Is(getErr, resources.ErrNotFound) {

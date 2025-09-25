@@ -62,7 +62,7 @@ func getToolByID(c *gin.Context) {
 //
 //	@Summary		List all tools
 //	@Description	Retrieve a list of all available tool configurations
-//	@Tags			tools
+//	@Tags			workflows
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string									true	"Workflow ID"

@@ -217,7 +217,8 @@ func taskConfigToDTO(cfg *task.Config, expand map[string]bool) (TaskDTO, error) 
 				if childErr != nil {
 					return TaskDTO{}, childErr
 				}
-				dto.Tasks = append(dto.Tasks, &child)
+				childCopy := child
+				dto.Tasks = append(dto.Tasks, &childCopy)
 			}
 		}
 		if cfg.Task != nil {
@@ -225,7 +226,8 @@ func taskConfigToDTO(cfg *task.Config, expand map[string]bool) (TaskDTO, error) 
 			if childErr != nil {
 				return TaskDTO{}, childErr
 			}
-			dto.TemplateTask = &child
+			childCopy := child
+			dto.TemplateTask = &childCopy
 		}
 	}
 	return dto, nil
