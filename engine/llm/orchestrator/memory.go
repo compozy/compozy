@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -11,6 +12,8 @@ import (
 	"github.com/compozy/compozy/engine/llm/contracts"
 	"github.com/compozy/compozy/pkg/logger"
 )
+
+const memoryStoreTimeout = 30 * time.Second // TODO: source from config.FromContext(ctx)
 
 type MemoryContext struct {
 	memories   map[string]contracts.Memory
@@ -45,13 +48,15 @@ func (m *memoryManager) Prepare(ctx context.Context, request Request) *MemoryCon
 		log.Debug("No memory provider available")
 		return nil
 	}
-
+	if request.Agent == nil {
+		log.Debug("No agent on request; skipping memory preparation")
+		return nil
+	}
 	references := request.Agent.Memory
 	if len(references) == 0 {
 		log.Debug("No memory references configured for agent", "agent_id", request.Agent.ID)
 		return nil
 	}
-
 	memories := make(map[string]contracts.Memory)
 	for _, ref := range references {
 		memory, err := m.provider.GetMemory(ctx, ref.ID, ref.Key)
@@ -66,11 +71,9 @@ func (m *memoryManager) Prepare(ctx context.Context, request Request) *MemoryCon
 		log.Debug("Memory instance retrieved successfully", "memory_id", ref.ID, "instance_id", memory.GetID())
 		memories[ref.ID] = memory
 	}
-
 	if len(memories) == 0 {
 		return nil
 	}
-
 	return &MemoryContext{memories: memories, references: references}
 }
 
@@ -82,24 +85,39 @@ func (m *memoryManager) Inject(
 	if ctxData == nil || len(ctxData.memories) == 0 {
 		return base
 	}
-
 	log := logger.FromContext(ctx)
 	var memoryMessages []llmadapter.Message
-	for memID, memory := range ctxData.memories {
+	appendFromMemory := func(id string) {
+		memory := ctxData.memories[id]
+		if memory == nil {
+			return
+		}
 		msgs, err := memory.Read(ctx)
 		if err != nil {
-			log.Warn("Failed to read messages from memory", "memory_id", memID, "error", core.RedactError(err))
-			continue
+			log.Warn("Failed to read messages from memory", "memory_id", id, "error", core.RedactError(err))
+			return
 		}
 		for _, msg := range msgs {
 			memoryMessages = append(memoryMessages, llmadapter.Message{Role: string(msg.Role), Content: msg.Content})
 		}
 	}
-
+	if len(ctxData.references) > 0 {
+		for _, ref := range ctxData.references {
+			appendFromMemory(ref.ID)
+		}
+	} else {
+		ids := make([]string, 0, len(ctxData.memories))
+		for id := range ctxData.memories {
+			ids = append(ids, id)
+		}
+		sort.Strings(ids)
+		for _, id := range ids {
+			appendFromMemory(id)
+		}
+	}
 	if len(memoryMessages) == 0 {
 		return base
 	}
-
 	combined := make([]llmadapter.Message, 0, len(memoryMessages)+len(base))
 	combined = append(combined, memoryMessages...)
 	combined = append(combined, base...)
@@ -120,42 +138,43 @@ func (m *memoryManager) StoreAsync(
 		return
 	}
 	userMsg := messages[len(messages)-1]
-
 	go func(lastUser llmadapter.Message) {
 		log := logger.FromContext(ctx)
-		bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), memoryStoreTimeout)
 		defer cancel()
-
-		memoryIDs := make([]string, 0, len(ctxData.memories))
-		for _, memory := range ctxData.memories {
-			if memory != nil {
-				memoryIDs = append(memoryIDs, memory.GetID())
+		memoryIDs := make([]string, 0, len(ctxData.references))
+		for _, ref := range ctxData.references {
+			if mem := ctxData.memories[ref.ID]; mem != nil {
+				memoryIDs = append(memoryIDs, mem.GetID())
 			}
 		}
-
 		storeFn := func() error {
-			assistantMsg := llmadapter.Message{Role: "assistant", Content: response.Content}
+			assistantMsg := llmadapter.Message{Role: llmadapter.RoleAssistant, Content: response.Content}
 			return m.store(bgCtx, ctxData.memories, ctxData.references, &assistantMsg, &lastUser)
 		}
-
 		var err error
 		if m.sync != nil {
-			m.sync.WithMultipleLocks(memoryIDs, func() {
-				err = storeFn()
-			})
+			m.sync.WithMultipleLocks(memoryIDs, func() { err = storeFn() })
 		} else {
 			err = storeFn()
 		}
-
 		if err != nil {
+			agentID := ""
+			if request.Agent != nil {
+				agentID = request.Agent.ID
+			}
+			actionID := ""
+			if request.Action != nil {
+				actionID = request.Action.ID
+			}
 			log.Error(
 				"Failed to store response in memory",
 				"error",
 				core.RedactError(err),
 				"agent_id",
-				request.Agent.ID,
+				agentID,
 				"action_id",
-				request.Action.ID,
+				actionID,
 			)
 		}
 		if m.hook != nil {
@@ -177,7 +196,6 @@ func (m *memoryManager) store(
 	if len(memories) == 0 {
 		return nil
 	}
-
 	log := logger.FromContext(ctx)
 	var errs []error
 	for _, ref := range refs {
@@ -193,10 +211,15 @@ func (m *memoryManager) store(
 			log.Debug("Skipping read-only memory", "memory_id", ref.ID)
 			continue
 		}
-
 		msgs := []contracts.Message{
-			{Role: contracts.MessageRole(user.Role), Content: user.Content},
-			{Role: contracts.MessageRole(assistant.Role), Content: assistant.Content},
+			{
+				Role:    contracts.MessageRole(user.Role),
+				Content: user.Content,
+			},
+			{
+				Role:    contracts.MessageRole(assistant.Role),
+				Content: assistant.Content,
+			},
 		}
 		if err := memory.AppendMany(ctx, msgs); err != nil {
 			log.Error(

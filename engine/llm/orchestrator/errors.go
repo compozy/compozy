@@ -15,9 +15,12 @@ import (
 )
 
 const (
-	ErrCodeLLMCreation     = "LLM_CREATION_ERROR"
-	ErrCodeLLMGeneration   = "LLM_GENERATION_ERROR"
-	ErrCodeInvalidResponse = "INVALID_LLM_RESPONSE"
+	ErrCodeLLMCreation         = "LLM_CREATION_ERROR"
+	ErrCodeLLMGeneration       = "LLM_GENERATION_ERROR"
+	ErrCodeInvalidResponse     = "INVALID_LLM_RESPONSE"
+	ErrCodePromptBuild         = "PROMPT_BUILD_ERROR"
+	ErrCodeToolDefinitions     = "TOOL_DEFINITIONS_ERROR"
+	ErrCodeInvalidConversation = "INVALID_CONVERSATION"
 
 	ErrCodeToolNotFound      = "TOOL_NOT_FOUND"
 	ErrCodeToolExecution     = "TOOL_EXECUTION_ERROR"

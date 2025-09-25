@@ -181,16 +181,19 @@ func (p *PromptParams) IsSetSeed() bool              { return p._set.Seed }
 func (p *PromptParams) IsSetMinLength() bool         { return p._set.MinLength }
 func (p *PromptParams) IsSetRepetitionPenalty() bool { return p._set.RepetitionPenalty }
 
+// SetMaxTokens sets MaxTokens and records its explicit configuration.
 func (p *PromptParams) SetMaxTokens(value int32) {
 	p.MaxTokens = value
 	p._set.MaxTokens = true
 }
 
+// SetTemperature sets Temperature and records its explicit configuration.
 func (p *PromptParams) SetTemperature(value float64) {
 	p.Temperature = value
 	p._set.Temperature = true
 }
 
+// SetStopWords copies the provided stop words and records their presence.
 func (p *PromptParams) SetStopWords(words []string) {
 	if len(words) == 0 {
 		p.StopWords = nil
@@ -201,26 +204,31 @@ func (p *PromptParams) SetStopWords(words []string) {
 	p._set.StopWords = true
 }
 
+// SetTopK sets TopK and records its explicit configuration.
 func (p *PromptParams) SetTopK(value int) {
 	p.TopK = value
 	p._set.TopK = true
 }
 
+// SetTopP sets TopP and records its explicit configuration.
 func (p *PromptParams) SetTopP(value float64) {
 	p.TopP = value
 	p._set.TopP = true
 }
 
+// SetSeed sets Seed and records its explicit configuration.
 func (p *PromptParams) SetSeed(value int) {
 	p.Seed = value
 	p._set.Seed = true
 }
 
+// SetMinLength sets MinLength and records its explicit configuration.
 func (p *PromptParams) SetMinLength(value int) {
 	p.MinLength = value
 	p._set.MinLength = true
 }
 
+// SetRepetitionPenalty sets RepetitionPenalty and records its explicit configuration.
 func (p *PromptParams) SetRepetitionPenalty(value float64) {
 	p.RepetitionPenalty = value
 	p._set.RepetitionPenalty = true

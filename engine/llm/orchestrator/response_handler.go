@@ -47,13 +47,15 @@ func (h *responseHandler) HandleNoToolCalls(
 	llmReq *llmadapter.LLMRequest,
 	state *loopState,
 ) (*core.Output, bool, error) {
-	if cont, err := h.handleContentError(ctx, response.Content, llmReq, state); cont || err != nil {
+	cont, err := h.handleContentError(ctx, response.Content, llmReq, state)
+	if cont || err != nil {
 		if err != nil {
 			return nil, false, err
 		}
 		return nil, true, nil
 	}
-	if cont, err := h.handleJSONMode(ctx, response.Content, llmReq, state); cont || err != nil {
+	cont, err = h.handleJSONMode(ctx, response.Content, llmReq, state)
+	if cont || err != nil {
 		if err != nil {
 			return nil, false, err
 		}
@@ -61,9 +63,11 @@ func (h *responseHandler) HandleNoToolCalls(
 	}
 	output, err := h.parseContent(ctx, response.Content, request.Action)
 	if err != nil {
-		if cont, hErr := h.continueAfterOutputValidationFailure(ctx, err, llmReq, state); hErr != nil {
+		cont, hErr := h.continueAfterOutputValidationFailure(ctx, err, llmReq, state)
+		if hErr != nil {
 			return nil, false, hErr
-		} else if cont {
+		}
+		if cont {
 			return nil, true, nil
 		}
 	}
@@ -83,7 +87,6 @@ func (h *responseHandler) handleJSONMode(
 	if err := json.Unmarshal([]byte(content), &obj); err == nil && obj != nil {
 		return false, nil
 	}
-
 	key := keyOutputParser
 	state.toolErrors[key]++
 	logger.FromContext(ctx).Debug("Non-JSON content with JSON mode; continuing loop",
@@ -102,24 +105,22 @@ func (h *responseHandler) handleJSONMode(
 			},
 		)
 	}
-
 	pseudoID := fmt.Sprintf("call_%s_%d", key, time.Now().UnixNano())
 	llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-		Role: "assistant",
+		Role: llmadapter.RoleAssistant,
 		ToolCalls: []llmadapter.ToolCall{{
 			ID:        pseudoID,
 			Name:      key,
 			Arguments: json.RawMessage("{}"),
 		}},
 	})
-
 	obs := map[string]any{
 		"error":   "Invalid final response: expected JSON object (json_mode=true)",
 		"example": map[string]any{"response": "..."},
 	}
 	if payload, err := json.Marshal(obs); err == nil {
 		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-			Role: "tool",
+			Role: llmadapter.RoleTool,
 			ToolResults: []llmadapter.ToolResult{{
 				ID:          pseudoID,
 				Name:        key,
@@ -128,10 +129,10 @@ func (h *responseHandler) handleJSONMode(
 			}},
 		})
 	} else {
-		fb := map[string]any{"error": "Invalid final response: expected JSON object (json_mode=true)"}
+		fb := map[string]any{"error": "Invalid final response"}
 		if b, e := json.Marshal(fb); e == nil {
 			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: "tool",
+				Role: llmadapter.RoleTool,
 				ToolResults: []llmadapter.ToolResult{{
 					ID:          pseudoID,
 					Name:        key,
@@ -141,7 +142,7 @@ func (h *responseHandler) handleJSONMode(
 			})
 		} else {
 			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: "tool",
+				Role: llmadapter.RoleTool,
 				ToolResults: []llmadapter.ToolResult{{
 					ID:      pseudoID,
 					Name:    key,
@@ -182,7 +183,7 @@ func (h *responseHandler) continueAfterOutputValidationFailure(
 	}
 	pseudoID := fmt.Sprintf("call_%s_%d", key, time.Now().UnixNano())
 	llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-		Role: "assistant",
+		Role: llmadapter.RoleAssistant,
 		ToolCalls: []llmadapter.ToolCall{{
 			ID:        pseudoID,
 			Name:      key,
@@ -196,7 +197,7 @@ func (h *responseHandler) continueAfterOutputValidationFailure(
 	}
 	if payload, merr := json.Marshal(obs); merr == nil {
 		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-			Role: "tool",
+			Role: llmadapter.RoleTool,
 			ToolResults: []llmadapter.ToolResult{{
 				ID:          pseudoID,
 				Name:        key,
@@ -208,7 +209,7 @@ func (h *responseHandler) continueAfterOutputValidationFailure(
 		fb := map[string]any{"error": valErr.Error()}
 		if b, e := json.Marshal(fb); e == nil {
 			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: "tool",
+				Role: llmadapter.RoleTool,
 				ToolResults: []llmadapter.ToolResult{{
 					ID:          pseudoID,
 					Name:        key,
@@ -218,7 +219,7 @@ func (h *responseHandler) continueAfterOutputValidationFailure(
 			})
 		} else {
 			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: "tool",
+				Role: llmadapter.RoleTool,
 				ToolResults: []llmadapter.ToolResult{{
 					ID:      pseudoID,
 					Name:    key,
@@ -240,7 +241,6 @@ func (h *responseHandler) handleContentError(
 	if !hasErr {
 		return false, nil
 	}
-
 	key := keyContentValidator
 	state.toolErrors[key]++
 	logger.FromContext(ctx).Debug("Content-level error detected; continuing loop",
@@ -255,21 +255,19 @@ func (h *responseHandler) handleContentError(
 			map[string]any{"key": key, "attempt": state.toolErrors[key], "max": state.budgetFor(key), "details": msg},
 		)
 	}
-
 	pseudoID := fmt.Sprintf("call_%s_%d", key, time.Now().UnixNano())
 	llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-		Role: "assistant",
+		Role: llmadapter.RoleAssistant,
 		ToolCalls: []llmadapter.ToolCall{{
 			ID:        pseudoID,
 			Name:      key,
 			Arguments: json.RawMessage("{}"),
 		}},
 	})
-
 	obs := map[string]any{"error": msg}
 	if payload, err := json.Marshal(obs); err == nil {
 		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-			Role: "tool",
+			Role: llmadapter.RoleTool,
 			ToolResults: []llmadapter.ToolResult{{
 				ID:          pseudoID,
 				Name:        key,
@@ -281,7 +279,7 @@ func (h *responseHandler) handleContentError(
 		fb := map[string]any{"error": msg}
 		if b, e := json.Marshal(fb); e == nil {
 			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: "tool",
+				Role: llmadapter.RoleTool,
 				ToolResults: []llmadapter.ToolResult{{
 					ID:          pseudoID,
 					Name:        key,
@@ -291,7 +289,7 @@ func (h *responseHandler) handleContentError(
 			})
 		} else {
 			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: "tool",
+				Role: llmadapter.RoleTool,
 				ToolResults: []llmadapter.ToolResult{{
 					ID:      pseudoID,
 					Name:    key,

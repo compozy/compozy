@@ -794,7 +794,8 @@ func copyPromptTemperature(dst, src *core.PromptParams) {
 
 func copyPromptStopWords(dst, src *core.PromptParams) {
 	if !dst.IsSetStopWords() && src.IsSetStopWords() {
-		dst.SetStopWords(src.StopWords)
+		cloned := append([]string(nil), src.StopWords...)
+		dst.SetStopWords(cloned)
 	}
 }
 

@@ -40,7 +40,11 @@ func (l *conversationLoop) Run(
 	request Request,
 	state *loopState,
 ) (*core.Output, *llmadapter.LLMResponse, error) {
-	for iter := 0; iter < l.cfg.maxToolIterations; iter++ {
+	maxIter := l.cfg.maxToolIterations
+	if maxIter <= 0 {
+		maxIter = defaultMaxToolIterations
+	}
+	for iter := 0; iter < maxIter; iter++ {
 		l.logLoopStart(ctx, request, llmReq, iter)
 
 		response, err := l.invoker.Invoke(ctx, client, llmReq, request)
@@ -87,10 +91,18 @@ func (l *conversationLoop) Run(
 }
 
 func (l *conversationLoop) logLoopStart(ctx context.Context, request Request, llmReq *llmadapter.LLMRequest, iter int) {
+	agentID := ""
+	if request.Agent != nil {
+		agentID = request.Agent.ID
+	}
+	actionID := ""
+	if request.Action != nil {
+		actionID = request.Action.ID
+	}
 	logger.FromContext(ctx).Debug(
 		"Generating LLM response",
-		"agent_id", request.Agent.ID,
-		"action_id", request.Action.ID,
+		"agent_id", agentID,
+		"action_id", actionID,
 		"messages_count", len(llmReq.Messages),
 		"tools_count", len(llmReq.Tools),
 		"iteration", iter,

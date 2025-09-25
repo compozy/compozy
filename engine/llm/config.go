@@ -14,7 +14,11 @@ import (
 	"github.com/compozy/compozy/pkg/config"
 )
 
-const defaultStructuredOutputRetries = 2
+const (
+	defaultStructuredOutputRetries = 2
+	defaultMaxConsecutiveSuccesses = 3
+	defaultNoProgressThreshold     = 3
+)
 
 // Config represents the configuration for the LLM service
 type Config struct {
@@ -33,6 +37,13 @@ type Config struct {
 	// for the same tool (or content-level error) before aborting the task.
 	// When <= 0, a default of 8 is used (see DefaultConfig).
 	MaxSequentialToolErrors int
+	// MaxConsecutiveSuccesses controls how many consecutive successes without progress
+	// are allowed before considering the conversation stalled.
+	MaxConsecutiveSuccesses int
+	// EnableProgressTracking toggles loop-level progress monitoring to detect stalls.
+	EnableProgressTracking bool
+	// NoProgressThreshold defines how many turns without observable progress are tolerated.
+	NoProgressThreshold int
 	// StructuredOutputRetryAttempts controls how many times the orchestrator
 	// will retry to obtain a valid structured response before failing.
 	// Acceptable range: 0–10. When 0 or negative, falls back to default (2).
@@ -72,6 +83,8 @@ func DefaultConfig() *Config {
 		MaxConcurrentTools:            10,
 		MaxToolIterations:             10,
 		MaxSequentialToolErrors:       8,
+		MaxConsecutiveSuccesses:       defaultMaxConsecutiveSuccesses,
+		NoProgressThreshold:           defaultNoProgressThreshold,
 		StructuredOutputRetryAttempts: defaultStructuredOutputRetries,
 		RetryAttempts:                 3,
 		RetryBackoffBase:              100 * time.Millisecond,
@@ -113,6 +126,27 @@ func WithTimeout(timeout time.Duration) Option {
 func WithMaxConcurrentTools(maxTools int) Option {
 	return func(c *Config) {
 		c.MaxConcurrentTools = maxTools
+	}
+}
+
+// WithMaxConsecutiveSuccesses sets the maximum allowed consecutive successes without progress.
+func WithMaxConsecutiveSuccesses(value int) Option {
+	return func(c *Config) {
+		c.MaxConsecutiveSuccesses = value
+	}
+}
+
+// WithProgressTracking enables or disables loop progress tracking.
+func WithProgressTracking(enabled bool) Option {
+	return func(c *Config) {
+		c.EnableProgressTracking = enabled
+	}
+}
+
+// WithNoProgressThreshold sets the threshold for consecutive iterations without progress.
+func WithNoProgressThreshold(threshold int) Option {
+	return func(c *Config) {
+		c.NoProgressThreshold = threshold
 	}
 }
 
@@ -266,50 +300,66 @@ func WithAppConfig(appConfig *config.Config) Option {
 		if appConfig == nil {
 			return
 		}
+		applyLLMCoreEndpoints(c, &appConfig.LLM)
+		applyLLMRetryConfig(c, &appConfig.LLM)
+		applyLLMToolLimits(c, &appConfig.LLM)
+		applyLLMMCPOptions(c, &appConfig.LLM)
+	}
+}
 
-		if appConfig.LLM.ProxyURL != "" {
-			c.ProxyURL = appConfig.LLM.ProxyURL
-		}
-		if appConfig.LLM.RetryAttempts > 0 {
-			c.RetryAttempts = appConfig.LLM.RetryAttempts
-		}
-		if appConfig.LLM.RetryBackoffBase > 0 {
-			c.RetryBackoffBase = appConfig.LLM.RetryBackoffBase
-		}
-		if appConfig.LLM.RetryBackoffMax > 0 {
-			c.RetryBackoffMax = appConfig.LLM.RetryBackoffMax
-		}
-		c.RetryJitter = appConfig.LLM.RetryJitter
-		if appConfig.LLM.MaxConcurrentTools > 0 {
-			c.MaxConcurrentTools = appConfig.LLM.MaxConcurrentTools
-		}
-		if appConfig.LLM.MaxToolIterations > 0 {
-			c.MaxToolIterations = appConfig.LLM.MaxToolIterations
-		}
-		if appConfig.LLM.MaxSequentialToolErrors > 0 {
-			c.MaxSequentialToolErrors = appConfig.LLM.MaxSequentialToolErrors
-		}
-		if appConfig.LLM.RetryJitterPercent > 0 {
-			c.RetryJitterPercent = appConfig.LLM.RetryJitterPercent
-		}
+func applyLLMCoreEndpoints(c *Config, llm *config.LLMConfig) {
+	if llm.ProxyURL != "" {
+		c.ProxyURL = llm.ProxyURL
+	}
+	if llm.MCPClientTimeout > 0 {
+		c.Timeout = llm.MCPClientTimeout
+	}
+}
 
-		// Align MCP client timeout with global LLM config when provided
-		if appConfig.LLM.MCPClientTimeout > 0 {
-			c.Timeout = appConfig.LLM.MCPClientTimeout
-		}
+func applyLLMRetryConfig(c *Config, llm *config.LLMConfig) {
+	if llm.RetryAttempts > 0 {
+		c.RetryAttempts = llm.RetryAttempts
+	}
+	if llm.RetryBackoffBase > 0 {
+		c.RetryBackoffBase = llm.RetryBackoffBase
+	}
+	if llm.RetryBackoffMax > 0 {
+		c.RetryBackoffMax = llm.RetryBackoffMax
+	}
+	c.RetryJitter = llm.RetryJitter
+	if llm.RetryJitterPercent > 0 {
+		c.RetryJitterPercent = llm.RetryJitterPercent
+	}
+}
 
-		// Propagate MCP-related options
-		if len(appConfig.LLM.AllowedMCPNames) > 0 {
-			WithAllowedMCPNames(appConfig.LLM.AllowedMCPNames)(c)
-		}
-		c.FailOnMCPRegistrationError = appConfig.LLM.FailOnMCPRegistrationError
+func applyLLMToolLimits(c *Config, llm *config.LLMConfig) {
+	if llm.MaxConcurrentTools > 0 {
+		c.MaxConcurrentTools = llm.MaxConcurrentTools
+	}
+	if llm.MaxToolIterations > 0 {
+		c.MaxToolIterations = llm.MaxToolIterations
+	}
+	if llm.MaxSequentialToolErrors > 0 {
+		c.MaxSequentialToolErrors = llm.MaxSequentialToolErrors
+	}
+	if llm.MaxConsecutiveSuccesses > 0 {
+		c.MaxConsecutiveSuccesses = llm.MaxConsecutiveSuccesses
+	}
+	if llm.NoProgressThreshold > 0 {
+		c.NoProgressThreshold = llm.NoProgressThreshold
+	}
+	c.EnableProgressTracking = llm.EnableProgressTracking
+}
 
-		// Convert RegisterMCPs from generic maps into typed mcp.Configs (best-effort)
-		if len(appConfig.LLM.RegisterMCPs) > 0 {
-			converted := mcp.ConvertRegisterMCPsFromMaps(appConfig.LLM.RegisterMCPs)
-			if len(converted) > 0 {
-				c.RegisterMCPs = converted
-			}
+func applyLLMMCPOptions(c *Config, llm *config.LLMConfig) {
+	if len(llm.AllowedMCPNames) > 0 {
+		WithAllowedMCPNames(llm.AllowedMCPNames)(c)
+	}
+	c.FailOnMCPRegistrationError = llm.FailOnMCPRegistrationError
+	if len(llm.RegisterMCPs) > 0 {
+		converted := mcp.ConvertRegisterMCPsFromMaps(llm.RegisterMCPs)
+		if len(converted) > 0 {
+			c.RegisterMCPs = converted
 		}
 	}
 }
@@ -328,7 +378,6 @@ func (c *Config) Validate() error {
 	if c.MaxConcurrentTools <= 0 {
 		return fmt.Errorf("max concurrent tools must be positive")
 	}
-
 	// Validate pre-resolved tools if present
 	if len(c.ResolvedTools) > 0 {
 		// First pass: check structural issues (empty IDs, duplicates)
@@ -352,12 +401,17 @@ func (c *Config) Validate() error {
 			}
 		}
 	}
-
 	// Enforce bounds for structured output retries: 0–10; non-positive → default
 	if c.StructuredOutputRetryAttempts <= 0 {
 		c.StructuredOutputRetryAttempts = defaultStructuredOutputRetries
 	} else if c.StructuredOutputRetryAttempts > 10 {
 		c.StructuredOutputRetryAttempts = 10
+	}
+	if c.MaxConsecutiveSuccesses <= 0 {
+		c.MaxConsecutiveSuccesses = defaultMaxConsecutiveSuccesses
+	}
+	if c.NoProgressThreshold <= 0 {
+		c.NoProgressThreshold = defaultNoProgressThreshold
 	}
 	return nil
 }

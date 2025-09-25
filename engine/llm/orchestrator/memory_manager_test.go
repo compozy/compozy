@@ -81,19 +81,17 @@ func (h *waitingHook) OnMemoryStoreComplete(err error) {
 }
 
 func (h *waitingHook) wait(t *testing.T) {
-	require.Eventually(t, func() bool {
-		waitCh := make(chan struct{})
-		go func() {
-			h.wg.Wait()
-			close(waitCh)
-		}()
-		select {
-		case <-waitCh:
-			return true
-		case <-time.After(2 * time.Second):
-			return false
-		}
-	}, time.Second*3, time.Millisecond*50)
+	done := make(chan struct{})
+	go func() {
+		h.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timeout waiting for memory store completion")
+	}
 }
 
 func TestMemoryManager_StoreAsync(t *testing.T) {

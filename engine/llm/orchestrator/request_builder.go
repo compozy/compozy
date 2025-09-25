@@ -37,14 +37,14 @@ func (b *requestBuilder) Build(
 
 	toolDefs, err := b.buildToolDefinitions(ctx, request.Agent.Tools)
 	if err != nil {
-		return llmadapter.LLMRequest{}, NewLLMError(err, "TOOL_DEFINITIONS_ERROR", map[string]any{
+		return llmadapter.LLMRequest{}, NewLLMError(err, ErrCodeToolDefinitions, map[string]any{
 			"agent": request.Agent.ID,
 		})
 	}
 
 	messages := b.buildMessages(ctx, promptData.enhancedPrompt, memoryCtx, request)
 	if err := llmadapter.ValidateConversation(messages); err != nil {
-		return llmadapter.LLMRequest{}, NewLLMError(err, "INVALID_CONVERSATION", map[string]any{
+		return llmadapter.LLMRequest{}, NewLLMError(err, ErrCodeInvalidConversation, map[string]any{
 			"agent":          request.Agent.ID,
 			"action":         request.Action.ID,
 			"messages_count": len(messages),
@@ -73,6 +73,8 @@ func (b *requestBuilder) Build(
 		Tools:        toolDefs,
 		Options: llmadapter.CallOptions{
 			Temperature:      temperature,
+			MaxTokens:        request.Agent.Model.Config.Params.MaxTokens,
+			StopWords:        request.Agent.Model.Config.Params.StopWords,
 			UseJSONMode:      request.Action.JSONMode || (promptData.shouldUseStructured && len(toolDefs) == 0),
 			ToolChoice:       toolChoice,
 			StructuredOutput: promptData.shouldUseStructured,
@@ -88,7 +90,7 @@ type promptBuildData struct {
 func (b *requestBuilder) buildPromptData(ctx context.Context, request Request) (*promptBuildData, error) {
 	basePrompt, err := b.prompts.Build(ctx, request.Action)
 	if err != nil {
-		return nil, NewLLMError(err, "PROMPT_BUILD_ERROR", map[string]any{
+		return nil, NewLLMError(err, ErrCodePromptBuild, map[string]any{
 			"action": request.Action.ID,
 		})
 	}
@@ -161,10 +163,6 @@ func (b *requestBuilder) collectConfiguredToolDefs(
 	}
 	defs := make([]llmadapter.ToolDefinition, 0, len(tools))
 	included := make(map[string]struct{}, len(tools))
-	canonical := func(name string) string {
-		return strings.ToLower(strings.TrimSpace(name))
-	}
-
 	for i := range tools {
 		toolConfig := &tools[i]
 		t, found := b.tools.Find(ctx, toolConfig.ID)
@@ -191,7 +189,7 @@ func (b *requestBuilder) collectConfiguredToolDefs(
 		}
 
 		defs = append(defs, def)
-		included[canonical(def.Name)] = struct{}{}
+		included[canonicalToolName(def.Name)] = struct{}{}
 	}
 
 	return defs, included, nil
@@ -202,10 +200,6 @@ func (b *requestBuilder) appendRegistryToolDefs(
 	defs []llmadapter.ToolDefinition,
 	included map[string]struct{},
 ) []llmadapter.ToolDefinition {
-	canonical := func(name string) string {
-		return strings.ToLower(strings.TrimSpace(name))
-	}
-
 	if b.tools == nil {
 		return defs
 	}
@@ -219,7 +213,8 @@ func (b *requestBuilder) appendRegistryToolDefs(
 
 	for _, rt := range allTools {
 		name := rt.Name()
-		if _, ok := included[canonical(name)]; ok {
+		lower := canonicalToolName(name)
+		if _, ok := included[lower]; ok {
 			continue
 		}
 
@@ -237,15 +232,15 @@ func (b *requestBuilder) appendRegistryToolDefs(
 			}
 		}
 
-		defs = append(defs, llmadapter.ToolDefinition{
-			Name:        name,
-			Description: rt.Description(),
-			Parameters:  params,
-		})
-		included[canonical(name)] = struct{}{}
+		defs = append(defs, llmadapter.ToolDefinition{Name: name, Description: rt.Description(), Parameters: params})
+		included[lower] = struct{}{}
 	}
 
 	return defs
+}
+
+func canonicalToolName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
 }
 
 func normalizeToolParameters(input map[string]any) map[string]any {

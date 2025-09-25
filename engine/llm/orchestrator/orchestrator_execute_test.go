@@ -83,6 +83,7 @@ func TestOrchestrator_Execute(t *testing.T) {
 			MaxConcurrentTools: 1,
 		})
 		require.NoError(t, err)
+		t.Cleanup(func() { _ = orc.Close() })
 
 		ag := &agent.Config{
 			ID:           "agent-1",
