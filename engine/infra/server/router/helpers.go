@@ -10,10 +10,13 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/resources/importer"
+	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
+
+const taskRepoContextKey = "router.task_repo"
 
 func GetServerAddress(c *gin.Context) string {
 	return c.Request.Host
@@ -191,4 +194,36 @@ func UpdatedBy(c *gin.Context) string {
 		return usr.ID.String()
 	}
 	return ""
+}
+
+func SetTaskRepository(c *gin.Context, repo task.Repository) {
+	if c == nil {
+		return
+	}
+	c.Set(taskRepoContextKey, repo)
+}
+
+func TaskRepositoryFromContext(c *gin.Context) (task.Repository, bool) {
+	if c == nil {
+		return nil, false
+	}
+	v, ok := c.Get(taskRepoContextKey)
+	if !ok {
+		return nil, false
+	}
+	repo, ok := v.(task.Repository)
+	if !ok || repo == nil {
+		return nil, false
+	}
+	return repo, true
+}
+
+func ResolveTaskRepository(c *gin.Context, state *appstate.State) task.Repository {
+	if repo, ok := TaskRepositoryFromContext(c); ok {
+		return repo
+	}
+	if state != nil && state.Store != nil {
+		return state.Store.NewTaskRepo()
+	}
+	return nil
 }

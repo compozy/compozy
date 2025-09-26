@@ -18,6 +18,11 @@ func Register(apiBase *gin.RouterGroup) {
 		agentsGroup.PUT("/:agent_id", upsertAgentTop)
 		agentsGroup.DELETE("/:agent_id", deleteAgentTop)
 	}
+	execGroup := apiBase.Group("/executions")
+	{
+		agentExecGroup := execGroup.Group("/agents")
+		agentExecGroup.GET("/:agent_exec_id", getAgentExecutionStatus)
+	}
 	// Agent definition routes under workflows
 	workflowsGroup := apiBase.Group("/workflows/:workflow_id")
 	{

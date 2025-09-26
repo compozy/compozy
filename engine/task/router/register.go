@@ -18,6 +18,11 @@ func Register(apiBase *gin.RouterGroup) {
 		tasksGroup.PUT("/:task_id", upsertTaskTop)
 		tasksGroup.DELETE("/:task_id", deleteTaskTop)
 	}
+	execGroup := apiBase.Group("/executions")
+	{
+		taskExecGroup := execGroup.Group("/tasks")
+		taskExecGroup.GET("/:task_exec_id", getTaskExecutionStatus)
+	}
 	// Task definition routes under workflows
 	workflowsGroup := apiBase.Group("/workflows/:workflow_id")
 	{

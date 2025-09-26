@@ -85,11 +85,17 @@ func (s *Server) awaitMCPProxyReady(
 	pollInterval time.Duration,
 ) bool {
 	cfg := config.FromContext(ctx)
-	pollInterval = cfg.LLM.MCPReadinessPollInterval
+	configuredPoll := cfg.LLM.MCPReadinessPollInterval
+	if configuredPoll > 0 {
+		pollInterval = configuredPoll
+	}
 	if pollInterval <= 0 {
 		pollInterval = 200 * time.Millisecond
 	}
 	reqTimeout := cfg.LLM.MCPClientTimeout
+	if reqTimeout <= 0 {
+		reqTimeout = requestTimeout
+	}
 	if reqTimeout <= 0 {
 		reqTimeout = mcpproxy.DefaultRequestTimeout
 	}
@@ -104,8 +110,9 @@ func (s *Server) awaitMCPProxyReady(
 		req, reqErr := http.NewRequestWithContext(rctx, http.MethodGet, baseURL+"/healthz", http.NoBody)
 		if reqErr != nil {
 			cancel()
-			time.Sleep(pollInterval)
-			continue
+			logger.FromContext(ctx).
+				Error("failed to create MCP readiness request", "error", reqErr, "url", baseURL+"/healthz")
+			return false
 		}
 		resp, err := client.Do(req)
 		if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
