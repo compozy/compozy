@@ -6,8 +6,7 @@
   "type": "module",
   "workspaces": [
     "examples/**",
-    "docs",
-    "tools/*"
+    "docs"
   ],
   "scripts": {
     "build": "turbo run build",

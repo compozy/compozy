@@ -44,7 +44,6 @@ ignore:
   - "**/node_modules/**/*"  # Node.js dependencies
   - "**/examples/**/*"  # Example code
   - "**/docs/**/*"  # Documentation
-  - "tools/**/*"  # Development tools
   - "cluster/**/*"  # Docker/deployment files
   - "schemas/**/*"  # Generated schemas
   - "pkg/schemagen/**/*"  # Schema generation tool

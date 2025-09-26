@@ -149,40 +149,7 @@ autoload:
 
 ### Package Dependencies
 
-Create `package.json` to define project dependencies. This example uses pre-built Compozy tools.
-
-```json title="package.json"
-{
-  "name": "@compozy/example-codereview",
-  "version": "0.0.1",
-  "description": "Workflows to review a Go project using Compozy agents",
-  "private": true,
-  "type": "module",
-  "main": "./entrypoint.ts",
-  "scripts": {
-    "build": "echo 'No build step required for Compozy examples'",
-    "lint": "oxlint *.ts",
-    "type-check": "tsc --noEmit",
-    "test": "echo 'No tests configured'",
-    "clean": "echo 'No clean step required'"
-  },
-  "devDependencies": {
-    "typescript": "^5.8.0",
-    "@types/bun": "latest"
-  },
-  "dependencies": {
-    "@compozy/tool-list-files": "0.0.11",
-    "@compozy/tool-read-file": "0.0.11",
-    "@compozy/tool-write-file": "0.0.11"
-  }
-}
-```
-
-Install dependencies:
-
-```bash
-bun install
-```
+Native cp__ tools are built-in; no external tool packages are required. You can skip adding tool dependencies to `package.json`.
 
 ### Environment Setup
 
@@ -195,19 +162,13 @@ OPENAI_API_KEY=your_openai_api_key_here
 
 </Step>
 
-<Step title="Register Tools" description="Expose pre-built Compozy tools to your workflow">
+<Step title="Register Tools" description="Native cp__ tools are available by default">
 
-The Bun runtime entrypoint registers the tools that your workflow will use. This example uses standard tools for file operations.
+No TypeScript registration is needed for native tools. Use tool IDs like `read_file`, `write_file`, and `list_files` directly in your workflows.
 
 ```typescript title="entrypoint.ts"
-import { listFiles } from "@compozy/tool-list-files";
-import { readFile } from "@compozy/tool-read-file";
-import { writeFile } from "@compozy/tool-write-file";
-
 export default {
-  list_files: listFiles,
-  read_file: readFile,
-  write_file: writeFile,
+  // Native cp__ tools are built-in; no registrations required
 };
 ```
 

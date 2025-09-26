@@ -98,9 +98,6 @@
       "dependencies": {
         "@anthropic-ai/claude-code": "^1.0.70",
         "@anthropic-ai/sdk": "^0.58.0",
-        "@compozy/tool-list-files": "workspace:*",
-        "@compozy/tool-read-file": "workspace:*",
-        "@compozy/tool-write-file": "workspace:*",
         "@instantlyeasy/claude-code-sdk-ts": "^0.3.3",
       },
       "devDependencies": {
@@ -189,38 +186,6 @@
         "prettier": "^3.6.0",
         "typescript": "^5.8.0",
       },
-    },
-    "tools/delete-file": {
-      "name": "@compozy/tool-delete-file",
-      "version": "0.0.15",
-    },
-    "tools/exec": {
-      "name": "@compozy/tool-exec",
-      "version": "0.0.15",
-    },
-    "tools/fetch": {
-      "name": "@compozy/tool-fetch",
-      "version": "0.0.15",
-    },
-    "tools/grep": {
-      "name": "@compozy/tool-grep",
-      "version": "0.0.15",
-    },
-    "tools/list-dir": {
-      "name": "@compozy/tool-list-dir",
-      "version": "0.0.15",
-    },
-    "tools/list-files": {
-      "name": "@compozy/tool-list-files",
-      "version": "0.0.15",
-    },
-    "tools/read-file": {
-      "name": "@compozy/tool-read-file",
-      "version": "0.0.15",
-    },
-    "tools/write-file": {
-      "name": "@compozy/tool-write-file",
-      "version": "0.0.15",
     },
   },
   "overrides": {
@@ -521,22 +486,6 @@
     "@compozy/example-wait-task": ["@compozy/example-wait-task@workspace:examples/wait-task"],
 
     "@compozy/example-weather": ["@compozy/example-weather@workspace:examples/weather"],
-
-    "@compozy/tool-delete-file": ["@compozy/tool-delete-file@workspace:tools/delete-file"],
-
-    "@compozy/tool-exec": ["@compozy/tool-exec@workspace:tools/exec"],
-
-    "@compozy/tool-fetch": ["@compozy/tool-fetch@workspace:tools/fetch"],
-
-    "@compozy/tool-grep": ["@compozy/tool-grep@workspace:tools/grep"],
-
-    "@compozy/tool-list-dir": ["@compozy/tool-list-dir@workspace:tools/list-dir"],
-
-    "@compozy/tool-list-files": ["@compozy/tool-list-files@workspace:tools/list-files"],
-
-    "@compozy/tool-read-file": ["@compozy/tool-read-file@workspace:tools/read-file"],
-
-    "@compozy/tool-write-file": ["@compozy/tool-write-file@workspace:tools/write-file"],
 
     "@date-vir/duration": ["@date-vir/duration@7.3.2", "", { "dependencies": { "@types/luxon": "^3.6.2", "luxon": "^3.6.1", "type-fest": "^4.41.0" } }, "sha512-F/RvIR2tT7wTsoEM6OQXpZV18KHwPpEhTLFw6lNe3cFRZ7dj5skzQGR9U6y5icQZA50ND762plMk3tk8aBMZAg=="],
 
@@ -3002,7 +2951,7 @@
 
     "@babel/preset-env/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
-    "@compozy/example-codereview/@types/bun": ["@types/bun@1.2.20", "", { "dependencies": { "bun-types": "1.2.20" } }, "sha512-dX3RGzQ8+KgmMw7CsW4xT5ITBSCrSbfHc36SNT31EOUg/LA9JWq0VDdEXDRSe1InVWpd2yLUM1FUF/kEOyTzYA=="],
+    "@compozy/example-codereview/@types/bun": ["@types/bun@1.2.22", "", { "dependencies": { "bun-types": "1.2.22" } }, "sha512-5A/KrKos2ZcN0c6ljRSOa1fYIyCKhZfIVYeuyb4snnvomnpFqC0tTsEkdqNxbAgExV384OETQ//WAjl3XbYqQA=="],
 
     "@hyperjump/json-schema/uuid": ["uuid@9.0.1", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA=="],
 
@@ -3268,7 +3217,7 @@
 
     "@babel/helper-compilation-targets/lru-cache/yallist": ["yallist@3.1.1", "", {}, "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g=="],
 
-    "@compozy/example-codereview/@types/bun/bun-types": ["bun-types@1.2.20", "", { "dependencies": { "@types/node": "*" }, "peerDependencies": { "@types/react": "^19" } }, "sha512-pxTnQYOrKvdOwyiyd/7sMt9yFOenN004Y6O4lCcCUoKVej48FS5cvTw9geRaEcB9TsDZaJKAxPTVvi8tFsVuXA=="],
+    "@compozy/example-codereview/@types/bun/bun-types": ["bun-types@1.2.22", "", { "dependencies": { "@types/node": "*" }, "peerDependencies": { "@types/react": "^19" } }, "sha512-hwaAu8tct/Zn6Zft4U9BsZcXkYomzpHJX28ofvx7k0Zz2HNz54n1n+tDgxoWFGB4PcFvJXJQloPhaV2eP3Q6EA=="],
 
     "@isaacs/cliui/strip-ansi/ansi-regex": ["ansi-regex@6.1.0", "", {}, "sha512-7HSX4QQb4CspciLpVFwyRe79O3xsIZDDLER21kERQ71oaPodF8jL725AgJMFAYbooIqolJoRLuM81SpeUkpkvA=="],
 

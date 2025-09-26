@@ -11,56 +11,14 @@ schemas:
         description: The directory to review
     required:
       - directory
-  - id: list_files_input
-    type: object
-    properties:
-      dir:
-        type: string
-        description: The directory to list files from
-      exclude:
-        type: string
-        description: Pattern to exclude files (optional)
-    required:
-      - dir
-  - id: write_file_input
-    type: object
-    properties:
-      path:
-        type: string
-        description: The file path to write to
-      content:
-        type: string
-        description: The content to write
-    required:
-      - path
-      - content
-  - id: read_file_input
-    type: object
-    properties:
-      path:
-        type: string
-        description: The file path to read
-    required:
-      - path
 
 config:
   input: review_input
 
-tools:
-  - id: list_files
-    description: List all files in the given directory
-    input: list_files_input
-  - id: write_file
-    description: Write content to a file
-    input: write_file_input
-  - id: read_file
-    description: Read the contents of a file
-    input: read_file_input
-
 tasks:
   - id: review
     type: basic
-    tool: list_files
+    tool: cp__list_files
     with:
       dir: "{{ .workflow.input.directory }}"
       exclude: "!*.go"

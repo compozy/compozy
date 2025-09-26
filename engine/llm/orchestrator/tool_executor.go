@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -95,6 +96,8 @@ func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCa
 	}
 
 	log.Debug("Executing tool", "tool_name", call.Name, "tool_call_id", call.ID)
+	// Propagate request id to downstream handlers for logging/metrics
+	ctx = core.WithRequestID(ctx, call.ID)
 	raw, err := t.Call(ctx, string(call.Arguments))
 	if err != nil {
 		log.Debug(
@@ -106,13 +109,26 @@ func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCa
 			"error",
 			core.RedactError(err),
 		)
-		errObj := ToolExecutionResult{
-			Success: false,
-			Error: &ToolError{
+		// Map builtin/core error codes when available
+		var coreErr *core.Error
+		errObj := ToolExecutionResult{Success: false}
+		if errors.As(err, &coreErr) && coreErr != nil {
+			code := coreErr.Code
+			msg := coreErr.Message
+			if msg == "" {
+				msg = "Tool execution failed"
+			}
+			errObj.Error = &ToolError{
+				Code:    code,
+				Message: msg,
+				Details: core.RedactError(err),
+			}
+		} else {
+			errObj.Error = &ToolError{
 				Code:    ErrCodeToolExecution,
 				Message: "Tool execution failed",
 				Details: core.RedactError(err),
-			},
+			}
 		}
 		b, merr := json.Marshal(errObj)
 		if merr != nil {
