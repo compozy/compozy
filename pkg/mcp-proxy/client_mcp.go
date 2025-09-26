@@ -234,11 +234,9 @@ func (c *MCPClient) Connect(ctx context.Context) error {
 
 	// Initialize the MCP connection - no lock held
 	if err := c.initializeMCP(ctx); err != nil {
-		// Clean up the started client if initialization fails
-		if c.needManualStart {
-			if closeErr := c.mcpClient.Close(); closeErr != nil {
-				log.Error("Failed to close client after initialization failure", "error", closeErr)
-			}
+		// Always close to avoid leaking resources regardless of start mode.
+		if closeErr := c.mcpClient.Close(); closeErr != nil {
+			log.Error("Failed to close client after initialization failure", "error", closeErr)
 		}
 		c.updateStatus(StatusError, fmt.Sprintf("failed to initialize: %v", err))
 		return fmt.Errorf("failed to initialize MCP client: %w", err)

@@ -84,26 +84,27 @@ func (s *Server) awaitMCPProxyReady(
 	requestTimeout time.Duration,
 	pollInterval time.Duration,
 ) bool {
-	deadline := time.Now().Add(total)
-	sleep := pollInterval
-	if sleep <= 0 {
-		sleep = 500 * time.Millisecond
+	cfg := config.FromContext(ctx)
+	pollInterval = cfg.LLM.MCPReadinessPollInterval
+	if pollInterval <= 0 {
+		pollInterval = 200 * time.Millisecond
 	}
+	reqTimeout := cfg.LLM.MCPClientTimeout
+	if reqTimeout <= 0 {
+		reqTimeout = mcpproxy.DefaultRequestTimeout
+	}
+	deadline := time.Now().Add(total)
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
 			return false
 		default:
 		}
-		rtimeout := requestTimeout
-		if rtimeout <= 0 {
-			rtimeout = time.Second
-		}
-		rctx, cancel := context.WithTimeout(ctx, rtimeout)
+		rctx, cancel := context.WithTimeout(ctx, reqTimeout)
 		req, reqErr := http.NewRequestWithContext(rctx, http.MethodGet, baseURL+"/healthz", http.NoBody)
 		if reqErr != nil {
 			cancel()
-			time.Sleep(sleep)
+			time.Sleep(pollInterval)
 			continue
 		}
 		resp, err := client.Do(req)
@@ -116,7 +117,7 @@ func (s *Server) awaitMCPProxyReady(
 			_ = resp.Body.Close()
 		}
 		cancel()
-		time.Sleep(sleep)
+		time.Sleep(pollInterval)
 	}
 	return false
 }
