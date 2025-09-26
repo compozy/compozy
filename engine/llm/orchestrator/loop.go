@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
@@ -138,12 +139,20 @@ func (l *conversationLoop) OnEnterUpdateBudgets(ctx context.Context, loopCtx *Lo
 		return transitionResult{Event: EventFailure, Err: fmt.Errorf("llm request is required to append tool results")}
 	}
 	if err := l.tools.UpdateBudgets(ctx, loopCtx.ToolResults, loopCtx.State); err != nil {
-		logger.FromContext(ctx).Warn(
-			"Tool budget exceeded",
+		if errors.Is(err, ErrBudgetExceeded) {
+			logger.FromContext(ctx).Warn(
+				"Tool budget exceeded",
+				"error",
+				core.RedactError(err),
+			)
+			return transitionResult{Event: EventBudgetExceeded, Err: err}
+		}
+		logger.FromContext(ctx).Error(
+			"Failed to update tool budgets",
 			"error",
 			core.RedactError(err),
 		)
-		return transitionResult{Event: EventBudgetExceeded, Err: err}
+		return transitionResult{Event: EventFailure, Err: err}
 	}
 	loopCtx.LLMRequest.Messages = append(
 		loopCtx.LLMRequest.Messages,
@@ -158,7 +167,12 @@ func (l *conversationLoop) OnEnterUpdateBudgets(ctx context.Context, loopCtx *Lo
 		}
 		fingerprint := buildIterationFingerprint(loopCtx.Response.ToolCalls, loopCtx.ToolResults)
 		if loopCtx.State.detectNoProgress(l.cfg.noProgressThreshold, fingerprint) {
-			err := fmt.Errorf("%w: %d consecutive iterations", ErrNoProgress, loopCtx.State.noProgressCount)
+			err := fmt.Errorf(
+				"%w: %w: %d consecutive iterations",
+				ErrBudgetExceeded,
+				ErrNoProgress,
+				loopCtx.State.noProgressCount,
+			)
 			logger.FromContext(ctx).Warn(
 				"No progress detected",
 				"iterations",
@@ -286,7 +300,7 @@ func (l *conversationLoop) Run(
 		MaxIterations: maxIter,
 	}
 	machine := newLoopFSM(ctx, l, loopCtx)
-	if err := machine.Event(ctx, EventStartLoop); err != nil {
+	if err := machine.Event(ctx, EventStartLoop, loopCtx); err != nil {
 		if loopCtx.err != nil {
 			return nil, nil, loopCtx.err
 		}

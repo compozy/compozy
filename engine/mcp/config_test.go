@@ -407,6 +407,7 @@ func TestConfig_Validate_HeadersAndOrder(t *testing.T) {
 		c := &Config{
 			ID:        "svc",
 			Transport: mcpproxy.TransportStdio,
+			Command:   "echo",
 			Headers:   map[string]string{"Host": "should-not-error"},
 		}
 		err := c.Validate()

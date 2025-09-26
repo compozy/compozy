@@ -128,7 +128,6 @@ func TestConversationLoop_OnEnterAwaitLLM(t *testing.T) {
 		require.Same(t, response, loopCtx.Response)
 		require.Contains(t, logBuf.String(), "Generating LLM response")
 	})
-
 	t.Run("ShouldFailWhenIterationBudgetExceeded", func(t *testing.T) {
 		ctx := context.Background()
 		inv := &recordingInvoker{}
@@ -143,7 +142,6 @@ func TestConversationLoop_OnEnterAwaitLLM(t *testing.T) {
 		require.Error(t, result.Err)
 		require.Contains(t, result.Err.Error(), "max tool iterations")
 	})
-
 	t.Run("ShouldFailWhenLoopContextIsNil", func(t *testing.T) {
 		loop := newConversationLoop(
 			&settings{maxToolIterations: 3},
@@ -175,7 +173,6 @@ func TestConversationLoop_OnEnterEvaluateResponse(t *testing.T) {
 		require.Equal(t, EventResponseNoTool, result.Event)
 		require.Contains(t, logBuf.String(), "Evaluating LLM response")
 	})
-
 	t.Run("ShouldAppendToolCallsAndRouteToProcessTools", func(t *testing.T) {
 		loop := newConversationLoop(&settings{}, noopExecutor{}, noopResponseHandler{}, &recordingInvoker{}, nil)
 		toolCall := llmadapter.ToolCall{ID: "1", Name: "tool"}
@@ -189,7 +186,6 @@ func TestConversationLoop_OnEnterEvaluateResponse(t *testing.T) {
 		require.Equal(t, roleAssistant, loopCtx.LLMRequest.Messages[0].Role)
 		require.Equal(t, []llmadapter.ToolCall{toolCall}, loopCtx.LLMRequest.Messages[0].ToolCalls)
 	})
-
 	t.Run("ShouldFailWhenResponseMissing", func(t *testing.T) {
 		loop := newConversationLoop(&settings{}, noopExecutor{}, noopResponseHandler{}, &recordingInvoker{}, nil)
 		loopCtx := &LoopContext{LLMRequest: &llmadapter.LLMRequest{}}
@@ -198,7 +194,6 @@ func TestConversationLoop_OnEnterEvaluateResponse(t *testing.T) {
 		require.Error(t, result.Err)
 		require.Contains(t, result.Err.Error(), "missing LLM response")
 	})
-
 	t.Run("ShouldFailWhenLoopContextIsNil", func(t *testing.T) {
 		loop := newConversationLoop(&settings{}, noopExecutor{}, noopResponseHandler{}, &recordingInvoker{}, nil)
 		result := loop.OnEnterEvaluateResponse(context.Background(), nil)
@@ -222,7 +217,6 @@ func TestConversationLoop_OnEnterProcessTools(t *testing.T) {
 		require.Len(t, exec.lastCalls, 1)
 		require.Len(t, loopCtx.ToolResults, 1)
 	})
-
 	t.Run("ShouldPropagateExecutionErrors", func(t *testing.T) {
 		exec := &processToolsExecutorStub{err: fmt.Errorf("boom")}
 		loop := newConversationLoop(&settings{}, exec, noopResponseHandler{}, &recordingInvoker{}, nil)
@@ -234,7 +228,6 @@ func TestConversationLoop_OnEnterProcessTools(t *testing.T) {
 		require.Error(t, result.Err)
 		require.EqualError(t, result.Err, "boom")
 	})
-
 	t.Run("ShouldFailWhenLoopContextIsNil", func(t *testing.T) {
 		exec := &processToolsExecutorStub{}
 		loop := newConversationLoop(&settings{}, exec, noopResponseHandler{}, &recordingInvoker{}, nil)
@@ -266,9 +259,8 @@ func TestConversationLoop_OnEnterUpdateBudgets(t *testing.T) {
 		require.Len(t, loopCtx.LLMRequest.Messages, 1)
 		require.Equal(t, roleTool, loopCtx.LLMRequest.Messages[0].Role)
 	})
-
 	t.Run("ShouldReturnBudgetExceededWhenUpdateFails", func(t *testing.T) {
-		exec := &budgetExecutorStub{err: fmt.Errorf("budget exceeded")}
+		exec := &budgetExecutorStub{err: fmt.Errorf("%w", ErrBudgetExceeded)}
 		cfg := &settings{}
 		loop := newConversationLoop(cfg, exec, noopResponseHandler{}, &recordingInvoker{}, nil)
 		loopCtx := &LoopContext{
@@ -284,7 +276,22 @@ func TestConversationLoop_OnEnterUpdateBudgets(t *testing.T) {
 		require.Equal(t, 1, exec.calls)
 		require.Empty(t, loopCtx.LLMRequest.Messages)
 	})
-
+	t.Run("ShouldReturnFailureForOperationalErrors", func(t *testing.T) {
+		exec := &budgetExecutorStub{err: fmt.Errorf("transient failure")}
+		cfg := &settings{}
+		loop := newConversationLoop(cfg, exec, noopResponseHandler{}, &recordingInvoker{}, nil)
+		loopCtx := &LoopContext{
+			LLMRequest:  &llmadapter.LLMRequest{},
+			State:       newLoopState(cfg, nil, nil),
+			ToolResults: []llmadapter.ToolResult{{ID: "1", Name: "tool"}},
+			Response:    &llmadapter.LLMResponse{ToolCalls: []llmadapter.ToolCall{{ID: "1", Name: "tool"}}},
+		}
+		result := loop.OnEnterUpdateBudgets(context.Background(), loopCtx)
+		require.Equal(t, EventFailure, result.Event)
+		require.EqualError(t, result.Err, "transient failure")
+		require.Equal(t, 1, exec.calls)
+		require.Empty(t, loopCtx.LLMRequest.Messages)
+	})
 	t.Run("ShouldReturnBudgetExceededWhenNoProgressDetected", func(t *testing.T) {
 		exec := &budgetExecutorStub{}
 		cfg := &settings{enableProgressTracking: true, noProgressThreshold: 1}
@@ -328,7 +335,6 @@ func TestConversationLoop_OnEnterHandleCompletion(t *testing.T) {
 		require.Equal(t, 1, handler.calls)
 		require.Nil(t, loopCtx.Output)
 	})
-
 	t.Run("ShouldReturnSuccessAndSetOutput", func(t *testing.T) {
 		ctx := context.Background()
 		handler := &completionHandlerStub{output: &core.Output{"answer": "ok"}}
@@ -343,9 +349,8 @@ func TestConversationLoop_OnEnterHandleCompletion(t *testing.T) {
 		result := loop.OnEnterHandleCompletion(ctx, loopCtx)
 		require.Equal(t, EventCompletionSuccess, result.Event)
 		require.NoError(t, result.Err)
-		require.Equal(t, handler.output, loopCtx.Output)
+		require.Same(t, handler.output, loopCtx.Output)
 	})
-
 	t.Run("ShouldPropagateHandlerErrors", func(t *testing.T) {
 		ctx := context.Background()
 		errBoom := fmt.Errorf("boom")
@@ -362,7 +367,6 @@ func TestConversationLoop_OnEnterHandleCompletion(t *testing.T) {
 		require.Equal(t, EventFailure, result.Event)
 		require.EqualError(t, result.Err, "boom")
 	})
-
 	t.Run("ShouldFailWhenLoopContextMissingFields", func(t *testing.T) {
 		ctx := context.Background()
 		loop := newConversationLoop(&settings{}, noopExecutor{}, &completionHandlerStub{}, &recordingInvoker{}, nil)
@@ -370,7 +374,6 @@ func TestConversationLoop_OnEnterHandleCompletion(t *testing.T) {
 		require.Equal(t, EventFailure, res.Event)
 		require.ErrorContains(t, res.Err, "missing LLM response")
 	})
-
 	t.Run("ShouldFailWhenLoopContextIsNil", func(t *testing.T) {
 		ctx := context.Background()
 		loop := newConversationLoop(&settings{}, noopExecutor{}, &completionHandlerStub{}, &recordingInvoker{}, nil)
@@ -406,7 +409,6 @@ func TestConversationLoop_OnEnterFinalize(t *testing.T) {
 		require.Equal(t, loopCtx.Request, memory.request)
 		require.Len(t, memory.messages, 1)
 	})
-
 	t.Run("ShouldNotStoreWhenMemoryManagerMissing", func(t *testing.T) {
 		ctx := context.Background()
 		memCtx := &MemoryContext{}
@@ -423,7 +425,6 @@ func TestConversationLoop_OnEnterFinalize(t *testing.T) {
 		result := loop.OnEnterFinalize(ctx, loopCtx)
 		require.NoError(t, result.Err)
 	})
-
 	t.Run("ShouldFailWhenResponseMissing", func(t *testing.T) {
 		ctx := context.Background()
 		loop := newConversationLoop(&settings{}, noopExecutor{}, noopResponseHandler{}, &recordingInvoker{}, nil)
@@ -431,7 +432,6 @@ func TestConversationLoop_OnEnterFinalize(t *testing.T) {
 		require.Equal(t, EventFailure, res.Event)
 		require.ErrorContains(t, res.Err, "missing LLM response")
 	})
-
 	t.Run("ShouldFailWhenLoopContextIsNil", func(t *testing.T) {
 		ctx := context.Background()
 		loop := newConversationLoop(&settings{}, noopExecutor{}, noopResponseHandler{}, &recordingInvoker{}, nil)

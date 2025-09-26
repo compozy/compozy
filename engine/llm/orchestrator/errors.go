@@ -44,6 +44,9 @@ const (
 // ErrNoProgress is returned when the loop detects no progress across iterations.
 var ErrNoProgress = errors.New("no progress")
 
+// ErrBudgetExceeded signals that a tool or loop budget threshold has been exceeded.
+var ErrBudgetExceeded = errors.New("budget exceeded")
+
 // transientRetryPattern is compiled once and reused to avoid overhead.
 var transientRetryPattern = regexp.MustCompile(`(?i)(timeout|temporarily|try again|temporarily unavailable)`)
 

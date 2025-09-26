@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"os/exec"
 	"sync"
@@ -111,6 +112,8 @@ func (c *MCPClient) startStderrLogger() {
 		log := logger.FromContext(c.managerCtx)
 		go func() {
 			scanner := bufio.NewScanner(reader)
+			// Allow up to 1MB per line to avoid truncation of long stderr lines.
+			scanner.Buffer(make([]byte, 0, 64*1024), 1<<20)
 			for scanner.Scan() {
 				log.Debug("MCP client stderr", "mcp_name", c.definition.Name, "line", scanner.Text())
 			}
@@ -411,7 +414,10 @@ func isExpectedCloseError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, context.Canceled) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	if errors.Is(err, io.EOF) {
 		return true
 	}
 	var exitErr *exec.ExitError
@@ -685,7 +691,8 @@ func (c *MCPClient) ListResourceTemplatesWithCursor(
 
 // WaitUntilConnected waits for the client to be connected, with timeout
 func (c *MCPClient) WaitUntilConnected(ctx context.Context) error {
-	ticker := time.NewTicker(100 * time.Millisecond)
+	const pollInterval = 100 * time.Millisecond
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 	for {
 		select {

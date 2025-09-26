@@ -174,7 +174,8 @@ func (e *toolExecutor) UpdateBudgets(ctx context.Context, results []llmadapter.T
 					state.toolSuccess[name],
 				)
 				return fmt.Errorf(
-					"tool %s called successfully %d times without progress",
+					"%w: tool %s called successfully %d times without progress",
+					ErrBudgetExceeded,
 					name,
 					state.toolSuccess[name],
 				)
@@ -190,7 +191,7 @@ func (e *toolExecutor) UpdateBudgets(ctx context.Context, results []llmadapter.T
 		log.Debug("Tool error recorded", "tool", name, "consecutive_errors", state.toolErrors[name], "max", budget)
 		if state.toolErrors[name] >= budget {
 			log.Warn("Error budget exceeded - tool", "tool", name, "max", budget)
-			return fmt.Errorf("tool error budget exceeded for %s", name)
+			return fmt.Errorf("%w: tool error budget exceeded for %s", ErrBudgetExceeded, name)
 		}
 	}
 

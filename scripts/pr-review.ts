@@ -781,6 +781,14 @@ function extractPerFileDetailsFromMarkdown(
   body: string
 ): { detailsHtml: string; summaryPath: string; section: "nitpick" | "outside" | "duplicate" }[] {
   if (!body) return [];
+  // Limit extraction strictly to known sections to avoid pulling from
+  // "Review details" (e.g., Code graph analysis, Additional comments).
+  // We compute the ranges of the outer <details> blocks for:
+  //  - Nitpick comments
+  //  - Outside-of-diff / Outside diff range comments
+  //  - Duplicate comments
+  // Then only accept per-file <details> whose <summary> falls within one of these ranges.
+  const allowedRanges = findAllowedSectionRanges(body);
   const out: {
     detailsHtml: string;
     summaryPath: string;
@@ -795,19 +803,81 @@ function extractPerFileDetailsFromMarkdown(
     if (!pathMatch) continue; // Not a per-file summary
     const pathLike = (pathMatch[1] || "").trim();
     if (!pathLike.includes("/")) continue;
-    // Find nearest preceding <details ...> before this summary
+    // Skip if this summary is not inside an allowed section range
     const sumIdx = m.index;
+    if (!isWithinAnyRange(sumIdx, allowedRanges)) continue;
+    // Find nearest preceding <details ...> before this summary (the per-file block)
     const detailsOpenIdx = body.lastIndexOf("<details", sumIdx);
     if (detailsOpenIdx < 0) continue;
-    // Find the first closing </details> after the summary end
-    const afterSummaryIdx = summaryRe.lastIndex;
-    const detailsCloseIdx = body.indexOf("</details>", afterSummaryIdx);
-    if (detailsCloseIdx < 0) continue;
-    const block = body.slice(detailsOpenIdx, detailsCloseIdx + "</details>".length);
+    // Find the matching closing </details> for this specific open, handling nesting
+    const { end: detailsCloseIdx } = matchDetailsRangeFromOpen(body, detailsOpenIdx) || ({} as any);
+    if (typeof detailsCloseIdx !== "number") continue;
+    const block = body.slice(detailsOpenIdx, detailsCloseIdx);
     const section = inferSection(body, detailsOpenIdx);
     out.push({ detailsHtml: block.trim(), summaryPath: pathLike, section });
   }
   return dedupeByContent(out);
+}
+
+type Range = { start: number; end: number; section: "nitpick" | "outside" | "duplicate" };
+
+function findAllowedSectionRanges(body: string): Range[] {
+  const ranges: Range[] = [];
+  const lower = body.toLowerCase();
+  const add = (section: Range["section"], marker: RegExp) => {
+    const m = marker.exec(lower);
+    if (!m) return;
+    const titleIdx = m.index;
+    const detailsOpenIdx = lower.lastIndexOf("<details", titleIdx);
+    if (detailsOpenIdx < 0) return;
+    const match = matchDetailsRangeFromOpen(body, detailsOpenIdx);
+    if (!match) return;
+    ranges.push({ start: match.start, end: match.end, section });
+  };
+  add("nitpick", /<summary[^>]*>[^<]*nitpick\s+comments[^<]*<\/summary>/i);
+  add(
+    "outside",
+    /<summary[^>]*>[^<]*(outside\s*(?:-?of\s*diff|diff\s*range\s*comments))[^<]*<\/summary>/i
+  );
+  add("duplicate", /<summary[^>]*>[^<]*duplicate\s+comments[^<]*<\/summary>/i);
+  return ranges;
+}
+
+function isWithinAnyRange(index: number, ranges: Range[]): boolean {
+  for (const r of ranges) {
+    if (index > r.start && index < r.end) return true;
+  }
+  return false;
+}
+
+function matchDetailsRangeFromOpen(
+  body: string,
+  openIdx: number
+): { start: number; end: number } | null {
+  const len = body.length;
+  let pos = openIdx;
+  let depth = 0;
+  // Sanity check the token at openIdx
+  if (body.slice(openIdx, openIdx + 8).toLowerCase() !== "<details") return null;
+  depth = 1;
+  pos = openIdx + 8;
+  while (pos < len) {
+    const nextOpen = body.indexOf("<details", pos);
+    const nextClose = body.indexOf("</details>", pos);
+    if (nextClose === -1) return null;
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth++;
+      pos = nextOpen + 8;
+      continue;
+    }
+    // close comes first
+    depth--;
+    pos = nextClose + "</details>".length;
+    if (depth === 0) {
+      return { start: openIdx, end: pos };
+    }
+  }
+  return null;
 }
 
 function dedupeByContent<T extends { detailsHtml: string; summaryPath: string }>(items: T[]) {

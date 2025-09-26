@@ -44,6 +44,7 @@ func TestClientManagerConfigFromApp(t *testing.T) {
 	t.Run("ShouldReturnDefaultsWhenConfigNil", func(t *testing.T) {
 		cmCfg := clientManagerConfigFromApp(nil)
 		assert.Equal(t, mcpproxy.DefaultClientManagerConfig().DefaultConnectTimeout, cmCfg.DefaultConnectTimeout)
+		assert.Equal(t, mcpproxy.DefaultClientManagerConfig().DefaultRequestTimeout, cmCfg.DefaultRequestTimeout)
 	})
 	t.Run("ShouldUseReadinessTimeoutWhenGreaterThanClientTimeout", func(t *testing.T) {
 		cfg := config.Default()
@@ -67,5 +68,6 @@ func TestClientManagerConfigFromApp(t *testing.T) {
 		cfg.LLM.MCPReadinessTimeout = 3 * time.Second
 		cmCfg := clientManagerConfigFromApp(cfg)
 		assert.Equal(t, mcpproxy.DefaultClientManagerConfig().DefaultConnectTimeout, cmCfg.DefaultConnectTimeout)
+		assert.Equal(t, mcpproxy.DefaultClientManagerConfig().DefaultRequestTimeout, cmCfg.DefaultRequestTimeout)
 	})
 }

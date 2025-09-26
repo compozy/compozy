@@ -31,8 +31,9 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 			logger.FromContext(ctx).Error("Embedded MCP proxy exited with error", "error", err)
 		}
 	}()
+	cmCfg := clientManagerConfigFromApp(cfg)
 	total := mcpProbeTimeout(cfg)
-	client := &http.Client{Timeout: cfg.LLM.MCPClientTimeout}
+	client := &http.Client{Timeout: cmCfg.DefaultRequestTimeout}
 	bctx, bcancel := context.WithTimeout(ctx, total)
 	select {
 	case <-server.Bound():
@@ -48,7 +49,11 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 	bcancel()
 	baseURL := server.BaseURL()
 	s.mcpBaseURL = baseURL
-	ready := s.awaitMCPProxyReady(ctx, client, baseURL, total)
+	poll := cfg.LLM.MCPReadinessPollInterval
+	if poll <= 0 {
+		poll = 500 * time.Millisecond
+	}
+	ready := s.awaitMCPProxyReady(ctx, client, baseURL, total, cmCfg.DefaultRequestTimeout, poll)
 	if !ready {
 		ctx2, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.MCPProxy.ShutdownTimeout)
 		if stopErr := server.Stop(ctx2); stopErr != nil {
@@ -76,19 +81,29 @@ func (s *Server) awaitMCPProxyReady(
 	client *http.Client,
 	baseURL string,
 	total time.Duration,
+	requestTimeout time.Duration,
+	pollInterval time.Duration,
 ) bool {
 	deadline := time.Now().Add(total)
+	sleep := pollInterval
+	if sleep <= 0 {
+		sleep = 500 * time.Millisecond
+	}
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
 			return false
 		default:
 		}
-		rctx, cancel := context.WithTimeout(ctx, config.FromContext(ctx).LLM.MCPClientTimeout)
+		rtimeout := requestTimeout
+		if rtimeout <= 0 {
+			rtimeout = time.Second
+		}
+		rctx, cancel := context.WithTimeout(ctx, rtimeout)
 		req, reqErr := http.NewRequestWithContext(rctx, http.MethodGet, baseURL+"/healthz", http.NoBody)
 		if reqErr != nil {
 			cancel()
-			time.Sleep(config.FromContext(ctx).LLM.MCPReadinessPollInterval)
+			time.Sleep(sleep)
 			continue
 		}
 		resp, err := client.Do(req)
@@ -101,7 +116,7 @@ func (s *Server) awaitMCPProxyReady(
 			_ = resp.Body.Close()
 		}
 		cancel()
-		time.Sleep(config.FromContext(ctx).LLM.MCPReadinessPollInterval)
+		time.Sleep(sleep)
 	}
 	return false
 }

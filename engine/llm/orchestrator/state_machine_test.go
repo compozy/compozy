@@ -52,44 +52,46 @@ func TestNewLoopFSM(t *testing.T) {
 		loopCtx := &LoopContext{}
 		machine := newLoopFSM(ctx, &stubLoopDeps{}, loopCtx)
 		require.Equal(t, StateInit, machine.Current())
-		storedCtx, ok := machine.Metadata(loopContextKey)
-		require.True(t, ok)
-		require.Same(t, loopCtx, storedCtx.(*LoopContext))
-		assertTransition(t, machine, EventStartLoop, StateAwaitLLM)
-		assertTransition(t, machine, EventLLMResponse, StateEvaluateResponse)
-		assertTransition(t, machine, EventResponseNoTool, StateHandleCompletion)
-		assertTransition(t, machine, EventCompletionSuccess, StateFinalize)
+		assertTransition(ctx, t, machine, loopCtx, EventStartLoop, StateAwaitLLM)
+		assertTransition(ctx, t, machine, loopCtx, EventLLMResponse, StateEvaluateResponse)
+		assertTransition(ctx, t, machine, loopCtx, EventResponseNoTool, StateHandleCompletion)
+		assertTransition(ctx, t, machine, loopCtx, EventCompletionSuccess, StateFinalize)
 	})
 
 	t.Run("ShouldAllowToolExecutionAndFailurePaths", func(t *testing.T) {
 		ctx := context.TODO()
-		machine := newLoopFSM(ctx, &stubLoopDeps{}, &LoopContext{})
-		assertTransition(t, machine, EventStartLoop, StateAwaitLLM)
-		assertTransition(t, machine, EventLLMResponse, StateEvaluateResponse)
-		assertTransition(t, machine, EventResponseWithTools, StateProcessTools)
-		assertTransition(t, machine, EventToolsExecuted, StateUpdateBudgets)
-		assertTransition(t, machine, EventBudgetExceeded, StateTerminateError)
-		machine = newLoopFSM(ctx, &stubLoopDeps{}, &LoopContext{})
-		assertTransition(t, machine, EventStartLoop, StateAwaitLLM)
-		assertTransition(t, machine, EventLLMResponse, StateEvaluateResponse)
-		assertTransition(t, machine, EventResponseWithTools, StateProcessTools)
-		assertTransition(t, machine, EventToolsExecuted, StateUpdateBudgets)
-		assertTransition(t, machine, EventBudgetOK, StateAwaitLLM)
-		assertTransition(t, machine, EventLLMResponse, StateEvaluateResponse)
-		assertTransition(t, machine, EventResponseNoTool, StateHandleCompletion)
-		assertTransition(t, machine, EventCompletionRetry, StateAwaitLLM)
-		assertTransition(t, machine, EventFailure, StateTerminateError)
+		loopCtx := &LoopContext{}
+		machine := newLoopFSM(ctx, &stubLoopDeps{}, loopCtx)
+		assertTransition(ctx, t, machine, loopCtx, EventStartLoop, StateAwaitLLM)
+		assertTransition(ctx, t, machine, loopCtx, EventLLMResponse, StateEvaluateResponse)
+		assertTransition(ctx, t, machine, loopCtx, EventResponseWithTools, StateProcessTools)
+		assertTransition(ctx, t, machine, loopCtx, EventToolsExecuted, StateUpdateBudgets)
+		assertTransition(ctx, t, machine, loopCtx, EventBudgetExceeded, StateTerminateError)
+		loopCtx = &LoopContext{}
+		machine = newLoopFSM(ctx, &stubLoopDeps{}, loopCtx)
+		assertTransition(ctx, t, machine, loopCtx, EventStartLoop, StateAwaitLLM)
+		assertTransition(ctx, t, machine, loopCtx, EventLLMResponse, StateEvaluateResponse)
+		assertTransition(ctx, t, machine, loopCtx, EventResponseWithTools, StateProcessTools)
+		assertTransition(ctx, t, machine, loopCtx, EventToolsExecuted, StateUpdateBudgets)
+		assertTransition(ctx, t, machine, loopCtx, EventBudgetOK, StateAwaitLLM)
+		assertTransition(ctx, t, machine, loopCtx, EventLLMResponse, StateEvaluateResponse)
+		assertTransition(ctx, t, machine, loopCtx, EventResponseNoTool, StateHandleCompletion)
+		assertTransition(ctx, t, machine, loopCtx, EventCompletionRetry, StateAwaitLLM)
+		assertTransition(ctx, t, machine, loopCtx, EventFailure, StateTerminateError)
 	})
 }
 
 func TestNewLoopFSM_LogsTransitions(t *testing.T) {
 	var logBuf bytes.Buffer
-	log := logger.NewLogger(&logger.Config{Level: logger.DebugLevel, Output: &logBuf, TimeFormat: "15:04:05"})
+	cfg := logger.TestConfig()
+	cfg.Level = logger.DebugLevel
+	cfg.Output = &logBuf
+	log := logger.NewLogger(cfg)
 	ctx := logger.ContextWithLogger(context.TODO(), log)
 	loopCtx := &LoopContext{}
 	machine := newLoopFSM(ctx, &stubLoopDeps{}, loopCtx)
-	require.NoError(t, machine.Event(ctx, EventStartLoop))
-	require.NoError(t, machine.Event(ctx, EventLLMResponse))
+	require.NoError(t, machine.Event(ctx, EventStartLoop, loopCtx))
+	require.NoError(t, machine.Event(ctx, EventLLMResponse, loopCtx))
 	logs := logBuf.String()
 	require.Contains(t, logs, "FSM transition start")
 	require.Contains(t, logs, "event=start_loop")
@@ -103,9 +105,16 @@ func TestNewLoopFSM_LogsTransitions(t *testing.T) {
 	require.Contains(t, logs, "state=evaluate_response")
 }
 
-func assertTransition(t *testing.T, machine *fsm.FSM, event string, expectedState string) {
+func assertTransition(
+	ctx context.Context,
+	t *testing.T,
+	machine *fsm.FSM,
+	loopCtx *LoopContext,
+	event string,
+	expectedState string,
+) {
 	t.Helper()
-	err := machine.Event(context.TODO(), event)
+	err := machine.Event(ctx, event, loopCtx)
 	require.NoError(t, err)
 	require.Equal(t, expectedState, machine.Current())
 }
