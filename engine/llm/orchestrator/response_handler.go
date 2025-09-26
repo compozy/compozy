@@ -95,7 +95,7 @@ func (h *responseHandler) handleJSONMode(
 	)
 	if state.toolErrors[key] >= state.budgetFor(key) {
 		return false, core.NewError(
-			fmt.Errorf("tool error budget exceeded for %s", key),
+			fmt.Errorf("%w: tool error budget exceeded for %s", ErrBudgetExceeded, key),
 			ErrCodeBudgetExceeded,
 			map[string]any{
 				"key":     key,
@@ -171,7 +171,7 @@ func (h *responseHandler) continueAfterOutputValidationFailure(
 	if state.toolErrors[key] >= state.budgetFor(key) {
 		log.Warn("Error budget exceeded - output validation", "key", key)
 		return false, core.NewError(
-			fmt.Errorf("tool error budget exceeded for %s", key),
+			fmt.Errorf("%w: tool error budget exceeded for %s", ErrBudgetExceeded, key),
 			ErrCodeBudgetExceeded,
 			map[string]any{
 				"key":     key,
@@ -250,7 +250,7 @@ func (h *responseHandler) handleContentError(
 	)
 	if state.toolErrors[key] >= state.budgetFor(key) {
 		return false, core.NewError(
-			fmt.Errorf("tool error budget exceeded for %s", key),
+			fmt.Errorf("%w: tool error budget exceeded for %s", ErrBudgetExceeded, key),
 			ErrCodeBudgetExceeded,
 			map[string]any{"key": key, "attempt": state.toolErrors[key], "max": state.budgetFor(key), "details": msg},
 		)

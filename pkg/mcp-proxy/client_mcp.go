@@ -1,9 +1,13 @@
 package mcpproxy
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"maps"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -54,7 +58,7 @@ func NewMCPClient(
 	if cerr != nil {
 		return nil, fmt.Errorf("failed to clone definition: %w", cerr)
 	}
-	return &MCPClient{
+	client := &MCPClient{
 		definition:      clonedDef,
 		status:          NewMCPStatus(def.Name),
 		storage:         storage,
@@ -64,7 +68,9 @@ func NewMCPClient(
 		needManualStart: needManualStart,
 		managerCtx:      ctx,
 		pingDone:        make(chan struct{}),
-	}, nil
+	}
+	client.startStderrLogger()
+	return client, nil
 }
 
 // GetDefinition returns the MCP definition
@@ -99,6 +105,23 @@ func (c *MCPClient) updateStatus(status ConnectionStatus, errorMsg string) {
 
 	c.status.UpdateStatus(status, errorMsg)
 	c.connected = (status == StatusConnected)
+}
+
+func (c *MCPClient) startStderrLogger() {
+	if reader, ok := mcpclient.GetStderr(c.mcpClient); ok && reader != nil {
+		log := logger.FromContext(c.managerCtx)
+		go func() {
+			scanner := bufio.NewScanner(reader)
+			// Allow up to 1MB per line to avoid truncation of long stderr lines.
+			scanner.Buffer(make([]byte, 0, 64*1024), 1<<20)
+			for scanner.Scan() {
+				log.Debug("MCP client stderr", "mcp_name", c.definition.Name, "line", scanner.Text())
+			}
+			if err := scanner.Err(); err != nil {
+				log.Debug("Error reading MCP client stderr", "mcp_name", c.definition.Name, "error", err)
+			}
+		}()
+	}
 }
 
 // recordRequest records a successful request
@@ -211,11 +234,9 @@ func (c *MCPClient) Connect(ctx context.Context) error {
 
 	// Initialize the MCP connection - no lock held
 	if err := c.initializeMCP(ctx); err != nil {
-		// Clean up the started client if initialization fails
-		if c.needManualStart {
-			if closeErr := c.mcpClient.Close(); closeErr != nil {
-				log.Error("Failed to close client after initialization failure", "error", closeErr)
-			}
+		// Always close to avoid leaking resources regardless of start mode.
+		if closeErr := c.mcpClient.Close(); closeErr != nil {
+			log.Error("Failed to close client after initialization failure", "error", closeErr)
 		}
 		c.updateStatus(StatusError, fmt.Sprintf("failed to initialize: %v", err))
 		return fmt.Errorf("failed to initialize MCP client: %w", err)
@@ -272,7 +293,11 @@ func (c *MCPClient) Disconnect(ctx context.Context) error {
 
 	// Close the MCP client - no lock held during network operation
 	if err := c.mcpClient.Close(); err != nil {
-		log.Error("Error closing MCP client", "error", err, "mcp_name", c.definition.Name)
+		if isExpectedCloseError(err) {
+			log.Debug("MCP client closed with expected status", "mcp_name", c.definition.Name, "error", err)
+		} else {
+			log.Error("Error closing MCP client", "error", err, "mcp_name", c.definition.Name)
+		}
 	}
 
 	// Update remaining state under lock
@@ -381,6 +406,26 @@ func (c *MCPClient) startPingRoutine(ctx context.Context, done chan struct{}) {
 			}
 		}
 	}
+}
+
+func isExpectedCloseError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	if errors.Is(err, io.EOF) {
+		return true
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		code := exitErr.ExitCode()
+		if code == 143 || code == -1 {
+			return true
+		}
+	}
+	return false
 }
 
 // ListTools returns available tools from the MCP server
@@ -644,7 +689,8 @@ func (c *MCPClient) ListResourceTemplatesWithCursor(
 
 // WaitUntilConnected waits for the client to be connected, with timeout
 func (c *MCPClient) WaitUntilConnected(ctx context.Context) error {
-	ticker := time.NewTicker(100 * time.Millisecond)
+	const pollInterval = 100 * time.Millisecond
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 	for {
 		select {

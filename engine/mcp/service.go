@@ -213,6 +213,9 @@ func (s *RegisterService) convertToDefinition(config *Config) (Definition, error
 		} else {
 			def.Args = []string{}
 		}
+		if len(config.Args) > 0 {
+			def.Args = append(def.Args, config.Args...)
+		}
 	default:
 		return def, fmt.Errorf("MCP configuration must specify either URL (for remote) or Command (for stdio)")
 	}

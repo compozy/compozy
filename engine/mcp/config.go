@@ -221,6 +221,13 @@ type Config struct {
 	// **Security Note**: Commands are parsed using shell lexing for safety.
 	// Avoid user-provided input in commands.
 	Command string `yaml:"command,omitempty"       json:"command,omitempty"`
+	// Args supplies additional arguments passed to the command when spawning local MCP processes.
+	//
+	// Use this to provide flags or subcommands while keeping Command focused on the executable.
+	// Example:
+	// command: "uvx"
+	// args: ["mcp-server-fetch", "--port", "9000"]
+	Args []string `yaml:"args,omitempty"          json:"args,omitempty"`
 	// Headers contains HTTP headers to include when connecting to remote MCP servers (SSE/HTTP).
 	// Useful for passing Authorization tokens, custom auth headers, or version negotiation.
 	// Example:
@@ -364,7 +371,14 @@ func (c *Config) SetDefaults() {
 	}
 	// Set default transport if not specified
 	if c.Transport == "" {
-		c.Transport = DefaultTransport
+		switch {
+		case c.Command != "":
+			c.Transport = mcpproxy.TransportStdio
+		case c.URL != "":
+			c.Transport = DefaultTransport
+		default:
+			c.Transport = DefaultTransport
+		}
 	}
 }
 
@@ -434,6 +448,9 @@ func (c *Config) Validate() error {
 	if err := c.validateURL(); err != nil {
 		return err
 	}
+	if err := c.validateTransportArgs(); err != nil {
+		return err
+	}
 	if (c.Transport == mcpproxy.TransportSSE || c.Transport == mcpproxy.TransportStreamableHTTP) && len(c.Headers) > 0 {
 		if err := c.validateHeaders(); err != nil {
 			return err
@@ -474,6 +491,26 @@ func (c *Config) validateURL() error {
 		return validateURLFormat(c.URL, "mcp url")
 	}
 	// stdio does not require URL
+	return nil
+}
+
+func (c *Config) validateTransportArgs() error {
+	if c.Transport == mcpproxy.TransportSSE || c.Transport == mcpproxy.TransportStreamableHTTP {
+		if len(c.Args) > 0 {
+			return errors.New("args are only supported for stdio transports; remove args when using url-based MCPs")
+		}
+		if c.Command != "" {
+			return errors.New("command cannot be set for HTTP transports; use url or command, not both")
+		}
+	}
+	if c.Transport == mcpproxy.TransportStdio {
+		if c.URL != "" {
+			return errors.New("url cannot be set for stdio transports; use command instead")
+		}
+		if c.Command == "" {
+			return errors.New("command is required when transport is stdio")
+		}
+	}
 	return nil
 }
 

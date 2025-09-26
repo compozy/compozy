@@ -31,8 +31,9 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 			logger.FromContext(ctx).Error("Embedded MCP proxy exited with error", "error", err)
 		}
 	}()
+	cmCfg := clientManagerConfigFromApp(cfg)
 	total := mcpProbeTimeout(cfg)
-	client := &http.Client{Timeout: cfg.LLM.MCPClientTimeout}
+	client := &http.Client{Timeout: cmCfg.DefaultRequestTimeout}
 	bctx, bcancel := context.WithTimeout(ctx, total)
 	select {
 	case <-server.Bound():
@@ -48,7 +49,11 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 	bcancel()
 	baseURL := server.BaseURL()
 	s.mcpBaseURL = baseURL
-	ready := s.awaitMCPProxyReady(ctx, client, baseURL, total)
+	poll := cfg.LLM.MCPReadinessPollInterval
+	if poll <= 0 {
+		poll = 500 * time.Millisecond
+	}
+	ready := s.awaitMCPProxyReady(ctx, client, baseURL, total, cmCfg.DefaultRequestTimeout, poll)
 	if !ready {
 		ctx2, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.MCPProxy.ShutdownTimeout)
 		if stopErr := server.Stop(ctx2); stopErr != nil {
@@ -76,7 +81,18 @@ func (s *Server) awaitMCPProxyReady(
 	client *http.Client,
 	baseURL string,
 	total time.Duration,
+	requestTimeout time.Duration,
+	pollInterval time.Duration,
 ) bool {
+	cfg := config.FromContext(ctx)
+	pollInterval = cfg.LLM.MCPReadinessPollInterval
+	if pollInterval <= 0 {
+		pollInterval = 200 * time.Millisecond
+	}
+	reqTimeout := cfg.LLM.MCPClientTimeout
+	if reqTimeout <= 0 {
+		reqTimeout = mcpproxy.DefaultRequestTimeout
+	}
 	deadline := time.Now().Add(total)
 	for time.Now().Before(deadline) {
 		select {
@@ -84,11 +100,11 @@ func (s *Server) awaitMCPProxyReady(
 			return false
 		default:
 		}
-		rctx, cancel := context.WithTimeout(ctx, config.FromContext(ctx).LLM.MCPClientTimeout)
+		rctx, cancel := context.WithTimeout(ctx, reqTimeout)
 		req, reqErr := http.NewRequestWithContext(rctx, http.MethodGet, baseURL+"/healthz", http.NoBody)
 		if reqErr != nil {
 			cancel()
-			time.Sleep(config.FromContext(ctx).LLM.MCPReadinessPollInterval)
+			time.Sleep(pollInterval)
 			continue
 		}
 		resp, err := client.Do(req)
@@ -101,7 +117,7 @@ func (s *Server) awaitMCPProxyReady(
 			_ = resp.Body.Close()
 		}
 		cancel()
-		time.Sleep(config.FromContext(ctx).LLM.MCPReadinessPollInterval)
+		time.Sleep(pollInterval)
 	}
 	return false
 }
@@ -109,11 +125,17 @@ func (s *Server) awaitMCPProxyReady(
 func (s *Server) afterMCPReady(ctx context.Context, cfg *config.Config, baseURL, driver string) {
 	s.setMCPReady(true)
 	s.onReadinessMaybeChanged("mcp_ready")
-	if cfg.LLM.ProxyURL == "" {
+	log := logger.FromContext(ctx)
+	if cfg.MCPProxy.Mode == modeStandalone {
+		if cfg.LLM.ProxyURL != baseURL {
+			cfg.LLM.ProxyURL = baseURL
+			log.Info("Set LLM proxy URL from embedded MCP proxy", "proxy_url", baseURL)
+		}
+	} else if cfg.LLM.ProxyURL == "" {
 		cfg.LLM.ProxyURL = baseURL
-		logger.FromContext(ctx).Info("Set LLM proxy URL from embedded MCP proxy", "proxy_url", baseURL)
+		log.Info("Set LLM proxy URL from embedded MCP proxy", "proxy_url", baseURL)
 	}
-	logger.FromContext(ctx).Info(
+	log.Info(
 		"Embedded MCP proxy started",
 		"mode", cfg.MCPProxy.Mode,
 		"mcp_storage_driver", driver,
@@ -163,7 +185,13 @@ func (s *Server) newMCPProxyServer(
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to initialize MCP storage: %w", err)
 	}
-	cm := mcpproxy.NewMCPClientManager(ctx, storage, nil)
+	cmCfg := clientManagerConfigFromApp(cfg)
+	logger.FromContext(ctx).Debug(
+		"Configured MCP client manager timeouts",
+		"connect_timeout", cmCfg.DefaultConnectTimeout,
+		"request_timeout", cmCfg.DefaultRequestTimeout,
+	)
+	cm := mcpproxy.NewMCPClientManager(ctx, storage, cmCfg)
 	mcfg := &mcpproxy.Config{
 		Host:               host,
 		Port:               port,
@@ -182,10 +210,29 @@ func shouldEmbedMCPProxy(cfg *config.Config) bool {
 	if cfg.MCPProxy.Mode != modeStandalone {
 		return false
 	}
-	if cfg.LLM.ProxyURL != "" {
-		return false
-	}
 	return true
+}
+
+func clientManagerConfigFromApp(cfg *config.Config) *mcpproxy.ClientManagerConfig {
+	cmCfg := mcpproxy.DefaultClientManagerConfig()
+	if cfg == nil {
+		return cmCfg
+	}
+	timeout := cfg.LLM.MCPClientTimeout
+	if cfg.LLM.MCPReadinessTimeout > timeout {
+		timeout = cfg.LLM.MCPReadinessTimeout
+	}
+	if timeout <= 0 {
+		return cmCfg
+	}
+	if timeout < mcpproxy.DefaultConnectTimeout {
+		timeout = mcpproxy.DefaultConnectTimeout
+	}
+	cmCfg.DefaultConnectTimeout = timeout
+	if cmCfg.DefaultRequestTimeout <= 0 || timeout > cmCfg.DefaultRequestTimeout {
+		cmCfg.DefaultRequestTimeout = timeout
+	}
+	return cmCfg
 }
 
 func storageConfigForMCP(cfg *config.Config) *mcpproxy.StorageConfig {

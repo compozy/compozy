@@ -16,6 +16,7 @@ func TestToolExecutor_UpdateBudgets_ErrorBudgetExceeded(t *testing.T) {
 		results := []llmadapter.ToolResult{{Name: "t", Content: `{"error":"x"}`}, {Name: "t", Content: `{"error":"x"}`}}
 		err := exec.UpdateBudgets(context.Background(), results, st)
 		require.Error(t, err)
+		require.ErrorIs(t, err, ErrBudgetExceeded)
 		assert.ErrorContains(t, err, "tool error budget exceeded for t")
 	})
 }
@@ -33,6 +34,7 @@ func TestToolExecutor_UpdateBudgets_ConsecutiveSuccessExceeded(t *testing.T) {
 		}
 		err := exec.UpdateBudgets(context.Background(), results, st)
 		require.Error(t, err)
+		require.ErrorIs(t, err, ErrBudgetExceeded)
 		assert.ErrorContains(t, err, "tool t called successfully 2 times without progress")
 	})
 }

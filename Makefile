@@ -104,7 +104,7 @@ modernize:
 
 dev: EXAMPLE=weather
 dev:
-	wgo run . dev --cwd examples/$(EXAMPLE) --env-file .env --debug --watch
+	gow run . dev --cwd examples/$(EXAMPLE) --env-file .env --debug --watch
 
 tidy:
 	@echo "Tidying modules..."
@@ -114,8 +114,8 @@ deps: check-go-version clean-go-cache swagger-deps
 	@echo "Installing Go dependencies..."
 	@echo "Installing gotestsum..."
 	@$(GOCMD) install gotest.tools/gotestsum@latest
-	@echo "Installing wgo for hot reload..."
-	@$(GOCMD) install github.com/bokwoon95/wgo@latest
+	@echo "Installing gow for hot reload..."
+	@$(GOCMD) install github.com/mitranim/gow@latest
 	@echo "Installing goose for migrations..."
 	@$(GOCMD) install github.com/pressly/goose/v3/cmd/goose@latest
 	@echo "Installing golangci-lint v2..."
