@@ -57,7 +57,7 @@ func TestConversationLoop_NoProgressDetection(t *testing.T) {
 	inv := &staticInvoker{resp: &llmadapter.LLMResponse{ToolCalls: []llmadapter.ToolCall{{ID: "1", Name: "t"}}}}
 	exec := &noOpExec{results: []llmadapter.ToolResult{{ID: "1", Name: "t", Content: `{"ok":true}`}}}
 	h := passHandler{}
-	loop := newConversationLoop(cfg, exec, h, inv)
+	loop := newConversationLoop(cfg, exec, h, inv, nil)
 	llmReq := &llmadapter.LLMRequest{}
 	state := newLoopState(cfg, nil, &agent.ActionConfig{ID: "a"})
 	req := Request{Agent: &agent.Config{ID: "ag"}, Action: &agent.ActionConfig{ID: "a"}}

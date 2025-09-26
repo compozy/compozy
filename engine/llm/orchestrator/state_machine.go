@@ -1,0 +1,316 @@
+package orchestrator
+
+import (
+	"context"
+	"time"
+
+	"github.com/compozy/compozy/engine/core"
+	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	"github.com/compozy/compozy/pkg/logger"
+	"github.com/looplab/fsm"
+)
+
+const (
+	StateInit             = "init"
+	StateAwaitLLM         = "await_llm"
+	StateEvaluateResponse = "evaluate_response"
+	StateProcessTools     = "process_tools"
+	StateUpdateBudgets    = "update_budgets"
+	StateHandleCompletion = "handle_completion"
+	StateFinalize         = "finalize"
+	StateTerminateError   = "terminate_error"
+)
+
+const (
+	EventStartLoop         = "start_loop"
+	EventLLMResponse       = "llm_response"
+	EventResponseNoTool    = "response_no_tool"
+	EventResponseWithTools = "response_with_tools"
+	EventToolsExecuted     = "tools_executed"
+	EventBudgetOK          = "budget_ok"
+	EventBudgetExceeded    = "budget_exceeded"
+	EventCompletionRetry   = "completion_retry"
+	EventCompletionSuccess = "completion_success"
+	EventFailure           = "failure"
+)
+
+type loopDeps interface {
+	OnEnterInit(ctx context.Context, loopCtx *LoopContext) transitionResult
+	OnEnterAwaitLLM(ctx context.Context, loopCtx *LoopContext) transitionResult
+	OnEnterEvaluateResponse(ctx context.Context, loopCtx *LoopContext) transitionResult
+	OnEnterProcessTools(ctx context.Context, loopCtx *LoopContext) transitionResult
+	OnEnterUpdateBudgets(ctx context.Context, loopCtx *LoopContext) transitionResult
+	OnEnterHandleCompletion(ctx context.Context, loopCtx *LoopContext) transitionResult
+	OnEnterFinalize(ctx context.Context, loopCtx *LoopContext) transitionResult
+	OnEnterTerminateError(ctx context.Context, loopCtx *LoopContext) transitionResult
+	OnFailure(ctx context.Context, loopCtx *LoopContext, event string)
+}
+
+type transitionResult struct {
+	Event string
+	Args  []any
+	Err   error
+}
+
+type LoopContext struct {
+	Request        Request
+	LLMClient      llmadapter.LLMClient
+	LLMRequest     *llmadapter.LLMRequest
+	State          *loopState
+	Response       *llmadapter.LLMResponse
+	ToolResults    []llmadapter.ToolResult
+	Output         *core.Output
+	Iteration      int
+	MaxIterations  int
+	err            error
+	eventStartedAt time.Time
+}
+
+const (
+	loopContextKey = "loop_context"
+	baseContextKey = "base_context"
+)
+
+func newLoopFSM(ctx context.Context, deps loopDeps, loopCtx *LoopContext) *fsm.FSM {
+	if loopCtx == nil {
+		loopCtx = &LoopContext{}
+	}
+	observer := newTransitionObserver()
+	machine := fsm.NewFSM(
+		StateInit,
+		loopFSMEvents(),
+		loopFSMCallbacks(observer, deps),
+	)
+	machine.SetMetadata(loopContextKey, loopCtx)
+	if ctx != nil {
+		machine.SetMetadata(baseContextKey, ctx)
+	}
+	return machine
+}
+
+func loopFSMEvents() fsm.Events {
+	return fsm.Events{
+		{Name: EventStartLoop, Src: []string{StateInit}, Dst: StateAwaitLLM},
+		{Name: EventLLMResponse, Src: []string{StateAwaitLLM}, Dst: StateEvaluateResponse},
+		{Name: EventResponseNoTool, Src: []string{StateEvaluateResponse}, Dst: StateHandleCompletion},
+		{Name: EventResponseWithTools, Src: []string{StateEvaluateResponse}, Dst: StateProcessTools},
+		{Name: EventToolsExecuted, Src: []string{StateProcessTools}, Dst: StateUpdateBudgets},
+		{Name: EventBudgetOK, Src: []string{StateUpdateBudgets}, Dst: StateAwaitLLM},
+		{Name: EventBudgetExceeded, Src: []string{StateUpdateBudgets}, Dst: StateTerminateError},
+		{Name: EventCompletionRetry, Src: []string{StateHandleCompletion}, Dst: StateAwaitLLM},
+		{Name: EventCompletionSuccess, Src: []string{StateHandleCompletion}, Dst: StateFinalize},
+		{
+			Name: EventFailure,
+			Src: []string{
+				StateAwaitLLM,
+				StateProcessTools,
+				StateHandleCompletion,
+				StateUpdateBudgets,
+			},
+			Dst: StateTerminateError,
+		},
+	}
+}
+
+func loopFSMCallbacks(observer *transitionObserver, deps loopDeps) fsm.Callbacks {
+	callbacks := fsm.Callbacks{
+		"before_event": observer.BeforeEvent,
+		"after_event":  observer.AfterEvent,
+		"after_" + EventFailure: func(cbCtx context.Context, e *fsm.Event) {
+			if deps != nil {
+				deps.OnFailure(cbCtx, loopContextFromEvent(e), e.Event)
+			}
+		},
+	}
+
+	callbacks["enter_"+StateInit] = makeEnterCallback(
+		observer,
+		deps,
+		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterInit(cbCtx, lc)
+		},
+	)
+	callbacks["enter_"+StateAwaitLLM] = makeEnterCallback(
+		observer,
+		deps,
+		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterAwaitLLM(cbCtx, lc)
+		},
+	)
+	callbacks["enter_"+StateEvaluateResponse] = makeEnterCallback(
+		observer,
+		deps,
+		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterEvaluateResponse(cbCtx, lc)
+		},
+	)
+	callbacks["enter_"+StateProcessTools] = makeEnterCallback(
+		observer,
+		deps,
+		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterProcessTools(cbCtx, lc)
+		},
+	)
+	callbacks["enter_"+StateUpdateBudgets] = makeEnterCallback(
+		observer,
+		deps,
+		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterUpdateBudgets(cbCtx, lc)
+		},
+	)
+	callbacks["enter_"+StateHandleCompletion] = makeEnterCallback(
+		observer,
+		deps,
+		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterHandleCompletion(cbCtx, lc)
+		},
+	)
+	callbacks["enter_"+StateFinalize] = makeEnterCallback(
+		observer,
+		deps,
+		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterFinalize(cbCtx, lc)
+		},
+	)
+	callbacks["enter_"+StateTerminateError] = makeEnterCallback(
+		observer,
+		deps,
+		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterTerminateError(cbCtx, lc)
+		},
+	)
+
+	return callbacks
+}
+
+func loopContextFromEvent(e *fsm.Event) *LoopContext {
+	if e == nil {
+		logger.FromContext(context.TODO()).Error("FSM loop context lookup failed", "reason", "nil event")
+		return &LoopContext{}
+	}
+	ctx, ok := e.FSM.Metadata(loopContextKey)
+	if !ok {
+		logCtx := observerContext(nil, e)
+		logger.FromContext(logCtx).Error(
+			"FSM loop context metadata missing",
+			"event",
+			e.Event,
+		)
+		return &LoopContext{}
+	}
+	lc, ok := ctx.(*LoopContext)
+	if !ok || lc == nil {
+		logCtx := observerContext(nil, e)
+		logger.FromContext(logCtx).Error(
+			"FSM loop context metadata invalid",
+			"event",
+			e.Event,
+		)
+		return &LoopContext{}
+	}
+	return lc
+}
+
+func applyTransitionResult(cbCtx context.Context, e *fsm.Event, result transitionResult) {
+	if result.Event == "" && result.Err == nil {
+		return
+	}
+	loopCtx := loopContextFromEvent(e)
+	if result.Err != nil {
+		loopCtx.err = result.Err
+		if result.Event == "" {
+			result.Event = EventFailure
+		}
+	}
+	if result.Event == "" {
+		return
+	}
+	if err := e.FSM.Event(cbCtx, result.Event, result.Args...); err != nil && loopCtx.err == nil {
+		loopCtx.err = err
+	}
+}
+
+type transitionObserver struct {
+	now func() time.Time
+}
+
+func newTransitionObserver() *transitionObserver {
+	return &transitionObserver{now: time.Now}
+}
+
+func (o *transitionObserver) BeforeEvent(cbCtx context.Context, e *fsm.Event) {
+	loopCtx := loopContextFromEvent(e)
+	loopCtx.eventStartedAt = o.now()
+	logCtx := observerContext(cbCtx, e)
+	logger.FromContext(logCtx).Debug(
+		"FSM transition start",
+		"event", e.Event,
+		"from_state", e.Src,
+		"to_state", e.Dst,
+		"iteration", loopCtx.Iteration,
+	)
+}
+
+func (o *transitionObserver) AfterEvent(cbCtx context.Context, e *fsm.Event) {
+	loopCtx := loopContextFromEvent(e)
+	duration := time.Duration(0)
+	if !loopCtx.eventStartedAt.IsZero() {
+		duration = o.now().Sub(loopCtx.eventStartedAt)
+	}
+	logCtx := observerContext(cbCtx, e)
+	keyvals := []any{
+		"event", e.Event,
+		"from_state", e.Src,
+		"to_state", e.Dst,
+		"iteration", loopCtx.Iteration,
+	}
+	if duration > 0 {
+		keyvals = append(keyvals, "duration_ms", duration.Milliseconds())
+	}
+	if loopCtx.err != nil {
+		keyvals = append(keyvals, "error", core.RedactError(loopCtx.err))
+	}
+	logger.FromContext(logCtx).Debug(
+		"FSM transition complete",
+		keyvals...,
+	)
+}
+
+func (o *transitionObserver) EnterState(cbCtx context.Context, e *fsm.Event, loopCtx *LoopContext) {
+	logCtx := observerContext(cbCtx, e)
+	logger.FromContext(logCtx).Debug(
+		"FSM state entered",
+		"state", e.Dst,
+		"event", e.Event,
+		"iteration", loopCtx.Iteration,
+	)
+}
+
+func observerContext(cbCtx context.Context, e *fsm.Event) context.Context {
+	if cbCtx != nil {
+		return cbCtx
+	}
+	if e != nil {
+		if base, ok := e.FSM.Metadata(baseContextKey); ok {
+			if ctx, ok := base.(context.Context); ok && ctx != nil {
+				return ctx
+			}
+		}
+	}
+	return context.TODO()
+}
+
+func makeEnterCallback(
+	observer *transitionObserver,
+	deps loopDeps,
+	handler func(loopDeps, context.Context, *LoopContext) transitionResult,
+) fsm.Callback {
+	return func(cbCtx context.Context, e *fsm.Event) {
+		loopCtx := loopContextFromEvent(e)
+		observer.EnterState(cbCtx, e, loopCtx)
+		if deps == nil {
+			return
+		}
+		applyTransitionResult(cbCtx, e, handler(deps, cbCtx, loopCtx))
+	}
+}

@@ -48,7 +48,7 @@ func New(cfg Config) (Orchestrator, error) {
 	toolExec := NewToolExecutor(cfgCopy.ToolRegistry, &settings)
 	responseHandler := NewResponseHandler(&settings)
 	llmInvoker := NewLLMInvoker(&settings)
-	conv := newConversationLoop(&settings, toolExec, responseHandler, llmInvoker)
+	conv := newConversationLoop(&settings, toolExec, responseHandler, llmInvoker, memoryManager)
 	return &orchestrator{
 		cfg:      cfgCopy,
 		settings: settings,
@@ -78,7 +78,9 @@ func (o *orchestrator) Execute(ctx context.Context, request Request) (*core.Outp
 	if err != nil {
 		return nil, err
 	}
-	o.memory.StoreAsync(ctx, memoryCtx, response, llmReq.Messages, request)
+	if o.loop.memory == nil {
+		o.memory.StoreAsync(ctx, memoryCtx, response, llmReq.Messages, request)
+	}
 	return output, nil
 }
 

@@ -47,7 +47,8 @@ services:
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-redis_secret}
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      test:
+        ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -158,42 +159,42 @@ services:
       - "${TEMPORAL_UI_PORT:-8080}:8080" # Temporal Web UI
 
   # MCP Proxy for development
-  compozy-mcp-proxy:
-    container_name: compozy-mcp-proxy
-    build:
-      context: ..
-      dockerfile: cluster/mcpproxy.Dockerfile
-    # NOTE: For local development, allow the proxy container to invoke Docker CLI
-    # and talk to the host Docker daemon via the Unix socket.
-    user: "0:0" # run as root to avoid socket permission issues in dev
-    environment:
-      - MCP_PROXY_HOST=0.0.0.0
-      - MCP_PROXY_PORT=6001
-      - MCP_PROXY_BASE_URL=http://localhost:6001
-      - MCP_PROXY_LOG_LEVEL=debug # Enable debug logging to show function calls
-      - MCP_PROXY_LOG_JSON=false # Human-readable logs for development
-      - MCP_PROXY_LOG_SOURCE=true # Show source file information
-    networks:
-      - temporal-network
-    ports:
-      - "${MCP_PROXY_PORT:-6001}:${MCP_PROXY_PORT:-6001}" # MCP Proxy HTTP API
-    volumes:
-      # Give access to host Docker daemon for stdio commands like `docker mcp gateway run`
-      - /var/run/docker.sock:/var/run/docker.sock
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:${MCP_PROXY_PORT:-6001}/healthz",
-        ]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
+  # compozy-mcp-proxy:
+  #   container_name: compozy-mcp-proxy
+  #   build:
+  #     context: ..
+  #     dockerfile: cluster/mcpproxy.Dockerfile
+  #   # NOTE: For local development, allow the proxy container to invoke Docker CLI
+  #   # and talk to the host Docker daemon via the Unix socket.
+  #   user: "0:0" # run as root to avoid socket permission issues in dev
+  #   environment:
+  #     - MCP_PROXY_HOST=0.0.0.0
+  #     - MCP_PROXY_PORT=6001
+  #     - MCP_PROXY_BASE_URL=http://localhost:6001
+  #     - MCP_PROXY_LOG_LEVEL=debug # Enable debug logging to show function calls
+  #     - MCP_PROXY_LOG_JSON=false # Human-readable logs for development
+  #     - MCP_PROXY_LOG_SOURCE=true # Show source file information
+  #   networks:
+  #     - temporal-network
+  #   ports:
+  #     - "${MCP_PROXY_PORT:-6001}:${MCP_PROXY_PORT:-6001}" # MCP Proxy HTTP API
+  #   volumes:
+  #     # Give access to host Docker daemon for stdio commands like `docker mcp gateway run`
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   healthcheck:
+  #     test:
+  #       [
+  #         "CMD",
+  #         "wget",
+  #         "--no-verbose",
+  #         "--tries=1",
+  #         "--spider",
+  #         "http://localhost:${MCP_PROXY_PORT:-6001}/healthz",
+  #       ]
+  #     interval: 30s
+  #     timeout: 3s
+  #     retries: 3
+  #     start_period: 10s
 
   # Prometheus for metrics collection
   prometheus:
@@ -215,7 +216,14 @@ services:
       - prometheus_data:/prometheus
     healthcheck:
       test:
-        ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9090/-/healthy",
+        ]
       interval: 30s
       timeout: 3s
       retries: 3
