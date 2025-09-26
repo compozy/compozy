@@ -109,11 +109,17 @@ func (s *Server) awaitMCPProxyReady(
 func (s *Server) afterMCPReady(ctx context.Context, cfg *config.Config, baseURL, driver string) {
 	s.setMCPReady(true)
 	s.onReadinessMaybeChanged("mcp_ready")
-	if cfg.LLM.ProxyURL == "" {
+	log := logger.FromContext(ctx)
+	if cfg.MCPProxy.Mode == modeStandalone {
+		if cfg.LLM.ProxyURL != baseURL {
+			cfg.LLM.ProxyURL = baseURL
+			log.Info("Set LLM proxy URL from embedded MCP proxy", "proxy_url", baseURL)
+		}
+	} else if cfg.LLM.ProxyURL == "" {
 		cfg.LLM.ProxyURL = baseURL
-		logger.FromContext(ctx).Info("Set LLM proxy URL from embedded MCP proxy", "proxy_url", baseURL)
+		log.Info("Set LLM proxy URL from embedded MCP proxy", "proxy_url", baseURL)
 	}
-	logger.FromContext(ctx).Info(
+	log.Info(
 		"Embedded MCP proxy started",
 		"mode", cfg.MCPProxy.Mode,
 		"mcp_storage_driver", driver,
@@ -163,7 +169,13 @@ func (s *Server) newMCPProxyServer(
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to initialize MCP storage: %w", err)
 	}
-	cm := mcpproxy.NewMCPClientManager(ctx, storage, nil)
+	cmCfg := clientManagerConfigFromApp(cfg)
+	logger.FromContext(ctx).Debug(
+		"Configured MCP client manager timeouts",
+		"connect_timeout", cmCfg.DefaultConnectTimeout,
+		"request_timeout", cmCfg.DefaultRequestTimeout,
+	)
+	cm := mcpproxy.NewMCPClientManager(ctx, storage, cmCfg)
 	mcfg := &mcpproxy.Config{
 		Host:               host,
 		Port:               port,
@@ -182,10 +194,29 @@ func shouldEmbedMCPProxy(cfg *config.Config) bool {
 	if cfg.MCPProxy.Mode != modeStandalone {
 		return false
 	}
-	if cfg.LLM.ProxyURL != "" {
-		return false
-	}
 	return true
+}
+
+func clientManagerConfigFromApp(cfg *config.Config) *mcpproxy.ClientManagerConfig {
+	cmCfg := mcpproxy.DefaultClientManagerConfig()
+	if cfg == nil {
+		return cmCfg
+	}
+	timeout := cfg.LLM.MCPClientTimeout
+	if cfg.LLM.MCPReadinessTimeout > timeout {
+		timeout = cfg.LLM.MCPReadinessTimeout
+	}
+	if timeout <= 0 {
+		return cmCfg
+	}
+	if timeout < mcpproxy.DefaultConnectTimeout {
+		timeout = mcpproxy.DefaultConnectTimeout
+	}
+	cmCfg.DefaultConnectTimeout = timeout
+	if cmCfg.DefaultRequestTimeout <= 0 || timeout > cmCfg.DefaultRequestTimeout {
+		cmCfg.DefaultRequestTimeout = timeout
+	}
+	return cmCfg
 }
 
 func storageConfigForMCP(cfg *config.Config) *mcpproxy.StorageConfig {

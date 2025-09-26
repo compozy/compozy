@@ -221,6 +221,13 @@ type Config struct {
 	// **Security Note**: Commands are parsed using shell lexing for safety.
 	// Avoid user-provided input in commands.
 	Command string `yaml:"command,omitempty"       json:"command,omitempty"`
+	// Args supplies additional arguments passed to the command when spawning local MCP processes.
+	//
+	// Use this to provide flags or subcommands while keeping Command focused on the executable.
+	// Example:
+	// command: "uvx"
+	// args: ["mcp-server-fetch", "--port", "9000"]
+	Args []string `yaml:"args,omitempty"          json:"args,omitempty"`
 	// Headers contains HTTP headers to include when connecting to remote MCP servers (SSE/HTTP).
 	// Useful for passing Authorization tokens, custom auth headers, or version negotiation.
 	// Example:

@@ -271,6 +271,24 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 		assert.Equal(t, "production", def.Env["NODE_ENV"])
 	})
 
+	t.Run("Should merge explicit args with parsed command args", func(t *testing.T) {
+		client := NewProxyClient("http://localhost:7077", 5*time.Second)
+		service := NewRegisterService(client)
+
+		config := Config{
+			ID:        "npx-mcp",
+			Command:   "npx",
+			Args:      []string{"-y", "mcp-server-fetch"},
+			Transport: "stdio",
+		}
+
+		def, err := service.convertToDefinition(&config)
+		require.NoError(t, err)
+
+		assert.Equal(t, "npx", def.Command)
+		assert.Equal(t, []string{"-y", "mcp-server-fetch"}, def.Args)
+	})
+
 	t.Run("Should return error when neither URL nor Command is provided", func(t *testing.T) {
 		client := NewProxyClient("http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)

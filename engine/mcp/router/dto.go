@@ -28,6 +28,7 @@ type MCPCoreDTO struct {
 	ID           string            `json:"id"`
 	URL          string            `json:"url,omitempty"`
 	Command      string            `json:"command,omitempty"`
+	Args         []string          `json:"args,omitempty"`
 	Headers      map[string]string `json:"headers,omitempty"`
 	Env          map[string]string `json:"env,omitempty"`
 	Proto        string            `json:"proto,omitempty"`
@@ -80,6 +81,7 @@ func convertMCPConfigToDTO(cfg *mcp.Config) (MCPCoreDTO, error) {
 		ID:           clone.ID,
 		URL:          clone.URL,
 		Command:      clone.Command,
+		Args:         append([]string(nil), clone.Args...),
 		Headers:      copyStringMap(clone.Headers),
 		Env:          copyStringMap(clone.Env),
 		Proto:        clone.Proto,
