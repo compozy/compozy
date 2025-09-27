@@ -323,7 +323,11 @@ func searchFile(
 		}
 		return builtin.Internal(fmt.Errorf("failed to open file: %w", err), map[string]any{"path": rel})
 	}
-	defer file.Close()
+	defer func() {
+		if cerr := file.Close(); cerr != nil {
+			logger.FromContext(ctx).Debug("failed to close file", "path", rel, "error", cerr)
+		}
+	}()
 	return scanFileMatches(file, root, path, re, maxResults, maxFileBytes, matches)
 }
 
@@ -343,6 +347,7 @@ func scanFileMatches(
 	if maxBuf > 0 {
 		scanner.Buffer(buffer, maxBuf)
 	}
+	rel := relativePath(root, path)
 	lineNumber := 0
 	for scanner.Scan() {
 		lineNumber++
@@ -355,7 +360,7 @@ func scanFileMatches(
 			column := loc[0] + 1
 			trimmed := strings.TrimSpace(line)
 			entry := map[string]any{
-				"file":   relativePath(root, path),
+				"file":   rel,
 				"line":   lineNumber,
 				"column": column,
 				"text":   trimmed,
@@ -364,7 +369,7 @@ func scanFileMatches(
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return builtin.Internal(fmt.Errorf("failed to scan file: %w", err), map[string]any{"path": path})
+		return builtin.Internal(fmt.Errorf("failed to scan file: %w", err), map[string]any{"path": rel})
 	}
 	return nil
 }

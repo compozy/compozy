@@ -120,7 +120,6 @@ func executeHandler(ctx context.Context, payload map[string]any) (core.Output, e
 		errorCode = builtin.CodeInvalidArgument
 		return nil, builtin.InvalidArgument(err, nil)
 	}
-
 	result, runInfo, err := runCommand(ctx, toolCfg, args)
 	info = runInfo
 	if err != nil {
@@ -130,7 +129,6 @@ func executeHandler(ctx context.Context, payload map[string]any) (core.Output, e
 		}
 		return nil, err
 	}
-
 	if info.timedOut {
 		errorCode = "Timeout"
 		status = builtin.StatusFailure

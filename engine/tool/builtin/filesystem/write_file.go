@@ -118,7 +118,7 @@ func writeFileHandler(ctx context.Context, payload map[string]any) (core.Output,
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer closeWrittenFile(ctx, file, args.Path)
 	if int64(len(args.Content)) > cfg.Limits.MaxFileBytes {
 		return nil, builtin.InvalidArgument(
 			errors.New("content exceeds maximum size"),
@@ -187,6 +187,20 @@ func openWritable(path string, args WriteFileArgs) (*os.File, error) {
 		return nil, builtin.Internal(fmt.Errorf("failed to open file: %w", err), map[string]any{"path": args.Path})
 	}
 	return file, nil
+}
+
+func closeWrittenFile(ctx context.Context, file *os.File, virtualPath string) {
+	if err := file.Close(); err != nil {
+		logger.FromContext(ctx).Error(
+			"failed to close written file",
+			"tool_id",
+			"cp__write_file",
+			"path",
+			virtualPath,
+			"error",
+			err,
+		)
+	}
 }
 
 func preventSymlinkTarget(path string, virtual string) error {
