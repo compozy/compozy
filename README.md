@@ -1,137 +1,103 @@
-# PR Review Comment Fetcher
+<div align="center">
+  <img src="./docs/public/banner.png" alt="Compozy Logo" width="100%">
+  <br>
+  <br>
+  <p>
+    <a href="https://github.com/compozy/compozy/actions/workflows/ci.yml">
+      <img src="https://github.com/compozy/compozy/actions/workflows/ci.yml/badge.svg" alt="Build Status">
+    </a>
+    <a href="https://pkg.go.dev/github.com/compozy/compozy">
+      <img src="https://pkg.go.dev/badge/github.com/compozy/compozy.svg" alt="Go Reference">
+    </a>
+  </p>
+</div>
 
-A TypeScript script that fetches and organizes CodeRabbit AI comments from GitHub Pull Requests, with proper pagination support to ensure all comments are retrieved.
+> [!WARNING]
+> ✨ Alpha Release is Here! This project is currently in alpha. Please use with caution, as it may contain bugs and undergo significant changes.
 
-## Features
+## Next-level Agentic Orchestration Platform
 
-- ✅ **Full Pagination Support**: Uses Octokit's `paginate()` method to automatically fetch all comments across multiple pages
-- ✅ **Both Comment Types**: Fetches both review comments (inline code comments) and issue comments (general PR comments)
-- ✅ **CodeRabbit AI Filtering**: Only extracts comments from the CodeRabbit AI bot
-- ✅ **Organized Output**: Creates individual markdown files for each comment and a summary file
-- ✅ **Proper Authentication**: Uses GitHub token for API access
-- ✅ **Bun Runtime**: Built for Bun with TypeScript support
+**Compozy** orchestrates multi-agent AI systems with ease. Compozy's enterprise-grade platform uses declarative YAML to deliver scalable, reliable, and cost-efficient distributed workflows, simplifying complex fan-outs, debugging, and monitoring for production-ready automation.
 
-## Prerequisites
+## ✨ Key Features
 
-1. **Bun**: Install Bun runtime from https://bun.sh
-2. **GitHub Token**: Personal access token with `repo` scope
-3. **Git Repository**: Must be run from within a Git repository with a GitHub remote
+- **Declarative Workflows**: Define complex AI workflows with simple, human-readable YAML.
+- **Developer-Focused**: A comprehensive CLI with hot-reloading for a seamless development experience.
+- **Advanced Task Orchestration**: 8 powerful task types including parallel, sequential, and conditional execution.
+- **Extensible Tools**: Write custom tools in TypeScript/JavaScript to extend agent capabilities.
+- **Multi-Model Support**: Integrates with 7+ LLM providers like OpenAI, Anthropic, Google, and local models.
+- **Enterprise-Ready**: With Temporal behind the scenes, Compozy is built for production with persistence, monitoring, and security features.
+- **High Performance**: Built with Go at its core, Compozy delivers exceptional speed and efficiency.
 
-## Installation
+## 🚀 Getting Started
 
-```bash
-# Clone or download the script files
-# Install dependencies
-bun install
-```
+Get up and running with Compozy in just a few minutes.
 
-## Usage
-
-1. **Set up GitHub authentication:**
-
-```bash
-export GITHUB_TOKEN=your_github_token_here
-```
-
-2. **Run the script:**
-
-```bash
-bun run pr-review.ts <pr_number>
-```
-
-Example:
+### Install via Homebrew (macOS/Linux)
 
 ```bash
-bun run pr-review.ts 123
+brew tap compozy/homebrew-compozy
+brew install compozy
 ```
 
-## Output
-
-The script creates a directory structure like:
-
-```
-ai-docs/reviews-pr-123/
-├── _summary.md
-├── comment_001.md
-├── comment_002.md
-├── comment_003.md
-└── ...
-```
-
-### Summary File
-
-Contains statistics and links to all individual comment files:
-
-- Total comments count
-- Review vs issue comment breakdown
-- Resolved vs unresolved status
-- Links to individual comment files
-
-### Individual Comment Files
-
-Each comment gets its own markdown file with:
-
-- Comment type (Review or General)
-- File path and line number (for review comments)
-- Creation date
-- Resolution status
-- Full comment body
-
-## How Pagination Works
-
-The script uses Octokit's `paginate()` method which:
-
-1. Automatically handles GitHub's pagination headers
-2. Fetches all pages until no more results are available
-3. Combines all results into a single array
-4. Handles rate limiting and retry logic
-
-This ensures that even PRs with hundreds of comments are fully processed.
-
-## Differences from Original Bash Script
-
-1. **Pagination**: Original script used GitHub CLI which might miss comments if pagination wasn't handled properly. This version uses Octokit's pagination to guarantee all comments are fetched.
-
-2. **TypeScript**: Full type safety and better error handling
-
-3. **Dependencies**: Uses Octokit REST API client instead of GitHub CLI
-
-4. **Authentication**: Explicit token requirement for better security
-
-5. **Error Handling**: More robust error handling and user feedback
-
-## Configuration
-
-The script automatically detects the repository owner and name from the git remote URL. Make sure you're running it from within the correct repository.
-
-## Troubleshooting
-
-### "GITHUB_TOKEN environment variable is required"
-
-Set your GitHub token:
+### Install via NPM
 
 ```bash
-export GITHUB_TOKEN=ghp_your_token_here
+npm install -g @compozy/cli
+# Or with Yarn
+yarn global add @compozy/cli
+# Or with pnpm
+pnpm add -g @compozy/cli
 ```
 
-### "Could not parse repository information"
-
-Make sure you're in a git repository with a GitHub remote:
+### Quick Start
 
 ```bash
-git remote -v
+# Create a new project
+compozy init my-ai-app
+cd my-ai-app
+
+# Start the development server
+compozy dev
 ```
 
-### No comments found
+> **Note**: When using MCP tools in standalone mode, ensure `mcp_proxy.port` is set to a fixed port (not 0). See [MCP Configuration](./docs/content/docs/core/configuration/project-setup.mdx) for details.
 
-- Verify the PR number is correct
-- Check if CodeRabbit AI has commented on this PR
-- Ensure your token has the necessary permissions
+For a complete walkthrough, check out our [**Quick Start Guide**](./docs/content/docs/core/getting-started/quick-start.mdx).
 
-## API Rate Limits
+## 📚 Documentation
 
-The script respects GitHub's API rate limits:
+Our documentation website is the best place to find comprehensive information, tutorials, and API references.
 
-- 5,000 requests per hour for authenticated requests
-- Automatic pagination handling prevents hitting limits unnecessarily
-- Consider using a token for higher rate limits if processing many PRs
+| Section                                                                             | Description                                      |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 🚀 **[Getting Started](./docs/content/docs/core/getting-started/installation.mdx)** | Installation, setup, and your first workflow     |
+| 🛠️ **[Configuration](./docs/content/docs/core/configuration/project-setup.mdx)**    | Project, runtime, and provider configuration     |
+| 🎨 **[Template Engine](./docs/content/docs/core/yaml-templates/overview.mdx)**      | Dynamic YAML configuration with templating       |
+| 🤖 **[Agents](./docs/content/docs/core/agents/overview.mdx)**                       | Building and configuring AI agents               |
+| ⚙️ **[Tasks](./docs/content/docs/core/tasks/overview.mdx)**                         | Orchestrating operations with various task types |
+| 🔧 **[Tools](./docs/content/docs/core/tools/overview.mdx)**                         | Extending agent capabilities with custom tools   |
+| 🧠 **[Memory & Context](./docs/content/docs/core/memory/overview.mdx)**             | Managing agent memory and conversation context   |
+| 🔌 **[MCP Integration](./docs/content/docs/core/mcp/overview.mdx)**                 | Model Context Protocol for external tool servers |
+| 📡 **[Signal System](./docs/content/docs/core/signals/overview.mdx)**               | Event-driven communication between components    |
+| 🚀 **[Deployment](./docs/content/docs/core/deployment/docker.mdx)**                 | Deploy Compozy to production environments        |
+| 💻 **[CLI Reference](./docs/content/docs/cli/overview.mdx)**                        | Command-line interface reference                 |
+| 📋 **[Schema Definition](./docs/content/docs/schema/project.mdx)**                  | YAML schema definitions for all components       |
+| 🔌 **[API Reference](./docs/content/docs/api/overview.mdx)**                        | REST API for programmatic access                 |
+
+**[➡️ Explore the full documentation](./docs/content/docs/core/index.mdx)**
+
+## 🤝 Community & Contributing
+
+We welcome contributions from the community! Whether it's reporting a bug, suggesting a feature, or submitting a pull request, your input is valuable.
+
+- **[GitHub Issues](https://github.com/compozy/compozy/issues)**: Report bugs and request features.
+- **[Contributing Guide](./CONTRIBUTING.md)**: Learn how to contribute to the project.
+
+---
+
+## 🔐 License
+
+This project is licensed under the Business Source License 1.1 (BUSL-1.1). See the [LICENSE](LICENSE) file for details.
+
+<p align="center">Made with ❤️ by the Compozy Team</p>
