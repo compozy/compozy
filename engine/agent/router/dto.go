@@ -84,6 +84,18 @@ type AgentsListResponse struct {
 	Page   httpdto.PageInfoDTO `json:"page"`
 }
 
+// AgentExecSyncResponse is returned from POST /agents/{agent_id}/executions.
+type AgentExecSyncResponse struct {
+	Output *core.Output `json:"output,omitempty"`
+	ExecID string       `json:"exec_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+}
+
+// AgentExecAsyncResponse is returned from POST /agents/{agent_id}/executions/async.
+type AgentExecAsyncResponse struct {
+	ExecID  string `json:"exec_id"  example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	ExecURL string `json:"exec_url" example:"https://api.compozy.dev/api/v0/executions/agents/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+}
+
 // ToAgentDTOForWorkflow converts UC map payloads into typed DTOs for workflow expansion.
 func ToAgentDTOForWorkflow(src map[string]any) (AgentDTO, error) {
 	return toAgentDTO(src)

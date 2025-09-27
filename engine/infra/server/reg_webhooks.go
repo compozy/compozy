@@ -87,6 +87,8 @@ func registerPublicWebhookRoutes(
 		maxBody,
 		dedupeTTL,
 	)
+	// Reuse webhook idempotency service for API execution endpoints.
+	state.SetAPIIdempotencyService(idemSvc)
 	if meter != nil {
 		metrics, err := webhook.NewMetrics(ctx, meter)
 		if err != nil {

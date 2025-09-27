@@ -9,6 +9,8 @@ _openapi:
   structuredData:
     headings: []
     contents:
+      - content: Returns comprehensive health information for the memory system
+      - content: Returns health information for a specific memory instance
       - content: Append messages to existing memory content
       - content: Clear all memory content with confirmation
       - content: Delete all memory content for a specific key
@@ -21,12 +23,10 @@ _openapi:
       - content: >-
           Write or replace memory content for a specific memory reference and
           key
-      - content: Returns comprehensive health information for the memory system
-      - content: Returns health information for a specific memory instance
 ---
 
 {/* <!-- This file was auto-generated from OpenAPI\/Swagger. Do not edit manually. --> */}
 
 Memory management operations
 
-<APIPage document={"swagger.json"} operations={[{"path":"/memory/{memory_ref}/append","method":"post"},{"path":"/memory/{memory_ref}/clear","method":"post"},{"path":"/memory/{memory_ref}/delete","method":"post"},{"path":"/memory/{memory_ref}/flush","method":"post"},{"path":"/memory/{memory_ref}/health","method":"get"},{"path":"/memory/{memory_ref}/read","method":"get"},{"path":"/memory/{memory_ref}/stats","method":"get"},{"path":"/memory/{memory_ref}/write","method":"post"},{"path":"/memory/health","method":"get"},{"path":"/memory/health/{memory_id}","method":"get"}]} webhooks={[]} hasHead={true} />
+<APIPage document={"swagger.json"} operations={[{"path":"/memory/health","method":"get"},{"path":"/memory/health/{memory_id}","method":"get"},{"path":"/memory/{memory_ref}/append","method":"post"},{"path":"/memory/{memory_ref}/clear","method":"post"},{"path":"/memory/{memory_ref}/delete","method":"post"},{"path":"/memory/{memory_ref}/flush","method":"post"},{"path":"/memory/{memory_ref}/health","method":"get"},{"path":"/memory/{memory_ref}/read","method":"get"},{"path":"/memory/{memory_ref}/stats","method":"get"},{"path":"/memory/{memory_ref}/write","method":"post"}]} webhooks={[]} hasHead={true} />

@@ -9,16 +9,22 @@ _openapi:
   structuredData:
     headings: []
     contents:
-      - content: List tasks with pagination and optional workflow filtering
-      - content: Retrieve a task configuration by ID
-      - content: Create or update a task with strong ETag concurrency control
-      - content: Delete a task while enforcing reference conflict checks
-      - content: Retrieve all tasks associated with a specific workflow
-      - content: Retrieve a workflow-scoped task configuration by ID
+      - content: >-
+          List tasks with cursor pagination. Optionally filter by workflow
+          usage.
+      - content: Write task YAML files for the active project.
+      - content: Read task YAML files from the project directory.
+      - content: Retrieve a task configuration by ID.
+      - content: Delete a task configuration. Returns conflict when referenced.
+      - content: >-
+          Create a task configuration when absent or update an existing one
+          using strong ETag concurrency.
+      - content: Execute a task and wait for the output in the same HTTP response.
+      - content: Start an asynchronous task execution and return a polling handle.
 ---
 
 {/* <!-- This file was auto-generated from OpenAPI\/Swagger. Do not edit manually. --> */}
 
 Task management operations
 
-<APIPage document={"swagger.json"} operations={[{"path":"/tasks","method":"get"},{"path":"/tasks/{task_id}","method":"get"},{"path":"/tasks/{task_id}","method":"put"},{"path":"/tasks/{task_id}","method":"delete"},{"path":"/workflows/{workflow_id}/tasks","method":"get"},{"path":"/workflows/{workflow_id}/tasks/{task_id}","method":"get"}]} webhooks={[]} hasHead={true} />
+<APIPage document={"swagger.json"} operations={[{"path":"/tasks","method":"get"},{"path":"/tasks/export","method":"post"},{"path":"/tasks/import","method":"post"},{"path":"/tasks/{task_id}","method":"get"},{"path":"/tasks/{task_id}","method":"delete"},{"path":"/tasks/{task_id}","method":"put"},{"path":"/tasks/{task_id}/executions","method":"post"},{"path":"/tasks/{task_id}/executions/async","method":"post"}]} webhooks={[]} hasHead={true} />

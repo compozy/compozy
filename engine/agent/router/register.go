@@ -13,10 +13,17 @@ func Register(apiBase *gin.RouterGroup) {
 		// POST /agents/import
 		// Import agents from YAML
 		agentsGroup.POST("/import", importAgents)
+		agentsGroup.POST("/:agent_id/executions", executeAgentSync)
+		agentsGroup.POST("/:agent_id/executions/async", executeAgentAsync)
 		agentsGroup.GET("", listAgentsTop)
 		agentsGroup.GET("/:agent_id", getAgentTop)
 		agentsGroup.PUT("/:agent_id", upsertAgentTop)
 		agentsGroup.DELETE("/:agent_id", deleteAgentTop)
+	}
+	execGroup := apiBase.Group("/executions")
+	{
+		agentExecGroup := execGroup.Group("/agents")
+		agentExecGroup.GET("/:agent_exec_id", getAgentExecutionStatus)
 	}
 	// Agent definition routes under workflows
 	workflowsGroup := apiBase.Group("/workflows/:workflow_id")

@@ -9,16 +9,22 @@ _openapi:
   structuredData:
     headings: []
     contents:
-      - content: List agents with pagination and optional workflow filtering
-      - content: Retrieve an agent configuration by ID
-      - content: Create or update an agent with strong ETag concurrency control
-      - content: Delete an agent while enforcing reference conflict checks
-      - content: Retrieve all agents associated with a specific workflow
-      - content: Retrieve a workflow-scoped agent configuration by ID
+      - content: >-
+          List agents with cursor pagination. Optionally filter by workflow
+          usage.
+      - content: Write agent YAML files for the active project.
+      - content: Read agent YAML files from the project directory.
+      - content: Retrieve an agent configuration by ID.
+      - content: Delete an agent configuration. Returns conflict when referenced.
+      - content: >-
+          Create an agent when absent or update an existing one using strong
+          ETag concurrency.
+      - content: Execute an agent and wait for the output in the same HTTP response.
+      - content: Start an asynchronous agent execution and return a polling handle.
 ---
 
 {/* <!-- This file was auto-generated from OpenAPI\/Swagger. Do not edit manually. --> */}
 
 Agent management operations
 
-<APIPage document={"swagger.json"} operations={[{"path":"/agents","method":"get"},{"path":"/agents/{agent_id}","method":"get"},{"path":"/agents/{agent_id}","method":"put"},{"path":"/agents/{agent_id}","method":"delete"},{"path":"/workflows/{workflow_id}/agents","method":"get"},{"path":"/workflows/{workflow_id}/agents/{agent_id}","method":"get"}]} webhooks={[]} hasHead={true} />
+<APIPage document={"swagger.json"} operations={[{"path":"/agents","method":"get"},{"path":"/agents/export","method":"post"},{"path":"/agents/import","method":"post"},{"path":"/agents/{agent_id}","method":"get"},{"path":"/agents/{agent_id}","method":"delete"},{"path":"/agents/{agent_id}","method":"put"},{"path":"/agents/{agent_id}/executions","method":"post"},{"path":"/agents/{agent_id}/executions/async","method":"post"}]} webhooks={[]} hasHead={true} />

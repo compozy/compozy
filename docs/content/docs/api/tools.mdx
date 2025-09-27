@@ -9,16 +9,20 @@ _openapi:
   structuredData:
     headings: []
     contents:
-      - content: List tools with pagination and optional workflow filtering
-      - content: Retrieve a tool configuration by ID
-      - content: Create or update a tool with strong ETag concurrency control
-      - content: Delete a tool while enforcing reference conflict checks
-      - content: Retrieve all tools associated with a specific workflow
-      - content: Retrieve a workflow-scoped tool configuration by ID
+      - content: >-
+          List tools with cursor pagination. Optionally filter by workflow
+          usage.
+      - content: Write tool YAML files for the active project.
+      - content: Read tool YAML files from the project directory.
+      - content: Retrieve a tool configuration by ID.
+      - content: Delete a tool configuration. Returns conflict when referenced.
+      - content: >-
+          Create a tool configuration when absent or update an existing one
+          using strong ETag concurrency.
 ---
 
 {/* <!-- This file was auto-generated from OpenAPI\/Swagger. Do not edit manually. --> */}
 
 Tool management operations
 
-<APIPage document={"swagger.json"} operations={[{"path":"/tools","method":"get"},{"path":"/tools/{tool_id}","method":"get"},{"path":"/tools/{tool_id}","method":"put"},{"path":"/tools/{tool_id}","method":"delete"},{"path":"/workflows/{workflow_id}/tools","method":"get"},{"path":"/workflows/{workflow_id}/tools/{tool_id}","method":"get"}]} webhooks={[]} hasHead={true} />
+<APIPage document={"swagger.json"} operations={[{"path":"/tools","method":"get"},{"path":"/tools/export","method":"post"},{"path":"/tools/import","method":"post"},{"path":"/tools/{tool_id}","method":"get"},{"path":"/tools/{tool_id}","method":"delete"},{"path":"/tools/{tool_id}","method":"put"}]} webhooks={[]} hasHead={true} />

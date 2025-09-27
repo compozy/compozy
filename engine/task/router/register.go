@@ -13,10 +13,17 @@ func Register(apiBase *gin.RouterGroup) {
 		// POST /tasks/import
 		// Import tasks from YAML
 		tasksGroup.POST("/import", importTasks)
+		tasksGroup.POST("/:task_id/executions", executeTaskSync)
+		tasksGroup.POST("/:task_id/executions/async", executeTaskAsync)
 		tasksGroup.GET("", listTasksTop)
 		tasksGroup.GET("/:task_id", getTaskTop)
 		tasksGroup.PUT("/:task_id", upsertTaskTop)
 		tasksGroup.DELETE("/:task_id", deleteTaskTop)
+	}
+	execGroup := apiBase.Group("/executions")
+	{
+		taskExecGroup := execGroup.Group("/tasks")
+		taskExecGroup.GET("/:task_exec_id", getTaskExecutionStatus)
 	}
 	// Task definition routes under workflows
 	workflowsGroup := apiBase.Group("/workflows/:workflow_id")
