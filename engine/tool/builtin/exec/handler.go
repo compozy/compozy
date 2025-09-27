@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"regexp"
@@ -428,7 +429,11 @@ func mergeEnvironment(extra map[string]string) []string {
 	if len(extra) == 0 {
 		return base
 	}
-	merged := make([]string, 0, len(base)+len(extra))
+	capacity := len(base)
+	if len(extra) <= math.MaxInt-capacity {
+		capacity += len(extra)
+	}
+	merged := make([]string, 0, capacity)
 	replaced := make(map[string]struct{}, len(extra))
 	for _, kv := range base {
 		equal := strings.IndexByte(kv, '=')
