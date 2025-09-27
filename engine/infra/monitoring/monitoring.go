@@ -8,6 +8,7 @@ import (
 
 	interceptorpkg "github.com/compozy/compozy/engine/infra/monitoring/interceptor"
 	"github.com/compozy/compozy/engine/infra/monitoring/middleware"
+	builtin "github.com/compozy/compozy/engine/tool/builtin"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	prom "github.com/prometheus/client_golang/prometheus"
@@ -114,6 +115,13 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 	memoryMetricsStart := time.Now()
 	InitializeMemoryMonitoring(ctx, meter)
 	log.Debug("Initialized memory metrics", "duration", time.Since(memoryMetricsStart))
+	// Initialize builtin tools metrics
+	toolsMetricsStart := time.Now()
+	if err := builtin.InitMetrics(meter); err != nil {
+		log.Error("Failed to initialize cp__ tool metrics", "error", err)
+	} else {
+		log.Debug("Initialized cp__ tool metrics", "duration", time.Since(toolsMetricsStart))
+	}
 	log.Info("Monitoring service initialized successfully", "total_duration", time.Since(startTime))
 	return service, nil
 }

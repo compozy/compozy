@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
+
 	"github.com/compozy/compozy/pkg/config/definition"
 )
 
@@ -447,6 +449,9 @@ type RuntimeConfig struct {
 	//
 	// Default: ["--allow-read"]
 	BunPermissions []string `koanf:"bun_permissions" env:"RUNTIME_BUN_PERMISSIONS" json:"bun_permissions" yaml:"bun_permissions" mapstructure:"bun_permissions"`
+
+	// NativeTools configures native cp__ tool behavior and guards.
+	NativeTools NativeToolsConfig `koanf:"native_tools" json:"native_tools" yaml:"native_tools" mapstructure:"native_tools"`
 }
 
 // LimitsConfig contains system limits and constraints.
@@ -1426,6 +1431,34 @@ func getMapSlice(registry *definition.Registry, path string) []map[string]any {
 	return nil
 }
 
+func buildNativeExecAllowlist(registry *definition.Registry) []NativeExecCommandConfig {
+	raw := getMapSlice(registry, "runtime.native_tools.exec.allowlist")
+	if len(raw) == 0 {
+		return nil
+	}
+	result := make([]NativeExecCommandConfig, 0, len(raw))
+	for _, item := range raw {
+		if item == nil {
+			continue
+		}
+		var cfg NativeExecCommandConfig
+		decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+			TagName:          "mapstructure",
+			Result:           &cfg,
+			WeaklyTypedInput: true,
+			DecodeHook:       mapstructure.StringToTimeDurationHookFunc(),
+		})
+		if err != nil {
+			continue
+		}
+		if err := decoder.Decode(item); err != nil {
+			continue
+		}
+		result = append(result, cfg)
+	}
+	return result
+}
+
 func buildServerConfig(registry *definition.Registry) ServerConfig {
 	return ServerConfig{
 		Host:        getString(registry, "server.host"),
@@ -1527,6 +1560,23 @@ func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
 		RuntimeType:                 getString(registry, "runtime.runtime_type"),
 		EntrypointPath:              getString(registry, "runtime.entrypoint_path"),
 		BunPermissions:              getStringSlice(registry, "runtime.bun_permissions"),
+		NativeTools: NativeToolsConfig{
+			Enabled:         getBool(registry, "runtime.native_tools.enabled"),
+			RootDir:         getString(registry, "runtime.native_tools.root_dir"),
+			AdditionalRoots: getStringSlice(registry, "runtime.native_tools.additional_roots"),
+			Exec: NativeExecConfig{
+				Timeout:        getDuration(registry, "runtime.native_tools.exec.timeout"),
+				MaxStdoutBytes: getInt64(registry, "runtime.native_tools.exec.max_stdout_bytes"),
+				MaxStderrBytes: getInt64(registry, "runtime.native_tools.exec.max_stderr_bytes"),
+				Allowlist:      buildNativeExecAllowlist(registry),
+			},
+			Fetch: NativeFetchConfig{
+				Timeout:        getDuration(registry, "runtime.native_tools.fetch.timeout"),
+				MaxBodyBytes:   getInt64(registry, "runtime.native_tools.fetch.max_body_bytes"),
+				MaxRedirects:   getInt(registry, "runtime.native_tools.fetch.max_redirects"),
+				AllowedMethods: getStringSlice(registry, "runtime.native_tools.fetch.allowed_methods"),
+			},
+		},
 	}
 }
 

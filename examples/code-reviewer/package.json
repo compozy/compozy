@@ -19,9 +19,6 @@
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.70",
     "@anthropic-ai/sdk": "^0.58.0",
-    "@instantlyeasy/claude-code-sdk-ts": "^0.3.3",
-    "@compozy/tool-list-files": "workspace:*",
-    "@compozy/tool-read-file": "workspace:*",
-    "@compozy/tool-write-file": "workspace:*"
+    "@instantlyeasy/claude-code-sdk-ts": "^0.3.3"
   }
 }

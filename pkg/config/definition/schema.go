@@ -432,6 +432,7 @@ func registerRuntimeFields(registry *Registry) {
 	registerRuntimeCoreFields(registry)
 	registerRuntimeDispatcherFields(registry)
 	registerRuntimeToolFields(registry)
+	registerRuntimeNativeToolsFields(registry)
 }
 
 func registerRuntimeCoreFields(registry *Registry) {
@@ -528,6 +529,102 @@ func registerRuntimeToolFields(registry *Registry) {
 		EnvVar:  "RUNTIME_BUN_PERMISSIONS",
 		Type:    reflect.TypeOf([]string{}),
 		Help:    "Bun runtime security permissions",
+	})
+}
+
+func registerRuntimeNativeToolsFields(registry *Registry) {
+	registerRuntimeNativeToolsCoreFields(registry)
+	registerRuntimeNativeToolsExecFields(registry)
+	registerRuntimeNativeToolsFetchFields(registry)
+}
+
+func registerRuntimeNativeToolsCoreFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.enabled",
+		Default: true,
+		CLIFlag: "native-tools-enabled",
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable native cp__ builtin tools",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.root_dir",
+		Default: ".",
+		CLIFlag: "native-tools-root",
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_ROOT_DIR",
+		Type:    reflect.TypeOf(""),
+		Help:    "Root directory sandbox for native tools",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.additional_roots",
+		Default: []string{},
+		CLIFlag: "native-tools-additional-roots",
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_ADDITIONAL_ROOTS",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Additional sandbox roots that native tools may access",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.exec.timeout",
+		Default: 30 * time.Second,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_EXEC_TIMEOUT",
+		Type:    reflect.TypeOf(time.Duration(0)),
+		Help:    "Default timeout applied to cp__exec commands",
+	})
+}
+
+func registerRuntimeNativeToolsExecFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.exec.max_stdout_bytes",
+		Default: int64(2 << 20),
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_EXEC_MAX_STDOUT_BYTES",
+		Type:    reflect.TypeOf(int64(0)),
+		Help:    "Maximum stdout bytes captured for cp__exec",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.exec.max_stderr_bytes",
+		Default: int64(1 << 10),
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_EXEC_MAX_STDERR_BYTES",
+		Type:    reflect.TypeOf(int64(0)),
+		Help:    "Maximum stderr bytes captured for cp__exec",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.exec.allowlist",
+		Default: []map[string]any{},
+		CLIFlag: "native-tools-exec-allowlist",
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_EXEC_ALLOWLIST",
+		Type:    reflect.TypeOf([]map[string]any{}),
+		Help:    "Additional command policies appended to the cp__exec allowlist",
+	})
+}
+
+func registerRuntimeNativeToolsFetchFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.fetch.timeout",
+		Default: 5 * time.Second,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_FETCH_TIMEOUT",
+		Type:    reflect.TypeOf(time.Duration(0)),
+		Help:    "Default timeout applied to cp__fetch requests",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.fetch.max_body_bytes",
+		Default: int64(2 << 20),
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_FETCH_MAX_BODY_BYTES",
+		Type:    reflect.TypeOf(int64(0)),
+		Help:    "Maximum response body bytes returned by cp__fetch",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.fetch.max_redirects",
+		Default: 5,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_FETCH_MAX_REDIRECTS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum redirects cp__fetch will follow",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.fetch.allowed_methods",
+		Default: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_FETCH_ALLOWED_METHODS",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "HTTP methods permitted for cp__fetch",
 	})
 }
 

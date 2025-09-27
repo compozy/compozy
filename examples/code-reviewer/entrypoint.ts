@@ -1,9 +1,4 @@
-import { listFiles } from "@compozy/tool-list-files";
-import { readFile } from "@compozy/tool-read-file";
-import { writeFile } from "@compozy/tool-write-file";
-
-export default {
-  list_files: listFiles,
-  read_file: readFile,
-  write_file: writeFile,
-};
+// This example no longer relies on JS workspace tools.
+// Built-in cp__ tools are registered natively by the Compozy runtime.
+// No exports are required for cp__ usage.
+export default {};

@@ -59,6 +59,20 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, 120*time.Second, cfg.Runtime.DispatcherStaleThreshold)
 		assert.Equal(t, 4, cfg.Runtime.AsyncTokenCounterWorkers)
 		assert.Equal(t, 100, cfg.Runtime.AsyncTokenCounterBufferSize)
+		assert.True(t, cfg.Runtime.NativeTools.Enabled)
+		assert.Equal(t, ".", cfg.Runtime.NativeTools.RootDir)
+		assert.Equal(t, 30*time.Second, cfg.Runtime.NativeTools.Exec.Timeout)
+		assert.Equal(t, int64(2<<20), cfg.Runtime.NativeTools.Exec.MaxStdoutBytes)
+		assert.Equal(t, int64(1<<10), cfg.Runtime.NativeTools.Exec.MaxStderrBytes)
+		assert.Empty(t, cfg.Runtime.NativeTools.Exec.Allowlist)
+		assert.Equal(t, 5*time.Second, cfg.Runtime.NativeTools.Fetch.Timeout)
+		assert.Equal(t, int64(2<<20), cfg.Runtime.NativeTools.Fetch.MaxBodyBytes)
+		assert.Equal(t, 5, cfg.Runtime.NativeTools.Fetch.MaxRedirects)
+		assert.Equal(
+			t,
+			[]string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
+			cfg.Runtime.NativeTools.Fetch.AllowedMethods,
+		)
 
 		// Limits defaults
 		assert.Equal(t, 20, cfg.Limits.MaxNestingDepth)
@@ -82,6 +96,23 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, "", cfg.MCPProxy.BaseURL)
 
 		// App mode removed in greenfield cleanup
+	})
+}
+
+func TestDefaultNativeToolsConfig(t *testing.T) {
+	t.Run("Should return default native tools config", func(t *testing.T) {
+		config := DefaultNativeToolsConfig()
+		assert.True(t, config.Enabled)
+		assert.Equal(t, ".", config.RootDir)
+		assert.Nil(t, config.AdditionalRoots)
+		assert.Equal(t, 30*time.Second, config.Exec.Timeout)
+		assert.Equal(t, int64(2<<20), config.Exec.MaxStdoutBytes)
+		assert.Equal(t, int64(1<<10), config.Exec.MaxStderrBytes)
+		assert.Nil(t, config.Exec.Allowlist)
+		assert.Equal(t, 5*time.Second, config.Fetch.Timeout)
+		assert.Equal(t, int64(2<<20), config.Fetch.MaxBodyBytes)
+		assert.Equal(t, 5, config.Fetch.MaxRedirects)
+		assert.Equal(t, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}, config.Fetch.AllowedMethods)
 	})
 }
 

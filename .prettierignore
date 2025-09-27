@@ -57,4 +57,3 @@ Thumbs.db
 *.mdx
 
 CHANGELOG.md
-tools/*/package.json
