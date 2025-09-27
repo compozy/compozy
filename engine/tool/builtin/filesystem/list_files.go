@@ -65,7 +65,6 @@ func ListFilesDefinition() builtin.BuiltinDefinition {
 }
 
 func listFilesHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
-	log := logger.FromContext(ctx)
 	start := time.Now()
 	var success bool
 	defer func() {
@@ -132,7 +131,7 @@ func listFilesHandler(ctx context.Context, payload map[string]any) (core.Output,
 		files = append(files, name)
 	}
 	sort.Strings(files)
-	logListFiles(ctx, log, relativePath(rootUsed, resolvedPath), len(files))
+	logListFiles(ctx, relativePath(rootUsed, resolvedPath), len(files))
 	success = true
 	return core.Output{"files": files}, nil
 }
@@ -281,23 +280,35 @@ func splitBraceOptions(body string) []string {
 }
 
 func shouldExclude(name string, patterns []compiledPattern) bool {
+	excluded := false
+	hasPositive := false
 	for _, pattern := range patterns {
+		if !pattern.negated {
+			hasPositive = true
+		}
 		matched, err := doublestar.Match(pattern.pattern, name)
 		if err != nil {
 			continue
 		}
 		if pattern.negated {
-			matched = !matched
+			if matched {
+				excluded = false
+				continue
+			}
+			if !hasPositive {
+				excluded = true
+			}
+			continue
 		}
 		if matched {
-			return true
+			excluded = true
 		}
 	}
-	return false
+	return excluded
 }
 
-func logListFiles(ctx context.Context, log logger.Logger, dir string, count int) {
-	log.Info(
+func logListFiles(ctx context.Context, dir string, count int) {
+	logger.FromContext(ctx).Info(
 		"Listed files",
 		"tool_id", "cp__list_files",
 		"request_id", builtin.RequestIDFromContext(ctx),

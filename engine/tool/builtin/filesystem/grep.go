@@ -97,7 +97,6 @@ func GrepDefinition() builtin.BuiltinDefinition {
 }
 
 func grepHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
-	log := logger.FromContext(ctx)
 	start := time.Now()
 	var success bool
 	defer func() {
@@ -129,6 +128,9 @@ func grepHandler(ctx context.Context, payload map[string]any) (core.Output, erro
 		}
 		return nil, builtin.Internal(fmt.Errorf("failed to stat path: %w", err), map[string]any{"path": args.Path})
 	}
+	if rejectErr := builtin.RejectSymlink(info); rejectErr != nil {
+		return nil, builtin.PermissionDenied(rejectErr, map[string]any{"path": args.Path})
+	}
 	patternSource := args.Pattern
 	if args.IgnoreCase {
 		patternSource = "(?i)" + patternSource
@@ -157,7 +159,7 @@ func grepHandler(ctx context.Context, payload map[string]any) (core.Output, erro
 	if err != nil {
 		return nil, err
 	}
-	log.Info(
+	logger.FromContext(ctx).Info(
 		"Grep completed",
 		"tool_id",
 		"cp__grep",
@@ -286,12 +288,15 @@ func searchFile(
 	if err := progressContext(ctx); err != nil {
 		return err
 	}
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 		return builtin.Internal(fmt.Errorf("failed to stat file: %w", err), map[string]any{"path": path})
+	}
+	if rejectErr := builtin.RejectSymlink(info); rejectErr != nil {
+		return nil
 	}
 	if info.Size() > maxFileBytes {
 		return nil
@@ -311,6 +316,18 @@ func searchFile(
 		return builtin.Internal(fmt.Errorf("failed to open file: %w", err), map[string]any{"path": path})
 	}
 	defer file.Close()
+	return scanFileMatches(file, root, path, re, maxResults, maxFileBytes, matches)
+}
+
+func scanFileMatches(
+	file *os.File,
+	root string,
+	path string,
+	re *regexp.Regexp,
+	maxResults int,
+	maxFileBytes int64,
+	matches *[]map[string]any,
+) error {
 	reader := io.LimitReader(file, maxFileBytes+1)
 	scanner := bufio.NewScanner(reader)
 	buffer := make([]byte, 0, 64*1024)

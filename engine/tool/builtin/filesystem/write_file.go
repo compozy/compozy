@@ -76,7 +76,6 @@ func WriteFileDefinition() builtin.BuiltinDefinition {
 }
 
 func writeFileHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
-	log := logger.FromContext(ctx)
 	start := time.Now()
 	var success bool
 	defer func() {
@@ -112,14 +111,14 @@ func writeFileHandler(ctx context.Context, payload map[string]any) (core.Output,
 	if err := ensureDirectory(resolvedPath); err != nil {
 		return nil, err
 	}
+	if err := preventSymlinkTarget(resolvedPath, args.Path); err != nil {
+		return nil, err
+	}
 	file, err := openWritable(resolvedPath, args)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	if err := preventSymlinkTarget(resolvedPath, args.Path); err != nil {
-		return nil, err
-	}
 	if err := writeContent(file, []byte(args.Content), cfg.Limits.MaxFileBytes); err != nil {
 		return nil, err
 	}
@@ -132,7 +131,7 @@ func writeFileHandler(ctx context.Context, payload map[string]any) (core.Output,
 	}
 	metadata := fileMetadata(stat)
 	metadata["path"] = relativePath(rootUsed, resolvedPath)
-	log.Info(
+	logger.FromContext(ctx).Info(
 		"Wrote file",
 		"tool_id",
 		"cp__write_file",

@@ -100,13 +100,12 @@ func ListDirDefinition() builtin.BuiltinDefinition {
 }
 
 func listDirHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
-	log := logger.FromContext(ctx)
 	start := time.Now()
 	var success bool
 	defer func() {
-		status := "failure"
+		status := builtin.StatusFailure
 		if success {
-			status = "success"
+			status = builtin.StatusSuccess
 		}
 		builtin.RecordInvocation(
 			ctx,
@@ -175,13 +174,13 @@ func listDirHandler(ctx context.Context, payload map[string]any) (core.Output, e
 	if nextToken != "" {
 		output["next_page_token"] = nextToken
 	}
-	logListDir(ctx, log, relativePath(rootUsed, resolvedPath), len(entries), nextToken != "")
+	logListDir(ctx, relativePath(rootUsed, resolvedPath), len(entries), nextToken != "")
 	success = true
 	return output, nil
 }
 
-func logListDir(ctx context.Context, log logger.Logger, path string, count int, hasNext bool) {
-	log.Info(
+func logListDir(ctx context.Context, path string, count int, hasNext bool) {
+	logger.FromContext(ctx).Info(
 		"Listed directory",
 		"tool_id", "cp__list_dir",
 		"request_id", builtin.RequestIDFromContext(ctx),
@@ -243,7 +242,11 @@ func (c *listCollector) collect() error {
 		}
 		entries, err := os.ReadDir(current)
 		if err != nil {
-			return builtin.PermissionDenied(err, map[string]any{"path": relativePath(c.root, current)})
+			relative := relativePath(c.root, current)
+			if errors.Is(err, fs.ErrPermission) {
+				return builtin.PermissionDenied(err, map[string]any{"path": relative})
+			}
+			return builtin.Internal(fmt.Errorf("failed to read directory: %w", err), map[string]any{"path": relative})
 		}
 		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 		for _, entry := range entries {

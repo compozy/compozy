@@ -54,7 +54,6 @@ func DeleteFileDefinition() builtin.BuiltinDefinition {
 }
 
 func deleteFileHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
-	log := logger.FromContext(ctx)
 	start := time.Now()
 	var success bool
 	defer func() {
@@ -110,7 +109,8 @@ func deleteFileHandler(ctx context.Context, payload map[string]any) (core.Output
 				map[string]any{"path": args.Path},
 			)
 		}
-		logDelete(ctx, log, true, relativePath(rootUsed, resolvedPath))
+		logDelete(ctx, true, relativePath(rootUsed, resolvedPath))
+		success = true
 		return core.Output{"success": true}, nil
 	}
 	if err := os.Remove(resolvedPath); err != nil {
@@ -119,17 +119,17 @@ func deleteFileHandler(ctx context.Context, payload map[string]any) (core.Output
 		}
 		return nil, builtin.Internal(fmt.Errorf("failed to delete file: %w", err), map[string]any{"path": args.Path})
 	}
-	logDelete(ctx, log, false, relativePath(rootUsed, resolvedPath))
+	logDelete(ctx, false, relativePath(rootUsed, resolvedPath))
 	success = true
 	return core.Output{"success": true}, nil
 }
 
-func logDelete(ctx context.Context, log logger.Logger, isDir bool, path string) {
+func logDelete(ctx context.Context, isDir bool, path string) {
 	action := "Deleted file"
 	if isDir {
 		action = "Deleted directory"
 	}
-	log.Info(
+	logger.FromContext(ctx).Info(
 		action,
 		"tool_id", "cp__delete_file",
 		"request_id", builtin.RequestIDFromContext(ctx),

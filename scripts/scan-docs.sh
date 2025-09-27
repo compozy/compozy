@@ -15,7 +15,7 @@ ${matches_tools}"
 # Trim whitespace to detect real matches
 trimmed=$(printf "%s" "$matches" | tr -d '\n\r\t ')
 if [[ -n "$trimmed" ]]; then
-  echo "Found legacy references:\n$matches" >&2
+  printf "Found legacy references:\n%s\n" "$matches" >&2
   exit 1
 fi
 echo "OK: no legacy references found."

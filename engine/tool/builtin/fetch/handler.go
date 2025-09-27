@@ -78,16 +78,42 @@ func Definition() builtin.BuiltinDefinition {
 }
 
 func executeHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
-	log := logger.FromContext(ctx)
+	start := time.Now()
+	status := builtin.StatusFailure
+	responseBytes := 0
 	cfg := loadToolConfig(ctx)
+	defer func() {
+		builtin.RecordInvocation(
+			ctx,
+			toolID,
+			builtin.RequestIDFromContext(ctx),
+			status,
+			time.Since(start),
+			responseBytes,
+			"",
+		)
+	}()
 	args, err := decodeArgs(payload)
 	if err != nil {
 		return nil, builtin.InvalidArgument(err, nil)
 	}
-	return performRequest(ctx, log, cfg, args)
+	output, err := performRequest(ctx, cfg, args)
+	if err != nil {
+		return nil, err
+	}
+	switch body := output["body"].(type) {
+	case string:
+		responseBytes = len(body)
+	case []byte:
+		responseBytes = len(body)
+	}
+	if code, ok := output["status_code"].(int); ok && code < http.StatusBadRequest {
+		status = builtin.StatusSuccess
+	}
+	return output, nil
 }
 
-func performRequest(ctx context.Context, log logger.Logger, cfg toolConfig, args Args) (core.Output, error) {
+func performRequest(ctx context.Context, cfg toolConfig, args Args) (core.Output, error) {
 	method := normalizeMethod(args.Method)
 	if err := ensureMethodAllowed(method, cfg); err != nil {
 		return nil, err
@@ -113,7 +139,7 @@ func performRequest(ctx context.Context, log logger.Logger, cfg toolConfig, args
 		return nil, builtin.Internal(fmt.Errorf("failed to build request: %w", err), nil)
 	}
 	applyHeaders(req, args.Headers, contentType)
-	client := newHTTPClient(cfg)
+	client := newHTTPClient(cfg, effectiveTimeout)
 	start := time.Now()
 	resp, err := client.Do(req)
 	duration := time.Since(start)
@@ -126,14 +152,7 @@ func performRequest(ctx context.Context, log logger.Logger, cfg toolConfig, args
 		return nil, builtin.Internal(fmt.Errorf("failed to read response body: %w", err), nil)
 	}
 	headers := flattenHeaders(resp.Header)
-	logFetch(ctx, log, method, target.String(), resp.StatusCode, duration, truncated)
-	// metrics
-	reqID := builtin.RequestIDFromContext(ctx)
-	status := builtin.StatusSuccess
-	if resp.StatusCode >= 400 {
-		status = builtin.StatusFailure
-	}
-	builtin.RecordInvocation(ctx, toolID, reqID, status, duration, len(body), "")
+	logFetch(ctx, method, target.String(), resp.StatusCode, duration, truncated)
 	return core.Output{
 		"status_code":    resp.StatusCode,
 		"status_text":    resp.Status,
@@ -195,6 +214,12 @@ func determineRequestTimeout(base time.Duration, overrideMs int) time.Duration {
 			effective = override
 		}
 	}
+	if effective <= 0 {
+		effective = base
+	}
+	if effective <= 0 {
+		effective = defaultTimeout
+	}
 	return effective
 }
 
@@ -217,8 +242,15 @@ func applyHeaders(req *http.Request, headers map[string]string, contentType stri
 	}
 }
 
-func newHTTPClient(cfg toolConfig) *http.Client {
-	client := &http.Client{Transport: http.DefaultTransport, Timeout: 0}
+func newHTTPClient(cfg toolConfig, requestTimeout time.Duration) *http.Client {
+	effective := requestTimeout
+	if effective <= 0 {
+		effective = cfg.Timeout
+	}
+	if effective <= 0 {
+		effective = defaultTimeout
+	}
+	client := &http.Client{Transport: http.DefaultTransport, Timeout: effective}
 	if cfg.MaxRedirects > 0 {
 		client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
 			if len(via) >= cfg.MaxRedirects {
@@ -232,13 +264,12 @@ func newHTTPClient(cfg toolConfig) *http.Client {
 
 func logFetch(
 	ctx context.Context,
-	log logger.Logger,
 	method, url string,
 	status int,
 	duration time.Duration,
 	truncated bool,
 ) {
-	log.Info(
+	logger.FromContext(ctx).Info(
 		"Executed cp__fetch request",
 		"tool_id", toolID,
 		"request_id", builtin.RequestIDFromContext(ctx),
@@ -276,15 +307,17 @@ func readBody(r io.Reader, limit int64) (string, bool, error) {
 		}
 		return string(data), false, nil
 	}
-	reader := io.LimitReader(r, limit+1)
-	data, err := io.ReadAll(reader)
+	limited := io.LimitReader(r, limit)
+	data, err := io.ReadAll(limited)
 	if err != nil {
 		return "", false, err
 	}
-	truncated := int64(len(data)) > limit
-	if truncated {
-		data = data[:limit]
+	extra := make([]byte, 1)
+	n, extraErr := r.Read(extra)
+	if extraErr != nil && !errors.Is(extraErr, io.EOF) {
+		return "", false, extraErr
 	}
+	truncated := n > 0 || (errors.Is(extraErr, io.EOF) && n > 0)
 	return string(data), truncated, nil
 }
 

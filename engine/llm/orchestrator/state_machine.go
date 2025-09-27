@@ -66,8 +66,8 @@ type LoopContext struct {
 	eventStartedAt time.Time
 }
 
-func newLoopFSM(_ context.Context, deps loopDeps, _ *LoopContext) *fsm.FSM {
-	observer := newTransitionObserver()
+func newLoopFSM(ctx context.Context, deps loopDeps, _ *LoopContext) *fsm.FSM {
+	observer := newTransitionObserver(ctx)
 	machine := fsm.NewFSM(
 		StateInit,
 		loopFSMEvents(),
@@ -109,7 +109,8 @@ func loopFSMCallbacks(observer *transitionObserver, deps loopDeps) fsm.Callbacks
 			if deps == nil {
 				return
 			}
-			deps.OnFailure(observerContext(cbCtx, e), loopContextFromEvent(e), e.Event)
+			obsCtx := observer.resolveContext(cbCtx)
+			deps.OnFailure(obsCtx, loopContextFromEvent(obsCtx, e), e.Event)
 		},
 	}
 	callbacks["enter_"+StateInit] = makeEnterCallback(
@@ -171,9 +172,13 @@ func loopFSMCallbacks(observer *transitionObserver, deps loopDeps) fsm.Callbacks
 	return callbacks
 }
 
-func loopContextFromEvent(e *fsm.Event) *LoopContext {
+func loopContextFromEvent(ctx context.Context, e *fsm.Event) *LoopContext {
+	resolvedCtx := ctx
+	if resolvedCtx == nil {
+		resolvedCtx = context.TODO()
+	}
 	if e == nil {
-		logger.FromContext(context.TODO()).Error("FSM loop context lookup failed", "reason", "nil event")
+		logger.FromContext(resolvedCtx).Error("FSM loop context lookup failed", "reason", "nil event")
 		return &LoopContext{}
 	}
 	if len(e.Args) > 0 {
@@ -181,16 +186,16 @@ func loopContextFromEvent(e *fsm.Event) *LoopContext {
 			return lc
 		}
 	}
-	logCtx := observerContext(context.Background(), e)
-	logger.FromContext(logCtx).Error("FSM loop context missing from event args", "event", e.Event)
+	logger.FromContext(resolvedCtx).Error("FSM loop context missing from event args", "event", e.Event)
 	return &LoopContext{}
 }
 
-func applyTransitionResult(cbCtx context.Context, e *fsm.Event, result transitionResult) {
+func applyTransitionResult(ctx context.Context, observer *transitionObserver, e *fsm.Event, result transitionResult) {
 	if result.Event == "" && result.Err == nil {
 		return
 	}
-	loopCtx := loopContextFromEvent(e)
+	resolvedCtx := observer.resolveContext(ctx)
+	loopCtx := loopContextFromEvent(resolvedCtx, e)
 	if result.Err != nil {
 		loopCtx.err = result.Err
 		if result.Event == "" {
@@ -200,7 +205,7 @@ func applyTransitionResult(cbCtx context.Context, e *fsm.Event, result transitio
 	if result.Event == "" {
 		return
 	}
-	transitionCtx := observerContext(cbCtx, e)
+	transitionCtx := observer.resolveContext(ctx)
 	args := append([]any{loopCtx}, result.Args...)
 	if err := e.FSM.Event(transitionCtx, result.Event, args...); err != nil && loopCtx.err == nil {
 		loopCtx.err = err
@@ -208,18 +213,29 @@ func applyTransitionResult(cbCtx context.Context, e *fsm.Event, result transitio
 }
 
 type transitionObserver struct {
-	now func() time.Time
+	now     func() time.Time
+	baseCtx context.Context
 }
 
-func newTransitionObserver() *transitionObserver {
-	return &transitionObserver{now: time.Now}
+func newTransitionObserver(ctx context.Context) *transitionObserver {
+	return &transitionObserver{now: time.Now, baseCtx: ctx}
+}
+
+func (o *transitionObserver) resolveContext(cbCtx context.Context) context.Context {
+	if cbCtx != nil {
+		return cbCtx
+	}
+	if o != nil && o.baseCtx != nil {
+		return o.baseCtx
+	}
+	return context.TODO()
 }
 
 func (o *transitionObserver) BeforeEvent(cbCtx context.Context, e *fsm.Event) {
-	loopCtx := loopContextFromEvent(e)
+	resolvedCtx := o.resolveContext(cbCtx)
+	loopCtx := loopContextFromEvent(resolvedCtx, e)
 	loopCtx.eventStartedAt = o.now()
-	logCtx := observerContext(cbCtx, e)
-	logger.FromContext(logCtx).Debug(
+	logger.FromContext(resolvedCtx).Debug(
 		"FSM transition start",
 		"event", e.Event,
 		"from_state", e.Src,
@@ -229,12 +245,12 @@ func (o *transitionObserver) BeforeEvent(cbCtx context.Context, e *fsm.Event) {
 }
 
 func (o *transitionObserver) AfterEvent(cbCtx context.Context, e *fsm.Event) {
-	loopCtx := loopContextFromEvent(e)
+	resolvedCtx := o.resolveContext(cbCtx)
+	loopCtx := loopContextFromEvent(resolvedCtx, e)
 	duration := time.Duration(0)
 	if !loopCtx.eventStartedAt.IsZero() {
 		duration = o.now().Sub(loopCtx.eventStartedAt)
 	}
-	logCtx := observerContext(cbCtx, e)
 	keyvals := []any{
 		"event", e.Event,
 		"from_state", e.Src,
@@ -247,27 +263,20 @@ func (o *transitionObserver) AfterEvent(cbCtx context.Context, e *fsm.Event) {
 	if loopCtx.err != nil {
 		keyvals = append(keyvals, "error", core.RedactError(loopCtx.err))
 	}
-	logger.FromContext(logCtx).Debug(
+	logger.FromContext(resolvedCtx).Debug(
 		"FSM transition complete",
 		keyvals...,
 	)
 }
 
 func (o *transitionObserver) EnterState(cbCtx context.Context, e *fsm.Event, loopCtx *LoopContext) {
-	logCtx := observerContext(cbCtx, e)
-	logger.FromContext(logCtx).Debug(
+	resolvedCtx := o.resolveContext(cbCtx)
+	logger.FromContext(resolvedCtx).Debug(
 		"FSM state entered",
 		"state", e.Dst,
 		"event", e.Event,
 		"iteration", loopCtx.Iteration,
 	)
-}
-
-func observerContext(cbCtx context.Context, _ *fsm.Event) context.Context {
-	if cbCtx != nil {
-		return cbCtx
-	}
-	return context.TODO()
 }
 
 func makeEnterCallback(
@@ -276,12 +285,12 @@ func makeEnterCallback(
 	handler func(loopDeps, context.Context, *LoopContext) transitionResult,
 ) fsm.Callback {
 	return func(cbCtx context.Context, e *fsm.Event) {
-		loopCtx := loopContextFromEvent(e)
-		callCtx := observerContext(cbCtx, e)
+		callCtx := observer.resolveContext(cbCtx)
+		loopCtx := loopContextFromEvent(callCtx, e)
 		observer.EnterState(callCtx, e, loopCtx)
 		if deps == nil {
 			return
 		}
-		applyTransitionResult(callCtx, e, handler(deps, callCtx, loopCtx))
+		applyTransitionResult(callCtx, observer, e, handler(deps, callCtx, loopCtx))
 	}
 }

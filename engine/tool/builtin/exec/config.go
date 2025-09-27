@@ -29,8 +29,7 @@ func loadToolConfig(ctx context.Context) toolConfig {
 	if appCfg := config.FromContext(ctx); appCfg != nil {
 		cfg = appCfg.Runtime.NativeTools
 	}
-	log := logger.FromContext(ctx)
-	policies := buildCommandPolicies(log, cfg.Exec.Allowlist)
+	policies := buildCommandPolicies(ctx, cfg.Exec.Allowlist)
 	timeout := cfg.Exec.Timeout
 	if timeout <= 0 {
 		timeout = defaultExecTimeout
@@ -46,9 +45,10 @@ func loadToolConfig(ctx context.Context) toolConfig {
 	return toolConfig{Timeout: timeout, MaxStdout: stdoutLimit, MaxStderr: stderrLimit, Commands: policies}
 }
 
-func buildCommandPolicies(log logger.Logger, overrides []config.NativeExecCommandConfig) map[string]*commandPolicy {
+func buildCommandPolicies(ctx context.Context, overrides []config.NativeExecCommandConfig) map[string]*commandPolicy {
+	log := logger.FromContext(ctx)
 	policies := make(map[string]*commandPolicy)
-	defaults := discoverDefaultCommands(log)
+	defaults := discoverDefaultCommands(ctx)
 	for i := range defaults {
 		policy, err := compileCommandConfig(&defaults[i])
 		if err != nil {
@@ -75,7 +75,8 @@ func buildCommandPolicies(log logger.Logger, overrides []config.NativeExecComman
 	return policies
 }
 
-func discoverDefaultCommands(log logger.Logger) []config.NativeExecCommandConfig {
+func discoverDefaultCommands(ctx context.Context) []config.NativeExecCommandConfig {
+	log := logger.FromContext(ctx)
 	specs := []struct {
 		names       []string
 		description string
@@ -97,7 +98,7 @@ func discoverDefaultCommands(log logger.Logger) []config.NativeExecCommandConfig
 	for _, spec := range specs {
 		path, ok := resolveCommandPath(spec.names)
 		if !ok {
-			log.Debug("Default exec command not available", "candidates", spec.names)
+			log.Info("Default exec command not available on host", "candidates", spec.names)
 			continue
 		}
 		commands = append(commands, config.NativeExecCommandConfig{

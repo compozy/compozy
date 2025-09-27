@@ -62,7 +62,8 @@ func registerNativeBuiltins(ctx context.Context, registry ToolRegistry) (*builti
 	return builtin.RegisterBuiltins(ctx, registerFn, builtin.Options{Definitions: definitions})
 }
 
-func logNativeTools(log logger.Logger, cfg *appconfig.NativeToolsConfig, result *builtin.Result) {
+func logNativeTools(ctx context.Context, cfg *appconfig.NativeToolsConfig, result *builtin.Result) {
+	log := logger.FromContext(ctx)
 	execAllowlistCount := 0
 	ids := []string{}
 	if result != nil {
@@ -96,12 +97,12 @@ func logNativeTools(log logger.Logger, cfg *appconfig.NativeToolsConfig, result 
 
 func configureToolRegistry(
 	ctx context.Context,
-	log logger.Logger,
 	registry ToolRegistry,
 	runtime runtime.Runtime,
 	agent *agent.Config,
 	cfg *Config,
 ) error {
+	log := logger.FromContext(ctx)
 	tools := selectTools(agent, cfg)
 	if id, conflict := findReservedPrefix(tools); conflict {
 		if closeErr := registry.Close(); closeErr != nil {
@@ -128,8 +129,8 @@ func configureToolRegistry(
 	if appCfg := appconfig.FromContext(ctx); appCfg != nil {
 		nativeCfg = appCfg.Runtime.NativeTools
 	}
-	logNativeTools(log, &nativeCfg, result)
-	registerRuntimeTools(ctx, registry, runtime, tools, log)
+	logNativeTools(ctx, &nativeCfg, result)
+	registerRuntimeTools(ctx, registry, runtime, tools)
 	return nil
 }
 
@@ -148,8 +149,8 @@ func registerRuntimeTools(
 	registry ToolRegistry,
 	runtime runtime.Runtime,
 	configs []tool.Config,
-	log logger.Logger,
 ) {
+	log := logger.FromContext(ctx)
 	for i := range configs {
 		localTool := NewLocalToolAdapter(&configs[i], &runtimeAdapter{manager: runtime})
 		if err := registry.Register(ctx, localTool); err != nil {
@@ -222,7 +223,7 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		CacheTTL:        config.CacheTTL,
 		AllowedMCPNames: config.AllowedMCPNames,
 	})
-	if err := configureToolRegistry(ctx, log, toolRegistry, runtime, agent, config); err != nil {
+	if err := configureToolRegistry(ctx, toolRegistry, runtime, agent, config); err != nil {
 		return nil, err
 	}
 	// Create components
@@ -328,9 +329,10 @@ func (s *Service) buildActionConfig(
 		// Create a copy so we don't mutate the original action
 		acCopy := *ac
 		if acCopy.Prompt != "" {
+			basePrompt := strings.TrimRight(acCopy.Prompt, "\n")
 			acCopy.Prompt = fmt.Sprintf(
 				"%s\n\nAdditional context:\n\"\"\"\n%s\n\"\"\"",
-				acCopy.Prompt,
+				basePrompt,
 				directPrompt,
 			)
 		} else {

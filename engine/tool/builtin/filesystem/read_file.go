@@ -65,7 +65,6 @@ func ReadFileDefinition() builtin.BuiltinDefinition {
 }
 
 func readFileHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
-	log := logger.FromContext(ctx)
 	start := time.Now()
 	var respBytes int
 	var success bool
@@ -137,7 +136,7 @@ func readFileHandler(ctx context.Context, payload map[string]any) (core.Output, 
 	}
 	metadata := fileMetadata(info)
 	metadata["path"] = relativePath(rootUsed, resolvedPath)
-	logReadFile(ctx, log, metadata["path"], metadata["size"])
+	logReadFile(ctx, metadata["path"], metadata["size"])
 	respBytes = len(data)
 	success = true
 	return core.Output{
@@ -146,8 +145,8 @@ func readFileHandler(ctx context.Context, payload map[string]any) (core.Output, 
 	}, nil
 }
 
-func logReadFile(ctx context.Context, log logger.Logger, path any, size any) {
-	log.Info(
+func logReadFile(ctx context.Context, path any, size any) {
+	logger.FromContext(ctx).Info(
 		"Read file",
 		"tool_id", "cp__read_file",
 		"request_id", builtin.RequestIDFromContext(ctx),

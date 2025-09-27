@@ -100,18 +100,20 @@ func TestConfig_Default(t *testing.T) {
 }
 
 func TestDefaultNativeToolsConfig(t *testing.T) {
-	config := DefaultNativeToolsConfig()
-	assert.True(t, config.Enabled)
-	assert.Equal(t, ".", config.RootDir)
-	assert.Nil(t, config.AdditionalRoots)
-	assert.Equal(t, 30*time.Second, config.Exec.Timeout)
-	assert.Equal(t, int64(2<<20), config.Exec.MaxStdoutBytes)
-	assert.Equal(t, int64(1<<10), config.Exec.MaxStderrBytes)
-	assert.Nil(t, config.Exec.Allowlist)
-	assert.Equal(t, 5*time.Second, config.Fetch.Timeout)
-	assert.Equal(t, int64(2<<20), config.Fetch.MaxBodyBytes)
-	assert.Equal(t, 5, config.Fetch.MaxRedirects)
-	assert.Equal(t, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}, config.Fetch.AllowedMethods)
+	t.Run("Should return default native tools config", func(t *testing.T) {
+		config := DefaultNativeToolsConfig()
+		assert.True(t, config.Enabled)
+		assert.Equal(t, ".", config.RootDir)
+		assert.Nil(t, config.AdditionalRoots)
+		assert.Equal(t, 30*time.Second, config.Exec.Timeout)
+		assert.Equal(t, int64(2<<20), config.Exec.MaxStdoutBytes)
+		assert.Equal(t, int64(1<<10), config.Exec.MaxStderrBytes)
+		assert.Nil(t, config.Exec.Allowlist)
+		assert.Equal(t, 5*time.Second, config.Fetch.Timeout)
+		assert.Equal(t, int64(2<<20), config.Fetch.MaxBodyBytes)
+		assert.Equal(t, 5, config.Fetch.MaxRedirects)
+		assert.Equal(t, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}, config.Fetch.AllowedMethods)
+	})
 }
 
 func TestConfig_Validation(t *testing.T) {

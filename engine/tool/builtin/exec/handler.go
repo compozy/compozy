@@ -81,37 +81,98 @@ func Definition() builtin.BuiltinDefinition {
 	}
 }
 
+type commandRunInfo struct {
+	stdoutBuf *limitedBuffer
+	stderrBuf *limitedBuffer
+	duration  time.Duration
+	exitCode  int
+	timedOut  bool
+}
+
 func executeHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
-	log := logger.FromContext(ctx)
+	start := time.Now()
+	status := builtin.StatusFailure
+	var errorCode string
+	var info commandRunInfo
+
+	defer func() {
+		bytes := 0
+		if info.stdoutBuf != nil {
+			bytes += int(info.stdoutBuf.Written())
+		}
+		if info.stderrBuf != nil {
+			bytes += int(info.stderrBuf.Written())
+		}
+		builtin.RecordInvocation(
+			ctx,
+			toolID,
+			builtin.RequestIDFromContext(ctx),
+			status,
+			time.Since(start),
+			bytes,
+			errorCode,
+		)
+	}()
+
 	toolCfg := loadToolConfig(ctx)
 	args, err := decodeArgs(payload)
 	if err != nil {
+		errorCode = builtin.CodeInvalidArgument
 		return nil, builtin.InvalidArgument(err, nil)
 	}
-	return runCommand(ctx, log, toolCfg, args)
-}
 
-func runCommand(ctx context.Context, log logger.Logger, cfg toolConfig, args Args) (core.Output, error) {
-	policy, err := resolvePolicy(cfg, args.Command)
+	result, runInfo, err := runCommand(ctx, toolCfg, args)
+	info = runInfo
 	if err != nil {
+		var coreErr *core.Error
+		if errors.As(err, &coreErr) && coreErr != nil {
+			errorCode = coreErr.Code
+		}
 		return nil, err
 	}
+
+	if info.timedOut {
+		errorCode = "Timeout"
+		status = builtin.StatusFailure
+		return result, nil
+	}
+	if info.exitCode != 0 {
+		errorCode = "NonZeroExit"
+		// leave status as failure to surface non-zero exits
+		return result, nil
+	}
+	if success, ok := result["success"].(bool); ok && !success {
+		return result, nil
+	}
+	status = builtin.StatusSuccess
+	return result, nil
+}
+
+func runCommand(ctx context.Context, cfg toolConfig, args Args) (core.Output, commandRunInfo, error) {
+	policy, err := resolvePolicy(cfg, args.Command)
+	if err != nil {
+		return nil, commandRunInfo{}, err
+	}
 	if err := validateArguments(args.Args, policy); err != nil {
-		return nil, err
+		return nil, commandRunInfo{}, err
 	}
 	timeout := determineTimeout(policy.Timeout, cfg.Timeout, args.TimeoutMs)
 	cmdCtx, cancel := createCommandContext(ctx, timeout)
 	defer cancel()
 	cmd, err := newCommand(cmdCtx, policy.Path, args.Args)
 	if err != nil {
-		return nil, builtin.Internal(err, map[string]any{"command": policy.Path})
+		return nil, commandRunInfo{}, builtin.Internal(err, map[string]any{"command": policy.Path})
 	}
 	configureCommand(cmd, args)
 	stdoutBuf := newLimitedBuffer(cfg.MaxStdout)
 	stderrBuf := newLimitedBuffer(cfg.MaxStderr)
 	cmd.Stdout = stdoutBuf
 	cmd.Stderr = stderrBuf
-	return executePreparedCommand(cmdCtx, log, cmd, policy, stdoutBuf, stderrBuf)
+	output, info, err := executePreparedCommand(cmdCtx, cmd, policy, stdoutBuf, stderrBuf)
+	if err != nil {
+		return nil, commandRunInfo{}, err
+	}
+	return output, info, nil
 }
 
 func resolvePolicy(cfg toolConfig, rawCommand string) (*commandPolicy, error) {
@@ -171,44 +232,61 @@ func configureCommand(cmd *exec.Cmd, args Args) {
 
 func executePreparedCommand(
 	cmdCtx context.Context,
-	log logger.Logger,
 	cmd *exec.Cmd,
 	policy *commandPolicy,
 	stdoutBuf *limitedBuffer,
 	stderrBuf *limitedBuffer,
-) (core.Output, error) {
+) (core.Output, commandRunInfo, error) {
 	start := time.Now()
 	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
+			duration := time.Since(start)
+			timedOut := cmdCtx.Err() != nil && errors.Is(cmdCtx.Err(), context.DeadlineExceeded)
+			info := commandRunInfo{
+				stdoutBuf: stdoutBuf,
+				stderrBuf: stderrBuf,
+				duration:  duration,
+				exitCode:  exitErr.ExitCode(),
+				timedOut:  timedOut,
+			}
 			return buildExecOutput(
 				cmdCtx,
-				log,
 				policy,
 				stdoutBuf,
 				stderrBuf,
-				exitErr.ExitCode(),
-				time.Since(start),
-			), nil
+				info.exitCode,
+				info.duration,
+				info.timedOut,
+			), info, nil
 		}
-		return nil, builtin.Internal(
+		return nil, commandRunInfo{}, builtin.Internal(
 			fmt.Errorf("failed to execute command: %w", err),
 			map[string]any{"command": policy.Path},
 		)
 	}
-	return buildExecOutput(cmdCtx, log, policy, stdoutBuf, stderrBuf, 0, time.Since(start)), nil
+	duration := time.Since(start)
+	timedOut := cmdCtx.Err() != nil && errors.Is(cmdCtx.Err(), context.DeadlineExceeded)
+	info := commandRunInfo{
+		stdoutBuf: stdoutBuf,
+		stderrBuf: stderrBuf,
+		duration:  duration,
+		exitCode:  0,
+		timedOut:  timedOut,
+	}
+	return buildExecOutput(cmdCtx, policy, stdoutBuf, stderrBuf, 0, duration, timedOut), info, nil
 }
 
 func buildExecOutput(
 	cmdCtx context.Context,
-	log logger.Logger,
 	policy *commandPolicy,
 	stdoutBuf *limitedBuffer,
 	stderrBuf *limitedBuffer,
 	exitCode int,
 	duration time.Duration,
+	timedOut bool,
 ) core.Output {
-	timedOut := cmdCtx.Err() != nil && errors.Is(cmdCtx.Err(), context.DeadlineExceeded)
+	log := logger.FromContext(cmdCtx)
 	success := exitCode == 0 && !timedOut
 	reqID := builtin.RequestIDFromContext(cmdCtx)
 	log.Info(
@@ -222,19 +300,6 @@ func buildExecOutput(
 		"stderr_truncated", stderrBuf.Truncated(),
 		"timed_out", timedOut,
 	)
-	// metrics
-	totalBytes := len(stdoutBuf.String()) + len(stderrBuf.String())
-	status := builtin.StatusSuccess
-	errorCode := ""
-	if !success {
-		status = builtin.StatusFailure
-		if timedOut {
-			errorCode = "Timeout"
-		} else if exitCode != 0 {
-			errorCode = "NonZeroExit"
-		}
-	}
-	builtin.RecordInvocation(cmdCtx, toolID, reqID, status, duration, totalBytes, errorCode)
 	return core.Output{
 		"stdout":           stdoutBuf.String(),
 		"stderr":           stderrBuf.String(),

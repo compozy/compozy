@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/tool/builtin"
@@ -75,8 +74,8 @@ func TestFetchHandler(t *testing.T) {
 	})
 
 	t.Run("Should enforce timeout", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			time.Sleep(200 * time.Millisecond)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			<-r.Context().Done()
 			_, _ = w.Write([]byte("slow"))
 		}))
 		t.Cleanup(server.Close)

@@ -33,8 +33,9 @@ func loadToolConfig(ctx context.Context) toolConfig {
 	if redirects <= 0 {
 		redirects = defaultRedirects
 	}
-	allowed := make(map[string]struct{}, len(cfg.Fetch.AllowedMethods))
-	for _, method := range cfg.Fetch.AllowedMethods {
+	methods := cfg.Fetch.AllowedMethods
+	allowed := make(map[string]struct{}, len(methods))
+	for _, method := range methods {
 		upper := strings.ToUpper(strings.TrimSpace(method))
 		if upper == "" {
 			continue
@@ -42,9 +43,13 @@ func loadToolConfig(ctx context.Context) toolConfig {
 		allowed[upper] = struct{}{}
 	}
 	if len(allowed) == 0 {
-		log.Warn("Fetch allowed methods configuration empty; using defaults")
-		for _, method := range []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"} {
-			allowed[method] = struct{}{}
+		if methods == nil {
+			log.Warn("Fetch allowed methods configuration empty; using defaults")
+			for _, method := range []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"} {
+				allowed[method] = struct{}{}
+			}
+		} else {
+			log.Warn("Fetch allowed methods configuration produced no valid entries; fetch tool will reject all requests")
 		}
 	}
 	return toolConfig{
