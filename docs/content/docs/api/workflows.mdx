@@ -9,11 +9,11 @@ _openapi:
   structuredData:
     headings: []
     contents:
-      - content: Write workflow YAML files for the active project.
-      - content: Read workflow YAML files from the project directory.
       - content: >-
           List workflows with cursor pagination, optional prefix search, field
           selection, or expansion.
+      - content: Write workflow YAML files for the active project.
+      - content: Read workflow YAML files from the project directory.
       - content: >-
           Retrieve a workflow configuration with optional field selection and
           expansion.
@@ -25,15 +25,17 @@ _openapi:
       - content: Retrieve a specific agent configuration by its ID
       - content: Retrieve all executions for a specific workflow
       - content: Trigger the execution of a workflow with provided input data
+      - content: >-
+          Execute a workflow and wait for completion within the provided
+          timeout.
       - content: Retrieve a list of all tasks within a specific workflow
       - content: Retrieve a specific task configuration by its ID within a workflow
       - content: Retrieve a list of all available tool configurations
       - content: Retrieve a specific tool configuration by its ID
-      - content: Execute a workflow synchronously and return the final output.
 ---
 
 {/* <!-- This file was auto-generated from OpenAPI\/Swagger. Do not edit manually. --> */}
 
 Workflow management operations
 
-<APIPage document={"swagger.json"} operations={[{"path":"/api/v0/workflows/export","method":"post"},{"path":"/api/v0/workflows/import","method":"post"},{"path":"/workflows","method":"get"},{"path":"/workflows/{workflow_id}","method":"get"},{"path":"/workflows/{workflow_id}","method":"delete"},{"path":"/workflows/{workflow_id}","method":"put"},{"path":"/workflows/{workflow_id}/agents","method":"get"},{"path":"/workflows/{workflow_id}/agents/{agent_id}","method":"get"},{"path":"/workflows/{workflow_id}/executions","method":"get"},{"path":"/workflows/{workflow_id}/executions","method":"post"},{"path":"/workflows/{workflow_id}/tasks","method":"get"},{"path":"/workflows/{workflow_id}/tasks/{task_id}","method":"get"},{"path":"/workflows/{workflow_id}/tools","method":"get"},{"path":"/workflows/{workflow_id}/tools/{tool_id}","method":"get"},{"path":"/workflows/{workflow_id}/executions/sync","method":"post"}]} webhooks={[]} hasHead={true} />
+<APIPage document={"swagger.json"} operations={[{"path":"/workflows","method":"get"},{"path":"/workflows/export","method":"post"},{"path":"/workflows/import","method":"post"},{"path":"/workflows/{workflow_id}","method":"get"},{"path":"/workflows/{workflow_id}","method":"delete"},{"path":"/workflows/{workflow_id}","method":"put"},{"path":"/workflows/{workflow_id}/agents","method":"get"},{"path":"/workflows/{workflow_id}/agents/{agent_id}","method":"get"},{"path":"/workflows/{workflow_id}/executions","method":"get"},{"path":"/workflows/{workflow_id}/executions","method":"post"},{"path":"/workflows/{workflow_id}/executions/sync","method":"post"},{"path":"/workflows/{workflow_id}/tasks","method":"get"},{"path":"/workflows/{workflow_id}/tasks/{task_id}","method":"get"},{"path":"/workflows/{workflow_id}/tools","method":"get"},{"path":"/workflows/{workflow_id}/tools/{tool_id}","method":"get"}]} webhooks={[]} hasHead={true} />

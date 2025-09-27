@@ -92,9 +92,9 @@ func (s *Server) awaitMCPProxyReady(
 	if pollInterval <= 0 {
 		pollInterval = 200 * time.Millisecond
 	}
-	reqTimeout := cfg.LLM.MCPClientTimeout
-	if reqTimeout <= 0 {
-		reqTimeout = requestTimeout
+	reqTimeout := requestTimeout
+	if cfg.LLM.MCPClientTimeout > reqTimeout {
+		reqTimeout = cfg.LLM.MCPClientTimeout
 	}
 	if reqTimeout <= 0 {
 		reqTimeout = mcpproxy.DefaultRequestTimeout

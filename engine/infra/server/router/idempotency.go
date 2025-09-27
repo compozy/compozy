@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -85,16 +86,20 @@ func deriveIdempotencyKey(c *gin.Context, body []byte, maxBodyBytes int) (string
 	headerKey := strings.TrimSpace(c.GetHeader(webhook.HeaderIdempotencyKey))
 	if headerKey != "" {
 		if len(headerKey) > maxIdempotencyKeyBytes {
-			return "", fmt.Errorf("idempotency key is too long")
+			return "", NewRequestError(http.StatusBadRequest, "idempotency key is too long", nil)
 		}
 		return headerKey, nil
 	}
 	if maxBodyBytes > 0 && len(body) > maxBodyBytes {
-		return "", fmt.Errorf("request body too large for idempotency hashing")
+		return "", NewRequestError(
+			http.StatusRequestEntityTooLarge,
+			"request body too large for idempotency hashing",
+			nil,
+		)
 	}
 	normalizedBody, err := normalizeBody(body)
 	if err != nil {
-		return "", err
+		return "", NewRequestError(http.StatusBadRequest, "invalid request body", err)
 	}
 	method := strings.ToUpper(strings.TrimSpace(c.Request.Method))
 	path := ""

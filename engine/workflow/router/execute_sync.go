@@ -35,12 +35,38 @@ var (
 	workflowTimeoutUnit        = time.Second
 )
 
-type workflowSyncRequest struct {
-	Input   core.Input `json:"input"`
+// WorkflowSyncRequest represents the request body for synchronous workflow execution.
+// The Input field uses core.Input, which is documented alongside workflow execution endpoints.
+type WorkflowSyncRequest struct {
+	Input   core.Input `json:"input"   swaggerignore:"true"`
 	TaskID  string     `json:"task_id"`
 	Timeout int        `json:"timeout"`
 }
 
+// WorkflowSyncResponse represents the response body for synchronous workflow execution.
+type WorkflowSyncResponse struct {
+	Workflow *workflow.State `json:"workflow"`
+	Output   *core.Output    `json:"output,omitempty"`
+	ExecID   string          `json:"exec_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+}
+
+// executeWorkflowSync handles POST /workflows/{workflow_id}/executions/sync.
+//
+//	@Summary		Execute workflow synchronously
+//	@Description	Execute a workflow and wait for completion within the provided timeout.
+//	@Tags			workflows
+//	@Accept			json
+//	@Produce		json
+//	@Param			workflow_id	path		string	true	"Workflow ID"	example("data-processing")
+//	@Param			payload	body	wfrouter.WorkflowSyncRequest	true	"Execution request"
+//	@Success		200	{object}	router.Response{data=wfrouter.WorkflowSyncResponse}	"Workflow execution completed"
+//	@Failure		400	{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
+//	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Workflow not found"
+//	@Failure		408	{object}	router.Response{error=router.ErrorInfo}	"Execution timeout"
+//	@Failure		409	{object}	router.Response{error=router.ErrorInfo}	"Duplicate request"
+//	@Failure		503	{object}	router.Response{error=router.ErrorInfo}	"Worker unavailable"
+//	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
+//	@Router			/workflows/{workflow_id}/executions/sync [post]
 func executeWorkflowSync(c *gin.Context) {
 	workflowID := router.GetWorkflowID(c)
 	if workflowID == "" {
@@ -106,8 +132,8 @@ func executeWorkflowSync(c *gin.Context) {
 	router.RespondOK(c, "workflow execution completed", payload)
 }
 
-func parseWorkflowSyncRequest(c *gin.Context) *workflowSyncRequest {
-	req := router.GetRequestBody[workflowSyncRequest](c)
+func parseWorkflowSyncRequest(c *gin.Context) *WorkflowSyncRequest {
+	req := router.GetRequestBody[WorkflowSyncRequest](c)
 	if req == nil {
 		return nil
 	}
@@ -127,7 +153,7 @@ func parseWorkflowSyncRequest(c *gin.Context) *workflowSyncRequest {
 	return req
 }
 
-func ensureWorkflowIdempotency(c *gin.Context, state *appstate.State, req *workflowSyncRequest) bool {
+func ensureWorkflowIdempotency(c *gin.Context, state *appstate.State, req *WorkflowSyncRequest) bool {
 	idem := router.ResolveAPIIdempotency(c, state)
 	if idem == nil {
 		return true
@@ -139,6 +165,11 @@ func ensureWorkflowIdempotency(c *gin.Context, state *appstate.State, req *workf
 	}
 	unique, reason, idemErr := idem.CheckAndSet(c.Request.Context(), c, "workflows", body, 0)
 	if idemErr != nil {
+		var reqErr *router.RequestError
+		if errors.As(idemErr, &reqErr) {
+			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			return false
+		}
 		router.RespondWithServerError(c, router.ErrInternalCode, "idempotency check failed", idemErr)
 		return false
 	}

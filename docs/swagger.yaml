@@ -317,6 +317,34 @@ definitions:
       with:
         $ref: '#/definitions/core.Input'
     type: object
+  agentrouter.AgentExecAsyncResponse:
+    properties:
+      exec_id:
+        example: 2Z4PVTL6K27XVT4A3NPKMDD5BG
+        type: string
+      exec_url:
+        example: https://api.compozy.dev/api/v0/executions/agents/2Z4PVTL6K27XVT4A3NPKMDD5BG
+        type: string
+    type: object
+  agentrouter.AgentExecRequest:
+    properties:
+      action:
+        type: string
+      prompt:
+        type: string
+      timeout:
+        type: integer
+      with:
+        $ref: '#/definitions/core.Input'
+    type: object
+  agentrouter.AgentExecSyncResponse:
+    properties:
+      exec_id:
+        example: 2Z4PVTL6K27XVT4A3NPKMDD5BG
+        type: string
+      output:
+        $ref: '#/definitions/core.Output'
+    type: object
   agentrouter.AgentListItem:
     properties:
       actions:
@@ -375,6 +403,29 @@ definitions:
         type: array
       page:
         $ref: '#/definitions/httpdto.PageInfoDTO'
+    type: object
+  agentrouter.ExecutionStatusDTO:
+    properties:
+      component:
+        $ref: '#/definitions/core.ComponentType'
+      created_at:
+        type: string
+      error:
+        $ref: '#/definitions/core.Error'
+      exec_id:
+        type: string
+      output:
+        $ref: '#/definitions/core.Output'
+      status:
+        $ref: '#/definitions/core.StatusType'
+      task_id:
+        type: string
+      updated_at:
+        type: string
+      workflow_exec_id:
+        type: string
+      workflow_id:
+        type: string
     type: object
   core.Author:
     properties:
@@ -2640,6 +2691,53 @@ definitions:
       with:
         $ref: '#/definitions/core.Input'
     type: object
+  tkrouter.TaskExecAsyncResponse:
+    properties:
+      exec_id:
+        example: 2Z4PVTL6K27XVT4A3NPKMDD5BG
+        type: string
+      exec_url:
+        example: https://api.compozy.dev/api/v0/executions/tasks/2Z4PVTL6K27XVT4A3NPKMDD5BG
+        type: string
+    type: object
+  tkrouter.TaskExecRequest:
+    properties:
+      timeout:
+        type: integer
+      with:
+        $ref: '#/definitions/core.Input'
+    type: object
+  tkrouter.TaskExecSyncResponse:
+    properties:
+      exec_id:
+        example: 2Z4PVTL6K27XVT4A3NPKMDD5BG
+        type: string
+      output:
+        $ref: '#/definitions/core.Output'
+    type: object
+  tkrouter.TaskExecutionStatusDTO:
+    properties:
+      component:
+        $ref: '#/definitions/core.ComponentType'
+      created_at:
+        type: string
+      error:
+        $ref: '#/definitions/core.Error'
+      exec_id:
+        type: string
+      output:
+        $ref: '#/definitions/core.Output'
+      status:
+        $ref: '#/definitions/core.StatusType'
+      task_id:
+        type: string
+      updated_at:
+        type: string
+      workflow_exec_id:
+        type: string
+      workflow_id:
+        type: string
+    type: object
   tkrouter.TaskListItem:
     properties:
       action:
@@ -3383,6 +3481,23 @@ definitions:
         type: array
       version:
         type: string
+    type: object
+  wfrouter.WorkflowSyncRequest:
+    properties:
+      task_id:
+        type: string
+      timeout:
+        type: integer
+    type: object
+  wfrouter.WorkflowSyncResponse:
+    properties:
+      exec_id:
+        example: 2Z4PVTL6K27XVT4A3NPKMDD5BG
+        type: string
+      output:
+        $ref: '#/definitions/core.Output'
+      workflow:
+        $ref: '#/definitions/workflow.State'
     type: object
   wfrouter.WorkflowsListResponse:
     properties:
@@ -4401,6 +4516,157 @@ paths:
       summary: Create or update agent
       tags:
         - agents
+  /agents/{agent_id}/executions:
+    post:
+      consumes:
+        - application/json
+      description: Execute an agent and wait for the output in the same HTTP response.
+      parameters:
+        - description: Agent ID
+          example: '"assistant"'
+          in: path
+          name: agent_id
+          required: true
+          type: string
+        - description: Execution request
+          in: body
+          name: payload
+          required: true
+          schema:
+            $ref: '#/definitions/agentrouter.AgentExecRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Agent executed
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/agentrouter.AgentExecSyncResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Agent not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "408":
+          description: Execution timeout
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "409":
+          description: Duplicate request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Execute agent synchronously
+      tags:
+        - agents
+  /agents/{agent_id}/executions/async:
+    post:
+      consumes:
+        - application/json
+      description: Start an asynchronous agent execution and return a polling handle.
+      parameters:
+        - description: Agent ID
+          example: '"assistant"'
+          in: path
+          name: agent_id
+          required: true
+          type: string
+        - description: Execution request
+          in: body
+          name: payload
+          required: true
+          schema:
+            $ref: '#/definitions/agentrouter.AgentExecRequest'
+      produces:
+        - application/json
+      responses:
+        "202":
+          description: Agent execution started
+          headers:
+            Location:
+              description: Execution status URL
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/agentrouter.AgentExecAsyncResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Agent not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "409":
+          description: Duplicate request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Start agent execution asynchronously
+      tags:
+        - agents
   /agents/export:
     post:
       description: Write agent YAML files for the active project.
@@ -4480,85 +4746,6 @@ paths:
       summary: Import agents
       tags:
         - agents
-  /api/v0/workflows/export:
-    post:
-      description: Write workflow YAML files for the active project.
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: 'Example: {\"data\":{\"written\":2},\"message\":\"export completed\"}'
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    additionalProperties:
-                      type: integer
-                    type: object
-                type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      security:
-        - ApiKeyAuth: []
-      summary: Export workflows
-      tags:
-        - workflows
-  /api/v0/workflows/import:
-    post:
-      description: Read workflow YAML files from the project directory.
-      parameters:
-        - description: seed_only|overwrite_conflicts
-          enum:
-            - seed_only
-            - overwrite_conflicts
-          in: query
-          name: strategy
-          type: string
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: 'Example: {\"data\":{\"imported\":2,\"skipped\":0,\"overwritten\":0,\"strategy\":\"seed_only\"},\"message\":\"import
-            completed\"}'
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    additionalProperties: true
-                    type: object
-                type: object
-        "400":
-          description: Bad Request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      security:
-        - ApiKeyAuth: []
-      summary: Import workflows
-      tags:
-        - workflows
   /auth/generate:
     post:
       consumes:
@@ -4740,6 +4927,92 @@ paths:
       summary: Send event
       tags:
         - events
+  /executions/agents/{exec_id}:
+    get:
+      description: Retrieve the latest status for a direct agent execution.
+      parameters:
+        - description: Agent execution ID
+          example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
+          in: path
+          name: exec_id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Execution status retrieved
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/agentrouter.ExecutionStatusDTO'
+                type: object
+        "404":
+          description: Execution not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Failed to load execution
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Get agent execution status
+      tags:
+        - executions
+  /executions/tasks/{exec_id}:
+    get:
+      description: Retrieve the latest status for a direct task execution.
+      parameters:
+        - description: Task execution ID
+          example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
+          in: path
+          name: exec_id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Execution status retrieved
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/tkrouter.TaskExecutionStatusDTO'
+                type: object
+        "404":
+          description: Execution not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Failed to load execution
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Get task execution status
+      tags:
+        - executions
   /executions/workflows:
     get:
       consumes:
@@ -8233,6 +8506,157 @@ paths:
       summary: Create or update task
       tags:
         - tasks
+  /tasks/{task_id}/executions:
+    post:
+      consumes:
+        - application/json
+      description: Execute a task and wait for the output in the same HTTP response.
+      parameters:
+        - description: Task ID
+          example: '"task-build-artifact"'
+          in: path
+          name: task_id
+          required: true
+          type: string
+        - description: Execution request
+          in: body
+          name: payload
+          required: true
+          schema:
+            $ref: '#/definitions/tkrouter.TaskExecRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Task executed
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/tkrouter.TaskExecSyncResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Task not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "408":
+          description: Execution timeout
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "409":
+          description: Duplicate request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Execute task synchronously
+      tags:
+        - tasks
+  /tasks/{task_id}/executions/async:
+    post:
+      consumes:
+        - application/json
+      description: Start an asynchronous task execution and return a polling handle.
+      parameters:
+        - description: Task ID
+          example: '"task-build-artifact"'
+          in: path
+          name: task_id
+          required: true
+          type: string
+        - description: Execution request
+          in: body
+          name: payload
+          required: true
+          schema:
+            $ref: '#/definitions/tkrouter.TaskExecRequest'
+      produces:
+        - application/json
+      responses:
+        "202":
+          description: Task execution started
+          headers:
+            Location:
+              description: Execution status URL
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/tkrouter.TaskExecAsyncResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Task not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "409":
+          description: Duplicate request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Start task execution asynchronously
+      tags:
+        - tasks
   /tasks/export:
     post:
       description: Write task YAML files for the active project.
@@ -9353,6 +9777,93 @@ paths:
       summary: Execute workflow
       tags:
         - workflows
+  /workflows/{workflow_id}/executions/sync:
+    post:
+      consumes:
+        - application/json
+      description: Execute a workflow and wait for completion within the provided timeout.
+      parameters:
+        - description: Workflow ID
+          example: '"data-processing"'
+          in: path
+          name: workflow_id
+          required: true
+          type: string
+        - description: Execution request
+          in: body
+          name: payload
+          required: true
+          schema:
+            $ref: '#/definitions/wfrouter.WorkflowSyncRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Workflow execution completed
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/wfrouter.WorkflowSyncResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Workflow not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "408":
+          description: Execution timeout
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "409":
+          description: Duplicate request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "503":
+          description: Worker unavailable
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Execute workflow synchronously
+      tags:
+        - workflows
   /workflows/{workflow_id}/tasks:
     get:
       consumes:
@@ -9569,6 +10080,85 @@ paths:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Get tool by ID
+      tags:
+        - workflows
+  /workflows/export:
+    post:
+      description: Write workflow YAML files for the active project.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"written\":2},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties:
+                      type: integer
+                    type: object
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export workflows
+      tags:
+        - workflows
+  /workflows/import:
+    post:
+      description: Read workflow YAML files from the project directory.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"imported\":2,\"skipped\":0,\"overwritten\":0,\"strategy\":\"seed_only\"},\"message\":\"import
+            completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Import workflows
       tags:
         - workflows
 

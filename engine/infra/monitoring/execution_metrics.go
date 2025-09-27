@@ -9,6 +9,25 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+var executionLatencyBuckets = []float64{
+	0.005,
+	0.01,
+	0.025,
+	0.05,
+	0.1,
+	0.25,
+	0.5,
+	1,
+	2.5,
+	5,
+	10,
+	15,
+	30,
+	60,
+	120,
+	300,
+}
+
 const (
 	// ExecutionKindWorkflow records measurements for workflow execution endpoints.
 	ExecutionKindWorkflow = "workflow"
@@ -40,10 +59,7 @@ func newExecutionMetrics(meter metric.Meter) (*ExecutionMetrics, error) {
 		"http_exec_sync_latency_seconds",
 		metric.WithDescription("Latency of synchronous execution endpoints"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(
-			0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
-			1, 2.5, 5, 10, 15, 30, 60, 120, 300,
-		),
+		metric.WithExplicitBucketBoundaries(executionLatencyBuckets...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create execution latency histogram: %w", err)

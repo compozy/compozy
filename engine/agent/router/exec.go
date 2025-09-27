@@ -23,6 +23,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	// defaultAgentExecTimeoutSeconds defines the fallback timeout applied when callers omit a value.
+	defaultAgentExecTimeoutSeconds = 60
+	// maxAgentExecTimeoutSeconds caps how long agent executions are allowed to run.
+	maxAgentExecTimeoutSeconds = 300
+)
+
+// getAgentExecutionStatus handles GET /executions/agents/{exec_id}.
+//
+//	@Summary		Get agent execution status
+//	@Description	Retrieve the latest status for a direct agent execution.
+//	@Tags			executions
+//	@Produce		json
+//	@Param			exec_id	path	string	true	"Agent execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
+//	@Success		200	{object}	router.Response{data=agentrouter.ExecutionStatusDTO}	"Execution status retrieved"
+//	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Execution not found"
+//	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Failed to load execution"
+//	@Router			/executions/agents/{exec_id} [get]
 func getAgentExecutionStatus(c *gin.Context) {
 	execID := router.GetAgentExecID(c)
 	if execID == "" {
@@ -92,10 +110,14 @@ func parseAgentExecRequest(c *gin.Context) (*AgentExecRequest, bool) {
 		return nil, false
 	}
 	if req.Timeout == 0 {
-		req.Timeout = 60
+		req.Timeout = defaultAgentExecTimeoutSeconds
 	}
-	if req.Timeout > 300 {
-		reqErr := router.NewRequestError(http.StatusBadRequest, "timeout cannot exceed 300 seconds", nil)
+	if req.Timeout > maxAgentExecTimeoutSeconds {
+		reqErr := router.NewRequestError(
+			http.StatusBadRequest,
+			fmt.Sprintf("timeout cannot exceed %d seconds", maxAgentExecTimeoutSeconds),
+			nil,
+		)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, false
 	}
@@ -117,6 +139,11 @@ func ensureAgentIdempotency(c *gin.Context, state *appstate.State, req *AgentExe
 	}
 	unique, reason, idemErr := idem.CheckAndSet(c.Request.Context(), c, "agents", body, 0)
 	if idemErr != nil {
+		var reqErr *router.RequestError
+		if errors.As(idemErr, &reqErr) {
+			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			return false
+		}
 		router.RespondWithServerError(c, router.ErrInternalCode, "idempotency check failed", idemErr)
 		return false
 	}
@@ -239,6 +266,22 @@ type AgentExecRequest struct {
 	Timeout int        `json:"timeout,omitempty"`
 }
 
+// executeAgentSync handles POST /agents/{agent_id}/executions.
+//
+//	@Summary		Execute agent synchronously
+//	@Description	Execute an agent and wait for the output in the same HTTP response.
+//	@Tags			agents
+//	@Accept			json
+//	@Produce		json
+//	@Param			agent_id	path	string	true	"Agent ID"	example("assistant")
+//	@Param			payload	body	agentrouter.AgentExecRequest	true	"Execution request"
+//	@Success		200	{object}	router.Response{data=agentrouter.AgentExecSyncResponse}	"Agent executed"
+//	@Failure		400	{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
+//	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Agent not found"
+//	@Failure		408	{object}	router.Response{error=router.ErrorInfo}	"Execution timeout"
+//	@Failure		409	{object}	router.Response{error=router.ErrorInfo}	"Duplicate request"
+//	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
+//	@Router			/agents/{agent_id}/executions [post]
 func executeAgentSync(c *gin.Context) {
 	agentID := router.GetAgentID(c)
 	if agentID == "" {
@@ -284,11 +327,10 @@ func executeAgentSync(c *gin.Context) {
 		return
 	}
 	meta := tkrouter.ExecMetadata{
-		Component:  core.ComponentAgent,
-		AgentID:    agentID,
-		ActionID:   req.Action,
-		TaskID:     taskCfg.ID,
-		WorkflowID: agentID,
+		Component: core.ComponentAgent,
+		AgentID:   agentID,
+		ActionID:  req.Action,
+		TaskID:    taskCfg.ID,
 	}
 	output, execID, execErr := executor.ExecuteSync(
 		c.Request.Context(),
@@ -311,6 +353,22 @@ func executeAgentSync(c *gin.Context) {
 	router.RespondOK(c, "agent executed", gin.H{"output": output, "exec_id": execID.String()})
 }
 
+// executeAgentAsync handles POST /agents/{agent_id}/executions/async.
+//
+//	@Summary		Start agent execution asynchronously
+//	@Description	Start an asynchronous agent execution and return a polling handle.
+//	@Tags			agents
+//	@Accept			json
+//	@Produce		json
+//	@Param			agent_id	path	string	true	"Agent ID"	example("assistant")
+//	@Param			payload	body	agentrouter.AgentExecRequest	true	"Execution request"
+//	@Success		202	{object}	router.Response{data=agentrouter.AgentExecAsyncResponse}	"Agent execution started"
+//	@Header			202	{string}	Location	"Execution status URL"
+//	@Failure		400	{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
+//	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Agent not found"
+//	@Failure		409	{object}	router.Response{error=router.ErrorInfo}	"Duplicate request"
+//	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
+//	@Router			/agents/{agent_id}/executions/async [post]
 func executeAgentAsync(c *gin.Context) {
 	agentID := router.GetAgentID(c)
 	if agentID == "" {
@@ -360,11 +418,10 @@ func executeAgentAsync(c *gin.Context) {
 		return
 	}
 	meta := tkrouter.ExecMetadata{
-		Component:  core.ComponentAgent,
-		AgentID:    agentID,
-		ActionID:   req.Action,
-		TaskID:     taskCfg.ID,
-		WorkflowID: agentID,
+		Component: core.ComponentAgent,
+		AgentID:   agentID,
+		ActionID:  req.Action,
+		TaskID:    taskCfg.ID,
 	}
 	execID, execErr := executor.ExecuteAsync(c.Request.Context(), taskCfg, &meta)
 	if execErr != nil {

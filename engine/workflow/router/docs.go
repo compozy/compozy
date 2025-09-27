@@ -41,7 +41,7 @@ type WorkflowProblemExample struct {
 	Title    string `json:"title"    example:"Workflow not found"`
 	Status   int    `json:"status"   example:"404"`
 	Detail   string `json:"detail"   example:"Workflow 'data-processing' was not found in project production."`
-	Instance string `json:"instance" example:"/api/v0/workflows/data-processing"`
+	Instance string `json:"instance" example:"/workflows/data-processing"`
 }
 
 // WorkflowAcceptedResponse documents the asynchronous execution acknowledgement payload.

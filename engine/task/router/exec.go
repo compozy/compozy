@@ -21,6 +21,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	// defaultTaskExecTimeoutSeconds defines the fallback timeout used when clients omit a value.
+	defaultTaskExecTimeoutSeconds = 60
+	// maxTaskExecTimeoutSeconds caps how long direct task executions may run.
+	maxTaskExecTimeoutSeconds = 300
+)
+
+// getTaskExecutionStatus handles GET /executions/tasks/{exec_id}.
+//
+//	@Summary		Get task execution status
+//	@Description	Retrieve the latest status for a direct task execution.
+//	@Tags			executions
+//	@Produce		json
+//	@Param			exec_id	path	string	true	"Task execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
+//	@Success		200	{object}	router.Response{data=tkrouter.TaskExecutionStatusDTO}	"Execution status retrieved"
+//	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Execution not found"
+//	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Failed to load execution"
+//	@Router			/executions/tasks/{exec_id} [get]
 func getTaskExecutionStatus(c *gin.Context) {
 	execID := router.GetTaskExecID(c)
 	if execID == "" {
@@ -85,10 +103,14 @@ func parseTaskExecRequest(c *gin.Context) (*TaskExecRequest, bool) {
 		return nil, false
 	}
 	if req.Timeout == 0 {
-		req.Timeout = 60
+		req.Timeout = defaultTaskExecTimeoutSeconds
 	}
-	if req.Timeout > 300 {
-		reqErr := router.NewRequestError(http.StatusBadRequest, "timeout cannot exceed 300 seconds", nil)
+	if req.Timeout > maxTaskExecTimeoutSeconds {
+		reqErr := router.NewRequestError(
+			http.StatusBadRequest,
+			fmt.Sprintf("timeout cannot exceed %d seconds", maxTaskExecTimeoutSeconds),
+			nil,
+		)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, false
 	}
@@ -110,6 +132,11 @@ func ensureTaskIdempotency(c *gin.Context, state *appstate.State, req *TaskExecR
 	}
 	unique, reason, idemErr := idem.CheckAndSet(c.Request.Context(), c, "tasks", body, 0)
 	if idemErr != nil {
+		var reqErr *router.RequestError
+		if errors.As(idemErr, &reqErr) {
+			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			return false
+		}
 		router.RespondWithServerError(c, router.ErrInternalCode, "idempotency check failed", idemErr)
 		return false
 	}
@@ -213,6 +240,22 @@ type TaskExecRequest struct {
 	Timeout int        `json:"timeout,omitempty"`
 }
 
+// executeTaskSync handles POST /tasks/{task_id}/executions.
+//
+//	@Summary		Execute task synchronously
+//	@Description	Execute a task and wait for the output in the same HTTP response.
+//	@Tags			tasks
+//	@Accept			json
+//	@Produce		json
+//	@Param			task_id	path	string	true	"Task ID"	example("task-build-artifact")
+//	@Param			payload	body	tkrouter.TaskExecRequest	true	"Execution request"
+//	@Success		200	{object}	router.Response{data=tkrouter.TaskExecSyncResponse}	"Task executed"
+//	@Failure		400	{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
+//	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Task not found"
+//	@Failure		408	{object}	router.Response{error=router.ErrorInfo}	"Execution timeout"
+//	@Failure		409	{object}	router.Response{error=router.ErrorInfo}	"Duplicate request"
+//	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
+//	@Router			/tasks/{task_id}/executions [post]
 func executeTaskSync(c *gin.Context) {
 	taskID := router.GetTaskID(c)
 	if taskID == "" {
@@ -258,7 +301,7 @@ func executeTaskSync(c *gin.Context) {
 		return
 	}
 	component := deriveTaskComponent(taskCfg)
-	meta := ExecMetadata{Component: component, TaskID: taskCfg.ID, WorkflowID: taskID}
+	meta := ExecMetadata{Component: component, TaskID: taskCfg.ID}
 	output, execID, execErr := executor.ExecuteSync(
 		c.Request.Context(),
 		taskCfg,
@@ -280,6 +323,22 @@ func executeTaskSync(c *gin.Context) {
 	router.RespondOK(c, "task executed", gin.H{"output": output, "exec_id": execID.String()})
 }
 
+// executeTaskAsync handles POST /tasks/{task_id}/executions/async.
+//
+//	@Summary		Start task execution asynchronously
+//	@Description	Start an asynchronous task execution and return a polling handle.
+//	@Tags			tasks
+//	@Accept			json
+//	@Produce		json
+//	@Param			task_id	path	string	true	"Task ID"	example("task-build-artifact")
+//	@Param			payload	body	tkrouter.TaskExecRequest	true	"Execution request"
+//	@Success		202	{object}	router.Response{data=tkrouter.TaskExecAsyncResponse}	"Task execution started"
+//	@Header			202	{string}	Location	"Execution status URL"
+//	@Failure		400	{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
+//	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Task not found"
+//	@Failure		409	{object}	router.Response{error=router.ErrorInfo}	"Duplicate request"
+//	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
+//	@Router			/tasks/{task_id}/executions/async [post]
 func executeTaskAsync(c *gin.Context) {
 	taskID := router.GetTaskID(c)
 	if taskID == "" {
@@ -329,7 +388,7 @@ func executeTaskAsync(c *gin.Context) {
 		return
 	}
 	component := deriveTaskComponent(taskCfg)
-	meta := ExecMetadata{Component: component, TaskID: taskCfg.ID, WorkflowID: taskID}
+	meta := ExecMetadata{Component: component, TaskID: taskCfg.ID}
 	execID, execErr := executor.ExecuteAsync(c.Request.Context(), taskCfg, &meta)
 	if execErr != nil {
 		recordError(http.StatusInternalServerError)

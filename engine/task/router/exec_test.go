@@ -69,333 +69,336 @@ func installTaskExecutor(state *appstate.State, exec DirectExecutor) func() {
 	return func() { SetDirectExecutorFactory(state, nil) }
 }
 
-func Test_getTaskExecutionStatus(t *testing.T) {
-	ginmode.EnsureGinTestMode()
-	state := routertest.NewTestAppState(t)
-	repo := routertest.NewStubTaskRepo()
-	execID := core.MustNewID()
-	repo.AddState(newTestTaskState(execID))
-	r := gin.New()
-	r.Use(appstate.StateMiddleware(state))
-	r.Use(srrouter.ErrorHandler())
-	r.Use(func(c *gin.Context) {
-		srrouter.SetTaskRepository(c, repo)
-		c.Next()
+func TestTaskExecutionRoutes(t *testing.T) {
+	t.Run("ShouldGetExecutionStatus", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		execID := core.MustNewID()
+		repo.AddState(newTestTaskState(execID))
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+execID.String(), http.NoBody)
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var payload struct {
+			Status  int                    `json:"status"`
+			Message string                 `json:"message"`
+			Data    TaskExecutionStatusDTO `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
+		require.Equal(t, execID.String(), payload.Data.ExecID)
+		require.Equal(t, core.StatusSuccess, payload.Data.Status)
 	})
-	api := r.Group("/api/v0")
-	Register(api)
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+execID.String(), http.NoBody)
-	req = routertest.WithConfig(t, req)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-	var payload struct {
-		Status  int                    `json:"status"`
-		Message string                 `json:"message"`
-		Data    TaskExecutionStatusDTO `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
-	require.Equal(t, execID.String(), payload.Data.ExecID)
-	require.Equal(t, core.StatusSuccess, payload.Data.Status)
-}
 
-func Test_getTaskExecutionStatus_NotFound(t *testing.T) {
-	ginmode.EnsureGinTestMode()
-	state := routertest.NewTestAppState(t)
-	repo := routertest.NewStubTaskRepo()
-	r := gin.New()
-	r.Use(appstate.StateMiddleware(state))
-	r.Use(srrouter.ErrorHandler())
-	r.Use(func(c *gin.Context) {
-		srrouter.SetTaskRepository(c, repo)
-		c.Next()
+	t.Run("ShouldReturnNotFoundWhenExecutionMissing", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+core.MustNewID().String(), http.NoBody)
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusNotFound, w.Code)
 	})
-	api := r.Group("/api/v0")
-	Register(api)
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+core.MustNewID().String(), http.NoBody)
-	req = routertest.WithConfig(t, req)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusNotFound, w.Code)
-}
 
-func Test_getTaskExecutionStatus_RepoError(t *testing.T) {
-	ginmode.EnsureGinTestMode()
-	state := routertest.NewTestAppState(t)
-	repo := routertest.NewStubTaskRepo()
-	repo.SetError(errors.New("boom"))
-	r := gin.New()
-	r.Use(appstate.StateMiddleware(state))
-	r.Use(srrouter.ErrorHandler())
-	r.Use(func(c *gin.Context) {
-		srrouter.SetTaskRepository(c, repo)
-		c.Next()
+	t.Run("ShouldHandleRepositoryErrors", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		repo.SetError(errors.New("boom"))
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+core.MustNewID().String(), http.NoBody)
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusInternalServerError, w.Code)
 	})
-	api := r.Group("/api/v0")
-	Register(api)
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+core.MustNewID().String(), http.NoBody)
-	req = routertest.WithConfig(t, req)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusInternalServerError, w.Code)
-}
 
-func Test_executeTaskSync_InvalidTimeout(t *testing.T) {
-	ginmode.EnsureGinTestMode()
-	state := routertest.NewTestAppState(t)
-	repo := routertest.NewStubTaskRepo()
-	store := routertest.NewResourceStore(state)
-	taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-one", Type: task.TaskTypeBasic}}
-	m, err := taskCfg.AsMap()
-	require.NoError(t, err)
-	_, err = store.Put(
-		context.Background(),
-		resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-one"},
-		m,
-	)
-	require.NoError(t, err)
-	r := gin.New()
-	r.Use(appstate.StateMiddleware(state))
-	r.Use(srrouter.ErrorHandler())
-	r.Use(func(c *gin.Context) {
-		srrouter.SetTaskRepository(c, repo)
-		c.Next()
+	t.Run("ShouldRejectNegativeTimeout", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-one", Type: task.TaskTypeBasic}}
+		m, err := taskCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-one"},
+			m,
+		)
+		require.NoError(t, err)
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/tasks/task-one/executions",
+			strings.NewReader(`{"timeout":-1}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusBadRequest, w.Code)
 	})
-	api := r.Group("/api/v0")
-	Register(api)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/tasks/task-one/executions",
-		strings.NewReader(`{"timeout":-1}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	req = routertest.WithConfig(t, req)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
-}
 
-func Test_executeTaskSync_TimeoutTooLarge(t *testing.T) {
-	ginmode.EnsureGinTestMode()
-	state := routertest.NewTestAppState(t)
-	repo := routertest.NewStubTaskRepo()
-	store := routertest.NewResourceStore(state)
-	taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-limit", Type: task.TaskTypeBasic}}
-	m, err := taskCfg.AsMap()
-	require.NoError(t, err)
-	_, err = store.Put(
-		context.Background(),
-		resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-limit"},
-		m,
-	)
-	require.NoError(t, err)
-	r := gin.New()
-	r.Use(appstate.StateMiddleware(state))
-	r.Use(srrouter.ErrorHandler())
-	r.Use(func(c *gin.Context) {
-		srrouter.SetTaskRepository(c, repo)
-		c.Next()
+	t.Run("ShouldRejectTimeoutExceedingMaximum", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-limit", Type: task.TaskTypeBasic}}
+		m, err := taskCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-limit"},
+			m,
+		)
+		require.NoError(t, err)
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/tasks/task-limit/executions",
+			strings.NewReader(`{"with":{"foo":"bar"},"timeout":301}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusBadRequest, w.Code)
 	})
-	api := r.Group("/api/v0")
-	Register(api)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/tasks/task-limit/executions",
-		strings.NewReader(`{"with":{"foo":"bar"},"timeout":301}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	req = routertest.WithConfig(t, req)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusBadRequest, w.Code)
-}
 
-func Test_executeTaskSync_IdempotencyDuplicate(t *testing.T) {
-	ginmode.EnsureGinTestMode()
-	state := routertest.NewTestAppState(t)
-	repo := routertest.NewStubTaskRepo()
-	store := routertest.NewResourceStore(state)
-	taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-two", Type: task.TaskTypeBasic}}
-	m, err := taskCfg.AsMap()
-	require.NoError(t, err)
-	_, err = store.Put(
-		context.Background(),
-		resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-two"},
-		m,
-	)
-	require.NoError(t, err)
-	cleanup := installTaskExecutor(state, &stubDirectExecutor{})
-	defer cleanup()
-	r := gin.New()
-	r.Use(appstate.StateMiddleware(state))
-	r.Use(srrouter.ErrorHandler())
-	r.Use(func(c *gin.Context) {
-		srrouter.SetTaskRepository(c, repo)
-		stub := &stubAPIIdempotency{unique: false, reason: "duplicate"}
-		srrouter.SetAPIIdempotency(c, stub)
-		c.Next()
+	t.Run("ShouldReturnConflictForDuplicateRequests", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-two", Type: task.TaskTypeBasic}}
+		m, err := taskCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-two"},
+			m,
+		)
+		require.NoError(t, err)
+		stub := &stubDirectExecutor{}
+		cleanup := installTaskExecutor(state, stub)
+		defer cleanup()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			stub := &stubAPIIdempotency{unique: false, reason: "duplicate"}
+			srrouter.SetAPIIdempotency(c, stub)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/tasks/task-two/executions",
+			strings.NewReader(`{"with":{"foo":"bar"}}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusConflict, w.Code)
 	})
-	api := r.Group("/api/v0")
-	Register(api)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/tasks/task-two/executions",
-		strings.NewReader(`{"with":{"foo":"bar"}}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	req = routertest.WithConfig(t, req)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusConflict, w.Code)
-}
 
-func Test_executeTaskSync_Success(t *testing.T) {
-	ginmode.EnsureGinTestMode()
-	state := routertest.NewTestAppState(t)
-	repo := routertest.NewStubTaskRepo()
-	store := routertest.NewResourceStore(state)
-	taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-three", Type: task.TaskTypeBasic}}
-	m, err := taskCfg.AsMap()
-	require.NoError(t, err)
-	_, err = store.Put(
-		context.Background(),
-		resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-three"},
-		m,
-	)
-	require.NoError(t, err)
-	output := core.Output{"result": "ok"}
-	stub := &stubDirectExecutor{syncOutput: &output, syncExecID: core.MustNewID()}
-	cleanup := installTaskExecutor(state, stub)
-	defer cleanup()
-	r := gin.New()
-	r.Use(appstate.StateMiddleware(state))
-	r.Use(srrouter.ErrorHandler())
-	r.Use(func(c *gin.Context) {
-		srrouter.SetTaskRepository(c, repo)
-		c.Next()
+	t.Run("ShouldExecuteTaskSyncSuccessfully", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-three", Type: task.TaskTypeBasic}}
+		m, err := taskCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-three"},
+			m,
+		)
+		require.NoError(t, err)
+		stub := &stubDirectExecutor{syncOutput: &core.Output{"foo": "bar"}, syncExecID: core.MustNewID()}
+		cleanup := installTaskExecutor(state, stub)
+		defer cleanup()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/tasks/task-three/executions",
+			strings.NewReader(`{"with":{"foo":"bar"}}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var payload struct {
+			Status int `json:"status"`
+			Data   struct {
+				ExecID string      `json:"exec_id"`
+				Output core.Output `json:"output"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
+		require.Equal(t, http.StatusOK, payload.Status)
+		require.Equal(t, stub.syncExecID.String(), payload.Data.ExecID)
+		require.Equal(t, "bar", payload.Data.Output["foo"])
 	})
-	api := r.Group("/api/v0")
-	Register(api)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/tasks/task-three/executions",
-		strings.NewReader(`{"with":{"input":"x"}}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	req = routertest.WithConfig(t, req)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-	var payload struct {
-		Status int `json:"status"`
-		Data   struct {
-			ExecID string      `json:"exec_id"`
-			Output core.Output `json:"output"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
-	require.Equal(t, stub.syncExecID.String(), payload.Data.ExecID)
-	require.Equal(t, "ok", payload.Data.Output["result"])
-}
 
-func Test_executeTaskSync_Timeout(t *testing.T) {
-	ginmode.EnsureGinTestMode()
-	state := routertest.NewTestAppState(t)
-	repo := routertest.NewStubTaskRepo()
-	store := routertest.NewResourceStore(state)
-	taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-four", Type: task.TaskTypeBasic}}
-	m, err := taskCfg.AsMap()
-	require.NoError(t, err)
-	_, err = store.Put(
-		context.Background(),
-		resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-four"},
-		m,
-	)
-	require.NoError(t, err)
-	stub := &stubDirectExecutor{syncExecID: core.MustNewID(), syncErr: context.DeadlineExceeded}
-	cleanup := installTaskExecutor(state, stub)
-	defer cleanup()
-	r := gin.New()
-	r.Use(appstate.StateMiddleware(state))
-	r.Use(srrouter.ErrorHandler())
-	r.Use(func(c *gin.Context) {
-		srrouter.SetTaskRepository(c, repo)
-		c.Next()
+	t.Run("ShouldHandleTaskSyncTimeouts", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-four", Type: task.TaskTypeBasic}}
+		m, err := taskCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-four"},
+			m,
+		)
+		require.NoError(t, err)
+		stub := &stubDirectExecutor{syncExecID: core.MustNewID(), syncErr: context.DeadlineExceeded}
+		cleanup := installTaskExecutor(state, stub)
+		defer cleanup()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/tasks/task-four/executions",
+			strings.NewReader(`{"with":{"a":1}}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusRequestTimeout, w.Code)
+		var payload struct {
+			Status  int                `json:"status"`
+			Message string             `json:"message"`
+			Data    map[string]any     `json:"data"`
+			Error   srrouter.ErrorInfo `json:"error"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
+		require.Equal(t, srrouter.ErrRequestTimeoutCode, payload.Error.Code)
+		require.Equal(t, "execution timeout", payload.Message)
+		execVal, ok := payload.Data["exec_id"].(string)
+		require.True(t, ok)
+		require.Equal(t, stub.syncExecID.String(), execVal)
 	})
-	api := r.Group("/api/v0")
-	Register(api)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/tasks/task-four/executions",
-		strings.NewReader(`{"with":{"a":1}}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	req = routertest.WithConfig(t, req)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusRequestTimeout, w.Code)
-	var payload struct {
-		Status  int                `json:"status"`
-		Message string             `json:"message"`
-		Data    map[string]any     `json:"data"`
-		Error   srrouter.ErrorInfo `json:"error"`
-	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
-	require.Equal(t, srrouter.ErrRequestTimeoutCode, payload.Error.Code)
-	require.Equal(t, "execution timeout", payload.Message)
-	execVal, ok := payload.Data["exec_id"].(string)
-	require.True(t, ok)
-	require.Equal(t, stub.syncExecID.String(), execVal)
-}
 
-func Test_executeTaskAsync_Success(t *testing.T) {
-	ginmode.EnsureGinTestMode()
-	state := routertest.NewTestAppState(t)
-	repo := routertest.NewStubTaskRepo()
-	store := routertest.NewResourceStore(state)
-	taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-five", Type: task.TaskTypeBasic}}
-	m, err := taskCfg.AsMap()
-	require.NoError(t, err)
-	_, err = store.Put(
-		context.Background(),
-		resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-five"},
-		m,
-	)
-	require.NoError(t, err)
-	stub := &stubDirectExecutor{asyncExecID: core.MustNewID()}
-	cleanup := installTaskExecutor(state, stub)
-	defer cleanup()
-	r := gin.New()
-	r.Use(appstate.StateMiddleware(state))
-	r.Use(srrouter.ErrorHandler())
-	r.Use(func(c *gin.Context) {
-		srrouter.SetTaskRepository(c, repo)
-		c.Next()
+	t.Run("ShouldExecuteTaskAsyncSuccessfully", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-five", Type: task.TaskTypeBasic}}
+		m, err := taskCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-five"},
+			m,
+		)
+		require.NoError(t, err)
+		stub := &stubDirectExecutor{asyncExecID: core.MustNewID()}
+		cleanup := installTaskExecutor(state, stub)
+		defer cleanup()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/tasks/task-five/executions/async",
+			strings.NewReader(`{"with":{"b":2}}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusAccepted, w.Code)
+		expectedLocation := routertest.ComposeLocation("tasks", stub.asyncExecID)
+		require.Equal(t, expectedLocation, w.Header().Get("Location"))
+		var payload struct {
+			Status int `json:"status"`
+			Data   struct {
+				ExecID  string `json:"exec_id"`
+				ExecURL string `json:"exec_url"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
+		require.Equal(t, stub.asyncExecID.String(), payload.Data.ExecID)
+		require.Contains(t, payload.Data.ExecURL, stub.asyncExecID.String())
 	})
-	api := r.Group("/api/v0")
-	Register(api)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/tasks/task-five/executions/async",
-		strings.NewReader(`{"with":{"b":2}}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	req = routertest.WithConfig(t, req)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusAccepted, w.Code)
-	expectedLocation := routertest.ComposeLocation("tasks", stub.asyncExecID)
-	require.Equal(t, expectedLocation, w.Header().Get("Location"))
-	var payload struct {
-		Status int `json:"status"`
-		Data   struct {
-			ExecID  string `json:"exec_id"`
-			ExecURL string `json:"exec_url"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
-	require.Equal(t, stub.asyncExecID.String(), payload.Data.ExecID)
-	require.Contains(t, payload.Data.ExecURL, stub.asyncExecID.String())
 }
 
 func newTestTaskState(execID core.ID) *task.State {

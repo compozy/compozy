@@ -90,6 +90,18 @@ type TasksListResponse struct {
 	Page  httpdto.PageInfoDTO `json:"page"`
 }
 
+// TaskExecSyncResponse is returned from POST /tasks/{task_id}/executions.
+type TaskExecSyncResponse struct {
+	Output *core.Output `json:"output,omitempty"`
+	ExecID string       `json:"exec_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+}
+
+// TaskExecAsyncResponse is returned from POST /tasks/{task_id}/executions/async.
+type TaskExecAsyncResponse struct {
+	ExecID  string `json:"exec_id"  example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	ExecURL string `json:"exec_url" example:"https://api.compozy.dev/api/v0/executions/tasks/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+}
+
 // ToTaskDTOForWorkflow is an exported helper for workflow DTO expansion mapping.
 func ToTaskDTOForWorkflow(src map[string]any) (TaskDTO, error) {
 	return toTaskDTO(src, map[string]bool{expandKeySubtasks: true})
