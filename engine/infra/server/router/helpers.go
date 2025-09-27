@@ -159,6 +159,15 @@ func GetTaskID(c *gin.Context) string {
 	return GetURLParam(c, "task_id")
 }
 
+// StatusOrFallback returns the response status if it already reflects an error;
+// otherwise it falls back to the provided status code so metrics can record failures reliably.
+func StatusOrFallback(c *gin.Context, fallback int) int {
+	if status := c.Writer.Status(); status >= http.StatusBadRequest {
+		return status
+	}
+	return fallback
+}
+
 func GetTaskExecID(c *gin.Context) core.ID {
 	return core.ID(GetURLParam(c, "task_exec_id"))
 }

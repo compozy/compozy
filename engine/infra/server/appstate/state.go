@@ -195,20 +195,13 @@ func (s *State) ConfigRegistry() (any, bool) {
 
 // SetAPIIdempotencyService stores the webhook.Service used for API idempotency checks
 func (s *State) SetAPIIdempotencyService(service webhook.Service) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.Extensions == nil {
-		s.Extensions = make(map[ExtensionKey]any)
-	}
-	s.Extensions[extensionAPIIdempotencyKey] = service
+	s.SetExtension(extensionAPIIdempotencyKey, service)
 }
 
 // APIIdempotencyService retrieves the webhook.Service configured for API idempotency checks
 func (s *State) APIIdempotencyService() (webhook.Service, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	v, ok := s.Extensions[extensionAPIIdempotencyKey]
-	if !ok || v == nil {
+	v, ok := s.Extension(extensionAPIIdempotencyKey)
+	if !ok {
 		return nil, false
 	}
 	service, ok := v.(webhook.Service)
@@ -220,20 +213,13 @@ func (s *State) APIIdempotencyService() (webhook.Service, bool) {
 
 // SetMonitoringService stores the monitoring service in extensions for reuse across handlers.
 func (s *State) SetMonitoringService(service *monitoring.Service) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.Extensions == nil {
-		s.Extensions = make(map[ExtensionKey]any)
-	}
-	s.Extensions[extensionMonitoringServiceKey] = service
+	s.SetExtension(extensionMonitoringServiceKey, service)
 }
 
 // MonitoringService retrieves the monitoring service if it was configured during startup.
 func (s *State) MonitoringService() (*monitoring.Service, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	v, ok := s.Extensions[extensionMonitoringServiceKey]
-	if !ok || v == nil {
+	v, ok := s.Extension(extensionMonitoringServiceKey)
+	if !ok {
 		return nil, false
 	}
 	service, ok := v.(*monitoring.Service)

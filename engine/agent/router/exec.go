@@ -19,7 +19,6 @@ import (
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -203,6 +202,7 @@ func loadAgentTaskConfig(
 		withCopy := req.With
 		cfg.With = &withCopy
 	}
+	cfg.Timeout = (time.Duration(req.Timeout) * time.Second).String()
 	return cfg, true
 }
 
@@ -213,37 +213,20 @@ func respondAgentTimeout(
 	execID core.ID,
 	metrics *monitoring.ExecutionMetrics,
 ) int {
-	ctx := c.Request.Context()
-	log := logger.FromContext(ctx)
-	payload := gin.H{"exec_id": execID.String()}
-	if repo != nil {
-		if state, err := repo.GetState(ctx, execID); err == nil {
-			payload["state"] = newExecutionStatusDTO(state)
-		} else if err != nil && !errors.Is(err, store.ErrTaskNotFound) {
-			log.Warn(
-				"Failed to load agent execution state after timeout",
-				"agent_id", agentID,
-				"exec_id", execID.String(),
-				"error", err,
-			)
-		}
-	}
-	log.Warn("Agent execution timed out", "agent_id", agentID, "exec_id", execID.String())
-	resp := router.Response{
-		Status:  http.StatusRequestTimeout,
-		Message: "execution timeout",
-		Data:    payload,
-		Error: &router.ErrorInfo{
-			Code:    router.ErrRequestTimeoutCode,
-			Message: "execution timeout",
-			Details: context.DeadlineExceeded.Error(),
+	return router.RespondExecutionTimeout(
+		c,
+		repo,
+		execID,
+		func(state *task.State) any {
+			return newExecutionStatusDTO(state)
 		},
-	}
-	c.JSON(http.StatusRequestTimeout, resp)
-	if metrics != nil {
-		metrics.RecordTimeout(ctx, monitoring.ExecutionKindAgent)
-	}
-	return http.StatusRequestTimeout
+		router.TimeoutResponseOptions{
+			ResourceKind:  "Agent",
+			ResourceID:    agentID,
+			ExecutionKind: monitoring.ExecutionKindAgent,
+			Metrics:       metrics,
+		},
+	)
 }
 
 type ExecutionStatusDTO struct {
@@ -259,11 +242,17 @@ type ExecutionStatusDTO struct {
 	UpdatedAt      time.Time          `json:"updated_at"`
 }
 
+// AgentExecRequest represents the payload accepted by agent execution endpoints.
+// Provide either Action or Prompt. If both are set, Action takes precedence.
 type AgentExecRequest struct {
-	Action  string     `json:"action,omitempty"`
-	Prompt  string     `json:"prompt,omitempty"`
-	With    core.Input `json:"with,omitempty"`
-	Timeout int        `json:"timeout,omitempty"`
+	// Action selects a predefined agent action to execute.
+	Action string `json:"action,omitempty"`
+	// Prompt supplies an ad-hoc prompt for the agent when no action is provided.
+	Prompt string `json:"prompt,omitempty"`
+	// With passes structured input parameters to the agent execution.
+	With core.Input `json:"with,omitempty"`
+	// Timeout in seconds for synchronous execution.
+	Timeout int `json:"timeout,omitempty"`
 }
 
 // executeAgentSync handles POST /agents/{agent_id}/executions.
@@ -274,6 +263,8 @@ type AgentExecRequest struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			agent_id	path	string	true	"Agent ID"	example("assistant")
+//	@Param			X-Idempotency-Key	header	string	false	"Optional idempotency key to prevent duplicate execution"
+//	@Param			X-Correlation-ID	header	string	false	"Optional correlation ID for request tracing"
 //	@Param			payload	body	agentrouter.AgentExecRequest	true	"Execution request"
 //	@Success		200	{object}	router.Response{data=agentrouter.AgentExecSyncResponse}	"Agent executed"
 //	@Failure		400	{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
@@ -296,7 +287,7 @@ func executeAgentSync(c *gin.Context) {
 	defer func() { finalizeMetrics(outcome) }()
 	resourceStore, ok := router.GetResourceStore(c)
 	if !ok {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	req, ok := parseAgentExecRequest(c)
@@ -305,12 +296,12 @@ func executeAgentSync(c *gin.Context) {
 		return
 	}
 	if !ensureAgentIdempotency(c, state, req) {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	taskCfg, ok := loadAgentTaskConfig(c, resourceStore, state, agentID, req)
 	if !ok {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	repo := router.ResolveTaskRepository(c, state)
@@ -361,6 +352,8 @@ func executeAgentSync(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			agent_id	path	string	true	"Agent ID"	example("assistant")
+//	@Param			X-Idempotency-Key	header	string	false	"Optional idempotency key to prevent duplicate execution"
+//	@Param			X-Correlation-ID	header	string	false	"Optional correlation ID for request tracing"
 //	@Param			payload	body	agentrouter.AgentExecRequest	true	"Execution request"
 //	@Success		202	{object}	router.Response{data=agentrouter.AgentExecAsyncResponse}	"Agent execution started"
 //	@Header			202	{string}	Location	"Execution status URL"
@@ -387,7 +380,7 @@ func executeAgentAsync(c *gin.Context) {
 	}
 	resourceStore, ok := router.GetResourceStore(c)
 	if !ok {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	req, ok := parseAgentExecRequest(c)
@@ -396,12 +389,12 @@ func executeAgentAsync(c *gin.Context) {
 		return
 	}
 	if !ensureAgentIdempotency(c, state, req) {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	taskCfg, ok := loadAgentTaskConfig(c, resourceStore, state, agentID, req)
 	if !ok {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	repo := router.ResolveTaskRepository(c, state)

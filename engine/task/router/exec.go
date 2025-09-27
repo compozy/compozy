@@ -17,7 +17,6 @@ import (
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	taskuc "github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -179,6 +178,7 @@ func loadDirectTaskConfig(
 		withCopy := req.With
 		taskCfg.With = &withCopy
 	}
+	taskCfg.Timeout = (time.Duration(req.Timeout) * time.Second).String()
 	return taskCfg, true
 }
 
@@ -189,37 +189,20 @@ func respondTaskTimeout(
 	execID core.ID,
 	metrics *monitoring.ExecutionMetrics,
 ) int {
-	ctx := c.Request.Context()
-	log := logger.FromContext(ctx)
-	payload := gin.H{"exec_id": execID.String()}
-	if repo != nil {
-		if state, err := repo.GetState(ctx, execID); err == nil {
-			payload["state"] = newTaskExecutionStatusDTO(state)
-		} else if err != nil && !errors.Is(err, store.ErrTaskNotFound) {
-			log.Warn(
-				"Failed to load task execution state after timeout",
-				"task_id", taskID,
-				"exec_id", execID.String(),
-				"error", err,
-			)
-		}
-	}
-	log.Warn("Task execution timed out", "task_id", taskID, "exec_id", execID.String())
-	resp := router.Response{
-		Status:  http.StatusRequestTimeout,
-		Message: "execution timeout",
-		Data:    payload,
-		Error: &router.ErrorInfo{
-			Code:    router.ErrRequestTimeoutCode,
-			Message: "execution timeout",
-			Details: context.DeadlineExceeded.Error(),
+	return router.RespondExecutionTimeout(
+		c,
+		repo,
+		execID,
+		func(state *task.State) any {
+			return newTaskExecutionStatusDTO(state)
 		},
-	}
-	c.JSON(http.StatusRequestTimeout, resp)
-	if metrics != nil {
-		metrics.RecordTimeout(ctx, monitoring.ExecutionKindTask)
-	}
-	return http.StatusRequestTimeout
+		router.TimeoutResponseOptions{
+			ResourceKind:  "Task",
+			ResourceID:    taskID,
+			ExecutionKind: monitoring.ExecutionKindTask,
+			Metrics:       metrics,
+		},
+	)
 }
 
 type TaskExecutionStatusDTO struct {
@@ -235,9 +218,12 @@ type TaskExecutionStatusDTO struct {
 	UpdatedAt      time.Time          `json:"updated_at"`
 }
 
+// TaskExecRequest represents the payload accepted by task execution endpoints.
 type TaskExecRequest struct {
-	With    core.Input `json:"with,omitempty"`
-	Timeout int        `json:"timeout,omitempty"`
+	// With passes structured input parameters to the task execution.
+	With core.Input `json:"with,omitempty"`
+	// Timeout in seconds for synchronous execution.
+	Timeout int `json:"timeout,omitempty"`
 }
 
 // executeTaskSync handles POST /tasks/{task_id}/executions.
@@ -248,6 +234,8 @@ type TaskExecRequest struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			task_id	path	string	true	"Task ID"	example("task-build-artifact")
+//	@Param			X-Idempotency-Key	header	string	false	"Optional idempotency key to prevent duplicate execution"
+//	@Param			X-Correlation-ID	header	string	false	"Optional correlation ID for request tracing"
 //	@Param			payload	body	tkrouter.TaskExecRequest	true	"Execution request"
 //	@Success		200	{object}	router.Response{data=tkrouter.TaskExecSyncResponse}	"Task executed"
 //	@Failure		400	{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
@@ -270,7 +258,7 @@ func executeTaskSync(c *gin.Context) {
 	defer func() { finalizeMetrics(outcome) }()
 	resourceStore, ok := router.GetResourceStore(c)
 	if !ok {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	req, ok := parseTaskExecRequest(c)
@@ -279,12 +267,12 @@ func executeTaskSync(c *gin.Context) {
 		return
 	}
 	if !ensureTaskIdempotency(c, state, req) {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	taskCfg, ok := loadDirectTaskConfig(c, resourceStore, state, taskID, req)
 	if !ok {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	repo := router.ResolveTaskRepository(c, state)
@@ -331,6 +319,8 @@ func executeTaskSync(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			task_id	path	string	true	"Task ID"	example("task-build-artifact")
+//	@Param			X-Idempotency-Key	header	string	false	"Optional idempotency key to prevent duplicate execution"
+//	@Param			X-Correlation-ID	header	string	false	"Optional correlation ID for request tracing"
 //	@Param			payload	body	tkrouter.TaskExecRequest	true	"Execution request"
 //	@Success		202	{object}	router.Response{data=tkrouter.TaskExecAsyncResponse}	"Task execution started"
 //	@Header			202	{string}	Location	"Execution status URL"
@@ -357,7 +347,7 @@ func executeTaskAsync(c *gin.Context) {
 	}
 	resourceStore, ok := router.GetResourceStore(c)
 	if !ok {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	req, ok := parseTaskExecRequest(c)
@@ -366,12 +356,12 @@ func executeTaskAsync(c *gin.Context) {
 		return
 	}
 	if !ensureTaskIdempotency(c, state, req) {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	taskCfg, ok := loadDirectTaskConfig(c, resourceStore, state, taskID, req)
 	if !ok {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	repo := router.ResolveTaskRepository(c, state)

@@ -329,13 +329,18 @@ definitions:
   agentrouter.AgentExecRequest:
     properties:
       action:
+        description: Action selects a predefined agent action to execute.
         type: string
       prompt:
+        description: Prompt supplies an ad-hoc prompt for the agent when no action is provided.
         type: string
       timeout:
+        description: Timeout in seconds for synchronous execution.
         type: integer
       with:
-        $ref: '#/definitions/core.Input'
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: With passes structured input parameters to the agent execution.
     type: object
   agentrouter.AgentExecSyncResponse:
     properties:
@@ -1094,6 +1099,8 @@ definitions:
         description: |-
           Args supplies additional arguments passed to the command when spawning local MCP processes.
 
+          Only used when `command` is provided (stdio transport). Ignored when `url` is configured.
+          Runtime validation enforces that `command` and `url` are mutually exclusive.
           Use this to provide flags or subcommands while keeping Command focused on the executable.
           Example:
           command: "uvx"
@@ -1429,6 +1436,7 @@ definitions:
   mcprouter.MCPDTO:
     properties:
       args:
+        description: Args lists additional command arguments when the MCP server runs via stdio transport.
         items:
           type: string
         type: array
@@ -1460,6 +1468,7 @@ definitions:
   mcprouter.MCPListItem:
     properties:
       args:
+        description: Args lists additional command arguments when the MCP server runs via stdio transport.
         items:
           type: string
         type: array
@@ -2703,9 +2712,12 @@ definitions:
   tkrouter.TaskExecRequest:
     properties:
       timeout:
+        description: Timeout in seconds for synchronous execution.
         type: integer
       with:
-        $ref: '#/definitions/core.Input'
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: With passes structured input parameters to the task execution.
     type: object
   tkrouter.TaskExecSyncResponse:
     properties:
@@ -3330,7 +3342,7 @@ definitions:
         example: 2Z4PVTL6K27XVT4A3NPKMDD5BG
         type: string
       exec_url:
-        example: localhost:5001/api/v0/executions/workflows/2Z4PVTL6K27XVT4A3NPKMDD5BG
+        example: https://api.compozy.dev/api/v0/executions/workflows/2Z4PVTL6K27XVT4A3NPKMDD5BG
         type: string
       workflow_id:
         example: data-processing
@@ -3487,6 +3499,7 @@ definitions:
       task_id:
         type: string
       timeout:
+        description: Timeout in seconds for synchronous execution.
         type: integer
     type: object
   wfrouter.WorkflowSyncResponse:
@@ -4528,6 +4541,14 @@ paths:
           name: agent_id
           required: true
           type: string
+        - description: Optional idempotency key to prevent duplicate execution
+          in: header
+          name: X-Idempotency-Key
+          type: string
+        - description: Optional correlation ID for request tracing
+          in: header
+          name: X-Correlation-ID
+          type: string
         - description: Execution request
           in: body
           name: payload
@@ -4605,6 +4626,14 @@ paths:
           in: path
           name: agent_id
           required: true
+          type: string
+        - description: Optional idempotency key to prevent duplicate execution
+          in: header
+          name: X-Idempotency-Key
+          type: string
+        - description: Optional correlation ID for request tracing
+          in: header
+          name: X-Correlation-ID
           type: string
         - description: Execution request
           in: body
@@ -8518,6 +8547,14 @@ paths:
           name: task_id
           required: true
           type: string
+        - description: Optional idempotency key to prevent duplicate execution
+          in: header
+          name: X-Idempotency-Key
+          type: string
+        - description: Optional correlation ID for request tracing
+          in: header
+          name: X-Correlation-ID
+          type: string
         - description: Execution request
           in: body
           name: payload
@@ -8595,6 +8632,14 @@ paths:
           in: path
           name: task_id
           required: true
+          type: string
+        - description: Optional idempotency key to prevent duplicate execution
+          in: header
+          name: X-Idempotency-Key
+          type: string
+        - description: Optional correlation ID for request tracing
+          in: header
+          name: X-Correlation-ID
           type: string
         - description: Execution request
           in: body
@@ -9720,6 +9765,14 @@ paths:
           name: workflow_id
           required: true
           type: string
+        - description: Optional idempotency key to prevent duplicate execution
+          in: header
+          name: X-Idempotency-Key
+          type: string
+        - description: Optional correlation ID for request tracing
+          in: header
+          name: X-Correlation-ID
+          type: string
         - description: Workflow input data
           in: body
           name: input
@@ -9731,6 +9784,10 @@ paths:
       responses:
         "202":
           description: Workflow triggered successfully
+          headers:
+            Location:
+              description: Execution status URL
+              type: string
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
@@ -9788,6 +9845,14 @@ paths:
           in: path
           name: workflow_id
           required: true
+          type: string
+        - description: Optional idempotency key to prevent duplicate execution
+          in: header
+          name: X-Idempotency-Key
+          type: string
+        - description: Optional correlation ID for request tracing
+          in: header
+          name: X-Correlation-ID
           type: string
         - description: Execution request
           in: body

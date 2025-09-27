@@ -1322,6 +1322,18 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Optional idempotency key to prevent duplicate execution",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
                         "description": "Execution request",
                         "name": "payload",
                         "in": "body",
@@ -1464,6 +1476,18 @@ const docTemplate = `{
                         "name": "agent_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional idempotency key to prevent duplicate execution",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
                     },
                     {
                         "description": "Execution request",
@@ -7839,6 +7863,18 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Optional idempotency key to prevent duplicate execution",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
                         "description": "Execution request",
                         "name": "payload",
                         "in": "body",
@@ -7981,6 +8017,18 @@ const docTemplate = `{
                         "name": "task_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional idempotency key to prevent duplicate execution",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
                     },
                     {
                         "description": "Execution request",
@@ -9801,6 +9849,18 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Optional idempotency key to prevent duplicate execution",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
                         "description": "Workflow input data",
                         "name": "input",
                         "in": "body",
@@ -9827,6 +9887,12 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Execution status URL"
+                            }
                         }
                     },
                     "400": {
@@ -9925,6 +9991,18 @@ const docTemplate = `{
                         "name": "workflow_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional idempotency key to prevent duplicate execution",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
                     },
                     {
                         "description": "Execution request",
@@ -10716,16 +10794,24 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "action": {
+                    "description": "Action selects a predefined agent action to execute.",
                     "type": "string"
                 },
                 "prompt": {
+                    "description": "Prompt supplies an ad-hoc prompt for the agent when no action is provided.",
                     "type": "string"
                 },
                 "timeout": {
+                    "description": "Timeout in seconds for synchronous execution.",
                     "type": "integer"
                 },
                 "with": {
-                    "$ref": "#/definitions/core.Input"
+                    "description": "With passes structured input parameters to the agent execution.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
                 }
             }
         },
@@ -11562,7 +11648,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "args": {
-                    "description": "Args supplies additional arguments passed to the command when spawning local MCP processes.\n\nUse this to provide flags or subcommands while keeping Command focused on the executable.\nExample:\ncommand: \"uvx\"\nargs: [\"mcp-server-fetch\", \"--port\", \"9000\"]",
+                    "description": "Args supplies additional arguments passed to the command when spawning local MCP processes.\n\nOnly used when ` + "`" + `command` + "`" + ` is provided (stdio transport). Ignored when ` + "`" + `url` + "`" + ` is configured.\nRuntime validation enforces that ` + "`" + `command` + "`" + ` and ` + "`" + `url` + "`" + ` are mutually exclusive.\nUse this to provide flags or subcommands while keeping Command focused on the executable.\nExample:\ncommand: \"uvx\"\nargs: [\"mcp-server-fetch\", \"--port\", \"9000\"]",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -11848,6 +11934,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "args": {
+                    "description": "Args lists additional command arguments when the MCP server runs via stdio transport.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -11895,6 +11982,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "args": {
+                    "description": "Args lists additional command arguments when the MCP server runs via stdio transport.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -13409,10 +13497,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "timeout": {
+                    "description": "Timeout in seconds for synchronous execution.",
                     "type": "integer"
                 },
                 "with": {
-                    "$ref": "#/definitions/core.Input"
+                    "description": "With passes structured input parameters to the task execution.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
                 }
             }
         },
@@ -14258,7 +14352,7 @@ const docTemplate = `{
                 },
                 "exec_url": {
                     "type": "string",
-                    "example": "localhost:5001/api/v0/executions/workflows/2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                    "example": "https://api.compozy.dev/api/v0/executions/workflows/2Z4PVTL6K27XVT4A3NPKMDD5BG"
                 },
                 "workflow_id": {
                     "type": "string",
@@ -14499,6 +14593,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "timeout": {
+                    "description": "Timeout in seconds for synchronous execution.",
                     "type": "integer"
                 }
             }

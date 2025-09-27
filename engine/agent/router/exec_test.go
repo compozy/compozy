@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stubIdempotency implements the idempotency checker contract for testing scenarios.
 type stubIdempotency struct {
 	unique bool
 	reason string
@@ -39,6 +40,7 @@ func (s *stubIdempotency) CheckAndSet(
 	return s.unique, s.reason, s.err
 }
 
+// stubDirectExecutor provides a deterministic DirectExecutor for exercising request flows in tests.
 type stubDirectExecutor struct {
 	syncOutput  *core.Output
 	syncExecID  core.ID
@@ -68,6 +70,7 @@ func (s *stubDirectExecutor) ExecuteAsync(
 	return s.asyncExecID, s.asyncErr
 }
 
+// installDirectExecutorStub sets a temporary DirectExecutor factory and returns a cleanup function.
 func installDirectExecutorStub(state *appstate.State, exec tkrouter.DirectExecutor) func() {
 	tkrouter.SetDirectExecutorFactory(state, func(*appstate.State, task.Repository) (tkrouter.DirectExecutor, error) {
 		return exec, nil

@@ -265,7 +265,8 @@ func TestTaskExecutionRoutes(t *testing.T) {
 			m,
 		)
 		require.NoError(t, err)
-		stub := &stubDirectExecutor{syncOutput: &core.Output{"foo": "bar"}, syncExecID: core.MustNewID()}
+		output := core.Output{"foo": "bar"}
+		stub := &stubDirectExecutor{syncOutput: &output, syncExecID: core.MustNewID()}
 		cleanup := installTaskExecutor(state, stub)
 		defer cleanup()
 		r := gin.New()

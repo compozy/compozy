@@ -38,9 +38,10 @@ var (
 // WorkflowSyncRequest represents the request body for synchronous workflow execution.
 // The Input field uses core.Input, which is documented alongside workflow execution endpoints.
 type WorkflowSyncRequest struct {
-	Input   core.Input `json:"input"   swaggerignore:"true"`
-	TaskID  string     `json:"task_id"`
-	Timeout int        `json:"timeout"`
+	Input  core.Input `json:"input"   swaggerignore:"true"`
+	TaskID string     `json:"task_id"`
+	// Timeout in seconds for synchronous execution.
+	Timeout int `json:"timeout"`
 }
 
 // WorkflowSyncResponse represents the response body for synchronous workflow execution.
@@ -58,6 +59,8 @@ type WorkflowSyncResponse struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string	true	"Workflow ID"	example("data-processing")
+//	@Param			X-Idempotency-Key	header		string	false	"Optional idempotency key to prevent duplicate execution"
+//	@Param			X-Correlation-ID	header		string	false	"Optional correlation ID for request tracing"
 //	@Param			payload	body	wfrouter.WorkflowSyncRequest	true	"Execution request"
 //	@Success		200	{object}	router.Response{data=wfrouter.WorkflowSyncResponse}	"Workflow execution completed"
 //	@Failure		400	{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
@@ -89,7 +92,7 @@ func executeWorkflowSync(c *gin.Context) {
 		return
 	}
 	if !ensureWorkflowIdempotency(c, state, req) {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	repo, runner, ok := prepareWorkflowSync(c, state, workflowID, recordError)
@@ -146,7 +149,8 @@ func parseWorkflowSyncRequest(c *gin.Context) *WorkflowSyncRequest {
 		req.Timeout = workflowSyncDefaultTimeoutSeconds
 	}
 	if req.Timeout > workflowSyncMaxTimeoutSeconds {
-		reqErr := router.NewRequestError(http.StatusBadRequest, "timeout cannot exceed 300 seconds", nil)
+		message := fmt.Sprintf("timeout cannot exceed %d seconds", workflowSyncMaxTimeoutSeconds)
+		reqErr := router.NewRequestError(http.StatusBadRequest, message, nil)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil
 	}
@@ -215,7 +219,7 @@ func prepareWorkflowSync(
 	}
 	store, ok := router.GetResourceStore(c)
 	if !ok {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return nil, nil, false
 	}
 	project := router.ProjectFromQueryOrDefault(c)
@@ -223,7 +227,7 @@ func prepareWorkflowSync(
 		return nil, nil, false
 	}
 	if !ensureWorkflowExists(c, store, project, workflowID) {
-		recordError(c.Writer.Status())
+		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return nil, nil, false
 	}
 	runner := router.ResolveWorkflowRunner(c, state)
