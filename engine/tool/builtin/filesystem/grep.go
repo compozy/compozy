@@ -245,11 +245,15 @@ func searchDirectory(
 		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 		for _, entry := range entries {
 			fullPath := filepath.Join(current, entry.Name())
-			if entry.Type()&fs.ModeSymlink != 0 {
-				continue
-			}
-			info, err := entry.Info()
+			info, err := os.Lstat(fullPath)
 			if err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					continue
+				}
+				details := map[string]any{"path": relativePath(root, fullPath)}
+				return visited, builtin.Internal(fmt.Errorf("failed to inspect path: %w", err), details)
+			}
+			if rejectErr := builtin.RejectSymlink(info); rejectErr != nil {
 				continue
 			}
 			if info.IsDir() {

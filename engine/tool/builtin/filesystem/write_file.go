@@ -119,6 +119,12 @@ func writeFileHandler(ctx context.Context, payload map[string]any) (core.Output,
 		return nil, err
 	}
 	defer file.Close()
+	if int64(len(args.Content)) > cfg.Limits.MaxFileBytes {
+		return nil, builtin.InvalidArgument(
+			errors.New("content exceeds maximum size"),
+			map[string]any{"limit": cfg.Limits.MaxFileBytes},
+		)
+	}
 	if err := writeContent(file, []byte(args.Content), cfg.Limits.MaxFileBytes); err != nil {
 		return nil, err
 	}

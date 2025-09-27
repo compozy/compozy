@@ -81,6 +81,8 @@ func Definition() builtin.BuiltinDefinition {
 	}
 }
 
+const timeoutExitCode = -1
+
 type commandRunInfo struct {
 	stdoutBuf *limitedBuffer
 	stderrBuf *limitedBuffer
@@ -239,6 +241,25 @@ func executePreparedCommand(
 ) (core.Output, commandRunInfo, error) {
 	start := time.Now()
 	if err := cmd.Run(); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			duration := time.Since(start)
+			info := commandRunInfo{
+				stdoutBuf: stdoutBuf,
+				stderrBuf: stderrBuf,
+				duration:  duration,
+				exitCode:  timeoutExitCode,
+				timedOut:  true,
+			}
+			return buildExecOutput(
+				cmdCtx,
+				policy,
+				stdoutBuf,
+				stderrBuf,
+				info.exitCode,
+				info.duration,
+				info.timedOut,
+			), info, nil
+		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			duration := time.Since(start)

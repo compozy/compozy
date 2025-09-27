@@ -104,6 +104,9 @@ func deleteFileHandler(ctx context.Context, payload map[string]any) (core.Output
 			)
 		}
 		if err := os.RemoveAll(resolvedPath); err != nil {
+			if errors.Is(err, fs.ErrPermission) {
+				return nil, builtin.PermissionDenied(err, map[string]any{"path": args.Path})
+			}
 			return nil, builtin.Internal(
 				fmt.Errorf("failed to delete directory: %w", err),
 				map[string]any{"path": args.Path},

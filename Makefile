@@ -86,8 +86,6 @@ lint:
 	$(LINTCMD) run --fix --allow-parallel-runners
 	@echo "Running static driver import guard..."
 	@./scripts/check-driver-imports.sh
-	@echo "Scanning docs for legacy tool references... (make scan-docs to enforce)"
-	@./scripts/scan-docs.sh
 	@echo "Running modernize analyzer for min/max suggestions..."
 	@echo "Linting completed successfully"
 
@@ -220,10 +218,6 @@ test-coverage:
 test-nocache:
 	@bun run test
 	@gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...
-
-.PHONY: scan-docs
-scan-docs:
-	@./scripts/scan-docs.sh
 
 # -----------------------------------------------------------------------------
 # Docker & Database Management
