@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/tool/native"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -173,6 +174,33 @@ func ensureToolDefaults(cfg *tool.Config) {
 	}
 }
 
+func newBuiltinToolConfig(id string) (*tool.Config, error) {
+	def, ok := native.DefinitionByID(id)
+	if !ok {
+		return nil, nil
+	}
+	cfg := &tool.Config{
+		Resource:    string(core.ConfigTool),
+		ID:          def.ID,
+		Description: def.Description,
+	}
+	if def.InputSchema != nil {
+		clone, err := def.InputSchema.Clone()
+		if err != nil {
+			return nil, fmt.Errorf("failed to clone builtin input schema for '%s': %w", id, err)
+		}
+		cfg.InputSchema = clone
+	}
+	if def.OutputSchema != nil {
+		clone, err := def.OutputSchema.Clone()
+		if err != nil {
+			return nil, fmt.Errorf("failed to clone builtin output schema for '%s': %w", id, err)
+		}
+		cfg.OutputSchema = clone
+	}
+	return cfg, nil
+}
+
 func ensureProviderDefaults(cfg *core.ProviderConfig) {
 	if cfg == nil {
 		return
@@ -192,6 +220,12 @@ func resolveTool(
 ) (*tool.Config, error) {
 	log := logger.FromContext(ctx)
 	if isToolSelector(in) {
+		if builtinCfg, err := newBuiltinToolConfig(in.ID); err != nil {
+			return nil, err
+		} else if builtinCfg != nil {
+			log.Debug("Resolved builtin tool selector", "tool_id", in.ID)
+			return builtinCfg, nil
+		}
 		key := resources.ResourceKey{Project: proj.Name, Type: resources.ResourceTool, ID: in.ID}
 		val, _, err := store.Get(ctx, key)
 		if err != nil {

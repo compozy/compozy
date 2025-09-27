@@ -21,3 +21,20 @@ func GetProjectName(ctx context.Context) (string, error) {
 	}
 	return projectName, nil
 }
+
+// Context key for request id correlation across tool invocations
+type RequestIDKey struct{}
+
+// WithRequestID adds a request identifier to context for correlation
+func WithRequestID(ctx context.Context, requestID string) context.Context {
+	return context.WithValue(ctx, RequestIDKey{}, requestID)
+}
+
+// GetRequestID extracts the request identifier from context
+func GetRequestID(ctx context.Context) (string, error) {
+	id, ok := ctx.Value(RequestIDKey{}).(string)
+	if !ok || id == "" {
+		return "", fmt.Errorf("request id not found in context")
+	}
+	return id, nil
+}

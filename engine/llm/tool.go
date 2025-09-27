@@ -3,24 +3,35 @@ package llm
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/tool/builtin"
+	"github.com/compozy/compozy/engine/tool/native"
 )
 
 type InternalTool struct {
 	config  *tool.Config
 	runtime runtime.Runtime
 	env     *core.EnvMap
+	builtin *builtin.BuiltinDefinition
 }
 
 func NewTool(config *tool.Config, env *core.EnvMap, runtime runtime.Runtime) *InternalTool {
-	return &InternalTool{
+	internal := &InternalTool{
 		config:  config,
 		env:     env,
 		runtime: runtime,
 	}
+	if config != nil && strings.HasPrefix(config.ID, "cp__") {
+		if def, ok := native.DefinitionByID(config.ID); ok {
+			defCopy := def
+			internal.builtin = &defCopy
+		}
+	}
+	return internal
 }
 
 func (t *InternalTool) Name() string {
@@ -67,6 +78,21 @@ func (t *InternalTool) validateOutput(ctx context.Context, output *core.Output) 
 
 // executeTool executes the tool with the runtime manager using tool-specific timeout
 func (t *InternalTool) executeTool(ctx context.Context, input *core.Input, config *core.Input) (*core.Output, error) {
+	if t.builtin != nil {
+		payload := map[string]any{}
+		if input != nil {
+			payload = input.AsMap()
+		}
+		outputMap, err := t.builtin.Handler(ctx, payload)
+		if err != nil {
+			return nil, err
+		}
+		// Handler returns nil map when tool produced no output; normalize to empty map pointer.
+		if outputMap == nil {
+			outputMap = core.Output{}
+		}
+		return &outputMap, nil
+	}
 	toolExecID := core.MustNewID()
 	env := core.EnvMap{}
 	if t.env != nil {

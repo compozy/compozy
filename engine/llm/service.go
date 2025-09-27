@@ -13,6 +13,8 @@ import (
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/tool/builtin"
+	"github.com/compozy/compozy/engine/tool/native"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -24,6 +26,137 @@ type Service struct {
 	orchestrator orchestratorpkg.Orchestrator
 	config       *Config
 	toolRegistry ToolRegistry
+}
+
+type builtinRegistryAdapter struct {
+	tool builtin.Tool
+}
+
+func (a builtinRegistryAdapter) Name() string {
+	return a.tool.Name()
+}
+
+func (a builtinRegistryAdapter) Description() string {
+	return a.tool.Description()
+}
+
+func (a builtinRegistryAdapter) Call(ctx context.Context, input string) (string, error) {
+	return a.tool.Call(ctx, input)
+}
+
+func findReservedPrefix(configs []tool.Config) (string, bool) {
+	for i := range configs {
+		id := strings.TrimSpace(configs[i].ID)
+		if strings.HasPrefix(id, "cp__") {
+			return id, true
+		}
+	}
+	return "", false
+}
+
+func registerNativeBuiltins(ctx context.Context, registry ToolRegistry) (*builtin.Result, error) {
+	definitions := native.Definitions()
+	registerFn := func(registerCtx context.Context, tool builtin.Tool) error {
+		return registry.Register(registerCtx, builtinRegistryAdapter{tool: tool})
+	}
+	return builtin.RegisterBuiltins(ctx, registerFn, builtin.Options{Definitions: definitions})
+}
+
+func logNativeTools(ctx context.Context, cfg *appconfig.NativeToolsConfig, result *builtin.Result) {
+	log := logger.FromContext(ctx)
+	execAllowlistCount := 0
+	ids := []string{}
+	if result != nil {
+		execAllowlistCount = len(result.ExecCommands)
+		ids = append(ids, result.RegisteredIDs...)
+	}
+	if cfg != nil && cfg.Enabled && len(ids) > 0 {
+		log.Info(
+			"Native builtin tools registered",
+			"count",
+			len(ids),
+			"ids",
+			ids,
+			"exec_allowlist_count",
+			execAllowlistCount,
+			"root_dir",
+			cfg.RootDir,
+			"fetch_timeout_ms",
+			cfg.Fetch.Timeout.Milliseconds(),
+			"fetch_max_body_bytes",
+			cfg.Fetch.MaxBodyBytes,
+		)
+		return
+	}
+	enabled := false
+	if cfg != nil {
+		enabled = cfg.Enabled
+	}
+	log.Info("Native builtin tools disabled", "enabled", enabled, "exec_allowlist_count", execAllowlistCount)
+}
+
+func configureToolRegistry(
+	ctx context.Context,
+	registry ToolRegistry,
+	runtime runtime.Runtime,
+	agent *agent.Config,
+	cfg *Config,
+) error {
+	log := logger.FromContext(ctx)
+	tools := selectTools(agent, cfg)
+	if id, conflict := findReservedPrefix(tools); conflict {
+		if closeErr := registry.Close(); closeErr != nil {
+			log.Warn(
+				"Failed to close tool registry after reserved prefix violation",
+				"error",
+				core.RedactError(closeErr),
+			)
+		}
+		return fmt.Errorf("tool id %s uses reserved cp__ prefix", id)
+	}
+	result, err := registerNativeBuiltins(ctx, registry)
+	if err != nil {
+		if closeErr := registry.Close(); closeErr != nil {
+			log.Warn(
+				"Failed to close tool registry after builtin registration error",
+				"error",
+				core.RedactError(closeErr),
+			)
+		}
+		return fmt.Errorf("failed to register builtin tools: %w", err)
+	}
+	nativeCfg := appconfig.DefaultNativeToolsConfig()
+	if appCfg := appconfig.FromContext(ctx); appCfg != nil {
+		nativeCfg = appCfg.Runtime.NativeTools
+	}
+	logNativeTools(ctx, &nativeCfg, result)
+	registerRuntimeTools(ctx, registry, runtime, tools)
+	return nil
+}
+
+func selectTools(agent *agent.Config, cfg *Config) []tool.Config {
+	if len(cfg.ResolvedTools) > 0 {
+		return cfg.ResolvedTools
+	}
+	if agent != nil && len(agent.Tools) > 0 {
+		return agent.Tools
+	}
+	return nil
+}
+
+func registerRuntimeTools(
+	ctx context.Context,
+	registry ToolRegistry,
+	runtime runtime.Runtime,
+	configs []tool.Config,
+) {
+	log := logger.FromContext(ctx)
+	for i := range configs {
+		localTool := NewLocalToolAdapter(&configs[i], &runtimeAdapter{manager: runtime})
+		if err := registry.Register(ctx, localTool); err != nil {
+			log.Warn("Failed to register local tool", "tool", configs[i].ID, "error", err)
+		}
+	}
 }
 
 type orchestratorToolRegistryAdapter struct {
@@ -90,21 +223,8 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		CacheTTL:        config.CacheTTL,
 		AllowedMCPNames: config.AllowedMCPNames,
 	})
-	// Register tools - use resolved tools if provided, otherwise use agent tools
-	var toolsToRegister []tool.Config
-	if len(config.ResolvedTools) > 0 {
-		// Use pre-resolved tools from hierarchical inheritance
-		toolsToRegister = config.ResolvedTools
-	} else if agent != nil && len(agent.Tools) > 0 {
-		// Fall back to agent-specific tools (backward compatibility)
-		toolsToRegister = agent.Tools
-	}
-	// Register the determined tools
-	for i := range toolsToRegister {
-		localTool := NewLocalToolAdapter(&toolsToRegister[i], &runtimeAdapter{manager: runtime})
-		if err := toolRegistry.Register(ctx, localTool); err != nil {
-			log.Warn("Failed to register local tool", "tool", toolsToRegister[i].ID, "error", err)
-		}
+	if err := configureToolRegistry(ctx, toolRegistry, runtime, agent, config); err != nil {
+		return nil, err
 	}
 	// Create components
 	promptBuilder := NewPromptBuilder()
@@ -209,9 +329,10 @@ func (s *Service) buildActionConfig(
 		// Create a copy so we don't mutate the original action
 		acCopy := *ac
 		if acCopy.Prompt != "" {
+			basePrompt := strings.TrimRight(acCopy.Prompt, "\n")
 			acCopy.Prompt = fmt.Sprintf(
 				"%s\n\nAdditional context:\n\"\"\"\n%s\n\"\"\"",
-				acCopy.Prompt,
+				basePrompt,
 				directPrompt,
 			)
 		} else {

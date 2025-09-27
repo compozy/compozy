@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -41,24 +42,48 @@ func (e *toolExecutor) Execute(ctx context.Context, toolCalls []llmadapter.ToolC
 	if limit <= 0 {
 		limit = defaultMaxConcurrentTools
 	}
-	sem := make(chan struct{}, limit)
 	results := make([]llmadapter.ToolResult, len(toolCalls))
-	g, ctx := errgroup.WithContext(ctx)
+	workerCount := limit
+	if workerCount > len(toolCalls) {
+		workerCount = len(toolCalls)
+	}
+	if workerCount == 0 {
+		workerCount = 1
+	}
+	g, workerCtx := errgroup.WithContext(ctx)
+	jobs := make(chan struct {
+		index int
+		call  llmadapter.ToolCall
+	})
 
-	for i := range toolCalls {
-		i := i
-		call := toolCalls[i]
+	for w := 0; w < workerCount; w++ {
 		g.Go(func() error {
-			select {
-			case sem <- struct{}{}:
-				defer func() { <-sem }()
-			case <-ctx.Done():
-				return ctx.Err()
+			for job := range jobs {
+				select {
+				case <-workerCtx.Done():
+					return workerCtx.Err()
+				default:
+				}
+				results[job.index] = e.executeSingle(workerCtx, job.call)
 			}
-			results[i] = e.executeSingle(ctx, call)
 			return nil
 		})
 	}
+
+	g.Go(func() error {
+		defer close(jobs)
+		for i, call := range toolCalls {
+			select {
+			case jobs <- struct {
+				index int
+				call  llmadapter.ToolCall
+			}{index: i, call: call}:
+			case <-workerCtx.Done():
+				return workerCtx.Err()
+			}
+		}
+		return nil
+	})
 
 	if err := g.Wait(); err != nil {
 		return nil, err
@@ -80,11 +105,17 @@ func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCa
 
 	t, found := e.registry.Find(ctx, call.Name)
 	if !found || t == nil {
-		log.Debug("Tool not found", "tool_name", call.Name, "tool_call_id", call.ID)
+		log.Warn("Tool not found", "tool_name", call.Name, "tool_call_id", call.ID)
 		errObj := map[string]any{"error": fmt.Sprintf("tool not found: %s", call.Name)}
 		b, merr := json.Marshal(errObj)
 		if merr != nil {
-			b = []byte(fmt.Sprintf(`{"error":"tool not found: %s"}`, call.Name))
+			fields := []any{
+				"tool_name", call.Name,
+				"tool_call_id", call.ID,
+				"error", merr,
+			}
+			log.Warn("Failed to marshal tool-not-found error payload", fields...)
+			b = []byte(`{"error":"tool not found"}`)
 		}
 		return llmadapter.ToolResult{
 			ID:          call.ID,
@@ -95,6 +126,10 @@ func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCa
 	}
 
 	log.Debug("Executing tool", "tool_name", call.Name, "tool_call_id", call.ID)
+	// Propagate request id to downstream handlers for logging/metrics when missing
+	if _, err := core.GetRequestID(ctx); err != nil {
+		ctx = core.WithRequestID(ctx, call.ID)
+	}
 	raw, err := t.Call(ctx, string(call.Arguments))
 	if err != nil {
 		log.Debug(
@@ -106,13 +141,26 @@ func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCa
 			"error",
 			core.RedactError(err),
 		)
-		errObj := ToolExecutionResult{
-			Success: false,
-			Error: &ToolError{
+		// Map builtin/core error codes when available
+		var coreErr *core.Error
+		errObj := ToolExecutionResult{Success: false}
+		if errors.As(err, &coreErr) && coreErr != nil {
+			code := coreErr.Code
+			msg := coreErr.Message
+			if msg == "" {
+				msg = "Tool execution failed"
+			}
+			errObj.Error = &ToolError{
+				Code:    code,
+				Message: msg,
+				Details: core.RedactError(err),
+			}
+		} else {
+			errObj.Error = &ToolError{
 				Code:    ErrCodeToolExecution,
 				Message: "Tool execution failed",
 				Details: core.RedactError(err),
-			},
+			}
 		}
 		b, merr := json.Marshal(errObj)
 		if merr != nil {

@@ -1,13 +1,12 @@
 {
   "name": "compozy",
-  "version": "0.0.16",
+  "version": "1.1.0",
   "description": "Compozy runtime examples and tools",
   "private": true,
   "type": "module",
   "workspaces": [
     "examples/**",
-    "docs",
-    "tools/*"
+    "docs"
   ],
   "scripts": {
     "build": "turbo run build",

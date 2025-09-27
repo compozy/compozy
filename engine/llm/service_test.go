@@ -13,6 +13,8 @@ import (
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/tool"
+	appconfig "github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // mockRuntime is a mock implementation of runtime.Runtime for testing
@@ -56,6 +58,56 @@ func TestNewService(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, customTimeout, service.config.Timeout)
 		assert.True(t, service.config.EnableStructuredOutput) // Default should be true
+	})
+
+	t.Run("Should register builtin tools when native tools enabled", func(t *testing.T) {
+		runtimeMgr := &mockRuntime{}
+		agentConfig := createTestAgentConfig()
+		ctx := context.Background()
+		ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
+		manager := appconfig.NewManager(appconfig.NewService())
+		_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
+		require.NoError(t, err)
+		ctx = appconfig.ContextWithManager(ctx, manager)
+		service, err := NewService(ctx, runtimeMgr, agentConfig)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = service.Close() })
+		toolEntry, ok := service.toolRegistry.Find(ctx, "cp__read_file")
+		require.True(t, ok)
+		assert.Equal(t, "cp__read_file", toolEntry.Name())
+	})
+
+	t.Run("Should skip builtin registration when disabled", func(t *testing.T) {
+		runtimeMgr := &mockRuntime{}
+		agentConfig := createTestAgentConfig()
+		ctx := context.Background()
+		ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
+		manager := appconfig.NewManager(appconfig.NewService())
+		_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
+		require.NoError(t, err)
+		cfg := manager.Get()
+		cfg.Runtime.NativeTools.Enabled = false
+		ctx = appconfig.ContextWithManager(ctx, manager)
+		service, err := NewService(ctx, runtimeMgr, agentConfig)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = service.Close() })
+		_, ok := service.toolRegistry.Find(ctx, "cp__read_file")
+		assert.False(t, ok)
+	})
+
+	t.Run("Should error when runtime tool uses reserved cp prefix", func(t *testing.T) {
+		runtimeMgr := &mockRuntime{}
+		agentConfig := createTestAgentConfig()
+		agentConfig.Tools = append(agentConfig.Tools, tool.Config{ID: "cp__custom"})
+		ctx := context.Background()
+		ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
+		manager := appconfig.NewManager(appconfig.NewService())
+		_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
+		require.NoError(t, err)
+		ctx = appconfig.ContextWithManager(ctx, manager)
+		_, err = NewService(ctx, runtimeMgr, agentConfig)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cp__custom")
 	})
 }
 

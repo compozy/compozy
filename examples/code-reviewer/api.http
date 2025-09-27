@@ -15,7 +15,7 @@ Accept: application/json
 
 {
   "input": {
-    "directory": "../../engine/schema"
+    "directory": "engine/schema"
   }
 }
 
