@@ -128,7 +128,7 @@ func writeFileHandler(ctx context.Context, payload map[string]any) (core.Output,
 	if err := writeContent(file, []byte(args.Content), cfg.Limits.MaxFileBytes); err != nil {
 		return nil, err
 	}
-	stat, err := os.Stat(resolvedPath)
+	stat, err := file.Stat()
 	if err != nil {
 		return nil, builtin.Internal(
 			fmt.Errorf("failed to stat written file: %w", err),

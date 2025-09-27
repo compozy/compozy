@@ -292,14 +292,18 @@ func searchFile(
 	if err := progressContext(ctx); err != nil {
 		return err
 	}
+	rel := relativePath(root, path)
 	info, err := os.Lstat(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
-		return builtin.Internal(fmt.Errorf("failed to stat file: %w", err), map[string]any{"path": path})
+		return builtin.Internal(fmt.Errorf("failed to stat file: %w", err), map[string]any{"path": rel})
 	}
 	if rejectErr := builtin.RejectSymlink(info); rejectErr != nil {
+		return nil
+	}
+	if !info.Mode().IsRegular() {
 		return nil
 	}
 	if info.Size() > maxFileBytes {
@@ -307,7 +311,7 @@ func searchFile(
 	}
 	sample, err := binarySample(path)
 	if err != nil {
-		return builtin.Internal(fmt.Errorf("failed to inspect file: %w", err), map[string]any{"path": path})
+		return builtin.Internal(fmt.Errorf("failed to inspect file: %w", err), map[string]any{"path": rel})
 	}
 	if isBinaryContent(sample) {
 		return nil
@@ -315,9 +319,9 @@ func searchFile(
 	file, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			return builtin.PermissionDenied(err, map[string]any{"path": path})
+			return builtin.PermissionDenied(err, map[string]any{"path": rel})
 		}
-		return builtin.Internal(fmt.Errorf("failed to open file: %w", err), map[string]any{"path": path})
+		return builtin.Internal(fmt.Errorf("failed to open file: %w", err), map[string]any{"path": rel})
 	}
 	defer file.Close()
 	return scanFileMatches(file, root, path, re, maxResults, maxFileBytes, matches)

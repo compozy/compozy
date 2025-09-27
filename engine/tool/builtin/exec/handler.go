@@ -96,7 +96,6 @@ func executeHandler(ctx context.Context, payload map[string]any) (core.Output, e
 	status := builtin.StatusFailure
 	var errorCode string
 	var info commandRunInfo
-
 	defer func() {
 		bytes := 0
 		if info.stdoutBuf != nil {
@@ -115,7 +114,6 @@ func executeHandler(ctx context.Context, payload map[string]any) (core.Output, e
 			errorCode,
 		)
 	}()
-
 	toolCfg := loadToolConfig(ctx)
 	args, err := decodeArgs(payload)
 	if err != nil {
