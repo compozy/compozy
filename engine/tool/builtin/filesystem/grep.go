@@ -118,7 +118,7 @@ func grepHandler(ctx context.Context, payload map[string]any) (core.Output, erro
 	if strings.TrimSpace(args.Pattern) == "" {
 		return nil, builtin.InvalidArgument(errors.New("pattern must be provided"), map[string]any{"field": "pattern"})
 	}
-	resolvedPath, err := resolvePath(cfg.Root, args.Path)
+	resolvedPath, rootUsed, err := resolvePath(cfg, args.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -145,8 +145,8 @@ func grepHandler(ctx context.Context, payload map[string]any) (core.Output, erro
 	}
 	matches, filesVisited, err := executeGrepSearch(
 		ctx,
-		cfg,
 		resolvedPath,
+		rootUsed,
 		info.IsDir(),
 		args,
 		re,
@@ -164,7 +164,7 @@ func grepHandler(ctx context.Context, payload map[string]any) (core.Output, erro
 		"request_id",
 		builtin.RequestIDFromContext(ctx),
 		"path",
-		relativePath(cfg.Root, resolvedPath),
+		relativePath(rootUsed, resolvedPath),
 		"matches",
 		len(matches),
 		"filesVisited",
@@ -176,8 +176,8 @@ func grepHandler(ctx context.Context, payload map[string]any) (core.Output, erro
 
 func executeGrepSearch(
 	ctx context.Context,
-	cfg toolConfig,
 	basePath string,
+	root string,
 	isDir bool,
 	args GrepArgs,
 	re *regexp.Regexp,
@@ -189,8 +189,8 @@ func executeGrepSearch(
 	if isDir {
 		visited, err := searchDirectory(
 			ctx,
-			cfg,
 			basePath,
+			root,
 			args,
 			re,
 			maxResults,
@@ -207,7 +207,7 @@ func executeGrepSearch(
 	if err := visitLimit(visited, maxFilesVisited); err != nil {
 		return nil, 0, err
 	}
-	if err := searchFile(ctx, cfg, basePath, re, maxResults, maxFileBytes, &matches); err != nil {
+	if err := searchFile(ctx, root, basePath, re, maxResults, maxFileBytes, &matches); err != nil {
 		return nil, 0, err
 	}
 	return matches, visited, nil
@@ -215,8 +215,8 @@ func executeGrepSearch(
 
 func searchDirectory(
 	ctx context.Context,
-	cfg toolConfig,
 	basePath string,
+	root string,
 	args GrepArgs,
 	re *regexp.Regexp,
 	maxResults int,
@@ -237,7 +237,7 @@ func searchDirectory(
 		}
 		entries, err := os.ReadDir(current)
 		if err != nil {
-			details := map[string]any{"path": relativePath(cfg.Root, current)}
+			details := map[string]any{"path": relativePath(root, current)}
 			return visited, builtin.PermissionDenied(err, details)
 		}
 		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
@@ -260,7 +260,7 @@ func searchDirectory(
 			if err := visitLimit(visited, maxFilesVisited); err != nil {
 				return visited, err
 			}
-			if err := searchFile(ctx, cfg, fullPath, re, maxResults, maxFileBytes, matches); err != nil {
+			if err := searchFile(ctx, root, fullPath, re, maxResults, maxFileBytes, matches); err != nil {
 				return visited, err
 			}
 			if len(*matches) >= maxResults {
@@ -273,7 +273,7 @@ func searchDirectory(
 
 func searchFile(
 	ctx context.Context,
-	cfg toolConfig,
+	root string,
 	path string,
 	re *regexp.Regexp,
 	maxResults int,
@@ -330,7 +330,7 @@ func searchFile(
 			column := loc[0] + 1
 			trimmed := strings.TrimSpace(line)
 			entry := map[string]any{
-				"file":   relativePath(cfg.Root, path),
+				"file":   relativePath(root, path),
 				"line":   lineNumber,
 				"column": column,
 				"text":   trimmed,

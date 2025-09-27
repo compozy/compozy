@@ -1561,8 +1561,9 @@ func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
 		EntrypointPath:              getString(registry, "runtime.entrypoint_path"),
 		BunPermissions:              getStringSlice(registry, "runtime.bun_permissions"),
 		NativeTools: NativeToolsConfig{
-			Enabled: getBool(registry, "runtime.native_tools.enabled"),
-			RootDir: getString(registry, "runtime.native_tools.root_dir"),
+			Enabled:         getBool(registry, "runtime.native_tools.enabled"),
+			RootDir:         getString(registry, "runtime.native_tools.root_dir"),
+			AdditionalRoots: getStringSlice(registry, "runtime.native_tools.additional_roots"),
 			Exec: NativeExecConfig{
 				Timeout:        getDuration(registry, "runtime.native_tools.exec.timeout"),
 				MaxStdoutBytes: getInt64(registry, "runtime.native_tools.exec.max_stdout_bytes"),

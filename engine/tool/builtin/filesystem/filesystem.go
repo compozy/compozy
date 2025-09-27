@@ -8,6 +8,7 @@ func Definitions() []builtin.BuiltinDefinition {
 		ReadFileDefinition(),
 		WriteFileDefinition(),
 		DeleteFileDefinition(),
+		ListFilesDefinition(),
 		ListDirDefinition(),
 		GrepDefinition(),
 	}

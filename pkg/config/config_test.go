@@ -103,6 +103,7 @@ func TestDefaultNativeToolsConfig(t *testing.T) {
 	config := DefaultNativeToolsConfig()
 	assert.True(t, config.Enabled)
 	assert.Equal(t, ".", config.RootDir)
+	assert.Nil(t, config.AdditionalRoots)
 	assert.Equal(t, 30*time.Second, config.Exec.Timeout)
 	assert.Equal(t, int64(2<<20), config.Exec.MaxStdoutBytes)
 	assert.Equal(t, int64(1<<10), config.Exec.MaxStderrBytes)

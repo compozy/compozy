@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -42,7 +43,7 @@ type limitsConfig struct {
 }
 
 type toolConfig struct {
-	Root   string
+	Roots  []string
 	Limits limitsConfig
 }
 
@@ -51,12 +52,29 @@ func loadToolConfig(ctx context.Context) (toolConfig, error) {
 	if cfg := config.FromContext(ctx); cfg != nil {
 		nativeCfg = cfg.Runtime.NativeTools
 	}
+	roots := make([]string, 0, 1+len(nativeCfg.AdditionalRoots))
 	root, err := builtin.NormalizeRoot(nativeCfg.RootDir)
 	if err != nil {
 		return toolConfig{}, builtin.Internal(fmt.Errorf("failed to normalize native tools root: %w", err), nil)
 	}
+	roots = append(roots, root)
+	for _, extra := range nativeCfg.AdditionalRoots {
+		normalized, normErr := builtin.NormalizeRoot(extra)
+		if normErr != nil {
+			return toolConfig{}, builtin.Internal(
+				fmt.Errorf("failed to normalize additional native tools root: %w", normErr),
+				map[string]any{"root": extra},
+			)
+		}
+		if !slices.Contains(roots, normalized) {
+			roots = append(roots, normalized)
+		}
+	}
+	if len(roots) == 0 {
+		return toolConfig{}, builtin.Internal(errors.New("no native tools roots configured"), nil)
+	}
 	return toolConfig{
-		Root: root,
+		Roots: roots,
 		Limits: limitsConfig{
 			MaxResults:      defaultMaxResults,
 			MaxFilesVisited: defaultMaxFilesVisited,
@@ -81,15 +99,32 @@ func decodeArgs[T any](payload map[string]any) (T, error) {
 	return value, nil
 }
 
-func resolvePath(root string, pathValue string) (string, error) {
+func resolvePath(cfg toolConfig, pathValue string) (string, string, error) {
 	if strings.TrimSpace(pathValue) == "" {
-		return "", builtin.InvalidArgument(errors.New("path must be provided"), map[string]any{"field": "path"})
+		return "", "", builtin.InvalidArgument(errors.New("path must be provided"), map[string]any{"field": "path"})
 	}
-	resolved, err := builtin.ResolvePath(root, pathValue)
-	if err != nil {
-		return "", builtin.PermissionDenied(err, map[string]any{"path": pathValue})
+	var lastErr error
+	for _, root := range cfg.Roots {
+		if filepath.IsAbs(pathValue) {
+			cleaned := filepath.Clean(pathValue)
+			ensureErr := builtin.EnsureWithinRoot(root, cleaned)
+			if ensureErr == nil {
+				return cleaned, root, nil
+			}
+			lastErr = builtin.PermissionDenied(ensureErr, map[string]any{"path": pathValue, "root": root})
+			continue
+		}
+		resolved, err := builtin.ResolvePath(root, pathValue)
+		if err == nil {
+			return resolved, root, nil
+		}
+		lastErr = err
 	}
-	return resolved, nil
+	details := map[string]any{"path": pathValue, "roots": cfg.Roots}
+	if lastErr == nil {
+		lastErr = errors.New("path rejected for all configured roots")
+	}
+	return "", "", builtin.PermissionDenied(lastErr, details)
 }
 
 func ensureParentsSafe(root, target string) error {
@@ -135,12 +170,29 @@ func rejectSymlink(info fs.FileInfo, details map[string]any) error {
 }
 
 func relativePath(root, candidate string) string {
+	if rel := normalizedRelative(root, candidate); rel != "" {
+		return rel
+	}
+	rootReal, rootErr := filepath.EvalSymlinks(root)
+	candidateReal, candErr := filepath.EvalSymlinks(candidate)
+	if rootErr == nil && candErr == nil {
+		if rel := normalizedRelative(rootReal, candidateReal); rel != "" {
+			return rel
+		}
+	}
+	return candidate
+}
+
+func normalizedRelative(root, candidate string) string {
 	rel, err := filepath.Rel(root, candidate)
 	if err != nil {
-		return candidate
+		return ""
 	}
 	if rel == "." {
 		return string(filepath.Separator)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return ""
 	}
 	return string(filepath.Separator) + rel
 }

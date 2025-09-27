@@ -102,11 +102,11 @@ func writeFileHandler(ctx context.Context, payload map[string]any) (core.Output,
 	if err != nil {
 		return nil, builtin.InvalidArgument(err, nil)
 	}
-	resolvedPath, err := resolvePath(cfg.Root, args.Path)
+	resolvedPath, rootUsed, err := resolvePath(cfg, args.Path)
 	if err != nil {
 		return nil, err
 	}
-	if err := ensureParentsSafe(cfg.Root, resolvedPath); err != nil {
+	if err := ensureParentsSafe(rootUsed, resolvedPath); err != nil {
 		return nil, err
 	}
 	if err := ensureDirectory(resolvedPath); err != nil {
@@ -131,7 +131,7 @@ func writeFileHandler(ctx context.Context, payload map[string]any) (core.Output,
 		)
 	}
 	metadata := fileMetadata(stat)
-	metadata["path"] = relativePath(cfg.Root, resolvedPath)
+	metadata["path"] = relativePath(rootUsed, resolvedPath)
 	log.Info(
 		"Wrote file",
 		"tool_id",

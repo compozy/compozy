@@ -533,6 +533,12 @@ func registerRuntimeToolFields(registry *Registry) {
 }
 
 func registerRuntimeNativeToolsFields(registry *Registry) {
+	registerRuntimeNativeToolsCoreFields(registry)
+	registerRuntimeNativeToolsExecFields(registry)
+	registerRuntimeNativeToolsFetchFields(registry)
+}
+
+func registerRuntimeNativeToolsCoreFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "runtime.native_tools.enabled",
 		Default: true,
@@ -550,12 +556,23 @@ func registerRuntimeNativeToolsFields(registry *Registry) {
 		Help:    "Root directory sandbox for native tools",
 	})
 	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.additional_roots",
+		Default: []string{},
+		CLIFlag: "native-tools-additional-roots",
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_ADDITIONAL_ROOTS",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Additional sandbox roots that native tools may access",
+	})
+	registry.Register(&FieldDef{
 		Path:    "runtime.native_tools.exec.timeout",
 		Default: 30 * time.Second,
 		EnvVar:  "RUNTIME_NATIVE_TOOLS_EXEC_TIMEOUT",
 		Type:    reflect.TypeOf(time.Duration(0)),
 		Help:    "Default timeout applied to cp__exec commands",
 	})
+}
+
+func registerRuntimeNativeToolsExecFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "runtime.native_tools.exec.max_stdout_bytes",
 		Default: int64(2 << 20),
@@ -578,6 +595,9 @@ func registerRuntimeNativeToolsFields(registry *Registry) {
 		Type:    reflect.TypeOf([]map[string]any{}),
 		Help:    "Additional command policies appended to the cp__exec allowlist",
 	})
+}
+
+func registerRuntimeNativeToolsFetchFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "runtime.native_tools.fetch.timeout",
 		Default: 5 * time.Second,

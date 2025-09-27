@@ -4,10 +4,11 @@ import "time"
 
 // NativeToolsConfig controls cp__ builtin enablement and sandbox settings.
 type NativeToolsConfig struct {
-	Enabled bool              `koanf:"enabled"  json:"enabled"  yaml:"enabled"  mapstructure:"enabled"`
-	RootDir string            `koanf:"root_dir" json:"root_dir" yaml:"root_dir" mapstructure:"root_dir"`
-	Exec    NativeExecConfig  `koanf:"exec"     json:"exec"     yaml:"exec"     mapstructure:"exec"`
-	Fetch   NativeFetchConfig `koanf:"fetch"    json:"fetch"    yaml:"fetch"    mapstructure:"fetch"`
+	Enabled         bool              `koanf:"enabled"          json:"enabled"          yaml:"enabled"          mapstructure:"enabled"`
+	RootDir         string            `koanf:"root_dir"         json:"root_dir"         yaml:"root_dir"         mapstructure:"root_dir"`
+	AdditionalRoots []string          `koanf:"additional_roots" json:"additional_roots" yaml:"additional_roots" mapstructure:"additional_roots"`
+	Exec            NativeExecConfig  `koanf:"exec"             json:"exec"             yaml:"exec"             mapstructure:"exec"`
+	Fetch           NativeFetchConfig `koanf:"fetch"            json:"fetch"            yaml:"fetch"            mapstructure:"fetch"`
 }
 
 // NativeExecConfig holds cp__exec configuration knobs.
@@ -47,8 +48,9 @@ type NativeFetchConfig struct {
 // DefaultNativeToolsConfig returns safe defaults for native tool execution.
 func DefaultNativeToolsConfig() NativeToolsConfig {
 	return NativeToolsConfig{
-		Enabled: true,
-		RootDir: ".",
+		Enabled:         true,
+		RootDir:         ".",
+		AdditionalRoots: nil,
 		Exec: NativeExecConfig{
 			Timeout:        30 * time.Second,
 			MaxStdoutBytes: 2 << 20, // 2 MiB

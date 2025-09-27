@@ -52,4 +52,17 @@ func TestReadFileHandler(t *testing.T) {
 		require.NotNil(t, errResult)
 		assert.Equal(t, builtin.CodePermissionDenied, errResult.Code)
 	})
+
+	t.Run("Should read file from additional root", func(t *testing.T) {
+		primary := t.TempDir()
+		extra := t.TempDir()
+		ctx := testContext(t, primary, extra)
+		path := filepath.Join(extra, "extra.txt")
+		require.NoError(t, os.WriteFile(path, []byte("from extra"), 0o644))
+		output, errResult := callHandler(ctx, t, ReadFileDefinition().Handler, map[string]any{"path": path})
+		require.Nil(t, errResult)
+		assert.Equal(t, "from extra", output["content"])
+		metadata := output["metadata"].(map[string]any)
+		assert.Equal(t, filepath.Clean(path), metadata["path"])
+	})
 }

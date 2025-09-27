@@ -80,11 +80,11 @@ func deleteFileHandler(ctx context.Context, payload map[string]any) (core.Output
 	if err != nil {
 		return nil, builtin.InvalidArgument(err, nil)
 	}
-	resolvedPath, err := resolvePath(cfg.Root, args.Path)
+	resolvedPath, rootUsed, err := resolvePath(cfg, args.Path)
 	if err != nil {
 		return nil, err
 	}
-	if err := ensureParentsSafe(cfg.Root, resolvedPath); err != nil {
+	if err := ensureParentsSafe(rootUsed, resolvedPath); err != nil {
 		return nil, err
 	}
 	info, err := os.Lstat(resolvedPath)
@@ -110,7 +110,7 @@ func deleteFileHandler(ctx context.Context, payload map[string]any) (core.Output
 				map[string]any{"path": args.Path},
 			)
 		}
-		logDelete(ctx, log, true, relativePath(cfg.Root, resolvedPath))
+		logDelete(ctx, log, true, relativePath(rootUsed, resolvedPath))
 		return core.Output{"success": true}, nil
 	}
 	if err := os.Remove(resolvedPath); err != nil {
@@ -119,7 +119,7 @@ func deleteFileHandler(ctx context.Context, payload map[string]any) (core.Output
 		}
 		return nil, builtin.Internal(fmt.Errorf("failed to delete file: %w", err), map[string]any{"path": args.Path})
 	}
-	logDelete(ctx, log, false, relativePath(cfg.Root, resolvedPath))
+	logDelete(ctx, log, false, relativePath(rootUsed, resolvedPath))
 	success = true
 	return core.Output{"success": true}, nil
 }

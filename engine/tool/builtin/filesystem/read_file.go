@@ -92,7 +92,7 @@ func readFileHandler(ctx context.Context, payload map[string]any) (core.Output, 
 	if err != nil {
 		return nil, builtin.InvalidArgument(err, nil)
 	}
-	resolvedPath, err := resolvePath(cfg.Root, args.Path)
+	resolvedPath, rootUsed, err := resolvePath(cfg, args.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func readFileHandler(ctx context.Context, payload map[string]any) (core.Output, 
 		return nil, builtin.InvalidArgument(errors.New("file is not valid UTF-8"), map[string]any{"path": args.Path})
 	}
 	metadata := fileMetadata(info)
-	metadata["path"] = relativePath(cfg.Root, resolvedPath)
+	metadata["path"] = relativePath(rootUsed, resolvedPath)
 	logReadFile(ctx, log, metadata["path"], metadata["size"])
 	respBytes = len(data)
 	success = true

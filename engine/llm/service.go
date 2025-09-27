@@ -14,9 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/tool/builtin"
-	"github.com/compozy/compozy/engine/tool/builtin/exec"
-	"github.com/compozy/compozy/engine/tool/builtin/fetch"
-	"github.com/compozy/compozy/engine/tool/builtin/filesystem"
+	"github.com/compozy/compozy/engine/tool/native"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -57,21 +55,11 @@ func findReservedPrefix(configs []tool.Config) (string, bool) {
 }
 
 func registerNativeBuiltins(ctx context.Context, registry ToolRegistry) (*builtin.Result, error) {
-	definitions := collectNativeDefinitions()
+	definitions := native.Definitions()
 	registerFn := func(registerCtx context.Context, tool builtin.Tool) error {
 		return registry.Register(registerCtx, builtinRegistryAdapter{tool: tool})
 	}
 	return builtin.RegisterBuiltins(ctx, registerFn, builtin.Options{Definitions: definitions})
-}
-
-func collectNativeDefinitions() []builtin.BuiltinDefinition {
-	fsDefs := filesystem.Definitions()
-	fetchDefs := fetch.Definitions()
-	defs := make([]builtin.BuiltinDefinition, 0, len(fsDefs)+1+len(fetchDefs))
-	defs = append(defs, fsDefs...)
-	defs = append(defs, exec.Definition())
-	defs = append(defs, fetchDefs...)
-	return defs
 }
 
 func logNativeTools(log logger.Logger, cfg *appconfig.NativeToolsConfig, result *builtin.Result) {

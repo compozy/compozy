@@ -126,7 +126,7 @@ func listDirHandler(ctx context.Context, payload map[string]any) (core.Output, e
 	if err != nil {
 		return nil, builtin.InvalidArgument(err, nil)
 	}
-	resolvedPath, err := resolvePath(cfg.Root, args.Path)
+	resolvedPath, rootUsed, err := resolvePath(cfg, args.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,16 @@ func listDirHandler(ctx context.Context, payload map[string]any) (core.Output, e
 			nil,
 		)
 	}
-	entries, nextToken, err := traverseDirectory(ctx, cfg, resolvedPath, &args, pagination, includeFiles, includeDirs)
+	entries, nextToken, err := traverseDirectory(
+		ctx,
+		cfg,
+		resolvedPath,
+		rootUsed,
+		&args,
+		pagination,
+		includeFiles,
+		includeDirs,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +175,7 @@ func listDirHandler(ctx context.Context, payload map[string]any) (core.Output, e
 	if nextToken != "" {
 		output["next_page_token"] = nextToken
 	}
-	logListDir(ctx, log, relativePath(cfg.Root, resolvedPath), len(entries), nextToken != "")
+	logListDir(ctx, log, relativePath(rootUsed, resolvedPath), len(entries), nextToken != "")
 	success = true
 	return output, nil
 }
@@ -186,6 +195,7 @@ func traverseDirectory(
 	ctx context.Context,
 	cfg toolConfig,
 	basePath string,
+	root string,
 	args *ListDirArgs,
 	pagination paginationParams,
 	includeFiles bool,
@@ -195,6 +205,7 @@ func traverseDirectory(
 		ctx:          ctx,
 		cfg:          cfg,
 		base:         basePath,
+		root:         root,
 		args:         args,
 		pagination:   pagination,
 		includeFiles: includeFiles,
@@ -211,6 +222,7 @@ type listCollector struct {
 	ctx          context.Context
 	cfg          toolConfig
 	base         string
+	root         string
 	args         *ListDirArgs
 	pagination   paginationParams
 	includeFiles bool
@@ -231,7 +243,7 @@ func (c *listCollector) collect() error {
 		}
 		entries, err := os.ReadDir(current)
 		if err != nil {
-			return builtin.PermissionDenied(err, map[string]any{"path": relativePath(c.cfg.Root, current)})
+			return builtin.PermissionDenied(err, map[string]any{"path": relativePath(c.root, current)})
 		}
 		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 		for _, entry := range entries {
@@ -314,7 +326,7 @@ func (c *listCollector) entryPayload(fullPath string, info fs.FileInfo) map[stri
 	}
 	return map[string]any{
 		"name":     info.Name(),
-		"path":     relativePath(c.cfg.Root, fullPath),
+		"path":     relativePath(c.root, fullPath),
 		"type":     entryType,
 		"size":     size,
 		"modified": info.ModTime().UTC().Format(time.RFC3339Nano),

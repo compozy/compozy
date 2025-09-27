@@ -26,6 +26,8 @@ runtime:
     - --allow-write
     - --allow-net
     - --allow-env
+  native_tools:
+    root_dir: ../..
 
 autoload:
   enabled: true

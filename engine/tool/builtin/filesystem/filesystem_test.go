@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testContext(t *testing.T, root string) context.Context {
+func testContext(t *testing.T, root string, additional ...string) context.Context {
 	t.Helper()
 	ctx := context.Background()
 	ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
@@ -21,6 +21,9 @@ func testContext(t *testing.T, root string) context.Context {
 	require.NoError(t, err)
 	cfg := manager.Get()
 	cfg.Runtime.NativeTools.RootDir = root
+	if len(additional) > 0 {
+		cfg.Runtime.NativeTools.AdditionalRoots = append([]string{}, additional...)
+	}
 	return config.ContextWithManager(ctx, manager)
 }
 
