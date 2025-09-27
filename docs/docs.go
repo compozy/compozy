@@ -10614,6 +10614,13 @@ const docTemplate = `{
         "mcp.Config": {
             "type": "object",
             "properties": {
+                "args": {
+                    "description": "Args supplies additional arguments passed to the command when spawning local MCP processes.\n\nUse this to provide flags or subcommands while keeping Command focused on the executable.\nExample:\ncommand: \"uvx\"\nargs: [\"mcp-server-fetch\", \"--port\", \"9000\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "command": {
                     "description": "Command is the **executable command** to spawn a local MCP server process.\n\nUsed for stdio transport to run MCP servers as child processes.\nSupports both direct executables and complex commands with arguments.\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\n# Simple executable\ncommand: \"mcp-server-filesystem\"\n\n# Command with arguments\ncommand: \"python /app/mcp_server.py --mode production\"\n\n# Docker container\ncommand: \"docker run --rm -i mcp/postgres:latest\"\n` + "`" + `` + "`" + `` + "`" + `\n\n**Security Note**: Commands are parsed using shell lexing for safety.\nAvoid user-provided input in commands.",
                     "type": "string"
@@ -10893,6 +10900,12 @@ const docTemplate = `{
         "mcprouter.MCPDTO": {
             "type": "object",
             "properties": {
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "command": {
                     "type": "string"
                 },
@@ -10934,6 +10947,12 @@ const docTemplate = `{
         "mcprouter.MCPListItem": {
             "type": "object",
             "properties": {
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "command": {
                     "type": "string"
                 },

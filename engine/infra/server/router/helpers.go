@@ -1,22 +1,41 @@
 package router
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/engine/auth/userctx"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/resources/importer"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/worker"
+	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
-const taskRepoContextKey = "router.task_repo"
+const (
+	taskRepoContextKey         = "router.task_repo"
+	apiIdempotencyContextKey   = "router.api_idempotency"
+	workflowRepoContextKey     = "router.workflow_repo"
+	workflowRunnerContextKey   = "router.workflow_runner"
+	executionMetricsContextKey = "router.execution_metrics"
+)
+
+type WorkflowRunner interface {
+	TriggerWorkflow(
+		ctx context.Context,
+		workflowID string,
+		input *core.Input,
+		initTaskID string,
+	) (*worker.WorkflowInput, error)
+}
 
 func GetServerAddress(c *gin.Context) string {
 	return c.Request.Host
@@ -203,6 +222,13 @@ func SetTaskRepository(c *gin.Context, repo task.Repository) {
 	c.Set(taskRepoContextKey, repo)
 }
 
+func SetWorkflowRepository(c *gin.Context, repo workflow.Repository) {
+	if c == nil {
+		return
+	}
+	c.Set(workflowRepoContextKey, repo)
+}
+
 func TaskRepositoryFromContext(c *gin.Context) (task.Repository, bool) {
 	if c == nil {
 		return nil, false
@@ -218,12 +244,176 @@ func TaskRepositoryFromContext(c *gin.Context) (task.Repository, bool) {
 	return repo, true
 }
 
+func SetAPIIdempotency(c *gin.Context, idem APIIdempotency) {
+	if c == nil || idem == nil {
+		return
+	}
+	c.Set(apiIdempotencyContextKey, idem)
+}
+
+func setExecutionMetrics(c *gin.Context, metrics *monitoring.ExecutionMetrics) {
+	if c == nil || metrics == nil {
+		return
+	}
+	c.Set(executionMetricsContextKey, metrics)
+}
+
+func SetWorkflowRunner(c *gin.Context, runner WorkflowRunner) {
+	if c == nil || runner == nil {
+		return
+	}
+	c.Set(workflowRunnerContextKey, runner)
+}
+
+func APIIdempotencyFromContext(c *gin.Context) (APIIdempotency, bool) {
+	if c == nil {
+		return nil, false
+	}
+	v, ok := c.Get(apiIdempotencyContextKey)
+	if !ok {
+		return nil, false
+	}
+	idem, ok := v.(APIIdempotency)
+	if !ok || idem == nil {
+		return nil, false
+	}
+	return idem, true
+}
+
+func executionMetricsFromContext(c *gin.Context) (*monitoring.ExecutionMetrics, bool) {
+	if c == nil {
+		return nil, false
+	}
+	v, ok := c.Get(executionMetricsContextKey)
+	if !ok {
+		return nil, false
+	}
+	metrics, ok := v.(*monitoring.ExecutionMetrics)
+	if !ok || metrics == nil {
+		return nil, false
+	}
+	return metrics, true
+}
+
+func ResolveAPIIdempotency(c *gin.Context, state *appstate.State) APIIdempotency {
+	if idem, ok := APIIdempotencyFromContext(c); ok {
+		return idem
+	}
+	if state == nil {
+		return nil
+	}
+	service, ok := state.APIIdempotencyService()
+	if !ok || service == nil {
+		return nil
+	}
+	idem := NewAPIIdempotency(service)
+	SetAPIIdempotency(c, idem)
+	return idem
+}
+
+func ResolveExecutionMetrics(c *gin.Context, state *appstate.State) *monitoring.ExecutionMetrics {
+	if metrics, ok := executionMetricsFromContext(c); ok {
+		return metrics
+	}
+	if state == nil {
+		return nil
+	}
+	service, ok := state.MonitoringService()
+	if !ok || service == nil || !service.IsInitialized() {
+		return nil
+	}
+	metrics := service.ExecutionMetrics()
+	if metrics != nil {
+		setExecutionMetrics(c, metrics)
+	}
+	return metrics
+}
+
+func SyncExecutionMetricsScope(
+	c *gin.Context,
+	state *appstate.State,
+	kind string,
+) (*monitoring.ExecutionMetrics, func(string), func(int)) {
+	metrics := ResolveExecutionMetrics(c, state)
+	if metrics == nil {
+		return nil, func(string) {}, func(int) {}
+	}
+	start := time.Now()
+	finalize := func(outcome string) {
+		if outcome == "" {
+			outcome = monitoring.ExecutionOutcomeError
+		}
+		metrics.RecordSyncLatency(c.Request.Context(), kind, outcome, time.Since(start))
+	}
+	recordError := func(code int) {
+		if code >= http.StatusBadRequest {
+			metrics.RecordError(c.Request.Context(), kind, code)
+		}
+	}
+	return metrics, finalize, recordError
+}
+
+func workflowRepositoryFromContext(c *gin.Context) (workflow.Repository, bool) {
+	if c == nil {
+		return nil, false
+	}
+	v, ok := c.Get(workflowRepoContextKey)
+	if !ok {
+		return nil, false
+	}
+	repo, ok := v.(workflow.Repository)
+	if !ok || repo == nil {
+		return nil, false
+	}
+	return repo, true
+}
+
+func workflowRunnerFromContext(c *gin.Context) (WorkflowRunner, bool) {
+	if c == nil {
+		return nil, false
+	}
+	v, ok := c.Get(workflowRunnerContextKey)
+	if !ok {
+		return nil, false
+	}
+	runner, ok := v.(WorkflowRunner)
+	if !ok || runner == nil {
+		return nil, false
+	}
+	return runner, true
+}
+
 func ResolveTaskRepository(c *gin.Context, state *appstate.State) task.Repository {
 	if repo, ok := TaskRepositoryFromContext(c); ok {
 		return repo
 	}
 	if state != nil && state.Store != nil {
 		return state.Store.NewTaskRepo()
+	}
+	return nil
+}
+
+func ResolveWorkflowRepository(c *gin.Context, state *appstate.State) workflow.Repository {
+	if repo, ok := workflowRepositoryFromContext(c); ok {
+		return repo
+	}
+	if state != nil && state.Store != nil {
+		repo := state.Store.NewWorkflowRepo()
+		if repo != nil {
+			SetWorkflowRepository(c, repo)
+		}
+		return repo
+	}
+	return nil
+}
+
+func ResolveWorkflowRunner(c *gin.Context, state *appstate.State) WorkflowRunner {
+	if runner, ok := workflowRunnerFromContext(c); ok {
+		return runner
+	}
+	if state != nil && state.Worker != nil {
+		SetWorkflowRunner(c, state.Worker)
+		return state.Worker
 	}
 	return nil
 }

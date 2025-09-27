@@ -1039,6 +1039,17 @@ definitions:
     type: object
   mcp.Config:
     properties:
+      args:
+        description: |-
+          Args supplies additional arguments passed to the command when spawning local MCP processes.
+
+          Use this to provide flags or subcommands while keeping Command focused on the executable.
+          Example:
+          command: "uvx"
+          args: ["mcp-server-fetch", "--port", "9000"]
+        items:
+          type: string
+        type: array
       command:
         description: |-
           Command is the **executable command** to spawn a local MCP server process.
@@ -1366,6 +1377,10 @@ definitions:
       - TransportStreamableHTTP
   mcprouter.MCPDTO:
     properties:
+      args:
+        items:
+          type: string
+        type: array
       command:
         type: string
       env:
@@ -1393,6 +1408,10 @@ definitions:
     type: object
   mcprouter.MCPListItem:
     properties:
+      args:
+        items:
+          type: string
+        type: array
       command:
         type: string
       env:

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["3.0", "4.0", "5.0"]
 ---
@@ -30,9 +30,9 @@ Add counters and timers for the new execution endpoints (latency, timeouts, erro
 
 ## Subtasks
 
-- [ ] 6.1 Define metrics in monitoring package
-- [ ] 6.2 Emit in agent/task/workflow handlers
-- [ ] 6.3 Unit tests for registration and increments
+- [x] 6.1 Define metrics in monitoring package
+- [x] 6.2 Emit in agent/task/workflow handlers
+- [x] 6.3 Unit tests for registration and increments
 
 ## Sequencing
 

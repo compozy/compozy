@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["1.0", "2.0"]
 ---
@@ -37,10 +37,10 @@ Validate input (`action` or `prompt` required). Sync enforces `timeout` (default
 
 ## Subtasks
 
-- [ ] 3.1 Define DTOs and validation (action|prompt, with, timeout)
-- [ ] 3.2 Implement sync path with server-side wait and timeout enforcement
-- [ ] 3.3 Implement async path, status URL, and `Location` header
-- [ ] 3.4 Unit tests for validation, success, idempotency, and timeout
+- [x] 3.1 Define DTOs and validation (action|prompt, with, timeout)
+- [x] 3.2 Implement sync path with server-side wait and timeout enforcement
+- [x] 3.3 Implement async path, status URL, and `Location` header
+- [x] 3.4 Unit tests for validation, success, idempotency, and timeout
 
 ## Sequencing
 

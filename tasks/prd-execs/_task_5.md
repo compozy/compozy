@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: false
 blocked_by: ["2.0"]
 ---
@@ -31,10 +31,10 @@ Add `POST /api/v0/workflows/{workflow_id}/executions/sync` that triggers a workf
 
 ## Subtasks
 
-- [ ] 5.1 Handler + request validation
-- [ ] 5.2 Repo polling with backoff and early-exit on terminal
-- [ ] 5.3 Idempotency and error mapping (400/404/408/409)
-- [ ] 5.4 Unit tests for success and timeout paths
+- [x] 5.1 Handler + request validation
+- [x] 5.2 Repo polling with backoff and early-exit on terminal
+- [x] 5.3 Idempotency and error mapping (400/404/408/409)
+- [x] 5.4 Unit tests for success and timeout paths
 
 ## Sequencing
 

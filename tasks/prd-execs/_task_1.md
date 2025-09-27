@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: false
 blocked_by: []
 ---
@@ -37,9 +37,9 @@ Return terminal and in-progress states using the standard `router.Response` enve
 
 ## Subtasks
 
-- [ ] 1.1 Add route definitions and handlers
-- [ ] 1.2 Integrate repository to fetch execution state
-- [ ] 1.3 Unit tests: 200 (found), 404 (missing), error mapping
+- [x] 1.1 Add route definitions and handlers
+- [x] 1.2 Integrate repository to fetch execution state
+- [x] 1.3 Unit tests: 200 (found), 404 (missing), error mapping
 
 ## Sequencing
 

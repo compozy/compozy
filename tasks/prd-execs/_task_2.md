@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: false
 blocked_by: []
 ---
@@ -31,9 +31,9 @@ Create a small helper that provides API-level idempotency for execution endpoint
 
 ## Subtasks
 
-- [ ] 2.1 Define interface and key derivation (header vs. body hash)
-- [ ] 2.2 Implement Redis-backed calls via webhook service wrapper
-- [ ] 2.3 Unit tests for success/duplicate/error paths
+- [x] 2.1 Define interface and key derivation (header vs. body hash)
+- [x] 2.2 Implement Redis-backed calls via webhook service wrapper
+- [x] 2.3 Unit tests for success/duplicate/error paths
 
 ## Sequencing
 

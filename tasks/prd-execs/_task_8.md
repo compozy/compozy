@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["2.0", "3.0", "4.0", "5.0"]
 ---
@@ -30,9 +30,9 @@ Add unit tests for router validation, idempotency helper behavior, and response 
 
 ## Subtasks
 
-- [ ] 8.1 Idempotency helper tests (header vs hash, TTL)
-- [ ] 8.2 Agent/Task router tests (validation, 200/202/400/404/409)
-- [ ] 8.3 Workflow sync router tests (200/408)
+- [x] 8.1 Idempotency helper tests (header vs hash, TTL)
+- [x] 8.2 Agent/Task router tests (validation, 200/202/400/404/409)
+- [x] 8.3 Workflow sync router tests (200/408)
 
 ## Sequencing
 

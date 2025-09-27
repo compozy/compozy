@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["3.0", "4.0", "5.0", "6.0"]
 ---
@@ -30,9 +30,9 @@ Document the new endpoints in OpenAPI and surface them in the docs site. Include
 
 ## Subtasks
 
-- [ ] 7.1 Extend OpenAPI for new endpoints and components
-- [ ] 7.2 Generate docs and verify navigation
-- [ ] 7.3 Add examples with headers and sample payloads
+- [x] 7.1 Extend OpenAPI for new endpoints and components
+- [x] 7.2 Generate docs and verify navigation
+- [x] 7.3 Add examples with headers and sample payloads
 
 ## Sequencing
 

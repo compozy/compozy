@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["1.0", "2.0"]
 ---
@@ -36,10 +36,10 @@ Validate body; sync enforces `timeout` (default 60s, max 300s); async ignores `t
 
 ## Subtasks
 
-- [ ] 4.1 DTOs and validation (with, timeout)
-- [ ] 4.2 Implement sync path with wait/timeout
-- [ ] 4.3 Implement async path and status URL
-- [ ] 4.4 Unit tests (validation, idempotency, outcomes)
+- [x] 4.1 DTOs and validation (with, timeout)
+- [x] 4.2 Implement sync path with wait/timeout
+- [x] 4.3 Implement async path and status URL
+- [x] 4.4 Unit tests (validation, idempotency, outcomes)
 
 ## Sequencing
 

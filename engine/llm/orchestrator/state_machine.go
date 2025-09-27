@@ -181,7 +181,7 @@ func loopContextFromEvent(e *fsm.Event) *LoopContext {
 			return lc
 		}
 	}
-	logCtx := observerContext(nil, e)
+	logCtx := observerContext(context.TODO(), e)
 	logger.FromContext(logCtx).Error("FSM loop context missing from event args", "event", e.Event)
 	return &LoopContext{}
 }

@@ -25,14 +25,14 @@
 
 ## Tasks
 
-- [ ] 1.0 Add execution status endpoints for agents and tasks
-- [ ] 2.0 Implement API idempotency helper (router wrapper)
-- [ ] 3.0 Implement direct Agent execution endpoints (sync/async)
-- [ ] 4.0 Implement direct Task execution endpoints (sync/async)
-- [ ] 5.0 Implement synchronous Workflow execution endpoint
-- [ ] 6.0 Wire metrics for execution endpoints
-- [ ] 7.0 Update OpenAPI and docs (examples, headers)
-- [ ] 8.0 Unit tests: validation, idempotency, responses
+- [x] 1.0 Add execution status endpoints for agents and tasks
+- [x] 2.0 Implement API idempotency helper (router wrapper)
+- [x] 3.0 Implement direct Agent execution endpoints (sync/async)
+- [x] 4.0 Implement direct Task execution endpoints (sync/async)
+- [x] 5.0 Implement synchronous Workflow execution endpoint
+- [x] 6.0 Wire metrics for execution endpoints
+- [x] 7.0 Update OpenAPI and docs (examples, headers)
+- [x] 8.0 Unit tests: validation, idempotency, responses
 - [ ] 9.0 Integration tests: sync workflow + async flows
 - [ ] 10.0 Developer guides and cURL examples
 

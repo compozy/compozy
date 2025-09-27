@@ -13,6 +13,8 @@ func Register(apiBase *gin.RouterGroup) {
 		// POST /agents/import
 		// Import agents from YAML
 		agentsGroup.POST("/import", importAgents)
+		agentsGroup.POST("/:agent_id/executions", executeAgentSync)
+		agentsGroup.POST("/:agent_id/executions/async", executeAgentAsync)
 		agentsGroup.GET("", listAgentsTop)
 		agentsGroup.GET("/:agent_id", getAgentTop)
 		agentsGroup.PUT("/:agent_id", upsertAgentTop)

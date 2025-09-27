@@ -13,6 +13,8 @@ func Register(apiBase *gin.RouterGroup) {
 		// POST /tasks/import
 		// Import tasks from YAML
 		tasksGroup.POST("/import", importTasks)
+		tasksGroup.POST("/:task_id/executions", executeTaskSync)
+		tasksGroup.POST("/:task_id/executions/async", executeTaskAsync)
 		tasksGroup.GET("", listTasksTop)
 		tasksGroup.GET("/:task_id", getTaskTop)
 		tasksGroup.PUT("/:task_id", upsertTaskTop)
