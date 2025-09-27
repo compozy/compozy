@@ -1,0 +1,27 @@
+resource: task
+id: sync-respond
+name: Sync message acknowledgement
+description: Task that calls the sync assistant agent to acknowledge an input message.
+type: basic
+agent: sync-assistant
+action: acknowledge
+input:
+  type: object
+  properties:
+    message:
+      type: string
+      description: Message text to acknowledge.
+  required:
+    - message
+output:
+  type: object
+  properties:
+    acknowledgement:
+      type: string
+    received_message:
+      type: string
+  required:
+    - acknowledgement
+    - received_message
+final: true
+timeout: 60s

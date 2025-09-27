@@ -1,0 +1,29 @@
+resource: agent
+id: sync-assistant
+name: Sync Assistant
+description: Simple agent that acknowledges a message payload in JSON format.
+instructions: |
+  You are a fast acknowledgement agent used to test synchronous execution endpoints.
+  Always respond with concise JSON following the contract defined for the requested action.
+  Keep responses short and deterministic so tests are stable.
+actions:
+  - id: acknowledge
+    name: Send acknowledgement
+    description: Return a short acknowledgement JSON document using the provided message.
+    json_mode: true
+    prompt: |
+      Craft a short acknowledgement for the caller using the following message:
+      "{{ .with.message }}"
+      Respond in JSON with the fields "acknowledgement" and "received_message".
+    output:
+      type: object
+      properties:
+        acknowledgement:
+          type: string
+          description: Direct acknowledgement text for the caller.
+        received_message:
+          type: string
+          description: Echoes the original message back to the caller.
+      required:
+        - acknowledgement
+        - received_message

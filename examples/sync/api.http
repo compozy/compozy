@@ -1,0 +1,47 @@
+### Sync Example API Requests
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = sync-demo
+@agentId = sync-assistant
+@taskId = sync-respond
+
+### Run workflow synchronously
+# @name runWorkflowSync
+POST {{baseUrl}}/workflows/{{workflowId}}/executions/sync
+Content-Type: application/json
+Accept: application/json
+X-Idempotency-Key: wf-sync-demo
+
+{
+  "input": {
+    "message": "Hello from the synchronous workflow endpoint"
+  },
+  "timeout": 30
+}
+
+### Execute agent synchronously
+# @name runAgentSync
+POST {{baseUrl}}/agents/{{agentId}}/executions
+Content-Type: application/json
+Accept: application/json
+X-Idempotency-Key: agent-sync-demo
+
+{
+  "prompt": "Respond with an acknowledgement for the synchronous agent endpoint.",
+  "with": {
+    "message": "Agent sync call payload"
+  }
+}
+
+### Execute task synchronously
+# @name runTaskSync
+POST {{baseUrl}}/tasks/{{taskId}}/executions
+Content-Type: application/json
+Accept: application/json
+X-Idempotency-Key: task-sync-demo
+
+{
+  "with": {
+    "message": "Direct task execution payload"
+  },
+  "timeout": 30
+}

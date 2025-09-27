@@ -1,0 +1,37 @@
+name: sync
+version: "0.1.0"
+description: Minimal example showcasing the synchronous workflow, agent, and task execution endpoints
+
+author:
+  name: Compozy Team
+  url: https://github.com/compozy
+
+workflows:
+  - source: ./workflows/sync.yaml
+
+models:
+  - provider: groq
+    model: llama-3.3-70b-versatile
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    default: true
+    params:
+      temperature: 0.2
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
+
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "agents/*.yaml"
+    - "tasks/*.yaml"
+    - "tools/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.bak"
+    - "**/*.tmp"

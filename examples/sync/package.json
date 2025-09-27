@@ -1,0 +1,20 @@
+{
+  "name": "@compozy/example-sync",
+  "version": "0.0.1",
+  "description": "Demonstrates the synchronous workflow, agent, and task execution endpoints",
+  "private": true,
+  "type": "module",
+  "main": "./entrypoint.ts",
+  "scripts": {
+    "build": "echo 'No build step required for Compozy examples'",
+    "lint": "oxlint *.ts",
+    "type-check": "tsc --noEmit",
+    "test": "echo 'No tests configured'",
+    "clean": "echo 'No clean step required'"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "oxlint": "^1.4.0",
+    "prettier": "^3.6.0"
+  }
+}
