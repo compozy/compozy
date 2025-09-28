@@ -9,7 +9,6 @@
 POST {{baseUrl}}/workflows/{{workflowId}}/executions/sync
 Content-Type: application/json
 Accept: application/json
-X-Idempotency-Key: wf-sync-demo
 
 {
   "input": {
@@ -23,7 +22,6 @@ X-Idempotency-Key: wf-sync-demo
 POST {{baseUrl}}/agents/{{agentId}}/executions
 Content-Type: application/json
 Accept: application/json
-X-Idempotency-Key: agent-sync-demo
 
 {
   "prompt": "Respond with an acknowledgement for the synchronous agent endpoint.",
@@ -32,12 +30,32 @@ X-Idempotency-Key: agent-sync-demo
   }
 }
 
+### Execute agent asynchronously
+# @name runAgentAsync
+POST {{baseUrl}}/agents/{{agentId}}/executions/async
+Content-Type: application/json
+Accept: application/json
+
+{
+  "prompt": "Respond with an acknowledgement using the async agent endpoint.",
+  "with": {
+    "message": "Agent async call payload"
+  }
+}
+
+### Get agent async execution ID from response
+@agentAsyncExecId = {{runAgentAsync.response.body.data.exec_id}}
+
+### Check agent async execution status
+# @name getAgentExecutionStatus
+GET {{baseUrl}}/executions/agents/{{agentAsyncExecId}}
+Accept: application/json
+
 ### Execute task synchronously
 # @name runTaskSync
 POST {{baseUrl}}/tasks/{{taskId}}/executions
 Content-Type: application/json
 Accept: application/json
-X-Idempotency-Key: task-sync-demo
 
 {
   "with": {
@@ -45,3 +63,23 @@ X-Idempotency-Key: task-sync-demo
   },
   "timeout": 30
 }
+
+### Execute task asynchronously
+# @name runTaskAsync
+POST {{baseUrl}}/tasks/{{taskId}}/executions/async
+Content-Type: application/json
+Accept: application/json
+
+{
+  "with": {
+    "message": "Direct task async execution payload"
+  }
+}
+
+### Get task async execution ID from response
+@taskAsyncExecId = {{runTaskAsync.response.body.data.exec_id}}
+
+### Check task async execution status
+# @name getTaskExecutionStatus
+GET {{baseUrl}}/executions/tasks/{{taskAsyncExecId}}
+Accept: application/json

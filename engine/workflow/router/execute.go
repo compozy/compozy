@@ -31,7 +31,7 @@ type ExecuteWorkflowResponse struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string											true	"Workflow ID"			example("data-processing")
-//	@Param			X-Idempotency-Key	header		string		false	"Optional idempotency key to prevent duplicate execution"
+//	@Param			input		body		object	true	"Workflow input data"	SchemaExample({"data": "example", "config": {"timeout": 300}})
 //	@Param			X-Correlation-ID	header		string		false	"Optional correlation ID for request tracing"
 //	@Param			input		body		object											true	"Workflow input data"	SchemaExample({"data": "example", "config": {"timeout": 300}})
 //	@Success		202			{object}	router.Response{data=ExecuteWorkflowResponse}	"Workflow triggered successfully"

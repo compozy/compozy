@@ -21,28 +21,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type stubAPIIdempotency struct {
-	unique bool
-	reason string
-	err    error
-}
-
-func (s *stubAPIIdempotency) CheckAndSet(
-	_ context.Context,
-	_ *gin.Context,
-	_ string,
-	_ []byte,
-	_ time.Duration,
-) (bool, string, error) {
-	return s.unique, s.reason, s.err
-}
-
 type stubDirectExecutor struct {
 	syncOutput  *core.Output
 	syncExecID  core.ID
 	syncErr     error
 	asyncExecID core.ID
 	asyncErr    error
+}
+
+type stateSavingTaskExecutor struct {
+	repo  *routertest.StubTaskRepo
+	state *task.State
+}
+
+func (s *stateSavingTaskExecutor) ExecuteSync(
+	_ context.Context,
+	_ *task.Config,
+	_ *ExecMetadata,
+	_ time.Duration,
+) (*core.Output, core.ID, error) {
+	execID := core.MustNewID()
+	clone := *s.state
+	clone.TaskExecID = execID
+	s.repo.AddState(&clone)
+	return nil, execID, nil
+}
+
+func (s *stateSavingTaskExecutor) ExecuteAsync(_ context.Context, _ *task.Config, _ *ExecMetadata) (core.ID, error) {
+	return core.MustNewID(), nil
 }
 
 func (s *stubDirectExecutor) ExecuteSync(
@@ -211,46 +217,6 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-	t.Run("ShouldReturnConflictForDuplicateRequests", func(t *testing.T) {
-		ginmode.EnsureGinTestMode()
-		state := routertest.NewTestAppState(t)
-		repo := routertest.NewStubTaskRepo()
-		store := routertest.NewResourceStore(state)
-		taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-two", Type: task.TaskTypeBasic}}
-		m, err := taskCfg.AsMap()
-		require.NoError(t, err)
-		_, err = store.Put(
-			context.Background(),
-			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-two"},
-			m,
-		)
-		require.NoError(t, err)
-		stub := &stubDirectExecutor{}
-		cleanup := installTaskExecutor(state, stub)
-		defer cleanup()
-		r := gin.New()
-		r.Use(appstate.StateMiddleware(state))
-		r.Use(srrouter.ErrorHandler())
-		r.Use(func(c *gin.Context) {
-			srrouter.SetTaskRepository(c, repo)
-			stub := &stubAPIIdempotency{unique: false, reason: "duplicate"}
-			srrouter.SetAPIIdempotency(c, stub)
-			c.Next()
-		})
-		api := r.Group("/api/v0")
-		Register(api)
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/api/v0/tasks/task-two/executions",
-			strings.NewReader(`{"with":{"foo":"bar"}}`),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		req = routertest.WithConfig(t, req)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-		require.Equal(t, http.StatusConflict, w.Code)
-	})
-
 	t.Run("ShouldExecuteTaskSyncSuccessfully", func(t *testing.T) {
 		ginmode.EnsureGinTestMode()
 		state := routertest.NewTestAppState(t)
@@ -299,6 +265,60 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		require.Equal(t, http.StatusOK, payload.Status)
 		require.Equal(t, stub.syncExecID.String(), payload.Data.ExecID)
 		require.Equal(t, "bar", payload.Data.Output["foo"])
+	})
+
+	t.Run("ShouldUseStateOutputWhenExecutorReturnsNil", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-state", Type: task.TaskTypeBasic}}
+		m, err := taskCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-state"},
+			m,
+		)
+		require.NoError(t, err)
+		fallback := core.Output{"foo": "from-state"}
+		stateSnapshot := newTestTaskState(core.MustNewID())
+		stateSnapshot.Output = &fallback
+		stub := &stateSavingTaskExecutor{repo: repo, state: stateSnapshot}
+		cleanup := installTaskExecutor(state, stub)
+		defer cleanup()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/tasks/task-state/executions",
+			strings.NewReader(`{"with":{"foo":"fallback"}}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var payload struct {
+			Status int `json:"status"`
+			Data   struct {
+				ExecID string                 `json:"exec_id"`
+				Output map[string]any         `json:"output"`
+				State  TaskExecutionStatusDTO `json:"state"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
+		require.Equal(t, http.StatusOK, payload.Status)
+		require.Equal(t, fallback["foo"], payload.Data.Output["foo"])
+		require.NotNil(t, payload.Data.State.Output)
+		require.Equal(t, fallback["foo"], (*payload.Data.State.Output)["foo"])
 	})
 
 	t.Run("ShouldHandleTaskSyncTimeouts", func(t *testing.T) {

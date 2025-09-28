@@ -2,12 +2,14 @@ package tkrouter
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/compozy/compozy/engine/agent"
+	agentuc "github.com/compozy/compozy/engine/agent/uc"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
@@ -17,6 +19,7 @@ import (
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	taskuc "github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -116,37 +119,6 @@ func parseTaskExecRequest(c *gin.Context) (*TaskExecRequest, bool) {
 	return req, true
 }
 
-func ensureTaskIdempotency(c *gin.Context, state *appstate.State, req *TaskExecRequest) bool {
-	if state == nil {
-		return false
-	}
-	idem := router.ResolveAPIIdempotency(c, state)
-	if idem == nil {
-		return true
-	}
-	body, err := json.Marshal(req)
-	if err != nil {
-		router.RespondWithServerError(c, router.ErrInternalCode, "failed to normalize request", err)
-		return false
-	}
-	unique, reason, idemErr := idem.CheckAndSet(c.Request.Context(), c, "tasks", body, 0)
-	if idemErr != nil {
-		var reqErr *router.RequestError
-		if errors.As(idemErr, &reqErr) {
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-			return false
-		}
-		router.RespondWithServerError(c, router.ErrInternalCode, "idempotency check failed", idemErr)
-		return false
-	}
-	if !unique {
-		reqErr := router.NewRequestError(http.StatusConflict, "duplicate request", fmt.Errorf("%s", reason))
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return false
-	}
-	return true
-}
-
 func loadDirectTaskConfig(
 	c *gin.Context,
 	resourceStore resources.ResourceStore,
@@ -170,6 +142,33 @@ func loadDirectTaskConfig(
 	if err := taskCfg.FromMap(out.Task); err != nil {
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to decode task", err)
 		return nil, false
+	}
+	if taskCfg.Agent != nil {
+		agentID := strings.TrimSpace(taskCfg.Agent.ID)
+		if agentID == "" {
+			reqErr := fmt.Errorf("task %s missing agent reference", taskID)
+			router.RespondWithServerError(c, router.ErrInternalCode, "task missing agent identifier", reqErr)
+			return nil, false
+		}
+		if len(taskCfg.Agent.Actions) == 0 {
+			getAgent := agentuc.NewGet(resourceStore)
+			agentOut, err := getAgent.Execute(c.Request.Context(), &agentuc.GetInput{Project: projectName, ID: agentID})
+			if err != nil {
+				if errors.Is(err, agentuc.ErrNotFound) {
+					reqErr := router.NewRequestError(http.StatusNotFound, "agent not found", err)
+					router.RespondWithError(c, reqErr.StatusCode, reqErr)
+					return nil, false
+				}
+				router.RespondWithServerError(c, router.ErrInternalCode, "failed to load agent", err)
+				return nil, false
+			}
+			agentCfg := &agent.Config{}
+			if err := agentCfg.FromMap(agentOut.Agent); err != nil {
+				router.RespondWithServerError(c, router.ErrInternalCode, "failed to decode agent", err)
+				return nil, false
+			}
+			taskCfg.Agent = agentCfg
+		}
 	}
 	if taskCfg.ID == "" {
 		taskCfg.ID = taskID
@@ -205,6 +204,33 @@ func respondTaskTimeout(
 	)
 }
 
+func buildTaskSyncPayload(
+	ctx context.Context,
+	repo task.Repository,
+	taskID string,
+	execID core.ID,
+	output *core.Output,
+) gin.H {
+	payload := gin.H{"exec_id": execID.String()}
+	if output != nil {
+		payload["output"] = output
+	}
+	if stateSnapshot, stateErr := repo.GetState(ctx, execID); stateErr == nil && stateSnapshot != nil {
+		payload["state"] = newTaskExecutionStatusDTO(stateSnapshot)
+		if stateSnapshot.Output != nil {
+			payload["output"] = stateSnapshot.Output
+		}
+	} else if stateErr != nil {
+		logger.FromContext(ctx).Warn(
+			"Failed to load task execution state after completion",
+			"task_id", taskID,
+			"exec_id", execID.String(),
+			"error", stateErr,
+		)
+	}
+	return payload
+}
+
 type TaskExecutionStatusDTO struct {
 	ExecID         string             `json:"exec_id"`
 	Status         core.StatusType    `json:"status"`
@@ -235,7 +261,6 @@ type TaskExecRequest struct {
 //	@Produce		json
 //	@Param			task_id	path	string	true	"Task ID"	example("task-build-artifact")
 //	@Param			X-Idempotency-Key	header	string	false	"Optional idempotency key to prevent duplicate execution"
-//	@Param			X-Correlation-ID	header	string	false	"Optional correlation ID for request tracing"
 //	@Param			payload	body	tkrouter.TaskExecRequest	true	"Execution request"
 //	@Success		200	{object}	router.Response{data=tkrouter.TaskExecSyncResponse}	"Task executed"
 //	@Failure		400	{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
@@ -264,10 +289,6 @@ func executeTaskSync(c *gin.Context) {
 	req, ok := parseTaskExecRequest(c)
 	if !ok {
 		recordError(http.StatusBadRequest)
-		return
-	}
-	if !ensureTaskIdempotency(c, state, req) {
-		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	taskCfg, ok := loadDirectTaskConfig(c, resourceStore, state, taskID, req)
@@ -308,7 +329,11 @@ func executeTaskSync(c *gin.Context) {
 		return
 	}
 	outcome = monitoring.ExecutionOutcomeSuccess
-	router.RespondOK(c, "task executed", gin.H{"output": output, "exec_id": execID.String()})
+	router.RespondOK(
+		c,
+		"task executed",
+		buildTaskSyncPayload(c.Request.Context(), repo, taskID, execID, output),
+	)
 }
 
 // executeTaskAsync handles POST /tasks/{task_id}/executions/async.
@@ -319,7 +344,6 @@ func executeTaskSync(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			task_id	path	string	true	"Task ID"	example("task-build-artifact")
-//	@Param			X-Idempotency-Key	header	string	false	"Optional idempotency key to prevent duplicate execution"
 //	@Param			X-Correlation-ID	header	string	false	"Optional correlation ID for request tracing"
 //	@Param			payload	body	tkrouter.TaskExecRequest	true	"Execution request"
 //	@Success		202	{object}	router.Response{data=tkrouter.TaskExecAsyncResponse}	"Task execution started"
@@ -353,10 +377,6 @@ func executeTaskAsync(c *gin.Context) {
 	req, ok := parseTaskExecRequest(c)
 	if !ok {
 		recordError(http.StatusBadRequest)
-		return
-	}
-	if !ensureTaskIdempotency(c, state, req) {
-		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	taskCfg, ok := loadDirectTaskConfig(c, resourceStore, state, taskID, req)

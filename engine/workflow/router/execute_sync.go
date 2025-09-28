@@ -2,7 +2,6 @@ package wfrouter
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -59,7 +58,6 @@ type WorkflowSyncResponse struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string	true	"Workflow ID"	example("data-processing")
-//	@Param			X-Idempotency-Key	header		string	false	"Optional idempotency key to prevent duplicate execution"
 //	@Param			X-Correlation-ID	header		string	false	"Optional correlation ID for request tracing"
 //	@Param			payload	body	wfrouter.WorkflowSyncRequest	true	"Execution request"
 //	@Success		200	{object}	router.Response{data=wfrouter.WorkflowSyncResponse}	"Workflow execution completed"
@@ -89,10 +87,6 @@ func executeWorkflowSync(c *gin.Context) {
 	req := parseWorkflowSyncRequest(c)
 	if req == nil {
 		recordError(http.StatusBadRequest)
-		return
-	}
-	if !ensureWorkflowIdempotency(c, state, req) {
-		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	repo, runner, ok := prepareWorkflowSync(c, state, workflowID, recordError)
@@ -155,34 +149,6 @@ func parseWorkflowSyncRequest(c *gin.Context) *WorkflowSyncRequest {
 		return nil
 	}
 	return req
-}
-
-func ensureWorkflowIdempotency(c *gin.Context, state *appstate.State, req *WorkflowSyncRequest) bool {
-	idem := router.ResolveAPIIdempotency(c, state)
-	if idem == nil {
-		return true
-	}
-	body, err := json.Marshal(req)
-	if err != nil {
-		router.RespondWithServerError(c, router.ErrInternalCode, "failed to normalize request", err)
-		return false
-	}
-	unique, reason, idemErr := idem.CheckAndSet(c.Request.Context(), c, "workflows", body, 0)
-	if idemErr != nil {
-		var reqErr *router.RequestError
-		if errors.As(idemErr, &reqErr) {
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-			return false
-		}
-		router.RespondWithServerError(c, router.ErrInternalCode, "idempotency check failed", idemErr)
-		return false
-	}
-	if !unique {
-		reqErr := router.NewRequestError(http.StatusConflict, "duplicate request", fmt.Errorf("%s", reason))
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return false
-	}
-	return true
 }
 
 func ensureWorkflowExists(c *gin.Context, store resources.ResourceStore, project string, workflowID string) bool {

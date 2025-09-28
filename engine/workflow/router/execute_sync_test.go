@@ -125,29 +125,10 @@ func (s *stubWorkflowRepo) CompleteWorkflow(
 	return nil, errors.New("not implemented")
 }
 
-type stubIdempotency struct {
-	unique    bool
-	reason    string
-	err       error
-	callCount int
-}
-
-func (s *stubIdempotency) CheckAndSet(
-	context.Context,
-	*gin.Context,
-	string,
-	[]byte,
-	time.Duration,
-) (bool, string, error) {
-	s.callCount++
-	return s.unique, s.reason, s.err
-}
-
 func setupWorkflowSyncRouter(
 	t *testing.T,
 	repo workflow.Repository,
 	runner routerpkg.WorkflowRunner,
-	idem routerpkg.APIIdempotency,
 	store resources.ResourceStore,
 ) (*gin.Engine, *appstate.State) {
 	t.Helper()
@@ -178,9 +159,6 @@ func setupWorkflowSyncRouter(
 		}
 		if runner != nil {
 			routerpkg.SetWorkflowRunner(c, runner)
-		}
-		if idem != nil {
-			routerpkg.SetAPIIdempotency(c, idem)
 		}
 		c.Next()
 	})
@@ -224,7 +202,7 @@ func Test_executeWorkflowSync(t *testing.T) {
 		completed.Output = &output
 		repo := &stubWorkflowRepo{states: []*workflow.State{completed}}
 		store := resources.NewMemoryResourceStore()
-		r, state := setupWorkflowSyncRouter(t, repo, runner, nil, store)
+		r, state := setupWorkflowSyncRouter(t, repo, runner, store)
 		putWorkflowConfig(t, store, state.ProjectConfig.Name, workflowID)
 		body := `{"input": {"foo": "bar"}}`
 		req := httptest.NewRequest(
@@ -258,7 +236,7 @@ func Test_executeWorkflowSync(t *testing.T) {
 		running := workflow.NewState(workflowID, execID, nil)
 		repo := &stubWorkflowRepo{states: []*workflow.State{running}}
 		store := resources.NewMemoryResourceStore()
-		r, state := setupWorkflowSyncRouter(t, repo, runner, nil, store)
+		r, state := setupWorkflowSyncRouter(t, repo, runner, store)
 		putWorkflowConfig(t, store, state.ProjectConfig.Name, workflowID)
 		body := `{"timeout": 1}`
 		req := httptest.NewRequest(
@@ -282,31 +260,12 @@ func Test_executeWorkflowSync(t *testing.T) {
 		assert.Equal(t, execID.String(), execVal)
 	})
 
-	t.Run("ShouldReturnConflictWhenIdempotencyFails", func(t *testing.T) {
-		execID := core.MustNewID()
-		runner := &stubWorkflowRunner{execID: execID}
-		repo := &stubWorkflowRepo{states: []*workflow.State{}}
-		idem := &stubIdempotency{unique: false, reason: "duplicate"}
-		store := resources.NewMemoryResourceStore()
-		r, state := setupWorkflowSyncRouter(t, repo, runner, idem, store)
-		putWorkflowConfig(t, store, state.ProjectConfig.Name, workflowID)
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/api/v0/workflows/"+workflowID+"/executions/sync",
-			strings.NewReader(`{}`),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-		require.Equal(t, http.StatusConflict, w.Code)
-	})
-
 	t.Run("ShouldRejectTimeoutAboveLimit", func(t *testing.T) {
 		execID := core.MustNewID()
 		runner := &stubWorkflowRunner{execID: execID}
 		repo := &stubWorkflowRepo{states: []*workflow.State{}}
 		store := resources.NewMemoryResourceStore()
-		r, state := setupWorkflowSyncRouter(t, repo, runner, nil, store)
+		r, state := setupWorkflowSyncRouter(t, repo, runner, store)
 		putWorkflowConfig(t, store, state.ProjectConfig.Name, workflowID)
 		req := httptest.NewRequest(
 			http.MethodPost,
@@ -324,7 +283,7 @@ func Test_executeWorkflowSync(t *testing.T) {
 		runner := &stubWorkflowRunner{execID: execID}
 		repo := &stubWorkflowRepo{states: []*workflow.State{}}
 		store := resources.NewMemoryResourceStore()
-		r, _ := setupWorkflowSyncRouter(t, repo, runner, nil, store)
+		r, _ := setupWorkflowSyncRouter(t, repo, runner, store)
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/v0/workflows/"+workflowID+"/executions/sync",

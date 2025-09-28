@@ -23,6 +23,8 @@ runtime:
   permissions:
     - --allow-read
     - --allow-net
+  native_tools:
+    enabled: false
 
 autoload:
   enabled: true

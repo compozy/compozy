@@ -23,23 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stubIdempotency implements the idempotency checker contract for testing scenarios.
-type stubIdempotency struct {
-	unique bool
-	reason string
-	err    error
-}
-
-func (s *stubIdempotency) CheckAndSet(
-	_ context.Context,
-	_ *gin.Context,
-	_ string,
-	_ []byte,
-	_ time.Duration,
-) (bool, string, error) {
-	return s.unique, s.reason, s.err
-}
-
 // stubDirectExecutor provides a deterministic DirectExecutor for exercising request flows in tests.
 type stubDirectExecutor struct {
 	syncOutput  *core.Output
@@ -49,6 +32,32 @@ type stubDirectExecutor struct {
 	asyncErr    error
 	syncCalls   int
 	asyncCalls  int
+}
+
+type stateSavingAgentExecutor struct {
+	repo  *routertest.StubTaskRepo
+	state *task.State
+}
+
+func (s *stateSavingAgentExecutor) ExecuteSync(
+	_ context.Context,
+	_ *task.Config,
+	_ *tkrouter.ExecMetadata,
+	_ time.Duration,
+) (*core.Output, core.ID, error) {
+	execID := core.MustNewID()
+	clone := *s.state
+	clone.TaskExecID = execID
+	s.repo.AddState(&clone)
+	return nil, execID, nil
+}
+
+func (s *stateSavingAgentExecutor) ExecuteAsync(
+	_ context.Context,
+	_ *task.Config,
+	_ *tkrouter.ExecMetadata,
+) (core.ID, error) {
+	return core.MustNewID(), nil
 }
 
 func (s *stubDirectExecutor) ExecuteSync(
@@ -220,45 +229,6 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-	t.Run("ShouldReturnConflictForDuplicateIdempotencyKey", func(t *testing.T) {
-		ginmode.EnsureGinTestMode()
-		state := routertest.NewTestAppState(t)
-		repo := routertest.NewStubTaskRepo()
-		store := routertest.NewResourceStore(state)
-		cfg := &agent.Config{ID: "agent-two"}
-		m, err := cfg.AsMap()
-		require.NoError(t, err)
-		_, err = store.Put(
-			context.Background(),
-			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceAgent, ID: "agent-two"},
-			m,
-		)
-		require.NoError(t, err)
-		cleanup := installDirectExecutorStub(state, &stubDirectExecutor{})
-		defer cleanup()
-		r := gin.New()
-		r.Use(appstate.StateMiddleware(state))
-		r.Use(srrouter.ErrorHandler())
-		r.Use(func(c *gin.Context) {
-			srrouter.SetTaskRepository(c, repo)
-			stub := &stubIdempotency{unique: false, reason: "duplicate"}
-			srrouter.SetAPIIdempotency(c, stub)
-			c.Next()
-		})
-		api := r.Group("/api/v0")
-		Register(api)
-		req := httptest.NewRequest(
-			http.MethodPost,
-			"/api/v0/agents/agent-two/executions",
-			strings.NewReader(`{"prompt":"run"}`),
-		)
-		req.Header.Set("Content-Type", "application/json")
-		req = routertest.WithConfig(t, req)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-		require.Equal(t, http.StatusConflict, w.Code)
-	})
-
 	t.Run("ShouldExecuteAgentSyncSuccessfully", func(t *testing.T) {
 		ginmode.EnsureGinTestMode()
 		state := routertest.NewTestAppState(t)
@@ -309,6 +279,62 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		require.Equal(t, http.StatusOK, payload.Status)
 		require.Equal(t, stub.syncExecID.String(), payload.Data.ExecID)
 		require.Equal(t, "ok", payload.Data.Output["text"])
+	})
+
+	t.Run("ShouldUseStateOutputWhenExecutorReturnsNil", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		agentCfg := &agent.Config{ID: "agent-state"}
+		agentCfg.Model.Config.Provider = "openai"
+		agentCfg.Model.Config.Model = "gpt-4"
+		m, err := agentCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceAgent, ID: "agent-state"},
+			m,
+		)
+		require.NoError(t, err)
+		fallback := core.Output{"text": "from-state"}
+		stateSnapshot := newTestTaskState(core.MustNewID())
+		stateSnapshot.Output = &fallback
+		stub := &stateSavingAgentExecutor{repo: repo, state: stateSnapshot}
+		cleanup := installDirectExecutorStub(state, stub)
+		defer cleanup()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/agents/agent-state/executions",
+			strings.NewReader(`{"prompt":"should use state"}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var payload struct {
+			Status int `json:"status"`
+			Data   struct {
+				ExecID string             `json:"exec_id"`
+				Output map[string]any     `json:"output"`
+				State  ExecutionStatusDTO `json:"state"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
+		require.Equal(t, http.StatusOK, payload.Status)
+		require.Equal(t, fallback["text"], payload.Data.Output["text"])
+		require.NotNil(t, payload.Data.State.Output)
+		require.Equal(t, fallback["text"], (*payload.Data.State.Output)["text"])
 	})
 
 	t.Run("ShouldHandleAgentSyncTimeouts", func(t *testing.T) {

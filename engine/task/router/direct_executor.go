@@ -14,6 +14,8 @@ import (
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/engine/task2"
+	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -39,20 +41,157 @@ type DirectExecutor interface {
 }
 
 type directExecutor struct {
-	taskRepo       task.Repository
-	workflowRepo   workflow.Repository
-	projectConfig  *project.Config
-	memoryManager  memcore.ManagerInterface
-	templateEngine *tplengine.TemplateEngine
-	runtimeFactory runtime.Factory
-	runtimeOnce    sync.Once
-	runtime        runtime.Runtime
-	runtimeErr     error
+	taskRepo           task.Repository
+	workflowRepo       workflow.Repository
+	projectConfig      *project.Config
+	memoryManager      memcore.ManagerInterface
+	templateEngine     *tplengine.TemplateEngine
+	configOrchestrator *task2.ConfigOrchestrator
+	runtimeFactory     runtime.Factory
+	runtimeOnce        sync.Once
+	runtime            runtime.Runtime
+	runtimeErr         error
 }
 
 type execResult struct {
 	output *core.Output
 	err    error
+}
+
+type executionPlan struct {
+	config         *task.Config
+	workflowConfig *workflow.Config
+	meta           *ExecMetadata
+}
+
+func cloneTaskInput(input *core.Input) (*core.Input, error) {
+	if input == nil {
+		return nil, nil
+	}
+	cloned, err := core.DeepCopy[*core.Input](input)
+	if err != nil {
+		return nil, err
+	}
+	return cloned, nil
+}
+
+func restoreDirectInput(cfg *task.Config, original *core.Input) {
+	if cfg == nil || original == nil {
+		return
+	}
+	if cfg.With == nil {
+		cfg.With = original
+		return
+	}
+	for k, v := range *original {
+		(*cfg.With)[k] = v
+	}
+}
+
+func (d *directExecutor) normalizeTaskConfig(
+	wfState *workflow.State,
+	wfConfig *workflow.Config,
+	cfg *task.Config,
+) error {
+	if err := d.configOrchestrator.NormalizeTask(wfState, wfConfig, cfg); err != nil {
+		return fmt.Errorf("failed to normalize task %s: %w", cfg.ID, err)
+	}
+	return nil
+}
+
+func (d *directExecutor) normalizeAgentComponent(
+	wfState *workflow.State,
+	wfConfig *workflow.Config,
+	cfg *task.Config,
+	allTaskConfigs map[string]*task.Config,
+) error {
+	if cfg.Agent == nil {
+		return nil
+	}
+	if err := d.configOrchestrator.NormalizeAgentComponent(
+		wfState,
+		wfConfig,
+		cfg,
+		cfg.Agent,
+		allTaskConfigs,
+	); err != nil {
+		return fmt.Errorf("failed to normalize agent component for %s: %w", cfg.ID, err)
+	}
+	return nil
+}
+
+func (d *directExecutor) normalizeToolComponent(
+	wfState *workflow.State,
+	wfConfig *workflow.Config,
+	cfg *task.Config,
+	allTaskConfigs map[string]*task.Config,
+) error {
+	if cfg.Tool == nil {
+		return nil
+	}
+	if err := d.configOrchestrator.NormalizeToolComponent(
+		wfState,
+		wfConfig,
+		cfg,
+		cfg.Tool,
+		allTaskConfigs,
+	); err != nil {
+		return fmt.Errorf("failed to normalize tool component for %s: %w", cfg.ID, err)
+	}
+	return nil
+}
+
+func (d *directExecutor) prepareExecutionPlan(
+	_ context.Context,
+	cfg *task.Config,
+	meta *ExecMetadata,
+	execID core.ID,
+) (*executionPlan, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("task config is required")
+	}
+	if meta == nil {
+		meta = &ExecMetadata{}
+	}
+	if d.configOrchestrator == nil {
+		return nil, fmt.Errorf("task configuration orchestrator not initialized")
+	}
+	cfgCopy, err := core.DeepCopy[*task.Config](cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone task config: %w", err)
+	}
+	preparedCfg := d.prepareTaskConfig(cfgCopy, execID, meta)
+	directInputCopy, cloneErr := cloneTaskInput(preparedCfg.With)
+	if cloneErr != nil {
+		return nil, fmt.Errorf("failed to clone task input: %w", cloneErr)
+	}
+	workflowID := meta.WorkflowID
+	if workflowID == "" {
+		workflowID = preparedCfg.ID
+	}
+	meta.WorkflowID = workflowID
+	wfConfig := &workflow.Config{ID: workflowID}
+	wfConfig.Tasks = []task.Config{*preparedCfg}
+	wfState := workflow.NewState(workflowID, execID, preparedCfg.With)
+	if err := d.normalizeTaskConfig(wfState, wfConfig, preparedCfg); err != nil {
+		return nil, err
+	}
+	restoreDirectInput(preparedCfg, directInputCopy)
+	taskConfigs := task2.BuildTaskConfigsMap(wfConfig.Tasks)
+	taskConfigs[preparedCfg.ID] = preparedCfg
+	if err := d.normalizeAgentComponent(wfState, wfConfig, preparedCfg, taskConfigs); err != nil {
+		return nil, err
+	}
+	if err := d.normalizeToolComponent(wfState, wfConfig, preparedCfg, taskConfigs); err != nil {
+		return nil, err
+	}
+	wfConfig.Tasks = []task.Config{*preparedCfg}
+	wfState.Input = preparedCfg.With
+	return &executionPlan{
+		config:         preparedCfg,
+		workflowConfig: wfConfig,
+		meta:           meta,
+	}, nil
 }
 
 func NewDirectExecutor(
@@ -74,6 +213,20 @@ func NewDirectExecutor(
 		workflowRepo = state.Store.NewWorkflowRepo()
 	}
 	tplEng := tplengine.NewEngine(tplengine.FormatJSON)
+	envMerger := task2core.NewEnvMerger()
+	factory, err := task2.NewFactory(&task2.FactoryConfig{
+		TemplateEngine: tplEng,
+		EnvMerger:      envMerger,
+		WorkflowRepo:   workflowRepo,
+		TaskRepo:       taskRepo,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task normalizer factory: %w", err)
+	}
+	orchestrator, err := task2.NewConfigOrchestrator(factory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task config orchestrator: %w", err)
+	}
 	var memManager memcore.ManagerInterface
 	if state.Worker != nil {
 		memManager = state.Worker.GetMemoryManager()
@@ -83,12 +236,13 @@ func NewDirectExecutor(
 		root = ""
 	}
 	return &directExecutor{
-		taskRepo:       taskRepo,
-		workflowRepo:   workflowRepo,
-		projectConfig:  projCfg,
-		memoryManager:  memManager,
-		templateEngine: tplEng,
-		runtimeFactory: runtime.NewDefaultFactory(root),
+		taskRepo:           taskRepo,
+		workflowRepo:       workflowRepo,
+		projectConfig:      projCfg,
+		memoryManager:      memManager,
+		templateEngine:     tplEng,
+		configOrchestrator: orchestrator,
+		runtimeFactory:     runtime.NewDefaultFactory(root),
 	}, nil
 }
 
@@ -109,10 +263,17 @@ func (d *directExecutor) ExecuteSync(
 		meta = &ExecMetadata{}
 	}
 	execID := core.MustNewID()
-	state := d.buildInitialState(execID, cfg, meta)
+	plan, err := d.prepareExecutionPlan(ctx, cfg, meta, execID)
+	if err != nil {
+		return nil, zeroID, err
+	}
+	state := d.buildInitialState(execID, plan.config, plan.meta)
 	now := time.Now().UTC()
 	state.CreatedAt = now
 	state.UpdatedAt = now
+	if err := d.ensureWorkflowState(ctx, plan.config, plan.meta, state); err != nil {
+		return nil, zeroID, err
+	}
 	if err := d.taskRepo.UpsertState(ctx, state); err != nil {
 		return nil, zeroID, fmt.Errorf("failed to persist execution state: %w", err)
 	}
@@ -137,14 +298,9 @@ func (d *directExecutor) ExecuteSync(
 		}
 		return nil, zeroID, err
 	}
-	cfgCopy, err := core.DeepCopy[*task.Config](cfg)
-	if err != nil {
-		return nil, zeroID, fmt.Errorf("failed to clone task config: %w", err)
-	}
-	prepCfg := d.prepareTaskConfig(cfgCopy, execID, meta)
 	resultCh := make(chan execResult, 1)
 	bgCtx := context.WithoutCancel(ctx)
-	go d.runExecution(bgCtx, state, prepCfg, meta, resultCh)
+	go d.runExecution(bgCtx, state, plan, resultCh)
 	if timeout <= 0 {
 		res := <-resultCh
 		return res.output, execID, res.err
@@ -171,10 +327,17 @@ func (d *directExecutor) ExecuteAsync(ctx context.Context, cfg *task.Config, met
 		meta = &ExecMetadata{}
 	}
 	execID := core.MustNewID()
-	state := d.buildInitialState(execID, cfg, meta)
+	plan, err := d.prepareExecutionPlan(ctx, cfg, meta, execID)
+	if err != nil {
+		return zeroID, err
+	}
+	state := d.buildInitialState(execID, plan.config, plan.meta)
 	now := time.Now().UTC()
 	state.CreatedAt = now
 	state.UpdatedAt = now
+	if err := d.ensureWorkflowState(ctx, plan.config, plan.meta, state); err != nil {
+		return zeroID, err
+	}
 	if err := d.taskRepo.UpsertState(ctx, state); err != nil {
 		return zeroID, fmt.Errorf("failed to persist execution state: %w", err)
 	}
@@ -199,25 +362,29 @@ func (d *directExecutor) ExecuteAsync(ctx context.Context, cfg *task.Config, met
 		}
 		return zeroID, err
 	}
-	cfgCopy, err := core.DeepCopy[*task.Config](cfg)
-	if err != nil {
-		return zeroID, fmt.Errorf("failed to clone task config: %w", err)
-	}
-	prepCfg := d.prepareTaskConfig(cfgCopy, execID, meta)
 	bgCtx := context.WithoutCancel(ctx)
-	go d.runExecution(bgCtx, state, prepCfg, meta, nil)
+	go d.runExecution(bgCtx, state, plan, nil)
 	return execID, nil
 }
 
 func (d *directExecutor) runExecution(
 	ctx context.Context,
 	state *task.State,
-	cfg *task.Config,
-	meta *ExecMetadata,
+	plan *executionPlan,
 	resultCh chan<- execResult,
 ) {
-	if meta == nil {
-		meta = &ExecMetadata{}
+	if plan == nil {
+		res := execResult{err: fmt.Errorf("execution plan not initialized")}
+		if resultCh != nil {
+			select {
+			case resultCh <- res:
+			default:
+			}
+		}
+		return
+	}
+	if plan.meta == nil {
+		plan.meta = &ExecMetadata{}
 	}
 	log := logger.FromContext(ctx)
 	res := execResult{}
@@ -248,7 +415,7 @@ func (d *directExecutor) runExecution(
 			res.err = err
 		}
 	}()
-	output, err := d.executeOnce(ctx, state, cfg, meta)
+	output, err := d.executeOnce(ctx, state, plan)
 	if err != nil {
 		res.err = err
 		return
@@ -259,11 +426,13 @@ func (d *directExecutor) runExecution(
 func (d *directExecutor) executeOnce(
 	ctx context.Context,
 	state *task.State,
-	cfg *task.Config,
-	meta *ExecMetadata,
+	plan *executionPlan,
 ) (*core.Output, error) {
-	if meta == nil {
-		meta = &ExecMetadata{}
+	if plan == nil {
+		return nil, fmt.Errorf("execution plan not initialized")
+	}
+	if plan.meta == nil {
+		plan.meta = &ExecMetadata{}
 	}
 	rt, err := d.ensureRuntime(ctx)
 	if err != nil {
@@ -278,11 +447,11 @@ func (d *directExecutor) executeOnce(
 		return nil, err
 	}
 	ucExec := uc.NewExecuteTask(rt, d.workflowRepo, d.memoryManager, d.templateEngine, nil)
-	wfState := d.buildWorkflowState(meta, state.WorkflowExecID, cfg)
+	wfState := d.buildWorkflowState(plan.meta, state.WorkflowExecID, plan.config)
 	input := &uc.ExecuteTaskInput{
-		TaskConfig:     cfg,
+		TaskConfig:     plan.config,
 		WorkflowState:  wfState,
-		WorkflowConfig: nil,
+		WorkflowConfig: plan.workflowConfig,
 		ProjectConfig:  d.projectConfig,
 	}
 	output, execErr := ucExec.Execute(ctx, input)
@@ -400,6 +569,29 @@ func (d *directExecutor) buildWorkflowState(meta *ExecMetadata, execID core.ID, 
 	}
 	input := cfg.With
 	return workflow.NewState(workflowID, execID, input)
+}
+
+func (d *directExecutor) ensureWorkflowState(
+	ctx context.Context,
+	cfg *task.Config,
+	meta *ExecMetadata,
+	state *task.State,
+) error {
+	if d.workflowRepo == nil {
+		return fmt.Errorf("workflow repository is required for direct execution")
+	}
+	if state == nil {
+		return fmt.Errorf("task state is required for workflow persistence")
+	}
+	wfCfg := cfg
+	if wfCfg == nil {
+		wfCfg = &task.Config{}
+	}
+	wfState := d.buildWorkflowState(meta, state.WorkflowExecID, wfCfg)
+	if err := d.workflowRepo.UpsertState(ctx, wfState); err != nil {
+		return fmt.Errorf("failed to persist workflow state: %w", err)
+	}
+	return nil
 }
 
 func (d *directExecutor) updateState(ctx context.Context, state *task.State, mutate func(*task.State)) error {

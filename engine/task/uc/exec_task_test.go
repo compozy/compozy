@@ -1,12 +1,16 @@
 package uc
 
 import (
+	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,5 +47,24 @@ func TestAllowedMCPIDs(t *testing.T) {
 		ids := exec.allowedMCPIDs(ag, &ExecuteTaskInput{WorkflowConfig: wf})
 		require.NotNil(t, ids)
 		assert.ElementsMatch(t, []string{"filesystem"}, ids)
+	})
+}
+
+func TestNormalizeProviderConfigWithEnv(t *testing.T) {
+	t.Run("ShouldResolveTemplatesWithProjectEnv", func(t *testing.T) {
+		exec := &ExecuteTask{templateEngine: tplengine.NewEngine(tplengine.FormatJSON)}
+		providerCfg := core.ProviderConfig{
+			Provider: core.ProviderGroq,
+			Model:    "llama-3",
+			APIKey:   "{{ .env.GROQ_API_KEY }}",
+		}
+		taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "direct-agent", Type: task.TaskTypeBasic}}
+		projCfg := &project.Config{Name: "sync"}
+		projCfg.SetEnv(core.EnvMap{"GROQ_API_KEY": "test-secret"})
+		input := &ExecuteTaskInput{TaskConfig: taskCfg, ProjectConfig: projCfg}
+		require.NoError(t, exec.normalizeProviderConfigWithEnv(context.Background(), &providerCfg, input))
+		assert.Equal(t, "test-secret", providerCfg.APIKey)
+		require.NotNil(t, taskCfg.Env)
+		assert.Equal(t, "test-secret", (*taskCfg.Env)["GROQ_API_KEY"])
 	})
 }

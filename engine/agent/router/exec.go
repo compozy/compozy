@@ -2,7 +2,6 @@ package agentrouter
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,6 +18,7 @@ import (
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,6 +27,8 @@ const (
 	defaultAgentExecTimeoutSeconds = 60
 	// maxAgentExecTimeoutSeconds caps how long agent executions are allowed to run.
 	maxAgentExecTimeoutSeconds = 300
+	// directPromptActionID labels prompt-only executions so task state constraints remain satisfied.
+	directPromptActionID = "__prompt__"
 )
 
 // getAgentExecutionStatus handles GET /executions/agents/{exec_id}.
@@ -123,37 +125,6 @@ func parseAgentExecRequest(c *gin.Context) (*AgentExecRequest, bool) {
 	return req, true
 }
 
-func ensureAgentIdempotency(c *gin.Context, state *appstate.State, req *AgentExecRequest) bool {
-	if state == nil {
-		return false
-	}
-	idem := router.ResolveAPIIdempotency(c, state)
-	if idem == nil {
-		return true
-	}
-	body, err := json.Marshal(req)
-	if err != nil {
-		router.RespondWithServerError(c, router.ErrInternalCode, "failed to normalize request", err)
-		return false
-	}
-	unique, reason, idemErr := idem.CheckAndSet(c.Request.Context(), c, "agents", body, 0)
-	if idemErr != nil {
-		var reqErr *router.RequestError
-		if errors.As(idemErr, &reqErr) {
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-			return false
-		}
-		router.RespondWithServerError(c, router.ErrInternalCode, "idempotency check failed", idemErr)
-		return false
-	}
-	if !unique {
-		reqErr := router.NewRequestError(http.StatusConflict, "duplicate request", fmt.Errorf("%s", reason))
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return false
-	}
-	return true
-}
-
 func loadAgentTaskConfig(
 	c *gin.Context,
 	resourceStore resources.ResourceStore,
@@ -206,6 +177,19 @@ func loadAgentTaskConfig(
 	return cfg, true
 }
 
+func resolveAgentActionID(req *AgentExecRequest, cfg *task.Config) string {
+	if req != nil && req.Action != "" {
+		return req.Action
+	}
+	if cfg != nil && cfg.Action != "" {
+		return cfg.Action
+	}
+	if req != nil && req.Prompt != "" {
+		return directPromptActionID
+	}
+	return ""
+}
+
 func respondAgentTimeout(
 	c *gin.Context,
 	repo task.Repository,
@@ -227,6 +211,33 @@ func respondAgentTimeout(
 			Metrics:       metrics,
 		},
 	)
+}
+
+func buildAgentSyncPayload(
+	ctx context.Context,
+	repo task.Repository,
+	agentID string,
+	execID core.ID,
+	output *core.Output,
+) gin.H {
+	payload := gin.H{"exec_id": execID.String()}
+	if output != nil {
+		payload["output"] = output
+	}
+	if stateSnapshot, stateErr := repo.GetState(ctx, execID); stateErr == nil && stateSnapshot != nil {
+		payload["state"] = newExecutionStatusDTO(stateSnapshot)
+		if stateSnapshot.Output != nil {
+			payload["output"] = stateSnapshot.Output
+		}
+	} else if stateErr != nil {
+		logger.FromContext(ctx).Warn(
+			"Failed to load agent execution state after completion",
+			"agent_id", agentID,
+			"exec_id", execID.String(),
+			"error", stateErr,
+		)
+	}
+	return payload
 }
 
 type ExecutionStatusDTO struct {
@@ -264,7 +275,6 @@ type AgentExecRequest struct {
 //	@Produce		json
 //	@Param			agent_id	path	string	true	"Agent ID"	example("assistant")
 //	@Param			X-Idempotency-Key	header	string	false	"Optional idempotency key to prevent duplicate execution"
-//	@Param			X-Correlation-ID	header	string	false	"Optional correlation ID for request tracing"
 //	@Param			payload	body	agentrouter.AgentExecRequest	true	"Execution request"
 //	@Success		200	{object}	router.Response{data=agentrouter.AgentExecSyncResponse}	"Agent executed"
 //	@Failure		400	{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
@@ -295,10 +305,6 @@ func executeAgentSync(c *gin.Context) {
 		recordError(http.StatusBadRequest)
 		return
 	}
-	if !ensureAgentIdempotency(c, state, req) {
-		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
-		return
-	}
 	taskCfg, ok := loadAgentTaskConfig(c, resourceStore, state, agentID, req)
 	if !ok {
 		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
@@ -320,7 +326,7 @@ func executeAgentSync(c *gin.Context) {
 	meta := tkrouter.ExecMetadata{
 		Component: core.ComponentAgent,
 		AgentID:   agentID,
-		ActionID:  req.Action,
+		ActionID:  resolveAgentActionID(req, taskCfg),
 		TaskID:    taskCfg.ID,
 	}
 	output, execID, execErr := executor.ExecuteSync(
@@ -341,7 +347,11 @@ func executeAgentSync(c *gin.Context) {
 		return
 	}
 	outcome = monitoring.ExecutionOutcomeSuccess
-	router.RespondOK(c, "agent executed", gin.H{"output": output, "exec_id": execID.String()})
+	router.RespondOK(
+		c,
+		"agent executed",
+		buildAgentSyncPayload(c.Request.Context(), repo, agentID, execID, output),
+	)
 }
 
 // executeAgentAsync handles POST /agents/{agent_id}/executions/async.
@@ -352,7 +362,6 @@ func executeAgentSync(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			agent_id	path	string	true	"Agent ID"	example("assistant")
-//	@Param			X-Idempotency-Key	header	string	false	"Optional idempotency key to prevent duplicate execution"
 //	@Param			X-Correlation-ID	header	string	false	"Optional correlation ID for request tracing"
 //	@Param			payload	body	agentrouter.AgentExecRequest	true	"Execution request"
 //	@Success		202	{object}	router.Response{data=agentrouter.AgentExecAsyncResponse}	"Agent execution started"
@@ -388,10 +397,6 @@ func executeAgentAsync(c *gin.Context) {
 		recordError(http.StatusBadRequest)
 		return
 	}
-	if !ensureAgentIdempotency(c, state, req) {
-		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
-		return
-	}
 	taskCfg, ok := loadAgentTaskConfig(c, resourceStore, state, agentID, req)
 	if !ok {
 		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
@@ -413,7 +418,7 @@ func executeAgentAsync(c *gin.Context) {
 	meta := tkrouter.ExecMetadata{
 		Component: core.ComponentAgent,
 		AgentID:   agentID,
-		ActionID:  req.Action,
+		ActionID:  resolveAgentActionID(req, taskCfg),
 		TaskID:    taskCfg.ID,
 	}
 	execID, execErr := executor.ExecuteAsync(c.Request.Context(), taskCfg, &meta)

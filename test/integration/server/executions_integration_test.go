@@ -283,44 +283,6 @@ func TestExecutionEndpoints_TaskAsync(t *testing.T) {
 	stub.assertAsyncCalls(t, 1)
 }
 
-func TestExecutionEndpoints_IdempotencyDuplicate(t *testing.T) {
-	harness := newServerHarnessWithMiddleware(t)
-	agentID := "agent-idem"
-	putAgentResource(t, harness.Engine, agentID)
-	repo := harness.State.Store.NewTaskRepo()
-	wfRepo := harness.State.Store.NewWorkflowRepo()
-	stub := newDirectExecutorStub(repo, wfRepo, directExecutorConfig{
-		syncOutput: core.Output{"result": "ok"},
-	})
-	installDirectExecutorStub(t, harness.State, stub)
-	body := map[string]any{
-		"prompt": "Process",
-	}
-	headers := map[string]string{"X-Idempotency-Key": "dup-key"}
-	first := doRequest(
-		t,
-		harness.Engine,
-		http.MethodPost,
-		fmt.Sprintf("/api/v0/agents/%s/executions", agentID),
-		body,
-		headers,
-	)
-	require.Equal(t, http.StatusOK, first.Code)
-	envelope := decodeEnvelope(t, first)
-	output := envelope.Data["output"].(map[string]any)
-	assert.Equal(t, "ok", output["result"].(string))
-	second := doRequest(
-		t,
-		harness.Engine,
-		http.MethodPost,
-		fmt.Sprintf("/api/v0/agents/%s/executions", agentID),
-		body,
-		headers,
-	)
-	require.Equal(t, http.StatusConflict, second.Code)
-	stub.assertSyncCalls(t, 1)
-}
-
 func doRequest(
 	t *testing.T,
 	engine *gin.Engine,
@@ -731,12 +693,6 @@ func (s *directExecutorStub) finishWorkflowState(ctx context.Context, execID cor
 		state.Output = &copyOutput
 	}
 	_ = s.workflowRepo.UpsertState(context.WithoutCancel(ctx), state)
-}
-
-func (s *directExecutorStub) assertSyncCalls(t *testing.T, expected int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	assert.Equal(t, expected, s.syncCalls)
 }
 
 func (s *directExecutorStub) assertAsyncCalls(t *testing.T, expected int) {
