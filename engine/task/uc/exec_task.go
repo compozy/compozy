@@ -570,6 +570,11 @@ func (uc *ExecuteTask) createLLMService(
 		// Add resolved tools (with merged env) to LLM options
 		llmOpts = append(llmOpts, llm.WithResolvedTools(resolvedTools))
 	}
+	if input != nil && input.ProjectConfig != nil {
+		if cwd := input.ProjectConfig.GetCWD(); cwd != nil {
+			llmOpts = append(llmOpts, llm.WithProjectRoot(cwd.PathStr()))
+		}
+	}
 
 	// Build MCP allowlist from agent/workflow declarations (IDs)
 	if ids := uc.allowedMCPIDs(agentConfig, input); len(ids) > 0 {

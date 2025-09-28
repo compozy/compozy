@@ -27,6 +27,7 @@ type settings struct {
 	maxConsecutiveSuccesses int
 	enableProgressTracking  bool
 	noProgressThreshold     int
+	projectRoot             string
 }
 
 func buildSettings(cfg *Config) settings {
@@ -46,6 +47,7 @@ func buildSettings(cfg *Config) settings {
 		maxConsecutiveSuccesses: cfg.MaxConsecutiveSuccesses,
 		enableProgressTracking:  cfg.EnableProgressTracking,
 		noProgressThreshold:     cfg.NoProgressThreshold,
+		projectRoot:             cfg.ProjectRoot,
 	}
 
 	if s.maxConcurrentTools <= 0 {

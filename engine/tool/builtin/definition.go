@@ -91,3 +91,8 @@ func (b *BuiltinTool) ArgsType() any {
 func (b *BuiltinTool) Definition() BuiltinDefinition {
 	return b.definition
 }
+
+// InputSchema exposes the builtin input schema so callers can advertise parameters accurately.
+func (b *BuiltinTool) InputSchema() *schema.Schema {
+	return b.definition.InputSchema
+}

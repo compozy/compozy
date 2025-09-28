@@ -37,4 +37,29 @@ func TestToolExecutor_UpdateBudgets_ConsecutiveSuccessExceeded(t *testing.T) {
 		require.ErrorIs(t, err, ErrBudgetExceeded)
 		assert.ErrorContains(t, err, "tool t called successfully 2 times without progress")
 	})
+
+	t.Run("Should reset success counter when tool output changes", func(t *testing.T) {
+		exec := NewToolExecutor(newStubToolRegistry(), &settings{maxConsecutiveSuccesses: 2})
+		st := newLoopState(&settings{maxConsecutiveSuccesses: 2}, nil, nil)
+		results := []llmadapter.ToolResult{
+			{Name: "t", JSONContent: []byte(`{"file":"a"}`)},
+			{Name: "t", JSONContent: []byte(`{"file":"b"}`)},
+			{Name: "t", JSONContent: []byte(`{"file":"c"}`)},
+		}
+		err := exec.UpdateBudgets(context.Background(), results, st)
+		require.NoError(t, err)
+	})
+
+	t.Run("Should still respect success limit when output repeats without progress", func(t *testing.T) {
+		exec := NewToolExecutor(newStubToolRegistry(), &settings{maxConsecutiveSuccesses: 2})
+		st := newLoopState(&settings{maxConsecutiveSuccesses: 2}, nil, nil)
+		results := []llmadapter.ToolResult{
+			{Name: "t", Content: "first"},
+			{Name: "t", Content: "first"},
+		}
+		err := exec.UpdateBudgets(context.Background(), results, st)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrBudgetExceeded)
+		assert.ErrorContains(t, err, "tool t called successfully 2 times without progress")
+	})
 }
