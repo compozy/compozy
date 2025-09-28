@@ -46,6 +46,7 @@ type Config struct {
 	MaxConsecutiveSuccesses       int
 	EnableProgressTracking        bool
 	NoProgressThreshold           int
+	ProjectRoot                   string
 }
 
 // Orchestrator coordinates LLM interactions, tool calls, and response processing.

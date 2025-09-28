@@ -1,10 +1,16 @@
 package orchestrator
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,5 +106,49 @@ func TestToolExecutor_Execute(t *testing.T) {
 		require.Len(t, results, 1)
 		assert.Contains(t, results[0].Content, "Tool execution failed")
 		assert.Contains(t, string(results[0].JSONContent), "TOOL_EXECUTION_ERROR")
+	})
+
+	t.Run("Should write tool input and output to log file", func(t *testing.T) {
+		registry := newStubToolRegistry()
+		registry.register(&fnTool{
+			name:        "echo",
+			description: "",
+			call: func(_ context.Context, input string) (string, error) {
+				return "processed:" + input, nil
+			},
+		})
+		root := t.TempDir()
+		exec := NewToolExecutor(registry, &settings{maxConcurrentTools: 1, projectRoot: root})
+		ctx := context.Background()
+		_, err := exec.Execute(ctx, []llmadapter.ToolCall{
+			{ID: "call-1", Name: "echo", Arguments: []byte(`{"hello":"world"}`)},
+		})
+		require.NoError(t, err)
+		logPath := filepath.Join(core.GetStoreDir(root), "tools_log.json")
+		data, err := os.ReadFile(logPath)
+		require.NoError(t, err)
+		dec := json.NewDecoder(bytes.NewReader(data))
+		var entries []map[string]any
+		for {
+			var entry map[string]any
+			err := dec.Decode(&entry)
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			require.NoError(t, err)
+			entries = append(entries, entry)
+		}
+		require.Len(t, entries, 1)
+		entry := entries[0]
+		assert.Equal(t, "call-1", entry["tool_call_id"])
+		assert.Equal(t, "echo", entry["tool_name"])
+		assert.Equal(t, "success", entry["status"])
+		assert.NotEmpty(t, entry["timestamp"])
+		inputVal, ok := entry["input"].(string)
+		require.True(t, ok)
+		assert.Contains(t, inputVal, "\"hello\":\"world\"")
+		outputVal, ok := entry["output"].(string)
+		require.True(t, ok)
+		assert.Equal(t, "processed:{\"hello\":\"world\"}", outputVal)
 	})
 }

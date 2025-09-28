@@ -15,6 +15,11 @@ schemas:
 config:
   input: review_input
 
+mcps:
+  - id: zen
+    transport: sse
+    url: "http://127.0.0.1:8082/servers/zen/sse"
+
 tasks:
   - id: review
     type: basic

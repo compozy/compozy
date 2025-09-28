@@ -57,6 +57,7 @@ type Config struct {
 	// Feature flags
 	EnableStructuredOutput bool
 	EnableToolCaching      bool
+	ProjectRoot            string
 	// LLM factory for creating clients
 	LLMFactory llmadapter.Factory
 	// Memory provider for agent memory support
@@ -171,6 +172,13 @@ func WithStructuredOutput(enabled bool) Option {
 func WithToolCaching(enabled bool) Option {
 	return func(c *Config) {
 		c.EnableToolCaching = enabled
+	}
+}
+
+// WithProjectRoot sets the project root directory used for orchestrator diagnostics.
+func WithProjectRoot(root string) Option {
+	return func(c *Config) {
+		c.ProjectRoot = strings.TrimSpace(root)
 	}
 }
 

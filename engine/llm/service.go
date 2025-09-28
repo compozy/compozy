@@ -248,6 +248,7 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		RetryBackoffBase:              config.RetryBackoffBase,
 		RetryBackoffMax:               config.RetryBackoffMax,
 		RetryJitter:                   config.RetryJitter,
+		ProjectRoot:                   config.ProjectRoot,
 	}
 	llmOrchestrator, err := orchestratorpkg.New(orchestratorConfig)
 	if err != nil {

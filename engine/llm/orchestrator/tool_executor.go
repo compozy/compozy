@@ -5,7 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
@@ -19,16 +23,68 @@ type ToolExecutor interface {
 }
 
 type toolExecutor struct {
-	registry        ToolRegistry
-	cfg             settings
-	progressEnabled bool
+	registry ToolRegistry
+	cfg      settings
+	logPath  string
+	logMu    sync.Mutex
 }
+
+type toolLogEntry struct {
+	Timestamp  string `json:"timestamp"`
+	ToolCallID string `json:"tool_call_id"`
+	ToolName   string `json:"tool_name"`
+	Input      string `json:"input"`
+	Output     string `json:"output,omitempty"`
+	Error      string `json:"error,omitempty"`
+	Status     string `json:"status"`
+	Duration   string `json:"duration"`
+}
+
+const (
+	toolLogStatusSuccess      = "success"
+	toolLogStatusError        = "error"
+	toolExecutionErrorPayload = `{"success":false,"error":{"code":"TOOL_EXECUTION_ERROR","message":"Tool execution failed"}}`
+)
 
 func NewToolExecutor(registry ToolRegistry, cfg *settings) ToolExecutor {
 	if cfg == nil {
 		cfg = &settings{}
 	}
-	return &toolExecutor{registry: registry, cfg: *cfg, progressEnabled: cfg.enableProgressTracking}
+	storeDir := core.GetStoreDir(cfg.projectRoot)
+	logPath := ""
+	if storeDir != "" {
+		logPath = filepath.Join(storeDir, "tools_log.json")
+	}
+	return &toolExecutor{registry: registry, cfg: *cfg, logPath: logPath}
+}
+
+func (e *toolExecutor) appendToolLog(ctx context.Context, entry *toolLogEntry) {
+	if e.logPath == "" || entry == nil {
+		return
+	}
+	entry.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+	e.logMu.Lock()
+	defer e.logMu.Unlock()
+	dir := filepath.Dir(e.logPath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		logger.FromContext(ctx).Debug("Skipping tool log write; mkdir failed", "error", err)
+		return
+	}
+	f, err := os.OpenFile(e.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		logger.FromContext(ctx).Debug("Skipping tool log write; open failed", "error", err)
+		return
+	}
+	defer f.Close()
+	data, err := json.MarshalIndent(entry, "", "  ")
+	if err != nil {
+		logger.FromContext(ctx).Debug("Skipping tool log write; marshal failed", "error", err)
+		return
+	}
+	data = append(data, '\n')
+	if _, err := f.Write(data); err != nil {
+		logger.FromContext(ctx).Debug("Tool log write failed", "error", err)
+	}
 }
 
 func (e *toolExecutor) Execute(ctx context.Context, toolCalls []llmadapter.ToolCall) ([]llmadapter.ToolResult, error) {
@@ -102,31 +158,22 @@ func (e *toolExecutor) Execute(ctx context.Context, toolCalls []llmadapter.ToolC
 func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCall) llmadapter.ToolResult {
 	log := logger.FromContext(ctx)
 	log.Debug("Processing tool call", "tool_name", call.Name, "tool_call_id", call.ID)
-
+	start := time.Now()
+	entry := toolLogEntry{
+		ToolCallID: call.ID,
+		ToolName:   call.Name,
+		Input:      string(call.Arguments),
+		Status:     toolLogStatusSuccess,
+	}
+	defer func() {
+		entry.Duration = time.Since(start).String()
+		e.appendToolLog(ctx, &entry)
+	}()
 	t, found := e.registry.Find(ctx, call.Name)
 	if !found || t == nil {
-		log.Warn("Tool not found", "tool_name", call.Name, "tool_call_id", call.ID)
-		errObj := map[string]any{"error": fmt.Sprintf("tool not found: %s", call.Name)}
-		b, merr := json.Marshal(errObj)
-		if merr != nil {
-			fields := []any{
-				"tool_name", call.Name,
-				"tool_call_id", call.ID,
-				"error", merr,
-			}
-			log.Warn("Failed to marshal tool-not-found error payload", fields...)
-			b = []byte(`{"error":"tool not found"}`)
-		}
-		return llmadapter.ToolResult{
-			ID:          call.ID,
-			Name:        call.Name,
-			Content:     string(b),
-			JSONContent: json.RawMessage(b),
-		}
+		return e.toolNotFoundResult(log, call, &entry)
 	}
-
 	log.Debug("Executing tool", "tool_name", call.Name, "tool_call_id", call.ID)
-	// Propagate request id to downstream handlers for logging/metrics when missing
 	if _, err := core.GetRequestID(ctx); err != nil {
 		ctx = core.WithRequestID(ctx, call.ID)
 	}
@@ -141,45 +188,91 @@ func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCa
 			"error",
 			core.RedactError(err),
 		)
-		// Map builtin/core error codes when available
-		var coreErr *core.Error
-		errObj := ToolExecutionResult{Success: false}
-		if errors.As(err, &coreErr) && coreErr != nil {
-			code := coreErr.Code
-			msg := coreErr.Message
-			if msg == "" {
-				msg = "Tool execution failed"
-			}
-			errObj.Error = &ToolError{
-				Code:    code,
-				Message: msg,
-				Details: core.RedactError(err),
-			}
-		} else {
-			errObj.Error = &ToolError{
-				Code:    ErrCodeToolExecution,
-				Message: "Tool execution failed",
-				Details: core.RedactError(err),
-			}
-		}
-		b, merr := json.Marshal(errObj)
-		if merr != nil {
-			return llmadapter.ToolResult{
-				ID:          call.ID,
-				Name:        call.Name,
-				Content:     `{"success":false,"error":{"code":"TOOL_EXECUTION_ERROR","message":"Tool execution failed"}}`,
-				JSONContent: nil,
-			}
-		}
-		return llmadapter.ToolResult{ID: call.ID, Name: call.Name, Content: string(b), JSONContent: json.RawMessage(b)}
+		return e.toolExecutionErrorResult(call, err, &entry)
 	}
-
 	log.Debug("Tool execution succeeded", "tool_name", call.Name, "tool_call_id", call.ID)
+	entry.Output = raw
 	var jsonContent json.RawMessage
 	if json.Valid([]byte(raw)) {
 		jsonContent = json.RawMessage(raw)
 	}
-	return llmadapter.ToolResult{ID: call.ID, Name: call.Name, Content: raw, JSONContent: jsonContent}
+	return llmadapter.ToolResult{
+		ID:          call.ID,
+		Name:        call.Name,
+		Content:     raw,
+		JSONContent: jsonContent,
+	}
+}
+
+func (e *toolExecutor) toolNotFoundResult(
+	log logger.Logger,
+	call llmadapter.ToolCall,
+	entry *toolLogEntry,
+) llmadapter.ToolResult {
+	log.Warn("Tool not found", "tool_name", call.Name, "tool_call_id", call.ID)
+	errText := fmt.Sprintf("tool not found: %s", call.Name)
+	errObj := map[string]any{"error": errText}
+	payload, marshalErr := json.Marshal(errObj)
+	var jsonContent json.RawMessage
+	if marshalErr != nil {
+		fields := []any{"tool_name", call.Name, "tool_call_id", call.ID, "error", marshalErr}
+		log.Warn("Failed to marshal tool-not-found error payload", fields...)
+		errText = "tool not found"
+		payload = []byte(`{"error":"tool not found"}`)
+	} else {
+		jsonContent = json.RawMessage(payload)
+	}
+	entry.Status = toolLogStatusError
+	entry.Error = errText
+	entry.Output = string(payload)
+	return llmadapter.ToolResult{
+		ID:          call.ID,
+		Name:        call.Name,
+		Content:     string(payload),
+		JSONContent: jsonContent,
+	}
+}
+
+func (e *toolExecutor) toolExecutionErrorResult(
+	call llmadapter.ToolCall,
+	execErr error,
+	entry *toolLogEntry,
+) llmadapter.ToolResult {
+	var coreErr *core.Error
+	result := ToolExecutionResult{Success: false}
+	if errors.As(execErr, &coreErr) && coreErr != nil {
+		code := coreErr.Code
+		msg := coreErr.Message
+		if msg == "" {
+			msg = "Tool execution failed"
+		}
+		result.Error = &ToolError{Code: code, Message: msg, Details: core.RedactError(execErr)}
+	} else {
+		result.Error = &ToolError{
+			Code:    ErrCodeToolExecution,
+			Message: "Tool execution failed",
+			Details: core.RedactError(execErr),
+		}
+	}
+	payload, marshalErr := json.Marshal(result)
+	entry.Status = toolLogStatusError
+	entry.Error = core.RedactError(execErr)
+	if marshalErr != nil {
+		entry.Output = toolExecutionErrorPayload
+		return llmadapter.ToolResult{
+			ID:          call.ID,
+			Name:        call.Name,
+			Content:     toolExecutionErrorPayload,
+			JSONContent: nil,
+		}
+	}
+	entry.Output = string(payload)
+	return llmadapter.ToolResult{
+		ID:          call.ID,
+		Name:        call.Name,
+		Content:     string(payload),
+		JSONContent: json.RawMessage(payload),
+	}
 }
 
 func (e *toolExecutor) UpdateBudgets(ctx context.Context, results []llmadapter.ToolResult, state *loopState) error {
@@ -196,21 +289,12 @@ func (e *toolExecutor) UpdateBudgets(ctx context.Context, results []llmadapter.T
 	for _, result := range results {
 		name := result.Name
 		if isToolResultSuccess(result) {
-			if e.progressEnabled {
-				var fingerprint string
-				if len(result.JSONContent) > 0 {
-					fingerprint = stableJSONFingerprint(result.JSONContent)
-				} else {
-					fingerprint = stableJSONFingerprint([]byte(result.Content))
-				}
-				if last, ok := state.lastToolResults[name]; ok && last == fingerprint {
-					state.toolSuccess[name]++
-				} else {
-					state.toolSuccess[name] = 1
-					state.lastToolResults[name] = fingerprint
-				}
-			} else {
+			fingerprint := toolResultFingerprint(result)
+			if last, ok := state.lastToolResults[name]; ok && last == fingerprint {
 				state.toolSuccess[name]++
+			} else {
+				state.toolSuccess[name] = 1
+				state.lastToolResults[name] = fingerprint
 			}
 
 			if state.toolSuccess[name] >= maxSucc {
@@ -235,6 +319,7 @@ func (e *toolExecutor) UpdateBudgets(ctx context.Context, results []llmadapter.T
 		}
 
 		state.toolSuccess[name] = 0
+		delete(state.lastToolResults, name)
 		state.toolErrors[name]++
 		log.Debug("Tool error recorded", "tool", name, "consecutive_errors", state.toolErrors[name], "max", budget)
 		if state.toolErrors[name] >= budget {
@@ -244,6 +329,13 @@ func (e *toolExecutor) UpdateBudgets(ctx context.Context, results []llmadapter.T
 	}
 
 	return nil
+}
+
+func toolResultFingerprint(result llmadapter.ToolResult) string {
+	if len(result.JSONContent) > 0 {
+		return stableJSONFingerprint(result.JSONContent)
+	}
+	return stableJSONFingerprint([]byte(result.Content))
 }
 
 func extractToolNames(toolCalls []llmadapter.ToolCall) []string {

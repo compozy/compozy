@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -68,7 +69,7 @@ func (b *requestBuilder) Build(
 	)
 
 	return llmadapter.LLMRequest{
-		SystemPrompt: request.Agent.Instructions,
+		SystemPrompt: b.enhanceSystemPromptWithBuiltins(ctx, request.Agent.Instructions),
 		Messages:     messages,
 		Tools:        toolDefs,
 		Options: llmadapter.CallOptions{
@@ -223,11 +224,21 @@ func (b *requestBuilder) appendRegistryToolDefs(
 			"properties": map[string]any{},
 		}
 
-		type argsTyper interface{ ArgsType() any }
-		if at, ok := any(rt).(argsTyper); ok {
-			if v := at.ArgsType(); v != nil {
-				if m, isMap := v.(map[string]any); isMap && len(m) > 0 {
-					params = normalizeToolParameters(m)
+		schemaApplied := false
+		type inputSchemaProvider interface{ InputSchema() *schema.Schema }
+		if sp, ok := any(rt).(inputSchemaProvider); ok {
+			if s := sp.InputSchema(); s != nil {
+				params = normalizeToolParameters(map[string]any(*s))
+				schemaApplied = true
+			}
+		}
+		if !schemaApplied {
+			type argsTyper interface{ ArgsType() any }
+			if at, ok := any(rt).(argsTyper); ok {
+				if v := at.ArgsType(); v != nil {
+					if m, isMap := v.(map[string]any); isMap && len(m) > 0 {
+						params = normalizeToolParameters(m)
+					}
 				}
 			}
 		}
@@ -286,4 +297,49 @@ func isObjectType(value any) bool {
 	default:
 		return false
 	}
+}
+
+// enhanceSystemPromptWithBuiltins enhances the agent instructions with information
+// about available built-in tools that agents can use for common tasks.
+func (b *requestBuilder) enhanceSystemPromptWithBuiltins(
+	_ context.Context,
+	originalInstructions string,
+) string {
+	builtinToolsInfo := `
+<built-in-tools>
+## Built-in Tools Available
+
+You have access to several built-in tools for common operations.
+When appropriate, use these tools instead of asking users to perform manual tasks:
+
+### File Operations
+- **cp__read_file**: Read text content from files in the sandboxed filesystem
+- **cp__write_file**: Write or append text content to files
+- **cp__delete_file**: Delete files or directories (with recursive option)
+- **cp__list_files**: List files in directories with pattern filtering
+- **cp__list_dir**: List directory contents with pagination and filtering
+- **cp__grep**: Search for text patterns within files using regex
+
+### System Operations
+- **cp__exec**: Execute pre-approved system commands from an allowlist (e.g., ls, pwd, cat, etc.)
+
+### Network Operations
+- **cp__fetch**: Make HTTP requests (GET, POST, PUT, etc.) with configurable timeouts and headers
+
+### Usage Guidelines
+- Use these tools proactively when they would help accomplish the user's request
+- Tools have appropriate security restrictions and input validation
+- Always prefer using tools over asking users to perform manual file or system operations
+- Check tool responses for errors and handle them appropriately
+</built-in-tools>
+
+`
+
+	// If original instructions are empty, use just the builtin info
+	if strings.TrimSpace(originalInstructions) == "" {
+		return builtinToolsInfo
+	}
+
+	// Otherwise, append the builtin info to existing instructions
+	return originalInstructions + "\n\n" + builtinToolsInfo
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,16 @@ func (r *regToolWithArgs) Name() string                                 { return
 func (r *regToolWithArgs) Description() string                          { return r.desc }
 func (r *regToolWithArgs) Call(context.Context, string) (string, error) { return "{}", nil }
 func (r *regToolWithArgs) ArgsType() any                                { return r.params }
+
+type schemaTool struct {
+	name, desc string
+	schema     *schema.Schema
+}
+
+func (s *schemaTool) Name() string                                 { return s.name }
+func (s *schemaTool) Description() string                          { return s.desc }
+func (s *schemaTool) Call(context.Context, string) (string, error) { return "{}", nil }
+func (s *schemaTool) InputSchema() *schema.Schema                  { return s.schema }
 
 type listableRegistry struct {
 	tools []RegistryTool
@@ -94,6 +105,29 @@ func TestRequestBuilder_CollectAndAppendDefs(t *testing.T) {
 		require.Len(t, out, 2)
 		assert.Equal(t, "new", out[1].Name)
 		assert.Contains(t, out[1].Parameters, "properties")
+	})
+
+	t.Run("Should derive parameters from schema when available", func(t *testing.T) {
+		s := &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"dir": map[string]any{"type": "string"},
+			},
+			"required": []string{"dir"},
+		}
+		reg := &listableRegistry{
+			tools: []RegistryTool{&schemaTool{name: "cp__list_files", schema: s}},
+		}
+		rb.tools = reg
+		out := rb.appendRegistryToolDefs(context.Background(), nil, map[string]struct{}{})
+		require.Len(t, out, 1)
+		params := out[0].Parameters
+		require.Contains(t, params, "properties")
+		props := params["properties"].(map[string]any)
+		assert.Contains(t, props, "dir")
+		require.Contains(t, params, "required")
+		req := params["required"].([]string)
+		assert.Contains(t, req, "dir")
 	})
 	t.Run("Should ignore registry list errors", func(t *testing.T) {
 		rb.tools = &listableRegistry{err: errors.New("x")}
