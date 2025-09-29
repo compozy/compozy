@@ -30,6 +30,20 @@ Accept: application/json
   }
 }
 
+### Execute agent action synchronously
+# @name runAgentActionSync
+POST {{baseUrl}}/agents/{{agentId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "action": "acknowledge",
+  "with": {
+    "message": "Agent action sync payload"
+  },
+  "timeout": 30
+}
+
 ### Execute agent asynchronously
 # @name runAgentAsync
 POST {{baseUrl}}/agents/{{agentId}}/executions/async
@@ -40,6 +54,19 @@ Accept: application/json
   "prompt": "Respond with an acknowledgement using the async agent endpoint.",
   "with": {
     "message": "Agent async call payload"
+  }
+}
+
+### Execute agent action asynchronously
+# @name runAgentActionAsync
+POST {{baseUrl}}/agents/{{agentId}}/executions/async
+Content-Type: application/json
+Accept: application/json
+
+{
+  "action": "acknowledge",
+  "with": {
+    "message": "Agent action async payload"
   }
 }
 

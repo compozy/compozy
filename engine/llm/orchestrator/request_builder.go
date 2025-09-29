@@ -42,6 +42,7 @@ func (b *requestBuilder) Build(
 			"agent": request.Agent.ID,
 		})
 	}
+	toolDefs = b.appendGroqJSONToolIfNeeded(toolDefs, request)
 
 	messages := b.buildMessages(ctx, promptData.enhancedPrompt, memoryCtx, request)
 	if err := llmadapter.ValidateConversation(messages); err != nil {
@@ -53,7 +54,7 @@ func (b *requestBuilder) Build(
 	}
 
 	temperature := request.Agent.Model.Config.Params.Temperature
-	toolChoice := ""
+	toolChoice := "none"
 	if len(toolDefs) > 0 {
 		toolChoice = "auto"
 	}
@@ -64,8 +65,7 @@ func (b *requestBuilder) Build(
 		"messages_count", len(messages),
 		"tools_count", len(toolDefs),
 		"tool_choice", toolChoice,
-		"json_mode", request.Action.JSONMode || (promptData.shouldUseStructured && len(toolDefs) == 0),
-		"structured_output", promptData.shouldUseStructured,
+		"output_format", b.describeOutputFormat(promptData.format),
 	)
 
 	return llmadapter.LLMRequest{
@@ -73,19 +73,18 @@ func (b *requestBuilder) Build(
 		Messages:     messages,
 		Tools:        toolDefs,
 		Options: llmadapter.CallOptions{
-			Temperature:      temperature,
-			MaxTokens:        request.Agent.Model.Config.Params.MaxTokens,
-			StopWords:        request.Agent.Model.Config.Params.StopWords,
-			UseJSONMode:      request.Action.JSONMode || (promptData.shouldUseStructured && len(toolDefs) == 0),
-			ToolChoice:       toolChoice,
-			StructuredOutput: promptData.shouldUseStructured,
+			Temperature:  temperature,
+			MaxTokens:    request.Agent.Model.Config.Params.MaxTokens,
+			StopWords:    request.Agent.Model.Config.Params.StopWords,
+			ToolChoice:   toolChoice,
+			OutputFormat: promptData.format,
 		},
 	}, nil
 }
 
 type promptBuildData struct {
-	enhancedPrompt      string
-	shouldUseStructured bool
+	enhancedPrompt string
+	format         llmadapter.OutputFormat
 }
 
 func (b *requestBuilder) buildPromptData(ctx context.Context, request Request) (*promptBuildData, error) {
@@ -95,24 +94,46 @@ func (b *requestBuilder) buildPromptData(ctx context.Context, request Request) (
 			"action": request.Action.ID,
 		})
 	}
-	shouldUseStructured := b.prompts.ShouldUseStructuredOutput(
-		string(request.Agent.Model.Config.Provider),
-		request.Action,
-		request.Agent.Tools,
-	)
 	enhancedPrompt := basePrompt
-	if shouldUseStructured {
-		enhancedPrompt = b.prompts.EnhanceForStructuredOutput(
-			ctx,
-			basePrompt,
-			request.Action.OutputSchema,
-			len(request.Agent.Tools) > 0,
+	format := llmadapter.DefaultOutputFormat()
+	action := request.Action
+	tools := request.Agent.Tools
+	hasSchema := action != nil && action.OutputSchema != nil
+	if hasSchema {
+		nativeStructured := len(tools) == 0 && b.prompts.ShouldUseStructuredOutput(
+			string(request.Agent.Model.Config.Provider),
+			action,
+			tools,
 		)
+		if nativeStructured {
+			name := action.ID
+			if name == "" {
+				name = "action_output"
+			}
+			format = llmadapter.NewJSONSchemaOutputFormat(name, action.OutputSchema, true)
+		} else {
+			enhancedPrompt = b.prompts.EnhanceForStructuredOutput(
+				ctx,
+				basePrompt,
+				action.OutputSchema,
+				len(tools) > 0,
+			)
+		}
 	}
 	return &promptBuildData{
-		enhancedPrompt:      enhancedPrompt,
-		shouldUseStructured: shouldUseStructured,
+		enhancedPrompt: enhancedPrompt,
+		format:         format,
 	}, nil
+}
+
+func (b *requestBuilder) describeOutputFormat(format llmadapter.OutputFormat) string {
+	if format.IsJSONSchema() {
+		if format.Name != "" {
+			return "json_schema:" + format.Name
+		}
+		return "json_schema"
+	}
+	return "default"
 }
 
 func (b *requestBuilder) buildMessages(
@@ -194,6 +215,32 @@ func (b *requestBuilder) collectConfiguredToolDefs(
 	}
 
 	return defs, included, nil
+}
+
+func (b *requestBuilder) appendGroqJSONToolIfNeeded(
+	defs []llmadapter.ToolDefinition,
+	request Request,
+) []llmadapter.ToolDefinition {
+	if request.Agent == nil {
+		return defs
+	}
+	if !strings.EqualFold(string(request.Agent.Model.Config.Provider), string(core.ProviderGroq)) {
+		return defs
+	}
+	for i := range defs {
+		if strings.EqualFold(defs[i].Name, "json") {
+			return defs
+		}
+	}
+	jsonParams := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{},
+	}
+	return append(defs, llmadapter.ToolDefinition{
+		Name:        "json",
+		Description: "Internal JSON structured output tool for Groq compatibility.",
+		Parameters:  jsonParams,
+	})
 }
 
 func (b *requestBuilder) appendRegistryToolDefs(

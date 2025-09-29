@@ -57,16 +57,6 @@ type LLMProperties struct {
 	// - Each iteration consumes additional tokens and increases response latency
 	// - Configure based on task complexity, accuracy requirements, and cost constraints
 	MaxIterations int `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty" mapstructure:"max_iterations,omitempty"`
-	// Forces the agent to always respond in valid JSON format.
-	// When enabled, the agent's responses must be parseable JSON objects.
-	//
-	// **Use cases:**
-	// - API integrations requiring structured data
-	// - Automated processing of agent outputs
-	// - Ensuring consistent response formats
-	//
-	// ⚠️ **Note:** May limit the agent's ability to provide explanatory text
-	JSONMode bool `json:"json_mode"                yaml:"json_mode"                mapstructure:"json_mode"`
 	// Memory references enabling the agent to access persistent context.
 	// Memory provides stateful interactions across workflow steps and sessions.
 	//
@@ -135,7 +125,6 @@ type LLMProperties struct {
 //     properties:
 //     code:
 //     type: "string"
-//     json_mode: true
 //
 // tools:
 //   - resource: "tool"
@@ -147,7 +136,6 @@ type LLMProperties struct {
 //     mode: "read-write"
 //
 // max_iterations: 10
-// json_mode: false
 // ```
 type Config struct {
 	// Embed LLMProperties with inline tags for backward compatibility
@@ -195,7 +183,6 @@ type Config struct {
 	//   - id: "review-code"
 	//     prompt: |
 	//       Analyze code {{.input.code}} for quality and improvements
-	//     json_mode: true
 	//     input:
 	//       type: "object"
 	//       properties:

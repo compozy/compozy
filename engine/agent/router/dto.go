@@ -51,7 +51,6 @@ type AgentActionDTO struct {
 	InputSchema  *schema.Schema         `json:"input,omitempty"`
 	OutputSchema *schema.Schema         `json:"output,omitempty"`
 	With         *core.Input            `json:"with,omitempty"`
-	JSONMode     bool                   `json:"json_mode"`
 	Attachments  attachment.Attachments `json:"attachments,omitempty"`
 }
 
@@ -62,7 +61,6 @@ type AgentDTO struct {
 	Instructions  string                 `json:"instructions,omitempty"`
 	Model         AgentModelDTO          `json:"model"`
 	MaxIterations int                    `json:"max_iterations,omitempty"`
-	JSONMode      bool                   `json:"json_mode"`
 	Actions       []AgentActionDTO       `json:"actions,omitempty"`
 	With          *core.Input            `json:"with,omitempty"`
 	Env           map[string]string      `json:"env,omitempty"`
@@ -115,7 +113,6 @@ func ConvertAgentConfigToDTO(cfg *agent.Config) (AgentDTO, error) {
 		ID:            clone.ID,
 		Instructions:  clone.Instructions,
 		MaxIterations: clone.MaxIterations,
-		JSONMode:      clone.JSONMode,
 		With:          clone.With,
 		Tools:         clone.Tools,
 		MCPs:          clone.MCPs,
@@ -151,7 +148,6 @@ func exportAgentActions(actions []*agent.ActionConfig) []AgentActionDTO {
 			InputSchema:  action.InputSchema,
 			OutputSchema: action.OutputSchema,
 			With:         action.With,
-			JSONMode:     action.JSONMode,
 			Attachments:  action.Attachments,
 		})
 	}

@@ -5,6 +5,7 @@ description: Task that calls the sync assistant agent to acknowledge an input me
 type: basic
 agent: sync-assistant
 action: acknowledge
+
 input:
   type: object
   properties:
@@ -13,6 +14,7 @@ input:
       description: Message text to acknowledge.
   required:
     - message
+
 output:
   type: object
   properties:
@@ -23,5 +25,6 @@ output:
   required:
     - acknowledgement
     - received_message
+
 final: true
 timeout: 60s

@@ -1,5 +1,5 @@
-id: analyzer
 resource: agent
+id: analyzer
 description: Specialized in Go code analysis for performance and best practices
 version: 1.0.0
 
@@ -15,82 +15,63 @@ instructions: |
   Always provide specific, implementable suggestions with code examples when appropriate.
   Focus on practical improvements that will have measurable impact.
 
-  CRITICAL project standards you MUST follow during analysis (treat as ground truth):
-  - Read and apply .cursor/rules/zen-mcp-tools.mdc when using Zen MCP tools
-  - Go coding standards: .cursor/rules/go-coding-standards.mdc
-  - Testing standards: .cursor/rules/test-standards.mdc (MANDATORY "t.Run(\"Should...\")" pattern)
-  - Architecture principles: .cursor/rules/architecture.mdc
-  - Magic numbers & constants: .cursor/rules/magic-numbers.mdc
-  - API standards: .cursor/rules/api-standards.mdc
-  - Backwards compatibility: .cursor/rules/backwards-compatibility.mdc (not required during dev)
-
-  Enforce these checks explicitly in your review:
-  - Logger usage: MUST use logger.FromContext(ctx); NEVER accept logger via DI/params
-  - Configuration: MUST use config.FromContext(ctx); NEVER use global singletons
-  - Context: MUST propagate context; NEVER use context.Background() in runtime paths
-  - Tests: follow the project's test standards and naming conventions
-  - PRD/spec alignment: verify behavior against PRD/tech specs when available; flag gaps
-
-  Never return raw file contents or analysis as plain text.
-
 actions:
   - id: analyze
     prompt: |-
       You are a code review agent with access to tools. You MUST use the available tools to complete this task.
+
+      IMPORTANT: You have access to the following tools:
+      - read_file: To read the contents of files
+      - write_file: To write content to files
+
       Task: Analyze the following Go code file and save the review as a markdown file.
 
-      <filepath>
-        File to review: {{ .input.file_path }}
-      </filepath>
+      File to review: {{ .input.file_path }}
 
-      <steps>
-        Step 1: Read the target file with cp__read_file:
-          { "path": "{{ .input.file_path }}" }
+      STEP-BY-STEP INSTRUCTIONS (YOU MUST USE TOOLS):
 
-        Step 2: After reading the file, you will check its dependencies and related files in order:
-          - To check duplicated code or code smells within it's package
-          - To check if the file is using the best practices and idiomatic patterns
-          - To check if the file is using the standard library and ecosystem
+      Step 1: First, use the read_file tool with the following parameters:
+      {
+        "path": "{{ .input.file_path }}"
+      }
 
-        Step 3: Analyze and synthesize findings, explicitly mapping issues to the project's standards. Combine your observations from code reading and dependency checks into consolidated, actionable recommendations with specific examples.
+      Step 2: After reading the file, analyze the code for:
+         - Performance optimizations
+         - Go best practices violations
+         - Potential bugs or issues
+         - Memory management concerns
+         - Concurrency issues (if applicable)
+         - Suggestions for improvement with specific code examples
 
-        Step 4: Create a comprehensive markdown report with the following structure:
-          # Code Review: [filename]
-          ## Summary
-          Brief overview of the file and its purpose
+      Step 3: Create a comprehensive markdown report with the following structure:
+         # Code Review: [filename]
+         ## Summary
+         Brief overview of the file and its purpose
 
-          ## Performance Analysis
-          Any performance concerns or optimizations
+         ## Performance Analysis
+         Any performance concerns or optimizations
 
-          ## Best Practices Review
-          Go idioms and conventions analysis
+         ## Best Practices Review
+         Go idioms and conventions analysis
 
-          ## Potential Issues
-          Bugs, edge cases, or error handling problems
+         ## Potential Issues
+         Bugs, edge cases, or error handling problems
 
-          ## Recommendations
-          Specific actionable improvements
+         ## Recommendations
+         Specific actionable improvements
 
-          ## Code Examples
-          Improved code snippets where applicable
+         ## Code Examples
+         Improved code snippets where applicable
 
-          ### Dependency and Related Files
-          - List of dependencies and related files
+      Step 4: Use the write_file tool to save your review. Calculate the output path:
+         - Input file: {{ .input.file_path }}
+         - Output path: Add "/reviews/" before the filename and ".md" extension
+         - Example: ./engine/schema/cwd.go → ./engine/schema/reviews/cwd.go.md
 
-        Step 5: Use the write_file tool to save your review. Calculate the output path robustly:
-          - Input file: {{ .input.file_path }}
-          - Output path: Take the directory of the input file, create a 'reviews' subdirectory inside it, and write the report as [filename].md
-          - Example 1: engine/schema/cwd.go → engine/schema/reviews/cwd.go.md
-          - Example 2: main.go → reviews/main.go.md
+      Use write_file with parameters:
+      {
+        "path": "[calculated review file path]",
+        "content": "[your markdown review]"
+      }
 
-        Use write_file with parameters:
-        { "path": "[calculated review file path]", "content": "[your markdown review]" }
-
-        Step 6: Return a brief summary of your findings.
-      </steps>
-
-      <critical>
-        **You MUST use the tools**.
-        Do not just return the file content or analysis as text.
-        Execute the tools to read and write files.
-      </critical>
+      Step 5: Return a brief summary of your findings.

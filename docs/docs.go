@@ -1328,12 +1328,6 @@ const docTemplate = `{
                         "in": "header"
                     },
                     {
-                        "type": "string",
-                        "description": "Optional correlation ID for request tracing",
-                        "name": "X-Correlation-ID",
-                        "in": "header"
-                    },
-                    {
                         "description": "Execution request",
                         "name": "payload",
                         "in": "body",
@@ -1476,12 +1470,6 @@ const docTemplate = `{
                         "name": "agent_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional idempotency key to prevent duplicate execution",
-                        "name": "X-Idempotency-Key",
-                        "in": "header"
                     },
                     {
                         "type": "string",
@@ -7869,12 +7857,6 @@ const docTemplate = `{
                         "in": "header"
                     },
                     {
-                        "type": "string",
-                        "description": "Optional correlation ID for request tracing",
-                        "name": "X-Correlation-ID",
-                        "in": "header"
-                    },
-                    {
                         "description": "Execution request",
                         "name": "payload",
                         "in": "body",
@@ -8017,12 +7999,6 @@ const docTemplate = `{
                         "name": "task_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional idempotency key to prevent duplicate execution",
-                        "name": "X-Idempotency-Key",
-                        "in": "header"
                     },
                     {
                         "type": "string",
@@ -9849,10 +9825,13 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "string",
-                        "description": "Optional idempotency key to prevent duplicate execution",
-                        "name": "X-Idempotency-Key",
-                        "in": "header"
+                        "description": "Workflow input data",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
                     },
                     {
                         "type": "string",
@@ -9991,12 +9970,6 @@ const docTemplate = `{
                         "name": "workflow_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional idempotency key to prevent duplicate execution",
-                        "name": "X-Idempotency-Key",
-                        "in": "header"
                     },
                     {
                         "type": "string",
@@ -10562,10 +10535,6 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "json_mode": {
-                    "description": "Forces JSON-formatted output for this specific action.\nWhen ` + "`" + `true` + "`" + `, the agent must return valid JSON that conforms to the output schema.\n\n**Note:** If an ` + "`" + `OutputSchema` + "`" + ` is defined, JSON mode is automatically enabled.\n\n⚠️ **Trade-off:** Enabling JSON mode may limit the agent's ability to provide\nexplanatory text or reasoning alongside the structured output.",
-                    "type": "boolean"
-                },
                 "output": {
                     "description": "JSON Schema defining the expected output format from this action.\nUsed for validating agent responses and ensuring consistent output structure.\n\nIf ` + "`" + `nil` + "`" + `, no output validation is performed.\n\n**Schema format:** JSON Schema Draft 7",
                     "allOf": [
@@ -10596,7 +10565,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "actions": {
-                    "description": "Structured actions the agent can perform with defined input/output schemas.\nActions provide type-safe interfaces for specific agent capabilities.\n\n**Example:**\n` + "`" + `` + "`" + `` + "`" + `yaml\nactions:\n  - id: \"review-code\"\n    prompt: |\n      Analyze code {{.input.code}} for quality and improvements\n    json_mode: true\n    input:\n      type: \"object\"\n      properties:\n        code:\n          type: \"string\"\n          description: \"The code to review\"\n    output:\n      type: \"object\"\n      properties:\n        quality:\n          type: \"string\"\n          description: \"The quality of the code\"\n` + "`" + `` + "`" + `` + "`" + `\n\n$ref: inline:#action-configuration",
+                    "description": "Structured actions the agent can perform with defined input/output schemas.\nActions provide type-safe interfaces for specific agent capabilities.\n\n**Example:**\n` + "`" + `` + "`" + `` + "`" + `yaml\nactions:\n  - id: \"review-code\"\n    prompt: |\n      Analyze code {{.input.code}} for quality and improvements\n    input:\n      type: \"object\"\n      properties:\n        code:\n          type: \"string\"\n          description: \"The code to review\"\n    output:\n      type: \"object\"\n      properties:\n        quality:\n          type: \"string\"\n          description: \"The quality of the code\"\n` + "`" + `` + "`" + `` + "`" + `\n\n$ref: inline:#action-configuration",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/agent.ActionConfig"
@@ -10625,10 +10594,6 @@ const docTemplate = `{
                 "instructions": {
                     "description": "Provider configuration is now expressed through the polymorphic ` + "`" + `Model` + "`" + ` field.\nThe previous ` + "`" + `Config core.ProviderConfig` + "`" + ` field has been removed.\nSystem instructions that define the agent's personality, behavior, and constraints.\nThese instructions guide how the agent interprets tasks and generates responses.\n\n**Best practices:**\n- Be clear and specific about the agent's role\n- Define boundaries and ethical guidelines\n- Include domain-specific knowledge or constraints\n- Use markdown formatting for better structure",
                     "type": "string"
-                },
-                "json_mode": {
-                    "description": "Forces the agent to always respond in valid JSON format.\nWhen enabled, the agent's responses must be parseable JSON objects.\n\n**Use cases:**\n- API integrations requiring structured data\n- Automated processing of agent outputs\n- Ensuring consistent response formats\n\n⚠️ **Note:** May limit the agent's ability to provide explanatory text",
-                    "type": "boolean"
                 },
                 "max_iterations": {
                     "description": "Maximum number of reasoning iterations the agent can perform.\nThe agent may self-correct and refine its response across multiple iterations\nto improve accuracy and address complex multi-step problems.\n\n**Default:** ` + "`" + `5` + "`" + ` iterations\n\n**Trade-offs:**\n- Higher values enable more thorough problem-solving and self-correction\n- Each iteration consumes additional tokens and increases response latency\n- Configure based on task complexity, accuracy requirements, and cost constraints",
@@ -10703,9 +10668,6 @@ const docTemplate = `{
                 "input": {
                     "$ref": "#/definitions/schema.Schema"
                 },
-                "json_mode": {
-                    "type": "boolean"
-                },
                 "output": {
                     "$ref": "#/definitions/schema.Schema"
                 },
@@ -10741,9 +10703,6 @@ const docTemplate = `{
                 },
                 "instructions": {
                     "type": "string"
-                },
-                "json_mode": {
-                    "type": "boolean"
                 },
                 "max_iterations": {
                     "type": "integer"
@@ -10855,9 +10814,6 @@ const docTemplate = `{
                 },
                 "instructions": {
                     "type": "string"
-                },
-                "json_mode": {
-                    "type": "boolean"
                 },
                 "max_iterations": {
                     "type": "integer"
@@ -12862,10 +12818,6 @@ const docTemplate = `{
                     "description": "Items is a template expression that evaluates to an array\nThe expression should resolve to a list of items to iterate over\n- **Example**: \"{{ .workflow.input.users }}\" or \"{{ range(1, 10) }}\"",
                     "type": "string"
                 },
-                "json_mode": {
-                    "description": "Forces the agent to always respond in valid JSON format.\nWhen enabled, the agent's responses must be parseable JSON objects.\n\n**Use cases:**\n- API integrations requiring structured data\n- Automated processing of agent outputs\n- Ensuring consistent response formats\n\n⚠️ **Note:** May limit the agent's ability to provide explanatory text",
-                    "type": "boolean"
-                },
                 "key_template": {
                     "description": "KeyTemplate is a template expression for the memory key\nSupports template variables for dynamic key generation\n- **Example**: \"user:{{ .workflow.input.user_id }}:profile\"",
                     "type": "string"
@@ -13359,9 +13311,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "items": {},
-                "json_mode": {
-                    "type": "boolean"
-                },
                 "key_template": {
                     "type": "string"
                 },
@@ -13620,9 +13569,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "items": {},
-                "json_mode": {
-                    "type": "boolean"
-                },
                 "key_template": {
                     "type": "string"
                 },
@@ -13800,9 +13746,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "items": {},
-                "json_mode": {
-                    "type": "boolean"
-                },
                 "key_template": {
                     "type": "string"
                 },

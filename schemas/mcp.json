@@ -4,6 +4,13 @@
   "additionalProperties": false,
   "description": "Config represents a **Model Context Protocol (MCP)** server configuration.",
   "properties": {
+    "args": {
+      "description": "Args supplies additional arguments passed to the command when spawning local MCP processes.\n\nOnly used when `command` is provided (stdio transport). Ignored when `url` is configured.\nRuntime validation enforces that `command` and `url` are mutually exclusive.\nUse this to provide flags or subcommands while keeping Command focused on the executable.\nExample:\ncommand: \"uvx\"\nargs: [\"mcp-server-fetch\", \"--port\", \"9000\"]",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "command": {
       "description": "Command is the **executable command** to spawn a local MCP server process.\n\nUsed for stdio transport to run MCP servers as child processes.\nSupports both direct executables and complex commands with arguments.\n\n- **Examples**:\n```yaml\n# Simple executable\ncommand: \"mcp-server-filesystem\"\n\n# Command with arguments\ncommand: \"python /app/mcp_server.py --mode production\"\n\n# Docker container\ncommand: \"docker run --rm -i mcp/postgres:latest\"\n```\n\n**Security Note**: Commands are parsed using shell lexing for safety.\nAvoid user-provided input in commands.",
       "type": "string"

@@ -51,7 +51,7 @@ This package handles:
 ## ⚡ Design Highlights
 
 - **Type-Safe Configuration**: All agent configurations are validated using JSON Schema with comprehensive error reporting
-- **Action System**: Structured actions with input/output validation and JSON mode support
+- **Action System**: Structured actions with input/output validation and native structured outputs (schema-driven)
 - **Memory Integration**: Built-in support for memory references with access control
 - **Provider Agnostic**: Works with multiple LLM providers through a unified interface
 - **Iterative Execution**: Support for multi-iteration agent responses with self-correction
@@ -104,7 +104,6 @@ config := &agent.Config{
     }},
     Instructions: "You are an expert software engineer...",
     MaxIterations: 10,
-    JSONMode: false,
 }
 
 // Validate the configuration
@@ -134,7 +133,6 @@ instructions: |
   Always explain your reasoning and provide actionable feedback.
 
 max_iterations: 10
-json_mode: false
 ```
 
 ### Action System
@@ -184,7 +182,6 @@ action := &agent.ActionConfig{
             },
         },
     },
-    JSONMode: true,
 }
 
 // Find an action by ID
@@ -233,19 +230,17 @@ if err := config.NormalizeAndValidateMemoryConfig(); err != nil {
 | `tools`          | []tool.Config     | No       | Available tools                           |
 | `mcps`           | []mcp.Config      | No       | MCP server configurations                 |
 | `max_iterations` | int               | No       | Maximum reasoning iterations (default: 5) |
-| `json_mode`      | bool              | No       | Force JSON output format                  |
 | `memory`         | []MemoryReference | No       | Memory references                         |
 
 ### Action Configuration Fields
 
-| Field       | Type   | Required | Description                       |
-| ----------- | ------ | -------- | --------------------------------- |
-| `id`        | string | Yes      | Unique action identifier          |
-| `prompt`    | string | Yes      | Action-specific instructions      |
-| `input`     | Schema | No       | Input validation schema           |
-| `output`    | Schema | No       | Output validation schema          |
-| `with`      | Input  | No       | Default action parameters         |
-| `json_mode` | bool   | No       | Force JSON output for this action |
+| Field    | Type   | Required | Description                  |
+| -------- | ------ | -------- | ---------------------------- |
+| `id`     | string | Yes      | Unique action identifier     |
+| `prompt` | string | Yes      | Action-specific instructions |
+| `input`  | Schema | No       | Input validation schema      |
+| `output` | Schema | No       | Output validation schema     |
+| `with`   | Input  | No       | Default action parameters    |
 
 ---
 
@@ -315,8 +310,6 @@ actions:
           type: "array"
           items:
             type: "string"
-    json_mode: true
-
 tools:
   - resource: "tool"
     id: "file-reader"
@@ -365,7 +358,6 @@ actions:
           type: "string"
           description: "Business context for the analysis"
       required: ["data", "analysis_type"]
-    json_mode: true
 
   - id: "generate-report"
     prompt: |
@@ -417,7 +409,6 @@ type Config struct {
     Tools         []tool.Config         `json:"tools,omitempty"`
     MCPs          []mcp.Config          `json:"mcps,omitempty"`
     MaxIterations int                   `json:"max_iterations,omitempty"`
-    JSONMode      bool                  `json:"json_mode"`
     Memory        []core.MemoryReference `json:"memory,omitempty"`
 }
 ```
@@ -433,7 +424,6 @@ type ActionConfig struct {
     InputSchema  *schema.Schema `json:"input,omitempty"`
     OutputSchema *schema.Schema `json:"output,omitempty"`
     With         *core.Input    `json:"with,omitempty"`
-    JSONMode     bool           `json:"json_mode"`
 }
 ```
 

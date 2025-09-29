@@ -16,6 +16,7 @@ import (
 	srrouter "github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/router/routertest"
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
 	"github.com/compozy/compozy/test/helpers/ginmode"
@@ -25,13 +26,16 @@ import (
 
 // stubDirectExecutor provides a deterministic DirectExecutor for exercising request flows in tests.
 type stubDirectExecutor struct {
-	syncOutput  *core.Output
-	syncExecID  core.ID
-	syncErr     error
-	asyncExecID core.ID
-	asyncErr    error
-	syncCalls   int
-	asyncCalls  int
+	syncOutput   *core.Output
+	syncExecID   core.ID
+	syncErr      error
+	asyncExecID  core.ID
+	asyncErr     error
+	syncCalls    int
+	asyncCalls   int
+	lastMetadata tkrouter.ExecMetadata
+	lastAction   string
+	lastWith     *core.Input
 }
 
 type stateSavingAgentExecutor struct {
@@ -62,11 +66,31 @@ func (s *stateSavingAgentExecutor) ExecuteAsync(
 
 func (s *stubDirectExecutor) ExecuteSync(
 	_ context.Context,
-	_ *task.Config,
-	_ *tkrouter.ExecMetadata,
+	cfg *task.Config,
+	meta *tkrouter.ExecMetadata,
 	_ time.Duration,
 ) (*core.Output, core.ID, error) {
 	s.syncCalls++
+	if meta != nil {
+		s.lastMetadata = *meta
+	} else {
+		s.lastMetadata = tkrouter.ExecMetadata{}
+	}
+	if cfg != nil {
+		s.lastAction = cfg.Action
+		if cfg.With != nil {
+			if cloned, err := core.DeepCopy(cfg.With); err == nil {
+				s.lastWith = cloned
+			} else {
+				s.lastWith = nil
+			}
+		} else {
+			s.lastWith = nil
+		}
+	} else {
+		s.lastAction = ""
+		s.lastWith = nil
+	}
 	return s.syncOutput, s.syncExecID, s.syncErr
 }
 
@@ -279,6 +303,74 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		require.Equal(t, http.StatusOK, payload.Status)
 		require.Equal(t, stub.syncExecID.String(), payload.Data.ExecID)
 		require.Equal(t, "ok", payload.Data.Output["text"])
+	})
+
+	t.Run("ShouldExecuteAgentActionSyncSuccessfully", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		agentCfg := &agent.Config{ID: "agent-action"}
+		agentCfg.Model.Config.Provider = "openai"
+		agentCfg.Model.Config.Model = "gpt-4o"
+		agentCfg.Actions = []*agent.ActionConfig{
+			{
+				ID:           "acknowledge",
+				Prompt:       "Acknowledge {{ .with.message }}",
+				OutputSchema: &schema.Schema{"type": "object"},
+			},
+		}
+		m, err := agentCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceAgent, ID: "agent-action"},
+			m,
+		)
+		require.NoError(t, err)
+		output := core.Output{
+			"acknowledgement":  "ack received",
+			"received_message": "Agent action payload",
+		}
+		stub := &stubDirectExecutor{syncOutput: &output, syncExecID: core.MustNewID()}
+		cleanup := installDirectExecutorStub(state, stub)
+		defer cleanup()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/agents/agent-action/executions",
+			strings.NewReader(`{"action":"acknowledge","with":{"message":"Agent action payload"}}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var payload struct {
+			Status int `json:"status"`
+			Data   struct {
+				ExecID string         `json:"exec_id"`
+				Output map[string]any `json:"output"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
+		require.Equal(t, http.StatusOK, payload.Status)
+		require.Equal(t, stub.syncExecID.String(), payload.Data.ExecID)
+		require.Equal(t, "ack received", payload.Data.Output["acknowledgement"])
+		require.Equal(t, "Agent action payload", payload.Data.Output["received_message"])
+		require.Equal(t, 1, stub.syncCalls)
+		require.Equal(t, "acknowledge", stub.lastMetadata.ActionID)
+		require.Equal(t, "acknowledge", stub.lastAction)
+		require.NotNil(t, stub.lastWith)
+		require.Equal(t, "Agent action payload", (*stub.lastWith)["message"])
 	})
 
 	t.Run("ShouldUseStateOutputWhenExecutorReturnsNil", func(t *testing.T) {

@@ -54,7 +54,7 @@ func (h *responseHandler) HandleNoToolCalls(
 		}
 		return nil, true, nil
 	}
-	cont, err = h.handleJSONMode(ctx, response.Content, llmReq, state)
+	cont, err = h.handleStructuredOutput(ctx, response.Content, llmReq, state)
 	if cont || err != nil {
 		if err != nil {
 			return nil, false, err
@@ -74,13 +74,13 @@ func (h *responseHandler) HandleNoToolCalls(
 	return output, false, nil
 }
 
-func (h *responseHandler) handleJSONMode(
+func (h *responseHandler) handleStructuredOutput(
 	ctx context.Context,
 	content string,
 	llmReq *llmadapter.LLMRequest,
 	state *loopState,
 ) (bool, error) {
-	if !llmReq.Options.UseJSONMode {
+	if !llmReq.Options.OutputFormat.IsJSONSchema() {
 		return false, nil
 	}
 	var obj map[string]any
@@ -89,7 +89,7 @@ func (h *responseHandler) handleJSONMode(
 	}
 	key := keyOutputParser
 	state.toolErrors[key]++
-	logger.FromContext(ctx).Debug("Non-JSON content with JSON mode; continuing loop",
+	logger.FromContext(ctx).Debug("Non-JSON content with structured output; continuing loop",
 		"consecutive_errors", state.toolErrors[key],
 		"max", state.budgetFor(key),
 	)
@@ -101,7 +101,7 @@ func (h *responseHandler) handleJSONMode(
 				"key":     key,
 				"attempt": state.toolErrors[key],
 				"max":     state.budgetFor(key),
-				"details": "expected JSON object in JSON mode",
+				"details": "expected JSON object from structured output",
 			},
 		)
 	}
@@ -115,7 +115,7 @@ func (h *responseHandler) handleJSONMode(
 		}},
 	})
 	obs := map[string]any{
-		"error":   "Invalid final response: expected JSON object (json_mode=true)",
+		"error":   "Invalid final response: expected JSON object from structured output",
 		"example": map[string]any{"response": "..."},
 	}
 	if payload, err := json.Marshal(obs); err == nil {

@@ -265,7 +265,6 @@ func TestActionConfig_DeepCopy(t *testing.T) {
 			InputSchema:  originalSchema,
 			OutputSchema: originalSchema, // intentionally same reference
 			With:         originalInput,
-			JSONMode:     true,
 			CWD:          originalCWD,
 		}
 
@@ -276,7 +275,6 @@ func TestActionConfig_DeepCopy(t *testing.T) {
 		// Assert - verify basic fields are copied
 		assert.Equal(t, original.ID, copied.ID)
 		assert.Equal(t, original.Prompt, copied.Prompt)
-		assert.Equal(t, original.JSONMode, copied.JSONMode)
 
 		// Assert - verify pointer fields are different instances
 		assert.NotSame(t, original.With, copied.With)

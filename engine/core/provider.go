@@ -22,6 +22,18 @@ const (
 	ProviderMock      ProviderName = "mock"      // Mock provider for testing
 )
 
+// SupportsNativeJSONSchema reports whether the provider accepts OpenAI-compatible
+// response_format JSON schema requests. Providers like Groq currently reject
+// json_schema payloads, so they return false here to force prompt-based fallbacks.
+func SupportsNativeJSONSchema(provider ProviderName) bool {
+	switch provider {
+	case ProviderOpenAI, ProviderXAI:
+		return true
+	default:
+		return false
+	}
+}
+
 // PromptParams defines the parameters that control LLM behavior during text generation.
 // These parameters allow fine-tuning of model responses for specific use cases and requirements.
 //

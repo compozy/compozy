@@ -259,6 +259,32 @@ func TestConversationLoop_OnEnterUpdateBudgets(t *testing.T) {
 		require.Len(t, loopCtx.LLMRequest.Messages, 1)
 		require.Equal(t, roleTool, loopCtx.LLMRequest.Messages[0].Role)
 	})
+
+	t.Run("ShouldAppendEachToolResultAsSeparateMessage", func(t *testing.T) {
+		exec := &budgetExecutorStub{}
+		cfg := &settings{}
+		loop := newConversationLoop(cfg, exec, noopResponseHandler{}, &recordingInvoker{}, nil)
+		loopCtx := &LoopContext{
+			LLMRequest: &llmadapter.LLMRequest{},
+			State:      newLoopState(cfg, nil, nil),
+			ToolResults: []llmadapter.ToolResult{
+				{ID: "1", Name: "first", Content: `{"ok":true}`},
+				{ID: "2", Name: "second", Content: `{"ok":false}`},
+			},
+			Response: &llmadapter.LLMResponse{
+				ToolCalls: []llmadapter.ToolCall{{ID: "1", Name: "first"}, {ID: "2", Name: "second"}},
+			},
+		}
+		result := loop.OnEnterUpdateBudgets(context.Background(), loopCtx)
+		require.Equal(t, EventBudgetOK, result.Event)
+		require.NoError(t, result.Err)
+		require.Equal(t, 1, exec.calls)
+		require.Len(t, loopCtx.LLMRequest.Messages, 2)
+		for _, msg := range loopCtx.LLMRequest.Messages {
+			require.Equal(t, roleTool, msg.Role)
+			require.Len(t, msg.ToolResults, 1)
+		}
+	})
 	t.Run("ShouldReturnBudgetExceededWhenUpdateFails", func(t *testing.T) {
 		exec := &budgetExecutorStub{err: fmt.Errorf("%w", ErrBudgetExceeded)}
 		cfg := &settings{}

@@ -36,11 +36,6 @@ func Test_ActionConfig_Utilities(t *testing.T) {
 		assert.True(t, a.ShouldUseJSONOutput())
 	})
 
-	t.Run("Should use JSON output when JSONMode is true without OutputSchema", func(t *testing.T) {
-		a := &ActionConfig{JSONMode: true}
-		assert.True(t, a.ShouldUseJSONOutput())
-	})
-
 	t.Run("Should find action by id or return error", func(t *testing.T) {
 		a1 := &ActionConfig{ID: "alpha"}
 		a2 := &ActionConfig{ID: "beta"}

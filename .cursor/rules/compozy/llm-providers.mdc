@@ -94,7 +94,7 @@ models:
 **Features Supported**:
 - ✅ Custom API endpoints (for enterprise)
 - ✅ Organization management
-- ✅ Structured output (JSON mode)
+- ✅ Native structured outputs (response_format JSON schema)
 - ✅ Function calling
 - ✅ Vision capabilities (GPT-4V)
 - ✅ Reproducible outputs (seed parameter)
@@ -157,7 +157,7 @@ models:
 - ✅ OpenAI-compatible API
 - ✅ Custom endpoints
 - ✅ Organization parameter support
-- ✅ Structured output
+- ✅ Structured outputs (OpenAI-compatible)
 
 ### 4.5. Ollama (Local) Configuration
 

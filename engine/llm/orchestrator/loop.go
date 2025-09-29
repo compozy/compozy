@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
@@ -72,6 +73,18 @@ func (l *conversationLoop) OnEnterEvaluateResponse(ctx context.Context, loopCtx 
 		"tool_calls_count",
 		len(toolCalls),
 	)
+	if len(toolCalls) == 1 && strings.EqualFold(toolCalls[0].Name, "json") {
+		if loopCtx.Request.Agent != nil &&
+			strings.EqualFold(
+				string(loopCtx.Request.Agent.Model.Config.Provider),
+				string(core.ProviderGroq),
+			) {
+			log.Debug("Treating Groq JSON tool call as final response", "tool_call_id", toolCalls[0].ID)
+			loopCtx.Response.Content = string(toolCalls[0].Arguments)
+			loopCtx.Response.ToolCalls = nil
+			return transitionResult{Event: EventResponseNoTool}
+		}
+	}
 	if len(toolCalls) == 0 {
 		return transitionResult{Event: EventResponseNoTool}
 	}
@@ -154,10 +167,13 @@ func (l *conversationLoop) OnEnterUpdateBudgets(ctx context.Context, loopCtx *Lo
 		)
 		return transitionResult{Event: EventFailure, Err: err}
 	}
-	loopCtx.LLMRequest.Messages = append(
-		loopCtx.LLMRequest.Messages,
-		llmadapter.Message{Role: roleTool, ToolResults: loopCtx.ToolResults},
-	)
+	for i := range loopCtx.ToolResults {
+		result := loopCtx.ToolResults[i]
+		loopCtx.LLMRequest.Messages = append(
+			loopCtx.LLMRequest.Messages,
+			llmadapter.Message{Role: roleTool, ToolResults: []llmadapter.ToolResult{result}},
+		)
+	}
 	if l.cfg.enableProgressTracking {
 		if loopCtx.Response == nil {
 			return transitionResult{

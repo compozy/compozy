@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/schema"
 )
 
 // LLMRequest represents a request to the LLM, independent of provider
@@ -87,14 +88,39 @@ type ToolResult struct {
 	JSONContent json.RawMessage `json:"json,omitempty"`
 }
 
+type OutputFormatKind int
+
+const (
+	OutputFormatKindDefault OutputFormatKind = iota
+	OutputFormatKindJSONSchema
+)
+
+type OutputFormat struct {
+	Kind   OutputFormatKind
+	Name   string
+	Schema *schema.Schema
+	Strict bool
+}
+
+func (f OutputFormat) IsJSONSchema() bool {
+	return f.Kind == OutputFormatKindJSONSchema && f.Schema != nil
+}
+
+func DefaultOutputFormat() OutputFormat {
+	return OutputFormat{Kind: OutputFormatKindDefault}
+}
+
+func NewJSONSchemaOutputFormat(name string, schema *schema.Schema, strict bool) OutputFormat {
+	return OutputFormat{Kind: OutputFormatKindJSONSchema, Name: name, Schema: schema, Strict: strict}
+}
+
 // CallOptions represents options for the LLM call
 type CallOptions struct {
-	Temperature      float64
-	MaxTokens        int32
-	StopWords        []string
-	UseJSONMode      bool
-	ToolChoice       string // "auto", "none", or specific tool name
-	StructuredOutput bool
+	Temperature  float64
+	MaxTokens    int32
+	StopWords    []string
+	ToolChoice   string // "auto", "none", or specific tool name
+	OutputFormat OutputFormat
 }
 
 // LLMResponse represents the response from the LLM

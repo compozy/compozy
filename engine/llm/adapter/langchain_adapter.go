@@ -2,14 +2,18 @@ package llmadapter
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/openai"
 )
 
 const (
@@ -23,10 +27,12 @@ const (
 
 // LangChainAdapter adapts langchaingo to our LLMClient interface
 type LangChainAdapter struct {
-	model          llms.Model
 	provider       core.ProviderConfig
 	errorParser    *ErrorParser
 	validationMode ValidationMode
+	baseModel      llms.Model
+	modelCache     map[string]llms.Model
+	modelMu        sync.RWMutex
 }
 
 // NewLangChainAdapter creates a new LangChain adapter
@@ -39,9 +45,10 @@ func NewLangChainAdapter(ctx context.Context, config *core.ProviderConfig) (*Lan
 		return nil, fmt.Errorf("failed to create LLM model: %w", err)
 	}
 	return &LangChainAdapter{
-		model:       model,
 		provider:    *config,
 		errorParser: NewErrorParser(string(config.Provider)),
+		baseModel:   model,
+		modelCache:  map[string]llms.Model{"default": model},
 	}, nil
 }
 
@@ -86,8 +93,11 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 		return nil, err
 	}
 	options := a.buildCallOptions(req)
-	// Call the underlying model
-	response, err := a.model.GenerateContent(ctx, messages, options...)
+	model, err := a.ensureModel(ctx, req.Options.OutputFormat)
+	if err != nil {
+		return nil, err
+	}
+	response, err := model.GenerateContent(ctx, messages, options...)
 	if err != nil {
 		// Try to extract structured error information before wrapping
 		// Lazy-init parser if nil to protect against zero-value construction
@@ -342,19 +352,121 @@ func (a *LangChainAdapter) buildCallOptions(req *LLMRequest) []llms.CallOption {
 	if len(req.Tools) > 0 {
 		tools := a.convertTools(req.Tools)
 		options = append(options, llms.WithTools(tools))
+	}
 
-		// Set tool choice if specified
-		if req.Options.ToolChoice != "" {
-			options = append(options, llms.WithToolChoice(req.Options.ToolChoice))
+	// Set tool choice directive when provided (including "none")
+	if req.Options.ToolChoice != "" {
+		options = append(options, llms.WithToolChoice(req.Options.ToolChoice))
+		if req.Options.ToolChoice == "none" {
+			options = append(options, llms.WithFunctionCallBehavior(llms.FunctionCallBehaviorNone))
 		}
 	}
 
-	// Enable JSON mode if requested and no tools
-	if req.Options.UseJSONMode && len(req.Tools) == 0 {
-		options = append(options, llms.WithJSONMode())
-	}
-
 	return options
+}
+
+const defaultModelCacheKey = "default"
+
+func (a *LangChainAdapter) ensureModel(ctx context.Context, format OutputFormat) (llms.Model, error) {
+	effectiveFormat := format
+	if format.IsJSONSchema() && !a.supportsNativeStructuredOutput() {
+		effectiveFormat = DefaultOutputFormat()
+	}
+	key, err := a.formatCacheKey(effectiveFormat)
+	if err != nil {
+		return nil, err
+	}
+	a.modelMu.RLock()
+	if model, ok := a.modelCache[key]; ok {
+		a.modelMu.RUnlock()
+		return model, nil
+	}
+	a.modelMu.RUnlock()
+	responseFormat, err := a.responseFormatFor(effectiveFormat)
+	if err != nil {
+		return nil, err
+	}
+	providerCfg := a.provider
+	model, err := CreateLLMFactory(ctx, &providerCfg, responseFormat)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create LLM model: %w", err)
+	}
+	a.modelMu.Lock()
+	defer a.modelMu.Unlock()
+	if existing, ok := a.modelCache[key]; ok {
+		return existing, nil
+	}
+	a.modelCache[key] = model
+	if key == defaultModelCacheKey {
+		a.baseModel = model
+	}
+	return model, nil
+}
+
+func (a *LangChainAdapter) formatCacheKey(format OutputFormat) (string, error) {
+	if !format.IsJSONSchema() {
+		return defaultModelCacheKey, nil
+	}
+	if format.Schema == nil {
+		return "", fmt.Errorf("structured output schema is required")
+	}
+	raw, err := json.Marshal(format.Schema)
+	if err != nil {
+		return "", fmt.Errorf("marshal structured output schema: %w", err)
+	}
+	sum := sha256.Sum256(raw)
+	name := format.Name
+	if name == "" {
+		name = "action_output"
+	}
+	strict := "0"
+	if format.Strict {
+		strict = "1"
+	}
+	return fmt.Sprintf("schema:%s:%s:%s", name, strict, hex.EncodeToString(sum[:])), nil
+}
+
+func (a *LangChainAdapter) responseFormatFor(format OutputFormat) (*openai.ResponseFormat, error) {
+	if !format.IsJSONSchema() {
+		return nil, nil
+	}
+	if !a.supportsNativeStructuredOutput() {
+		return nil, nil
+	}
+	return createOpenAIResponseFormat(format)
+}
+
+func (a *LangChainAdapter) supportsNativeStructuredOutput() bool {
+	return core.SupportsNativeJSONSchema(a.provider.Provider)
+}
+
+func createOpenAIResponseFormat(format OutputFormat) (*openai.ResponseFormat, error) {
+	if !format.IsJSONSchema() {
+		return nil, nil
+	}
+	if format.Schema == nil {
+		return nil, fmt.Errorf("structured output schema is required")
+	}
+	raw, err := json.Marshal(format.Schema)
+	if err != nil {
+		return nil, fmt.Errorf("marshal structured output schema: %w", err)
+	}
+	var property openai.ResponseFormatJSONSchemaProperty
+	if err := json.Unmarshal(raw, &property); err != nil {
+		return nil, fmt.Errorf("convert structured output schema: %w", err)
+	}
+	name := format.Name
+	if name == "" {
+		name = "action_output"
+	}
+	return &openai.ResponseFormat{
+		Type: "json_schema",
+		JSONSchema: &openai.ResponseFormatJSONSchema{
+			Name:   name,
+			Strict: format.Strict,
+			Schema: &property,
+		},
+	}, nil
 }
 
 // convertTools converts our tool definitions to langchain format

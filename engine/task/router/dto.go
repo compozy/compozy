@@ -42,7 +42,6 @@ type TaskResponse struct {
 	Tools         []tool.Config           `json:"tools,omitempty"`
 	MCPs          []mcp.Config            `json:"mcps,omitempty"`
 	MaxIterations int                     `json:"max_iterations,omitempty"`
-	JSONMode      bool                    `json:"json_mode"`
 	Memory        []core.MemoryReference  `json:"memory,omitempty"`
 	Routes        map[string]any          `json:"routes,omitempty"`
 	Items         any                     `json:"items,omitempty"`
@@ -140,7 +139,6 @@ func ConvertTaskConfigToResponse(cfg *task.Config) (TaskResponse, error) {
 		Tools:         clone.Tools,
 		MCPs:          clone.MCPs,
 		MaxIterations: clone.MaxIterations,
-		JSONMode:      clone.JSONMode,
 		Memory:        clone.Memory,
 		Routes:        clone.Routes,
 		Items:         clone.Items,

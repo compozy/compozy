@@ -26,16 +26,6 @@ definitions:
           If `nil`, the action accepts any input format without validation.
 
           **Schema format:** JSON Schema Draft 7
-      json_mode:
-        description: |-
-          Forces JSON-formatted output for this specific action.
-          When `true`, the agent must return valid JSON that conforms to the output schema.
-
-          **Note:** If an `OutputSchema` is defined, JSON mode is automatically enabled.
-
-          ⚠️ **Trade-off:** Enabling JSON mode may limit the agent's ability to provide
-          explanatory text or reasoning alongside the structured output.
-        type: boolean
       output:
         allOf:
           - $ref: '#/definitions/schema.Schema'
@@ -84,7 +74,6 @@ definitions:
             - id: "review-code"
               prompt: |
                 Analyze code {{.input.code}} for quality and improvements
-              json_mode: true
               input:
                 type: "object"
                 properties:
@@ -142,18 +131,6 @@ definitions:
           - Include domain-specific knowledge or constraints
           - Use markdown formatting for better structure
         type: string
-      json_mode:
-        description: |-
-          Forces the agent to always respond in valid JSON format.
-          When enabled, the agent's responses must be parseable JSON objects.
-
-          **Use cases:**
-          - API integrations requiring structured data
-          - Automated processing of agent outputs
-          - Ensuring consistent response formats
-
-          ⚠️ **Note:** May limit the agent's ability to provide explanatory text
-        type: boolean
       max_iterations:
         description: |-
           Maximum number of reasoning iterations the agent can perform.
@@ -268,8 +245,6 @@ definitions:
         type: string
       input:
         $ref: '#/definitions/schema.Schema'
-      json_mode:
-        type: boolean
       output:
         $ref: '#/definitions/schema.Schema'
       prompt:
@@ -294,8 +269,6 @@ definitions:
         type: string
       instructions:
         type: string
-      json_mode:
-        type: boolean
       max_iterations:
         type: integer
       mcps:
@@ -370,8 +343,6 @@ definitions:
         type: string
       instructions:
         type: string
-      json_mode:
-        type: boolean
       max_iterations:
         type: integer
       mcps:
@@ -2107,18 +2078,6 @@ definitions:
           The expression should resolve to a list of items to iterate over
           - **Example**: "{{ .workflow.input.users }}" or "{{ range(1, 10) }}"
         type: string
-      json_mode:
-        description: |-
-          Forces the agent to always respond in valid JSON format.
-          When enabled, the agent's responses must be parseable JSON objects.
-
-          **Use cases:**
-          - API integrations requiring structured data
-          - Automated processing of agent outputs
-          - Ensuring consistent response formats
-
-          ⚠️ **Note:** May limit the agent's ability to provide explanatory text
-        type: boolean
       key_template:
         description: |-
           KeyTemplate is a template expression for the memory key
@@ -2619,8 +2578,6 @@ definitions:
       item_var:
         type: string
       items: {}
-      json_mode:
-        type: boolean
       key_template:
         type: string
       max_iterations:
@@ -2793,8 +2750,6 @@ definitions:
       item_var:
         type: string
       items: {}
-      json_mode:
-        type: boolean
       key_template:
         type: string
       max_iterations:
@@ -2914,8 +2869,6 @@ definitions:
       item_var:
         type: string
       items: {}
-      json_mode:
-        type: boolean
       key_template:
         type: string
       max_iterations:
@@ -4545,10 +4498,6 @@ paths:
           in: header
           name: X-Idempotency-Key
           type: string
-        - description: Optional correlation ID for request tracing
-          in: header
-          name: X-Correlation-ID
-          type: string
         - description: Execution request
           in: body
           name: payload
@@ -4626,10 +4575,6 @@ paths:
           in: path
           name: agent_id
           required: true
-          type: string
-        - description: Optional idempotency key to prevent duplicate execution
-          in: header
-          name: X-Idempotency-Key
           type: string
         - description: Optional correlation ID for request tracing
           in: header
@@ -8551,10 +8496,6 @@ paths:
           in: header
           name: X-Idempotency-Key
           type: string
-        - description: Optional correlation ID for request tracing
-          in: header
-          name: X-Correlation-ID
-          type: string
         - description: Execution request
           in: body
           name: payload
@@ -8632,10 +8573,6 @@ paths:
           in: path
           name: task_id
           required: true
-          type: string
-        - description: Optional idempotency key to prevent duplicate execution
-          in: header
-          name: X-Idempotency-Key
           type: string
         - description: Optional correlation ID for request tracing
           in: header
@@ -9765,10 +9702,12 @@ paths:
           name: workflow_id
           required: true
           type: string
-        - description: Optional idempotency key to prevent duplicate execution
-          in: header
-          name: X-Idempotency-Key
-          type: string
+        - description: Workflow input data
+          in: body
+          name: input
+          required: true
+          schema:
+            type: object
         - description: Optional correlation ID for request tracing
           in: header
           name: X-Correlation-ID
@@ -9845,10 +9784,6 @@ paths:
           in: path
           name: workflow_id
           required: true
-          type: string
-        - description: Optional idempotency key to prevent duplicate execution
-          in: header
-          name: X-Idempotency-Key
           type: string
         - description: Optional correlation ID for request tracing
           in: header

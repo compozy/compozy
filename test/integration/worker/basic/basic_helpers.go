@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	"strings"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/activity"
@@ -27,6 +29,26 @@ import (
 	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/compozy/compozy/test/integration/worker/helpers"
 )
+
+// normalizeForCompare makes integration string comparisons robust to incidental whitespace
+func normalizeForCompare(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.TrimSpace(s)
+	var b strings.Builder
+	prevEmpty := false
+	for _, line := range strings.Split(s, "\n") {
+		empty := strings.TrimSpace(line) == ""
+		if empty && prevEmpty {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteString("\n")
+		}
+		b.WriteString(line)
+		prevEmpty = empty
+	}
+	return b.String()
+}
 
 // executeWorkflowAndGetState executes a real workflow and retrieves state from database
 func executeWorkflowAndGetState(
@@ -303,6 +325,19 @@ func verifyBasicTaskExecution(t *testing.T, fixture *helpers.TestFixture, result
 					assert.True(t, ok, "Output key %s should exist in task %s", key, basicTask.TaskID)
 
 					// Handle type conversion for JSON deserialization
+					if expectedStr, ok := expectedValue.(string); ok {
+						if actualStr, ok := actualValue.(string); ok {
+							assert.Equal(
+								t,
+								normalizeForCompare(expectedStr),
+								normalizeForCompare(actualStr),
+								"Output value mismatch for key %s in task %s",
+								key,
+								basicTask.TaskID,
+							)
+							continue
+						}
+					}
 					if expectedInt, ok := expectedValue.(int); ok {
 						if actualFloat, ok := actualValue.(float64); ok {
 							assert.Equal(

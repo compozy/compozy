@@ -449,9 +449,6 @@ func hasAgentInlineContent(a *agent.Config) bool {
 	if a.MaxIterations != 0 {
 		return true
 	}
-	if a.JSONMode {
-		return true
-	}
 	return false
 }
 

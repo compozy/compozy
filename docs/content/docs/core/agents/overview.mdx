@@ -94,7 +94,6 @@ actions:
           type: string
           enum: ["python", "go", "javascript"]
       required: ["code", "language"]
-    json_mode: true
     output:
       type: object
       properties:
@@ -254,8 +253,8 @@ Agents excel in various scenarios:
       <ListItem title="Use descriptive IDs">
         Choose meaningful action IDs that describe their purpose
       </ListItem>
-      <ListItem title="Enable JSON mode">
-        Use JSON mode for structured, predictable outputs
+      <ListItem title="Define output schemas">
+        Use JSON Schema to enable structured, predictable outputs (native when provider supports it)
       </ListItem>
     </List>
   </Tab>
