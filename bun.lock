@@ -166,6 +166,15 @@
         "typescript": "^5.8.0",
       },
     },
+    "examples/sync": {
+      "name": "@compozy/example-sync",
+      "version": "0.0.1",
+      "devDependencies": {
+        "oxlint": "^1.4.0",
+        "prettier": "^3.6.0",
+        "typescript": "^5.8.0",
+      },
+    },
     "examples/wait-task": {
       "name": "@compozy/example-wait-task",
       "version": "0.0.1",
@@ -482,6 +491,8 @@
     "@compozy/example-schedules": ["@compozy/example-schedules@workspace:examples/schedules"],
 
     "@compozy/example-signals": ["@compozy/example-signals@workspace:examples/signals"],
+
+    "@compozy/example-sync": ["@compozy/example-sync@workspace:examples/sync"],
 
     "@compozy/example-wait-task": ["@compozy/example-wait-task@workspace:examples/wait-task"],
 

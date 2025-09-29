@@ -290,10 +290,6 @@
       "$ref": "#/$defs/Schema",
       "description": "JSON Schema defining the expected input parameters for this action.\nEnables validation and type checking of inputs before execution.\n\nIf `nil`, the action accepts any input format without validation.\n\n**Schema format:** JSON Schema Draft 7"
     },
-    "json_mode": {
-      "description": "Forces JSON-formatted output for this specific action.\nWhen `true`, the agent must return valid JSON that conforms to the output schema.\n\n**Note:** If an `OutputSchema` is defined, JSON mode is automatically enabled.\n\n⚠️ **Trade-off:** Enabling JSON mode may limit the agent's ability to provide\nexplanatory text or reasoning alongside the structured output.",
-      "type": "boolean"
-    },
     "output": {
       "$ref": "#/$defs/Schema",
       "description": "JSON Schema defining the expected output format from this action.\nUsed for validating agent responses and ensuring consistent output structure.\n\nIf `nil`, no output validation is performed.\n\n**Schema format:** JSON Schema Draft 7"

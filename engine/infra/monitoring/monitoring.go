@@ -30,6 +30,7 @@ type Service struct {
 	config            *Config
 	initialized       bool
 	initializationErr error
+	executionMetrics  *ExecutionMetrics
 }
 
 // newDisabledService creates a service instance with no-op implementations
@@ -39,6 +40,7 @@ func newDisabledService(cfg *Config, initErr error) *Service {
 		meter:             noop.NewMeterProvider().Meter("compozy"),
 		initialized:       false,
 		initializationErr: initErr,
+		executionMetrics:  &ExecutionMetrics{},
 	}
 }
 
@@ -84,6 +86,11 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 		config:      cfg,
 		initialized: true,
 	}
+	execMetrics, err := newExecutionMetrics(meter)
+	if err != nil {
+		return nil, err
+	}
+	service.executionMetrics = execMetrics
 	// Check for context cancellation before system metrics
 	select {
 	case <-ctx.Done():
@@ -122,6 +129,14 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 // Meter returns the OpenTelemetry meter for custom instrumentation
 func (s *Service) Meter() metric.Meter {
 	return s.meter
+}
+
+// ExecutionMetrics exposes execution-specific instruments to request handlers.
+func (s *Service) ExecutionMetrics() *ExecutionMetrics {
+	if s == nil {
+		return nil
+	}
+	return s.executionMetrics
 }
 
 // GinMiddleware returns Gin middleware for HTTP metrics.

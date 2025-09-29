@@ -19,12 +19,13 @@ var (
 
 // Error codes
 const (
-	ErrInternalCode     = "INTERNAL_ERROR"
-	ErrBadRequestCode   = "BAD_REQUEST"
-	ErrUnauthorizedCode = "UNAUTHORIZED"
-	ErrForbiddenCode    = "FORBIDDEN"
-	ErrNotFoundCode     = "NOT_FOUND"
-	ErrConflictCode     = "CONFLICT"
+	ErrInternalCode       = "INTERNAL_ERROR"
+	ErrBadRequestCode     = "BAD_REQUEST"
+	ErrUnauthorizedCode   = "UNAUTHORIZED"
+	ErrForbiddenCode      = "FORBIDDEN"
+	ErrNotFoundCode       = "NOT_FOUND"
+	ErrConflictCode       = "CONFLICT"
+	ErrRequestTimeoutCode = "REQUEST_TIMEOUT"
 )
 
 // Error messages
@@ -138,6 +139,8 @@ func (e *RequestError) GetErrorInfo() *ErrorInfo {
 		code = ErrForbiddenCode
 	case http.StatusConflict:
 		code = ErrConflictCode
+	case http.StatusRequestTimeout:
+		code = ErrRequestTimeoutCode
 	}
 
 	return &ErrorInfo{
@@ -160,6 +163,8 @@ func getStatusCode(code string) int {
 		return http.StatusNotFound
 	case ErrConflictCode:
 		return http.StatusConflict
+	case ErrRequestTimeoutCode:
+		return http.StatusRequestTimeout
 	default:
 		return http.StatusInternalServerError
 	}

@@ -256,32 +256,6 @@ func TestLangChainAdapter_BuildCallOptions(t *testing.T) {
 		// Should have WithTools and WithToolChoice
 		assert.GreaterOrEqual(t, len(options), 2)
 	})
-
-	t.Run("Should enable JSON mode when requested without tools", func(t *testing.T) {
-		req := LLMRequest{
-			Options: CallOptions{
-				UseJSONMode: true,
-			},
-		}
-
-		options := adapter.buildCallOptions(&req)
-
-		assert.GreaterOrEqual(t, len(options), 1)
-	})
-
-	t.Run("Should not enable JSON mode when tools are present", func(t *testing.T) {
-		req := LLMRequest{
-			Tools: []ToolDefinition{{Name: "tool"}},
-			Options: CallOptions{
-				UseJSONMode: true,
-			},
-		}
-
-		options := adapter.buildCallOptions(&req)
-
-		// Should have tool options but not JSON mode
-		assert.GreaterOrEqual(t, len(options), 1)
-	})
 }
 
 func TestLangChainAdapter_ConvertTools(t *testing.T) {
@@ -396,7 +370,7 @@ func TestNewLangChainAdapter(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.NotNil(t, adapter)
-		assert.NotNil(t, adapter.model)
+		assert.NotNil(t, adapter.baseModel)
 		assert.Equal(t, config, adapter.provider)
 	})
 }

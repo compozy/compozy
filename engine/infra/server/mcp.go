@@ -93,7 +93,7 @@ func (s *Server) awaitMCPProxyReady(
 		configuredPoll = 200 * time.Millisecond
 	}
 	reqTimeout := requestTimeout
-	if cfg != nil && cfg.LLM.MCPClientTimeout > 0 {
+	if cfg != nil && cfg.LLM.MCPClientTimeout > reqTimeout {
 		reqTimeout = cfg.LLM.MCPClientTimeout
 	}
 	if reqTimeout <= 0 {
@@ -110,6 +110,8 @@ func (s *Server) awaitMCPProxyReady(
 		req, reqErr := http.NewRequestWithContext(rctx, http.MethodGet, baseURL+"/healthz", http.NoBody)
 		if reqErr != nil {
 			cancel()
+			logger.FromContext(ctx).
+				Error("failed to create MCP readiness request", "error", reqErr, "url", baseURL+"/healthz")
 			time.Sleep(configuredPoll)
 			continue
 		}

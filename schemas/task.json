@@ -641,10 +641,6 @@
       "description": "Items is a template expression that evaluates to an array\nThe expression should resolve to a list of items to iterate over\n- **Example**: \"{{ .workflow.input.users }}\" or \"{{ range(1, 10) }}\"",
       "type": "string"
     },
-    "json_mode": {
-      "description": "Forces the agent to always respond in valid JSON format.\nWhen enabled, the agent's responses must be parseable JSON objects.\n\n**Use cases:**\n- API integrations requiring structured data\n- Automated processing of agent outputs\n- Ensuring consistent response formats\n\n⚠️ **Note:** May limit the agent's ability to provide explanatory text",
-      "type": "boolean"
-    },
     "key_template": {
       "description": "KeyTemplate is a template expression for the memory key\nSupports template variables for dynamic key generation\n- **Example**: \"user:{{ .workflow.input.user_id }}:profile\"",
       "type": "string"

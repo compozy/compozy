@@ -1,0 +1,112 @@
+### Sync Example API Requests
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = sync-demo
+@agentId = sync-assistant
+@taskId = sync-respond
+
+### Run workflow synchronously
+# @name runWorkflowSync
+POST {{baseUrl}}/workflows/{{workflowId}}/executions/sync
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "message": "Hello from the synchronous workflow endpoint"
+  },
+  "timeout": 30
+}
+
+### Execute agent synchronously
+# @name runAgentSync
+POST {{baseUrl}}/agents/{{agentId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "prompt": "Respond with an acknowledgement for the synchronous agent endpoint.",
+  "with": {
+    "message": "Agent sync call payload"
+  }
+}
+
+### Execute agent action synchronously
+# @name runAgentActionSync
+POST {{baseUrl}}/agents/{{agentId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "action": "acknowledge",
+  "with": {
+    "message": "Agent action sync payload"
+  },
+  "timeout": 30
+}
+
+### Execute agent asynchronously
+# @name runAgentAsync
+POST {{baseUrl}}/agents/{{agentId}}/executions/async
+Content-Type: application/json
+Accept: application/json
+
+{
+  "prompt": "Respond with an acknowledgement using the async agent endpoint.",
+  "with": {
+    "message": "Agent async call payload"
+  }
+}
+
+### Execute agent action asynchronously
+# @name runAgentActionAsync
+POST {{baseUrl}}/agents/{{agentId}}/executions/async
+Content-Type: application/json
+Accept: application/json
+
+{
+  "action": "acknowledge",
+  "with": {
+    "message": "Agent action async payload"
+  }
+}
+
+### Get agent async execution ID from response
+@agentAsyncExecId = {{runAgentAsync.response.body.data.exec_id}}
+
+### Check agent async execution status
+# @name getAgentExecutionStatus
+GET {{baseUrl}}/executions/agents/{{agentAsyncExecId}}
+Accept: application/json
+
+### Execute task synchronously
+# @name runTaskSync
+POST {{baseUrl}}/tasks/{{taskId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "with": {
+    "message": "Direct task execution payload"
+  },
+  "timeout": 30
+}
+
+### Execute task asynchronously
+# @name runTaskAsync
+POST {{baseUrl}}/tasks/{{taskId}}/executions/async
+Content-Type: application/json
+Accept: application/json
+
+{
+  "with": {
+    "message": "Direct task async execution payload"
+  }
+}
+
+### Get task async execution ID from response
+@taskAsyncExecId = {{runTaskAsync.response.body.data.exec_id}}
+
+### Check task async execution status
+# @name getTaskExecutionStatus
+GET {{baseUrl}}/executions/tasks/{{taskAsyncExecId}}
+Accept: application/json

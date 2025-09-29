@@ -26,14 +26,12 @@ triggers:
 
 agents:
   - id: comment_analyst
-    json_mode: true
     instructions: |
       You analyze GitHub issue comments. Determine sentiment (positive, neutral, negative),
       whether the comment asks a question, and extract short tags. Be concise and return ONLY JSON.
       Do not fabricate repository or user details—use exactly what is provided.
     actions:
       - id: analyze_comment
-        json_mode: true
         prompt: |
           Analyze this GitHub issue comment.
 
@@ -55,6 +53,55 @@ agents:
           - tags: array of 1-5 short tags
           - action_required: boolean
           - reasoning: brief reason for action (omit if action_required=false)
+        output:
+          type: object
+          properties:
+            sentiment:
+              type: string
+              enum:
+                - positive
+                - neutral
+                - negative
+              description: Overall sentiment classification
+            summary:
+              type: string
+              description: Short summary of the comment (max 20 words)
+            author:
+              type: string
+              description: Login of the commenter
+            issue_number:
+              type: integer
+              description: Issue number associated with the comment
+            is_question:
+              type: boolean
+              description: Indicates if the comment asks a question
+            toxicity_score:
+              type: number
+              minimum: 0
+              maximum: 1
+              description: Toxicity score between 0 and 1
+            tags:
+              type: array
+              minItems: 1
+              maxItems: 5
+              items:
+                type: string
+              description: Short tags summarizing the comment
+            action_required:
+              type: boolean
+              description: Whether follow-up action is needed
+            reasoning:
+              type: string
+              description: Provided when action_required is true
+          required:
+            - sentiment
+            - summary
+            - author
+            - issue_number
+            - is_question
+            - toxicity_score
+            - tags
+            - action_required
 
 tasks:
   - id: analyze

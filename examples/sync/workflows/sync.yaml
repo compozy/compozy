@@ -1,0 +1,29 @@
+id: sync-demo
+version: 0.1.0
+description: Workflow that sends a message to a single agent and returns its acknowledgement.
+
+schemas:
+  - id: sync_input
+    type: object
+    properties:
+      message:
+        type: string
+        description: Message text to acknowledge.
+    required:
+      - message
+
+config:
+  input: sync_input
+
+tasks:
+  - id: sync-respond
+    type: basic
+    agent: sync-assistant
+    action: acknowledge
+    with:
+      message: "{{ .workflow.input.message }}"
+    final: true
+
+outputs:
+  acknowledgement: "{{ .tasks.sync-respond.output.acknowledgement }}"
+  received_message: "{{ .tasks.sync-respond.output.received_message }}"

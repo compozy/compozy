@@ -27,7 +27,7 @@ instructions: |
   Your capabilities:
   - Provide thoughtful recommendations for activities
   - Suggest appropriate clothing based on weather
-  Always respond in valid JSON format when json_mode is enabled.
+  When actions define an output schema, respond with data that matches it. Structured outputs are schema-driven.
 
 tools:
   - weather_tool
@@ -38,7 +38,6 @@ actions:
       What is the current weather in {{ .workflow.input.city }}?
 
   - id: suggest_activities
-    json_mode: true
     prompt: |
       Given the current conditions: {{ .tasks.weather.output | toJson }}
       Suggest appropriate activities for these weather conditions

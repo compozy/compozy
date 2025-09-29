@@ -1299,24 +1299,47 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v0/workflows/export": {
+        "/agents/{agent_id}/executions": {
             "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
+                "description": "Execute an agent and wait for the output in the same HTTP response.",
+                "consumes": [
+                    "application/json"
                 ],
-                "description": "Write workflow YAML files for the active project.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "workflows"
+                    "agents"
                 ],
-                "summary": "Export workflows",
+                "summary": "Execute agent synchronously",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"assistant\"",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional idempotency key to prevent duplicate execution",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Execution request",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentrouter.AgentExecRequest"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "Example: {\\\"data\\\":{\\\"written\\\":2},\\\"message\\\":\\\"export completed\\\"}",
+                        "description": "Agent executed",
                         "schema": {
                             "allOf": [
                                 {
@@ -1326,10 +1349,79 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "type": "integer"
-                                            }
+                                            "$ref": "#/definitions/agentrouter.AgentExecSyncResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Agent not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "408": {
+                        "description": "Execution timeout",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
                                         }
                                     }
                                 }
@@ -1337,7 +1429,7 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "allOf": [
                                 {
@@ -1357,36 +1449,47 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v0/workflows/import": {
+        "/agents/{agent_id}/executions/async": {
             "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
+                "description": "Start an asynchronous agent execution and return a polling handle.",
+                "consumes": [
+                    "application/json"
                 ],
-                "description": "Read workflow YAML files from the project directory.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "workflows"
+                    "agents"
                 ],
-                "summary": "Import workflows",
+                "summary": "Start agent execution asynchronously",
                 "parameters": [
                     {
-                        "enum": [
-                            "seed_only",
-                            "overwrite_conflicts"
-                        ],
                         "type": "string",
-                        "description": "seed_only|overwrite_conflicts",
-                        "name": "strategy",
-                        "in": "query"
+                        "example": "\"assistant\"",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Execution request",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentrouter.AgentExecRequest"
+                        }
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":2,\\\"skipped\\\":0,\\\"overwritten\\\":0,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                    "202": {
+                        "description": "Agent execution started",
                         "schema": {
                             "allOf": [
                                 {
@@ -1396,16 +1499,57 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": true
+                                            "$ref": "#/definitions/agentrouter.AgentExecAsyncResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Execution status URL"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
                                         }
                                     }
                                 }
                             ]
                         }
                     },
-                    "400": {
-                        "description": "Bad Request",
+                    "404": {
+                        "description": "Agent not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate request",
                         "schema": {
                             "allOf": [
                                 {
@@ -1423,7 +1567,7 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "allOf": [
                                 {
@@ -1724,6 +1868,162 @@ const docTemplate = `{
                     },
                     "503": {
                         "description": "Worker unavailable",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/executions/agents/{exec_id}": {
+            "get": {
+                "description": "Retrieve the latest status for a direct agent execution.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Get agent execution status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
+                        "description": "Agent execution ID",
+                        "name": "exec_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Execution status retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/agentrouter.ExecutionStatusDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Execution not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to load execution",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/executions/tasks/{exec_id}": {
+            "get": {
+                "description": "Retrieve the latest status for a direct task execution.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Get task execution status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
+                        "description": "Task execution ID",
+                        "name": "exec_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Execution status retrieved",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/tkrouter.TaskExecutionStatusDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Execution not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to load execution",
                         "schema": {
                             "allOf": [
                                 {
@@ -7528,6 +7828,294 @@ const docTemplate = `{
                 }
             }
         },
+        "/tasks/{task_id}/executions": {
+            "post": {
+                "description": "Execute a task and wait for the output in the same HTTP response.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Execute task synchronously",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"task-build-artifact\"",
+                        "description": "Task ID",
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional idempotency key to prevent duplicate execution",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Execution request",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/tkrouter.TaskExecRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Task executed",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/tkrouter.TaskExecSyncResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Task not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "408": {
+                        "description": "Execution timeout",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{task_id}/executions/async": {
+            "post": {
+                "description": "Start an asynchronous task execution and return a polling handle.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Start task execution asynchronously",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"task-build-artifact\"",
+                        "description": "Task ID",
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Execution request",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/tkrouter.TaskExecRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Task execution started",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/tkrouter.TaskExecAsyncResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Execution status URL"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Task not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/tools": {
             "get": {
                 "description": "List tools with cursor pagination. Optionally filter by workflow usage.",
@@ -8469,6 +9057,150 @@ const docTemplate = `{
                 }
             }
         },
+        "/workflows/export": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Write workflow YAML files for the active project.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Export workflows",
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"written\\\":2},\\\"message\\\":\\\"export completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/workflows/import": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Read workflow YAML files from the project directory.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Import workflows",
+                "parameters": [
+                    {
+                        "enum": [
+                            "seed_only",
+                            "overwrite_conflicts"
+                        ],
+                        "type": "string",
+                        "description": "seed_only|overwrite_conflicts",
+                        "name": "strategy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Example: {\\\"data\\\":{\\\"imported\\\":2,\\\"skipped\\\":0,\\\"overwritten\\\":0,\\\"strategy\\\":\\\"seed_only\\\"},\\\"message\\\":\\\"import completed\\\"}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/workflows/{workflow_id}": {
             "get": {
                 "description": "Retrieve a workflow configuration with optional field selection and expansion.",
@@ -9100,6 +9832,21 @@ const docTemplate = `{
                         "schema": {
                             "type": "object"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Workflow input data",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
                     }
                 ],
                 "responses": {
@@ -9119,6 +9866,12 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Execution status URL"
+                            }
                         }
                     },
                     "400": {
@@ -9141,6 +9894,174 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Workflow not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "503": {
+                        "description": "Worker unavailable",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/workflows/{workflow_id}/executions/sync": {
+            "post": {
+                "description": "Execute a workflow and wait for completion within the provided timeout.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Execute workflow synchronously",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"data-processing\"",
+                        "description": "Workflow ID",
+                        "name": "workflow_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Execution request",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wfrouter.WorkflowSyncRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Workflow execution completed",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/wfrouter.WorkflowSyncResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Workflow not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "408": {
+                        "description": "Execution timeout",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate request",
                         "schema": {
                             "allOf": [
                                 {
@@ -9614,10 +10535,6 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "json_mode": {
-                    "description": "Forces JSON-formatted output for this specific action.\nWhen ` + "`" + `true` + "`" + `, the agent must return valid JSON that conforms to the output schema.\n\n**Note:** If an ` + "`" + `OutputSchema` + "`" + ` is defined, JSON mode is automatically enabled.\n\n⚠️ **Trade-off:** Enabling JSON mode may limit the agent's ability to provide\nexplanatory text or reasoning alongside the structured output.",
-                    "type": "boolean"
-                },
                 "output": {
                     "description": "JSON Schema defining the expected output format from this action.\nUsed for validating agent responses and ensuring consistent output structure.\n\nIf ` + "`" + `nil` + "`" + `, no output validation is performed.\n\n**Schema format:** JSON Schema Draft 7",
                     "allOf": [
@@ -9648,7 +10565,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "actions": {
-                    "description": "Structured actions the agent can perform with defined input/output schemas.\nActions provide type-safe interfaces for specific agent capabilities.\n\n**Example:**\n` + "`" + `` + "`" + `` + "`" + `yaml\nactions:\n  - id: \"review-code\"\n    prompt: |\n      Analyze code {{.input.code}} for quality and improvements\n    json_mode: true\n    input:\n      type: \"object\"\n      properties:\n        code:\n          type: \"string\"\n          description: \"The code to review\"\n    output:\n      type: \"object\"\n      properties:\n        quality:\n          type: \"string\"\n          description: \"The quality of the code\"\n` + "`" + `` + "`" + `` + "`" + `\n\n$ref: inline:#action-configuration",
+                    "description": "Structured actions the agent can perform with defined input/output schemas.\nActions provide type-safe interfaces for specific agent capabilities.\n\n**Example:**\n` + "`" + `` + "`" + `` + "`" + `yaml\nactions:\n  - id: \"review-code\"\n    prompt: |\n      Analyze code {{.input.code}} for quality and improvements\n    input:\n      type: \"object\"\n      properties:\n        code:\n          type: \"string\"\n          description: \"The code to review\"\n    output:\n      type: \"object\"\n      properties:\n        quality:\n          type: \"string\"\n          description: \"The quality of the code\"\n` + "`" + `` + "`" + `` + "`" + `\n\n$ref: inline:#action-configuration",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/agent.ActionConfig"
@@ -9677,10 +10594,6 @@ const docTemplate = `{
                 "instructions": {
                     "description": "Provider configuration is now expressed through the polymorphic ` + "`" + `Model` + "`" + ` field.\nThe previous ` + "`" + `Config core.ProviderConfig` + "`" + ` field has been removed.\nSystem instructions that define the agent's personality, behavior, and constraints.\nThese instructions guide how the agent interprets tasks and generates responses.\n\n**Best practices:**\n- Be clear and specific about the agent's role\n- Define boundaries and ethical guidelines\n- Include domain-specific knowledge or constraints\n- Use markdown formatting for better structure",
                     "type": "string"
-                },
-                "json_mode": {
-                    "description": "Forces the agent to always respond in valid JSON format.\nWhen enabled, the agent's responses must be parseable JSON objects.\n\n**Use cases:**\n- API integrations requiring structured data\n- Automated processing of agent outputs\n- Ensuring consistent response formats\n\n⚠️ **Note:** May limit the agent's ability to provide explanatory text",
-                    "type": "boolean"
                 },
                 "max_iterations": {
                     "description": "Maximum number of reasoning iterations the agent can perform.\nThe agent may self-correct and refine its response across multiple iterations\nto improve accuracy and address complex multi-step problems.\n\n**Default:** ` + "`" + `5` + "`" + ` iterations\n\n**Trade-offs:**\n- Higher values enable more thorough problem-solving and self-correction\n- Each iteration consumes additional tokens and increases response latency\n- Configure based on task complexity, accuracy requirements, and cost constraints",
@@ -9755,9 +10668,6 @@ const docTemplate = `{
                 "input": {
                     "$ref": "#/definitions/schema.Schema"
                 },
-                "json_mode": {
-                    "type": "boolean"
-                },
                 "output": {
                     "$ref": "#/definitions/schema.Schema"
                 },
@@ -9794,9 +10704,6 @@ const docTemplate = `{
                 "instructions": {
                     "type": "string"
                 },
-                "json_mode": {
-                    "type": "boolean"
-                },
                 "max_iterations": {
                     "type": "integer"
                 },
@@ -9829,6 +10736,56 @@ const docTemplate = `{
                 }
             }
         },
+        "agentrouter.AgentExecAsyncResponse": {
+            "type": "object",
+            "properties": {
+                "exec_id": {
+                    "type": "string",
+                    "example": "2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                },
+                "exec_url": {
+                    "type": "string",
+                    "example": "https://api.compozy.dev/api/v0/executions/agents/2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                }
+            }
+        },
+        "agentrouter.AgentExecRequest": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "description": "Action selects a predefined agent action to execute.",
+                    "type": "string"
+                },
+                "prompt": {
+                    "description": "Prompt supplies an ad-hoc prompt for the agent when no action is provided.",
+                    "type": "string"
+                },
+                "timeout": {
+                    "description": "Timeout in seconds for synchronous execution.",
+                    "type": "integer"
+                },
+                "with": {
+                    "description": "With passes structured input parameters to the agent execution.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
+                }
+            }
+        },
+        "agentrouter.AgentExecSyncResponse": {
+            "type": "object",
+            "properties": {
+                "exec_id": {
+                    "type": "string",
+                    "example": "2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                },
+                "output": {
+                    "$ref": "#/definitions/core.Output"
+                }
+            }
+        },
         "agentrouter.AgentListItem": {
             "type": "object",
             "properties": {
@@ -9857,9 +10814,6 @@ const docTemplate = `{
                 },
                 "instructions": {
                     "type": "string"
-                },
-                "json_mode": {
-                    "type": "boolean"
                 },
                 "max_iterations": {
                     "type": "integer"
@@ -9915,6 +10869,41 @@ const docTemplate = `{
                 },
                 "page": {
                     "$ref": "#/definitions/httpdto.PageInfoDTO"
+                }
+            }
+        },
+        "agentrouter.ExecutionStatusDTO": {
+            "type": "object",
+            "properties": {
+                "component": {
+                    "$ref": "#/definitions/core.ComponentType"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "error": {
+                    "$ref": "#/definitions/core.Error"
+                },
+                "exec_id": {
+                    "type": "string"
+                },
+                "output": {
+                    "$ref": "#/definitions/core.Output"
+                },
+                "status": {
+                    "$ref": "#/definitions/core.StatusType"
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workflow_exec_id": {
+                    "type": "string"
+                },
+                "workflow_id": {
+                    "type": "string"
                 }
             }
         },
@@ -10614,6 +11603,13 @@ const docTemplate = `{
         "mcp.Config": {
             "type": "object",
             "properties": {
+                "args": {
+                    "description": "Args supplies additional arguments passed to the command when spawning local MCP processes.\n\nOnly used when ` + "`" + `command` + "`" + ` is provided (stdio transport). Ignored when ` + "`" + `url` + "`" + ` is configured.\nRuntime validation enforces that ` + "`" + `command` + "`" + ` and ` + "`" + `url` + "`" + ` are mutually exclusive.\nUse this to provide flags or subcommands while keeping Command focused on the executable.\nExample:\ncommand: \"uvx\"\nargs: [\"mcp-server-fetch\", \"--port\", \"9000\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "command": {
                     "description": "Command is the **executable command** to spawn a local MCP server process.\n\nUsed for stdio transport to run MCP servers as child processes.\nSupports both direct executables and complex commands with arguments.\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\n# Simple executable\ncommand: \"mcp-server-filesystem\"\n\n# Command with arguments\ncommand: \"python /app/mcp_server.py --mode production\"\n\n# Docker container\ncommand: \"docker run --rm -i mcp/postgres:latest\"\n` + "`" + `` + "`" + `` + "`" + `\n\n**Security Note**: Commands are parsed using shell lexing for safety.\nAvoid user-provided input in commands.",
                     "type": "string"
@@ -10893,6 +11889,13 @@ const docTemplate = `{
         "mcprouter.MCPDTO": {
             "type": "object",
             "properties": {
+                "args": {
+                    "description": "Args lists additional command arguments when the MCP server runs via stdio transport.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "command": {
                     "type": "string"
                 },
@@ -10934,6 +11937,13 @@ const docTemplate = `{
         "mcprouter.MCPListItem": {
             "type": "object",
             "properties": {
+                "args": {
+                    "description": "Args lists additional command arguments when the MCP server runs via stdio transport.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "command": {
                     "type": "string"
                 },
@@ -11808,10 +12818,6 @@ const docTemplate = `{
                     "description": "Items is a template expression that evaluates to an array\nThe expression should resolve to a list of items to iterate over\n- **Example**: \"{{ .workflow.input.users }}\" or \"{{ range(1, 10) }}\"",
                     "type": "string"
                 },
-                "json_mode": {
-                    "description": "Forces the agent to always respond in valid JSON format.\nWhen enabled, the agent's responses must be parseable JSON objects.\n\n**Use cases:**\n- API integrations requiring structured data\n- Automated processing of agent outputs\n- Ensuring consistent response formats\n\n⚠️ **Note:** May limit the agent's ability to provide explanatory text",
-                    "type": "boolean"
-                },
                 "key_template": {
                     "description": "KeyTemplate is a template expression for the memory key\nSupports template variables for dynamic key generation\n- **Example**: \"user:{{ .workflow.input.user_id }}:profile\"",
                     "type": "string"
@@ -12305,9 +13311,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "items": {},
-                "json_mode": {
-                    "type": "boolean"
-                },
                 "key_template": {
                     "type": "string"
                 },
@@ -12426,6 +13429,83 @@ const docTemplate = `{
                 }
             }
         },
+        "tkrouter.TaskExecAsyncResponse": {
+            "type": "object",
+            "properties": {
+                "exec_id": {
+                    "type": "string",
+                    "example": "2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                },
+                "exec_url": {
+                    "type": "string",
+                    "example": "https://api.compozy.dev/api/v0/executions/tasks/2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                }
+            }
+        },
+        "tkrouter.TaskExecRequest": {
+            "type": "object",
+            "properties": {
+                "timeout": {
+                    "description": "Timeout in seconds for synchronous execution.",
+                    "type": "integer"
+                },
+                "with": {
+                    "description": "With passes structured input parameters to the task execution.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
+                }
+            }
+        },
+        "tkrouter.TaskExecSyncResponse": {
+            "type": "object",
+            "properties": {
+                "exec_id": {
+                    "type": "string",
+                    "example": "2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                },
+                "output": {
+                    "$ref": "#/definitions/core.Output"
+                }
+            }
+        },
+        "tkrouter.TaskExecutionStatusDTO": {
+            "type": "object",
+            "properties": {
+                "component": {
+                    "$ref": "#/definitions/core.ComponentType"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "error": {
+                    "$ref": "#/definitions/core.Error"
+                },
+                "exec_id": {
+                    "type": "string"
+                },
+                "output": {
+                    "$ref": "#/definitions/core.Output"
+                },
+                "status": {
+                    "$ref": "#/definitions/core.StatusType"
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workflow_exec_id": {
+                    "type": "string"
+                },
+                "workflow_id": {
+                    "type": "string"
+                }
+            }
+        },
         "tkrouter.TaskListItem": {
             "type": "object",
             "properties": {
@@ -12489,9 +13569,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "items": {},
-                "json_mode": {
-                    "type": "boolean"
-                },
                 "key_template": {
                     "type": "string"
                 },
@@ -12669,9 +13746,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "items": {},
-                "json_mode": {
-                    "type": "boolean"
-                },
                 "key_template": {
                     "type": "string"
                 },
@@ -13221,7 +14295,7 @@ const docTemplate = `{
                 },
                 "exec_url": {
                     "type": "string",
-                    "example": "localhost:5001/api/v0/executions/workflows/2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                    "example": "https://api.compozy.dev/api/v0/executions/workflows/2Z4PVTL6K27XVT4A3NPKMDD5BG"
                 },
                 "workflow_id": {
                     "type": "string",
@@ -13452,6 +14526,33 @@ const docTemplate = `{
                 },
                 "version": {
                     "type": "string"
+                }
+            }
+        },
+        "wfrouter.WorkflowSyncRequest": {
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string"
+                },
+                "timeout": {
+                    "description": "Timeout in seconds for synchronous execution.",
+                    "type": "integer"
+                }
+            }
+        },
+        "wfrouter.WorkflowSyncResponse": {
+            "type": "object",
+            "properties": {
+                "exec_id": {
+                    "type": "string",
+                    "example": "2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                },
+                "output": {
+                    "$ref": "#/definitions/core.Output"
+                },
+                "workflow": {
+                    "$ref": "#/definitions/workflow.State"
                 }
             }
         },

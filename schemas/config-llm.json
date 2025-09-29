@@ -11,12 +11,20 @@
       },
       "type": "array"
     },
+    "enable_progress_tracking": {
+      "description": "EnableProgressTracking toggles loop progress tracking to detect stalled\nconversations or repeated tool usage without advancement.\nDefault: false",
+      "type": "boolean"
+    },
     "fail_on_mcp_registration_error": {
       "description": "FailOnMCPRegistrationError enforces fail-fast behavior when registering\nMCP configurations sourced from agents/projects. When true, MCP\nregistration failures cause service initialization to error.",
       "type": "boolean"
     },
     "max_concurrent_tools": {
       "description": "MaxConcurrentTools limits the number of tools that can execute in parallel.\n\nControls resource usage and prevents overwhelming downstream services.\nHigher values improve throughput, lower values reduce resource contention.\nDefault: 10",
+      "type": "integer"
+    },
+    "max_consecutive_successes": {
+      "description": "MaxConsecutiveSuccesses controls how many consecutive successful tool calls\nwithout progress are tolerated before the orchestrator halts the loop.\nDefault: 3 (orchestrator default)",
       "type": "integer"
     },
     "max_sequential_tool_errors": {
@@ -41,6 +49,10 @@
     },
     "mcp_readiness_timeout": {
       "description": "MCPReadinessTimeout bounds how long to wait for MCP clients to connect during setup.\nDefault: 60s",
+      "type": "integer"
+    },
+    "no_progress_threshold": {
+      "description": "NoProgressThreshold configures how many loop iterations without progress are\ntolerated before the orchestrator considers the interaction stalled.\nDefault: 3 (orchestrator default)",
       "type": "integer"
     },
     "proxy_url": {

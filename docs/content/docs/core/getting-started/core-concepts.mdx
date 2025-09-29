@@ -266,13 +266,23 @@ actions:
           type: string
 
   - id: generate_response
-    json_mode: true
     prompt: |
       Based on the customer's message and intent:
       Message: {{ .input.message }}
       Intent: {{ .input.intent }}
 
       Generate an appropriate response that addresses their needs.
+    output:
+      type: object
+      properties:
+        response:
+          type: string
+          description: Final reply sent to the customer
+        escalation_required:
+          type: boolean
+          description: Flag set when human follow-up is suggested
+      required:
+        - response
 ```
 
 **Key features:**

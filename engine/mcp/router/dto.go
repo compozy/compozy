@@ -24,10 +24,11 @@ type MCPsListResponse struct {
 }
 
 type MCPCoreDTO struct {
-	Resource     string            `json:"resource,omitempty"`
-	ID           string            `json:"id"`
-	URL          string            `json:"url,omitempty"`
-	Command      string            `json:"command,omitempty"`
+	Resource string `json:"resource,omitempty"`
+	ID       string `json:"id"`
+	URL      string `json:"url,omitempty"`
+	Command  string `json:"command,omitempty"`
+	// Args lists additional command arguments when the MCP server runs via stdio transport.
 	Args         []string          `json:"args,omitempty"`
 	Headers      map[string]string `json:"headers,omitempty"`
 	Env          map[string]string `json:"env,omitempty"`

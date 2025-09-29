@@ -42,10 +42,8 @@ agents:
       If the API uses different casing, pass through what it returns and include
       stable aliases: `changed_files` (number), `author` (login). On any failure, return
       {"error":"reason"}.
-    json_mode: true
     actions:
       - id: get_last_pull_request
-        json_mode: true
         prompt: |
           Repository: {{ .input.repository }}
           Use an available GitHub MCP tool to list pull requests for the repository above.
@@ -60,6 +58,41 @@ agents:
           Also capture the PR author's login (e.g., user.login). Only use tools present in request.tools.
           Return JSON only with at least {"number", "title", "state", "html_url", "changed_files", "author"}.
           If no suitable tool exists or any call fails, return {"error": "reason"}.
+        output:
+          type: object
+          properties:
+            number:
+              type: integer
+              description: Pull request number
+            title:
+              type: string
+              description: Pull request title
+            state:
+              type: string
+              description: Pull request state (e.g., open, closed)
+            html_url:
+              type: string
+              format: uri
+              description: URL to the pull request on GitHub
+            changed_files:
+              type: integer
+              description: Number of files changed in the pull request
+            author:
+              type: string
+              description: Login of the pull request author
+            error:
+              type: string
+              description: Set when the request fails and no pull request is returned
+          anyOf:
+            - required:
+                - number
+                - title
+                - state
+                - html_url
+                - changed_files
+                - author
+            - required:
+                - error
 
 tasks:
   - id: latest_pr
