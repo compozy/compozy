@@ -16,15 +16,6 @@ import (
 	"github.com/tmc/langchaingo/llms/openai"
 )
 
-const (
-	// OpenAIMaxAudioBytes is the maximum audio file size supported by OpenAI
-	OpenAIMaxAudioBytes = 25 * 1024 * 1024
-
-	// OpenAIMaxPreEncodedAudioBytes is the maximum raw audio size before base64 encoding
-	// Base64 encoding increases size by ~33%, so ~18MB raw = ~25MB base64
-	OpenAIMaxPreEncodedAudioBytes = 18 * 1024 * 1024
-)
-
 // LangChainAdapter adapts langchaingo to our LLMClient interface
 type LangChainAdapter struct {
 	provider       core.ProviderConfig
@@ -66,16 +57,6 @@ const (
 
 // SetValidationMode configures how unsupported content is handled
 func (a *LangChainAdapter) SetValidationMode(mode ValidationMode) { a.validationMode = mode }
-
-// convertAudioToDataURL converts audio binary to a base64 data URL
-func (a *LangChainAdapter) convertAudioToDataURL(mimeType string, data []byte) string {
-	// Base64 encoding increases size by ~33%, check before encoding
-	if len(data) > OpenAIMaxPreEncodedAudioBytes {
-		return ""
-	}
-	b64 := base64.StdEncoding.EncodeToString(data)
-	return fmt.Sprintf("data:%s;base64,%s", mimeType, b64)
-}
 
 // GenerateContent implements LLMClient interface
 func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest) (*LLMResponse, error) {
@@ -239,31 +220,14 @@ func (a *LangChainAdapter) handleAV(
 		return append(parts, llms.BinaryContent{MIMEType: v.MIMEType, Data: v.Data}), nil
 	}
 	if a.provider.Provider == core.ProviderOpenAI && a.isAudio(v.MIMEType) {
-		if len(v.Data) > OpenAIMaxAudioBytes {
-			if a.validationMode == ValidationModeError {
-				return nil, fmt.Errorf(
-					"audio size %d exceeds OpenAI limit of %d bytes",
-					len(v.Data),
-					OpenAIMaxAudioBytes,
-				)
-			}
-			if a.validationMode == ValidationModeWarn {
-				logger.FromContext(ctx).Warn("Audio exceeds provider max size. Skipping.", "size", len(v.Data))
-			}
-			return parts, nil
+		if a.validationMode == ValidationModeError {
+			return nil, fmt.Errorf("OpenAI audio input not supported in langchaingo (requires input_audio)")
 		}
-		dataURL := a.convertAudioToDataURL(v.MIMEType, v.Data)
-		if dataURL == "" {
-			if a.validationMode == ValidationModeError {
-				return nil, fmt.Errorf("audio data too large for base64 encoding")
-			}
-			if a.validationMode == ValidationModeWarn {
-				logger.FromContext(ctx).Warn("Audio too large for base64 encoding. Skipping.", "size", len(v.Data))
-			}
-			return parts, nil
+		if a.validationMode == ValidationModeWarn {
+			logger.FromContext(ctx).
+				Warn("OpenAI audio not supported in this path. Skipping.", "mime", v.MIMEType, "size", len(v.Data))
 		}
-		logger.FromContext(ctx).Debug("Converted audio to data URL for OpenAI", "mime", v.MIMEType, "size", len(v.Data))
-		return append(parts, llms.ImageURLContent{URL: dataURL}), nil
+		return parts, nil
 	}
 	if a.provider.Provider == core.ProviderOpenAI && a.isVideo(v.MIMEType) {
 		if a.validationMode == ValidationModeError {
@@ -515,7 +479,6 @@ func (a *LangChainAdapter) convertResponse(resp *llms.ContentResponse) (*LLMResp
 
 	// Note: langchaingo ContentResponse doesn't have Usage field
 	// Usage tracking would need to be implemented at a different level
-
 	return response, nil
 }
 

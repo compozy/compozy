@@ -187,64 +187,112 @@ func loadDirectTaskConfig(
 	timeouts taskExecutionTimeouts,
 ) (*task.Config, time.Duration, bool) {
 	projectName := state.ProjectConfig.Name
+	taskCfg, ok := fetchTaskDefinition(c, resourceStore, projectName, taskID)
+	if !ok {
+		return nil, 0, false
+	}
+	if !hydrateTaskAgentConfig(c, resourceStore, projectName, taskID, taskCfg) {
+		return nil, 0, false
+	}
+	applyTaskRequestOverrides(taskCfg, taskID, req)
+	execTimeout, ok := computeDirectExecutionTimeout(c, req, taskCfg, timeouts)
+	if !ok {
+		return nil, 0, false
+	}
+	taskCfg.Timeout = execTimeout.String()
+	return taskCfg, execTimeout, true
+}
+
+func fetchTaskDefinition(
+	c *gin.Context,
+	resourceStore resources.ResourceStore,
+	projectName string,
+	taskID string,
+) (*task.Config, bool) {
 	getUC := taskuc.NewGet(resourceStore)
 	out, err := getUC.Execute(c.Request.Context(), &taskuc.GetInput{Project: projectName, ID: taskID})
 	if err != nil {
 		if errors.Is(err, taskuc.ErrNotFound) {
 			reqErr := router.NewRequestError(http.StatusNotFound, "task not found", err)
 			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-			return nil, 0, false
+			return nil, false
 		}
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to load task", err)
-		return nil, 0, false
+		return nil, false
 	}
 	taskCfg := &task.Config{}
 	if err := taskCfg.FromMap(out.Task); err != nil {
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to decode task", err)
-		return nil, 0, false
+		return nil, false
 	}
-	if taskCfg.Agent != nil {
-		agentID := strings.TrimSpace(taskCfg.Agent.ID)
-		if agentID == "" {
-			reqErr := fmt.Errorf("task %s missing agent reference", taskID)
-			router.RespondWithServerError(c, router.ErrInternalCode, "task missing agent identifier", reqErr)
-			return nil, 0, false
-		}
-		if len(taskCfg.Agent.Actions) == 0 {
-			getAgent := agentuc.NewGet(resourceStore)
-			agentOut, err := getAgent.Execute(c.Request.Context(), &agentuc.GetInput{Project: projectName, ID: agentID})
-			if err != nil {
-				if errors.Is(err, agentuc.ErrNotFound) {
-					reqErr := router.NewRequestError(http.StatusNotFound, "agent not found", err)
-					router.RespondWithError(c, reqErr.StatusCode, reqErr)
-					return nil, 0, false
-				}
-				router.RespondWithServerError(c, router.ErrInternalCode, "failed to load agent", err)
-				return nil, 0, false
-			}
-			agentCfg := &agent.Config{}
-			if err := agentCfg.FromMap(agentOut.Agent); err != nil {
-				router.RespondWithServerError(c, router.ErrInternalCode, "failed to decode agent", err)
-				return nil, 0, false
-			}
-			taskCfg.Agent = agentCfg
-		}
+	return taskCfg, true
+}
+
+func hydrateTaskAgentConfig(
+	c *gin.Context,
+	resourceStore resources.ResourceStore,
+	projectName string,
+	taskID string,
+	taskCfg *task.Config,
+) bool {
+	if taskCfg.Agent == nil {
+		return true
 	}
+	agentID := strings.TrimSpace(taskCfg.Agent.ID)
+	if agentID == "" {
+		reqErr := fmt.Errorf("task %s missing agent reference", taskID)
+		router.RespondWithServerError(c, router.ErrInternalCode, "task missing agent identifier", reqErr)
+		return false
+	}
+	if len(taskCfg.Agent.Actions) > 0 {
+		return true
+	}
+	getAgent := agentuc.NewGet(resourceStore)
+	agentOut, err := getAgent.Execute(c.Request.Context(), &agentuc.GetInput{Project: projectName, ID: agentID})
+	if err != nil {
+		if errors.Is(err, agentuc.ErrNotFound) {
+			reqErr := router.NewRequestError(http.StatusNotFound, "agent not found", err)
+			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			return false
+		}
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to load agent", err)
+		return false
+	}
+	agentCfg := &agent.Config{}
+	if err := agentCfg.FromMap(agentOut.Agent); err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to decode agent", err)
+		return false
+	}
+	taskCfg.Agent = agentCfg
+	return true
+}
+
+func applyTaskRequestOverrides(taskCfg *task.Config, taskID string, req *TaskExecRequest) {
 	if taskCfg.ID == "" {
 		taskCfg.ID = taskID
+	}
+	if req == nil {
+		return
 	}
 	if len(req.With) > 0 {
 		withCopy := req.With
 		taskCfg.With = &withCopy
 	}
-	execTimeout, timeoutErr := resolveDirectTaskTimeout(c.Request.Context(), req, taskCfg, timeouts)
+}
+
+func computeDirectExecutionTimeout(
+	c *gin.Context,
+	req *TaskExecRequest,
+	taskCfg *task.Config,
+	limits taskExecutionTimeouts,
+) (time.Duration, bool) {
+	execTimeout, timeoutErr := resolveDirectTaskTimeout(c.Request.Context(), req, taskCfg, limits)
 	if timeoutErr != nil {
 		reqErr := router.NewRequestError(http.StatusBadRequest, timeoutErr.Error(), timeoutErr)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return nil, 0, false
+		return 0, false
 	}
-	taskCfg.Timeout = execTimeout.String()
-	return taskCfg, execTimeout, true
+	return execTimeout, true
 }
 
 func respondTaskTimeout(
@@ -337,71 +385,134 @@ type TaskExecRequest struct {
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/tasks/{task_id}/executions [post]
 func executeTaskSync(c *gin.Context) {
+	setup, ok := validateTaskExecution(c)
+	if !ok {
+		return
+	}
+	outcome := monitoring.ExecutionOutcomeError
+	defer func() { setup.finalize(outcome) }()
+	prep, ok := prepareTaskExecution(c, setup)
+	if !ok {
+		return
+	}
+	outcome = executeTaskSyncAndRespond(c, setup, prep)
+}
+
+type syncTaskExecutionSetup struct {
+	taskID        string
+	state         *appstate.State
+	resourceStore resources.ResourceStore
+	req           *TaskExecRequest
+	timeouts      taskExecutionTimeouts
+	metrics       *monitoring.ExecutionMetrics
+	finalize      func(string)
+	recordError   func(int)
+}
+
+type syncTaskPreparation struct {
+	taskCfg     *task.Config
+	execTimeout time.Duration
+	repo        task.Repository
+	executor    DirectExecutor
+	meta        ExecMetadata
+}
+
+func validateTaskExecution(c *gin.Context) (*syncTaskExecutionSetup, bool) {
 	taskID := router.GetTaskID(c)
 	if taskID == "" {
-		return
+		return nil, false
 	}
 	state := router.GetAppState(c)
 	if state == nil {
-		return
+		return nil, false
 	}
 	metrics, finalizeMetrics, recordError := router.SyncExecutionMetricsScope(c, state, monitoring.ExecutionKindTask)
-	outcome := monitoring.ExecutionOutcomeError
-	defer func() { finalizeMetrics(outcome) }()
 	resourceStore, ok := router.GetResourceStore(c)
 	if !ok {
 		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
-		return
+		return nil, false
 	}
 	timeouts := resolveTaskExecutionTimeouts(c.Request.Context(), state)
 	req, ok := parseTaskExecRequest(c)
 	if !ok {
 		recordError(http.StatusBadRequest)
-		return
+		return nil, false
 	}
-	taskCfg, execTimeout, ok := loadDirectTaskConfig(c, resourceStore, state, taskID, req, timeouts)
+	return &syncTaskExecutionSetup{
+		taskID:        taskID,
+		state:         state,
+		resourceStore: resourceStore,
+		req:           req,
+		timeouts:      timeouts,
+		metrics:       metrics,
+		finalize:      finalizeMetrics,
+		recordError:   recordError,
+	}, true
+}
+
+func prepareTaskExecution(c *gin.Context, setup *syncTaskExecutionSetup) (*syncTaskPreparation, bool) {
+	taskCfg, execTimeout, ok := loadDirectTaskConfig(
+		c,
+		setup.resourceStore,
+		setup.state,
+		setup.taskID,
+		setup.req,
+		setup.timeouts,
+	)
 	if !ok {
-		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
-		return
+		setup.recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
+		return nil, false
 	}
-	repo := router.ResolveTaskRepository(c, state)
+	repo := router.ResolveTaskRepository(c, setup.state)
 	if repo == nil {
-		recordError(http.StatusInternalServerError)
+		setup.recordError(http.StatusInternalServerError)
 		reqErr := router.NewRequestError(http.StatusInternalServerError, "task repository unavailable", nil)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return
+		return nil, false
 	}
-	executor, err := ResolveDirectExecutor(state, repo)
+	executor, err := ResolveDirectExecutor(setup.state, repo)
 	if err != nil {
-		recordError(http.StatusInternalServerError)
+		setup.recordError(http.StatusInternalServerError)
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to initialize executor", err)
-		return
+		return nil, false
 	}
 	component := deriveTaskComponent(taskCfg)
-	meta := ExecMetadata{Component: component, TaskID: taskCfg.ID}
-	output, execID, execErr := executor.ExecuteSync(
+	return &syncTaskPreparation{
+		taskCfg:     taskCfg,
+		execTimeout: execTimeout,
+		repo:        repo,
+		executor:    executor,
+		meta:        ExecMetadata{Component: component, TaskID: taskCfg.ID},
+	}, true
+}
+
+func executeTaskSyncAndRespond(
+	c *gin.Context,
+	setup *syncTaskExecutionSetup,
+	prep *syncTaskPreparation,
+) string {
+	output, execID, execErr := prep.executor.ExecuteSync(
 		c.Request.Context(),
-		taskCfg,
-		&meta,
-		execTimeout,
+		prep.taskCfg,
+		&prep.meta,
+		prep.execTimeout,
 	)
 	if execErr != nil {
 		if errors.Is(execErr, context.DeadlineExceeded) {
-			outcome = monitoring.ExecutionOutcomeTimeout
-			status := respondTaskTimeout(c, repo, taskID, execID, metrics)
-			recordError(status)
-			return
+			status := respondTaskTimeout(c, prep.repo, setup.taskID, execID, setup.metrics)
+			setup.recordError(status)
+			return monitoring.ExecutionOutcomeTimeout
 		}
-		recordError(http.StatusInternalServerError)
+		setup.recordError(http.StatusInternalServerError)
 		router.RespondWithServerError(c, router.ErrInternalCode, "task execution failed", execErr)
-		return
+		return monitoring.ExecutionOutcomeError
 	}
-	outcome = monitoring.ExecutionOutcomeSuccess
 	router.RespondOK(
 		c,
 		"task executed",
-		buildTaskSyncPayload(c.Request.Context(), repo, taskID, execID, output),
+		buildTaskSyncPayload(c.Request.Context(), prep.repo, setup.taskID, execID, output),
 	)
+	return monitoring.ExecutionOutcomeSuccess
 }
 
 // executeTaskAsync handles POST /tasks/{task_id}/executions/async.

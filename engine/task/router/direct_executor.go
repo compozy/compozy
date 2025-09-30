@@ -141,6 +141,43 @@ func (d *directExecutor) normalizeToolComponent(
 	return nil
 }
 
+func (d *directExecutor) initializeWorkflowState(
+	execID core.ID,
+	preparedCfg *task.Config,
+	meta *ExecMetadata,
+) (*workflow.Config, *workflow.State) {
+	workflowID := meta.WorkflowID
+	if workflowID == "" {
+		workflowID = preparedCfg.ID
+	}
+	meta.WorkflowID = workflowID
+	wfConfig := &workflow.Config{ID: workflowID}
+	wfConfig.Tasks = []task.Config{*preparedCfg}
+	wfState := workflow.NewState(workflowID, execID, preparedCfg.With)
+	return wfConfig, wfState
+}
+
+func (d *directExecutor) normalizeComponents(
+	wfState *workflow.State,
+	wfConfig *workflow.Config,
+	preparedCfg *task.Config,
+	directInputCopy *core.Input,
+) error {
+	if err := d.normalizeTaskConfig(wfState, wfConfig, preparedCfg); err != nil {
+		return err
+	}
+	restoreDirectInput(preparedCfg, directInputCopy)
+	taskConfigs := task2.BuildTaskConfigsMap(wfConfig.Tasks)
+	taskConfigs[preparedCfg.ID] = preparedCfg
+	if err := d.normalizeAgentComponent(wfState, wfConfig, preparedCfg, taskConfigs); err != nil {
+		return err
+	}
+	if err := d.normalizeToolComponent(wfState, wfConfig, preparedCfg, taskConfigs); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (d *directExecutor) prepareExecutionPlan(
 	_ context.Context,
 	cfg *task.Config,
@@ -165,24 +202,8 @@ func (d *directExecutor) prepareExecutionPlan(
 	if cloneErr != nil {
 		return nil, fmt.Errorf("failed to clone task input: %w", cloneErr)
 	}
-	workflowID := meta.WorkflowID
-	if workflowID == "" {
-		workflowID = preparedCfg.ID
-	}
-	meta.WorkflowID = workflowID
-	wfConfig := &workflow.Config{ID: workflowID}
-	wfConfig.Tasks = []task.Config{*preparedCfg}
-	wfState := workflow.NewState(workflowID, execID, preparedCfg.With)
-	if err := d.normalizeTaskConfig(wfState, wfConfig, preparedCfg); err != nil {
-		return nil, err
-	}
-	restoreDirectInput(preparedCfg, directInputCopy)
-	taskConfigs := task2.BuildTaskConfigsMap(wfConfig.Tasks)
-	taskConfigs[preparedCfg.ID] = preparedCfg
-	if err := d.normalizeAgentComponent(wfState, wfConfig, preparedCfg, taskConfigs); err != nil {
-		return nil, err
-	}
-	if err := d.normalizeToolComponent(wfState, wfConfig, preparedCfg, taskConfigs); err != nil {
+	wfConfig, wfState := d.initializeWorkflowState(execID, preparedCfg, meta)
+	if err := d.normalizeComponents(wfState, wfConfig, preparedCfg, directInputCopy); err != nil {
 		return nil, err
 	}
 	wfConfig.Tasks = []task.Config{*preparedCfg}
@@ -192,6 +213,28 @@ func (d *directExecutor) prepareExecutionPlan(
 		workflowConfig: wfConfig,
 		meta:           meta,
 	}, nil
+}
+
+func setupConfigOrchestrator(
+	workflowRepo workflow.Repository,
+	taskRepo task.Repository,
+) (*task2.ConfigOrchestrator, *tplengine.TemplateEngine, error) {
+	tplEng := tplengine.NewEngine(tplengine.FormatJSON)
+	envMerger := task2core.NewEnvMerger()
+	factory, err := task2.NewFactory(&task2.FactoryConfig{
+		TemplateEngine: tplEng,
+		EnvMerger:      envMerger,
+		WorkflowRepo:   workflowRepo,
+		TaskRepo:       taskRepo,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create task normalizer factory: %w", err)
+	}
+	orchestrator, err := task2.NewConfigOrchestrator(factory)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create task config orchestrator: %w", err)
+	}
+	return orchestrator, tplEng, nil
 }
 
 func NewDirectExecutor(
@@ -212,20 +255,9 @@ func NewDirectExecutor(
 	if workflowRepo == nil && state.Store != nil {
 		workflowRepo = state.Store.NewWorkflowRepo()
 	}
-	tplEng := tplengine.NewEngine(tplengine.FormatJSON)
-	envMerger := task2core.NewEnvMerger()
-	factory, err := task2.NewFactory(&task2.FactoryConfig{
-		TemplateEngine: tplEng,
-		EnvMerger:      envMerger,
-		WorkflowRepo:   workflowRepo,
-		TaskRepo:       taskRepo,
-	})
+	orchestrator, tplEng, err := setupConfigOrchestrator(workflowRepo, taskRepo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create task normalizer factory: %w", err)
-	}
-	orchestrator, err := task2.NewConfigOrchestrator(factory)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create task config orchestrator: %w", err)
+		return nil, err
 	}
 	var memManager memcore.ManagerInterface
 	if state.Worker != nil {
@@ -267,19 +299,8 @@ func (d *directExecutor) ExecuteSync(
 	if err != nil {
 		return nil, zeroID, err
 	}
-	state := d.buildInitialState(execID, plan.config, plan.meta)
-	now := time.Now().UTC()
-	state.CreatedAt = now
-	state.UpdatedAt = now
-	if err := d.ensureWorkflowState(ctx, plan.config, plan.meta, state); err != nil {
-		return nil, zeroID, err
-	}
-	if err := d.taskRepo.UpsertState(ctx, state); err != nil {
-		return nil, zeroID, fmt.Errorf("failed to persist execution state: %w", err)
-	}
-	if err := d.updateState(ctx, state, func(s *task.State) {
-		s.Status = core.StatusRunning
-	}); err != nil {
+	state, err := d.initExecutionState(ctx, plan, execID)
+	if err != nil {
 		return nil, zeroID, err
 	}
 	if _, err := d.ensureRuntime(ctx); err != nil {
@@ -321,6 +342,29 @@ func (d *directExecutor) ExecuteSync(
 	}
 }
 
+func (d *directExecutor) initExecutionState(
+	ctx context.Context,
+	plan *executionPlan,
+	execID core.ID,
+) (*task.State, error) {
+	state := d.buildInitialState(execID, plan.config, plan.meta)
+	now := time.Now().UTC()
+	state.CreatedAt = now
+	state.UpdatedAt = now
+	if err := d.ensureWorkflowState(ctx, plan.config, plan.meta, state); err != nil {
+		return nil, err
+	}
+	if err := d.taskRepo.UpsertState(ctx, state); err != nil {
+		return nil, fmt.Errorf("failed to persist execution state: %w", err)
+	}
+	if err := d.updateState(ctx, state, func(s *task.State) {
+		s.Status = core.StatusRunning
+	}); err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
 func (d *directExecutor) ExecuteAsync(ctx context.Context, cfg *task.Config, meta *ExecMetadata) (core.ID, error) {
 	var zeroID core.ID
 	if ctx == nil {
@@ -337,19 +381,8 @@ func (d *directExecutor) ExecuteAsync(ctx context.Context, cfg *task.Config, met
 	if err != nil {
 		return zeroID, err
 	}
-	state := d.buildInitialState(execID, plan.config, plan.meta)
-	now := time.Now().UTC()
-	state.CreatedAt = now
-	state.UpdatedAt = now
-	if err := d.ensureWorkflowState(ctx, plan.config, plan.meta, state); err != nil {
-		return zeroID, err
-	}
-	if err := d.taskRepo.UpsertState(ctx, state); err != nil {
-		return zeroID, fmt.Errorf("failed to persist execution state: %w", err)
-	}
-	if err := d.updateState(ctx, state, func(s *task.State) {
-		s.Status = core.StatusRunning
-	}); err != nil {
+	state, err := d.initExecutionState(ctx, plan, execID)
+	if err != nil {
 		return zeroID, err
 	}
 	if _, err := d.ensureRuntime(ctx); err != nil {
@@ -379,48 +412,14 @@ func (d *directExecutor) runExecution(
 	plan *executionPlan,
 	resultCh chan<- execResult,
 ) {
-	if plan == nil {
-		res := execResult{err: fmt.Errorf("execution plan not initialized")}
-		if resultCh != nil {
-			select {
-			case resultCh <- res:
-			default:
-			}
-		}
+	res := execResult{}
+	if err := d.ensurePlanReady(plan); err != nil {
+		res.err = err
+		d.sendExecResult(resultCh, &res)
 		return
 	}
-	if plan.meta == nil {
-		plan.meta = &ExecMetadata{}
-	}
-	log := logger.FromContext(ctx)
-	res := execResult{}
-	defer func() {
-		if resultCh != nil {
-			select {
-			case resultCh <- res:
-			default:
-			}
-		}
-	}()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("direct execution panic: %v", r)
-			log.Error("Direct execution panicked", "error", err)
-			if errUp := d.updateState(ctx, state, func(s *task.State) {
-				s.Status = core.StatusFailed
-				s.Error = core.NewError(err, "DIRECT_EXECUTION_FAILED", nil)
-				s.Output = nil
-			}); errUp != nil {
-				log.Error(
-					"Failed to update execution state",
-					"error", errUp,
-					"task_id", state.TaskID,
-					"exec_id", state.TaskExecID.String(),
-				)
-			}
-			res.err = err
-		}
-	}()
+	defer d.sendExecResult(resultCh, &res)
+	defer d.recoverExecution(ctx, state, &res)
 	output, err := d.executeOnce(ctx, state, plan)
 	if err != nil {
 		res.err = err
@@ -434,22 +433,11 @@ func (d *directExecutor) executeOnce(
 	state *task.State,
 	plan *executionPlan,
 ) (*core.Output, error) {
-	if plan == nil {
-		return nil, fmt.Errorf("execution plan not initialized")
+	if err := d.ensurePlanReady(plan); err != nil {
+		return nil, err
 	}
-	if plan.meta == nil {
-		plan.meta = &ExecMetadata{}
-	}
-	rt, err := d.ensureRuntime(ctx)
+	rt, err := d.acquireRuntime(ctx, state)
 	if err != nil {
-		log := logger.FromContext(ctx)
-		if upErr := d.updateState(ctx, state, func(s *task.State) {
-			s.Status = core.StatusFailed
-			s.Error = core.NewError(err, "DIRECT_EXECUTION_FAILED", nil)
-			s.Output = nil
-		}); upErr != nil {
-			log.Error("Failed to update execution state", "error", upErr)
-		}
 		return nil, err
 	}
 	ucExec := uc.NewExecuteTask(rt, d.workflowRepo, d.memoryManager, d.templateEngine, nil)
@@ -461,19 +449,101 @@ func (d *directExecutor) executeOnce(
 		ProjectConfig:  d.projectConfig,
 	}
 	output, execErr := ucExec.Execute(ctx, input)
-	log := logger.FromContext(ctx)
 	if execErr != nil {
-		if upErr := d.updateState(ctx, state, func(s *task.State) {
-			s.Status = core.StatusFailed
-			s.Error = core.NewError(execErr, "DIRECT_EXECUTION_FAILED", map[string]any{
-				"task_id": s.TaskID,
-			})
-			s.Output = nil
-		}); upErr != nil {
-			log.Error("Failed to update execution state", "error", upErr)
-		}
+		d.markExecutionFailure(ctx, state, execErr)
 		return nil, execErr
 	}
+	d.markExecutionSuccess(ctx, state, output)
+	return output, nil
+}
+
+func (d *directExecutor) ensurePlanReady(plan *executionPlan) error {
+	if plan == nil {
+		return fmt.Errorf("execution plan not initialized")
+	}
+	if plan.meta == nil {
+		plan.meta = &ExecMetadata{}
+	}
+	return nil
+}
+
+func (d *directExecutor) sendExecResult(ch chan<- execResult, res *execResult) {
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- *res:
+	default:
+	}
+}
+
+func (d *directExecutor) recoverExecution(
+	ctx context.Context,
+	state *task.State,
+	res *execResult,
+) {
+	if r := recover(); r != nil {
+		err := fmt.Errorf("direct execution panic: %v", r)
+		log := logger.FromContext(ctx)
+		log.Error("Direct execution panicked", "error", err)
+		if errUp := d.updateState(ctx, state, func(s *task.State) {
+			s.Status = core.StatusFailed
+			s.Error = core.NewError(err, "DIRECT_EXECUTION_FAILED", nil)
+			s.Output = nil
+		}); errUp != nil {
+			log.Error(
+				"Failed to update execution state",
+				"error", errUp,
+				"task_id", state.TaskID,
+				"exec_id", state.TaskExecID.String(),
+			)
+		}
+		res.err = err
+	}
+}
+
+func (d *directExecutor) acquireRuntime(
+	ctx context.Context,
+	state *task.State,
+) (runtime.Runtime, error) {
+	rt, err := d.ensureRuntime(ctx)
+	if err == nil {
+		return rt, nil
+	}
+	log := logger.FromContext(ctx)
+	if upErr := d.updateState(ctx, state, func(s *task.State) {
+		s.Status = core.StatusFailed
+		s.Error = core.NewError(err, "DIRECT_EXECUTION_FAILED", nil)
+		s.Output = nil
+	}); upErr != nil {
+		log.Error("Failed to update execution state", "error", upErr)
+	}
+	return nil, err
+}
+
+func (d *directExecutor) markExecutionFailure(
+	ctx context.Context,
+	state *task.State,
+	err error,
+) {
+	log := logger.FromContext(ctx)
+	if upErr := d.updateState(ctx, state, func(s *task.State) {
+		s.Status = core.StatusFailed
+		s.Error = core.NewError(err, "DIRECT_EXECUTION_FAILED", map[string]any{
+			"task_id": s.TaskID,
+		})
+		s.Output = nil
+	}); upErr != nil {
+		log.Error("Failed to update execution state", "error", upErr)
+	}
+}
+
+func (d *directExecutor) markExecutionSuccess(
+	ctx context.Context,
+	state *task.State,
+	output *core.Output,
+) {
+	log := logger.FromContext(ctx)
 	if upErr := d.updateState(ctx, state, func(s *task.State) {
 		s.Status = core.StatusSuccess
 		s.Error = nil
@@ -481,7 +551,6 @@ func (d *directExecutor) executeOnce(
 	}); upErr != nil {
 		log.Error("Failed to update execution state", "error", upErr)
 	}
-	return output, nil
 }
 
 func (d *directExecutor) ensureRuntime(ctx context.Context) (runtime.Runtime, error) {

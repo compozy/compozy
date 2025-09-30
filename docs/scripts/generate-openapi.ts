@@ -1,6 +1,5 @@
 import { generateFiles } from "fumadocs-openapi";
 import { randomUUID } from "node:crypto";
-import { readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { loadOpenAPIDocument } from "../src/lib/openapi-loader";
@@ -26,7 +25,7 @@ async function main(): Promise<void> {
     });
     await rewriteDocumentPaths(patchedPath);
   } finally {
-    await rm(patchedPath, { force: true });
+    await Bun.file(patchedPath).unlink();
   }
 }
 
@@ -57,20 +56,11 @@ async function rewriteDocumentPaths(patchedPath: string): Promise<void> {
 }
 
 async function listMdxFiles(directory: string): Promise<string[]> {
-  const entries = await readdir(directory, { withFileTypes: true });
+  const glob = new Bun.Glob("**/*.mdx");
   const files: string[] = [];
-  await Promise.all(
-    entries.map(async entry => {
-      const fullPath = path.join(directory, entry.name);
-      if (entry.isDirectory()) {
-        files.push(...(await listMdxFiles(fullPath)));
-        return;
-      }
-      if (entry.isFile() && entry.name.endsWith(".mdx")) {
-        files.push(fullPath);
-      }
-    })
-  );
+  for await (const file of glob.scan({ cwd: directory })) {
+    files.push(path.join(directory, file));
+  }
   return files;
 }
 

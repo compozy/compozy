@@ -125,37 +125,35 @@ func parseAgentExecRequest(c *gin.Context) (*AgentExecRequest, bool) {
 	return req, true
 }
 
-func loadAgentTaskConfig(
-	c *gin.Context,
+func loadAgentConfig(
+	ctx context.Context,
 	resourceStore resources.ResourceStore,
-	state *appstate.State,
+	projectName string,
 	agentID string,
-	req *AgentExecRequest,
-) (*task.Config, bool) {
-	projectName := state.ProjectConfig.Name
+) (*agent.Config, error) {
 	getUC := agentuc.NewGet(resourceStore)
-	out, err := getUC.Execute(c.Request.Context(), &agentuc.GetInput{Project: projectName, ID: agentID})
+	out, err := getUC.Execute(ctx, &agentuc.GetInput{Project: projectName, ID: agentID})
 	if err != nil {
-		if errors.Is(err, agentuc.ErrNotFound) {
-			reqErr := router.NewRequestError(http.StatusNotFound, "agent not found", err)
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-			return nil, false
-		}
-		router.RespondWithServerError(c, router.ErrInternalCode, "failed to load agent", err)
-		return nil, false
+		return nil, err
 	}
 	agentConfig := &agent.Config{}
 	if err := agentConfig.FromMap(out.Agent); err != nil {
-		router.RespondWithServerError(c, router.ErrInternalCode, "failed to decode agent", err)
-		return nil, false
+		return nil, fmt.Errorf("failed to decode agent config: %w", err)
 	}
-	if req.Action != "" {
-		if _, err := agent.FindActionConfig(agentConfig.Actions, req.Action); err != nil {
-			reqErr := router.NewRequestError(http.StatusBadRequest, "unknown action", err)
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-			return nil, false
-		}
+	return agentConfig, nil
+}
+
+func validateAgentAction(agentConfig *agent.Config, action string) error {
+	if action == "" {
+		return nil
 	}
+	if _, err := agent.FindActionConfig(agentConfig.Actions, action); err != nil {
+		return err
+	}
+	return nil
+}
+
+func buildTaskConfig(agentID string, agentConfig *agent.Config, req *AgentExecRequest) *task.Config {
 	cfg := &task.Config{
 		BaseConfig: task.BaseConfig{
 			ID:    fmt.Sprintf("agent:%s", agentID),
@@ -174,6 +172,32 @@ func loadAgentTaskConfig(
 		cfg.With = &withCopy
 	}
 	cfg.Timeout = (time.Duration(req.Timeout) * time.Second).String()
+	return cfg
+}
+
+func loadAgentTaskConfig(
+	c *gin.Context,
+	resourceStore resources.ResourceStore,
+	state *appstate.State,
+	agentID string,
+	req *AgentExecRequest,
+) (*task.Config, bool) {
+	agentConfig, err := loadAgentConfig(c.Request.Context(), resourceStore, state.ProjectConfig.Name, agentID)
+	if err != nil {
+		if errors.Is(err, agentuc.ErrNotFound) {
+			reqErr := router.NewRequestError(http.StatusNotFound, "agent not found", err)
+			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			return nil, false
+		}
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to load agent", err)
+		return nil, false
+	}
+	if err := validateAgentAction(agentConfig, req.Action); err != nil {
+		reqErr := router.NewRequestError(http.StatusBadRequest, "unknown action", err)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil, false
+	}
+	cfg := buildTaskConfig(agentID, agentConfig, req)
 	return cfg, true
 }
 
@@ -267,6 +291,112 @@ type AgentExecRequest struct {
 	Timeout int `json:"timeout,omitempty"`
 }
 
+type agentSyncRequest struct {
+	agentID       string
+	req           *AgentExecRequest
+	resourceStore resources.ResourceStore
+}
+
+func validateAgentSyncRequest(c *gin.Context) (*agentSyncRequest, int, bool) {
+	agentID := router.GetAgentID(c)
+	if agentID == "" {
+		return nil, http.StatusBadRequest, false
+	}
+	resourceStore, ok := router.GetResourceStore(c)
+	if !ok {
+		return nil, http.StatusInternalServerError, false
+	}
+	req, ok := parseAgentExecRequest(c)
+	if !ok {
+		return nil, http.StatusBadRequest, false
+	}
+	return &agentSyncRequest{
+		agentID:       agentID,
+		req:           req,
+		resourceStore: resourceStore,
+	}, http.StatusOK, true
+}
+
+type agentExecution struct {
+	taskCfg  *task.Config
+	repo     task.Repository
+	executor tkrouter.DirectExecutor
+	meta     tkrouter.ExecMetadata
+}
+
+func prepareAgentExecution(
+	c *gin.Context,
+	state *appstate.State,
+	syncReq *agentSyncRequest,
+) (*agentExecution, int, bool) {
+	taskCfg, ok := loadAgentTaskConfig(c, syncReq.resourceStore, state, syncReq.agentID, syncReq.req)
+	if !ok {
+		return nil, router.StatusOrFallback(c, http.StatusInternalServerError), false
+	}
+	repo := router.ResolveTaskRepository(c, state)
+	if repo == nil {
+		reqErr := router.NewRequestError(http.StatusInternalServerError, "task repository unavailable", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil, http.StatusInternalServerError, false
+	}
+	executor, err := tkrouter.ResolveDirectExecutor(state, repo)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to initialize executor", err)
+		return nil, http.StatusInternalServerError, false
+	}
+	meta := tkrouter.ExecMetadata{
+		Component: core.ComponentAgent,
+		AgentID:   syncReq.agentID,
+		ActionID:  resolveAgentActionID(syncReq.req, taskCfg),
+		TaskID:    taskCfg.ID,
+	}
+	return &agentExecution{
+		taskCfg:  taskCfg,
+		repo:     repo,
+		executor: executor,
+		meta:     meta,
+	}, http.StatusOK, true
+}
+
+type executionResult struct {
+	output  *core.Output
+	execID  core.ID
+	outcome string
+	status  int
+}
+
+func runAgentExecution(
+	c *gin.Context,
+	exec *agentExecution,
+	agentID string,
+	timeout time.Duration,
+	metrics *monitoring.ExecutionMetrics,
+) *executionResult {
+	output, execID, err := exec.executor.ExecuteSync(c.Request.Context(), exec.taskCfg, &exec.meta, timeout)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			status := respondAgentTimeout(c, exec.repo, agentID, execID, metrics)
+			return &executionResult{
+				execID:  execID,
+				outcome: monitoring.ExecutionOutcomeTimeout,
+				status:  status,
+			}
+		}
+		router.RespondWithServerError(c, router.ErrInternalCode, "agent execution failed", err)
+		return &executionResult{
+			execID:  execID,
+			outcome: monitoring.ExecutionOutcomeError,
+			status:  http.StatusInternalServerError,
+		}
+	}
+	return &executionResult{
+		output:  output,
+		execID:  execID,
+		outcome: monitoring.ExecutionOutcomeSuccess,
+		status:  http.StatusOK,
+	}
+}
+
 // executeAgentSync handles POST /agents/{agent_id}/executions.
 //
 //	@Summary		Execute agent synchronously
@@ -285,10 +415,6 @@ type AgentExecRequest struct {
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/agents/{agent_id}/executions [post]
 func executeAgentSync(c *gin.Context) {
-	agentID := router.GetAgentID(c)
-	if agentID == "" {
-		return
-	}
 	state := router.GetAppState(c)
 	if state == nil {
 		return
@@ -296,63 +422,129 @@ func executeAgentSync(c *gin.Context) {
 	metrics, finalizeMetrics, recordError := router.SyncExecutionMetricsScope(c, state, monitoring.ExecutionKindAgent)
 	outcome := monitoring.ExecutionOutcomeError
 	defer func() { finalizeMetrics(outcome) }()
-	resourceStore, ok := router.GetResourceStore(c)
+	syncReq, status, ok := validateAgentSyncRequest(c)
 	if !ok {
-		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
+		recordError(status)
 		return
 	}
-	req, ok := parseAgentExecRequest(c)
+	exec, status, ok := prepareAgentExecution(c, state, syncReq)
 	if !ok {
-		recordError(http.StatusBadRequest)
+		recordError(status)
 		return
 	}
-	taskCfg, ok := loadAgentTaskConfig(c, resourceStore, state, agentID, req)
-	if !ok {
-		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
+	result := runAgentExecution(c, exec, syncReq.agentID, time.Duration(syncReq.req.Timeout)*time.Second, metrics)
+	outcome = result.outcome
+	if result.outcome != monitoring.ExecutionOutcomeSuccess {
+		recordError(result.status)
 		return
 	}
-	repo := router.ResolveTaskRepository(c, state)
-	if repo == nil {
-		recordError(http.StatusInternalServerError)
-		reqErr := router.NewRequestError(http.StatusInternalServerError, "task repository unavailable", nil)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return
-	}
-	executor, err := tkrouter.ResolveDirectExecutor(state, repo)
-	if err != nil {
-		recordError(http.StatusInternalServerError)
-		router.RespondWithServerError(c, router.ErrInternalCode, "failed to initialize executor", err)
-		return
-	}
-	meta := tkrouter.ExecMetadata{
-		Component: core.ComponentAgent,
-		AgentID:   agentID,
-		ActionID:  resolveAgentActionID(req, taskCfg),
-		TaskID:    taskCfg.ID,
-	}
-	output, execID, execErr := executor.ExecuteSync(
-		c.Request.Context(),
-		taskCfg,
-		&meta,
-		time.Duration(req.Timeout)*time.Second,
-	)
-	if execErr != nil {
-		if errors.Is(execErr, context.DeadlineExceeded) {
-			outcome = monitoring.ExecutionOutcomeTimeout
-			status := respondAgentTimeout(c, repo, agentID, execID, metrics)
-			recordError(status)
-			return
-		}
-		recordError(http.StatusInternalServerError)
-		router.RespondWithServerError(c, router.ErrInternalCode, "agent execution failed", execErr)
-		return
-	}
-	outcome = monitoring.ExecutionOutcomeSuccess
 	router.RespondOK(
 		c,
 		"agent executed",
-		buildAgentSyncPayload(c.Request.Context(), repo, agentID, execID, output),
+		buildAgentSyncPayload(c.Request.Context(), exec.repo, syncReq.agentID, result.execID, result.output),
 	)
+}
+
+type asyncRequestContext struct {
+	agentID string
+	state   *appstate.State
+	metrics *monitoring.ExecutionMetrics
+}
+
+func validateAsyncRequest(c *gin.Context) (*asyncRequestContext, int, bool) {
+	agentID := router.GetAgentID(c)
+	if agentID == "" {
+		return nil, http.StatusBadRequest, false
+	}
+	state := router.GetAppState(c)
+	if state == nil {
+		return nil, http.StatusInternalServerError, false
+	}
+	metrics := router.ResolveExecutionMetrics(c, state)
+	return &asyncRequestContext{
+		agentID: agentID,
+		state:   state,
+		metrics: metrics,
+	}, http.StatusOK, true
+}
+
+type asyncResources struct {
+	resourceStore resources.ResourceStore
+	req           *AgentExecRequest
+}
+
+func parseAsyncResources(c *gin.Context) (*asyncResources, int, bool) {
+	resourceStore, ok := router.GetResourceStore(c)
+	if !ok {
+		return nil, http.StatusInternalServerError, false
+	}
+	req, ok := parseAgentExecRequest(c)
+	if !ok {
+		return nil, http.StatusBadRequest, false
+	}
+	return &asyncResources{
+		resourceStore: resourceStore,
+		req:           req,
+	}, http.StatusOK, true
+}
+
+func loadAsyncTaskConfig(
+	c *gin.Context,
+	resources *asyncResources,
+	asyncCtx *asyncRequestContext,
+) (*task.Config, int, bool) {
+	taskCfg, ok := loadAgentTaskConfig(c, resources.resourceStore, asyncCtx.state, asyncCtx.agentID, resources.req)
+	if !ok {
+		return nil, router.StatusOrFallback(c, http.StatusInternalServerError), false
+	}
+	return taskCfg, http.StatusOK, true
+}
+
+type asyncExecutor struct {
+	repo     task.Repository
+	executor tkrouter.DirectExecutor
+}
+
+func resolveAsyncExecutor(c *gin.Context, state *appstate.State) (*asyncExecutor, int, bool) {
+	repo := router.ResolveTaskRepository(c, state)
+	if repo == nil {
+		reqErr := router.NewRequestError(http.StatusInternalServerError, "task repository unavailable", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil, http.StatusInternalServerError, false
+	}
+	executor, err := tkrouter.ResolveDirectExecutor(state, repo)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to initialize executor", err)
+		return nil, http.StatusInternalServerError, false
+	}
+	return &asyncExecutor{
+		repo:     repo,
+		executor: executor,
+	}, http.StatusOK, true
+}
+
+func startAsyncExecution(
+	c *gin.Context,
+	executor *asyncExecutor,
+	taskCfg *task.Config,
+	asyncCtx *asyncRequestContext,
+	resources *asyncResources,
+) (int, bool) {
+	meta := tkrouter.ExecMetadata{
+		Component: core.ComponentAgent,
+		AgentID:   asyncCtx.agentID,
+		ActionID:  resolveAgentActionID(resources.req, taskCfg),
+		TaskID:    taskCfg.ID,
+	}
+	execID, err := executor.executor.ExecuteAsync(c.Request.Context(), taskCfg, &meta)
+	if err != nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "agent execution failed", err)
+		return http.StatusInternalServerError, false
+	}
+	execURL := fmt.Sprintf("%s/agents/%s", routes.Executions(), execID.String())
+	c.Header("Location", execURL)
+	router.RespondAccepted(c, "agent execution started", gin.H{"exec_id": execID.String(), "exec_url": execURL})
+	return http.StatusAccepted, true
 }
 
 // executeAgentAsync handles POST /agents/{agent_id}/executions/async.
@@ -373,62 +565,33 @@ func executeAgentSync(c *gin.Context) {
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/agents/{agent_id}/executions/async [post]
 func executeAgentAsync(c *gin.Context) {
-	agentID := router.GetAgentID(c)
-	if agentID == "" {
+	asyncCtx, _, ok := validateAsyncRequest(c)
+	if !ok {
 		return
 	}
-	state := router.GetAppState(c)
-	if state == nil {
-		return
-	}
-	metrics := router.ResolveExecutionMetrics(c, state)
 	ctx := c.Request.Context()
 	recordError := func(code int) {
-		if metrics != nil && code >= http.StatusBadRequest {
-			metrics.RecordError(ctx, monitoring.ExecutionKindAgent, code)
+		if asyncCtx.metrics != nil && code >= http.StatusBadRequest {
+			asyncCtx.metrics.RecordError(ctx, monitoring.ExecutionKindAgent, code)
 		}
 	}
-	resourceStore, ok := router.GetResourceStore(c)
+	resources, status, ok := parseAsyncResources(c)
 	if !ok {
-		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
+		recordError(status)
 		return
 	}
-	req, ok := parseAgentExecRequest(c)
+	taskCfg, status, ok := loadAsyncTaskConfig(c, resources, asyncCtx)
 	if !ok {
-		recordError(http.StatusBadRequest)
+		recordError(status)
 		return
 	}
-	taskCfg, ok := loadAgentTaskConfig(c, resourceStore, state, agentID, req)
+	executor, status, ok := resolveAsyncExecutor(c, asyncCtx.state)
 	if !ok {
-		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
+		recordError(status)
 		return
 	}
-	repo := router.ResolveTaskRepository(c, state)
-	if repo == nil {
-		recordError(http.StatusInternalServerError)
-		reqErr := router.NewRequestError(http.StatusInternalServerError, "task repository unavailable", nil)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return
+	status, ok = startAsyncExecution(c, executor, taskCfg, asyncCtx, resources)
+	if !ok {
+		recordError(status)
 	}
-	executor, err := tkrouter.ResolveDirectExecutor(state, repo)
-	if err != nil {
-		recordError(http.StatusInternalServerError)
-		router.RespondWithServerError(c, router.ErrInternalCode, "failed to initialize executor", err)
-		return
-	}
-	meta := tkrouter.ExecMetadata{
-		Component: core.ComponentAgent,
-		AgentID:   agentID,
-		ActionID:  resolveAgentActionID(req, taskCfg),
-		TaskID:    taskCfg.ID,
-	}
-	execID, execErr := executor.ExecuteAsync(c.Request.Context(), taskCfg, &meta)
-	if execErr != nil {
-		recordError(http.StatusInternalServerError)
-		router.RespondWithServerError(c, router.ErrInternalCode, "agent execution failed", execErr)
-		return
-	}
-	execURL := fmt.Sprintf("%s/agents/%s", routes.Executions(), execID.String())
-	c.Header("Location", execURL)
-	router.RespondAccepted(c, "agent execution started", gin.H{"exec_id": execID.String(), "exec_url": execURL})
 }
