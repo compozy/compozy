@@ -212,6 +212,57 @@ func TestConfig_Validation(t *testing.T) {
 		}
 	})
 
+	t.Run("Should validate task execution timeouts", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			modify  func(*Config)
+			wantErr bool
+		}{
+			{
+				name:    "valid defaults",
+				modify:  func(_ *Config) {},
+				wantErr: false,
+			},
+			{
+				name: "default must be positive",
+				modify: func(c *Config) {
+					c.Runtime.TaskExecutionTimeoutDefault = 0
+				},
+				wantErr: true,
+			},
+			{
+				name: "max must be positive",
+				modify: func(c *Config) {
+					c.Runtime.TaskExecutionTimeoutMax = 0
+				},
+				wantErr: true,
+			},
+			{
+				name: "default cannot exceed max",
+				modify: func(c *Config) {
+					c.Runtime.TaskExecutionTimeoutDefault = 10 * time.Minute
+					c.Runtime.TaskExecutionTimeoutMax = 5 * time.Minute
+				},
+				wantErr: true,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				cfg := Default()
+				tt.modify(cfg)
+				svc := NewService()
+				err := svc.Validate(cfg)
+				if tt.wantErr {
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), "validation failed")
+				} else {
+					assert.NoError(t, err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should require non-ephemeral MCP proxy port when standalone", func(t *testing.T) {
 		svc := NewService()
 		cfg := Default()

@@ -12,8 +12,8 @@ import (
 // ExecuteWorkflowRequest represents the request body for workflow execution
 // This is only used for Swagger documentation - the actual handler uses core.Input directly
 type ExecuteWorkflowRequest struct {
-	Input  core.Input `json:"input"   swaggerignore:"true"`
-	TaskID string     `json:"task_id" swaggerignore:"true"`
+	Input  core.Input `json:"input"`
+	TaskID string     `json:"task_id"`
 }
 
 // ExecuteWorkflowResponse represents the response for workflow execution

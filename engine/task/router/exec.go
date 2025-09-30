@@ -19,15 +19,16 @@ import (
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	taskuc "github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
 const (
-	// defaultTaskExecTimeoutSeconds defines the fallback timeout used when clients omit a value.
-	defaultTaskExecTimeoutSeconds = 60
-	// maxTaskExecTimeoutSeconds caps how long direct task executions may run.
-	maxTaskExecTimeoutSeconds = 300
+	// fallbackTaskExecTimeoutDefault defines the default timeout when configuration is unavailable.
+	fallbackTaskExecTimeoutDefault = 60 * time.Second
+	// fallbackTaskExecTimeoutMax caps direct task executions when configuration is unavailable.
+	fallbackTaskExecTimeoutMax = 300 * time.Second
 )
 
 // getTaskExecutionStatus handles GET /executions/tasks/{exec_id}.
@@ -94,25 +95,83 @@ func newTaskExecutionStatusDTO(state *task.State) TaskExecutionStatusDTO {
 	return dto
 }
 
+type taskExecutionTimeouts struct {
+	Default time.Duration
+	Max     time.Duration
+}
+
+func resolveTaskExecutionTimeouts(ctx context.Context, state *appstate.State) taskExecutionTimeouts {
+	timeouts := taskExecutionTimeouts{Default: fallbackTaskExecTimeoutDefault, Max: fallbackTaskExecTimeoutMax}
+	if cfg := config.FromContext(ctx); cfg != nil {
+		if cfg.Runtime.TaskExecutionTimeoutDefault > 0 {
+			timeouts.Default = cfg.Runtime.TaskExecutionTimeoutDefault
+		}
+		if cfg.Runtime.TaskExecutionTimeoutMax > 0 {
+			timeouts.Max = cfg.Runtime.TaskExecutionTimeoutMax
+		}
+	}
+	if state != nil && state.ProjectConfig != nil {
+		runtimeCfg := state.ProjectConfig.Runtime
+		if runtimeCfg.TaskExecutionTimeoutDefault > 0 {
+			timeouts.Default = runtimeCfg.TaskExecutionTimeoutDefault
+		}
+		if runtimeCfg.TaskExecutionTimeoutMax > 0 {
+			timeouts.Max = runtimeCfg.TaskExecutionTimeoutMax
+		}
+	}
+	if timeouts.Max > 0 && timeouts.Default > timeouts.Max {
+		timeouts.Default = timeouts.Max
+	}
+	return timeouts
+}
+
+func resolveDirectTaskTimeout(
+	ctx context.Context,
+	req *TaskExecRequest,
+	taskCfg *task.Config,
+	limits taskExecutionTimeouts,
+) (time.Duration, error) {
+	if req != nil && req.Timeout != nil {
+		if *req.Timeout > 0 {
+			requested := time.Duration(*req.Timeout) * time.Second
+			if requested > limits.Max {
+				return 0, fmt.Errorf("timeout cannot exceed %d seconds", int(limits.Max/time.Second))
+			}
+			return requested, nil
+		}
+	}
+	var taskDuration time.Duration
+	if taskCfg != nil && taskCfg.Timeout != "" {
+		parsed, err := core.ParseHumanDuration(strings.TrimSpace(taskCfg.Timeout))
+		if err == nil && parsed > 0 {
+			taskDuration = parsed
+		} else if err != nil {
+			logger.FromContext(ctx).Warn(
+				"Invalid task timeout; falling back to defaults",
+				"timeout", taskCfg.Timeout,
+				"error", err,
+			)
+		}
+	}
+	if taskDuration > limits.Max {
+		return 0, fmt.Errorf("task timeout %s cannot exceed %s", taskDuration.String(), limits.Max.String())
+	}
+	if taskDuration > 0 {
+		return taskDuration, nil
+	}
+	if limits.Default > limits.Max {
+		return limits.Max, nil
+	}
+	return limits.Default, nil
+}
+
 func parseTaskExecRequest(c *gin.Context) (*TaskExecRequest, bool) {
 	req := router.GetRequestBody[TaskExecRequest](c)
 	if req == nil {
 		return nil, false
 	}
-	if req.Timeout < 0 {
+	if req.Timeout != nil && *req.Timeout < 0 {
 		reqErr := router.NewRequestError(http.StatusBadRequest, "timeout must be non-negative", nil)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return nil, false
-	}
-	if req.Timeout == 0 {
-		req.Timeout = defaultTaskExecTimeoutSeconds
-	}
-	if req.Timeout > maxTaskExecTimeoutSeconds {
-		reqErr := router.NewRequestError(
-			http.StatusBadRequest,
-			fmt.Sprintf("timeout cannot exceed %d seconds", maxTaskExecTimeoutSeconds),
-			nil,
-		)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, false
 	}
@@ -125,7 +184,8 @@ func loadDirectTaskConfig(
 	state *appstate.State,
 	taskID string,
 	req *TaskExecRequest,
-) (*task.Config, bool) {
+	timeouts taskExecutionTimeouts,
+) (*task.Config, time.Duration, bool) {
 	projectName := state.ProjectConfig.Name
 	getUC := taskuc.NewGet(resourceStore)
 	out, err := getUC.Execute(c.Request.Context(), &taskuc.GetInput{Project: projectName, ID: taskID})
@@ -133,22 +193,22 @@ func loadDirectTaskConfig(
 		if errors.Is(err, taskuc.ErrNotFound) {
 			reqErr := router.NewRequestError(http.StatusNotFound, "task not found", err)
 			router.RespondWithError(c, reqErr.StatusCode, reqErr)
-			return nil, false
+			return nil, 0, false
 		}
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to load task", err)
-		return nil, false
+		return nil, 0, false
 	}
 	taskCfg := &task.Config{}
 	if err := taskCfg.FromMap(out.Task); err != nil {
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to decode task", err)
-		return nil, false
+		return nil, 0, false
 	}
 	if taskCfg.Agent != nil {
 		agentID := strings.TrimSpace(taskCfg.Agent.ID)
 		if agentID == "" {
 			reqErr := fmt.Errorf("task %s missing agent reference", taskID)
 			router.RespondWithServerError(c, router.ErrInternalCode, "task missing agent identifier", reqErr)
-			return nil, false
+			return nil, 0, false
 		}
 		if len(taskCfg.Agent.Actions) == 0 {
 			getAgent := agentuc.NewGet(resourceStore)
@@ -157,15 +217,15 @@ func loadDirectTaskConfig(
 				if errors.Is(err, agentuc.ErrNotFound) {
 					reqErr := router.NewRequestError(http.StatusNotFound, "agent not found", err)
 					router.RespondWithError(c, reqErr.StatusCode, reqErr)
-					return nil, false
+					return nil, 0, false
 				}
 				router.RespondWithServerError(c, router.ErrInternalCode, "failed to load agent", err)
-				return nil, false
+				return nil, 0, false
 			}
 			agentCfg := &agent.Config{}
 			if err := agentCfg.FromMap(agentOut.Agent); err != nil {
 				router.RespondWithServerError(c, router.ErrInternalCode, "failed to decode agent", err)
-				return nil, false
+				return nil, 0, false
 			}
 			taskCfg.Agent = agentCfg
 		}
@@ -177,8 +237,14 @@ func loadDirectTaskConfig(
 		withCopy := req.With
 		taskCfg.With = &withCopy
 	}
-	taskCfg.Timeout = (time.Duration(req.Timeout) * time.Second).String()
-	return taskCfg, true
+	execTimeout, timeoutErr := resolveDirectTaskTimeout(c.Request.Context(), req, taskCfg, timeouts)
+	if timeoutErr != nil {
+		reqErr := router.NewRequestError(http.StatusBadRequest, timeoutErr.Error(), timeoutErr)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil, 0, false
+	}
+	taskCfg.Timeout = execTimeout.String()
+	return taskCfg, execTimeout, true
 }
 
 func respondTaskTimeout(
@@ -250,7 +316,7 @@ type TaskExecRequest struct {
 	// With passes structured input parameters to the task execution.
 	With core.Input `json:"with,omitempty"`
 	// Timeout in seconds for synchronous execution.
-	Timeout int `json:"timeout,omitempty"`
+	Timeout *int `json:"timeout,omitempty"`
 }
 
 // executeTaskSync handles POST /tasks/{task_id}/executions.
@@ -287,12 +353,13 @@ func executeTaskSync(c *gin.Context) {
 		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
+	timeouts := resolveTaskExecutionTimeouts(c.Request.Context(), state)
 	req, ok := parseTaskExecRequest(c)
 	if !ok {
 		recordError(http.StatusBadRequest)
 		return
 	}
-	taskCfg, ok := loadDirectTaskConfig(c, resourceStore, state, taskID, req)
+	taskCfg, execTimeout, ok := loadDirectTaskConfig(c, resourceStore, state, taskID, req, timeouts)
 	if !ok {
 		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
@@ -316,7 +383,7 @@ func executeTaskSync(c *gin.Context) {
 		c.Request.Context(),
 		taskCfg,
 		&meta,
-		time.Duration(req.Timeout)*time.Second,
+		execTimeout,
 	)
 	if execErr != nil {
 		if errors.Is(execErr, context.DeadlineExceeded) {
@@ -375,12 +442,13 @@ func executeTaskAsync(c *gin.Context) {
 		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
+	timeouts := resolveTaskExecutionTimeouts(c.Request.Context(), state)
 	req, ok := parseTaskExecRequest(c)
 	if !ok {
 		recordError(http.StatusBadRequest)
 		return
 	}
-	taskCfg, ok := loadDirectTaskConfig(c, resourceStore, state, taskID, req)
+	taskCfg, _, ok := loadDirectTaskConfig(c, resourceStore, state, taskID, req, timeouts)
 	if !ok {
 		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return

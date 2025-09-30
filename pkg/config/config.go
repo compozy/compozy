@@ -428,6 +428,16 @@ type RuntimeConfig struct {
 	// Default: 100
 	AsyncTokenCounterBufferSize int `koanf:"async_token_counter_buffer_size" validate:"min=1" env:"RUNTIME_ASYNC_TOKEN_COUNTER_BUFFER_SIZE" json:"async_token_counter_buffer_size" yaml:"async_token_counter_buffer_size" mapstructure:"async_token_counter_buffer_size"`
 
+	// TaskExecutionTimeoutDefault controls the fallback timeout applied when direct task executions
+	// omit a timeout value. Applies to synchronous and asynchronous direct executions triggered via API.
+	// Default: 60s
+	TaskExecutionTimeoutDefault time.Duration `koanf:"task_execution_timeout_default" env:"TASK_EXECUTION_TIMEOUT_DEFAULT" json:"task_execution_timeout_default" yaml:"task_execution_timeout_default" mapstructure:"task_execution_timeout_default"`
+
+	// TaskExecutionTimeoutMax caps the maximum timeout allowed for direct task executions.
+	// Client-specified or configuration-derived timeouts exceeding this value are rejected.
+	// Default: 300s
+	TaskExecutionTimeoutMax time.Duration `koanf:"task_execution_timeout_max" env:"TASK_EXECUTION_TIMEOUT_MAX" json:"task_execution_timeout_max" yaml:"task_execution_timeout_max" mapstructure:"task_execution_timeout_max"`
+
 	// ToolExecutionTimeout sets the maximum time for tool execution.
 	//
 	// Prevents runaway tools from blocking workflows.
@@ -1556,6 +1566,8 @@ func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
 		DispatcherStaleThreshold:    getDuration(registry, "runtime.dispatcher_stale_threshold"),
 		AsyncTokenCounterWorkers:    getInt(registry, "runtime.async_token_counter_workers"),
 		AsyncTokenCounterBufferSize: getInt(registry, "runtime.async_token_counter_buffer_size"),
+		TaskExecutionTimeoutDefault: getDuration(registry, "runtime.task_execution_timeout_default"),
+		TaskExecutionTimeoutMax:     getDuration(registry, "runtime.task_execution_timeout_max"),
 		ToolExecutionTimeout:        getDuration(registry, "runtime.tool_execution_timeout"),
 		RuntimeType:                 getString(registry, "runtime.runtime_type"),
 		EntrypointPath:              getString(registry, "runtime.entrypoint_path"),

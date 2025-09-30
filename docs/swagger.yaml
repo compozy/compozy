@@ -3449,6 +3449,8 @@ definitions:
     type: object
   wfrouter.WorkflowSyncRequest:
     properties:
+      input:
+        $ref: '#/definitions/core.Input'
       task_id:
         type: string
       timeout:
@@ -9712,12 +9714,6 @@ paths:
           in: header
           name: X-Correlation-ID
           type: string
-        - description: Workflow input data
-          in: body
-          name: input
-          required: true
-          schema:
-            type: object
       produces:
         - application/json
       responses:

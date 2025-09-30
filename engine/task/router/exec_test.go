@@ -25,6 +25,7 @@ type stubDirectExecutor struct {
 	syncOutput  *core.Output
 	syncExecID  core.ID
 	syncErr     error
+	syncTimeout time.Duration
 	asyncExecID core.ID
 	asyncErr    error
 }
@@ -55,8 +56,9 @@ func (s *stubDirectExecutor) ExecuteSync(
 	_ context.Context,
 	_ *task.Config,
 	_ *ExecMetadata,
-	_ time.Duration,
+	timeout time.Duration,
 ) (*core.Output, core.ID, error) {
+	s.syncTimeout = timeout
 	return s.syncOutput, s.syncExecID, s.syncErr
 }
 
@@ -265,6 +267,183 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		require.Equal(t, http.StatusOK, payload.Status)
 		require.Equal(t, stub.syncExecID.String(), payload.Data.ExecID)
 		require.Equal(t, "bar", payload.Data.Output["foo"])
+		require.Equal(t, 60*time.Second, stub.syncTimeout)
+	})
+
+	t.Run("ShouldRespectTaskConfigTimeout", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		taskCfg := &task.Config{
+			BaseConfig: task.BaseConfig{ID: "task-with-timeout", Type: task.TaskTypeBasic, Timeout: "5m"},
+		}
+		m, err := taskCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{
+				Project: state.ProjectConfig.Name,
+				Type:    resources.ResourceTask,
+				ID:      "task-with-timeout",
+			},
+			m,
+		)
+		require.NoError(t, err)
+		stub := &stubDirectExecutor{syncExecID: core.MustNewID()}
+		cleanup := installTaskExecutor(state, stub)
+		defer cleanup()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/tasks/task-with-timeout/executions",
+			strings.NewReader(`{"with":{"foo":"bar"}}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, 5*time.Minute, stub.syncTimeout)
+	})
+
+	t.Run("ShouldRespectProjectRuntimeTimeoutDefaults", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		state.ProjectConfig.Runtime.TaskExecutionTimeoutDefault = 2 * time.Minute
+		state.ProjectConfig.Runtime.TaskExecutionTimeoutMax = 10 * time.Minute
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-project-timeout", Type: task.TaskTypeBasic}}
+		m, err := taskCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{
+				Project: state.ProjectConfig.Name,
+				Type:    resources.ResourceTask,
+				ID:      "task-project-timeout",
+			},
+			m,
+		)
+		require.NoError(t, err)
+		stub := &stubDirectExecutor{syncExecID: core.MustNewID()}
+		cleanup := installTaskExecutor(state, stub)
+		defer cleanup()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/tasks/task-project-timeout/executions",
+			strings.NewReader(`{"with":{"foo":"bar"}}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, 2*time.Minute, stub.syncTimeout)
+	})
+
+	t.Run("ShouldRejectTimeoutAboveConfiguredMax", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		state.ProjectConfig.Runtime.TaskExecutionTimeoutDefault = 20 * time.Second
+		state.ProjectConfig.Runtime.TaskExecutionTimeoutMax = 45 * time.Second
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		taskCfg := &task.Config{BaseConfig: task.BaseConfig{ID: "task-max", Type: task.TaskTypeBasic}}
+		m, err := taskCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-max"},
+			m,
+		)
+		require.NoError(t, err)
+		stub := &stubDirectExecutor{syncExecID: core.MustNewID()}
+		cleanup := installTaskExecutor(state, stub)
+		defer cleanup()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/tasks/task-max/executions",
+			strings.NewReader(`{"timeout":50}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("ShouldRejectTaskConfigTimeoutAboveMax", func(t *testing.T) {
+		ginmode.EnsureGinTestMode()
+		state := routertest.NewTestAppState(t)
+		state.ProjectConfig.Runtime.TaskExecutionTimeoutDefault = 30 * time.Second
+		state.ProjectConfig.Runtime.TaskExecutionTimeoutMax = 45 * time.Second
+		repo := routertest.NewStubTaskRepo()
+		store := routertest.NewResourceStore(state)
+		taskCfg := &task.Config{
+			BaseConfig: task.BaseConfig{ID: "task-config-max", Type: task.TaskTypeBasic, Timeout: "2m"},
+		}
+		m, err := taskCfg.AsMap()
+		require.NoError(t, err)
+		_, err = store.Put(
+			context.Background(),
+			resources.ResourceKey{
+				Project: state.ProjectConfig.Name,
+				Type:    resources.ResourceTask,
+				ID:      "task-config-max",
+			},
+			m,
+		)
+		require.NoError(t, err)
+		stub := &stubDirectExecutor{syncExecID: core.MustNewID()}
+		cleanup := installTaskExecutor(state, stub)
+		defer cleanup()
+		r := gin.New()
+		r.Use(appstate.StateMiddleware(state))
+		r.Use(srrouter.ErrorHandler())
+		r.Use(func(c *gin.Context) {
+			srrouter.SetTaskRepository(c, repo)
+			c.Next()
+		})
+		api := r.Group("/api/v0")
+		Register(api)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/tasks/task-config-max/executions",
+			strings.NewReader(`{"with":{"foo":"bar"}}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req = routertest.WithConfig(t, req)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
 	t.Run("ShouldUseStateOutputWhenExecutorReturnsNil", func(t *testing.T) {

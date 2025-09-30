@@ -14523,6 +14523,9 @@ const docTemplate = `{
         "wfrouter.WorkflowSyncRequest": {
             "type": "object",
             "properties": {
+                "input": {
+                    "$ref": "#/definitions/core.Input"
+                },
                 "task_id": {
                     "type": "string"
                 },

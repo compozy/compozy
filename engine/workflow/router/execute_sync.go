@@ -35,9 +35,8 @@ var (
 )
 
 // WorkflowSyncRequest represents the request body for synchronous workflow execution.
-// The Input field uses core.Input, which is documented alongside workflow execution endpoints.
 type WorkflowSyncRequest struct {
-	Input  core.Input `json:"input"   swaggerignore:"true"`
+	Input  core.Input `json:"input"`
 	TaskID string     `json:"task_id"`
 	// Timeout in seconds for synchronous execution.
 	Timeout int `json:"timeout"`

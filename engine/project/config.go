@@ -39,6 +39,14 @@ type RuntimeConfig struct {
 	// ToolExecutionTimeout overrides the global runtime.tool_execution_timeout when provided.
 	// Accepts Go duration strings (e.g., "120s", "2m").
 	ToolExecutionTimeout time.Duration `json:"tool_execution_timeout,omitempty" yaml:"tool_execution_timeout,omitempty" mapstructure:"tool_execution_timeout"`
+
+	// TaskExecutionTimeoutDefault overrides the global runtime.task_execution_timeout_default when provided.
+	// Accepts Go duration strings (e.g., "90s", "2m").
+	TaskExecutionTimeoutDefault time.Duration `json:"task_execution_timeout_default,omitempty" yaml:"task_execution_timeout_default,omitempty" mapstructure:"task_execution_timeout_default"`
+
+	// TaskExecutionTimeoutMax overrides the global runtime.task_execution_timeout_max when provided.
+	// Accepts Go duration strings (e.g., "300s", "5m").
+	TaskExecutionTimeoutMax time.Duration `json:"task_execution_timeout_max,omitempty" yaml:"task_execution_timeout_max,omitempty" mapstructure:"task_execution_timeout_max"`
 }
 
 // WorkflowSourceConfig defines the source location for a workflow file.
@@ -561,6 +569,19 @@ func (p *Config) validateRuntimeConfig() error {
 	// Validate tool execution timeout if specified
 	if runtime.ToolExecutionTimeout < 0 {
 		return fmt.Errorf("runtime configuration error: tool_execution_timeout must be non-negative if specified")
+	}
+	if runtime.TaskExecutionTimeoutDefault < 0 {
+		return fmt.Errorf(
+			"runtime configuration error: task_execution_timeout_default must be non-negative if specified",
+		)
+	}
+	if runtime.TaskExecutionTimeoutMax < 0 {
+		return fmt.Errorf("runtime configuration error: task_execution_timeout_max must be non-negative if specified")
+	}
+	if runtime.TaskExecutionTimeoutMax > 0 && runtime.TaskExecutionTimeoutDefault > runtime.TaskExecutionTimeoutMax {
+		return fmt.Errorf(
+			"runtime configuration error: task_execution_timeout_default must not exceed task_execution_timeout_max",
+		)
 	}
 
 	return nil

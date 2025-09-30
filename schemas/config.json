@@ -753,6 +753,14 @@
           "description": "RuntimeType specifies the JavaScript runtime to use for tool execution.\n\nValues: \"bun\", \"node\"\nDefault: \"bun\"",
           "type": "string"
         },
+        "task_execution_timeout_default": {
+          "description": "TaskExecutionTimeoutDefault controls the fallback timeout applied when direct task executions\nomit a timeout value. Applies to synchronous and asynchronous direct executions triggered via API.\nDefault: 60s",
+          "type": "integer"
+        },
+        "task_execution_timeout_max": {
+          "description": "TaskExecutionTimeoutMax caps the maximum timeout allowed for direct task executions.\nClient-specified or configuration-derived timeouts exceeding this value are rejected.\nDefault: 300s",
+          "type": "integer"
+        },
         "tool_execution_timeout": {
           "description": "ToolExecutionTimeout sets the maximum time for tool execution.\n\nPrevents runaway tools from blocking workflows.\nDefault: 60s",
           "type": "integer"

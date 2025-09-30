@@ -480,6 +480,8 @@ func flattenRuntimeConfig(cfg *config.Config, result map[string]string) {
 	result["runtime.dispatcher_stale_threshold"] = cfg.Runtime.DispatcherStaleThreshold.String()
 	result["runtime.async_token_counter_workers"] = fmt.Sprintf("%d", cfg.Runtime.AsyncTokenCounterWorkers)
 	result["runtime.async_token_counter_buffer_size"] = fmt.Sprintf("%d", cfg.Runtime.AsyncTokenCounterBufferSize)
+	result["runtime.task_execution_timeout_default"] = cfg.Runtime.TaskExecutionTimeoutDefault.String()
+	result["runtime.task_execution_timeout_max"] = cfg.Runtime.TaskExecutionTimeoutMax.String()
 	result["runtime.tool_execution_timeout"] = cfg.Runtime.ToolExecutionTimeout.String()
 }
 
