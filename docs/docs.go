@@ -9838,15 +9838,6 @@ const docTemplate = `{
                         "description": "Optional correlation ID for request tracing",
                         "name": "X-Correlation-ID",
                         "in": "header"
-                    },
-                    {
-                        "description": "Workflow input data",
-                        "name": "input",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
                     }
                 ],
                 "responses": {

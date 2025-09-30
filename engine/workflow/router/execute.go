@@ -33,7 +33,6 @@ type ExecuteWorkflowResponse struct {
 //	@Param			workflow_id	path		string											true	"Workflow ID"			example("data-processing")
 //	@Param			input		body		object	true	"Workflow input data"	SchemaExample({"data": "example", "config": {"timeout": 300}})
 //	@Param			X-Correlation-ID	header		string		false	"Optional correlation ID for request tracing"
-//	@Param			input		body		object											true	"Workflow input data"	SchemaExample({"data": "example", "config": {"timeout": 300}})
 //	@Success		202			{object}	router.Response{data=ExecuteWorkflowResponse}	"Workflow triggered successfully"
 //	@Header			202			{string}	Location	"Execution status URL"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}			"Invalid input or workflow ID"

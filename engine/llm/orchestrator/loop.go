@@ -74,9 +74,10 @@ func (l *conversationLoop) OnEnterEvaluateResponse(ctx context.Context, loopCtx 
 		len(toolCalls),
 	)
 	if len(toolCalls) == 1 && strings.EqualFold(toolCalls[0].Name, "json") {
-		if loopCtx.Request.Agent != nil &&
+		agentCfg := loopCtx.Request.Agent
+		if agentCfg != nil && agentCfg.Model.HasConfig() &&
 			strings.EqualFold(
-				string(loopCtx.Request.Agent.Model.Config.Provider),
+				string(agentCfg.Model.Config.Provider),
 				string(core.ProviderGroq),
 			) {
 			log.Debug("Treating Groq JSON tool call as final response", "tool_call_id", toolCalls[0].ID)

@@ -299,19 +299,25 @@ func (d *directExecutor) ExecuteSync(
 		return nil, zeroID, err
 	}
 	resultCh := make(chan execResult, 1)
-	bgCtx := context.WithoutCancel(ctx)
-	go d.runExecution(bgCtx, state, plan, resultCh)
+	execCtx, cancel := context.WithCancel(ctx)
+	go d.runExecution(execCtx, state, plan, resultCh)
 	if timeout <= 0 {
 		res := <-resultCh
+		cancel()
 		return res.output, execID, res.err
 	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
 	case res := <-resultCh:
+		cancel()
 		return res.output, execID, res.err
 	case <-timer.C:
+		cancel()
 		return nil, execID, context.DeadlineExceeded
+	case <-ctx.Done():
+		cancel()
+		return nil, execID, ctx.Err()
 	}
 }
 

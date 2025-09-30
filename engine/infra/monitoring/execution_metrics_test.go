@@ -13,69 +13,65 @@ import (
 
 func TestExecutionMetrics_Recorders(t *testing.T) {
 	t.Helper()
-	ctx := t.Context()
-	reader := sdkmetric.NewManualReader()
-	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	meter := provider.Meter("test")
-
-	metrics, err := newExecutionMetrics(meter)
-	require.NoError(t, err)
-	require.NotNil(t, metrics)
-
-	metrics.RecordSyncLatency(ctx, ExecutionKindWorkflow, ExecutionOutcomeSuccess, 1500*time.Millisecond)
-	metrics.RecordTimeout(ctx, ExecutionKindWorkflow)
-	metrics.RecordError(ctx, ExecutionKindWorkflow, http.StatusInternalServerError)
-
-	var rm metricdata.ResourceMetrics
-	require.NoError(t, reader.Collect(ctx, &rm))
-
-	var (
-		latencyFound bool
-		timeoutFound bool
-		errorFound   bool
-	)
-
-	for _, scopeMetrics := range rm.ScopeMetrics {
-		for _, metric := range scopeMetrics.Metrics {
-			switch data := metric.Data.(type) {
-			case metricdata.Histogram[float64]:
-				if metric.Name != "http_exec_sync_latency_seconds" {
-					continue
-				}
-				require.Len(t, data.DataPoints, 1)
-				dp := data.DataPoints[0]
-				require.Equal(t, uint64(1), dp.Count)
-				require.InDelta(t, 1.5, dp.Sum, 0.0001)
-				require.Equal(t, ExecutionKindWorkflow, attrString(t, dp.Attributes, "kind"))
-				require.Equal(t, ExecutionOutcomeSuccess, attrString(t, dp.Attributes, "outcome"))
-				latencyFound = true
-			case metricdata.Sum[int64]:
-				switch metric.Name {
-				case "http_exec_timeouts_total":
-					require.True(t, data.IsMonotonic)
-					require.Equal(t, metricdata.CumulativeTemporality, data.Temporality)
+	t.Run("ShouldRecordExecutionMetrics", func(t *testing.T) {
+		ctx := t.Context()
+		reader := sdkmetric.NewManualReader()
+		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+		meter := provider.Meter("test")
+		metrics, err := newExecutionMetrics(meter)
+		require.NoError(t, err)
+		require.NotNil(t, metrics)
+		metrics.RecordSyncLatency(ctx, ExecutionKindWorkflow, ExecutionOutcomeSuccess, 1500*time.Millisecond)
+		metrics.RecordTimeout(ctx, ExecutionKindWorkflow)
+		metrics.RecordError(ctx, ExecutionKindWorkflow, http.StatusInternalServerError)
+		var rm metricdata.ResourceMetrics
+		require.NoError(t, reader.Collect(ctx, &rm))
+		var (
+			latencyFound bool
+			timeoutFound bool
+			errorFound   bool
+		)
+		for _, scopeMetrics := range rm.ScopeMetrics {
+			for _, metric := range scopeMetrics.Metrics {
+				switch data := metric.Data.(type) {
+				case metricdata.Histogram[float64]:
+					if metric.Name != "http_exec_sync_latency_seconds" {
+						continue
+					}
 					require.Len(t, data.DataPoints, 1)
 					dp := data.DataPoints[0]
-					require.Equal(t, int64(1), dp.Value)
+					require.Equal(t, uint64(1), dp.Count)
+					require.InDelta(t, 1.5, dp.Sum, 0.0001)
 					require.Equal(t, ExecutionKindWorkflow, attrString(t, dp.Attributes, "kind"))
-					timeoutFound = true
-				case "http_exec_errors_total":
-					require.True(t, data.IsMonotonic)
-					require.Equal(t, metricdata.CumulativeTemporality, data.Temporality)
-					require.Len(t, data.DataPoints, 1)
-					dp := data.DataPoints[0]
-					require.Equal(t, int64(1), dp.Value)
-					require.Equal(t, ExecutionKindWorkflow, attrString(t, dp.Attributes, "kind"))
-					require.Equal(t, int64(http.StatusInternalServerError), attrInt(t, dp.Attributes, "code"))
-					errorFound = true
+					require.Equal(t, ExecutionOutcomeSuccess, attrString(t, dp.Attributes, "outcome"))
+					latencyFound = true
+				case metricdata.Sum[int64]:
+					switch metric.Name {
+					case "http_exec_timeouts_total":
+						require.True(t, data.IsMonotonic)
+						require.Equal(t, metricdata.CumulativeTemporality, data.Temporality)
+						require.Len(t, data.DataPoints, 1)
+						dp := data.DataPoints[0]
+						require.Equal(t, int64(1), dp.Value)
+						require.Equal(t, ExecutionKindWorkflow, attrString(t, dp.Attributes, "kind"))
+						timeoutFound = true
+					case "http_exec_errors_total":
+						require.True(t, data.IsMonotonic)
+						require.Equal(t, metricdata.CumulativeTemporality, data.Temporality)
+						require.Len(t, data.DataPoints, 1)
+						dp := data.DataPoints[0]
+						require.Equal(t, int64(1), dp.Value)
+						require.Equal(t, ExecutionKindWorkflow, attrString(t, dp.Attributes, "kind"))
+						require.Equal(t, int64(http.StatusInternalServerError), attrInt(t, dp.Attributes, "code"))
+						errorFound = true
+					}
 				}
 			}
 		}
-	}
-
-	require.True(t, latencyFound, "expected latency histogram to be collected")
-	require.True(t, timeoutFound, "expected timeout counter to be collected")
-	require.True(t, errorFound, "expected error counter to be collected")
+		require.True(t, latencyFound, "expected latency histogram to be collected")
+		require.True(t, timeoutFound, "expected timeout counter to be collected")
+		require.True(t, errorFound, "expected error counter to be collected")
+	})
 }
 
 func attrString(t *testing.T, set attribute.Set, key string) string {

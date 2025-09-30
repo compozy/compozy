@@ -215,7 +215,8 @@ func buildTaskSyncPayload(
 	if output != nil {
 		payload["output"] = output
 	}
-	if stateSnapshot, stateErr := repo.GetState(ctx, execID); stateErr == nil && stateSnapshot != nil {
+	snapshotCtx := context.WithoutCancel(ctx)
+	if stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID); stateErr == nil && stateSnapshot != nil {
 		payload["state"] = newTaskExecutionStatusDTO(stateSnapshot)
 		if stateSnapshot.Output != nil {
 			payload["output"] = stateSnapshot.Output

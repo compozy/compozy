@@ -143,6 +143,18 @@ func GetURLParam(c *gin.Context, key string) string {
 	return param
 }
 
+func getExecIDParam(c *gin.Context, primary string, fallbacks ...string) string {
+	if value := strings.TrimSpace(c.Param(primary)); value != "" {
+		return value
+	}
+	for _, key := range fallbacks {
+		if value := strings.TrimSpace(c.Param(key)); value != "" {
+			return value
+		}
+	}
+	return GetURLParam(c, primary)
+}
+
 func GetWorkflowID(c *gin.Context) string {
 	return GetURLParam(c, "workflow_id")
 }
@@ -169,7 +181,7 @@ func StatusOrFallback(c *gin.Context, fallback int) int {
 }
 
 func GetTaskExecID(c *gin.Context) core.ID {
-	return core.ID(GetURLParam(c, "task_exec_id"))
+	return core.ID(getExecIDParam(c, "exec_id", "task_exec_id"))
 }
 
 func GetAgentID(c *gin.Context) string {
@@ -177,7 +189,7 @@ func GetAgentID(c *gin.Context) string {
 }
 
 func GetAgentExecID(c *gin.Context) core.ID {
-	return core.ID(GetURLParam(c, "agent_exec_id"))
+	return core.ID(getExecIDParam(c, "exec_id", "agent_exec_id"))
 }
 
 func GetToolID(c *gin.Context) string {

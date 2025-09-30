@@ -137,12 +137,20 @@ main() {
   echo "🔎 Status pattern: $status_pattern"
   echo "🧪 Dry run: $dry_run | 🔁 Changed only: $only_changed | ⏱ Delay: ${delay_ms}ms"
 
-  mapfile -t ids < <(gather_threads)
+  ids=()
+  while IFS= read -r __thread_id; do
+    ids+=("$__thread_id")
+  done < <(gather_threads)
+  unset __thread_id
   echo "\n📋 Found ${#ids[@]} thread(s) to process\n"
 
   local ok=0 fail=0
   for id in "${ids[@]}"; do
-    echo "📡 ${action^} thread: $id"
+    if [[ "$action" == "resolve" ]]; then
+      echo "📡 Resolve thread: $id"
+    else
+      echo "📡 Unresolve thread: $id"
+    fi
     if $dry_run; then
       echo "   (dry-run) Skipping API call"
     else

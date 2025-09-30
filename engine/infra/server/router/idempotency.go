@@ -102,13 +102,7 @@ func deriveIdempotencyKey(c *gin.Context, body []byte, maxBodyBytes int) (string
 		return "", NewRequestError(http.StatusBadRequest, "invalid request body", err)
 	}
 	method := strings.ToUpper(strings.TrimSpace(c.Request.Method))
-	path := ""
-	if c.Request.URL != nil {
-		path = c.Request.URL.Path
-	}
-	if path == "" {
-		path = c.FullPath()
-	}
+	path := resolveRequestPath(c)
 	query := ""
 	if c.Request.URL != nil && c.Request.URL.RawQuery != "" {
 		query = "?" + c.Request.URL.RawQuery
@@ -116,6 +110,46 @@ func deriveIdempotencyKey(c *gin.Context, body []byte, maxBodyBytes int) (string
 	rawInput := strings.Join([]string{method, path + query, normalizedBody}, "\n")
 	sum := sha256.Sum256([]byte(rawInput))
 	return hex.EncodeToString(sum[:]), nil
+}
+
+func resolveRequestPath(c *gin.Context) string {
+	if c == nil || c.Request == nil {
+		return ""
+	}
+	if c.Request.URL != nil {
+		if path := c.Request.URL.EscapedPath(); path != "" {
+			return path
+		}
+		if c.Request.URL.Path != "" {
+			return c.Request.URL.Path
+		}
+	}
+	if uri := c.Request.RequestURI; uri != "" {
+		if idx := strings.Index(uri, "?"); idx >= 0 {
+			return uri[:idx]
+		}
+		return uri
+	}
+	return resolvePathWithParams(c)
+}
+
+func resolvePathWithParams(c *gin.Context) string {
+	pattern := c.FullPath()
+	if pattern == "" {
+		return ""
+	}
+	resolved := pattern
+	for _, param := range c.Params {
+		placeholder := ":" + param.Key
+		if strings.Contains(resolved, placeholder) {
+			resolved = strings.ReplaceAll(resolved, placeholder, param.Value)
+		}
+		wildcard := "*" + param.Key
+		if strings.Contains(resolved, wildcard) {
+			resolved = strings.ReplaceAll(resolved, wildcard, param.Value)
+		}
+	}
+	return resolved
 }
 
 func normalizeBody(body []byte) (string, error) {
