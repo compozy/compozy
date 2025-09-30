@@ -402,6 +402,8 @@ func createRuntimeDefaults(defaultConfig *Config) map[string]any {
 		"dispatcher_stale_threshold":      defaultConfig.Runtime.DispatcherStaleThreshold.String(),
 		"async_token_counter_workers":     defaultConfig.Runtime.AsyncTokenCounterWorkers,
 		"async_token_counter_buffer_size": defaultConfig.Runtime.AsyncTokenCounterBufferSize,
+		"task_execution_timeout_default":  defaultConfig.Runtime.TaskExecutionTimeoutDefault.String(),
+		"task_execution_timeout_max":      defaultConfig.Runtime.TaskExecutionTimeoutMax.String(),
 		"tool_execution_timeout":          defaultConfig.Runtime.ToolExecutionTimeout.String(),
 		"runtime_type":                    defaultConfig.Runtime.RuntimeType,
 		"entrypoint_path":                 defaultConfig.Runtime.EntrypointPath,

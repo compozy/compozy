@@ -45,6 +45,10 @@ func Register(apiBase *gin.RouterGroup) {
 		// POST /workflows/:workflow_id/executions
 		// Start a new workflow execution
 		workflowsGroup.POST("/:workflow_id/executions", handleExecute)
+
+		// POST /workflows/:workflow_id/executions/sync
+		// Execute workflow synchronously
+		workflowsGroup.POST("/:workflow_id/executions/sync", executeWorkflowSync)
 	}
 
 	// Global execution routes

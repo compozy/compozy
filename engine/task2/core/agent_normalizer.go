@@ -300,14 +300,14 @@ func (n *AgentNormalizer) normalizeAgentActionConfig(
 		return fmt.Errorf("failed to convert action config to map: %w", err)
 	}
 	// Apply template processing with appropriate filters
-	// Skip input, output, with, prompt, and json_mode fields during action normalization
-	// Action prompts and json_mode must ALWAYS be parsed at runtime via ReparseInput because:
+	// Skip input, output, with, and prompt fields during action normalization
+	// Action prompts must ALWAYS be parsed at runtime via ReparseInput because:
 	// 1. They may reference .input which comes from the task's resolved With block
 	// 2. They may reference .item/.index in collection contexts
 	// 3. They may reference .tasks.* which is only available at runtime
 	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, func(k string) bool {
 		// Always skip runtime-only fields
-		if k == "input" || k == "output" || k == "with" || k == "prompt" || k == "json_mode" {
+		if k == "input" || k == "output" || k == "with" || k == "prompt" {
 			return true
 		}
 		return false

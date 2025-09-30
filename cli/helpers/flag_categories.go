@@ -87,7 +87,8 @@ func getRuntimeCategories() []FlagCategory {
 			Description: "Execution runtime and performance tuning",
 			Flags: []string{
 				"runtime-type", "entrypoint-path", "bun-permissions",
-				"tool-execution-timeout", "timeout", "page-size",
+				"tool-execution-timeout", "task-execution-timeout-default",
+				"task-execution-timeout-max", "timeout", "page-size",
 			},
 		},
 		{

@@ -7,17 +7,23 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestResponseHandler_JSONModeAndContentErrors(t *testing.T) {
-	t.Run("Should continue loop when non-JSON in JSON mode", func(t *testing.T) {
+func TestResponseHandler_StructuredOutputAndContentErrors(t *testing.T) {
+	t.Run("Should continue loop when non-JSON under structured output", func(t *testing.T) {
 		h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
 		ctx := context.Background()
-		req := &llmadapter.LLMRequest{Options: llmadapter.CallOptions{UseJSONMode: true}}
+		schemaDef := &schema.Schema{"type": "object"}
+		req := &llmadapter.LLMRequest{
+			Options: llmadapter.CallOptions{
+				OutputFormat: llmadapter.NewJSONSchemaOutputFormat("test", schemaDef, true),
+			},
+		}
 		state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
-		request := Request{Action: &agent.ActionConfig{}}
+		request := Request{Action: &agent.ActionConfig{OutputSchema: schemaDef}}
 		output, cont, err := h.HandleNoToolCalls(ctx, &llmadapter.LLMResponse{Content: "not-json"}, request, req, state)
 		require.NoError(t, err)
 		assert.Nil(t, output)
@@ -26,12 +32,17 @@ func TestResponseHandler_JSONModeAndContentErrors(t *testing.T) {
 		assert.Equal(t, llmadapter.RoleAssistant, req.Messages[len(req.Messages)-2].Role)
 		assert.Equal(t, llmadapter.RoleTool, req.Messages[len(req.Messages)-1].Role)
 	})
-	t.Run("Should error after exceeding JSON-mode budget", func(t *testing.T) {
+	t.Run("Should error after exceeding structured output budget", func(t *testing.T) {
 		h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
 		ctx := context.Background()
-		req := &llmadapter.LLMRequest{Options: llmadapter.CallOptions{UseJSONMode: true}}
+		schemaDef := &schema.Schema{"type": "object"}
+		req := &llmadapter.LLMRequest{
+			Options: llmadapter.CallOptions{
+				OutputFormat: llmadapter.NewJSONSchemaOutputFormat("test", schemaDef, true),
+			},
+		}
 		state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
-		request := Request{Action: &agent.ActionConfig{}}
+		request := Request{Action: &agent.ActionConfig{OutputSchema: schemaDef}}
 		_, cont, err := h.HandleNoToolCalls(
 			ctx,
 			&llmadapter.LLMResponse{Content: "still-not-json"},
@@ -78,7 +89,7 @@ func TestResponseHandler_ParseContent(t *testing.T) {
 		require.ErrorContains(t, err, "expected JSON object")
 	})
 	t.Run("Should error when JSON required but got text", func(t *testing.T) {
-		action := &agent.ActionConfig{JSONMode: true}
+		action := &agent.ActionConfig{OutputSchema: &schema.Schema{"type": "object"}}
 		_, err := h.(*responseHandler).parseContent(context.Background(), "plain", action)
 		require.Error(t, err)
 		var coreErr *core.Error

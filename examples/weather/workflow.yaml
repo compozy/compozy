@@ -49,7 +49,6 @@ agents:
             - temperature
             - humidity
       - id: suggest_activities
-        json_mode: true
         prompt: |
           Given the current conditions in {{ .workflow.input.city }}: {{ .tasks.weather.output | toJson }}
           Suggest appropriate activities specifically from {{ .workflow.input.city }} for these weather conditions
@@ -64,7 +63,6 @@ agents:
           required:
             - activities
       - id: suggest_clothing
-        json_mode: true
         prompt: |
           Given the current in {{ .workflow.input.city }}:
           - Weather: {{ .tasks.weather.output | toJson }}
@@ -81,7 +79,6 @@ agents:
           required:
             - clothings
       - id: analyze_activity
-        json_mode: true
         prompt: |
           Analyze the activity "{{ .item }}" in {{ .workflow.input.city }} given the current weather conditions:
           - Weather: {{ .tasks.weather.output | toJson }}
@@ -91,8 +88,27 @@ agents:
           - Required equipment or preparation
           - Safety considerations
           Return your analysis in JSON format with the fields: best_time, tips, equipment, safety_notes.
+        output:
+          type: object
+          properties:
+            best_time:
+              type: string
+              description: Recommended time of day for the activity
+            tips:
+              type: string
+              description: Weather-specific guidance and considerations
+            equipment:
+              type: string
+              description: Required equipment or preparation details
+            safety_notes:
+              type: string
+              description: Safety considerations for current conditions
+          required:
+            - best_time
+            - tips
+            - equipment
+            - safety_notes
       - id: validate_clothing
-        json_mode: true
         prompt: |
           Validate the clothing item "{{ .item }}" for {{ .workflow.input.city }} given the current weather conditions:
           - Weather: {{ .tasks.weather.output | toJson }}
@@ -103,6 +119,25 @@ agents:
           - Reasoning for the score
           - Any modifications or additions needed
           Return your validation in JSON format with the fields: item, suitability_score, reasoning, modifications.
+        output:
+          type: object
+          properties:
+            item:
+              type: string
+              description: Clothing item being evaluated
+            suitability_score:
+              type: integer
+              description: Score from 1 (poor fit) to 10 (ideal fit)
+            reasoning:
+              type: string
+              description: Explanation supporting the suitability score
+            modifications:
+              type: string
+              description: Suggested adjustments or additional items
+          required:
+            - item
+            - suitability_score
+            - reasoning
 
 tasks:
   - id: weather

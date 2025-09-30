@@ -3,7 +3,6 @@ package llmadapter
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -150,8 +149,11 @@ func TestLangChainAdapter_BuildContentParts_AudioVideo_ByProvider(t *testing.T) 
 }
 
 func TestLangChainAdapter_OpenAI_AudioSupport(t *testing.T) {
-	t.Run("Should convert audio to base64 data URL for OpenAI", func(t *testing.T) {
-		adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: core.ProviderOpenAI}}
+	t.Run("Should skip audio for OpenAI with warn mode", func(t *testing.T) {
+		adapter := &LangChainAdapter{
+			provider:       core.ProviderConfig{Provider: core.ProviderOpenAI},
+			validationMode: ValidationModeWarn,
+		}
 		audioData := []byte{0x01, 0x02, 0x03}
 		msg := Message{
 			Role:    "user",
@@ -162,15 +164,24 @@ func TestLangChainAdapter_OpenAI_AudioSupport(t *testing.T) {
 		msgs, err := adapter.convertMessages(context.Background(), &req)
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
-		var foundAudioURL bool
-		for _, part := range msgs[0].Parts {
-			if urlPart, ok := part.(llms.ImageURLContent); ok {
-				if strings.HasPrefix(urlPart.URL, "data:audio/wav;base64,") {
-					foundAudioURL = true
-				}
-			}
+		assert.Equal(t, llms.TextContent{Text: "Analyze this audio"}, msgs[0].Parts[0])
+		assert.Len(t, msgs[0].Parts, 1, "Audio should be skipped, not converted")
+	})
+	t.Run("Should return error for OpenAI audio with error mode", func(t *testing.T) {
+		adapter := &LangChainAdapter{
+			provider:       core.ProviderConfig{Provider: core.ProviderOpenAI},
+			validationMode: ValidationModeError,
 		}
-		assert.True(t, foundAudioURL, "Expected audio as base64 data URL")
+		audioData := []byte{0x01, 0x02, 0x03}
+		msg := Message{
+			Role:    "user",
+			Content: "Analyze this audio",
+			Parts:   []ContentPart{BinaryPart{MIMEType: "audio/wav", Data: audioData}},
+		}
+		req := LLMRequest{Messages: []Message{msg}}
+		_, err := adapter.convertMessages(context.Background(), &req)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "OpenAI audio input not supported")
 	})
 }
 
@@ -255,32 +266,6 @@ func TestLangChainAdapter_BuildCallOptions(t *testing.T) {
 
 		// Should have WithTools and WithToolChoice
 		assert.GreaterOrEqual(t, len(options), 2)
-	})
-
-	t.Run("Should enable JSON mode when requested without tools", func(t *testing.T) {
-		req := LLMRequest{
-			Options: CallOptions{
-				UseJSONMode: true,
-			},
-		}
-
-		options := adapter.buildCallOptions(&req)
-
-		assert.GreaterOrEqual(t, len(options), 1)
-	})
-
-	t.Run("Should not enable JSON mode when tools are present", func(t *testing.T) {
-		req := LLMRequest{
-			Tools: []ToolDefinition{{Name: "tool"}},
-			Options: CallOptions{
-				UseJSONMode: true,
-			},
-		}
-
-		options := adapter.buildCallOptions(&req)
-
-		// Should have tool options but not JSON mode
-		assert.GreaterOrEqual(t, len(options), 1)
 	})
 }
 
@@ -396,7 +381,7 @@ func TestNewLangChainAdapter(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.NotNil(t, adapter)
-		assert.NotNil(t, adapter.model)
+		assert.NotNil(t, adapter.baseModel)
 		assert.Equal(t, config, adapter.provider)
 	})
 }

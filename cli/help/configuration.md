@@ -54,6 +54,8 @@ temporal:
 runtime:
   log_level: "info"
   tool_execution_timeout: "60s"
+  task_execution_timeout_default: "60s"
+  task_execution_timeout_max: "300s"
 ```
 
 ## CLI Configuration Section
@@ -148,6 +150,8 @@ database:
 runtime:
   log_level: "debug"
   tool_execution_timeout: "300s"
+  task_execution_timeout_default: "90s"
+  task_execution_timeout_max: "600s"
 ```
 
 ### Staging Configuration
@@ -179,6 +183,8 @@ temporal:
 runtime:
   log_level: "info"
   tool_execution_timeout: "180s"
+  task_execution_timeout_default: "120s"
+  task_execution_timeout_max: "480s"
 ```
 
 ### Production Configuration
@@ -211,6 +217,8 @@ temporal:
 runtime:
   log_level: "warn"
   tool_execution_timeout: "120s"
+  task_execution_timeout_default: "90s"
+  task_execution_timeout_max: "360s"
 
 limits:
   max_nesting_depth: 10

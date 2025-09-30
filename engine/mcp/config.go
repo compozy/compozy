@@ -223,6 +223,8 @@ type Config struct {
 	Command string `yaml:"command,omitempty"       json:"command,omitempty"`
 	// Args supplies additional arguments passed to the command when spawning local MCP processes.
 	//
+	// Only used when `command` is provided (stdio transport). Ignored when `url` is configured.
+	// Runtime validation enforces that `command` and `url` are mutually exclusive.
 	// Use this to provide flags or subcommands while keeping Command focused on the executable.
 	// Example:
 	// command: "uvx"

@@ -177,6 +177,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, fmt.Errorf("failed to create app state: %w", err)
 	}
+	state.SetMonitoringService(s.monitoring)
 	state.SetResourceStore(resourceStore)
 	if configRegistry != nil {
 		state.SetConfigRegistry(configRegistry)

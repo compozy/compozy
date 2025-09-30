@@ -287,12 +287,20 @@
           },
           "type": "array"
         },
+        "enable_progress_tracking": {
+          "description": "EnableProgressTracking toggles loop progress tracking to detect stalled\nconversations or repeated tool usage without advancement.\nDefault: false",
+          "type": "boolean"
+        },
         "fail_on_mcp_registration_error": {
           "description": "FailOnMCPRegistrationError enforces fail-fast behavior when registering\nMCP configurations sourced from agents/projects. When true, MCP\nregistration failures cause service initialization to error.",
           "type": "boolean"
         },
         "max_concurrent_tools": {
           "description": "MaxConcurrentTools limits the number of tools that can execute in parallel.\n\nControls resource usage and prevents overwhelming downstream services.\nHigher values improve throughput, lower values reduce resource contention.\nDefault: 10",
+          "type": "integer"
+        },
+        "max_consecutive_successes": {
+          "description": "MaxConsecutiveSuccesses controls how many consecutive successful tool calls\nwithout progress are tolerated before the orchestrator halts the loop.\nDefault: 3 (orchestrator default)",
           "type": "integer"
         },
         "max_sequential_tool_errors": {
@@ -317,6 +325,10 @@
         },
         "mcp_readiness_timeout": {
           "description": "MCPReadinessTimeout bounds how long to wait for MCP clients to connect during setup.\nDefault: 60s",
+          "type": "integer"
+        },
+        "no_progress_threshold": {
+          "description": "NoProgressThreshold configures how many loop iterations without progress are\ntolerated before the orchestrator considers the interaction stalled.\nDefault: 3 (orchestrator default)",
           "type": "integer"
         },
         "proxy_url": {
@@ -434,6 +446,125 @@
         "ttl": {
           "description": "TTL sets memory entry expiration time.\n\nBalances context retention with storage costs.\nDefault: 24h",
           "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "NativeExecArgumentConfig": {
+      "additionalProperties": false,
+      "description": "NativeExecArgumentConfig enforces validation for a single argument position.",
+      "properties": {
+        "enum": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "optional": {
+          "type": "boolean"
+        },
+        "pattern": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "NativeExecCommandConfig": {
+      "additionalProperties": false,
+      "description": "NativeExecCommandConfig defines per-command execution policies.",
+      "properties": {
+        "allow_additional": {
+          "type": "boolean"
+        },
+        "arguments": {
+          "items": {
+            "$ref": "#/$defs/NativeExecArgumentConfig"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "max_args": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "NativeExecConfig": {
+      "additionalProperties": false,
+      "description": "NativeExecConfig holds cp__exec configuration knobs.",
+      "properties": {
+        "allowlist": {
+          "items": {
+            "$ref": "#/$defs/NativeExecCommandConfig"
+          },
+          "type": "array"
+        },
+        "max_stderr_bytes": {
+          "type": "integer"
+        },
+        "max_stdout_bytes": {
+          "type": "integer"
+        },
+        "timeout": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "NativeFetchConfig": {
+      "additionalProperties": false,
+      "description": "NativeFetchConfig holds cp__fetch configuration knobs.",
+      "properties": {
+        "allowed_methods": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "max_body_bytes": {
+          "type": "integer"
+        },
+        "max_redirects": {
+          "type": "integer"
+        },
+        "timeout": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "NativeToolsConfig": {
+      "additionalProperties": false,
+      "description": "NativeToolsConfig controls cp__ builtin enablement and sandbox settings.",
+      "properties": {
+        "additional_roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "exec": {
+          "$ref": "#/$defs/NativeExecConfig"
+        },
+        "fetch": {
+          "$ref": "#/$defs/NativeFetchConfig"
+        },
+        "root_dir": {
+          "type": "string"
         }
       },
       "type": "object"
@@ -614,9 +745,21 @@
           "description": "LogLevel controls logging verbosity.\n\nLevels (least to most verbose):\n  - `\"error\"`: Critical errors only\n  - `\"warn\"`: Warnings and errors\n  - `\"info\"`: General operational info (default)\n  - `\"debug\"`: Detailed debugging information",
           "type": "string"
         },
+        "native_tools": {
+          "$ref": "#/$defs/NativeToolsConfig",
+          "description": "NativeTools configures native cp__ tool behavior and guards."
+        },
         "runtime_type": {
           "description": "RuntimeType specifies the JavaScript runtime to use for tool execution.\n\nValues: \"bun\", \"node\"\nDefault: \"bun\"",
           "type": "string"
+        },
+        "task_execution_timeout_default": {
+          "description": "TaskExecutionTimeoutDefault controls the fallback timeout applied when direct task executions\nomit a timeout value. Applies to synchronous and asynchronous direct executions triggered via API.\nDefault: 60s",
+          "type": "integer"
+        },
+        "task_execution_timeout_max": {
+          "description": "TaskExecutionTimeoutMax caps the maximum timeout allowed for direct task executions.\nClient-specified or configuration-derived timeouts exceeding this value are rejected.\nDefault: 300s",
+          "type": "integer"
         },
         "tool_execution_timeout": {
           "description": "ToolExecutionTimeout sets the maximum time for tool execution.\n\nPrevents runaway tools from blocking workflows.\nDefault: 60s",

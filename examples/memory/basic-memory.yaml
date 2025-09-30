@@ -61,7 +61,6 @@ agents:
       Always be helpful and friendly.
     actions:
       - id: chat
-        json_mode: true
         prompt: |
           User Message: {{ .workflow.input.message }}
           User ID: {{ .workflow.input.user_id }}

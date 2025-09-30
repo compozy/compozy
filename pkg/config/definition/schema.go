@@ -507,6 +507,22 @@ func registerRuntimeToolFields(registry *Registry) {
 		Help:    "Tool execution timeout",
 	})
 	registry.Register(&FieldDef{
+		Path:    "runtime.task_execution_timeout_default",
+		Default: 60 * time.Second,
+		CLIFlag: "task-execution-timeout-default",
+		EnvVar:  "TASK_EXECUTION_TIMEOUT_DEFAULT",
+		Type:    durationType,
+		Help:    "Default timeout for direct task executions",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.task_execution_timeout_max",
+		Default: 300 * time.Second,
+		CLIFlag: "task-execution-timeout-max",
+		EnvVar:  "TASK_EXECUTION_TIMEOUT_MAX",
+		Type:    durationType,
+		Help:    "Maximum timeout allowed for direct task executions",
+	})
+	registry.Register(&FieldDef{
 		Path:    "runtime.runtime_type",
 		Default: "bun",
 		CLIFlag: "runtime-type",

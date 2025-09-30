@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
@@ -81,36 +82,17 @@ IMPORTANT: You MUST respond in valid JSON format only. `+
 func (b *promptBuilder) ShouldUseStructuredOutput(
 	provider string,
 	action *agent.ActionConfig,
-	tools []tool.Config,
+	_ []tool.Config,
 ) bool {
-	// Only certain providers support structured output
 	if !b.supportsStructuredOutput(provider) {
 		return false
 	}
-
-	// Check if action has JSON mode or JSON output schema
-	if action != nil && (action.JSONMode || action.OutputSchema != nil) {
-		return true
-	}
-
-	// Check if any tool has output schema
-	for i := range tools {
-		if tools[i].OutputSchema != nil {
-			return true
-		}
-	}
-
-	return false
+	return action != nil && action.OutputSchema != nil
 }
 
 // supportsStructuredOutput checks if the provider supports structured output
 func (b *promptBuilder) supportsStructuredOutput(provider string) bool {
-	switch provider {
-	case "openai", "groq":
-		return true
-	default:
-		return false
-	}
+	return core.SupportsNativeJSONSchema(core.ProviderName(provider))
 }
 
 // Future: Add more sophisticated prompt enhancement features

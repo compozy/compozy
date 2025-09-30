@@ -118,7 +118,6 @@ actions:
         result:
           type: string
           description: "Result description"
-    json_mode: true
     with:
       default_param: "default_value"
 ```
@@ -150,8 +149,8 @@ actions:
       <TableCell>JSON Schema defining the structure of the action's response</TableCell>
     </TableRow>
     <TableRow>
-      <TableCell>JSON Mode</TableCell>
-      <TableCell>Forces structured JSON output when enabled</TableCell>
+      <TableCell>Output Format</TableCell>
+      <TableCell>Structured outputs are enabled by defining an <code>output</code> schema. Compozy requests native structured outputs when the provider supports it; otherwise it instructs the model and post-validates against the schema.</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>Default Parameters</TableCell>
@@ -219,7 +218,6 @@ actions:
               type: number
               minimum: 0
               maximum: 10
-        json_mode: true
     ```
   </Tab>
 
@@ -272,7 +270,7 @@ actions:
               type: array
               items:
                 type: string
-        json_mode: true
+        # structured outputs are derived from the output schema
     ```
   </Tab>
 
@@ -328,7 +326,7 @@ actions:
                   type: array
                   items:
                     type: string
-        json_mode: true
+        # structured outputs are derived from the output schema
         with:
           word_count: 500
           tone: "professional"
@@ -496,7 +494,7 @@ instructions: |
   />
   <ReferenceCard
     title="Structured Outputs"
-    description="Master JSON mode and output validation"
+    description="Define output schemas and use native structured outputs"
     href="/docs/core/agents/structured-outputs"
     icon="Braces"
   />

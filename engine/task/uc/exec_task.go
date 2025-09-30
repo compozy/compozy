@@ -142,12 +142,39 @@ func (uc *ExecuteTask) buildNormalizationContext(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
-	normCtx := contextBuilder.BuildContext(input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
+	var workflowState *workflow.State
+	var workflowConfig *workflow.Config
+	var taskConfig *task.Config
+	if input != nil {
+		workflowState = input.WorkflowState
+		workflowConfig = input.WorkflowConfig
+		taskConfig = input.TaskConfig
+	}
+	normCtx := contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
 
 	// Merge env following project standards (workflow -> task)
 	// For agent cases, the agent-level env is merged by AgentNormalizer already
 	envMerger := task2core.NewEnvMerger()
-	merged := envMerger.MergeWorkflowToTask(input.WorkflowConfig, input.TaskConfig)
+	merged := envMerger.MergeWorkflowToTask(workflowConfig, taskConfig)
+	if input != nil && input.ProjectConfig != nil {
+		projectEnv := input.ProjectConfig.GetEnv()
+		if len(projectEnv) > 0 {
+			mergedCopy := core.EnvMap{}
+			for k, v := range projectEnv {
+				mergedCopy[k] = v
+			}
+			if merged != nil {
+				for k, v := range *merged {
+					mergedCopy[k] = v
+				}
+			}
+			mergedEnv := mergedCopy
+			merged = &mergedEnv
+			if input.TaskConfig != nil {
+				input.TaskConfig.Env = merged
+			}
+		}
+	}
 	if merged != nil {
 		// Override top-level env in the template context with merged values
 		// to follow standard recursive merging semantics
@@ -805,6 +832,7 @@ func buildWorkflowContext(
 		// Add task input if available
 		if taskConfig.With != nil {
 			context["task_input"] = *taskConfig.With
+			context["with"] = dereferenceInput(taskConfig.With)
 		}
 	}
 

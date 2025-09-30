@@ -412,6 +412,9 @@ func (l *loader) validateCustom(config *Config) error {
 	if err := validateCache(config); err != nil {
 		return err
 	}
+	if err := validateTaskExecutionTimeouts(config); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -455,6 +458,25 @@ func validatePorts(cfg *Config) error {
 		if err := validateTCPPort(cfg.Database.Port, "Database port"); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func validateTaskExecutionTimeouts(cfg *Config) error {
+	defaultTimeout := cfg.Runtime.TaskExecutionTimeoutDefault
+	maxTimeout := cfg.Runtime.TaskExecutionTimeoutMax
+	if defaultTimeout <= 0 {
+		return fmt.Errorf("runtime.task_execution_timeout_default must be greater than 0, got: %s", defaultTimeout)
+	}
+	if maxTimeout <= 0 {
+		return fmt.Errorf("runtime.task_execution_timeout_max must be greater than 0, got: %s", maxTimeout)
+	}
+	if defaultTimeout > maxTimeout {
+		return fmt.Errorf(
+			"runtime.task_execution_timeout_default (%s) must not exceed runtime.task_execution_timeout_max (%s)",
+			defaultTimeout,
+			maxTimeout,
+		)
 	}
 	return nil
 }

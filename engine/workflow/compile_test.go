@@ -189,10 +189,9 @@ func TestSchemaIDLinking_FromMap(t *testing.T) {
 	// Agent action decoded from map with input: "my_schema"
 	var act agent.ActionConfig
 	require.NoError(t, act.FromMap(map[string]any{
-		"id":        "act",
-		"prompt":    "Do something",
-		"json_mode": true,
-		"input":     "my_schema",
+		"id":     "act",
+		"prompt": "Do something",
+		"input":  "my_schema",
 	}))
 	ag := agent.Config{
 		ID:           "a1",

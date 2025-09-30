@@ -32,7 +32,6 @@ agents:
       You are a precise Pokémon image analysis assistant. Analyze provided images and extract Pokémon names.
     actions:
       - id: analyze_image
-        json_mode: true
         prompt: |
           Identify the Pokémon in the provided image and return JSON only with:
           - pokemon (string)
@@ -44,6 +43,7 @@ agents:
             confidence: {type: number}
           required:
             - pokemon
+            - confidence
 
   - id: media_analyzer
     config:
@@ -54,7 +54,6 @@ agents:
       You are a precise Pokémon media analysis assistant. Analyze provided audio and video content and extract Pokémon names.
     actions:
       - id: analyze_audio
-        json_mode: true
         prompt: |
           Given an audio clip related to a Pokémon, return JSON with the likely pokemon (string) and confidence (0-1).
         output:
@@ -64,8 +63,8 @@ agents:
             confidence: {type: number}
           required:
             - pokemon
+            - confidence
       - id: analyze_video
-        json_mode: true
         prompt: |
           Given a short video related to a Pokémon, return JSON with the likely pokemon (string) and confidence (0-1).
         output:
@@ -75,6 +74,7 @@ agents:
             confidence: {type: number}
           required:
             - pokemon
+            - confidence
 
 tasks:
   - id: route-by-kind

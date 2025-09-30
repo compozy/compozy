@@ -1,11 +1,11 @@
 ---
 title: "Structured Outputs"
-description: "JSON mode and schema validation for predictable agent responses"
+description: "Schema-driven structured outputs with provider-native enforcement"
 ---
 
 ## Overview
 
-Structured outputs ensure agents return data in predictable, machine-readable formats. This is essential for workflow automation, [API integrations](/docs/api/overview), and reliable data processing. Compozy provides JSON mode and [JSON Schema validation](https://json-schema.org/) to guarantee consistent output structures.
+Structured outputs ensure agents return data in predictable, machine‑readable formats. This is essential for workflow automation, [API integrations](/docs/api/overview), and reliable data processing. Compozy uses your action <code>output</code> JSON Schemas to request provider‑native structured outputs when supported (e.g., OpenAI response_format) and always validates responses against the schema.
 
 If you're new to structured outputs, start with our [Quick Start Guide](/docs/core/getting-started/quick-start) to understand basic workflow concepts, then explore [Agent Configuration](/docs/core/agents/overview) for foundational agent setup patterns.
 
@@ -13,72 +13,54 @@ If you're new to structured outputs, start with our [Quick Start Guide](/docs/co
   For complex validation scenarios, leverage [reusable schemas](#reusable-schemas) and Compozy's [YAML template system](/docs/core/yaml-templates/overview) to build maintainable, modular configurations.
 </Callout>
 
-## JSON Mode
+## Enabling Structured Outputs
 
-JSON mode forces agents to respond with valid JSON, enabling reliable parsing and processing of agent outputs. This is particularly valuable for multi-agent workflows where agent outputs become inputs for subsequent workflow tasks.
+Structured outputs are enabled by defining an <code>output</code> schema on an action. When present, Compozy:
 
-### Enabling JSON Mode
+- Requests native structured outputs for providers that support it (e.g., OpenAI compatible response_format JSON schema).
+- Falls back to prompt guidance and post‑validation when native support isn’t available.
 
-JSON mode can be enabled at multiple levels, providing flexibility for different agent configurations and action patterns:
-
-<Tabs items={["Agent Level", "Action Level", "Automatic"]} defaultValue="Agent Level">
-  <Tab value="Agent Level">
-    Enable JSON mode for all actions of an agent:
-
-    ```yaml
-    agents:
-      - id: data-processor
-        model:
-          provider: openai
-          model: gpt-4-turbo-preview
-        json_mode: true  # All actions default to JSON
-        instructions: |
-          Always respond with valid JSON objects.
-    ```
-
-    This approach works well when building specialized agents focused on data processing tasks.
-  </Tab>
-
-  <Tab value="Action Level">
-    Enable JSON mode for specific actions within an agent:
-
+<Tabs items={["Per Action", "Schema Reference"]} defaultValue="Per Action">
+  <Tab value="Per Action">
     ```yaml
     actions:
       - id: analyze-data
         prompt: "Analyze the data and return findings"
-        json_mode: true  # Only this action uses JSON mode
         output:
           type: object
           properties:
             findings:
               type: array
+              items:
+                type: string
     ```
-
-    Use this pattern when mixing structured and conversational outputs within the same agent.
   </Tab>
 
-  <Tab value="Automatic">
-    JSON mode is automatically enabled when output schemas are defined:
+  <Tab value="Schema Reference">
+    Reference a reusable schema by ID:
 
     ```yaml
-    actions:
-      - id: get-metrics
-        prompt: "Calculate metrics"
-        # json_mode automatically enabled when output schema is defined
-        output:
-          type: object
-          properties:
-            metrics:
-              type: object
-    ```
+    schemas:
+      - id: findings
+        type: object
+        properties:
+          items:
+            type: array
+            items: { type: string }
 
-    This automatic behavior ensures consistency between schema definitions and JSON output requirements.
+    agents:
+      - id: researcher
+        actions:
+          - id: analyze
+            prompt: "Analyze and summarize findings"
+            output: findings
+    ```
   </Tab>
 </Tabs>
 
-### JSON Mode Behavior
+### Structured Output Behavior
 
-When JSON mode is enabled, agent behavior changes to ensure structured output compatibility:
+When structured outputs are in effect, agent behavior ensures schema‑compatible responses:
 
 - **Pure JSON Response**: Agent must respond with valid JSON only
 - **No Markdown**: No markdown formatting or explanatory text outside JSON
@@ -86,7 +68,7 @@ When JSON mode is enabled, agent behavior changes to ensure structured output co
 - **Validation Errors**: Runtime errors occur if response isn't valid JSON
 
 <Callout type="warning">
-  **Trade-off Consideration**: JSON mode may limit the agent's ability to provide explanations or reasoning. For debugging complex logic, consider enabling verbose logging.
+  **Trade‑off Consideration**: Enforcing strictly structured responses may limit free‑form explanations. For debugging complex logic, enable verbose logging or temporarily remove the schema.
 </Callout>
 
 ## Output Schemas
@@ -321,7 +303,7 @@ Real-world examples demonstrating structured outputs in common scenarios. These 
 
               Return all monetary values as numbers without currency symbols.
               Return dates in ISO 8601 format.
-            json_mode: true
+            # structured outputs are derived from the schema
             output: invoice_data
     ```
 
@@ -430,7 +412,7 @@ Understanding the validation lifecycle helps with debugging and building robust 
 
 <Steps>
   <Step title="Pre-execution" description="Input schema validates incoming parameters. The input schema is applied to validate all incoming workflow parameters before execution begins, ensuring data integrity from the start. Failed validation prevents workflow execution and returns detailed error messages." />
-  <Step title="Agent Processing" description="Agent generates response following the schema. The agent processes the request with awareness of the output schema requirements, structuring its response accordingly. JSON mode is automatically enabled when output schemas are defined." />
+  <Step title="Agent Processing" description="Agent generates response following the schema. When supported, Compozy requests native structured outputs; otherwise it instructs the model and validates the response against the schema." />
   <Step title="Post-execution" description="Output schema validates agent response. The generated response is validated against the defined output schema to ensure compliance with expected structure. This prevents malformed data from propagating to downstream tasks." />
   <Step title="Error Handling" description="Validation errors are returned with details. Any validation failures produce detailed error messages with specific paths and expected values for debugging. Use these error messages to refine prompts or adjust schema definitions." />
 </Steps>

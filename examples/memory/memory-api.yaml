@@ -36,7 +36,6 @@ agents:
       If you don't have any memory about the user, let them know this is a new conversation.
     actions:
       - id: chat
-        json_mode: true
         prompt: |
           User ID: {{ .workflow.input.user_id }}
           User Message: {{ .workflow.input.message }}

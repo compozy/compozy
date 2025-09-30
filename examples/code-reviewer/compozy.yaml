@@ -7,7 +7,7 @@ workflows:
 
 models:
   - provider: openai
-    model: gpt-5-2025-08-07
+    model: o3
     api_key: "{{ .env.OPENAI_API_KEY }}"
     default: true
     params:

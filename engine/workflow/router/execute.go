@@ -12,13 +12,13 @@ import (
 // ExecuteWorkflowRequest represents the request body for workflow execution
 // This is only used for Swagger documentation - the actual handler uses core.Input directly
 type ExecuteWorkflowRequest struct {
-	Input  core.Input `json:"input"   swaggerignore:"true"`
-	TaskID string     `json:"task_id" swaggerignore:"true"`
+	Input  core.Input `json:"input"`
+	TaskID string     `json:"task_id"`
 }
 
 // ExecuteWorkflowResponse represents the response for workflow execution
 type ExecuteWorkflowResponse struct {
-	ExecURL    string `json:"exec_url"    example:"localhost:5001/api/v0/executions/workflows/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	ExecURL    string `json:"exec_url"    example:"https://api.compozy.dev/api/v0/executions/workflows/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 	ExecID     string `json:"exec_id"     example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 	WorkflowID string `json:"workflow_id" example:"data-processing"`
 }
@@ -31,8 +31,10 @@ type ExecuteWorkflowResponse struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string											true	"Workflow ID"			example("data-processing")
-//	@Param			input		body		object											true	"Workflow input data"	SchemaExample({"data": "example", "config": {"timeout": 300}})
+//	@Param			input		body		object	true	"Workflow input data"	SchemaExample({"data": "example", "config": {"timeout": 300}})
+//	@Param			X-Correlation-ID	header		string		false	"Optional correlation ID for request tracing"
 //	@Success		202			{object}	router.Response{data=ExecuteWorkflowResponse}	"Workflow triggered successfully"
+//	@Header			202			{string}	Location	"Execution status URL"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}			"Invalid input or workflow ID"
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}			"Workflow not found"
 //	@Failure		503			{object}	router.Response{error=router.ErrorInfo}			"Worker unavailable"
@@ -67,6 +69,7 @@ func handleExecute(c *gin.Context) {
 
 	execID := workflowStateID.WorkflowExecID.String()
 	execURL := fmt.Sprintf("%s/executions/workflows/%s", routes.Base(), execID)
+	c.Header("Location", execURL)
 	router.RespondAccepted(c, "workflow triggered successfully", gin.H{
 		"exec_url":    execURL,
 		"exec_id":     execID,

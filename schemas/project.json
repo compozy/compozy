@@ -245,6 +245,14 @@
           },
           "type": "array"
         },
+        "task_execution_timeout_default": {
+          "description": "TaskExecutionTimeoutDefault overrides the global runtime.task_execution_timeout_default when provided.\nAccepts Go duration strings (e.g., \"90s\", \"2m\").",
+          "type": "integer"
+        },
+        "task_execution_timeout_max": {
+          "description": "TaskExecutionTimeoutMax overrides the global runtime.task_execution_timeout_max when provided.\nAccepts Go duration strings (e.g., \"300s\", \"5m\").",
+          "type": "integer"
+        },
         "tool_execution_timeout": {
           "description": "ToolExecutionTimeout overrides the global runtime.tool_execution_timeout when provided.\nAccepts Go duration strings (e.g., \"120s\", \"2m\").",
           "type": "integer"

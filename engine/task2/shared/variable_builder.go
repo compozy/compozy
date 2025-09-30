@@ -80,7 +80,9 @@ func (vb *VariableBuilder) AddTasksToVariables(
 // AddCurrentInputToVariables adds current input data to variables
 func (vb *VariableBuilder) AddCurrentInputToVariables(vars map[string]any, currentInput *core.Input) {
 	if currentInput != nil {
-		vars["input"] = vb.dereferenceInput(currentInput)
+		dereferenced := vb.dereferenceInput(currentInput)
+		vars["input"] = dereferenced
+		vars["with"] = dereferenced
 		// Also add item and index at top level for collection tasks
 		if item, exists := (*currentInput)[FieldItem]; exists {
 			vars[FieldItem] = item

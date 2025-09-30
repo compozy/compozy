@@ -6,8 +6,10 @@ import (
 	"sync"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/webhook"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/gin-gonic/gin"
@@ -25,10 +27,12 @@ const (
 type ExtensionKey string
 
 const (
-	extensionScheduleManagerKey ExtensionKey = "scheduleManager"
-	extensionWebhookRegistryKey ExtensionKey = "webhook.registry"
-	extensionResourceStoreKey   ExtensionKey = "resource.store"
-	extensionConfigRegistryKey  ExtensionKey = "config.registry"
+	extensionScheduleManagerKey   ExtensionKey = "scheduleManager"
+	extensionWebhookRegistryKey   ExtensionKey = "webhook.registry"
+	extensionResourceStoreKey     ExtensionKey = "resource.store"
+	extensionConfigRegistryKey    ExtensionKey = "config.registry"
+	extensionAPIIdempotencyKey    ExtensionKey = "api.idempotency"
+	extensionMonitoringServiceKey ExtensionKey = "monitoring.service"
 )
 
 type BaseDeps struct {
@@ -58,6 +62,35 @@ type State struct {
 	Worker     *worker.Worker
 	mu         sync.RWMutex
 	Extensions map[ExtensionKey]any
+}
+
+// SetExtension stores an arbitrary value in the extensions map using a typed key.
+// Passing a nil value removes the extension to keep the map stable for tests and runtime code.
+func (s *State) SetExtension(key ExtensionKey, value any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Extensions == nil {
+		s.Extensions = make(map[ExtensionKey]any)
+	}
+	if value == nil {
+		delete(s.Extensions, key)
+		return
+	}
+	s.Extensions[key] = value
+}
+
+// Extension retrieves an arbitrary value stored for the provided key.
+func (s *State) Extension(key ExtensionKey) (any, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.Extensions == nil {
+		return nil, false
+	}
+	v, ok := s.Extensions[key]
+	if !ok || v == nil {
+		return nil, false
+	}
+	return v, true
 }
 
 func NewState(deps BaseDeps, worker *worker.Worker) (*State, error) {
@@ -158,6 +191,42 @@ func (s *State) ConfigRegistry() (any, bool) {
 	defer s.mu.RUnlock()
 	v, ok := s.Extensions[extensionConfigRegistryKey]
 	return v, ok
+}
+
+// SetAPIIdempotencyService stores the webhook.Service used for API idempotency checks
+func (s *State) SetAPIIdempotencyService(service webhook.Service) {
+	s.SetExtension(extensionAPIIdempotencyKey, service)
+}
+
+// APIIdempotencyService retrieves the webhook.Service configured for API idempotency checks
+func (s *State) APIIdempotencyService() (webhook.Service, bool) {
+	v, ok := s.Extension(extensionAPIIdempotencyKey)
+	if !ok {
+		return nil, false
+	}
+	service, ok := v.(webhook.Service)
+	if !ok {
+		return nil, false
+	}
+	return service, true
+}
+
+// SetMonitoringService stores the monitoring service in extensions for reuse across handlers.
+func (s *State) SetMonitoringService(service *monitoring.Service) {
+	s.SetExtension(extensionMonitoringServiceKey, service)
+}
+
+// MonitoringService retrieves the monitoring service if it was configured during startup.
+func (s *State) MonitoringService() (*monitoring.Service, bool) {
+	v, ok := s.Extension(extensionMonitoringServiceKey)
+	if !ok {
+		return nil, false
+	}
+	service, ok := v.(*monitoring.Service)
+	if !ok {
+		return nil, false
+	}
+	return service, true
 }
 
 // ReplaceWorkflows swaps the compiled workflow set atomically under RW lock
