@@ -318,6 +318,14 @@ func (a *LangChainAdapter) buildCallOptions(req *LLMRequest) []llms.CallOption {
 		options = append(options, llms.WithTools(tools))
 	}
 
+	if req.Options.ForceJSON {
+		options = append(options, llms.WithJSONMode())
+	}
+
+	if req.Options.ResponseMIME != "" {
+		options = append(options, llms.WithResponseMIMEType(req.Options.ResponseMIME))
+	}
+
 	// Set tool choice directive when provided (including "none")
 	if req.Options.ToolChoice != "" {
 		options = append(options, llms.WithToolChoice(req.Options.ToolChoice))

@@ -323,6 +323,16 @@ func (h *responseHandler) parseContent(
 	}
 
 	if action != nil && action.ShouldUseJSONOutput() {
+		if snippet, ok := extractJSONObject(content); ok {
+			var obj map[string]any
+			if err := json.Unmarshal([]byte(snippet), &obj); err == nil {
+				output := core.Output(obj)
+				if err := h.validateOutput(ctx, &output, action); err != nil {
+					return nil, err
+				}
+				return &output, nil
+			}
+		}
 		return nil, NewLLMError(
 			fmt.Errorf("expected structured JSON output but received plain text"),
 			ErrCodeInvalidResponse,
@@ -356,6 +366,48 @@ func extractTopLevelErrorMessage(s string) (string, bool) {
 	if ev, ok := obj["error"]; ok && ev != nil {
 		if msg, ok := stringifyErrorValue(ev); ok {
 			return msg, true
+		}
+	}
+	return "", false
+}
+
+func extractJSONObject(s string) (string, bool) {
+	inString := false
+	escaped := false
+	depth := 0
+	start := -1
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if escaped {
+			escaped = false
+			continue
+		}
+		if inString {
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch ch {
+		case '"':
+			inString = true
+		case '{':
+			if depth == 0 {
+				start = i
+			}
+			depth++
+		case '}':
+			if depth == 0 {
+				continue
+			}
+			depth--
+			if depth == 0 && start >= 0 {
+				return s[start : i+1], true
+			}
 		}
 	}
 	return "", false

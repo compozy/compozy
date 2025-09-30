@@ -24,7 +24,7 @@ config:
 
 agents:
   - id: image_analyzer
-    config:
+    model:
       provider: openai
       model: gpt-4o-mini
       api_key: "{{ .env.OPENAI_API_KEY }}"
@@ -46,7 +46,7 @@ agents:
             - confidence
 
   - id: media_analyzer
-    config:
+    model:
       provider: google
       model: gemini-2.5-flash
       api_key: "{{ .env.GOOGLE_API_KEY }}"
