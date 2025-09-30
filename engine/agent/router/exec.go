@@ -23,10 +23,10 @@ import (
 )
 
 const (
-	// defaultAgentExecTimeoutSeconds defines the fallback timeout applied when callers omit a value.
-	defaultAgentExecTimeoutSeconds = 60
-	// maxAgentExecTimeoutSeconds caps how long agent executions are allowed to run.
-	maxAgentExecTimeoutSeconds = 300
+	// defaultAgentExecTimeout defines the fallback timeout applied when callers omit a value.
+	defaultAgentExecTimeout = 60 * time.Second
+	// maxAgentExecTimeout caps how long agent executions are allowed to run.
+	maxAgentExecTimeout = 300 * time.Second
 	// directPromptActionID labels prompt-only executions so task state constraints remain satisfied.
 	directPromptActionID = "__prompt__"
 )
@@ -111,12 +111,12 @@ func parseAgentExecRequest(c *gin.Context) (*AgentExecRequest, bool) {
 		return nil, false
 	}
 	if req.Timeout == 0 {
-		req.Timeout = defaultAgentExecTimeoutSeconds
+		req.Timeout = int(defaultAgentExecTimeout / time.Second)
 	}
-	if req.Timeout > maxAgentExecTimeoutSeconds {
+	if req.Timeout > int(maxAgentExecTimeout/time.Second) {
 		reqErr := router.NewRequestError(
 			http.StatusBadRequest,
-			fmt.Sprintf("timeout cannot exceed %d seconds", maxAgentExecTimeoutSeconds),
+			fmt.Sprintf("timeout cannot exceed %d seconds", int(maxAgentExecTimeout/time.Second)),
 			nil,
 		)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
