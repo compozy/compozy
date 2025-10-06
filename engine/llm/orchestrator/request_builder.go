@@ -59,6 +59,7 @@ func (b *requestBuilder) Build(
 		toolChoice = "auto"
 	}
 
+	forceJSON := b.computeJSONPreferences(ctx, promptData.format, request)
 	logger.FromContext(ctx).Debug("LLM request prepared",
 		"agent_id", request.Agent.ID,
 		"action_id", request.Action.ID,
@@ -66,6 +67,7 @@ func (b *requestBuilder) Build(
 		"tools_count", len(toolDefs),
 		"tool_choice", toolChoice,
 		"output_format", b.describeOutputFormat(promptData.format),
+		"force_json", forceJSON,
 	)
 
 	return llmadapter.LLMRequest{
@@ -78,8 +80,38 @@ func (b *requestBuilder) Build(
 			StopWords:    request.Agent.Model.Config.Params.StopWords,
 			ToolChoice:   toolChoice,
 			OutputFormat: promptData.format,
+			ForceJSON:    forceJSON,
 		},
 	}, nil
+}
+
+// computeJSONPreferences determines whether to request forced JSON output based on
+// the action schema, desired output format, and provider capabilities. It returns
+// true when the provider requires explicit JSON mode to honor the schema.
+func (b *requestBuilder) computeJSONPreferences(
+	ctx context.Context,
+	format llmadapter.OutputFormat,
+	request Request,
+) bool {
+	_ = ctx
+	action := request.Action
+	if action == nil || action.OutputSchema == nil {
+		return false
+	}
+	// If we already requested native JSON schema support, no need to force JSON mode.
+	if format.IsJSONSchema() {
+		return false
+	}
+	provider := request.Agent.Model.Config.Provider
+	switch provider {
+	case core.ProviderGoogle:
+		// Gemini currently rejects JSON mode when combined with tool calling. Rely on prompt instructions instead.
+		return false
+	case core.ProviderOpenAI, core.ProviderXAI:
+		return true
+	default:
+		return false
+	}
 }
 
 type promptBuildData struct {

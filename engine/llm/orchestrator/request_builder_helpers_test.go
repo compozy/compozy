@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
@@ -148,4 +150,30 @@ func TestNormalizeToolParameters_PreservesProvidedSchemaFields(t *testing.T) {
 	require.True(t, ok)
 	_, has := props["foo"]
 	assert.True(t, has)
+}
+
+func TestRequestBuilder_ComputeJSONPreferences(t *testing.T) {
+	rb := &requestBuilder{}
+	schemaObj := &schema.Schema{"type": "object"}
+	action := &agent.ActionConfig{ID: "structured", OutputSchema: schemaObj}
+	request := Request{
+		Agent:  &agent.Config{Model: agent.Model{Config: core.ProviderConfig{Provider: core.ProviderGoogle}}},
+		Action: action,
+	}
+
+	ctx := context.Background()
+	force := rb.computeJSONPreferences(ctx, llmadapter.DefaultOutputFormat(), request)
+	assert.False(t, force)
+
+	request.Agent.Model.Config.Provider = core.ProviderOpenAI
+	force = rb.computeJSONPreferences(ctx, llmadapter.DefaultOutputFormat(), request)
+	assert.True(t, force)
+
+	format := llmadapter.NewJSONSchemaOutputFormat("structured", schemaObj, true)
+	force = rb.computeJSONPreferences(ctx, format, request)
+	assert.False(t, force)
+
+	request.Action = nil
+	force = rb.computeJSONPreferences(ctx, llmadapter.DefaultOutputFormat(), request)
+	assert.False(t, force)
 }

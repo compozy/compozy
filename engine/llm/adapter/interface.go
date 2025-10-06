@@ -121,6 +121,8 @@ type CallOptions struct {
 	StopWords    []string
 	ToolChoice   string // "auto", "none", or specific tool name
 	OutputFormat OutputFormat
+	ForceJSON    bool
+	ResponseMIME string
 }
 
 // LLMResponse represents the response from the LLM
