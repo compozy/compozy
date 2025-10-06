@@ -161,18 +161,19 @@ func TestRequestBuilder_ComputeJSONPreferences(t *testing.T) {
 		Action: action,
 	}
 
-	force := rb.computeJSONPreferences(llmadapter.DefaultOutputFormat(), request)
+	ctx := context.Background()
+	force := rb.computeJSONPreferences(ctx, llmadapter.DefaultOutputFormat(), request)
 	assert.False(t, force)
 
 	request.Agent.Model.Config.Provider = core.ProviderOpenAI
-	force = rb.computeJSONPreferences(llmadapter.DefaultOutputFormat(), request)
+	force = rb.computeJSONPreferences(ctx, llmadapter.DefaultOutputFormat(), request)
 	assert.True(t, force)
 
 	format := llmadapter.NewJSONSchemaOutputFormat("structured", schemaObj, true)
-	force = rb.computeJSONPreferences(format, request)
+	force = rb.computeJSONPreferences(ctx, format, request)
 	assert.False(t, force)
 
 	request.Action = nil
-	force = rb.computeJSONPreferences(llmadapter.DefaultOutputFormat(), request)
+	force = rb.computeJSONPreferences(ctx, llmadapter.DefaultOutputFormat(), request)
 	assert.False(t, force)
 }

@@ -59,8 +59,7 @@ func (b *requestBuilder) Build(
 		toolChoice = "auto"
 	}
 
-	forceJSON := b.computeJSONPreferences(promptData.format, request)
-
+	forceJSON := b.computeJSONPreferences(ctx, promptData.format, request)
 	logger.FromContext(ctx).Debug("LLM request prepared",
 		"agent_id", request.Agent.ID,
 		"action_id", request.Action.ID,
@@ -86,10 +85,15 @@ func (b *requestBuilder) Build(
 	}, nil
 }
 
+// computeJSONPreferences determines whether to request forced JSON output based on
+// the action schema, desired output format, and provider capabilities. It returns
+// true when the provider requires explicit JSON mode to honor the schema.
 func (b *requestBuilder) computeJSONPreferences(
+	ctx context.Context,
 	format llmadapter.OutputFormat,
 	request Request,
 ) bool {
+	_ = ctx
 	action := request.Action
 	if action == nil || action.OutputSchema == nil {
 		return false
