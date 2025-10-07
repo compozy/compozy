@@ -2,8 +2,6 @@ You are an AI assistant responsible for managing a software development project.
 
 <critical>@.cursor/rules/critical-validation.mdc</critical>
 
-**YOU MUST USE** --think for this task
-
 <arguments>$ARGUMENTS</arguments>
 <arguments_table>
 | Argument | Description         | Example         |
