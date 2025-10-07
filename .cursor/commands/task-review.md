@@ -9,7 +9,7 @@ You are an AI assistant responsible for ensuring code quality and task completio
 | --task   | Task identifier     | --task=45       |
 </arguments_table>
 <task_info>
-Task: ./tasks/prd-[$prd]/[$task]_task.md
+Task: ./tasks/prd-[$prd]/[$task]\_task.md
 </task_info>
 <prd_info>
 PRD: ./tasks/prd-[$prd]/\_prd.md
@@ -19,6 +19,7 @@ Tech Spec: ./tasks/prd-[$prd]/\_techspec.md
 </techspec_info>
 
 <task_definition_validation>
+
 1. Task Definition Validation (**YOURSELF** without using zen)
 
 First, verify that the implementation aligns with all requirements:
@@ -33,10 +34,9 @@ Confirm that the implementation satisfies:
 - Business objectives from the PRD
 - Technical specifications and architecture requirements
 - All acceptance criteria and success metrics
-</task_definition_validation>
+  </task_definition_validation>
 
-<rules_analysis>
-2. Rules Analysis & Code Review (**YOURSELF** without using zen)
+<rules_analysis> 2. Rules Analysis & Code Review (**YOURSELF** without using zen)
 
 2.1 Rules Analysis
 Analyze all Cursor rules applicable to the changed files for task <task_info>:
@@ -44,7 +44,7 @@ Analyze all Cursor rules applicable to the changed files for task <task_info>:
 - Identify relevant .cursor/rules/\*.mdc files
 - List specific coding standards, patterns, and requirements that apply
 - Check for rule violations or areas needing attention
-</rules_analysis>
+  </rules_analysis>
 
 <multi_model_code_review>
 2.2 Multi-Model Code Review (**NOW WITH ZEN**)
@@ -64,6 +64,7 @@ Apply the specific rules identified in step 2.1 during the review.
 Use zen with o3 to perform a logical review of the implementation for task <task_info>.
 Analyze the logic, edge cases, and potential issues while considering the applicable coding standards and rules.
 ```
+
 </zen_mcp_commands>
 
 <rules_specific_review>
@@ -76,14 +77,16 @@ Use zen with gemini-2.5-pro-preview-05-06 to review task <task_info> implementat
 - Validate implementation follows the established conventions
 - Ensure all rule-based requirements are met
 ```
+
 </rules_specific_review>
 
 <fix_review_issues> 3. Fix Review Issues
 Address ALL issues identified:
+
 - Fix critical and high-severity issues immediately
 - Address medium-severity issues unless explicitly justified
 - Document any decisions to skip low-severity issues
-</fix_review_issues>
+  </fix_review_issues>
 
 <validation_focus>
 Focus on:
@@ -93,10 +96,9 @@ Focus on:
 - Ensuring changes follow project coding standards
 - Validating test coverage and error handling
 - Confirming no code duplication or logic redundancy
-</validation_focus>
+  </validation_focus>
 
-<mark_task_complete>
-5. Mark Task Complete
+<mark_task_complete> 5. Mark Task Complete
 
 ONLY AFTER successful validation, update the Markdown task file with the following:
 
@@ -108,6 +110,7 @@ ONLY AFTER successful validation, update the Markdown task file with the followi
   - [x] 1.4 Code review completed with Zen MCP
   - [x] 1.5 Ready for deployment
 ```
+
 </mark_task_complete>
 
 <task_completion_report>
@@ -123,7 +126,7 @@ Ensure that you only include the final report in your output, without repeating 
 </task_completion_report>
 
 <output_requirement>
-**IF YOUR ANALYSIS IS ABOUT A [num]_task.md FILE**, you need to create a [num]_task_review.md report after all the review is done to serve as context/base.
+**IF YOUR ANALYSIS IS ABOUT A [num]\_task.md FILE**, you need to create a [num]\_task_review.md report after all the review is done to serve as context/base.
 </output_requirement>
 
 <requirements>

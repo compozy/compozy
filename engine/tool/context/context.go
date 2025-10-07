@@ -11,9 +11,10 @@ import (
 type ctxKey string
 
 const (
-	appStateKey      ctxKey = "toolcontext.app_state"
-	taskRepoKey      ctxKey = "toolcontext.task_repo"
-	resourceStoreKey ctxKey = "toolcontext.resource_store"
+	appStateKey        ctxKey = "toolcontext.app_state"
+	taskRepoKey        ctxKey = "toolcontext.task_repo"
+	resourceStoreKey   ctxKey = "toolcontext.resource_store"
+	plannerDisabledKey ctxKey = "toolcontext.planner_disabled"
 )
 
 func WithAppState(ctx context.Context, state *appstate.State) context.Context {
@@ -68,4 +69,22 @@ func GetResourceStore(ctx context.Context) (resources.ResourceStore, bool) {
 		return nil, false
 	}
 	return store, true
+}
+
+func DisablePlannerTools(ctx context.Context) context.Context {
+	if ctx == nil {
+		return nil
+	}
+	return context.WithValue(ctx, plannerDisabledKey, true)
+}
+
+func PlannerToolsDisabled(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	disabled, ok := ctx.Value(plannerDisabledKey).(bool)
+	if !ok {
+		return false
+	}
+	return disabled
 }

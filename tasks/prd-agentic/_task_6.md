@@ -1,7 +1,7 @@
 ---
 status: pending
 parallelizable: false
-blocked_by: ["2.0","3.0","4.0","5.0"]
+blocked_by: ["2.0", "3.0", "4.0", "5.0"]
 ---
 
 <task_context>
@@ -13,7 +13,7 @@ blocked_by: ["2.0","3.0","4.0","5.0"]
 <unblocks>"7.0","10.0","11.0"</unblocks>
 </task_context>
 
-# Task 6.0: Implement cp__agent_orchestrate builtin handler
+# Task 6.0: Implement cp\_\_agent_orchestrate builtin handler
 
 ## Overview
 
@@ -41,7 +41,7 @@ Create builtin definition with input/output schemas, handler glue to planner/exe
 
 ## Implementation Details
 
-- Follow existing cp__ tools patterns (fetch/exec/filesystem) for error/metrics.
+- Follow existing cp\_\_ tools patterns (fetch/exec/filesystem) for error/metrics.
 - Initialize the orchestrator FSM in the handler using the shared helper from Task 5 so planner/executor transitions run under the same `looplab/fsm` contract as `engine/llm/orchestrator`.
 - Thread plan/execution context through every state transition (planner start, validation, execution, finalize, failure) to support telemetry hooks and result aggregation.
 

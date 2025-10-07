@@ -5,6 +5,7 @@ Use the @agent-task-list-creator subagent to handle this request with the follow
 Feature Slug: $ARGUMENTS
 
 The @agent-task-list-creator subagent will:
+
 1. Verify that both PRD and Tech Spec documents exist
 2. Analyze both documents comprehensively
 3. Plan and organize tasks with clear dependencies

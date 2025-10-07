@@ -1,7 +1,7 @@
 ---
 status: pending
 parallelizable: true
-blocked_by: ["5.0","6.0","8.0"]
+blocked_by: ["5.0", "6.0", "8.0"]
 ---
 
 <task_context>

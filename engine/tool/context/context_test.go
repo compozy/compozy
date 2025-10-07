@@ -42,3 +42,11 @@ func TestResourceStoreRoundTrip(t *testing.T) {
 	_, ok = GetResourceStore(context.Background())
 	require.False(t, ok)
 }
+
+func TestPlannerDisableFlag(t *testing.T) {
+	ctx := context.Background()
+	require.False(t, PlannerToolsDisabled(ctx))
+	disabledCtx := DisablePlannerTools(ctx)
+	require.True(t, PlannerToolsDisabled(disabledCtx))
+	require.False(t, PlannerToolsDisabled(context.Background()))
+}

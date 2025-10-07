@@ -27,9 +27,9 @@
 ## Tasks
 
 - [x] 1.0 Extract reusable Agent Runner service from router — size: medium (not batchable)
- - [x] 2.0 Add tool context bridge for appstate/repo propagation — size: medium (not batchable)
+- [x] 2.0 Add tool context bridge for appstate/repo propagation — size: medium (not batchable)
 - [x] 3.0 Define orchestration plan model and schema — size: small (batchable)
-- [ ] 4.0 Implement planner (prompt → plan) with guardrails — size: medium (not batchable)
+- [x] 4.0 Implement planner (prompt → plan) with guardrails — size: medium (not batchable)
 - [ ] 5.0 Implement executor (sequential + parallel) with limits — size: high (not batchable)
 - [ ] 6.0 Implement cp\_\_agent_orchestrate builtin handler — size: medium (not batchable)
 - [ ] 7.0 Register builtin in native catalog and service wiring — size: small (batchable)
@@ -65,3 +65,9 @@
 Notes
 
 - Medium/high tasks (1.0, 2.0, 4.0, 5.0, 6.0, 10.0) should land separately to simplify review and rollback.
+
+## Latest Progress (October 7, 2025)
+
+- Completed Task 4.0 with a new planner compiler (`engine/tool/builtin/orchestrate/planner/compiler.go`) that issues deterministic prompts, enforces plan schema validation, merges bindings, and guards against recursion via `toolcontext`.
+- Added comprehensive planner unit coverage (`engine/tool/builtin/orchestrate/planner/compiler_test.go`) exercising structured input, prompt generation, disable flags, recursion guard, and invalid payload handling.
+- Extended tool context helpers (`engine/tool/context/context.go`) with planner-disable propagation plus tests to ensure future builtin wiring can toggle planner recursion safety.

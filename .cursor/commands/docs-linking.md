@@ -18,6 +18,7 @@ information.
 ### 2. Strategic Cross-Linking
 
 Instead of generic filler text, every paragraph should include purposeful links that:
+
 - Connect to Prerequisites: Link to concepts users need to understand first
 - Point to Related Features: Show how this feature interacts with others
 - Provide Learning Paths: Guide beginners to tutorials and advanced users to references
@@ -42,6 +43,7 @@ Instead of generic filler text, every paragraph should include purposeful links 
 ### 5. Multiple Learning Approaches
 
 Cater to different user needs:
+
 - Conceptual: Link to overview and architecture docs
 - Practical: Link to tutorials and examples
 - Reference: Link to schema documentation and API specs
@@ -57,29 +59,34 @@ Cater to different user needs:
 ## Specific Improvements to Make
 
 ### 1. In Overview Sections:
-  - Add links to getting started guides for beginners
-  - Link to related execution documentation (CLI/API)
-  - Connect to the broader system context
+
+- Add links to getting started guides for beginners
+- Link to related execution documentation (CLI/API)
+- Connect to the broader system context
 
 ### 2. For Configuration Sections:
-  - Link to configuration precedence and project setup
-  - Connect to runtime environments where configs are used
-  - Reference security practices for sensitive configuration
+
+- Link to configuration precedence and project setup
+- Connect to runtime environments where configs are used
+- Reference security practices for sensitive configuration
 
 ### 3. For Feature Explanations:
-  - Link to the underlying technology (e.g., "uses JSON Schema" → link to JSON Schema)
-  - Connect to related features that work together
-  - Point to troubleshooting and debugging resources
+
+- Link to the underlying technology (e.g., "uses JSON Schema" → link to JSON Schema)
+- Connect to related features that work together
+- Point to troubleshooting and debugging resources
 
 ### 4. For Code Examples:
-  - Link template syntax to template documentation
-  - Connect to validation and debugging guides
-  - Reference where example patterns are used in tutorials
+
+- Link template syntax to template documentation
+- Connect to validation and debugging guides
+- Reference where example patterns are used in tutorials
 
 ### 5. At Section Ends:
-  - Add reference cards for related documentation
-  - Organize cards by user journey (beginner → advanced)
-  - Use descriptive text that explains what users will find
+
+- Add reference cards for related documentation
+- Organize cards by user journey (beginner → advanced)
+- Use descriptive text that explains what users will find
 
 ## Example Transformation
 

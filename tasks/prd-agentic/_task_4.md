@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["3.0"]
 ---
@@ -29,9 +29,9 @@ Implement a planner that converts natural‑language prompts into structured `Pl
 
 ## Subtasks
 
-- [ ] 4.1 Planner scaffold and prompt
-- [ ] 4.2 Validation and failure modes
-- [ ] 4.3 Tests with mock LLM
+- [x] 4.1 Planner scaffold and prompt
+- [x] 4.2 Validation and failure modes
+- [x] 4.3 Tests with mock LLM
 
 ## Sequencing
 
@@ -56,3 +56,10 @@ Implement a planner that converts natural‑language prompts into structured `Pl
 ## Success Criteria
 
 - Planner produces valid plans; failure cases handled gracefully
+
+## Completion Notes
+
+- Introduced `engine/tool/builtin/orchestrate/planner/compiler.go` implementing a deterministic planner compiler that builds the LLM request, enforces JSON-schema validation, normalizes step defaults, merges input bindings, and rejects planner recursion through `toolcontext.DisablePlannerTools`.
+- Added `engine/tool/builtin/orchestrate/planner/compiler_test.go` with closable test adapters covering structured-plan passthrough, prompt-driven planning, disable flags, recursion guard, invalid JSON, and max-step enforcement.
+- Extended `engine/tool/context/context.go` with planner disable helpers plus unit tests to propagate recursion guardrails to downstream orchestrate flows.
+- Validation: `make lint`, `make test`.

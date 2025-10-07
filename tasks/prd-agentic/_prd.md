@@ -1,4 +1,4 @@
-# Product Requirements Document (PRD): Agentic Built‑in Tool (cp__agent_orchestrate)
+# Product Requirements Document (PRD): Agentic Built‑in Tool (cp\_\_agent_orchestrate)
 
 ## Overview
 
@@ -14,6 +14,7 @@ Primary users: workflow authors and advanced operators who currently compose mul
 - Integrate with existing execution/state stores so sub‑executions are traceable.
 
 Key success metrics (measure over first 60 days GA unless noted):
+
 - Task success rate: ≥ 85% of orchestrated runs complete without manual retry (30 days post‑GA).
 - p90 prompt‑to‑result latency for top 3 workflows: ≤ 5s with two agent steps (same project hardware/settings).
 - Manual configuration reduction: ≥ 40% decrease in average YAML/task lines for equivalent multi‑agent flows.
@@ -42,6 +43,7 @@ Key success metrics (measure over first 60 days GA unless noted):
    - Return structured summary: step statuses, outputs, errors, and final bindings map.
 
 Functional requirements (numbered):
+
 - R1. The system MUST expose a built‑in tool ID `cp__agent_orchestrate` discoverable by the tool registry.
 - R2. The tool MUST accept either a `prompt` or a structured `plan`; at least one is required.
 - R3. The tool MUST support sequential and parallel blocks with per‑step `agent_id`, optional `action_id`, optional `prompt`, and `with` parameters.
@@ -102,6 +104,5 @@ Functional requirements (numbered):
 
 ## Appendix
 
-- Comparative UX references: single‑surface orchestration patterns (internal research). 
+- Comparative UX references: single‑surface orchestration patterns (internal research).
 - Evaluation protocol: benchmark tasks, acceptance criteria for completion rate/latency.
-

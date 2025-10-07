@@ -20,6 +20,7 @@ Invoke these five agents IN PARALLEL:
 5. @agent-test-strategist - Plans comprehensive test strategies
 
 All agents will:
+
 - Analyze the task comprehensively from their specialized perspective
 - Save their analysis to `ai-docs/<task>/` directory
 - Cross-reference each other's outputs automatically

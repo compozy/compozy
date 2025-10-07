@@ -5,6 +5,7 @@ Use the @agent-techspec-creator subagent to handle this request with the followi
 PRD Content or Feature: $ARGUMENTS
 
 The @agent-techspec-creator subagent will:
+
 1. Analyze the PRD and review project standards
 2. Use zen analyze for pre-analysis of technical complexity
 3. Ask targeted technical clarification questions
