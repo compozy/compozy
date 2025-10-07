@@ -11,10 +11,11 @@ import (
 type ctxKey string
 
 const (
-	appStateKey        ctxKey = "toolcontext.app_state"
-	taskRepoKey        ctxKey = "toolcontext.task_repo"
-	resourceStoreKey   ctxKey = "toolcontext.resource_store"
-	plannerDisabledKey ctxKey = "toolcontext.planner_disabled"
+	appStateKey          ctxKey = "toolcontext.app_state"
+	taskRepoKey          ctxKey = "toolcontext.task_repo"
+	resourceStoreKey     ctxKey = "toolcontext.resource_store"
+	plannerDisabledKey   ctxKey = "toolcontext.planner_disabled"
+	orchestratorDepthKey ctxKey = "toolcontext.agent_orchestrator_depth"
 )
 
 func WithAppState(ctx context.Context, state *appstate.State) context.Context {
@@ -87,4 +88,26 @@ func PlannerToolsDisabled(ctx context.Context) bool {
 		return false
 	}
 	return disabled
+}
+
+func AgentOrchestratorDepth(ctx context.Context) int {
+	if ctx == nil {
+		return 0
+	}
+	depth, ok := ctx.Value(orchestratorDepthKey).(int)
+	if !ok {
+		return 0
+	}
+	if depth < 0 {
+		return 0
+	}
+	return depth
+}
+
+func IncrementAgentOrchestratorDepth(ctx context.Context) context.Context {
+	if ctx == nil {
+		return nil
+	}
+	depth := AgentOrchestratorDepth(ctx)
+	return context.WithValue(ctx, orchestratorDepthKey, depth+1)
 }

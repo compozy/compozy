@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: false
 blocked_by: ["1.0", "2.0", "3.0"]
 ---
@@ -30,9 +30,9 @@ Implement execution engine that runs plan steps using Runner. Support per‑step
 
 ## Subtasks
 
-- [ ] 5.1 Engine core and result model
-- [ ] 5.2 Safety/limits enforcement
-- [ ] 5.3 Tests (sequential, parallel, cancellations)
+- [x] 5.1 Engine core and result model
+- [x] 5.2 Safety/limits enforcement
+- [x] 5.3 Tests (sequential, parallel, cancellations)
 
 ## Sequencing
 
@@ -59,3 +59,9 @@ Implement execution engine that runs plan steps using Runner. Support per‑step
 ## Success Criteria
 
 - Deterministic results; limits enforced; tests pass
+
+## Completion Notes (October 7, 2025)
+
+- Implemented the executor engine and FSM to orchestrate sequential/parallel plan execution with bounded concurrency and context-aware limits.
+- Added failure-result propagation so callers receive per-step metadata even when cancellations or errors occur.
+- Delivered comprehensive unit test coverage for sequential, parallel, and cancellation scenarios ensuring regressions are caught going forward.

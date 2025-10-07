@@ -50,3 +50,16 @@ func TestPlannerDisableFlag(t *testing.T) {
 	require.True(t, PlannerToolsDisabled(disabledCtx))
 	require.False(t, PlannerToolsDisabled(context.Background()))
 }
+
+func TestAgentOrchestratorDepth(t *testing.T) {
+	ctx := context.Background()
+	t.Run("ShouldDefaultToZero", func(t *testing.T) {
+		require.Equal(t, 0, AgentOrchestratorDepth(ctx))
+	})
+	t.Run("ShouldIncrementDepth", func(t *testing.T) {
+		levelOne := IncrementAgentOrchestratorDepth(ctx)
+		require.Equal(t, 1, AgentOrchestratorDepth(levelOne))
+		levelTwo := IncrementAgentOrchestratorDepth(levelOne)
+		require.Equal(t, 2, AgentOrchestratorDepth(levelTwo))
+	})
+}
