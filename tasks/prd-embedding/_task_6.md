@@ -1,7 +1,7 @@
----
-status: pending
+status: completed
 parallelizable: false
 blocked_by: ["2.0", "3.0", "7.0"]
+
 ---
 
 <task_context>
@@ -30,9 +30,9 @@ Implement dense similarity retrieval with `top_k`/`min_score`, deterministic ord
 
 ## Subtasks
 
-- [ ] 6.1 Implement retriever API and scoring
-- [ ] 6.2 Add max token trimming helper for injection
-- [ ] 6.3 Unit tests `engine/knowledge/retriever_test.go`
+- [x] 6.1 Implement retriever API and scoring
+- [x] 6.2 Add max token trimming helper for injection
+- [x] 6.3 Unit tests `engine/knowledge/retriever_test.go`
   - Should respect `top_k` and `min_score`; stable ordering
   - Should trim by `max_tokens`
 
@@ -58,3 +58,10 @@ Rely on vector store for similarity; avoid rerankers in MVP.
 ## Success Criteria
 
 - Retrieval returns correctly filtered/ordered results; tests pass.
+
+## Outcome
+
+- Delivered `retriever.Service` with stable ordering, min-score filtering, metadata cloning, and token budget trimming.
+- Added exhaustive unit tests for ordering, filtering, trimming, and retry-store interactions.
+- Ensured ingest pipeline delete-on-replace integrates with retrieval metadata contract.
+- Verified via `make fmt`, `make lint`, and `make test`.

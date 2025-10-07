@@ -50,8 +50,8 @@
 - [x] 2.0 Embedder Adapters (M)
 - [x] 3.0 Vector DB Adapters (M)
 - [x] 4.0 Chunking & Preprocess (M)
-- [ ] 5.0 Ingestion Pipeline (L)
-- [ ] 6.0 Retrieval Service (M)
+- [x] 5.0 Ingestion Pipeline (L)
+- [x] 6.0 Retrieval Service (M)
 - [x] 7.0 YAML & Binding Resolution (M)
 - [x] 8.0 JSON Schemas (S)
 - [ ] 9.0 LLM Orchestrator Integration (M)
@@ -79,7 +79,7 @@ Notes
 
 - [x] Batch 1 — Bootstrap (foundation + schemas): 0.0, 1.0, 7.0, 8.0
 - [x] Batch 2 — Adapters & Chunking: 2.0, 3.0, 4.0
-- [ ] Batch 3 — Pipelines: 5.0, 6.0
+- [x] Batch 3 — Pipelines: 5.0, 6.0
 - [ ] Batch 4 — Runtime: 9.0
 - [ ] Batch 5 — Public Surfaces: 10.0, 11.0
 - [ ] Batch 6 — Observability: 12.0

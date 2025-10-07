@@ -1,7 +1,7 @@
----
-status: pending
+status: completed
 parallelizable: false
 blocked_by: ["2.0", "3.0", "4.0"]
+
 ---
 
 <task_context>
@@ -31,9 +31,9 @@ Build enumerate → embed → persist pipeline supporting `markdown_glob` and `p
 
 ## Subtasks
 
-- [ ] 5.1 Implement source enumeration and hashing
-- [ ] 5.2 Wire embedder + vectordb adapters; implement retries/backoff
-- [ ] 5.3 Unit tests `engine/knowledge/ingest_test.go`
+- [x] 5.1 Implement source enumeration and hashing
+- [x] 5.2 Wire embedder + vectordb adapters; implement retries/backoff
+- [x] 5.3 Unit tests `engine/knowledge/ingest_test.go`
   - Should batch by limit; propagate provider errors
   - Should persist inline payloads; re‑ingest is idempotent
 
@@ -58,3 +58,10 @@ Use context for cancellation and logging; include counters for chunks embedded a
 ## Success Criteria
 
 - Pipeline compiles; unit tests pass; idempotency verified.
+
+## Outcome
+
+- Added enumerate → chunk → embed → persist pipeline with replace semantics and bounded retries.
+- Implemented size-capped markdown ingestion plus PDF handling using attachment resolvers.
+- Added `pipeline_test.go` coverage for batching, error propagation, idempotency, replace strategy, and oversize protection.
+- Verified with `make fmt`, `make lint`, and `make test`.
