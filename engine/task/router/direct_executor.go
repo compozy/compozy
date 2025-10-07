@@ -11,11 +11,13 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/task2"
 	task2core "github.com/compozy/compozy/engine/task2/core"
+	toolcontext "github.com/compozy/compozy/engine/tool/context"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -43,6 +45,8 @@ type DirectExecutor interface {
 type directExecutor struct {
 	taskRepo           task.Repository
 	workflowRepo       workflow.Repository
+	appState           *appstate.State
+	resourceStore      resources.ResourceStore
 	projectConfig      *project.Config
 	memoryManager      memcore.ManagerInterface
 	templateEngine     *tplengine.TemplateEngine
@@ -267,9 +271,17 @@ func NewDirectExecutor(
 	if !ok {
 		root = ""
 	}
+	var resourceStore resources.ResourceStore
+	if ext, ok := state.ResourceStore(); ok {
+		if store, ok := ext.(resources.ResourceStore); ok {
+			resourceStore = store
+		}
+	}
 	return &directExecutor{
 		taskRepo:           taskRepo,
 		workflowRepo:       workflowRepo,
+		appState:           state,
+		resourceStore:      resourceStore,
 		projectConfig:      projCfg,
 		memoryManager:      memManager,
 		templateEngine:     tplEng,
@@ -448,7 +460,10 @@ func (d *directExecutor) executeOnce(
 		WorkflowConfig: plan.workflowConfig,
 		ProjectConfig:  d.projectConfig,
 	}
-	output, execErr := ucExec.Execute(ctx, input)
+	runCtx := toolcontext.WithAppState(ctx, d.appState)
+	runCtx = toolcontext.WithTaskRepo(runCtx, d.taskRepo)
+	runCtx = toolcontext.WithResourceStore(runCtx, d.resourceStore)
+	output, execErr := ucExec.Execute(runCtx, input)
 	if execErr != nil {
 		d.markExecutionFailure(ctx, state, execErr)
 		return nil, execErr

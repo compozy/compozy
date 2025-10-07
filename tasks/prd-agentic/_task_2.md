@@ -1,7 +1,7 @@
----
-status: pending
+status: completed
 parallelizable: false
 blocked_by: ["1.0"]
+completed_by: ["2.1","2.2","2.3"]
 ---
 
 <task_context>
@@ -29,9 +29,9 @@ Introduce a typed context bridge (`engine/tool/context`) to expose `*appstate.St
 
 ## Subtasks
 
-- [ ] 2.1 Create `engine/tool/context/context.go`
-- [ ] 2.2 Attach values in `ExecuteTask`/runtime path
-- [ ] 2.3 Tests for context propagation
+- [x] 2.1 Create `engine/tool/context/context.go`
+- [x] 2.2 Attach values in `ExecuteTask`/runtime path
+- [x] 2.3 Tests for context propagation
 
 ## Sequencing
 

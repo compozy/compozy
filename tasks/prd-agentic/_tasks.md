@@ -27,7 +27,7 @@
 ## Tasks
 
 - [x] 1.0 Extract reusable Agent Runner service from router — size: medium (not batchable)
-- [ ] 2.0 Add tool context bridge for appstate/repo propagation — size: medium (not batchable)
+ - [x] 2.0 Add tool context bridge for appstate/repo propagation — size: medium (not batchable)
 - [ ] 3.0 Define orchestration plan model and schema — size: small (batchable)
 - [ ] 4.0 Implement planner (prompt → plan) with guardrails — size: medium (not batchable)
 - [ ] 5.0 Implement executor (sequential + parallel) with limits — size: high (not batchable)
