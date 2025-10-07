@@ -11,6 +11,7 @@ import (
 )
 
 func TestResolver_WorkflowPrecedence(t *testing.T) {
+	defaults := knowledge.DefaultDefaults()
 	defs := knowledge.Definitions{
 		Embedders: []knowledge.EmbedderConfig{
 			{
@@ -19,8 +20,8 @@ func TestResolver_WorkflowPrecedence(t *testing.T) {
 				Model:    "text-embedding-3-small",
 				APIKey:   "{{ .env.OPENAI_API_KEY }}",
 				Config: knowledge.EmbedderRuntimeConfig{
-					Dimension: knowledge.DefaultChunkSize,
-					BatchSize: knowledge.DefaultEmbedderBatchSize,
+					Dimension: defaults.ChunkSize,
+					BatchSize: defaults.EmbedderBatchSize,
 				},
 			},
 		},
@@ -30,7 +31,7 @@ func TestResolver_WorkflowPrecedence(t *testing.T) {
 				Type: knowledge.VectorDBTypePGVector,
 				Config: knowledge.VectorDBConnConfig{
 					DSN:       "{{ .secrets.PGVECTOR_DSN }}",
-					Dimension: knowledge.DefaultChunkSize,
+					Dimension: defaults.ChunkSize,
 				},
 			},
 		},
@@ -72,6 +73,7 @@ func TestResolver_WorkflowPrecedence(t *testing.T) {
 }
 
 func TestResolver_InlineOverride(t *testing.T) {
+	defaults := knowledge.DefaultDefaults()
 	defs := knowledge.Definitions{
 		Embedders: []knowledge.EmbedderConfig{
 			{
@@ -81,7 +83,7 @@ func TestResolver_InlineOverride(t *testing.T) {
 				APIKey:   "{{ .env.OPENAI_API_KEY }}",
 				Config: knowledge.EmbedderRuntimeConfig{
 					Dimension: 1024,
-					BatchSize: knowledge.DefaultEmbedderBatchSize,
+					BatchSize: defaults.EmbedderBatchSize,
 				},
 			},
 		},
@@ -136,6 +138,7 @@ func TestResolver_InlineOverride(t *testing.T) {
 }
 
 func TestResolver_AppliesCustomDefaults(t *testing.T) {
+	defaults := knowledge.DefaultDefaults()
 	defs := knowledge.Definitions{
 		Embedders: []knowledge.EmbedderConfig{
 			{
@@ -144,7 +147,7 @@ func TestResolver_AppliesCustomDefaults(t *testing.T) {
 				Model:    "text-embedding-3-small",
 				APIKey:   "{{ .env.OPENAI_API_KEY }}",
 				Config: knowledge.EmbedderRuntimeConfig{
-					Dimension: knowledge.DefaultChunkSize,
+					Dimension: defaults.ChunkSize,
 				},
 			},
 		},
@@ -154,7 +157,7 @@ func TestResolver_AppliesCustomDefaults(t *testing.T) {
 				Type: knowledge.VectorDBTypePGVector,
 				Config: knowledge.VectorDBConnConfig{
 					DSN:       "{{ .secrets.PGVECTOR_DSN }}",
-					Dimension: knowledge.DefaultChunkSize,
+					Dimension: defaults.ChunkSize,
 				},
 			},
 		},
@@ -169,14 +172,14 @@ func TestResolver_AppliesCustomDefaults(t *testing.T) {
 			},
 		},
 	}
-	defaults := knowledge.Defaults{
+	customDefaults := knowledge.Defaults{
 		EmbedderBatchSize: 256,
 		ChunkSize:         600,
 		ChunkOverlap:      24,
 		RetrievalTopK:     9,
 		RetrievalMinScore: 0.4,
 	}
-	resolver, err := knowledge.NewResolver(defs, defaults)
+	resolver, err := knowledge.NewResolver(defs, customDefaults)
 	require.NoError(t, err)
 	result, err := resolver.Resolve(
 		&knowledge.ResolveInput{ProjectBinding: []core.KnowledgeBinding{{ID: "support_docs"}}},
@@ -188,4 +191,55 @@ func TestResolver_AppliesCustomDefaults(t *testing.T) {
 	assert.Equal(t, 24, result.KnowledgeBase.Chunking.Overlap)
 	assert.Equal(t, 600, result.KnowledgeBase.Chunking.Size)
 	assert.Equal(t, 256, result.Embedder.Config.BatchSize)
+}
+
+func TestResolver_EmptyFilterOverrideClearsBase(t *testing.T) {
+	defaults := knowledge.DefaultDefaults()
+	defs := knowledge.Definitions{
+		Embedders: []knowledge.EmbedderConfig{
+			{
+				ID:       "openai_embedder",
+				Provider: "openai",
+				Model:    "text-embedding-3-small",
+				APIKey:   "{{ .env.OPENAI_API_KEY }}",
+				Config: knowledge.EmbedderRuntimeConfig{
+					Dimension: defaults.ChunkSize,
+					BatchSize: defaults.EmbedderBatchSize,
+				},
+			},
+		},
+		VectorDBs: []knowledge.VectorDBConfig{
+			{
+				ID:   "pgvector_main",
+				Type: knowledge.VectorDBTypePGVector,
+				Config: knowledge.VectorDBConnConfig{
+					DSN:       "{{ .secrets.PGVECTOR_DSN }}",
+					Dimension: defaults.ChunkSize,
+				},
+			},
+		},
+		KnowledgeBases: []knowledge.BaseConfig{
+			{
+				ID:       "support_docs",
+				Embedder: "openai_embedder",
+				VectorDB: "pgvector_main",
+				Sources:  []knowledge.SourceConfig{{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"}},
+				Retrieval: knowledge.RetrievalConfig{
+					TopK:     6,
+					MinScore: 0.1,
+					Filters:  map[string]string{"scope": "project"},
+				},
+			},
+		},
+	}
+	resolver, err := knowledge.NewResolver(defs, knowledge.DefaultDefaults())
+	require.NoError(t, err)
+	input := knowledge.ResolveInput{
+		ProjectBinding: []core.KnowledgeBinding{{ID: "support_docs"}},
+		InlineBinding:  []core.KnowledgeBinding{{ID: "support_docs", Filters: map[string]string{}}},
+	}
+	resolved, err := resolver.Resolve(&input)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+	assert.Len(t, resolved.Retrieval.Filters, 0)
 }

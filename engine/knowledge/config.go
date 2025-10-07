@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,16 +9,14 @@ import (
 )
 
 const (
-	DefaultEmbedderBatchSize = 512
-	DefaultChunkSize         = 800
-	DefaultChunkOverlap      = 120
-	MinChunkSize             = 64
-	MaxChunkSize             = 8192
-	DefaultRetrievalTopK     = 5
-	maxRetrievalTopK         = 50
-	MinScoreFloor            = 0.0
-	MaxScoreCeiling          = 1.0
+	MinChunkSize     = 64
+	MaxChunkSize     = 8192
+	maxRetrievalTopK = 50
+	MinScoreFloor    = 0.0
+	MaxScoreCeiling  = 1.0
 )
+
+var builtinDefaults = computeBuiltinDefaults()
 
 // Defaults captures global defaults used during knowledge normalization.
 type Defaults struct {
@@ -30,59 +29,124 @@ type Defaults struct {
 
 // DefaultDefaults returns the built-in defaults used when no configuration override is supplied.
 func DefaultDefaults() Defaults {
-	return Defaults{
-		EmbedderBatchSize: DefaultEmbedderBatchSize,
-		ChunkSize:         DefaultChunkSize,
-		ChunkOverlap:      DefaultChunkOverlap,
-		RetrievalTopK:     DefaultRetrievalTopK,
-		RetrievalMinScore: MinScoreFloor,
-	}
+	return builtinDefaults
+}
+
+// DefaultsFromContext retrieves defaults using the application configuration stored in context.
+func DefaultsFromContext(ctx context.Context) Defaults {
+	return DefaultsFromConfig(appconfig.FromContext(ctx))
 }
 
 // DefaultsFromConfig builds Defaults from the global application configuration.
 // Invalid values fall back to the built-in defaults to keep normalization predictable.
 func DefaultsFromConfig(cfg *appconfig.Config) Defaults {
-	defaults := DefaultDefaults()
 	if cfg == nil {
-		return defaults
+		return builtinDefaults
 	}
-	settings := cfg.Knowledge
-	if settings.EmbedderBatchSize > 0 {
-		defaults.EmbedderBatchSize = settings.EmbedderBatchSize
-	}
-	if settings.ChunkSize >= MinChunkSize && settings.ChunkSize <= MaxChunkSize {
-		defaults.ChunkSize = settings.ChunkSize
-	}
-	if settings.ChunkOverlap >= 0 && settings.ChunkOverlap < defaults.ChunkSize {
-		defaults.ChunkOverlap = settings.ChunkOverlap
-	}
-	if settings.RetrievalTopK >= 1 && settings.RetrievalTopK <= maxRetrievalTopK {
-		defaults.RetrievalTopK = settings.RetrievalTopK
-	}
-	if settings.RetrievalMinScore >= MinScoreFloor && settings.RetrievalMinScore <= MaxScoreCeiling {
-		defaults.RetrievalMinScore = settings.RetrievalMinScore
-	}
-	return sanitizeDefaults(defaults)
+	overrides := defaultsFromKnowledgeConfig(cfg.Knowledge)
+	return sanitizeDefaultsWithFallback(overrides, builtinDefaults)
 }
 
 func sanitizeDefaults(in Defaults) Defaults {
-	out := in
+	return sanitizeDefaultsWithFallback(in, builtinDefaults)
+}
+
+func sanitizeDefaultsWithFallback(in Defaults, fallback Defaults) Defaults {
+	fb := fallback
+	if fb.EmbedderBatchSize <= 0 {
+		fb.EmbedderBatchSize = 1
+	}
+	fb.ChunkSize = clampInt(fb.ChunkSize, MinChunkSize, MaxChunkSize)
+	fb.ChunkOverlap = validOverlap(fb.ChunkOverlap, fb.ChunkSize)
+	fb.RetrievalTopK = clampInt(fb.RetrievalTopK, 1, maxRetrievalTopK)
+	fb.RetrievalMinScore = clampFloat(fb.RetrievalMinScore, MinScoreFloor, MaxScoreCeiling)
+	out := Defaults{
+		EmbedderBatchSize: in.EmbedderBatchSize,
+		ChunkSize:         in.ChunkSize,
+		ChunkOverlap:      in.ChunkOverlap,
+		RetrievalTopK:     in.RetrievalTopK,
+		RetrievalMinScore: in.RetrievalMinScore,
+	}
 	if out.EmbedderBatchSize <= 0 {
-		out.EmbedderBatchSize = DefaultEmbedderBatchSize
+		out.EmbedderBatchSize = fb.EmbedderBatchSize
+	}
+	if out.EmbedderBatchSize <= 0 {
+		out.EmbedderBatchSize = 1
 	}
 	if out.ChunkSize < MinChunkSize || out.ChunkSize > MaxChunkSize {
-		out.ChunkSize = DefaultChunkSize
+		out.ChunkSize = fb.ChunkSize
 	}
+	out.ChunkSize = clampInt(out.ChunkSize, MinChunkSize, MaxChunkSize)
 	if out.ChunkOverlap < 0 || out.ChunkOverlap >= out.ChunkSize {
-		out.ChunkOverlap = DefaultChunkOverlap
+		out.ChunkOverlap = validOverlap(fb.ChunkOverlap, out.ChunkSize)
+	} else {
+		out.ChunkOverlap = validOverlap(out.ChunkOverlap, out.ChunkSize)
 	}
 	if out.RetrievalTopK < 1 || out.RetrievalTopK > maxRetrievalTopK {
-		out.RetrievalTopK = DefaultRetrievalTopK
+		out.RetrievalTopK = fb.RetrievalTopK
 	}
+	out.RetrievalTopK = clampInt(out.RetrievalTopK, 1, maxRetrievalTopK)
 	if out.RetrievalMinScore < MinScoreFloor || out.RetrievalMinScore > MaxScoreCeiling {
-		out.RetrievalMinScore = MinScoreFloor
+		out.RetrievalMinScore = fb.RetrievalMinScore
 	}
+	out.RetrievalMinScore = clampFloat(out.RetrievalMinScore, MinScoreFloor, MaxScoreCeiling)
 	return out
+}
+
+func defaultsFromKnowledgeConfig(cfg appconfig.KnowledgeConfig) Defaults {
+	return Defaults{
+		EmbedderBatchSize: cfg.EmbedderBatchSize,
+		ChunkSize:         cfg.ChunkSize,
+		ChunkOverlap:      cfg.ChunkOverlap,
+		RetrievalTopK:     cfg.RetrievalTopK,
+		RetrievalMinScore: cfg.RetrievalMinScore,
+	}
+}
+
+func computeBuiltinDefaults() Defaults {
+	cfg := appconfig.Default()
+	raw := defaultsFromKnowledgeConfig(cfg.Knowledge)
+	fallback := Defaults{
+		EmbedderBatchSize: raw.EmbedderBatchSize,
+		ChunkSize:         raw.ChunkSize,
+		ChunkOverlap:      raw.ChunkOverlap,
+		RetrievalTopK:     raw.RetrievalTopK,
+		RetrievalMinScore: raw.RetrievalMinScore,
+	}
+	return sanitizeDefaultsWithFallback(raw, fallback)
+}
+
+func clampInt(value int, lower int, upper int) int {
+	if value < lower {
+		return lower
+	}
+	if value > upper {
+		return upper
+	}
+	return value
+}
+
+func clampFloat(value float64, lower float64, upper float64) float64 {
+	if value < lower {
+		return lower
+	}
+	if value > upper {
+		return upper
+	}
+	return value
+}
+
+func validOverlap(overlap int, chunkSize int) int {
+	if chunkSize <= 0 {
+		return 0
+	}
+	if overlap < 0 {
+		return 0
+	}
+	if overlap >= chunkSize {
+		return chunkSize - 1
+	}
+	return overlap
 }
 
 type SourceType string
@@ -136,13 +200,14 @@ type VectorDBConfig struct {
 }
 
 type VectorDBConnConfig struct {
-	DSN         string            `json:"dsn,omitempty"         yaml:"dsn,omitempty"         mapstructure:"dsn,omitempty"`
-	Table       string            `json:"table,omitempty"       yaml:"table,omitempty"       mapstructure:"table,omitempty"`
-	Index       string            `json:"index,omitempty"       yaml:"index,omitempty"       mapstructure:"index,omitempty"`
-	Metric      string            `json:"metric,omitempty"      yaml:"metric,omitempty"      mapstructure:"metric,omitempty"`
-	Dimension   int               `json:"dimension,omitempty"   yaml:"dimension,omitempty"   mapstructure:"dimension,omitempty"`
-	Consistency string            `json:"consistency,omitempty" yaml:"consistency,omitempty" mapstructure:"consistency,omitempty"`
-	Auth        map[string]string `json:"auth,omitempty"        yaml:"auth,omitempty"        mapstructure:"auth,omitempty"`
+	DSN         string            `json:"dsn,omitempty"          yaml:"dsn,omitempty"          mapstructure:"dsn,omitempty"`
+	Table       string            `json:"table,omitempty"        yaml:"table,omitempty"        mapstructure:"table,omitempty"`
+	Index       string            `json:"index,omitempty"        yaml:"index,omitempty"        mapstructure:"index,omitempty"`
+	EnsureIndex bool              `json:"ensure_index,omitempty" yaml:"ensure_index,omitempty" mapstructure:"ensure_index,omitempty"`
+	Metric      string            `json:"metric,omitempty"       yaml:"metric,omitempty"       mapstructure:"metric,omitempty"`
+	Dimension   int               `json:"dimension,omitempty"    yaml:"dimension,omitempty"    mapstructure:"dimension,omitempty"`
+	Consistency string            `json:"consistency,omitempty"  yaml:"consistency,omitempty"  mapstructure:"consistency,omitempty"`
+	Auth        map[string]string `json:"auth,omitempty"         yaml:"auth,omitempty"         mapstructure:"auth,omitempty"`
 }
 
 type BaseConfig struct {

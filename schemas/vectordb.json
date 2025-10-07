@@ -12,6 +12,9 @@
         "consistency": {
           "type": "string"
         },
+        "ensure_index": {
+          "type": "boolean"
+        },
         "dimension": {
           "type": "integer"
         },

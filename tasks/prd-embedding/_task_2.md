@@ -1,7 +1,7 @@
----
-status: pending
+status: completed
 parallelizable: false
 blocked_by: ["1.0", "0.0"]
+
 ---
 
 <task_context>
@@ -31,9 +31,9 @@ Implement adapters wrapping LangChainGo embeddings (OpenAI, Vertex, local) with 
 
 ## Subtasks
 
-- [ ] 2.1 Create `engine/knowledge/embedder/interface.go` and provider files
-- [ ] 2.2 Implement normalization (strip newlines if configured)
-- [ ] 2.3 Unit tests (adapter-focused)
+- [x] 2.1 Create `engine/knowledge/embedder/interface.go` and provider files
+- [x] 2.2 Implement normalization (strip newlines if configured)
+- [x] 2.3 Unit tests (adapter-focused)
   - Should batch by provider limit; propagate errors with context
   - Should normalize input per config
 

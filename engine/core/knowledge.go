@@ -31,11 +31,33 @@ func (b *KnowledgeBinding) Clone() KnowledgeBinding {
 		maxTokens := *b.MaxTokens
 		c.MaxTokens = &maxTokens
 	}
-	if len(b.Filters) > 0 {
-		c.Filters = make(map[string]string, len(b.Filters))
-		for k, v := range b.Filters {
-			c.Filters[k] = v
-		}
-	}
+	c.Filters = CopyStringMap(b.Filters)
 	return c
+}
+
+func (b *KnowledgeBinding) Merge(override *KnowledgeBinding) {
+	if b == nil || override == nil {
+		return
+	}
+	if override.TopK != nil {
+		val := *override.TopK
+		b.TopK = &val
+	}
+	if override.MinScore != nil {
+		val := *override.MinScore
+		b.MinScore = &val
+	}
+	if override.MaxTokens != nil {
+		val := *override.MaxTokens
+		b.MaxTokens = &val
+	}
+	if override.InjectAs != "" {
+		b.InjectAs = override.InjectAs
+	}
+	if override.Fallback != "" {
+		b.Fallback = override.Fallback
+	}
+	if override.Filters != nil {
+		b.Filters = CopyStringMap(override.Filters)
+	}
 }

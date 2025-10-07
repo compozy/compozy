@@ -47,9 +47,9 @@
 
 - [x] 0.0 Pre‑work: External Libs Verification + Test Utilities Baseline (S)
 - [x] 1.0 Knowledge Domain Scaffolding (M)
-- [ ] 2.0 Embedder Adapters (M)
-- [ ] 3.0 Vector DB Adapters (M)
-- [ ] 4.0 Chunking & Preprocess (M)
+- [x] 2.0 Embedder Adapters (M)
+- [x] 3.0 Vector DB Adapters (M)
+- [x] 4.0 Chunking & Preprocess (M)
 - [ ] 5.0 Ingestion Pipeline (L)
 - [ ] 6.0 Retrieval Service (M)
 - [x] 7.0 YAML & Binding Resolution (M)
@@ -78,7 +78,7 @@ Notes
 ## Batch Plan (Grouped Commits)
 
 - [x] Batch 1 — Bootstrap (foundation + schemas): 0.0, 1.0, 7.0, 8.0
-- [ ] Batch 2 — Adapters & Chunking: 2.0, 3.0, 4.0
+- [x] Batch 2 — Adapters & Chunking: 2.0, 3.0, 4.0
 - [ ] Batch 3 — Pipelines: 5.0, 6.0
 - [ ] Batch 4 — Runtime: 9.0
 - [ ] Batch 5 — Public Surfaces: 10.0, 11.0

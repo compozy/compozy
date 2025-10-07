@@ -104,3 +104,11 @@ Implementation details will be addressed in the accompanying Technical Specifica
 - Design mockups and wireframes
 - Reference materials and benchmarks
 - Market analysis or competitive research]
+
+## Planning Artifacts (Post-Approval)
+
+[Created by the Tech Spec workflow and maintained alongside this PRD.]
+
+- Docs Plan: `tasks/prd-[feature-slug]/_docs.md` (template: `tasks/docs/_docs-plan-template.md`)
+- Examples Plan: `tasks/prd-[feature-slug]/_examples.md` (template: `tasks/docs/_examples-plan-template.md`)
+- Tests Plan: `tasks/prd-[feature-slug]/_tests.md` (template: `tasks/docs/_tests-plan-template.md`)

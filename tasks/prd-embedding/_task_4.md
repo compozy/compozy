@@ -1,7 +1,7 @@
----
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["1.0"]
+
 ---
 
 <task_context>
@@ -30,8 +30,8 @@ Implement chunking strategies (e.g., recursive splitter), deduplication, HTML st
 
 ## Subtasks
 
-- [ ] 4.1 Implement `engine/knowledge/chunk/*` (splitters, preprocess)
-- [ ] 4.2 Unit tests `engine/knowledge/ingest_test.go` (chunk/dedupe sections)
+- [x] 4.1 Implement `engine/knowledge/chunk/*` (splitters, preprocess)
+- [x] 4.2 Unit tests `engine/knowledge/ingest_test.go` (chunk/dedupe sections)
   - Should chunk per strategy/size/overlap; stable IDs
   - Should deduplicate by content hash
 

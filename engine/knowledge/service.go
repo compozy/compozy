@@ -163,80 +163,76 @@ func singleBinding(scope string, bindings []core.KnowledgeBinding) (*core.Knowle
 }
 
 func mergeBindings(project, workflow, inline *core.KnowledgeBinding) *core.KnowledgeBinding {
-	var base *core.KnowledgeBinding
-	if workflow != nil {
-		clone := workflow.Clone()
-		base = &clone
-	} else if project != nil {
-		clone := project.Clone()
-		base = &clone
+	chain := []*core.KnowledgeBinding{project, workflow, inline}
+	var resolved *core.KnowledgeBinding
+	for _, candidate := range chain {
+		if candidate == nil {
+			continue
+		}
+		clone := candidate.Clone()
+		if resolved == nil {
+			resolved = &clone
+			continue
+		}
+		if clone.ID != "" && resolved.ID != "" && clone.ID != resolved.ID {
+			resolved = &clone
+			continue
+		}
+		if clone.ID != "" {
+			resolved.ID = clone.ID
+		}
+		resolved.Merge(&clone)
 	}
-	if inline == nil {
-		return base
-	}
-	override := inline.Clone()
-	if base == nil {
-		return &override
-	}
-	if override.ID != "" && override.ID != base.ID {
-		return &override
-	}
-	if override.ID == "" {
-		override.ID = base.ID
-	}
-	if override.TopK == nil {
-		override.TopK = base.TopK
-	}
-	if override.MinScore == nil {
-		override.MinScore = base.MinScore
-	}
-	if override.MaxTokens == nil {
-		override.MaxTokens = base.MaxTokens
-	}
-	if override.InjectAs == "" {
-		override.InjectAs = base.InjectAs
-	}
-	if override.Fallback == "" {
-		override.Fallback = base.Fallback
-	}
-	if len(override.Filters) == 0 && len(base.Filters) > 0 {
-		override.Filters = copyFilters(base.Filters)
-	}
-	return &override
+	return resolved
 }
 
 func applyOverrides(base RetrievalConfig, binding *core.KnowledgeBinding) RetrievalConfig {
-	result := base
-	if binding != nil {
-		if binding.TopK != nil {
-			result.TopK = *binding.TopK
-		}
-		if binding.MinScore != nil {
-			result.MinScore = *binding.MinScore
-		}
-		if binding.MaxTokens != nil {
-			result.MaxTokens = *binding.MaxTokens
-		}
-		if binding.InjectAs != "" {
-			result.InjectAs = binding.InjectAs
-		}
-		if binding.Fallback != "" {
-			result.Fallback = binding.Fallback
-		}
-		if len(binding.Filters) > 0 {
-			result.Filters = copyFilters(binding.Filters)
-		}
+	if binding == nil {
+		return base
 	}
+	baseBinding := bindingFromRetrieval(base)
+	baseBinding.Merge(binding)
+	return retrievalFromBinding(base, &baseBinding)
+}
+
+func bindingFromRetrieval(cfg RetrievalConfig) core.KnowledgeBinding {
+	result := core.KnowledgeBinding{}
+	topK := cfg.TopK
+	result.TopK = &topK
+	minScore := cfg.MinScore
+	result.MinScore = &minScore
+	maxTokens := cfg.MaxTokens
+	result.MaxTokens = &maxTokens
+	result.InjectAs = cfg.InjectAs
+	result.Fallback = cfg.Fallback
+	result.Filters = core.CopyStringMap(cfg.Filters)
 	return result
 }
 
-func copyFilters(src map[string]string) map[string]string {
-	if len(src) == 0 {
-		return nil
+func retrievalFromBinding(base RetrievalConfig, binding *core.KnowledgeBinding) RetrievalConfig {
+	result := base
+	if binding.TopK != nil {
+		result.TopK = *binding.TopK
 	}
-	dst := make(map[string]string, len(src))
-	for k, v := range src {
-		dst[k] = v
+	if binding.MinScore != nil {
+		result.MinScore = *binding.MinScore
 	}
-	return dst
+	if binding.MaxTokens != nil {
+		result.MaxTokens = *binding.MaxTokens
+	}
+	if binding.InjectAs != "" {
+		result.InjectAs = binding.InjectAs
+	}
+	if binding.Fallback != "" {
+		result.Fallback = binding.Fallback
+	}
+	switch {
+	case binding.Filters != nil:
+		result.Filters = core.CopyStringMap(binding.Filters)
+	case len(base.Filters) > 0:
+		result.Filters = core.CopyStringMap(base.Filters)
+	default:
+		result.Filters = nil
+	}
+	return result
 }

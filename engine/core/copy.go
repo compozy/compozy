@@ -2,9 +2,17 @@ package core
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/mohae/deepcopy"
 )
+
+func CopyStringMap(src map[string]string) map[string]string {
+	if src == nil {
+		return nil
+	}
+	return maps.Clone(src)
+}
 
 // deepCopyMap returns a deep copy of the provided map[string]any.
 //

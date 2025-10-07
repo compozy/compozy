@@ -1,7 +1,7 @@
----
-status: pending
+status: completed
 parallelizable: false
 blocked_by: ["1.0"]
+
 ---
 
 <task_context>
@@ -31,9 +31,9 @@ Implement pgvector, qdrant, and in‑memory vector stores with schema/index mana
 
 ## Subtasks
 
-- [ ] 3.1 Create `engine/knowledge/vectordb/interface.go` and concrete adapters
-- [ ] 3.2 Implement `ensure_index` and dimension checks
-- [ ] 3.3 Unit tests (in‑memory): upsert/query; dimension mismatch errors; DSN parse sanity for pgvector
+- [x] 3.1 Create `engine/knowledge/vectordb/interface.go` and concrete adapters
+- [x] 3.2 Implement `ensure_index` and dimension checks
+- [x] 3.3 Unit tests (in-memory): upsert/query; dimension mismatch errors; DSN parse sanity for pgvector
 
 ## Sequencing
 

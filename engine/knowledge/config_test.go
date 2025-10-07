@@ -16,6 +16,7 @@ const (
 )
 
 func TestDefinitions_Validate(t *testing.T) {
+	defaults := knowledge.DefaultDefaults()
 	t.Run("Should return error when knowledge base references missing embedder", func(t *testing.T) {
 		defs := knowledge.Definitions{
 			VectorDBs: []knowledge.VectorDBConfig{createVectorDBConfig("pgvector_main")},
@@ -93,12 +94,12 @@ func TestDefinitions_Validate(t *testing.T) {
 		embedder := defs.Embedders[0]
 		require.NotNil(t, embedder.Config.StripNewLines)
 		assert.True(t, *embedder.Config.StripNewLines)
-		assert.Equal(t, knowledge.DefaultEmbedderBatchSize, embedder.Config.BatchSize)
+		assert.Equal(t, defaults.EmbedderBatchSize, embedder.Config.BatchSize)
 		kb := defs.KnowledgeBases[0]
 		assert.Equal(t, knowledge.ChunkStrategyRecursiveTextSplitter, kb.Chunking.Strategy)
-		assert.Equal(t, knowledge.DefaultChunkSize, kb.Chunking.Size)
-		assert.Equal(t, knowledge.DefaultChunkOverlap, kb.Chunking.Overlap)
-		assert.Equal(t, knowledge.DefaultRetrievalTopK, kb.Retrieval.TopK)
+		assert.Equal(t, defaults.ChunkSize, kb.Chunking.Size)
+		assert.Equal(t, defaults.ChunkOverlap, kb.Chunking.Overlap)
+		assert.Equal(t, defaults.RetrievalTopK, kb.Retrieval.TopK)
 		require.NotNil(t, kb.Preprocess.Deduplicate)
 		assert.True(t, *kb.Preprocess.Deduplicate)
 	})
@@ -134,7 +135,7 @@ func TestDefinitions_Validate(t *testing.T) {
 					APIKey:   "sk-test",
 					Config: knowledge.EmbedderRuntimeConfig{
 						Dimension: testDimension,
-						BatchSize: knowledge.DefaultEmbedderBatchSize,
+						BatchSize: defaults.EmbedderBatchSize,
 					},
 				},
 			},
@@ -168,6 +169,7 @@ func TestDefinitions_Validate(t *testing.T) {
 }
 
 func TestDefaultsFromConfig(t *testing.T) {
+	defaultsBaseline := knowledge.DefaultDefaults()
 	cfg := appconfig.Default()
 	cfg.Knowledge.EmbedderBatchSize = 1024
 	cfg.Knowledge.ChunkSize = 640
@@ -187,11 +189,17 @@ func TestDefaultsFromConfig(t *testing.T) {
 	cfg.Knowledge.RetrievalTopK = 100
 	cfg.Knowledge.RetrievalMinScore = 2
 	defaults = knowledge.DefaultsFromConfig(cfg)
-	assert.Equal(t, knowledge.DefaultEmbedderBatchSize, defaults.EmbedderBatchSize)
-	assert.Equal(t, knowledge.DefaultChunkSize, defaults.ChunkSize)
-	assert.Equal(t, knowledge.DefaultChunkOverlap, defaults.ChunkOverlap)
-	assert.Equal(t, knowledge.DefaultRetrievalTopK, defaults.RetrievalTopK)
-	assert.InDelta(t, knowledge.MinScoreFloor, defaults.RetrievalMinScore, 0.0001)
+	assert.Equal(t, defaultsBaseline.EmbedderBatchSize, defaults.EmbedderBatchSize)
+	assert.Equal(t, defaultsBaseline.ChunkSize, defaults.ChunkSize)
+	assert.Equal(t, defaultsBaseline.ChunkOverlap, defaults.ChunkOverlap)
+	assert.Equal(t, defaultsBaseline.RetrievalTopK, defaults.RetrievalTopK)
+	assert.InDelta(t, defaultsBaseline.RetrievalMinScore, defaults.RetrievalMinScore, 0.0001)
+}
+
+func TestDefaultDefaultsMatchesConfig(t *testing.T) {
+	defaults := knowledge.DefaultDefaults()
+	configDefaults := knowledge.DefaultsFromConfig(appconfig.Default())
+	assert.Equal(t, configDefaults, defaults)
 }
 
 func TestDefinitionsNormalizeWithDefaults(t *testing.T) {
@@ -236,6 +244,7 @@ func TestDefinitionsNormalizeWithDefaults(t *testing.T) {
 }
 
 func createEmbedderConfig(id string) knowledge.EmbedderConfig {
+	defaults := knowledge.DefaultDefaults()
 	return knowledge.EmbedderConfig{
 		ID:       id,
 		Provider: "openai",
@@ -243,7 +252,7 @@ func createEmbedderConfig(id string) knowledge.EmbedderConfig {
 		APIKey:   "{{ .env.OPENAI_API_KEY }}",
 		Config: knowledge.EmbedderRuntimeConfig{
 			Dimension: testDimension,
-			BatchSize: knowledge.DefaultEmbedderBatchSize,
+			BatchSize: defaults.EmbedderBatchSize,
 		},
 	}
 }
