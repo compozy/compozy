@@ -121,6 +121,13 @@ Implement `executor.Engine` under `engine/tool/builtin/orchestrate/executor`.
 - When parallel block completes, merge outputs per `MergeStrategy` (default `collect_all` creates map keyed by `ResultKey`).
 - Step results stored back into shared binding map under `result.<ResultKey>` for downstream template resolution.
 
+### State machine orchestration
+- Reuse `github.com/looplab/fsm` (same dependency already vetted in `engine/llm/orchestrator`) to drive executor control flow with explicit states: `plan_init`, `planner_active`, `plan_validated`, `dispatching_step`, `awaiting_results`, `merging_results`, `completed`, `failed`.
+- Define events (`start_plan`, `planner_finished`, `validation_failed`, `step_succeeded`, `step_failed`, `parallel_complete`, `timeout`, `panic`) and keep them snake-case to match existing instrumentation conventions.
+- House FSM wiring in `engine/tool/builtin/orchestrate/fsm.go`; expose constructors that accept `context.Context`, plan/executor dependencies, and transition observers mirroring `transitionObserver` from `engine/llm/orchestrator/state_machine.go`.
+- Record `before_event`, `enter_state`, and `after_event` callbacks using `logger.FromContext(ctx)` plus metrics hooks so every transition produces traceable telemetry.
+- Ensure executor tests assert both business outcomes and FSM transition tables (e.g., planner failure jumps straight to `failed`, successful parallel branch hits `merging_results` before `completed`).
+
 ### Safety limits & recursion guards
 - Track recursion depth using context key (`toolcontext.IncrementAgentOrchestrationDepth`). Deny execution once `depth > config.Runtime.AgentOrchestrator.MaxDepth` (default 3).
 - Enforce `MaxSteps` (e.g., 12) and `MaxParallel` (e.g., 4) with override from builtin input (bounded by config caps).

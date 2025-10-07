@@ -41,7 +41,9 @@ Create builtin definition with input/output schemas, handler glue to planner/exe
 
 ## Implementation Details
 
-Follow existing cp__ tools patterns (fetch/exec/filesystem) for error/metrics.
+- Follow existing cp__ tools patterns (fetch/exec/filesystem) for error/metrics.
+- Initialize the orchestrator FSM in the handler using the shared helper from Task 5 so planner/executor transitions run under the same `looplab/fsm` contract as `engine/llm/orchestrator`.
+- Thread plan/execution context through every state transition (planner start, validation, execution, finalize, failure) to support telemetry hooks and result aggregation.
 
 ### Relevant Files
 

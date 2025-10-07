@@ -42,7 +42,10 @@ Implement execution engine that runs plan steps using Runner. Support per‑step
 
 ## Implementation Details
 
-Use `errgroup.Group` with bounded workers; prefer context propagation over globals.
+- Use `errgroup.Group` with bounded workers; prefer context propagation over globals.
+- Model executor control flow with a dedicated `looplab/fsm` state machine (`pending` → `planning` → `dispatching` → `awaiting_results` → `merging` → `completed`/`failed`), following the callback + observer conventions already in `engine/llm/orchestrator`.
+- Encapsulate FSM wiring in `engine/tool/builtin/orchestrate/fsm.go` so tests can assert transition tables independently from Runner integration.
+- Surface transition hooks that record metrics/logs per state using `logger.FromContext(ctx)` and propagate plan/execution context through event arguments.
 
 ### Relevant Files
 

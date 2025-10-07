@@ -41,7 +41,9 @@ Implement a planner that converts natural‑language prompts into structured `Pl
 
 ## Implementation Details
 
-Integrate via `ExecuteTask`/LLM service when called from builtin; do not expose externally.
+- Integrate via `ExecuteTask`/LLM service when called from builtin; do not expose externally.
+- Ensure planner output includes stable step IDs and default status values expected by the orchestrator FSM so `github.com/looplab/fsm` transitions can map to plan nodes without additional mutation.
+- Add fixtures that mirror the executor state machine's success and failure events to confirm planner responses remain compatible as transition definitions evolve.
 
 ### Relevant Files
 

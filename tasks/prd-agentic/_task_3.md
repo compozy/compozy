@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["1.0"]
 ---
@@ -29,8 +29,8 @@ Define Go structs and JSON Schema for `Plan`, `AgentStep`, and `ParallelStep` wi
 
 ## Subtasks
 
-- [ ] 3.1 Implement structs and schema
-- [ ] 3.2 Add validators and tests
+- [x] 3.1 Implement structs and schema
+- [x] 3.2 Add validators and tests
 
 ## Sequencing
 
@@ -40,7 +40,9 @@ Define Go structs and JSON Schema for `Plan`, `AgentStep`, and `ParallelStep` wi
 
 ## Implementation Details
 
-Use existing `engine/schema` helpers; keep plan types self‑contained under builtin/orchestrate.
+- Use existing `engine/schema` helpers; keep plan types self-contained under builtin/orchestrate.
+- Define canonical step identifiers and status enums that the orchestrator state machine will consume; mirror the snake-case naming used in `engine/llm/orchestrator`.
+- Capture per-step transition metadata (e.g., allowed next events, failure branch identifiers) in the schema so the executor's FSM built with `github.com/looplab/fsm` can deterministically advance.
 
 ### Relevant Files
 
@@ -53,3 +55,16 @@ Use existing `engine/schema` helpers; keep plan types self‑contained under bui
 ## Success Criteria
 
 - Plan JSON validates and maps to structs in tests
+
+## Progress
+
+- Implemented orchestration plan domain types with validation helpers covering IDs, statuses, transition references, and result key uniqueness (`engine/tool/builtin/orchestrate/plan.go`).
+- Authored dedicated JSON Schema with mutual exclusivity for agent/parallel payloads and forward-compatible top-level properties (`engine/tool/builtin/orchestrate/schema.go`).
+- Expanded unit coverage (including schema validation) and benchmark to exercise decoding paths (`engine/tool/builtin/orchestrate/plan_test.go`).
+- Eliminated redundant map→struct double marshaling by adopting `mapstructure` decoding for plan payloads.
+
+## Validation
+
+- `go test ./engine/tool/builtin/orchestrate`
+- `make lint`
+- `make test`
