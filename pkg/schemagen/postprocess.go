@@ -36,6 +36,9 @@ func postProcessAgentSchema(schema map[string]any) bool {
 	if ensureArrayRef(props, "mcps", "mcp.json") {
 		updated = true
 	}
+	if ensureArrayRef(props, "knowledge", "knowledge-binding.json") {
+		updated = true
+	}
 	if ensureAttachmentsSchema(schema, props) {
 		updated = true
 	}
@@ -65,6 +68,12 @@ func postProcessWorkflowSchema(schema map[string]any) bool {
 		updated = true
 	}
 	if ensureArrayRef(props, "tasks", "task.json") {
+		updated = true
+	}
+	if ensureArrayRef(props, "knowledge_bases", "knowledge-base.json") {
+		updated = true
+	}
+	if ensureArrayRef(props, "knowledge", "knowledge-binding.json") {
 		updated = true
 	}
 	if updateWorkflowTriggers(schema, props) {
@@ -101,6 +110,9 @@ func postProcessTaskSchema(schema map[string]any) bool {
 	if ensureAttachmentsSchema(schema, props) {
 		updated = true
 	}
+	if ensureArrayRef(props, "knowledge", "knowledge-binding.json") {
+		updated = true
+	}
 	return updated
 }
 
@@ -135,6 +147,18 @@ func postProcessProjectSchema(schema map[string]any) bool {
 		updated = true
 	}
 	if ensureArrayRef(props, "memories", "memory.json") {
+		updated = true
+	}
+	if ensureArrayRef(props, "embedders", "embedder.json") {
+		updated = true
+	}
+	if ensureArrayRef(props, "vector_dbs", "vectordb.json") {
+		updated = true
+	}
+	if ensureArrayRef(props, "knowledge_bases", "knowledge-base.json") {
+		updated = true
+	}
+	if ensureArrayRef(props, "knowledge", "knowledge-binding.json") {
 		updated = true
 	}
 	return updated

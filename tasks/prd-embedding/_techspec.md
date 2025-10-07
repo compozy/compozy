@@ -99,14 +99,15 @@ Chunk defaults follow LangChain RAG guidance (256–1024 token windows, overlap 
 ### Ingestion Flow (MVP)
 
 Executed within existing worker infrastructure as a straightforward 3‑step flow:
-  (Leverage Compozy's core Temporal workers/queues; no new task queues or binaries are introduced in MVP.)
-  1. `EnumerateAndChunk` – resolve sources via attachment resolvers, expand globs, and emit chunk batches with stable IDs;
-  2. `EmbedAndPersistBatch` – batch call embedder, then upsert vectors + metadata into the configured store;
-  3. `Finalize` – record counts and emit metrics via `logger.FromContext(ctx)`.
-MVP Ingestion Activities (executed in existing worker):
-  1. `EnumerateAndChunk` – discover sources and produce chunks with stable IDs (hash of kb_id + path + content);
-  2. `EmbedAndPersistBatch` – batch embed chunks and write vectors/metadata to the configured store with idempotent upserts;
-  3. `Finalize` – record counts and emit metrics.
+(Leverage Compozy's core Temporal workers/queues; no new task queues or binaries are introduced in MVP.)
+
+1. `EnumerateAndChunk` – resolve sources via attachment resolvers, expand globs, and emit chunk batches with stable IDs;
+2. `EmbedAndPersistBatch` – batch call embedder, then upsert vectors + metadata into the configured store;
+3. `Finalize` – record counts and emit metrics via `logger.FromContext(ctx)`.
+   MVP Ingestion Activities (executed in existing worker):
+4. `EnumerateAndChunk` – discover sources and produce chunks with stable IDs (hash of kb_id + path + content);
+5. `EmbedAndPersistBatch` – batch embed chunks and write vectors/metadata to the configured store with idempotent upserts;
+6. `Finalize` – record counts and emit metrics.
 
 There is no dedicated ingestion worker binary, no custom schedules, and no job‑polling surface in MVP.
 
@@ -219,14 +220,14 @@ The resolver first loads workflow-scoped knowledge bases (from the workflow YAML
 
 ### API Endpoints (MVP)
 
-| Method & Path                                    | Purpose                                               | Notes                                              |
-| ------------------------------------------------ | ----------------------------------------------------- | -------------------------------------------------- |
-| `GET /api/v0/knowledge-bases`                    | List knowledge bases (pagination)                     | Mirrors workflow listing semantics (limit/cursor). |
-| `GET /api/v0/knowledge-bases/{kb_id}`            | Fetch config                                          | Supports `If-None-Match`.                         |
-| `PUT /api/v0/knowledge-bases/{kb_id}`            | Create/update knowledge base                          | Requires ETag on update; validates references.     |
-| `DELETE /api/v0/knowledge-bases/{kb_id}`         | Remove definition and vectors (vector‑only)           | No `purge` option in MVP.                          |
-| `POST /api/v0/knowledge-bases/{kb_id}/ingest`    | Trigger ingestion based on configured sources         | Accepts `strategy` (upsert, replace).              |
-| `POST /api/v0/knowledge-bases/{kb_id}/query`     | Execute retrieval (text query)                        | Dense only; optional simple tag filters.           |
+| Method & Path                                 | Purpose                                       | Notes                                              |
+| --------------------------------------------- | --------------------------------------------- | -------------------------------------------------- |
+| `GET /api/v0/knowledge-bases`                 | List knowledge bases (pagination)             | Mirrors workflow listing semantics (limit/cursor). |
+| `GET /api/v0/knowledge-bases/{kb_id}`         | Fetch config                                  | Supports `If-None-Match`.                          |
+| `PUT /api/v0/knowledge-bases/{kb_id}`         | Create/update knowledge base                  | Requires ETag on update; validates references.     |
+| `DELETE /api/v0/knowledge-bases/{kb_id}`      | Remove definition and vectors (vector‑only)   | No `purge` option in MVP.                          |
+| `POST /api/v0/knowledge-bases/{kb_id}/ingest` | Trigger ingestion based on configured sources | Accepts `strategy` (upsert, replace).              |
+| `POST /api/v0/knowledge-bases/{kb_id}/query`  | Execute retrieval (text query)                | Dense only; optional simple tag filters.           |
 
 Delete performs vector‑only removal. Response envelopes reuse `router.Response` and return ETags.
 
@@ -234,14 +235,14 @@ Delete performs vector‑only removal. Response envelopes reuse `router.Response
 
 New commands live under `compozy knowledge`:
 
-| Command                            | Description                                         | Flags                              |
-| ---------------------------------- | --------------------------------------------------- | ---------------------------------- |
-| `compozy knowledge list`           | Lists knowledge bases (project‑scoped)              | `--project`                        |
-| `compozy knowledge get <id>`       | Shows a single knowledge base                       | `--project`                        |
-| `compozy knowledge apply -f <y>`   | Applies YAML definition(s) (create/update)          | `--project`                        |
-| `compozy knowledge delete <id>`    | Removes a knowledge base (vector‑only deletion)     | `--project`                        |
-| `compozy knowledge ingest <id>`    | Runs ingestion for configured sources               | `--project`, `--strategy`          |
-| `compozy knowledge query <id> -q`  | Executes dense similarity search and prints matches | `--project`, `--top-k`, `--min-score` |
+| Command                           | Description                                         | Flags                                 |
+| --------------------------------- | --------------------------------------------------- | ------------------------------------- |
+| `compozy knowledge list`          | Lists knowledge bases (project‑scoped)              | `--project`                           |
+| `compozy knowledge get <id>`      | Shows a single knowledge base                       | `--project`                           |
+| `compozy knowledge apply -f <y>`  | Applies YAML definition(s) (create/update)          | `--project`                           |
+| `compozy knowledge delete <id>`   | Removes a knowledge base (vector‑only deletion)     | `--project`                           |
+| `compozy knowledge ingest <id>`   | Runs ingestion for configured sources               | `--project`, `--strategy`             |
+| `compozy knowledge query <id> -q` | Executes dense similarity search and prints matches | `--project`, `--top-k`, `--min-score` |
 
 All commands share auth/project flags provided by `cli/cmd/resource` helpers. No `inspect`, no `--watch`, and no `--expand` in MVP.
 
@@ -249,7 +250,7 @@ All commands share auth/project flags provided by `cli/cmd/resource` helpers. No
 
 - **Embedding Providers**: wrap LangChainGo embedder clients (OpenAI, Vertex AI, Cybertron/Hugging Face) to avoid custom SDK glue and reuse batching support.¹
 - **Vector Stores**: leverage LangChainGo vector store drivers (pgvector, Qdrant, Weaviate, LanceDB) for storage and similarity search semantics, with adapter glue for knowledge service contracts.¹
- 
+
 - **Monitoring**: emit Prometheus metrics via `infra/monitoring` (ingestion latency, chunk counts, query latency, vector size).
 
 ### Attachment & Resolver Integration
@@ -266,7 +267,6 @@ All commands share auth/project flags provided by `cli/cmd/resource` helpers. No
 - **Prompt builder responsibility**: `engine/llm/orchestrator` owns deterministic rendering—agents/actions do not inline raw strings. Builders apply configurable strategies (bullet list, JSON blocks) and honor `max_tokens` or `inject_as` instructions supplied in knowledge bindings.
 - **Testing expectations**: Update orchestrator and task execution tests to assert ordering, deduplication, and truncation of retrieved context, mirroring existing attachment coverage. Mocks assert that `GenerateContent` receives both attachments and retrieved contexts during execution.
 - **Token estimation rule**: `knowledge.RetrievedContext.TokenEstimate` is computed during retrieval using provider-specific tokenizers when available (e.g., tiktoken for OpenAI) and a `len(rune)/4` fallback. Prompt builders enforce the `max_tokens` guard by trimming lowest scoring chunks before calling the LLM.
- 
 
 ### Resource, Autoload, and CLI Extensions
 

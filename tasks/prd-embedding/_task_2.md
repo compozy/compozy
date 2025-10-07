@@ -1,7 +1,7 @@
 ---
 status: pending
 parallelizable: false
-blocked_by: ["1.0","0.0"]
+blocked_by: ["1.0", "0.0"]
 ---
 
 <task_context>
@@ -16,6 +16,7 @@ blocked_by: ["1.0","0.0"]
 # Task 2.0: Embedder Adapters
 
 ## Overview
+
 Implement adapters wrapping LangChainGo embeddings (OpenAI, Vertex, local) with input normalization, batching, and error propagation.
 
 <import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
@@ -29,6 +30,7 @@ Implement adapters wrapping LangChainGo embeddings (OpenAI, Vertex, local) with 
 </requirements>
 
 ## Subtasks
+
 - [ ] 2.1 Create `engine/knowledge/embedder/interface.go` and provider files
 - [ ] 2.2 Implement normalization (strip newlines if configured)
 - [ ] 2.3 Unit tests (adapter-focused)
@@ -36,19 +38,24 @@ Implement adapters wrapping LangChainGo embeddings (OpenAI, Vertex, local) with 
   - Should normalize input per config
 
 ## Sequencing
+
 - Blocked by: 1.0, 0.0
 - Unblocks: 5.0, 6.0
 - Parallelizable: No (foundation for pipelines)
 
 ## Implementation Details
+
 Use `github.com/tmc/langchaingo` as the underlying client; hide provider-specifics behind a common interface.
 
 ### Relevant Files
+
 - `engine/knowledge/embedder/*`
 
 ### Dependent Files
+
 - `engine/knowledge/ingest/*`
 - `engine/knowledge/retriever/*`
 
 ## Success Criteria
+
 - Adapters compile; unit tests pass; provider errors are descriptive.

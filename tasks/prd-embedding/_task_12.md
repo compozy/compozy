@@ -1,7 +1,7 @@
 ---
 status: pending
 parallelizable: true
-blocked_by: ["5.0","6.0"]
+blocked_by: ["5.0", "6.0"]
 ---
 
 <task_context>
@@ -16,6 +16,7 @@ blocked_by: ["5.0","6.0"]
 # Task 12.0: Observability
 
 ## Overview
+
 Add metrics, structured logs, and tracing for ingestion and retrieval; label metrics by `kb_id` where applicable.
 
 <import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
@@ -29,24 +30,30 @@ Add metrics, structured logs, and tracing for ingestion and retrieval; label met
 </requirements>
 
 ## Subtasks
+
 - [ ] 12.1 Add counters/histograms and labels
 - [ ] 12.2 Add structured logs and spans in hot paths
 - [ ] 12.3 Augment unit tests in ingest/retriever to assert observability hooks
 
 ## Sequencing
+
 - Blocked by: 5.0, 6.0
 - Unblocks: 15.0
 - Parallelizable: Yes
 
 ## Implementation Details
+
 Use existing observability facilities in repo; avoid introducing new deps.
 
 ### Relevant Files
+
 - `engine/knowledge/*`
 - `engine/infra/server/router/knowledge/*`
 
 ### Dependent Files
+
 - `test/integration/knowledge/*`
 
 ## Success Criteria
+
 - Metrics/logs/spans verified by unit tests; naming matches docs.

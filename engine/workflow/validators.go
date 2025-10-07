@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"strings"
 	"text/template"
 
 	"github.com/compozy/compozy/engine/core"
@@ -33,6 +34,9 @@ func (v *Validator) Validate(ctx context.Context) error {
 		NewOutputsValidator(v.config),
 	)
 	if err := validator.Validate(); err != nil {
+		return err
+	}
+	if err := validateWorkflowKnowledge(v.config); err != nil {
 		return err
 	}
 	// ScheduleValidator needs context, so call it separately
@@ -80,6 +84,30 @@ func (v *AgentsValidator) Validate() error {
 		if err := ac.Validate(); err != nil {
 			return fmt.Errorf("agent validation error: %s", err)
 		}
+	}
+	return nil
+}
+
+func validateWorkflowKnowledge(cfg *Config) error {
+	if len(cfg.Knowledge) > 1 {
+		return fmt.Errorf("workflow configuration error: only one knowledge binding is supported in MVP")
+	}
+	if len(cfg.Knowledge) == 1 && strings.TrimSpace(cfg.Knowledge[0].ID) == "" {
+		return fmt.Errorf("workflow configuration error: knowledge binding requires an id reference")
+	}
+	if len(cfg.KnowledgeBases) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(cfg.KnowledgeBases))
+	for i := range cfg.KnowledgeBases {
+		kb := &cfg.KnowledgeBases[i]
+		if strings.TrimSpace(kb.ID) == "" {
+			return fmt.Errorf("workflow configuration error: knowledge_bases[%d] missing id", i)
+		}
+		if _, ok := seen[kb.ID]; ok {
+			return fmt.Errorf("workflow configuration error: knowledge base id '%s' declared more than once", kb.ID)
+		}
+		seen[kb.ID] = struct{}{}
 	}
 	return nil
 }

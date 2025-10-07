@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -157,12 +158,12 @@ type Config struct {
 
 	// Resource identifier for the autoloader system (must be `"agent"`).
 	// This field enables automatic discovery and registration of agent configurations.
-	Resource string `json:"resource,omitempty" yaml:"resource,omitempty" mapstructure:"resource,omitempty"`
+	Resource string `json:"resource,omitempty"  yaml:"resource,omitempty"  mapstructure:"resource,omitempty"`
 	// Unique identifier for the agent within the project scope.
 	// Used for referencing the agent in workflows and other configurations.
 	//
 	// - **Examples:** `"code-assistant"`, `"data-analyst"`, `"customer-support"`
-	ID string `json:"id"                 yaml:"id"                 mapstructure:"id"                 validate:"required"`
+	ID string `json:"id"                  yaml:"id"                  mapstructure:"id"                  validate:"required"`
 	// Provider configuration is now expressed through the polymorphic `Model` field.
 	// The previous `Config core.ProviderConfig` field has been removed.
 	// System instructions that define the agent's personality, behavior, and constraints.
@@ -173,7 +174,7 @@ type Config struct {
 	// - Define boundaries and ethical guidelines
 	// - Include domain-specific knowledge or constraints
 	// - Use markdown formatting for better structure
-	Instructions string `json:"instructions"       yaml:"instructions"       mapstructure:"instructions"       validate:"required"`
+	Instructions string `json:"instructions"        yaml:"instructions"        mapstructure:"instructions"        validate:"required"`
 	// Structured actions the agent can perform with defined input/output schemas.
 	// Actions provide type-safe interfaces for specific agent capabilities.
 	//
@@ -198,7 +199,7 @@ type Config struct {
 	// ```
 	//
 	// $ref: inline:#action-configuration
-	Actions []*ActionConfig `json:"actions,omitempty"  yaml:"actions,omitempty"  mapstructure:"actions,omitempty"`
+	Actions []*ActionConfig `json:"actions,omitempty"   yaml:"actions,omitempty"   mapstructure:"actions,omitempty"`
 	// Default input parameters passed to the agent on every invocation.
 	// These values are merged with runtime inputs, with runtime values taking precedence.
 	//
@@ -206,7 +207,7 @@ type Config struct {
 	// - Setting default configuration values
 	// - Providing constant context or settings
 	// - Injecting workflow-level parameters
-	With *core.Input `json:"with,omitempty"     yaml:"with,omitempty"     mapstructure:"with,omitempty"`
+	With *core.Input `json:"with,omitempty"      yaml:"with,omitempty"      mapstructure:"with,omitempty"`
 	// Environment variables available during agent execution.
 	// Used for configuration, secrets, and runtime settings.
 	//
@@ -216,7 +217,9 @@ type Config struct {
 	//   API_KEY: "{{.env.OPENAI_API_KEY}}"
 	//   DEBUG_MODE: "true"
 	// ```
-	Env *core.EnvMap `json:"env,omitempty"      yaml:"env,omitempty"      mapstructure:"env,omitempty"`
+	Env *core.EnvMap `json:"env,omitempty"       yaml:"env,omitempty"       mapstructure:"env,omitempty"`
+	// Knowledge declares knowledge bindings scoped to this agent.
+	Knowledge []core.KnowledgeBinding `json:"knowledge,omitempty" yaml:"knowledge,omitempty" mapstructure:"knowledge,omitempty"`
 
 	filePath string
 	CWD      *core.PathCWD
@@ -373,6 +376,12 @@ func (a *Config) Validate() error {
 	// Normalize and validate memory configuration first
 	if err := a.NormalizeAndValidateMemoryConfig(); err != nil {
 		return fmt.Errorf("invalid memory configuration: %w", err)
+	}
+	if len(a.Knowledge) > 1 {
+		return fmt.Errorf("agent configuration error: only one knowledge binding is supported in MVP")
+	}
+	if len(a.Knowledge) == 1 && strings.TrimSpace(a.Knowledge[0].ID) == "" {
+		return fmt.Errorf("agent configuration error: knowledge binding requires an id reference")
 	}
 
 	// Now build composite validator including memory (if any)

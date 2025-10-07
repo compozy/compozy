@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["1.0"]
 ---
@@ -16,6 +16,7 @@ blocked_by: ["1.0"]
 # Task 7.0: YAML & Binding Resolution
 
 ## Overview
+
 Extend project/workflow/task/agent config to support knowledge bindings with MVP single‑binding cardinality and deterministic precedence (workflow → project → inline overrides).
 
 <import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
@@ -28,24 +29,30 @@ Extend project/workflow/task/agent config to support knowledge bindings with MVP
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Implement binding structs and parsing
-- [ ] 7.2 Unit tests `engine/knowledge/service_test.go` (precedence)
-- [ ] 7.3 Unit tests `engine/project/config_test.go` (decode arrays)
+
+- [x] 7.1 Implement binding structs and parsing
+- [x] 7.2 Unit tests `engine/knowledge/service_test.go` (precedence)
+- [x] 7.3 Unit tests `engine/project/config_test.go` (decode arrays)
 
 ## Sequencing
+
 - Blocked by: 1.0
 - Unblocks: 6.0, 8.0, 9.0
 - Parallelizable: Yes
 
 ## Implementation Details
+
 Bindings must be available to `engine/knowledge/service` and orchestrator. Keep defaults aligned with `_techspec.md`.
 
 ### Relevant Files
+
 - `engine/project/*`
 - `engine/workflow/*`
 
 ### Dependent Files
+
 - `engine/knowledge/service.go`
 
 ## Success Criteria
+
 - Binding resolution and precedence validated by unit tests.

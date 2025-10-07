@@ -78,6 +78,9 @@ type Config struct {
 	// $ref: schema://application#memory
 	Memory MemoryConfig `koanf:"memory" json:"memory" yaml:"memory" mapstructure:"memory"`
 
+	// Knowledge configures default behaviors for knowledge ingestion and retrieval.
+	Knowledge KnowledgeConfig `koanf:"knowledge" json:"knowledge" yaml:"knowledge" mapstructure:"knowledge"`
+
 	// LLM configures the LLM proxy service.
 	//
 	// $ref: schema://application#llm
@@ -558,6 +561,40 @@ type MemoryConfig struct {
 	// Prevents unbounded memory growth.
 	// Default: 10000
 	MaxEntries int `koanf:"max_entries" env:"MEMORY_MAX_ENTRIES" validate:"min=1" json:"max_entries" yaml:"max_entries" mapstructure:"max_entries"`
+}
+
+// KnowledgeConfig contains default tuning knobs for knowledge ingestion and retrieval.
+//
+// These defaults backfill optional fields in project/workflow knowledge definitions
+// so operators can adjust behavior globally without editing every YAML file.
+type KnowledgeConfig struct {
+	// EmbedderBatchSize defines the default batch size used when projecting documents.
+	//
+	// Applies when an embedder configuration omits config.batch_size.
+	// Larger batches improve throughput but may increase provider throttling risk.
+	EmbedderBatchSize int `koanf:"embedder_batch_size" env:"KNOWLEDGE_EMBEDDER_BATCH_SIZE" json:"embedder_batch_size" yaml:"embedder_batch_size" mapstructure:"embedder_batch_size" validate:"min=1"`
+
+	// ChunkSize sets the default chunk size (in tokens) for source splitting.
+	//
+	// Enforced when chunking.size is not provided.
+	// Must remain within the supported range for knowledge ingestion.
+	ChunkSize int `koanf:"chunk_size" env:"KNOWLEDGE_CHUNK_SIZE" json:"chunk_size" yaml:"chunk_size" mapstructure:"chunk_size" validate:"min=64,max=8192"`
+
+	// ChunkOverlap defines the default overlap between adjacent chunks.
+	//
+	// Applied when chunking.overlap is omitted. Values greater than or equal to ChunkSize
+	// are ignored during normalization.
+	ChunkOverlap int `koanf:"chunk_overlap" env:"KNOWLEDGE_CHUNK_OVERLAP" json:"chunk_overlap" yaml:"chunk_overlap" mapstructure:"chunk_overlap" validate:"min=0"`
+
+	// RetrievalTopK specifies the default number of results returned during retrieval.
+	//
+	// Used when retrieval.top_k is unset on a knowledge binding or base definition.
+	RetrievalTopK int `koanf:"retrieval_top_k" env:"KNOWLEDGE_RETRIEVAL_TOP_K" json:"retrieval_top_k" yaml:"retrieval_top_k" mapstructure:"retrieval_top_k" validate:"min=1,max=50"`
+
+	// RetrievalMinScore sets the default minimum similarity score required for matches.
+	//
+	// Applied when retrieval.min_score is not provided. Must fall within [0.0, 1.0].
+	RetrievalMinScore float64 `koanf:"retrieval_min_score" env:"KNOWLEDGE_RETRIEVAL_MIN_SCORE" json:"retrieval_min_score" yaml:"retrieval_min_score" mapstructure:"retrieval_min_score" validate:"min=0,max=1"`
 }
 
 // LLMConfig contains LLM service configuration.
@@ -1346,6 +1383,7 @@ func defaultFromRegistry() *Config {
 		Limits:      buildLimitsConfig(registry),
 		Attachments: buildAttachmentsConfig(registry),
 		Memory:      buildMemoryConfig(registry),
+		Knowledge:   buildKnowledgeConfig(registry),
 		LLM:         buildLLMConfig(registry),
 		RateLimit:   buildRateLimitConfig(registry),
 		CLI:         buildCLIConfig(registry),
@@ -1398,6 +1436,15 @@ func getInt64(registry *definition.Registry, path string) int64 {
 	if val := registry.GetDefault(path); val != nil {
 		if i, ok := val.(int64); ok {
 			return i
+		}
+	}
+	return 0
+}
+
+func getFloat64(registry *definition.Registry, path string) float64 {
+	if val := registry.GetDefault(path); val != nil {
+		if f, ok := val.(float64); ok {
+			return f
 		}
 	}
 	return 0
@@ -1610,6 +1657,16 @@ func buildMemoryConfig(registry *definition.Registry) MemoryConfig {
 		Prefix:     getString(registry, "memory.prefix"),
 		TTL:        getDuration(registry, "memory.ttl"),
 		MaxEntries: getInt(registry, "memory.max_entries"),
+	}
+}
+
+func buildKnowledgeConfig(registry *definition.Registry) KnowledgeConfig {
+	return KnowledgeConfig{
+		EmbedderBatchSize: getInt(registry, "knowledge.embedder_batch_size"),
+		ChunkSize:         getInt(registry, "knowledge.chunk_size"),
+		ChunkOverlap:      getInt(registry, "knowledge.chunk_overlap"),
+		RetrievalTopK:     getInt(registry, "knowledge.retrieval_top_k"),
+		RetrievalMinScore: getFloat64(registry, "knowledge.retrieval_min_score"),
 	}
 }
 

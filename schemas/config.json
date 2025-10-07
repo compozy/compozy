@@ -276,6 +276,33 @@
       },
       "type": "object"
     },
+    "KnowledgeConfig": {
+      "additionalProperties": false,
+      "description": "KnowledgeConfig contains default tuning knobs for knowledge ingestion and retrieval.",
+      "properties": {
+        "chunk_overlap": {
+          "description": "ChunkOverlap defines the default overlap between adjacent chunks.\n\nApplied when chunking.overlap is omitted. Values greater than or equal to ChunkSize\nare ignored during normalization.",
+          "type": "integer"
+        },
+        "chunk_size": {
+          "description": "ChunkSize sets the default chunk size (in tokens) for source splitting.\n\nEnforced when chunking.size is not provided.\nMust remain within the supported range for knowledge ingestion.",
+          "type": "integer"
+        },
+        "embedder_batch_size": {
+          "description": "EmbedderBatchSize defines the default batch size used when projecting documents.\n\nApplies when an embedder configuration omits config.batch_size.\nLarger batches improve throughput but may increase provider throttling risk.",
+          "type": "integer"
+        },
+        "retrieval_min_score": {
+          "description": "RetrievalMinScore sets the default minimum similarity score required for matches.\n\nApplied when retrieval.min_score is not provided. Must fall within [0.0, 1.0].",
+          "type": "number"
+        },
+        "retrieval_top_k": {
+          "description": "RetrievalTopK specifies the default number of results returned during retrieval.\n\nUsed when retrieval.top_k is unset on a knowledge binding or base definition.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "LLMConfig": {
       "additionalProperties": false,
       "description": "LLMConfig contains LLM service configuration.",
@@ -984,6 +1011,10 @@
     "database": {
       "$ref": "#/$defs/DatabaseConfig",
       "description": "Database configures the PostgreSQL database connection.\n\n$ref: schema://application#database"
+    },
+    "knowledge": {
+      "$ref": "#/$defs/KnowledgeConfig",
+      "description": "Knowledge configures default behaviors for knowledge ingestion and retrieval."
     },
     "limits": {
       "$ref": "#/$defs/LimitsConfig",

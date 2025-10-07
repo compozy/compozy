@@ -1,0 +1,34 @@
+{
+  "$id": "knowledge-binding.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "fallback": {
+      "type": "string"
+    },
+    "filters": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "id": {
+      "type": "string"
+    },
+    "inject_as": {
+      "type": "string"
+    },
+    "max_tokens": {
+      "type": "integer"
+    },
+    "min_score": {
+      "type": "number"
+    },
+    "top_k": {
+      "type": "integer"
+    }
+  },
+  "title": "Knowledge Binding",
+  "type": "object",
+  "yamlCompatible": true
+}

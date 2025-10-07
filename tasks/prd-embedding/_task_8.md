@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["1.0"]
 ---
@@ -16,6 +16,7 @@ blocked_by: ["1.0"]
 # Task 8.0: JSON Schemas
 
 ## Overview
+
 Add embedder, vector DB, knowledge base, and knowledge binding JSON Schemas and wire them into project/workflow schemas.
 
 <import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
@@ -28,23 +29,29 @@ Add embedder, vector DB, knowledge base, and knowledge binding JSON Schemas and 
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add `schemas/{embedder,vectordb,knowledge-base,knowledge-binding}.json`
-- [ ] 8.2 Update `schemas/project.json` and `schemas/workflow.json`
-- [ ] 8.3 Unit test for schema loading (if applicable)
+
+- [x] 8.1 Add `schemas/{embedder,vectordb,knowledge-base,knowledge-binding}.json`
+- [x] 8.2 Update `schemas/project.json` and `schemas/workflow.json`
+- [x] 8.3 Unit test for schema loading (if applicable)
 
 ## Sequencing
+
 - Blocked by: 1.0
 - Unblocks: 10.0, 13.0
 - Parallelizable: Yes
 
 ## Implementation Details
+
 Keep shapes aligned to `_techspec.md` YAML examples; avoid over‑specifying optional fields in MVP.
 
 ### Relevant Files
+
 - `schemas/*.json`
 
 ### Dependent Files
+
 - `docs/content/docs/schema/*`
 
 ## Success Criteria
+
 - Schemas validate and integrate into docs build; tests pass.

@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
@@ -205,5 +206,30 @@ var schemaDefinitions = []schemaDefinition{
 		name:   "config-webhooks",
 		title:  "Webhooks Configuration",
 		source: &config.WebhooksConfig{},
+	},
+	{
+		name:   "config-knowledge",
+		title:  "Knowledge Configuration",
+		source: &config.KnowledgeConfig{},
+	},
+	{
+		name:   "embedder",
+		title:  "Embedder Configuration",
+		source: &knowledge.EmbedderConfig{},
+	},
+	{
+		name:   "vectordb",
+		title:  "Vector Database Configuration",
+		source: &knowledge.VectorDBConfig{},
+	},
+	{
+		name:   "knowledge-base",
+		title:  "Knowledge Base Configuration",
+		source: &knowledge.BaseConfig{},
+	},
+	{
+		name:   "knowledge-binding",
+		title:  "Knowledge Binding",
+		source: &core.KnowledgeBinding{},
 	},
 }

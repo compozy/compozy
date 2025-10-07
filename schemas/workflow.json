@@ -29,6 +29,57 @@
       },
       "type": "object"
     },
+    "BaseConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "chunking": {
+          "$ref": "#/$defs/ChunkingConfig"
+        },
+        "description": {
+          "type": "string"
+        },
+        "embedder": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MetadataConfig"
+        },
+        "preprocess": {
+          "$ref": "#/$defs/PreprocessConfig"
+        },
+        "retrieval": {
+          "$ref": "#/$defs/RetrievalConfig"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/SourceConfig"
+          },
+          "type": "array"
+        },
+        "vector_db": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ChunkingConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "overlap": {
+          "type": "integer"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "strategy": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "Contributor": {
       "additionalProperties": false,
       "description": "Contributor represents an individual who contributed to the project.",
@@ -74,6 +125,54 @@
       "type": "object"
     },
     "Input": {
+      "type": "object"
+    },
+    "KnowledgeBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "fallback": {
+          "type": "string"
+        },
+        "filters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "id": {
+          "type": "string"
+        },
+        "inject_as": {
+          "type": "string"
+        },
+        "max_tokens": {
+          "type": "integer"
+        },
+        "min_score": {
+          "type": "number"
+        },
+        "top_k": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "MetadataConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "owners": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
       "type": "object"
     },
     "Opts": {
@@ -124,6 +223,45 @@
         "path": {
           "description": "Path holds the absolute working directory.",
           "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PreprocessConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "dedupe": {
+          "type": "boolean"
+        },
+        "remove_html": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "RetrievalConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "fallback": {
+          "type": "string"
+        },
+        "filters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "inject_as": {
+          "type": "string"
+        },
+        "max_tokens": {
+          "type": "integer"
+        },
+        "min_score": {
+          "type": "number"
+        },
+        "top_k": {
+          "type": "integer"
         }
       },
       "type": "object"
@@ -202,6 +340,48 @@
     "Schema": {
       "type": "object"
     },
+    "SourceConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "bucket": {
+          "type": "string"
+        },
+        "options": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "path": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "urls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "video_id": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "Trigger": {
       "additionalProperties": false,
       "description": "Trigger defines an external event that can initiate workflow execution.",
@@ -273,6 +453,20 @@
     "id": {
       "description": "Unique identifier for the workflow (required)\nMust be unique within the project scope. Used for referencing and execution.\n- **Example**: \"customer-support\", \"data-processing\", \"content-generation\"",
       "type": "string"
+    },
+    "knowledge": {
+      "description": "Knowledge defines the default knowledge binding for the workflow context.",
+      "items": {
+        "$ref": "knowledge-binding.json"
+      },
+      "type": "array"
+    },
+    "knowledge_bases": {
+      "description": "KnowledgeBases declares workflow-scoped knowledge definitions.",
+      "items": {
+        "$ref": "knowledge-base.json"
+      },
+      "type": "array"
     },
     "mcps": {
       "description": "Model Context Protocol servers for extending AI capabilities\nMCP servers provide specialized tools and knowledge to agents\nEnable integration with external services and domain-specific functionality\n$ref: schema://mcp",

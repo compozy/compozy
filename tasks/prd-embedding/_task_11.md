@@ -16,6 +16,7 @@ blocked_by: ["10.0"]
 # Task 11.0: CLI Commands
 
 ## Overview
+
 Add `compozy knowledge` command group with subcommands: list, get, apply, delete, ingest, query. Align flags and JSON output with API.
 
 <import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
@@ -27,23 +28,29 @@ Add `compozy knowledge` command group with subcommands: list, get, apply, delete
 </requirements>
 
 ## Subtasks
+
 - [ ] 11.1 Implement CLI group and subcommands
 - [ ] 11.2 Unit tests (w/ mocked API client)
 
 ## Sequencing
+
 - Blocked by: 10.0
 - Unblocks: 13.0, 14.0, 15.0
 - Parallelizable: No
 
 ## Implementation Details
+
 Ensure pagination flags match server; support `--output json`.
 
 ### Relevant Files
+
 - `cli/cmd/knowledge/*`
 - `cli/helpers/*`
 
 ### Dependent Files
+
 - `test/integration/knowledge/cli_test.go`
 
 ## Success Criteria
+
 - CLI compiles; unit tests pass; outputs are stable for goldens.

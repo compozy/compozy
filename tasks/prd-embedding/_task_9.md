@@ -1,7 +1,7 @@
 ---
 status: pending
 parallelizable: false
-blocked_by: ["6.0","7.0"]
+blocked_by: ["6.0", "7.0"]
 ---
 
 <task_context>
@@ -16,6 +16,7 @@ blocked_by: ["6.0","7.0"]
 # Task 9.0: LLM Orchestrator Integration
 
 ## Overview
+
 Inject retrieved knowledge chunks into prompts prior to model invocation with deterministic ordering and token budgeting.
 
 <import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
@@ -28,22 +29,28 @@ Inject retrieved knowledge chunks into prompts prior to model invocation with de
 </requirements>
 
 ## Subtasks
+
 - [ ] 9.1 Wire `engine/knowledge/service` into orchestrator assembly
 - [ ] 9.2 Add unit tests (stub adapter) for injection order and budgeting
 
 ## Sequencing
+
 - Blocked by: 6.0, 7.0
 - Unblocks: 15.0
 - Parallelizable: No
 
 ## Implementation Details
+
 Follow `_techspec.md` injection notes; keep payload shape inline text only.
 
 ### Relevant Files
+
 - `engine/llm/orchestrator/*`
 
 ### Dependent Files
+
 - `test/integration/knowledge/workflow_binding_test.go`
 
 ## Success Criteria
+
 - Injection works and tests pass; context usage verified.

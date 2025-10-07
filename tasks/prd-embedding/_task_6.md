@@ -1,7 +1,7 @@
 ---
 status: pending
 parallelizable: false
-blocked_by: ["2.0","3.0","7.0"]
+blocked_by: ["2.0", "3.0", "7.0"]
 ---
 
 <task_context>
@@ -16,6 +16,7 @@ blocked_by: ["2.0","3.0","7.0"]
 # Task 6.0: Retrieval Service
 
 ## Overview
+
 Implement dense similarity retrieval with `top_k`/`min_score`, deterministic ordering, and optional token‑budget trimming for prompt injection.
 
 <import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
@@ -28,6 +29,7 @@ Implement dense similarity retrieval with `top_k`/`min_score`, deterministic ord
 </requirements>
 
 ## Subtasks
+
 - [ ] 6.1 Implement retriever API and scoring
 - [ ] 6.2 Add max token trimming helper for injection
 - [ ] 6.3 Unit tests `engine/knowledge/retriever_test.go`
@@ -35,19 +37,24 @@ Implement dense similarity retrieval with `top_k`/`min_score`, deterministic ord
   - Should trim by `max_tokens`
 
 ## Sequencing
+
 - Blocked by: 2.0, 3.0, 7.0
 - Unblocks: 9.0, 10.0
 - Parallelizable: No
 
 ## Implementation Details
+
 Rely on vector store for similarity; avoid rerankers in MVP.
 
 ### Relevant Files
+
 - `engine/knowledge/retriever/*`
 - `engine/knowledge/service.go`
 
 ### Dependent Files
+
 - `engine/llm/orchestrator/*`
 
 ## Success Criteria
+
 - Retrieval returns correctly filtered/ordered results; tests pass.

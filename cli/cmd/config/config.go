@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -430,6 +431,7 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	flattenLimitsConfig(cfg, result)
 	flattenAttachmentsConfig(cfg, result)
 	flattenMemoryConfig(cfg, result)
+	flattenKnowledgeConfig(cfg, result)
 	flattenLLMConfig(cfg, result)
 	flattenCLIConfig(cfg, result)
 	flattenRedisConfig(cfg, result)
@@ -559,6 +561,15 @@ func flattenMemoryConfig(cfg *config.Config, result map[string]string) {
 	if cfg.Memory.MaxEntries > 0 {
 		result["memory.max_entries"] = fmt.Sprintf("%d", cfg.Memory.MaxEntries)
 	}
+}
+
+// flattenKnowledgeConfig flattens knowledge configuration defaults
+func flattenKnowledgeConfig(cfg *config.Config, result map[string]string) {
+	result["knowledge.embedder_batch_size"] = fmt.Sprintf("%d", cfg.Knowledge.EmbedderBatchSize)
+	result["knowledge.chunk_size"] = fmt.Sprintf("%d", cfg.Knowledge.ChunkSize)
+	result["knowledge.chunk_overlap"] = fmt.Sprintf("%d", cfg.Knowledge.ChunkOverlap)
+	result["knowledge.retrieval_top_k"] = fmt.Sprintf("%d", cfg.Knowledge.RetrievalTopK)
+	result["knowledge.retrieval_min_score"] = strconv.FormatFloat(cfg.Knowledge.RetrievalMinScore, 'f', -1, 64)
 }
 
 // flattenLLMConfig flattens LLM configuration (optional)

@@ -16,6 +16,7 @@ blocked_by: ["1.0"]
 # Task 4.0: Chunking & Preprocess
 
 ## Overview
+
 Implement chunking strategies (e.g., recursive splitter), deduplication, HTML stripping, and content hashing for idempotent ingestion.
 
 <import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
@@ -28,24 +29,30 @@ Implement chunking strategies (e.g., recursive splitter), deduplication, HTML st
 </requirements>
 
 ## Subtasks
+
 - [ ] 4.1 Implement `engine/knowledge/chunk/*` (splitters, preprocess)
 - [ ] 4.2 Unit tests `engine/knowledge/ingest_test.go` (chunk/dedupe sections)
   - Should chunk per strategy/size/overlap; stable IDs
   - Should deduplicate by content hash
 
 ## Sequencing
+
 - Blocked by: 1.0
 - Unblocks: 5.0
 - Parallelizable: Yes
 
 ## Implementation Details
+
 Keep the interface small; return slices of chunks with text and metadata ready for embedding.
 
 ### Relevant Files
+
 - `engine/knowledge/chunk/*`
 
 ### Dependent Files
+
 - `engine/knowledge/ingest/*`
 
 ## Success Criteria
+
 - Deterministic chunking and dedupe verified by unit tests.

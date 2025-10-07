@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: []
 ---
@@ -16,6 +16,7 @@ blocked_by: []
 # Task 0.0: Pre‑work — External Libs Verification + Test Utilities Baseline
 
 ## Overview
+
 Verify embeddings/vector APIs in `github.com/tmc/langchaingo v0.1.13` and scaffold shared test helpers to enforce repository standards for subsequent unit tests.
 
 <import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
@@ -28,26 +29,32 @@ Verify embeddings/vector APIs in `github.com/tmc/langchaingo v0.1.13` and scaffo
 </requirements>
 
 ## Subtasks
-- [ ] 0.1 Verify `langchaingo` embeddings/vector APIs (Perplexity + Context7 notes committed under `tasks/prd-embedding/notes/`)
-- [ ] 0.2 Add `test/helpers/context.go` with `NewTestContext(t)` using `logger.FromContext(ctx)` and `config.FromContext(ctx)`
-- [ ] 0.3 Add `test/helpers/golden.go` utilities
-- [ ] 0.4 Confirm `go.mod` pins `github.com/tmc/langchaingo v0.1.13`
+
+- [x] 0.1 Verify `langchaingo` embeddings/vector APIs (Perplexity + Context7 notes committed under `tasks/prd-embedding/notes/`)
+- [x] 0.2 Add `test/helpers/context.go` with `NewTestContext(t)` using `logger.FromContext(ctx)` and `config.FromContext(ctx)`
+- [x] 0.3 Add `test/helpers/golden.go` utilities
+- [x] 0.4 Confirm `go.mod` pins `github.com/tmc/langchaingo v0.1.13`
 
 ## Sequencing
+
 - Blocked by: —
 - Unblocks: 1.0–15.0
 - Parallelizable: Yes
 
 ## Implementation Details
+
 Record exact method signatures and any notable provider quirks (batch size, dimensions, timeouts). Keep notes small and scoped to MVP needs.
 
 ### Relevant Files
+
 - `go.mod`
 - `test/helpers/context.go`
 - `test/helpers/golden.go`
 
 ### Dependent Files
+
 - All adapter and pipeline unit tests
 
 ## Success Criteria
+
 - Notes captured; helpers in place; `make lint` and `make test` pass.
