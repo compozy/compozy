@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["6.0"]
 ---
@@ -28,8 +28,8 @@ Add configuration knobs for `max_depth`, `max_steps`, `max_parallel`, `timeout_m
 
 ## Subtasks
 
-- [ ] 8.1 Config structs and defaults
-- [ ] 8.2 Validation and docs
+- [x] 8.1 Config structs and defaults
+- [x] 8.2 Validation and docs
 
 ## Sequencing
 

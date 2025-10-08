@@ -1,6 +1,7 @@
 package orchestrate
 
 import (
+	"bytes"
 	"context"
 	"sync"
 	"testing"
@@ -8,7 +9,9 @@ import (
 
 	agentexec "github.com/compozy/compozy/engine/agent/exec"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/tool/builtin"
 	toolcontext "github.com/compozy/compozy/engine/tool/context"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -148,6 +151,57 @@ func TestEngine_Run(t *testing.T) {
 		assert.ErrorIs(t, err, errMaxDepthExceeded)
 		require.Len(t, results, 0)
 	})
+}
+
+func TestEngine_Run_EmitsStructuredLogs(t *testing.T) {
+	ctx := context.Background()
+	builtin.ResetMetricsForTesting()
+	var buf bytes.Buffer
+	jsonLogger := logger.NewLogger(&logger.Config{
+		Level:     logger.InfoLevel,
+		Output:    &buf,
+		JSON:      true,
+		AddSource: false,
+	})
+	ctx = logger.ContextWithLogger(ctx, jsonLogger)
+	runner := &stubRunner{
+		execFunc: func(context.Context, agentexec.ExecuteRequest) (*agentexec.ExecuteResult, error) {
+			return &agentexec.ExecuteResult{
+				ExecID: core.MustNewID(),
+				Output: &core.Output{"ok": true},
+			}, nil
+		},
+	}
+	plan := &Plan{
+		Steps: []Step{
+			{
+				ID:     "agent_step",
+				Type:   StepTypeAgent,
+				Status: StepStatusPending,
+				Agent: &AgentStep{
+					AgentID:  "agent.one",
+					ActionID: "action.one",
+				},
+			},
+			{
+				ID:     "parallel_step",
+				Type:   StepTypeParallel,
+				Status: StepStatusPending,
+				Parallel: &ParallelStep{Steps: []AgentStep{
+					{AgentID: "agent.two", ActionID: "action.two"},
+					{AgentID: "agent.three"},
+				}},
+			},
+		},
+	}
+	engine := NewEngine(runner, Limits{MaxParallel: 2})
+	_, err := engine.Run(ctx, plan)
+	require.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "\"agent_id\":\"agent.one\"")
+	assert.Contains(t, output, "\"parallel_child\":true")
+	assert.Contains(t, output, "\"parent_step_id\":\"parallel_step\"")
+	assert.Contains(t, output, "\"steps_total\":2")
 }
 
 func BenchmarkEngine(b *testing.B) {

@@ -33,8 +33,8 @@
 - [x] 5.0 Implement executor (sequential + parallel) with limits — size: high (not batchable)
 - [x] 6.0 Implement cp\_\_agent_orchestrate builtin handler — size: medium (not batchable)
 - [x] 7.0 Register builtin in native catalog and service wiring — size: small (batchable)
-- [ ] 8.0 Config: runtime.native_tools.agent_orchestrator limits — size: small (batchable)
-- [ ] 9.0 Telemetry/metrics and logging for steps and totals — size: small (batchable)
+- [x] 8.0 Config: runtime.native_tools.agent_orchestrator limits — size: small (batchable)
+- [x] 9.0 Telemetry/metrics and logging for steps and totals — size: small (batchable)
 - [ ] 10.0 Tests: unit + integration + benchmarks (caps) — size: medium (not batchable)
 - [ ] 11.0 Documentation and examples — size: small (batchable)
 

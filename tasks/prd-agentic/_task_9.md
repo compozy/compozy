@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["5.0", "6.0", "8.0"]
 ---
@@ -28,8 +28,8 @@ Instrument builtin invocations and per‑step execution with existing telemetry 
 
 ## Subtasks
 
-- [ ] 9.1 Metrics wiring
-- [ ] 9.2 Structured logging
+- [x] 9.1 Metrics wiring
+- [x] 9.2 Structured logging
 
 ## Sequencing
 

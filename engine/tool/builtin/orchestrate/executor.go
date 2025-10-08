@@ -10,9 +10,10 @@ import (
 
 	agentexec "github.com/compozy/compozy/engine/agent/exec"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/tool/builtin"
 	toolcontext "github.com/compozy/compozy/engine/tool/context"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -65,6 +66,26 @@ type executorContext struct {
 	Err               error
 	startedAt         time.Time
 	transitionStarted time.Time
+	totals            stepTotals
+}
+
+type stepTotals struct {
+	Total   int
+	Success int
+	Failed  int
+	Partial int
+}
+
+func (t *stepTotals) observe(status StepStatus) {
+	t.Total++
+	switch status {
+	case StepStatusSuccess:
+		t.Success++
+	case StepStatusPartial:
+		t.Partial++
+	default:
+		t.Failed++
+	}
 }
 
 func NewEngine(runner Runner, limits Limits) *Engine {
@@ -83,8 +104,6 @@ func (e *Engine) Run(ctx context.Context, plan *Plan) ([]StepResult, error) {
 	if plan == nil {
 		return nil, errPlanMissing
 	}
-	log := logger.FromContext(ctx)
-	_ = config.FromContext(ctx)
 	depth := toolcontext.AgentOrchestratorDepth(ctx)
 	if e.limits.MaxDepth > 0 && depth >= e.limits.MaxDepth {
 		return nil, errMaxDepthExceeded
@@ -92,6 +111,7 @@ func (e *Engine) Run(ctx context.Context, plan *Plan) ([]StepResult, error) {
 	if e.limits.MaxSteps > 0 && len(plan.Steps) > e.limits.MaxSteps {
 		return nil, errMaxStepsExceeded
 	}
+	runStarted := e.now()
 	execCtx := &executorContext{
 		Plan:     plan,
 		Bindings: cloneBindings(plan.Bindings),
@@ -105,26 +125,28 @@ func (e *Engine) Run(ctx context.Context, plan *Plan) ([]StepResult, error) {
 	baseCtx := toolcontext.IncrementAgentOrchestratorDepth(ctx)
 	fsm := newExecutorFSM(baseCtx, e, execCtx)
 	if err := fsm.Event(baseCtx, EventStartPlan, execCtx); err != nil {
-		e.ensureFailureResult(execCtx, plan, err)
+		e.ensureFailureResult(baseCtx, execCtx, plan, err)
 		if execCtx.Err != nil {
 			return execCtx.Results, execCtx.Err
 		}
 		return execCtx.Results, err
 	}
 	if execCtx.Err != nil && len(execCtx.Results) == 0 {
-		e.ensureFailureResult(execCtx, plan, execCtx.Err)
+		e.ensureFailureResult(baseCtx, execCtx, plan, execCtx.Err)
 	}
 	switch fsm.Current() {
 	case StateCompleted:
-		log.Debug("Agent orchestrator executor completed", "steps", len(execCtx.Results))
+		e.logRunSummary(baseCtx, execCtx, e.now().Sub(runStarted), true)
 		return execCtx.Results, nil
 	case StateFailed:
-		e.ensureFailureResult(execCtx, plan, execCtx.Err)
+		e.ensureFailureResult(baseCtx, execCtx, plan, execCtx.Err)
+		e.logRunSummary(baseCtx, execCtx, e.now().Sub(runStarted), false)
 		if execCtx.Err != nil {
 			return execCtx.Results, execCtx.Err
 		}
 		return execCtx.Results, fmt.Errorf("agent orchestrator executor failed")
 	default:
+		e.logRunSummary(baseCtx, execCtx, e.now().Sub(runStarted), false)
 		return execCtx.Results, fmt.Errorf("agent orchestrator executor finished in unexpected state %s", fsm.Current())
 	}
 }
@@ -171,11 +193,14 @@ func (e *Engine) OnEnterAwaitingResults(ctx context.Context, execCtx *executorCo
 	return TransitionResult{Event: EventStepSucceeded, Args: []any{execCtx}}
 }
 
-func (e *Engine) OnEnterMerging(_ context.Context, execCtx *executorContext) TransitionResult {
+func (e *Engine) OnEnterMerging(ctx context.Context, execCtx *executorContext) TransitionResult {
 	if execCtx.PendingResult != nil {
 		execCtx.PendingResult.Elapsed = e.now().Sub(execCtx.startedAt)
 		execCtx.Results = append(execCtx.Results, *execCtx.PendingResult)
-		e.applyBindings(execCtx, execCtx.PendingResult)
+		currentStep := execCtx.CurrentStep
+		result := &execCtx.Results[len(execCtx.Results)-1]
+		e.applyBindings(execCtx, result)
+		e.observeStep(ctx, execCtx, currentStep, result)
 	}
 	execCtx.StepIndex++
 	execCtx.PendingResult = nil
@@ -190,10 +215,16 @@ func (e *Engine) OnEnterCompleted(context.Context, *executorContext) TransitionR
 	return TransitionResult{}
 }
 
-func (e *Engine) OnEnterFailed(_ context.Context, execCtx *executorContext) TransitionResult {
+func (e *Engine) OnEnterFailed(ctx context.Context, execCtx *executorContext) TransitionResult {
+	currentStep := execCtx.CurrentStep
 	if execCtx.PendingResult != nil {
 		execCtx.PendingResult.Elapsed = e.now().Sub(execCtx.startedAt)
+		if execCtx.PendingResult.Error == nil && execCtx.Err != nil {
+			execCtx.PendingResult.Error = execCtx.Err
+		}
 		execCtx.Results = append(execCtx.Results, *execCtx.PendingResult)
+		result := &execCtx.Results[len(execCtx.Results)-1]
+		e.observeStep(ctx, execCtx, currentStep, result)
 		execCtx.PendingResult = nil
 	}
 	execCtx.CurrentStep = nil
@@ -231,16 +262,25 @@ func (e *Engine) executeAgentStep(ctx context.Context, stepID string, agentStep 
 		With:    core.NewInput(agentStep.With),
 		Timeout: timeout,
 	}
+	start := e.now()
 	res, err := e.runner.Execute(stepCtx, req)
+	elapsed := e.now().Sub(start)
 	if err != nil {
-		return StepResult{StepID: stepID, Type: StepTypeAgent, Status: StepStatusFailed, Error: err}, err
+		return StepResult{
+			StepID:  stepID,
+			Type:    StepTypeAgent,
+			Status:  StepStatusFailed,
+			Error:   err,
+			Elapsed: elapsed,
+		}, err
 	}
 	return StepResult{
-		StepID: stepID,
-		Type:   StepTypeAgent,
-		Status: StepStatusSuccess,
-		ExecID: res.ExecID,
-		Output: res.Output,
+		StepID:  stepID,
+		Type:    StepTypeAgent,
+		Status:  StepStatusSuccess,
+		ExecID:  res.ExecID,
+		Output:  res.Output,
+		Elapsed: elapsed,
 	}, nil
 }
 
@@ -386,7 +426,7 @@ func cloneBindings(src map[string]any) map[string]any {
 	return dst
 }
 
-func (e *Engine) ensureFailureResult(execCtx *executorContext, plan *Plan, failureErr error) {
+func (e *Engine) ensureFailureResult(ctx context.Context, execCtx *executorContext, plan *Plan, failureErr error) {
 	if execCtx == nil {
 		return
 	}
@@ -396,6 +436,8 @@ func (e *Engine) ensureFailureResult(execCtx *executorContext, plan *Plan, failu
 		}
 		execCtx.PendingResult.Elapsed = e.now().Sub(execCtx.startedAt)
 		execCtx.Results = append(execCtx.Results, *execCtx.PendingResult)
+		result := &execCtx.Results[len(execCtx.Results)-1]
+		e.observeStep(ctx, execCtx, execCtx.CurrentStep, result)
 		execCtx.PendingResult = nil
 		return
 	}
@@ -421,4 +463,227 @@ func (e *Engine) ensureFailureResult(execCtx *executorContext, plan *Plan, failu
 		failure.Type = step.Type
 	}
 	execCtx.Results = append(execCtx.Results, failure)
+	result := &execCtx.Results[len(execCtx.Results)-1]
+	e.observeStep(ctx, execCtx, step, result)
+}
+
+func (e *Engine) observeStep(ctx context.Context, execCtx *executorContext, step *Step, result *StepResult) {
+	if result == nil {
+		return
+	}
+	if execCtx != nil {
+		execCtx.totals.observe(result.Status)
+	}
+	switch result.Type {
+	case StepTypeParallel:
+		e.logParallelStep(ctx, step, result)
+		e.recordParallelMetrics(ctx, step, result)
+	default:
+		e.logPlanStep(ctx, step, result)
+		e.recordPlanStepMetrics(ctx, step, result)
+	}
+}
+
+func (e *Engine) logPlanStep(ctx context.Context, step *Step, result *StepResult) {
+	if result == nil {
+		return
+	}
+	log := logger.FromContext(ctx)
+	fields := []any{
+		"tool_id", toolID,
+		"step_id", result.StepID,
+		"step_type", string(result.Type),
+		"status", string(result.Status),
+		"duration_ms", result.Elapsed.Milliseconds(),
+	}
+	if step != nil && step.Agent != nil {
+		fields = append(fields, "agent_id", step.Agent.AgentID)
+		if step.Agent.ActionID != "" {
+			fields = append(fields, "action_id", step.Agent.ActionID)
+		}
+	}
+	if !result.ExecID.IsZero() {
+		fields = append(fields, "exec_id", result.ExecID.String())
+	}
+	if result.Error != nil {
+		fields = append(fields, "error", core.RedactError(result.Error))
+	}
+	level := log.Info
+	if result.Status != StepStatusSuccess {
+		level = log.Warn
+	}
+	level("Agent orchestrator step completed", fields...)
+}
+
+func (e *Engine) logParallelStep(ctx context.Context, step *Step, result *StepResult) {
+	if result == nil {
+		return
+	}
+	log := logger.FromContext(ctx)
+	childTotals := aggregateChildStatuses(result.Children)
+	fields := []any{
+		"tool_id", toolID,
+		"step_id", result.StepID,
+		"step_type", string(result.Type),
+		"status", string(result.Status),
+		"duration_ms", result.Elapsed.Milliseconds(),
+		"children_total", childTotals.Total,
+		"children_success", childTotals.Success,
+		"children_failed", childTotals.Failed,
+		"children_partial", childTotals.Partial,
+	}
+	if result.Error != nil {
+		fields = append(fields, "error", core.RedactError(result.Error))
+	}
+	level := log.Info
+	if result.Status != StepStatusSuccess {
+		level = log.Warn
+	}
+	level("Agent orchestrator parallel group completed", fields...)
+	e.logParallelChildren(ctx, step, result)
+}
+
+func (e *Engine) logParallelChildren(ctx context.Context, step *Step, result *StepResult) {
+	if result == nil {
+		return
+	}
+	var agents []AgentStep
+	if step != nil && step.Parallel != nil {
+		agents = step.Parallel.Steps
+	}
+	for idx := range result.Children {
+		child := result.Children[idx]
+		var agent *AgentStep
+		if idx < len(agents) {
+			cloned := agents[idx]
+			agent = &cloned
+		}
+		e.logParallelChild(ctx, result.StepID, idx, agent, &child)
+	}
+}
+
+func (e *Engine) logParallelChild(ctx context.Context, parentID string, idx int, agent *AgentStep, result *StepResult) {
+	if result == nil {
+		return
+	}
+	log := logger.FromContext(ctx)
+	fields := []any{
+		"tool_id", toolID,
+		"parent_step_id", parentID,
+		"step_id", result.StepID,
+		"step_type", string(result.Type),
+		"status", string(result.Status),
+		"duration_ms", result.Elapsed.Milliseconds(),
+		"parallel_child", true,
+		"child_index", idx,
+	}
+	if agent != nil {
+		fields = append(fields, "agent_id", agent.AgentID)
+		if agent.ActionID != "" {
+			fields = append(fields, "action_id", agent.ActionID)
+		}
+	}
+	if !result.ExecID.IsZero() {
+		fields = append(fields, "exec_id", result.ExecID.String())
+	}
+	if result.Error != nil {
+		fields = append(fields, "error", core.RedactError(result.Error))
+	}
+	level := log.Info
+	if result.Status != StepStatusSuccess {
+		level = log.Warn
+	}
+	level("Agent orchestrator child step completed", fields...)
+}
+
+func aggregateChildStatuses(children []StepResult) stepTotals {
+	var totals stepTotals
+	for idx := range children {
+		totals.observe(children[idx].Status)
+	}
+	return totals
+}
+
+func (e *Engine) recordPlanStepMetrics(ctx context.Context, step *Step, result *StepResult) {
+	if result == nil {
+		return
+	}
+	var agent *AgentStep
+	if step != nil {
+		agent = step.Agent
+	}
+	e.recordStepMetrics(ctx, result, agent)
+}
+
+func (e *Engine) recordParallelMetrics(ctx context.Context, step *Step, result *StepResult) {
+	if result == nil {
+		return
+	}
+	attrs := []attribute.KeyValue{
+		attribute.Bool("parallel_group", true),
+		attribute.Int("children_total", len(result.Children)),
+	}
+	e.recordStepMetrics(ctx, result, nil, attrs...)
+	var agents []AgentStep
+	if step != nil && step.Parallel != nil {
+		agents = step.Parallel.Steps
+	}
+	for idx := range result.Children {
+		child := result.Children[idx]
+		var agent *AgentStep
+		if idx < len(agents) {
+			cloned := agents[idx]
+			agent = &cloned
+		}
+		childAttrs := []attribute.KeyValue{
+			attribute.Bool("parallel_child", true),
+			attribute.String("parent_step_id", result.StepID),
+			attribute.Int("child_index", idx),
+		}
+		e.recordStepMetrics(ctx, &child, agent, childAttrs...)
+	}
+}
+
+func (e *Engine) recordStepMetrics(
+	ctx context.Context,
+	result *StepResult,
+	agent *AgentStep,
+	attrs ...attribute.KeyValue,
+) {
+	if result == nil {
+		return
+	}
+	if agent != nil {
+		attrs = append(attrs, attribute.String("agent_id", agent.AgentID))
+		if agent.ActionID != "" {
+			attrs = append(attrs, attribute.String("action_id", agent.ActionID))
+		}
+	}
+	builtin.RecordStep(ctx, toolID, string(result.Type), string(result.Status), result.Elapsed, attrs...)
+}
+
+func (e *Engine) logRunSummary(ctx context.Context, execCtx *executorContext, duration time.Duration, success bool) {
+	log := logger.FromContext(ctx)
+	totals := stepTotals{}
+	if execCtx != nil {
+		totals = execCtx.totals
+	}
+	status := StepStatusSuccess
+	if !success {
+		status = StepStatusFailed
+	}
+	fields := []any{
+		"tool_id", toolID,
+		"status", string(status),
+		"steps_total", totals.Total,
+		"steps_success", totals.Success,
+		"steps_failed", totals.Failed,
+		"steps_partial", totals.Partial,
+		"duration_ms", duration.Milliseconds(),
+	}
+	if success {
+		log.Info("Agent orchestrator run finished", fields...)
+		return
+	}
+	log.Warn("Agent orchestrator run finished", fields...)
 }
