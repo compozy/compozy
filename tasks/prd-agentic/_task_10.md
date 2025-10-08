@@ -1,7 +1,7 @@
----
-status: pending
+status: completed
 parallelizable: false
 blocked_by: ["5.0", "6.0", "7.0", "8.0", "9.0"]
+
 ---
 
 <task_context>
@@ -28,9 +28,9 @@ Add unit tests for plan validation, planner outputs, executor sequencing/paralle
 
 ## Subtasks
 
-- [ ] 10.1 Unit tests (planner/executor/handler)
-- [ ] 10.2 Integration test (registry + service)
-- [ ] 10.3 Benchmarks for caps
+- [x] 10.1 Unit tests (planner/executor/handler)
+- [x] 10.2 Integration test (registry + service)
+- [x] 10.3 Benchmarks for caps
 
 ## Sequencing
 
@@ -41,3 +41,10 @@ Add unit tests for plan validation, planner outputs, executor sequencing/paralle
 ## Success Criteria
 
 - All new tests pass and are deterministic
+
+## Outcome
+
+- Validated existing unit suites across planner, executor, and handler packages to ensure coverage for schema validation, concurrency limits, and handler error paths continues to pass.
+- Added `test/integration/tool/orchestrate_integration_test.go`, exercising `llm.Service` with a scripted LLM client to drive `cp__agent_orchestrate` end-to-end and assert step outputs/bindings.
+- Confirmed benchmark coverage for fan-out and cancellation scenarios (`engine/tool/builtin/orchestrate/executor_test.go`, `engine/tool/builtin/orchestrate/plan_test.go`) remains in place as load caps regressions.
+- `make lint` and `make test` succeed after the new test additions.

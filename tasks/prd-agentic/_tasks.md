@@ -35,7 +35,7 @@
 - [x] 7.0 Register builtin in native catalog and service wiring — size: small (batchable)
 - [x] 8.0 Config: runtime.native_tools.agent_orchestrator limits — size: small (batchable)
 - [x] 9.0 Telemetry/metrics and logging for steps and totals — size: small (batchable)
-- [ ] 10.0 Tests: unit + integration + benchmarks (caps) — size: medium (not batchable)
+- [x] 10.0 Tests: unit + integration + benchmarks (caps) — size: medium (not batchable)
 - [ ] 11.0 Documentation and examples — size: small (batchable)
 
 ## Execution Plan
@@ -72,3 +72,4 @@ Notes
 - Added executor unit tests (`engine/tool/builtin/orchestrate/executor_test.go`, `engine/tool/builtin/orchestrate/fsm_test.go`) covering sequential flow, bounded parallel fan-out, cancellations, and failure result propagation.
 - Extended tool context helpers (`engine/tool/context/context.go`) with orchestrator depth tracking, enabling recursive-limit enforcement across nested invocations.
 - Completed Task 7.0 by registering `cp__agent_orchestrate` through the native catalog (`engine/tool/native/catalog.go`), wiring `engine/llm/service.go` to load environment-aware definitions, and extending handler tests to assert discovery via `native.Definitions`.
+- Completed Task 10.0 by consolidating planner/executor/handler unit coverage, adding an end-to-end integration test (`test/integration/tool/orchestrate_integration_test.go`) that drives `llm.Service` with a scripted LLM, and ensuring concurrency benchmarks cover fan-out and cancellation guardrails.
