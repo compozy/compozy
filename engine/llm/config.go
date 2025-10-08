@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/tool"
@@ -62,6 +63,8 @@ type Config struct {
 	LLMFactory llmadapter.Factory
 	// Memory provider for agent memory support
 	MemoryProvider MemoryProvider
+	// Knowledge contains resolved knowledge context for retrieval during orchestration.
+	Knowledge *KnowledgeRuntimeConfig
 	// ResolvedTools contains pre-resolved tools from hierarchical inheritance
 	ResolvedTools []tool.Config
 	// AllowedMCPNames restricts MCP tool advertisement/lookup to these MCP IDs.
@@ -74,6 +77,15 @@ type Config struct {
 	// proxy for this service instance (e.g., workflow-level MCPs). These are
 	// merged with agent-declared MCPs for registration.
 	RegisterMCPs []mcp.Config
+}
+
+type KnowledgeRuntimeConfig struct {
+	ProjectID              string
+	Definitions            knowledge.Definitions
+	WorkflowKnowledgeBases []knowledge.BaseConfig
+	ProjectBinding         []core.KnowledgeBinding
+	WorkflowBinding        []core.KnowledgeBinding
+	InlineBinding          []core.KnowledgeBinding
 }
 
 func DefaultConfig() *Config {
@@ -253,6 +265,13 @@ func WithMemoryProvider(provider MemoryProvider) Option {
 	}
 }
 
+// WithKnowledgeContext wires knowledge runtime context for retrieval-aware prompts.
+func WithKnowledgeContext(cfg *KnowledgeRuntimeConfig) Option {
+	return func(c *Config) {
+		c.Knowledge = cloneKnowledgeConfig(cfg)
+	}
+}
+
 // WithResolvedTools sets the pre-resolved tools from hierarchical inheritance
 // The slice is copied to prevent external mutation after construction
 func WithResolvedTools(tools []tool.Config) Option {
@@ -272,6 +291,39 @@ func WithResolvedTools(tools []tool.Config) Option {
 			}
 		}
 	}
+}
+
+func cloneKnowledgeConfig(cfg *KnowledgeRuntimeConfig) *KnowledgeRuntimeConfig {
+	if cfg == nil {
+		return nil
+	}
+	cloned, err := core.DeepCopy(*cfg)
+	if err != nil {
+		fallback := KnowledgeRuntimeConfig{
+			ProjectID:       strings.TrimSpace(cfg.ProjectID),
+			ProjectBinding:  append([]core.KnowledgeBinding(nil), cfg.ProjectBinding...),
+			WorkflowBinding: append([]core.KnowledgeBinding(nil), cfg.WorkflowBinding...),
+			InlineBinding:   append([]core.KnowledgeBinding(nil), cfg.InlineBinding...),
+		}
+		if defsCopy, copyErr := core.DeepCopy(cfg.Definitions); copyErr == nil {
+			fallback.Definitions = defsCopy
+		} else {
+			fallback.Definitions = cfg.Definitions
+		}
+		if len(cfg.WorkflowKnowledgeBases) > 0 {
+			if basesCopy, copyErr := core.DeepCopy(cfg.WorkflowKnowledgeBases); copyErr == nil {
+				fallback.WorkflowKnowledgeBases = basesCopy
+			} else {
+				fallback.WorkflowKnowledgeBases = append(
+					[]knowledge.BaseConfig{},
+					cfg.WorkflowKnowledgeBases...,
+				)
+			}
+		}
+		return &fallback
+	}
+	cloned.ProjectID = strings.TrimSpace(cloned.ProjectID)
+	return &cloned
 }
 
 // WithRetryAttempts sets the number of retry attempts for LLM operations

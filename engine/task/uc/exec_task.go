@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/llm"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	memcore "github.com/compozy/compozy/engine/memory/core"
@@ -614,6 +615,9 @@ func (uc *ExecuteTask) createLLMService(
 		llmOpts = append(llmOpts, llm.WithTimeout(effectiveTimeout))
 		log.Debug("Configured LLM timeout", "timeout", effectiveTimeout.String())
 	}
+	if knowledgeCfg := buildKnowledgeRuntimeConfig(input); knowledgeCfg != nil {
+		llmOpts = append(llmOpts, llm.WithKnowledgeContext(knowledgeCfg))
+	}
 	// MCP registration is handled by server startup (engine/mcp.SetupForWorkflows)
 	// We no longer register workflow-level MCPs from the exec task.
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
@@ -621,6 +625,41 @@ func (uc *ExecuteTask) createLLMService(
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
 	}
 	return llmService, nil
+}
+
+func buildKnowledgeRuntimeConfig(input *ExecuteTaskInput) *llm.KnowledgeRuntimeConfig {
+	if input == nil || input.ProjectConfig == nil {
+		return nil
+	}
+	cfg := &llm.KnowledgeRuntimeConfig{
+		ProjectID: strings.TrimSpace(input.ProjectConfig.Name),
+		Definitions: knowledge.Definitions{
+			Embedders:      append([]knowledge.EmbedderConfig{}, input.ProjectConfig.Embedders...),
+			VectorDBs:      append([]knowledge.VectorDBConfig{}, input.ProjectConfig.VectorDBs...),
+			KnowledgeBases: append([]knowledge.BaseConfig{}, input.ProjectConfig.KnowledgeBases...),
+		},
+		ProjectBinding: append([]core.KnowledgeBinding{}, input.ProjectConfig.Knowledge...),
+	}
+	if input.WorkflowConfig != nil {
+		if len(input.WorkflowConfig.KnowledgeBases) > 0 {
+			cfg.WorkflowKnowledgeBases = append([]knowledge.BaseConfig{}, input.WorkflowConfig.KnowledgeBases...)
+		}
+		if len(input.WorkflowConfig.Knowledge) > 0 {
+			cfg.WorkflowBinding = append([]core.KnowledgeBinding{}, input.WorkflowConfig.Knowledge...)
+		}
+	}
+	if input.TaskConfig != nil && len(input.TaskConfig.Knowledge) > 0 {
+		cfg.InlineBinding = append([]core.KnowledgeBinding{}, input.TaskConfig.Knowledge...)
+	}
+	hasDefinitions := len(cfg.Definitions.Embedders) > 0 ||
+		len(cfg.Definitions.VectorDBs) > 0 ||
+		len(cfg.Definitions.KnowledgeBases) > 0
+	hasBindings := len(cfg.ProjectBinding) > 0 || len(cfg.WorkflowBinding) > 0 || len(cfg.InlineBinding) > 0
+	hasWorkflowBases := len(cfg.WorkflowKnowledgeBases) > 0
+	if !hasDefinitions && !hasBindings && !hasWorkflowBases {
+		return nil
+	}
+	return cfg
 }
 
 func deriveLLMTimeout(ctx context.Context, input *ExecuteTaskInput) time.Duration {

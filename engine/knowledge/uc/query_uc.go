@@ -120,7 +120,7 @@ func (uc *Query) prepareQuery(
 		return nil, nil, nil, err
 	}
 	retrieval := mergeRetrieval(kb.Retrieval, in.TopK, in.MinScore, in.Filters)
-	embCfg, err := toEmbedderAdapterConfig(emb)
+	embCfg, err := ToEmbedderAdapterConfig(emb)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -128,7 +128,7 @@ func (uc *Query) prepareQuery(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("init embedder: %w", err)
 	}
-	vecCfg, err := toVectorStoreConfig(projectID, vec)
+	vecCfg, err := ToVectorStoreConfig(projectID, vec)
 	if err != nil {
 		return nil, nil, nil, err
 	}

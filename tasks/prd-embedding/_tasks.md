@@ -54,9 +54,9 @@
 - [x] 6.0 Retrieval Service (M)
 - [x] 7.0 YAML & Binding Resolution (M)
 - [x] 8.0 JSON Schemas (S)
-- [ ] 9.0 LLM Orchestrator Integration (M)
-- [ ] 10.0 HTTP APIs (M)
-- [ ] 11.0 CLI Commands (S)
+- [x] 9.0 LLM Orchestrator Integration (M)
+- [x] 10.0 HTTP APIs (M)
+- [x] 11.0 CLI Commands (S)
 - [ ] 12.0 Observability (S)
 - [ ] 13.0 Docs Implementation (M)
 - [ ] 14.0 Examples Implementation (S)
@@ -81,8 +81,8 @@ Notes
 - [x] Batch 1 — Bootstrap (foundation + schemas): 0.0, 1.0, 7.0, 8.0
 - [x] Batch 2 — Adapters & Chunking: 2.0, 3.0, 4.0
 - [x] Batch 3 — Pipelines: 5.0, 6.0
-- [ ] Batch 4 — Runtime: 9.0
-- [ ] Batch 5 — Public Surfaces: 10.0, 11.0
+- [x] Batch 4 — Runtime: 9.0
+- [x] Batch 5 — Public Surfaces: 10.0, 11.0
 - [ ] Batch 6 — Observability: 12.0
 - [ ] Batch 7 — Docs + Examples: 13.0, 14.0
 - [ ] Batch 8 — Integration/E2E: 15.0

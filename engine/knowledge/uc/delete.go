@@ -43,11 +43,10 @@ func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
 	if err != nil {
 		return err
 	}
-	kb, emb, vec, err := normalizeKnowledgeTriple(ctx, triple)
+	kb, _, vec, err := normalizeKnowledgeTriple(ctx, triple)
 	if err != nil {
 		return err
 	}
-	_ = emb
 	conflicts, err := uc.collectConflicts(ctx, projectID, kbID)
 	if err != nil {
 		return err
@@ -55,7 +54,7 @@ func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
 	if len(conflicts) > 0 {
 		return resourceutil.ConflictError{Details: conflicts}
 	}
-	storeCfg, err := toVectorStoreConfig(projectID, vec)
+	storeCfg, err := ToVectorStoreConfig(projectID, vec)
 	if err != nil {
 		return err
 	}

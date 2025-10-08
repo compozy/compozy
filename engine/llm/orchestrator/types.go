@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/llm/contracts"
 	"github.com/compozy/compozy/engine/runtime"
@@ -23,6 +24,13 @@ type Request struct {
 	Agent           *agent.Config
 	Action          *agent.ActionConfig
 	AttachmentParts []llmadapter.ContentPart
+	Knowledge       []KnowledgeEntry
+}
+
+type KnowledgeEntry struct {
+	BindingID string
+	Retrieval knowledge.RetrievalConfig
+	Contexts  []knowledge.RetrievedContext
 }
 
 // Config configures orchestrator behavior.

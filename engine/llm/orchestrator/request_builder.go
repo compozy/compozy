@@ -189,7 +189,76 @@ func (b *requestBuilder) buildMessages(
 		messages = b.memory.Inject(ctx, messages, memoryCtx)
 	}
 
+	return b.injectKnowledge(ctx, messages, request.Knowledge)
+}
+
+func (b *requestBuilder) injectKnowledge(
+	ctx context.Context,
+	messages []llmadapter.Message,
+	entries []KnowledgeEntry,
+) []llmadapter.Message {
+	if len(entries) == 0 || len(messages) == 0 {
+		return messages
+	}
+	block := buildKnowledgeBlock(entries)
+	if block == "" {
+		return messages
+	}
+	idx := len(messages) - 1
+	existing := messages[idx].Content
+	if strings.TrimSpace(existing) == "" {
+		messages[idx].Content = block
+	} else {
+		messages[idx].Content = block + "\n\n" + existing
+	}
+	logger.FromContext(ctx).Debug(
+		"Knowledge context injected into prompt",
+		"entries",
+		len(entries),
+	)
 	return messages
+}
+
+func buildKnowledgeBlock(entries []KnowledgeEntry) string {
+	if len(entries) == 0 {
+		return ""
+	}
+	var builder strings.Builder
+	for i := range entries {
+		e := entries[i]
+		label := strings.TrimSpace(e.Retrieval.InjectAs)
+		if label == "" {
+			label = "Retrieved Knowledge"
+			if e.BindingID != "" {
+				label = label + " (" + e.BindingID + ")"
+			}
+		}
+		if builder.Len() > 0 {
+			builder.WriteString("\n\n")
+		}
+		builder.WriteString(label)
+		builder.WriteString(":\n")
+		if len(e.Contexts) == 0 {
+			fallback := strings.TrimSpace(e.Retrieval.Fallback)
+			if fallback != "" {
+				builder.WriteString(fallback)
+			}
+			continue
+		}
+		for j := range e.Contexts {
+			ctx := e.Contexts[j]
+			builder.WriteString(fmt.Sprintf("[%d] score=%.3f", j+1, ctx.Score))
+			if ctx.TokenEstimate > 0 {
+				builder.WriteString(fmt.Sprintf(" tokens=%d", ctx.TokenEstimate))
+			}
+			builder.WriteString("\n")
+			builder.WriteString(strings.TrimSpace(ctx.Content))
+			if j+1 < len(e.Contexts) {
+				builder.WriteString("\n")
+			}
+		}
+	}
+	return strings.TrimSpace(builder.String())
 }
 
 func (b *requestBuilder) buildToolDefinitions(

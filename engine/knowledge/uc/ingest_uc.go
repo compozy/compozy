@@ -53,7 +53,7 @@ func (uc *Ingest) Execute(ctx context.Context, in *IngestInput) (*IngestOutput, 
 	if err != nil {
 		return nil, err
 	}
-	embCfg, err := toEmbedderAdapterConfig(emb)
+	embCfg, err := ToEmbedderAdapterConfig(emb)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *Ingest) Execute(ctx context.Context, in *IngestInput) (*IngestOutput, 
 	if err != nil {
 		return nil, fmt.Errorf("init embedder: %w", err)
 	}
-	vecCfg, err := toVectorStoreConfig(projectID, vec)
+	vecCfg, err := ToVectorStoreConfig(projectID, vec)
 	if err != nil {
 		return nil, err
 	}

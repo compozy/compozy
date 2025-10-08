@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: false
 blocked_by: ["6.0", "7.0"]
 ---
@@ -30,8 +30,8 @@ Inject retrieved knowledge chunks into prompts prior to model invocation with de
 
 ## Subtasks
 
-- [ ] 9.1 Wire `engine/knowledge/service` into orchestrator assembly
-- [ ] 9.2 Add unit tests (stub adapter) for injection order and budgeting
+- [x] 9.1 Wire `engine/knowledge/service` into orchestrator assembly
+- [x] 9.2 Add unit tests (stub adapter) for injection order and budgeting
 
 ## Sequencing
 

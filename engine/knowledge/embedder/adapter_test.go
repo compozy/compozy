@@ -9,12 +9,26 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/embeddings"
 
-	"github.com/compozy/compozy/test/helpers"
+	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 )
+
+func newTestContext(t *testing.T) context.Context {
+	ctx := context.Background()
+	ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
+	manager := config.NewManager(config.NewService())
+	_, err := manager.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, manager.Close(context.Background()))
+	})
+	ctx = config.ContextWithManager(ctx, manager)
+	return ctx
+}
 
 func TestAdapter_EmbedDocuments(t *testing.T) {
 	t.Run("ShouldBatchInputsAccordingToConfig", func(t *testing.T) {
-		ctx := helpers.NewTestContext(t)
+		ctx := newTestContext(t)
 		client := &fakeClient{}
 		impl, err := embeddings.NewEmbedder(client, embeddings.WithBatchSize(2), embeddings.WithStripNewLines(true))
 		require.NoError(t, err)
@@ -40,7 +54,7 @@ func TestAdapter_EmbedDocuments(t *testing.T) {
 	})
 
 	t.Run("ShouldWrapProviderErrors", func(t *testing.T) {
-		ctx := helpers.NewTestContext(t)
+		ctx := newTestContext(t)
 		client := &fakeClient{failAfter: 1}
 		impl, err := embeddings.NewEmbedder(client, embeddings.WithBatchSize(1))
 		require.NoError(t, err)
@@ -61,7 +75,7 @@ func TestAdapter_EmbedDocuments(t *testing.T) {
 	})
 
 	t.Run("ShouldEmbedQueryViaUnderlyingClient", func(t *testing.T) {
-		ctx := helpers.NewTestContext(t)
+		ctx := newTestContext(t)
 		client := &fakeClient{}
 		impl, err := embeddings.NewEmbedder(client)
 		require.NoError(t, err)
@@ -84,7 +98,7 @@ func TestAdapter_EmbedDocuments(t *testing.T) {
 
 func TestNew(t *testing.T) {
 	t.Run("ShouldReturnErrorForUnsupportedProvider", func(t *testing.T) {
-		ctx := helpers.NewTestContext(t)
+		ctx := newTestContext(t)
 		cfg := &Config{
 			ID:            "unknown",
 			Provider:      Provider("azure"),
@@ -99,7 +113,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("ShouldValidateDimension", func(t *testing.T) {
-		ctx := helpers.NewTestContext(t)
+		ctx := newTestContext(t)
 		cfg := &Config{
 			ID:            "bad",
 			Provider:      ProviderLocal,
