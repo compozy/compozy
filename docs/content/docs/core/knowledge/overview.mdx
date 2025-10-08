@@ -1,0 +1,103 @@
+---
+title: "Knowledge Overview"
+description: "Conceptual guide to embedders, vector databases, knowledge bases, and runtime retrieval in Compozy."
+icon: BookOpenCheck
+---
+
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+import { Step, Steps } from "@/components/ui/steps";
+import { Callout } from "@/components/ui/callout";
+
+## Why Knowledge Matters
+
+Knowledge bases pair reusable embedders with pluggable vector databases so teams can index project documentation, policies, and reference material once and make it available to workflows, tasks, and agents. The runtime automatically resolves bindings, fetches relevant context, and injects it into prompts before any LLM call.
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Reusable Infrastructure"
+    description="Declare embedders, vector stores, and knowledge bases once and share them across projects."
+    icon="Boxes"
+  />
+  <FeatureCard
+    title="Deterministic Retrieval"
+    description="Dense similarity search with configurable top_k, score thresholds, and tag filters."
+    icon="Search"
+  />
+  <FeatureCard
+    title="Safe Prompt Injection"
+    description="Resolved passages are bounded by token budgets and appended to prompts in a predictable order."
+    icon="ShieldCheck"
+  />
+</FeatureCardList>
+
+## Core Concepts
+
+<Steps>
+  <Step title="Embedder">
+    Wraps a provider-specific embedding model (OpenAI, Vertex, self-hosted) via LangChain Go. Configured once and referenced by ID.
+  </Step>
+  <Step title="Vector Database">
+    Persists embeddings and metadata. The MVP ships with `in_memory`, `pgvector`, and `qdrant` adapters; additional stores can be added without touching workflows.
+  </Step>
+  <Step title="Knowledge Base">
+    Couples an embedder and vector DB with one or more sources, chunking policy, and retrieval defaults.
+  </Step>
+  <Step title="Knowledge Binding">
+    Workflow, task, or agent level reference to a knowledge base. Bindings can override retrieval parameters per execution.
+  </Step>
+</Steps>
+
+## Runtime Flow
+
+1. **Resolution** – When a workflow starts, bindings are merged in precedence order (workflow → project → inline). Conflicts resolve deterministically so agents always see the same configuration.
+2. **Retrieval** – The knowledge service loads the selected embedder/vector store, issues a dense similarity search, and applies any filters.
+3. **Prompt Assembly** – Retrieved passages are truncated to stay within the configured token budget and appended before tool or memory context.
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Configuration Guide"
+    description="Define embedders, vector databases, and knowledge bases in YAML."
+    href="/docs/core/knowledge/configuration"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Ingestion Workflow"
+    description="Enumerate sources, chunk documents, and run CLI/API ingestion jobs."
+    href="/docs/core/knowledge/ingestion"
+    icon="Rocket"
+  />
+  <ReferenceCard
+    title="Retrieval & Injection"
+    description="Tune dense retrieval parameters and understand how prompts are populated."
+    href="/docs/core/knowledge/retrieval-injection"
+    icon="Bot"
+  />
+  <ReferenceCard
+    title="Observability"
+    description="Track ingestion success, latency, and query metrics across environments."
+    href="/docs/core/knowledge/observability"
+    icon="Activity"
+  />
+</ReferenceCardList>
+
+## Relationship to Other Systems
+
+- **Memory** – Memory persists user conversations or application state. Knowledge focuses on curated references that change less frequently. You can use both: memory handles per-user context, knowledge supplies canonical documents.
+- **Tools** – Tools still execute dynamic actions (HTTP calls, SQL). Use knowledge when you need contextual grounding before issuing tool calls.
+- **MCP Servers** – Model Context Protocol servers expose dynamic tooling. Knowledge is built-in and does not require MCP, but bindings can reference MCP-powered agents for richer orchestration.
+
+<Callout type="info">
+Knowledge bases do not guarantee backwards compatibility during the MVP. Update docs and workflows together when schemas evolve.
+</Callout>
+
+## Personas & Scenarios
+
+- **Platform engineers** provision the embedder/vector DB infrastructure and enforce conventions.
+- **Workflow authors** bind knowledge bases and tune retrieval parameters without touching provider credentials.
+- **Operators** trigger ingestion via CLI or API and monitor metrics for failures and latency.
+- **LLM engineers** reason about token budgets and combine knowledge context with tools or memory.
+
+## What to Read Next
+
+Explore runnable projects in `examples/knowledge/*` for end-to-end walkthroughs, starting with the [Quickstart Markdown Glob example](/docs/core/knowledge/ingestion#quickstart-walkthrough).

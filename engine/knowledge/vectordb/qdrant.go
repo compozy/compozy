@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/engine/core"
 )
 
 type qdrantStore struct {
@@ -21,7 +23,10 @@ type qdrantStore struct {
 	apiKey     string
 }
 
-const qdrantDefaultTimeout = 10 * time.Second
+const (
+	qdrantDefaultTimeout = 10 * time.Second
+	qdrantDefaultTopK    = 5
+)
 
 func newQdrantStore(ctx context.Context, cfg *Config) (Store, error) {
 	if cfg == nil {
@@ -109,7 +114,7 @@ func (q *qdrantStore) Search(ctx context.Context, query []float32, opts SearchOp
 	}
 	limit := opts.TopK
 	if limit <= 0 {
-		limit = 5
+		limit = qdrantDefaultTopK
 	}
 	request := map[string]any{
 		"vector":       query,
@@ -144,7 +149,7 @@ func (q *qdrantStore) Search(ctx context.Context, query []float32, opts SearchOp
 			continue
 		}
 		id := fmt.Sprint(res.ID)
-		payload := cloneMetadata(res.Payload)
+		payload := core.CloneMap(res.Payload)
 		text := ""
 		if raw, ok := payload["text"].(string); ok {
 			text = raw

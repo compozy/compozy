@@ -1,0 +1,126 @@
+---
+title: "Knowledge Observability"
+description: "Monitor ingestion, chunking, and retrieval with structured logs, metrics, and traces."
+icon: Activity
+---
+
+import { Callout } from "@/components/ui/callout";
+import { Tabs, Tab } from "@/components/ui/tabs";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+
+## Telemetry Fundamentals
+
+All ingestion and retrieval code paths must derive telemetry from the active request context:
+
+- `logger.FromContext(ctx)` emits structured JSON logs with correlation IDs.
+- `config.FromContext(ctx)` exposes feature toggles (e.g., batching limits) so you can surface them in diagnostics.
+- OpenTelemetry spans wrap embedder calls and vector DB operations for end-to-end tracing.
+
+## Metrics
+
+| Metric Name                         | Type     | Labels                      | Description                                                     |
+| ----------------------------------- | -------- | --------------------------- | --------------------------------------------------------------- |
+| `knowledge_ingest_duration_seconds` | Histogram | `kb_id`, `status`            | Total ingestion duration including download, chunking, and persist |
+| `knowledge_chunks_total`            | Counter  | `kb_id`, `source_kind`      | Number of chunks written per ingestion attempt                  |
+| `knowledge_ingest_failures_total`   | Counter  | `kb_id`, `reason`           | Failure counts grouped by error category                        |
+| `knowledge_query_latency_seconds`   | Histogram | `kb_id`, `result_count`     | Retrieval latency from query embed to vector DB response        |
+
+Set alert thresholds in Grafana or your preferred monitoring stack. Example: trigger an alert if `knowledge_ingest_failures_total` increases by more than 5 within 10 minutes.
+
+## Structured Logs
+
+Key log events emitted during ingestion:
+
+```json title="Ingestion Start"
+{
+  "severity": "INFO",
+  "message": "knowledge.ingest.start",
+  "kb_id": "quickstart_docs",
+  "sources": 3,
+  "batch_size": 32
+}
+```
+
+```json title="Ingestion Failure"
+{
+  "severity": "ERROR",
+  "message": "knowledge.ingest.failure",
+  "kb_id": "quickstart_docs",
+  "source": "docs/policies.md",
+  "error": "provider_throttled",
+  "retry_in": "2s"
+}
+```
+
+During retrieval, look for `knowledge.query.success` and `knowledge.query.miss` to understand scoring behavior and match counts.
+
+## Tracing
+
+- Wrap embedder calls in spans with attributes for `provider`, `model`, and `batch_size`.
+- Tag vector DB spans with `db.system=postgres` or `db.system=qdrant`.
+- Use span links to tie ingestion retries back to the original request.
+
+<Callout type="warning">
+Always propagate contexts through goroutines or worker pools—do not create fresh `context.Background()` instances. Losing the context breaks logging correlation and metric tags.
+</Callout>
+
+## Dashboards & Alerts
+
+1. **Ingestion reliability** – Chart success rate using `knowledge_ingest_failures_total` and `knowledge_ingest_duration_seconds`.
+2. **Query latency** – Track p50/p95 from `knowledge_query_latency_seconds`. Investigate spikes for provider rate limiting.
+3. **Chunk growth** – Monitor `knowledge_chunks_total` to ensure vector DB storage scales gradually and to spot runaway ingestion loops.
+
+## CLI & API Diagnostics
+
+<Tabs items={["CLI", "HTTP API"]}>
+  <Tab>
+
+  ```bash
+  # Stream logs for ingestion jobs
+  compozy knowledge ingest --id quickstart_docs --verbose
+
+  # Fetch metrics locally (requires Prometheus endpoint)
+  curl http://localhost:5001/metrics | grep knowledge_
+  ```
+
+  </Tab>
+  <Tab>
+
+  ```bash
+  curl -X GET "http://localhost:5001/api/v0/operations/metrics" \
+    -H "Authorization: Bearer $COMPOZY_API_KEY" \
+    | grep knowledge_
+  ```
+
+  </Tab>
+</Tabs>
+
+## Incident Response Checklist
+
+- Verify provider credentials and rate limits.
+- Check vector DB health (indexes, disk utilization, pool size).
+- Re-run ingestion with smaller batches if providers throttle requests.
+- Use tracing to pinpoint slow spans (e.g., remote PDF download vs. embedding latency).
+
+## Additional Reading
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Knowledge Ingestion"
+    description="Understand the ingestion lifecycle and idempotency model."
+    href="/docs/core/knowledge/ingestion"
+    icon="Rocket"
+  />
+  <ReferenceCard
+    title="Operations API"
+    description="Expose metrics and health checks for production dashboards."
+    href="/docs/api/operations"
+    icon="Activity"
+  />
+  <ReferenceCard
+    title="CLI Knowledge Commands"
+    description="Trigger ingestion and query operations with verbose logging."
+    href="/docs/cli/knowledge-commands"
+    icon="Terminal"
+  />
+</ReferenceCardList>

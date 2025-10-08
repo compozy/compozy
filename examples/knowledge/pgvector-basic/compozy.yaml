@@ -1,0 +1,54 @@
+name: knowledge-pgvector
+version: 0.1.0
+description: Knowledge base backed by pgvector using Docker services
+
+embedders:
+  - id: openai_default
+    provider: openai
+    model: text-embedding-3-small
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    config:
+      batch_size: 64
+
+vector_dbs:
+  - id: pgvector_local
+    type: pgvector
+    config:
+      dsn: "{{ .env.PGVECTOR_DSN }}"
+      ensure_index: true
+      table: knowledge_chunks
+      metric: cosine
+
+knowledge_bases:
+  - id: company_docs
+    embedder: openai_default
+    vector_db: pgvector_local
+    sources:
+      - kind: markdown_glob
+        glob: "docs/**/*.md"
+    chunking:
+      strategy: token
+      size: 512
+      overlap: 64
+    retrieval:
+      top_k: 5
+      min_score: 0.2
+
+agents:
+  - id: policy_agent
+    description: Answers policy questions using pgvector-backed knowledge
+    model: openai/gpt-4o-mini
+    instructions: ./agents/policy-agent.md
+
+workflows:
+  - source: ./workflows/qa.yaml
+
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "workflows/*.yaml"
+    - "agents/*.md"
+    - "docs/**/*.md"
+  exclude:
+    - "**/*.tmp"

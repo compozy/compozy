@@ -1,0 +1,51 @@
+---
+title: Embedder Schema
+description: JSON Schema for embedding provider configuration
+icon: Cpu
+---
+
+import embedderSchema from "@/schemas/embedder.json";
+
+## Embedder Definition
+
+<SchemaParams
+  schema={embedderSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+### Example
+
+```yaml
+embedders:
+  - id: openai_default
+    provider: openai
+    model: text-embedding-3-small
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    config:
+      batch_size: 64
+      timeout: 30s
+```
+
+- `api_key` and other credentials must use environment interpolation.
+- Optional `config.batch_size` overrides `config.knowledge.embedder_batch_size`.
+- Add provider-specific extras (e.g., `base_url`) using schema extension fields.
+
+## Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Knowledge Configuration Guide"
+    description="See how embedder IDs are referenced inside knowledge bases."
+    href="/docs/core/knowledge/configuration"
+    icon="BookOpenCheck"
+  />
+  <ReferenceCard
+    title="Provider Schema"
+    description="Additional provider-specific parameters."
+    href="/docs/schema/provider"
+    icon="Settings2"
+  />
+</ReferenceCardList>

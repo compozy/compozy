@@ -27,6 +27,9 @@
         "metric": {
           "type": "string"
         },
+        "collection": {
+          "type": "string"
+        },
         "table": {
           "type": "string"
         }

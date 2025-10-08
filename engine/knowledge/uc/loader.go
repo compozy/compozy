@@ -42,6 +42,9 @@ func loadKnowledgeTriple(
 	}
 	embVal, _, err := store.Get(ctx, embKey)
 	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return nil, errors.Join(ErrNotFound, fmt.Errorf("load embedder %q: %w", kb.Embedder, err))
+		}
 		return nil, fmt.Errorf("load embedder %q: %w", kb.Embedder, err)
 	}
 	emb, err := decodeStoredEmbedder(embVal, kb.Embedder)
@@ -55,6 +58,9 @@ func loadKnowledgeTriple(
 	}
 	vecVal, _, err := store.Get(ctx, vecKey)
 	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return nil, errors.Join(ErrNotFound, fmt.Errorf("load vector_db %q: %w", kb.VectorDB, err))
+		}
 		return nil, fmt.Errorf("load vector_db %q: %w", kb.VectorDB, err)
 	}
 	vector, err := decodeStoredVectorDB(vecVal, kb.VectorDB)

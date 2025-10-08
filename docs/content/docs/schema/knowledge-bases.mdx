@@ -1,0 +1,59 @@
+---
+title: Knowledge Base Schema
+description: JSON Schema for knowledge base definitions
+icon: BookOpenCheck
+---
+
+import knowledgeBaseSchema from "@/schemas/knowledge-base.json";
+
+## Knowledge Base Definition
+
+<SchemaParams
+  schema={knowledgeBaseSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+### Example
+
+```yaml
+knowledge_bases:
+  - id: quickstart_docs
+    embedder: openai_default
+    vector_db: in_memory_faststart
+    sources:
+      - kind: markdown_glob
+        glob: "docs/**/*.md"
+    chunking:
+      strategy: token
+      size: 512
+      overlap: 64
+    retrieval:
+      top_k: 5
+      min_score: 0.2
+      filters:
+        tag: "policy"
+```
+
+- `sources` supports `markdown_glob` and `pdf_url` in the MVP. Additional kinds appear when feature flags are enabled.
+- Omit `size`, `overlap`, or `top_k` to inherit defaults from `config.knowledge`.
+- Use metadata under `sources[].metadata` to attach tags for filtered retrieval.
+
+## Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Knowledge Configuration Guide"
+    description="Step-by-step instructions for defining knowledge bases and bindings."
+    href="/docs/core/knowledge/configuration"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Knowledge Ingestion"
+    description="Operational guide for enumerating sources and triggering ingestion."
+    href="/docs/core/knowledge/ingestion"
+    icon="Rocket"
+  />
+</ReferenceCardList>

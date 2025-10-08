@@ -112,6 +112,12 @@ Global configuration in Compozy is organized into logical categories, each handl
     icon="HardDrive"
   />
   <ReferenceCard
+    title="Knowledge Defaults"
+    description="Chunking, batching, and retrieval knobs for knowledge ingestion."
+    href="/docs/schema/application#knowledge"
+    icon="BookOpen"
+  />
+  <ReferenceCard
     title="LLM Configuration"
     description="LLM proxy and Model Context Protocol integration"
     href="/docs/schema/application#llm"
@@ -130,6 +136,27 @@ Global configuration in Compozy is organized into logical categories, each handl
     icon="Timer"
   />
 </ReferenceCardList>
+
+## Knowledge Defaults
+
+Knowledge ingestion and retrieval honor global defaults defined under `config.knowledge`:
+
+- `chunk_size` – Default chunk size (tokens) when a knowledge base omits `chunking.size`.
+- `chunk_overlap` – Overlap between adjacent chunks.
+- `embedder_batch_size` – Batch size used when projecting documents if an embedder does not specify `config.batch_size`.
+- `retrieval_top_k` – Fallback number of passages returned during retrieval.
+- `retrieval_min_score` – Minimum cosine similarity score required for matches.
+
+```yaml title="config.yaml"
+knowledge:
+  chunk_size: 512
+  chunk_overlap: 64
+  embedder_batch_size: 32
+  retrieval_top_k: 5
+  retrieval_min_score: 0.2
+```
+
+Tune these values cautiously—they apply to every knowledge base unless explicitly overridden. Use environment variables to keep staging and production defaults distinct.
 
 ## Configuration Validation
 

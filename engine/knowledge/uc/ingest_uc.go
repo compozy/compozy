@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/knowledge"
+	"github.com/compozy/compozy/engine/knowledge/configutil"
 	"github.com/compozy/compozy/engine/knowledge/embedder"
 	"github.com/compozy/compozy/engine/knowledge/ingest"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
@@ -53,7 +54,7 @@ func (uc *Ingest) Execute(ctx context.Context, in *IngestInput) (*IngestOutput, 
 	if err != nil {
 		return nil, err
 	}
-	embCfg, err := ToEmbedderAdapterConfig(emb)
+	embCfg, err := configutil.ToEmbedderAdapterConfig(emb)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +62,7 @@ func (uc *Ingest) Execute(ctx context.Context, in *IngestInput) (*IngestOutput, 
 	if err != nil {
 		return nil, fmt.Errorf("init embedder: %w", err)
 	}
-	vecCfg, err := ToVectorStoreConfig(projectID, vec)
+	vecCfg, err := configutil.ToVectorStoreConfig(projectID, vec)
 	if err != nil {
 		return nil, err
 	}

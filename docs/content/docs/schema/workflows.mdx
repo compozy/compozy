@@ -14,6 +14,20 @@ import workflowSchema from "@/schemas/workflow.json";
   paramType="path"
 />
 
+## Knowledge Binding
+
+Workflows can bind a knowledge base and override retrieval parameters:
+
+```yaml
+knowledge:
+  id: quickstart_docs
+  retrieval:
+    top_k: 3
+    min_score: 0.15
+```
+
+Tasks or agents inside the workflow can override the binding using the same schema. Refer to the [Knowledge Binding schema](/docs/schema/bindings) for the complete field list.
+
 ## Resources
 
 <ReferenceCardList>

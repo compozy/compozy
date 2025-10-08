@@ -7,11 +7,16 @@ import (
 	"math"
 	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/chunk"
 	"github.com/compozy/compozy/engine/knowledge/embedder"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
 	"github.com/compozy/compozy/pkg/logger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type retrySettings struct {
@@ -28,6 +33,7 @@ type Pipeline struct {
 	chunker   *chunk.Processor
 	batchSize int
 	retry     retrySettings
+	tracer    trace.Tracer
 }
 
 type Result struct {
@@ -56,7 +62,7 @@ func NewPipeline(
 	settings := chunk.Settings{
 		Strategy:          string(binding.KnowledgeBase.Chunking.Strategy),
 		Size:              binding.KnowledgeBase.Chunking.Size,
-		Overlap:           binding.KnowledgeBase.Chunking.Overlap,
+		Overlap:           binding.KnowledgeBase.Chunking.OverlapValue(),
 		RemoveHTML:        binding.KnowledgeBase.Preprocess.RemoveHTML,
 		Deduplicate:       derefBool(binding.KnowledgeBase.Preprocess.Deduplicate, true),
 		NormalizeNewlines: true,
@@ -83,15 +89,67 @@ func NewPipeline(
 		chunker:   chunker,
 		batchSize: batchSize,
 		retry:     retryCfg,
+		tracer:    otel.Tracer("compozy.knowledge.ingest"),
 	}, nil
 }
 
-func (p *Pipeline) Run(ctx context.Context) (*Result, error) {
-	log := logger.FromContext(ctx)
-	strategy := p.options.normalizedStrategy()
+func (p *Pipeline) Run(ctx context.Context) (result *Result, err error) {
+	strategy := p.options.NormalizedStrategy()
+	log := logger.FromContext(ctx).With(
+		"kb_id",
+		p.binding.KnowledgeBase.ID,
+		"binding_id",
+		p.binding.ID,
+	)
+	start := time.Now()
+	ctx, span := p.tracer.Start(ctx, "compozy.knowledge.ingest.run", trace.WithAttributes(
+		attribute.String("kb_id", p.binding.KnowledgeBase.ID),
+		attribute.String("binding_id", p.binding.ID),
+		attribute.String("strategy", string(strategy)),
+	))
+	defer func() {
+		duration := time.Since(start)
+		knowledge.RecordIngestDuration(ctx, p.binding.KnowledgeBase.ID, duration)
+		if err != nil {
+			log.Error("Knowledge ingestion failed", "error", err, "duration_seconds", duration.Seconds())
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			span.End()
+			return
+		}
+		if result != nil {
+			knowledge.RecordIngestChunks(ctx, p.binding.KnowledgeBase.ID, result.Chunks)
+			log.Info(
+				"Knowledge ingestion finished",
+				"documents",
+				result.Documents,
+				"chunks",
+				result.Chunks,
+				"persisted",
+				result.Persisted,
+				"duration_seconds",
+				duration.Seconds(),
+			)
+			span.SetAttributes(
+				attribute.Int("documents", result.Documents),
+				attribute.Int("chunks", result.Chunks),
+				attribute.Int("persisted", result.Persisted),
+			)
+		} else {
+			log.Info("Knowledge ingestion finished", "duration_seconds", duration.Seconds())
+		}
+		span.End()
+	}()
+	log.Info("Knowledge ingestion started", "strategy", string(strategy))
 	if strategy != StrategyUpsert && strategy != StrategyReplace {
-		return nil, fmt.Errorf("knowledge: ingestion strategy %q not supported", strategy)
+		err = fmt.Errorf("knowledge: ingestion strategy %q not supported", strategy)
+		return nil, err
 	}
+	result, err = p.executeIngestion(ctx, strategy)
+	return result, err
+}
+
+func (p *Pipeline) executeIngestion(ctx context.Context, strategy Strategy) (*Result, error) {
 	docs, err := enumerateSources(ctx, &p.binding.KnowledgeBase, &p.options)
 	if err != nil {
 		return nil, err
@@ -115,30 +173,25 @@ func (p *Pipeline) Run(ctx context.Context) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Debug(
-		"Knowledge ingestion completed",
-		"kb_id",
-		p.binding.KnowledgeBase.ID,
-		"binding_id",
-		p.binding.ID,
-		"documents",
-		len(docs),
-		"chunks",
-		len(chunks),
-		"persisted",
-		totalPersisted,
-	)
-	result := &Result{
+	return &Result{
 		KnowledgeBaseID: p.binding.KnowledgeBase.ID,
 		BindingID:       p.binding.ID,
 		Documents:       len(docs),
 		Chunks:          len(chunks),
 		Persisted:       totalPersisted,
-	}
-	return result, nil
+	}, nil
 }
 
 func (p *Pipeline) embedBatch(ctx context.Context, batch []chunk.Chunk) ([][]float32, error) {
+	ctx, span := p.tracer.Start(ctx, "compozy.knowledge.ingest.embed_batch", trace.WithAttributes(
+		attribute.String("kb_id", p.binding.KnowledgeBase.ID),
+		attribute.String("binding_id", p.binding.ID),
+		attribute.String("embedder_id", p.binding.Embedder.ID),
+		attribute.String("embedder_provider", p.binding.Embedder.Provider),
+		attribute.String("embedder_model", p.binding.Embedder.Model),
+		attribute.Int("batch_size", len(batch)),
+	))
+	defer span.End()
 	texts := make([]string, len(batch))
 	for i := range batch {
 		texts[i] = batch[i].Text
@@ -148,24 +201,50 @@ func (p *Pipeline) embedBatch(ctx context.Context, batch []chunk.Chunk) ([][]flo
 	for attempt := 0; attempt < p.retry.attempts; attempt++ {
 		if attempt > 0 {
 			if ctx.Err() != nil {
-				return nil, ctx.Err()
+				err = ctx.Err()
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+				return nil, err
 			}
 			time.Sleep(p.backoffDuration(attempt))
 		}
 		out, err = p.embedder.EmbedDocuments(ctx, texts)
 		if err == nil {
+			span.SetAttributes(attribute.Int("vectors", len(out)))
 			return out, nil
 		}
+	}
+	if err != nil {
+		logger.FromContext(ctx).Error(
+			"embed batch failed after retries",
+			"attempts",
+			p.retry.attempts,
+			"error",
+			err,
+		)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 	}
 	return nil, fmt.Errorf("knowledge: embed documents failed: %w", err)
 }
 
 func (p *Pipeline) upsertBatch(ctx context.Context, records []vectordb.Record) error {
+	ctx, span := p.tracer.Start(ctx, "compozy.knowledge.ingest.upsert_batch", trace.WithAttributes(
+		attribute.String("kb_id", p.binding.KnowledgeBase.ID),
+		attribute.String("binding_id", p.binding.ID),
+		attribute.String("vector_id", p.binding.Vector.ID),
+		attribute.String("vector_type", string(p.binding.Vector.Type)),
+		attribute.Int("records", len(records)),
+	))
+	defer span.End()
 	var err error
 	for attempt := 0; attempt < p.retry.attempts; attempt++ {
 		if attempt > 0 {
 			if ctx.Err() != nil {
-				return ctx.Err()
+				err = ctx.Err()
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+				return err
 			}
 			time.Sleep(p.backoffDuration(attempt))
 		}
@@ -173,6 +252,17 @@ func (p *Pipeline) upsertBatch(ctx context.Context, records []vectordb.Record) e
 		if err == nil {
 			return nil
 		}
+	}
+	if err != nil {
+		logger.FromContext(ctx).Error(
+			"upsert batch failed after retries",
+			"attempts",
+			p.retry.attempts,
+			"error",
+			err,
+		)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 	}
 	return fmt.Errorf("knowledge: persist vectors failed: %w", err)
 }
@@ -230,21 +320,21 @@ func (p *Pipeline) persistChunks(ctx context.Context, chunks []chunk.Chunk) (int
 		}
 		records := make([]vectordb.Record, len(batch))
 		for i := range batch {
-			meta := cloneMetadata(batch[i].Metadata)
-			meta["knowledge_binding_id"] = p.binding.ID
-			meta["knowledge_base_id"] = p.binding.KnowledgeBase.ID
+			metadata := core.CloneMap(batch[i].Metadata)
+			metadata["knowledge_binding_id"] = p.binding.ID
+			metadata["knowledge_base_id"] = p.binding.KnowledgeBase.ID
 			if len(p.binding.KnowledgeBase.Metadata.Tags) > 0 {
-				meta["tags"] = p.binding.KnowledgeBase.Metadata.Tags
+				metadata["tags"] = p.binding.KnowledgeBase.Metadata.Tags
 			}
 			if len(p.binding.KnowledgeBase.Metadata.Owners) > 0 {
-				meta["owners"] = p.binding.KnowledgeBase.Metadata.Owners
+				metadata["owners"] = p.binding.KnowledgeBase.Metadata.Owners
 			}
-			meta["chunk_hash"] = batch[i].Hash
+			metadata["chunk_hash"] = batch[i].Hash
 			records[i] = vectordb.Record{
 				ID:        batch[i].ID,
 				Text:      batch[i].Text,
 				Embedding: vectors[i],
-				Metadata:  meta,
+				Metadata:  metadata,
 			}
 		}
 		if err := p.upsertBatch(ctx, records); err != nil {
@@ -256,6 +346,13 @@ func (p *Pipeline) persistChunks(ctx context.Context, chunks []chunk.Chunk) (int
 }
 
 func (p *Pipeline) deleteExistingRecords(ctx context.Context) error {
+	ctx, span := p.tracer.Start(ctx, "compozy.knowledge.ingest.delete_vectors", trace.WithAttributes(
+		attribute.String("kb_id", p.binding.KnowledgeBase.ID),
+		attribute.String("binding_id", p.binding.ID),
+		attribute.String("vector_id", p.binding.Vector.ID),
+		attribute.String("vector_type", string(p.binding.Vector.Type)),
+	))
+	defer span.End()
 	filter := vectordb.Filter{Metadata: make(map[string]string, 2)}
 	if p.binding.ID != "" {
 		filter.Metadata["knowledge_binding_id"] = p.binding.ID
@@ -266,7 +363,12 @@ func (p *Pipeline) deleteExistingRecords(ctx context.Context) error {
 	if len(filter.Metadata) == 0 && len(filter.IDs) == 0 {
 		return nil
 	}
-	return p.store.Delete(ctx, filter)
+	err := p.store.Delete(ctx, filter)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return err
 }
 
 func parseRetry(cfg map[string]any) retrySettings {
@@ -315,17 +417,6 @@ func lookupInt(m map[string]any, key string) (int, bool) {
 	default:
 		return 0, false
 	}
-}
-
-func cloneMetadata(src map[string]any) map[string]any {
-	if len(src) == 0 {
-		return make(map[string]any, 8)
-	}
-	dst := make(map[string]any, len(src)+4)
-	for k, v := range src {
-		dst[k] = v
-	}
-	return dst
 }
 
 func derefBool(ptr *bool, fallback bool) bool {

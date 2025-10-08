@@ -15,6 +15,10 @@ const (
 	testDimension = 1536
 )
 
+func intPtr(v int) *int {
+	return &v
+}
+
 func TestDefinitions_Validate(t *testing.T) {
 	defaults := knowledge.DefaultDefaults()
 	t.Run("Should return error when knowledge base references missing embedder", func(t *testing.T) {
@@ -52,7 +56,7 @@ func TestDefinitions_Validate(t *testing.T) {
 					Chunking: knowledge.ChunkingConfig{
 						Strategy: knowledge.ChunkStrategyRecursiveTextSplitter,
 						Size:     48,
-						Overlap:  64,
+						Overlap:  intPtr(64),
 					},
 				},
 			},
@@ -98,7 +102,7 @@ func TestDefinitions_Validate(t *testing.T) {
 		kb := defs.KnowledgeBases[0]
 		assert.Equal(t, knowledge.ChunkStrategyRecursiveTextSplitter, kb.Chunking.Strategy)
 		assert.Equal(t, defaults.ChunkSize, kb.Chunking.Size)
-		assert.Equal(t, defaults.ChunkOverlap, kb.Chunking.Overlap)
+		assert.Equal(t, defaults.ChunkOverlap, kb.Chunking.OverlapValue())
 		assert.Equal(t, defaults.RetrievalTopK, kb.Retrieval.TopK)
 		require.NotNil(t, kb.Preprocess.Deduplicate)
 		assert.True(t, *kb.Preprocess.Deduplicate)
@@ -238,9 +242,9 @@ func TestDefinitionsNormalizeWithDefaults(t *testing.T) {
 	require.NoError(t, defs.Validate())
 	assert.Equal(t, 2048, defs.Embedders[0].Config.BatchSize)
 	assert.Equal(t, 512, defs.KnowledgeBases[0].Chunking.Size)
-	assert.Equal(t, 48, defs.KnowledgeBases[0].Chunking.Overlap)
+	assert.Equal(t, 48, defs.KnowledgeBases[0].Chunking.OverlapValue())
 	assert.Equal(t, 8, defs.KnowledgeBases[0].Retrieval.TopK)
-	assert.InDelta(t, 0.45, defs.KnowledgeBases[0].Retrieval.MinScore, 0.0001)
+	assert.InDelta(t, 0.45, defs.KnowledgeBases[0].Retrieval.MinScoreValue(), 0.0001)
 }
 
 func createEmbedderConfig(id string) knowledge.EmbedderConfig {

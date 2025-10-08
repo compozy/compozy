@@ -2,11 +2,10 @@ package uc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/compozy/compozy/engine/knowledge"
+	"github.com/compozy/compozy/engine/knowledge/configutil"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
 	"github.com/compozy/compozy/engine/resources"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
@@ -54,7 +53,7 @@ func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
 	if len(conflicts) > 0 {
 		return resourceutil.ConflictError{Details: conflicts}
 	}
-	storeCfg, err := ToVectorStoreConfig(projectID, vec)
+	storeCfg, err := configutil.ToVectorStoreConfig(projectID, vec)
 	if err != nil {
 		return err
 	}
@@ -68,23 +67,12 @@ func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
 			log.Warn("failed to close vector store", "kb_id", kb.ID, "error", cerr)
 		}
 	}()
-	if err := uc.store.Delete(ctx, key); err != nil {
-		return fmt.Errorf("delete knowledge base %q: %w", kbID, err)
-	}
 	filter := vectordb.Filter{Metadata: map[string]string{"knowledge_base_id": kb.ID}}
 	if err := vectorStore.Delete(ctx, filter); err != nil {
-		if restoreErr := uc.restoreKnowledgeBase(ctx, key, kb); restoreErr != nil {
-			if !errors.Is(restoreErr, resources.ErrETagMismatch) {
-				log.Error(
-					"failed to restore knowledge base after vector cleanup failure",
-					"kb_id",
-					kb.ID,
-					"error",
-					restoreErr,
-				)
-			}
-		}
 		return fmt.Errorf("cleanup knowledge vectors: %w", err)
+	}
+	if err := uc.store.Delete(ctx, key); err != nil {
+		return fmt.Errorf("delete knowledge base %q: %w", kbID, err)
 	}
 	return nil
 }
@@ -118,16 +106,4 @@ func (uc *Delete) collectConflicts(
 		conflicts = append(conflicts, resourceutil.ReferenceDetail{Resource: "tasks", IDs: taskRefs})
 	}
 	return conflicts, nil
-}
-
-func (uc *Delete) restoreKnowledgeBase(
-	ctx context.Context,
-	key resources.ResourceKey,
-	cfg *knowledge.BaseConfig,
-) error {
-	if cfg == nil {
-		return nil
-	}
-	_, err := uc.store.PutIfMatch(ctx, key, cfg, "")
-	return err
 }

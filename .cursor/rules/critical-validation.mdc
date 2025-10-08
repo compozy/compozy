@@ -3,27 +3,40 @@ alwaysApply: true
 ---
 
 <critical>
-**MANDATORY REQUIREMENTS:**
-- **ALWAYS** check dependent files APIs before write tests to avoid write wrong code
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-    - Architecture patterns: @.cursor/rules/architecture.mdc
-    - Go coding standards: @.cursor/rules/go-coding-standards.mdc
-    - Testing requirements: @.cursor/rules/test-standards.mdc
-    - API standards: @.cursor/rules/api-standards.mdc
-    - No Backwards Compatibility: @.cursor/rules/backwards-compatibility.mdc
-    - Constants & magic numbers: @.cursor/rules/magic-numbers.mdc
-- **MUST** use `logger.FromContext(ctx)` - NEVER pass a logger as a parameter or via DI
-- **MUST** use `config.FromContext(ctx)` to read configuration in all code paths
+- **MANDOTORY READ THIS FILES** before proceed
+  - Go coding standards: [go-coding-standards.mdc](.cursor/rules/go-coding-standards.mdc)
+  - Architecture patterns: [architecture.mdc](.cursor/rules/architecture.mdc)
+  - Testing requirements: [test-standards.mdc](.cursor/rules/test-standards.mdc)
+  - No Backwards Compatibility: [backwards-compatibility.mdc](.cursor/rules/backwards-compatibility.mdc)
+  - Constants & magic numbers: [magic-numbers.mdc](.cursor/rules/magic-numbers.mdc)
+  - API standards: [api-standards.mdc](.cursor/rules/api-standards.mdc)
+  - Global Config: [global-config.mdc](.cursor/rules/global-config.mdc)
+  - Logger Config: [logger-config.mdc](.cursor/rules/logger-config.mdc)
+  - Magic Numbers: [magic-numbers.mdc](.cursor/rules/magic-numbers.mdc)
+  - No Line Breaks: [no-linebreaks.mdc](.cursor/rules/no-linebreaks.mdc)
+
+**Quick Read Command:**
+Use this one-liner to read all at once:
+
+```bash
+cat .cursor/rules/{go-coding-standards,architecture,test-standards,backwards-compatibility,magic-numbers,api-standards,global-config,logger-config,no-linebreaks}.mdc
+```
+
+- **MANDATORY REQUIREMENTS:**
+  - **ALWAYS** check dependent files APIs before write tests to avoid write wrong code
+  - **ALWAYS** verify against PRD and tech specs - NEVER make assumptions (if applied)
+  - **NEVER** use workarounds, especially in tests - implement proper solutions
+  - **NEVER** create functions with more than 50 lines of code, always prefer to create smaller functions (PRIORITY HIGH)
+  - **MUST** use `logger.FromContext(ctx)` - NEVER pass a logger as a parameter or via DI
+  - **MUST** use `config.FromContext(ctx)` to read configuration in all code paths
   - **NEVER** use any global configuration singleton.
-- **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
-- **MUST** run `make lint` and `make test` before completing ANY subtask
-- **ALWAYS CHECK** the .cursor/rules/zen-mcp-tools.mdc if you are using Zen MCP tools
-- **ALWAYS CHECK** the .cursor/rules/test-standards.mdc if you are writing tests
-- **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
-- **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
-- **YOU MUST NEED** to use perplexity and context7 to get updated information when dealing with external libraries or tools and **NEVER RELY** only in the models data
+  - **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
+  - **MUST** run `make lint` and `make test` before completing ANY subtask
+  - **ALWAYS CHECK** the .cursor/rules/zen-mcp-tools.mdc if you are using Zen MCP tools
+  - **ALWAYS CHECK** the .cursor/rules/test-standards.mdc if you are writing tests
+  - **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
+  - **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
+  - **YOU MUST NEED** to use perplexity and context7 to get updated information when dealing with external libraries or tools and **NEVER RELY** only in the models data
 
 ### For complex/big tasks
 

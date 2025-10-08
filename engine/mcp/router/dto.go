@@ -83,22 +83,11 @@ func convertMCPConfigToDTO(cfg *mcp.Config) (MCPCoreDTO, error) {
 		URL:          clone.URL,
 		Command:      clone.Command,
 		Args:         append([]string(nil), clone.Args...),
-		Headers:      copyStringMap(clone.Headers),
-		Env:          copyStringMap(clone.Env),
+		Headers:      core.CopyMap(clone.Headers),
+		Env:          core.CopyMap(clone.Env),
 		Proto:        clone.Proto,
 		Transport:    string(clone.Transport),
 		StartTimeout: clone.StartTimeout,
 		MaxSessions:  clone.MaxSessions,
 	}, nil
-}
-
-func copyStringMap(src map[string]string) map[string]string {
-	if len(src) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(src))
-	for k, v := range src {
-		out[k] = v
-	}
-	return out
 }

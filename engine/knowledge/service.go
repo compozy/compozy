@@ -199,13 +199,13 @@ func bindingFromRetrieval(cfg RetrievalConfig) core.KnowledgeBinding {
 	result := core.KnowledgeBinding{}
 	topK := cfg.TopK
 	result.TopK = &topK
-	minScore := cfg.MinScore
+	minScore := cfg.MinScoreValue()
 	result.MinScore = &minScore
 	maxTokens := cfg.MaxTokens
 	result.MaxTokens = &maxTokens
 	result.InjectAs = cfg.InjectAs
 	result.Fallback = cfg.Fallback
-	result.Filters = core.CopyStringMap(cfg.Filters)
+	result.Filters = core.CopyMap(cfg.Filters)
 	return result
 }
 
@@ -215,7 +215,7 @@ func retrievalFromBinding(base RetrievalConfig, binding *core.KnowledgeBinding) 
 		result.TopK = *binding.TopK
 	}
 	if binding.MinScore != nil {
-		result.MinScore = *binding.MinScore
+		result.setMinScore(*binding.MinScore)
 	}
 	if binding.MaxTokens != nil {
 		result.MaxTokens = *binding.MaxTokens
@@ -228,9 +228,9 @@ func retrievalFromBinding(base RetrievalConfig, binding *core.KnowledgeBinding) 
 	}
 	switch {
 	case binding.Filters != nil:
-		result.Filters = core.CopyStringMap(binding.Filters)
+		result.Filters = core.CopyMap(binding.Filters)
 	case len(base.Filters) > 0:
-		result.Filters = core.CopyStringMap(base.Filters)
+		result.Filters = core.CopyMap(base.Filters)
 	default:
 		result.Filters = nil
 	}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/knowledge"
+	"github.com/compozy/compozy/engine/knowledge/configutil"
 	"github.com/compozy/compozy/engine/knowledge/embedder"
 	"github.com/compozy/compozy/engine/knowledge/retriever"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
@@ -94,9 +95,10 @@ func mergeRetrieval(
 		base.TopK = topK
 	}
 	if minScore != nil {
-		base.MinScore = *minScore
+		value := *minScore
+		base.MinScore = &value
 	}
-	if len(filters) > 0 {
+	if filters != nil {
 		base.Filters = make(map[string]string, len(filters))
 		for k, v := range filters {
 			base.Filters[k] = v
@@ -120,7 +122,7 @@ func (uc *Query) prepareQuery(
 		return nil, nil, nil, err
 	}
 	retrieval := mergeRetrieval(kb.Retrieval, in.TopK, in.MinScore, in.Filters)
-	embCfg, err := ToEmbedderAdapterConfig(emb)
+	embCfg, err := configutil.ToEmbedderAdapterConfig(emb)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -128,7 +130,7 @@ func (uc *Query) prepareQuery(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("init embedder: %w", err)
 	}
-	vecCfg, err := ToVectorStoreConfig(projectID, vec)
+	vecCfg, err := configutil.ToVectorStoreConfig(projectID, vec)
 	if err != nil {
 		return nil, nil, nil, err
 	}

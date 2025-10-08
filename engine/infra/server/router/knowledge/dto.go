@@ -15,22 +15,22 @@ type KnowledgeBaseResponse struct {
 }
 
 type KnowledgeIngestRequest struct {
-	Strategy string `json:"strategy"`
+	Strategy string `json:"strategy" example:"replace"`
 }
 
 type KnowledgeIngestResponse struct {
-	KnowledgeBaseID string `json:"knowledge_base_id"`
-	BindingID       string `json:"binding_id"`
-	Documents       int    `json:"documents"`
-	Chunks          int    `json:"chunks"`
-	Persisted       int    `json:"persisted"`
+	KnowledgeBaseID string `json:"knowledge_base_id" example:"support"`
+	BindingID       string `json:"binding_id"        example:"binding-123"`
+	Documents       int    `json:"documents"         example:"2"`
+	Chunks          int    `json:"chunks"            example:"16"`
+	Persisted       int    `json:"persisted"         example:"16"`
 }
 
 type KnowledgeQueryRequest struct {
-	Query    string            `json:"query"`
-	TopK     int               `json:"top_k,omitempty"`
-	MinScore *float64          `json:"min_score,omitempty"`
-	Filters  map[string]string `json:"filters,omitempty"`
+	Query    string            `json:"query"               example:"How do I reset my password?"`
+	TopK     int               `json:"top_k,omitempty"     example:"5"`
+	MinScore *float64          `json:"min_score,omitempty" example:"0.4"`
+	Filters  map[string]string `json:"filters,omitempty"   example:"lang=en"`
 }
 
 type KnowledgeQueryResponse struct {
@@ -38,10 +38,10 @@ type KnowledgeQueryResponse struct {
 }
 
 type KnowledgeMatch struct {
-	BindingID     string         `json:"binding_id"`
-	Content       string         `json:"content"`
-	Score         float64        `json:"score"`
-	TokenEstimate int            `json:"token_estimate"`
+	BindingID     string         `json:"binding_id"         example:"binding-123"`
+	Content       string         `json:"content"            example:"Reset your password by visiting the account settings page."`
+	Score         float64        `json:"score"              example:"0.83"`
+	TokenEstimate int            `json:"token_estimate"     example:"120"`
 	Metadata      map[string]any `json:"metadata,omitempty"`
 }
 

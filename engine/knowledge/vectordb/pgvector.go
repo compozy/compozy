@@ -14,12 +14,14 @@ import (
 )
 
 type pgStore struct {
-	pool      *pgxpool.Pool
-	table     string
-	indexName string
-	dimension int
-	metric    string
-	ensureIdx bool
+	pool       *pgxpool.Pool
+	table      string
+	tableIdent string
+	indexName  string
+	indexIdent string
+	dimension  int
+	metric     string
+	ensureIdx  bool
 }
 
 func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
@@ -37,6 +39,10 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 		dimension: cfg.Dimension,
 		metric:    strings.ToLower(strings.TrimSpace(cfg.Metric)),
 		ensureIdx: cfg.EnsureIndex,
+	}
+	store.tableIdent = pgx.Identifier{store.table}.Sanitize()
+	if store.indexName != "" {
+		store.indexIdent = pgx.Identifier{store.indexName}.Sanitize()
 	}
 	if err := store.ensureSchema(ctx); err != nil {
 		pool.Close()
@@ -84,7 +90,7 @@ func (p *pgStore) ensureSchema(ctx context.Context) error {
 		document TEXT,
 		metadata JSONB,
 		updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-	)`, p.table, p.dimension)
+	)`, p.tableIdent, p.dimension)
 	if _, err = conn.Exec(ctx, createTable); err != nil {
 		return fmt.Errorf("pgvector: create table: %w", err)
 	}
@@ -95,8 +101,8 @@ func (p *pgStore) ensureSchema(ctx context.Context) error {
 		}
 		createIndex := fmt.Sprintf(
 			"CREATE INDEX IF NOT EXISTS %s ON %s USING ivfflat (embedding vector_%s_ops)",
-			p.indexName,
-			p.table,
+			p.indexIdent,
+			p.tableIdent,
 			distance,
 		)
 		if _, err = conn.Exec(ctx, createIndex); err != nil {
@@ -131,7 +137,7 @@ ON CONFLICT (id) DO UPDATE SET
     embedding = excluded.embedding,
     document = excluded.document,
     metadata = excluded.metadata,
-    updated_at = excluded.updated_at`, p.table)
+    updated_at = excluded.updated_at`, p.tableIdent)
 	for i := range records {
 		rec := records[i]
 		if len(rec.Embedding) != p.dimension {
@@ -164,7 +170,7 @@ func (p *pgStore) Search(ctx context.Context, query []float32, opts SearchOption
 	}
 	builder := strings.Builder{}
 	builder.WriteString("SELECT id, document, metadata, 1 - (embedding <=> $1) AS score FROM ")
-	builder.WriteString(p.table)
+	builder.WriteString(p.tableIdent)
 	builder.WriteString(" WHERE 1=1")
 	args := []any{pgvector.NewVector(query)}
 	argPos := 2
@@ -225,7 +231,7 @@ func (p *pgStore) Delete(ctx context.Context, filter Filter) error {
 	}
 	builder := strings.Builder{}
 	builder.WriteString("DELETE FROM ")
-	builder.WriteString(p.table)
+	builder.WriteString(p.tableIdent)
 	builder.WriteString(" WHERE 1=1")
 	args := make([]any, 0)
 	argPos := 1

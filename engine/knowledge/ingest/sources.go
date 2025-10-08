@@ -252,6 +252,9 @@ func extractPDFText(ctx context.Context, path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("knowledge: extract pdf text %q: %w", path, err)
 	}
+	if closer, ok := rd.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
 	limit := int64(attachment.MaxPDFExtractChars)
 	if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.Attachments.PDFExtractMaxChars > 0 {
 		limit = int64(cfg.Attachments.PDFExtractMaxChars)

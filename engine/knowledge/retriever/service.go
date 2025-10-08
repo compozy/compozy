@@ -4,11 +4,17 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/embedder"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
 	"github.com/compozy/compozy/pkg/logger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type TokenEstimator interface {
@@ -33,6 +39,7 @@ type Service struct {
 	embedder  embedder.Embedder
 	store     vectordb.Store
 	estimator TokenEstimator
+	tracer    trace.Tracer
 }
 
 func NewService(emb embedder.Embedder, store vectordb.Store, estimator TokenEstimator) (*Service, error) {
@@ -45,34 +52,63 @@ func NewService(emb embedder.Embedder, store vectordb.Store, estimator TokenEsti
 	if estimator == nil {
 		estimator = runeEstimator{}
 	}
-	return &Service{embedder: emb, store: store, estimator: estimator}, nil
+	return &Service{
+		embedder:  emb,
+		store:     store,
+		estimator: estimator,
+		tracer:    otel.Tracer("compozy.knowledge.retriever"),
+	}, nil
 }
 
 func (s *Service) Retrieve(
 	ctx context.Context,
 	binding *knowledge.ResolvedBinding,
 	query string,
-) ([]knowledge.RetrievedContext, error) {
+) (contexts []knowledge.RetrievedContext, err error) {
 	if binding == nil {
 		return nil, errors.New("knowledge: binding is required for retrieval")
 	}
 	if query == "" {
 		return nil, errors.New("knowledge: query is required")
 	}
-	log := logger.FromContext(ctx)
-	vector, err := s.embedder.EmbedQuery(ctx, query)
+	log := logger.FromContext(ctx).With(
+		"kb_id",
+		binding.KnowledgeBase.ID,
+		"binding_id",
+		binding.ID,
+	)
+	start := time.Now()
+	ctx, span := s.tracer.Start(ctx, "compozy.knowledge.retriever.retrieve", trace.WithAttributes(
+		attribute.String("kb_id", binding.KnowledgeBase.ID),
+		attribute.String("binding_id", binding.ID),
+	))
+	defer func() {
+		duration := time.Since(start)
+		knowledge.RecordQueryLatency(ctx, binding.KnowledgeBase.ID, duration)
+		if err != nil {
+			log.Error("Knowledge retrieval failed", "error", err, "duration_seconds", duration.Seconds())
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		} else {
+			log.Info("Knowledge retrieval finished", "results", len(contexts), "duration_seconds", duration.Seconds())
+			span.SetAttributes(attribute.Int("results", len(contexts)))
+		}
+		span.End()
+	}()
+	log.Info("Knowledge retrieval started", "query_length", len(query))
+	vector, err := s.embedQueryWithSpan(ctx, binding, query)
 	if err != nil {
 		return nil, err
 	}
 	opts := vectordb.SearchOptions{
 		TopK:     binding.Retrieval.TopK,
-		MinScore: binding.Retrieval.MinScore,
+		MinScore: binding.Retrieval.MinScoreValue(),
 		Filters:  cloneStringMap(binding.Retrieval.Filters),
 	}
 	if opts.TopK <= 0 {
 		opts.TopK = knowledge.DefaultDefaults().RetrievalTopK
 	}
-	matches, err := s.store.Search(ctx, vector, opts)
+	matches, err := s.searchMatches(ctx, binding, vector, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -85,31 +121,7 @@ func (s *Service) Retrieve(
 		}
 		return matches[i].Score > matches[j].Score
 	})
-	contexts := make([]knowledge.RetrievedContext, len(matches))
-	tokenCounts := make([]int, len(matches))
-	totalTokens := 0
-	for i := range matches {
-		meta := cloneMetadata(matches[i].Metadata)
-		tokens := s.estimator.EstimateTokens(ctx, matches[i].Text)
-		totalTokens += tokens
-		tokenCounts[i] = tokens
-		contexts[i] = knowledge.RetrievedContext{
-			BindingID:     binding.ID,
-			Content:       matches[i].Text,
-			Score:         matches[i].Score,
-			TokenEstimate: tokens,
-			Metadata:      meta,
-		}
-	}
-	maxTokens := binding.Retrieval.MaxTokens
-	if maxTokens > 0 {
-		for totalTokens > maxTokens && len(contexts) > 0 {
-			last := len(contexts) - 1
-			totalTokens -= tokenCounts[last]
-			contexts = contexts[:last]
-			tokenCounts = tokenCounts[:last]
-		}
-	}
+	contexts = s.buildContexts(ctx, binding, matches)
 	log.Debug(
 		"Knowledge retrieval executed",
 		"binding_id",
@@ -122,15 +134,96 @@ func (s *Service) Retrieve(
 	return contexts, nil
 }
 
-func cloneMetadata(src map[string]any) map[string]any {
-	if len(src) == 0 {
+func (s *Service) embedQueryWithSpan(
+	ctx context.Context,
+	binding *knowledge.ResolvedBinding,
+	query string,
+) ([]float32, error) {
+	spanCtx, span := s.tracer.Start(ctx, "compozy.knowledge.retriever.embed_query", trace.WithAttributes(
+		attribute.String("kb_id", binding.KnowledgeBase.ID),
+		attribute.String("binding_id", binding.ID),
+		attribute.String("embedder_id", binding.Embedder.ID),
+		attribute.String("embedder_provider", binding.Embedder.Provider),
+		attribute.String("embedder_model", binding.Embedder.Model),
+	))
+	defer span.End()
+	vector, err := s.embedder.EmbedQuery(spanCtx, query)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return vector, nil
+}
+
+func (s *Service) searchMatches(
+	ctx context.Context,
+	binding *knowledge.ResolvedBinding,
+	vector []float32,
+	opts vectordb.SearchOptions,
+) ([]vectordb.Match, error) {
+	spanCtx, span := s.tracer.Start(ctx, "compozy.knowledge.retriever.vector_search", trace.WithAttributes(
+		attribute.String("kb_id", binding.KnowledgeBase.ID),
+		attribute.String("binding_id", binding.ID),
+		attribute.String("vector_id", binding.Vector.ID),
+		attribute.String("vector_type", string(binding.Vector.Type)),
+		attribute.Int("top_k", opts.TopK),
+	))
+	defer span.End()
+	matches, err := s.store.Search(spanCtx, vector, opts)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	span.SetAttributes(attribute.Int("matches", len(matches)))
+	return matches, nil
+}
+
+func (s *Service) buildContexts(
+	ctx context.Context,
+	binding *knowledge.ResolvedBinding,
+	matches []vectordb.Match,
+) []knowledge.RetrievedContext {
+	if len(matches) == 0 {
 		return nil
 	}
-	dst := make(map[string]any, len(src))
-	for k, v := range src {
-		dst[k] = v
+	contexts := make([]knowledge.RetrievedContext, len(matches))
+	tokenCounts := make([]int, len(matches))
+	totalTokens := 0
+	for i := range matches {
+		metadata := core.CloneMap(matches[i].Metadata)
+		tokens := s.estimator.EstimateTokens(ctx, matches[i].Text)
+		totalTokens += tokens
+		tokenCounts[i] = tokens
+		contexts[i] = knowledge.RetrievedContext{
+			BindingID:     binding.ID,
+			Content:       matches[i].Text,
+			Score:         matches[i].Score,
+			TokenEstimate: tokens,
+			Metadata:      metadata,
+		}
 	}
-	return dst
+	return trimContexts(binding, contexts, tokenCounts, totalTokens)
+}
+
+func trimContexts(
+	binding *knowledge.ResolvedBinding,
+	contexts []knowledge.RetrievedContext,
+	tokenCounts []int,
+	totalTokens int,
+) []knowledge.RetrievedContext {
+	maxTokens := binding.Retrieval.MaxTokens
+	if maxTokens <= 0 {
+		return contexts
+	}
+	for totalTokens > maxTokens && len(contexts) > 0 {
+		last := len(contexts) - 1
+		totalTokens -= tokenCounts[last]
+		contexts = contexts[:last]
+		tokenCounts = tokenCounts[:last]
+	}
+	return contexts
 }
 
 func cloneStringMap(src map[string]string) map[string]string {

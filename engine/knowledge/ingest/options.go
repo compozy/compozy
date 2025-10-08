@@ -16,7 +16,9 @@ type Options struct {
 	Strategy Strategy
 }
 
-func (o *Options) normalizedStrategy() Strategy {
+// NormalizedStrategy returns the effective ingestion strategy, defaulting to
+// StrategyUpsert when callers omit a specific value.
+func (o *Options) NormalizedStrategy() Strategy {
 	if o == nil || o.Strategy == "" {
 		return StrategyUpsert
 	}

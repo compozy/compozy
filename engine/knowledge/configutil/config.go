@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/embedder"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
@@ -33,10 +34,7 @@ func ToEmbedderAdapterConfig(cfg *knowledge.EmbedderConfig) (*embedder.Config, e
 		StripNewLines: strip,
 	}
 	if len(cfg.Config.Retry) > 0 {
-		adapter.Options = make(map[string]any, len(cfg.Config.Retry))
-		for k, v := range cfg.Config.Retry {
-			adapter.Options[k] = v
-		}
+		adapter.Options = core.CopyMap(cfg.Config.Retry)
 	}
 	return adapter, nil
 }
@@ -56,7 +54,7 @@ func ToVectorStoreConfig(project string, cfg *knowledge.VectorDBConfig) (*vector
 		Provider:    provider,
 		DSN:         strings.TrimSpace(cfg.Config.DSN),
 		Table:       strings.TrimSpace(cfg.Config.Table),
-		Collection:  strings.TrimSpace(cfg.Config.Table),
+		Collection:  strings.TrimSpace(cfg.Config.Collection),
 		Index:       strings.TrimSpace(cfg.Config.Index),
 		EnsureIndex: cfg.Config.EnsureIndex,
 		Metric:      strings.TrimSpace(cfg.Config.Metric),
@@ -64,10 +62,7 @@ func ToVectorStoreConfig(project string, cfg *knowledge.VectorDBConfig) (*vector
 		Consistency: strings.TrimSpace(cfg.Config.Consistency),
 	}
 	if len(cfg.Config.Auth) > 0 {
-		storeCfg.Auth = make(map[string]string, len(cfg.Config.Auth))
-		for k, v := range cfg.Config.Auth {
-			storeCfg.Auth[k] = v
-		}
+		storeCfg.Auth = core.CopyMap(cfg.Config.Auth)
 	}
 	return storeCfg, nil
 }

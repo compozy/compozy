@@ -41,4 +41,30 @@ func TestMemoryStore(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, matches, 0)
 	})
+
+	t.Run("ShouldFailUpsertWhenDimensionMismatch", func(t *testing.T) {
+		mismatchStore := newMemoryStore(&Config{Dimension: 4})
+		err := mismatchStore.Upsert(ctx, []Record{{ID: "bad", Embedding: []float32{1, 1, 1}}})
+		require.Error(t, err)
+	})
+
+	t.Run("ShouldFailSearchWhenQueryDimensionMismatch", func(t *testing.T) {
+		otherStore := newMemoryStore(&Config{Dimension: 2})
+		record := Record{ID: "c", Embedding: []float32{1, 0}}
+		require.NoError(t, otherStore.Upsert(ctx, []Record{record}))
+		_, err := otherStore.Search(ctx, []float32{1, 0, 0}, SearchOptions{TopK: 1})
+		require.Error(t, err)
+	})
+
+	t.Run("ShouldRespectTopKWhenExceedingAvailableRecords", func(t *testing.T) {
+		limitedStore := newMemoryStore(&Config{Dimension: 2})
+		records := []Record{
+			{ID: "d", Text: "delta", Embedding: []float32{1, 0}},
+			{ID: "e", Text: "echo", Embedding: []float32{0, 1}},
+		}
+		require.NoError(t, limitedStore.Upsert(ctx, records))
+		matches, err := limitedStore.Search(ctx, []float32{1, 0}, SearchOptions{TopK: 10})
+		require.NoError(t, err)
+		require.Len(t, matches, 2)
+	})
 }

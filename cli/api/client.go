@@ -92,7 +92,9 @@ func (c *client) createRequest(ctx context.Context, method, url string, bodyRead
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if bodyReader != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	req.Header.Set("Accept", "application/json")
 	if c.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
@@ -146,7 +148,7 @@ func (c *client) doRequest(
 			return nil, err
 		}
 		for k, v := range headers {
-			if strings.TrimSpace(k) == "" {
+			if strings.TrimSpace(k) == "" || strings.TrimSpace(v) == "" {
 				continue
 			}
 			req.Header.Set(k, v)

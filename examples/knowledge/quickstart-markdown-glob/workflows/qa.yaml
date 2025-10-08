@@ -1,0 +1,40 @@
+id: knowledge-qa
+name: Knowledge Quickstart QA
+version: 0.1.0
+description: Ask questions against the quickstart knowledge base
+
+knowledge:
+  id: quickstart_docs
+  retrieval:
+    top_k: 3
+    min_score: 0.2
+    max_tokens: 1200
+
+input:
+  schema:
+    type: object
+    properties:
+      question:
+        type: string
+        description: Natural language question to answer using knowledge
+    required:
+      - question
+
+output:
+  schema:
+    type: object
+    properties:
+      answer:
+        type: string
+        description: Answer grounded in the knowledge base
+
+tasks:
+  - id: answer
+    name: Provide Answer
+    type: basic
+    description: Answer user questions using knowledge context
+    agent: quickstart_agent
+    input:
+      question: "{{ .workflow.input.question }}"
+    output:
+      answer: "{{ .response.message }}"

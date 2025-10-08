@@ -6,7 +6,11 @@ import (
 	"math"
 	"sort"
 	"sync"
+
+	"github.com/compozy/compozy/engine/core"
 )
+
+const defaultTopK = 5
 
 type memoryStore struct {
 	mu        sync.RWMutex
@@ -37,7 +41,7 @@ func (m *memoryStore) Upsert(_ context.Context, records []Record) error {
 			ID:        rec.ID,
 			Text:      rec.Text,
 			Embedding: append([]float32(nil), rec.Embedding...),
-			Metadata:  cloneMetadata(rec.Metadata),
+			Metadata:  core.CloneMap(rec.Metadata),
 		}
 		m.records[rec.ID] = cloned
 	}
@@ -51,7 +55,7 @@ func (m *memoryStore) Search(_ context.Context, query []float32, opts SearchOpti
 	threshold := opts.MinScore
 	topK := opts.TopK
 	if topK <= 0 {
-		topK = 5
+		topK = defaultTopK
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -68,7 +72,7 @@ func (m *memoryStore) Search(_ context.Context, query []float32, opts SearchOpti
 			ID:       rec.ID,
 			Score:    score,
 			Text:     rec.Text,
-			Metadata: cloneMetadata(rec.Metadata),
+			Metadata: core.CloneMap(rec.Metadata),
 		})
 	}
 	sort.Slice(candidates, func(i, j int) bool {
@@ -122,17 +126,6 @@ func cosineSimilarity(vecA, vecB []float32) float64 {
 	return dot / denom
 }
 
-func cloneMetadata(src map[string]any) map[string]any {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make(map[string]any, len(src))
-	for k, v := range src {
-		dst[k] = v
-	}
-	return dst
-}
-
 func metadataMatches(meta map[string]any, filters map[string]string) bool {
 	if len(filters) == 0 {
 		return true
@@ -148,14 +141,11 @@ func metadataMatches(meta map[string]any, filters map[string]string) bool {
 				return false
 			}
 		case []string:
-			found := false
-			for _, entry := range actual {
-				if entry == expected {
-					found = true
-					break
-				}
+			if !containsString(actual, expected) {
+				return false
 			}
-			if !found {
+		case []any:
+			if !containsAnyString(actual, expected) {
 				return false
 			}
 		default:
@@ -163,4 +153,26 @@ func metadataMatches(meta map[string]any, filters map[string]string) bool {
 		}
 	}
 	return true
+}
+
+func containsString(values []string, expected string) bool {
+	for i := range values {
+		if values[i] == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAnyString(values []any, expected string) bool {
+	for i := range values {
+		s, ok := values[i].(string)
+		if !ok {
+			continue
+		}
+		if s == expected {
+			return true
+		}
+	}
+	return false
 }

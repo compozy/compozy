@@ -149,6 +149,14 @@ func validOverlap(overlap int, chunkSize int) int {
 	return overlap
 }
 
+func ptrInt(v int) *int {
+	return &v
+}
+
+func ptrFloat64(v float64) *float64 {
+	return &v
+}
+
 type SourceType string
 
 const (
@@ -202,6 +210,7 @@ type VectorDBConfig struct {
 type VectorDBConnConfig struct {
 	DSN         string            `json:"dsn,omitempty"          yaml:"dsn,omitempty"          mapstructure:"dsn,omitempty"`
 	Table       string            `json:"table,omitempty"        yaml:"table,omitempty"        mapstructure:"table,omitempty"`
+	Collection  string            `json:"collection,omitempty"   yaml:"collection,omitempty"   mapstructure:"collection,omitempty"`
 	Index       string            `json:"index,omitempty"        yaml:"index,omitempty"        mapstructure:"index,omitempty"`
 	EnsureIndex bool              `json:"ensure_index,omitempty" yaml:"ensure_index,omitempty" mapstructure:"ensure_index,omitempty"`
 	Metric      string            `json:"metric,omitempty"       yaml:"metric,omitempty"       mapstructure:"metric,omitempty"`
@@ -237,7 +246,7 @@ type SourceConfig struct {
 type ChunkingConfig struct {
 	Strategy ChunkStrategy `json:"strategy,omitempty" yaml:"strategy,omitempty" mapstructure:"strategy,omitempty"`
 	Size     int           `json:"size,omitempty"     yaml:"size,omitempty"     mapstructure:"size,omitempty"`
-	Overlap  int           `json:"overlap,omitempty"  yaml:"overlap,omitempty"  mapstructure:"overlap,omitempty"`
+	Overlap  *int          `json:"overlap,omitempty"  yaml:"overlap,omitempty"  mapstructure:"overlap,omitempty"`
 }
 
 type PreprocessConfig struct {
@@ -247,7 +256,7 @@ type PreprocessConfig struct {
 
 type RetrievalConfig struct {
 	TopK      int               `json:"top_k,omitempty"      yaml:"top_k,omitempty"      mapstructure:"top_k,omitempty"`
-	MinScore  float64           `json:"min_score,omitempty"  yaml:"min_score,omitempty"  mapstructure:"min_score,omitempty"`
+	MinScore  *float64          `json:"min_score,omitempty"  yaml:"min_score,omitempty"  mapstructure:"min_score,omitempty"`
 	MaxTokens int               `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty" mapstructure:"max_tokens,omitempty"`
 	InjectAs  string            `json:"inject_as,omitempty"  yaml:"inject_as,omitempty"  mapstructure:"inject_as,omitempty"`
 	Fallback  string            `json:"fallback,omitempty"   yaml:"fallback,omitempty"   mapstructure:"fallback,omitempty"`
@@ -257,6 +266,28 @@ type RetrievalConfig struct {
 type MetadataConfig struct {
 	Tags   []string `json:"tags,omitempty"   yaml:"tags,omitempty"   mapstructure:"tags,omitempty"`
 	Owners []string `json:"owners,omitempty" yaml:"owners,omitempty" mapstructure:"owners,omitempty"`
+}
+
+func (c ChunkingConfig) OverlapValue() int {
+	if c.Overlap == nil {
+		return 0
+	}
+	return *c.Overlap
+}
+
+func (c *ChunkingConfig) setOverlap(value int) {
+	c.Overlap = ptrInt(value)
+}
+
+func (c RetrievalConfig) MinScoreValue() float64 {
+	if c.MinScore == nil {
+		return 0
+	}
+	return *c.MinScore
+}
+
+func (c *RetrievalConfig) setMinScore(value float64) {
+	c.MinScore = ptrFloat64(value)
 }
 
 func (d *Definitions) Normalize() {
@@ -301,8 +332,8 @@ func (c *ChunkingConfig) normalize(defaults Defaults) {
 	if c.Size == 0 {
 		c.Size = defaults.ChunkSize
 	}
-	if c.Overlap == 0 {
-		c.Overlap = defaults.ChunkOverlap
+	if c.Overlap == nil {
+		c.setOverlap(defaults.ChunkOverlap)
 	}
 }
 
@@ -317,8 +348,8 @@ func (c *RetrievalConfig) normalize(defaults Defaults) {
 	if c.TopK <= 0 {
 		c.TopK = defaults.RetrievalTopK
 	}
-	if c.MinScore == 0 {
-		c.MinScore = defaults.RetrievalMinScore
+	if c.MinScore == nil {
+		c.setMinScore(defaults.RetrievalMinScore)
 	}
 }
 
@@ -335,7 +366,7 @@ func (d *Definitions) Validate() error {
 	if len(errs) == 0 {
 		return nil
 	}
-	return ValidationErrors{errors: errs}
+	return NewValidationErrors(errs...)
 }
 
 func validateEmbedders(list []EmbedderConfig) (map[string]*EmbedderConfig, []error) {
@@ -511,9 +542,10 @@ func validateKnowledgeBaseChunking(kb *BaseConfig) []error {
 			MaxChunkSize,
 		))
 	}
-	if kb.Chunking.Overlap < 0 {
+	overlap := kb.Chunking.OverlapValue()
+	if overlap < 0 {
 		errs = append(errs, fmt.Errorf("knowledge: knowledge_base %q chunking.overlap must be >= 0", kb.ID))
-	} else if kb.Chunking.Overlap >= kb.Chunking.Size {
+	} else if overlap >= kb.Chunking.Size {
 		errs = append(errs, fmt.Errorf("knowledge: knowledge_base %q chunking.overlap must be < chunking.size", kb.ID))
 	}
 	return errs
@@ -528,7 +560,8 @@ func validateKnowledgeBaseRetrieval(kb *BaseConfig) []error {
 			maxRetrievalTopK,
 		))
 	}
-	if kb.Retrieval.MinScore < MinScoreFloor || kb.Retrieval.MinScore > MaxScoreCeiling {
+	minScore := kb.Retrieval.MinScoreValue()
+	if minScore < MinScoreFloor || minScore > MaxScoreCeiling {
 		errs = append(errs, fmt.Errorf(
 			"knowledge: knowledge_base %q retrieval.min_score must be within [%.2f, %.2f]",
 			kb.ID,

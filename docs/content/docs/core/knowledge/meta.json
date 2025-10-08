@@ -1,0 +1,12 @@
+{
+  "title": "Knowledge",
+  "description": "Knowledge bases, embedders, vector databases, and retrieval flows",
+  "icon": "BookOpenCheck",
+  "pages": [
+    "overview",
+    "configuration",
+    "ingestion",
+    "retrieval-injection",
+    "observability"
+  ]
+}

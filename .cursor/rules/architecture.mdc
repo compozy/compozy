@@ -4,125 +4,183 @@ alwaysApply: true
 
 # Architecture & Design Principles
 
-<goal>
+## Overview
+
 Establish comprehensive architectural standards and design principles for building maintainable, scalable, and robust software following industry best practices adapted to the project's domain-driven structure.
-</goal>
 
 ## Core Architectural Principles
 
 ### SOLID Principles
 
-<principle type="solid_srp">
-**Single Responsibility Principle (SRP):**
+#### Single Responsibility Principle (SRP)
+
 - Each module, class, or function should have only one reason to change
 - Separate business logic, data access, and presentation concerns
-- Use domain-specific packages: `engine/{agent,task,tool,workflow,runtime,infra}/`
-- *Implementation examples: see @.cursor/rules/go-patterns.mdc*
-</principle>
+- Use domain-specific packages in `engine/` for business domains
+- *Implementation patterns: see @.cursor/rules/go-coding-standards.mdc#constructors--responsibilities-srp*
 
-<principle type="solid_ocp">
-**Open/Closed Principle (OCP):**
+#### Open/Closed Principle (OCP)
+
 - Open for extension, closed for modification
 - Use interfaces and composition over inheritance
 - Leverage factory patterns for extensible behavior
-- *Factory pattern implementation: see @.cursor/rules/go-patterns.mdc*
-</principle>
+- *Factory implementation: see @.cursor/rules/go-coding-standards.mdc#factories--defaults-ocp*
 
-<principle type="solid_lsp">
-**Liskov Substitution Principle (LSP):**
+#### Liskov Substitution Principle (LSP)
+
 - Subtypes must be substitutable for their base types
 - Interface implementations must honor contracts
 - Ensure interface methods behave consistently
-- *Interface design patterns: see @.cursor/rules/go-patterns.mdc*
-</principle>
+- *See @.cursor/rules/go-coding-standards.mdc#dependencies-and-interfaces-isp*
 
-<principle type="solid_isp">
-**Interface Segregation Principle (ISP):**
+#### Interface Segregation Principle (ISP)
+
 - Clients should not depend on interfaces they don't use
 - Create small, focused interfaces
 - Use interface composition for complex behavior
-- *Interface composition examples: see @.cursor/rules/go-patterns.mdc*
-</principle>
+- *Implementation: see @.cursor/rules/go-coding-standards.mdc#interface-segregation-principle*
 
-<principle type="solid_dip">
-**Dependency Inversion Principle (DIP):**
+#### Dependency Inversion Principle (DIP)
+
 - Depend on abstractions, not concretions
 - Use dependency injection through constructors
 - High-level modules should not depend on low-level modules
-- *Constructor patterns: see @.cursor/rules/go-patterns.mdc*
-</principle>
+- *Constructor patterns: see @.cursor/rules/go-coding-standards.mdc#dependency-injection-pattern*
 
 ### DRY Principle (Don't Repeat Yourself)
 
-<dry_strategies type="code_reuse">
-**Code Reuse Strategies:**
+#### Code Reuse Strategies
 
 - Extract common functionality into shared packages
 - Use generic functions for similar operations
 - Create utility packages for cross-cutting concerns
-
-```go
-// ✅ Good: Reusable validation utility
-func ValidateRequired(value string, fieldName string) error {
-    if strings.TrimSpace(value) == "" {
-        return fmt.Errorf("%s is required", fieldName)
-    }
-    return nil
-}
-
-// Usage across multiple validators
-func (v *UserValidator) ValidateName(name string) error {
-    return ValidateRequired(name, "name")
-}
-
-func (v *TaskValidator) ValidateTitle(title string) error {
-    return ValidateRequired(title, "title")
-}
-```
-</dry_strategies>
-
-<dry_strategies type="configuration_patterns">
-**Configuration Patterns:**
-
 - Centralize configuration with defaults
 - Use template engine for dynamic configurations
 - Avoid duplicating configuration logic
-- _Configuration implementation: see @.cursor/rules/go-patterns.mdc_
-</dry_strategies>
+- *See @.cursor/rules/go-coding-standards.mdc for implementation patterns*
 
 ### Clean Architecture
 
-<architecture_structure type="domain_driven">
-**Domain-Driven Design Structure:**
+#### Project Structure
 
 ```
-engine/
-├── agent/     # Agent domain logic
-├── task/      # Task execution domain
-├── tool/      # Tool management domain
-├── workflow/  # Workflow orchestration domain
-├── runtime/   # Runtime execution environment
-├── infra/     # Infrastructure concerns
-└── core/      # Shared domain primitives
+compozy/
+├── engine/                 # Business Logic Layer
+│   ├── Core Domains:
+│   │   ├── agent/         # AI agent orchestration
+│   │   ├── task/          # Task execution (legacy)
+│   │   ├── task2/         # Task execution (current)
+│   │   ├── tool/          # Tool management and execution
+│   │   ├── workflow/      # Workflow orchestration
+│   │   └── runtime/       # Runtime execution environment
+│   │
+│   ├── AI & Intelligence:
+│   │   ├── llm/           # LLM provider orchestration
+│   │   ├── memory/        # Memory management and persistence
+│   │   ├── memoryconfig/  # Memory configuration
+│   │   ├── knowledge/     # Knowledge bases and RAG
+│   │   └── model/         # AI model definitions
+│   │
+│   ├── Infrastructure:
+│   │   ├── infra/         # Infrastructure adapters
+│   │   │   ├── cache/     # Caching layer (Redis/Memory)
+│   │   │   ├── postgres/  # PostgreSQL database
+│   │   │   ├── redis/     # Redis client
+│   │   │   ├── server/    # HTTP server and routing
+│   │   │   ├── store/     # Storage abstractions
+│   │   │   ├── repo/      # Repository implementations
+│   │   │   └── monitoring/# Observability (metrics, traces)
+│   │   └── core/          # Shared domain primitives
+│   │
+│   ├── Integration & Communication:
+│   │   ├── mcp/           # Model Context Protocol
+│   │   ├── webhook/       # Webhook handling
+│   │   ├── attachment/    # File and media processing
+│   │   └── resources/     # Resource management
+│   │
+│   ├── Cross-Cutting:
+│   │   ├── auth/          # Authentication and authorization
+│   │   ├── autoload/      # Auto-discovery and loading
+│   │   ├── project/       # Project management
+│   │   ├── schema/        # Schema definitions and validation
+│   │   ├── resourceutil/  # Resource utilities
+│   │   └── worker/        # Background worker processes
+│   │
+├── pkg/                    # Shared Packages Layer
+│   ├── config/            # Configuration management
+│   ├── logger/            # Structured logging
+│   ├── mcp-proxy/         # MCP proxy server
+│   ├── template/          # Template engine
+│   ├── tplengine/         # Template processing
+│   ├── schemagen/         # Schema generation
+│   ├── swagger/           # API documentation generation
+│   ├── release/           # Release management
+│   └── version/           # Version information
+│
+├── cli/                    # CLI Layer
+│   ├── cmd/               # Command implementations
+│   ├── api/               # API client
+│   ├── helpers/           # CLI utilities
+│   └── tui/               # Terminal UI components
+│
+├── test/                   # Testing Infrastructure
+│   ├── helpers/           # Test utilities
+│   └── integration/       # Integration tests
+│
+├── docs/                   # Documentation Site (Next.js)
+├── schemas/               # JSON Schema definitions
+└── examples/              # Example projects and workflows
 ```
-</architecture_structure>
 
-<layer_separation>
-**Layer Separation:**
+#### Layer Separation
 
-- **Domain Layer** (`engine/core/`): Shared business entities, value objects, and cross-domain primitives
-- **Application Layer** (`engine/{agent,task,tool,workflow}/`): Domain-specific business logic, use cases, and port interfaces (repositories, external services)
-- **Infrastructure Layer** (`engine/infra/`): External concerns (DB, HTTP, etc.) and adapter implementations
-- **Runtime Layer** (`engine/runtime/`): Execution environment and system orchestration
+**Domain Layer** (`engine/core/`):
+- Shared business entities, value objects, and cross-domain primitives
+- Core types used across multiple domains
+- No external dependencies
 
-**Interface Ownership Clarification:**
+**Application Layer** (Domain packages in `engine/`):
+- Domain-specific business logic and use cases
+- Port interfaces (repositories, external services)
+- Organized by feature/domain (agent, task, tool, workflow, etc.)
+- Each domain has:
+  - `uc/` - Use cases (application logic)
+  - `router/` - HTTP route handlers (when exposed via API)
+  - Domain-specific types and validators
+
+**Infrastructure Layer** (`engine/infra/`):
+- Adapter implementations for external systems
+- Database access (PostgreSQL, Redis)
+- HTTP server and routing
+- Caching implementations
+- Monitoring and observability
+- Storage abstractions
+
+**Shared Packages** (`pkg/`):
+- Framework-level utilities
+- Configuration management
+- Logging infrastructure
+- Template processing
+- Schema generation
+- No business logic
+
+**Presentation Layer** (`cli/`):
+- Command-line interface
+- User interaction and formatting
+- API client for server communication
+
+#### Interface Ownership
 
 - **Port Interfaces** (e.g., Repository, ExternalService): Defined in Application Layer packages where they're used
 - **Domain Entities**: Defined in Domain Layer (`engine/core/`) for cross-domain sharing
 - **Adapter Implementations**: Defined in Infrastructure Layer, implementing Application Layer interfaces
-</layer_separation>
 
-<dependency_flow>
+#### Dependency Flow Pattern
+
+Dependencies must always flow inward toward the domain layer:
+- Infrastructure → Application → Domain
+- CLI → Application → Domain
+- Shared packages can be used by any layer (no business logic)
 
 ```go
 // ✅ Good: Dependencies flow inward
@@ -130,14 +188,14 @@ package task
 
 import (
     "context"
-    "github.com/project/engine/core" // Domain entities
+    "github.com/compozy/engine/core" // Domain entities
 )
 
 type Service struct {
-    repo Repository // Interface defined in domain
+    repo Repository // Interface defined in application layer
 }
 
-type Repository interface { // Domain-defined interface
+type Repository interface { // Application layer interface
     Save(ctx context.Context, task *core.Task) error
     Find(ctx context.Context, id core.ID) (*core.Task, error)
 }
@@ -146,7 +204,7 @@ type Repository interface { // Domain-defined interface
 package infra
 
 import (
-    "github.com/project/engine/task" // Application layer
+    "github.com/compozy/engine/task" // Application layer
 )
 
 type PostgreSQLTaskRepository struct {
@@ -154,162 +212,121 @@ type PostgreSQLTaskRepository struct {
 }
 
 func (r *PostgreSQLTaskRepository) Save(ctx context.Context, task *core.Task) error {
-    // Implementation details
+    // Implementation
 }
 ```
 
-</dependency_flow>
-
 ### Clean Code Practices
 
-**Naming Conventions:**
+#### Naming Conventions
 
 - Use intention-revealing names
 - Avoid mental mapping and abbreviations
 - Use searchable names for important concepts
+- Function/method names should clearly indicate their purpose
+- Type names should be descriptive of what they represent
 
-<example type="naming_conventions">
+#### Function Design
 
-```go
-// ✅ Good: Clear, intention-revealing names
-type WorkflowExecutionResult struct {
-    TaskResults    []TaskResult  `json:"task_results"`
-    ExecutionTime  time.Duration `json:"execution_time"`
-    Status         ExecutionStatus `json:"status"`
-}
-
-func (w *WorkflowService) ExecuteWorkflowWithRetry(
-ctx context.Context,
-workflowID core.ID,
-maxRetries int,
-) (*WorkflowExecutionResult, error) {
-// Implementation
-}
-
-// ❌ Bad: Unclear, abbreviated names
-type WfExecRes struct {
-TskRes []TskRes `json:"tr"`
-ExecT int64 `json:"et"`
-Stat int `json:"s"`
-}
-
-func (w *WfSvc) ExecWf(ctx context.Context, id string, mr int) (*WfExecRes, error) {
-// Implementation
-}
-
-```
-</example>
-
-<function_design>
-**Function Design:**
-- Follow function length limits defined in go-coding-standards.mdc
+- Follow function length limits defined in @.cursor/rules/go-coding-standards.mdc
 - Single level of abstraction per function
 - Minimize function parameters (max 3-4)
-</function_design>
+- Return early on errors to avoid deep nesting
 
-<example type="function_design">
+#### Implementation Standards
 
-```go
-// ✅ Good: Small, focused function
-func (s *TaskService) ValidateTaskInput(task *core.Task) error {
-    if err := s.validateRequiredFields(task); err != nil {
-        return fmt.Errorf("validation failed: %w", err)
-    }
-    if err := s.validateBusinessRules(task); err != nil {
-        return fmt.Errorf("business rule validation failed: %w", err)
-    }
-    return nil
-}
-
-func (s *TaskService) validateRequiredFields(task *core.Task) error {
-    if task.Title == "" {
-        return errors.New("title is required")
-    }
-    if task.Type == "" {
-        return errors.New("type is required")
-    }
-    return nil
-}
-```
-
-</example>
-
-<error_handling_architecture>
-**Error Handling Architecture:**
-Follow unified error handling strategy from @.cursor/rules/go-coding-standards.mdc
-</error_handling_architecture>
-
-<example type="error_handling">
-
-```go
-// ✅ Good: Structured error handling
-func (s *WorkflowService) ExecuteWorkflow(ctx context.Context, id core.ID) error {
-    workflow, err := s.repo.FindWorkflow(ctx, id)
-    if err != nil {
-        return fmt.Errorf("failed to load workflow %s: %w", id, err)
-    }
-
-    if err := s.validateWorkflow(workflow); err != nil {
-        return core.NewError(err, "WORKFLOW_VALIDATION_FAILED", map[string]any{
-            "workflow_id": id,
-            "workflow_type": workflow.Type,
-        })
-    }
-
-    return s.executeWorkflowTasks(ctx, workflow)
-
-}
-```
-</example>
+- **Error Handling:** See @.cursor/rules/go-coding-standards.mdc#unified-error-handling-strategy
+- **Context Propagation:** See @.cursor/rules/go-coding-standards.mdc#context--resource-lifecycle
+- **Resource Management:** See @.cursor/rules/go-coding-standards.mdc#resource-cleanup-patterns
+- **Concurrency:** See @.cursor/rules/go-coding-standards.mdc#concurrency--shutdown
 
 ## Project-Specific Patterns
 
 ### Domain Organization
 
-<package_structure>
-**Package Structure:**
-- Each domain in `engine/` has clear boundaries
+Each domain in `engine/` follows a consistent structure:
+
+```
+domain/
+├── config.go              # Domain configuration
+├── service.go             # Domain service
+├── types.go               # Domain-specific types
+├── validators.go          # Input validation
+├── uc/                    # Use cases (application logic)
+│   ├── create.go
+│   ├── update.go
+│   ├── delete.go
+│   └── query.go
+└── router/                # HTTP handlers (if exposed)
+    ├── handlers.go
+    ├── dto.go
+    └── router.go
+```
+
+**Key Principles:**
+- Each domain has clear boundaries
 - Shared types in `engine/core/`
 - Infrastructure concerns in `engine/infra/`
-</package_structure>
+- Use cases (`uc/`) contain business logic
+- Routers contain HTTP handling only
 
-### Service Construction
+### Service Construction Requirements (MANDATORY)
 
-<constructor_pattern type="mandatory">
-**MANDATORY constructor pattern for all services**
 - Use dependency injection through constructors
 - Always provide nil-safe configuration handling
-- *Implementation examples: see @.cursor/rules/go-patterns.mdc*
-</constructor_pattern>
+- Follow factory patterns for complex service creation
+- *See @.cursor/rules/go-coding-standards.mdc#factories--defaults-ocp*
 
-### Context Propagation
+### Context Propagation Requirements (MANDATORY)
 
-<context_requirements type="mandatory">
-**Context as first parameter in all functions**
+- Context as first parameter in all functions that perform I/O or long-running operations
 - Always handle context cancellation
 - Propagate context through call chains
-- *Context handling patterns: see @.cursor/rules/go-patterns.mdc*
-</context_requirements>
+- *See @.cursor/rules/go-coding-standards.mdc#context--resource-lifecycle*
 
-### Resource Management
+### Configuration Management
 
-<cleanup_patterns>
-**Resource cleanup requirements:**
-- Use defer for cleanup operations
-- Handle cleanup errors appropriately
-- Implement timeout handling for long-running operations
-- *Resource management patterns: see @.cursor/rules/go-patterns.mdc*
-</cleanup_patterns>
+- Global configuration in `pkg/config/`
+- Domain-specific configuration in each domain
+- Use context to pass configuration: `config.FromContext(ctx)`
+- Never use global configuration singletons
+- Always provide defaults for optional configuration
+
+### Use Case Pattern
+
+Use cases (`uc/` directories) implement application logic:
+
+```go
+// Use case structure
+type CreateTask struct {
+    taskRepo task.Repository
+    validator task.Validator
+}
+
+func NewCreateTask(taskRepo task.Repository, validator task.Validator) *CreateTask {
+    return &CreateTask{
+        taskRepo: taskRepo,
+        validator: validator,
+    }
+}
+
+func (uc *CreateTask) Execute(ctx context.Context, req CreateTaskRequest) (*core.Task, error) {
+    // Validation
+    // Business logic
+    // Persistence
+}
+```
 
 ## Anti-Patterns to Avoid
 
 ### God Objects
+
 ```go
 // ❌ Avoid: Too many responsibilities
 type MegaService struct {
     // Too many dependencies and responsibilities
 }
-````
+```
 
 ### Tight Coupling
 
@@ -318,47 +335,46 @@ type MegaService struct {
 type Service struct {
     db *sql.DB // Should be an interface
 }
+
+// ✅ Good: Depend on abstractions
+type Service struct {
+    db Database // Interface
+}
 ```
 
 ### Circular Dependencies
 
 ```go
 // ❌ Avoid: Package A imports B, B imports A
-```
-
-### Magic Numbers/Strings
-
-```go
-// ❌ Avoid: Magic values
-if status == 1 { /* what does 1 mean? */ }
-
-// ✅ Use: Named constants
-const StatusActive = 1
-if status == StatusActive { /* clear meaning */ }
+// This indicates poor package organization
 ```
 
 ## Quality Metrics
 
 ### Code Quality Indicators
 
-- **Function complexity and length:** Follow limits defined in go-coding-standards.mdc
+- **Function complexity and length:** Follow limits in @.cursor/rules/go-coding-standards.mdc
 - **Package Coupling:** Minimize cross-package dependencies
 - **Test Coverage:** Aim for 80%+ on business logic
+- **Cyclomatic Complexity:** Keep below 10 per function
 
 ### Architecture Health
 
 - **Dependency Direction:** Always inward toward domain
-- **Interface Usage:** High ratio of interfaces to concrete types
+- **Interface Usage:** High ratio of interfaces to concrete types in domain boundaries
 - **Package Cohesion:** Related functionality grouped together
 - **Separation of Concerns:** Clear boundaries between layers
+- **Domain Isolation:** Each domain in `engine/` is independently testable
 
-## Final Guidelines
+## Guidelines
 
 1. **Design for Change:** Assume requirements will evolve
 2. **Favor Composition:** Over inheritance and complex hierarchies
-3. **Explicit Dependencies:** Make all dependencies visible
+3. **Explicit Dependencies:** Make all dependencies visible through constructors
 4. **Fail Fast:** Validate inputs early and fail explicitly
 5. **Document Decisions:** Capture architectural decisions and trade-offs
-6. **Measure and Monitor:** Track architecture health metrics
-7. **Refactor Continuously:** Improve design as understanding grows
-8. **Test Architecture:** Verify architectural constraints in tests
+6. **Refactor Continuously:** Improve design as understanding grows
+7. **Test Architecture:** Verify architectural constraints in tests
+8. **Follow Standards:** All implementation patterns in @.cursor/rules/go-coding-standards.mdc
+9. **Domain Boundaries:** Respect domain boundaries and avoid cross-domain dependencies
+10. **Infrastructure Isolation:** Keep infrastructure concerns in `engine/infra/` only

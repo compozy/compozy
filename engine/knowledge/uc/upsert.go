@@ -69,7 +69,7 @@ func (uc *Upsert) normalizeConfig(
 	embVal, _, err := uc.store.Get(ctx, embKey)
 	if err != nil {
 		if errors.Is(err, resources.ErrNotFound) {
-			return nil, fmt.Errorf("unknown embedder %q", cfg.Embedder)
+			return nil, fmt.Errorf("%w: unknown embedder %q", ErrValidationFail, cfg.Embedder)
 		}
 		return nil, fmt.Errorf("load embedder %q: %w", cfg.Embedder, err)
 	}
@@ -85,7 +85,7 @@ func (uc *Upsert) normalizeConfig(
 	vecVal, _, err := uc.store.Get(ctx, vecKey)
 	if err != nil {
 		if errors.Is(err, resources.ErrNotFound) {
-			return nil, fmt.Errorf("unknown vector_db %q", cfg.VectorDB)
+			return nil, fmt.Errorf("%w: unknown vector_db %q", ErrValidationFail, cfg.VectorDB)
 		}
 		return nil, fmt.Errorf("load vector_db %q: %w", cfg.VectorDB, err)
 	}
@@ -171,7 +171,11 @@ func (uc *Upsert) storeKnowledgeBase(
 		case errors.Is(putErr, resources.ErrETagMismatch):
 			return "", false, ErrAlreadyExists
 		case errors.Is(putErr, resources.ErrNotFound):
-			return "", false, fmt.Errorf("create knowledge base: %w", putErr)
+			fallbackETag, fallbackErr := uc.store.Put(ctx, key, cfg)
+			if fallbackErr != nil {
+				return "", false, fmt.Errorf("create knowledge base: %w", fallbackErr)
+			}
+			return fallbackETag, true, nil
 		default:
 			return "", false, fmt.Errorf("create knowledge base: %w", putErr)
 		}

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/tmc/langchaingo/textsplitter"
 )
 
@@ -76,10 +77,7 @@ func (p *Processor) Process(kbID string, docs []Document) ([]Chunk, error) {
 				seen[hash] = struct{}{}
 			}
 			chunkID := hashText(kbID + "::" + doc.ID + "::" + fmt.Sprint(idx) + "::" + hash)
-			metadata := cloneMetadata(doc.Metadata)
-			if metadata == nil {
-				metadata = make(map[string]any)
-			}
+			metadata := core.CloneMap(doc.Metadata)
 			metadata["chunk_index"] = idx
 			metadata["source_id"] = doc.ID
 			chunks = append(chunks, Chunk{
@@ -107,15 +105,4 @@ func (p *Processor) preprocess(text string) string {
 func hashText(input string) string {
 	sum := sha256.Sum256([]byte(input))
 	return hex.EncodeToString(sum[:16])
-}
-
-func cloneMetadata(src map[string]any) map[string]any {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make(map[string]any, len(src))
-	for k, v := range src {
-		dst[k] = v
-	}
-	return dst
 }

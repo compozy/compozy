@@ -1,0 +1,136 @@
+---
+title: Knowledge Commands
+description: Manage knowledge bases, trigger ingestion, and run ad-hoc queries directly from the CLI.
+icon: BookOpenCheck
+---
+
+## Overview
+
+```bash
+compozy knowledge [command]
+```
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Apply Resources"
+    description="Create or update knowledge bases, embedders, and vector databases from YAML."
+    icon="FolderCog2"
+  />
+  <FeatureCard
+    title="Ingest Documents"
+    description="Run ingestion jobs with progress logging and idempotent hashing."
+    icon="Rocket"
+  />
+  <FeatureCard
+    title="Query Context"
+    description="Test retrieval parameters before binding knowledge to workflows."
+    icon="Search"
+  />
+</FeatureCardList>
+
+## Subcommands
+
+- `list` – List knowledge bases with pagination.
+- `get` – Fetch a single knowledge base in YAML or JSON format.
+- `apply` – Create or update knowledge resources; respects ETag concurrency.
+- `delete` – Remove a knowledge base and associated vectors.
+- `ingest` – Trigger ingestion for the specified knowledge base.
+- `query` – Execute dense retrieval against a knowledge base.
+
+### compozy knowledge list
+
+```bash
+compozy knowledge list --project ./examples/knowledge/quickstart-markdown-glob
+```
+
+| Flag | Description | Default |
+| ---- | ----------- | ------- |
+| `--project` | Path to a project directory. | Current directory |
+| `--page-size` | Number of results per page. | 20 |
+| `--format` | Output format (`table`, `json`). | `table` |
+
+### compozy knowledge get
+
+```bash
+compozy knowledge get quickstart_docs --format yaml
+```
+
+- Supports strong ETag concurrency using the `etag` field in responses.
+- Combine with `--output` to write definitions to disk.
+
+### compozy knowledge apply
+
+```bash
+compozy knowledge apply --file compozy.yaml
+```
+
+- Applies embedders, vector DBs, and knowledge bases in a single pass.
+- Use `--dry-run` to preview changes without persisting them.
+- Matches the API semantics of `PUT /knowledge-bases/{kb_id}`.
+
+### compozy knowledge delete
+
+```bash
+compozy knowledge delete quickstart_docs --force
+```
+
+- Removal cascades to vector rows only; external blob stores remain untouched.
+- Requires confirmation unless `--force` is provided.
+
+### compozy knowledge ingest
+
+```bash
+compozy knowledge ingest --id quickstart_docs --project examples/knowledge/quickstart-markdown-glob
+```
+
+- Idempotent: unchanged chunks are skipped automatically.
+- Use `--batch-size` to override `config.knowledge.embedder_batch_size` for a single run.
+- With `--verbose`, structured logs show chunk counts and failures sourced from `logger.FromContext(ctx)`.
+
+### compozy knowledge query
+
+```bash
+compozy knowledge query --id quickstart_docs \
+  --text "What is the support SLA?" \
+  --top_k 3 \
+  --min_score 0.25 \
+  --output json
+```
+
+- Returns scored matches, metadata, and ETags for auditing.
+- Combine with `jq` to inspect chunk IDs and source paths.
+
+## End-to-End Walkthroughs
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Quickstart Markdown Glob"
+    description="Zero-dependency walkthrough using in-memory vector store."
+    href="https://github.com/compozy/compozy/tree/main/examples/knowledge/quickstart-markdown-glob"
+    icon="FileText"
+  />
+  <ReferenceCard
+    title="pgvector Basic"
+    description="Run ingestion and queries backed by the pgvector adapter."
+    href="https://github.com/compozy/compozy/tree/main/examples/knowledge/pgvector-basic"
+    icon="Server"
+  />
+  <ReferenceCard
+    title="CLI Query Debugging"
+    description="Use the query command to validate retrieval parameters."
+    href="https://github.com/compozy/compozy/tree/main/examples/knowledge/query-cli"
+    icon="Terminal"
+  />
+</ReferenceCardList>
+
+## Best Practices
+
+<Callout type="info">
+Always load environment variables (e.g., `OPENAI_API_KEY`, `PGVECTOR_DSN`) before running CLI commands. Secrets should never be committed to the repository.
+</Callout>
+
+<Callout type="warning">
+The CLI enforces concurrency using ETags. Capture the `etag` value from `compozy knowledge get` before calling `apply` or `delete` in automation scripts.
+</Callout>
+
+For additional automation patterns, see the [Knowledge Ingestion guide](/docs/core/knowledge/ingestion).
