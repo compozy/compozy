@@ -119,6 +119,7 @@ func (l *conversationLoop) OnEnterProcessTools(ctx context.Context, loopCtx *Loo
 		"tool_calls_count",
 		len(toolCalls),
 	)
+	ctx = llmadapter.ContextWithClient(ctx, loopCtx.LLMClient)
 	results, err := l.tools.Execute(ctx, toolCalls)
 	if err != nil {
 		logger.FromContext(ctx).Error(

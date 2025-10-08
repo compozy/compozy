@@ -75,6 +75,7 @@ func NewEngine(runner Runner, limits Limits) *Engine {
 	return engine
 }
 
+//nolint:gocyclo // FSM transition handling requires explicit branching for clarity
 func (e *Engine) Run(ctx context.Context, plan *Plan) ([]StepResult, error) {
 	if e == nil || e.runner == nil {
 		return nil, errRunnerRequired
@@ -96,6 +97,11 @@ func (e *Engine) Run(ctx context.Context, plan *Plan) ([]StepResult, error) {
 		Bindings: cloneBindings(plan.Bindings),
 		Results:  make([]StepResult, 0, len(plan.Steps)),
 	}
+	defer func() {
+		if execCtx != nil && execCtx.Plan != nil {
+			execCtx.Plan.Bindings = cloneBindings(execCtx.Bindings)
+		}
+	}()
 	baseCtx := toolcontext.IncrementAgentOrchestratorDepth(ctx)
 	fsm := newExecutorFSM(baseCtx, e, execCtx)
 	if err := fsm.Event(baseCtx, EventStartPlan, execCtx); err != nil {

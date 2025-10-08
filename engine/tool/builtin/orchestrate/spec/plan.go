@@ -1,4 +1,4 @@
-package orchestrate
+package spec
 
 import (
 	"errors"

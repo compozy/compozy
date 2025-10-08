@@ -11,6 +11,8 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
+	"github.com/compozy/compozy/engine/runtime/toolenvstate"
 	"github.com/compozy/compozy/engine/task"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
 )
@@ -68,11 +70,39 @@ type PreparedExecution struct {
 
 // NewRunner constructs a Runner using the provided application state, task repository, and resource store.
 func NewRunner(state *appstate.State, repo task.Repository, store resources.ResourceStore) *Runner {
-	return &Runner{
+	runner := &Runner{
 		state: state,
 		repo:  repo,
 		store: store,
 	}
+	if state != nil && repo != nil && store != nil {
+		env := toolenv.New(runner, repo, store)
+		toolenvstate.Store(state, env)
+	}
+	return runner
+}
+
+// ExecuteAgent satisfies toolenv.AgentExecutor by adapting AgentRequest into the
+// runner's native ExecuteRequest.
+func (r *Runner) ExecuteAgent(ctx context.Context, req toolenv.AgentRequest) (*toolenv.AgentResult, error) {
+	execReq := ExecuteRequest{
+		AgentID: req.AgentID,
+		Action:  req.Action,
+		Prompt:  req.Prompt,
+		With:    req.With,
+		Timeout: req.Timeout,
+	}
+	result, err := r.Execute(ctx, execReq)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, nil
+	}
+	return &toolenv.AgentResult{
+		ExecID: result.ExecID,
+		Output: result.Output,
+	}, nil
 }
 
 // Execute runs an agent synchronously using DirectExecutor semantics.
@@ -157,6 +187,12 @@ func (r *Runner) Prepare(ctx context.Context, req ExecuteRequest) (*PreparedExec
 		Executor: executor,
 		Timeout:  timeout,
 	}, nil
+}
+
+// NewEnvironment constructs a tool execution environment backed by the runner.
+func NewEnvironment(state *appstate.State, repo task.Repository, store resources.ResourceStore) toolenv.Environment {
+	runner := NewRunner(state, repo, store)
+	return toolenv.New(runner, repo, store)
 }
 
 func (r *Runner) loadAgentConfig(ctx context.Context, projectName, agentID string) (*agent.Config, error) {

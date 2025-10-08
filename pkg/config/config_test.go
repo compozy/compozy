@@ -73,6 +73,13 @@ func TestConfig_Default(t *testing.T) {
 			[]string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
 			cfg.Runtime.NativeTools.Fetch.AllowedMethods,
 		)
+		assert.True(t, cfg.Runtime.NativeTools.AgentOrchestrator.Enabled)
+		assert.Equal(t, 3, cfg.Runtime.NativeTools.AgentOrchestrator.MaxDepth)
+		assert.Equal(t, 12, cfg.Runtime.NativeTools.AgentOrchestrator.MaxSteps)
+		assert.Equal(t, 4, cfg.Runtime.NativeTools.AgentOrchestrator.MaxParallel)
+		assert.Equal(t, 60*time.Second, cfg.Runtime.NativeTools.AgentOrchestrator.DefaultTimeout)
+		assert.False(t, cfg.Runtime.NativeTools.AgentOrchestrator.Planner.Disabled)
+		assert.Equal(t, 12, cfg.Runtime.NativeTools.AgentOrchestrator.Planner.MaxSteps)
 
 		// Limits defaults
 		assert.Equal(t, 20, cfg.Limits.MaxNestingDepth)
@@ -113,6 +120,13 @@ func TestDefaultNativeToolsConfig(t *testing.T) {
 		assert.Equal(t, int64(2<<20), config.Fetch.MaxBodyBytes)
 		assert.Equal(t, 5, config.Fetch.MaxRedirects)
 		assert.Equal(t, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}, config.Fetch.AllowedMethods)
+		assert.True(t, config.AgentOrchestrator.Enabled)
+		assert.Equal(t, 3, config.AgentOrchestrator.MaxDepth)
+		assert.Equal(t, 12, config.AgentOrchestrator.MaxSteps)
+		assert.Equal(t, 4, config.AgentOrchestrator.MaxParallel)
+		assert.Equal(t, 60*time.Second, config.AgentOrchestrator.DefaultTimeout)
+		assert.False(t, config.AgentOrchestrator.Planner.Disabled)
+		assert.Equal(t, 12, config.AgentOrchestrator.Planner.MaxSteps)
 	})
 }
 

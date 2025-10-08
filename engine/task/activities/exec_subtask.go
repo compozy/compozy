@@ -66,6 +66,7 @@ func NewExecuteSubtask(
 			nil,            // Subtasks don't need memory manager
 			templateEngine, // Ensure templating is available to subtasks
 			nil,
+			nil,
 		),
 		task2Factory:   task2Factory,
 		templateEngine: templateEngine,

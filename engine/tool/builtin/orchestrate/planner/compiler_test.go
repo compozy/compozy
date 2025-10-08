@@ -189,3 +189,26 @@ func TestCompilerCompile_ShouldHandleInvalidPlannerResponse(t *testing.T) {
 		assert.True(t, errors.Is(err, planner.ErrInvalidPlan))
 	})
 }
+
+func TestCompiler_NewCompiler_AllowsDisabledWithoutClient(t *testing.T) {
+	t.Run("Should compile structured plan when planner disabled", func(t *testing.T) {
+		compiler, err := planner.NewCompiler(planner.Options{Disabled: true})
+		require.NoError(t, err)
+		result, err := compiler.Compile(context.Background(), planner.CompileInput{
+			Plan: map[string]any{
+				"steps": []any{
+					map[string]any{
+						"id":     "step_1",
+						"type":   "agent",
+						"status": "pending",
+						"agent": map[string]any{
+							"agent_id": "agent.disabled",
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "agent_orchestrate_plan", result.ID)
+	})
+}

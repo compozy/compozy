@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 parallelizable: true
 blocked_by: ["6.0"]
 ---
@@ -28,8 +28,8 @@ Expose the new builtin through `engine/tool/native/catalog.go` and ensure `llm/s
 
 ## Subtasks
 
-- [ ] 7.1 Catalog registration
-- [ ] 7.2 Service wiring verification
+- [x] 7.1 Catalog registration
+- [x] 7.2 Service wiring verification
 
 ## Sequencing
 
@@ -40,3 +40,4 @@ Expose the new builtin through `engine/tool/native/catalog.go` and ensure `llm/s
 ## Success Criteria
 
 - Tool present in registry list; basic call passes
+- Verified `cp__agent_orchestrate` via `native.Definitions(env)` in handler tests and ensured `llm.Service` registers the builtin using the injected tool environment.

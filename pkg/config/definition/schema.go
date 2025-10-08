@@ -552,6 +552,7 @@ func registerRuntimeNativeToolsFields(registry *Registry) {
 	registerRuntimeNativeToolsCoreFields(registry)
 	registerRuntimeNativeToolsExecFields(registry)
 	registerRuntimeNativeToolsFetchFields(registry)
+	registerRuntimeNativeToolsAgentOrchestratorFields(registry)
 }
 
 func registerRuntimeNativeToolsCoreFields(registry *Registry) {
@@ -641,6 +642,58 @@ func registerRuntimeNativeToolsFetchFields(registry *Registry) {
 		EnvVar:  "RUNTIME_NATIVE_TOOLS_FETCH_ALLOWED_METHODS",
 		Type:    reflect.TypeOf([]string{}),
 		Help:    "HTTP methods permitted for cp__fetch",
+	})
+}
+
+func registerRuntimeNativeToolsAgentOrchestratorFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.agent_orchestrator.enabled",
+		Default: true,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_AGENT_ORCHESTRATOR_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable cp__agent_orchestrate builtin",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.agent_orchestrator.max_depth",
+		Default: 3,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_AGENT_ORCHESTRATOR_MAX_DEPTH",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum orchestration recursion depth",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.agent_orchestrator.max_steps",
+		Default: 12,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_AGENT_ORCHESTRATOR_MAX_STEPS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum orchestration steps per invocation",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.agent_orchestrator.max_parallel",
+		Default: 4,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_AGENT_ORCHESTRATOR_MAX_PARALLEL",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum parallel fan-out per step",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.agent_orchestrator.default_timeout",
+		Default: 60 * time.Second,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_AGENT_ORCHESTRATOR_DEFAULT_TIMEOUT",
+		Type:    durationType,
+		Help:    "Default per-step timeout for orchestrated agent calls",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.agent_orchestrator.planner.disabled",
+		Default: false,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_AGENT_ORCHESTRATOR_PLANNER_DISABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Disable prompt-driven planner for cp__agent_orchestrate",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.agent_orchestrator.planner.max_steps",
+		Default: 12,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_AGENT_ORCHESTRATOR_PLANNER_MAX_STEPS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum steps permitted in planner-generated plans",
 	})
 }
 

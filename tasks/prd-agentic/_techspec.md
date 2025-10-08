@@ -32,19 +32,19 @@ Compozy workflows today require task authors to pin a single `task.Config.Agent`
 - Builtins live under `engine/tool/builtin` and register via `engine/tool/native.Definitions()` into `llm.Service` (`engine/llm/service.go`).
 - Tool handlers receive `context.Context` seeded with `logger`, `config.Manager`, request IDs, etc., but no direct accessor to `appstate.State` or repositories.
 
-### Tool execution context gaps
+### Tool execution environment gaps
 
 - Existing agent router helpers (`loadAgentConfig`, `prepareAgentExecution`, etc.) are package-local to HTTP layer.
 - No reusable service exports synchronous agent execution for internal callers.
-- Builtin handlers lack a sanctioned way to reach `resources.ResourceStore`, `task.Repository`, or `DirectExecutor`.
+- Builtin handlers lack a dependency-inverted environment that exposes `agentexec.Runner`, `task.Repository`, and `resources.ResourceStore` without introducing package cycles.
 
 ## Proposed Solution
 
 ### High-level architecture
 
 1. **Plan compilation**: Interpret the builtin input (structured JSON + optional natural language prompt) into an `AgentExecutionPlan` composed of sequential steps and parallel groups.
-2. **Execution engine**: Use a shared `agentexec.Runner` service to execute each plan node via `DirectExecutor`. Maintain execution context (variable bindings, prior outputs) across steps and combine results for parallel blocks.
-3. **Builtin handler**: Wrap the compiler + engine behind a cp\_\_ tool handler that handles telemetry, validation, safety limits, and response formatting.
+2. **Execution engine**: Use a shared `agentexec.Runner` surfaced through a neutral `toolenv.Environment` interface to execute each plan node via `DirectExecutor`. Maintain execution context (variable bindings, prior outputs) across steps and combine results for parallel blocks.
+3. **Builtin handler**: Wrap the compiler + engine behind a cp\_\_ tool handler constructed with explicit dependencies (planner, executor engine, `toolenv.Environment`) that handles telemetry, validation, safety limits, and response formatting.
 
 ### Builtin definition
 
@@ -146,12 +146,20 @@ Introduce `engine/agent/exec` package (or `engine/agent/service/runner`):
 - Expose options for timeouts, idempotency key, metadata to support reuse by HTTP layer and builtin.
 - Update router code to call the new service (ensures single orchestration path).
 
+### Tool execution environment
+
+- Add neutral package `engine/runtime/toolenv` containing:
+  - `type Environment interface { AgentExecutor() AgentExecutor; TaskRepository() task.Repository; ResourceStore() resources.ResourceStore }`
+  - `type AgentExecutor interface { Execute(context.Context, agentexec.ExecuteRequest) (*agentexec.ExecuteResult, error) }`
+- Implement `toolenv.Environment` within `agentexec` (e.g., `agentexec.NewEnvironment(state, repo, store)` returning a struct that satisfies the interface without importing `engine/tool`).
+- Expose constructor helpers so HTTP router and builtin registration can obtain the shared environment from app state/repository resolution.
+- Keep `engine/tool/context` limited to planner recursion flags (`DisablePlannerTools`, `IncrementAgentOrchestratorDepth`); remove repository/appstate storage to avoid cycles.
+
 ### Dependency plumbing for builtin
 
-- Extend `engine/task/uc/exec_task.go` to capture execution dependencies **before** calling `llmService.GenerateContent`:
-  - Retrieve `appstate.State`, `task.Repository`, `resources.ResourceStore` from `DirectExecutor` (already available via struct fields) and attach to context via a new package `engine/tool/context` using typed keys (e.g., `toolcontext.WithAppState(ctx, state)`).
-  - Ensure child goroutines inherit context with these values.
-- Builtin handler fetches dependencies via `toolcontext.From(ctx)`; if unavailable, return `builtin.Internal` error clarifying unsupported environment.
+- Modify builtin registration to accept factories that receive `toolenv.Environment` during service initialization.
+- Update `engine/tool/native/catalog.go` to append the orchestrate definition via a provider (e.g., `Register(func(env toolenv.Environment) builtin.BuiltinDefinition)`), preventing direct imports between native catalog and orchestrate packages.
+- Construct the orchestrate handler via a constructor `NewHandler(env toolenv.Environment, compiler *planner.Compiler, engine *executor.Engine)` that stores dependencies explicitly.
 
 ### Execution engine
 
@@ -199,15 +207,17 @@ Return object with:
 1. **Agent runner extraction**
    - Create `engine/agent/exec/runner.go`; migrate reusable helpers from `agent/router/exec.go`.
    - Update router to depend on new runner (ensures parity & reduces duplication).
-2. **Tool context bridge**
-   - Add `engine/tool/context/context.go` with setters/getters for app state, repos, recursion depth flags.
-   - Modify `DirectExecutor.ExecuteSync` (or higher-level call in `executeOnce`) to inject these values before invoking `ExecuteTask`.
+2. **Tool execution environment**
+   - Introduce `engine/runtime/toolenv` with the `Environment` and `AgentExecutor` interfaces described above.
+   - Implement the concrete environment in `agentexec`, exposing constructors that wrap the shared runner and repositories.
+   - Update HTTP router and other callers to construct/pass the environment instead of relying on context mutation.
+   - Remove repository/resource injection from `DirectExecutor.ExecuteSync`; retain only cancellation/depth guards via `toolcontext`.
 3. **Plan & executor packages**
    - Implement plan structs + validation under `engine/tool/builtin/orchestrate/plan.go`.
    - Implement compiler and executor subpackages as described.
 4. **Builtin handler**
    - New package `engine/tool/builtin/orchestrate/handler.go` implementing `builtin.BuiltinDefinition`.
-   - Register definition in `engine/tool/native/catalog.go` (append to definitions slice).
+   - Register definition in `engine/tool/native/catalog.go` via a provider hook that receives `toolenv.Environment`.
    - Wire telemetry + error handling consistent with other builtins.
 5. **Documentation & samples**
    - Update `AGENTS.md` and relevant configuration guides to describe builtin usage.

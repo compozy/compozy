@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/config"
 )
@@ -74,6 +75,8 @@ type Config struct {
 	// proxy for this service instance (e.g., workflow-level MCPs). These are
 	// merged with agent-declared MCPs for registration.
 	RegisterMCPs []mcp.Config
+	// ToolEnvironment provides dependency access for builtin tools.
+	ToolEnvironment toolenv.Environment
 }
 
 func DefaultConfig() *Config {
@@ -172,6 +175,13 @@ func WithStructuredOutput(enabled bool) Option {
 func WithToolCaching(enabled bool) Option {
 	return func(c *Config) {
 		c.EnableToolCaching = enabled
+	}
+}
+
+// WithToolEnvironment injects the tool environment used during builtin registration.
+func WithToolEnvironment(env toolenv.Environment) Option {
+	return func(c *Config) {
+		c.ToolEnvironment = env
 	}
 }
 

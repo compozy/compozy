@@ -149,3 +149,75 @@ func TestEngine_Run(t *testing.T) {
 		require.Len(t, results, 0)
 	})
 }
+
+func BenchmarkEngine(b *testing.B) {
+	b.Run("ParallelFanOut", func(b *testing.B) {
+		runner := &stubRunner{
+			execFunc: func(context.Context, agentexec.ExecuteRequest) (*agentexec.ExecuteResult, error) {
+				return &agentexec.ExecuteResult{
+					ExecID: core.MustNewID(),
+					Output: &core.Output{"ok": true},
+				}, nil
+			},
+		}
+		basePlan := &Plan{
+			Steps: []Step{
+				{
+					ID:     "parallel",
+					Type:   StepTypeParallel,
+					Status: StepStatusPending,
+					Parallel: &ParallelStep{
+						Steps: []AgentStep{
+							{AgentID: "agent.a"},
+							{AgentID: "agent.b"},
+							{AgentID: "agent.c"},
+							{AgentID: "agent.d"},
+						},
+					},
+				},
+			},
+		}
+		engine := NewEngine(runner, Limits{MaxParallel: 4})
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			plan := *basePlan
+			plan.Steps = append([]Step(nil), basePlan.Steps...)
+			ctx := context.Background()
+			if _, err := engine.Run(ctx, &plan); err != nil {
+				b.Fatalf("run failed: %v", err)
+			}
+		}
+	})
+	b.Run("Cancellation", func(b *testing.B) {
+		runner := &stubRunner{
+			execFunc: func(ctx context.Context, req agentexec.ExecuteRequest) (*agentexec.ExecuteResult, error) {
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				default:
+				}
+				return &agentexec.ExecuteResult{
+					ExecID: core.MustNewID(),
+					Output: &core.Output{"agent": req.AgentID},
+				}, nil
+			},
+		}
+		plan := &Plan{
+			Steps: []Step{
+				{
+					ID:     "cancel",
+					Type:   StepTypeAgent,
+					Status: StepStatusPending,
+					Agent:  &AgentStep{AgentID: "agent.cancel"},
+				},
+			},
+		}
+		engine := NewEngine(runner, Limits{})
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			_, _ = engine.Run(ctx, plan)
+		}
+	})
+}

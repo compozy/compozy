@@ -12,6 +12,7 @@ import (
 	orchestratorpkg "github.com/compozy/compozy/engine/llm/orchestrator"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/tool/builtin"
 	"github.com/compozy/compozy/engine/tool/native"
@@ -54,8 +55,12 @@ func findReservedPrefix(configs []tool.Config) (string, bool) {
 	return "", false
 }
 
-func registerNativeBuiltins(ctx context.Context, registry ToolRegistry) (*builtin.Result, error) {
-	definitions := native.Definitions()
+func registerNativeBuiltins(
+	ctx context.Context,
+	registry ToolRegistry,
+	env toolenv.Environment,
+) (*builtin.Result, error) {
+	definitions := native.Definitions(env)
 	registerFn := func(registerCtx context.Context, tool builtin.Tool) error {
 		return registry.Register(registerCtx, builtinRegistryAdapter{tool: tool})
 	}
@@ -114,7 +119,7 @@ func configureToolRegistry(
 		}
 		return fmt.Errorf("tool id %s uses reserved cp__ prefix", id)
 	}
-	result, err := registerNativeBuiltins(ctx, registry)
+	result, err := registerNativeBuiltins(ctx, registry, cfg.ToolEnvironment)
 	if err != nil {
 		if closeErr := registry.Close(); closeErr != nil {
 			log.Warn(

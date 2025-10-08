@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/schema"
-	"github.com/compozy/compozy/engine/tool/builtin/orchestrate"
+	specpkg "github.com/compozy/compozy/engine/tool/builtin/orchestrate/spec"
 	toolcontext "github.com/compozy/compozy/engine/tool/context"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -58,12 +58,12 @@ type CompileInput struct {
 }
 
 func NewCompiler(opts Options) (*Compiler, error) {
-	if opts.Client == nil {
+	if opts.Client == nil && !opts.Disabled {
 		return nil, errors.New("planner requires llm client")
 	}
 	schemaRef := opts.Schema
 	if schemaRef == nil {
-		planSchema, err := orchestrate.PlanSchema()
+		planSchema, err := specpkg.PlanSchema()
 		if err != nil {
 			return nil, fmt.Errorf("failed to load plan schema: %w", err)
 		}
@@ -81,8 +81,8 @@ func NewCompiler(opts Options) (*Compiler, error) {
 	}, nil
 }
 
-func (c *Compiler) Compile(ctx context.Context, input CompileInput) (orchestrate.Plan, error) {
-	var zero orchestrate.Plan
+func (c *Compiler) Compile(ctx context.Context, input CompileInput) (specpkg.Plan, error) {
+	var zero specpkg.Plan
 	if len(input.Plan) > 0 {
 		return c.compileStructured(input)
 	}
@@ -99,12 +99,12 @@ func (c *Compiler) Compile(ctx context.Context, input CompileInput) (orchestrate
 	return c.compilePrompt(ctx, trimmedPrompt, input.Bindings)
 }
 
-func (c *Compiler) compileStructured(input CompileInput) (orchestrate.Plan, error) {
-	var zero orchestrate.Plan
+func (c *Compiler) compileStructured(input CompileInput) (specpkg.Plan, error) {
+	var zero specpkg.Plan
 	if input.Plan == nil {
 		return zero, ErrPromptRequired
 	}
-	plan, err := orchestrate.DecodePlanMap(input.Plan)
+	plan, err := specpkg.DecodePlanMap(input.Plan)
 	if err != nil {
 		return zero, fmt.Errorf("%w: %v", ErrInvalidPlan, err)
 	}
@@ -118,8 +118,8 @@ func (c *Compiler) compilePrompt(
 	ctx context.Context,
 	prompt string,
 	bindings map[string]any,
-) (orchestrate.Plan, error) {
-	var zero orchestrate.Plan
+) (specpkg.Plan, error) {
+	var zero specpkg.Plan
 	log := logger.FromContext(ctx)
 	reqSchema, err := c.schema.Clone()
 	if err != nil {
@@ -152,7 +152,7 @@ func (c *Compiler) compilePrompt(
 		log.Warn("Planner returned invalid payload", "error", err)
 		return zero, err
 	}
-	plan, err := orchestrate.DecodePlanMap(planMap)
+	plan, err := specpkg.DecodePlanMap(planMap)
 	if err != nil {
 		return zero, fmt.Errorf("%w: %v", ErrInvalidPlan, err)
 	}
@@ -163,7 +163,7 @@ func (c *Compiler) compilePrompt(
 	return plan, nil
 }
 
-func (c *Compiler) finalizePlan(plan *orchestrate.Plan, bindings map[string]any) error {
+func (c *Compiler) finalizePlan(plan *specpkg.Plan, bindings map[string]any) error {
 	if plan == nil {
 		return fmt.Errorf("%w: missing plan", ErrInvalidPlan)
 	}
@@ -175,7 +175,7 @@ func (c *Compiler) finalizePlan(plan *orchestrate.Plan, bindings map[string]any)
 		if step.ID == "" {
 			step.ID = fmt.Sprintf("step_%02d", idx+1)
 		}
-		step.Status = orchestrate.StepStatusPending
+		step.Status = specpkg.StepStatusPending
 	}
 	if err := c.mergeBindings(plan, bindings); err != nil {
 		return err
@@ -183,7 +183,7 @@ func (c *Compiler) finalizePlan(plan *orchestrate.Plan, bindings map[string]any)
 	return c.enforceMaxSteps(plan)
 }
 
-func (c *Compiler) mergeBindings(plan *orchestrate.Plan, extra map[string]any) error {
+func (c *Compiler) mergeBindings(plan *specpkg.Plan, extra map[string]any) error {
 	if plan == nil {
 		return fmt.Errorf("%w: missing plan", ErrInvalidPlan)
 	}
@@ -215,7 +215,7 @@ func (c *Compiler) mergeBindings(plan *orchestrate.Plan, extra map[string]any) e
 	return nil
 }
 
-func (c *Compiler) enforceMaxSteps(plan *orchestrate.Plan) error {
+func (c *Compiler) enforceMaxSteps(plan *specpkg.Plan) error {
 	if plan == nil {
 		return fmt.Errorf("%w: missing plan", ErrInvalidPlan)
 	}

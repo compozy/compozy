@@ -4,11 +4,12 @@ import "time"
 
 // NativeToolsConfig controls cp__ builtin enablement and sandbox settings.
 type NativeToolsConfig struct {
-	Enabled         bool              `koanf:"enabled"          json:"enabled"          yaml:"enabled"          mapstructure:"enabled"`
-	RootDir         string            `koanf:"root_dir"         json:"root_dir"         yaml:"root_dir"         mapstructure:"root_dir"`
-	AdditionalRoots []string          `koanf:"additional_roots" json:"additional_roots" yaml:"additional_roots" mapstructure:"additional_roots"`
-	Exec            NativeExecConfig  `koanf:"exec"             json:"exec"             yaml:"exec"             mapstructure:"exec"`
-	Fetch           NativeFetchConfig `koanf:"fetch"            json:"fetch"            yaml:"fetch"            mapstructure:"fetch"`
+	Enabled           bool                          `koanf:"enabled"            json:"enabled"            yaml:"enabled"            mapstructure:"enabled"`
+	RootDir           string                        `koanf:"root_dir"           json:"root_dir"           yaml:"root_dir"           mapstructure:"root_dir"`
+	AdditionalRoots   []string                      `koanf:"additional_roots"   json:"additional_roots"   yaml:"additional_roots"   mapstructure:"additional_roots"`
+	Exec              NativeExecConfig              `koanf:"exec"               json:"exec"               yaml:"exec"               mapstructure:"exec"`
+	Fetch             NativeFetchConfig             `koanf:"fetch"              json:"fetch"              yaml:"fetch"              mapstructure:"fetch"`
+	AgentOrchestrator NativeAgentOrchestratorConfig `koanf:"agent_orchestrator" json:"agent_orchestrator" yaml:"agent_orchestrator" mapstructure:"agent_orchestrator"`
 }
 
 // NativeExecConfig holds cp__exec configuration knobs.
@@ -45,6 +46,22 @@ type NativeFetchConfig struct {
 	AllowedMethods []string      `koanf:"allowed_methods" json:"allowed_methods" yaml:"allowed_methods" mapstructure:"allowed_methods"`
 }
 
+// NativeAgentOrchestratorPlannerConfig tunes planner behavior.
+type NativeAgentOrchestratorPlannerConfig struct {
+	Disabled bool `koanf:"disabled"  json:"disabled"  yaml:"disabled"  mapstructure:"disabled"`
+	MaxSteps int  `koanf:"max_steps" json:"max_steps" yaml:"max_steps" mapstructure:"max_steps"`
+}
+
+// NativeAgentOrchestratorConfig configures cp__agent_orchestrate limits.
+type NativeAgentOrchestratorConfig struct {
+	Enabled        bool                                 `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
+	MaxDepth       int                                  `koanf:"max_depth"       json:"max_depth"       yaml:"max_depth"       mapstructure:"max_depth"`
+	MaxSteps       int                                  `koanf:"max_steps"       json:"max_steps"       yaml:"max_steps"       mapstructure:"max_steps"`
+	MaxParallel    int                                  `koanf:"max_parallel"    json:"max_parallel"    yaml:"max_parallel"    mapstructure:"max_parallel"`
+	DefaultTimeout time.Duration                        `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout"`
+	Planner        NativeAgentOrchestratorPlannerConfig `koanf:"planner"         json:"planner"         yaml:"planner"         mapstructure:"planner"`
+}
+
 // DefaultNativeToolsConfig returns safe defaults for native tool execution.
 func DefaultNativeToolsConfig() NativeToolsConfig {
 	return NativeToolsConfig{
@@ -62,6 +79,17 @@ func DefaultNativeToolsConfig() NativeToolsConfig {
 			MaxBodyBytes:   2 << 20, // 2 MiB
 			MaxRedirects:   5,
 			AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
+		},
+		AgentOrchestrator: NativeAgentOrchestratorConfig{
+			Enabled:        true,
+			MaxDepth:       3,
+			MaxSteps:       12,
+			MaxParallel:    4,
+			DefaultTimeout: 60 * time.Second,
+			Planner: NativeAgentOrchestratorPlannerConfig{
+				Disabled: false,
+				MaxSteps: 12,
+			},
 		},
 	}
 }

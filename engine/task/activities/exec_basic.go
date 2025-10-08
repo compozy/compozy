@@ -59,7 +59,7 @@ func NewExecuteBasic(
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configStore),
-		executeUC:      uc.NewExecuteTask(runtime, workflowRepo, memoryManager, templateEngine, nil),
+		executeUC:      uc.NewExecuteTask(runtime, workflowRepo, memoryManager, templateEngine, nil, nil),
 		task2Factory:   task2Factory,
 		workflowRepo:   workflowRepo,
 		taskRepo:       taskRepo,

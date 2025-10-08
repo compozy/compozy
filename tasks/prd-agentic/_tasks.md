@@ -31,8 +31,8 @@
 - [x] 3.0 Define orchestration plan model and schema — size: small (batchable)
 - [x] 4.0 Implement planner (prompt → plan) with guardrails — size: medium (not batchable)
 - [x] 5.0 Implement executor (sequential + parallel) with limits — size: high (not batchable)
-- [ ] 6.0 Implement cp\_\_agent_orchestrate builtin handler — size: medium (not batchable)
-- [ ] 7.0 Register builtin in native catalog and service wiring — size: small (batchable)
+- [x] 6.0 Implement cp\_\_agent_orchestrate builtin handler — size: medium (not batchable)
+- [x] 7.0 Register builtin in native catalog and service wiring — size: small (batchable)
 - [ ] 8.0 Config: runtime.native_tools.agent_orchestrator limits — size: small (batchable)
 - [ ] 9.0 Telemetry/metrics and logging for steps and totals — size: small (batchable)
 - [ ] 10.0 Tests: unit + integration + benchmarks (caps) — size: medium (not batchable)
@@ -66,8 +66,9 @@ Notes
 
 - Medium/high tasks (1.0, 2.0, 4.0, 5.0, 6.0, 10.0) should land separately to simplify review and rollback.
 
-## Latest Progress (October 7, 2025)
+## Latest Progress (October 8, 2025)
 
 - Completed Task 5.0 by introducing the orchestrate executor (`engine/tool/builtin/orchestrate/executor.go`) and FSM (`engine/tool/builtin/orchestrate/fsm.go`) that sequence/parallelize plan steps, enforce depth/step/parallel limits, and propagate per-step results.
 - Added executor unit tests (`engine/tool/builtin/orchestrate/executor_test.go`, `engine/tool/builtin/orchestrate/fsm_test.go`) covering sequential flow, bounded parallel fan-out, cancellations, and failure result propagation.
 - Extended tool context helpers (`engine/tool/context/context.go`) with orchestrator depth tracking, enabling recursive-limit enforcement across nested invocations.
+- Completed Task 7.0 by registering `cp__agent_orchestrate` through the native catalog (`engine/tool/native/catalog.go`), wiring `engine/llm/service.go` to load environment-aware definitions, and extending handler tests to assert discovery via `native.Definitions`.

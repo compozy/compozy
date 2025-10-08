@@ -1588,6 +1588,17 @@ func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
 				MaxRedirects:   getInt(registry, "runtime.native_tools.fetch.max_redirects"),
 				AllowedMethods: getStringSlice(registry, "runtime.native_tools.fetch.allowed_methods"),
 			},
+			AgentOrchestrator: NativeAgentOrchestratorConfig{
+				Enabled:        getBool(registry, "runtime.native_tools.agent_orchestrator.enabled"),
+				MaxDepth:       getInt(registry, "runtime.native_tools.agent_orchestrator.max_depth"),
+				MaxSteps:       getInt(registry, "runtime.native_tools.agent_orchestrator.max_steps"),
+				MaxParallel:    getInt(registry, "runtime.native_tools.agent_orchestrator.max_parallel"),
+				DefaultTimeout: getDuration(registry, "runtime.native_tools.agent_orchestrator.default_timeout"),
+				Planner: NativeAgentOrchestratorPlannerConfig{
+					Disabled: getBool(registry, "runtime.native_tools.agent_orchestrator.planner.disabled"),
+					MaxSteps: getInt(registry, "runtime.native_tools.agent_orchestrator.planner.max_steps"),
+				},
+			},
 		},
 	}
 }

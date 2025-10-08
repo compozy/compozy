@@ -15,6 +15,7 @@ import (
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task"
 	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/task2/shared"
@@ -34,11 +35,12 @@ type ExecuteTaskInput struct {
 }
 
 type ExecuteTask struct {
-	runtime        runtime.Runtime
-	workflowRepo   workflow.Repository
-	memoryManager  memcore.ManagerInterface
-	templateEngine *tplengine.TemplateEngine
-	toolResolver   resolver.ToolResolver
+	runtime         runtime.Runtime
+	workflowRepo    workflow.Repository
+	memoryManager   memcore.ManagerInterface
+	templateEngine  *tplengine.TemplateEngine
+	toolResolver    resolver.ToolResolver
+	toolEnvironment toolenv.Environment
 }
 
 // NewExecuteTask creates a new ExecuteTask configured with the provided runtime, workflow
@@ -50,6 +52,7 @@ func NewExecuteTask(
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	toolResolver resolver.ToolResolver,
+	toolEnvironment toolenv.Environment,
 ) *ExecuteTask {
 	return &ExecuteTask{
 		runtime:        runtime,
@@ -62,6 +65,7 @@ func NewExecuteTask(
 			}
 			return resolver.NewHierarchicalResolver()
 		}(),
+		toolEnvironment: toolEnvironment,
 	}
 }
 
@@ -616,6 +620,9 @@ func (uc *ExecuteTask) createLLMService(
 	}
 	// MCP registration is handled by server startup (engine/mcp.SetupForWorkflows)
 	// We no longer register workflow-level MCPs from the exec task.
+	if uc.toolEnvironment != nil {
+		llmOpts = append(llmOpts, llm.WithToolEnvironment(uc.toolEnvironment))
+	}
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
