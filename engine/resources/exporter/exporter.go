@@ -43,6 +43,7 @@ func ExportToDir(ctx context.Context, project string, store resources.ResourceSt
 		resources.ResourceMCP,
 		resources.ResourceModel,
 		resources.ResourceMemory,
+		resources.ResourceKnowledgeBase,
 		resources.ResourceProject,
 	}
 	res := &Result{Written: make(map[resources.ResourceType]int)}

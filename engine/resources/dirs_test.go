@@ -16,6 +16,9 @@ func TestDirForType_KnownTypes(t *testing.T) {
 		ResourceMCP,
 		ResourceModel,
 		ResourceMemory,
+		ResourceEmbedder,
+		ResourceVectorDB,
+		ResourceKnowledgeBase,
 		ResourceProject,
 	}
 	for _, typ := range cases {

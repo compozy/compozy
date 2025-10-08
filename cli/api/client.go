@@ -111,7 +111,12 @@ func (c *client) shouldRetry(resp *http.Response, attempt, maxRetries int) bool 
 }
 
 // doRequest performs an HTTP request with retry logic
-func (c *client) doRequest(ctx context.Context, method, path string, body any) (*http.Response, error) {
+func (c *client) doRequest(
+	ctx context.Context,
+	method, path string,
+	body any,
+	headers map[string]string,
+) (*http.Response, error) {
 	log := logger.FromContext(ctx)
 	url := c.baseURL + path
 	maxRetries := 3
@@ -139,6 +144,12 @@ func (c *client) doRequest(ctx context.Context, method, path string, body any) (
 		req, err := c.createRequest(ctx, method, url, bodyReader)
 		if err != nil {
 			return nil, err
+		}
+		for k, v := range headers {
+			if strings.TrimSpace(k) == "" {
+				continue
+			}
+			req.Header.Set(k, v)
 		}
 
 		resp, err := c.httpClient.Do(req)
@@ -195,24 +206,47 @@ func (c *client) parseResponse(resp *http.Response, result any) error {
 // CallGET performs a raw GET request to a path under the API base URL using the concrete client.
 // It parses the standard API envelope and returns any server-side error as Go error.
 func CallGET(ctx context.Context, ac AuthClient, path string) error {
-	_, err := callDecode(ctx, ac, http.MethodGet, path, nil)
+	_, err := callDecode(ctx, ac, http.MethodGet, path, nil, nil)
 	return err
 }
 
 // CallGETDecode performs GET and decodes the response envelope for callers who
 // want to display additional details.
 func CallGETDecode(ctx context.Context, ac AuthClient, path string) (*models.APIResponse, error) {
-	return callDecode(ctx, ac, http.MethodGet, path, nil)
+	return callDecode(ctx, ac, http.MethodGet, path, nil, nil)
 }
 
 // CallPOSTDecode performs POST and decodes the response envelope for callers who
 // want to display additional details. The body is JSON-encoded when non-nil.
 func CallPOSTDecode(ctx context.Context, ac AuthClient, path string, body any) (*models.APIResponse, error) {
-	return callDecode(ctx, ac, http.MethodPost, path, body)
+	return callDecode(ctx, ac, http.MethodPost, path, body, nil)
+}
+
+// CallPUTDecode performs PUT and decodes the response envelope.
+func CallPUTDecode(
+	ctx context.Context,
+	ac AuthClient,
+	path string,
+	body any,
+	headers map[string]string,
+) (*models.APIResponse, error) {
+	return callDecode(ctx, ac, http.MethodPut, path, body, headers)
+}
+
+// CallDELETE performs DELETE and returns any server error.
+func CallDELETE(ctx context.Context, ac AuthClient, path string, headers map[string]string) error {
+	_, err := callDecode(ctx, ac, http.MethodDelete, path, nil, headers)
+	return err
 }
 
 // callDecode is an internal helper that executes the request and decodes the API envelope.
-func callDecode(ctx context.Context, ac AuthClient, method, path string, body any) (*models.APIResponse, error) {
+func callDecode(
+	ctx context.Context,
+	ac AuthClient,
+	method, path string,
+	body any,
+	headers map[string]string,
+) (*models.APIResponse, error) {
 	impl, ok := ac.(*client)
 	if !ok {
 		return nil, fmt.Errorf("unsupported client implementation")
@@ -220,7 +254,7 @@ func callDecode(ctx context.Context, ac AuthClient, method, path string, body an
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
-	resp, err := impl.doRequest(ctx, method, path, body)
+	resp, err := impl.doRequest(ctx, method, path, body, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +272,7 @@ func callDecode(ctx context.Context, ac AuthClient, method, path string, body an
 
 // GenerateKey generates a new API key
 func (c *client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (string, error) {
-	resp, err := c.doRequest(ctx, http.MethodPost, "/auth/generate", req)
+	resp, err := c.doRequest(ctx, http.MethodPost, "/auth/generate", req, nil)
 	if err != nil {
 		return "", err
 	}
@@ -260,7 +294,7 @@ func (c *client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (stri
 
 // ListKeys lists all API keys for the authenticated user
 func (c *client) ListKeys(ctx context.Context) ([]KeyInfo, error) {
-	resp, err := c.doRequest(ctx, http.MethodGet, "/auth/keys", nil)
+	resp, err := c.doRequest(ctx, http.MethodGet, "/auth/keys", nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +317,7 @@ func (c *client) ListKeys(ctx context.Context) ([]KeyInfo, error) {
 // RevokeKey revokes an API key by ID
 func (c *client) RevokeKey(ctx context.Context, keyID string) error {
 	path := fmt.Sprintf("/auth/keys/%s", keyID)
-	resp, err := c.doRequest(ctx, http.MethodDelete, path, nil)
+	resp, err := c.doRequest(ctx, http.MethodDelete, path, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -294,7 +328,7 @@ func (c *client) RevokeKey(ctx context.Context, keyID string) error {
 
 // ListUsers lists all users (admin only)
 func (c *client) ListUsers(ctx context.Context) ([]UserInfo, error) {
-	resp, err := c.doRequest(ctx, http.MethodGet, "/users", nil)
+	resp, err := c.doRequest(ctx, http.MethodGet, "/users", nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +350,7 @@ func (c *client) ListUsers(ctx context.Context) ([]UserInfo, error) {
 
 // CreateUser creates a new user (admin only)
 func (c *client) CreateUser(ctx context.Context, req CreateUserRequest) (*UserInfo, error) {
-	resp, err := c.doRequest(ctx, http.MethodPost, "/users", req)
+	resp, err := c.doRequest(ctx, http.MethodPost, "/users", req, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -336,7 +370,7 @@ func (c *client) CreateUser(ctx context.Context, req CreateUserRequest) (*UserIn
 // UpdateUser updates a user (admin only)
 func (c *client) UpdateUser(ctx context.Context, userID string, req UpdateUserRequest) (*UserInfo, error) {
 	path := fmt.Sprintf("/users/%s", userID)
-	resp, err := c.doRequest(ctx, http.MethodPatch, path, req)
+	resp, err := c.doRequest(ctx, http.MethodPatch, path, req, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +390,7 @@ func (c *client) UpdateUser(ctx context.Context, userID string, req UpdateUserRe
 // DeleteUser deletes a user (admin only)
 func (c *client) DeleteUser(ctx context.Context, userID string) error {
 	path := fmt.Sprintf("/users/%s", userID)
-	resp, err := c.doRequest(ctx, http.MethodDelete, path, nil)
+	resp, err := c.doRequest(ctx, http.MethodDelete, path, nil, nil)
 	if err != nil {
 		return err
 	}

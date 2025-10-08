@@ -519,6 +519,9 @@
         "dsn": {
           "type": "string"
         },
+        "ensure_index": {
+          "type": "boolean"
+        },
         "index": {
           "type": "string"
         },

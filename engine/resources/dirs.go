@@ -1,5 +1,7 @@
 package resources
 
+import "path/filepath"
+
 // DirForType returns the repository subdirectory name used for the provided
 // resource type. Centralized here to keep importer and exporter directory
 // mappings in sync.
@@ -21,6 +23,12 @@ func DirForType(t ResourceType) (string, bool) {
 		return "models", true
 	case ResourceMemory:
 		return "memories", true
+	case ResourceKnowledgeBase:
+		return filepath.Join("knowledge", "knowledge-bases"), true
+	case ResourceEmbedder:
+		return filepath.Join("knowledge", "embedders"), true
+	case ResourceVectorDB:
+		return filepath.Join("knowledge", "vector-dbs"), true
 	case ResourceProject:
 		return "project", true
 	default:

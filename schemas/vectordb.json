@@ -12,14 +12,14 @@
         "consistency": {
           "type": "string"
         },
-        "ensure_index": {
-          "type": "boolean"
-        },
         "dimension": {
           "type": "integer"
         },
         "dsn": {
           "type": "string"
+        },
+        "ensure_index": {
+          "type": "boolean"
         },
         "index": {
           "type": "string"

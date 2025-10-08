@@ -31,12 +31,17 @@ Expose CRUD for knowledge bases and actions for ingestion and query with ETag, p
 
 ## Subtasks
 
-- [ ] 10.1 Implement router and handlers
-- [ ] 10.2 Unit tests `engine/infra/server/router/knowledge_router_test.go`
+- [x] 10.1 Implement router and handlers
+- [x] 10.2 Unit tests `engine/infra/server/router/knowledge_router_test.go`
   - ETag preconditions and conditional GET (304)
   - Pagination forward/backward symmetry
   - Body validation and problem+json
-- [ ] 10.3 Swagger generation/parity smoke test
+- [x] 10.3 Swagger generation/parity smoke test
+
+## Notes
+
+- Router + handler implementation and unit coverage exist (`engine/infra/server/router/knowledge/*`). Swagger parity is enforced via `TestSwaggerKnowledgePaths` with golden coverage.
+- Lint/test checks now pass after restructuring handlers/helpers; keep monitoring for future regressions.
 
 ## Sequencing
 

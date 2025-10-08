@@ -29,8 +29,13 @@ Add `compozy knowledge` command group with subcommands: list, get, apply, delete
 
 ## Subtasks
 
-- [ ] 11.1 Implement CLI group and subcommands
-- [ ] 11.2 Unit tests (w/ mocked API client)
+- [x] 11.1 Implement CLI group and subcommands
+- [x] 11.2 Unit tests (w/ mocked API client)
+
+## Notes
+
+- Command group and handlers (`cli/cmd/knowledge/knowledge.go`) have lint-compliant helpers (flag validation, ETag formatting, shared request executor).
+- CLI tests now follow the mandatory `t.Run("Should ...")` pattern and include a failure scenario for non-2xx responses.
 
 ## Sequencing
 

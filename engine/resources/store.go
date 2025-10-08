@@ -15,13 +15,16 @@ import (
 type ResourceType = core.ConfigType
 
 const (
-	ResourceProject  ResourceType = core.ConfigProject
-	ResourceWorkflow ResourceType = core.ConfigWorkflow
-	ResourceTask     ResourceType = core.ConfigTask
-	ResourceAgent    ResourceType = core.ConfigAgent
-	ResourceTool     ResourceType = core.ConfigTool
-	ResourceMCP      ResourceType = core.ConfigMCP
-	ResourceMemory   ResourceType = core.ConfigMemory
+	ResourceProject       ResourceType = core.ConfigProject
+	ResourceWorkflow      ResourceType = core.ConfigWorkflow
+	ResourceTask          ResourceType = core.ConfigTask
+	ResourceAgent         ResourceType = core.ConfigAgent
+	ResourceTool          ResourceType = core.ConfigTool
+	ResourceMCP           ResourceType = core.ConfigMCP
+	ResourceMemory        ResourceType = core.ConfigMemory
+	ResourceKnowledgeBase ResourceType = core.ConfigKnowledgeBase
+	ResourceEmbedder      ResourceType = core.ConfigEmbedder
+	ResourceVectorDB      ResourceType = core.ConfigVectorDB
 	// Resource-specific extensions not yet in core:
 	ResourceSchema ResourceType = "schema"
 	ResourceModel  ResourceType = "model"

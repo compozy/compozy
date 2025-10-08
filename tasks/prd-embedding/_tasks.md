@@ -74,6 +74,7 @@ Notes
 - Each task contains its own unit‑test subtasks; integration/E2E consolidate under 15.0.
 - All runtime code MUST use `logger.FromContext(ctx)` and `config.FromContext(ctx)`; never globals.
 - Run `make fmt && make lint && make test` before marking any task as completed.
+- 2025-10-08: HTTP router (10.0) swagger parity and CLI (11.0) lint/test-standard issues addressed; orchestrator integration (9.0) still blocks full completion.
 
 ## Batch Plan (Grouped Commits)
 

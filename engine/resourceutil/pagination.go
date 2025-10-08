@@ -115,3 +115,73 @@ func searchBefore(items []resources.StoredItem, value string) int {
 	idx := sort.Search(len(items), func(i int) bool { return items[i].Key.ID >= value })
 	return idx
 }
+
+func ApplyCursorWindowIDs(
+	ids []string,
+	cursorValue string,
+	direction CursorDirection,
+	limit int,
+) ([]string, string, CursorDirection, string, CursorDirection) {
+	total := len(ids)
+	start, end := computeWindowIDs(ids, cursorValue, direction, limit)
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+	if start < 0 {
+		start = 0
+	}
+	if end < start {
+		end = start
+	}
+	window := ids[start:end]
+	var nextValue, prevValue string
+	var nextDir, prevDir CursorDirection
+	if len(window) > 0 && end < total {
+		nextValue = window[len(window)-1]
+		nextDir = CursorDirectionAfter
+	}
+	if len(window) > 0 && start > 0 {
+		prevValue = window[0]
+		prevDir = CursorDirectionBefore
+	}
+	return window, nextValue, nextDir, prevValue, prevDir
+}
+
+func computeWindowIDs(
+	ids []string,
+	cursorValue string,
+	direction CursorDirection,
+	limit int,
+) (int, int) {
+	switch direction {
+	case CursorDirectionAfter:
+		start := searchAfterIDs(ids, cursorValue)
+		end := min(start+limit, len(ids))
+		return start, end
+	case CursorDirectionBefore:
+		end := max(searchBeforeIDs(ids, cursorValue), 0)
+		start := max(end-limit, 0)
+		return start, end
+	default:
+		end := min(limit, len(ids))
+		return 0, end
+	}
+}
+
+func searchAfterIDs(ids []string, value string) int {
+	if value == "" {
+		return 0
+	}
+	return sort.Search(len(ids), func(i int) bool { return ids[i] > value })
+}
+
+func searchBeforeIDs(ids []string, value string) int {
+	if value == "" {
+		return len(ids)
+	}
+	idx := sort.Search(len(ids), func(i int) bool { return ids[i] >= value })
+	return idx
+}
