@@ -51,9 +51,10 @@ type memoryState struct {
 }
 
 type runtimeState struct {
-	memories *MemoryContext
-	action   *agent.ActionConfig
-	caps     toolCallCaps
+	memories             *MemoryContext
+	action               *agent.ActionConfig
+	caps                 toolCallCaps
+	finalizeFeedbackBase int
 }
 
 func newLoopState(cfg *settings, memories *MemoryContext, action *agent.ActionConfig) *loopState {
@@ -89,9 +90,10 @@ func newLoopState(cfg *settings, memories *MemoryContext, action *agent.ActionCo
 		Budgets:   budget,
 		Memory:    memState,
 		runtime: runtimeState{
-			memories: memories,
-			action:   action,
-			caps:     cfg.toolCaps,
+			memories:             memories,
+			action:               action,
+			caps:                 cfg.toolCaps,
+			finalizeFeedbackBase: -1,
 		},
 	}
 }

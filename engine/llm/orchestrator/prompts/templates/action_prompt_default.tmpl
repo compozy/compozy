@@ -1,8 +1,10 @@
 {{- /* Default action prompt template without structured schema requirements */ -}}
 {{- .ActionPrompt -}}
+
+<critical>**MUST NEED**: Provide the final response as plain text unless a JSON output schema is explicitly provided. Do not fabricate or wrap answers in JSON objects.</critical>
 {{- if .HasTools }}
 
-<critical>**MUST NEED**: If you need to call a tool, respond using the tool call format. Otherwise, reply with a plain-text answer. Do not wrap the plain-text answer in a JSON object or create dynamic JSON objects.</critical>
+<critical>**TOOLS**: Use the tool call format only when invoking a tool; otherwise answer with plain text.</critical>
 {{- end }}
 {{- if .Examples }}
 

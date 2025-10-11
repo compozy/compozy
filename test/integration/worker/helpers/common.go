@@ -203,6 +203,14 @@ func createProcessItemAction() *agent.ActionConfig {
 				"multiplier": map[string]any{"type": "number"},
 			},
 		},
+		OutputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"result":          map[string]any{"type": "string"},
+				"processed_value": map[string]any{"type": "number"},
+			},
+			"required": []string{"result", "processed_value"},
+		},
 	}
 }
 
@@ -247,6 +255,14 @@ func createAnalyzeActivityAction() *agent.ActionConfig {
 				"activity_name": map[string]any{"type": "string"},
 			},
 		},
+		OutputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"analysis": map[string]any{"type": "string"},
+				"rating":   map[string]any{"type": "number"},
+			},
+			"required": []string{"analysis", "rating"},
+		},
 	}
 }
 
@@ -260,6 +276,14 @@ func createProcessCityAction() *agent.ActionConfig {
 				"city_name":     map[string]any{"type": "string"},
 				"city_position": map[string]any{"type": "number"},
 			},
+		},
+		OutputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"weather":    map[string]any{"type": "string"},
+				"population": map[string]any{"type": "number"},
+			},
+			"required": []string{"weather", "population"},
 		},
 	}
 }

@@ -62,7 +62,8 @@ func TestPromptBuilder_ToolGuidance(t *testing.T) {
 		Tools:  []tool.Config{{ID: "cp__call_agent"}},
 	})
 	require.NoError(t, err)
-	require.Contains(t, result.Prompt, "If you need to call a tool")
+	require.Contains(t, result.Prompt, "Use the tool call format only when invoking a tool")
+	require.Contains(t, result.Prompt, "Provide the final response as plain text")
 }
 
 func TestPromptBuilder_DynamicFailureGuidance(t *testing.T) {

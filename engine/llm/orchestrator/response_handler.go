@@ -85,10 +85,30 @@ func (h *responseHandler) retryFinalize(
 		"remaining_retries", remaining,
 	)
 	if llmReq != nil {
-		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
+		if state != nil && state.runtime.finalizeFeedbackBase < 0 {
+			state.runtime.finalizeFeedbackBase = len(llmReq.Messages)
+		}
+		base := len(llmReq.Messages)
+		if state != nil &&
+			state.runtime.finalizeFeedbackBase >= 0 &&
+			state.runtime.finalizeFeedbackBase <= len(llmReq.Messages) {
+			base = state.runtime.finalizeFeedbackBase
+		}
+		feedbackDetail := detail
+		if finalErr != nil {
+			if redacted := core.RedactError(finalErr); redacted != "" {
+				feedbackDetail = redacted
+			}
+		}
+		feedback := llmadapter.Message{
 			Role:    "user",
-			Content: h.buildFinalizeFeedback(detail, state),
-		})
+			Content: h.buildFinalizeFeedback(feedbackDetail, state),
+		}
+		if base < 0 || base > len(llmReq.Messages) {
+			llmReq.Messages = append(llmReq.Messages, feedback)
+		} else {
+			llmReq.Messages = append(llmReq.Messages[:base], feedback)
+		}
 	}
 	telemetry.RecordEvent(ctx, &telemetry.Event{
 		Stage:    "finalize_retry",
@@ -153,55 +173,70 @@ func (h *responseHandler) parseContent(
 	content string,
 	action *agent.ActionConfig,
 ) (*core.Output, error) {
-	expectStructured := requiresJSONOutputForAction(action)
-
-	var data any
-	if err := json.Unmarshal([]byte(content), &data); err == nil {
-		if obj, ok := data.(map[string]any); ok {
-			output := core.Output(obj)
-			if expectStructured {
-				if err := h.validateOutput(ctx, &output, action); err != nil {
-					return nil, err
-				}
-			}
-			return &output, nil
-		}
-		if expectStructured {
-			return nil, NewLLMError(
-				fmt.Errorf("expected JSON object, got %T", data),
-				ErrCodeInvalidResponse,
-				map[string]any{"content": data},
-			)
-		}
+	if !requiresJSONOutputForAction(action) {
+		output := core.Output(map[string]any{"response": content})
+		return &output, nil
 	}
 
-	if expectStructured {
-		if snippet, ok := extractJSONObject(content); ok {
-			var obj map[string]any
-			if err := json.Unmarshal([]byte(snippet), &obj); err == nil {
-				output := core.Output(obj)
-				if err := h.validateOutput(ctx, &output, action); err != nil {
-					return nil, err
-				}
-				return &output, nil
-			}
-		}
-		actionID := ""
-		if action != nil {
-			actionID = action.ID
-		}
-		return nil, NewLLMError(
-			fmt.Errorf("expected structured JSON output but received plain text"),
-			ErrCodeInvalidResponse,
-			map[string]any{
-				"action":  actionID,
-				"content": content,
-			},
-		)
+	value, err := h.parseStructuredValue(content, action)
+	if err != nil {
+		return nil, err
 	}
+	return h.buildStructuredOutput(ctx, value, action)
+}
 
-	output := core.Output(map[string]any{"response": content})
+func (h *responseHandler) parseStructuredValue(content string, action *agent.ActionConfig) (any, error) {
+	var value any
+	if err := json.Unmarshal([]byte(content), &value); err == nil {
+		return value, nil
+	}
+	if snippet, ok := extractJSONObject(content); ok {
+		if err := json.Unmarshal([]byte(snippet), &value); err == nil {
+			return value, nil
+		}
+	}
+	actionID := ""
+	if action != nil {
+		actionID = action.ID
+	}
+	return nil, NewLLMError(
+		fmt.Errorf("expected structured JSON output but received plain text"),
+		ErrCodeInvalidResponse,
+		map[string]any{
+			"action":  actionID,
+			"content": content,
+		},
+	)
+}
+
+func (h *responseHandler) buildStructuredOutput(
+	ctx context.Context,
+	value any,
+	action *agent.ActionConfig,
+) (*core.Output, error) {
+	if err := h.validateStructuredValue(ctx, value, action); err != nil {
+		return nil, err
+	}
+	if obj, ok := value.(map[string]any); ok {
+		output := core.Output(obj)
+		return &output, nil
+	}
+	output := core.Output{
+		core.OutputRootKey: value,
+	}
 	return &output, nil
+}
+
+func (h *responseHandler) validateStructuredValue(
+	ctx context.Context,
+	value any,
+	action *agent.ActionConfig,
+) error {
+	if action == nil || action.OutputSchema == nil {
+		return nil
+	}
+	validator := schema.NewParamsValidator(value, action.OutputSchema, action.ID)
+	return validator.Validate(ctx)
 }
 
 func requiresJSONOutputForState(state *loopState) bool {
@@ -221,13 +256,6 @@ func requiresJSONOutputForAction(action *agent.ActionConfig) bool {
 	return action.ShouldUseJSONOutput()
 }
 
-func (h *responseHandler) validateOutput(ctx context.Context, output *core.Output, action *agent.ActionConfig) error {
-	if action == nil || action.OutputSchema == nil {
-		return nil
-	}
-	return action.ValidateOutput(ctx, output)
-}
-
 func extractTopLevelErrorMessage(s string) (string, bool) {
 	trimmed := strings.TrimSpace(s)
 	if !strings.HasPrefix(trimmed, "{") {
@@ -245,11 +273,15 @@ func extractTopLevelErrorMessage(s string) (string, bool) {
 	return "", false
 }
 
+// extractJSONObject scans the provided string and returns the first complete
+// top-level JSON value (object or array). It keeps track of whether the parser
+// is inside a quoted string and ignores structural characters that appear
+// within strings or escaped sequences.
 func extractJSONObject(s string) (string, bool) {
 	inString := false
 	escaped := false
-	depth := 0
 	start := -1
+	var stack []byte
 	for i := 0; i < len(s); i++ {
 		ch := s[i]
 		if escaped {
@@ -269,17 +301,25 @@ func extractJSONObject(s string) (string, bool) {
 		switch ch {
 		case '"':
 			inString = true
-		case '{':
-			if depth == 0 {
+		case '{', '[':
+			if len(stack) == 0 {
 				start = i
 			}
-			depth++
-		case '}':
-			if depth == 0 {
+			if ch == '{' {
+				stack = append(stack, '}')
+			} else {
+				stack = append(stack, ']')
+			}
+		case '}', ']':
+			if len(stack) == 0 {
 				continue
 			}
-			depth--
-			if depth == 0 && start >= 0 {
+			expected := stack[len(stack)-1]
+			if ch != expected {
+				return "", false
+			}
+			stack = stack[:len(stack)-1]
+			if len(stack) == 0 && start >= 0 {
 				return s[start : i+1], true
 			}
 		}

@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -229,7 +230,17 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		agentConfig := createTestAgentConfig()
 		agentConfig.Instructions = "You are a helpful test agent"
 		agentConfig.Actions = []*agent.ActionConfig{
-			{ID: "analyze", Prompt: "Analyze input: {{ .input.text }}"},
+			{
+				ID:     "analyze",
+				Prompt: "Analyze input: {{ .input.text }}",
+				OutputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"ok": map[string]any{"type": "boolean"},
+					},
+					"required": []string{"ok"},
+				},
+			},
 		}
 
 		ta := llmadapter.NewTestAdapter()
@@ -262,7 +273,18 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		agentConfig := createTestAgentConfig()
 		agentConfig.Instructions = "You are a helpful test agent"
 		agentConfig.Actions = []*agent.ActionConfig{
-			{ID: "analyze", Prompt: "Analyze the data"},
+			{
+				ID:     "analyze",
+				Prompt: "Analyze the data",
+				OutputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"enhanced": map[string]any{"type": "boolean"},
+						"focused":  map[string]any{"type": "boolean"},
+					},
+					"required": []string{"enhanced", "focused"},
+				},
+			},
 		}
 
 		ta := llmadapter.NewTestAdapter()

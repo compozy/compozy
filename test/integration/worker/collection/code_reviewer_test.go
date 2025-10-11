@@ -51,6 +51,13 @@ func createCodeReviewerTestAgent() *agent.Config {
 						"file_path": map[string]any{"type": "string"},
 					},
 				},
+				OutputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"content": map[string]any{"type": "string"},
+					},
+					"required": []string{"content"},
+				},
 			},
 			{
 				ID: "analyze",
@@ -70,6 +77,18 @@ Provide a code review.`,
 						"file_path": map[string]any{"type": "string"},
 						"content":   map[string]any{"type": "string"},
 					},
+				},
+				OutputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"review": map[string]any{"type": "string"},
+						"suggestions": map[string]any{
+							"type":  "array",
+							"items": map[string]any{"type": "string"},
+						},
+						"score": map[string]any{"type": "number"},
+					},
+					"required": []string{"review", "score"},
 				},
 			},
 			{

@@ -47,7 +47,7 @@ func TestResponseHandler_FinalizationRetries(t *testing.T) {
 
 func TestResponseHandler_ParseContent(t *testing.T) {
 	h := NewResponseHandler(&settings{})
-	t.Run("Should parse JSON object to output map when no schema", func(t *testing.T) {
+	t.Run("Should treat JSON-looking content as plain text when no schema", func(t *testing.T) {
 		ctx := context.Background()
 		req := &llmadapter.LLMRequest{}
 		state := newLoopState(&settings{}, nil, nil)
@@ -62,16 +62,21 @@ func TestResponseHandler_ParseContent(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, cont)
 		require.NotNil(t, output)
-		assert.Equal(t, "v", (*output)["k"])
+		assert.Equal(t, `{"k":"v"}`, (*output)["response"])
 	})
-	t.Run("Should error when JSON not an object", func(t *testing.T) {
-		action := &agent.ActionConfig{OutputSchema: &schema.Schema{"type": "object"}}
-		_, err := h.(*responseHandler).parseContent(context.Background(), `[]`, action)
-		require.Error(t, err)
-		var coreErr *core.Error
-		require.ErrorAs(t, err, &coreErr)
-		assert.Equal(t, ErrCodeInvalidResponse, coreErr.Code)
-		require.ErrorContains(t, err, "expected JSON object")
+	t.Run("Should accept top-level array when schema expects array", func(t *testing.T) {
+		action := &agent.ActionConfig{OutputSchema: &schema.Schema{
+			"type":  "array",
+			"items": map[string]any{"type": "string"},
+		}}
+		output, err := h.(*responseHandler).parseContent(context.Background(), `["a","b"]`, action)
+		require.NoError(t, err)
+		require.NotNil(t, output)
+		values, ok := (*output)[core.OutputRootKey].([]any)
+		require.True(t, ok)
+		require.Len(t, values, 2)
+		assert.Equal(t, "a", values[0])
+		assert.Equal(t, "b", values[1])
 	})
 	t.Run("Should error when JSON required but got text", func(t *testing.T) {
 		action := &agent.ActionConfig{OutputSchema: &schema.Schema{"type": "object"}}
@@ -89,6 +94,16 @@ func TestResponseHandler_ParseContent(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, output)
 		assert.Equal(t, "Pikachu", (*output)["pokemon"])
+	})
+	t.Run("Should extract embedded array when schema required", func(t *testing.T) {
+		action := &agent.ActionConfig{OutputSchema: &schema.Schema{"type": "array"}}
+		content := `Some text before [1,2,3] and after`
+		output, err := h.(*responseHandler).parseContent(context.Background(), content, action)
+		require.NoError(t, err)
+		require.NotNil(t, output)
+		values, ok := (*output)[core.OutputRootKey].([]any)
+		require.True(t, ok)
+		assert.ElementsMatch(t, []any{float64(1), float64(2), float64(3)}, values)
 	})
 }
 
@@ -137,6 +152,31 @@ func TestResponseHandler_FinalizationPlainTextFeedback(t *testing.T) {
 	assert.NotContains(t, msg, "valid JSON object")
 }
 
+func TestResponseHandler_FinalizationFeedbackReplaced(t *testing.T) {
+	ctx := context.Background()
+	settings := &settings{finalizeOutputRetries: 3}
+	h := NewResponseHandler(settings)
+	req := &llmadapter.LLMRequest{
+		Messages: []llmadapter.Message{{Role: "user", Content: "hello"}},
+	}
+	state := newLoopState(settings, nil, &agent.ActionConfig{OutputSchema: &schema.Schema{"type": "object"}})
+	request := Request{Action: state.actionConfig()}
+	resp := &llmadapter.LLMResponse{Content: `not-json`}
+
+	_, cont, err := h.HandleNoToolCalls(ctx, resp, request, req, state)
+	require.NoError(t, err)
+	require.True(t, cont)
+	require.Len(t, req.Messages, 2)
+	first := req.Messages[1].Content
+
+	_, cont, err = h.HandleNoToolCalls(ctx, resp, request, req, state)
+	require.NoError(t, err)
+	require.True(t, cont)
+	require.Len(t, req.Messages, 2)
+	second := req.Messages[1].Content
+	require.NotEqual(t, first, second)
+}
+
 func TestExtractJSONObject(t *testing.T) {
 	t.Run("Should return first balanced object", func(t *testing.T) {
 		jsonText := "prefix {\"a\":1,\"b\":{\"c\":2}} suffix"
@@ -149,6 +189,12 @@ func TestExtractJSONObject(t *testing.T) {
 		snippet, ok := extractJSONObject(jsonText)
 		require.True(t, ok)
 		assert.Equal(t, "{\"a\":\"{nested}\"}", snippet)
+	})
+	t.Run("Should return first balanced array", func(t *testing.T) {
+		jsonText := "pre [1,{\"x\":2}] post"
+		snippet, ok := extractJSONObject(jsonText)
+		require.True(t, ok)
+		assert.Equal(t, "[1,{\"x\":2}]", snippet)
 	})
 	t.Run("Should return false when missing object", func(t *testing.T) {
 		snippet, ok := extractJSONObject("no json here")

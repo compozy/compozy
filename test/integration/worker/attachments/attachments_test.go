@@ -1,6 +1,7 @@
 package attachments
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -53,9 +54,33 @@ func Test_AttachmentsRouter_Image(t *testing.T) {
 						}
 					}
 				}
+				continue
+			}
+			if resp, ok := (*ts.Output)["response"].(string); ok {
+				var payload map[string]any
+				if err := json.Unmarshal([]byte(resp), &payload); err == nil {
+					if att, ok := payload["attachments"].(map[string]any); ok {
+						if v, ok := att["image_urls"]; ok {
+							switch n := v.(type) {
+							case float64:
+								if n > 0 {
+									found = true
+								}
+							case int:
+								if n > 0 {
+									found = true
+								}
+							case int64:
+								if n > 0 {
+									found = true
+								}
+							}
+						}
+					}
+				}
 			} else {
 				s := fmt.Sprintf("%v", *ts.Output)
-				if strings.Contains(s, "image_urls:") {
+				if strings.Contains(s, "image_urls") {
 					found = true
 				}
 			}
