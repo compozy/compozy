@@ -4,11 +4,11 @@
 
 versions:
   # Language versions
-  go: "1.25.1"
+  go: "1.25.2"
   node: "20.x"
 
   # Package manager versions
-  bun: "1.2.21"
+  bun: "1.3.0"
   npm: "10.x"
 
   # Container base images
@@ -41,5 +41,5 @@ versions:
 
 # Usage examples:
 # In workflows: ${{ vars.GO_VERSION }} or read from this file
-# In Dockerfiles: ARG GO_VERSION=1.25.1
-# In Makefiles: GO_VERSION ?= 1.25.1
+# In Dockerfiles: ARG GO_VERSION=1.25.2
+# In Makefiles: GO_VERSION ?= 1.25.2

@@ -31,11 +31,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.25.1"
+  GO_VERSION: "1.25.2"
   INITIAL_VERSION: "v0.0.10"
   NODE_VERSION: "22"
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.13
 
 permissions:
   contents: write
@@ -78,11 +79,7 @@ jobs:
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           INITIAL_VERSION: ${{ env.INITIAL_VERSION }}
         run: |
-          if [[ "${{ github.event.inputs.force_release }}" == "true" ]]; then
-            go run ./pkg/release pr-release --force --enable-rollback --ci-output
-          else
-            go run ./pkg/release pr-release --enable-rollback --ci-output
-          fi
+          go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
 
   # Job 2: Dry-run checks on Release PR
   dry-run:
@@ -119,7 +116,7 @@ jobs:
           GITHUB_HEAD_REF: ${{ github.head_ref }}
           GITHUB_ISSUE_NUMBER: ${{ github.event.pull_request.number }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
-        run: go run ./pkg/release dry-run --ci-output
+        run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
 
   # Job 3: Production release on merge
   release:

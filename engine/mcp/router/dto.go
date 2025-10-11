@@ -73,7 +73,7 @@ func convertMCPConfigToDTO(cfg *mcp.Config) (MCPCoreDTO, error) {
 	if cfg == nil {
 		return MCPCoreDTO{}, fmt.Errorf("mcp config is nil")
 	}
-	clone, err := core.DeepCopy[*mcp.Config](cfg)
+	clone, err := core.DeepCopy(cfg)
 	if err != nil {
 		return MCPCoreDTO{}, fmt.Errorf("deep copy mcp config: %w", err)
 	}

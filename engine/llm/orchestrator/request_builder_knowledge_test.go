@@ -11,27 +11,27 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
-	"github.com/compozy/compozy/engine/schema"
-	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/llm/telemetry"
 )
 
 type knowledgePromptBuilder struct{ prompt string }
 
-func (p knowledgePromptBuilder) Build(context.Context, *agent.ActionConfig) (string, error) {
-	return p.prompt, nil
+//nolint:gocritic // Interface requires value parameter.
+func (p knowledgePromptBuilder) Build(_ context.Context, input PromptBuildInput) (PromptBuildResult, error) {
+	return PromptBuildResult{
+		Prompt:   p.prompt,
+		Format:   llmadapter.OutputFormat{},
+		Template: staticPromptTemplate(p),
+		Context:  input.Dynamic,
+	}, nil
 }
 
-func (p knowledgePromptBuilder) EnhanceForStructuredOutput(
-	_ context.Context,
-	prompt string,
-	_ *schema.Schema,
-	_ bool,
-) string {
-	return prompt
+type staticPromptTemplate struct {
+	prompt string
 }
 
-func (knowledgePromptBuilder) ShouldUseStructuredOutput(string, *agent.ActionConfig, []tool.Config) bool {
-	return false
+func (s staticPromptTemplate) Render(context.Context, PromptDynamicContext) (string, error) {
+	return s.prompt, nil
 }
 
 type stubKnowledgeMemory struct{}
@@ -58,6 +58,13 @@ func (stubKnowledgeMemory) StoreAsync(
 ) {
 }
 
+func (stubKnowledgeMemory) StoreFailureEpisode(context.Context, *MemoryContext, Request, FailureEpisode) {
+}
+
+func (stubKnowledgeMemory) Compact(context.Context, *LoopContext, telemetry.ContextUsage) error {
+	return nil
+}
+
 func TestRequestBuilder_ShouldInjectKnowledgeBeforePrompt(t *testing.T) {
 	rb := &requestBuilder{
 		prompts: knowledgePromptBuilder{prompt: "Answer the question."},
@@ -78,11 +85,11 @@ func TestRequestBuilder_ShouldInjectKnowledgeBeforePrompt(t *testing.T) {
 		Action:    &agent.ActionConfig{ID: "action"},
 		Knowledge: []KnowledgeEntry{entry},
 	}
-	llmReq, err := rb.Build(context.Background(), req, &MemoryContext{})
+	output, err := rb.Build(context.Background(), req, &MemoryContext{})
 	require.NoError(t, err)
-	require.Len(t, llmReq.Messages, 2)
-	assert.Equal(t, "memory", llmReq.Messages[0].Content)
-	user := llmReq.Messages[1].Content
+	require.Len(t, output.Request.Messages, 2)
+	assert.Equal(t, "memory", output.Request.Messages[0].Content)
+	user := output.Request.Messages[1].Content
 	require.Contains(t, user, "Support Docs:")
 	require.Contains(t, user, "Reset the router and try again.")
 	supportIdx := strings.Index(user, "Support Docs:")
@@ -107,10 +114,10 @@ func TestRequestBuilder_ShouldUseFallbackWhenNoContexts(t *testing.T) {
 			},
 		}},
 	}
-	llmReq, err := rb.Build(context.Background(), req, &MemoryContext{})
+	output, err := rb.Build(context.Background(), req, &MemoryContext{})
 	require.NoError(t, err)
-	require.Len(t, llmReq.Messages, 2)
-	user := llmReq.Messages[1].Content
+	require.Len(t, output.Request.Messages, 2)
+	user := output.Request.Messages[1].Content
 	require.Contains(t, user, "No indexed knowledge available.")
 	require.Contains(t, user, "Summarize incident.")
 }

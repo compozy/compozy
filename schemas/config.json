@@ -314,6 +314,33 @@
           },
           "type": "array"
         },
+        "context_compaction_cooldown": {
+          "description": "ContextCompactionCooldown specifies how many loop iterations to wait between compaction attempts.",
+          "type": "integer"
+        },
+        "context_compaction_threshold": {
+          "description": "ContextCompactionThreshold expresses the context usage ratio (0-1) that triggers compaction.",
+          "type": "number"
+        },
+        "denied_mcp_names": {
+          "description": "DeniedMCPNames excludes MCP servers/tools from advertisement and invocation.\nEntries take precedence over the allow list.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "enable_context_compaction": {
+          "description": "EnableContextCompaction toggles summary-based compaction when context usage nears limits.",
+          "type": "boolean"
+        },
+        "enable_dynamic_prompt_state": {
+          "description": "EnableDynamicPromptState toggles inclusion of orchestrator loop state inside the system prompt.",
+          "type": "boolean"
+        },
+        "enable_loop_restarts": {
+          "description": "EnableLoopRestarts toggles whether the orchestrator may restart the loop when no progress is detected.",
+          "type": "boolean"
+        },
         "enable_progress_tracking": {
           "description": "EnableProgressTracking toggles loop progress tracking to detect stalled\nconversations or repeated tool usage without advancement.\nDefault: false",
           "type": "boolean"
@@ -322,12 +349,20 @@
           "description": "FailOnMCPRegistrationError enforces fail-fast behavior when registering\nMCP configurations sourced from agents/projects. When true, MCP\nregistration failures cause service initialization to error.",
           "type": "boolean"
         },
+        "finalize_output_retries": {
+          "description": "FinalizeOutputRetryAttempts overrides the number of retries allowed when final structured output is invalid.",
+          "type": "integer"
+        },
         "max_concurrent_tools": {
           "description": "MaxConcurrentTools limits the number of tools that can execute in parallel.\n\nControls resource usage and prevents overwhelming downstream services.\nHigher values improve throughput, lower values reduce resource contention.\nDefault: 10",
           "type": "integer"
         },
         "max_consecutive_successes": {
           "description": "MaxConsecutiveSuccesses controls how many consecutive successful tool calls\nwithout progress are tolerated before the orchestrator halts the loop.\nDefault: 3 (orchestrator default)",
+          "type": "integer"
+        },
+        "max_loop_restarts": {
+          "description": "MaxLoopRestarts caps how many restarts are attempted per loop execution.",
           "type": "integer"
         },
         "max_sequential_tool_errors": {
@@ -369,6 +404,10 @@
           },
           "type": "array"
         },
+        "restart_stall_threshold": {
+          "description": "RestartStallThreshold controls how many stalled iterations trigger a loop restart.",
+          "type": "integer"
+        },
         "retry_attempts": {
           "description": "RetryAttempts configures the number of retry attempts for LLM operations.\n\nControls how many times the orchestrator will retry failed LLM requests\nbefore giving up. Higher values improve reliability but may increase latency.\nDefault: 3",
           "type": "integer"
@@ -388,6 +427,10 @@
         "retry_jitter_percent": {
           "description": "RetryJitterPercent controls jitter strength when retry_jitter is enabled.",
           "type": "integer"
+        },
+        "tool_call_caps": {
+          "$ref": "#/$defs/ToolCallCapsConfig",
+          "description": "ToolCallCaps configures per-tool invocation caps enforced during orchestration."
         }
       },
       "type": "object"
@@ -473,6 +516,19 @@
         "ttl": {
           "description": "TTL sets memory entry expiration time.\n\nBalances context retention with storage costs.\nDefault: 24h",
           "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "NativeCallAgentConfig": {
+      "additionalProperties": false,
+      "description": "NativeCallAgentConfig configures cp__call_agent behavior.",
+      "properties": {
+        "default_timeout": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
         }
       },
       "type": "object"
@@ -580,6 +636,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "call_agent": {
+          "$ref": "#/$defs/NativeCallAgentConfig"
         },
         "enabled": {
           "type": "boolean"
@@ -911,6 +970,22 @@
         "task_queue": {
           "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-tasks\"",
           "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ToolCallCapsConfig": {
+      "additionalProperties": false,
+      "description": "ToolCallCapsConfig captures default and per-tool invocation caps.",
+      "properties": {
+        "default": {
+          "type": "integer"
+        },
+        "overrides": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
         }
       },
       "type": "object"

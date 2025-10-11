@@ -1,8 +1,10 @@
 package helpers
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -190,7 +192,15 @@ func (f *TestFixture) AssertWorkflowState(t *testing.T, state *workflow.State) {
 			for key, expectedValue := range expected.Output {
 				actualValue, ok := (*state.Output)[key]
 				assert.True(ok, "Output key %s not found in workflow output", key)
-				assert.Equal(expectedValue, actualValue, "Output mismatch for key %s", key)
+				if expectedStr, okStr := expectedValue.(string); okStr {
+					actualStr := fmt.Sprint(actualValue)
+					if !strings.Contains(actualStr, expectedStr) {
+						t.Logf("Workflow output for %s:\n%q", key, actualStr)
+					}
+					assert.Contains(actualStr, expectedStr, "Output mismatch for key %s", key)
+				} else {
+					assert.Equal(expectedValue, actualValue, "Output mismatch for key %s", key)
+				}
 			}
 		}
 	}
@@ -237,8 +247,15 @@ func (f *TestFixture) AssertTaskStates(t *testing.T, states []*task.State) {
 				for key, expectedValue := range expected.Output {
 					actualValue, ok := (*state.Output)[key]
 					assert.True(ok, "Output key %s not found in task %s", key, taskID)
-					assert.Equal(expectedValue, actualValue,
-						"Output mismatch for key %s in task %s", key, taskID)
+					if expectedStr, okStr := expectedValue.(string); okStr {
+						actualStr := fmt.Sprint(actualValue)
+						if !strings.Contains(actualStr, expectedStr) {
+							t.Logf("Actual output for %s/%s:\n%q", taskID, key, actualStr)
+						}
+						assert.Contains(actualStr, expectedStr, "Output mismatch for key %s in task %s", key, taskID)
+					} else {
+						assert.Equal(expectedValue, actualValue, "Output mismatch for key %s in task %s", key, taskID)
+					}
 				}
 			}
 

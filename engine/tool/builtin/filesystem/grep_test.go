@@ -66,7 +66,7 @@ func TestGrepHandler(t *testing.T) {
 		root := t.TempDir()
 		ctx := testContext(t, root)
 		require.NoError(t, os.Mkdir(filepath.Join(root, "dir"), 0o755))
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			name := filepath.Join(root, "dir", fmt.Sprintf("file%d.txt", i))
 			require.NoError(t, os.WriteFile(name, []byte("value"), 0o644))
 		}

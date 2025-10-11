@@ -37,7 +37,6 @@ memories:
     version: 0.1.0
     default_key_template: "user:{{.workflow.input.user_id}}"
     type: token_based
-    max_tokens: 2000
     max_messages: 50
     persistence:
       type: redis

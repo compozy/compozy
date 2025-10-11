@@ -3,10 +3,12 @@ package llm
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/runtime"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/tool/builtin"
 	"github.com/compozy/compozy/engine/tool/native"
@@ -19,14 +21,24 @@ type InternalTool struct {
 	builtin *builtin.BuiltinDefinition
 }
 
-func NewTool(config *tool.Config, env *core.EnvMap, runtime runtime.Runtime) *InternalTool {
+func NewTool(
+	config *tool.Config,
+	env *core.EnvMap,
+	runtime runtime.Runtime,
+	toolEnv toolenv.Environment,
+) *InternalTool {
 	internal := &InternalTool{
 		config:  config,
 		env:     env,
 		runtime: runtime,
 	}
 	if config != nil && strings.HasPrefix(config.ID, "cp__") {
-		if def, ok := native.DefinitionByID(config.ID); ok {
+		if toolEnv != nil {
+			if def, ok := native.DefinitionByIDWithEnvironment(toolEnv, config.ID); ok {
+				defCopy := def
+				internal.builtin = &defCopy
+			}
+		} else if def, ok := native.DefinitionByID(config.ID); ok {
 			defCopy := def
 			internal.builtin = &defCopy
 		}
@@ -97,9 +109,7 @@ func (t *InternalTool) executeTool(ctx context.Context, input *core.Input, confi
 	env := core.EnvMap{}
 	if t.env != nil {
 		env = make(core.EnvMap, len(*t.env))
-		for k, v := range *t.env {
-			env[k] = v
-		}
+		maps.Copy(env, *t.env)
 	}
 	globalTimeout := t.runtime.GetGlobalTimeout()
 	toolTimeout, err := t.config.GetTimeout(ctx, globalTimeout)

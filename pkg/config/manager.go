@@ -164,25 +164,25 @@ func (m *Manager) startWatching(sources []Source) {
 		if source == nil {
 			continue
 		}
-		// Create a copy of source for the goroutine
 		src := source
 		m.watchWg.Add(1)
 		go func() {
 			defer m.watchWg.Done()
-			// Watch the source
-			err := src.Watch(m.watchCtx, func() {
-				// Debounce rapid changes
-				time.Sleep(m.debounce)
-
-				// Reload configuration
-				if err := m.Reload(m.watchCtx); err != nil {
-					logger.FromContext(m.watchCtx).Error("failed to reload configuration", "error", err)
+			ctx := m.watchCtx
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			err := src.Watch(ctx, func() {
+				if m.debounce > 0 {
+					time.Sleep(m.debounce)
+				}
+				if err := m.Reload(ctx); err != nil {
+					logger.FromContext(ctx).Error("failed to reload configuration", "error", err)
 				}
 			})
 
 			if err != nil {
-				// Source doesn't support watching or error occurred
-				logger.FromContext(m.watchCtx).Debug("source does not support watching", "error", err)
+				logger.FromContext(ctx).Debug("source does not support watching", "error", err)
 			}
 		}()
 	}

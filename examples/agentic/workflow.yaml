@@ -1,0 +1,27 @@
+id: agentic
+description: Agentic process using prompt to call agents
+
+config:
+  input:
+    type: object
+    properties:
+      topic: {type string: null}
+
+agents:
+  - id: researcher
+    description: Research for a specific topic and answer in an specific way
+    instructions: |
+      You are a researcher agent that given a topic you will research your own web_search tool
+      and then answer with the results in the <format>
+      <format>
+      ## Research Bruh
+      > Bullet list which 5 points about the topic
+      </format>
+
+tasks:
+  - id: orchestrate
+    type: basic
+    timeout: 5m
+    prompt: |
+      You need to call the researcher agent and pass the {{ .workflow.input.topic }} for it
+    final: true

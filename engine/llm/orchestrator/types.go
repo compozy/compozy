@@ -9,8 +9,8 @@ import (
 	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/llm/contracts"
+	"github.com/compozy/compozy/engine/llm/telemetry"
 	"github.com/compozy/compozy/engine/runtime"
-	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 )
 
@@ -25,6 +25,15 @@ type Request struct {
 	Action          *agent.ActionConfig
 	AttachmentParts []llmadapter.ContentPart
 	Knowledge       []KnowledgeEntry
+	ProviderCaps    llmadapter.ProviderCapabilities
+	PromptContext   PromptDynamicContext
+}
+
+// RequestBuildOutput captures the constructed LLM request and prompt metadata.
+type RequestBuildOutput struct {
+	Request        llmadapter.LLMRequest
+	PromptTemplate PromptTemplateState
+	PromptContext  PromptDynamicContext
 }
 
 type KnowledgeEntry struct {
@@ -35,26 +44,40 @@ type KnowledgeEntry struct {
 
 // Config configures orchestrator behavior.
 type Config struct {
-	ToolRegistry                  ToolRegistry
-	PromptBuilder                 PromptBuilder
-	RuntimeManager                runtime.Runtime
-	LLMFactory                    llmadapter.Factory
-	MemoryProvider                contracts.MemoryProvider
-	MemorySync                    MemorySync
-	AsyncHook                     AsyncHook
-	Timeout                       time.Duration
-	MaxConcurrentTools            int
-	MaxToolIterations             int
-	MaxSequentialToolErrors       int
-	StructuredOutputRetryAttempts int
-	RetryAttempts                 int
-	RetryBackoffBase              time.Duration
-	RetryBackoffMax               time.Duration
-	RetryJitter                   bool
-	MaxConsecutiveSuccesses       int
-	EnableProgressTracking        bool
-	NoProgressThreshold           int
-	ProjectRoot                   string
+	ToolRegistry                   ToolRegistry
+	PromptBuilder                  PromptBuilder
+	SystemPromptRenderer           SystemPromptRenderer
+	RuntimeManager                 runtime.Runtime
+	LLMFactory                     llmadapter.Factory
+	MemoryProvider                 contracts.MemoryProvider
+	MemorySync                     MemorySync
+	AsyncHook                      AsyncHook
+	Timeout                        time.Duration
+	MaxConcurrentTools             int
+	MaxToolIterations              int
+	MaxSequentialToolErrors        int
+	StructuredOutputRetryAttempts  int
+	RetryAttempts                  int
+	RetryBackoffBase               time.Duration
+	RetryBackoffMax                time.Duration
+	RetryJitter                    bool
+	MaxConsecutiveSuccesses        int
+	EnableProgressTracking         bool
+	NoProgressThreshold            int
+	EnableLoopRestarts             bool
+	RestartStallThreshold          int
+	MaxLoopRestarts                int
+	EnableContextCompaction        bool
+	ContextCompactionThreshold     float64
+	ContextCompactionCooldown      int
+	EnableAgentCallCompletionHints bool
+	EnableDynamicPromptState       bool
+	ToolCallCaps                   ToolCallCaps
+	Middlewares                    []Middleware
+	FinalizeOutputRetryAttempts    int
+	ProjectRoot                    string
+	TelemetryRecorder              telemetry.RunRecorder
+	TelemetryOptions               *telemetry.Options
 }
 
 // Orchestrator coordinates LLM interactions, tool calls, and response processing.
@@ -68,6 +91,7 @@ type RegistryTool interface {
 	Name() string
 	Description() string
 	Call(ctx context.Context, input string) (string, error)
+	ParameterSchema() map[string]any
 }
 
 type ToolRegistry interface {
@@ -76,14 +100,160 @@ type ToolRegistry interface {
 	Close() error
 }
 
-// PromptBuilder mirrors engine/llm/prompt_builder behavior but abstracted for orchestration.
+// ToolCallCaps defines global and per-tool invocation limits enforced by the orchestrator.
+type ToolCallCaps struct {
+	Default   int
+	Overrides map[string]int
+}
+
+// PromptExample represents a dynamic exemplar injected into the prompt template.
+type PromptExample struct {
+	Summary string
+	Content string
+}
+
+// PromptDynamicContext conveys dynamic slots rendered into the prompt template.
+type PromptDynamicContext struct {
+	Examples        []PromptExample
+	FailureGuidance []string
+}
+
+// PromptBuildInput carries all data required to render the user prompt template.
+type PromptBuildInput struct {
+	Action       *agent.ActionConfig
+	ProviderCaps llmadapter.ProviderCapabilities
+	Tools        []tool.Config
+	Dynamic      PromptDynamicContext
+}
+
+// PromptTemplateState allows re-rendering the prompt with updated dynamic context.
+type PromptTemplateState interface {
+	Render(ctx context.Context, dynamic PromptDynamicContext) (string, error)
+}
+
+// PromptBuildResult contains the rendered prompt and associated template metadata.
+type PromptBuildResult struct {
+	Prompt   string
+	Format   llmadapter.OutputFormat
+	Template PromptTemplateState
+	Context  PromptDynamicContext
+}
+
+// PromptBuilder renders user prompts using reusable templates.
 type PromptBuilder interface {
-	Build(ctx context.Context, action *agent.ActionConfig) (string, error)
-	EnhanceForStructuredOutput(ctx context.Context, prompt string, schema *schema.Schema, hasTools bool) string
-	ShouldUseStructuredOutput(provider string, action *agent.ActionConfig, tools []tool.Config) bool
+	Build(ctx context.Context, input PromptBuildInput) (PromptBuildResult, error)
+}
+
+// SystemPromptRenderer renders the system prompt including built-in tool guidance.
+type SystemPromptRenderer interface {
+	Render(ctx context.Context, instructions string) (string, error)
 }
 
 // MemorySync defines minimal contract for multi-memory coordination.
 type MemorySync interface {
 	WithMultipleLocks(memoryIDs []string, fn func())
+}
+
+// Middleware exposes lifecycle hooks to extend orchestrator behavior.
+type Middleware interface {
+	BeforeLLMRequest(
+		ctx context.Context,
+		loopCtx *LoopContext,
+		req *llmadapter.LLMRequest,
+	) error
+	AfterLLMResponse(
+		ctx context.Context,
+		loopCtx *LoopContext,
+		resp *llmadapter.LLMResponse,
+	) error
+	BeforeToolExecution(
+		ctx context.Context,
+		loopCtx *LoopContext,
+		call *llmadapter.ToolCall,
+	) error
+	AfterToolExecution(
+		ctx context.Context,
+		loopCtx *LoopContext,
+		call *llmadapter.ToolCall,
+		result *llmadapter.ToolResult,
+	) error
+	BeforeFinalize(ctx context.Context, loopCtx *LoopContext) error
+}
+
+// MiddlewareFuncs provides an adapter with optional hook implementations.
+type MiddlewareFuncs struct {
+	BeforeLLMRequestFn func(
+		ctx context.Context,
+		loopCtx *LoopContext,
+		req *llmadapter.LLMRequest,
+	) error
+	AfterLLMResponseFn func(
+		ctx context.Context,
+		loopCtx *LoopContext,
+		resp *llmadapter.LLMResponse,
+	) error
+	BeforeToolExecFn func(
+		ctx context.Context,
+		loopCtx *LoopContext,
+		call *llmadapter.ToolCall,
+	) error
+	AfterToolExecFn func(
+		ctx context.Context,
+		loopCtx *LoopContext,
+		call *llmadapter.ToolCall,
+		result *llmadapter.ToolResult,
+	) error
+	BeforeFinalizeFn func(ctx context.Context, loopCtx *LoopContext) error
+}
+
+func (m MiddlewareFuncs) BeforeLLMRequest(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	req *llmadapter.LLMRequest,
+) error {
+	if m.BeforeLLMRequestFn != nil {
+		return m.BeforeLLMRequestFn(ctx, loopCtx, req)
+	}
+	return nil
+}
+
+func (m MiddlewareFuncs) AfterLLMResponse(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	resp *llmadapter.LLMResponse,
+) error {
+	if m.AfterLLMResponseFn != nil {
+		return m.AfterLLMResponseFn(ctx, loopCtx, resp)
+	}
+	return nil
+}
+
+func (m MiddlewareFuncs) BeforeToolExecution(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	call *llmadapter.ToolCall,
+) error {
+	if m.BeforeToolExecFn != nil {
+		return m.BeforeToolExecFn(ctx, loopCtx, call)
+	}
+	return nil
+}
+
+func (m MiddlewareFuncs) AfterToolExecution(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	call *llmadapter.ToolCall,
+	result *llmadapter.ToolResult,
+) error {
+	if m.AfterToolExecFn != nil {
+		return m.AfterToolExecFn(ctx, loopCtx, call, result)
+	}
+	return nil
+}
+
+func (m MiddlewareFuncs) BeforeFinalize(ctx context.Context, loopCtx *LoopContext) error {
+	if m.BeforeFinalizeFn != nil {
+		return m.BeforeFinalizeFn(ctx, loopCtx)
+	}
+	return nil
 }

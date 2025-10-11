@@ -10,7 +10,6 @@ version: 1.0.0
 default_key_template: "provider:{{.session_id}}"
 
 type: token_based
-max_tokens: 8000
 max_messages: 100
 
 flushing_strategy:

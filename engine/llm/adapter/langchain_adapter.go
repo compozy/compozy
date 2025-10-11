@@ -16,7 +16,14 @@ import (
 	"github.com/tmc/langchaingo/llms/openai"
 )
 
-// LangChainAdapter adapts langchaingo to our LLMClient interface
+// ModelBuilder constructs langchaingo models for a specific provider.
+type ModelBuilder func(
+	ctx context.Context,
+	config *core.ProviderConfig,
+	responseFormat *openai.ResponseFormat,
+) (llms.Model, error)
+
+// LangChainAdapter adapts langchaingo to our LLMClient interface.
 type LangChainAdapter struct {
 	provider       core.ProviderConfig
 	errorParser    *ErrorParser
@@ -24,22 +31,34 @@ type LangChainAdapter struct {
 	baseModel      llms.Model
 	modelCache     map[string]llms.Model
 	modelMu        sync.RWMutex
+	buildModel     ModelBuilder
+	capabilities   ProviderCapabilities
 }
 
-// NewLangChainAdapter creates a new LangChain adapter
-func NewLangChainAdapter(ctx context.Context, config *core.ProviderConfig) (*LangChainAdapter, error) {
+// NewLangChainAdapter creates a new LangChain adapter using the provided model builder.
+func NewLangChainAdapter(
+	ctx context.Context,
+	config *core.ProviderConfig,
+	builder ModelBuilder,
+	capabilities ProviderCapabilities,
+) (*LangChainAdapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("provider config is nil")
 	}
-	model, err := CreateLLMFactory(ctx, config, nil)
+	if builder == nil {
+		return nil, fmt.Errorf("model builder is required")
+	}
+	model, err := builder(ctx, config, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM model: %w", err)
 	}
 	return &LangChainAdapter{
-		provider:    *config,
-		errorParser: NewErrorParser(string(config.Provider)),
-		baseModel:   model,
-		modelCache:  map[string]llms.Model{"default": model},
+		provider:     *config,
+		errorParser:  NewErrorParser(string(config.Provider)),
+		baseModel:    model,
+		modelCache:   map[string]llms.Model{"default": model},
+		buildModel:   builder,
+		capabilities: capabilities,
 	}, nil
 }
 
@@ -55,8 +74,17 @@ const (
 	ValidationModeSilent
 )
 
+const (
+	maxInlineImageBytes      = 2 * 1024 * 1024 // 2 MiB
+	pdfOmittedSentinel       = "[PDF omitted: provider rejects PDF binaries; attach extracted text]"
+	oversizedImageMsgPattern = "[Image omitted: size %d bytes exceeds inline limit of %d bytes]"
+)
+
 // SetValidationMode configures how unsupported content is handled
 func (a *LangChainAdapter) SetValidationMode(mode ValidationMode) { a.validationMode = mode }
+
+// Capabilities reports the provider capabilities associated with this adapter.
+func (a *LangChainAdapter) Capabilities() ProviderCapabilities { return a.capabilities }
 
 // GenerateContent implements LLMClient interface
 func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest) (*LLMResponse, error) {
@@ -67,6 +95,15 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 	// Validate role-specific constraints to catch wiring mistakes early
 	if err := ValidateConversation(req.Messages); err != nil {
 		return nil, fmt.Errorf("invalid conversation: %w", err)
+	}
+	if req.Options.ForceJSON && !a.capabilities.StructuredOutput {
+		logger.FromContext(ctx).
+			Warn(
+				"Provider does not support native structured output; falling back to prompt-based extraction",
+				"provider",
+				string(a.provider.Provider),
+			)
+		req.Options.ForceJSON = false
 	}
 	// Convert our request to langchain format
 	messages, err := a.convertMessages(ctx, req)
@@ -177,7 +214,14 @@ func (a *LangChainAdapter) buildContentParts(ctx context.Context, msg *Message) 
 				return nil, err
 			}
 		default:
-			// ignore unknown types
+			logger.FromContext(ctx).
+				Debug(
+					"Skipping unsupported content part",
+					"provider",
+					string(a.provider.Provider),
+					"part_type",
+					fmt.Sprintf("%T", p),
+				)
 		}
 	}
 	return parts, nil
@@ -209,6 +253,15 @@ func (a *LangChainAdapter) skipOrWarnBinary(
 		)
 	}
 	return parts, nil
+}
+
+func containsTextPart(parts []llms.ContentPart, text string) bool {
+	for _, part := range parts {
+		if tc, ok := part.(llms.TextContent); ok && tc.Text == text {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *LangChainAdapter) handleAV(
@@ -250,12 +303,29 @@ func (a *LangChainAdapter) handleBinary(
 	if a.isPDFAndNonGoogle(v.MIMEType) {
 		logger.FromContext(ctx).
 			Warn("Provider does not accept PDF binary. Omitting PDF content.", "provider", string(a.provider.Provider))
-		return append(
-			parts,
-			llms.TextContent{Text: "[PDF omitted: provider rejects PDF binaries; attach extracted text]"},
-		), nil
+		if !containsTextPart(parts, pdfOmittedSentinel) {
+			parts = append(parts, llms.TextContent{Text: pdfOmittedSentinel})
+		}
+		return parts, nil
 	}
 	if a.isImage(v.MIMEType) {
+		if len(v.Data) > maxInlineImageBytes {
+			logger.FromContext(ctx).
+				Warn(
+					"Inline image exceeds size limit; omitting",
+					"mime",
+					v.MIMEType,
+					"size_bytes",
+					len(v.Data),
+					"limit_bytes",
+					maxInlineImageBytes,
+				)
+			msg := fmt.Sprintf(oversizedImageMsgPattern, len(v.Data), maxInlineImageBytes)
+			if !containsTextPart(parts, msg) {
+				parts = append(parts, llms.TextContent{Text: msg})
+			}
+			return parts, nil
+		}
 		b64 := base64.StdEncoding.EncodeToString(v.Data)
 		dataURL := fmt.Sprintf("data:%s;base64,%s", v.MIMEType, b64)
 		return append(parts, llms.ImageURLContent{URL: dataURL}), nil
@@ -318,7 +388,7 @@ func (a *LangChainAdapter) buildCallOptions(req *LLMRequest) []llms.CallOption {
 		options = append(options, llms.WithTools(tools))
 	}
 
-	if req.Options.ForceJSON {
+	if a.shouldForceJSON(req) {
 		options = append(options, llms.WithJSONMode())
 	}
 
@@ -329,9 +399,6 @@ func (a *LangChainAdapter) buildCallOptions(req *LLMRequest) []llms.CallOption {
 	// Set tool choice directive when provided (including "none")
 	if req.Options.ToolChoice != "" {
 		options = append(options, llms.WithToolChoice(req.Options.ToolChoice))
-		if req.Options.ToolChoice == "none" {
-			options = append(options, llms.WithFunctionCallBehavior(llms.FunctionCallBehaviorNone))
-		}
 	}
 
 	return options
@@ -348,25 +415,22 @@ func (a *LangChainAdapter) ensureModel(ctx context.Context, format OutputFormat)
 	if err != nil {
 		return nil, err
 	}
-	a.modelMu.RLock()
-	if model, ok := a.modelCache[key]; ok {
-		a.modelMu.RUnlock()
-		return model, nil
+	a.modelMu.Lock()
+	defer a.modelMu.Unlock()
+	if existing, ok := a.modelCache[key]; ok {
+		return existing, nil
 	}
-	a.modelMu.RUnlock()
 	responseFormat, err := a.responseFormatFor(effectiveFormat)
 	if err != nil {
 		return nil, err
 	}
 	providerCfg := a.provider
-	model, err := CreateLLMFactory(ctx, &providerCfg, responseFormat)
+	if a.buildModel == nil {
+		return nil, fmt.Errorf("model builder is not configured")
+	}
+	model, err := a.buildModel(ctx, &providerCfg, responseFormat)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM model: %w", err)
-	}
-	a.modelMu.Lock()
-	defer a.modelMu.Unlock()
-	if existing, ok := a.modelCache[key]; ok {
-		return existing, nil
 	}
 	a.modelCache[key] = model
 	if key == defaultModelCacheKey {
@@ -409,7 +473,7 @@ func (a *LangChainAdapter) responseFormatFor(format OutputFormat) (*openai.Respo
 }
 
 func (a *LangChainAdapter) supportsNativeStructuredOutput() bool {
-	return core.SupportsNativeJSONSchema(a.provider.Provider)
+	return a.capabilities.StructuredOutput
 }
 
 func createOpenAIResponseFormat(format OutputFormat) (*openai.ResponseFormat, error) {
@@ -443,9 +507,10 @@ func createOpenAIResponseFormat(format OutputFormat) (*openai.ResponseFormat, er
 
 // convertTools converts our tool definitions to langchain format
 func (a *LangChainAdapter) convertTools(tools []ToolDefinition) []llms.Tool {
-	llmTools := make([]llms.Tool, 0, len(tools))
+	effective := a.ensureProviderTools(tools)
+	llmTools := make([]llms.Tool, 0, len(effective))
 
-	for _, tool := range tools {
+	for _, tool := range effective {
 		llmTool := llms.Tool{
 			Type: "function",
 			Function: &llms.FunctionDefinition{
@@ -458,6 +523,37 @@ func (a *LangChainAdapter) convertTools(tools []ToolDefinition) []llms.Tool {
 	}
 
 	return llmTools
+}
+
+func (a *LangChainAdapter) ensureProviderTools(tools []ToolDefinition) []ToolDefinition {
+	if !strings.EqualFold(string(a.provider.Provider), string(core.ProviderGroq)) {
+		return tools
+	}
+	for _, tool := range tools {
+		if strings.EqualFold(tool.Name, "json") {
+			return tools
+		}
+	}
+	jsonParams := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{},
+	}
+	jsonTool := ToolDefinition{
+		Name:        "json",
+		Description: "Internal JSON structured output tool for Groq compatibility.",
+		Parameters:  jsonParams,
+	}
+	extended := make([]ToolDefinition, len(tools)+1)
+	copy(extended, tools)
+	extended[len(tools)] = jsonTool
+	return extended
+}
+
+func (a *LangChainAdapter) shouldForceJSON(req *LLMRequest) bool {
+	if req == nil || !req.Options.ForceJSON {
+		return false
+	}
+	return a.capabilities.StructuredOutput
 }
 
 // convertResponse converts langchain response to our format

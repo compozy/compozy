@@ -35,7 +35,7 @@ type ModelCoreDTO struct {
 	Model             string            `json:"model"`
 	APIKey            string            `json:"api_key,omitempty"`
 	APIURL            string            `json:"api_url,omitempty"`
-	Params            core.PromptParams `json:"params,omitempty"`
+	Params            core.PromptParams `json:"params"`
 	Organization      string            `json:"organization,omitempty"`
 	Default           bool              `json:"default,omitempty"`
 	MaxToolIterations int               `json:"max_tool_iterations,omitempty"`

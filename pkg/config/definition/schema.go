@@ -597,6 +597,7 @@ func registerRuntimeNativeToolsFields(registry *Registry) {
 	registerRuntimeNativeToolsCoreFields(registry)
 	registerRuntimeNativeToolsExecFields(registry)
 	registerRuntimeNativeToolsFetchFields(registry)
+	registerRuntimeNativeToolsCallAgentFields(registry)
 }
 
 func registerRuntimeNativeToolsCoreFields(registry *Registry) {
@@ -686,6 +687,23 @@ func registerRuntimeNativeToolsFetchFields(registry *Registry) {
 		EnvVar:  "RUNTIME_NATIVE_TOOLS_FETCH_ALLOWED_METHODS",
 		Type:    reflect.TypeOf([]string{}),
 		Help:    "HTTP methods permitted for cp__fetch",
+	})
+}
+
+func registerRuntimeNativeToolsCallAgentFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_agent.enabled",
+		Default: true,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_AGENT_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable cp__call_agent builtin",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_agent.default_timeout",
+		Default: 60 * time.Second,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_AGENT_DEFAULT_TIMEOUT",
+		Type:    durationType,
+		Help:    "Default timeout applied to cp__call_agent executions when not specified",
 	})
 }
 
@@ -961,6 +979,7 @@ func registerLLMFields(registry *Registry) {
 	})
 
 	registerLLMRetryAndLimits(registry)
+	registerLLMConversationControls(registry)
 	registerLLMMCPExtras(registry)
 }
 
@@ -1017,6 +1036,15 @@ func registerLLMMCPExtras(registry *Registry) {
 }
 
 func registerLLMRetryAndLimits(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "llm.provider_timeout",
+		Default: 5 * time.Minute,
+		CLIFlag: "llm-provider-timeout",
+		EnvVar:  "LLM_PROVIDER_TIMEOUT",
+		Type:    durationType,
+		Help:    "Maximum duration allowed for a single provider invocation before timing out",
+	})
+
 	registry.Register(&FieldDef{
 		Path:    "llm.retry_attempts",
 		Default: 3,
@@ -1078,6 +1106,153 @@ func registerLLMRetryAndLimits(registry *Registry) {
 		EnvVar:  "LLM_MAX_SEQUENTIAL_TOOL_ERRORS",
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum sequential tool/content errors tolerated per tool before aborting",
+	})
+}
+
+func registerLLMConversationControls(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "llm.max_consecutive_successes",
+		Default: 3,
+		CLIFlag: "llm-max-consecutive-successes",
+		EnvVar:  "LLM_MAX_CONSECUTIVE_SUCCESSES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum successful tool calls allowed without progress before halting the loop",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.enable_progress_tracking",
+		Default: false,
+		CLIFlag: "llm-enable-progress-tracking",
+		EnvVar:  "LLM_ENABLE_PROGRESS_TRACKING",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable loop progress tracking to detect stalled agent iterations",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.no_progress_threshold",
+		Default: 3,
+		CLIFlag: "llm-no-progress-threshold",
+		EnvVar:  "LLM_NO_PROGRESS_THRESHOLD",
+		Type:    reflect.TypeOf(0),
+		Help:    "Number of consecutive iterations without progress tolerated before aborting",
+	})
+
+	registerLLMRestartControls(registry)
+	registerLLMCompactionControls(registry)
+	registerLLMTelemetryControls(registry)
+
+	registry.Register(&FieldDef{
+		Path:    "llm.enable_dynamic_prompt_state",
+		Default: false,
+		CLIFlag: "llm-enable-dynamic-prompt-state",
+		EnvVar:  "LLM_ENABLE_DYNAMIC_PROMPT_STATE",
+		Type:    reflect.TypeOf(true),
+		Help:    "Include dynamic loop diagnostics (usage, budgets) in the system prompt each turn",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.tool_call_caps.default",
+		Default: 0,
+		CLIFlag: "",
+		EnvVar:  "LLM_TOOL_CALL_CAPS_DEFAULT",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default per-tool invocation cap enforced during a single orchestrator run",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.tool_call_caps.overrides",
+		Default: map[string]int{},
+		CLIFlag: "",
+		EnvVar:  "",
+		Type:    reflect.TypeOf(map[string]int{}),
+		Help:    "Per-tool overrides for invocation caps (map of tool -> limit)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.finalize_output_retries",
+		Default: 0,
+		CLIFlag: "llm-finalize-output-retries",
+		EnvVar:  "LLM_FINALIZE_OUTPUT_RETRIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Number of retries allowed when validating the final structured output",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.structured_output_retries",
+		Default: 2,
+		CLIFlag: "llm-structured-output-retries",
+		EnvVar:  "LLM_STRUCTURED_OUTPUT_RETRIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Retry budget for intermediate structured output validation before falling back or failing",
+	})
+}
+
+func registerLLMRestartControls(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "llm.enable_loop_restarts",
+		Default: false,
+		CLIFlag: "llm-enable-loop-restarts",
+		EnvVar:  "LLM_ENABLE_LOOP_RESTARTS",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable automatic loop restarts when progress remains stalled",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.restart_stall_threshold",
+		Default: 2,
+		CLIFlag: "llm-restart-stall-threshold",
+		EnvVar:  "LLM_RESTART_STALL_THRESHOLD",
+		Type:    reflect.TypeOf(0),
+		Help:    "Number of stalled iterations required before triggering a loop restart",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.max_loop_restarts",
+		Default: 0,
+		CLIFlag: "llm-max-loop-restarts",
+		EnvVar:  "LLM_MAX_LOOP_RESTARTS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum loop restarts allowed per orchestration run (0 disables)",
+	})
+}
+
+func registerLLMCompactionControls(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "llm.enable_context_compaction",
+		Default: false,
+		CLIFlag: "llm-enable-context-compaction",
+		EnvVar:  "LLM_ENABLE_CONTEXT_COMPACTION",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable summarisation-based context compaction when usage exceeds thresholds",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.context_compaction_threshold",
+		Default: 0.85,
+		CLIFlag: "llm-context-compaction-threshold",
+		EnvVar:  "LLM_CONTEXT_COMPACTION_THRESHOLD",
+		Type:    reflect.TypeOf(0.0),
+		Help:    "Context usage ratio (0-1) that triggers compaction when enabled",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.context_compaction_cooldown",
+		Default: 2,
+		CLIFlag: "llm-context-compaction-cooldown",
+		EnvVar:  "LLM_CONTEXT_COMPACTION_COOLDOWN",
+		Type:    reflect.TypeOf(0),
+		Help:    "Number of loop iterations to wait between compaction attempts (0 disables)",
+	})
+}
+
+func registerLLMTelemetryControls(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "llm.context_warning_thresholds",
+		Default: []float64{0.7, 0.85},
+		CLIFlag: "llm-context-warning-thresholds",
+		EnvVar:  "LLM_CONTEXT_WARNING_THRESHOLDS",
+		Type:    reflect.TypeOf([]float64{}),
+		Help:    "Comma-separated context usage ratios (0-1) that trigger telemetry warnings",
 	})
 }
 

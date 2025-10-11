@@ -1,0 +1,22 @@
+{{- /* Template used when structured output is required but native JSON schema mode is unavailable */ -}}
+{{- .ActionPrompt -}}
+
+IMPORTANT: You MUST respond with a valid JSON object only that conforms to the following schema:
+
+{{ .SchemaJSON }}
+
+Do not include any text before or after the JSON object. The response must be parsable JSON.
+{{- if .Examples }}
+
+Reference the following contextual examples to shape the JSON content:
+{{- range .Examples }}
+- {{ .Summary }}: {{ .Content }}
+{{- end }}
+{{- end }}
+{{- if .FailureGuidance }}
+
+Avoid repeating the following issues observed in previous attempts:
+{{- range .FailureGuidance }}
+- {{ . }}
+{{- end }}
+{{- end }}

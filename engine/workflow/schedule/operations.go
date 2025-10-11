@@ -115,8 +115,8 @@ func isValidListYearField(yearField string) bool {
 	if err != nil || !matched {
 		return false
 	}
-	years := strings.Split(yearField, ",")
-	for _, yearStr := range years {
+	years := strings.SplitSeq(yearField, ",")
+	for yearStr := range years {
 		if !isValidSingleYear(yearStr) {
 			return false
 		}

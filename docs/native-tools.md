@@ -14,6 +14,8 @@ Core Tools
 - cp**read_file, cp**write_file, cp**delete_file, cp**list_dir, cp\_\_grep
 - cp\_\_exec (allowlisted absolute paths, capped stdout/stderr, timeouts)
 - cp\_\_fetch (HTTP(S) only, size and redirect caps)
+- cp\_\_agent_orchestrate (inline multi-agent planning and execution)
+- cp\_\_list_agents, cp\_\_describe_agent (agent catalog discovery helpers)
 
 Configuration
 

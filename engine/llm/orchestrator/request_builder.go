@@ -1,52 +1,75 @@
 package orchestrator
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"maps"
+	"sort"
 	"strings"
+	"sync"
+	"text/template"
+
+	"github.com/adrg/strutil"
+	"github.com/adrg/strutil/metrics"
 
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
-	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/engine/llm/orchestrator/prompts"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+var (
+	fallbackTemplateOnce sync.Once
+	fallbackTemplate     *template.Template
+	fallbackTemplateErr  error
+)
+
 type RequestBuilder interface {
-	Build(ctx context.Context, request Request, memoryCtx *MemoryContext) (llmadapter.LLMRequest, error)
+	Build(ctx context.Context, request Request, memoryCtx *MemoryContext) (RequestBuildOutput, error)
 }
 
 type requestBuilder struct {
-	prompts PromptBuilder
-	tools   ToolRegistry
-	memory  MemoryManager
+	prompts       PromptBuilder
+	systemPrompts SystemPromptRenderer
+	tools         ToolRegistry
+	memory        MemoryManager
 }
 
-func NewRequestBuilder(prompts PromptBuilder, tools ToolRegistry, memory MemoryManager) RequestBuilder {
-	return &requestBuilder{prompts: prompts, tools: tools, memory: memory}
+func NewRequestBuilder(
+	prompts PromptBuilder,
+	systemPrompts SystemPromptRenderer,
+	tools ToolRegistry,
+	memory MemoryManager,
+) RequestBuilder {
+	return &requestBuilder{prompts: prompts, systemPrompts: systemPrompts, tools: tools, memory: memory}
 }
 
+//nolint:gocritic // Request copied to detach builder-side mutations from caller state.
 func (b *requestBuilder) Build(
 	ctx context.Context,
 	request Request,
 	memoryCtx *MemoryContext,
-) (llmadapter.LLMRequest, error) {
-	promptData, err := b.buildPromptData(ctx, request)
+) (RequestBuildOutput, error) {
+	promptResult, err := b.buildPromptData(ctx, request)
 	if err != nil {
-		return llmadapter.LLMRequest{}, err
+		return RequestBuildOutput{}, err
 	}
 
 	toolDefs, err := b.buildToolDefinitions(ctx, request.Agent.Tools)
 	if err != nil {
-		return llmadapter.LLMRequest{}, NewLLMError(err, ErrCodeToolDefinitions, map[string]any{
+		return RequestBuildOutput{}, NewLLMError(err, ErrCodeToolDefinitions, map[string]any{
 			"agent": request.Agent.ID,
 		})
 	}
-	toolDefs = b.appendGroqJSONToolIfNeeded(toolDefs, request)
 
-	messages := b.buildMessages(ctx, promptData.enhancedPrompt, memoryCtx, request)
+	messages, err := b.buildMessages(ctx, promptResult.Prompt, memoryCtx, request)
+	if err != nil {
+		return RequestBuildOutput{}, err
+	}
 	if err := llmadapter.ValidateConversation(messages); err != nil {
-		return llmadapter.LLMRequest{}, NewLLMError(err, ErrCodeInvalidConversation, map[string]any{
+		return RequestBuildOutput{}, NewLLMError(err, ErrCodeInvalidConversation, map[string]any{
 			"agent":          request.Agent.ID,
 			"action":         request.Action.ID,
 			"messages_count": len(messages),
@@ -54,23 +77,21 @@ func (b *requestBuilder) Build(
 	}
 
 	temperature := request.Agent.Model.Config.Params.Temperature
-	toolChoice := "none"
+	toolChoice := ""
 	if len(toolDefs) > 0 {
 		toolChoice = "auto"
 	}
-
-	forceJSON := b.computeJSONPreferences(ctx, promptData.format, request)
+	forceJSON := b.requiresJSONMode(request, promptResult.Format)
 	logger.FromContext(ctx).Debug("LLM request prepared",
 		"agent_id", request.Agent.ID,
 		"action_id", request.Action.ID,
 		"messages_count", len(messages),
 		"tools_count", len(toolDefs),
 		"tool_choice", toolChoice,
-		"output_format", b.describeOutputFormat(promptData.format),
+		"output_format", b.describeOutputFormat(promptResult.Format),
 		"force_json", forceJSON,
 	)
-
-	return llmadapter.LLMRequest{
+	llmReq := llmadapter.LLMRequest{
 		SystemPrompt: b.enhanceSystemPromptWithBuiltins(ctx, request.Agent.Instructions),
 		Messages:     messages,
 		Tools:        toolDefs,
@@ -79,83 +100,45 @@ func (b *requestBuilder) Build(
 			MaxTokens:    request.Agent.Model.Config.Params.MaxTokens,
 			StopWords:    request.Agent.Model.Config.Params.StopWords,
 			ToolChoice:   toolChoice,
-			OutputFormat: promptData.format,
+			OutputFormat: promptResult.Format,
 			ForceJSON:    forceJSON,
 		},
+	}
+	return RequestBuildOutput{
+		Request:        llmReq,
+		PromptTemplate: promptResult.Template,
+		PromptContext:  promptResult.Context,
 	}, nil
 }
 
-// computeJSONPreferences determines whether to request forced JSON output based on
-// the action schema, desired output format, and provider capabilities. It returns
-// true when the provider requires explicit JSON mode to honor the schema.
-func (b *requestBuilder) computeJSONPreferences(
-	ctx context.Context,
-	format llmadapter.OutputFormat,
-	request Request,
-) bool {
-	_ = ctx
+//nolint:gocritic // Request copied for clarity while inspecting schema and tooling state.
+func (b *requestBuilder) requiresJSONMode(request Request, format llmadapter.OutputFormat) bool {
 	action := request.Action
 	if action == nil || action.OutputSchema == nil {
 		return false
 	}
-	// If we already requested native JSON schema support, no need to force JSON mode.
+	// If we already requested native JSON schema support, only skip forcing JSON when the
+	// provider supports structured output natively.
 	if format.IsJSONSchema() {
-		return false
+		return !request.ProviderCaps.StructuredOutput
 	}
-	provider := request.Agent.Model.Config.Provider
-	switch provider {
-	case core.ProviderGoogle:
-		// Gemini currently rejects JSON mode when combined with tool calling. Rely on prompt instructions instead.
-		return false
-	case core.ProviderOpenAI, core.ProviderXAI:
-		return true
-	default:
-		return false
-	}
+	return true
 }
 
-type promptBuildData struct {
-	enhancedPrompt string
-	format         llmadapter.OutputFormat
-}
-
-func (b *requestBuilder) buildPromptData(ctx context.Context, request Request) (*promptBuildData, error) {
-	basePrompt, err := b.prompts.Build(ctx, request.Action)
+//nolint:gocritic // Request copied to isolate prompt rendering from caller mutations.
+func (b *requestBuilder) buildPromptData(ctx context.Context, request Request) (PromptBuildResult, error) {
+	result, err := b.prompts.Build(ctx, PromptBuildInput{
+		Action:       request.Action,
+		ProviderCaps: request.ProviderCaps,
+		Tools:        request.Agent.Tools,
+		Dynamic:      request.PromptContext,
+	})
 	if err != nil {
-		return nil, NewLLMError(err, ErrCodePromptBuild, map[string]any{
+		return PromptBuildResult{}, NewLLMError(err, ErrCodePromptBuild, map[string]any{
 			"action": request.Action.ID,
 		})
 	}
-	enhancedPrompt := basePrompt
-	format := llmadapter.DefaultOutputFormat()
-	action := request.Action
-	tools := request.Agent.Tools
-	hasSchema := action != nil && action.OutputSchema != nil
-	if hasSchema {
-		nativeStructured := len(tools) == 0 && b.prompts.ShouldUseStructuredOutput(
-			string(request.Agent.Model.Config.Provider),
-			action,
-			tools,
-		)
-		if nativeStructured {
-			name := action.ID
-			if name == "" {
-				name = "action_output"
-			}
-			format = llmadapter.NewJSONSchemaOutputFormat(name, action.OutputSchema, true)
-		} else {
-			enhancedPrompt = b.prompts.EnhanceForStructuredOutput(
-				ctx,
-				basePrompt,
-				action.OutputSchema,
-				len(tools) > 0,
-			)
-		}
-	}
-	return &promptBuildData{
-		enhancedPrompt: enhancedPrompt,
-		format:         format,
-	}, nil
+	return result, nil
 }
 
 func (b *requestBuilder) describeOutputFormat(format llmadapter.OutputFormat) string {
@@ -168,14 +151,25 @@ func (b *requestBuilder) describeOutputFormat(format llmadapter.OutputFormat) st
 	return "default"
 }
 
+//nolint:gocritic // Request copied to construct immutable message slices for the LLM conversation.
 func (b *requestBuilder) buildMessages(
 	ctx context.Context,
 	enhancedPrompt string,
 	memoryCtx *MemoryContext,
 	request Request,
-) []llmadapter.Message {
+) ([]llmadapter.Message, error) {
 	parts := request.AttachmentParts
-	if parts == nil {
+	if len(parts) > 0 {
+		clonedParts, err := llmadapter.CloneContentParts(parts)
+		if err != nil {
+			return nil, NewLLMError(
+				fmt.Errorf("failed to clone attachment parts: %w", err),
+				ErrCodeInvalidConversation,
+				map[string]any{"attachments": len(parts)},
+			)
+		}
+		parts = clonedParts
+	} else {
 		parts = []llmadapter.ContentPart{}
 	}
 
@@ -188,8 +182,9 @@ func (b *requestBuilder) buildMessages(
 	if memoryCtx != nil {
 		messages = b.memory.Inject(ctx, messages, memoryCtx)
 	}
+	messages = b.injectKnowledge(ctx, messages, request.Knowledge)
 
-	return b.injectKnowledge(ctx, messages, request.Knowledge)
+	return messages, nil
 }
 
 func (b *requestBuilder) injectKnowledge(
@@ -290,25 +285,22 @@ func (b *requestBuilder) collectConfiguredToolDefs(
 		toolConfig := &tools[i]
 		t, found := b.tools.Find(ctx, toolConfig.ID)
 		if !found {
+			details := map[string]any{"configured_tools": len(tools)}
+			if suggestions := b.suggestToolNames(ctx, toolConfig.ID); len(suggestions) > 0 {
+				details["suggestions"] = suggestions
+			}
 			return nil, nil, NewToolError(
 				fmt.Errorf("tool not found"),
 				ErrCodeToolNotFound,
 				toolConfig.ID,
-				map[string]any{"configured_tools": len(tools)},
+				details,
 			)
 		}
 
 		def := llmadapter.ToolDefinition{
 			Name:        t.Name(),
 			Description: t.Description(),
-		}
-		if toolConfig.InputSchema != nil {
-			def.Parameters = normalizeToolParameters(*toolConfig.InputSchema)
-		} else {
-			def.Parameters = map[string]any{
-				"type":       "object",
-				"properties": map[string]any{},
-			}
+			Parameters:  b.toolParametersFor(t, toolConfig),
 		}
 
 		defs = append(defs, def)
@@ -318,30 +310,11 @@ func (b *requestBuilder) collectConfiguredToolDefs(
 	return defs, included, nil
 }
 
-func (b *requestBuilder) appendGroqJSONToolIfNeeded(
-	defs []llmadapter.ToolDefinition,
-	request Request,
-) []llmadapter.ToolDefinition {
-	if request.Agent == nil {
-		return defs
+func (b *requestBuilder) toolParametersFor(t RegistryTool, cfg *tool.Config) map[string]any {
+	if cfg != nil && cfg.InputSchema != nil {
+		return normalizeToolParameters(map[string]any(*cfg.InputSchema))
 	}
-	if !strings.EqualFold(string(request.Agent.Model.Config.Provider), string(core.ProviderGroq)) {
-		return defs
-	}
-	for i := range defs {
-		if strings.EqualFold(defs[i].Name, "json") {
-			return defs
-		}
-	}
-	jsonParams := map[string]any{
-		"type":       "object",
-		"properties": map[string]any{},
-	}
-	return append(defs, llmadapter.ToolDefinition{
-		Name:        "json",
-		Description: "Internal JSON structured output tool for Groq compatibility.",
-		Parameters:  jsonParams,
-	})
+	return normalizeToolParameters(t.ParameterSchema())
 }
 
 func (b *requestBuilder) appendRegistryToolDefs(
@@ -367,29 +340,7 @@ func (b *requestBuilder) appendRegistryToolDefs(
 			continue
 		}
 
-		params := map[string]any{
-			"type":       "object",
-			"properties": map[string]any{},
-		}
-
-		schemaApplied := false
-		type inputSchemaProvider interface{ InputSchema() *schema.Schema }
-		if sp, ok := any(rt).(inputSchemaProvider); ok {
-			if s := sp.InputSchema(); s != nil {
-				params = normalizeToolParameters(map[string]any(*s))
-				schemaApplied = true
-			}
-		}
-		if !schemaApplied {
-			type argsTyper interface{ ArgsType() any }
-			if at, ok := any(rt).(argsTyper); ok {
-				if v := at.ArgsType(); v != nil {
-					if m, isMap := v.(map[string]any); isMap && len(m) > 0 {
-						params = normalizeToolParameters(m)
-					}
-				}
-			}
-		}
+		params := normalizeToolParameters(rt.ParameterSchema())
 
 		defs = append(defs, llmadapter.ToolDefinition{Name: name, Description: rt.Description(), Parameters: params})
 		included[lower] = struct{}{}
@@ -400,6 +351,91 @@ func (b *requestBuilder) appendRegistryToolDefs(
 
 func canonicalToolName(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
+}
+
+func (b *requestBuilder) suggestToolNames(ctx context.Context, missing string) []string {
+	if b.tools == nil {
+		return nil
+	}
+	allTools, err := b.tools.ListAll(ctx)
+	if err != nil {
+		logger.FromContext(ctx).Debug(
+			"Failed to list tools for suggestions",
+			"error",
+			core.RedactError(err),
+		)
+		return nil
+	}
+	names := make([]string, 0, len(allTools))
+	seen := make(map[string]struct{}, len(allTools))
+	for _, tool := range allTools {
+		if tool == nil {
+			continue
+		}
+		raw := tool.Name()
+		key := canonicalToolName(raw)
+		if key == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		names = append(names, raw)
+	}
+	return nearestToolNames(missing, names, 3)
+}
+
+func nearestToolNames(target string, names []string, limit int) []string {
+	target = canonicalToolName(target)
+	if target == "" || len(names) == 0 || limit <= 0 {
+		return nil
+	}
+	jw := metrics.NewJaroWinkler()
+	lev := metrics.NewLevenshtein()
+	type candidate struct {
+		name   string
+		prefix bool
+		jwSim  float64
+		lev    int
+	}
+	candidates := make([]candidate, 0, len(names))
+	for _, name := range names {
+		clean := canonicalToolName(name)
+		if clean == "" {
+			continue
+		}
+		cand := candidate{
+			name:   name,
+			prefix: strings.HasPrefix(clean, target),
+			jwSim:  strutil.Similarity(target, clean, jw),
+			lev:    lev.Distance(target, clean),
+		}
+		candidates = append(candidates, cand)
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].prefix != candidates[j].prefix {
+			return candidates[i].prefix && !candidates[j].prefix
+		}
+		if candidates[i].jwSim != candidates[j].jwSim {
+			return candidates[i].jwSim > candidates[j].jwSim
+		}
+		if candidates[i].lev != candidates[j].lev {
+			return candidates[i].lev < candidates[j].lev
+		}
+		return canonicalToolName(candidates[i].name) < canonicalToolName(candidates[j].name)
+	})
+	if len(candidates) > limit {
+		candidates = candidates[:limit]
+	}
+	out := make([]string, 0, len(candidates))
+	for _, cand := range candidates {
+		out = append(out, cand.name)
+	}
+	return out
 }
 
 func normalizeToolParameters(input map[string]any) map[string]any {
@@ -418,9 +454,7 @@ func cloneMap(src map[string]any) map[string]any {
 		return map[string]any{}
 	}
 	clone := make(map[string]any, len(src))
-	for k, v := range src {
-		clone[k] = v
-	}
+	maps.Copy(clone, src)
 	return clone
 }
 
@@ -450,44 +484,67 @@ func isObjectType(value any) bool {
 // enhanceSystemPromptWithBuiltins enhances the agent instructions with information
 // about available built-in tools that agents can use for common tasks.
 func (b *requestBuilder) enhanceSystemPromptWithBuiltins(
-	_ context.Context,
+	ctx context.Context,
 	originalInstructions string,
 ) string {
-	builtinToolsInfo := `
-<built-in-tools>
-## Built-in Tools Available
-
-You have access to several built-in tools for common operations.
-When appropriate, use these tools instead of asking users to perform manual tasks:
-
-### File Operations
-- **cp__read_file**: Read text content from files in the sandboxed filesystem
-- **cp__write_file**: Write or append text content to files
-- **cp__delete_file**: Delete files or directories (with recursive option)
-- **cp__list_files**: List files in directories with pattern filtering
-- **cp__list_dir**: List directory contents with pagination and filtering
-- **cp__grep**: Search for text patterns within files using regex
-
-### System Operations
-- **cp__exec**: Execute pre-approved system commands from an allowlist (e.g., ls, pwd, cat, etc.)
-
-### Network Operations
-- **cp__fetch**: Make HTTP requests (GET, POST, PUT, etc.) with configurable timeouts and headers
-
-### Usage Guidelines
-- Use these tools proactively when they would help accomplish the user's request
-- Tools have appropriate security restrictions and input validation
-- Always prefer using tools over asking users to perform manual file or system operations
-- Check tool responses for errors and handle them appropriately
-</built-in-tools>
-
-`
-
-	// If original instructions are empty, use just the builtin info
-	if strings.TrimSpace(originalInstructions) == "" {
-		return builtinToolsInfo
+	if b.systemPrompts == nil {
+		logger.FromContext(ctx).Error("System prompt renderer is not configured")
+		return composeSystemPromptFallback(ctx, originalInstructions)
 	}
+	rendered, err := b.systemPrompts.Render(ctx, originalInstructions)
+	if err != nil {
+		logger.FromContext(ctx).Error(
+			"Failed to render system prompt template",
+			"error", core.RedactError(err),
+		)
+		return composeSystemPromptFallback(ctx, originalInstructions)
+	}
+	return rendered
+}
 
-	// Otherwise, append the builtin info to existing instructions
-	return originalInstructions + "\n\n" + builtinToolsInfo
+func loadFallbackTemplate() (*template.Template, error) {
+	fallbackTemplateOnce.Do(func() {
+		fallbackTemplate, fallbackTemplateErr = template.ParseFS(
+			prompts.TemplateFS,
+			"templates/system_prompt_with_builtins.tmpl",
+		)
+	})
+	return fallbackTemplate, fallbackTemplateErr
+}
+
+func composeSystemPromptFallback(ctx context.Context, instructions string) string {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	tpl, err := loadFallbackTemplate()
+	if err != nil {
+		logger.FromContext(ctx).Error(
+			"Failed to load fallback system prompt template",
+			"error", core.RedactError(err),
+		)
+		return strings.TrimSpace(instructions)
+	}
+	var buf bytes.Buffer
+	data := struct {
+		HasInstructions bool
+		Instructions    string
+	}{
+		HasInstructions: strings.TrimSpace(instructions) != "",
+		Instructions:    instructions,
+	}
+	if err := tpl.Execute(&buf, data); err != nil {
+		logger.FromContext(ctx).Error(
+			"Failed to execute fallback system prompt template",
+			"error", core.RedactError(err),
+		)
+		trimmed := strings.TrimSpace(instructions)
+		if trimmed == "" {
+			return ""
+		}
+		return trimmed + "\n"
+	}
+	if !strings.HasSuffix(buf.String(), "\n") {
+		buf.WriteString("\n")
+	}
+	return buf.String()
 }

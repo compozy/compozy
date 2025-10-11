@@ -160,7 +160,6 @@ func (s *RegisterService) deregisterIDs(ctx context.Context, ids []string) {
 	log := logger.FromContext(ctx)
 	g, gCtx := errgroup.WithContext(ctx)
 	for _, id := range ids {
-		id := id
 		g.Go(func() error {
 			if err := s.proxy.Deregister(gCtx, id); err != nil {
 				log.Warn("Failed to deregister MCP during shutdown", "mcp_id", id, "error", err)

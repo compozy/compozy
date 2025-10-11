@@ -474,10 +474,7 @@ func paginateSlice[T any](items []T, offset, limit int) ([]T, int) {
 	if offset > total {
 		return []T{}, total
 	}
-	end := offset + limit
-	if end > total {
-		end = total
-	}
+	end := min(offset+limit, total)
 	return items[offset:end], total
 }
 

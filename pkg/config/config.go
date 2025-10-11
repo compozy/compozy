@@ -651,6 +651,12 @@ type LLMConfig struct {
 	// Default: 10s
 	RetryBackoffMax time.Duration `koanf:"retry_backoff_max" env:"LLM_RETRY_BACKOFF_MAX" json:"retry_backoff_max" yaml:"retry_backoff_max" mapstructure:"retry_backoff_max"`
 
+	// ProviderTimeout sets the maximum duration allowed for a single provider invocation.
+	//
+	// Applies to each GenerateContent call (including retries) to keep the orchestrator responsive.
+	// Default: 5m
+	ProviderTimeout time.Duration `koanf:"provider_timeout" env:"LLM_PROVIDER_TIMEOUT" json:"provider_timeout" yaml:"provider_timeout" mapstructure:"provider_timeout"`
+
 	// RetryJitter enables random jitter in retry delays to avoid thundering herd.
 	//
 	// When enabled, adds randomness to retry delays to prevent all clients
@@ -693,10 +699,46 @@ type LLMConfig struct {
 	// Default: 3 (orchestrator default)
 	NoProgressThreshold int `koanf:"no_progress_threshold" env:"LLM_NO_PROGRESS_THRESHOLD" json:"no_progress_threshold" yaml:"no_progress_threshold" mapstructure:"no_progress_threshold" validate:"min=0"`
 
+	// EnableLoopRestarts toggles whether the orchestrator may restart the loop when no progress is detected.
+	EnableLoopRestarts bool `koanf:"enable_loop_restarts" env:"LLM_ENABLE_LOOP_RESTARTS" json:"enable_loop_restarts" yaml:"enable_loop_restarts" mapstructure:"enable_loop_restarts"`
+
+	// RestartStallThreshold controls how many stalled iterations trigger a loop restart.
+	RestartStallThreshold int `koanf:"restart_stall_threshold" env:"LLM_RESTART_STALL_THRESHOLD" json:"restart_stall_threshold" yaml:"restart_stall_threshold" mapstructure:"restart_stall_threshold" validate:"min=0"`
+
+	// MaxLoopRestarts caps how many restarts are attempted per loop execution.
+	MaxLoopRestarts int `koanf:"max_loop_restarts" env:"LLM_MAX_LOOP_RESTARTS" json:"max_loop_restarts" yaml:"max_loop_restarts" mapstructure:"max_loop_restarts" validate:"min=0"`
+
+	// EnableContextCompaction toggles summary-based compaction when context usage nears limits.
+	EnableContextCompaction bool `koanf:"enable_context_compaction" env:"LLM_ENABLE_CONTEXT_COMPACTION" json:"enable_context_compaction" yaml:"enable_context_compaction" mapstructure:"enable_context_compaction"`
+
+	// ContextCompactionThreshold expresses the context usage ratio (0-1) that triggers compaction.
+	ContextCompactionThreshold float64 `koanf:"context_compaction_threshold" env:"LLM_CONTEXT_COMPACTION_THRESHOLD" json:"context_compaction_threshold" yaml:"context_compaction_threshold" mapstructure:"context_compaction_threshold" validate:"min=0"`
+
+	// ContextCompactionCooldown specifies how many loop iterations to wait between compaction attempts.
+	ContextCompactionCooldown int `koanf:"context_compaction_cooldown" env:"LLM_CONTEXT_COMPACTION_COOLDOWN" json:"context_compaction_cooldown" yaml:"context_compaction_cooldown" mapstructure:"context_compaction_cooldown" validate:"min=0"`
+
+	// EnableDynamicPromptState toggles inclusion of orchestrator loop state inside the system prompt.
+	EnableDynamicPromptState bool `koanf:"enable_dynamic_prompt_state" env:"LLM_ENABLE_DYNAMIC_PROMPT_STATE" json:"enable_dynamic_prompt_state" yaml:"enable_dynamic_prompt_state" mapstructure:"enable_dynamic_prompt_state"`
+
+	// ToolCallCaps configures per-tool invocation caps enforced during orchestration.
+	ToolCallCaps ToolCallCapsConfig `koanf:"tool_call_caps" json:"tool_call_caps" yaml:"tool_call_caps" mapstructure:"tool_call_caps"`
+
+	// StructuredOutputRetryAttempts controls how many validation retries are attempted before failing.
+	//
+	// When set to 0, the orchestrator default (2) is used.
+	StructuredOutputRetryAttempts int `koanf:"structured_output_retries" env:"LLM_STRUCTURED_OUTPUT_RETRIES" json:"structured_output_retries" yaml:"structured_output_retries" mapstructure:"structured_output_retries" validate:"min=0"`
+
+	// FinalizeOutputRetryAttempts overrides the number of retries allowed when final structured output is invalid.
+	FinalizeOutputRetryAttempts int `koanf:"finalize_output_retries" env:"LLM_FINALIZE_OUTPUT_RETRIES" json:"finalize_output_retries" yaml:"finalize_output_retries" mapstructure:"finalize_output_retries" validate:"min=0"`
+
 	// AllowedMCPNames restricts which MCP servers/tools are considered eligible
 	// for advertisement and invocation. When empty, all discovered MCP tools
 	// are eligible.
 	AllowedMCPNames []string `koanf:"allowed_mcp_names" env:"LLM_ALLOWED_MCP_NAMES" json:"allowed_mcp_names" yaml:"allowed_mcp_names" mapstructure:"allowed_mcp_names"`
+
+	// DeniedMCPNames excludes MCP servers/tools from advertisement and invocation.
+	// Entries take precedence over the allow list.
+	DeniedMCPNames []string `koanf:"denied_mcp_names" env:"LLM_DENIED_MCP_NAMES" json:"denied_mcp_names" yaml:"denied_mcp_names" mapstructure:"denied_mcp_names"`
 
 	// FailOnMCPRegistrationError enforces fail-fast behavior when registering
 	// MCP configurations sourced from agents/projects. When true, MCP
@@ -713,6 +755,15 @@ type LLMConfig struct {
 
 	// RetryJitterPercent controls jitter strength when retry_jitter is enabled.
 	RetryJitterPercent int `koanf:"retry_jitter_percent" env:"LLM_RETRY_JITTER_PERCENT" json:"retry_jitter_percent" yaml:"retry_jitter_percent" mapstructure:"retry_jitter_percent"`
+
+	// ContextWarningThresholds defines usage ratios (0-1) that trigger telemetry warnings.
+	ContextWarningThresholds []float64 `koanf:"context_warning_thresholds" env:"LLM_CONTEXT_WARNING_THRESHOLDS" json:"context_warning_thresholds" yaml:"context_warning_thresholds" mapstructure:"context_warning_thresholds"`
+}
+
+// ToolCallCapsConfig captures default and per-tool invocation caps.
+type ToolCallCapsConfig struct {
+	Default   int            `koanf:"default"   json:"default"   yaml:"default"   mapstructure:"default"`
+	Overrides map[string]int `koanf:"overrides" json:"overrides" yaml:"overrides" mapstructure:"overrides"`
 }
 
 // RateLimitConfig contains rate limiting configuration.
@@ -1450,6 +1501,41 @@ func getFloat64(registry *definition.Registry, path string) float64 {
 	return 0
 }
 
+func getFloat64Slice(registry *definition.Registry, path string) []float64 {
+	val := registry.GetDefault(path)
+	if val == nil {
+		return nil
+	}
+	switch raw := val.(type) {
+	case []float64:
+		if len(raw) == 0 {
+			return nil
+		}
+		out := make([]float64, len(raw))
+		copy(out, raw)
+		return out
+	case []any:
+		out := make([]float64, 0, len(raw))
+		for _, item := range raw {
+			switch num := item.(type) {
+			case float64:
+				out = append(out, num)
+			case float32:
+				out = append(out, float64(num))
+			case int:
+				out = append(out, float64(num))
+			case int64:
+				out = append(out, float64(num))
+			}
+		}
+		if len(out) == 0 {
+			return nil
+		}
+		return out
+	}
+	return nil
+}
+
 func getStringSlice(registry *definition.Registry, path string) []string {
 	if val := registry.GetDefault(path); val != nil {
 		if slice, ok := val.([]string); ok {
@@ -1467,6 +1553,35 @@ func getStringSlice(registry *definition.Registry, path string) []string {
 		}
 	}
 	return []string{}
+}
+
+func getStringIntMap(registry *definition.Registry, path string) map[string]int {
+	val := registry.GetDefault(path)
+	if val == nil {
+		return nil
+	}
+	out := make(map[string]int)
+	switch raw := val.(type) {
+	case map[string]int:
+		for k, v := range raw {
+			out[k] = v
+		}
+	case map[string]any:
+		for k, v := range raw {
+			switch num := v.(type) {
+			case int:
+				out[k] = num
+			case int64:
+				out[k] = int(num)
+			case float64:
+				out[k] = int(num)
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // getMapSlice returns []map[string]any from registry defaults, tolerating []any input.
@@ -1635,6 +1750,10 @@ func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
 				MaxRedirects:   getInt(registry, "runtime.native_tools.fetch.max_redirects"),
 				AllowedMethods: getStringSlice(registry, "runtime.native_tools.fetch.allowed_methods"),
 			},
+			CallAgent: NativeCallAgentConfig{
+				Enabled:        getBool(registry, "runtime.native_tools.call_agent.enabled"),
+				DefaultTimeout: getDuration(registry, "runtime.native_tools.call_agent.default_timeout"),
+			},
 		},
 	}
 }
@@ -1679,6 +1798,7 @@ func buildLLMConfig(registry *definition.Registry) LLMConfig {
 		RetryAttempts:              getInt(registry, "llm.retry_attempts"),
 		RetryBackoffBase:           getDuration(registry, "llm.retry_backoff_base"),
 		RetryBackoffMax:            getDuration(registry, "llm.retry_backoff_max"),
+		ProviderTimeout:            getDuration(registry, "llm.provider_timeout"),
 		RetryJitter:                getBool(registry, "llm.retry_jitter"),
 		MaxConcurrentTools:         getInt(registry, "llm.max_concurrent_tools"),
 		MaxToolIterations:          getInt(registry, "llm.max_tool_iterations"),
@@ -1686,11 +1806,26 @@ func buildLLMConfig(registry *definition.Registry) LLMConfig {
 		MaxConsecutiveSuccesses:    getInt(registry, "llm.max_consecutive_successes"),
 		EnableProgressTracking:     getBool(registry, "llm.enable_progress_tracking"),
 		NoProgressThreshold:        getInt(registry, "llm.no_progress_threshold"),
-		AllowedMCPNames:            getStringSlice(registry, "llm.allowed_mcp_names"),
-		FailOnMCPRegistrationError: getBool(registry, "llm.fail_on_mcp_registration_error"),
-		RegisterMCPs:               getMapSlice(registry, "llm.register_mcps"),
-		MCPClientTimeout:           getDuration(registry, "llm.mcp_client_timeout"),
-		RetryJitterPercent:         getInt(registry, "llm.retry_jitter_percent"),
+		EnableLoopRestarts:         getBool(registry, "llm.enable_loop_restarts"),
+		RestartStallThreshold:      getInt(registry, "llm.restart_stall_threshold"),
+		MaxLoopRestarts:            getInt(registry, "llm.max_loop_restarts"),
+		EnableContextCompaction:    getBool(registry, "llm.enable_context_compaction"),
+		ContextCompactionThreshold: getFloat64(registry, "llm.context_compaction_threshold"),
+		ContextCompactionCooldown:  getInt(registry, "llm.context_compaction_cooldown"),
+		EnableDynamicPromptState:   getBool(registry, "llm.enable_dynamic_prompt_state"),
+		ToolCallCaps: ToolCallCapsConfig{
+			Default:   getInt(registry, "llm.tool_call_caps.default"),
+			Overrides: getStringIntMap(registry, "llm.tool_call_caps.overrides"),
+		},
+		StructuredOutputRetryAttempts: getInt(registry, "llm.structured_output_retries"),
+		FinalizeOutputRetryAttempts:   getInt(registry, "llm.finalize_output_retries"),
+		AllowedMCPNames:               getStringSlice(registry, "llm.allowed_mcp_names"),
+		DeniedMCPNames:                getStringSlice(registry, "llm.denied_mcp_names"),
+		FailOnMCPRegistrationError:    getBool(registry, "llm.fail_on_mcp_registration_error"),
+		RegisterMCPs:                  getMapSlice(registry, "llm.register_mcps"),
+		MCPClientTimeout:              getDuration(registry, "llm.mcp_client_timeout"),
+		RetryJitterPercent:            getInt(registry, "llm.retry_jitter_percent"),
+		ContextWarningThresholds:      getFloat64Slice(registry, "llm.context_warning_thresholds"),
 	}
 }
 

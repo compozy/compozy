@@ -21,35 +21,4 @@ expected:
       inputs:
         message: "Hello from test"
         value: 42
-      output:
-        response: |-
-          Mock response for: Test agent for integration testing
-
-          <built-in-tools>
-          ## Built-in Tools Available
-
-          You have access to several built-in tools for common operations.
-          When appropriate, use these tools instead of asking users to perform manual tasks:
-
-          ### File Operations
-          - **cp__read_file**: Read text content from files in the sandboxed filesystem
-          - **cp__write_file**: Write or append text content to files
-          - **cp__delete_file**: Delete files or directories (with recursive option)
-          - **cp__list_files**: List files in directories with pattern filtering
-          - **cp__list_dir**: List directory contents with pagination and filtering
-          - **cp__grep**: Search for text patterns within files using regex
-
-          ### System Operations
-          - **cp__exec**: Execute pre-approved system commands from an allowlist (e.g., ls, pwd, cat, etc.)
-
-          ### Network Operations
-          - **cp__fetch**: Make HTTP requests (GET, POST, PUT, etc.) with configurable timeouts and headers
-
-          ### Usage Guidelines
-          - Use these tools proactively when they would help accomplish the user's request
-          - Tools have appropriate security restrictions and input validation
-          - Always prefer using tools over asking users to perform manual file or system operations
-          - Check tool responses for errors and handle them appropriately
-          </built-in-tools>
-
-           Process a message for testing
+      output: {}

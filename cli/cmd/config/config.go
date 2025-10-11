@@ -574,6 +574,13 @@ func flattenKnowledgeConfig(cfg *config.Config, result map[string]string) {
 
 // flattenLLMConfig flattens LLM configuration (optional)
 func flattenLLMConfig(cfg *config.Config, result map[string]string) {
+	appendLLMCoreSettings(cfg, result)
+	appendLLMReliabilitySettings(cfg, result)
+	appendLLMToolCaps(cfg, result)
+	appendLLMMCPSettings(cfg, result)
+}
+
+func appendLLMCoreSettings(cfg *config.Config, result map[string]string) {
 	if cfg.LLM.ProxyURL != "" {
 		result["llm.proxy_url"] = redactURL(cfg.LLM.ProxyURL)
 	}
@@ -584,6 +591,9 @@ func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 		result["llm.mcp_readiness_poll_interval"] = cfg.LLM.MCPReadinessPollInterval.String()
 	}
 	result["llm.mcp_header_template_strict"] = fmt.Sprintf("%v", cfg.LLM.MCPHeaderTemplateStrict)
+}
+
+func appendLLMReliabilitySettings(cfg *config.Config, result map[string]string) {
 	if cfg.LLM.RetryAttempts > 0 {
 		result["llm.retry_attempts"] = fmt.Sprintf("%d", cfg.LLM.RetryAttempts)
 	}
@@ -592,6 +602,9 @@ func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 	}
 	if cfg.LLM.RetryBackoffMax > 0 {
 		result["llm.retry_backoff_max"] = cfg.LLM.RetryBackoffMax.String()
+	}
+	if cfg.LLM.ProviderTimeout > 0 {
+		result["llm.provider_timeout"] = cfg.LLM.ProviderTimeout.String()
 	}
 	result["llm.retry_jitter"] = fmt.Sprintf("%v", cfg.LLM.RetryJitter)
 	if cfg.LLM.MaxConcurrentTools > 0 {
@@ -603,7 +616,62 @@ func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 	if cfg.LLM.MaxSequentialToolErrors > 0 {
 		result["llm.max_sequential_tool_errors"] = fmt.Sprintf("%d", cfg.LLM.MaxSequentialToolErrors)
 	}
-	// MCP-related fields
+	if cfg.LLM.MaxConsecutiveSuccesses > 0 {
+		result["llm.max_consecutive_successes"] = fmt.Sprintf("%d", cfg.LLM.MaxConsecutiveSuccesses)
+	}
+	result["llm.enable_progress_tracking"] = fmt.Sprintf("%v", cfg.LLM.EnableProgressTracking)
+	if cfg.LLM.NoProgressThreshold > 0 {
+		result["llm.no_progress_threshold"] = fmt.Sprintf("%d", cfg.LLM.NoProgressThreshold)
+	}
+	result["llm.enable_loop_restarts"] = fmt.Sprintf("%v", cfg.LLM.EnableLoopRestarts)
+	if cfg.LLM.RestartStallThreshold > 0 {
+		result["llm.restart_stall_threshold"] = fmt.Sprintf("%d", cfg.LLM.RestartStallThreshold)
+	}
+	if cfg.LLM.MaxLoopRestarts > 0 {
+		result["llm.max_loop_restarts"] = fmt.Sprintf("%d", cfg.LLM.MaxLoopRestarts)
+	}
+	result["llm.enable_context_compaction"] = fmt.Sprintf("%v", cfg.LLM.EnableContextCompaction)
+	if cfg.LLM.ContextCompactionThreshold > 0 {
+		result["llm.context_compaction_threshold"] = strconv.FormatFloat(
+			cfg.LLM.ContextCompactionThreshold,
+			'f',
+			-1,
+			64,
+		)
+	}
+	if cfg.LLM.ContextCompactionCooldown > 0 {
+		result["llm.context_compaction_cooldown"] = fmt.Sprintf("%d", cfg.LLM.ContextCompactionCooldown)
+	}
+}
+
+func appendLLMToolCaps(cfg *config.Config, result map[string]string) {
+	result["llm.enable_dynamic_prompt_state"] = fmt.Sprintf("%v", cfg.LLM.EnableDynamicPromptState)
+	if cfg.LLM.FinalizeOutputRetryAttempts > 0 {
+		result["llm.finalize_output_retries"] = fmt.Sprintf("%d", cfg.LLM.FinalizeOutputRetryAttempts)
+	}
+	if cfg.LLM.StructuredOutputRetryAttempts > 0 {
+		result["llm.structured_output_retries"] = fmt.Sprintf("%d", cfg.LLM.StructuredOutputRetryAttempts)
+	}
+	if cfg.LLM.ToolCallCaps.Default > 0 {
+		result["llm.tool_call_caps.default"] = fmt.Sprintf("%d", cfg.LLM.ToolCallCaps.Default)
+	}
+	if len(cfg.LLM.ToolCallCaps.Overrides) > 0 {
+		keys := make([]string, 0, len(cfg.LLM.ToolCallCaps.Overrides))
+		for name := range cfg.LLM.ToolCallCaps.Overrides {
+			keys = append(keys, name)
+		}
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, name := range keys {
+			parts = append(parts, fmt.Sprintf("%s=%d", name, cfg.LLM.ToolCallCaps.Overrides[name]))
+		}
+		result["llm.tool_call_caps.overrides"] = strings.Join(parts, ",")
+		return
+	}
+	result["llm.tool_call_caps.overrides"] = ""
+}
+
+func appendLLMMCPSettings(cfg *config.Config, result map[string]string) {
 	if len(cfg.LLM.AllowedMCPNames) > 0 {
 		result["llm.allowed_mcp_names"] = strings.Join(cfg.LLM.AllowedMCPNames, ",")
 	} else {
@@ -616,7 +684,15 @@ func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 	if cfg.LLM.RetryJitterPercent > 0 {
 		result["llm.retry_jitter_percent"] = fmt.Sprintf("%d", cfg.LLM.RetryJitterPercent)
 	}
-	// register_mcps is a complex structure; surface count for diagnostics
+	if len(cfg.LLM.ContextWarningThresholds) > 0 {
+		parts := make([]string, len(cfg.LLM.ContextWarningThresholds))
+		for i, value := range cfg.LLM.ContextWarningThresholds {
+			parts[i] = strconv.FormatFloat(value, 'f', -1, 64)
+		}
+		result["llm.context_warning_thresholds"] = strings.Join(parts, ",")
+	} else {
+		result["llm.context_warning_thresholds"] = ""
+	}
 	if len(cfg.LLM.RegisterMCPs) > 0 {
 		result["llm.register_mcps"] = fmt.Sprintf("%d", len(cfg.LLM.RegisterMCPs))
 	}

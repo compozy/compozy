@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
@@ -57,6 +58,7 @@ func NewExecuteSubtask(
 	task2Factory task2.Factory,
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
+	toolEnvironment toolenv.Environment,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
@@ -66,6 +68,7 @@ func NewExecuteSubtask(
 			nil,            // Subtasks don't need memory manager
 			templateEngine, // Ensure templating is available to subtasks
 			nil,
+			toolEnvironment,
 		),
 		task2Factory:   task2Factory,
 		templateEngine: templateEngine,

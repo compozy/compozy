@@ -13,11 +13,13 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/resources"
 	coreruntime "github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/toolenv/builder"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
@@ -201,6 +203,14 @@ func createProcessItemAction() *agent.ActionConfig {
 				"multiplier": map[string]any{"type": "number"},
 			},
 		},
+		OutputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"result":          map[string]any{"type": "string"},
+				"processed_value": map[string]any{"type": "number"},
+			},
+			"required": []string{"result", "processed_value"},
+		},
 	}
 }
 
@@ -245,6 +255,14 @@ func createAnalyzeActivityAction() *agent.ActionConfig {
 				"activity_name": map[string]any{"type": "string"},
 			},
 		},
+		OutputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"analysis": map[string]any{"type": "string"},
+				"rating":   map[string]any{"type": "number"},
+			},
+			"required": []string{"analysis", "rating"},
+		},
 	}
 }
 
@@ -258,6 +276,14 @@ func createProcessCityAction() *agent.ActionConfig {
 				"city_name":     map[string]any{"type": "string"},
 				"city_position": map[string]any{"type": "number"},
 			},
+		},
+		OutputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"weather":    map[string]any{"type": "string"},
+				"population": map[string]any{"type": "number"},
+			},
+			"required": []string{"weather", "population"},
 		},
 	}
 }
@@ -391,6 +417,13 @@ func CreateTestActivities(
 	require.NoError(t, err)
 	log := logger.NewForTests()
 	ctx = logger.ContextWithLogger(config.ContextWithManager(ctx, mgr), log)
+	store := resources.NewMemoryResourceStore()
+	require.NoError(t, projectConfig.IndexToResourceStore(ctx, store))
+	for _, wfCfg := range workflows {
+		require.NoError(t, wfCfg.IndexToResourceStore(ctx, projectConfig.Name, store))
+	}
+	toolEnv, err := builder.Build(projectConfig, workflows, workflowRepo, taskRepo, store)
+	require.NoError(t, err)
 
 	acts, err := worker.NewActivities(
 		ctx,
@@ -404,6 +437,7 @@ func CreateTestActivities(
 		nil, // redisCache - not needed for test
 		memoryManager,
 		templateEngine,
+		toolEnv,
 	)
 	require.NoError(t, err)
 	return acts

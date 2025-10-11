@@ -25,6 +25,7 @@ cat .cursor/rules/{go-coding-standards,architecture,test-standards,backwards-com
 - **MANDATORY REQUIREMENTS:**
   - **ALWAYS** check dependent files APIs before write tests to avoid write wrong code
   - **ALWAYS** verify against PRD and tech specs - NEVER make assumptions (if applied)
+  - **NEVER** use `git checkout` or any other command to reset a file, even if it roptuded, if this happen you need to stop everything and warn instead of do the reset
   - **NEVER** use workarounds, especially in tests - implement proper solutions
   - **NEVER** create functions with more than 50 lines of code, always prefer to create smaller functions (PRIORITY HIGH)
   - **MUST** use `logger.FromContext(ctx)` - NEVER pass a logger as a parameter or via DI

@@ -3,6 +3,7 @@ package uc
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task"
 	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/task2/shared"
@@ -35,11 +37,12 @@ type ExecuteTaskInput struct {
 }
 
 type ExecuteTask struct {
-	runtime        runtime.Runtime
-	workflowRepo   workflow.Repository
-	memoryManager  memcore.ManagerInterface
-	templateEngine *tplengine.TemplateEngine
-	toolResolver   resolver.ToolResolver
+	runtime         runtime.Runtime
+	workflowRepo    workflow.Repository
+	memoryManager   memcore.ManagerInterface
+	templateEngine  *tplengine.TemplateEngine
+	toolResolver    resolver.ToolResolver
+	toolEnvironment toolenv.Environment
 }
 
 // NewExecuteTask creates a new ExecuteTask configured with the provided runtime, workflow
@@ -51,6 +54,7 @@ func NewExecuteTask(
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	toolResolver resolver.ToolResolver,
+	toolEnvironment toolenv.Environment,
 ) *ExecuteTask {
 	return &ExecuteTask{
 		runtime:        runtime,
@@ -63,6 +67,7 @@ func NewExecuteTask(
 			}
 			return resolver.NewHierarchicalResolver()
 		}(),
+		toolEnvironment: toolEnvironment,
 	}
 }
 
@@ -161,13 +166,9 @@ func (uc *ExecuteTask) buildNormalizationContext(
 		projectEnv := input.ProjectConfig.GetEnv()
 		if len(projectEnv) > 0 {
 			mergedCopy := core.EnvMap{}
-			for k, v := range projectEnv {
-				mergedCopy[k] = v
-			}
+			maps.Copy(mergedCopy, projectEnv)
 			if merged != nil {
-				for k, v := range *merged {
-					mergedCopy[k] = v
-				}
+				maps.Copy(mergedCopy, *merged)
 			}
 			mergedEnv := mergedCopy
 			merged = &mergedEnv
@@ -392,6 +393,10 @@ func (uc *ExecuteTask) executeAgent(
 	input *ExecuteTaskInput,
 ) (*core.Output, error) {
 	log := logger.FromContext(ctx)
+	// Add project name to context for tools called by agents
+	if input.ProjectConfig != nil && input.ProjectConfig.Name != "" {
+		ctx = core.WithProjectName(ctx, input.ProjectConfig.Name)
+	}
 	if err := uc.prepareAgentConfig(ctx, agentConfig, input, actionID); err != nil {
 		return nil, err
 	}
@@ -624,6 +629,9 @@ func (uc *ExecuteTask) createLLMService(
 	}
 	// MCP registration is handled by server startup (engine/mcp.SetupForWorkflows)
 	// We no longer register workflow-level MCPs from the exec task.
+	if uc.toolEnvironment != nil {
+		llmOpts = append(llmOpts, llm.WithToolEnvironment(uc.toolEnvironment))
+	}
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
@@ -943,7 +951,11 @@ func (uc *ExecuteTask) executeTool(
 	envMerger := task2core.NewEnvMerger()
 	baseEnv := envMerger.MergeWorkflowToTask(input.WorkflowConfig, input.TaskConfig)
 	mergedEnv := envMerger.MergeForComponent(baseEnv, toolConfig.Env)
-	tool := llm.NewTool(toolConfig, mergedEnv, uc.runtime)
+	// Add project name to context for native tools that need it
+	if input.ProjectConfig != nil && input.ProjectConfig.Name != "" {
+		ctx = core.WithProjectName(ctx, input.ProjectConfig.Name)
+	}
+	tool := llm.NewTool(toolConfig, mergedEnv, uc.runtime, uc.toolEnvironment)
 	output, err := tool.Call(ctx, input.TaskConfig.With)
 	if err != nil {
 		return nil, fmt.Errorf("tool execution failed: %w", err)

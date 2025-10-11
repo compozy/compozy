@@ -16,7 +16,7 @@
 
 [Brief description of task]
 
-<import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
+<critical>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</critical>
 
 <requirements>
 [List of mandatory requirements]

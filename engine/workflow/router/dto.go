@@ -33,9 +33,9 @@ type WorkflowDTO struct {
 	MCPCount    int                `json:"mcp_count"`
 	MCPs        []mcp.Config       `json:"mcps,omitempty"`
 	// Expandable collections: marshaled as either []string or []<DTO>
-	Tasks  TasksOrDTOs  `json:"tasks,omitempty"`
-	Agents AgentsOrDTOs `json:"agents,omitempty"`
-	Tools  ToolsOrDTOs  `json:"tools,omitempty"`
+	Tasks  TasksOrDTOs  `json:"tasks"`
+	Agents AgentsOrDTOs `json:"agents"`
+	Tools  ToolsOrDTOs  `json:"tools"`
 }
 
 // WorkflowListItem is the list item wrapper including optional strong ETag

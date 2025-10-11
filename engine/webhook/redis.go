@@ -56,7 +56,7 @@ func DeriveKey(h http.Header, body []byte, jsonField string) (string, error) {
 	}
 	// walk dot-paths like "data.id"
 	cur := m
-	for _, seg := range strings.Split(jsonField, ".") {
+	for seg := range strings.SplitSeq(jsonField, ".") {
 		mm, ok := cur.(map[string]any)
 		if !ok {
 			return "", ErrKeyNotFound

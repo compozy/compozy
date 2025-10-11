@@ -23,6 +23,9 @@ import (
 	workflowcmd "github.com/compozy/compozy/cli/cmd/workflow"
 	workflowscmd "github.com/compozy/compozy/cli/cmd/workflows"
 	"github.com/compozy/compozy/cli/helpers"
+
+	// Ensure native builtin tools register themselves.
+	_ "github.com/compozy/compozy/engine/tool/builtin/imports"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/version"

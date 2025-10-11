@@ -20,13 +20,22 @@ func NewClientManager() ClientManager {
 	return &clientManager{}
 }
 
+//nolint:gocritic // Request is passed by value to preserve immutability guarantees for downstream components.
 func (c *clientManager) Create(
 	ctx context.Context,
 	request Request,
 	factory llmadapter.Factory,
 ) (llmadapter.LLMClient, error) {
 	if factory == nil {
-		factory = llmadapter.NewDefaultFactory()
+		var err error
+		factory, err = llmadapter.NewDefaultFactory(ctx)
+		if err != nil {
+			return nil, NewLLMError(
+				fmt.Errorf("failed to build default LLM factory: %w", err),
+				ErrCodeLLMCreation,
+				map[string]any{"reason": "factory_initialization"},
+			)
+		}
 	}
 	if request.Agent == nil {
 		return nil, NewLLMError(fmt.Errorf("agent configuration is nil"), ErrCodeLLMCreation, map[string]any{

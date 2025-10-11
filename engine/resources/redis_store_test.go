@@ -75,8 +75,7 @@ func TestRedisStore_ListAndDelete(t *testing.T) {
 
 func TestRedisStore_Watch_PrimeAndEvents(t *testing.T) {
 	t.Run("Should prime and receive put/delete events via PubSub", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 		c, mr := newTestRedisClient(t)
 		defer mr.Close()
 		st := NewRedisResourceStore(c, WithReconcileInterval(200*time.Millisecond))

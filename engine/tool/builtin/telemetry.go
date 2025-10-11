@@ -12,10 +12,13 @@ import (
 )
 
 var (
-	initMetricsOnce      sync.Once
-	toolInvocationsTotal metric.Int64Counter
-	toolLatencySeconds   metric.Float64Histogram
-	toolResponseBytes    metric.Int64Histogram
+	initMetricsOnce         sync.Once
+	metricsResetMu          sync.Mutex
+	toolInvocationsTotal    metric.Int64Counter
+	toolLatencySeconds      metric.Float64Histogram
+	toolResponseBytes       metric.Int64Histogram
+	toolStepExecutionsTotal metric.Int64Counter
+	toolStepLatencySeconds  metric.Float64Histogram
 )
 
 const (
@@ -50,6 +53,22 @@ func InitMetrics(meter metric.Meter) error {
 		toolResponseBytes, err = meter.Int64Histogram(
 			"compozy_tool_response_bytes",
 			metric.WithDescription("cp__ tool response size in bytes"),
+		)
+		if err != nil {
+			initErr = err
+			return
+		}
+		toolStepExecutionsTotal, err = meter.Int64Counter(
+			"compozy_tool_step_executions_total",
+			metric.WithDescription("Total cp__ tool step executions grouped by status"),
+		)
+		if err != nil {
+			initErr = err
+			return
+		}
+		toolStepLatencySeconds, err = meter.Float64Histogram(
+			"compozy_tool_step_latency_seconds",
+			metric.WithDescription("cp__ tool step execution latency in seconds"),
 		)
 		if err != nil {
 			initErr = err
@@ -105,4 +124,45 @@ func RecordInvocation(
 		logger.FromContext(ctx).
 			Debug("cp__ tool failure recorded", "tool_id", toolID, "request_id", requestID, "error_code", errorCode)
 	}
+}
+
+// RecordStep records metrics for an individual orchestrated step using the
+// shared builtin telemetry instruments. Additional attributes may be provided
+// to enrich the metric with contextual details (e.g., agent identifiers or
+// parallel execution flags).
+func RecordStep(
+	ctx context.Context,
+	toolID string,
+	stepType string,
+	status string,
+	duration time.Duration,
+	attrs ...attribute.KeyValue,
+) {
+	attributes := []attribute.KeyValue{
+		attribute.String("tool_id", toolID),
+		attribute.String("step_type", stepType),
+		attribute.String("status", status),
+	}
+	if len(attrs) > 0 {
+		attributes = append(attributes, attrs...)
+	}
+	if toolStepExecutionsTotal != nil {
+		toolStepExecutionsTotal.Add(ctx, 1, metric.WithAttributes(attributes...))
+	}
+	if toolStepLatencySeconds != nil {
+		toolStepLatencySeconds.Record(ctx, duration.Seconds(), metric.WithAttributes(attributes...))
+	}
+}
+
+// ResetMetricsForTesting clears the cached telemetry instruments so tests can
+// reinitialize metrics state in isolation.
+func ResetMetricsForTesting() {
+	metricsResetMu.Lock()
+	defer metricsResetMu.Unlock()
+	initMetricsOnce = sync.Once{}
+	toolInvocationsTotal = nil
+	toolLatencySeconds = nil
+	toolResponseBytes = nil
+	toolStepExecutionsTotal = nil
+	toolStepLatencySeconds = nil
 }

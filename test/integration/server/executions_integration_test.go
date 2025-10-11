@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -491,9 +492,7 @@ func (s *workflowRunnerStub) complete(
 	state.Status = core.StatusSuccess
 	if len(output) > 0 {
 		copyOutput := make(core.Output)
-		for k, v := range output {
-			copyOutput[k] = v
-		}
+		maps.Copy(copyOutput, output)
 		state.Output = &copyOutput
 	}
 	if err := s.repo.UpsertState(context.WithoutCancel(ctx), state); err != nil {
@@ -576,9 +575,7 @@ func (s *directExecutorStub) ExecuteSync(
 	}
 	if len(s.cfg.syncOutput) > 0 {
 		copyOutput := make(core.Output)
-		for k, v := range s.cfg.syncOutput {
-			copyOutput[k] = v
-		}
+		maps.Copy(copyOutput, s.cfg.syncOutput)
 		state.Output = &copyOutput
 	}
 	s.ensureWorkflowState(ctx, meta.WorkflowID, execID)
@@ -592,9 +589,7 @@ func (s *directExecutorStub) ExecuteSync(
 	s.finishWorkflowState(ctx, execID, s.cfg.syncOutput)
 	if len(s.cfg.syncOutput) > 0 {
 		outCopy := make(core.Output)
-		for k, v := range s.cfg.syncOutput {
-			outCopy[k] = v
-		}
+		maps.Copy(outCopy, s.cfg.syncOutput)
 		return &outCopy, execID, nil
 	}
 	return nil, execID, nil
@@ -652,9 +647,7 @@ func (s *directExecutorStub) completeAsync(
 	state.Status = core.StatusSuccess
 	if len(output) > 0 {
 		copyOutput := make(core.Output)
-		for k, v := range output {
-			copyOutput[k] = v
-		}
+		maps.Copy(copyOutput, output)
 		state.Output = &copyOutput
 	}
 	state.UpdatedAt = now
@@ -687,9 +680,7 @@ func (s *directExecutorStub) finishWorkflowState(ctx context.Context, execID cor
 	state.Status = core.StatusSuccess
 	if len(output) > 0 {
 		copyOutput := make(core.Output)
-		for k, v := range output {
-			copyOutput[k] = v
-		}
+		maps.Copy(copyOutput, output)
 		state.Output = &copyOutput
 	}
 	_ = s.workflowRepo.UpsertState(context.WithoutCancel(ctx), state)

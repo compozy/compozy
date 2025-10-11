@@ -183,3 +183,32 @@ func (s *Schema) extractDefaults() map[string]any {
 
 	return defaults
 }
+
+// FromMap constructs a Schema from a raw map.
+func FromMap(input map[string]any) *Schema {
+	if input == nil {
+		return nil
+	}
+	s := Schema(input)
+	return &s
+}
+
+// ValidateRawMessage validates a JSON payload against the provided schema.
+func ValidateRawMessage(ctx context.Context, sch *Schema, raw json.RawMessage) error {
+	if sch == nil {
+		return nil
+	}
+	if len(raw) == 0 {
+		raw = json.RawMessage("{}")
+	}
+	var data any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return fmt.Errorf("failed to unmarshal tool arguments: %w", err)
+	}
+	result, err := sch.Validate(ctx, data)
+	if err != nil {
+		return err
+	}
+	_ = result
+	return nil
+}
