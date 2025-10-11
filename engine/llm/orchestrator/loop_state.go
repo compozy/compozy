@@ -61,24 +61,8 @@ func newLoopState(cfg *settings, memories *MemoryContext, action *agent.ActionCo
 	if cfg == nil {
 		cfg = &settings{}
 	}
-	budget := budgetState{
-		ErrorBudget:         cfg.maxSequentialToolErrors,
-		FinalizeRetryBudget: cfg.finalizeOutputRetries,
-		ToolErrors:          make(map[string]int),
-		ToolSuccess:         make(map[string]int),
-		ToolUsage:           make(map[string]int),
-		LastToolResults:     make(map[string]string),
-	}
-	if budget.ErrorBudget <= 0 {
-		budget.ErrorBudget = defaultMaxSequentialToolErrors
-	}
-	if budget.FinalizeRetryBudget <= 0 {
-		budget.FinalizeRetryBudget = defaultStructuredOutputRetries
-	}
-	iteration := iterationState{MaxIterations: cfg.maxToolIterations}
-	if iteration.MaxIterations <= 0 {
-		iteration.MaxIterations = defaultMaxToolIterations
-	}
+	budget := initBudgetState(cfg)
+	iteration := initIterationState(cfg)
 	memState := memoryState{}
 	if memories != nil {
 		if refs := memories.References(); len(refs) > 0 {
@@ -93,9 +77,35 @@ func newLoopState(cfg *settings, memories *MemoryContext, action *agent.ActionCo
 			memories:             memories,
 			action:               action,
 			caps:                 cfg.toolCaps,
-			finalizeFeedbackBase: -1,
+			finalizeFeedbackBase: -1, // -1 indicates no finalize feedback has been recorded yet
 		},
 	}
+}
+
+func initBudgetState(cfg *settings) budgetState {
+	budget := budgetState{
+		ErrorBudget:         cfg.maxSequentialToolErrors,
+		FinalizeRetryBudget: cfg.finalizeOutputRetries,
+		ToolErrors:          make(map[string]int),
+		ToolSuccess:         make(map[string]int),
+		ToolUsage:           make(map[string]int),
+		LastToolResults:     make(map[string]string),
+	}
+	if budget.ErrorBudget <= 0 {
+		budget.ErrorBudget = defaultMaxSequentialToolErrors
+	}
+	if budget.FinalizeRetryBudget <= 0 {
+		budget.FinalizeRetryBudget = defaultStructuredOutputRetries
+	}
+	return budget
+}
+
+func initIterationState(cfg *settings) iterationState {
+	iteration := iterationState{MaxIterations: cfg.maxToolIterations}
+	if iteration.MaxIterations <= 0 {
+		iteration.MaxIterations = defaultMaxToolIterations
+	}
+	return iteration
 }
 
 func (s *loopState) budgetFor(string) int {
