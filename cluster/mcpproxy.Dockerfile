@@ -66,7 +66,7 @@ RUN apk add --no-cache \
     && if [ "$WITH_DOCKER_CLI" = "true" ]; then apk add --no-cache docker-cli; fi
 
 # Install Bun runtime (align with other images)
-ENV BUN_VERSION=1.2.21
+ENV BUN_VERSION=1.3.0
 RUN curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}" \
     && mv /root/.bun/bin/bun /usr/local/bin/ \
     && chmod +x /usr/local/bin/bun \
