@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -155,9 +156,7 @@ func projectPayload(version string, description string) map[string]any {
 
 func cloneMap(input map[string]any) map[string]any {
 	out := make(map[string]any, len(input))
-	for k, v := range input {
-		out[k] = v
-	}
+	maps.Copy(out, input)
 	return out
 }
 

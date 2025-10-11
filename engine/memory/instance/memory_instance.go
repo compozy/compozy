@@ -314,7 +314,7 @@ func (mi *memoryInstance) AppendMany(ctx context.Context, msgs []llm.Message) er
 	if mi.asyncTokenCounter != nil {
 		base := context.WithoutCancel(ctx)
 		for _, msg := range msgs {
-			msg := msg // capture loop variable
+			// capture loop variable
 			go mi.reconcileAsyncTokenCount(base, msg)
 		}
 	}

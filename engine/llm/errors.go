@@ -44,9 +44,10 @@ type ToolExecutionResult struct {
 
 // ToolError represents a structured tool execution error
 type ToolError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Details string `json:"details,omitempty"`
+	Code            string `json:"code"`
+	Message         string `json:"message"`
+	Details         string `json:"details,omitempty"`
+	RemediationHint string `json:"remediation_hint,omitempty"`
 }
 
 // IsToolExecutionError checks if a tool result indicates an error

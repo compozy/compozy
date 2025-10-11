@@ -226,10 +226,7 @@ func clientManagerConfigFromApp(cfg *config.Config) *mcpproxy.ClientManagerConfi
 	if cfg == nil {
 		return cmCfg
 	}
-	timeout := cfg.LLM.MCPClientTimeout
-	if cfg.LLM.MCPReadinessTimeout > timeout {
-		timeout = cfg.LLM.MCPReadinessTimeout
-	}
+	timeout := max(cfg.LLM.MCPReadinessTimeout, cfg.LLM.MCPClientTimeout)
 	if timeout <= 0 {
 		return cmCfg
 	}

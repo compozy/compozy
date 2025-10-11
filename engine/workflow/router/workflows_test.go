@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -51,9 +52,7 @@ func workflowBody(overrides map[string]any) []byte {
 		"config": map[string]any{},
 		"tasks":  []map[string]any{},
 	}
-	for k, v := range overrides {
-		base[k] = v
-	}
+	maps.Copy(base, overrides)
 	payload, _ := json.Marshal(base)
 	return payload
 }

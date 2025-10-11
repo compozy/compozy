@@ -1,25 +1,86 @@
 package llm
 
 import (
+	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
+	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	orchestrator "github.com/compozy/compozy/engine/llm/orchestrator"
 	"github.com/compozy/compozy/engine/schema"
-	"github.com/stretchr/testify/assert"
+	"github.com/compozy/compozy/engine/tool"
+	"github.com/stretchr/testify/require"
 )
 
-func TestPromptBuilder_ShouldUseStructuredOutput(t *testing.T) {
+func TestPromptBuilder_NativeStructuredOutput(t *testing.T) {
 	builder := NewPromptBuilder()
+	ctx := context.Background()
 
-	t.Run("Should enable structured output for OpenAI when schema defined", func(t *testing.T) {
-		action := &agent.ActionConfig{OutputSchema: &schema.Schema{"type": "object"}}
-		result := builder.ShouldUseStructuredOutput("openai", action, nil)
-		assert.True(t, result)
-	})
+	action := &agent.ActionConfig{
+		ID:           "summarize",
+		Prompt:       "Summarize the findings into JSON.",
+		OutputSchema: &schema.Schema{"type": "object"},
+	}
 
-	t.Run("Should disable structured output for Groq due to unsupported JSON schema", func(t *testing.T) {
-		action := &agent.ActionConfig{OutputSchema: &schema.Schema{"type": "object"}}
-		result := builder.ShouldUseStructuredOutput("groq", action, nil)
-		assert.False(t, result)
+	result, err := builder.Build(ctx, orchestrator.PromptBuildInput{
+		Action:       action,
+		ProviderCaps: llmadapter.ProviderCapabilities{StructuredOutput: true},
 	})
+	require.NoError(t, err)
+	require.True(t, result.Format.IsJSONSchema())
+	require.Contains(t, result.Prompt, "You MUST respond with a valid JSON object")
+}
+
+func TestPromptBuilder_StructuredOutputFallback(t *testing.T) {
+	builder := NewPromptBuilder()
+	ctx := context.Background()
+
+	action := &agent.ActionConfig{
+		Prompt:       "Summarize the findings into JSON.",
+		OutputSchema: &schema.Schema{"type": "object"},
+	}
+
+	result, err := builder.Build(ctx, orchestrator.PromptBuildInput{
+		Action: action,
+	})
+	require.NoError(t, err)
+	require.False(t, result.Format.IsJSONSchema())
+	require.Contains(t, result.Prompt, "MUST respond with a valid JSON object only")
+	require.Contains(t, result.Prompt, `"type":"object"`)
+}
+
+func TestPromptBuilder_ToolGuidance(t *testing.T) {
+	builder := NewPromptBuilder()
+	ctx := context.Background()
+
+	action := &agent.ActionConfig{
+		Prompt: "Respond to the user.",
+	}
+
+	result, err := builder.Build(ctx, orchestrator.PromptBuildInput{
+		Action: action,
+		Tools:  []tool.Config{{ID: "cp__call_agent"}},
+	})
+	require.NoError(t, err)
+	require.Contains(t, result.Prompt, "If you need to call a tool")
+}
+
+func TestPromptBuilder_DynamicFailureGuidance(t *testing.T) {
+	builder := NewPromptBuilder()
+	ctx := context.Background()
+
+	action := &agent.ActionConfig{
+		Prompt: "Provide an answer.",
+	}
+
+	result, err := builder.Build(ctx, orchestrator.PromptBuildInput{
+		Action: action,
+	})
+	require.NoError(t, err)
+
+	rendered, err := result.Template.Render(ctx, orchestrator.PromptDynamicContext{
+		FailureGuidance: []string{"Observation: tool cp__call_agent failed."},
+	})
+	require.NoError(t, err)
+	require.Contains(t, rendered, "Observation: tool cp__call_agent failed.")
 }

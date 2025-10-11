@@ -8,6 +8,7 @@ import (
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
@@ -55,11 +56,15 @@ func NewExecuteBasic(
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
 	task2Factory task2.Factory,
+	toolEnvironment toolenv.Environment,
 ) (*ExecuteBasic, error) {
+	if toolEnvironment == nil {
+		return nil, fmt.Errorf("tool environment is required for execute basic activity")
+	}
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configStore),
-		executeUC:      uc.NewExecuteTask(runtime, workflowRepo, memoryManager, templateEngine, nil),
+		executeUC:      uc.NewExecuteTask(runtime, workflowRepo, memoryManager, templateEngine, nil, toolEnvironment),
 		task2Factory:   task2Factory,
 		workflowRepo:   workflowRepo,
 		taskRepo:       taskRepo,

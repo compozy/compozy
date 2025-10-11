@@ -35,7 +35,6 @@ func (g *SchemaGenerator) Generate(ctx context.Context, outDir string) error {
 	group, _ := errgroup.WithContext(ctx)
 	group.SetLimit(runtime.GOMAXPROCS(0))
 	for _, definition := range g.definitions {
-		definition := definition
 		group.Go(func() error {
 			schemaJSON, err := g.buildSchema(definition)
 			if err != nil {

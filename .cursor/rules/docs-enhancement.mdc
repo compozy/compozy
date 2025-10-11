@@ -5,9 +5,9 @@ alwaysApply: false
 
 # Documentation Enhancement Standards
 
-<goal>
+## Goal
+
 Establish comprehensive standards for transforming and enhancing MDX documentation files to follow established patterns and maximize visual appeal using available components.
-</goal>
 
 ## Mission Statement
 
@@ -15,15 +15,12 @@ Transform MDX documentation files into visually appealing, technically accurate,
 
 ## Execution Strategy
 
-<execution_strategy type="parallel_processing">
 **MANDATORY**: For each MDX file within the specified documentation directory, **EXECUTE PARALLEL SUBAGENTS** to work concurrently on improvements for maximum efficiency.
-</execution_strategy>
 
 ## Technical Requirements
 
 ### 1. Component Import Cleanup
 
-<requirement type="mandatory">
 **MUST** remove redundant imports that are already available in `docs/src/components/ui/mdx-components.tsx`:
 
 - All standard MDX components are pre-imported
@@ -47,11 +44,9 @@ import {
   ProjectStructure, APIPage, TypeTable
 } from "@/components/ui/mdx-components";
 ```
-</requirement>
 
 ### 2. Visual Component Enhancement
 
-<requirement type="mandatory">
 **MUST** enhance documents using available visual components:
 
 **Primary Components:**
@@ -91,11 +86,9 @@ import {
   </Step>
 </Steps>
 ```
-</requirement>
 
 ### 3. Content Structure Optimization
 
-<requirement type="mandatory">
 **MUST** restructure content for better readability:
 
 - Replace walls of text with structured visual components
@@ -122,11 +115,9 @@ import {
   </Accordion>
 </AccordionGroup>
 ```
-</requirement>
 
 ### 4. Content Deduplication
 
-<requirement type="mandatory">
 **MUST** eliminate redundant information:
 
 - Identify repetitive content across documents
@@ -149,11 +140,9 @@ import {
 
 # ❌ Bad: Duplicating configuration examples across multiple files
 ```
-</requirement>
 
 ### 5. Technical Accuracy Validation
 
-<requirement type="mandatory">
 **MUST** verify technical content against the actual project:
 
 - **Analyze project structure** to ensure YAML examples reference existing APIs
@@ -170,24 +159,20 @@ import {
 - [ ] Examples use current syntax
 - [ ] Links point to existing documentation
 - [ ] Code examples are tested and working
-</requirement>
 
 ## Quality Standards
 
 ### Visual Excellence
 
-<standard type="visual_first">
 **Transform text-heavy sections into visual components:**
 - Use cards for feature explanations
 - Use lists for structured information
 - Use steps for processes
 - Use tabs for multiple examples
 - Use callouts for important notes
-</standard>
 
 ### Consistency
 
-<standard type="consistency">
 **Follow patterns established in reference documents:**
 - `docs/content/docs/core/getting-started/quick-start.mdx`
 - `docs/content/docs/core/getting-started/first-workflow.mdx`
@@ -198,22 +183,18 @@ import {
 - Consistent icon selection
 - Uniform styling approaches
 - Similar content organization
-</standard>
 
 ### Accessibility
 
-<standard type="accessibility">
 **Include proper accessibility features:**
 - Proper icons with semantic meaning
 - Alt text for images and diagrams
 - Semantic HTML structure
 - Screen reader friendly components
 - Keyboard navigation support
-</standard>
 
 ### Navigation
 
-<standard type="navigation">
 **Use ReferenceCard components for all navigation:**
 - Internal document links
 - External resource links
@@ -231,7 +212,6 @@ import {
   />
 </ReferenceCardList>
 ```
-</standard>
 
 ## Success Criteria
 
@@ -319,7 +299,6 @@ Not linking to related content.
 
 ## Enforcement
 
-<enforcement type="mandatory">
 **All documentation enhancement work MUST follow these standards:**
 - Use parallel processing for efficiency
 - Apply all five technical requirements
@@ -331,404 +310,6 @@ Not linking to related content.
 - Immediate revision requirement
 - Quality assurance review
 - Pattern compliance verification
-</enforcement>
-
-## Examples and Templates
-
-### Before/After Examples
-
-**Before (Plain Text):**
-```markdown
-## Configuration Options
-
-The following options are available:
-- Option 1: Description
-- Option 2: Description
-- Option 3: Description
-```
-
-**After (Enhanced):**
-```yaml
-## Configuration Options
-
-<List>
-  <ListItem title="Option 1" icon={Settings}>
-    Enhanced description with proper formatting
-  </ListItem>
-  <ListItem title="Option 2" icon={Code}>
-    Clear explanation with visual hierarchy
-  </ListItem>
-  <ListItem title="Option 3" icon={Shield}>
-    Comprehensive details with proper structure
-  </ListItem>
-</List>
-```
-
-### Component Usage Templates
-
-**Feature Highlights:**
-```yaml
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="Feature Name"
-    description="Clear, concise description"
-    icon={RelevantIcon}
-  />
-</FeatureCardList>
-```
-
-**Navigation Sections:**
-```yaml
-<ReferenceCardList>
-  <ReferenceCard
-    title="Related Topic"
-    description="Brief description"
-    href="/docs/path"
-    icon={RelevantIcon}
-  />
-</ReferenceCardList>
-```
-
-**Sequential Processes:**
-```yaml
-<Steps numbered>
-  <Step title="Step Name" description="Brief description">
-    Detailed implementation
-  </Step>
-</Steps>
-```
-
-This rule provides comprehensive guidance for transforming documentation into visually appealing, technically accurate, and well-structured content that follows established patterns and maximizes the use of available UI components.
-
-# Documentation Enhancement Standards
-
-<goal>
-Establish comprehensive standards for transforming and enhancing MDX documentation files to follow established patterns and maximize visual appeal using available components.
-</goal>
-
-## Mission Statement
-
-Transform MDX documentation files into visually appealing, technically accurate, and well-structured documents that follow established patterns and eliminate redundancy through strategic use of available UI components.
-
-## Execution Strategy
-
-<execution_strategy type="parallel_processing">
-**MANDATORY**: For each MDX file within the specified documentation directory, **EXECUTE PARALLEL SUBAGENTS** to work concurrently on improvements for maximum efficiency.
-</execution_strategy>
-
-## Technical Requirements
-
-### 1. Component Import Cleanup
-
-<requirement type="mandatory">
-**MUST** remove redundant imports that are already available in `docs/src/components/ui/mdx-components.tsx`:
-
-- All standard MDX components are pre-imported
-- All UI components (Card, Button, Badge, etc.) are available
-- All lucide-react icons are available
-- Focus only on content-specific imports if needed
-
-**Available Components:**
-```typescript
-// Pre-imported in mdx-components.tsx
-import {
-  Accordion, AccordionContent, AccordionGroup, AccordionItem, AccordionTrigger,
-  Badge, Button, ButtonArrow, Callout, Card, CardContent, CardDescription,
-  CardFooter, CardHeader, CardHeading, CardTable, CardTitle, CardToolbar,
-  Code, Collapsible, CollapsibleContent, CollapsibleTrigger, CopyButton,
-  FeatureCard, FeatureCardList, List, ListItem, Logo, Mermaid,
-  Param, Params, SchemaParams, ReferenceCard, ReferenceCardList,
-  ScrollArea, Separator, Step, Steps, Table, TableBody, TableCaption,
-  TableCell, TableFooter, TableHead, TableHeader, TableRow,
-  Tab, Tabs, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
-  ProjectStructure, APIPage, TypeTable
-} from "@/components/ui/mdx-components";
-```
-</requirement>
-
-### 2. Visual Component Enhancement
-
-<requirement type="mandatory">
-**MUST** enhance documents using available visual components:
-
-**Primary Components:**
-- **`FeatureCardList`** and **`FeatureCard`** - Feature highlights with icons
-- **`ReferenceCardList`** and **`ReferenceCard`** - Navigation and cross-references
-- **`List`** and **`ListItem`** - Structured content with icons
-- **`Steps`** and **`Step`** - Sequential processes and tutorials
-- **`Tabs`** and **`Tab`** - Multiple examples/variations
-- **`Callout`** - Important notes, warnings, and tips
-- **`ProjectStructure`** - File/directory structures
-- **`Mermaid`** - Flowcharts, diagrams, and sequence charts
-- **`Accordion`**/**`AccordionGroup`** - Collapsible content sections
-- **`Code`** blocks - Syntax highlighting with line numbers
-
-**Enhancement Patterns:**
-```yaml
-# ✅ Good: Transform plain text into visual components
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="Feature Name"
-    description="Clear, concise description"
-    icon={LucideIcon}
-  />
-</FeatureCardList>
-
-# ✅ Good: Use structured lists with icons
-<List>
-  <ListItem title="Key Point" icon={CheckCircle}>
-    Detailed explanation with proper formatting
-  </ListItem>
-</List>
-
-# ✅ Good: Multi-step processes
-<Steps numbered>
-  <Step title="Step Name" description="Brief description">
-    Detailed implementation with code examples
-  </Step>
-</Steps>
-```
-</requirement>
-
-### 3. Content Structure Optimization
-
-<requirement type="mandatory">
-**MUST** restructure content for better readability:
-
-- Replace walls of text with structured visual components
-- Use progressive disclosure with tabs/accordions
-- Add visual hierarchy with proper headings and spacing
-- Include relevant icons from lucide-react library
-- Create scannable content with lists and cards
-- Group related information using card layouts
-- Use callouts for important information
-
-**Structure Patterns:**
-```yaml
-# ✅ Good: Progressive disclosure with tabs
-<Tabs items={["Basic", "Advanced", "Expert"]}>
-  <Tab>Basic configuration examples</Tab>
-  <Tab>Advanced patterns</Tab>
-  <Tab>Expert-level implementations</Tab>
-</Tabs>
-
-# ✅ Good: Collapsible sections
-<AccordionGroup>
-  <Accordion title="Configuration Options">
-    Detailed configuration information
-  </Accordion>
-</AccordionGroup>
-```
-</requirement>
-
-### 4. Content Deduplication
-
-<requirement type="mandatory">
-**MUST** eliminate redundant information:
-
-- Identify repetitive content across documents
-- Replace repetition with cross-references using **`ReferenceCard`**
-- Link to authoritative sources instead of duplicating information
-- Maintain single source of truth for configuration examples
-- Create hub documents for complex topics
-
-**Deduplication Patterns:**
-```yaml
-# ✅ Good: Cross-reference instead of duplicating
-<ReferenceCardList>
-  <ReferenceCard
-    title="Complete Configuration Guide"
-    description="Detailed configuration options and examples"
-    href="/docs/core/configuration/global"
-    icon={Settings}
-  />
-</ReferenceCardList>
-
-# ❌ Bad: Duplicating configuration examples across multiple files
-```
-</requirement>
-
-### 5. Technical Accuracy Validation
-
-<requirement type="mandatory">
-**MUST** verify technical content against the actual project:
-
-- **Analyze project structure** to ensure YAML examples reference existing APIs
-- **Validate configuration options** match actual implementation
-- **Check tool/agent references** point to valid endpoints
-- **Verify example code** uses correct schemas and patterns
-- **Remove outdated examples** that reference non-existent functionality
-- **Test all code examples** for syntax and logical correctness
-
-**Validation Checklist:**
-- [ ] All API endpoints exist in the project
-- [ ] Configuration schemas match implementation
-- [ ] Tool/agent references are valid
-- [ ] Examples use current syntax
-- [ ] Links point to existing documentation
-- [ ] Code examples are tested and working
-</requirement>
-
-## Quality Standards
-
-### Visual Excellence
-
-<standard type="visual_first">
-**Transform text-heavy sections into visual components:**
-- Use cards for feature explanations
-- Use lists for structured information
-- Use steps for processes
-- Use tabs for multiple examples
-- Use callouts for important notes
-</standard>
-
-### Consistency
-
-<standard type="consistency">
-**Follow patterns established in reference documents:**
-- `docs/content/docs/core/getting-started/quick-start.mdx`
-- `docs/content/docs/core/getting-started/first-workflow.mdx`
-- `docs/content/docs/core/getting-started/core-concepts.mdx`
-
-**Consistency Requirements:**
-- Same component usage patterns
-- Consistent icon selection
-- Uniform styling approaches
-- Similar content organization
-</standard>
-
-### Accessibility
-
-<standard type="accessibility">
-**Include proper accessibility features:**
-- Proper icons with semantic meaning
-- Alt text for images and diagrams
-- Semantic HTML structure
-- Screen reader friendly components
-- Keyboard navigation support
-</standard>
-
-### Navigation
-
-<standard type="navigation">
-**Use ReferenceCard components for all navigation:**
-- Internal document links
-- External resource links
-- Cross-references between sections
-- Related content recommendations
-
-```yaml
-# ✅ Good: Structured navigation
-<ReferenceCardList>
-  <ReferenceCard
-    title="Related Topic"
-    description="Brief description of related content"
-    href="/docs/path/to/content"
-    icon={RelevantIcon}
-  />
-</ReferenceCardList>
-```
-</standard>
-
-## Success Criteria
-
-### Enhanced Visual Appeal
-- Documents use rich visual components instead of plain text
-- Information is presented in scannable, structured formats
-- Visual hierarchy guides readers through content
-- Icons and graphics enhance understanding
-
-### Improved Navigation
-- Clear paths to related content using ReferenceCard components
-- Logical content flow with proper cross-references
-- Reduced cognitive load through progressive disclosure
-- Easy discovery of related information
-
-### Technical Accuracy
-- All code examples and configurations are validated against actual project APIs
-- Examples use current syntax and patterns
-- Links point to existing, relevant content
-- No outdated or deprecated information
-
-### Content Efficiency
-- Reduced redundancy through strategic cross-referencing
-- Single source of truth for complex topics
-- Efficient information architecture
-- Clear content ownership and maintenance
-
-## Anti-Patterns to Avoid
-
-### Visual Anti-Patterns
-```yaml
-# ❌ Bad: Wall of text without structure
-Long paragraphs of text without visual breaks or components.
-
-# ❌ Bad: Missing visual components
-Plain markdown lists instead of List/ListItem components.
-
-# ❌ Bad: No progressive disclosure
-Dumping all information at once instead of using tabs/accordions.
-```
-
-### Content Anti-Patterns
-```yaml
-# ❌ Bad: Duplicate content
-Copying configuration examples across multiple files.
-
-# ❌ Bad: Outdated examples
-Using deprecated APIs or configuration options.
-
-# ❌ Bad: Missing cross-references
-Not linking to related content.
-```
-
-## Implementation Guidelines
-
-### Phase 1: Analysis
-1. Review existing document structure
-2. Identify enhancement opportunities
-3. Map content relationships
-4. Plan component usage
-
-### Phase 2: Technical Validation
-1. Cross-reference all technical examples with actual project implementation
-2. Verify API endpoints and schemas
-3. Test code examples
-4. Update outdated information
-
-### Phase 3: Visual Enhancement
-1. Apply visual patterns using component library
-2. Transform text into structured components
-3. Add proper icons and visual hierarchy
-4. Implement progressive disclosure
-
-### Phase 4: Content Optimization
-1. Identify and eliminate redundancy
-2. Create strategic cross-references
-3. Optimize information architecture
-4. Ensure single source of truth
-
-### Phase 5: Quality Assurance
-1. Ensure consistency with established patterns
-2. Validate accessibility requirements
-3. Test navigation and user experience
-4. Verify technical accuracy
-
-## Enforcement
-
-<enforcement type="mandatory">
-**All documentation enhancement work MUST follow these standards:**
-- Use parallel processing for efficiency
-- Apply all five technical requirements
-- Meet all quality standards
-- Validate against success criteria
-- Follow implementation guidelines
-
-**Violations of these standards result in:**
-- Immediate revision requirement
-- Quality assurance review
-- Pattern compliance verification
-</enforcement>
 
 ## Examples and Templates
 

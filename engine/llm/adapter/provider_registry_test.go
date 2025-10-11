@@ -1,0 +1,85 @@
+package llmadapter
+
+import (
+	"context"
+	"testing"
+
+	"github.com/compozy/compozy/engine/core"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestRegistry_DuplicateRegistration(t *testing.T) {
+	registry := NewProviderRegistry()
+	provider := &stubProvider{
+		name:         core.ProviderName("duplicate"),
+		client:       &stubClient{},
+		capabilities: ProviderCapabilities{},
+	}
+	require.NoError(t, registry.Register(provider))
+
+	err := registry.Register(provider)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrProviderAlreadyRegistered)
+	assert.Contains(t, err.Error(), "duplicate")
+}
+
+func TestRegistry_RegisterAndResolve(t *testing.T) {
+	registry := NewProviderRegistry()
+	provider := &stubProvider{name: core.ProviderName("test-provider"), client: &stubClient{}}
+
+	require.NoError(t, registry.Register(provider))
+
+	resolved, err := registry.Resolve(core.ProviderName("test-provider"))
+	require.NoError(t, err)
+	assert.Equal(t, provider, resolved)
+
+	_, err = registry.Resolve(core.ProviderName("unknown"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not registered")
+}
+
+func TestRegistry_Register_Errors(t *testing.T) {
+	registry := NewProviderRegistry()
+
+	err := registry.Register(nil)
+	assert.ErrorIs(t, err, ErrProviderNil)
+
+	err = registry.Register(&stubProvider{name: ""})
+	assert.ErrorIs(t, err, ErrProviderNameEmpty)
+}
+
+func TestRegistry_NewClient(t *testing.T) {
+	registry := NewProviderRegistry()
+	client := &stubClient{}
+	require.NoError(t, registry.Register(&stubProvider{name: core.ProviderName("cap"), client: client}))
+
+	created, err := registry.NewClient(context.Background(), &core.ProviderConfig{Provider: core.ProviderName("cap")})
+	require.NoError(t, err)
+	assert.Equal(t, client, created)
+
+	_, err = registry.NewClient(context.Background(), &core.ProviderConfig{Provider: core.ProviderName("missing")})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not registered")
+}
+
+func TestCloneProviderConfig_DeepCopiesMutableFields(t *testing.T) {
+	cfg := &core.ProviderConfig{
+		Provider: core.ProviderOpenAI,
+		Model:    "gpt",
+		Params: core.PromptParams{
+			StopWords: []string{"STOP", "END"},
+		},
+	}
+
+	clone := cloneProviderConfig(cfg)
+
+	require.NotNil(t, clone)
+	require.NotSame(t, cfg, clone)
+	assert.Equal(t, cfg.Provider, clone.Provider)
+	assert.Equal(t, cfg.Model, clone.Model)
+	assert.Equal(t, cfg.Params.StopWords, clone.Params.StopWords)
+
+	clone.Params.StopWords[0] = "MUTATED"
+	assert.Equal(t, []string{"STOP", "END"}, cfg.Params.StopWords)
+}

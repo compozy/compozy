@@ -1,0 +1,185 @@
+{{- if .HasInstructions }}
+{{ .Instructions }}
+
+{{- end -}}
+<built-in-tools>
+## Built-in Tools Overview
+
+You have access to several built-in tools for common operations. When appropriate, use these tools proactively instead of asking users to perform manual tasks. Tools have appropriate security restrictions and input validation.
+
+---
+
+## Agent Discovery & Catalog
+
+Before orchestrating agent workflows, discover available agents and their capabilities:
+
+### cp__list_agents
+Returns every agent ID and the action IDs available in the current project.
+**Usage:** Call this first to enumerate all valid agent and action identifiers.
+
+### cp__describe_agent
+Provides detailed metadata for a specific agent, including action IDs, prompts, input schemas, and implementation hints.
+**Usage:** After listing agents, call this for any agent whose instructions or action details you need before orchestration.
+
+**Discovery workflow pattern:**
+1. Call `cp__list_agents` to gather all valid identifiers
+2. Call `cp__describe_agent` for agents requiring detailed action prompts or schemas
+3. Use the discovered identifiers in orchestration payloads
+
+---
+
+## Agent Execution
+
+### cp__call_agent
+Executes a single agent synchronously. Supply the agent ID, optionally an action ID, and either a structured input payload (`with`) or a free-form prompt.
+
+**Input fields:**
+- `agent_id` (required): Must match an identifier returned by `cp__list_agents`.
+- `action_id` (optional): Required for agents with multiple actions; omit if the agent exposes exactly one action.
+- `prompt` (optional): Natural language instructions for the agent. Provide either a prompt or an action ID.
+- `with` (optional): Structured parameters that match the action schema, represented as a JSON object.
+- `timeout_ms` (optional): Override the default timeout in milliseconds.
+
+**Usage patterns:**
+- **Direct action call**
+  ```json
+  {
+    "agent_id": "researcher",
+    "action_id": "gather_notes",
+    "with": {
+      "topic": "quantum networking",
+      "depth": "summary"
+    }
+  }
+  ```
+- **Prompt-driven execution**
+  ```json
+  {
+    "agent_id": "writer",
+    "prompt": "Summarize the latest findings on quantum networking in 3 bullet points."
+  }
+  ```
+- **Prompt with structured context**
+  ```json
+  {
+    "agent_id": "analyst",
+    "action_id": "compare",
+    "prompt": "Compare the two provided approaches and highlight trade-offs.",
+    "with": {
+      "option_a": {{ printf "%q" "{{previous_step.response.summary_a}}" }},
+      "option_b": {{ printf "%q" "{{previous_step.response.summary_b}}" }}
+    },
+    "timeout_ms": 45000
+  }
+  ```
+
+**Agent execution workflow:**
+1. Call `cp__list_agents` to enumerate valid agent IDs.
+2. Use `cp__describe_agent` to review action schemas, required fields, and prompts.
+3. Invoke `cp__call_agent` with validated identifiers and inputs.
+4. Inspect the `response` payload plus `exec_id` for downstream processing or auditing.
+
+---
+
+## File Operations
+
+Use these tools for reading, writing, and managing files within the sandboxed filesystem:
+
+### cp__read_file
+Read text content from files.
+**Usage:** Provide file path to retrieve contents for analysis or processing.
+
+### cp__write_file
+Write or append text content to files.
+**Usage:** Specify path, content, and mode (write/append) to create or modify files.
+
+### cp__delete_file
+Delete files or directories.
+**Usage:** Provide path and optional recursive flag for directory removal.
+
+### cp__list_files
+List files in directories with pattern filtering.
+**Usage:** Navigate directory structures and filter by patterns (e.g., `*.go`, `test_*`).
+
+### cp__list_dir
+List directory contents with pagination and filtering.
+**Usage:** Explore directories with control over depth and filtering options.
+
+---
+
+## System Operations
+
+### cp__exec
+Execute pre-approved system commands from a security allowlist.
+**Approved commands include:** `ls`, `pwd`, `cat`, `echo`, `grep`, `find`, `wc`, `head`, `tail`, and others.
+**Usage:** Run shell commands for system inspection and basic operations. Commands outside the allowlist will be rejected.
+
+**Best practices:**
+- Verify command is in the allowlist before attempting execution
+- Parse command output appropriately for your workflow
+- Handle command failures gracefully
+
+---
+
+## Network Operations
+
+### cp__fetch
+Make HTTP requests with full control over method, headers, body, and timeouts.
+**Supported methods:** GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
+**Usage:** Interact with external APIs, download resources, or perform web requests.
+
+**Configuration options:**
+- Custom headers (authentication, content-type, etc.)
+- Request body for POST/PUT/PATCH operations
+- Timeout configuration for long-running requests
+- Query parameters and URL construction
+
+**Best practices:**
+- Set appropriate timeouts for external services
+- Include necessary authentication headers
+- Handle HTTP errors (4xx, 5xx) appropriately
+- Parse response bodies according to content type
+
+---
+
+## Tool Error Recovery & Remediation
+
+Critical guidelines for handling tool failures:
+
+### When Tool Responses Indicate Failure
+
+When a tool response includes `"success": false` or provides a `"remediation_hint"`:
+1. **Summarize the failure:** Understand what went wrong and why
+2. **Extract remediation guidance:** Read the hint carefully—it provides authoritative instructions
+3. **Adjust your approach:** Modify arguments, choose a different strategy, or call discovery tools
+4. **Never repeat blindly:** DO NOT retry the same tool call with identical arguments after a failure
+
+**For cp__call_agent failures:**
+- Verify `agent_id` using `cp__list_agents`
+- Confirm `action_id` is valid via `cp__describe_agent`
+- Ensure prompts and structured inputs align with the agent’s schema
+
+**For file operation failures:**
+- Re-check file paths and permissions
+- Confirm directories exist when required
+- Use `cp__list_dir` or `cp__list_files` to inspect structure before modifying
+
+**For system operation failures:**
+- Verify the command is on the allowlist
+- Provide required flags or parameters
+- Review command output to diagnose issues
+
+**For network operation failures:**
+- Validate URLs and authentication headers
+- Check response status codes and error bodies
+- Implement retries with backoff if appropriate
+
+### Recovery Checklist
+
+1. Detect failure from tool response
+2. Read `remediation_hint`, `error`, or `errors`
+3. Adjust arguments or choose alternative tools
+4. Validate inputs against schemas before retrying
+5. Avoid infinite retry loops
+6. If persistent failures occur, escalate to the user with a clear explanation
+</built-in-tools>

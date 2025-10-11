@@ -57,9 +57,10 @@ type ToolExecutionResult struct {
 }
 
 type ToolError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Details string `json:"details,omitempty"`
+	Code            string `json:"code"`
+	Message         string `json:"message"`
+	Details         string `json:"details,omitempty"`
+	RemediationHint string `json:"remediation_hint,omitempty"`
 }
 
 func IsToolExecutionError(result string) (*ToolError, bool) {
@@ -140,9 +141,9 @@ func isRetryableErrorWithContext(ctx context.Context, err error) bool {
 		)
 	}
 	if retryable {
-		log.Debug("Error is retryable, will retry", fields...)
+		log.Warn("Error is retryable, will retry", fields...)
 	} else {
-		log.Debug("Error is not retryable", fields...)
+		log.Warn("Error is not retryable", fields...)
 	}
 	return retryable
 }

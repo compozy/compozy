@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/tmc/langchaingo/tools"
@@ -83,6 +84,22 @@ func (t *ProxyTool) ArgsType() any {
 // MCPName returns the MCP server ID that provides this tool
 func (t *ProxyTool) MCPName() string {
 	return t.mcpName
+}
+
+// ParameterSchema returns the tool's argument schema for function definitions.
+func (t *ProxyTool) ParameterSchema() map[string]any {
+	if len(t.inputSchema) == 0 {
+		return nil
+	}
+	copied, err := core.DeepCopy(t.inputSchema)
+	if err != nil {
+		fallback := make(map[string]any, len(t.inputSchema))
+		for key, val := range t.inputSchema {
+			fallback[key] = val
+		}
+		return fallback
+	}
+	return copied
 }
 
 // validateArguments validates the provided arguments against the tool's input schema

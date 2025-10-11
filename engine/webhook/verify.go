@@ -193,8 +193,8 @@ func (v stripeVerifier) Verify(_ context.Context, r *http.Request, body []byte) 
 func parseStripeSignatureHeader(header string) (string, []string, error) {
 	var tsStr string
 	var v1Values []string
-	parts := strings.Split(header, ",")
-	for _, part := range parts {
+	parts := strings.SplitSeq(header, ",")
+	for part := range parts {
 		kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
 		if len(kv) != 2 {
 			continue

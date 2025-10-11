@@ -333,10 +333,7 @@ func applyWorkflowJitter(base time.Duration, execID core.ID, attempt int) time.D
 	for i := 0; i < len(id); i++ {
 		hashVal = (hashVal*33 + int64(id[i])) % rangeSize
 	}
-	rawHash := hashVal
-	if rawHash < 0 {
-		rawHash = 0
-	}
+	rawHash := max(hashVal, 0)
 	offset := (rawHash % rangeSize) - spanNanos
 	result := base + time.Duration(offset)
 	if result < time.Millisecond {

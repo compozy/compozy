@@ -39,6 +39,7 @@ type Tool interface {
 	Name() string
 	Description() string
 	Call(ctx context.Context, input string) (string, error)
+	ParameterSchema() map[string]any
 }
 
 type BuiltinTool struct { //nolint:revive // External callers expect BuiltinTool identifier.
@@ -95,4 +96,20 @@ func (b *BuiltinTool) Definition() BuiltinDefinition {
 // InputSchema exposes the builtin input schema so callers can advertise parameters accurately.
 func (b *BuiltinTool) InputSchema() *schema.Schema {
 	return b.definition.InputSchema
+}
+
+func (b *BuiltinTool) ParameterSchema() map[string]any {
+	if b.definition.InputSchema == nil {
+		return nil
+	}
+	source := map[string]any(*b.definition.InputSchema)
+	copied, err := core.DeepCopy(source)
+	if err != nil {
+		fallback := make(map[string]any, len(source))
+		for key, val := range source {
+			fallback[key] = val
+		}
+		return fallback
+	}
+	return copied
 }

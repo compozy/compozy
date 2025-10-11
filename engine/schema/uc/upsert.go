@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/engine/auth/userctx"
@@ -72,9 +73,7 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 		return nil, fmt.Errorf("write schema meta: %w", err)
 	}
 	entry := make(map[string]any)
-	for k, v := range *sc {
-		entry[k] = v
-	}
+	maps.Copy(entry, *sc)
 	return &UpsertOutput{Schema: entry, ETag: etag, Created: created}, nil
 }
 

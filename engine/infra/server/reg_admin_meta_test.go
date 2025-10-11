@@ -63,7 +63,7 @@ func TestAdminMetaEndpoints(t *testing.T) {
 	r.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 	// add more meta items
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		id := fmt.Sprintf("p:agent:a%d", i)
 		_, _ = store.Put(
 			context.Background(),

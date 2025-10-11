@@ -4,6 +4,7 @@
   "icon": "Wrench",
   "pages": [
     "overview",
+    "call-agent",
     "runtime-environment",
     "typescript-development"
   ]

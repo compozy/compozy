@@ -29,6 +29,7 @@ const (
 	EventToolsExecuted     = "tools_executed"
 	EventBudgetOK          = "budget_ok"
 	EventBudgetExceeded    = "budget_exceeded"
+	EventRestartLoop       = "restart_loop"
 	EventCompletionRetry   = "completion_retry"
 	EventCompletionSuccess = "completion_success"
 	EventFailure           = "failure"
@@ -53,17 +54,22 @@ type transitionResult struct {
 }
 
 type LoopContext struct {
-	Request        Request
-	LLMClient      llmadapter.LLMClient
-	LLMRequest     *llmadapter.LLMRequest
-	State          *loopState
-	Response       *llmadapter.LLMResponse
-	ToolResults    []llmadapter.ToolResult
-	Output         *core.Output
-	Iteration      int
-	MaxIterations  int
-	err            error
-	eventStartedAt time.Time
+	Request            Request
+	LLMClient          llmadapter.LLMClient
+	LLMRequest         *llmadapter.LLMRequest
+	State              *loopState
+	Response           *llmadapter.LLMResponse
+	ToolResults        []llmadapter.ToolResult
+	Output             *core.Output
+	Iteration          int
+	MaxIterations      int
+	BaseSystemPrompt   string
+	PromptTemplate     PromptTemplateState
+	PromptContext      PromptDynamicContext
+	baseMessageCount   int
+	err                error
+	eventStartedAt     time.Time
+	contextLimitWarned bool
 }
 
 func newLoopFSM(ctx context.Context, deps loopDeps, _ *LoopContext) *fsm.FSM {
@@ -84,6 +90,7 @@ func loopFSMEvents() fsm.Events {
 		{Name: EventResponseWithTools, Src: []string{StateEvaluateResponse}, Dst: StateProcessTools},
 		{Name: EventToolsExecuted, Src: []string{StateProcessTools}, Dst: StateUpdateBudgets},
 		{Name: EventBudgetOK, Src: []string{StateUpdateBudgets}, Dst: StateAwaitLLM},
+		{Name: EventRestartLoop, Src: []string{StateUpdateBudgets}, Dst: StateAwaitLLM},
 		{Name: EventBudgetExceeded, Src: []string{StateUpdateBudgets}, Dst: StateTerminateError},
 		{Name: EventCompletionRetry, Src: []string{StateHandleCompletion}, Dst: StateAwaitLLM},
 		{Name: EventCompletionSuccess, Src: []string{StateHandleCompletion}, Dst: StateFinalize},

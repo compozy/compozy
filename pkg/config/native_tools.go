@@ -4,11 +4,12 @@ import "time"
 
 // NativeToolsConfig controls cp__ builtin enablement and sandbox settings.
 type NativeToolsConfig struct {
-	Enabled         bool              `koanf:"enabled"          json:"enabled"          yaml:"enabled"          mapstructure:"enabled"`
-	RootDir         string            `koanf:"root_dir"         json:"root_dir"         yaml:"root_dir"         mapstructure:"root_dir"`
-	AdditionalRoots []string          `koanf:"additional_roots" json:"additional_roots" yaml:"additional_roots" mapstructure:"additional_roots"`
-	Exec            NativeExecConfig  `koanf:"exec"             json:"exec"             yaml:"exec"             mapstructure:"exec"`
-	Fetch           NativeFetchConfig `koanf:"fetch"            json:"fetch"            yaml:"fetch"            mapstructure:"fetch"`
+	Enabled         bool                  `koanf:"enabled"          json:"enabled"          yaml:"enabled"          mapstructure:"enabled"`
+	RootDir         string                `koanf:"root_dir"         json:"root_dir"         yaml:"root_dir"         mapstructure:"root_dir"`
+	AdditionalRoots []string              `koanf:"additional_roots" json:"additional_roots" yaml:"additional_roots" mapstructure:"additional_roots"`
+	Exec            NativeExecConfig      `koanf:"exec"             json:"exec"             yaml:"exec"             mapstructure:"exec"`
+	Fetch           NativeFetchConfig     `koanf:"fetch"            json:"fetch"            yaml:"fetch"            mapstructure:"fetch"`
+	CallAgent       NativeCallAgentConfig `koanf:"call_agent"       json:"call_agent"       yaml:"call_agent"       mapstructure:"call_agent"`
 }
 
 // NativeExecConfig holds cp__exec configuration knobs.
@@ -45,6 +46,12 @@ type NativeFetchConfig struct {
 	AllowedMethods []string      `koanf:"allowed_methods" json:"allowed_methods" yaml:"allowed_methods" mapstructure:"allowed_methods"`
 }
 
+// NativeCallAgentConfig configures cp__call_agent behavior.
+type NativeCallAgentConfig struct {
+	Enabled        bool          `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
+	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout"`
+}
+
 // DefaultNativeToolsConfig returns safe defaults for native tool execution.
 func DefaultNativeToolsConfig() NativeToolsConfig {
 	return NativeToolsConfig{
@@ -62,6 +69,10 @@ func DefaultNativeToolsConfig() NativeToolsConfig {
 			MaxBodyBytes:   2 << 20, // 2 MiB
 			MaxRedirects:   5,
 			AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
+		},
+		CallAgent: NativeCallAgentConfig{
+			Enabled:        true,
+			DefaultTimeout: 60 * time.Second,
 		},
 	}
 }

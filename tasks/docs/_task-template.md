@@ -16,7 +16,7 @@
 
 [Brief description of task]
 
-<import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
+<critical>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</critical>
 
 <requirements>
 [List of mandatory requirements]
@@ -38,6 +38,18 @@
 ### Dependent Files
 
 - `path/to/dependency.go`
+
+## Deliverables
+
+- [List of artifacts that constitute "done" for this task]
+- [APIs/endpoints/config updates, migrations, docs]
+
+## Tests
+
+- Unit tests mapped from `_tests.md` for this feature:
+  - [ ] [Test case 1]
+  - [ ] [Test case 2]
+  - [ ] [Edge cases / error paths]
 
 ## Success Criteria
 

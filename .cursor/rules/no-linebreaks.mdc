@@ -1,0 +1,37 @@
+---
+globs: *.go
+alwaysApply: false
+---
+
+# Line Break Formatting
+
+## Rules
+
+- Don't add extra line breaks between variable definitions and code blocks
+- Small functions don't need line breaks between statements
+
+## Bad
+
+```go
+func Foo() {
+    bar := "bar"
+
+    bar = "baz"
+
+    return
+}
+```
+
+## Good
+
+```go
+func Foo() {
+    bar := "bar"
+    bar = "baz"
+    return
+}
+```
+
+<critical>
+**YOU MUST NEED** to follow this, files that don't follow this rule will be invalidated
+</critical>

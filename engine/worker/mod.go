@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/engine/memory/privacy"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
@@ -312,11 +313,15 @@ func NewWorker(
 	clientConfig *TemporalConfig,
 	projectConfig *project.Config,
 	workflows []*wf.Config,
+	toolEnv toolenv.Environment,
 ) (*Worker, error) {
 	log := logger.FromContext(ctx)
 	workerStart := time.Now()
 	if config == nil {
 		return nil, errors.New("worker config cannot be nil")
+	}
+	if err := validateToolEnvironment(toolEnv); err != nil {
+		return nil, err
 	}
 	client, err := createTemporalClient(ctx, clientConfig)
 	if err != nil {
@@ -330,16 +335,7 @@ func NewWorker(
 	if err != nil {
 		return nil, err
 	}
-	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	memoryManager, err := setupMemoryManager(
-		ctx,
-		config,
-		templateEngine,
-		workerCore.redisCache,
-		client,
-		workerCore.taskQueue,
-		projectConfig,
-	)
+	templateEngine, memoryManager, err := buildWorkerResources(ctx, config, projectConfig, workerCore, client)
 	if err != nil {
 		return nil, err
 	}
@@ -360,6 +356,7 @@ func NewWorker(
 		workerCore.redisCache,
 		memoryManager,
 		templateEngine,
+		toolEnv,
 	)
 	if err != nil {
 		return nil, err
@@ -385,6 +382,36 @@ func NewWorker(
 		lifecycleCtx:    lifecycleCtx,
 		lifecycleCancel: lifecycleCancel,
 	}, nil
+}
+
+func validateToolEnvironment(env toolenv.Environment) error {
+	if env == nil {
+		return errors.New("tool environment cannot be nil")
+	}
+	return nil
+}
+
+func buildWorkerResources(
+	ctx context.Context,
+	config *Config,
+	projectConfig *project.Config,
+	workerCore *workerCoreComponents,
+	client *Client,
+) (*tplengine.TemplateEngine, *memory.Manager, error) {
+	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+	memoryManager, err := setupMemoryManager(
+		ctx,
+		config,
+		templateEngine,
+		workerCore.redisCache,
+		client,
+		workerCore.taskQueue,
+		projectConfig,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	return templateEngine, memoryManager, nil
 }
 
 // workerCoreComponents holds the core components needed for a worker

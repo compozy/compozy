@@ -18,11 +18,13 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/toolenv/builder"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -36,7 +38,7 @@ func normalizeForCompare(s string) string {
 	s = strings.TrimSpace(s)
 	var b strings.Builder
 	prevEmpty := false
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		empty := strings.TrimSpace(line) == ""
 		if empty && prevEmpty {
 			continue
@@ -121,9 +123,10 @@ func createTestActivities(
 	workflowRepo workflow.Repository,
 	fixture *helpers.TestFixture,
 ) *worker.Activities {
+	ctx := context.Background()
 	// For testing, we need to create a minimal project config and workflow configs
 	// These would normally come from the real system setup
-	projectConfig := createTestProjectConfig()
+	projectConfig := createTestProjectConfig(t)
 	workflows := createTestWorkflowConfigs(fixture)
 
 	// Create a test config store
@@ -138,9 +141,17 @@ func createTestActivities(
 	// Create memory manager for tests - use nil for now as it's not needed for most tests
 	var memoryManager *memory.Manager
 
+	store := resources.NewMemoryResourceStore()
+	require.NoError(t, projectConfig.IndexToResourceStore(ctx, store))
+	for _, wfCfg := range workflows {
+		require.NoError(t, wfCfg.IndexToResourceStore(ctx, projectConfig.Name, store))
+	}
+	toolEnv, err := builder.Build(projectConfig, workflows, workflowRepo, taskRepo, store)
+	require.NoError(t, err)
+
 	// Create test activities with real repositories
 	acts, err := worker.NewActivities(
-		context.Background(),
+		ctx,
 		projectConfig,
 		workflows,
 		workflowRepo,
@@ -151,6 +162,7 @@ func createTestActivities(
 		nil, // redisCache - not needed for basic test
 		memoryManager,
 		templateEngine,
+		toolEnv,
 	)
 	require.NoError(t, err)
 	return acts
@@ -189,11 +201,12 @@ func findInitialTaskID(fixture *helpers.TestFixture) string {
 }
 
 // createTestProjectConfig creates a minimal project config for testing
-func createTestProjectConfig() *project.Config {
-	return &project.Config{
-		Name: "test-project",
-		// Add other minimal fields as needed
+func createTestProjectConfig(t *testing.T) *project.Config {
+	cfg := &project.Config{Name: "test-project"}
+	if err := cfg.SetCWD(t.TempDir()); err != nil {
+		t.Fatalf("failed to set project CWD: %v", err)
 	}
+	return cfg
 }
 
 // createTestWorkflowConfigs creates workflow configs for testing

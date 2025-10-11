@@ -1,0 +1,20 @@
+{{- /* Default action prompt template without structured schema requirements */ -}}
+{{- .ActionPrompt -}}
+{{- if .HasTools }}
+
+<critical>**MUST NEED**: If you need to call a tool, respond using the tool call format. Otherwise, reply with a plain-text answer. Do not wrap the plain-text answer in a JSON object or create dynamic JSON objects.</critical>
+{{- end }}
+{{- if .Examples }}
+
+Use the following contextual examples to guide your reasoning:
+{{- range .Examples }}
+- {{ .Summary }}: {{ .Content }}
+{{- end }}
+{{- end }}
+{{- if .FailureGuidance }}
+
+Incorporate these recent failure observations before responding:
+{{- range .FailureGuidance }}
+- {{ . }}
+{{- end }}
+{{- end }}

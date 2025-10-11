@@ -95,7 +95,7 @@ func TestWorkflowEndpointsIntegration(t *testing.T) {
 
 	t.Run("Should paginate workflows and surface Link header", func(t *testing.T) {
 		srv, _ := setupWorkflowIntegrationServer(t)
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			id := fmt.Sprintf("wf-page-%d", i)
 			payload := workflowPayload(id, "page test")
 			req := httptest.NewRequest(http.MethodPut, "/api/v0/workflows/"+id, bytes.NewReader(payload))

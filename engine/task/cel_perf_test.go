@@ -55,7 +55,6 @@ func TestCELEvaluator_ConcurrentAccess(t *testing.T) {
 
 	g, gctx := errgroup.WithContext(ctx)
 	for i := range numGoroutines {
-		i := i
 		g.Go(func() error {
 			for j := range evaluationsPerGoroutine {
 				if err := gctx.Err(); err != nil {

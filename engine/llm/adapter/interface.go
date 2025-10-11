@@ -160,6 +160,10 @@ type Factory interface {
 	// The provided context carries logger/trace/config values and must be
 	// threaded into any SDK initializations that require it (e.g., GoogleAI).
 	CreateClient(ctx context.Context, config *core.ProviderConfig) (LLMClient, error)
+	// BuildRoute constructs a provider route for the specified config and optional fallbacks.
+	BuildRoute(config *core.ProviderConfig, fallbacks ...*core.ProviderConfig) (*ProviderRoute, error)
+	// Capabilities returns capability metadata for a provider.
+	Capabilities(provider core.ProviderName) (ProviderCapabilities, error)
 }
 
 // ValidateConversation asserts role-specific constraints for messages:

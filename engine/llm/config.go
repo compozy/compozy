@@ -9,7 +9,9 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	orchestratorpkg "github.com/compozy/compozy/engine/llm/orchestrator"
 	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/config"
 )
@@ -18,6 +20,10 @@ const (
 	defaultStructuredOutputRetries = 2
 	defaultMaxConsecutiveSuccesses = 3
 	defaultNoProgressThreshold     = 3
+	defaultRestartStallThreshold   = 2
+	defaultMaxLoopRestarts         = 1
+	defaultCompactionThreshold     = 0.85
+	defaultCompactionCooldown      = 2
 )
 
 // Config represents the configuration for the LLM service
@@ -44,16 +50,37 @@ type Config struct {
 	EnableProgressTracking bool
 	// NoProgressThreshold defines how many turns without observable progress are tolerated.
 	NoProgressThreshold int
+	// EnableLoopRestarts toggles restart of the orchestration loop when progress stalls.
+	EnableLoopRestarts bool
+	// RestartStallThreshold controls how many stalled iterations trigger a restart.
+	RestartStallThreshold int
+	// MaxLoopRestarts caps how many restarts are attempted per orchestration run.
+	MaxLoopRestarts int
+	// EnableContextCompaction toggles summary-based memory compaction when context usage grows.
+	EnableContextCompaction bool
+	// ContextCompactionThreshold expresses the context usage (0-1) that should trigger compaction.
+	ContextCompactionThreshold float64
+	// ContextCompactionCooldown controls how many iterations to wait between compaction attempts.
+	ContextCompactionCooldown int
+	// EnableDynamicPromptState toggles inclusion of runtime state in the system prompt.
+	EnableDynamicPromptState bool
+	// ToolCallCaps defines default and per-tool invocation caps enforced during orchestration.
+	ToolCallCaps orchestratorpkg.ToolCallCaps
+	// FinalizeOutputRetryAttempts overrides structured retry attempts for finalizing JSON outputs.
+	FinalizeOutputRetryAttempts int
+	// OrchestratorMiddlewares registers middleware hooks executed during orchestration.
+	OrchestratorMiddlewares []orchestratorpkg.Middleware
 	// StructuredOutputRetryAttempts controls how many times the orchestrator
 	// will retry to obtain a valid structured response before failing.
 	// Acceptable range: 0–10. When 0 or negative, falls back to default (2).
 	StructuredOutputRetryAttempts int
 	// Retry configuration
-	RetryAttempts      int
-	RetryBackoffBase   time.Duration
-	RetryBackoffMax    time.Duration
-	RetryJitter        bool
-	RetryJitterPercent int
+	RetryAttempts                     int
+	RetryBackoffBase                  time.Duration
+	RetryBackoffMax                   time.Duration
+	RetryJitter                       bool
+	RetryJitterPercent                int
+	TelemetryContextWarningThresholds []float64
 	// Feature flags
 	EnableStructuredOutput bool
 	EnableToolCaching      bool
@@ -67,6 +94,8 @@ type Config struct {
 	// AllowedMCPNames restricts MCP tool advertisement/lookup to these MCP IDs.
 	// When empty, all discovered MCP tools are eligible.
 	AllowedMCPNames []string
+	// DeniedMCPNames excludes MCP tool advertisement/lookup to these MCP IDs.
+	DeniedMCPNames []string
 	// FailOnMCPRegistrationError enforces fail-fast behavior when registering
 	// agent-declared MCPs. When true, NewService returns error on registration failure.
 	FailOnMCPRegistrationError bool
@@ -74,28 +103,37 @@ type Config struct {
 	// proxy for this service instance (e.g., workflow-level MCPs). These are
 	// merged with agent-declared MCPs for registration.
 	RegisterMCPs []mcp.Config
+	// ToolEnvironment provides dependency access for builtin tools.
+	ToolEnvironment toolenv.Environment
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		ProxyURL:                      "http://localhost:6001",
-		CacheTTL:                      5 * time.Minute,
-		Timeout:                       300 * time.Second,
-		MaxConcurrentTools:            10,
-		MaxToolIterations:             10,
-		MaxSequentialToolErrors:       8,
-		MaxConsecutiveSuccesses:       defaultMaxConsecutiveSuccesses,
-		NoProgressThreshold:           defaultNoProgressThreshold,
-		StructuredOutputRetryAttempts: defaultStructuredOutputRetries,
-		RetryAttempts:                 3,
-		RetryBackoffBase:              100 * time.Millisecond,
-		RetryBackoffMax:               10 * time.Second,
-		RetryJitter:                   true,
-		RetryJitterPercent:            10,
-		EnableStructuredOutput:        true,
-		EnableToolCaching:             true,
-		FailOnMCPRegistrationError:    false,
-		LLMFactory:                    llmadapter.NewDefaultFactory(),
+		ProxyURL:                          "http://localhost:6001",
+		CacheTTL:                          5 * time.Minute,
+		Timeout:                           300 * time.Second,
+		MaxConcurrentTools:                10,
+		MaxToolIterations:                 10,
+		MaxSequentialToolErrors:           8,
+		MaxConsecutiveSuccesses:           defaultMaxConsecutiveSuccesses,
+		NoProgressThreshold:               defaultNoProgressThreshold,
+		EnableLoopRestarts:                false,
+		RestartStallThreshold:             0,
+		MaxLoopRestarts:                   0,
+		EnableContextCompaction:           false,
+		ContextCompactionThreshold:        0,
+		ContextCompactionCooldown:         0,
+		StructuredOutputRetryAttempts:     defaultStructuredOutputRetries,
+		FinalizeOutputRetryAttempts:       0,
+		RetryAttempts:                     3,
+		RetryBackoffBase:                  100 * time.Millisecond,
+		RetryBackoffMax:                   10 * time.Second,
+		RetryJitter:                       true,
+		RetryJitterPercent:                10,
+		TelemetryContextWarningThresholds: []float64{0.7, 0.85},
+		EnableStructuredOutput:            true,
+		EnableToolCaching:                 true,
+		FailOnMCPRegistrationError:        false,
 	}
 }
 
@@ -151,6 +189,45 @@ func WithNoProgressThreshold(threshold int) Option {
 	}
 }
 
+// WithDynamicPromptState toggles runtime prompt state injection.
+func WithDynamicPromptState(enabled bool) Option {
+	return func(c *Config) {
+		c.EnableDynamicPromptState = enabled
+	}
+}
+
+// WithToolCallCaps sets default and per-tool invocation limits.
+func WithToolCallCaps(caps orchestratorpkg.ToolCallCaps) Option {
+	return func(cCfg *Config) {
+		cCfg.ToolCallCaps = caps
+	}
+}
+
+// WithFinalizeOutputRetries sets retries for finalizing structured output.
+func WithFinalizeOutputRetries(attempts int) Option {
+	return func(c *Config) {
+		c.FinalizeOutputRetryAttempts = attempts
+	}
+}
+
+// WithOrchestratorMiddlewares registers middleware hooks for orchestrator runs.
+func WithOrchestratorMiddlewares(middlewares ...orchestratorpkg.Middleware) Option {
+	return func(c *Config) {
+		if len(middlewares) == 0 {
+			c.OrchestratorMiddlewares = nil
+			return
+		}
+		out := make([]orchestratorpkg.Middleware, 0, len(middlewares))
+		for _, mw := range middlewares {
+			if mw == nil {
+				continue
+			}
+			out = append(out, mw)
+		}
+		c.OrchestratorMiddlewares = out
+	}
+}
+
 // WithStructuredOutputRetries sets the structured output retry attempts
 func WithStructuredOutputRetries(attempts int) Option {
 	return func(c *Config) {
@@ -172,6 +249,13 @@ func WithStructuredOutput(enabled bool) Option {
 func WithToolCaching(enabled bool) Option {
 	return func(c *Config) {
 		c.EnableToolCaching = enabled
+	}
+}
+
+// WithToolEnvironment injects the tool environment used during builtin registration.
+func WithToolEnvironment(env toolenv.Environment) Option {
+	return func(c *Config) {
+		c.ToolEnvironment = env
 	}
 }
 
@@ -205,6 +289,30 @@ func WithAllowedMCPNames(mcpIDs []string) Option {
 			}
 			c.AllowedMCPNames = out
 		}
+	}
+}
+
+// WithDeniedMCPNames sets a deny list of MCP IDs to restrict which MCP tools are advertised.
+func WithDeniedMCPNames(mcpIDs []string) Option {
+	return func(c *Config) {
+		c.DeniedMCPNames = nil
+		if len(mcpIDs) == 0 {
+			return
+		}
+		seen := make(map[string]struct{})
+		out := make([]string, 0, len(mcpIDs))
+		for _, id := range mcpIDs {
+			nid := strings.ToLower(strings.TrimSpace(id))
+			if nid == "" {
+				continue
+			}
+			if _, ok := seen[nid]; ok {
+				continue
+			}
+			seen[nid] = struct{}{}
+			out = append(out, nid)
+		}
+		c.DeniedMCPNames = out
 	}
 }
 
@@ -311,6 +419,7 @@ func WithAppConfig(appConfig *config.Config) Option {
 		applyLLMCoreEndpoints(c, &appConfig.LLM)
 		applyLLMRetryConfig(c, &appConfig.LLM)
 		applyLLMToolLimits(c, &appConfig.LLM)
+		applyLLMTelemetryConfig(c, &appConfig.LLM)
 		applyLLMMCPOptions(c, &appConfig.LLM)
 	}
 }
@@ -319,7 +428,9 @@ func applyLLMCoreEndpoints(c *Config, llm *config.LLMConfig) {
 	if llm.ProxyURL != "" {
 		c.ProxyURL = llm.ProxyURL
 	}
-	if llm.MCPClientTimeout > 0 {
+	if llm.ProviderTimeout > 0 {
+		c.Timeout = llm.ProviderTimeout
+	} else if llm.MCPClientTimeout > 0 {
 		c.Timeout = llm.MCPClientTimeout
 	}
 }
@@ -357,11 +468,58 @@ func applyLLMToolLimits(c *Config, llm *config.LLMConfig) {
 		c.NoProgressThreshold = llm.NoProgressThreshold
 	}
 	c.EnableProgressTracking = llm.EnableProgressTracking
+	c.EnableLoopRestarts = llm.EnableLoopRestarts
+	if llm.RestartStallThreshold > 0 {
+		c.RestartStallThreshold = llm.RestartStallThreshold
+	}
+	if llm.MaxLoopRestarts > 0 {
+		c.MaxLoopRestarts = llm.MaxLoopRestarts
+	}
+	c.EnableContextCompaction = llm.EnableContextCompaction
+	if llm.ContextCompactionThreshold > 0 {
+		c.ContextCompactionThreshold = llm.ContextCompactionThreshold
+	}
+	if llm.ContextCompactionCooldown > 0 {
+		c.ContextCompactionCooldown = llm.ContextCompactionCooldown
+	}
+	c.EnableDynamicPromptState = llm.EnableDynamicPromptState
+	if llm.ToolCallCaps.Default > 0 || len(llm.ToolCallCaps.Overrides) > 0 {
+		c.ToolCallCaps = orchestratorpkg.ToolCallCaps{
+			Default:   llm.ToolCallCaps.Default,
+			Overrides: cloneToolCapOverrides(llm.ToolCallCaps.Overrides),
+		}
+	}
+	if llm.FinalizeOutputRetryAttempts > 0 {
+		c.FinalizeOutputRetryAttempts = llm.FinalizeOutputRetryAttempts
+	}
+	if llm.StructuredOutputRetryAttempts > 0 {
+		c.StructuredOutputRetryAttempts = llm.StructuredOutputRetryAttempts
+	}
+}
+
+func applyLLMTelemetryConfig(c *Config, llm *config.LLMConfig) {
+	if len(llm.ContextWarningThresholds) > 0 {
+		c.TelemetryContextWarningThresholds = append([]float64(nil), llm.ContextWarningThresholds...)
+	}
+}
+
+func cloneToolCapOverrides(src map[string]int) map[string]int {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]int, len(src))
+	for key, value := range src {
+		out[key] = value
+	}
+	return out
 }
 
 func applyLLMMCPOptions(c *Config, llm *config.LLMConfig) {
 	if len(llm.AllowedMCPNames) > 0 {
 		WithAllowedMCPNames(llm.AllowedMCPNames)(c)
+	}
+	if len(llm.DeniedMCPNames) > 0 {
+		WithDeniedMCPNames(llm.DeniedMCPNames)(c)
 	}
 	c.FailOnMCPRegistrationError = llm.FailOnMCPRegistrationError
 	if len(llm.RegisterMCPs) > 0 {
@@ -374,6 +532,20 @@ func applyLLMMCPOptions(c *Config, llm *config.LLMConfig) {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
+	if err := c.validateBasics(); err != nil {
+		return err
+	}
+	if err := c.validateResolvedTools(); err != nil {
+		return err
+	}
+	if err := c.validateToolCaps(); err != nil {
+		return err
+	}
+	c.applyDefaultLimits()
+	return nil
+}
+
+func (c *Config) validateBasics() error {
 	if strings.TrimSpace(c.ProxyURL) == "" {
 		return fmt.Errorf("proxy URL cannot be empty")
 	}
@@ -386,30 +558,49 @@ func (c *Config) Validate() error {
 	if c.MaxConcurrentTools <= 0 {
 		return fmt.Errorf("max concurrent tools must be positive")
 	}
-	// Validate pre-resolved tools if present
-	if len(c.ResolvedTools) > 0 {
-		// First pass: check structural issues (empty IDs, duplicates)
-		seenIDs := make(map[string]bool)
-		for i := range c.ResolvedTools {
-			t := &c.ResolvedTools[i]
-			if strings.TrimSpace(t.ID) == "" {
-				return fmt.Errorf("resolved tool at index %d has empty ID", i)
-			}
-			if seenIDs[t.ID] {
-				return fmt.Errorf("duplicate tool ID '%s' found in resolved tools", t.ID)
-			}
-			seenIDs[t.ID] = true
-		}
+	return nil
+}
 
-		// Second pass: validate each tool only after ID set and uniqueness guaranteed
-		for i := range c.ResolvedTools {
-			t := &c.ResolvedTools[i]
-			if err := t.Validate(); err != nil {
-				return fmt.Errorf("resolved tool '%s' validation failed: %w", t.ID, err)
-			}
+func (c *Config) validateResolvedTools() error {
+	if len(c.ResolvedTools) == 0 {
+		return nil
+	}
+	seenIDs := make(map[string]bool)
+	for i := range c.ResolvedTools {
+		t := &c.ResolvedTools[i]
+		if strings.TrimSpace(t.ID) == "" {
+			return fmt.Errorf("resolved tool at index %d has empty ID", i)
+		}
+		if seenIDs[t.ID] {
+			return fmt.Errorf("duplicate tool ID '%s' found in resolved tools", t.ID)
+		}
+		seenIDs[t.ID] = true
+	}
+	for i := range c.ResolvedTools {
+		t := &c.ResolvedTools[i]
+		if err := t.Validate(); err != nil {
+			return fmt.Errorf("resolved tool '%s' validation failed: %w", t.ID, err)
 		}
 	}
-	// Enforce bounds for structured output retries: 0–10; non-positive → default
+	return nil
+}
+
+func (c *Config) validateToolCaps() error {
+	if c.FinalizeOutputRetryAttempts < 0 {
+		return fmt.Errorf("finalize output retry attempts cannot be negative")
+	}
+	if c.ToolCallCaps.Default < 0 {
+		return fmt.Errorf("default tool call cap cannot be negative")
+	}
+	for name, limit := range c.ToolCallCaps.Overrides {
+		if limit < 0 {
+			return fmt.Errorf("tool call cap for %s cannot be negative", name)
+		}
+	}
+	return nil
+}
+
+func (c *Config) applyDefaultLimits() {
 	if c.StructuredOutputRetryAttempts <= 0 {
 		c.StructuredOutputRetryAttempts = defaultStructuredOutputRetries
 	} else if c.StructuredOutputRetryAttempts > 10 {
@@ -421,7 +612,37 @@ func (c *Config) Validate() error {
 	if c.NoProgressThreshold <= 0 {
 		c.NoProgressThreshold = defaultNoProgressThreshold
 	}
-	return nil
+	if c.FinalizeOutputRetryAttempts > 10 {
+		c.FinalizeOutputRetryAttempts = 10
+	}
+	if c.EnableLoopRestarts {
+		if c.RestartStallThreshold <= 0 {
+			c.RestartStallThreshold = defaultRestartStallThreshold
+		}
+		if c.MaxLoopRestarts <= 0 {
+			c.MaxLoopRestarts = defaultMaxLoopRestarts
+		}
+	} else {
+		if c.MaxLoopRestarts < 0 {
+			c.MaxLoopRestarts = 0
+		}
+		if c.RestartStallThreshold < 0 {
+			c.RestartStallThreshold = 0
+		}
+	}
+	if c.EnableContextCompaction {
+		if c.ContextCompactionThreshold <= 0 {
+			c.ContextCompactionThreshold = defaultCompactionThreshold
+		}
+		if c.ContextCompactionCooldown <= 0 {
+			c.ContextCompactionCooldown = defaultCompactionCooldown
+		}
+	} else {
+		c.ContextCompactionThreshold = 0
+		if c.ContextCompactionCooldown < 0 {
+			c.ContextCompactionCooldown = 0
+		}
+	}
 }
 
 // CreateMCPClient creates an MCP client from the configuration

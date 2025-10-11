@@ -12,58 +12,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestResponseHandler_StructuredOutputAndContentErrors(t *testing.T) {
-	t.Run("Should continue loop when non-JSON under structured output", func(t *testing.T) {
-		h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
-		ctx := context.Background()
-		schemaDef := &schema.Schema{"type": "object"}
-		req := &llmadapter.LLMRequest{
-			Options: llmadapter.CallOptions{
-				OutputFormat: llmadapter.NewJSONSchemaOutputFormat("test", schemaDef, true),
-			},
-		}
-		state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
-		request := Request{Action: &agent.ActionConfig{OutputSchema: schemaDef}}
-		output, cont, err := h.HandleNoToolCalls(ctx, &llmadapter.LLMResponse{Content: "not-json"}, request, req, state)
-		require.NoError(t, err)
-		assert.Nil(t, output)
-		assert.True(t, cont)
-		require.GreaterOrEqual(t, len(req.Messages), 2)
-		assert.Equal(t, llmadapter.RoleAssistant, req.Messages[len(req.Messages)-2].Role)
-		assert.Equal(t, llmadapter.RoleTool, req.Messages[len(req.Messages)-1].Role)
-	})
-	t.Run("Should error after exceeding structured output budget", func(t *testing.T) {
-		h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
-		ctx := context.Background()
-		schemaDef := &schema.Schema{"type": "object"}
-		req := &llmadapter.LLMRequest{
-			Options: llmadapter.CallOptions{
-				OutputFormat: llmadapter.NewJSONSchemaOutputFormat("test", schemaDef, true),
-			},
-		}
-		state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
-		request := Request{Action: &agent.ActionConfig{OutputSchema: schemaDef}}
-		_, cont, err := h.HandleNoToolCalls(
-			ctx,
-			&llmadapter.LLMResponse{Content: "still-not-json"},
-			request,
-			req,
-			state,
-		)
-		require.NoError(t, err)
-		assert.True(t, cont)
-		_, cont, err = h.HandleNoToolCalls(ctx, &llmadapter.LLMResponse{Content: "still-not-json"}, request, req, state)
-		require.False(t, cont)
-		require.Error(t, err)
-		var coreErr *core.Error
-		require.ErrorAs(t, err, &coreErr)
-		assert.Equal(t, ErrCodeBudgetExceeded, coreErr.Code)
-	})
+func TestResponseHandler_FinalizationRetries(t *testing.T) {
+	ctx := context.Background()
+	schemaDef := &schema.Schema{"type": "object"}
+	action := &agent.ActionConfig{OutputSchema: schemaDef}
+	settings := &settings{finalizeOutputRetries: 2}
+	h := NewResponseHandler(settings)
+	req := &llmadapter.LLMRequest{}
+	state := newLoopState(settings, nil, action)
+	request := Request{Action: action}
+	resp := &llmadapter.LLMResponse{Content: "not-json"}
+
+	_, cont, err := h.HandleNoToolCalls(ctx, resp, request, req, state)
+	require.NoError(t, err)
+	assert.True(t, cont)
+	assert.Equal(t, 1, state.finalizeAttemptNumber())
+	require.NotEmpty(t, req.Messages)
+	msg := req.Messages[len(req.Messages)-1].Content
+	assert.Contains(t, msg, "FINALIZATION_FEEDBACK")
+	assert.Contains(t, msg, "Respond ONLY with a valid JSON object")
+
+	_, cont, err = h.HandleNoToolCalls(ctx, resp, request, req, state)
+	require.NoError(t, err)
+	assert.True(t, cont)
+	assert.Equal(t, 2, state.finalizeAttemptNumber())
+
+	_, cont, err = h.HandleNoToolCalls(ctx, resp, request, req, state)
+	require.Error(t, err)
+	assert.False(t, cont)
+	var coreErr *core.Error
+	require.ErrorAs(t, err, &coreErr)
+	assert.Equal(t, ErrCodeInvalidResponse, coreErr.Code)
 }
 
 func TestResponseHandler_ParseContent(t *testing.T) {
 	h := NewResponseHandler(&settings{})
-	t.Run("Should parse JSON object to output map", func(t *testing.T) {
+	t.Run("Should parse JSON object to output map when no schema", func(t *testing.T) {
 		ctx := context.Background()
 		req := &llmadapter.LLMRequest{}
 		state := newLoopState(&settings{}, nil, nil)
@@ -81,7 +65,8 @@ func TestResponseHandler_ParseContent(t *testing.T) {
 		assert.Equal(t, "v", (*output)["k"])
 	})
 	t.Run("Should error when JSON not an object", func(t *testing.T) {
-		_, err := h.(*responseHandler).parseContent(context.Background(), `[]`, &agent.ActionConfig{})
+		action := &agent.ActionConfig{OutputSchema: &schema.Schema{"type": "object"}}
+		_, err := h.(*responseHandler).parseContent(context.Background(), `[]`, action)
 		require.Error(t, err)
 		var coreErr *core.Error
 		require.ErrorAs(t, err, &coreErr)
@@ -107,54 +92,49 @@ func TestResponseHandler_ParseContent(t *testing.T) {
 	})
 }
 
-func TestResponseHandler_ContentErrorExtraction(t *testing.T) {
-	t.Run("Should continue when top-level error present", func(t *testing.T) {
-		h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
-		ctx := context.Background()
-		req := &llmadapter.LLMRequest{}
-		state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
-		request := Request{Action: &agent.ActionConfig{}}
-		output, cont, err := h.HandleNoToolCalls(
-			ctx,
-			&llmadapter.LLMResponse{Content: `{"error":"bad"}`},
-			request,
-			req,
-			state,
-		)
-		require.NoError(t, err)
-		assert.Nil(t, output)
-		assert.True(t, cont)
-	})
-	t.Run("Should error after budget exhausted", func(t *testing.T) {
-		h := NewResponseHandler(&settings{maxSequentialToolErrors: 2})
-		ctx := context.Background()
-		req := &llmadapter.LLMRequest{}
-		state := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
-		request := Request{Action: &agent.ActionConfig{}}
-		_, cont, err := h.HandleNoToolCalls(
-			ctx,
-			&llmadapter.LLMResponse{Content: `{"error":"bad"}`},
-			request,
-			req,
-			state,
-		)
-		require.NoError(t, err)
-		assert.True(t, cont)
-		_, cont, err = h.HandleNoToolCalls(
-			ctx,
-			&llmadapter.LLMResponse{Content: `{"error":"bad"}`},
-			request,
-			req,
-			state,
-		)
-		require.False(t, cont)
-		require.Error(t, err)
-		var coreErr *core.Error
-		require.ErrorAs(t, err, &coreErr)
-		assert.Equal(t, ErrCodeBudgetExceeded, coreErr.Code)
-		require.NotNil(t, coreErr.Details)
-		assert.Equal(t, "bad", coreErr.Details["details"])
-	})
+func TestResponseHandler_TopLevelErrorRetries(t *testing.T) {
+	ctx := context.Background()
+	settings := &settings{finalizeOutputRetries: 2}
+	h := NewResponseHandler(settings)
+	req := &llmadapter.LLMRequest{}
+	state := newLoopState(settings, nil, &agent.ActionConfig{})
+	request := Request{Action: &agent.ActionConfig{}}
+	resp := &llmadapter.LLMResponse{Content: `{"error":"bad"}`}
+
+	_, cont, err := h.HandleNoToolCalls(ctx, resp, request, req, state)
+	require.NoError(t, err)
+	assert.True(t, cont)
+	assert.Equal(t, 1, state.finalizeAttemptNumber())
+
+	_, cont, err = h.HandleNoToolCalls(ctx, resp, request, req, state)
+	require.NoError(t, err)
+	assert.True(t, cont)
+	assert.Equal(t, 2, state.finalizeAttemptNumber())
+
+	_, cont, err = h.HandleNoToolCalls(ctx, resp, request, req, state)
+	require.Error(t, err)
+	assert.False(t, cont)
+	var coreErr *core.Error
+	require.ErrorAs(t, err, &coreErr)
+	assert.Equal(t, ErrCodeOutputValidation, coreErr.Code)
+}
+
+func TestResponseHandler_FinalizationPlainTextFeedback(t *testing.T) {
+	ctx := context.Background()
+	settings := &settings{finalizeOutputRetries: 2}
+	h := NewResponseHandler(settings)
+	req := &llmadapter.LLMRequest{}
+	state := newLoopState(settings, nil, nil)
+	request := Request{}
+	resp := &llmadapter.LLMResponse{Content: `{"error":"bad"}`}
+
+	_, cont, err := h.HandleNoToolCalls(ctx, resp, request, req, state)
+	require.NoError(t, err)
+	assert.True(t, cont)
+	msg := req.Messages[len(req.Messages)-1].Content
+	assert.Contains(t, msg, "FINALIZATION_FEEDBACK")
+	assert.Contains(t, msg, "Respond with a plain-text answer")
+	assert.NotContains(t, msg, "valid JSON object")
 }
 
 func TestExtractJSONObject(t *testing.T) {
@@ -174,5 +154,37 @@ func TestExtractJSONObject(t *testing.T) {
 		snippet, ok := extractJSONObject("no json here")
 		require.False(t, ok)
 		assert.Empty(t, snippet)
+	})
+}
+
+func TestResponseHandler_ParseContent_SchemaError(t *testing.T) {
+	h := NewResponseHandler(&settings{})
+	sc := schema.Schema{
+		"type":       "object",
+		"properties": map[string]any{"x": map[string]any{"type": "string"}},
+		"required":   []any{"x"},
+	}
+	action := &agent.ActionConfig{OutputSchema: &sc}
+	_, err := h.(*responseHandler).parseContent(context.Background(), `{"x": 1}`, action)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "schema validation failed")
+	require.ErrorContains(t, err, "x")
+}
+
+func TestExtractTopLevelErrorMessage_Variants(t *testing.T) {
+	t.Run("Should extract message field", func(t *testing.T) {
+		msg, ok := extractTopLevelErrorMessage(`{"error":{"message":"abc"}}`)
+		assert.True(t, ok)
+		assert.Equal(t, "abc", msg)
+	})
+	t.Run("Should serialize map without message field", func(t *testing.T) {
+		msg, ok := extractTopLevelErrorMessage(`{"error":{"code":1}}`)
+		assert.True(t, ok)
+		assert.Contains(t, msg, "code")
+	})
+	t.Run("Should stringify numeric top-level error value", func(t *testing.T) {
+		msg, ok := extractTopLevelErrorMessage(`{"error": 123}`)
+		assert.True(t, ok)
+		assert.Equal(t, "123", msg)
 	})
 }

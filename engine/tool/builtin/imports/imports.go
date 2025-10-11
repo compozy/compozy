@@ -1,0 +1,7 @@
+package imports
+
+import (
+	// Register cp__ native builtins with the shared registry during initialization.
+	_ "github.com/compozy/compozy/engine/tool/builtin/agentcatalog"
+	_ "github.com/compozy/compozy/engine/tool/builtin/callagent"
+)

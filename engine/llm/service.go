@@ -10,8 +10,10 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	orchestratorpkg "github.com/compozy/compozy/engine/llm/orchestrator"
+	"github.com/compozy/compozy/engine/llm/telemetry"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/tool/builtin"
 	"github.com/compozy/compozy/engine/tool/native"
@@ -44,6 +46,10 @@ func (a builtinRegistryAdapter) Call(ctx context.Context, input string) (string,
 	return a.tool.Call(ctx, input)
 }
 
+func (a builtinRegistryAdapter) ParameterSchema() map[string]any {
+	return a.tool.ParameterSchema()
+}
+
 func findReservedPrefix(configs []tool.Config) (string, bool) {
 	for i := range configs {
 		id := strings.TrimSpace(configs[i].ID)
@@ -54,8 +60,12 @@ func findReservedPrefix(configs []tool.Config) (string, bool) {
 	return "", false
 }
 
-func registerNativeBuiltins(ctx context.Context, registry ToolRegistry) (*builtin.Result, error) {
-	definitions := native.Definitions()
+func registerNativeBuiltins(
+	ctx context.Context,
+	registry ToolRegistry,
+	env toolenv.Environment,
+) (*builtin.Result, error) {
+	definitions := native.Definitions(env)
 	registerFn := func(registerCtx context.Context, tool builtin.Tool) error {
 		return registry.Register(registerCtx, builtinRegistryAdapter{tool: tool})
 	}
@@ -114,7 +124,7 @@ func configureToolRegistry(
 		}
 		return fmt.Errorf("tool id %s uses reserved cp__ prefix", id)
 	}
-	result, err := registerNativeBuiltins(ctx, registry)
+	result, err := registerNativeBuiltins(ctx, registry, cfg.ToolEnvironment)
 	if err != nil {
 		if closeErr := registry.Close(); closeErr != nil {
 			log.Warn(
@@ -156,6 +166,55 @@ func registerRuntimeTools(
 		if err := registry.Register(ctx, localTool); err != nil {
 			log.Warn("Failed to register local tool", "tool", configs[i].ID, "error", err)
 		}
+	}
+}
+
+func assembleOrchestratorConfig(
+	config *Config,
+	runtime runtime.Runtime,
+	promptBuilder orchestratorpkg.PromptBuilder,
+	systemPromptRenderer orchestratorpkg.SystemPromptRenderer,
+	toolRegistry ToolRegistry,
+) orchestratorpkg.Config {
+	var telemetryOpts *telemetry.Options
+	if len(config.TelemetryContextWarningThresholds) > 0 {
+		thresholds := append([]float64(nil), config.TelemetryContextWarningThresholds...)
+		telemetryOpts = &telemetry.Options{ContextWarningThresholds: thresholds}
+	}
+
+	return orchestratorpkg.Config{
+		ToolRegistry:                   &orchestratorToolRegistryAdapter{registry: toolRegistry},
+		PromptBuilder:                  promptBuilder,
+		SystemPromptRenderer:           systemPromptRenderer,
+		RuntimeManager:                 runtime,
+		LLMFactory:                     config.LLMFactory,
+		MemoryProvider:                 config.MemoryProvider,
+		MemorySync:                     NewMemorySync(),
+		Timeout:                        config.Timeout,
+		MaxConcurrentTools:             config.MaxConcurrentTools,
+		MaxToolIterations:              config.MaxToolIterations,
+		MaxSequentialToolErrors:        config.MaxSequentialToolErrors,
+		MaxConsecutiveSuccesses:        config.MaxConsecutiveSuccesses,
+		EnableProgressTracking:         config.EnableProgressTracking,
+		NoProgressThreshold:            config.NoProgressThreshold,
+		EnableLoopRestarts:             config.EnableLoopRestarts,
+		RestartStallThreshold:          config.RestartStallThreshold,
+		MaxLoopRestarts:                config.MaxLoopRestarts,
+		EnableContextCompaction:        config.EnableContextCompaction,
+		ContextCompactionThreshold:     config.ContextCompactionThreshold,
+		ContextCompactionCooldown:      config.ContextCompactionCooldown,
+		EnableDynamicPromptState:       config.EnableDynamicPromptState,
+		ToolCallCaps:                   config.ToolCallCaps,
+		Middlewares:                    config.OrchestratorMiddlewares,
+		FinalizeOutputRetryAttempts:    config.FinalizeOutputRetryAttempts,
+		StructuredOutputRetryAttempts:  config.StructuredOutputRetryAttempts,
+		RetryAttempts:                  config.RetryAttempts,
+		RetryBackoffBase:               config.RetryBackoffBase,
+		RetryBackoffMax:                config.RetryBackoffMax,
+		RetryJitter:                    config.RetryJitter,
+		EnableAgentCallCompletionHints: true,
+		ProjectRoot:                    config.ProjectRoot,
+		TelemetryOptions:               telemetryOpts,
 	}
 }
 
@@ -203,6 +262,13 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
+	if config.LLMFactory == nil {
+		factory, err := llmadapter.NewDefaultFactory(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build default LLM factory: %w", err)
+		}
+		config.LLMFactory = factory
+	}
 	// Create MCP client if configured
 	var mcpClient *mcp.Client
 	if config.ProxyURL != "" {
@@ -222,34 +288,16 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		ProxyClient:     mcpClient,
 		CacheTTL:        config.CacheTTL,
 		AllowedMCPNames: config.AllowedMCPNames,
+		DeniedMCPNames:  config.DeniedMCPNames,
 	})
 	if err := configureToolRegistry(ctx, toolRegistry, runtime, agent, config); err != nil {
 		return nil, err
 	}
 	// Create components
 	promptBuilder := NewPromptBuilder()
+	systemPromptRenderer := NewSystemPromptRenderer()
 	// Create orchestrator
-	orchestratorConfig := orchestratorpkg.Config{
-		ToolRegistry:                  &orchestratorToolRegistryAdapter{registry: toolRegistry},
-		PromptBuilder:                 promptBuilder,
-		RuntimeManager:                runtime,
-		LLMFactory:                    config.LLMFactory,
-		MemoryProvider:                config.MemoryProvider,
-		MemorySync:                    NewMemorySync(),
-		Timeout:                       config.Timeout,
-		MaxConcurrentTools:            config.MaxConcurrentTools,
-		MaxToolIterations:             config.MaxToolIterations,
-		MaxSequentialToolErrors:       config.MaxSequentialToolErrors,
-		MaxConsecutiveSuccesses:       config.MaxConsecutiveSuccesses,
-		EnableProgressTracking:        config.EnableProgressTracking,
-		NoProgressThreshold:           config.NoProgressThreshold,
-		StructuredOutputRetryAttempts: config.StructuredOutputRetryAttempts,
-		RetryAttempts:                 config.RetryAttempts,
-		RetryBackoffBase:              config.RetryBackoffBase,
-		RetryBackoffMax:               config.RetryBackoffMax,
-		RetryJitter:                   config.RetryJitter,
-		ProjectRoot:                   config.ProjectRoot,
-	}
+	orchestratorConfig := assembleOrchestratorConfig(config, runtime, promptBuilder, systemPromptRenderer, toolRegistry)
 	llmOrchestrator, err := orchestratorpkg.New(orchestratorConfig)
 	if err != nil {
 		if closeErr := toolRegistry.Close(); closeErr != nil {

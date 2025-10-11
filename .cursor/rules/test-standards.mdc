@@ -14,34 +14,31 @@ alwaysApply: false
 - **NEVER use testify suite patterns** - use direct functions with `*testing.T`
 </critical>
 
-## 🚨 CRITICAL Anti-Patterns - NEVER DO THESE
+## Anti-Patterns - NEVER DO THESE
 
-<anti_patterns type="immediate_rejection">
 **Based on analysis of 4,000+ tests showing 75-80% redundancy:**
 
-❌ **REDUNDANT TESTS:**
+### Redundant Tests
 - Cross-package validation duplication (same validation logic in multiple packages)
 - Identical mock setup patterns repeated across files
 - Constructor tests that only verify non-nil objects
 - Getter/setter tests without business logic
 
-❌ **LOW-VALUE TESTS:**
+### Low-Value Tests
 - Testing Go standard library functionality
 - Testing obvious field assignments
 - Testing interface implementations without custom logic
 - Mock-heavy tests (90% setup, 10% logic)
 
-❌ **PROHIBITED PATTERNS:**
+### Prohibited Patterns
 - `suite.Suite` embedding or any suite-based structures
 - Suite methods like `s.Equal()`, `s.NoError()`, `s.T()`
 - Weak assertions like `assert.Error(t, err)` without specific validation
 - Duplicate integration/unit test coverage
-</anti_patterns>
 
-## ✅ REQUIRED Patterns
+## Required Patterns
 
-<required_patterns type="mandatory">
-**TEST STRUCTURE:**
+### Test Structure
 ```go
 func TestService_Method(t *testing.T) {
     t.Run("Should execute workflow and transition state correctly", func(t *testing.T) {
@@ -58,7 +55,7 @@ func TestService_Method(t *testing.T) {
 }
 ```
 
-**MOCK USAGE:**
+### Mock Usage
 ```go
 type MockService struct {
     mock.Mock
@@ -72,7 +69,7 @@ func (m *MockService) DoSomething(ctx context.Context, param string) error {
 // Use mocks ONLY for external dependencies or complex interfaces
 ```
 
-**ERROR VALIDATION:**
+### Error Validation
 ```go
 // ✅ SPECIFIC error validation
 assert.ErrorContains(t, err, "validation failed")
@@ -82,11 +79,9 @@ assert.ErrorAs(t, err, &securityErr)
 // ❌ WEAK validation
 assert.Error(t, err) // Don't do this
 ```
-</required_patterns>
 
-## 📋 Test Value Requirements
+## Test Value Requirements
 
-<value_requirements type="mandatory">
 **EVERY TEST MUST:**
 - Test meaningful business logic, not trivial operations
 - Verify behavior outcomes, not just function execution
@@ -101,50 +96,41 @@ assert.Error(t, err) // Don't do this
 4. Does this test contribute to meaningful coverage?
 
 **IF ANY ANSWER IS NO: Reconsider or redesign the test.**
-</value_requirements>
 
-## 🔧 Test Organization
+## Test Organization
 
-<organization type="mandatory">
-**STRUCTURE:**
+### Structure
 - Unit tests: `*_test.go` alongside implementation files
 - Integration tests: **MUST** be in `test/integration/` directory
 - Use `test/helpers/` for shared test utilities
 - Mock external dependencies using `testify/mock`
 
-**COVERAGE REQUIREMENTS:**
+### Coverage Requirements
 - Business logic packages: ≥80% coverage
 - All exported functions must have meaningful tests
 - Focus on critical paths, not trivial getters/setters
 - Test error scenarios and recovery mechanisms
 
-**SHARED PATTERNS:**
+### Shared Patterns
 - Create generic validation test frameworks
 - Use shared mock factories for common patterns
 - Extract common test patterns into reusable helpers
 - Consolidate identical scenarios across packages
-</organization>
 
-## 🎯 Implementation Guidelines
+## Implementation Guidelines
 
-<implementation type="actionable">
-**IMMEDIATE ACTIONS:**
+### Immediate Actions
 1. **Search First:** Check if similar functionality is already tested
 2. **Consolidate:** Use existing test helpers and frameworks
 3. **Focus:** Test business logic and critical paths only
 4. **Validate:** Ensure specific assertions about behavior
 5. **Review:** Apply value requirements before submitting
 
-**WHEN REVIEWING TESTS:**
+### When Reviewing Tests
 - Reject tests matching anti-patterns above
 - Require consolidation of duplicate scenarios
 - Demand specific error validation
 - Enforce business logic testing over framework testing
 - Verify tests can fail when business logic breaks
-</implementation>
 
 This consolidated standard prevents test redundancy while maintaining quality and coverage requirements.
-description:
-globs:
-alwaysApply: false
----
