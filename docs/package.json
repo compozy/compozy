@@ -2,10 +2,10 @@
   "name": "docs-app",
   "version": "0.0.0",
   "private": true,
-  "packageManager": "bun@1.2.21",
+  "packageManager": "bun@1.3.0",
   "engines": {
-    "bun": ">=1.2.0",
-    "node": ">=18.17.0"
+    "bun": ">=1.3.0",
+    "node": ">=20.19.0"
   },
   "scripts": {
     "copy-schemas": "mkdir -p src/schemas && cp -r ../schemas/*.json src/schemas/ 2>/dev/null || true",
