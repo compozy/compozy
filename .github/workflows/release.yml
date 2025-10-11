@@ -31,12 +31,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.25.1"
+  GO_VERSION: "1.25.2"
   INITIAL_VERSION: "v0.0.10"
   NODE_VERSION: "22"
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.10
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.12
 
 permissions:
   contents: write
@@ -79,11 +79,7 @@ jobs:
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           INITIAL_VERSION: ${{ env.INITIAL_VERSION }}
         run: |
-          if [[ "${{ github.event.inputs.force_release }}" == "true" ]]; then
-            go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
-          else
-            go run "${{ env.PR_RELEASE_MODULE }}" pr-release --enable-rollback --ci-output
-          fi
+          go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
 
   # Job 2: Dry-run checks on Release PR
   dry-run:
