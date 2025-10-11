@@ -542,7 +542,9 @@ func (l *conversationLoop) recordLLMResponse(
 				Payload: map[string]any{"usage": usage},
 			})
 			if l.cfg.compactionThreshold > 0 && usage.PercentOfLimit >= l.cfg.compactionThreshold {
-				loopCtx.State.markCompaction(threshold, usage.PercentOfLimit)
+				if loopCtx.State != nil {
+					loopCtx.State.markCompaction(threshold, usage.PercentOfLimit)
+				}
 				l.tryCompactMemory(ctx, loopCtx, usage, threshold)
 			}
 		}

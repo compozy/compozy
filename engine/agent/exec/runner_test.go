@@ -74,6 +74,7 @@ func setupRunner(
 	stub *stubDirectExecutor,
 	cfg *agent.Config,
 ) (*agentexec.Runner, func()) {
+	t.Helper()
 	state := routertest.NewTestAppState(t)
 	store := routertest.NewResourceStore(state)
 	repo := routertest.NewStubTaskRepo()

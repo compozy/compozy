@@ -22,14 +22,16 @@ func TestStableJSONFingerprint(t *testing.T) {
 }
 
 func TestBuildIterationFingerprint_RecordsIncrementalCounts(t *testing.T) {
-	calls := []llmadapter.ToolCall{{ID: "1", Name: "t", Arguments: json.RawMessage(`{"x":1}`)}}
-	results := []llmadapter.ToolResult{
-		{ID: "1", Name: "t", Content: `{"ok":true}`, JSONContent: json.RawMessage(`{"ok":true}`)},
-	}
-	fp := buildIterationFingerprint(calls, results)
-	assert.NotEmpty(t, fp)
-	st := newLoopState(&settings{}, nil, nil)
-	assert.Equal(t, 0, st.recordFingerprint(fp))
-	assert.Equal(t, 1, st.recordFingerprint(fp))
-	assert.Equal(t, 2, st.recordFingerprint(fp))
+	t.Run("Should record incremental counts for repeated fingerprints", func(t *testing.T) {
+		calls := []llmadapter.ToolCall{{ID: "1", Name: "t", Arguments: json.RawMessage(`{"x":1}`)}}
+		results := []llmadapter.ToolResult{
+			{ID: "1", Name: "t", Content: `{"ok":true}`, JSONContent: json.RawMessage(`{"ok":true}`)},
+		}
+		fp := buildIterationFingerprint(calls, results)
+		assert.NotEmpty(t, fp)
+		st := newLoopState(&settings{}, nil, nil)
+		assert.Equal(t, 0, st.recordFingerprint(fp))
+		assert.Equal(t, 1, st.recordFingerprint(fp))
+		assert.Equal(t, 2, st.recordFingerprint(fp))
+	})
 }

@@ -34,8 +34,8 @@ func buildIterationFingerprint(calls []llmadapter.ToolCall, results []llmadapter
 	return hex.EncodeToString(sum[:])
 }
 
-// normalizeFingerprintText collapses runs of whitespace into single spaces.
-// It trims leading and trailing whitespace to keep fingerprints stable.
+// normalizeFingerprintText collapses consecutive whitespace into single spaces
+// and trims leading/trailing whitespace for stable fingerprinting.
 func normalizeFingerprintText(input string) string {
 	return strings.Join(strings.Fields(input), " ")
 }
