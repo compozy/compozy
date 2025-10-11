@@ -121,7 +121,7 @@ func TestMemoryStore_ConcurrentAccess(t *testing.T) {
 		ch, err := st.Watch(ctx, project, typ)
 		require.NoError(t, err)
 		wg.Add(4)
-		for i := 0; i < 4; i++ {
+		for range 4 {
 			go func() {
 				defer wg.Done()
 				for j := range 200 {

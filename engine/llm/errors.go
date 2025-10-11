@@ -1,10 +1,8 @@
 package llm
 
 import (
-	"encoding/json"
-	"strings"
-
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/toolerrors"
 )
 
 // Error codes for LLM operations
@@ -35,65 +33,15 @@ const (
 	ErrCodeMissingConfig = "MISSING_CONFIGURATION"
 )
 
-// ToolExecutionResult represents the result of a tool execution
-type ToolExecutionResult struct {
-	Success bool           `json:"success"`
-	Data    map[string]any `json:"data,omitempty"`
-	Error   *ToolError     `json:"error,omitempty"`
-}
+// ToolExecutionResult represents the result of a tool execution.
+type ToolExecutionResult = toolerrors.ToolExecutionResult
 
-// ToolError represents a structured tool execution error
-type ToolError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Details string `json:"details,omitempty"`
-}
+// ToolError represents a structured tool execution error.
+type ToolError = toolerrors.ToolError
 
-// IsToolExecutionError checks if a tool result indicates an error
+// IsToolExecutionError checks if a tool result indicates an error.
 func IsToolExecutionError(result string) (*ToolError, bool) {
-	// Try to parse as structured result first
-	var structuredResult ToolExecutionResult
-	if err := json.Unmarshal([]byte(result), &structuredResult); err == nil {
-		if !structuredResult.Success && structuredResult.Error != nil {
-			return structuredResult.Error, true
-		}
-		return nil, false
-	}
-
-	// Fallback: check for common error indicators in plain text
-	// This is more robust than just checking for "error" substring
-	if containsErrorIndicators(result) {
-		return &ToolError{
-			Code:    ErrCodeToolExecution,
-			Message: "Tool execution failed",
-			Details: result,
-		}, true
-	}
-
-	return nil, false
-}
-
-// containsErrorIndicators checks for various error indicators in text
-func containsErrorIndicators(text string) bool {
-	errorIndicators := []string{
-		"error:",
-		"failed:",
-		"exception:",
-		"panic:",
-		"fatal:",
-		"stderr:",
-		"traceback:",
-		"stack trace:",
-	}
-
-	lowerText := strings.ToLower(text)
-	for _, indicator := range errorIndicators {
-		if strings.Contains(lowerText, indicator) {
-			return true
-		}
-	}
-
-	return false
+	return toolerrors.IsToolExecutionError(result, ErrCodeToolExecution)
 }
 
 // NewLLMError creates a new LLM-related error
@@ -103,12 +51,7 @@ func NewLLMError(err error, code string, details map[string]any) error {
 
 // NewToolError creates a new tool-related error
 func NewToolError(err error, code, toolName string, details map[string]any) error {
-	if details == nil {
-		details = make(map[string]any)
-	}
-	details["tool"] = toolName
-
-	return core.NewError(err, code, details)
+	return toolerrors.NewToolError(err, code, toolName, details)
 }
 
 // NewValidationError creates a new validation error

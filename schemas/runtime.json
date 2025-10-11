@@ -1,5 +1,18 @@
 {
   "$defs": {
+    "NativeCallAgentConfig": {
+      "additionalProperties": false,
+      "description": "NativeCallAgentConfig configures cp__call_agent behavior.",
+      "properties": {
+        "default_timeout": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
     "NativeExecArgumentConfig": {
       "additionalProperties": false,
       "description": "NativeExecArgumentConfig enforces validation for a single argument position.",
@@ -103,6 +116,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "call_agent": {
+          "$ref": "#/$defs/NativeCallAgentConfig"
         },
         "enabled": {
           "type": "boolean"

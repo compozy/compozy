@@ -1,0 +1,22 @@
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = agentic
+
+### Run structured workflow
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "topic": "Most recent agentic methods and techniques"
+  }
+}
+
+### Sample payload when invoking cp__agent_orchestrate directly (planner enabled)
+### The tools API or agent tool-calling surface should receive a JSON body shaped like:
+# {
+#   "prompt": "Plan a research, summarization, and review workflow for the provided topic using our researcher, writer, and reviewer agents.",
+#   "bindings": {
+#     "topic": "Edge caching for e-commerce"
+#   }
+# }

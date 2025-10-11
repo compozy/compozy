@@ -201,10 +201,7 @@ func (m *Manager) setRateLimitHeaders(c *gin.Context, lctx limiter.Context) {
 		c.Header("X-RateLimit-Limit", fmt.Sprintf("%d", lctx.Limit))
 		c.Header("X-RateLimit-Remaining", fmt.Sprintf("%d", lctx.Remaining))
 		c.Header("X-RateLimit-Reset", fmt.Sprintf("%d", lctx.Reset))
-		resetIn := lctx.Reset - time.Now().Unix()
-		if resetIn < 0 {
-			resetIn = 0
-		}
+		resetIn := max(lctx.Reset-time.Now().Unix(), 0)
 		c.Header("RateLimit-Limit", fmt.Sprintf("%d", lctx.Limit))
 		if lctx.Remaining < 0 {
 			c.Header("RateLimit-Remaining", "0")
@@ -220,10 +217,7 @@ func (m *Manager) handleRateLimitExceeded(c *gin.Context, lctx limiter.Context, 
 	// Increment blocked requests metric
 	keyType := m.getKeyType(key)
 	IncrementBlockedRequests(c.Request.Context(), path, keyType)
-	resetIn := lctx.Reset - time.Now().Unix()
-	if resetIn < 0 {
-		resetIn = 0
-	}
+	resetIn := max(lctx.Reset-time.Now().Unix(), 0)
 	detail := fmt.Sprintf("API rate limit exceeded. Retry after %d seconds", resetIn)
 	body := gin.H{
 		"type":        "https://docs.compozy.com/problems/rate-limit-exceeded",

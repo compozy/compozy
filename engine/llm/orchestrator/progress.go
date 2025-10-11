@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"strings"
 
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 )
@@ -24,7 +25,8 @@ func buildIterationFingerprint(calls []llmadapter.ToolCall, results []llmadapter
 		if len(result.JSONContent) > 0 {
 			b.WriteString(stableJSONFingerprint(result.JSONContent))
 		} else {
-			b.WriteString(stableJSONFingerprint([]byte(result.Content)))
+			normalised := normalizeFingerprintText(result.Content)
+			b.WriteString(stableJSONFingerprint([]byte(normalised)))
 		}
 		b.WriteByte(';')
 	}
@@ -32,12 +34,8 @@ func buildIterationFingerprint(calls []llmadapter.ToolCall, results []llmadapter
 	return hex.EncodeToString(sum[:])
 }
 
-func (s *loopState) detectNoProgress(threshold int, fingerprint string) bool {
-	if fingerprint == s.lastFingerprint {
-		s.noProgressCount++
-		return s.noProgressCount >= threshold
-	}
-	s.noProgressCount = 0
-	s.lastFingerprint = fingerprint
-	return false
+// normalizeFingerprintText collapses consecutive whitespace into single spaces
+// and trims leading/trailing whitespace for stable fingerprinting.
+func normalizeFingerprintText(input string) string {
+	return strings.Join(strings.Fields(input), " ")
 }

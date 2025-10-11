@@ -1,0 +1,30 @@
+name: agentic
+version: 0.1.0
+description: Demonstrates cp__agent_orchestrate coordinating sequential and parallel agent calls
+
+workflows:
+  - source: ./workflow.yaml
+
+models:
+  - provider: groq
+    model: openai/gpt-oss-120b
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    default: true
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  tool_execution_timeout: 180s
+  permissions:
+    - --allow-read
+    - --allow-net
+  native_tools:
+    root_dir: ../..
+    agent_orchestrator:
+      enabled: true
+      max_parallel: 4
+
+autoload:
+  enabled: true
+  include:
+    - "agents/*.yaml"

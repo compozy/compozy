@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	"github.com/compozy/compozy/engine/llm/telemetry"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -34,12 +35,7 @@ func NewResponseHandler(cfg *settings) ResponseHandler {
 	return &responseHandler{cfg: *cfg}
 }
 
-const (
-	keyContentValidator = "content_validator"
-	keyOutputParser     = "output_parser"
-	keyOutputValidator  = "output_validator"
-)
-
+//nolint:gocritic // Request copied to avoid mutating caller state while handling finalization.
 func (h *responseHandler) HandleNoToolCalls(
 	ctx context.Context,
 	response *llmadapter.LLMResponse,
@@ -47,258 +43,129 @@ func (h *responseHandler) HandleNoToolCalls(
 	llmReq *llmadapter.LLMRequest,
 	state *loopState,
 ) (*core.Output, bool, error) {
-	cont, err := h.handleContentError(ctx, response.Content, llmReq, state)
-	if cont || err != nil {
-		if err != nil {
-			return nil, false, err
-		}
-		return nil, true, nil
+	if llmReq == nil {
+		return nil, false, fmt.Errorf("llm request is required for completion handling")
 	}
-	cont, err = h.handleStructuredOutput(ctx, response.Content, llmReq, state)
-	if cont || err != nil {
-		if err != nil {
-			return nil, false, err
-		}
-		return nil, true, nil
+	if state == nil {
+		state = &loopState{}
+	}
+	if msg, hasErr := extractTopLevelErrorMessage(response.Content); hasErr {
+		err := core.NewError(
+			fmt.Errorf("llm returned error payload"),
+			ErrCodeOutputValidation,
+			map[string]any{"detail": msg},
+		)
+		return h.retryFinalize(ctx, err, msg, llmReq, state, request)
 	}
 	output, err := h.parseContent(ctx, response.Content, request.Action)
 	if err != nil {
-		cont, hErr := h.continueAfterOutputValidationFailure(ctx, err, llmReq, state)
-		if hErr != nil {
-			return nil, false, hErr
-		}
-		if cont {
-			return nil, true, nil
-		}
+		return h.retryFinalize(ctx, err, err.Error(), llmReq, state, request)
 	}
 	return output, false, nil
 }
 
-func (h *responseHandler) handleStructuredOutput(
+//nolint:gocritic // Request copied to ensure logging reflects the original action metadata across retries.
+func (h *responseHandler) retryFinalize(
 	ctx context.Context,
-	content string,
+	finalErr error,
+	detail string,
 	llmReq *llmadapter.LLMRequest,
 	state *loopState,
-) (bool, error) {
-	if !llmReq.Options.OutputFormat.IsJSONSchema() {
-		return false, nil
+	request Request,
+) (*core.Output, bool, error) {
+	if state == nil || !state.allowFinalizeRetry() {
+		return nil, false, finalErr
 	}
-	var obj map[string]any
-	if err := json.Unmarshal([]byte(content), &obj); err == nil && obj != nil {
-		return false, nil
-	}
-	key := keyOutputParser
-	state.toolErrors[key]++
-	logger.FromContext(ctx).Debug("Non-JSON content with structured output; continuing loop",
-		"consecutive_errors", state.toolErrors[key],
-		"max", state.budgetFor(key),
+	attempt := state.finalizeAttemptNumber()
+	remaining := state.remainingFinalizeRetries()
+	logger.FromContext(ctx).Warn(
+		"Final response invalid; requesting retry",
+		"error", core.RedactError(finalErr),
+		"attempt", attempt,
+		"remaining_retries", remaining,
 	)
-	if state.toolErrors[key] >= state.budgetFor(key) {
-		return false, core.NewError(
-			fmt.Errorf("%w: tool error budget exceeded for %s", ErrBudgetExceeded, key),
-			ErrCodeBudgetExceeded,
-			map[string]any{
-				"key":     key,
-				"attempt": state.toolErrors[key],
-				"max":     state.budgetFor(key),
-				"details": "expected JSON object from structured output",
-			},
-		)
-	}
-	pseudoID := fmt.Sprintf("call_%s_%d", key, time.Now().UnixNano())
-	llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-		Role: llmadapter.RoleAssistant,
-		ToolCalls: []llmadapter.ToolCall{{
-			ID:        pseudoID,
-			Name:      key,
-			Arguments: json.RawMessage("{}"),
-		}},
-	})
-	obs := map[string]any{
-		"error":   "Invalid final response: expected JSON object from structured output",
-		"example": map[string]any{"response": "..."},
-	}
-	if payload, err := json.Marshal(obs); err == nil {
-		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-			Role: llmadapter.RoleTool,
-			ToolResults: []llmadapter.ToolResult{{
-				ID:          pseudoID,
-				Name:        key,
-				Content:     string(payload),
-				JSONContent: json.RawMessage(payload),
-			}},
-		})
-	} else {
-		fb := map[string]any{"error": "Invalid final response"}
-		if b, e := json.Marshal(fb); e == nil {
-			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: llmadapter.RoleTool,
-				ToolResults: []llmadapter.ToolResult{{
-					ID:          pseudoID,
-					Name:        key,
-					Content:     string(b),
-					JSONContent: json.RawMessage(b),
-				}},
-			})
+	if llmReq != nil {
+		if state != nil && state.runtime.finalizeFeedbackBase < 0 {
+			state.runtime.finalizeFeedbackBase = len(llmReq.Messages)
+		}
+		base := len(llmReq.Messages)
+		if state != nil &&
+			state.runtime.finalizeFeedbackBase >= 0 &&
+			state.runtime.finalizeFeedbackBase <= len(llmReq.Messages) {
+			base = state.runtime.finalizeFeedbackBase
+		}
+		feedbackDetail := detail
+		if finalErr != nil {
+			if redacted := core.RedactError(finalErr); redacted != "" {
+				feedbackDetail = redacted
+			}
+		}
+		feedback := llmadapter.Message{
+			Role:    "user",
+			Content: h.buildFinalizeFeedback(feedbackDetail, state),
+		}
+		if base < 0 || base > len(llmReq.Messages) {
+			llmReq.Messages = append(llmReq.Messages, feedback)
 		} else {
-			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: llmadapter.RoleTool,
-				ToolResults: []llmadapter.ToolResult{{
-					ID:      pseudoID,
-					Name:    key,
-					Content: `{"error":"Invalid final response"}`,
-				}},
-			})
+			llmReq.Messages = append(llmReq.Messages[:base], feedback)
 		}
 	}
-	return true, nil
+	telemetry.RecordEvent(ctx, &telemetry.Event{
+		Stage:    "finalize_retry",
+		Severity: telemetry.SeverityWarn,
+		Payload: map[string]any{
+			"attempt":           attempt,
+			"remaining_retries": remaining,
+			"detail":            core.RedactError(finalErr),
+			"action_id":         actionIDOrEmpty(request.Action),
+		},
+	})
+	return nil, true, nil
 }
 
-func (h *responseHandler) continueAfterOutputValidationFailure(
-	ctx context.Context,
-	valErr error,
-	llmReq *llmadapter.LLMRequest,
-	state *loopState,
-) (bool, error) {
-	log := logger.FromContext(ctx)
-	key := keyOutputValidator
-	state.toolErrors[key]++
-	log.Debug("Output validation failed; continuing loop",
-		"error", core.RedactError(valErr),
-		"attempt", state.toolErrors[key],
-		"max", state.budgetFor(key),
-	)
-	if state.toolErrors[key] >= state.budgetFor(key) {
-		log.Warn("Error budget exceeded - output validation", "key", key)
-		return false, core.NewError(
-			fmt.Errorf("%w: tool error budget exceeded for %s", ErrBudgetExceeded, key),
-			ErrCodeBudgetExceeded,
-			map[string]any{
-				"key":     key,
-				"attempt": state.toolErrors[key],
-				"max":     state.budgetFor(key),
-				"details": valErr.Error(),
-			},
-		)
+func (h *responseHandler) buildFinalizeFeedback(issue string, state *loopState) string {
+	attempt := state.finalizeAttemptNumber()
+	budget := state.finalizeBudget()
+	remaining := state.remainingFinalizeRetries()
+	instruction := h.finalizationInstruction(state)
+	total := budget
+	if total <= 0 {
+		total = attempt
 	}
-	pseudoID := fmt.Sprintf("call_%s_%d", key, time.Now().UnixNano())
-	llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-		Role: llmadapter.RoleAssistant,
-		ToolCalls: []llmadapter.ToolCall{{
-			ID:        pseudoID,
-			Name:      key,
-			Arguments: json.RawMessage("{}"),
-		}},
-	})
-	obs := map[string]any{
-		"error":   "Invalid final response: schema/format check failed",
-		"details": valErr.Error(),
-		"attempt": state.toolErrors[key],
+	lines := []string{
+		fmt.Sprintf("FINALIZATION_FEEDBACK (attempt %d of %d):", attempt, total),
+		fmt.Sprintf("Issue: %s", issue),
+		instruction,
 	}
-	if payload, merr := json.Marshal(obs); merr == nil {
-		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-			Role: llmadapter.RoleTool,
-			ToolResults: []llmadapter.ToolResult{{
-				ID:          pseudoID,
-				Name:        key,
-				Content:     string(payload),
-				JSONContent: json.RawMessage(payload),
-			}},
-		})
-	} else {
-		fb := map[string]any{"error": valErr.Error()}
-		if b, e := json.Marshal(fb); e == nil {
-			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: llmadapter.RoleTool,
-				ToolResults: []llmadapter.ToolResult{{
-					ID:          pseudoID,
-					Name:        key,
-					Content:     string(b),
-					JSONContent: json.RawMessage(b),
-				}},
-			})
-		} else {
-			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: llmadapter.RoleTool,
-				ToolResults: []llmadapter.ToolResult{{
-					ID:      pseudoID,
-					Name:    key,
-					Content: `{"error":"output validation failed"}`,
-				}},
-			})
-		}
+	if remaining > 0 {
+		lines = append(lines, fmt.Sprintf("Retries remaining: %d.", remaining))
 	}
-	return true, nil
+	return strings.Join(lines, "\n")
 }
 
-func (h *responseHandler) handleContentError(
-	ctx context.Context,
-	content string,
-	llmReq *llmadapter.LLMRequest,
-	state *loopState,
-) (bool, error) {
-	msg, hasErr := extractTopLevelErrorMessage(content)
-	if !hasErr {
-		return false, nil
-	}
-	key := keyContentValidator
-	state.toolErrors[key]++
-	logger.FromContext(ctx).Debug("Content-level error detected; continuing loop",
-		"error_message", msg,
-		"consecutive_errors", state.toolErrors[key],
-		"max", state.budgetFor(key),
-	)
-	if state.toolErrors[key] >= state.budgetFor(key) {
-		return false, core.NewError(
-			fmt.Errorf("%w: tool error budget exceeded for %s", ErrBudgetExceeded, key),
-			ErrCodeBudgetExceeded,
-			map[string]any{"key": key, "attempt": state.toolErrors[key], "max": state.budgetFor(key), "details": msg},
+func (h *responseHandler) finalizationInstruction(state *loopState) string {
+	if requiresJSONOutputForState(state) {
+		schemaHint := "that matches the expected schema."
+		if action := state.actionConfig(); action != nil {
+			if id := schema.GetID(action.OutputSchema); id != "" {
+				schemaHint = fmt.Sprintf("that matches the %q schema.", id)
+			}
+		}
+		return fmt.Sprintf(
+			"Instruction: Respond ONLY with a valid JSON object %s\n"+
+				"Reminder: Do not include commentary, markdown, or tool calls.",
+			schemaHint,
 		)
 	}
-	pseudoID := fmt.Sprintf("call_%s_%d", key, time.Now().UnixNano())
-	llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-		Role: llmadapter.RoleAssistant,
-		ToolCalls: []llmadapter.ToolCall{{
-			ID:        pseudoID,
-			Name:      key,
-			Arguments: json.RawMessage("{}"),
-		}},
-	})
-	obs := map[string]any{"error": msg}
-	if payload, err := json.Marshal(obs); err == nil {
-		llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-			Role: llmadapter.RoleTool,
-			ToolResults: []llmadapter.ToolResult{{
-				ID:          pseudoID,
-				Name:        key,
-				Content:     string(payload),
-				JSONContent: json.RawMessage(payload),
-			}},
-		})
-	} else {
-		fb := map[string]any{"error": msg}
-		if b, e := json.Marshal(fb); e == nil {
-			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: llmadapter.RoleTool,
-				ToolResults: []llmadapter.ToolResult{{
-					ID:          pseudoID,
-					Name:        key,
-					Content:     string(b),
-					JSONContent: json.RawMessage(b),
-				}},
-			})
-		} else {
-			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{
-				Role: llmadapter.RoleTool,
-				ToolResults: []llmadapter.ToolResult{{
-					ID:      pseudoID,
-					Name:    key,
-					Content: `{"error":"content validation failed"}`,
-				}},
-			})
-		}
+	return "Instruction: Respond with a plain-text answer that addresses the request.\n" +
+		"Reminder: Do not wrap the response in JSON or add tool calls."
+}
+
+func actionIDOrEmpty(action *agent.ActionConfig) string {
+	if action == nil {
+		return ""
 	}
-	return true, nil
+	return action.ID
 }
 
 func (h *responseHandler) parseContent(
@@ -306,52 +173,87 @@ func (h *responseHandler) parseContent(
 	content string,
 	action *agent.ActionConfig,
 ) (*core.Output, error) {
-	var data any
-	if err := json.Unmarshal([]byte(content), &data); err == nil {
-		if obj, ok := data.(map[string]any); ok {
-			output := core.Output(obj)
-			if err := h.validateOutput(ctx, &output, action); err != nil {
-				return nil, err
-			}
-			return &output, nil
-		}
-		return nil, NewLLMError(
-			fmt.Errorf("expected JSON object, got %T", data),
-			ErrCodeInvalidResponse,
-			map[string]any{"content": data},
-		)
+	if !requiresJSONOutputForAction(action) {
+		output := core.Output(map[string]any{"response": content})
+		return &output, nil
 	}
 
-	if action != nil && action.ShouldUseJSONOutput() {
-		if snippet, ok := extractJSONObject(content); ok {
-			var obj map[string]any
-			if err := json.Unmarshal([]byte(snippet), &obj); err == nil {
-				output := core.Output(obj)
-				if err := h.validateOutput(ctx, &output, action); err != nil {
-					return nil, err
-				}
-				return &output, nil
-			}
-		}
-		return nil, NewLLMError(
-			fmt.Errorf("expected structured JSON output but received plain text"),
-			ErrCodeInvalidResponse,
-			map[string]any{
-				"action":  action.ID,
-				"content": content,
-			},
-		)
+	value, err := h.parseStructuredValue(content, action)
+	if err != nil {
+		return nil, err
 	}
+	return h.buildStructuredOutput(ctx, value, action)
+}
 
-	output := core.Output(map[string]any{"response": content})
+func (h *responseHandler) parseStructuredValue(content string, action *agent.ActionConfig) (any, error) {
+	var value any
+	if err := json.Unmarshal([]byte(content), &value); err == nil {
+		return value, nil
+	}
+	if snippet, ok := extractJSONObject(content); ok {
+		if err := json.Unmarshal([]byte(snippet), &value); err == nil {
+			return value, nil
+		}
+	}
+	actionID := ""
+	if action != nil {
+		actionID = action.ID
+	}
+	return nil, NewLLMError(
+		fmt.Errorf("expected structured JSON output but received plain text"),
+		ErrCodeInvalidResponse,
+		map[string]any{
+			"action":  actionID,
+			"content": content,
+		},
+	)
+}
+
+func (h *responseHandler) buildStructuredOutput(
+	ctx context.Context,
+	value any,
+	action *agent.ActionConfig,
+) (*core.Output, error) {
+	if err := h.validateStructuredValue(ctx, value, action); err != nil {
+		return nil, err
+	}
+	if obj, ok := value.(map[string]any); ok {
+		output := core.Output(obj)
+		return &output, nil
+	}
+	output := core.Output{
+		core.OutputRootKey: value,
+	}
 	return &output, nil
 }
 
-func (h *responseHandler) validateOutput(ctx context.Context, output *core.Output, action *agent.ActionConfig) error {
+func (h *responseHandler) validateStructuredValue(
+	ctx context.Context,
+	value any,
+	action *agent.ActionConfig,
+) error {
 	if action == nil || action.OutputSchema == nil {
 		return nil
 	}
-	return action.ValidateOutput(ctx, output)
+	validator := schema.NewParamsValidator(value, action.OutputSchema, action.ID)
+	return validator.Validate(ctx)
+}
+
+func requiresJSONOutputForState(state *loopState) bool {
+	if state == nil {
+		return false
+	}
+	return requiresJSONOutputForAction(state.actionConfig())
+}
+
+func requiresJSONOutputForAction(action *agent.ActionConfig) bool {
+	if action == nil {
+		return false
+	}
+	if action.OutputSchema != nil {
+		return true
+	}
+	return action.ShouldUseJSONOutput()
 }
 
 func extractTopLevelErrorMessage(s string) (string, bool) {
@@ -371,11 +273,15 @@ func extractTopLevelErrorMessage(s string) (string, bool) {
 	return "", false
 }
 
+// extractJSONObject scans the provided string and returns the first complete
+// top-level JSON value (object or array). It keeps track of whether the parser
+// is inside a quoted string and ignores structural characters that appear
+// within strings or escaped sequences.
 func extractJSONObject(s string) (string, bool) {
 	inString := false
 	escaped := false
-	depth := 0
 	start := -1
+	var stack []byte
 	for i := 0; i < len(s); i++ {
 		ch := s[i]
 		if escaped {
@@ -395,17 +301,25 @@ func extractJSONObject(s string) (string, bool) {
 		switch ch {
 		case '"':
 			inString = true
-		case '{':
-			if depth == 0 {
+		case '{', '[':
+			if len(stack) == 0 {
 				start = i
 			}
-			depth++
-		case '}':
-			if depth == 0 {
+			if ch == '{' {
+				stack = append(stack, '}')
+			} else {
+				stack = append(stack, ']')
+			}
+		case '}', ']':
+			if len(stack) == 0 {
 				continue
 			}
-			depth--
-			if depth == 0 && start >= 0 {
+			expected := stack[len(stack)-1]
+			if ch != expected {
+				return "", false
+			}
+			stack = stack[:len(stack)-1]
+			if len(stack) == 0 && start >= 0 {
 				return s[start : i+1], true
 			}
 		}

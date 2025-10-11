@@ -5,15 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
-	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/engine/llm/telemetry"
+	"github.com/compozy/compozy/engine/schema"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -25,84 +23,30 @@ type ToolExecutor interface {
 type toolExecutor struct {
 	registry ToolRegistry
 	cfg      settings
-	logPath  string
-	logMu    sync.Mutex
 }
 
-type toolLogEntry struct {
-	Timestamp  string `json:"timestamp"`
-	ToolCallID string `json:"tool_call_id"`
-	ToolName   string `json:"tool_name"`
-	Input      string `json:"input"`
-	Output     string `json:"output,omitempty"`
-	Error      string `json:"error,omitempty"`
-	Status     string `json:"status"`
-	Duration   string `json:"duration"`
-}
-
-const (
-	toolLogStatusSuccess      = "success"
-	toolLogStatusError        = "error"
-	toolExecutionErrorPayload = `{"success":false,"error":{"code":"TOOL_EXECUTION_ERROR","message":"Tool execution failed"}}`
-)
+const toolExecutionErrorPayload = `{"success":false,"error":{"code":"TOOL_EXECUTION_ERROR","message":"Tool execution failed"}}`
 
 func NewToolExecutor(registry ToolRegistry, cfg *settings) ToolExecutor {
 	if cfg == nil {
 		cfg = &settings{}
 	}
-	storeDir := core.GetStoreDir(cfg.projectRoot)
-	logPath := ""
-	if storeDir != "" {
-		logPath = filepath.Join(storeDir, "tools_log.json")
-	}
-	return &toolExecutor{registry: registry, cfg: *cfg, logPath: logPath}
-}
-
-func (e *toolExecutor) appendToolLog(ctx context.Context, entry *toolLogEntry) {
-	if e.logPath == "" || entry == nil {
-		return
-	}
-	entry.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
-	e.logMu.Lock()
-	defer e.logMu.Unlock()
-	dir := filepath.Dir(e.logPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		logger.FromContext(ctx).Debug("Skipping tool log write; mkdir failed", "error", err)
-		return
-	}
-	f, err := os.OpenFile(e.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		logger.FromContext(ctx).Debug("Skipping tool log write; open failed", "error", err)
-		return
-	}
-	defer f.Close()
-	data, err := json.MarshalIndent(entry, "", "  ")
-	if err != nil {
-		logger.FromContext(ctx).Debug("Skipping tool log write; marshal failed", "error", err)
-		return
-	}
-	data = append(data, '\n')
-	if _, err := f.Write(data); err != nil {
-		logger.FromContext(ctx).Debug("Tool log write failed", "error", err)
-	}
+	return &toolExecutor{registry: registry, cfg: *cfg}
 }
 
 func (e *toolExecutor) Execute(ctx context.Context, toolCalls []llmadapter.ToolCall) ([]llmadapter.ToolResult, error) {
 	if len(toolCalls) == 0 {
 		return nil, nil
 	}
-	log := logger.FromContext(ctx)
-	log.Debug("Executing tool calls", "tool_calls_count", len(toolCalls), "tools", extractToolNames(toolCalls))
+	log := telemetry.Logger(ctx)
+	log.Info("Executing tool calls", "tool_calls_count", len(toolCalls), "tools", extractToolNames(toolCalls))
 
 	limit := e.cfg.maxConcurrentTools
 	if limit <= 0 {
 		limit = defaultMaxConcurrentTools
 	}
 	results := make([]llmadapter.ToolResult, len(toolCalls))
-	workerCount := limit
-	if workerCount > len(toolCalls) {
-		workerCount = len(toolCalls)
-	}
+	workerCount := min(limit, len(toolCalls))
 	if workerCount == 0 {
 		workerCount = 1
 	}
@@ -145,56 +89,185 @@ func (e *toolExecutor) Execute(ctx context.Context, toolCalls []llmadapter.ToolC
 		return nil, err
 	}
 
-	log.Debug(
+	log.Info(
 		"All tool calls completed",
-		"results_count",
-		len(results),
-		"successful_count",
-		countSuccessfulResults(results),
+		"results_count", len(results),
+		"successful_count", countSuccessfulResults(results),
 	)
 	return results, nil
 }
 
 func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCall) llmadapter.ToolResult {
-	log := logger.FromContext(ctx)
-	log.Debug("Processing tool call", "tool_name", call.Name, "tool_call_id", call.ID)
+	log := telemetry.Logger(ctx)
+	log.Info("Processing tool call", "tool_name", call.Name, "tool_call_id", call.ID)
 	start := time.Now()
-	entry := toolLogEntry{
+	capture := telemetry.CaptureContentEnabled(ctx)
+	entry := telemetry.ToolLogEntry{
 		ToolCallID: call.ID,
 		ToolName:   call.Name,
-		Input:      string(call.Arguments),
-		Status:     toolLogStatusSuccess,
+		Status:     telemetry.ToolStatusSuccess,
+	}
+	if capture {
+		entry.Input = string(call.Arguments)
+	} else if len(call.Arguments) > 0 {
+		entry.Input = telemetry.RedactedValue
+		entry.Redacted = true
 	}
 	defer func() {
-		entry.Duration = time.Since(start).String()
-		e.appendToolLog(ctx, &entry)
+		entry.Duration = time.Since(start)
+		telemetry.RecordTool(ctx, &entry)
 	}()
+
 	t, found := e.registry.Find(ctx, call.Name)
 	if !found || t == nil {
-		return e.toolNotFoundResult(log, call, &entry)
+		return e.toolNotFoundResult(ctx, call, capture, &entry)
 	}
-	log.Debug("Executing tool", "tool_name", call.Name, "tool_call_id", call.ID)
+
+	log.Info("Executing tool", "tool_name", call.Name, "tool_call_id", call.ID)
+	if err := e.validateToolArguments(ctx, t, call); err != nil {
+		entry.Status = telemetry.ToolStatusError
+		entry.Error = core.RedactError(err)
+		result := e.toolInvalidInputResult(call, err, capture, &entry)
+		log.Warn(
+			"Tool arguments failed validation",
+			"tool_name", call.Name,
+			"tool_call_id", call.ID,
+			"error", core.RedactError(err),
+		)
+		return result
+	}
 	if _, err := core.GetRequestID(ctx); err != nil {
 		ctx = core.WithRequestID(ctx, call.ID)
 	}
 	raw, err := t.Call(ctx, string(call.Arguments))
 	if err != nil {
-		log.Debug(
+		entry.Status = telemetry.ToolStatusError
+		entry.Error = core.RedactError(err)
+		result := e.toolExecutionErrorResult(call, err, capture, &entry)
+		log.Error(
 			"Tool execution failed",
-			"tool_name",
-			call.Name,
-			"tool_call_id",
-			call.ID,
-			"error",
-			core.RedactError(err),
+			"tool_name", call.Name,
+			"tool_call_id", call.ID,
+			"error", core.RedactError(err),
 		)
-		return e.toolExecutionErrorResult(call, err, &entry)
+		return result
 	}
-	log.Debug("Tool execution succeeded", "tool_name", call.Name, "tool_call_id", call.ID)
-	entry.Output = raw
+
+	log.Info("Tool execution succeeded", "tool_name", call.Name, "tool_call_id", call.ID)
+	return e.buildSuccessResult(call, raw, capture, &entry)
+}
+
+func (e *toolExecutor) validateToolArguments(
+	ctx context.Context,
+	tool RegistryTool,
+	call llmadapter.ToolCall,
+) error {
+	if tool == nil {
+		return nil
+	}
+	sch := schema.FromMap(tool.ParameterSchema())
+	if err := schema.ValidateRawMessage(ctx, sch, call.Arguments); err != nil {
+		return core.NewError(
+			fmt.Errorf("invalid tool arguments: %w", err),
+			ErrCodeToolInvalidInput,
+			map[string]any{
+				"tool": tool.Name(),
+			},
+		)
+	}
+	return nil
+}
+
+func (e *toolExecutor) toolNotFoundResult(
+	ctx context.Context,
+	call llmadapter.ToolCall,
+	capture bool,
+	entry *telemetry.ToolLogEntry,
+) llmadapter.ToolResult {
+	log := telemetry.Logger(ctx)
+	entry.Status = telemetry.ToolStatusError
+	errText := fmt.Sprintf("tool not found: %s", call.Name)
+	entry.Error = errText
+	log.Warn("Tool not found", "tool_name", call.Name, "tool_call_id", call.ID)
+	payload, errMarshal := json.Marshal(map[string]any{"error": errText})
+	if errMarshal != nil {
+		payload = []byte(fmt.Sprintf(`{"error":%q}`, errText))
+	}
+	jsonContent := json.RawMessage(payload)
+	if capture {
+		entry.Output = string(payload)
+	} else {
+		entry.Output = telemetry.RedactedValue
+		entry.Redacted = true
+	}
+	return llmadapter.ToolResult{
+		ID:          call.ID,
+		Name:        call.Name,
+		Content:     string(payload),
+		JSONContent: jsonContent,
+	}
+}
+
+func (e *toolExecutor) toolInvalidInputResult(
+	call llmadapter.ToolCall,
+	validErr error,
+	capture bool,
+	entry *telemetry.ToolLogEntry,
+) llmadapter.ToolResult {
+	result := ToolExecutionResult{
+		Success: false,
+		Error: &ToolError{
+			Code:    ErrCodeToolInvalidInput,
+			Message: "Invalid tool arguments",
+			Details: core.RedactError(validErr),
+		},
+	}
+	payload, marshalErr := json.Marshal(result)
+	entry.Status = telemetry.ToolStatusError
+	entry.Error = core.RedactError(validErr)
+	if marshalErr != nil {
+		const fallback = `{"success":false,"error":{"code":"TOOL_INVALID_INPUT","message":"Invalid tool arguments"}}`
+		if capture {
+			entry.Output = fallback
+		} else {
+			entry.Output = telemetry.RedactedValue
+			entry.Redacted = true
+		}
+		return llmadapter.ToolResult{
+			ID:      call.ID,
+			Name:    call.Name,
+			Content: fallback,
+		}
+	}
+	if capture {
+		entry.Output = string(payload)
+	} else {
+		entry.Output = telemetry.RedactedValue
+		entry.Redacted = true
+	}
+	return llmadapter.ToolResult{
+		ID:          call.ID,
+		Name:        call.Name,
+		Content:     string(payload),
+		JSONContent: json.RawMessage(payload),
+	}
+}
+
+func (e *toolExecutor) buildSuccessResult(
+	call llmadapter.ToolCall,
+	raw string,
+	capture bool,
+	entry *telemetry.ToolLogEntry,
+) llmadapter.ToolResult {
 	var jsonContent json.RawMessage
 	if json.Valid([]byte(raw)) {
 		jsonContent = json.RawMessage(raw)
+	}
+	if capture {
+		entry.Output = raw
+	} else if raw != "" {
+		entry.Output = telemetry.RedactedValue
+		entry.Redacted = true
 	}
 	return llmadapter.ToolResult{
 		ID:          call.ID,
@@ -204,39 +277,11 @@ func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCa
 	}
 }
 
-func (e *toolExecutor) toolNotFoundResult(
-	log logger.Logger,
-	call llmadapter.ToolCall,
-	entry *toolLogEntry,
-) llmadapter.ToolResult {
-	log.Warn("Tool not found", "tool_name", call.Name, "tool_call_id", call.ID)
-	errText := fmt.Sprintf("tool not found: %s", call.Name)
-	errObj := map[string]any{"error": errText}
-	payload, marshalErr := json.Marshal(errObj)
-	var jsonContent json.RawMessage
-	if marshalErr != nil {
-		fields := []any{"tool_name", call.Name, "tool_call_id", call.ID, "error", marshalErr}
-		log.Warn("Failed to marshal tool-not-found error payload", fields...)
-		errText = "tool not found"
-		payload = []byte(`{"error":"tool not found"}`)
-	} else {
-		jsonContent = json.RawMessage(payload)
-	}
-	entry.Status = toolLogStatusError
-	entry.Error = errText
-	entry.Output = string(payload)
-	return llmadapter.ToolResult{
-		ID:          call.ID,
-		Name:        call.Name,
-		Content:     string(payload),
-		JSONContent: jsonContent,
-	}
-}
-
 func (e *toolExecutor) toolExecutionErrorResult(
 	call llmadapter.ToolCall,
 	execErr error,
-	entry *toolLogEntry,
+	capture bool,
+	entry *telemetry.ToolLogEntry,
 ) llmadapter.ToolResult {
 	var coreErr *core.Error
 	result := ToolExecutionResult{Success: false}
@@ -246,19 +291,30 @@ func (e *toolExecutor) toolExecutionErrorResult(
 		if msg == "" {
 			msg = "Tool execution failed"
 		}
-		result.Error = &ToolError{Code: code, Message: msg, Details: core.RedactError(execErr)}
+		result.Error = &ToolError{
+			Code:            code,
+			Message:         msg,
+			Details:         core.RedactError(execErr),
+			RemediationHint: remediationHintFromDetails(coreErr.Details),
+		}
 	} else {
 		result.Error = &ToolError{
-			Code:    ErrCodeToolExecution,
-			Message: "Tool execution failed",
-			Details: core.RedactError(execErr),
+			Code:            ErrCodeToolExecution,
+			Message:         "Tool execution failed",
+			Details:         core.RedactError(execErr),
+			RemediationHint: "",
 		}
 	}
 	payload, marshalErr := json.Marshal(result)
-	entry.Status = toolLogStatusError
+	entry.Status = telemetry.ToolStatusError
 	entry.Error = core.RedactError(execErr)
 	if marshalErr != nil {
-		entry.Output = toolExecutionErrorPayload
+		if capture {
+			entry.Output = toolExecutionErrorPayload
+		} else {
+			entry.Output = telemetry.RedactedValue
+			entry.Redacted = true
+		}
 		return llmadapter.ToolResult{
 			ID:          call.ID,
 			Name:        call.Name,
@@ -266,7 +322,12 @@ func (e *toolExecutor) toolExecutionErrorResult(
 			JSONContent: nil,
 		}
 	}
-	entry.Output = string(payload)
+	if capture {
+		entry.Output = string(payload)
+	} else {
+		entry.Output = telemetry.RedactedValue
+		entry.Redacted = true
+	}
 	return llmadapter.ToolResult{
 		ID:          call.ID,
 		Name:        call.Name,
@@ -275,8 +336,46 @@ func (e *toolExecutor) toolExecutionErrorResult(
 	}
 }
 
+func remediationHintFromDetails(details map[string]any) string {
+	if len(details) == 0 {
+		return ""
+	}
+	for _, key := range []string{"remediation", "remediation_hint"} {
+		if hint, ok := details[key]; ok {
+			if text := flattenHintValue(hint); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
+func flattenHintValue(value any) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case []string:
+		return strings.Join(v, "; ")
+	case []any:
+		parts := make([]string, 0, len(v))
+		for _, item := range v {
+			parts = append(parts, fmt.Sprint(item))
+		}
+		return strings.Join(parts, "; ")
+	case map[string]any:
+		if msg, ok := v["message"].(string); ok {
+			return msg
+		}
+	default:
+		if v != nil {
+			return fmt.Sprint(v)
+		}
+	}
+	return ""
+}
+
 func (e *toolExecutor) UpdateBudgets(ctx context.Context, results []llmadapter.ToolResult, state *loopState) error {
-	log := logger.FromContext(ctx)
+	log := telemetry.Logger(ctx)
 	budget := e.cfg.maxSequentialToolErrors
 	if budget <= 0 {
 		budget = defaultMaxSequentialToolErrors
@@ -288,41 +387,64 @@ func (e *toolExecutor) UpdateBudgets(ctx context.Context, results []llmadapter.T
 
 	for _, result := range results {
 		name := result.Name
+		if state != nil {
+			count := state.incrementUsage(name)
+			if limit := state.limitFor(name); limit > 0 && count > limit {
+				log.Warn(
+					"Tool invocation cap exceeded",
+					"tool", name,
+					"invocations", count,
+					"cap", limit,
+				)
+				return fmt.Errorf("%w: tool invocation cap exceeded for %s", ErrBudgetExceeded, name)
+			}
+		}
+		if state == nil {
+			continue
+		}
 		if isToolResultSuccess(result) {
 			fingerprint := toolResultFingerprint(result)
-			if last, ok := state.lastToolResults[name]; ok && last == fingerprint {
-				state.toolSuccess[name]++
+			if last, ok := state.Budgets.LastToolResults[name]; ok && last == fingerprint {
+				state.Budgets.ToolSuccess[name]++
 			} else {
-				state.toolSuccess[name] = 1
-				state.lastToolResults[name] = fingerprint
+				state.Budgets.ToolSuccess[name] = 1
+				state.Budgets.LastToolResults[name] = fingerprint
 			}
 
-			if state.toolSuccess[name] >= maxSucc {
+			if state.Budgets.ToolSuccess[name] >= maxSucc {
 				log.Warn(
 					"Tool called successfully too many times without progress",
 					"tool",
 					name,
 					"consecutive_successes",
-					state.toolSuccess[name],
+					state.Budgets.ToolSuccess[name],
 				)
 				return fmt.Errorf(
 					"%w: tool %s called successfully %d times without progress",
 					ErrBudgetExceeded,
 					name,
-					state.toolSuccess[name],
+					state.Budgets.ToolSuccess[name],
 				)
 			}
-			if state.toolErrors[name] > 0 {
-				state.toolErrors[name]--
+			if state.Budgets.ToolErrors[name] > 0 {
+				state.Budgets.ToolErrors[name]--
 			}
 			continue
 		}
 
-		state.toolSuccess[name] = 0
-		delete(state.lastToolResults, name)
-		state.toolErrors[name]++
-		log.Debug("Tool error recorded", "tool", name, "consecutive_errors", state.toolErrors[name], "max", budget)
-		if state.toolErrors[name] >= budget {
+		state.Budgets.ToolSuccess[name] = 0
+		delete(state.Budgets.LastToolResults, name)
+		state.Budgets.ToolErrors[name]++
+		log.Warn(
+			"Tool error recorded",
+			"tool",
+			name,
+			"consecutive_errors",
+			state.Budgets.ToolErrors[name],
+			"max",
+			budget,
+		)
+		if state.Budgets.ToolErrors[name] >= budget {
 			log.Warn("Error budget exceeded - tool", "tool", name, "max", budget)
 			return fmt.Errorf("%w: tool error budget exceeded for %s", ErrBudgetExceeded, name)
 		}

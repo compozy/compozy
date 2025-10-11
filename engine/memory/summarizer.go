@@ -253,10 +253,7 @@ func (rbs *RuleBasedSummarizer) truncateUsingTokenizer(
 		if targetTokenCount <= reserve {
 			reserve = 0
 		}
-		cutoff := targetTokenCount - reserve
-		if cutoff < 0 {
-			cutoff = 0
-		}
+		cutoff := max(targetTokenCount-reserve, 0)
 		tokenList = tokenList[:cutoff]
 		truncatedStr, err := tiktokenCounter.DecodeTokens(base, tokenList)
 		if err != nil {
@@ -286,13 +283,7 @@ func (rbs *RuleBasedSummarizer) truncateUsingCharacterEstimate(summaryStr string
 		}
 		return summaryStr[:targetChars]
 	}
-	end := targetChars - 3
-	if end < 0 {
-		end = 0
-	}
-	if end > len(summaryStr) {
-		end = len(summaryStr)
-	}
+	end := min(max(targetChars-3, 0), len(summaryStr))
 	return summaryStr[:end] + "..."
 }
 

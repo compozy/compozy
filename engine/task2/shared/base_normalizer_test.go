@@ -353,14 +353,6 @@ func TestBaseNormalizer_ProcessTemplateMap(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, result)
 	})
-
-	t.Run("Should return error for non-map result", func(t *testing.T) {
-		// Arrange - We need to create a scenario where ProcessTemplateMap gets wrong type
-		// Since ProcessTemplateMap expects map[string]any, we can't easily trigger this error
-		// in a clean way, so let's skip this edge case test for now
-		// This test would require mocking the template engine to return wrong types
-		t.Skip("Skipping edge case test - requires complex mocking setup")
-	})
 }
 
 func TestBaseNormalizer_TemplateEngine(t *testing.T) {

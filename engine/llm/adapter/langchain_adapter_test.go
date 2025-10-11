@@ -3,12 +3,15 @@ package llmadapter
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/openai"
 )
 
 func TestLangChainAdapter_ConvertMessages(t *testing.T) {
@@ -203,6 +206,119 @@ func TestLangChainAdapter_OpenAI_SkipGenericBinary(t *testing.T) {
 	})
 }
 
+func TestLangChainAdapter_EnsureProviderTools(t *testing.T) {
+	base := []ToolDefinition{{
+		Name:        "weather_tool",
+		Description: "Weather",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	}}
+
+	t.Run("Should append json tool for Groq when missing", func(t *testing.T) {
+		adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: core.ProviderGroq}}
+		out := adapter.ensureProviderTools(base)
+		require.Len(t, out, 2)
+		assert.Equal(t, "json", out[1].Name)
+	})
+
+	t.Run("Should not duplicate json tool when already present", func(t *testing.T) {
+		adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: core.ProviderGroq}}
+		withJSON := append(append([]ToolDefinition{}, base...), ToolDefinition{Name: "json"})
+		out := adapter.ensureProviderTools(withJSON)
+		require.Len(t, out, 2)
+	})
+
+	t.Run("Should leave tools unchanged for non-Groq providers", func(t *testing.T) {
+		adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: core.ProviderOpenAI}}
+		out := adapter.ensureProviderTools(base)
+		require.Equal(t, base, out)
+	})
+}
+
+func TestLangChainAdapter_ShouldForceJSON(t *testing.T) {
+	req := &LLMRequest{Options: CallOptions{ForceJSON: true}}
+
+	t.Run("Should enable JSON mode for OpenAI", func(t *testing.T) {
+		adapter := &LangChainAdapter{
+			provider:     core.ProviderConfig{Provider: core.ProviderOpenAI},
+			capabilities: ProviderCapabilities{StructuredOutput: true},
+		}
+		options := adapter.buildCallOptions(req)
+		var callOpts llms.CallOptions
+		for _, opt := range options {
+			opt(&callOpts)
+		}
+		assert.True(t, callOpts.JSONMode)
+	})
+
+	t.Run("Should disable JSON mode for unsupported providers", func(t *testing.T) {
+		adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: core.ProviderGoogle}}
+		options := adapter.buildCallOptions(req)
+		var callOpts llms.CallOptions
+		for _, opt := range options {
+			opt(&callOpts)
+		}
+		assert.False(t, callOpts.JSONMode)
+	})
+
+	t.Run("Should ignore when request does not require JSON", func(t *testing.T) {
+		adapter := &LangChainAdapter{
+			provider:     core.ProviderConfig{Provider: core.ProviderOpenAI},
+			capabilities: ProviderCapabilities{StructuredOutput: true},
+		}
+		options := adapter.buildCallOptions(&LLMRequest{Options: CallOptions{ForceJSON: false}})
+		var callOpts llms.CallOptions
+		for _, opt := range options {
+			opt(&callOpts)
+		}
+		assert.False(t, callOpts.JSONMode)
+	})
+}
+
+func TestLangChainAdapter_HandleBinary_ImageLimit(t *testing.T) {
+	t.Run("Should omit oversized images with sentinel text", func(t *testing.T) {
+		adapter := &LangChainAdapter{
+			provider: core.ProviderConfig{Provider: core.ProviderOpenAI},
+		}
+		data := make([]byte, maxInlineImageBytes+1)
+		out, err := adapter.handleBinary(
+			context.Background(),
+			BinaryPart{MIMEType: "image/png", Data: data},
+			nil,
+		)
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		textPart, ok := out[0].(llms.TextContent)
+		require.True(t, ok)
+		assert.Equal(
+			t,
+			fmt.Sprintf(oversizedImageMsgPattern, len(data), maxInlineImageBytes),
+			textPart.Text,
+		)
+	})
+}
+
+func TestLangChainAdapter_ForceJSONUnsupportedProvider(t *testing.T) {
+	adapter := &LangChainAdapter{
+		provider:     core.ProviderConfig{Provider: core.ProviderGroq},
+		capabilities: ProviderCapabilities{},
+		buildModel: func(context.Context, *core.ProviderConfig, *openai.ResponseFormat) (llms.Model, error) {
+			return stubModel{}, nil
+		},
+		modelCache:  map[string]llms.Model{"default": stubModel{}},
+		errorParser: NewErrorParser(string(core.ProviderGroq)),
+	}
+
+	resp, err := adapter.GenerateContent(
+		context.Background(),
+		&LLMRequest{Options: CallOptions{ForceJSON: true}},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+}
+
 func TestLangChainAdapter_MapMessageRole(t *testing.T) {
 	adapter := &LangChainAdapter{}
 
@@ -266,6 +382,22 @@ func TestLangChainAdapter_BuildCallOptions(t *testing.T) {
 
 		// Should have WithTools and WithToolChoice
 		assert.GreaterOrEqual(t, len(options), 2)
+	})
+
+	t.Run("Should set tool choice to none for all providers", func(t *testing.T) {
+		// Test with OpenAI
+		openAIAdapter := &LangChainAdapter{
+			provider: core.ProviderConfig{Provider: core.ProviderOpenAI},
+		}
+		req := LLMRequest{Options: CallOptions{ToolChoice: "none"}}
+		options := openAIAdapter.buildCallOptions(&req)
+		assert.Len(t, options, 1, "OpenAI should only have WithToolChoice, not deprecated WithFunctionCallBehavior")
+		// Test with Groq
+		groqAdapter := &LangChainAdapter{
+			provider: core.ProviderConfig{Provider: core.ProviderGroq},
+		}
+		groqOptions := groqAdapter.buildCallOptions(&req)
+		assert.Len(t, groqOptions, 1, "Groq should only have WithToolChoice")
 	})
 }
 
@@ -377,13 +509,72 @@ func TestNewLangChainAdapter(t *testing.T) {
 			Model:    "mock-model",
 		}
 
-		adapter, err := NewLangChainAdapter(context.Background(), &config)
+		builderCalls := 0
+		builder := func(
+			_ context.Context,
+			cfg *core.ProviderConfig,
+			format *openai.ResponseFormat,
+		) (llms.Model, error) {
+			builderCalls++
+			assert.Equal(t, &config, cfg)
+			assert.Nil(t, format)
+			return stubModel{}, nil
+		}
+
+		caps := ProviderCapabilities{StructuredOutput: true}
+		adapter, err := NewLangChainAdapter(context.Background(), &config, builder, caps)
 
 		require.NoError(t, err)
 		assert.NotNil(t, adapter)
 		assert.NotNil(t, adapter.baseModel)
 		assert.Equal(t, config, adapter.provider)
+		assert.Equal(t, caps, adapter.capabilities)
+		assert.Equal(t, 1, builderCalls)
 	})
+}
+
+func TestLangChainAdapter_StructuredOutputCapability(t *testing.T) {
+	config := core.ProviderConfig{
+		Provider: core.ProviderOpenAI,
+		Model:    "gpt-test",
+	}
+
+	var formats []*openai.ResponseFormat
+	builder := func(
+		_ context.Context,
+		_ *core.ProviderConfig,
+		format *openai.ResponseFormat,
+	) (llms.Model, error) {
+		if format != nil {
+			formats = append(formats, format)
+		}
+		return stubModel{}, nil
+	}
+
+	adapter, err := NewLangChainAdapter(
+		context.Background(),
+		&config,
+		builder,
+		ProviderCapabilities{StructuredOutput: true},
+	)
+	require.NoError(t, err)
+
+	format := NewJSONSchemaOutputFormat("result", &schema.Schema{"type": "object"}, true)
+	_, err = adapter.ensureModel(context.Background(), format)
+	require.NoError(t, err)
+	require.Len(t, formats, 1)
+	assert.Equal(t, "json_schema", formats[0].Type)
+
+	adapterNoJSON, err := NewLangChainAdapter(
+		context.Background(),
+		&config,
+		builder,
+		ProviderCapabilities{},
+	)
+	require.NoError(t, err)
+	_, err = adapterNoJSON.ensureModel(context.Background(), format)
+	require.NoError(t, err)
+	assert.Len(t, formats, 1)
 }
 
 func TestTestAdapter(t *testing.T) {
@@ -475,4 +666,20 @@ func TestMockToolAdapter(t *testing.T) {
 		assert.Equal(t, "Mock response", resp.Content)
 		assert.Empty(t, resp.ToolCalls)
 	})
+}
+
+type stubModel struct{}
+
+func (stubModel) GenerateContent(
+	context.Context,
+	[]llms.MessageContent,
+	...llms.CallOption,
+) (*llms.ContentResponse, error) {
+	return &llms.ContentResponse{
+		Choices: []*llms.ContentChoice{{Content: "stub"}},
+	}, nil
+}
+
+func (stubModel) Call(context.Context, string, ...llms.CallOption) (string, error) {
+	return "", nil
 }

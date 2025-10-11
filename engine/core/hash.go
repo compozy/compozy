@@ -122,7 +122,7 @@ func writeReflectedMap(b *bytes.Buffer, rv reflect.Value) {
 func writeReflectedSlice(b *bytes.Buffer, rv reflect.Value) {
 	b.WriteByte('[')
 	n := rv.Len()
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if i > 0 {
 			b.WriteByte(',')
 		}

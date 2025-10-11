@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/config"
@@ -27,6 +28,7 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 		require.NoError(t, err)
 		ctx := config.ContextWithManager(base, mgr)
 		tple := tplengine.NewEngine(tplengine.FormatJSON)
+		toolEnv := toolenv.New(nil, nil, nil)
 		acts, err := worker.NewActivities(
 			ctx,
 			nil,  // projectConfig
@@ -39,6 +41,7 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 			nil,  // redisCache
 			nil,  // memoryManager
 			tple, // templateEngine (required by factory construction)
+			toolEnv,
 		)
 		require.NoError(t, err)
 		input := &activities.EvaluateConditionInput{Expression: "true"}

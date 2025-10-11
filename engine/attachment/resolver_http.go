@@ -174,10 +174,7 @@ type headCapture struct {
 
 func (h *headCapture) Write(p []byte) (int, error) {
 	if len(h.b) < h.limit {
-		need := h.limit - len(h.b)
-		if need > len(p) {
-			need = len(p)
-		}
+		need := min(h.limit-len(h.b), len(p))
 		h.b = append(h.b, p[:need]...)
 	}
 	return len(p), nil

@@ -73,6 +73,8 @@ func TestConfig_Default(t *testing.T) {
 			[]string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
 			cfg.Runtime.NativeTools.Fetch.AllowedMethods,
 		)
+		assert.True(t, cfg.Runtime.NativeTools.CallAgent.Enabled)
+		assert.Equal(t, 60*time.Second, cfg.Runtime.NativeTools.CallAgent.DefaultTimeout)
 
 		// Limits defaults
 		assert.Equal(t, 20, cfg.Limits.MaxNestingDepth)
@@ -99,6 +101,20 @@ func TestConfig_Default(t *testing.T) {
 	})
 }
 
+func TestLLMConfig_StructuredOutputRetryPrecedence(t *testing.T) {
+	t.Setenv("LLM_STRUCTURED_OUTPUT_RETRIES", "3")
+	ctx := context.Background()
+	manager := NewManager(NewService())
+	cliOverrides := map[string]any{
+		"llm-structured-output-retries": 5,
+	}
+	config, err := manager.Load(ctx, NewDefaultProvider(), NewEnvProvider(), NewCLIProvider(cliOverrides))
+	require.NoError(t, err)
+	require.NotNil(t, config)
+	assert.Equal(t, 5, config.LLM.StructuredOutputRetryAttempts)
+	_ = manager.Close(ctx)
+}
+
 func TestDefaultNativeToolsConfig(t *testing.T) {
 	t.Run("Should return default native tools config", func(t *testing.T) {
 		config := DefaultNativeToolsConfig()
@@ -113,6 +129,8 @@ func TestDefaultNativeToolsConfig(t *testing.T) {
 		assert.Equal(t, int64(2<<20), config.Fetch.MaxBodyBytes)
 		assert.Equal(t, 5, config.Fetch.MaxRedirects)
 		assert.Equal(t, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}, config.Fetch.AllowedMethods)
+		assert.True(t, config.CallAgent.Enabled)
+		assert.Equal(t, 60*time.Second, config.CallAgent.DefaultTimeout)
 	})
 }
 

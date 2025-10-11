@@ -3,12 +3,14 @@ package llmadapter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/anthropic"
 	"github.com/tmc/langchaingo/llms/googleai"
@@ -16,36 +18,168 @@ import (
 	"github.com/tmc/langchaingo/llms/openai"
 )
 
-// CreateLLMFactory creates an LLM instance based on the provider configuration
-func CreateLLMFactory(
-	ctx context.Context,
-	provider *core.ProviderConfig,
-	responseFormat *openai.ResponseFormat,
-) (llms.Model, error) {
-	switch provider.Provider {
-	case core.ProviderOpenAI:
-		return createOpenAILLM(provider, responseFormat)
-	case core.ProviderAnthropic:
-		return createAnthropicLLM(provider, responseFormat)
-	case core.ProviderGroq:
-		return createGroqLLM(provider, responseFormat)
-	case core.ProviderMock:
-		return createMockLLM(provider, responseFormat)
-	case core.ProviderOllama:
-		return createOllamaLLM(provider, responseFormat)
-	case core.ProviderGoogle:
-		return createGoogleLLM(ctx, provider, responseFormat)
-	case core.ProviderDeepSeek:
-		return createDeepSeekLLM(provider, responseFormat)
-	case core.ProviderXAI:
-		return createXAILLM(provider, responseFormat)
-	default:
-		return nil, fmt.Errorf("unsupported provider: %s", provider.Provider)
+type adapterWrapper func(*LangChainAdapter) LLMClient
+
+type langChainProvider struct {
+	name         core.ProviderName
+	builder      ModelBuilder
+	capabilities ProviderCapabilities
+	wrap         adapterWrapper
+}
+
+func (p *langChainProvider) Name() core.ProviderName {
+	return p.name
+}
+
+func (p *langChainProvider) Capabilities() ProviderCapabilities {
+	return p.capabilities
+}
+
+func (p *langChainProvider) NewClient(ctx context.Context, cfg *core.ProviderConfig) (LLMClient, error) {
+	adapter, err := NewLangChainAdapter(ctx, cfg, p.builder, p.capabilities)
+	if err != nil {
+		return nil, err
+	}
+	if p.wrap != nil {
+		return p.wrap(adapter), nil
+	}
+	return adapter, nil
+}
+
+// BuiltinProviders enumerates the default providers supplied by the adapter
+// package. A fresh slice with provider instances is returned on each call.
+func BuiltinProviders() []Provider {
+	return []Provider{
+		newLangChainProvider(
+			core.ProviderOpenAI,
+			ProviderCapabilities{
+				StructuredOutput:    true,
+				Streaming:           true,
+				Vision:              true,
+				ContextWindowTokens: 128000,
+			},
+			createOpenAILLM,
+		),
+		newLangChainProvider(
+			core.ProviderAnthropic,
+			ProviderCapabilities{
+				Streaming:           true,
+				ContextWindowTokens: 200000,
+			},
+			createAnthropicLLM,
+		),
+		newWrappedLangChainProvider(
+			core.ProviderGroq,
+			ProviderCapabilities{
+				Streaming:           true,
+				ContextWindowTokens: 32768,
+			},
+			createGroqLLM,
+			func(adapter *LangChainAdapter) LLMClient {
+				return &groqAdapter{LangChainAdapter: adapter}
+			},
+		),
+		newLangChainProvider(
+			core.ProviderMock,
+			ProviderCapabilities{
+				StructuredOutput:    true,
+				ContextWindowTokens: 4096,
+			},
+			createMockLLM,
+		),
+		newLangChainProvider(
+			core.ProviderOllama,
+			ProviderCapabilities{
+				Streaming:           true,
+				ContextWindowTokens: 32768,
+			},
+			createOllamaLLM,
+		),
+		newLangChainProvider(
+			core.ProviderGoogle,
+			ProviderCapabilities{
+				Streaming:           true,
+				Vision:              true,
+				ContextWindowTokens: 1000000,
+			},
+			createGoogleLLM,
+		),
+		newLangChainProvider(
+			core.ProviderDeepSeek,
+			ProviderCapabilities{
+				StructuredOutput:    true,
+				Streaming:           true,
+				ContextWindowTokens: 128000,
+			},
+			createDeepSeekLLM,
+		),
+		newLangChainProvider(
+			core.ProviderXAI,
+			ProviderCapabilities{
+				StructuredOutput:    true,
+				Streaming:           true,
+				ContextWindowTokens: 131072,
+			},
+			createXAILLM,
+		),
 	}
 }
 
-// createOpenAILLM creates an OpenAI LLM instance
-func createOpenAILLM(p *core.ProviderConfig, responseFormat *openai.ResponseFormat) (llms.Model, error) {
+// RegisterProviders adds the provided providers to the registry, emitting
+// structured logs for duplicate registrations.
+func RegisterProviders(ctx context.Context, registry *Registry, providers ...Provider) error {
+	if registry == nil {
+		return fmt.Errorf("registry must not be nil")
+	}
+	log := logger.FromContext(ctx)
+	for _, provider := range providers {
+		if provider == nil {
+			continue
+		}
+		if err := registry.Register(provider); err != nil {
+			if errors.Is(err, ErrProviderAlreadyRegistered) {
+				log.Warn("LLM provider already registered; skipping duplicate", "provider", provider.Name())
+				continue
+			}
+			return fmt.Errorf("register provider %s: %w", provider.Name(), err)
+		}
+		log.Debug("LLM provider registered", "provider", provider.Name())
+	}
+	return nil
+}
+
+func newLangChainProvider(
+	name core.ProviderName,
+	capabilities ProviderCapabilities,
+	builder ModelBuilder,
+) Provider {
+	return &langChainProvider{
+		name:         name,
+		builder:      builder,
+		capabilities: capabilities,
+	}
+}
+
+func newWrappedLangChainProvider(
+	name core.ProviderName,
+	capabilities ProviderCapabilities,
+	builder ModelBuilder,
+	wrap adapterWrapper,
+) Provider {
+	return &langChainProvider{
+		name:         name,
+		builder:      builder,
+		capabilities: capabilities,
+		wrap:         wrap,
+	}
+}
+
+// createOpenAILLM creates an OpenAI LLM instance.
+func createOpenAILLM(
+	_ context.Context,
+	p *core.ProviderConfig,
+	responseFormat *openai.ResponseFormat,
+) (llms.Model, error) {
 	opts := []openai.Option{
 		openai.WithModel(p.Model),
 	}
@@ -64,8 +198,12 @@ func createOpenAILLM(p *core.ProviderConfig, responseFormat *openai.ResponseForm
 	return openai.New(opts...)
 }
 
-// createAnthropicLLM creates an Anthropic LLM instance
-func createAnthropicLLM(p *core.ProviderConfig, responseFormat *openai.ResponseFormat) (llms.Model, error) {
+// createAnthropicLLM creates an Anthropic LLM instance.
+func createAnthropicLLM(
+	_ context.Context,
+	p *core.ProviderConfig,
+	responseFormat *openai.ResponseFormat,
+) (llms.Model, error) {
 	opts := []anthropic.Option{
 		anthropic.WithModel(p.Model),
 	}
@@ -81,8 +219,12 @@ func createAnthropicLLM(p *core.ProviderConfig, responseFormat *openai.ResponseF
 	return anthropic.New(opts...)
 }
 
-// createGroqLLM creates a Groq LLM instance
-func createGroqLLM(p *core.ProviderConfig, responseFormat *openai.ResponseFormat) (llms.Model, error) {
+// createGroqLLM creates a Groq LLM instance.
+func createGroqLLM(
+	_ context.Context,
+	p *core.ProviderConfig,
+	responseFormat *openai.ResponseFormat,
+) (llms.Model, error) {
 	baseURL := "https://api.groq.com/openai/v1"
 	if p.APIURL != "" {
 		baseURL = p.APIURL
@@ -103,8 +245,12 @@ func createGroqLLM(p *core.ProviderConfig, responseFormat *openai.ResponseFormat
 	return openai.New(opts...)
 }
 
-// createOllamaLLM creates an Ollama LLM instance
-func createOllamaLLM(p *core.ProviderConfig, responseFormat *openai.ResponseFormat) (llms.Model, error) {
+// createOllamaLLM creates an Ollama LLM instance.
+func createOllamaLLM(
+	_ context.Context,
+	p *core.ProviderConfig,
+	responseFormat *openai.ResponseFormat,
+) (llms.Model, error) {
 	opts := []ollama.Option{
 		ollama.WithModel(p.Model),
 	}
@@ -115,18 +261,29 @@ func createOllamaLLM(p *core.ProviderConfig, responseFormat *openai.ResponseForm
 		return nil, fmt.Errorf("ollama does not support organization")
 	}
 	if responseFormat != nil {
-		opts = append(opts, ollama.WithFormat("json"))
+		return nil, fmt.Errorf("ollama does not support structured output response formats")
 	}
 	return ollama.New(opts...)
 }
 
-// createMockLLM creates a mock LLM instance
-func createMockLLM(p *core.ProviderConfig, _ *openai.ResponseFormat) (llms.Model, error) {
+// createMockLLM creates a mock LLM instance.
+func createMockLLM(
+	_ context.Context,
+	p *core.ProviderConfig,
+	_ *openai.ResponseFormat,
+) (llms.Model, error) {
 	return NewMockLLM(p.Model), nil
 }
 
-// createGoogleLLM creates a Google AI LLM instance
-func createGoogleLLM(ctx context.Context, p *core.ProviderConfig, _ *openai.ResponseFormat) (llms.Model, error) {
+// createGoogleLLM creates a Google AI LLM instance.
+func createGoogleLLM(
+	ctx context.Context,
+	p *core.ProviderConfig,
+	_ *openai.ResponseFormat,
+) (llms.Model, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context must not be nil")
+	}
 	opts := []googleai.Option{
 		googleai.WithDefaultModel(p.Model),
 	}
@@ -139,16 +296,15 @@ func createGoogleLLM(ctx context.Context, p *core.ProviderConfig, _ *openai.Resp
 	if p.Organization != "" {
 		return nil, fmt.Errorf("googleai does not support organization")
 	}
-	// Use provided context (preserves logger/config/trace). For long-lived
-	// clients, caller should pass a base context via context.WithoutCancel.
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return googleai.New(ctx, opts...)
 }
 
-// createDeepSeekLLM creates a DeepSeek LLM instance
-func createDeepSeekLLM(p *core.ProviderConfig, responseFormat *openai.ResponseFormat) (llms.Model, error) {
+// createDeepSeekLLM creates a DeepSeek LLM instance.
+func createDeepSeekLLM(
+	_ context.Context,
+	p *core.ProviderConfig,
+	responseFormat *openai.ResponseFormat,
+) (llms.Model, error) {
 	baseURL := "https://api.deepseek.com/v1"
 	if p.APIURL != "" {
 		baseURL = p.APIURL
@@ -169,8 +325,12 @@ func createDeepSeekLLM(p *core.ProviderConfig, responseFormat *openai.ResponseFo
 	return openai.New(opts...)
 }
 
-// createXAILLM creates an XAI (Grok) LLM instance
-func createXAILLM(p *core.ProviderConfig, responseFormat *openai.ResponseFormat) (llms.Model, error) {
+// createXAILLM creates an XAI (Grok) LLM instance.
+func createXAILLM(
+	_ context.Context,
+	p *core.ProviderConfig,
+	responseFormat *openai.ResponseFormat,
+) (llms.Model, error) {
 	baseURL := "https://api.x.ai/v1"
 	if p.APIURL != "" {
 		baseURL = p.APIURL
@@ -189,6 +349,25 @@ func createXAILLM(p *core.ProviderConfig, responseFormat *openai.ResponseFormat)
 		opts = append(opts, openai.WithResponseFormat(responseFormat))
 	}
 	return openai.New(opts...)
+}
+
+type groqAdapter struct {
+	*LangChainAdapter
+}
+
+func (a *groqAdapter) GenerateContent(
+	ctx context.Context,
+	req *LLMRequest,
+) (*LLMResponse, error) {
+	resp, err := a.LangChainAdapter.GenerateContent(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.ToolCalls) == 1 && strings.EqualFold(resp.ToolCalls[0].Name, "json") {
+		resp.Content = string(resp.ToolCalls[0].Arguments)
+		resp.ToolCalls = nil
+	}
+	return resp, nil
 }
 
 // attachmentsEchoToken is used to trigger attachment echo mode in tests

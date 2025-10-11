@@ -6,13 +6,10 @@ workflows:
   - source: ./workflows/review.yaml
 
 models:
-  - provider: openai
-    model: o3
-    api_key: "{{ .env.OPENAI_API_KEY }}"
+  - provider: groq
+    model: openai/gpt-oss-120b
+    api_key: "{{ .env.GROQ_API_KEY }}"
     default: true
-    params:
-      temperature: 1
-      max_tokens: 2000
 
 config:
   schedule_to_start_timeout: 5m

@@ -64,7 +64,7 @@ func TestInternalTool_ConfigParameter(t *testing.T) {
 
 		// Create internal tool
 		env := &core.EnvMap{}
-		internalTool := llm.NewTool(toolConfig, env, runtime)
+		internalTool := llm.NewTool(toolConfig, env, runtime, nil)
 		require.NotNil(t, internalTool)
 
 		// Call the tool
@@ -95,7 +95,7 @@ func TestInternalTool_ConfigParameter(t *testing.T) {
 
 		// Create internal tool
 		env := &core.EnvMap{}
-		internalTool := llm.NewTool(toolConfig, env, runtime)
+		internalTool := llm.NewTool(toolConfig, env, runtime, nil)
 		require.NotNil(t, internalTool)
 
 		// Call the tool
@@ -125,7 +125,7 @@ func TestInternalTool_ConfigParameter(t *testing.T) {
 
 		// Create internal tool
 		env := &core.EnvMap{}
-		internalTool := llm.NewTool(toolConfig, env, runtime)
+		internalTool := llm.NewTool(toolConfig, env, runtime, nil)
 		require.NotNil(t, internalTool)
 
 		// Call the tool

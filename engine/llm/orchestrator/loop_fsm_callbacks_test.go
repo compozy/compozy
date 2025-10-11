@@ -3,12 +3,14 @@ package orchestrator
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	"github.com/compozy/compozy/engine/llm/telemetry"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/require"
 )
@@ -54,11 +56,16 @@ func (c *completionHandlerStub) HandleNoToolCalls(
 }
 
 type memoryManagerStub struct {
-	storeCalls int
-	ctxData    *MemoryContext
-	response   *llmadapter.LLMResponse
-	messages   []llmadapter.Message
-	request    Request
+	storeCalls      int
+	ctxData         *MemoryContext
+	response        *llmadapter.LLMResponse
+	messages        []llmadapter.Message
+	request         Request
+	failureCalls    int
+	failureCtx      *MemoryContext
+	failureRequest  Request
+	failureEpisodes []FailureEpisode
+	compactCalls    int
 }
 
 func (m *memoryManagerStub) Prepare(context.Context, Request) *MemoryContext {
@@ -73,6 +80,7 @@ func (m *memoryManagerStub) Inject(
 	return base
 }
 
+//nolint:gocritic // Test stub mirrors production interface signature.
 func (m *memoryManagerStub) StoreAsync(
 	_ context.Context,
 	ctxData *MemoryContext,
@@ -85,6 +93,28 @@ func (m *memoryManagerStub) StoreAsync(
 	m.response = response
 	m.messages = append([]llmadapter.Message(nil), messages...)
 	m.request = request
+}
+
+//nolint:gocritic // Test stub mirrors production interface signature.
+func (m *memoryManagerStub) StoreFailureEpisode(
+	_ context.Context,
+	ctxData *MemoryContext,
+	request Request,
+	episode FailureEpisode,
+) {
+	m.failureCalls++
+	m.failureCtx = ctxData
+	m.failureRequest = request
+	m.failureEpisodes = append(m.failureEpisodes, episode)
+}
+
+func (m *memoryManagerStub) Compact(
+	_ context.Context,
+	_ *LoopContext,
+	_ telemetry.ContextUsage,
+) error {
+	m.compactCalls++
+	return nil
 }
 
 type recordingInvoker struct {
@@ -126,7 +156,7 @@ func TestConversationLoop_OnEnterAwaitLLM(t *testing.T) {
 		require.Equal(t, 1, inv.calls)
 		require.Equal(t, 1, loopCtx.Iteration)
 		require.Same(t, response, loopCtx.Response)
-		require.Contains(t, logBuf.String(), "Generating LLM response")
+		require.Contains(t, logBuf.String(), "Dispatching LLM request")
 	})
 	t.Run("ShouldFailWhenIterationBudgetExceeded", func(t *testing.T) {
 		ctx := context.Background()
@@ -208,7 +238,8 @@ func TestConversationLoop_OnEnterProcessTools(t *testing.T) {
 		exec := &processToolsExecutorStub{results: []llmadapter.ToolResult{{ID: "1", Name: "tool", Content: "{}"}}}
 		loop := newConversationLoop(&settings{}, exec, noopResponseHandler{}, &recordingInvoker{}, nil)
 		loopCtx := &LoopContext{
-			Response: &llmadapter.LLMResponse{ToolCalls: []llmadapter.ToolCall{{ID: "1", Name: "tool"}}},
+			LLMRequest: &llmadapter.LLMRequest{},
+			Response:   &llmadapter.LLMResponse{ToolCalls: []llmadapter.ToolCall{{ID: "1", Name: "tool"}}},
 		}
 		result := loop.OnEnterProcessTools(context.Background(), loopCtx)
 		require.Equal(t, EventToolsExecuted, result.Event)
@@ -221,7 +252,8 @@ func TestConversationLoop_OnEnterProcessTools(t *testing.T) {
 		exec := &processToolsExecutorStub{err: fmt.Errorf("boom")}
 		loop := newConversationLoop(&settings{}, exec, noopResponseHandler{}, &recordingInvoker{}, nil)
 		loopCtx := &LoopContext{
-			Response: &llmadapter.LLMResponse{ToolCalls: []llmadapter.ToolCall{{ID: "1", Name: "tool"}}},
+			LLMRequest: &llmadapter.LLMRequest{},
+			Response:   &llmadapter.LLMResponse{ToolCalls: []llmadapter.ToolCall{{ID: "1", Name: "tool"}}},
 		}
 		result := loop.OnEnterProcessTools(context.Background(), loopCtx)
 		require.Equal(t, EventFailure, result.Event)
@@ -279,11 +311,13 @@ func TestConversationLoop_OnEnterUpdateBudgets(t *testing.T) {
 		require.Equal(t, EventBudgetOK, result.Event)
 		require.NoError(t, result.Err)
 		require.Equal(t, 1, exec.calls)
-		require.Len(t, loopCtx.LLMRequest.Messages, 2)
-		for _, msg := range loopCtx.LLMRequest.Messages {
-			require.Equal(t, roleTool, msg.Role)
-			require.Len(t, msg.ToolResults, 1)
-		}
+		require.Len(t, loopCtx.LLMRequest.Messages, 3)
+		require.Equal(t, roleTool, loopCtx.LLMRequest.Messages[0].Role)
+		require.Len(t, loopCtx.LLMRequest.Messages[0].ToolResults, 1)
+		require.Equal(t, roleTool, loopCtx.LLMRequest.Messages[1].Role)
+		require.Len(t, loopCtx.LLMRequest.Messages[1].ToolResults, 1)
+		require.Equal(t, roleAssistant, loopCtx.LLMRequest.Messages[2].Role)
+		require.Contains(t, loopCtx.LLMRequest.Messages[2].Content, "Observation: tool second failed")
 	})
 	t.Run("ShouldReturnBudgetExceededWhenUpdateFails", func(t *testing.T) {
 		exec := &budgetExecutorStub{err: fmt.Errorf("%w", ErrBudgetExceeded)}
@@ -340,6 +374,32 @@ func TestConversationLoop_OnEnterUpdateBudgets(t *testing.T) {
 		require.Error(t, second.Err)
 		require.ErrorContains(t, second.Err, "no progress")
 		require.Equal(t, 2, exec.calls)
+	})
+
+	t.Run("ShouldAppendGuidanceMessageWithRemediationHint", func(t *testing.T) {
+		exec := &budgetExecutorStub{}
+		cfg := &settings{}
+		loop := newConversationLoop(cfg, exec, noopResponseHandler{}, &recordingInvoker{}, nil)
+		payload := `{"success":false,"error":{"message":"agent_id is required","remediation_hint":"Include \"agent_id\" using a value returned from cp__list_agents before calling cp__call_agent."}}`
+		loopCtx := &LoopContext{
+			LLMRequest: &llmadapter.LLMRequest{},
+			State:      newLoopState(cfg, nil, nil),
+			ToolResults: []llmadapter.ToolResult{
+				{ID: "1", Name: "cp__call_agent", Content: payload, JSONContent: json.RawMessage(payload)},
+			},
+			Response: &llmadapter.LLMResponse{
+				ToolCalls: []llmadapter.ToolCall{{ID: "1", Name: "cp__call_agent"}},
+			},
+		}
+		result := loop.OnEnterUpdateBudgets(context.Background(), loopCtx)
+		require.Equal(t, EventBudgetOK, result.Event)
+		require.Len(t, loopCtx.LLMRequest.Messages, 2)
+		require.Equal(t, roleAssistant, loopCtx.LLMRequest.Messages[1].Role)
+		require.Contains(
+			t,
+			loopCtx.LLMRequest.Messages[1].Content,
+			"\"agent_id\" using a value returned from cp__list_agents",
+		)
 	})
 }
 
@@ -414,7 +474,7 @@ func TestConversationLoop_OnEnterFinalize(t *testing.T) {
 		ctx := context.Background()
 		memCtx := &MemoryContext{}
 		state := newLoopState(&settings{}, memCtx, nil)
-		state.memories = memCtx
+		state.setMemories(memCtx)
 		loopCtx := &LoopContext{
 			Response: &llmadapter.LLMResponse{Content: "result"},
 			State:    state,
@@ -465,6 +525,50 @@ func TestConversationLoop_OnEnterFinalize(t *testing.T) {
 		require.Equal(t, EventFailure, res.Event)
 		require.ErrorContains(t, res.Err, "loop context is required")
 	})
+}
+
+func TestConversationLoop_OnFailureStoresFailureEpisode(t *testing.T) {
+	ctx := context.Background()
+	memCtx := &MemoryContext{}
+	state := newLoopState(&settings{}, memCtx, nil)
+	state.setMemories(memCtx)
+	loopCtx := &LoopContext{
+		Response: &llmadapter.LLMResponse{
+			ToolCalls: []llmadapter.ToolCall{
+				{
+					ID:        "call-1",
+					Name:      "cp__call_agent",
+					Arguments: json.RawMessage(`{"plan":{"steps":[]}}`),
+				},
+			},
+		},
+		State: state,
+		Request: Request{
+			Agent:  &agent.Config{ID: "agent"},
+			Action: &agent.ActionConfig{ID: "action"},
+		},
+		ToolResults: []llmadapter.ToolResult{
+			{
+				ID:   "call-1",
+				Name: "cp__call_agent",
+				JSONContent: json.RawMessage(
+					`{"success":false,"error":{"message":"planner produced invalid plan: plan requires at least one step"}}`,
+				),
+			},
+		},
+	}
+	loopCtx.err = fmt.Errorf("planner produced invalid plan")
+	memory := &memoryManagerStub{}
+	loop := newConversationLoop(&settings{}, noopExecutor{}, noopResponseHandler{}, &recordingInvoker{}, memory)
+	loop.OnFailure(ctx, loopCtx, EventFailure)
+	require.Equal(t, 1, memory.failureCalls)
+	require.Equal(t, memCtx, memory.failureCtx)
+	require.Equal(t, loopCtx.Request, memory.failureRequest)
+	require.Len(t, memory.failureEpisodes, 1)
+	episode := memory.failureEpisodes[0]
+	require.NotEmpty(t, episode.PlanSummary)
+	require.NotEmpty(t, episode.ErrorSummary)
+	require.Contains(t, episode.ErrorSummary, "plan requires at least one step")
 }
 
 type processToolsExecutorStub struct {

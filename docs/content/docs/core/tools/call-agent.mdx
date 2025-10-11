@@ -1,0 +1,67 @@
+---
+title: "cp__call_agent"
+description: "Execute a single agent action or prompt using the cp__call_agent builtin"
+---
+
+The **cp__call_agent** builtin executes a single agent synchronously. Use it after discovering valid agents with `cp__list_agents` and `cp__describe_agent`.
+
+## Input fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `agent_id` (required) | string | Identifier returned by `cp__list_agents`. |
+| `action_id` | string | Required when the agent publishes more than one action. Omit if there is a single action. |
+| `prompt` | string | Optional natural language instructions. Provide either `prompt` or `action_id`. |
+| `with` | object | Structured payload that must satisfy the action schema from `cp__describe_agent`. |
+| `timeout_ms` | integer | Optional execution timeout in milliseconds. |
+
+At least one of `prompt` or `action_id` must be present. You may supply both when an action expects structured inputs and guidance.
+
+## Usage examples
+
+**Direct action invocation**
+
+```json
+{
+  "agent_id": "researcher",
+  "action_id": "gather_notes",
+  "with": {
+    "topic": "quantum networking",
+    "depth": "summary"
+  }
+}
+```
+
+**Prompt-driven execution**
+
+```json
+{
+  "agent_id": "writer",
+  "prompt": "Summarize the latest findings on quantum networking in three bullet points."
+}
+```
+
+**Prompt plus structured inputs**
+
+```json
+{
+  "agent_id": "analyst",
+  "action_id": "compare",
+  "prompt": "Compare the two proposals and highlight trade-offs.",
+  "with": {
+    "proposal_a": "{{previous_step.response.summary_a}}",
+    "proposal_b": "{{previous_step.response.summary_b}}"
+  },
+  "timeout_ms": 45000
+}
+```
+
+## Remediation hints
+
+If the builtin returns an error:
+
+- Re-run `cp__list_agents` when the agent ID is unknown.
+- Use `cp__describe_agent` to confirm the action ID and inspect the input schema.
+- Ensure `with` payloads match the schema types (strings vs numbers, required fields, etc.).
+- Provide either a `prompt` or `action_id` (or both).
+- Increase `timeout_ms` if the agent needs more time to complete.

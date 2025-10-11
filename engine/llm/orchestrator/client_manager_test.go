@@ -18,6 +18,17 @@ func (e errFactory) CreateClient(context.Context, *enginecore.ProviderConfig) (l
 	return nil, e.err
 }
 
+func (e errFactory) BuildRoute(
+	*enginecore.ProviderConfig,
+	...*enginecore.ProviderConfig,
+) (*llmadapter.ProviderRoute, error) {
+	return nil, e.err
+}
+
+func (e errFactory) Capabilities(enginecore.ProviderName) (llmadapter.ProviderCapabilities, error) {
+	return llmadapter.ProviderCapabilities{}, e.err
+}
+
 type errClient struct{}
 
 func (e *errClient) GenerateContent(context.Context, *llmadapter.LLMRequest) (*llmadapter.LLMResponse, error) {

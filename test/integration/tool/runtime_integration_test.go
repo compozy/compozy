@@ -8,9 +8,11 @@ import (
 	"go.temporal.io/sdk/testsuite"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	toolcfg "github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/toolenv/builder"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -66,6 +68,12 @@ func TestToolInheritance_Runtime(t *testing.T) {
 		cfgStore := services.NewTestConfigStore(t)
 		t.Cleanup(func() { _ = cfgStore.Close() })
 
+		store := resources.NewMemoryResourceStore()
+		require.NoError(t, prjCfg.IndexToResourceStore(ctx, store))
+		require.NoError(t, wfCfg.IndexToResourceStore(ctx, prjCfg.Name, store))
+		toolEnv, err := builder.Build(prjCfg, []*workflow.Config{wfCfg}, workflowRepo, taskRepo, store)
+		require.NoError(t, err)
+
 		// Build Activities with our custom project/workflow configs
 		activities, err := worker.NewActivities(
 			ctx,
@@ -79,6 +87,7 @@ func TestToolInheritance_Runtime(t *testing.T) {
 			nil, // redis cache
 			nil, // memory manager
 			tplengine.NewEngine(tplengine.FormatJSON),
+			toolEnv,
 		)
 		require.NoError(t, err)
 

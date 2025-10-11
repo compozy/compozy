@@ -7,7 +7,6 @@ version: 1.0.0
 default_key_template: "support:{{.conversation_id}}"
 
 type: token_based
-max_tokens: 4000
 max_messages: 100
 
 flushing_strategy:

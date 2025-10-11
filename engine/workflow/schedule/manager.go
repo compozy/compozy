@@ -863,7 +863,7 @@ func (m *manager) executeReconciliation(
 	// Start bounded worker pool
 	const maxWorkers = 10
 	var wg sync.WaitGroup
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		wg.Add(1)
 		go m.reconciliationWorker(ctx, workQueue, errChan, &wg)
 	}

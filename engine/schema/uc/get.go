@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
@@ -50,8 +51,6 @@ func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
 		return nil, err
 	}
 	out := make(map[string]any)
-	for k, v := range *sc {
-		out[k] = v
-	}
+	maps.Copy(out, *sc)
 	return &GetOutput{Schema: out, ETag: etag}, nil
 }

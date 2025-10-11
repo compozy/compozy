@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -72,6 +73,137 @@ func TestToolRegistry_AllowedMCPFiltering(t *testing.T) {
 		assert.True(t, foundYAnalyze, "expected to find allowed tool y-analyze")
 		assert.False(t, foundXSearch, "did not expect to find filtered tool x-search")
 	})
+
+	t.Run("Should exclude denied MCP tools when deny list provided", func(t *testing.T) {
+		srv := makeToolsServer(t, []mcp.ToolDefinition{
+			{Name: "alpha", Description: "A", MCPName: "mcp1"},
+			{Name: "beta", Description: "B", MCPName: "mcp2"},
+		})
+		defer srv.Close()
+
+		client := mcp.NewProxyClient(srv.URL, 2*time.Second)
+		reg := NewToolRegistry(ToolRegistryConfig{
+			ProxyClient:    client,
+			CacheTTL:       1 * time.Millisecond,
+			DeniedMCPNames: []string{"mcp2"},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		tools, err := reg.ListAll(ctx)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{"alpha"}, namesOf(tools))
+
+		_, ok := reg.Find(ctx, "beta")
+		assert.False(t, ok, "expected beta to be filtered by deny list")
+	})
+
+	t.Run("Should prefer deny list over allow list", func(t *testing.T) {
+		srv := makeToolsServer(t, []mcp.ToolDefinition{
+			{Name: "alpha", Description: "A", MCPName: "mcp1"},
+			{Name: "beta", Description: "B", MCPName: "mcp2"},
+		})
+		defer srv.Close()
+
+		client := mcp.NewProxyClient(srv.URL, 2*time.Second)
+		reg := NewToolRegistry(ToolRegistryConfig{
+			ProxyClient:     client,
+			CacheTTL:        1 * time.Millisecond,
+			AllowedMCPNames: []string{"mcp1", "mcp2"},
+			DeniedMCPNames:  []string{"mcp1"},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		tools, err := reg.ListAll(ctx)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{"beta"}, namesOf(tools))
+
+		_, okAlpha := reg.Find(ctx, "alpha")
+		assert.False(t, okAlpha, "expected alpha to be denied even though allowlisted")
+		_, okBeta := reg.Find(ctx, "beta")
+		assert.True(t, okBeta, "expected beta to remain accessible")
+	})
+}
+
+func TestToolRegistry_FindBackgroundRefresh(t *testing.T) {
+	initial := []mcp.ToolDefinition{
+		{Name: "tool-a", Description: "A", MCPName: "mcp1"},
+	}
+	dynamic := newDynamicToolsServer(t, initial)
+	clock := newFakeClock(time.Unix(0, 0))
+
+	client := mcp.NewProxyClient(dynamic.URL(), 2*time.Second)
+	reg := NewToolRegistry(ToolRegistryConfig{
+		ProxyClient: client,
+		CacheTTL:    1 * time.Minute,
+	})
+	regImpl := reg.(*toolRegistry)
+	regImpl.now = clock.Now
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tool, ok := reg.Find(ctx, "tool-a")
+	require.True(t, ok)
+	require.Equal(t, "tool-a", tool.Name())
+	require.Eventually(t, func() bool {
+		return dynamic.Hits() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	clock.Advance(2 * time.Minute)
+	dynamic.Set([]mcp.ToolDefinition{
+		{Name: "tool-a", Description: "A", MCPName: "mcp1"},
+		{Name: "tool-b", Description: "B", MCPName: "mcp2"},
+	})
+
+	tool, ok = reg.Find(ctx, "tool-a")
+	require.True(t, ok)
+	require.Equal(t, "tool-a", tool.Name())
+
+	require.Eventually(t, func() bool {
+		return dynamic.Hits() >= 2
+	}, time.Second, 10*time.Millisecond)
+
+	require.Eventually(t, func() bool {
+		tl, found := reg.Find(ctx, "tool-b")
+		return found && tl.Name() == "tool-b"
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestToolRegistry_FindRefreshesOnStaleMiss(t *testing.T) {
+	initial := []mcp.ToolDefinition{
+		{Name: "tool-a", Description: "A", MCPName: "mcp1"},
+	}
+	dynamic := newDynamicToolsServer(t, initial)
+	clock := newFakeClock(time.Unix(0, 0))
+
+	client := mcp.NewProxyClient(dynamic.URL(), 2*time.Second)
+	reg := NewToolRegistry(ToolRegistryConfig{
+		ProxyClient: client,
+		CacheTTL:    30 * time.Second,
+	})
+	regImpl := reg.(*toolRegistry)
+	regImpl.now = clock.Now
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, ok := reg.Find(ctx, "tool-a")
+	require.True(t, ok)
+	require.Equal(t, 1, dynamic.Hits())
+
+	clock.Advance(1 * time.Minute)
+	dynamic.Set([]mcp.ToolDefinition{
+		{Name: "tool-b", Description: "B", MCPName: "mcp2"},
+	})
+
+	tool, ok := reg.Find(ctx, "tool-b")
+	require.True(t, ok, "expected synchronous refresh to find new tool")
+	require.Equal(t, "tool-b", tool.Name())
+	require.GreaterOrEqual(t, dynamic.Hits(), 2)
 }
 
 func makeToolsServer(t *testing.T, defs []mcp.ToolDefinition) *httptest.Server {
@@ -96,4 +228,74 @@ func namesOf(ts []Tool) []string {
 		out[i] = ts[i].Name()
 	}
 	return out
+}
+
+type dynamicToolsServer struct {
+	srv  *httptest.Server
+	mu   sync.Mutex
+	defs []mcp.ToolDefinition
+	hits int
+}
+
+func newDynamicToolsServer(t *testing.T, defs []mcp.ToolDefinition) *dynamicToolsServer {
+	server := &dynamicToolsServer{
+		defs: append([]mcp.ToolDefinition(nil), defs...),
+	}
+	server.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/admin/tools" || r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+
+		server.mu.Lock()
+		server.hits++
+		current := append([]mcp.ToolDefinition(nil), server.defs...)
+		server.mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(toolsResponse{Tools: current})
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func (d *dynamicToolsServer) URL() string {
+	return d.srv.URL
+}
+
+func (d *dynamicToolsServer) Close() {
+	d.srv.Close()
+}
+
+func (d *dynamicToolsServer) Set(defs []mcp.ToolDefinition) {
+	d.mu.Lock()
+	d.defs = append([]mcp.ToolDefinition(nil), defs...)
+	d.mu.Unlock()
+}
+
+func (d *dynamicToolsServer) Hits() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.hits
+}
+
+type fakeClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func newFakeClock(start time.Time) *fakeClock {
+	return &fakeClock{now: start}
+}
+
+func (c *fakeClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *fakeClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	c.now = c.now.Add(d)
+	c.mu.Unlock()
 }

@@ -1,0 +1,18 @@
+{{- /* Template used when provider supports native JSON schema mode */ -}}
+{{- .ActionPrompt -}}
+
+You MUST respond with a valid JSON object that exactly matches the registered schema. Do not include commentary, markdown, or explanations outside the JSON body.
+{{- if .Examples }}
+
+The following examples illustrate the expected JSON shape and tone:
+{{- range .Examples }}
+- {{ .Summary }}: {{ .Content }}
+{{- end }}
+{{- end }}
+{{- if .FailureGuidance }}
+
+Address the following guidance gathered from recent failures before producing the JSON response:
+{{- range .FailureGuidance }}
+- {{ . }}
+{{- end }}
+{{- end }}

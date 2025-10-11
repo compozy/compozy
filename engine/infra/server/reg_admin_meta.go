@@ -149,10 +149,7 @@ func adminListMetaChanges(c *gin.Context) {
 	if offset > len(items) {
 		offset = len(items)
 	}
-	end := offset + limit
-	if end > len(items) {
-		end = len(items)
-	}
+	end := min(offset+limit, len(items))
 	page := items[offset:end]
 	router.RespondOK(c, "changes", gin.H{"items": page, "total": total, "offset": offset, "limit": limit})
 }

@@ -108,7 +108,7 @@ func TestDebounce_BatchesEvents(t *testing.T) {
 		require.NoError(t, r.Start(ctx))
 		defer r.Stop()
 		// burst of events
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			_, err := store.Put(
 				ctx,
 				resources.ResourceKey{Project: "proj", Type: resources.ResourceWorkflow, ID: wf.ID},

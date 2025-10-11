@@ -10,6 +10,7 @@ import (
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task"
 	tkfacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
@@ -37,6 +38,7 @@ type Activities struct {
 	memoryActivities *memacts.MemoryActivities
 	templateEngine   *tplengine.TemplateEngine
 	task2Factory     task2.Factory
+	toolEnvironment  toolenv.Environment
 	// Cached cache adapter contracts to avoid per-call instantiation
 	cacheKV   cache.KV
 	cacheKeys cache.KeysProvider
@@ -56,6 +58,7 @@ func NewActivities(
 	redisCache *cache.Cache,
 	memoryManager *memory.Manager,
 	templateEngine *tplengine.TemplateEngine,
+	toolEnv toolenv.Environment,
 ) (*Activities, error) {
 	log := logger.FromContext(ctx)
 	ids := make([]string, 0, len(workflows))
@@ -88,6 +91,9 @@ func NewActivities(
 	if err != nil {
 		return nil, fmt.Errorf("activities: create task2 factory: %w", err)
 	}
+	if toolEnv == nil {
+		return nil, fmt.Errorf("activities: tool environment is required")
+	}
 
 	acts := &Activities{
 		projectConfig:    projectConfig,
@@ -103,6 +109,7 @@ func NewActivities(
 		memoryActivities: memoryActivities,
 		templateEngine:   templateEngine,
 		task2Factory:     task2Factory,
+		toolEnvironment:  toolEnv,
 		cfgManager:       config.ManagerFromContext(ctx),
 	}
 	// Initialize cache adapter contracts once if Redis is available
@@ -215,6 +222,7 @@ func (a *Activities) ExecuteBasicTask(
 		a.templateEngine,
 		a.projectConfig,
 		a.task2Factory,
+		a.toolEnvironment,
 	)
 	if err != nil {
 		return nil, err
@@ -284,6 +292,7 @@ func (a *Activities) ExecuteSubtask(
 		a.task2Factory,
 		a.templateEngine,
 		a.projectConfig,
+		a.toolEnvironment,
 	)
 	return act.Run(ctx, input)
 }

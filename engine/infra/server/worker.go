@@ -8,7 +8,11 @@ import (
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/toolenv/builder"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/engine/workflow/schedule"
@@ -32,7 +36,20 @@ func setupWorker(
 		MonitoringService: monitoringService,
 		ResourceRegistry:  configRegistry,
 	}
-	worker, err := worker.NewWorker(ctx, workerConfig, deps.ClientConfig, deps.ProjectConfig, deps.Workflows)
+	workflowRepo := workerConfig.WorkflowRepo()
+	if workflowRepo == nil {
+		return nil, fmt.Errorf("failed to resolve workflow repository")
+	}
+	taskRepo := workerConfig.TaskRepo()
+	if taskRepo == nil {
+		return nil, fmt.Errorf("failed to resolve task repository")
+	}
+	toolEnv, err := buildToolEnvironment(ctx, deps.ProjectConfig, deps.Workflows, workflowRepo, taskRepo)
+	if err != nil {
+		log.Error("Failed to build tool environment", "error", err)
+		return nil, fmt.Errorf("failed to build tool environment: %w", err)
+	}
+	worker, err := worker.NewWorker(ctx, workerConfig, deps.ClientConfig, deps.ProjectConfig, deps.Workflows, toolEnv)
 	if err != nil {
 		log.Error("Failed to create worker", "error", err)
 		return nil, fmt.Errorf("failed to create worker: %w", err)
@@ -49,6 +66,41 @@ func setupWorker(
 	}
 	log.Debug("Worker setup done", "duration", time.Since(setupStartTime))
 	return worker, nil
+}
+
+func buildToolEnvironment(
+	ctx context.Context,
+	projectConfig *project.Config,
+	workflows []*workflow.Config,
+	workflowRepo workflow.Repository,
+	taskRepo task.Repository,
+) (toolenv.Environment, error) {
+	if projectConfig == nil {
+		return nil, fmt.Errorf("project config is required for tool environment")
+	}
+	if projectConfig.Name == "" {
+		return nil, fmt.Errorf("project name is required for tool environment")
+	}
+	if taskRepo == nil {
+		return nil, fmt.Errorf("task repository is required for tool environment")
+	}
+	store := resources.NewMemoryResourceStore()
+	if err := projectConfig.IndexToResourceStore(ctx, store); err != nil {
+		return nil, fmt.Errorf("index project resources: %w", err)
+	}
+	for _, wf := range workflows {
+		if wf == nil {
+			continue
+		}
+		if err := wf.IndexToResourceStore(ctx, projectConfig.Name, store); err != nil {
+			return nil, fmt.Errorf("index workflow %s resources: %w", wf.ID, err)
+		}
+	}
+	env, err := builder.Build(projectConfig, workflows, workflowRepo, taskRepo, store)
+	if err != nil {
+		return nil, err
+	}
+	return env, nil
 }
 
 func (s *Server) maybeStartWorker(
@@ -115,15 +167,8 @@ func (s *Server) runReconciliationWithRetry(
 	backoff = retry.WithCappedDuration(cfg.Server.Timeouts.ScheduleRetryMaxDelay, backoff)
 	var policy = retry.WithMaxDuration(cfg.Server.Timeouts.ScheduleRetryMaxDuration, backoff)
 	if cfg.Server.Timeouts.ScheduleRetryMaxAttempts >= 1 {
-		attempts := cfg.Server.Timeouts.ScheduleRetryMaxAttempts
-		if attempts > 1000000 {
-			attempts = 1000000
-		}
-		var attempts64 uint64
-		for i := 0; i < attempts; i++ {
-			attempts64++
-		}
-		policy = retry.WithMaxRetries(attempts64, backoff)
+		attempts := min(cfg.Server.Timeouts.ScheduleRetryMaxAttempts, 1000000)
+		policy = retry.WithMaxRetries(nonNegativeUint64(attempts), policy)
 	}
 	err := retry.Do(
 		s.ctx,
@@ -162,4 +207,11 @@ func (s *Server) runReconciliationWithRetry(
 				"max_duration", cfg.Server.Timeouts.ScheduleRetryMaxDuration)
 		}
 	}
+}
+
+func nonNegativeUint64(value int) uint64 {
+	if value <= 0 {
+		return 0
+	}
+	return uint64(value)
 }

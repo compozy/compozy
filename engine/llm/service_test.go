@@ -2,9 +2,11 @@ package llm
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	_ "github.com/compozy/compozy/engine/tool/builtin/imports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -75,6 +78,9 @@ func TestNewService(t *testing.T) {
 		toolEntry, ok := service.toolRegistry.Find(ctx, "cp__read_file")
 		require.True(t, ok)
 		assert.Equal(t, "cp__read_file", toolEntry.Name())
+		callAgentEntry, callAgentFound := service.toolRegistry.Find(ctx, "cp__call_agent")
+		require.True(t, callAgentFound)
+		assert.Equal(t, "cp__call_agent", callAgentEntry.Name())
 	})
 
 	t.Run("Should skip builtin registration when disabled", func(t *testing.T) {
@@ -116,6 +122,43 @@ type testFactory struct{ client llmadapter.LLMClient }
 
 func (f testFactory) CreateClient(_ context.Context, _ *core.ProviderConfig) (llmadapter.LLMClient, error) {
 	return f.client, nil
+}
+
+func (f testFactory) BuildRoute(
+	cfg *core.ProviderConfig,
+	fallbacks ...*core.ProviderConfig,
+) (*llmadapter.ProviderRoute, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("provider config must not be nil")
+	}
+	registry := llmadapter.NewProviderRegistry()
+	stub := &testProvider{name: cfg.Provider, client: f.client}
+	if err := registry.Register(stub); err != nil {
+		return nil, err
+	}
+	return registry.BuildRoute(cfg, fallbacks...)
+}
+
+func (f testFactory) Capabilities(name core.ProviderName) (llmadapter.ProviderCapabilities, error) {
+	if name == core.ProviderOpenAI || name == core.ProviderXAI {
+		return llmadapter.ProviderCapabilities{StructuredOutput: true, Streaming: true}, nil
+	}
+	return llmadapter.ProviderCapabilities{}, nil
+}
+
+type testProvider struct {
+	name   core.ProviderName
+	client llmadapter.LLMClient
+}
+
+func (p *testProvider) Name() core.ProviderName { return p.name }
+
+func (p *testProvider) Capabilities() llmadapter.ProviderCapabilities {
+	return llmadapter.ProviderCapabilities{}
+}
+
+func (p *testProvider) NewClient(context.Context, *core.ProviderConfig) (llmadapter.LLMClient, error) {
+	return p.client, nil
 }
 
 // testClient wraps TestAdapter to satisfy LLMClient (adds Close)
@@ -187,7 +230,17 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		agentConfig := createTestAgentConfig()
 		agentConfig.Instructions = "You are a helpful test agent"
 		agentConfig.Actions = []*agent.ActionConfig{
-			{ID: "analyze", Prompt: "Analyze input: {{ .input.text }}"},
+			{
+				ID:     "analyze",
+				Prompt: "Analyze input: {{ .input.text }}",
+				OutputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"ok": map[string]any{"type": "boolean"},
+					},
+					"required": []string{"ok"},
+				},
+			},
 		}
 
 		ta := llmadapter.NewTestAdapter()
@@ -220,7 +273,18 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		agentConfig := createTestAgentConfig()
 		agentConfig.Instructions = "You are a helpful test agent"
 		agentConfig.Actions = []*agent.ActionConfig{
-			{ID: "analyze", Prompt: "Analyze the data"},
+			{
+				ID:     "analyze",
+				Prompt: "Analyze the data",
+				OutputSchema: &schema.Schema{
+					"type": "object",
+					"properties": map[string]any{
+						"enhanced": map[string]any{"type": "boolean"},
+						"focused":  map[string]any{"type": "boolean"},
+					},
+					"required": []string{"enhanced", "focused"},
+				},
+			},
 		}
 
 		ta := llmadapter.NewTestAdapter()

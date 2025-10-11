@@ -4,7 +4,6 @@ alwaysApply: true
 
 # Code Review Checklist
 
-<pre_review_requirements>
 ## Pre-Review Requirements
 
 Before submitting code for review, ensure:
@@ -13,9 +12,7 @@ Before submitting code for review, ensure:
 - All linter warnings have been addressed
 - Error handling follows project patterns
 - Security considerations have been addressed
-</pre_review_requirements>
 
-<checklist type="code_review">
 ## Review Checklist
 
 1. Does the code follow the established project structure and patterns?
@@ -27,9 +24,7 @@ Before submitting code for review, ensure:
 7. Are dependencies injected properly?
 8. Is context propagated correctly?
 9. Is the code simple, readable, and maintainable?
-</checklist>
 
-<common_issues type="code_quality">
 ## Common Issues to Watch For
 
 - Missing error handling or inappropriate error propagation
@@ -40,9 +35,7 @@ Before submitting code for review, ensure:
 - Performance issues like unnecessary allocations or inefficient algorithms
 - Code that doesn't follow established project patterns
 - Missing or inadequate test coverage
-</common_issues>
 
-<review_process>
 ## Review Process
 
 - Focus on correctness, maintainability, and adherence to standards
@@ -50,4 +43,3 @@ Before submitting code for review, ensure:
 - Verify security considerations have been addressed
 - Ensure code follows established project patterns and conventions
 - Look for opportunities to improve code clarity and efficiency
-</review_process>
