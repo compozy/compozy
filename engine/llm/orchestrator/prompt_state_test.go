@@ -3,22 +3,19 @@ package orchestrator
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestComposeSystemPromptAddsReactHeaderOnce(t *testing.T) {
 	base := "system instructions"
 	combined := composeSystemPrompt(base, "")
-	if count := strings.Count(combined, "<reasoning-protocol>"); count != 1 {
-		t.Fatalf("expected react header once, got %d occurrences", count)
-	}
-
+	count := strings.Count(combined, "<reasoning-protocol>")
+	assert.Equal(t, 1, count, "expected react header once")
 	combined = composeSystemPrompt(combined, "<dynamic>")
-	if count := strings.Count(combined, "<reasoning-protocol>"); count != 1 {
-		t.Fatalf("expected react header to remain single, got %d occurrences", count)
-	}
-	if !strings.Contains(combined, "<dynamic>") {
-		t.Fatalf("expected dynamic fragment to be included")
-	}
+	count = strings.Count(combined, "<reasoning-protocol>")
+	assert.Equal(t, 1, count, "expected react header to remain single")
+	assert.Contains(t, combined, "<dynamic>", "expected dynamic fragment")
 }
 
 func TestRenderDynamicStateIncludesUsageAndBudgets(t *testing.T) {
@@ -31,19 +28,10 @@ func TestRenderDynamicStateIncludesUsageAndBudgets(t *testing.T) {
 	state := newLoopState(cfg, nil, nil)
 	state.Budgets.ToolUsage["search"] = 1
 	state.Budgets.ToolErrors["search"] = 1
-
 	loopCtx := &LoopContext{Iteration: 1, MaxIterations: 5, State: state}
 	fragment := renderDynamicState(loopCtx, cfg)
-	if fragment == "" {
-		t.Fatalf("expected dynamic state fragment")
-	}
-	if !strings.Contains(fragment, "iteration=2/5") {
-		t.Fatalf("expected iteration info, got %s", fragment)
-	}
-	if !strings.Contains(fragment, "tool_usage=search:1/2") {
-		t.Fatalf("expected tool usage with cap, got %s", fragment)
-	}
-	if !strings.Contains(fragment, "error_budgets=search:3") {
-		t.Fatalf("expected error budget info, got %s", fragment)
-	}
+	assert.NotEmpty(t, fragment, "expected dynamic state fragment")
+	assert.Contains(t, fragment, "iteration=2/5", "expected iteration info")
+	assert.Contains(t, fragment, "tool_usage=search:1/2", "expected tool usage with cap")
+	assert.Contains(t, fragment, "error_budgets=search:3", "expected error budget info")
 }

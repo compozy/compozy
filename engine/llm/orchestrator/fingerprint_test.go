@@ -21,7 +21,7 @@ func TestStableJSONFingerprint(t *testing.T) {
 	})
 }
 
-func TestBuildIterationFingerprint_AndNoProgress(t *testing.T) {
+func TestBuildIterationFingerprint_RecordsIncrementalCounts(t *testing.T) {
 	calls := []llmadapter.ToolCall{{ID: "1", Name: "t", Arguments: json.RawMessage(`{"x":1}`)}}
 	results := []llmadapter.ToolResult{
 		{ID: "1", Name: "t", Content: `{"ok":true}`, JSONContent: json.RawMessage(`{"ok":true}`)},

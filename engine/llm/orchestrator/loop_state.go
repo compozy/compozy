@@ -79,8 +79,10 @@ func newLoopState(cfg *settings, memories *MemoryContext, action *agent.ActionCo
 		iteration.MaxIterations = defaultMaxToolIterations
 	}
 	memState := memoryState{}
-	if refs := memories.References(); len(refs) > 0 {
-		memState.References = refs
+	if memories != nil {
+		if refs := memories.References(); len(refs) > 0 {
+			memState.References = refs
+		}
 	}
 	return &loopState{
 		Iteration: iteration,
@@ -182,9 +184,15 @@ func (s *loopState) setMemories(mem *MemoryContext) {
 		return
 	}
 	s.runtime.memories = mem
+	if mem == nil {
+		s.Memory.References = nil
+		return
+	}
 	if refs := mem.References(); len(refs) > 0 {
 		s.Memory.References = refs
+		return
 	}
+	s.Memory.References = nil
 }
 
 func (s *loopState) resetBudgets(cfg *settings) {

@@ -2,15 +2,14 @@ package orchestrator
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"regexp"
-	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	"github.com/compozy/compozy/engine/llm/toolerrors"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -50,55 +49,14 @@ var ErrBudgetExceeded = errors.New("budget exceeded")
 // transientRetryPattern is compiled once and reused to avoid overhead.
 var transientRetryPattern = regexp.MustCompile(`(?i)(timeout|temporarily|try again|temporarily unavailable)`)
 
-type ToolExecutionResult struct {
-	Success bool           `json:"success"`
-	Data    map[string]any `json:"data,omitempty"`
-	Error   *ToolError     `json:"error,omitempty"`
-}
+// ToolExecutionResult mirrors the shared toolerrors definition for orchestrator usage.
+type ToolExecutionResult = toolerrors.ToolExecutionResult
 
-type ToolError struct {
-	Code            string `json:"code"`
-	Message         string `json:"message"`
-	Details         string `json:"details,omitempty"`
-	RemediationHint string `json:"remediation_hint,omitempty"`
-}
+// ToolError mirrors the shared toolerrors definition for orchestrator usage.
+type ToolError = toolerrors.ToolError
 
 func IsToolExecutionError(result string) (*ToolError, bool) {
-	var structured ToolExecutionResult
-	if err := json.Unmarshal([]byte(result), &structured); err == nil {
-		if !structured.Success && structured.Error != nil {
-			return structured.Error, true
-		}
-		return nil, false
-	}
-	if containsErrorIndicators(result) {
-		return &ToolError{
-			Code:    ErrCodeToolExecution,
-			Message: "Tool execution failed",
-			Details: result,
-		}, true
-	}
-	return nil, false
-}
-
-func containsErrorIndicators(text string) bool {
-	lower := strings.ToLower(text)
-	indicators := []string{
-		"error:",
-		"failed:",
-		"exception:",
-		"panic:",
-		"fatal:",
-		"stderr:",
-		"traceback:",
-		"stack trace:",
-	}
-	for _, indicator := range indicators {
-		if strings.Contains(lower, indicator) {
-			return true
-		}
-	}
-	return false
+	return toolerrors.IsToolExecutionError(result, ErrCodeToolExecution)
 }
 
 func NewLLMError(err error, code string, details map[string]any) error {
@@ -106,11 +64,7 @@ func NewLLMError(err error, code string, details map[string]any) error {
 }
 
 func NewToolError(err error, code, toolName string, details map[string]any) error {
-	if details == nil {
-		details = make(map[string]any)
-	}
-	details["tool"] = toolName
-	return core.NewError(err, code, details)
+	return toolerrors.NewToolError(err, code, toolName, details)
 }
 
 func NewValidationError(err error, field string, value any) error {
@@ -141,7 +95,7 @@ func isRetryableErrorWithContext(ctx context.Context, err error) bool {
 		)
 	}
 	if retryable {
-		log.Warn("Error is retryable, will retry", fields...)
+		log.Debug("Error is retryable, will retry", fields...)
 	} else {
 		log.Warn("Error is not retryable", fields...)
 	}

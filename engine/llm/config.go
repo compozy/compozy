@@ -199,7 +199,17 @@ func WithDynamicPromptState(enabled bool) Option {
 // WithToolCallCaps sets default and per-tool invocation limits.
 func WithToolCallCaps(caps orchestratorpkg.ToolCallCaps) Option {
 	return func(cCfg *Config) {
-		cCfg.ToolCallCaps = caps
+		var overrides map[string]int
+		if len(caps.Overrides) > 0 {
+			overrides = make(map[string]int, len(caps.Overrides))
+			for name, limit := range caps.Overrides {
+				overrides[name] = limit
+			}
+		}
+		cCfg.ToolCallCaps = orchestratorpkg.ToolCallCaps{
+			Default:   caps.Default,
+			Overrides: overrides,
+		}
 	}
 }
 

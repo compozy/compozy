@@ -168,11 +168,7 @@ func (s *Server) runReconciliationWithRetry(
 	var policy = retry.WithMaxDuration(cfg.Server.Timeouts.ScheduleRetryMaxDuration, backoff)
 	if cfg.Server.Timeouts.ScheduleRetryMaxAttempts >= 1 {
 		attempts := min(cfg.Server.Timeouts.ScheduleRetryMaxAttempts, 1000000)
-		var attempts64 uint64
-		for range attempts {
-			attempts64++
-		}
-		policy = retry.WithMaxRetries(attempts64, backoff)
+		policy = retry.WithMaxRetries(nonNegativeUint64(attempts), policy)
 	}
 	err := retry.Do(
 		s.ctx,
@@ -211,4 +207,11 @@ func (s *Server) runReconciliationWithRetry(
 				"max_duration", cfg.Server.Timeouts.ScheduleRetryMaxDuration)
 		}
 	}
+}
+
+func nonNegativeUint64(value int) uint64 {
+	if value <= 0 {
+		return 0
+	}
+	return uint64(value)
 }

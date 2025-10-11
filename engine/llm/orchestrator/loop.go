@@ -41,7 +41,7 @@ func (l *conversationLoop) refreshUserPrompt(ctx context.Context, loopCtx *LoopC
 	}
 	index := baseUserPromptIndex(loopCtx)
 	if index < 0 {
-		return fmt.Errorf("no user message available for prompt refresh")
+		return nil
 	}
 	rendered, err := loopCtx.PromptTemplate.Render(ctx, loopCtx.PromptContext)
 	if err != nil {

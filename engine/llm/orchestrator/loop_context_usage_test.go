@@ -26,9 +26,7 @@ func TestComputeContextUsage_UsesProviderContextWindow(t *testing.T) {
 			CompletionTokens: 100,
 		},
 	}
-
 	usage := computeContextUsage(loopCtx, resp)
-
 	require.Equal(t, 400, usage.TotalTokens)
 	require.Equal(t, 1000, usage.ContextLimit)
 	require.Equal(t, "provider", usage.LimitSource)
@@ -56,9 +54,7 @@ func TestComputeContextUsage_FallsBackToAgentMaxTokens(t *testing.T) {
 			CompletionTokens: 64,
 		},
 	}
-
 	usage := computeContextUsage(loopCtx, resp)
-
 	require.Equal(t, 144, usage.TotalTokens)
 	require.Equal(t, 256, usage.ContextLimit)
 	require.Equal(t, "agent_max_tokens", usage.LimitSource)
@@ -81,9 +77,7 @@ func TestComputeContextUsage_FallsBackToRequestOptions(t *testing.T) {
 			CompletionTokens: 20,
 		},
 	}
-
 	usage := computeContextUsage(loopCtx, resp)
-
 	require.Equal(t, 80, usage.TotalTokens)
 	require.Equal(t, 128, usage.ContextLimit)
 	require.Equal(t, "request_max_tokens", usage.LimitSource)
@@ -102,9 +96,7 @@ func TestComputeContextUsage_WhenUnknownLimit(t *testing.T) {
 			CompletionTokens: 20,
 		},
 	}
-
 	usage := computeContextUsage(loopCtx, resp)
-
 	require.Equal(t, 60, usage.TotalTokens)
 	require.Equal(t, 0, usage.ContextLimit)
 	require.Equal(t, "unknown", usage.LimitSource)
@@ -138,7 +130,6 @@ func TestRecordLLMResponse_WarnsWhenContextLimitUnknown(t *testing.T) {
 	}
 	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
 	respCtx := telemetry.ContextWithRecorder(ctx, telemetry.NopRecorder())
-
 	require.False(t, loopCtx.contextLimitWarned)
 	loop.recordLLMResponse(respCtx, loopCtx, resp)
 	require.True(t, loopCtx.contextLimitWarned)

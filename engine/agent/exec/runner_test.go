@@ -85,113 +85,110 @@ func setupRunner(
 	return runner, func() { cleanup() }
 }
 
-func TestRunnerExecute_ShouldRunAgent(t *testing.T) {
-	execID := core.MustNewID()
-	output := core.Output{"value": "ok"}
-	stub := &stubDirectExecutor{
-		output: &output,
-		execID: execID,
-	}
-	runner, cleanup := setupRunner(t, stub, &agent.Config{
-		ID: "agent-one",
-		Actions: []*agent.ActionConfig{
-			{ID: "summary"},
-		},
+func TestRunnerExecute(t *testing.T) {
+	t.Run("ShouldRunAgent", func(t *testing.T) {
+		execID := core.MustNewID()
+		output := core.Output{"value": "ok"}
+		stub := &stubDirectExecutor{output: &output, execID: execID}
+		runner, cleanup := setupRunner(t, stub, &agent.Config{
+			ID: "agent-one",
+			Actions: []*agent.ActionConfig{
+				{ID: "summary"},
+			},
+		})
+		defer cleanup()
+		req := agentexec.ExecuteRequest{
+			AgentID: "agent-one",
+			Action:  "summary",
+			With:    core.Input{"topic": "status"},
+			Timeout: 42 * time.Second,
+		}
+		result, err := runner.Execute(context.Background(), req)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, execID, result.ExecID)
+		require.Equal(t, stub.output, result.Output)
+		require.Equal(t, 42*time.Second, stub.lastTimeout)
+		require.Equal(t, "summary", stub.lastMetadata.ActionID)
 	})
-	defer cleanup()
-	req := agentexec.ExecuteRequest{
-		AgentID: "agent-one",
-		Action:  "summary",
-		With:    core.Input{"topic": "status"},
-		Timeout: 42 * time.Second,
-	}
-	result, err := runner.Execute(context.Background(), req)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Equal(t, execID, result.ExecID)
-	require.Equal(t, stub.output, result.Output)
-	require.Equal(t, 42*time.Second, stub.lastTimeout)
-	require.Equal(t, "summary", stub.lastMetadata.ActionID)
-}
-
-func TestRunnerExecute_ShouldReturnNotFound(t *testing.T) {
-	runner, cleanup := setupRunner(t, &stubDirectExecutor{}, nil)
-	defer cleanup()
-	req := agentexec.ExecuteRequest{
-		AgentID: "missing-agent",
-		Action:  "summary",
-		Timeout: 5 * time.Second,
-	}
-	result, err := runner.Execute(context.Background(), req)
-	require.Nil(t, result)
-	require.Error(t, err)
-	require.True(t, errors.Is(err, agentuc.ErrNotFound))
-}
-
-func TestRunnerExecute_ShouldValidateAction(t *testing.T) {
-	stub := &stubDirectExecutor{}
-	runner, cleanup := setupRunner(t, stub, &agent.Config{
-		ID:      "agent-one",
-		Actions: []*agent.ActionConfig{{ID: "allowed"}},
+	t.Run("ShouldReturnNotFound", func(t *testing.T) {
+		runner, cleanup := setupRunner(t, &stubDirectExecutor{}, nil)
+		defer cleanup()
+		req := agentexec.ExecuteRequest{
+			AgentID: "missing-agent",
+			Action:  "summary",
+			Timeout: 5 * time.Second,
+		}
+		result, err := runner.Execute(context.Background(), req)
+		require.Nil(t, result)
+		require.Error(t, err)
+		require.True(t, errors.Is(err, agentuc.ErrNotFound))
 	})
-	defer cleanup()
-	req := agentexec.ExecuteRequest{
-		AgentID: "agent-one",
-		Action:  "missing",
-		Timeout: 5 * time.Second,
-	}
-	result, err := runner.Execute(context.Background(), req)
-	require.Nil(t, result)
-	require.Error(t, err)
-	require.True(t, errors.Is(err, agentexec.ErrUnknownAction))
-}
-
-func TestRunnerExecute_ShouldPropagateTimeout(t *testing.T) {
-	execID := core.MustNewID()
-	stub := &stubDirectExecutor{execID: execID, err: context.DeadlineExceeded}
-	runner, cleanup := setupRunner(t, stub, &agent.Config{ID: "agent-one"})
-	defer cleanup()
-	req := agentexec.ExecuteRequest{
-		AgentID: "agent-one",
-		Prompt:  "run",
-	}
-	result, err := runner.Execute(context.Background(), req)
-	require.NotNil(t, result)
-	require.Equal(t, execID, result.ExecID)
-	require.Nil(t, result.Output)
-	require.Error(t, err)
-	require.True(t, errors.Is(err, context.DeadlineExceeded))
-}
-
-func TestRunnerExecute_ShouldWrapExecutorError(t *testing.T) {
-	stubErr := errors.New("boom")
-	stub := &stubDirectExecutor{execID: core.MustNewID(), err: stubErr}
-	runner, cleanup := setupRunner(t, stub, &agent.Config{ID: "agent-one"})
-	defer cleanup()
-	req := agentexec.ExecuteRequest{
-		AgentID: "agent-one",
-		Prompt:  "run",
-		Timeout: time.Second,
-	}
-	result, err := runner.Execute(context.Background(), req)
-	require.NotNil(t, result)
-	require.Equal(t, stub.execID, result.ExecID)
-	require.Error(t, err)
-	require.True(t, errors.Is(err, stubErr))
-	require.Contains(t, err.Error(), "agent execution failed")
-}
-
-func TestRunnerPrepare_ShouldDefaultTimeoutAndMetadata(t *testing.T) {
-	stub := &stubDirectExecutor{}
-	runner, cleanup := setupRunner(t, stub, &agent.Config{ID: "agent-one"})
-	defer cleanup()
-	prepared, err := runner.Prepare(context.Background(), agentexec.ExecuteRequest{
-		AgentID: "agent-one",
-		Prompt:  "hello",
+	t.Run("ShouldValidateAction", func(t *testing.T) {
+		stub := &stubDirectExecutor{}
+		runner, cleanup := setupRunner(t, stub, &agent.Config{
+			ID:      "agent-one",
+			Actions: []*agent.ActionConfig{{ID: "allowed"}},
+		})
+		defer cleanup()
+		req := agentexec.ExecuteRequest{
+			AgentID: "agent-one",
+			Action:  "missing",
+			Timeout: 5 * time.Second,
+		}
+		result, err := runner.Execute(context.Background(), req)
+		require.Nil(t, result)
+		require.Error(t, err)
+		require.True(t, errors.Is(err, agentexec.ErrUnknownAction))
 	})
-	require.NoError(t, err)
-	require.NotNil(t, prepared)
-	require.Equal(t, agentexec.DefaultTimeout, prepared.Timeout)
-	require.Equal(t, "agent:agent-one", prepared.Config.ID)
-	require.Equal(t, "__prompt__", prepared.Metadata.ActionID)
+	t.Run("ShouldPropagateTimeout", func(t *testing.T) {
+		execID := core.MustNewID()
+		stub := &stubDirectExecutor{execID: execID, err: context.DeadlineExceeded}
+		runner, cleanup := setupRunner(t, stub, &agent.Config{ID: "agent-one"})
+		defer cleanup()
+		req := agentexec.ExecuteRequest{
+			AgentID: "agent-one",
+			Prompt:  "run",
+		}
+		result, err := runner.Execute(context.Background(), req)
+		require.NotNil(t, result)
+		require.Equal(t, execID, result.ExecID)
+		require.Nil(t, result.Output)
+		require.Error(t, err)
+		require.True(t, errors.Is(err, context.DeadlineExceeded))
+	})
+	t.Run("ShouldWrapExecutorError", func(t *testing.T) {
+		stubErr := errors.New("boom")
+		stub := &stubDirectExecutor{execID: core.MustNewID(), err: stubErr}
+		runner, cleanup := setupRunner(t, stub, &agent.Config{ID: "agent-one"})
+		defer cleanup()
+		req := agentexec.ExecuteRequest{
+			AgentID: "agent-one",
+			Prompt:  "run",
+			Timeout: time.Second,
+		}
+		result, err := runner.Execute(context.Background(), req)
+		require.NotNil(t, result)
+		require.Equal(t, stub.execID, result.ExecID)
+		require.Error(t, err)
+		require.True(t, errors.Is(err, stubErr))
+		require.Contains(t, err.Error(), "agent execution failed")
+	})
+}
+
+func TestRunnerPrepare(t *testing.T) {
+	t.Run("ShouldDefaultTimeoutAndMetadata", func(t *testing.T) {
+		stub := &stubDirectExecutor{}
+		runner, cleanup := setupRunner(t, stub, &agent.Config{ID: "agent-one"})
+		defer cleanup()
+		prepared, err := runner.Prepare(context.Background(), agentexec.ExecuteRequest{
+			AgentID: "agent-one",
+			Prompt:  "hello",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, prepared)
+		require.Equal(t, agentexec.DefaultTimeout, prepared.Timeout)
+		require.Equal(t, "agent:agent-one", prepared.Config.ID)
+		require.Equal(t, "__prompt__", prepared.Metadata.ActionID)
+	})
 }
