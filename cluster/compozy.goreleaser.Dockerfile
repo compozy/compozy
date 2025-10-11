@@ -17,7 +17,7 @@ RUN apk add --no-cache \
     procps
 
 # Install Bun runtime (required for TypeScript tool execution)
-ENV BUN_VERSION=1.2.21
+ENV BUN_VERSION=1.3.0
 RUN curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}" \
     && mv /root/.bun/bin/bun /usr/local/bin/ \
     && chmod +x /usr/local/bin/bun \
@@ -32,7 +32,8 @@ RUN mkdir -p /app/config /app/data /app/tools /app/logs /app/tmp \
     && chown -R compozy:compozy /app
 
 # Copy the pre-built binary from GoReleaser
-COPY compozy /usr/local/bin/compozy
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/compozy /usr/local/bin/compozy
 RUN chmod +x /usr/local/bin/compozy
 
 # Copy additional files if they exist

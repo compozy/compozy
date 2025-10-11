@@ -6,11 +6,7 @@ inputs:
   bun-version:
     description: "Bun version to install"
     required: false
-    default: "1.2.21"
-  cache-key-suffix:
-    description: "Additional suffix for cache key"
-    required: false
-    default: ""
+    default: "1.3.0"
   install-dependencies:
     description: "Install dependencies with bun install"
     required: false
@@ -20,9 +16,6 @@ outputs:
   bun-version:
     description: "The Bun version that was installed"
     value: ${{ steps.setup-bun.outputs.bun-version }}
-  cache-hit:
-    description: "Whether the Bun dependencies cache was hit"
-    value: ${{ steps.bun-cache.outputs.cache-hit }}
 
 runs:
   using: "composite"
@@ -32,19 +25,6 @@ runs:
       uses: oven-sh/setup-bun@v2
       with:
         bun-version: ${{ inputs.bun-version }}
-
-    - name: Cache Bun dependencies
-      id: bun-cache
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.bun/install/cache
-          node_modules
-        key: ${{ runner.os }}-bun-${{ inputs.bun-version }}-${{ hashFiles('**/bun.lockb', '**/package.json')}}${{
-          inputs.cache-key-suffix }}
-        restore-keys: |
-          ${{ runner.os }}-bun-${{ inputs.bun-version }}-
-          ${{ runner.os }}-bun-
 
     - name: Install dependencies
       if: inputs.install-dependencies == 'true'
@@ -58,5 +38,4 @@ runs:
       run: |-
         echo "Bun setup completed successfully!"
         echo "Bun version: $(bun --version)"
-        echo "Cache hit: ${{ steps.bun-cache.outputs.cache-hit }}"
         echo "Dependencies installed: ${{ inputs.install-dependencies }}"

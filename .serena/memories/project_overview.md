@@ -16,7 +16,7 @@ Compozy is a next-level agentic orchestration platform that enables building AI-
 
 ## Tech Stack
 
-- **Language**: Go 1.25.1+
+- **Language**: Go 1.25.2+
 - **Database**: PostgreSQL with pgx driver
 - **Cache**: Redis
 - **Workflow Engine**: Temporal
