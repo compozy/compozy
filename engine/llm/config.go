@@ -86,6 +86,10 @@ type KnowledgeRuntimeConfig struct {
 	ProjectBinding         []core.KnowledgeBinding
 	WorkflowBinding        []core.KnowledgeBinding
 	InlineBinding          []core.KnowledgeBinding
+	RuntimeEmbedders       map[string]*knowledge.EmbedderConfig
+	RuntimeVectorDBs       map[string]*knowledge.VectorDBConfig
+	RuntimeKnowledgeBases  map[string]*knowledge.BaseConfig
+	RuntimeWorkflowKBs     map[string]*knowledge.BaseConfig
 }
 
 func DefaultConfig() *Config {
@@ -299,31 +303,36 @@ func cloneKnowledgeConfig(cfg *KnowledgeRuntimeConfig) *KnowledgeRuntimeConfig {
 	}
 	cloned, err := core.DeepCopy(*cfg)
 	if err != nil {
-		fallback := KnowledgeRuntimeConfig{
-			ProjectID:       strings.TrimSpace(cfg.ProjectID),
-			ProjectBinding:  append([]core.KnowledgeBinding(nil), cfg.ProjectBinding...),
-			WorkflowBinding: append([]core.KnowledgeBinding(nil), cfg.WorkflowBinding...),
-			InlineBinding:   append([]core.KnowledgeBinding(nil), cfg.InlineBinding...),
-		}
-		if defsCopy, copyErr := core.DeepCopy(cfg.Definitions); copyErr == nil {
-			fallback.Definitions = defsCopy
-		} else {
-			fallback.Definitions = cfg.Definitions
-		}
-		if len(cfg.WorkflowKnowledgeBases) > 0 {
-			if basesCopy, copyErr := core.DeepCopy(cfg.WorkflowKnowledgeBases); copyErr == nil {
-				fallback.WorkflowKnowledgeBases = basesCopy
-			} else {
-				fallback.WorkflowKnowledgeBases = append(
-					[]knowledge.BaseConfig{},
-					cfg.WorkflowKnowledgeBases...,
-				)
-			}
-		}
-		return &fallback
+		return cloneKnowledgeConfigFallback(cfg)
 	}
 	cloned.ProjectID = strings.TrimSpace(cloned.ProjectID)
 	return &cloned
+}
+
+func cloneKnowledgeConfigFallback(cfg *KnowledgeRuntimeConfig) *KnowledgeRuntimeConfig {
+	fallback := KnowledgeRuntimeConfig{
+		ProjectID:       strings.TrimSpace(cfg.ProjectID),
+		ProjectBinding:  append([]core.KnowledgeBinding(nil), cfg.ProjectBinding...),
+		WorkflowBinding: append([]core.KnowledgeBinding(nil), cfg.WorkflowBinding...),
+		InlineBinding:   append([]core.KnowledgeBinding(nil), cfg.InlineBinding...),
+	}
+	if defsCopy, copyErr := core.DeepCopy(cfg.Definitions); copyErr == nil {
+		fallback.Definitions = defsCopy
+	} else {
+		fallback.Definitions = cfg.Definitions
+	}
+	if len(cfg.WorkflowKnowledgeBases) > 0 {
+		if basesCopy, copyErr := core.DeepCopy(cfg.WorkflowKnowledgeBases); copyErr == nil {
+			fallback.WorkflowKnowledgeBases = basesCopy
+		} else {
+			fallback.WorkflowKnowledgeBases = append([]knowledge.BaseConfig{}, cfg.WorkflowKnowledgeBases...)
+		}
+	}
+	fallback.RuntimeEmbedders = cloneEmbedderOverrides(cfg.RuntimeEmbedders)
+	fallback.RuntimeVectorDBs = cloneVectorOverrides(cfg.RuntimeVectorDBs)
+	fallback.RuntimeKnowledgeBases = cloneKnowledgeOverrides(cfg.RuntimeKnowledgeBases)
+	fallback.RuntimeWorkflowKBs = cloneKnowledgeOverrides(cfg.RuntimeWorkflowKBs)
+	return &fallback
 }
 
 // WithRetryAttempts sets the number of retry attempts for LLM operations

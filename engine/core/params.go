@@ -1,9 +1,5 @@
 package core
 
-import (
-	"maps"
-)
-
 type (
 	Input  map[string]any
 	Output map[string]any
@@ -24,7 +20,11 @@ func (i *Input) Merge(other *Input) (*Input, error) {
 	if i == nil {
 		return other, nil
 	}
-	result, err := Merge(*i, *other, "input")
+	var source Input
+	if other != nil {
+		source = *other
+	}
+	result, err := Merge(*i, source, "input")
 	if err != nil {
 		return nil, err
 	}
@@ -49,9 +49,7 @@ func (i *Input) AsMap() map[string]any {
 	if i == nil {
 		return nil
 	}
-	result := make(map[string]any)
-	maps.Copy(result, *i)
-	return result
+	return CloneMap(map[string]any(*i))
 }
 
 // -----------------------------------------------------------------------------
@@ -83,9 +81,7 @@ func (o *Output) AsMap() map[string]any {
 	if o == nil {
 		return nil
 	}
-	result := make(map[string]any)
-	maps.Copy(result, *o)
-	return result
+	return CloneMap(map[string]any(*o))
 }
 
 // DeepCopy creates a deep copy of Input

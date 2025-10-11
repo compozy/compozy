@@ -1,0 +1,20 @@
+### Knowledge Pgvector API
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = pgvector-qa
+
+### Execute pgvector knowledge workflow
+# @name executeWorkflow
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "question": "What are our platform uptime expectations?"
+  }
+}
+
+### Check execution status
+@execId = {{executeWorkflow.response.body.data.exec_id}}
+GET {{baseUrl}}/executions/workflows/{{execId}}
+Accept: application/json

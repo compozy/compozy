@@ -2866,7 +2866,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Knowledge bases retrieved",
+                        "description": "Knowledge bases retrieved\" example({\"status\":200,\"message\":\"knowledge bases retrieved\",\"data\":{\"knowledge_bases\":[{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\"}],\"page\":{\"limit\":1,\"next_cursor\":\"eyJpZCI6ICJiIn0=\",\"prev_cursor\":\"\"}},\"error\":null})",
                         "schema": {
                             "allOf": [
                                 {
@@ -2936,7 +2936,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Knowledge base retrieved",
+                        "description": "Knowledge base retrieved\" example({\"status\":200,\"message\":\"knowledge base retrieved\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"_etag\":\"etag-value\"}},\"error\":null})",
                         "schema": {
                             "allOf": [
                                 {
@@ -3027,7 +3027,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Knowledge base updated",
+                        "description": "Knowledge base updated\" example({\"status\":200,\"message\":\"knowledge base updated\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"description\":\"Support knowledge base\",\"_etag\":\"etag-value\"}},\"error\":null})",
                         "schema": {
                             "allOf": [
                                 {
@@ -3051,7 +3051,7 @@ const docTemplate = `{
                         }
                     },
                     "201": {
-                        "description": "Knowledge base created",
+                        "description": "Knowledge base created\" example({\"status\":201,\"message\":\"knowledge base created\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"description\":\"Support knowledge base\",\"_etag\":\"etag-value\"}},\"error\":null})",
                         "schema": {
                             "allOf": [
                                 {
@@ -3202,7 +3202,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Ingestion summary",
+                        "description": "Ingestion summary\" example({\"status\":200,\"message\":\"knowledge ingestion completed\",\"data\":{\"knowledge_base_id\":\"support\",\"binding_id\":\"binding-123\",\"documents\":2,\"chunks\":16,\"persisted\":16},\"error\":null})",
                         "schema": {
                             "allOf": [
                                 {
@@ -3281,7 +3281,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Query matches",
+                        "description": "Query matches\" example({\"status\":200,\"message\":\"knowledge query completed\",\"data\":{\"matches\":[{\"binding_id\":\"binding-123\",\"content\":\"Reset your password from the account settings page.\",\"score\":0.83,\"token_estimate\":120}]},\"error\":null})",
                         "schema": {
                             "allOf": [
                                 {
@@ -12313,7 +12313,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "strategy": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "replace"
                 }
             }
         },
@@ -12321,19 +12322,24 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "binding_id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "binding-123"
                 },
                 "chunks": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 16
                 },
                 "documents": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 2
                 },
                 "knowledge_base_id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "support"
                 },
                 "persisted": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 16
                 }
             }
         },
@@ -12341,42 +12347,29 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "binding_id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "binding-123"
                 },
                 "content": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Reset your password by visiting the account settings page."
                 },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "score": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 0.83
                 },
                 "token_estimate": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 120
                 }
             }
         },
         "knowledgerouter.KnowledgeQueryRequest": {
-            "type": "object",
-            "properties": {
-                "filters": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "min_score": {
-                    "type": "number"
-                },
-                "query": {
-                    "type": "string"
-                },
-                "top_k": {
-                    "type": "integer"
-                }
-            }
+            "type": "object"
         },
         "knowledgerouter.KnowledgeQueryResponse": {
             "type": "object",

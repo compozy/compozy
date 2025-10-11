@@ -2,35 +2,63 @@ name: knowledge-pdf-url
 version: 0.1.0
 description: Ingest a remote PDF into a knowledge base
 
+models:
+  - provider: openai
+    model: o3
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    default: true
+    params:
+      temperature: 1
+      max_tokens: 100000
+
 embedders:
   - id: openai_default
     provider: openai
     model: text-embedding-3-small
     api_key: "{{ .env.OPENAI_API_KEY }}"
+    config:
+      dimension: 1536
+      batch_size: 64
 
 vector_dbs:
   - id: in_memory_faststart
-    type: in_memory
+    type: memory
+    config:
+      dimension: 1536
 
 knowledge_bases:
   - id: pdf_demo
     embedder: openai_default
     vector_db: in_memory_faststart
     sources:
-      - kind: pdf_url
-        url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+      - type: pdf_url
+        urls:
+          - "https://arxiv.org/pdf/2312.10997"
     chunking:
-      strategy: token
+      strategy: recursive_text_splitter
       size: 400
       overlap: 40
     retrieval:
       top_k: 5
       min_score: 0.15
+      max_tokens: 1200
 
-agents:
-  - id: pdf_agent
-    model: openai/gpt-4o-mini
-    instructions: ./agents/pdf-agent.md
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
 
 workflows:
   - source: ./workflows/qa.yaml
+
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "agents/*.yaml"
+    - "workflows/*.yaml"
+  exclude:
+    - "**/*.tmp"
+    - "**/*~"

@@ -1,8 +1,8 @@
 resource: workflow
-id: knowledge-qa
-name: Knowledge Quickstart QA
+id: runbook-qa
+name: Runbook Knowledge QA
 version: 0.1.0
-description: Ask questions against the quickstart knowledge base
+description: Answer incident runbook questions using the knowledge base
 
 input:
   schema:
@@ -10,7 +10,7 @@ input:
     properties:
       question:
         type: string
-        description: Natural language question to answer using knowledge
+        description: Question to route through the incident runbook
     required:
       - question
 
@@ -20,14 +20,13 @@ output:
     properties:
       answer:
         type: string
-        description: Answer grounded in the knowledge base
+        description: Answer grounded in the incident runbook
 
 tasks:
   - id: answer
-    name: Provide Answer
+    name: Provide Runbook Guidance
     type: basic
-    description: Answer user questions using knowledge context
-    agent: quickstart_agent
+    agent: runbook_agent
     action: answer
     with:
       question: "{{ .workflow.input.question }}"

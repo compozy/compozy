@@ -1,14 +1,8 @@
+resource: workflow
 id: pgvector-qa
 name: Pgvector Knowledge QA
 version: 0.1.0
 description: Answer questions with content stored in pgvector
-
-knowledge:
-  id: company_docs
-  retrieval:
-    top_k: 4
-    min_score: 0.2
-    max_tokens: 1500
 
 input:
   schema:
@@ -32,7 +26,10 @@ tasks:
     name: Respond With Policy Guidance
     type: basic
     agent: policy_agent
-    input:
+    action: answer
+    with:
       question: "{{ .workflow.input.question }}"
-    output:
-      answer: "{{ .response.message }}"
+    final: true
+
+outputs:
+  answer: "{{ .tasks.respond.output.answer }}"

@@ -2,43 +2,51 @@ name: knowledge-quickstart
 version: 0.1.0
 description: Quickstart knowledge base using local Markdown documents and in-memory vector store
 
+models:
+  - provider: groq
+    model: openai/gpt-oss-120b
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    default: true
+    params:
+      temperature: 0.3
+
 embedders:
   - id: openai_default
     provider: openai
     model: text-embedding-3-small
     api_key: "{{ .env.OPENAI_API_KEY }}"
     config:
+      dimension: 1536
       batch_size: 32
 
 vector_dbs:
   - id: in_memory_faststart
-    type: in_memory
+    type: memory
+    config:
+      dimension: 1536
 
 knowledge_bases:
   - id: quickstart_docs
     embedder: openai_default
     vector_db: in_memory_faststart
     sources:
-      - kind: markdown_glob
-        glob: "docs/**/*.md"
+      - type: markdown_glob
+        path: "docs/**/*.md"
     chunking:
-      strategy: token
+      strategy: recursive_text_splitter
       size: 512
       overlap: 64
     retrieval:
       top_k: 5
       min_score: 0.2
+      max_tokens: 1200
 
-agents:
-  - id: quickstart_agent
-    description: Answers questions using quickstart knowledge base
-    model: openai/gpt-4o-mini
-    instructions: ./agents/quickstart-agent.md
-    knowledge:
-      id: quickstart_docs
-      retrieval:
-        top_k: 3
-        max_tokens: 1200
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
 
 workflows:
   - source: ./workflows/qa.yaml
@@ -48,8 +56,7 @@ autoload:
   strict: true
   include:
     - "workflows/*.yaml"
-    - "agents/*.md"
-    - "docs/**/*.md"
+    - "agents/*.yaml"
   exclude:
     - "**/*.tmp"
     - "**/*~"

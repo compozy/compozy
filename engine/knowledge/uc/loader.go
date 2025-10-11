@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 type knowledgeTriple struct {
@@ -87,5 +90,77 @@ func normalizeKnowledgeTriple(
 	if err := defs.Validate(); err != nil {
 		return nil, nil, nil, err
 	}
+	if err := renderKnowledgeDefinitions(ctx, &defs); err != nil {
+		return nil, nil, nil, err
+	}
 	return &defs.KnowledgeBases[0], &defs.Embedders[0], &defs.VectorDBs[0], nil
+}
+
+func renderKnowledgeDefinitions(
+	_ context.Context,
+	defs *knowledge.Definitions,
+) error {
+	if defs == nil {
+		return nil
+	}
+	engine := tplengine.NewEngine(tplengine.FormatJSON)
+	templateCtx := map[string]any{
+		"env": captureEnvironment(),
+	}
+	for i := range defs.Embedders {
+		current := defs.Embedders[i]
+		resolved, err := renderKnowledgeValue(engine, templateCtx, current)
+		if err != nil {
+			return fmt.Errorf("knowledge: embedder %q template render failed: %w", current.ID, err)
+		}
+		defs.Embedders[i] = resolved
+	}
+	for i := range defs.VectorDBs {
+		current := defs.VectorDBs[i]
+		resolved, err := renderKnowledgeValue(engine, templateCtx, current)
+		if err != nil {
+			return fmt.Errorf("knowledge: vector_db %q template render failed: %w", current.ID, err)
+		}
+		defs.VectorDBs[i] = resolved
+	}
+	for i := range defs.KnowledgeBases {
+		current := defs.KnowledgeBases[i]
+		resolved, err := renderKnowledgeValue(engine, templateCtx, current)
+		if err != nil {
+			return fmt.Errorf("knowledge: knowledge_base %q template render failed: %w", current.ID, err)
+		}
+		defs.KnowledgeBases[i] = resolved
+	}
+	return nil
+}
+
+func renderKnowledgeValue[T any](
+	engine *tplengine.TemplateEngine,
+	templateCtx map[string]any,
+	value T,
+) (T, error) {
+	if engine == nil {
+		return value, nil
+	}
+	asMap, err := core.AsMapDefault(value)
+	if err != nil {
+		return value, err
+	}
+	parsed, err := engine.ParseAny(asMap, templateCtx)
+	if err != nil {
+		return value, err
+	}
+	return core.FromMapDefault[T](parsed)
+}
+
+func captureEnvironment() map[string]any {
+	env := make(map[string]any)
+	for _, kv := range os.Environ() {
+		parts := strings.SplitN(kv, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		env[parts[0]] = parts[1]
+	}
+	return env
 }

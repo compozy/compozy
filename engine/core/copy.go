@@ -11,18 +11,26 @@ import (
 // Merge combines two maps, with source values overriding destination values.
 // Slice values are appended rather than replaced.
 func Merge[D, S ~map[string]any](dst D, src S, kind string) (D, error) {
-	result := make(map[string]any)
-	maps.Copy(result, dst)
-	if err := mergo.Merge(&result, src, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
-		return nil, fmt.Errorf("failed to merge %s: %w", kind, err)
+	var zero D
+	result := CloneMap(map[string]any(dst))
+	if result == nil {
+		result = make(map[string]any)
 	}
-	return result, nil
+	if src != nil {
+		if err := mergo.Merge(&result, map[string]any(src), mergo.WithOverride, mergo.WithAppendSlice); err != nil {
+			return zero, fmt.Errorf("failed to merge %s: %w", kind, err)
+		}
+	}
+	return D(result), nil
 }
 
-// CloneMetadata creates a shallow copy of the provided metadata map so callers
-// can mutate the result without affecting the original map.
+// CloneMap creates a shallow copy of the provided map so callers can mutate the
+// result without affecting the original map.
 func CloneMap(src map[string]any) map[string]any {
 	dst := make(map[string]any, len(src))
+	if src == nil {
+		return dst
+	}
 	maps.Copy(dst, src)
 	return dst
 }
