@@ -10731,6 +10731,8 @@ tags:
     name: schedules
   - description: Memory management operations
     name: memory
+  - description: Knowledge base management operations
+    name: knowledge
   - description: Authentication and API key management operations
     name: auth
   - description: User management operations (admin only)

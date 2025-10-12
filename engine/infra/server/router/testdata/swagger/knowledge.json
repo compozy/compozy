@@ -491,5 +491,10 @@
       }
     }
   },
-  "tags": []
+  "tags": [
+    {
+      "description": "Knowledge base management operations",
+      "name": "knowledge"
+    }
+  ]
 }

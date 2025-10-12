@@ -341,25 +341,46 @@ func knowledgeApplyHandler(
 	if client == nil {
 		return errors.New("auth client not initialized")
 	}
-	filePath, err := cmdObj.Flags().GetString("file")
+	payload, id, err := readKnowledgeApplyPayload(cmdObj)
 	if err != nil {
 		return err
+	}
+	params, headers, path, err := buildKnowledgeApplyRequest(cmdObj, id)
+	if err != nil {
+		return err
+	}
+	resp, err := knowledgeRequest(ctx, client, http.MethodPut, path, params, payload, headers)
+	if err != nil {
+		return err
+	}
+	return printSuccess(cmdObj, resp.Data)
+}
+
+func readKnowledgeApplyPayload(cmdObj *cobra.Command) (map[string]any, string, error) {
+	filePath, err := cmdObj.Flags().GetString("file")
+	if err != nil {
+		return nil, "", err
 	}
 	bytes, err := clihelpers.ReadFile(filePath)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	var payload map[string]any
 	if err := yaml.Unmarshal(bytes, &payload); err != nil {
-		return fmt.Errorf("invalid knowledge base file: %w", err)
+		return nil, "", fmt.Errorf("invalid knowledge base file: %w", err)
 	}
-	idRaw, ok := payload["id"].(string)
-	if !ok || strings.TrimSpace(idRaw) == "" {
-		return fmt.Errorf("knowledge base definition must include string id field")
+	rawID, ok := payload["id"].(string)
+	id := strings.TrimSpace(rawID)
+	if !ok || id == "" {
+		return nil, "", fmt.Errorf("knowledge base definition must include string id field")
 	}
+	return payload, id, nil
+}
+
+func buildKnowledgeApplyRequest(cmdObj *cobra.Command, id string) (url.Values, map[string]string, string, error) {
 	project, err := getProjectFlag(cmdObj)
 	if err != nil {
-		return err
+		return nil, nil, "", err
 	}
 	params := url.Values{}
 	if project != "" {
@@ -367,22 +388,18 @@ func knowledgeApplyHandler(
 	}
 	ifMatch, err := cmdObj.Flags().GetString("if-match")
 	if err != nil {
-		return err
+		return nil, nil, "", err
 	}
 	etagHeader, err := formatStrongETag(ifMatch)
 	if err != nil {
-		return err
+		return nil, nil, "", err
 	}
 	headers := map[string]string{}
 	if etagHeader != "" {
 		headers["If-Match"] = etagHeader
 	}
-	path := fmt.Sprintf("/knowledge-bases/%s", url.PathEscape(strings.TrimSpace(idRaw)))
-	resp, err := knowledgeRequest(ctx, client, http.MethodPut, path, params, payload, headers)
-	if err != nil {
-		return err
-	}
-	return printSuccess(cmdObj, resp.Data)
+	path := fmt.Sprintf("/knowledge-bases/%s", url.PathEscape(id))
+	return params, headers, path, nil
 }
 
 func knowledgeDeleteHandler(ctx context.Context, cmdObj *cobra.Command, client api.AuthClient, id string) error {

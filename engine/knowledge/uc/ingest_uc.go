@@ -35,75 +35,132 @@ func NewIngest(store resources.ResourceStore) *Ingest {
 }
 
 func (uc *Ingest) Execute(ctx context.Context, in *IngestInput) (*IngestOutput, error) {
+	projectID, kbID, err := validateIngestInput(in)
+	if err != nil {
+		return nil, err
+	}
+	kb, emb, vec, err := uc.loadNormalizedTriple(ctx, projectID, kbID)
+	if err != nil {
+		return nil, err
+	}
+	binding := newResolvedBinding(kb, emb, vec)
+	embAdapter, vecStore, closeStore, err := initIngestAdapters(ctx, projectID, emb, vec)
+	if err != nil {
+		return nil, err
+	}
+	defer closeStore(logger.FromContext(ctx), ctx, binding.ID, vecStore)
+	result, err := runIngestPipeline(ctx, binding, embAdapter, vecStore, ingest.Options{
+		CWD:      in.CWD,
+		Strategy: in.Strategy,
+	})
+	if err != nil {
+		return nil, err
+	}
+	logIngestResult(ctx, binding.ID, result)
+	return &IngestOutput{Result: result}, nil
+}
+
+func validateIngestInput(in *IngestInput) (string, string, error) {
 	if in == nil {
-		return nil, ErrInvalidInput
+		return "", "", ErrInvalidInput
 	}
 	projectID := strings.TrimSpace(in.Project)
 	if projectID == "" {
-		return nil, ErrProjectMissing
+		return "", "", ErrProjectMissing
 	}
 	kbID := strings.TrimSpace(in.ID)
 	if kbID == "" {
-		return nil, ErrIDMissing
+		return "", "", ErrIDMissing
 	}
+	return projectID, kbID, nil
+}
+
+func (uc *Ingest) loadNormalizedTriple(
+	ctx context.Context,
+	projectID string,
+	kbID string,
+) (*knowledge.BaseConfig, *knowledge.EmbedderConfig, *knowledge.VectorDBConfig, error) {
 	triple, err := loadKnowledgeTriple(ctx, uc.store, projectID, kbID)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	kb, emb, vec, err := normalizeKnowledgeTriple(ctx, triple)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	embCfg, err := configutil.ToEmbedderAdapterConfig(emb)
-	if err != nil {
-		return nil, err
-	}
-	embAdapter, err := embedder.New(ctx, embCfg)
-	if err != nil {
-		return nil, fmt.Errorf("init embedder: %w", err)
-	}
-	vecCfg, err := configutil.ToVectorStoreConfig(projectID, vec)
-	if err != nil {
-		return nil, err
-	}
-	vecStore, err := vectordb.New(ctx, vecCfg)
-	if err != nil {
-		return nil, fmt.Errorf("init vector store: %w", err)
-	}
-	defer func() {
-		if cerr := vecStore.Close(ctx); cerr != nil {
-			logger.FromContext(ctx).Warn(
-				"failed to close vector store",
-				"kb_id",
-				kb.ID,
-				"error",
-				cerr,
-			)
-		}
-	}()
-	binding := &knowledge.ResolvedBinding{
+	return kb, emb, vec, nil
+}
+
+func newResolvedBinding(
+	kb *knowledge.BaseConfig,
+	emb *knowledge.EmbedderConfig,
+	vec *knowledge.VectorDBConfig,
+) *knowledge.ResolvedBinding {
+	return &knowledge.ResolvedBinding{
 		ID:            kb.ID,
 		KnowledgeBase: *kb,
 		Embedder:      *emb,
 		Vector:        *vec,
 		Retrieval:     kb.Retrieval,
 	}
-	options := ingest.Options{CWD: in.CWD, Strategy: in.Strategy}
-	pipeline, err := ingest.NewPipeline(binding, embAdapter, vecStore, options)
+}
+
+func initIngestAdapters(
+	ctx context.Context,
+	projectID string,
+	emb *knowledge.EmbedderConfig,
+	vec *knowledge.VectorDBConfig,
+) (*embedder.Adapter, vectordb.Store, func(logger.Logger, context.Context, string, vectordb.Store), error) {
+	embCfg, err := configutil.ToEmbedderAdapterConfig(emb)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	embAdapter, err := embedder.New(ctx, embCfg)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("init embedder: %w", err)
+	}
+	vecCfg, err := configutil.ToVectorStoreConfig(projectID, vec)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	vecStore, err := vectordb.New(ctx, vecCfg)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("init vector store: %w", err)
+	}
+	closeFn := func(log logger.Logger, closeCtx context.Context, bindingID string, store vectordb.Store) {
+		if cerr := store.Close(closeCtx); cerr != nil {
+			log.Warn(
+				"failed to close vector store",
+				"kb_id",
+				bindingID,
+				"error",
+				cerr,
+			)
+		}
+	}
+	return embAdapter, vecStore, closeFn, nil
+}
+
+func runIngestPipeline(
+	ctx context.Context,
+	binding *knowledge.ResolvedBinding,
+	embAdapter *embedder.Adapter,
+	vecStore vectordb.Store,
+	opts ingest.Options,
+) (*ingest.Result, error) {
+	pipeline, err := ingest.NewPipeline(binding, embAdapter, vecStore, opts)
 	if err != nil {
 		return nil, err
 	}
-	result, err := pipeline.Run(ctx)
-	if err != nil {
-		return nil, err
-	}
-	log := logger.FromContext(ctx)
-	log.Info(
+	return pipeline.Run(ctx)
+}
+
+func logIngestResult(ctx context.Context, kbID string, result *ingest.Result) {
+	logger.FromContext(ctx).Info(
 		"knowledge ingestion completed",
-		"kb_id", kb.ID,
+		"kb_id", kbID,
 		"documents", result.Documents,
 		"chunks", result.Chunks,
 		"persisted", result.Persisted,
 	)
-	return &IngestOutput{Result: result}, nil
 }

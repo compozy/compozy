@@ -51,6 +51,29 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 		return nil, fmt.Errorf("list knowledge base keys: %w", err)
 	}
 	prefix := strings.TrimSpace(in.Prefix)
+	ids := filterKnowledgeBaseIDs(keys, prefix)
+	sort.Strings(ids)
+	windowIDs, nextValue, nextDir, prevValue, prevDir := applyCursorWindowIDs(
+		ids,
+		strings.TrimSpace(in.CursorValue),
+		in.CursorDirection,
+		limit,
+	)
+	payload, err := buildKnowledgeBasePayload(ctx, uc.store, projectID, windowIDs)
+	if err != nil {
+		return nil, err
+	}
+	return &ListOutput{
+		Items:               payload,
+		NextCursorValue:     nextValue,
+		NextCursorDirection: nextDir,
+		PrevCursorValue:     prevValue,
+		PrevCursorDirection: prevDir,
+		Total:               len(ids),
+	}, nil
+}
+
+func filterKnowledgeBaseIDs(keys []resources.ResourceKey, prefix string) []string {
 	ids := make([]string, 0, len(keys))
 	for i := range keys {
 		id := strings.TrimSpace(keys[i].ID)
@@ -61,40 +84,44 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 			ids = append(ids, id)
 		}
 	}
-	sort.Strings(ids)
-	windowIDs, nextValue, nextDir, prevValue, prevDir := resourceutil.ApplyCursorWindowIDs(
-		ids,
-		strings.TrimSpace(in.CursorValue),
-		in.CursorDirection,
-		limit,
-	)
+	return ids
+}
+
+func applyCursorWindowIDs(
+	ids []string,
+	cursorValue string,
+	cursorDirection resourceutil.CursorDirection,
+	limit int,
+) ([]string, string, resourceutil.CursorDirection, string, resourceutil.CursorDirection) {
+	return resourceutil.ApplyCursorWindowIDs(ids, cursorValue, cursorDirection, limit)
+}
+
+func buildKnowledgeBasePayload(
+	ctx context.Context,
+	store resources.ResourceStore,
+	projectID string,
+	windowIDs []string,
+) ([]map[string]any, error) {
 	payload := make([]map[string]any, 0, len(windowIDs))
 	for _, id := range windowIDs {
 		key := resources.ResourceKey{Project: projectID, Type: resources.ResourceKnowledgeBase, ID: id}
-		val, etag, getErr := uc.store.Get(ctx, key)
-		if getErr != nil {
-			if errors.Is(getErr, resources.ErrNotFound) {
+		val, etag, err := store.Get(ctx, key)
+		if err != nil {
+			if errors.Is(err, resources.ErrNotFound) {
 				continue
 			}
-			return nil, fmt.Errorf("load knowledge base %q: %w", id, getErr)
+			return nil, fmt.Errorf("load knowledge base %q: %w", id, err)
 		}
-		cfg, decErr := decodeStoredKnowledgeBase(val, id)
-		if decErr != nil {
-			return nil, decErr
+		cfg, err := decodeStoredKnowledgeBase(val, id)
+		if err != nil {
+			return nil, err
 		}
-		entry, mapErr := core.AsMapDefault(cfg)
-		if mapErr != nil {
-			return nil, mapErr
+		entry, err := core.AsMapDefault(cfg)
+		if err != nil {
+			return nil, err
 		}
 		entry["_etag"] = string(etag)
 		payload = append(payload, entry)
 	}
-	return &ListOutput{
-		Items:               payload,
-		NextCursorValue:     nextValue,
-		NextCursorDirection: nextDir,
-		PrevCursorValue:     prevValue,
-		PrevCursorDirection: prevDir,
-		Total:               len(ids),
-	}, nil
+	return payload, nil
 }

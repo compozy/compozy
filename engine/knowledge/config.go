@@ -157,6 +157,7 @@ func ptrFloat64(v float64) *float64 {
 	return &v
 }
 
+// SourceType identifies the kind of knowledge source available to an ingestion pipeline.
 type SourceType string
 
 const (
@@ -166,12 +167,14 @@ const (
 	SourceTypeMediaTranscript SourceType = "media_transcript"
 )
 
+// ChunkStrategy enumerates supported approaches to splitting content into chunks.
 type ChunkStrategy string
 
 const (
 	ChunkStrategyRecursiveTextSplitter ChunkStrategy = "recursive_text_splitter"
 )
 
+// VectorDBType classifies the supported vector database backends.
 type VectorDBType string
 
 const (
@@ -180,12 +183,14 @@ const (
 	VectorDBTypeMemory   VectorDBType = "memory"
 )
 
+// Definitions aggregates embedders, vector stores, and knowledge bases declared by users.
 type Definitions struct {
 	Embedders      []EmbedderConfig `json:"embedders"       yaml:"embedders"       mapstructure:"embedders"`
 	VectorDBs      []VectorDBConfig `json:"vector_dbs"      yaml:"vector_dbs"      mapstructure:"vector_dbs"`
 	KnowledgeBases []BaseConfig     `json:"knowledge_bases" yaml:"knowledge_bases" mapstructure:"knowledge_bases"`
 }
 
+// EmbedderConfig describes an embedding provider used during knowledge ingestion.
 type EmbedderConfig struct {
 	ID       string                `json:"id"                yaml:"id"                mapstructure:"id"`
 	Provider string                `json:"provider"          yaml:"provider"          mapstructure:"provider"`
@@ -194,6 +199,7 @@ type EmbedderConfig struct {
 	Config   EmbedderRuntimeConfig `json:"config"            yaml:"config"            mapstructure:"config"`
 }
 
+// EmbedderRuntimeConfig captures runtime tuning options for an embedder client.
 type EmbedderRuntimeConfig struct {
 	Dimension     int            `json:"dimension"                yaml:"dimension"                mapstructure:"dimension"`
 	BatchSize     int            `json:"batch_size,omitempty"     yaml:"batch_size,omitempty"     mapstructure:"batch_size,omitempty"`
@@ -201,12 +207,14 @@ type EmbedderRuntimeConfig struct {
 	Retry         map[string]any `json:"retry,omitempty"          yaml:"retry,omitempty"          mapstructure:"retry,omitempty"`
 }
 
+// VectorDBConfig configures a vector database target for knowledge storage.
 type VectorDBConfig struct {
 	ID     string             `json:"id"     yaml:"id"     mapstructure:"id"`
 	Type   VectorDBType       `json:"type"   yaml:"type"   mapstructure:"type"`
 	Config VectorDBConnConfig `json:"config" yaml:"config" mapstructure:"config"`
 }
 
+// VectorDBConnConfig defines connection and table options for a vector database.
 type VectorDBConnConfig struct {
 	DSN         string            `json:"dsn,omitempty"          yaml:"dsn,omitempty"          mapstructure:"dsn,omitempty"`
 	Table       string            `json:"table,omitempty"        yaml:"table,omitempty"        mapstructure:"table,omitempty"`
@@ -219,6 +227,7 @@ type VectorDBConnConfig struct {
 	Auth        map[string]string `json:"auth,omitempty"         yaml:"auth,omitempty"         mapstructure:"auth,omitempty"`
 }
 
+// BaseConfig declares a knowledge base and governs how it is ingested and retrieved.
 type BaseConfig struct {
 	ID          string           `json:"id"                    yaml:"id"                    mapstructure:"id"`
 	Description string           `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
@@ -231,6 +240,7 @@ type BaseConfig struct {
 	Metadata    MetadataConfig   `json:"metadata,omitempty"    yaml:"metadata,omitempty"    mapstructure:"metadata,omitempty"`
 }
 
+// SourceConfig describes a single ingestion source such as a glob, URL, or bucket.
 type SourceConfig struct {
 	Type     SourceType        `json:"type"               yaml:"type"               mapstructure:"type"`
 	Paths    []string          `json:"paths,omitempty"    yaml:"paths,omitempty"    mapstructure:"paths,omitempty"`
@@ -243,17 +253,20 @@ type SourceConfig struct {
 	Options  map[string]string `json:"options,omitempty"  yaml:"options,omitempty"  mapstructure:"options,omitempty"`
 }
 
+// ChunkingConfig tunes how documents are split before embedding.
 type ChunkingConfig struct {
 	Strategy ChunkStrategy `json:"strategy,omitempty" yaml:"strategy,omitempty" mapstructure:"strategy,omitempty"`
 	Size     int           `json:"size,omitempty"     yaml:"size,omitempty"     mapstructure:"size,omitempty"`
 	Overlap  *int          `json:"overlap,omitempty"  yaml:"overlap,omitempty"  mapstructure:"overlap,omitempty"`
 }
 
+// PreprocessConfig configures preprocessing steps applied to raw content.
 type PreprocessConfig struct {
 	Deduplicate *bool `json:"dedupe,omitempty"      yaml:"dedupe,omitempty"      mapstructure:"dedupe,omitempty"`
 	RemoveHTML  bool  `json:"remove_html,omitempty" yaml:"remove_html,omitempty" mapstructure:"remove_html,omitempty"`
 }
 
+// RetrievalConfig manages how stored chunks are queried and injected into prompts.
 type RetrievalConfig struct {
 	TopK      int               `json:"top_k,omitempty"      yaml:"top_k,omitempty"      mapstructure:"top_k,omitempty"`
 	MinScore  *float64          `json:"min_score,omitempty"  yaml:"min_score,omitempty"  mapstructure:"min_score,omitempty"`
@@ -263,11 +276,13 @@ type RetrievalConfig struct {
 	Filters   map[string]string `json:"filters,omitempty"    yaml:"filters,omitempty"    mapstructure:"filters,omitempty"`
 }
 
+// MetadataConfig carries optional descriptive metadata for knowledge bases.
 type MetadataConfig struct {
 	Tags   []string `json:"tags,omitempty"   yaml:"tags,omitempty"   mapstructure:"tags,omitempty"`
 	Owners []string `json:"owners,omitempty" yaml:"owners,omitempty" mapstructure:"owners,omitempty"`
 }
 
+// OverlapValue returns the configured chunk overlap or zero when unset.
 func (c ChunkingConfig) OverlapValue() int {
 	if c.Overlap == nil {
 		return 0
@@ -279,6 +294,7 @@ func (c *ChunkingConfig) setOverlap(value int) {
 	c.Overlap = ptrInt(value)
 }
 
+// MinScoreValue returns the retrieval minimum score or zero when unspecified.
 func (c RetrievalConfig) MinScoreValue() float64 {
 	if c.MinScore == nil {
 		return 0
@@ -290,10 +306,12 @@ func (c *RetrievalConfig) setMinScore(value float64) {
 	c.MinScore = ptrFloat64(value)
 }
 
+// Normalize applies built-in defaults to the configured definitions.
 func (d *Definitions) Normalize() {
 	d.NormalizeWithDefaults(DefaultDefaults())
 }
 
+// NormalizeWithDefaults applies the supplied defaults when normalizing definitions.
 func (d *Definitions) NormalizeWithDefaults(defaults Defaults) {
 	defaults = sanitizeDefaults(defaults)
 	for i := range d.Embedders {
@@ -353,6 +371,7 @@ func (c *RetrievalConfig) normalize(defaults Defaults) {
 	}
 }
 
+// Validate checks definitions for consistency and aggregates any validation errors.
 func (d *Definitions) Validate() error {
 	embedderIndex, embedderErrs := validateEmbedders(d.Embedders)
 	vectorIndex, vectorErrs := validateVectorDBs(d.VectorDBs)

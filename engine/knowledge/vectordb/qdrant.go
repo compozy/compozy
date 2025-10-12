@@ -90,12 +90,11 @@ func (q *qdrantStore) Upsert(ctx context.Context, records []Record) error {
 		if len(rec.Embedding) != q.dimension {
 			return fmt.Errorf("qdrant: record %q dimension mismatch", rec.ID)
 		}
-		payload := map[string]any{
-			"text": rec.Text,
+		payload := core.CloneMap(rec.Metadata)
+		if payload == nil {
+			payload = make(map[string]any)
 		}
-		for k, v := range rec.Metadata {
-			payload[k] = v
-		}
+		payload["text"] = rec.Text
 		points = append(points, map[string]any{
 			"id":      rec.ID,
 			"vector":  rec.Embedding,

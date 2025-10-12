@@ -453,6 +453,69 @@ func cloneKnowledgeConfigFallback(cfg *KnowledgeRuntimeConfig) *KnowledgeRuntime
 	return &fallback
 }
 
+func cloneEmbedderOverrides(src map[string]*knowledge.EmbedderConfig) map[string]*knowledge.EmbedderConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]*knowledge.EmbedderConfig, len(src))
+	for key, cfg := range src {
+		if cfg == nil {
+			out[key] = nil
+			continue
+		}
+		if cloned, err := core.DeepCopy(*cfg); err == nil {
+			copyCfg := cloned
+			out[key] = &copyCfg
+			continue
+		}
+		copyCfg := *cfg
+		out[key] = &copyCfg
+	}
+	return out
+}
+
+func cloneVectorOverrides(src map[string]*knowledge.VectorDBConfig) map[string]*knowledge.VectorDBConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]*knowledge.VectorDBConfig, len(src))
+	for key, cfg := range src {
+		if cfg == nil {
+			out[key] = nil
+			continue
+		}
+		if cloned, err := core.DeepCopy(*cfg); err == nil {
+			copyCfg := cloned
+			out[key] = &copyCfg
+			continue
+		}
+		copyCfg := *cfg
+		out[key] = &copyCfg
+	}
+	return out
+}
+
+func cloneKnowledgeOverrides(src map[string]*knowledge.BaseConfig) map[string]*knowledge.BaseConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]*knowledge.BaseConfig, len(src))
+	for key, cfg := range src {
+		if cfg == nil {
+			out[key] = nil
+			continue
+		}
+		if cloned, err := core.DeepCopy(*cfg); err == nil {
+			copyCfg := cloned
+			out[key] = &copyCfg
+			continue
+		}
+		copyCfg := *cfg
+		out[key] = &copyCfg
+	}
+	return out
+}
+
 // WithRetryAttempts sets the number of retry attempts for LLM operations
 func WithRetryAttempts(attempts int) Option {
 	return func(c *Config) {

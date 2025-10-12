@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/configutil"
 	"github.com/compozy/compozy/engine/knowledge/embedder"
@@ -99,10 +100,7 @@ func mergeRetrieval(
 		base.MinScore = &value
 	}
 	if filters != nil {
-		base.Filters = make(map[string]string, len(filters))
-		for k, v := range filters {
-			base.Filters[k] = v
-		}
+		base.Filters = core.CopyMap(filters)
 	}
 	return base
 }

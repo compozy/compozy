@@ -65,59 +65,61 @@ func (stubKnowledgeMemory) Compact(context.Context, *LoopContext, telemetry.Cont
 	return nil
 }
 
-func TestRequestBuilder_ShouldInjectKnowledgeBeforePrompt(t *testing.T) {
-	rb := &requestBuilder{
-		prompts: knowledgePromptBuilder{prompt: "Answer the question."},
-		memory:  stubKnowledgeMemory{},
-	}
-	entry := KnowledgeEntry{
-		BindingID: "support_docs",
-		Retrieval: knowledge.RetrievalConfig{InjectAs: "Support Docs"},
-		Contexts: []knowledge.RetrievedContext{{
-			BindingID:     "support_docs",
-			Content:       "Reset the router and try again.",
-			Score:         0.9123,
-			TokenEstimate: 42,
-		}},
-	}
-	req := Request{
-		Agent:     &agent.Config{ID: "agent"},
-		Action:    &agent.ActionConfig{ID: "action"},
-		Knowledge: []KnowledgeEntry{entry},
-	}
-	output, err := rb.Build(context.Background(), req, &MemoryContext{})
-	require.NoError(t, err)
-	require.Len(t, output.Request.Messages, 2)
-	assert.Equal(t, "memory", output.Request.Messages[0].Content)
-	user := output.Request.Messages[1].Content
-	require.Contains(t, user, "Support Docs:")
-	require.Contains(t, user, "Reset the router and try again.")
-	supportIdx := strings.Index(user, "Support Docs:")
-	promptIdx := strings.LastIndex(user, "Answer the question.")
-	require.True(t, supportIdx >= 0)
-	require.True(t, promptIdx > supportIdx)
-}
-
-func TestRequestBuilder_ShouldUseFallbackWhenNoContexts(t *testing.T) {
-	rb := &requestBuilder{
-		prompts: knowledgePromptBuilder{prompt: "Summarize incident."},
-		memory:  stubKnowledgeMemory{},
-	}
-	req := Request{
-		Agent:  &agent.Config{ID: "agent"},
-		Action: &agent.ActionConfig{ID: "action"},
-		Knowledge: []KnowledgeEntry{{
+func TestRequestBuilder_KnowledgePrompts(t *testing.T) {
+	t.Run("ShouldInjectKnowledgeBeforePrompt", func(t *testing.T) {
+		rb := &requestBuilder{
+			prompts: knowledgePromptBuilder{prompt: "Answer the question."},
+			memory:  stubKnowledgeMemory{},
+		}
+		entry := KnowledgeEntry{
 			BindingID: "support_docs",
-			Retrieval: knowledge.RetrievalConfig{
-				InjectAs: "Support Docs",
-				Fallback: "No indexed knowledge available.",
-			},
-		}},
-	}
-	output, err := rb.Build(context.Background(), req, &MemoryContext{})
-	require.NoError(t, err)
-	require.Len(t, output.Request.Messages, 2)
-	user := output.Request.Messages[1].Content
-	require.Contains(t, user, "No indexed knowledge available.")
-	require.Contains(t, user, "Summarize incident.")
+			Retrieval: knowledge.RetrievalConfig{InjectAs: "Support Docs"},
+			Contexts: []knowledge.RetrievedContext{{
+				BindingID:     "support_docs",
+				Content:       "Reset the router and try again.",
+				Score:         0.9123,
+				TokenEstimate: 42,
+			}},
+		}
+		req := Request{
+			Agent:     &agent.Config{ID: "agent"},
+			Action:    &agent.ActionConfig{ID: "action"},
+			Knowledge: []KnowledgeEntry{entry},
+		}
+		output, err := rb.Build(context.Background(), req, &MemoryContext{})
+		require.NoError(t, err)
+		require.Len(t, output.Request.Messages, 2)
+		assert.Equal(t, "memory", output.Request.Messages[0].Content)
+		user := output.Request.Messages[1].Content
+		require.Contains(t, user, "Support Docs:")
+		require.Contains(t, user, "Reset the router and try again.")
+		supportIdx := strings.Index(user, "Support Docs:")
+		promptIdx := strings.LastIndex(user, "Answer the question.")
+		require.True(t, supportIdx >= 0)
+		require.True(t, promptIdx > supportIdx)
+	})
+
+	t.Run("ShouldUseFallbackWhenNoContexts", func(t *testing.T) {
+		rb := &requestBuilder{
+			prompts: knowledgePromptBuilder{prompt: "Summarize incident."},
+			memory:  stubKnowledgeMemory{},
+		}
+		req := Request{
+			Agent:  &agent.Config{ID: "agent"},
+			Action: &agent.ActionConfig{ID: "action"},
+			Knowledge: []KnowledgeEntry{{
+				BindingID: "support_docs",
+				Retrieval: knowledge.RetrievalConfig{
+					InjectAs: "Support Docs",
+					Fallback: "No indexed knowledge available.",
+				},
+			}},
+		}
+		output, err := rb.Build(context.Background(), req, &MemoryContext{})
+		require.NoError(t, err)
+		require.Len(t, output.Request.Messages, 2)
+		user := output.Request.Messages[1].Content
+		require.Contains(t, user, "No indexed knowledge available.")
+		require.Contains(t, user, "Summarize incident.")
+	})
 }

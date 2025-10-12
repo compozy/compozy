@@ -35,6 +35,9 @@
 //	@tag.name			memory
 //	@tag.description	Memory management operations
 
+//	@tag.name			knowledge
+//	@tag.description	Knowledge base management operations
+
 //	@tag.name			auth
 //	@tag.description	Authentication and API key management operations
 
@@ -50,9 +53,10 @@ import (
 	"os"
 
 	"github.com/compozy/compozy/cli"
-	_ "github.com/compozy/compozy/engine/auth/router"              // Import for swagger docs
-	_ "github.com/compozy/compozy/engine/memory/router"            // Import for swagger docs
-	_ "github.com/compozy/compozy/engine/workflow/schedule/router" // Import for swagger docs
+	_ "github.com/compozy/compozy/engine/auth/router"                   // Import for swagger docs
+	_ "github.com/compozy/compozy/engine/infra/server/router/knowledge" // Import for swagger docs
+	_ "github.com/compozy/compozy/engine/memory/router"                 // Import for swagger docs
+	_ "github.com/compozy/compozy/engine/workflow/schedule/router"      // Import for swagger docs
 )
 
 func main() {

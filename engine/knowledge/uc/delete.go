@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/configutil"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
 	"github.com/compozy/compozy/engine/resources"
@@ -26,16 +27,9 @@ func NewDelete(store resources.ResourceStore) *Delete {
 }
 
 func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
-	if in == nil {
-		return ErrInvalidInput
-	}
-	projectID := strings.TrimSpace(in.Project)
-	if projectID == "" {
-		return ErrProjectMissing
-	}
-	kbID := strings.TrimSpace(in.ID)
-	if kbID == "" {
-		return ErrIDMissing
+	projectID, kbID, err := uc.parseInput(in)
+	if err != nil {
+		return err
 	}
 	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceKnowledgeBase, ID: kbID}
 	triple, err := loadKnowledgeTriple(ctx, uc.store, projectID, kbID)
@@ -53,6 +47,36 @@ func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
 	if len(conflicts) > 0 {
 		return resourceutil.ConflictError{Details: conflicts}
 	}
+	if err := uc.cleanupVectors(ctx, projectID, kb.ID, vec); err != nil {
+		return err
+	}
+	if err := uc.store.Delete(ctx, key); err != nil {
+		return fmt.Errorf("delete knowledge base %q: %w", kbID, err)
+	}
+	return nil
+}
+
+func (uc *Delete) parseInput(in *DeleteInput) (string, string, error) {
+	if in == nil {
+		return "", "", ErrInvalidInput
+	}
+	projectID := strings.TrimSpace(in.Project)
+	if projectID == "" {
+		return "", "", ErrProjectMissing
+	}
+	kbID := strings.TrimSpace(in.ID)
+	if kbID == "" {
+		return "", "", ErrIDMissing
+	}
+	return projectID, kbID, nil
+}
+
+func (uc *Delete) cleanupVectors(
+	ctx context.Context,
+	projectID string,
+	kbID string,
+	vec *knowledge.VectorDBConfig,
+) error {
 	storeCfg, err := configutil.ToVectorStoreConfig(projectID, vec)
 	if err != nil {
 		return err
@@ -64,15 +88,12 @@ func (uc *Delete) Execute(ctx context.Context, in *DeleteInput) error {
 	log := logger.FromContext(ctx)
 	defer func() {
 		if cerr := vectorStore.Close(ctx); cerr != nil {
-			log.Warn("failed to close vector store", "kb_id", kb.ID, "error", cerr)
+			log.Warn("failed to close vector store", "kb_id", kbID, "error", cerr)
 		}
 	}()
-	filter := vectordb.Filter{Metadata: map[string]string{"knowledge_base_id": kb.ID}}
+	filter := vectordb.Filter{Metadata: map[string]string{"knowledge_base_id": kbID}}
 	if err := vectorStore.Delete(ctx, filter); err != nil {
 		return fmt.Errorf("cleanup knowledge vectors: %w", err)
-	}
-	if err := uc.store.Delete(ctx, key); err != nil {
-		return fmt.Errorf("delete knowledge base %q: %w", kbID, err)
 	}
 	return nil
 }

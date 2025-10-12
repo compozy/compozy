@@ -64,14 +64,33 @@ func (l *documentList) appendMarkdown(
 	if cwd == nil {
 		return errors.New("knowledge: markdown_glob requires working directory")
 	}
-	pattern := strings.TrimSpace(src.Path)
-	if pattern == "" && len(src.Paths) > 0 {
-		pattern = strings.TrimSpace(src.Paths[0])
+	patterns := make([]string, 0, len(src.Paths)+1)
+	if single := strings.TrimSpace(src.Path); single != "" {
+		patterns = append(patterns, single)
 	}
-	if pattern == "" {
+	for i := range src.Paths {
+		if trimmed := strings.TrimSpace(src.Paths[i]); trimmed != "" {
+			patterns = append(patterns, trimmed)
+		}
+	}
+	if len(patterns) == 0 {
 		return fmt.Errorf("knowledge: markdown_glob source missing path")
 	}
 	root := filepath.Clean(cwd.PathStr())
+	for _, pattern := range patterns {
+		if err := l.appendMarkdownPattern(ctx, root, kbID, pattern); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (l *documentList) appendMarkdownPattern(
+	ctx context.Context,
+	root string,
+	kbID string,
+	pattern string,
+) error {
 	absPattern := filepath.Clean(filepath.Join(root, pattern))
 	matches, err := doublestar.FilepathGlob(absPattern)
 	if err != nil {
@@ -79,6 +98,7 @@ func (l *documentList) appendMarkdown(
 	}
 	if len(matches) == 0 {
 		logger.FromContext(ctx).Warn("Knowledge ingestion glob returned no files", "pattern", pattern)
+		return nil
 	}
 	for _, abs := range matches {
 		within, werr := pathInside(root, abs)

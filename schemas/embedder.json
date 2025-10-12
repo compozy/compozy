@@ -2,6 +2,7 @@
   "$defs": {
     "EmbedderRuntimeConfig": {
       "additionalProperties": false,
+      "description": "EmbedderRuntimeConfig captures runtime tuning options for an embedder client.",
       "properties": {
         "batch_size": {
           "type": "integer"
@@ -22,6 +23,7 @@
   "$id": "embedder.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
+  "description": "EmbedderConfig describes an embedding provider used during knowledge ingestion.",
   "properties": {
     "api_key": {
       "type": "string"

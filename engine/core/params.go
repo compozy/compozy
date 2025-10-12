@@ -34,7 +34,8 @@ func (i *Input) Merge(other *Input) (*Input, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &result, nil
+	*i = result
+	return i, nil
 }
 
 func (i *Input) Prop(key string) any {
@@ -66,7 +67,12 @@ func (o *Output) Merge(other Output) (Output, error) {
 	if o == nil {
 		return other, nil
 	}
-	return Merge(*o, other, "output")
+	result, err := Merge(*o, other, "output")
+	if err != nil {
+		return nil, err
+	}
+	*o = result
+	return *o, nil
 }
 
 func (o *Output) Prop(key string) any {

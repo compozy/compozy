@@ -321,7 +321,7 @@ func newServiceInstance(
 		orchestrator:     orchestrator,
 		config:           config,
 		toolRegistry:     registry,
-		closeCtx:         context.WithoutCancel(ctx),
+		closeCtx:         deriveCloseContext(ctx),
 		embedderCache:    make(map[string]*embedder.Adapter),
 		vectorStoreCache: make(map[string]vectordb.Store),
 	}
@@ -339,6 +339,18 @@ func newServiceInstance(
 	service.knowledgeRuntimeWorkflow = state.runtimeWorkflowKBs
 	service.knowledgeProjectID = state.projectID
 	return service
+}
+
+func deriveCloseContext(ctx context.Context) context.Context {
+	base := context.Background()
+	if mgr := appconfig.ManagerFromContext(ctx); mgr != nil {
+		base = appconfig.ContextWithManager(base, mgr)
+	}
+	log := logger.FromContext(ctx)
+	if log != nil {
+		base = logger.ContextWithLogger(base, log)
+	}
+	return base
 }
 
 // NewService creates a new LLM service with clean architecture
@@ -866,66 +878,6 @@ func cloneWorkflowKnowledge(src []knowledge.BaseConfig) []knowledge.BaseConfig {
 		return copied
 	}
 	return append([]knowledge.BaseConfig{}, src...)
-}
-
-func cloneEmbedderOverrides(src map[string]*knowledge.EmbedderConfig) map[string]*knowledge.EmbedderConfig {
-	if len(src) == 0 {
-		return nil
-	}
-	out := make(map[string]*knowledge.EmbedderConfig, len(src))
-	for id, cfg := range src {
-		if cfg == nil {
-			continue
-		}
-		if clone, err := core.DeepCopy(*cfg); err == nil {
-			cloneCopy := clone
-			out[id] = &cloneCopy
-		} else {
-			cfgCopy := *cfg
-			out[id] = &cfgCopy
-		}
-	}
-	return out
-}
-
-func cloneVectorOverrides(src map[string]*knowledge.VectorDBConfig) map[string]*knowledge.VectorDBConfig {
-	if len(src) == 0 {
-		return nil
-	}
-	out := make(map[string]*knowledge.VectorDBConfig, len(src))
-	for id, cfg := range src {
-		if cfg == nil {
-			continue
-		}
-		if clone, err := core.DeepCopy(*cfg); err == nil {
-			cloneCopy := clone
-			out[id] = &cloneCopy
-		} else {
-			cfgCopy := *cfg
-			out[id] = &cfgCopy
-		}
-	}
-	return out
-}
-
-func cloneKnowledgeOverrides(src map[string]*knowledge.BaseConfig) map[string]*knowledge.BaseConfig {
-	if len(src) == 0 {
-		return nil
-	}
-	out := make(map[string]*knowledge.BaseConfig, len(src))
-	for id, cfg := range src {
-		if cfg == nil {
-			continue
-		}
-		if clone, err := core.DeepCopy(*cfg); err == nil {
-			cloneCopy := clone
-			out[id] = &cloneCopy
-		} else {
-			cfgCopy := *cfg
-			out[id] = &cfgCopy
-		}
-	}
-	return out
 }
 
 func initKnowledgeRuntime(

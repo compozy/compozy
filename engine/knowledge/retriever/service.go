@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -65,62 +66,34 @@ func (s *Service) Retrieve(
 	binding *knowledge.ResolvedBinding,
 	query string,
 ) (contexts []knowledge.RetrievedContext, err error) {
-	if binding == nil {
-		return nil, errors.New("knowledge: binding is required for retrieval")
-	}
-	if query == "" {
-		return nil, errors.New("knowledge: query is required")
+	if inputErr := validateRetrieveInput(binding, query); inputErr != nil {
+		err = inputErr
+		return nil, err
 	}
 	log := logger.FromContext(ctx).With(
-		"kb_id",
-		binding.KnowledgeBase.ID,
-		"binding_id",
-		binding.ID,
+		"kb_id", binding.KnowledgeBase.ID,
+		"binding_id", binding.ID,
 	)
 	start := time.Now()
 	ctx, span := s.tracer.Start(ctx, "compozy.knowledge.retriever.retrieve", trace.WithAttributes(
 		attribute.String("kb_id", binding.KnowledgeBase.ID),
 		attribute.String("binding_id", binding.ID),
 	))
-	defer func() {
-		duration := time.Since(start)
-		knowledge.RecordQueryLatency(ctx, binding.KnowledgeBase.ID, duration)
-		if err != nil {
-			log.Error("Knowledge retrieval failed", "error", err, "duration_seconds", duration.Seconds())
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		} else {
-			log.Info("Knowledge retrieval finished", "results", len(contexts), "duration_seconds", duration.Seconds())
-			span.SetAttributes(attribute.Int("results", len(contexts)))
-		}
-		span.End()
-	}()
+	defer s.finishRetrieve(ctx, binding, span, start, &contexts, &err)
+
 	log.Info("Knowledge retrieval started", "query_length", len(query))
 	vector, err := s.embedQueryWithSpan(ctx, binding, query)
 	if err != nil {
 		return nil, err
 	}
-	opts := vectordb.SearchOptions{
-		TopK:     binding.Retrieval.TopK,
-		MinScore: binding.Retrieval.MinScoreValue(),
-		Filters:  cloneStringMap(binding.Retrieval.Filters),
-	}
-	if opts.TopK <= 0 {
-		opts.TopK = knowledge.DefaultDefaults().RetrievalTopK
-	}
-	matches, err := s.searchMatches(ctx, binding, vector, opts)
+	matches, err := s.searchMatches(ctx, binding, vector, s.buildSearchOptions(binding))
 	if err != nil {
 		return nil, err
 	}
 	if len(matches) == 0 {
 		return nil, nil
 	}
-	sort.SliceStable(matches, func(i, j int) bool {
-		if matches[i].Score == matches[j].Score {
-			return matches[i].ID < matches[j].ID
-		}
-		return matches[i].Score > matches[j].Score
-	})
+	sortMatches(matches)
 	contexts = s.buildContexts(ctx, binding, matches)
 	log.Debug(
 		"Knowledge retrieval executed",
@@ -132,6 +105,16 @@ func (s *Service) Retrieve(
 		len(contexts),
 	)
 	return contexts, nil
+}
+
+func validateRetrieveInput(binding *knowledge.ResolvedBinding, query string) error {
+	if binding == nil {
+		return errors.New("knowledge: binding is required for retrieval")
+	}
+	if strings.TrimSpace(query) == "" {
+		return errors.New("knowledge: query is required")
+	}
+	return nil
 }
 
 func (s *Service) embedQueryWithSpan(
@@ -180,6 +163,18 @@ func (s *Service) searchMatches(
 	return matches, nil
 }
 
+func (s *Service) buildSearchOptions(binding *knowledge.ResolvedBinding) vectordb.SearchOptions {
+	opts := vectordb.SearchOptions{
+		TopK:     binding.Retrieval.TopK,
+		MinScore: binding.Retrieval.MinScoreValue(),
+		Filters:  core.CopyMap(binding.Retrieval.Filters),
+	}
+	if opts.TopK <= 0 {
+		opts.TopK = knowledge.DefaultDefaults().RetrievalTopK
+	}
+	return opts
+}
+
 func (s *Service) buildContexts(
 	ctx context.Context,
 	binding *knowledge.ResolvedBinding,
@@ -226,13 +221,43 @@ func trimContexts(
 	return contexts
 }
 
-func cloneStringMap(src map[string]string) map[string]string {
-	if len(src) == 0 {
-		return nil
+func (s *Service) finishRetrieve(
+	ctx context.Context,
+	binding *knowledge.ResolvedBinding,
+	span trace.Span,
+	start time.Time,
+	contexts *[]knowledge.RetrievedContext,
+	runErr *error,
+) {
+	duration := time.Since(start)
+	knowledge.RecordQueryLatency(ctx, binding.KnowledgeBase.ID, duration)
+	log := logger.FromContext(ctx).With(
+		"kb_id", binding.KnowledgeBase.ID,
+		"binding_id", binding.ID,
+	)
+	seconds := duration.Seconds()
+	if runErr != nil && *runErr != nil {
+		err := *runErr
+		log.Error("Knowledge retrieval failed", "error", err, "duration_seconds", seconds)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		span.End()
+		return
 	}
-	dst := make(map[string]string, len(src))
-	for k, v := range src {
-		dst[k] = v
+	total := 0
+	if contexts != nil && *contexts != nil {
+		total = len(*contexts)
 	}
-	return dst
+	log.Info("Knowledge retrieval finished", "results", total, "duration_seconds", seconds)
+	span.SetAttributes(attribute.Int("results", total))
+	span.End()
+}
+
+func sortMatches(matches []vectordb.Match) {
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].Score == matches[j].Score {
+			return matches[i].ID < matches[j].ID
+		}
+		return matches[i].Score > matches[j].Score
+	})
 }

@@ -37,6 +37,13 @@
       "description": "ContextCompactionThreshold expresses the context usage ratio (0-1) that triggers compaction.",
       "type": "number"
     },
+    "context_warning_thresholds": {
+      "description": "ContextWarningThresholds defines usage ratios (0-1) that trigger telemetry warnings.",
+      "items": {
+        "type": "number"
+      },
+      "type": "array"
+    },
     "denied_mcp_names": {
       "description": "DeniedMCPNames excludes MCP servers/tools from advertisement and invocation.\nEntries take precedence over the allow list.",
       "items": {
@@ -108,6 +115,10 @@
       "description": "NoProgressThreshold configures how many loop iterations without progress are\ntolerated before the orchestrator considers the interaction stalled.\nDefault: 3 (orchestrator default)",
       "type": "integer"
     },
+    "provider_timeout": {
+      "description": "ProviderTimeout sets the maximum duration allowed for a single provider invocation.\n\nApplies to each GenerateContent call (including retries) to keep the orchestrator responsive.\nDefault: 5m",
+      "type": "integer"
+    },
     "proxy_url": {
       "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"\" (empty; supply MCP proxy URL explicitly or derive from MCPProxy.BaseURL)",
       "type": "string"
@@ -120,7 +131,7 @@
       "type": "array"
     },
     "restart_stall_threshold": {
-      "description": "RestartStallThreshold controls how many stalled iterations trigger a loop restart. Values greater than no_progress_threshold are automatically clamped to match the no progress limit and emit a warning event.",
+      "description": "RestartStallThreshold controls how many stalled iterations trigger a loop restart.",
       "type": "integer"
     },
     "retry_attempts": {
@@ -141,6 +152,10 @@
     },
     "retry_jitter_percent": {
       "description": "RetryJitterPercent controls jitter strength when retry_jitter is enabled.",
+      "type": "integer"
+    },
+    "structured_output_retries": {
+      "description": "StructuredOutputRetryAttempts controls how many validation retries are attempted before failing.\n\nWhen set to 0, the orchestrator default (2) is used.",
       "type": "integer"
     },
     "tool_call_caps": {

@@ -32,7 +32,8 @@ RUN mkdir -p /app/config /app/data /app/tools /app/logs /app/tmp \
     && chown -R compozy:compozy /app
 
 # Copy the pre-built binary from GoReleaser
-COPY compozy /usr/local/bin/compozy
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/compozy /usr/local/bin/compozy
 RUN chmod +x /usr/local/bin/compozy
 
 # Copy additional files if they exist

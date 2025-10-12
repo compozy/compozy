@@ -15723,6 +15723,10 @@ const docTemplate = `{
             "name": "memory"
         },
         {
+            "description": "Knowledge base management operations",
+            "name": "knowledge"
+        },
+        {
             "description": "Authentication and API key management operations",
             "name": "auth"
         },

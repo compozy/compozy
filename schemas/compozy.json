@@ -31,6 +31,7 @@
     },
     "BaseConfig": {
       "additionalProperties": false,
+      "description": "BaseConfig declares a knowledge base and governs how it is ingested and retrieved.",
       "properties": {
         "chunking": {
           "$ref": "#/$defs/ChunkingConfig"
@@ -67,6 +68,7 @@
     },
     "ChunkingConfig": {
       "additionalProperties": false,
+      "description": "ChunkingConfig tunes how documents are split before embedding.",
       "properties": {
         "overlap": {
           "type": "integer"
@@ -105,6 +107,7 @@
     },
     "EmbedderConfig": {
       "additionalProperties": false,
+      "description": "EmbedderConfig describes an embedding provider used during knowledge ingestion.",
       "properties": {
         "api_key": {
           "type": "string"
@@ -126,6 +129,7 @@
     },
     "EmbedderRuntimeConfig": {
       "additionalProperties": false,
+      "description": "EmbedderRuntimeConfig captures runtime tuning options for an embedder client.",
       "properties": {
         "batch_size": {
           "type": "integer"
@@ -192,6 +196,7 @@
     },
     "MetadataConfig": {
       "additionalProperties": false,
+      "description": "MetadataConfig carries optional descriptive metadata for knowledge bases.",
       "properties": {
         "owners": {
           "items": {
@@ -255,6 +260,7 @@
     },
     "PreprocessConfig": {
       "additionalProperties": false,
+      "description": "PreprocessConfig configures preprocessing steps applied to raw content.",
       "properties": {
         "dedupe": {
           "type": "boolean"
@@ -352,6 +358,7 @@
     },
     "RetrievalConfig": {
       "additionalProperties": false,
+      "description": "RetrievalConfig manages how stored chunks are queried and injected into prompts.",
       "properties": {
         "fallback": {
           "type": "string"
@@ -446,6 +453,7 @@
     },
     "SourceConfig": {
       "additionalProperties": false,
+      "description": "SourceConfig describes a single ingestion source such as a glob, URL, or bucket.",
       "properties": {
         "bucket": {
           "type": "string"
@@ -488,6 +496,7 @@
     },
     "VectorDBConfig": {
       "additionalProperties": false,
+      "description": "VectorDBConfig configures a vector database target for knowledge storage.",
       "properties": {
         "config": {
           "$ref": "#/$defs/VectorDBConnConfig"
@@ -503,12 +512,16 @@
     },
     "VectorDBConnConfig": {
       "additionalProperties": false,
+      "description": "VectorDBConnConfig defines connection and table options for a vector database.",
       "properties": {
         "auth": {
           "additionalProperties": {
             "type": "string"
           },
           "type": "object"
+        },
+        "collection": {
+          "type": "string"
         },
         "consistency": {
           "type": "string"
@@ -867,6 +880,13 @@
           "description": "ContextCompactionThreshold expresses the context usage ratio (0-1) that triggers compaction.",
           "type": "number"
         },
+        "context_warning_thresholds": {
+          "description": "ContextWarningThresholds defines usage ratios (0-1) that trigger telemetry warnings.",
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
         "denied_mcp_names": {
           "description": "DeniedMCPNames excludes MCP servers/tools from advertisement and invocation.\nEntries take precedence over the allow list.",
           "items": {
@@ -938,6 +958,10 @@
           "description": "NoProgressThreshold configures how many loop iterations without progress are\ntolerated before the orchestrator considers the interaction stalled.\nDefault: 3 (orchestrator default)",
           "type": "integer"
         },
+        "provider_timeout": {
+          "description": "ProviderTimeout sets the maximum duration allowed for a single provider invocation.\n\nApplies to each GenerateContent call (including retries) to keep the orchestrator responsive.\nDefault: 5m",
+          "type": "integer"
+        },
         "proxy_url": {
           "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"\" (empty; supply MCP proxy URL explicitly or derive from MCPProxy.BaseURL)",
           "type": "string"
@@ -971,6 +995,10 @@
         },
         "retry_jitter_percent": {
           "description": "RetryJitterPercent controls jitter strength when retry_jitter is enabled.",
+          "type": "integer"
+        },
+        "structured_output_retries": {
+          "description": "StructuredOutputRetryAttempts controls how many validation retries are attempted before failing.\n\nWhen set to 0, the orchestrator default (2) is used.",
           "type": "integer"
         },
         "tool_call_caps": {

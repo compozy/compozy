@@ -40,9 +40,9 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 		metric:    strings.ToLower(strings.TrimSpace(cfg.Metric)),
 		ensureIdx: cfg.EnsureIndex,
 	}
-	store.tableIdent = pgx.Identifier{store.table}.Sanitize()
+	store.tableIdent = sanitizeIdentifier(store.table)
 	if store.indexName != "" {
-		store.indexIdent = pgx.Identifier{store.indexName}.Sanitize()
+		store.indexIdent = sanitizeIdentifier(store.indexName)
 	}
 	if err := store.ensureSchema(ctx); err != nil {
 		pool.Close()
@@ -73,6 +73,21 @@ func chooseIndex(cfg *Config) string {
 	}
 	table := chooseTable(cfg)
 	return fmt.Sprintf("%s_embedding_idx", table)
+}
+
+func sanitizeIdentifier(raw string) string {
+	parts := strings.Split(raw, ".")
+	ident := make(pgx.Identifier, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			ident = append(ident, part)
+		}
+	}
+	if len(ident) == 0 {
+		return pgx.Identifier{raw}.Sanitize()
+	}
+	return ident.Sanitize()
 }
 
 func (p *pgStore) ensureSchema(ctx context.Context) error {

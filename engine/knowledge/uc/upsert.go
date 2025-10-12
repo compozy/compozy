@@ -61,50 +61,15 @@ func (uc *Upsert) normalizeConfig(
 	if err != nil {
 		return nil, err
 	}
-	embKey := resources.ResourceKey{
-		Project: projectID,
-		Type:    resources.ResourceEmbedder,
-		ID:      strings.TrimSpace(cfg.Embedder),
-	}
-	embVal, _, err := uc.store.Get(ctx, embKey)
-	if err != nil {
-		if errors.Is(err, resources.ErrNotFound) {
-			return nil, fmt.Errorf("%w: unknown embedder %q", ErrValidationFail, cfg.Embedder)
-		}
-		return nil, fmt.Errorf("load embedder %q: %w", cfg.Embedder, err)
-	}
-	emb, err := decodeStoredEmbedder(embVal, cfg.Embedder)
+	emb, err := uc.loadEmbedderConfig(ctx, projectID, cfg.Embedder)
 	if err != nil {
 		return nil, err
 	}
-	vecKey := resources.ResourceKey{
-		Project: projectID,
-		Type:    resources.ResourceVectorDB,
-		ID:      strings.TrimSpace(cfg.VectorDB),
-	}
-	vecVal, _, err := uc.store.Get(ctx, vecKey)
-	if err != nil {
-		if errors.Is(err, resources.ErrNotFound) {
-			return nil, fmt.Errorf("%w: unknown vector_db %q", ErrValidationFail, cfg.VectorDB)
-		}
-		return nil, fmt.Errorf("load vector_db %q: %w", cfg.VectorDB, err)
-	}
-	vector, err := decodeStoredVectorDB(vecVal, cfg.VectorDB)
+	vector, err := uc.loadVectorDBConfig(ctx, projectID, cfg.VectorDB)
 	if err != nil {
 		return nil, err
 	}
-	defs := knowledge.Definitions{
-		Embedders:      []knowledge.EmbedderConfig{*emb},
-		VectorDBs:      []knowledge.VectorDBConfig{*vector},
-		KnowledgeBases: []knowledge.BaseConfig{*cfg},
-	}
-	defaults := knowledge.DefaultsFromContext(ctx)
-	defs.NormalizeWithDefaults(defaults)
-	if err := defs.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrValidationFail, err)
-	}
-	normalized := defs.KnowledgeBases[0]
-	return &normalized, nil
+	return normalizeKnowledgeDefinitions(ctx, cfg, emb, vector)
 }
 
 func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, error) {
@@ -141,6 +106,67 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 		return nil, fmt.Errorf("encode knowledge base: %w", err)
 	}
 	return &UpsertOutput{KnowledgeBase: entry, ETag: etag, Created: created}, nil
+}
+
+func (uc *Upsert) loadEmbedderConfig(
+	ctx context.Context,
+	projectID string,
+	embedderID string,
+) (*knowledge.EmbedderConfig, error) {
+	trimmed := strings.TrimSpace(embedderID)
+	key := resources.ResourceKey{
+		Project: projectID,
+		Type:    resources.ResourceEmbedder,
+		ID:      trimmed,
+	}
+	val, _, err := uc.store.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return nil, fmt.Errorf("%w: unknown embedder %q", ErrValidationFail, embedderID)
+		}
+		return nil, fmt.Errorf("load embedder %q: %w", embedderID, err)
+	}
+	return decodeStoredEmbedder(val, trimmed)
+}
+
+func (uc *Upsert) loadVectorDBConfig(
+	ctx context.Context,
+	projectID string,
+	vectorID string,
+) (*knowledge.VectorDBConfig, error) {
+	trimmed := strings.TrimSpace(vectorID)
+	key := resources.ResourceKey{
+		Project: projectID,
+		Type:    resources.ResourceVectorDB,
+		ID:      trimmed,
+	}
+	val, _, err := uc.store.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return nil, fmt.Errorf("%w: unknown vector_db %q", ErrValidationFail, vectorID)
+		}
+		return nil, fmt.Errorf("load vector_db %q: %w", vectorID, err)
+	}
+	return decodeStoredVectorDB(val, trimmed)
+}
+
+func normalizeKnowledgeDefinitions(
+	ctx context.Context,
+	cfg *knowledge.BaseConfig,
+	emb *knowledge.EmbedderConfig,
+	vector *knowledge.VectorDBConfig,
+) (*knowledge.BaseConfig, error) {
+	defs := knowledge.Definitions{
+		Embedders:      []knowledge.EmbedderConfig{*emb},
+		VectorDBs:      []knowledge.VectorDBConfig{*vector},
+		KnowledgeBases: []knowledge.BaseConfig{*cfg},
+	}
+	defs.NormalizeWithDefaults(knowledge.DefaultsFromContext(ctx))
+	if err := defs.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrValidationFail, err)
+	}
+	normalized := defs.KnowledgeBases[0]
+	return &normalized, nil
 }
 
 func (uc *Upsert) storeKnowledgeBase(

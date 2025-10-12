@@ -96,10 +96,8 @@ func NewPipeline(
 func (p *Pipeline) Run(ctx context.Context) (result *Result, err error) {
 	strategy := p.options.NormalizedStrategy()
 	log := logger.FromContext(ctx).With(
-		"kb_id",
-		p.binding.KnowledgeBase.ID,
-		"binding_id",
-		p.binding.ID,
+		"kb_id", p.binding.KnowledgeBase.ID,
+		"binding_id", p.binding.ID,
 	)
 	start := time.Now()
 	ctx, span := p.tracer.Start(ctx, "compozy.knowledge.ingest.run", trace.WithAttributes(
@@ -107,46 +105,67 @@ func (p *Pipeline) Run(ctx context.Context) (result *Result, err error) {
 		attribute.String("binding_id", p.binding.ID),
 		attribute.String("strategy", string(strategy)),
 	))
-	defer func() {
-		duration := time.Since(start)
-		knowledge.RecordIngestDuration(ctx, p.binding.KnowledgeBase.ID, duration)
-		if err != nil {
-			log.Error("Knowledge ingestion failed", "error", err, "duration_seconds", duration.Seconds())
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-			span.End()
-			return
-		}
-		if result != nil {
-			knowledge.RecordIngestChunks(ctx, p.binding.KnowledgeBase.ID, result.Chunks)
-			log.Info(
-				"Knowledge ingestion finished",
-				"documents",
-				result.Documents,
-				"chunks",
-				result.Chunks,
-				"persisted",
-				result.Persisted,
-				"duration_seconds",
-				duration.Seconds(),
-			)
-			span.SetAttributes(
-				attribute.Int("documents", result.Documents),
-				attribute.Int("chunks", result.Chunks),
-				attribute.Int("persisted", result.Persisted),
-			)
-		} else {
-			log.Info("Knowledge ingestion finished", "duration_seconds", duration.Seconds())
-		}
-		span.End()
-	}()
+	defer p.finishRun(ctx, span, start, &result, &err)
+
 	log.Info("Knowledge ingestion started", "strategy", string(strategy))
-	if strategy != StrategyUpsert && strategy != StrategyReplace {
-		err = fmt.Errorf("knowledge: ingestion strategy %q not supported", strategy)
+	if validateErr := p.validateStrategy(strategy); validateErr != nil {
+		err = validateErr
 		return nil, err
 	}
 	result, err = p.executeIngestion(ctx, strategy)
 	return result, err
+}
+
+func (p *Pipeline) finishRun(
+	ctx context.Context,
+	span trace.Span,
+	start time.Time,
+	result **Result,
+	runErr *error,
+) {
+	duration := time.Since(start)
+	knowledge.RecordIngestDuration(ctx, p.binding.KnowledgeBase.ID, duration)
+
+	log := logger.FromContext(ctx).With(
+		"kb_id", p.binding.KnowledgeBase.ID,
+		"binding_id", p.binding.ID,
+	)
+	seconds := duration.Seconds()
+	if runErr != nil && *runErr != nil {
+		err := *runErr
+		log.Error("Knowledge ingestion failed", "error", err, "duration_seconds", seconds)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		span.End()
+		return
+	}
+
+	if result != nil && *result != nil {
+		res := *result
+		knowledge.RecordIngestChunks(ctx, p.binding.KnowledgeBase.ID, res.Chunks)
+		log.Info(
+			"Knowledge ingestion finished",
+			"documents", res.Documents,
+			"chunks", res.Chunks,
+			"persisted", res.Persisted,
+			"duration_seconds", seconds,
+		)
+		span.SetAttributes(
+			attribute.Int("documents", res.Documents),
+			attribute.Int("chunks", res.Chunks),
+			attribute.Int("persisted", res.Persisted),
+		)
+	} else {
+		log.Info("Knowledge ingestion finished", "duration_seconds", seconds)
+	}
+	span.End()
+}
+
+func (p *Pipeline) validateStrategy(strategy Strategy) error {
+	if strategy != StrategyUpsert && strategy != StrategyReplace {
+		return fmt.Errorf("knowledge: ingestion strategy %q not supported", strategy)
+	}
+	return nil
 }
 
 func (p *Pipeline) executeIngestion(ctx context.Context, strategy Strategy) (*Result, error) {
