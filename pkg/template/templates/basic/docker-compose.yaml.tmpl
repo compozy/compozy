@@ -20,7 +20,7 @@ services:
   # PostgreSQL for the application
   postgres:
     container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-postgres
-    image: postgres:15-alpine
+    image: ${APP_POSTGRES_IMAGE:-pgvector/pgvector:pg16}
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}

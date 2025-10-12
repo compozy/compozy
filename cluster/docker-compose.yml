@@ -5,6 +5,7 @@
 # DB_USER=postgres
 # DB_PASSWORD=postgres
 # DB_NAME=compozy
+# APP_POSTGRES_IMAGE=pgvector/pgvector:pg16
 #
 # Temporal Database Configuration
 # TEMPORAL_DB_HOST=localhost
@@ -76,7 +77,7 @@ services:
   # PostgreSQL for the application
   app-postgresql:
     container_name: app-postgresql
-    image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
+    image: "${APP_POSTGRES_IMAGE:-pgvector/pgvector:pg16}"
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}

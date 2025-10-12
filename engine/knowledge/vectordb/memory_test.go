@@ -67,4 +67,17 @@ func TestMemoryStore(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, matches, 2)
 	})
+
+	t.Run("ShouldShareStoreAcrossInstancesWithSameID", func(t *testing.T) {
+		const sharedID = "shared-memory-store"
+		first := newMemoryStore(&Config{ID: sharedID, Dimension: 2})
+		record := Record{ID: "shared-1", Text: "shared", Embedding: []float32{1, 0}}
+		require.NoError(t, first.Upsert(ctx, []Record{record}))
+
+		second := newMemoryStore(&Config{ID: sharedID, Dimension: 2})
+		matches, err := second.Search(ctx, []float32{1, 0}, SearchOptions{TopK: 1})
+		require.NoError(t, err)
+		require.Len(t, matches, 1)
+		assert.Equal(t, record.ID, matches[0].ID)
+	})
 }

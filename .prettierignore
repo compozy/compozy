@@ -3,6 +3,7 @@ node_modules
 .pnp
 .pnp.js
 *.mdc
+.venv-crawl
 
 # Build outputs
 .next

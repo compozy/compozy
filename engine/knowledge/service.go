@@ -95,7 +95,7 @@ func (r *Resolver) Resolve(input *ResolveInput) (*ResolvedBinding, error) {
 	if err != nil {
 		return nil, err
 	}
-	retrieval := applyOverrides(kb.Retrieval, finalBinding)
+	retrieval := applyOverrides(&kb.Retrieval, finalBinding)
 	result := &ResolvedBinding{
 		ID:            finalBinding.ID,
 		KnowledgeBase: kb,
@@ -186,17 +186,24 @@ func mergeBindings(project, workflow, inline *core.KnowledgeBinding) *core.Knowl
 	return resolved
 }
 
-func applyOverrides(base RetrievalConfig, binding *core.KnowledgeBinding) RetrievalConfig {
-	if binding == nil {
-		return base
+func applyOverrides(base *RetrievalConfig, binding *core.KnowledgeBinding) RetrievalConfig {
+	if base == nil {
+		return RetrievalConfig{}
 	}
-	baseBinding := bindingFromRetrieval(base)
+	local := *base
+	if binding == nil {
+		return local
+	}
+	baseBinding := bindingFromRetrieval(&local)
 	baseBinding.Merge(binding)
-	return retrievalFromBinding(base, &baseBinding)
+	return retrievalFromBinding(&local, &baseBinding)
 }
 
-func bindingFromRetrieval(cfg RetrievalConfig) core.KnowledgeBinding {
+func bindingFromRetrieval(cfg *RetrievalConfig) core.KnowledgeBinding {
 	result := core.KnowledgeBinding{}
+	if cfg == nil {
+		return result
+	}
 	topK := cfg.TopK
 	result.TopK = &topK
 	minScore := cfg.MinScoreValue()
@@ -209,8 +216,14 @@ func bindingFromRetrieval(cfg RetrievalConfig) core.KnowledgeBinding {
 	return result
 }
 
-func retrievalFromBinding(base RetrievalConfig, binding *core.KnowledgeBinding) RetrievalConfig {
-	result := base
+func retrievalFromBinding(base *RetrievalConfig, binding *core.KnowledgeBinding) RetrievalConfig {
+	var result RetrievalConfig
+	if base != nil {
+		result = *base
+	}
+	if binding == nil {
+		return result
+	}
 	if binding.TopK != nil {
 		result.TopK = *binding.TopK
 	}
@@ -229,7 +242,7 @@ func retrievalFromBinding(base RetrievalConfig, binding *core.KnowledgeBinding) 
 	switch {
 	case binding.Filters != nil:
 		result.Filters = core.CopyMap(binding.Filters)
-	case len(base.Filters) > 0:
+	case base != nil && len(base.Filters) > 0:
 		result.Filters = core.CopyMap(base.Filters)
 	default:
 		result.Filters = nil

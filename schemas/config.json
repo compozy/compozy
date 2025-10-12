@@ -955,6 +955,10 @@
         "schedule_retry_max_duration": {
           "type": "integer"
         },
+        "knowledge_ingest": {
+          "description": "Timeout for startup knowledge ingestion runs (0 disables timeouts).",
+          "type": "integer"
+        },
         "server_shutdown": {
           "type": "integer"
         },

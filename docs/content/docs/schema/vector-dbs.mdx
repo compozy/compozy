@@ -25,12 +25,22 @@ vector_dbs:
   - id: pgvector_local
     type: pgvector
     config:
-      dsn: "{{ .env.PGVECTOR_DSN }}"
+      dsn: "{{ .env.PGVECTOR_DSN }}"  # Optional for pgvector
       ensure_index: true
       table: knowledge_chunks
+  - id: pgvector_default
+    type: pgvector
+    config:
+      # DSN omitted - uses global postgres database config
+      ensure_index: true
+      table: knowledge_chunks
+      dimension: 1536
 ```
 
 - `in_memory` is ideal for quickstarts and tests; persistent workloads should use `pgvector` or `qdrant`.
+- `filesystem` persists embeddings to `.compozy/cache/<vector_db_id>.store` when no `config.path` is provided, so quickstarts do not require extra configuration.
+- **pgvector DSN is optional** - when not provided, pgvector uses the global postgres database configuration, reducing configuration duplication.
+- Qdrant requires an explicit DSN.
 - `config.ensure_index` controls whether Compozy enforces pgvector index creation on startup.
 - Use `config.auth` to pass API keys or bearer tokens for managed vector databases.
 

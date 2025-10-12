@@ -449,6 +449,7 @@ func flattenServerConfig(cfg *config.Config, result map[string]string) {
 	result["server.port"] = fmt.Sprintf("%d", cfg.Server.Port)
 	result["server.cors_enabled"] = fmt.Sprintf("%v", cfg.Server.CORSEnabled)
 	result["server.timeout"] = cfg.Server.Timeout.String()
+	result["server.timeouts.knowledge_ingest"] = cfg.Server.Timeouts.KnowledgeIngest.String()
 }
 
 // flattenDatabaseConfig flattens database configuration

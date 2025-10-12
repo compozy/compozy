@@ -77,7 +77,7 @@ func (uc *Delete) cleanupVectors(
 	kbID string,
 	vec *knowledge.VectorDBConfig,
 ) error {
-	storeCfg, err := configutil.ToVectorStoreConfig(projectID, vec)
+	storeCfg, err := configutil.ToVectorStoreConfig(ctx, projectID, vec)
 	if err != nil {
 		return err
 	}

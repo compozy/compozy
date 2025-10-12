@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -29,7 +30,11 @@ import (
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
-const directPromptActionID = "direct-prompt"
+const (
+	directPromptActionID   = "direct-prompt"
+	retrievalKeywordLimit  = 32
+	retrievalFocusMaxRunes = 512
+)
 
 // Service provides LLM integration capabilities using clean architecture
 type Service struct {
@@ -49,7 +54,20 @@ type Service struct {
 	closeCtx                  context.Context
 	cacheMu                   sync.RWMutex
 	embedderCache             map[string]*embedder.Adapter
-	vectorStoreCache          map[string]vectordb.Store
+	vectorStoreCache          map[string]*cachedVectorStore
+}
+
+type cachedVectorStore struct {
+	store   vectordb.Store
+	release func(context.Context) error
+}
+
+var knowledgeStopwords = map[string]struct{}{
+	"the": {}, "and": {}, "for": {}, "with": {}, "that": {},
+	"from": {}, "this": {}, "have": {}, "your": {}, "about": {},
+	"into": {}, "only": {}, "which": {}, "would": {}, "their": {},
+	"there": {}, "should": {}, "could": {}, "while": {}, "where": {},
+	"when": {}, "what": {}, "question": {}, "answer": {}, "please": {},
 }
 
 type builtinRegistryAdapter struct {
@@ -323,7 +341,7 @@ func newServiceInstance(
 		toolRegistry:     registry,
 		closeCtx:         deriveCloseContext(ctx),
 		embedderCache:    make(map[string]*embedder.Adapter),
-		vectorStoreCache: make(map[string]vectordb.Store),
+		vectorStoreCache: make(map[string]*cachedVectorStore),
 	}
 	if state == nil {
 		return service
@@ -554,16 +572,6 @@ func (s *Service) resolveKnowledge(
 	if entry == nil {
 		return nil, nil
 	}
-	if len(entry.Contexts) == 0 && strings.TrimSpace(entry.Retrieval.Fallback) == "" {
-		return nil, nil
-	}
-	logger.FromContext(ctx).Debug(
-		"Knowledge retrieval completed",
-		"binding_id",
-		binding.ID,
-		"results",
-		len(entry.Contexts),
-	)
 	return []orchestratorpkg.KnowledgeEntry{*entry}, nil
 }
 
@@ -610,15 +618,167 @@ func (s *Service) retrieveKnowledgeContexts(
 	if err != nil {
 		return nil, err
 	}
-	contexts, err := retrievalService.Retrieve(ctx, binding, query)
+	contexts, stage, err := s.runRetrievalStages(ctx, retrievalService, binding, query)
 	if err != nil {
 		return nil, err
 	}
+	entry := s.summarizeRetrieval(ctx, binding, contexts, stage)
+	return entry, nil
+}
+
+type retrievalStage struct {
+	name  string
+	query string
+}
+
+func (s *Service) runRetrievalStages(
+	ctx context.Context,
+	svc *retriever.Service,
+	binding *knowledge.ResolvedBinding,
+	query string,
+) ([]knowledge.RetrievedContext, string, error) {
+	stages := buildRetrievalStages(query)
+	minResults := binding.Retrieval.MinResultsValue()
+	for i := range stages {
+		stage := stages[i]
+		knowledge.RecordRetrievalAttempt(ctx, binding.ID, stage.name)
+		contexts, err := svc.Retrieve(ctx, binding, stage.query)
+		if err != nil {
+			return nil, "", err
+		}
+		if len(contexts) >= minResults {
+			return contexts, stage.name, nil
+		}
+		knowledge.RecordRetrievalEmpty(ctx, binding.ID, stage.name)
+	}
+	return nil, "", nil
+}
+
+func (s *Service) summarizeRetrieval(
+	ctx context.Context,
+	binding *knowledge.ResolvedBinding,
+	contexts []knowledge.RetrievedContext,
+	stage string,
+) *orchestratorpkg.KnowledgeEntry {
+	retrieval := binding.Retrieval
+	minResults := retrieval.MinResultsValue()
+	status := knowledge.RetrievalStatusHit
+	notice := ""
+	if len(contexts) < minResults {
+		notice = strings.TrimSpace(retrieval.Fallback)
+		if notice == "" {
+			notice = fmt.Sprintf("No indexed knowledge available for %s.", binding.ID)
+			retrieval.Fallback = notice
+		}
+		switch retrieval.ToolFallback {
+		case knowledge.ToolFallbackEscalate, knowledge.ToolFallbackAuto:
+			status = knowledge.RetrievalStatusEscalated
+			knowledge.RecordToolEscalation(ctx, binding.ID)
+		default:
+			status = knowledge.RetrievalStatusFallback
+		}
+		contexts = nil
+	}
+	knowledge.RecordRouterDecision(ctx, binding.ID, string(status))
+	logger.FromContext(ctx).Debug(
+		"Knowledge retrieval completed",
+		"binding_id", binding.ID,
+		"status", status,
+		"stage", stage,
+		"results", len(contexts),
+	)
 	return &orchestratorpkg.KnowledgeEntry{
 		BindingID: binding.ID,
-		Retrieval: binding.Retrieval,
+		Retrieval: retrieval,
 		Contexts:  contexts,
-	}, nil
+		Status:    status,
+		Notice:    notice,
+	}
+}
+
+func buildRetrievalStages(query string) []retrievalStage {
+	stages := make([]retrievalStage, 0, 3)
+	seen := make(map[string]struct{})
+	addStage := func(name string, value string) {
+		trimmed := trimToRunes(strings.TrimSpace(value), knowledgeQueryMaxPartRunes)
+		if trimmed == "" {
+			return
+		}
+		if _, ok := seen[trimmed]; ok {
+			return
+		}
+		seen[trimmed] = struct{}{}
+		stages = append(stages, retrievalStage{name: name, query: trimmed})
+	}
+	addStage("initial", query)
+	addStage("keywords", keywordQuery(query))
+	addStage("focus", focusQuery(query))
+	if len(stages) == 0 {
+		addStage("fallback", query)
+	}
+	return stages
+}
+
+func keywordQuery(query string) string {
+	lowered := strings.ToLower(query)
+	tokens := strings.FieldsFunc(lowered, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsPunct(r)
+	})
+	if len(tokens) == 0 {
+		return ""
+	}
+	keywords := make([]string, 0, len(tokens))
+	for _, tok := range tokens {
+		tok = strings.TrimSpace(tok)
+		if len(tok) <= 2 {
+			continue
+		}
+		if _, stop := knowledgeStopwords[tok]; stop {
+			continue
+		}
+		keywords = append(keywords, tok)
+		if len(keywords) >= retrievalKeywordLimit {
+			break
+		}
+	}
+	if len(keywords) == 0 {
+		return ""
+	}
+	return strings.Join(keywords, " ")
+}
+
+func focusQuery(query string) string {
+	trimmed := strings.TrimSpace(query)
+	if trimmed == "" {
+		return ""
+	}
+	idx := strings.LastIndexAny(trimmed, "?!")
+	if idx >= 0 && idx+1 < len(trimmed) {
+		candidate := strings.TrimSpace(trimmed[idx+1:])
+		if candidate != "" {
+			return trimToRunes(candidate, retrievalFocusMaxRunes)
+		}
+	}
+	lines := strings.Split(trimmed, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line != "" {
+			return trimToRunes(line, retrievalFocusMaxRunes)
+		}
+	}
+	return trimToRunes(trimmed, retrievalFocusMaxRunes)
+}
+
+func trimToRunes(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	if value == "" || limit <= 0 {
+		return value
+	}
+	runes := []rune(value)
+	if len(runes) > limit {
+		return string(runes[:limit])
+	}
+	return value
 }
 
 const knowledgeQueryMaxPartRunes = 2048
@@ -819,26 +979,36 @@ func (s *Service) getOrCreateVectorStore(ctx context.Context, cfg *knowledge.Vec
 		return nil, fmt.Errorf("knowledge: vector store id is required")
 	}
 	s.cacheMu.RLock()
-	store, ok := s.vectorStoreCache[id]
+	cached, ok := s.vectorStoreCache[id]
 	s.cacheMu.RUnlock()
 	if ok {
-		return store, nil
+		return cached.store, nil
 	}
-	storeCfg, err := configutil.ToVectorStoreConfig(s.knowledgeProjectID, cfg)
+	storeCfg, err := configutil.ToVectorStoreConfig(ctx, s.knowledgeProjectID, cfg)
+	if err != nil {
+		return nil, err
+	}
+	store, release, err := vectordb.AcquireShared(ctx, storeCfg)
 	if err != nil {
 		return nil, err
 	}
 	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	if store, ok := s.vectorStoreCache[id]; ok {
-		return store, nil
+	if existing, ok := s.vectorStoreCache[id]; ok {
+		s.cacheMu.Unlock()
+		if release != nil {
+			if err := release(ctx); err != nil {
+				logger.FromContext(ctx).Warn(
+					"failed to release vector store handle",
+					"vector_id", id,
+					"error", err,
+				)
+			}
+		}
+		return existing.store, nil
 	}
-	created, err := vectordb.New(ctx, storeCfg)
-	if err != nil {
-		return nil, err
-	}
-	s.vectorStoreCache[id] = created
-	return created, nil
+	s.vectorStoreCache[id] = &cachedVectorStore{store: store, release: release}
+	s.cacheMu.Unlock()
+	return store, nil
 }
 
 func (s *Service) buildInlineKnowledgeBinding(agentConfig *agent.Config) []core.KnowledgeBinding {
@@ -956,33 +1126,68 @@ func (s *Service) InvalidateToolsCache(ctx context.Context) {
 // Close cleans up resources
 func (s *Service) Close() error {
 	var result error
-	stores := make([]vectordb.Store, 0, len(s.vectorStoreCache))
-	s.cacheMu.Lock()
-	for key, store := range s.vectorStoreCache {
-		stores = append(stores, store)
-		delete(s.vectorStoreCache, key)
-	}
-	s.cacheMu.Unlock()
-	if len(stores) > 0 {
+	entries := s.drainVectorStoreCache()
+	if len(entries) > 0 {
 		timeoutCtx, cancel := context.WithTimeout(s.closeCtx, 10*time.Second)
 		defer cancel()
-		for i := range stores {
-			if err := stores[i].Close(timeoutCtx); err != nil && result == nil {
-				result = err
+		if err := closeVectorStores(timeoutCtx, entries); err != nil {
+			result = err
+		}
+	}
+	if err := s.closeToolRegistry(); err != nil && result == nil {
+		result = err
+	}
+	if err := s.closeOrchestrator(); err != nil && result == nil {
+		result = err
+	}
+	return result
+}
+
+func (s *Service) drainVectorStoreCache() []*cachedVectorStore {
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	entries := make([]*cachedVectorStore, 0, len(s.vectorStoreCache))
+	for key, entry := range s.vectorStoreCache {
+		entries = append(entries, entry)
+		delete(s.vectorStoreCache, key)
+	}
+	return entries
+}
+
+func closeVectorStores(ctx context.Context, entries []*cachedVectorStore) error {
+	var firstErr error
+	for i := range entries {
+		entry := entries[i]
+		if entry == nil {
+			continue
+		}
+		if entry.release != nil {
+			if err := entry.release(ctx); err != nil && firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if entry.store != nil {
+			if err := entry.store.Close(ctx); err != nil && firstErr == nil {
+				firstErr = err
 			}
 		}
 	}
-	if s.toolRegistry != nil {
-		if err := s.toolRegistry.Close(); err != nil && result == nil {
-			result = err
-		}
+	return firstErr
+}
+
+func (s *Service) closeToolRegistry() error {
+	if s.toolRegistry == nil {
+		return nil
 	}
-	if s.orchestrator != nil {
-		if err := s.orchestrator.Close(); err != nil && result == nil {
-			result = err
-		}
+	return s.toolRegistry.Close()
+}
+
+func (s *Service) closeOrchestrator() error {
+	if s.orchestrator == nil {
+		return nil
 	}
-	return result
+	return s.orchestrator.Close()
 }
 
 // collectMCPsToRegister combines agent-declared and workflow-level MCPs for

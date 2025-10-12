@@ -357,6 +357,7 @@ func createServerDefaults(defaultConfig *Config) map[string]any {
 			"schedule_retry_max_delay":       defaultConfig.Server.Timeouts.ScheduleRetryMaxDelay.String(),
 			"schedule_retry_max_attempts":    defaultConfig.Server.Timeouts.ScheduleRetryMaxAttempts,
 			"schedule_retry_backoff_seconds": defaultConfig.Server.Timeouts.ScheduleRetryBackoffSeconds,
+			"knowledge_ingest":               defaultConfig.Server.Timeouts.KnowledgeIngest.String(),
 			"temporal_reachability":          defaultConfig.Server.Timeouts.TemporalReachability.String(),
 			"start_probe_delay":              defaultConfig.Server.Timeouts.StartProbeDelay.String(),
 		},

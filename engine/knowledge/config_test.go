@@ -335,3 +335,123 @@ func createVectorDBConfig(id string) knowledge.VectorDBConfig {
 		},
 	}
 }
+
+func TestPgvectorDSNValidation(t *testing.T) {
+	t.Run("Should allow pgvector without DSN", func(t *testing.T) {
+		defs := knowledge.Definitions{
+			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("embedder1")},
+			VectorDBs: []knowledge.VectorDBConfig{
+				{
+					ID:   "pgvector_no_dsn",
+					Type: knowledge.VectorDBTypePGVector,
+					Config: knowledge.VectorDBConnConfig{
+						Table:     "knowledge_chunks",
+						Dimension: testDimension,
+					},
+				},
+			},
+			KnowledgeBases: []knowledge.BaseConfig{
+				{
+					ID:       "kb1",
+					Embedder: "embedder1",
+					VectorDB: "pgvector_no_dsn",
+					Sources: []knowledge.SourceConfig{
+						{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+					},
+				},
+			},
+		}
+		defs.Normalize()
+		require.NoError(t, defs.Validate(), "pgvector should work without DSN")
+	})
+
+	t.Run("Should allow pgvector with explicit DSN", func(t *testing.T) {
+		defs := knowledge.Definitions{
+			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("embedder1")},
+			VectorDBs: []knowledge.VectorDBConfig{
+				{
+					ID:   "pgvector_with_dsn",
+					Type: knowledge.VectorDBTypePGVector,
+					Config: knowledge.VectorDBConnConfig{
+						DSN:       "{{ .env.PGVECTOR_DSN }}",
+						Table:     "knowledge_chunks",
+						Dimension: testDimension,
+					},
+				},
+			},
+			KnowledgeBases: []knowledge.BaseConfig{
+				{
+					ID:       "kb1",
+					Embedder: "embedder1",
+					VectorDB: "pgvector_with_dsn",
+					Sources: []knowledge.SourceConfig{
+						{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+					},
+				},
+			},
+		}
+		defs.Normalize()
+		require.NoError(t, defs.Validate())
+	})
+
+	t.Run("Should require DSN for qdrant", func(t *testing.T) {
+		defs := knowledge.Definitions{
+			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("embedder1")},
+			VectorDBs: []knowledge.VectorDBConfig{
+				{
+					ID:   "qdrant_no_dsn",
+					Type: knowledge.VectorDBTypeQdrant,
+					Config: knowledge.VectorDBConnConfig{
+						Table:     "knowledge_chunks",
+						Dimension: testDimension,
+					},
+				},
+			},
+			KnowledgeBases: []knowledge.BaseConfig{
+				{
+					ID:       "kb1",
+					Embedder: "embedder1",
+					VectorDB: "qdrant_no_dsn",
+					Sources: []knowledge.SourceConfig{
+						{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+					},
+				},
+			},
+		}
+		defs.Normalize()
+		err := defs.Validate()
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "requires config.dsn")
+	})
+
+	t.Run("Should reject non-templated DSN for pgvector", func(t *testing.T) {
+		defs := knowledge.Definitions{
+			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("embedder1")},
+			VectorDBs: []knowledge.VectorDBConfig{
+				{
+					ID:   "pgvector_plain_dsn",
+					Type: knowledge.VectorDBTypePGVector,
+					Config: knowledge.VectorDBConnConfig{
+						DSN:       "postgresql://localhost:5432/db",
+						Table:     "knowledge_chunks",
+						Dimension: testDimension,
+					},
+				},
+			},
+			KnowledgeBases: []knowledge.BaseConfig{
+				{
+					ID:       "kb1",
+					Embedder: "embedder1",
+					VectorDB: "pgvector_plain_dsn",
+					Sources: []knowledge.SourceConfig{
+						{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+					},
+				},
+			},
+		}
+		defs.Normalize()
+		err := defs.Validate()
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "dsn must use env or secret interpolation")
+	})
+}

@@ -19,7 +19,7 @@ cp .env.example .env
 make start-docker
 ```
 
-The default `make start-docker` target boots PostgreSQL with the pgvector extension on port `5433`.
+The default `make start-docker` target boots PostgreSQL with the pgvector extension on port `5432`.
 
 ## Steps
 

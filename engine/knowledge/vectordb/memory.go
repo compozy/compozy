@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/compozy/compozy/engine/core"
@@ -18,15 +19,41 @@ type memoryStore struct {
 	dimension int
 }
 
+var (
+	memoryRegistryMu sync.Mutex
+	memoryRegistry   = make(map[string]*memoryStore)
+)
+
 func newMemoryStore(cfg *Config) *memoryStore {
-	dim := 0
+	var (
+		id  string
+		dim int
+	)
 	if cfg != nil {
+		id = strings.TrimSpace(cfg.ID)
 		dim = cfg.Dimension
 	}
-	return &memoryStore{
+	if id == "" {
+		return &memoryStore{
+			records:   make(map[string]Record),
+			dimension: dim,
+		}
+	}
+	memoryRegistryMu.Lock()
+	defer memoryRegistryMu.Unlock()
+
+	if existing, ok := memoryRegistry[id]; ok {
+		if dim > 0 && existing.dimension == 0 {
+			existing.dimension = dim
+		}
+		return existing
+	}
+	store := &memoryStore{
 		records:   make(map[string]Record),
 		dimension: dim,
 	}
+	memoryRegistry[id] = store
+	return store
 }
 
 func (m *memoryStore) Upsert(_ context.Context, records []Record) error {

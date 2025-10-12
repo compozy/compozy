@@ -544,6 +544,10 @@
         "metric": {
           "type": "string"
         },
+        "path": {
+          "description": "Filesystem storage path; defaults to `.compozy/cache/<vector_db_id>.store` when omitted.",
+          "type": "string"
+        },
         "table": {
           "type": "string"
         }
@@ -1514,6 +1518,10 @@
           "type": "integer"
         },
         "schedule_retry_max_duration": {
+          "type": "integer"
+        },
+        "knowledge_ingest": {
+          "description": "Timeout for startup knowledge ingestion runs (0 disables timeouts).",
           "type": "integer"
         },
         "server_shutdown": {

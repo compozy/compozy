@@ -428,6 +428,45 @@ func TestBuildKnowledgeQuery(t *testing.T) {
 	})
 }
 
+func TestServiceSummarizeRetrieval(t *testing.T) {
+	l := logger.NewForTests()
+	ctx := logger.ContextWithLogger(context.Background(), l)
+	svc := &Service{}
+
+	t.Run("marks hit when enough contexts", func(t *testing.T) {
+		binding := &knowledge.ResolvedBinding{ID: "kb", Retrieval: knowledge.RetrievalConfig{MinResults: 1}}
+		contexts := []knowledge.RetrievedContext{{BindingID: "kb", Content: "body", Score: 0.9}}
+		entry := svc.summarizeRetrieval(ctx, binding, contexts, "initial")
+		require.NotNil(t, entry)
+		assert.Equal(t, knowledge.RetrievalStatusHit, entry.Status)
+		assert.Len(t, entry.Contexts, 1)
+		assert.Equal(t, "", entry.Notice)
+	})
+
+	t.Run("suppresses tools on fallback", func(t *testing.T) {
+		binding := &knowledge.ResolvedBinding{
+			ID:        "kb",
+			Retrieval: knowledge.RetrievalConfig{MinResults: 2, ToolFallback: knowledge.ToolFallbackNever},
+		}
+		entry := svc.summarizeRetrieval(ctx, binding, nil, "initial")
+		require.NotNil(t, entry)
+		assert.Equal(t, knowledge.RetrievalStatusFallback, entry.Status)
+		assert.Empty(t, entry.Contexts)
+		assert.NotEmpty(t, entry.Notice)
+	})
+
+	t.Run("escalates when configured", func(t *testing.T) {
+		binding := &knowledge.ResolvedBinding{
+			ID:        "kb",
+			Retrieval: knowledge.RetrievalConfig{MinResults: 2, ToolFallback: knowledge.ToolFallbackEscalate},
+		}
+		entry := svc.summarizeRetrieval(ctx, binding, nil, "initial")
+		require.NotNil(t, entry)
+		assert.Equal(t, knowledge.RetrievalStatusEscalated, entry.Status)
+		assert.Empty(t, entry.Contexts)
+	})
+}
+
 // Helper functions for testing
 func createTestAgentConfig() *agent.Config {
 	return &agent.Config{

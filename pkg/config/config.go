@@ -219,9 +219,12 @@ type ServerTimeouts struct {
 	// ScheduleRetryBackoffSeconds sets the base backoff in seconds used to build
 	// the exponential backoff for reconciliation retries. If zero, a sensible
 	// default is applied in code.
-	ScheduleRetryBackoffSeconds int           `koanf:"schedule_retry_backoff_seconds" json:"schedule_retry_backoff_seconds" yaml:"schedule_retry_backoff_seconds" mapstructure:"schedule_retry_backoff_seconds"`
-	TemporalReachability        time.Duration `koanf:"temporal_reachability"          json:"temporal_reachability"          yaml:"temporal_reachability"          mapstructure:"temporal_reachability"`
-	StartProbeDelay             time.Duration `koanf:"start_probe_delay"              json:"start_probe_delay"              yaml:"start_probe_delay"              mapstructure:"start_probe_delay"`
+	ScheduleRetryBackoffSeconds int `koanf:"schedule_retry_backoff_seconds" json:"schedule_retry_backoff_seconds" yaml:"schedule_retry_backoff_seconds" mapstructure:"schedule_retry_backoff_seconds"`
+	// KnowledgeIngest bounds startup knowledge ingestion executions.
+	// Applies to ingestKnowledgeBasesOnStart. Zero disables the timeout.
+	KnowledgeIngest      time.Duration `koanf:"knowledge_ingest"               json:"knowledge_ingest"               yaml:"knowledge_ingest"               mapstructure:"knowledge_ingest"               env:"SERVER_KNOWLEDGE_INGEST_TIMEOUT"`
+	TemporalReachability time.Duration `koanf:"temporal_reachability"          json:"temporal_reachability"          yaml:"temporal_reachability"          mapstructure:"temporal_reachability"`
+	StartProbeDelay      time.Duration `koanf:"start_probe_delay"              json:"start_probe_delay"              yaml:"start_probe_delay"              mapstructure:"start_probe_delay"`
 }
 
 // ReconcilerConfig defines tunable options for the workflow reconciler.
@@ -1669,6 +1672,7 @@ func buildServerTimeouts(registry *definition.Registry) ServerTimeouts {
 		ScheduleRetryMaxDelay:       getDuration(registry, "server.timeouts.schedule_retry_max_delay"),
 		ScheduleRetryMaxAttempts:    getInt(registry, "server.timeouts.schedule_retry_max_attempts"),
 		ScheduleRetryBackoffSeconds: getInt(registry, "server.timeouts.schedule_retry_backoff_seconds"),
+		KnowledgeIngest:             getDuration(registry, "server.timeouts.knowledge_ingest"),
 		TemporalReachability:        getDuration(registry, "server.timeouts.temporal_reachability"),
 		StartProbeDelay:             getDuration(registry, "server.timeouts.start_probe_delay"),
 	}

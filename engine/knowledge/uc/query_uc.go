@@ -87,22 +87,26 @@ func validateQueryInput(in *QueryInput) (string, string, string, error) {
 }
 
 func mergeRetrieval(
-	base knowledge.RetrievalConfig,
+	base *knowledge.RetrievalConfig,
 	topK int,
 	minScore *float64,
 	filters map[string]string,
 ) knowledge.RetrievalConfig {
+	var merged knowledge.RetrievalConfig
+	if base != nil {
+		merged = *base
+	}
 	if topK > 0 {
-		base.TopK = topK
+		merged.TopK = topK
 	}
 	if minScore != nil {
 		value := *minScore
-		base.MinScore = &value
+		merged.MinScore = &value
 	}
 	if filters != nil {
-		base.Filters = core.CopyMap(filters)
+		merged.Filters = core.CopyMap(filters)
 	}
-	return base
+	return merged
 }
 
 func (uc *Query) prepareQuery(
@@ -119,7 +123,7 @@ func (uc *Query) prepareQuery(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	retrieval := mergeRetrieval(kb.Retrieval, in.TopK, in.MinScore, in.Filters)
+	retrieval := mergeRetrieval(&kb.Retrieval, in.TopK, in.MinScore, in.Filters)
 	embCfg, err := configutil.ToEmbedderAdapterConfig(emb)
 	if err != nil {
 		return nil, nil, nil, err
@@ -128,7 +132,7 @@ func (uc *Query) prepareQuery(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("init embedder: %w", err)
 	}
-	vecCfg, err := configutil.ToVectorStoreConfig(projectID, vec)
+	vecCfg, err := configutil.ToVectorStoreConfig(ctx, projectID, vec)
 	if err != nil {
 		return nil, nil, nil, err
 	}

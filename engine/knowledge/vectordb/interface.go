@@ -9,6 +9,8 @@ const (
 	ProviderPGVector Provider = "pgvector"
 	ProviderQdrant   Provider = "qdrant"
 	ProviderMemory   Provider = "memory"
+	// ProviderFilesystem persists embeddings to a local filesystem-backed store.
+	ProviderFilesystem Provider = "filesystem"
 )
 
 // Record represents a chunk persisted to the vector store.
@@ -53,6 +55,7 @@ type Config struct {
 	ID          string
 	Provider    Provider
 	DSN         string
+	Path        string
 	Table       string
 	Collection  string
 	Namespace   string

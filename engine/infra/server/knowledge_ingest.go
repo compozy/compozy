@@ -54,7 +54,7 @@ func ingestKnowledgeBasesOnStart(
 	cfg := config.FromContext(ctx)
 	timeout := time.Duration(0)
 	if cfg != nil {
-		timeout = cfg.Server.Timeouts.TemporalReachability
+		timeout = cfg.Server.Timeouts.KnowledgeIngest
 	}
 	ingestUseCase := newStartupIngestExecutor(store)
 	log := logger.FromContext(ctx)
@@ -73,13 +73,16 @@ func ingestKnowledgeBasesOnStart(
 		if timeout > 0 {
 			runCtx, cancel = context.WithTimeout(ctx, timeout)
 		}
-		_, err := ingestUseCase.Execute(runCtx, &uc.IngestInput{
-			Project:  projectConfig.Name,
-			ID:       kb.ID,
-			Strategy: ingest.StrategyUpsert,
-			CWD:      projectConfig.GetCWD(),
-		})
-		cancel()
+		err := func() error {
+			defer cancel()
+			_, execErr := ingestUseCase.Execute(runCtx, &uc.IngestInput{
+				Project:  projectConfig.Name,
+				ID:       kb.ID,
+				Strategy: ingest.StrategyUpsert,
+				CWD:      projectConfig.GetCWD(),
+			})
+			return execErr
+		}()
 		if err != nil {
 			return fmt.Errorf("knowledge: startup ingest for %q failed: %w", kb.ID, err)
 		}

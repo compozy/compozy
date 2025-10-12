@@ -343,6 +343,15 @@ func registerServerScheduleTimeouts(registry *Registry) {
 func registerServerMiscTimeouts(registry *Registry) {
 	registry.Register(
 		&FieldDef{
+			Path:    "server.timeouts.knowledge_ingest",
+			Default: 5 * time.Minute,
+			EnvVar:  "SERVER_KNOWLEDGE_INGEST_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for startup knowledge ingestion runs (0 disables timeouts)",
+		},
+	)
+	registry.Register(
+		&FieldDef{
 			Path:    "server.timeouts.temporal_reachability",
 			Default: 1500 * time.Millisecond,
 			EnvVar:  "SERVER_TEMPORAL_REACHABILITY_TIMEOUT",

@@ -186,9 +186,10 @@ const (
 type VectorDBType string
 
 const (
-	VectorDBTypePGVector VectorDBType = "pgvector"
-	VectorDBTypeQdrant   VectorDBType = "qdrant"
-	VectorDBTypeMemory   VectorDBType = "memory"
+	VectorDBTypePGVector   VectorDBType = "pgvector"
+	VectorDBTypeQdrant     VectorDBType = "qdrant"
+	VectorDBTypeMemory     VectorDBType = "memory"
+	VectorDBTypeFilesystem VectorDBType = "filesystem"
 )
 
 // Definitions aggregates embedders, vector stores, and knowledge bases declared by users.
@@ -225,6 +226,7 @@ type VectorDBConfig struct {
 // VectorDBConnConfig defines connection and table options for a vector database.
 type VectorDBConnConfig struct {
 	DSN         string            `json:"dsn,omitempty"          yaml:"dsn,omitempty"          mapstructure:"dsn,omitempty"`
+	Path        string            `json:"path,omitempty"         yaml:"path,omitempty"         mapstructure:"path,omitempty"`
 	Table       string            `json:"table,omitempty"        yaml:"table,omitempty"        mapstructure:"table,omitempty"`
 	Collection  string            `json:"collection,omitempty"   yaml:"collection,omitempty"   mapstructure:"collection,omitempty"`
 	Index       string            `json:"index,omitempty"        yaml:"index,omitempty"        mapstructure:"index,omitempty"`
@@ -277,13 +279,24 @@ type PreprocessConfig struct {
 
 // RetrievalConfig manages how stored chunks are queried and injected into prompts.
 type RetrievalConfig struct {
-	TopK      int               `json:"top_k,omitempty"      yaml:"top_k,omitempty"      mapstructure:"top_k,omitempty"`
-	MinScore  *float64          `json:"min_score,omitempty"  yaml:"min_score,omitempty"  mapstructure:"min_score,omitempty"`
-	MaxTokens int               `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty" mapstructure:"max_tokens,omitempty"`
-	InjectAs  string            `json:"inject_as,omitempty"  yaml:"inject_as,omitempty"  mapstructure:"inject_as,omitempty"`
-	Fallback  string            `json:"fallback,omitempty"   yaml:"fallback,omitempty"   mapstructure:"fallback,omitempty"`
-	Filters   map[string]string `json:"filters,omitempty"    yaml:"filters,omitempty"    mapstructure:"filters,omitempty"`
+	TopK         int               `json:"top_k,omitempty"         yaml:"top_k,omitempty"         mapstructure:"top_k,omitempty"`
+	MinScore     *float64          `json:"min_score,omitempty"     yaml:"min_score,omitempty"     mapstructure:"min_score,omitempty"`
+	MaxTokens    int               `json:"max_tokens,omitempty"    yaml:"max_tokens,omitempty"    mapstructure:"max_tokens,omitempty"`
+	MinResults   int               `json:"min_results,omitempty"   yaml:"min_results,omitempty"   mapstructure:"min_results,omitempty"`
+	InjectAs     string            `json:"inject_as,omitempty"     yaml:"inject_as,omitempty"     mapstructure:"inject_as,omitempty"`
+	Fallback     string            `json:"fallback,omitempty"      yaml:"fallback,omitempty"      mapstructure:"fallback,omitempty"`
+	Filters      map[string]string `json:"filters,omitempty"       yaml:"filters,omitempty"       mapstructure:"filters,omitempty"`
+	ToolFallback ToolFallbackMode  `json:"tool_fallback,omitempty" yaml:"tool_fallback,omitempty" mapstructure:"tool_fallback,omitempty"`
 }
+
+// ToolFallbackMode governs how the orchestrator should expose tools when retrieval fails.
+type ToolFallbackMode string
+
+const (
+	ToolFallbackNever    ToolFallbackMode = "never"
+	ToolFallbackEscalate ToolFallbackMode = "escalate"
+	ToolFallbackAuto     ToolFallbackMode = "auto"
+)
 
 // MetadataConfig carries optional descriptive metadata for knowledge bases.
 type MetadataConfig struct {
@@ -304,15 +317,26 @@ func (c *ChunkingConfig) setOverlap(value int) {
 }
 
 // MinScoreValue returns the retrieval minimum score or zero when unspecified.
-func (c RetrievalConfig) MinScoreValue() float64 {
-	if c.MinScore == nil {
+func (c *RetrievalConfig) MinScoreValue() float64 {
+	if c == nil || c.MinScore == nil {
 		return 0
 	}
 	return *c.MinScore
 }
 
 func (c *RetrievalConfig) setMinScore(value float64) {
+	if c == nil {
+		return
+	}
 	c.MinScore = ptrFloat64(value)
+}
+
+// MinResultsValue returns the minimum retrieval results treated as success.
+func (c *RetrievalConfig) MinResultsValue() int {
+	if c == nil || c.MinResults <= 0 {
+		return 1
+	}
+	return c.MinResults
 }
 
 // Normalize applies built-in defaults to the configured definitions.
@@ -380,6 +404,12 @@ func (c *RetrievalConfig) normalize(defaults Defaults) {
 	}
 	if c.MinScore == nil {
 		c.setMinScore(defaults.RetrievalMinScore)
+	}
+	if c.MinResults <= 0 {
+		c.MinResults = 1
+	}
+	if c.ToolFallback == "" {
+		c.ToolFallback = ToolFallbackNever
 	}
 }
 
@@ -455,26 +485,54 @@ func validateVectorDBs(list []VectorDBConfig) (map[string]*VectorDBConfig, []err
 			errs = append(errs, fmt.Errorf("knowledge: vector_db %q defined more than once", vector.ID))
 			continue
 		}
-		switch vector.Type {
-		case VectorDBTypePGVector, VectorDBTypeQdrant:
-			if vector.Config.DSN == "" {
-				errs = append(errs, fmt.Errorf("knowledge: vector_db %q requires config.dsn", vector.ID))
-			} else if !isTemplatedValue(vector.Config.DSN) {
-				errs = append(errs, fmt.Errorf("knowledge: vector_db %q dsn must use env or secret interpolation", vector.ID))
-			}
-			if vector.Config.Dimension <= 0 {
-				errs = append(
-					errs,
-					fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
-				)
-			}
-		case VectorDBTypeMemory:
-		default:
-			errs = append(errs, fmt.Errorf("knowledge: vector_db %q type %q is not supported", vector.ID, vector.Type))
-		}
+		errs = append(errs, validateVectorProvider(vector)...)
 		index[vector.ID] = vector
 	}
 	return index, errs
+}
+
+func validateVectorProvider(vector *VectorDBConfig) []error {
+	if vector == nil {
+		return []error{fmt.Errorf("knowledge: vector_db config cannot be nil")}
+	}
+	var errs []error
+	switch vector.Type {
+	case VectorDBTypePGVector:
+		if vector.Config.DSN != "" && !isTemplatedValue(vector.Config.DSN) {
+			errs = append(
+				errs,
+				fmt.Errorf("knowledge: vector_db %q dsn must use env or secret interpolation", vector.ID),
+			)
+		}
+		if vector.Config.Dimension <= 0 {
+			errs = append(
+				errs,
+				fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
+			)
+		}
+	case VectorDBTypeQdrant:
+		if vector.Config.DSN == "" {
+			errs = append(errs, fmt.Errorf("knowledge: vector_db %q requires config.dsn", vector.ID))
+		} else if !isTemplatedValue(vector.Config.DSN) {
+			errs = append(errs, fmt.Errorf("knowledge: vector_db %q dsn must use env or secret interpolation", vector.ID))
+		}
+		if vector.Config.Dimension <= 0 {
+			errs = append(
+				errs,
+				fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
+			)
+		}
+	case VectorDBTypeMemory, VectorDBTypeFilesystem:
+		if vector.Config.Dimension <= 0 {
+			errs = append(
+				errs,
+				fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
+			)
+		}
+	default:
+		errs = append(errs, fmt.Errorf("knowledge: vector_db %q type %q is not supported", vector.ID, vector.Type))
+	}
+	return errs
 }
 
 func validateKnowledgeBases(

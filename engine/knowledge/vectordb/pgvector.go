@@ -28,6 +28,9 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 	if cfg == nil {
 		return nil, errors.New("vector_db config is required")
 	}
+	if strings.TrimSpace(cfg.DSN) == "" {
+		return nil, errors.New("vector_db dsn is required for pgvector")
+	}
 	pool, err := pgxpool.New(ctx, cfg.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("vector_db %q: failed to connect to postgres: %w", cfg.ID, err)

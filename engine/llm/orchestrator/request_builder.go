@@ -14,6 +14,7 @@ import (
 	"github.com/adrg/strutil/metrics"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/llm/orchestrator/prompts"
 	"github.com/compozy/compozy/engine/tool"
@@ -79,7 +80,10 @@ func (b *requestBuilder) Build(
 	temperature := request.Agent.Model.Config.Params.Temperature
 	toolChoice := ""
 	if len(toolDefs) > 0 {
-		toolChoice = "auto"
+		toolChoice, toolDefs = b.decideToolStrategy(&request, toolDefs)
+		if len(toolDefs) == 0 {
+			toolChoice = ""
+		}
 	}
 	forceJSON := b.requiresJSONMode(request, promptResult.Format)
 	logger.FromContext(ctx).Debug("LLM request prepared",
@@ -212,6 +216,30 @@ func (b *requestBuilder) injectKnowledge(
 		len(entries),
 	)
 	return messages
+}
+
+// decideToolStrategy determines final tool advertisement based on knowledge routing outcomes.
+func (b *requestBuilder) decideToolStrategy(
+	request *Request,
+	defs []llmadapter.ToolDefinition,
+) (string, []llmadapter.ToolDefinition) {
+	if len(defs) == 0 {
+		return "", defs
+	}
+	allowTools := true
+	for i := range request.Knowledge {
+		entry := request.Knowledge[i]
+		switch entry.Status {
+		case knowledge.RetrievalStatusEscalated:
+			return "auto", defs
+		case knowledge.RetrievalStatusFallback, knowledge.RetrievalStatusHit:
+			allowTools = false
+		}
+	}
+	if allowTools {
+		return "auto", defs
+	}
+	return "none", nil
 }
 
 func buildKnowledgeBlock(entries []KnowledgeEntry) string {

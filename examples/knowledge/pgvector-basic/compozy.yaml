@@ -23,7 +23,8 @@ vector_dbs:
   - id: pgvector_local
     type: pgvector
     config:
-      dsn: "{{ .env.PGVECTOR_DSN }}"
+      # DSN is optional - if not provided, uses global postgres database config
+      # dsn: "{{ .env.PGVECTOR_DSN }}"
       ensure_index: true
       table: knowledge_chunks
       metric: cosine

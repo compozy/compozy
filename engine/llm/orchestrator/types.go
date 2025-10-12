@@ -41,6 +41,8 @@ type KnowledgeEntry struct {
 	BindingID string
 	Retrieval knowledge.RetrievalConfig
 	Contexts  []knowledge.RetrievedContext
+	Status    knowledge.RetrievalStatus
+	Notice    string
 }
 
 // Config configures orchestrator behavior.

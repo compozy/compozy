@@ -31,6 +31,10 @@
         "metric": {
           "type": "string"
         },
+        "path": {
+          "description": "Filesystem storage path; defaults to `.compozy/cache/<vector_db_id>.store` when omitted.",
+          "type": "string"
+        },
         "table": {
           "type": "string"
         }

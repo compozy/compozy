@@ -48,7 +48,7 @@ func (uc *Ingest) Execute(ctx context.Context, in *IngestInput) (*IngestOutput, 
 	if err != nil {
 		return nil, err
 	}
-	defer closeStore(logger.FromContext(ctx), ctx, binding.ID, vecStore)
+	defer closeStore(logger.FromContext(ctx), ctx, binding.ID)
 	result, err := runIngestPipeline(ctx, binding, embAdapter, vecStore, ingest.Options{
 		CWD:      in.CWD,
 		Strategy: in.Strategy,
@@ -110,7 +110,7 @@ func initIngestAdapters(
 	projectID string,
 	emb *knowledge.EmbedderConfig,
 	vec *knowledge.VectorDBConfig,
-) (*embedder.Adapter, vectordb.Store, func(logger.Logger, context.Context, string, vectordb.Store), error) {
+) (*embedder.Adapter, vectordb.Store, func(logger.Logger, context.Context, string), error) {
 	embCfg, err := configutil.ToEmbedderAdapterConfig(emb)
 	if err != nil {
 		return nil, nil, nil, err
@@ -119,16 +119,16 @@ func initIngestAdapters(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("init embedder: %w", err)
 	}
-	vecCfg, err := configutil.ToVectorStoreConfig(projectID, vec)
+	vecCfg, err := configutil.ToVectorStoreConfig(ctx, projectID, vec)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	vecStore, err := vectordb.New(ctx, vecCfg)
+	vecStore, release, err := vectordb.AcquireShared(ctx, vecCfg)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("init vector store: %w", err)
 	}
-	closeFn := func(log logger.Logger, closeCtx context.Context, bindingID string, store vectordb.Store) {
-		if cerr := store.Close(closeCtx); cerr != nil {
+	closeFn := func(log logger.Logger, closeCtx context.Context, bindingID string) {
+		if cerr := release(closeCtx); cerr != nil {
 			log.Warn(
 				"failed to close vector store",
 				"kb_id",
