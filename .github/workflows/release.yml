@@ -13,9 +13,11 @@ on:
   # Trigger on PR events for dry-run checks
   pull_request:
     types:
-      - synchronize  # Only on updates to existing PRs
+      - opened
+      - synchronize
     branches:
       - main
+      - "release/v*"
 
   # Manual trigger for emergency releases
   workflow_dispatch:
@@ -86,7 +88,8 @@ jobs:
     name: Dry-Run Release Check
     if: |
       github.event_name == 'pull_request' &&
-      startsWith(github.event.pull_request.title, 'ci(release): Release ')
+      (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
+       startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
