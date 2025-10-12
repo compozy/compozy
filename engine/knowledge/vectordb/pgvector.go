@@ -24,6 +24,11 @@ type pgStore struct {
 	ensureIdx  bool
 }
 
+const (
+	pgvectorDefaultTopK = 5
+	pgvectorMaxTopK     = 1000
+)
+
 func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 	if cfg == nil {
 		return nil, errors.New("vector_db config is required")
@@ -189,33 +194,50 @@ func (p *pgStore) Search(ctx context.Context, query []float32, opts SearchOption
 	}
 	topK := opts.TopK
 	if topK <= 0 {
-		topK = 5
+		topK = pgvectorDefaultTopK
 	}
-	builder := strings.Builder{}
-	builder.WriteString("SELECT id, document, metadata, 1 - (embedding <=> $1) AS score FROM ")
-	builder.WriteString(p.tableIdent)
-	builder.WriteString(" WHERE 1=1")
-	args := []any{pgvector.NewVector(query)}
-	argPos := 2
-	for key, value := range opts.Filters {
-		builder.WriteString(fmt.Sprintf(" AND metadata ->> $%d = $%d", argPos, argPos+1))
-		args = append(args, key, value)
-		argPos += 2
+	if topK > pgvectorMaxTopK {
+		return nil, fmt.Errorf("pgvector: topK exceeds maximum allowed value of %d", pgvectorMaxTopK)
 	}
-	if opts.MinScore > 0 {
-		builder.WriteString(fmt.Sprintf(" AND 1 - (embedding <=> $1) >= $%d", argPos))
-		args = append(args, opts.MinScore)
-		argPos++
-	}
-	builder.WriteString(" ORDER BY embedding <=> $1 ASC LIMIT $")
-	builder.WriteString(fmt.Sprint(argPos))
+	sql, args := buildSearchQuery(p.tableIdent, opts.Filters, opts.MinScore)
+	args[0] = pgvector.NewVector(query)
 	args = append(args, topK)
-	rows, err := p.pool.Query(ctx, builder.String(), args...)
+	rows, err := p.pool.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("pgvector: search: %w", err)
 	}
 	defer rows.Close()
-	results := make([]Match, 0, topK)
+	return scanSearchResults(rows, opts.MinScore, topK)
+}
+
+func buildSearchQuery(tableIdent string, filters map[string]string, minScore float64) (string, []any) {
+	builder := strings.Builder{}
+	builder.WriteString("SELECT id, document, metadata, 1 - (embedding <=> $1) AS score FROM ")
+	builder.WriteString(tableIdent)
+	builder.WriteString(" WHERE 1=1")
+	args := make([]any, 1, 1+len(filters)*2+2)
+	argPos := 2
+	for key, value := range filters {
+		builder.WriteString(fmt.Sprintf(" AND metadata ->> $%d = $%d", argPos, argPos+1))
+		args = append(args, key, value)
+		argPos += 2
+	}
+	if minScore > 0 {
+		builder.WriteString(fmt.Sprintf(" AND 1 - (embedding <=> $1) >= $%d", argPos))
+		args = append(args, minScore)
+		argPos++
+	}
+	builder.WriteString(" ORDER BY embedding <=> $1 ASC LIMIT $")
+	builder.WriteString(fmt.Sprint(argPos))
+	return builder.String(), args
+}
+
+func scanSearchResults(rows pgx.Rows, minScore float64, topK int) ([]Match, error) {
+	capacity := topK
+	if capacity <= 0 {
+		capacity = pgvectorDefaultTopK
+	}
+	results := make([]Match, 0, capacity)
 	for rows.Next() {
 		var (
 			id          string
@@ -226,7 +248,7 @@ func (p *pgStore) Search(ctx context.Context, query []float32, opts SearchOption
 		if err := rows.Scan(&id, &document, &metadataRaw, &score); err != nil {
 			return nil, fmt.Errorf("pgvector: scan: %w", err)
 		}
-		if score < opts.MinScore {
+		if score < minScore {
 			continue
 		}
 		meta := make(map[string]any)

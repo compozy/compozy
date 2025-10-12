@@ -20,7 +20,9 @@ services:
   # PostgreSQL for the application
   postgres:
     container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-postgres
-    image: ${APP_POSTGRES_IMAGE:-pgvector/pgvector:pg16}
+    # pgvector image pins PostgreSQL 16 with the pgvector extension pre-installed for RAG defaults.
+    # Upgrade existing Postgres 15 deployments (backup, extension upgrade, migrations) before adopting.
+    image: ${APP_POSTGRES_IMAGE:-pgvector/pgvector:0.8.1-pg16}
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}

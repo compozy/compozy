@@ -497,7 +497,10 @@ func validateVectorProvider(vector *VectorDBConfig) []error {
 	var errs []error
 	switch vector.Type {
 	case VectorDBTypePGVector:
-		if vector.Config.DSN != "" && !isTemplatedValue(vector.Config.DSN) {
+		dsn := strings.TrimSpace(vector.Config.DSN)
+		if dsn == "" {
+			errs = append(errs, fmt.Errorf("knowledge: vector_db %q requires config.dsn", vector.ID))
+		} else if !isTemplatedValue(dsn) {
 			errs = append(
 				errs,
 				fmt.Errorf("knowledge: vector_db %q dsn must use env or secret interpolation", vector.ID),

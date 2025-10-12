@@ -321,36 +321,45 @@ func TestService_applyKnowledgeOverrides(t *testing.T) {
 	t.Run("Should apply runtime overrides to resolved knowledge bindings", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := context.Background()
+		ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
+		manager := appconfig.NewManager(appconfig.NewService())
+		_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
+		require.NoError(t, err)
+		ctx = appconfig.ContextWithManager(ctx, manager)
+		runtimeMgr := &mockRuntime{}
+		agentConfig := createTestAgentConfig()
+		svc, err := NewService(ctx, runtimeMgr, agentConfig)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = svc.Close() })
 		storePath := filepath.Join(t.TempDir(), "vector.store")
-		svc := &Service{
-			knowledgeRuntimeEmbedders: map[string]*knowledge.EmbedderConfig{
-				"openai_default": {
-					ID:       "openai_default",
-					APIKey:   "resolved-secret",
-					Model:    "text-embedding-3-small",
-					Provider: "openai",
-					Config: knowledge.EmbedderRuntimeConfig{
-						Dimension: 1536,
-						BatchSize: 64,
-					},
+		svc.knowledgeRuntimeEmbedders = map[string]*knowledge.EmbedderConfig{
+			"openai_default": {
+				ID:       "openai_default",
+				APIKey:   "resolved-secret",
+				Model:    "text-embedding-3-small",
+				Provider: "openai",
+				Config: knowledge.EmbedderRuntimeConfig{
+					Dimension: 1536,
+					BatchSize: 64,
 				},
 			},
-			knowledgeRuntimeVectorDBs: map[string]*knowledge.VectorDBConfig{
-				"filesystem": {
-					ID:   "filesystem",
-					Type: knowledge.VectorDBTypeFilesystem,
-					Config: knowledge.VectorDBConnConfig{
-						Path:      storePath,
-						Dimension: 1536,
-					},
+		}
+		svc.knowledgeRuntimeVectorDBs = map[string]*knowledge.VectorDBConfig{
+			"filesystem": {
+				ID:   "filesystem",
+				Type: knowledge.VectorDBTypeFilesystem,
+				Config: knowledge.VectorDBConnConfig{
+					Path:      storePath,
+					Dimension: 1536,
 				},
 			},
-			knowledgeRuntimeKBs: map[string]*knowledge.BaseConfig{
-				"kb": {
-					ID:       "kb",
-					Embedder: "openai_default",
-					VectorDB: "filesystem",
-				},
+		}
+		svc.knowledgeRuntimeKBs = map[string]*knowledge.BaseConfig{
+			"kb": {
+				ID:       "kb",
+				Embedder: "openai_default",
+				VectorDB: "filesystem",
 			},
 		}
 		binding := &knowledge.ResolvedBinding{
@@ -433,9 +442,17 @@ func TestBuildKnowledgeQuery(t *testing.T) {
 }
 
 func TestServiceSummarizeRetrieval(t *testing.T) {
-	l := logger.NewForTests()
-	ctx := logger.ContextWithLogger(context.Background(), l)
-	svc := &Service{}
+	ctx := context.Background()
+	ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
+	manager := appconfig.NewManager(appconfig.NewService())
+	_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
+	require.NoError(t, err)
+	ctx = appconfig.ContextWithManager(ctx, manager)
+	runtimeMgr := &mockRuntime{}
+	agentConfig := createTestAgentConfig()
+	svc, err := NewService(ctx, runtimeMgr, agentConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = svc.Close() })
 
 	t.Run("marks hit when enough contexts", func(t *testing.T) {
 		binding := &knowledge.ResolvedBinding{ID: "kb", Retrieval: knowledge.RetrievalConfig{MinResults: 1}}

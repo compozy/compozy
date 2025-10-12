@@ -152,7 +152,11 @@ func signatureKey(cfg *Config) string {
 	builder.WriteString("|")
 	builder.WriteString(fmt.Sprintf("%d", cfg.Dimension))
 	builder.WriteString("|")
+	builder.WriteString(fmt.Sprintf("%t", cfg.EnsureIndex))
+	builder.WriteString("|")
 	builder.WriteString(hashStringMap(cfg.Auth))
+	builder.WriteString("|")
+	builder.WriteString(hashOptionsMap(cfg.Options))
 	return builder.String()
 }
 
@@ -170,6 +174,25 @@ func hashStringMap(input map[string]string) string {
 		builder.WriteString(key)
 		builder.WriteString("=")
 		builder.WriteString(input[key])
+		builder.WriteString(";")
+	}
+	return builder.String()
+}
+
+func hashOptionsMap(input map[string]any) string {
+	if len(input) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(input))
+	for key := range input {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	builder := strings.Builder{}
+	for _, key := range keys {
+		builder.WriteString(key)
+		builder.WriteString("=")
+		builder.WriteString(fmt.Sprint(input[key]))
 		builder.WriteString(";")
 	}
 	return builder.String()

@@ -57,45 +57,49 @@ func ingestKnowledgeBasesOnStart(
 		timeout = cfg.Server.Timeouts.KnowledgeIngest
 	}
 	ingestUseCase := newStartupIngestExecutor(store)
-	log := logger.FromContext(ctx)
 	for _, kb := range toIngest {
-		log.Info(
-			"startup knowledge ingestion triggered",
-			"project",
-			projectConfig.Name,
-			"kb_id",
-			kb.ID,
-			"origin",
-			kb.Origin,
-		)
-		runCtx := ctx
-		cancel := func() {}
-		if timeout > 0 {
-			runCtx, cancel = context.WithTimeout(ctx, timeout)
+		if err := runStartupKnowledgeIngest(ctx, ingestUseCase, projectConfig, timeout, kb); err != nil {
+			return err
 		}
-		err := func() error {
-			defer cancel()
-			_, execErr := ingestUseCase.Execute(runCtx, &uc.IngestInput{
-				Project:  projectConfig.Name,
-				ID:       kb.ID,
-				Strategy: ingest.StrategyUpsert,
-				CWD:      projectConfig.GetCWD(),
-			})
-			return execErr
-		}()
-		if err != nil {
-			return fmt.Errorf("knowledge: startup ingest for %q failed: %w", kb.ID, err)
-		}
-		log.Info(
-			"startup knowledge ingestion completed",
-			"project",
-			projectConfig.Name,
-			"kb_id",
-			kb.ID,
-			"origin",
-			kb.Origin,
-		)
 	}
+	return nil
+}
+
+func runStartupKnowledgeIngest(
+	ctx context.Context,
+	ingestUseCase startupIngestExecutor,
+	projectConfig *project.Config,
+	timeout time.Duration,
+	kb startupKnowledgeBase,
+) error {
+	log := logger.FromContext(ctx)
+	log.Info(
+		"startup knowledge ingestion triggered",
+		"project", projectConfig.Name,
+		"kb_id", kb.ID,
+		"origin", kb.Origin,
+	)
+	runCtx := ctx
+	cancel := func() {}
+	if timeout > 0 {
+		runCtx, cancel = context.WithTimeout(ctx, timeout)
+	}
+	defer cancel()
+	_, err := ingestUseCase.Execute(runCtx, &uc.IngestInput{
+		Project:  projectConfig.Name,
+		ID:       kb.ID,
+		Strategy: ingest.StrategyUpsert,
+		CWD:      projectConfig.GetCWD(),
+	})
+	if err != nil {
+		return fmt.Errorf("knowledge: startup ingest for %q failed: %w", kb.ID, err)
+	}
+	log.Info(
+		"startup knowledge ingestion completed",
+		"project", projectConfig.Name,
+		"kb_id", kb.ID,
+		"origin", kb.Origin,
+	)
 	return nil
 }
 
@@ -127,7 +131,11 @@ func collectStartupKnowledgeBases(
 		if id == "" {
 			return nil, fmt.Errorf("knowledge: knowledge_base with empty id declared in %s", ref.Origin)
 		}
-		switch ref.Base.Ingest {
+		mode := ref.Base.Ingest
+		if mode == "" {
+			mode = knowledge.IngestManual
+		}
+		switch mode {
 		case knowledge.IngestManual:
 			continue
 		case knowledge.IngestOnStart:
@@ -142,7 +150,7 @@ func collectStartupKnowledgeBases(
 			seen[id] = ref.Origin
 			out = append(out, startupKnowledgeBase{ID: id, Origin: ref.Origin})
 		default:
-			return nil, fmt.Errorf("knowledge: knowledge_base %q has unsupported ingest mode %q", id, ref.Base.Ingest)
+			return nil, fmt.Errorf("knowledge: knowledge_base %q has unsupported ingest mode %q", id, mode)
 		}
 	}
 	return out, nil

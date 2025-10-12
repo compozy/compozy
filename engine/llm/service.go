@@ -1013,20 +1013,22 @@ func (s *Service) getOrCreateVectorStore(ctx context.Context, cfg *knowledge.Vec
 
 func (s *Service) buildInlineKnowledgeBinding(agentConfig *agent.Config) []core.KnowledgeBinding {
 	var combined *core.KnowledgeBinding
-	if len(s.knowledgeInlineBinding) > 0 {
-		clone := s.knowledgeInlineBinding[0].Clone()
-		combined = &clone
-	}
-	if agentConfig != nil && len(agentConfig.Knowledge) > 0 {
-		agentClone := agentConfig.Knowledge[0].Clone()
-		if combined == nil {
-			combined = &agentClone
-		} else {
-			combined.Merge(&agentClone)
-			if agentClone.ID != "" {
-				combined.ID = agentClone.ID
+	merge := func(src []core.KnowledgeBinding) {
+		for i := range src {
+			clone := src[i].Clone()
+			if combined == nil {
+				combined = &clone
+				continue
+			}
+			combined.Merge(&clone)
+			if clone.ID != "" {
+				combined.ID = clone.ID
 			}
 		}
+	}
+	merge(s.knowledgeInlineBinding)
+	if agentConfig != nil {
+		merge(agentConfig.Knowledge)
 	}
 	if combined == nil {
 		return nil

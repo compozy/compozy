@@ -69,27 +69,29 @@ func TestValidateConfig_PgvectorDSN(t *testing.T) {
 }
 
 func TestFileStorePersistence(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "store.json")
-	cfg := &Config{
-		ID:        "fs",
-		Provider:  ProviderFilesystem,
-		Path:      path,
-		Dimension: 2,
-	}
-	store, err := newFileStore(cfg)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, store.Close(context.Background()))
+	t.Run("Should persist and reload file store records", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "store.json")
+		cfg := &Config{
+			ID:        "fs",
+			Provider:  ProviderFilesystem,
+			Path:      path,
+			Dimension: 2,
+		}
+		store, err := newFileStore(cfg)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, store.Close(context.Background()))
+		})
+		records := []Record{
+			{ID: "chunk-1", Text: "hello world", Embedding: []float32{1, 0}, Metadata: map[string]any{"kb": "demo"}},
+		}
+		require.NoError(t, store.Upsert(context.Background(), records))
+		reloaded, err := newFileStore(cfg)
+		require.NoError(t, err)
+		defer reloaded.Close(context.Background())
+		matches, err := reloaded.Search(context.Background(), []float32{1, 0}, SearchOptions{TopK: 1})
+		require.NoError(t, err)
+		require.Len(t, matches, 1)
+		assert.Equal(t, "chunk-1", matches[0].ID)
 	})
-	records := []Record{
-		{ID: "chunk-1", Text: "hello world", Embedding: []float32{1, 0}, Metadata: map[string]any{"kb": "demo"}},
-	}
-	require.NoError(t, store.Upsert(context.Background(), records))
-	reloaded, err := newFileStore(cfg)
-	require.NoError(t, err)
-	defer reloaded.Close(context.Background())
-	matches, err := reloaded.Search(context.Background(), []float32{1, 0}, SearchOptions{TopK: 1})
-	require.NoError(t, err)
-	require.Len(t, matches, 1)
-	assert.Equal(t, "chunk-1", matches[0].ID)
 }
