@@ -2866,7 +2866,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Knowledge bases retrieved\" example({\"status\":200,\"message\":\"knowledge bases retrieved\",\"data\":{\"knowledge_bases\":[{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\"}],\"page\":{\"limit\":1,\"next_cursor\":\"eyJpZCI6ICJiIn0=\",\"prev_cursor\":\"\"}},\"error\":null})",
+                        "description": "Knowledge bases retrieved. Example: {\\\"status\\\":200,\\\"message\\\":\\\"knowledge bases retrieved\\\",\\\"data\\\":{\\\"knowledge_bases\\\":[{\\\"id\\\":\\\"support\\\",\\\"embedder\\\":\\\"default-embedder\\\",\\\"vector_db\\\":\\\"default-vector\\\",\\\"ingest\\\":\\\"manual\\\"}],\\\"page\\\":{\\\"limit\\\":1,\\\"next_cursor\\\":\\\"eyJpZCI6ICJiIn0=\\\",\\\"prev_cursor\\\":\\\"\\\"}},\\\"error\\\":null}",
                         "schema": {
                             "allOf": [
                                 {
@@ -2936,7 +2936,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Knowledge base retrieved\" example({\"status\":200,\"message\":\"knowledge base retrieved\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"_etag\":\"etag-value\"}},\"error\":null})",
+                        "description": "Knowledge base retrieved. Example: {\\\"status\\\":200,\\\"message\\\":\\\"knowledge base retrieved\\\",\\\"data\\\":{\\\"knowledge_base\\\":{\\\"id\\\":\\\"support\\\",\\\"embedder\\\":\\\"default-embedder\\\",\\\"vector_db\\\":\\\"default-vector\\\",\\\"ingest\\\":\\\"manual\\\",\\\"_etag\\\":\\\"etag-value\\\"}},\\\"error\\\":null}",
                         "schema": {
                             "allOf": [
                                 {
@@ -3027,7 +3027,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Knowledge base updated\" example({\"status\":200,\"message\":\"knowledge base updated\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"description\":\"Support knowledge base\",\"_etag\":\"etag-value\"}},\"error\":null})",
+                        "description": "Knowledge base updated. Example: {\\\"status\\\":200,\\\"message\\\":\\\"knowledge base updated\\\",\\\"data\\\":{\\\"knowledge_base\\\":{\\\"id\\\":\\\"support\\\",\\\"embedder\\\":\\\"default-embedder\\\",\\\"vector_db\\\":\\\"default-vector\\\",\\\"ingest\\\":\\\"manual\\\",\\\"description\\\":\\\"Support knowledge base\\\",\\\"_etag\\\":\\\"etag-value\\\"}},\\\"error\\\":null}",
                         "schema": {
                             "allOf": [
                                 {
@@ -3051,7 +3051,7 @@ const docTemplate = `{
                         }
                     },
                     "201": {
-                        "description": "Knowledge base created\" example({\"status\":201,\"message\":\"knowledge base created\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"description\":\"Support knowledge base\",\"_etag\":\"etag-value\"}},\"error\":null})",
+                        "description": "Knowledge base created. Example: {\\\"status\\\":201,\\\"message\\\":\\\"knowledge base created\\\",\\\"data\\\":{\\\"knowledge_base\\\":{\\\"id\\\":\\\"support\\\",\\\"embedder\\\":\\\"default-embedder\\\",\\\"vector_db\\\":\\\"default-vector\\\",\\\"ingest\\\":\\\"manual\\\",\\\"description\\\":\\\"Support knowledge base\\\",\\\"_etag\\\":\\\"etag-value\\\"}},\\\"error\\\":null}",
                         "schema": {
                             "allOf": [
                                 {
@@ -3202,7 +3202,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Ingestion summary\" example({\"status\":200,\"message\":\"knowledge ingestion completed\",\"data\":{\"knowledge_base_id\":\"support\",\"binding_id\":\"binding-123\",\"documents\":2,\"chunks\":16,\"persisted\":16},\"error\":null})",
+                        "description": "Ingestion summary. Example: {\\\"status\\\":200,\\\"message\\\":\\\"knowledge ingestion completed\\\",\\\"data\\\":{\\\"knowledge_base_id\\\":\\\"support\\\",\\\"binding_id\\\":\\\"binding-123\\\",\\\"documents\\\":2,\\\"chunks\\\":16,\\\"persisted\\\":16},\\\"error\\\":null}",
                         "schema": {
                             "allOf": [
                                 {
@@ -3281,7 +3281,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Query matches\" example({\"status\":200,\"message\":\"knowledge query completed\",\"data\":{\"matches\":[{\"binding_id\":\"binding-123\",\"content\":\"Reset your password from the account settings page.\",\"score\":0.83,\"token_estimate\":120}]},\"error\":null})",
+                        "description": "Query matches. Example: {\\\"status\\\":200,\\\"message\\\":\\\"knowledge query completed\\\",\\\"data\\\":{\\\"matches\\\":[{\\\"binding_id\\\":\\\"binding-123\\\",\\\"content\\\":\\\"Reset your password from the account settings page.\\\",\\\"score\\\":0.83,\\\"token_estimate\\\":120}]},\\\"error\\\":null}",
                         "schema": {
                             "allOf": [
                                 {
@@ -12132,6 +12132,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "ingest": {
+                    "$ref": "#/definitions/knowledge.IngestMode"
+                },
                 "metadata": {
                     "$ref": "#/definitions/knowledge.MetadataConfig"
                 },
@@ -12174,6 +12177,17 @@ const docTemplate = `{
                     "$ref": "#/definitions/knowledge.ChunkStrategy"
                 }
             }
+        },
+        "knowledge.IngestMode": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "on_start"
+            ],
+            "x-enum-varnames": [
+                "IngestManual",
+                "IngestOnStart"
+            ]
         },
         "knowledge.MetadataConfig": {
             "type": "object",

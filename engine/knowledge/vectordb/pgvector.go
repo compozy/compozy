@@ -112,7 +112,12 @@ func (p *pgStore) ensureSchema(ctx context.Context) error {
 	if p.ensureIdx {
 		distance := "cosine"
 		if p.metric != "" {
-			distance = p.metric
+			switch p.metric {
+			case "cosine", "l2", "ip":
+				distance = p.metric
+			default:
+				return fmt.Errorf("pgvector: unsupported metric %q", p.metric)
+			}
 		}
 		createIndex := fmt.Sprintf(
 			"CREATE INDEX IF NOT EXISTS %s ON %s USING ivfflat (embedding vector_%s_ops)",

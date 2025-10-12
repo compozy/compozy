@@ -23,6 +23,13 @@ type qdrantStore struct {
 	apiKey     string
 }
 
+// qdrantSearchResult captures the fields returned by Qdrant search responses.
+type qdrantSearchResult struct {
+	ID      any            `json:"id"`
+	Score   float64        `json:"score"`
+	Payload map[string]any `json:"payload"`
+}
+
 const (
 	qdrantDefaultTimeout = 10 * time.Second
 	qdrantDefaultTopK    = 5
@@ -80,6 +87,48 @@ func (q *qdrantStore) ensureCollection(ctx context.Context) error {
 	return q.doRequest(ctx, http.MethodPut, fmt.Sprintf("/collections/%s", q.collection), body, nil)
 }
 
+// buildQdrantFilter builds the request filter payload for Qdrant operations.
+func buildQdrantFilter(filters map[string]string) map[string]any {
+	if len(filters) == 0 {
+		return nil
+	}
+	must := make([]any, 0, len(filters))
+	for key, val := range filters {
+		must = append(must, map[string]any{
+			"key":   key,
+			"match": map[string]any{"value": val},
+		})
+	}
+	return map[string]any{"must": must}
+}
+
+// mapQdrantResults converts Qdrant search results into the internal Match slice.
+func mapQdrantResults(results []qdrantSearchResult, minScore float64) []Match {
+	matches := make([]Match, 0, len(results))
+	for _, res := range results {
+		if res.Score < minScore {
+			continue
+		}
+		id := fmt.Sprint(res.ID)
+		payload := core.CloneMap(res.Payload)
+		if payload == nil {
+			payload = make(map[string]any)
+		}
+		text := ""
+		if raw, ok := payload["text"].(string); ok {
+			text = raw
+			delete(payload, "text")
+		}
+		matches = append(matches, Match{
+			ID:       id,
+			Score:    res.Score,
+			Text:     text,
+			Metadata: payload,
+		})
+	}
+	return matches
+}
+
 func (q *qdrantStore) Upsert(ctx context.Context, records []Record) error {
 	if len(records) == 0 {
 		return nil
@@ -120,51 +169,17 @@ func (q *qdrantStore) Search(ctx context.Context, query []float32, opts SearchOp
 		"limit":        limit,
 		"with_payload": true,
 	}
-	if len(opts.Filters) > 0 {
-		must := make([]any, 0, len(opts.Filters))
-		for key, val := range opts.Filters {
-			must = append(must, map[string]any{
-				"key":   key,
-				"match": map[string]any{"value": val},
-			})
-		}
-		reqFilter := map[string]any{"must": must}
-		request["filter"] = reqFilter
+	if filter := buildQdrantFilter(opts.Filters); filter != nil {
+		request["filter"] = filter
 	}
 	var response struct {
-		Result []struct {
-			ID      any            `json:"id"`
-			Score   float64        `json:"score"`
-			Payload map[string]any `json:"payload"`
-		} `json:"result"`
+		Result []qdrantSearchResult `json:"result"`
 	}
 	searchPath := fmt.Sprintf("/collections/%s/points/search", q.collection)
 	if err := q.doRequest(ctx, http.MethodPost, searchPath, request, &response); err != nil {
 		return nil, err
 	}
-	results := make([]Match, 0, len(response.Result))
-	for _, res := range response.Result {
-		if res.Score < opts.MinScore {
-			continue
-		}
-		id := fmt.Sprint(res.ID)
-		payload := core.CloneMap(res.Payload)
-		if payload == nil {
-			payload = make(map[string]any)
-		}
-		text := ""
-		if raw, ok := payload["text"].(string); ok {
-			text = raw
-			delete(payload, "text")
-		}
-		results = append(results, Match{
-			ID:       id,
-			Score:    res.Score,
-			Text:     text,
-			Metadata: payload,
-		})
-	}
-	return results, nil
+	return mapQdrantResults(response.Result, opts.MinScore), nil
 }
 
 func (q *qdrantStore) Delete(ctx context.Context, filter Filter) error {
@@ -172,15 +187,8 @@ func (q *qdrantStore) Delete(ctx context.Context, filter Filter) error {
 	if len(filter.IDs) > 0 {
 		request["points"] = filter.IDs
 	}
-	if len(filter.Metadata) > 0 {
-		must := make([]any, 0, len(filter.Metadata))
-		for key, val := range filter.Metadata {
-			must = append(must, map[string]any{
-				"key":   key,
-				"match": map[string]any{"value": val},
-			})
-		}
-		request["filter"] = map[string]any{"must": must}
+	if f := buildQdrantFilter(filter.Metadata); f != nil {
+		request["filter"] = f
 	}
 	if len(request) == 0 {
 		return nil

@@ -130,7 +130,7 @@ func TestDispatcherWorkflow_SuccessfulDispatch(t *testing.T) {
 		// The workflow can either be canceled by our test or timeout due to long-running nature
 		errorMsg := workflowErr.Error()
 		assert.True(t,
-			errorMsg == "canceled" ||
+			strings.Contains(errorMsg, "canceled") ||
 				strings.Contains(errorMsg, "deadline exceeded") ||
 				strings.Contains(errorMsg, "timeout"),
 			"Workflow should be canceled by test or timeout due to long-running nature, got: %s", errorMsg)
@@ -209,7 +209,7 @@ func TestDispatcherWorkflow_UnknownSignal(t *testing.T) {
 		// The workflow can either be canceled by our test or timeout due to long-running nature
 		errorMsg := workflowErr.Error()
 		assert.True(t,
-			errorMsg == "canceled" ||
+			strings.Contains(errorMsg, "canceled") ||
 				strings.Contains(errorMsg, "deadline exceeded") ||
 				strings.Contains(errorMsg, "timeout"),
 			"Workflow should be canceled by test or timeout due to long-running nature, got: %s", errorMsg)

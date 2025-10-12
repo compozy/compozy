@@ -515,6 +515,18 @@ func (s *Service) buildEffectiveAgent(agentConfig *agent.Config) (*agent.Config,
 	return &tmp, nil
 }
 
+// resolveKnowledgeBinding builds the resolve input and invokes the resolver.
+func (s *Service) resolveKnowledgeBinding(agentConfig *agent.Config) (*knowledge.ResolvedBinding, error) {
+	inline := s.buildInlineKnowledgeBinding(agentConfig)
+	input := knowledge.ResolveInput{
+		WorkflowKnowledgeBases: s.knowledgeWorkflowKBs,
+		ProjectBinding:         s.knowledgeProjectBinding,
+		WorkflowBinding:        s.knowledgeWorkflowBinding,
+		InlineBinding:          inline,
+	}
+	return s.knowledgeResolver.Resolve(&input)
+}
+
 func (s *Service) resolveKnowledge(
 	ctx context.Context,
 	agentConfig *agent.Config,
@@ -527,14 +539,7 @@ func (s *Service) resolveKnowledge(
 	if query == "" {
 		return nil, nil
 	}
-	inline := s.buildInlineKnowledgeBinding(agentConfig)
-	input := knowledge.ResolveInput{
-		WorkflowKnowledgeBases: s.knowledgeWorkflowKBs,
-		ProjectBinding:         s.knowledgeProjectBinding,
-		WorkflowBinding:        s.knowledgeWorkflowBinding,
-		InlineBinding:          inline,
-	}
-	binding, err := s.knowledgeResolver.Resolve(&input)
+	binding, err := s.resolveKnowledgeBinding(agentConfig)
 	if err != nil {
 		return nil, err
 	}

@@ -38,9 +38,21 @@ usage() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --pr-dir) pr_dir=${2:-}; shift 2 ;;
-      --from)   from_issue=${2:-}; shift 2 ;;
-      --to)     to_issue=${2:-}; shift 2 ;;
+      --pr-dir)
+        [[ $# -ge 2 && ${2:0:2} != -- ]] || die "--pr-dir requires a value"
+        pr_dir=$2
+        shift 2
+        ;;
+      --from)
+        [[ $# -ge 2 && ${2:0:2} != -- ]] || die "--from requires a value"
+        from_issue=$2
+        shift 2
+        ;;
+      --to)
+        [[ $# -ge 2 && ${2:0:2} != -- ]] || die "--to requires a value"
+        to_issue=$2
+        shift 2
+        ;;
       --dry-run) dry_run=true; shift ;;
       -h|--help) usage ;;
       *) die "Unknown arg: $1" ;;
