@@ -1,6 +1,6 @@
 name: knowledge-quickstart
 version: 0.1.0
-description: Quickstart knowledge base using local Markdown documents and in-memory vector store
+description: Quickstart knowledge base using local Markdown documents and filesystem vector store
 
 models:
   - provider: groq
@@ -20,8 +20,8 @@ embedders:
       batch_size: 32
 
 vector_dbs:
-  - id: in_memory_faststart
-    type: memory
+  - id: filesystem_faststart
+    type: filesystem
     config:
       dimension: 1536
 
@@ -29,7 +29,7 @@ knowledge_bases:
   - id: quickstart_docs
     ingest: on_start
     embedder: openai_default
-    vector_db: in_memory_faststart
+    vector_db: filesystem_faststart
     sources:
       - type: markdown_glob
         path: "docs/**/*.md"

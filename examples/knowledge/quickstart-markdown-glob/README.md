@@ -2,7 +2,7 @@
 
 ## Goal
 
-Provision a knowledge base from local Markdown files, ingest content with the in-memory vector store, and answer questions with a single workflow run.
+Provision a knowledge base from local Markdown files, ingest content with the filesystem vector store, and answer questions with a single workflow run.
 
 ## Prerequisites
 
@@ -44,4 +44,4 @@ You can execute all steps at once with `./run.sh`.
 
 ## Teardown
 
-No persistent resources are created when using the in-memory vector store. Use `./teardown.sh` to remove temporary files and unset environment variables.
+The filesystem vector store persists data under the Compozy cache directory (for example `~/.compozy/cache`). Use `./teardown.sh` to remove generated files and unset environment variables when you're done.

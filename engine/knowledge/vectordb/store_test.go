@@ -44,17 +44,6 @@ func TestValidateConfig_PgvectorDSN(t *testing.T) {
 		assert.ErrorContains(t, err, "dsn is required")
 	})
 
-	t.Run("Should allow empty DSN for memory provider", func(t *testing.T) {
-		cfg := &Config{
-			ID:        "test-memory",
-			Provider:  ProviderMemory,
-			DSN:       "",
-			Dimension: 384,
-		}
-		err := validateConfig(cfg)
-		assert.NoError(t, err)
-	})
-
 	t.Run("Should require path for filesystem provider", func(t *testing.T) {
 		cfg := &Config{
 			ID:        "test-fs",

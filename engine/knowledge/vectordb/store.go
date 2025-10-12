@@ -29,8 +29,6 @@ func instantiateStore(ctx context.Context, cfg *Config) (Store, error) {
 		return newPGStore(ctx, cfg)
 	case ProviderQdrant:
 		return newQdrantStore(ctx, cfg)
-	case ProviderMemory:
-		return newMemoryStore(cfg), nil
 	case ProviderFilesystem:
 		return newFileStore(cfg)
 	default:

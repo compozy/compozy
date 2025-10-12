@@ -40,8 +40,8 @@ embedders:
 
 ```yaml title="compozy.yaml"
 vector_dbs:
-  - id: in_memory_faststart
-    type: in_memory
+  - id: filesystem_faststart
+    type: filesystem
   - id: pgvector_local
     type: pgvector
     config:
@@ -50,7 +50,7 @@ vector_dbs:
       table: knowledge_chunks
 ```
 
-- Use `in_memory` for quick starts and tests. Production workloads should use `pgvector` or `qdrant`.
+- Use `filesystem` for quick starts and tests. Production workloads should use `pgvector` or `qdrant`.
 - Set `ensure_index` to automatically create the IVF/IVFFlat index; disable if migrations manage it elsewhere.
 - Keep DSNs inside environment variables to avoid leaking credentials.
 
@@ -60,7 +60,7 @@ vector_dbs:
 knowledge_bases:
   - id: quickstart_docs
     embedder: openai_default
-    vector_db: in_memory_faststart
+    vector_db: filesystem_faststart
     sources:
       - kind: markdown_glob
         glob: "docs/**/*.md"

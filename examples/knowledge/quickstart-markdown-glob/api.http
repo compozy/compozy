@@ -39,7 +39,7 @@ If-Match: {{getKnowledgeBase.response.headers.ETag}}
 
 {
   "embedder": "openai_default",
-  "vector_db": "in_memory_faststart",
+  "vector_db": "filesystem_faststart",
   "sources": [
     {
       "type": "markdown_glob",

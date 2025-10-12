@@ -8,7 +8,6 @@ type Provider string
 const (
 	ProviderPGVector Provider = "pgvector"
 	ProviderQdrant   Provider = "qdrant"
-	ProviderMemory   Provider = "memory"
 	// ProviderFilesystem persists embeddings to a local filesystem-backed store.
 	ProviderFilesystem Provider = "filesystem"
 )

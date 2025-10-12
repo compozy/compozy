@@ -22,7 +22,7 @@ import knowledgeBaseSchema from "@/schemas/knowledge-base.json";
 knowledge_bases:
   - id: quickstart_docs
     embedder: openai_default
-    vector_db: in_memory_faststart
+    vector_db: filesystem_faststart
     sources:
       - kind: markdown_glob
         glob: "docs/**/*.md"

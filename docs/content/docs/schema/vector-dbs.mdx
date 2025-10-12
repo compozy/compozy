@@ -20,8 +20,8 @@ import vectorDbSchema from "@/schemas/vectordb.json";
 
 ```yaml
 vector_dbs:
-  - id: in_memory_faststart
-    type: in_memory
+  - id: filesystem_faststart
+    type: filesystem
   - id: pgvector_local
     type: pgvector
     config:
@@ -37,8 +37,7 @@ vector_dbs:
       dimension: 1536
 ```
 
-- `in_memory` is ideal for quickstarts and tests; persistent workloads should use `pgvector` or `qdrant`.
-- `filesystem` persists embeddings to `.compozy/cache/<vector_db_id>.store` when no `config.path` is provided, so quickstarts do not require extra configuration.
+- `filesystem` is ideal for quickstarts and tests and persists embeddings to `.compozy/cache/<vector_db_id>.store` when no `config.path` is provided, so quickstarts do not require extra configuration.
 - **pgvector DSN is optional** - when not provided, pgvector uses the global postgres database configuration, reducing configuration duplication.
 - Qdrant requires an explicit DSN.
 - `config.ensure_index` controls whether Compozy enforces pgvector index creation on startup.

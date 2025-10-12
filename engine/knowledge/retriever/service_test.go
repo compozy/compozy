@@ -267,7 +267,7 @@ func TestService_ShouldEmitObservabilitySignals(t *testing.T) {
 		},
 		Vector: knowledge.VectorDBConfig{
 			ID:   "vector",
-			Type: knowledge.VectorDBTypeMemory,
+			Type: knowledge.VectorDBTypeFilesystem,
 		},
 		Retrieval: knowledge.RetrievalConfig{
 			TopK:     3,

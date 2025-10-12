@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -320,6 +321,7 @@ func TestService_applyKnowledgeOverrides(t *testing.T) {
 	t.Run("Should apply runtime overrides to resolved knowledge bindings", func(t *testing.T) {
 		t.Parallel()
 
+		storePath := filepath.Join(t.TempDir(), "vector.store")
 		svc := &Service{
 			knowledgeRuntimeEmbedders: map[string]*knowledge.EmbedderConfig{
 				"openai_default": {
@@ -334,10 +336,11 @@ func TestService_applyKnowledgeOverrides(t *testing.T) {
 				},
 			},
 			knowledgeRuntimeVectorDBs: map[string]*knowledge.VectorDBConfig{
-				"memory": {
-					ID:   "memory",
-					Type: knowledge.VectorDBTypeMemory,
+				"filesystem": {
+					ID:   "filesystem",
+					Type: knowledge.VectorDBTypeFilesystem,
 					Config: knowledge.VectorDBConnConfig{
+						Path:      storePath,
 						Dimension: 1536,
 					},
 				},
@@ -346,7 +349,7 @@ func TestService_applyKnowledgeOverrides(t *testing.T) {
 				"kb": {
 					ID:       "kb",
 					Embedder: "openai_default",
-					VectorDB: "memory",
+					VectorDB: "filesystem",
 				},
 			},
 		}
@@ -368,9 +371,10 @@ func TestService_applyKnowledgeOverrides(t *testing.T) {
 				},
 			},
 			Vector: knowledge.VectorDBConfig{
-				ID:   "memory",
-				Type: knowledge.VectorDBTypeMemory,
+				ID:   "filesystem",
+				Type: knowledge.VectorDBTypeFilesystem,
 				Config: knowledge.VectorDBConnConfig{
+					Path:      storePath,
 					Dimension: 1536,
 				},
 			},
@@ -380,7 +384,7 @@ func TestService_applyKnowledgeOverrides(t *testing.T) {
 		svc.applyKnowledgeOverrides(binding)
 
 		assert.Equal(t, "resolved-secret", binding.Embedder.APIKey)
-		assert.Equal(t, "memory", binding.Vector.ID)
+		assert.Equal(t, "filesystem", binding.Vector.ID)
 		assert.Equal(t, "kb", binding.KnowledgeBase.ID)
 	})
 }

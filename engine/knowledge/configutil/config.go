@@ -50,7 +50,7 @@ func ToVectorStoreConfig(ctx context.Context, project string, cfg *knowledge.Vec
 	}
 	provider := vectordb.Provider(strings.TrimSpace(string(cfg.Type)))
 	switch provider {
-	case vectordb.ProviderPGVector, vectordb.ProviderQdrant, vectordb.ProviderMemory, vectordb.ProviderFilesystem:
+	case vectordb.ProviderPGVector, vectordb.ProviderQdrant, vectordb.ProviderFilesystem:
 	default:
 		return nil, fmt.Errorf("project %s vector_db %q: unsupported type %q", project, cfg.ID, cfg.Type)
 	}

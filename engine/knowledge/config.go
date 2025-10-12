@@ -188,7 +188,6 @@ type VectorDBType string
 const (
 	VectorDBTypePGVector   VectorDBType = "pgvector"
 	VectorDBTypeQdrant     VectorDBType = "qdrant"
-	VectorDBTypeMemory     VectorDBType = "memory"
 	VectorDBTypeFilesystem VectorDBType = "filesystem"
 )
 
@@ -522,7 +521,7 @@ func validateVectorProvider(vector *VectorDBConfig) []error {
 				fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
 			)
 		}
-	case VectorDBTypeMemory, VectorDBTypeFilesystem:
+	case VectorDBTypeFilesystem:
 		if vector.Config.Dimension <= 0 {
 			errs = append(
 				errs,

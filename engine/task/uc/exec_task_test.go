@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -73,6 +74,7 @@ func TestNormalizeProviderConfigWithEnv(t *testing.T) {
 func TestBuildKnowledgeRuntimeConfigRendersEmbedderTemplates(t *testing.T) {
 	t.Run("Should build runtime config and resolve embedder templates", func(t *testing.T) {
 		exec := &ExecuteTask{templateEngine: tplengine.NewEngine(tplengine.FormatJSON)}
+		storePath := filepath.Join(t.TempDir(), "vector.store")
 		projectCfg := &project.Config{
 			Name: "demo",
 			Embedders: []knowledge.EmbedderConfig{{
@@ -86,16 +88,17 @@ func TestBuildKnowledgeRuntimeConfigRendersEmbedderTemplates(t *testing.T) {
 				},
 			}},
 			VectorDBs: []knowledge.VectorDBConfig{{
-				ID:   "memory",
-				Type: knowledge.VectorDBTypeMemory,
+				ID:   "filesystem",
+				Type: knowledge.VectorDBTypeFilesystem,
 				Config: knowledge.VectorDBConnConfig{
+					Path:      storePath,
 					Dimension: 1536,
 				},
 			}},
 			KnowledgeBases: []knowledge.BaseConfig{{
 				ID:       "kb",
 				Embedder: "openai_default",
-				VectorDB: "memory",
+				VectorDB: "filesystem",
 				Sources: []knowledge.SourceConfig{{
 					Type: knowledge.SourceTypePDFURL,
 					URLs: []string{"https://example.com/example.pdf"},
@@ -118,6 +121,7 @@ func TestBuildKnowledgeRuntimeConfigRendersEmbedderTemplates(t *testing.T) {
 }
 
 func TestNewKnowledgeRuntimeConfigAggregatesKnowledgeBases(t *testing.T) {
+	storePath := filepath.Join(t.TempDir(), "vector.store")
 	projectCfg := &project.Config{
 		Name: "demo",
 		KnowledgeBases: []knowledge.BaseConfig{{
@@ -130,7 +134,14 @@ func TestNewKnowledgeRuntimeConfigAggregatesKnowledgeBases(t *testing.T) {
 			{ID: "embedder", Provider: "openai", Model: "text", Config: knowledge.EmbedderRuntimeConfig{Dimension: 1}},
 		},
 		VectorDBs: []knowledge.VectorDBConfig{
-			{ID: "vector", Type: knowledge.VectorDBTypeMemory, Config: knowledge.VectorDBConnConfig{Dimension: 1}},
+			{
+				ID:   "vector",
+				Type: knowledge.VectorDBTypeFilesystem,
+				Config: knowledge.VectorDBConnConfig{
+					Path:      storePath,
+					Dimension: 1,
+				},
+			},
 		},
 	}
 	workflowCfg := &workflow.Config{

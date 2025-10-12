@@ -496,7 +496,7 @@ func resolvedBinding(batchSize int) *knowledge.ResolvedBinding {
 		},
 		Vector: knowledge.VectorDBConfig{
 			ID:   "vector",
-			Type: knowledge.VectorDBTypeMemory,
+			Type: knowledge.VectorDBTypeFilesystem,
 			Config: knowledge.VectorDBConnConfig{
 				Dimension: 4,
 			},
