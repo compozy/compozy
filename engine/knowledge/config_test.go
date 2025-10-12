@@ -337,7 +337,7 @@ func createVectorDBConfig(id string) knowledge.VectorDBConfig {
 }
 
 func TestPgvectorDSNValidation(t *testing.T) {
-	t.Run("Should reject pgvector without DSN", func(t *testing.T) {
+	t.Run("Should allow pgvector without DSN using fallback", func(t *testing.T) {
 		defs := knowledge.Definitions{
 			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("embedder1")},
 			VectorDBs: []knowledge.VectorDBConfig{
@@ -363,8 +363,7 @@ func TestPgvectorDSNValidation(t *testing.T) {
 		}
 		defs.Normalize()
 		err := defs.Validate()
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "requires config.dsn")
+		require.NoError(t, err)
 	})
 
 	t.Run("Should allow pgvector with explicit DSN", func(t *testing.T) {

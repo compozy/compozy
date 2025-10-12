@@ -384,7 +384,7 @@ func (l *conversationLoop) Run(
 		MaxIterations:    maxIter,
 		BaseSystemPrompt: llmReq.SystemPrompt,
 		PromptTemplate:   template,
-		PromptContext:    request.PromptContext,
+		PromptContext:    request.Prompt.DynamicContext,
 	}
 	loopCtx.BaseSystemPrompt = composeSystemPrompt(loopCtx.BaseSystemPrompt, "")
 	loopCtx.LLMRequest.SystemPrompt = loopCtx.BaseSystemPrompt
@@ -886,7 +886,7 @@ func computeContextUsage(loopCtx *LoopContext, response *llmadapter.LLMResponse)
 	if total == 0 {
 		total = usage.PromptTokens + usage.CompletionTokens
 	}
-	limit := loopCtx.Request.ProviderCaps.ContextWindowTokens
+	limit := loopCtx.Request.Execution.ProviderCaps.ContextWindowTokens
 	source := "provider"
 	if limit <= 0 && loopCtx.Request.Agent != nil && loopCtx.Request.Agent.Model.Config.Params.MaxTokens > 0 {
 		limit = int(loopCtx.Request.Agent.Model.Config.Params.MaxTokens)

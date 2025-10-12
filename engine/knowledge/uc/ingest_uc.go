@@ -48,7 +48,7 @@ func (uc *Ingest) Execute(ctx context.Context, in *IngestInput) (*IngestOutput, 
 	if err != nil {
 		return nil, err
 	}
-	defer closeStore(ctx, binding.ID)
+	defer closeStore(context.WithoutCancel(ctx), binding.ID)
 	result, err := runIngestPipeline(ctx, binding, embAdapter, vecStore, ingest.Options{
 		CWD:      in.CWD,
 		Strategy: in.Strategy,

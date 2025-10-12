@@ -5,17 +5,11 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
 	"time"
-	"unicode"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/knowledge"
-	"github.com/compozy/compozy/engine/knowledge/configutil"
-	"github.com/compozy/compozy/engine/knowledge/embedder"
-	"github.com/compozy/compozy/engine/knowledge/retriever"
-	"github.com/compozy/compozy/engine/knowledge/vectordb"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	orchestratorpkg "github.com/compozy/compozy/engine/llm/orchestrator"
 	"github.com/compozy/compozy/engine/llm/telemetry"
@@ -31,43 +25,16 @@ import (
 )
 
 const (
-	directPromptActionID   = "direct-prompt"
-	retrievalKeywordLimit  = 32
-	retrievalFocusMaxRunes = 512
+	directPromptActionID = "direct-prompt"
 )
 
 // Service provides LLM integration capabilities using clean architecture
 type Service struct {
-	orchestrator              orchestratorpkg.Orchestrator
-	config                    *Config
-	toolRegistry              ToolRegistry
-	knowledgeResolver         *knowledge.Resolver
-	knowledgeWorkflowKBs      []knowledge.BaseConfig
-	knowledgeProjectBinding   []core.KnowledgeBinding
-	knowledgeWorkflowBinding  []core.KnowledgeBinding
-	knowledgeInlineBinding    []core.KnowledgeBinding
-	knowledgeRuntimeEmbedders map[string]*knowledge.EmbedderConfig
-	knowledgeRuntimeVectorDBs map[string]*knowledge.VectorDBConfig
-	knowledgeRuntimeKBs       map[string]*knowledge.BaseConfig
-	knowledgeRuntimeWorkflow  map[string]*knowledge.BaseConfig
-	knowledgeProjectID        string
-	closeCtx                  context.Context
-	cacheMu                   sync.RWMutex
-	embedderCache             map[string]*embedder.Adapter
-	vectorStoreCache          map[string]*cachedVectorStore
-}
-
-type cachedVectorStore struct {
-	store   vectordb.Store
-	release func(context.Context) error
-}
-
-var knowledgeStopwords = map[string]struct{}{
-	"the": {}, "and": {}, "for": {}, "with": {}, "that": {},
-	"from": {}, "this": {}, "have": {}, "your": {}, "about": {},
-	"into": {}, "only": {}, "which": {}, "would": {}, "their": {},
-	"there": {}, "should": {}, "could": {}, "while": {}, "where": {},
-	"when": {}, "what": {}, "question": {}, "answer": {}, "please": {},
+	orchestrator orchestratorpkg.Orchestrator
+	config       *Config
+	toolRegistry ToolRegistry
+	knowledge    *knowledgeManager
+	closeCtx     context.Context
 }
 
 type builtinRegistryAdapter struct {
@@ -286,48 +253,6 @@ func (a *orchestratorToolRegistryAdapter) Close() error {
 	return a.registry.Close()
 }
 
-type knowledgeRuntimeState struct {
-	resolver              *knowledge.Resolver
-	workflowKBs           []knowledge.BaseConfig
-	projectBinding        []core.KnowledgeBinding
-	workflowBinding       []core.KnowledgeBinding
-	inlineBinding         []core.KnowledgeBinding
-	runtimeEmbedders      map[string]*knowledge.EmbedderConfig
-	runtimeVectorDBs      map[string]*knowledge.VectorDBConfig
-	runtimeKnowledgeBases map[string]*knowledge.BaseConfig
-	runtimeWorkflowKBs    map[string]*knowledge.BaseConfig
-	projectID             string
-}
-
-func newKnowledgeRuntimeState(ctx context.Context, cfg *KnowledgeRuntimeConfig) (*knowledgeRuntimeState, error) {
-	resolver,
-		workflowKBs,
-		projectBinding,
-		workflowBinding,
-		inlineBinding,
-		runtimeEmbedders,
-		runtimeVectorDBs,
-		runtimeKnowledgeBases,
-		runtimeWorkflowKBs,
-		projectID,
-		err := initKnowledgeRuntime(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	return &knowledgeRuntimeState{
-		resolver:              resolver,
-		workflowKBs:           workflowKBs,
-		projectBinding:        projectBinding,
-		workflowBinding:       workflowBinding,
-		inlineBinding:         inlineBinding,
-		runtimeEmbedders:      runtimeEmbedders,
-		runtimeVectorDBs:      runtimeVectorDBs,
-		runtimeKnowledgeBases: runtimeKnowledgeBases,
-		runtimeWorkflowKBs:    runtimeWorkflowKBs,
-		projectID:             projectID,
-	}, nil
-}
-
 func newServiceInstance(
 	ctx context.Context,
 	orchestrator orchestratorpkg.Orchestrator,
@@ -336,26 +261,14 @@ func newServiceInstance(
 	state *knowledgeRuntimeState,
 ) *Service {
 	service := &Service{
-		orchestrator:     orchestrator,
-		config:           config,
-		toolRegistry:     registry,
-		closeCtx:         deriveCloseContext(ctx),
-		embedderCache:    make(map[string]*embedder.Adapter),
-		vectorStoreCache: make(map[string]*cachedVectorStore),
+		orchestrator: orchestrator,
+		config:       config,
+		toolRegistry: registry,
+		closeCtx:     deriveCloseContext(ctx),
 	}
-	if state == nil {
-		return service
+	if state != nil {
+		service.knowledge = newKnowledgeManager(state)
 	}
-	service.knowledgeResolver = state.resolver
-	service.knowledgeWorkflowKBs = state.workflowKBs
-	service.knowledgeProjectBinding = state.projectBinding
-	service.knowledgeWorkflowBinding = state.workflowBinding
-	service.knowledgeInlineBinding = state.inlineBinding
-	service.knowledgeRuntimeEmbedders = state.runtimeEmbedders
-	service.knowledgeRuntimeVectorDBs = state.runtimeVectorDBs
-	service.knowledgeRuntimeKBs = state.runtimeKnowledgeBases
-	service.knowledgeRuntimeWorkflow = state.runtimeWorkflowKBs
-	service.knowledgeProjectID = state.projectID
 	return service
 }
 
@@ -473,10 +386,14 @@ func (s *Service) GenerateContent(
 	}
 
 	request := orchestratorpkg.Request{
-		Agent:           effectiveAgent,
-		Action:          actionCopy,
-		AttachmentParts: attachmentParts,
-		Knowledge:       knowledgeEntries,
+		Agent:  effectiveAgent,
+		Action: actionCopy,
+		Prompt: orchestratorpkg.PromptPayload{
+			Attachments: attachmentParts,
+		},
+		Knowledge: orchestratorpkg.KnowledgePayload{
+			Entries: knowledgeEntries,
+		},
 	}
 	return s.orchestrator.Execute(ctx, request)
 }
@@ -533,255 +450,16 @@ func (s *Service) buildEffectiveAgent(agentConfig *agent.Config) (*agent.Config,
 	return &tmp, nil
 }
 
-// resolveKnowledgeBinding builds the resolve input and invokes the resolver.
-func (s *Service) resolveKnowledgeBinding(agentConfig *agent.Config) (*knowledge.ResolvedBinding, error) {
-	inline := s.buildInlineKnowledgeBinding(agentConfig)
-	input := knowledge.ResolveInput{
-		WorkflowKnowledgeBases: s.knowledgeWorkflowKBs,
-		ProjectBinding:         s.knowledgeProjectBinding,
-		WorkflowBinding:        s.knowledgeWorkflowBinding,
-		InlineBinding:          inline,
-	}
-	return s.knowledgeResolver.Resolve(&input)
-}
-
 func (s *Service) resolveKnowledge(
 	ctx context.Context,
 	agentConfig *agent.Config,
 	action *agent.ActionConfig,
 ) ([]orchestratorpkg.KnowledgeEntry, error) {
-	if s.knowledgeResolver == nil || action == nil {
+	if s.knowledge == nil {
 		return nil, nil
 	}
-	query := buildKnowledgeQuery(action)
-	if query == "" {
-		return nil, nil
-	}
-	binding, err := s.resolveKnowledgeBinding(agentConfig)
-	if err != nil {
-		return nil, err
-	}
-	if binding == nil {
-		return nil, nil
-	}
-	s.applyKnowledgeOverrides(binding)
-	entry, err := s.retrieveKnowledgeContexts(ctx, binding, query)
-	if err != nil {
-		return nil, err
-	}
-	if entry == nil {
-		return nil, nil
-	}
-	return []orchestratorpkg.KnowledgeEntry{*entry}, nil
+	return s.knowledge.resolveKnowledge(ctx, agentConfig, action)
 }
-
-func (s *Service) applyKnowledgeOverrides(binding *knowledge.ResolvedBinding) {
-	if binding == nil {
-		return
-	}
-	if id := strings.TrimSpace(binding.Embedder.ID); id != "" {
-		if override, ok := s.knowledgeRuntimeEmbedders[id]; ok && override != nil {
-			binding.Embedder = *override
-		}
-	}
-	if id := strings.TrimSpace(binding.Vector.ID); id != "" {
-		if override, ok := s.knowledgeRuntimeVectorDBs[id]; ok && override != nil {
-			binding.Vector = *override
-		}
-	}
-	if id := strings.TrimSpace(binding.KnowledgeBase.ID); id != "" {
-		if override, ok := s.knowledgeRuntimeKBs[id]; ok && override != nil {
-			binding.KnowledgeBase = *override
-		} else if override, ok := s.knowledgeRuntimeWorkflow[id]; ok && override != nil {
-			binding.KnowledgeBase = *override
-		}
-	}
-}
-
-func (s *Service) retrieveKnowledgeContexts(
-	ctx context.Context,
-	binding *knowledge.ResolvedBinding,
-	query string,
-) (*orchestratorpkg.KnowledgeEntry, error) {
-	if binding == nil {
-		return nil, nil
-	}
-	embedAdapter, err := s.getOrCreateEmbedder(ctx, &binding.Embedder)
-	if err != nil {
-		return nil, err
-	}
-	store, err := s.getOrCreateVectorStore(ctx, &binding.Vector)
-	if err != nil {
-		return nil, err
-	}
-	retrievalService, err := retriever.NewService(embedAdapter, store, nil)
-	if err != nil {
-		return nil, err
-	}
-	contexts, stage, err := s.runRetrievalStages(ctx, retrievalService, binding, query)
-	if err != nil {
-		return nil, err
-	}
-	entry := s.summarizeRetrieval(ctx, binding, contexts, stage)
-	return entry, nil
-}
-
-type retrievalStage struct {
-	name  string
-	query string
-}
-
-func (s *Service) runRetrievalStages(
-	ctx context.Context,
-	svc *retriever.Service,
-	binding *knowledge.ResolvedBinding,
-	query string,
-) ([]knowledge.RetrievedContext, string, error) {
-	stages := buildRetrievalStages(query)
-	minResults := binding.Retrieval.MinResultsValue()
-	for i := range stages {
-		stage := stages[i]
-		knowledge.RecordRetrievalAttempt(ctx, binding.ID, stage.name)
-		contexts, err := svc.Retrieve(ctx, binding, stage.query)
-		if err != nil {
-			return nil, "", err
-		}
-		if len(contexts) >= minResults {
-			return contexts, stage.name, nil
-		}
-		knowledge.RecordRetrievalEmpty(ctx, binding.ID, stage.name)
-	}
-	return nil, "", nil
-}
-
-func (s *Service) summarizeRetrieval(
-	ctx context.Context,
-	binding *knowledge.ResolvedBinding,
-	contexts []knowledge.RetrievedContext,
-	stage string,
-) *orchestratorpkg.KnowledgeEntry {
-	retrieval := binding.Retrieval
-	minResults := retrieval.MinResultsValue()
-	status := knowledge.RetrievalStatusHit
-	notice := ""
-	if len(contexts) < minResults {
-		notice = strings.TrimSpace(retrieval.Fallback)
-		if notice == "" {
-			notice = fmt.Sprintf("No indexed knowledge available for %s.", binding.ID)
-			retrieval.Fallback = notice
-		}
-		switch retrieval.ToolFallback {
-		case knowledge.ToolFallbackEscalate, knowledge.ToolFallbackAuto:
-			status = knowledge.RetrievalStatusEscalated
-			knowledge.RecordToolEscalation(ctx, binding.ID)
-		default:
-			status = knowledge.RetrievalStatusFallback
-		}
-		contexts = nil
-	}
-	knowledge.RecordRouterDecision(ctx, binding.ID, string(status))
-	logger.FromContext(ctx).Debug(
-		"Knowledge retrieval completed",
-		"binding_id", binding.ID,
-		"status", status,
-		"stage", stage,
-		"results", len(contexts),
-	)
-	return &orchestratorpkg.KnowledgeEntry{
-		BindingID: binding.ID,
-		Retrieval: retrieval,
-		Contexts:  contexts,
-		Status:    status,
-		Notice:    notice,
-	}
-}
-
-func buildRetrievalStages(query string) []retrievalStage {
-	stages := make([]retrievalStage, 0, 3)
-	seen := make(map[string]struct{})
-	addStage := func(name string, value string) {
-		trimmed := trimToRunes(strings.TrimSpace(value), knowledgeQueryMaxPartRunes)
-		if trimmed == "" {
-			return
-		}
-		if _, ok := seen[trimmed]; ok {
-			return
-		}
-		seen[trimmed] = struct{}{}
-		stages = append(stages, retrievalStage{name: name, query: trimmed})
-	}
-	addStage("initial", query)
-	addStage("keywords", keywordQuery(query))
-	addStage("focus", focusQuery(query))
-	if len(stages) == 0 {
-		addStage("fallback", query)
-	}
-	return stages
-}
-
-func keywordQuery(query string) string {
-	lowered := strings.ToLower(query)
-	tokens := strings.FieldsFunc(lowered, func(r rune) bool {
-		return unicode.IsSpace(r) || unicode.IsPunct(r)
-	})
-	if len(tokens) == 0 {
-		return ""
-	}
-	keywords := make([]string, 0, len(tokens))
-	for _, tok := range tokens {
-		tok = strings.TrimSpace(tok)
-		if len(tok) <= 2 {
-			continue
-		}
-		if _, stop := knowledgeStopwords[tok]; stop {
-			continue
-		}
-		keywords = append(keywords, tok)
-		if len(keywords) >= retrievalKeywordLimit {
-			break
-		}
-	}
-	if len(keywords) == 0 {
-		return ""
-	}
-	return strings.Join(keywords, " ")
-}
-
-func focusQuery(query string) string {
-	trimmed := strings.TrimSpace(query)
-	if trimmed == "" {
-		return ""
-	}
-	idx := strings.LastIndexAny(trimmed, "?!")
-	if idx >= 0 && idx+1 < len(trimmed) {
-		candidate := strings.TrimSpace(trimmed[idx+1:])
-		if candidate != "" {
-			return trimToRunes(candidate, retrievalFocusMaxRunes)
-		}
-	}
-	lines := strings.Split(trimmed, "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := strings.TrimSpace(lines[i])
-		if line != "" {
-			return trimToRunes(line, retrievalFocusMaxRunes)
-		}
-	}
-	return trimToRunes(trimmed, retrievalFocusMaxRunes)
-}
-
-func trimToRunes(value string, limit int) string {
-	value = strings.TrimSpace(value)
-	if value == "" || limit <= 0 {
-		return value
-	}
-	runes := []rune(value)
-	if len(runes) > limit {
-		return string(runes[:limit])
-	}
-	return value
-}
-
-const knowledgeQueryMaxPartRunes = 2048
 
 func buildKnowledgeQuery(action *agent.ActionConfig) string {
 	if action == nil {
@@ -939,124 +617,6 @@ func stripTemplateTokens(text string) string {
 	return strings.Join(strings.Fields(clean), " ")
 }
 
-func (s *Service) getOrCreateEmbedder(ctx context.Context, cfg *knowledge.EmbedderConfig) (*embedder.Adapter, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("knowledge: embedder config is required")
-	}
-	id := strings.TrimSpace(cfg.ID)
-	if id == "" {
-		return nil, fmt.Errorf("knowledge: embedder id is required")
-	}
-	s.cacheMu.RLock()
-	adapter, ok := s.embedderCache[id]
-	s.cacheMu.RUnlock()
-	if ok {
-		return adapter, nil
-	}
-	adapterCfg, err := configutil.ToEmbedderAdapterConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	if adapter, ok := s.embedderCache[id]; ok {
-		return adapter, nil
-	}
-	created, err := embedder.New(ctx, adapterCfg)
-	if err != nil {
-		return nil, err
-	}
-	s.embedderCache[id] = created
-	return created, nil
-}
-
-func (s *Service) getOrCreateVectorStore(ctx context.Context, cfg *knowledge.VectorDBConfig) (vectordb.Store, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("knowledge: vector store config is required")
-	}
-	id := strings.TrimSpace(cfg.ID)
-	if id == "" {
-		return nil, fmt.Errorf("knowledge: vector store id is required")
-	}
-	s.cacheMu.RLock()
-	cached, ok := s.vectorStoreCache[id]
-	s.cacheMu.RUnlock()
-	if ok {
-		return cached.store, nil
-	}
-	storeCfg, err := configutil.ToVectorStoreConfig(ctx, s.knowledgeProjectID, cfg)
-	if err != nil {
-		return nil, err
-	}
-	store, release, err := vectordb.AcquireShared(ctx, storeCfg)
-	if err != nil {
-		return nil, err
-	}
-	s.cacheMu.Lock()
-	if existing, ok := s.vectorStoreCache[id]; ok {
-		s.cacheMu.Unlock()
-		if release != nil {
-			if err := release(ctx); err != nil {
-				logger.FromContext(ctx).Warn(
-					"failed to release vector store handle",
-					"vector_id", id,
-					"error", err,
-				)
-			}
-		}
-		return existing.store, nil
-	}
-	s.vectorStoreCache[id] = &cachedVectorStore{store: store, release: release}
-	s.cacheMu.Unlock()
-	return store, nil
-}
-
-func (s *Service) buildInlineKnowledgeBinding(agentConfig *agent.Config) []core.KnowledgeBinding {
-	var combined *core.KnowledgeBinding
-	merge := func(src []core.KnowledgeBinding) {
-		for i := range src {
-			clone := src[i].Clone()
-			if combined == nil {
-				combined = &clone
-				continue
-			}
-			combined.Merge(&clone)
-			if clone.ID != "" {
-				combined.ID = clone.ID
-			}
-		}
-	}
-	merge(s.knowledgeInlineBinding)
-	if agentConfig != nil {
-		merge(agentConfig.Knowledge)
-	}
-	if combined == nil {
-		return nil
-	}
-	return []core.KnowledgeBinding{*combined}
-}
-
-func cloneBindingSlice(src []core.KnowledgeBinding) []core.KnowledgeBinding {
-	if len(src) == 0 {
-		return nil
-	}
-	out := make([]core.KnowledgeBinding, len(src))
-	for i := range src {
-		out[i] = src[i].Clone()
-	}
-	return out
-}
-
-func cloneWorkflowKnowledge(src []knowledge.BaseConfig) []knowledge.BaseConfig {
-	if len(src) == 0 {
-		return nil
-	}
-	if copied, err := core.DeepCopy(src); err == nil {
-		return copied
-	}
-	return append([]knowledge.BaseConfig{}, src...)
-}
-
 func initKnowledgeRuntime(
 	ctx context.Context,
 	cfg *KnowledgeRuntimeConfig,
@@ -1146,14 +706,10 @@ func (s *Service) Close() error {
 }
 
 func (s *Service) drainVectorStoreCache() []*cachedVectorStore {
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	entries := make([]*cachedVectorStore, 0, len(s.vectorStoreCache))
-	for key, entry := range s.vectorStoreCache {
-		entries = append(entries, entry)
-		delete(s.vectorStoreCache, key)
+	if s.knowledge == nil {
+		return nil
 	}
-	return entries
+	return s.knowledge.drainVectorStores()
 }
 
 func closeVectorStores(ctx context.Context, entries []*cachedVectorStore) error {

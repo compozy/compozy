@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	pgvector "github.com/pgvector/pgvector-go"
@@ -33,10 +35,15 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 	if cfg == nil {
 		return nil, errors.New("vector_db config is required")
 	}
-	if strings.TrimSpace(cfg.DSN) == "" {
+	dsn := strings.TrimSpace(cfg.DSN)
+	if dsn == "" {
+		dsn = resolvePGVectorDSN(ctx, cfg)
+	}
+	if dsn == "" {
 		return nil, errors.New("vector_db dsn is required for pgvector")
 	}
-	pool, err := pgxpool.New(ctx, cfg.DSN)
+	cfg.DSN = dsn
+	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("vector_db %q: failed to connect to postgres: %w", cfg.ID, err)
 	}
@@ -57,6 +64,50 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 		return nil, err
 	}
 	return store, nil
+}
+
+func resolvePGVectorDSN(ctx context.Context, cfg *Config) string {
+	log := logger.FromContext(ctx)
+	globalCfg := config.FromContext(ctx)
+	if globalCfg == nil {
+		log.Warn("pgvector: missing global config for DSN fallback", "vector_db_id", cfg.ID)
+		return ""
+	}
+	if conn := strings.TrimSpace(globalCfg.Database.ConnString); conn != "" {
+		log.Debug("pgvector: using global postgres conn_string fallback", "vector_db_id", cfg.ID)
+		return conn
+	}
+	dsn := buildPostgresDSNFromDatabase(&globalCfg.Database)
+	if strings.TrimSpace(dsn) == "" {
+		log.Warn("pgvector: global database config incomplete for DSN fallback", "vector_db_id", cfg.ID)
+		return ""
+	}
+	log.Debug("pgvector: built DSN from global database settings", "vector_db_id", cfg.ID)
+	return dsn
+}
+
+func buildPostgresDSNFromDatabase(dbCfg *config.DatabaseConfig) string {
+	if dbCfg == nil {
+		return ""
+	}
+	host := fallbackString(dbCfg.Host, "localhost")
+	port := fallbackString(dbCfg.Port, "5432")
+	user := fallbackString(dbCfg.User, "postgres")
+	password := dbCfg.Password
+	dbname := fallbackString(dbCfg.DBName, "postgres")
+	sslmode := fallbackString(dbCfg.SSLMode, "disable")
+	return fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		host, port, user, password, dbname, sslmode,
+	)
+}
+
+func fallbackString(value, fallback string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fallback
+	}
+	return trimmed
 }
 
 func chooseTable(cfg *Config) string {
@@ -166,6 +217,8 @@ ON CONFLICT (id) DO UPDATE SET
     document = excluded.document,
     metadata = excluded.metadata,
     updated_at = excluded.updated_at`, p.tableIdent)
+	batch := &pgx.Batch{}
+	ids := make([]string, 0, len(records))
 	for i := range records {
 		rec := records[i]
 		if len(rec.Embedding) != p.dimension {
@@ -181,8 +234,19 @@ ON CONFLICT (id) DO UPDATE SET
 		if marshalErr != nil {
 			return fmt.Errorf("pgvector: marshal metadata for %q: %w", rec.ID, marshalErr)
 		}
-		if _, execErr := tx.Exec(ctx, stmt, rec.ID, vector, rec.Text, metadata, time.Now().UTC()); execErr != nil {
-			return fmt.Errorf("pgvector: upsert %q: %w", rec.ID, execErr)
+		batch.Queue(stmt, rec.ID, vector, rec.Text, metadata, time.Now().UTC())
+		ids = append(ids, rec.ID)
+	}
+	results := tx.SendBatch(ctx, batch)
+	defer func() {
+		closeErr := results.Close()
+		if closeErr != nil && err == nil {
+			err = fmt.Errorf("pgvector: close batch: %w", closeErr)
+		}
+	}()
+	for i := range ids {
+		if _, execErr := results.Exec(); execErr != nil {
+			return fmt.Errorf("pgvector: upsert %q: %w", ids[i], execErr)
 		}
 	}
 	return nil
@@ -199,7 +263,7 @@ func (p *pgStore) Search(ctx context.Context, query []float32, opts SearchOption
 	if topK > pgvectorMaxTopK {
 		return nil, fmt.Errorf("pgvector: topK exceeds maximum allowed value of %d", pgvectorMaxTopK)
 	}
-	sql, args := buildSearchQuery(p.tableIdent, opts.Filters, opts.MinScore)
+	sql, args := buildSearchQuery(p.tableIdent, p.metric, opts.Filters, opts.MinScore)
 	args[0] = pgvector.NewVector(query)
 	args = append(args, topK)
 	rows, err := p.pool.Query(ctx, sql, args...)
@@ -210,9 +274,12 @@ func (p *pgStore) Search(ctx context.Context, query []float32, opts SearchOption
 	return scanSearchResults(rows, opts.MinScore, topK)
 }
 
-func buildSearchQuery(tableIdent string, filters map[string]string, minScore float64) (string, []any) {
+func buildSearchQuery(tableIdent string, metric string, filters map[string]string, minScore float64) (string, []any) {
 	builder := strings.Builder{}
-	builder.WriteString("SELECT id, document, metadata, 1 - (embedding <=> $1) AS score FROM ")
+	scoreClause, orderExpr := searchExpressions(metric)
+	builder.WriteString("SELECT id, document, metadata, ")
+	builder.WriteString(scoreClause)
+	builder.WriteString(" AS score FROM ")
 	builder.WriteString(tableIdent)
 	builder.WriteString(" WHERE 1=1")
 	args := make([]any, 1, 1+len(filters)*2+2)
@@ -223,13 +290,26 @@ func buildSearchQuery(tableIdent string, filters map[string]string, minScore flo
 		argPos += 2
 	}
 	if minScore > 0 {
-		builder.WriteString(fmt.Sprintf(" AND 1 - (embedding <=> $1) >= $%d", argPos))
+		builder.WriteString(fmt.Sprintf(" AND %s >= $%d", scoreClause, argPos))
 		args = append(args, minScore)
 		argPos++
 	}
-	builder.WriteString(" ORDER BY embedding <=> $1 ASC LIMIT $")
+	builder.WriteString(" ORDER BY ")
+	builder.WriteString(orderExpr)
+	builder.WriteString(" ASC LIMIT $")
 	builder.WriteString(fmt.Sprint(argPos))
 	return builder.String(), args
+}
+
+func searchExpressions(metric string) (string, string) {
+	switch strings.ToLower(strings.TrimSpace(metric)) {
+	case "l2":
+		return "1.0 / (1.0 + (embedding <-> $1))", "embedding <-> $1"
+	case "ip":
+		return "-(embedding <#> $1)", "embedding <#> $1"
+	default:
+		return "1 - (embedding <=> $1)", "embedding <=> $1"
+	}
 }
 
 func scanSearchResults(rows pgx.Rows, minScore float64, topK int) ([]Match, error) {

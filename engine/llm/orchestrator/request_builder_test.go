@@ -191,9 +191,11 @@ func TestRequestBuilder_RequiresJSONMode(t *testing.T) {
 	schemaObj := &schema.Schema{"type": "object"}
 	action := &agent.ActionConfig{ID: "structured", OutputSchema: schemaObj}
 	request := Request{
-		Agent:        &agent.Config{Model: agent.Model{Config: core.ProviderConfig{Provider: core.ProviderGoogle}}},
-		Action:       action,
-		ProviderCaps: llmadapter.ProviderCapabilities{StructuredOutput: true},
+		Agent:  &agent.Config{Model: agent.Model{Config: core.ProviderConfig{Provider: core.ProviderGoogle}}},
+		Action: action,
+		Execution: ExecutionOptions{
+			ProviderCaps: llmadapter.ProviderCapabilities{StructuredOutput: true},
+		},
 	}
 
 	force := rb.requiresJSONMode(request, llmadapter.DefaultOutputFormat())
@@ -213,14 +215,22 @@ func TestRequestBuilderDecideToolStrategy(t *testing.T) {
 	defs := []llmadapter.ToolDefinition{{Name: "dummy"}}
 
 	t.Run("Disables tools on fallback", func(t *testing.T) {
-		req := Request{Knowledge: []KnowledgeEntry{{Status: knowledge.RetrievalStatusFallback}}}
+		req := Request{
+			Knowledge: KnowledgePayload{
+				Entries: []KnowledgeEntry{{Status: knowledge.RetrievalStatusFallback}},
+			},
+		}
 		choice, filtered := rb.decideToolStrategy(&req, defs)
 		require.Equal(t, "none", choice)
 		require.Empty(t, filtered)
 	})
 
 	t.Run("Keeps tools on escalation", func(t *testing.T) {
-		req := Request{Knowledge: []KnowledgeEntry{{Status: knowledge.RetrievalStatusEscalated}}}
+		req := Request{
+			Knowledge: KnowledgePayload{
+				Entries: []KnowledgeEntry{{Status: knowledge.RetrievalStatusEscalated}},
+			},
+		}
 		choice, filtered := rb.decideToolStrategy(&req, defs)
 		require.Equal(t, "auto", choice)
 		require.Len(t, filtered, 1)
@@ -252,9 +262,11 @@ func TestRequestBuilderDisablesToolChoiceWhenToolsRemoved(t *testing.T) {
 			Model:         agent.Model{Config: core.ProviderConfig{Provider: core.ProviderOpenAI}},
 		},
 		Action: &agent.ActionConfig{ID: "action", Prompt: "hi"},
-		Knowledge: []KnowledgeEntry{{
-			Status: knowledge.RetrievalStatusFallback,
-		}},
+		Knowledge: KnowledgePayload{
+			Entries: []KnowledgeEntry{{
+				Status: knowledge.RetrievalStatusFallback,
+			}},
+		},
 	}
 	output, err := rb.Build(context.Background(), request, &MemoryContext{})
 	require.NoError(t, err)

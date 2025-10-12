@@ -41,8 +41,8 @@ cat .cursor/rules/{go-coding-standards,architecture,test-standards,backwards-com
 
 ### For complex/big tasks
 
-- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, analyze or tracer complex flow **BEFORE INITIATE A TASK**
-- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro and O3) codereview tool **AFTER FINISH A TASK**
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, refactor, analyze or tracer (depends of the task and what the user prompt says to do) complex flow **BEFORE INITIATE A TASK**
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) codereview tool **AFTER FINISH A TASK**
 - **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
 
 **Enforcement:** Violating these standards results in immediate task rejection.

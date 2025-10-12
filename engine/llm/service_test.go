@@ -333,7 +333,8 @@ func TestService_applyKnowledgeOverrides(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = svc.Close() })
 		storePath := filepath.Join(t.TempDir(), "vector.store")
-		svc.knowledgeRuntimeEmbedders = map[string]*knowledge.EmbedderConfig{
+		require.NotNil(t, svc.knowledge)
+		svc.knowledge.runtimeEmbedders = map[string]*knowledge.EmbedderConfig{
 			"openai_default": {
 				ID:       "openai_default",
 				APIKey:   "resolved-secret",
@@ -345,7 +346,7 @@ func TestService_applyKnowledgeOverrides(t *testing.T) {
 				},
 			},
 		}
-		svc.knowledgeRuntimeVectorDBs = map[string]*knowledge.VectorDBConfig{
+		svc.knowledge.runtimeVectorDBs = map[string]*knowledge.VectorDBConfig{
 			"filesystem": {
 				ID:   "filesystem",
 				Type: knowledge.VectorDBTypeFilesystem,
@@ -355,7 +356,7 @@ func TestService_applyKnowledgeOverrides(t *testing.T) {
 				},
 			},
 		}
-		svc.knowledgeRuntimeKBs = map[string]*knowledge.BaseConfig{
+		svc.knowledge.runtimeKnowledgeBases = map[string]*knowledge.BaseConfig{
 			"kb": {
 				ID:       "kb",
 				Embedder: "openai_default",
@@ -390,7 +391,7 @@ func TestService_applyKnowledgeOverrides(t *testing.T) {
 			Retrieval: knowledge.RetrievalConfig{TopK: 5},
 		}
 
-		svc.applyKnowledgeOverrides(binding)
+		svc.knowledge.applyOverrides(binding)
 
 		assert.Equal(t, "resolved-secret", binding.Embedder.APIKey)
 		assert.Equal(t, "filesystem", binding.Vector.ID)
@@ -457,7 +458,7 @@ func TestServiceSummarizeRetrieval(t *testing.T) {
 	t.Run("marks hit when enough contexts", func(t *testing.T) {
 		binding := &knowledge.ResolvedBinding{ID: "kb", Retrieval: knowledge.RetrievalConfig{MinResults: 1}}
 		contexts := []knowledge.RetrievedContext{{BindingID: "kb", Content: "body", Score: 0.9}}
-		entry := svc.summarizeRetrieval(ctx, binding, contexts, "initial")
+		entry := summarizeRetrieval(ctx, binding, contexts, "initial")
 		require.NotNil(t, entry)
 		assert.Equal(t, knowledge.RetrievalStatusHit, entry.Status)
 		assert.Len(t, entry.Contexts, 1)
@@ -469,7 +470,7 @@ func TestServiceSummarizeRetrieval(t *testing.T) {
 			ID:        "kb",
 			Retrieval: knowledge.RetrievalConfig{MinResults: 2, ToolFallback: knowledge.ToolFallbackNever},
 		}
-		entry := svc.summarizeRetrieval(ctx, binding, nil, "initial")
+		entry := summarizeRetrieval(ctx, binding, nil, "initial")
 		require.NotNil(t, entry)
 		assert.Equal(t, knowledge.RetrievalStatusFallback, entry.Status)
 		assert.Empty(t, entry.Contexts)
@@ -481,7 +482,7 @@ func TestServiceSummarizeRetrieval(t *testing.T) {
 			ID:        "kb",
 			Retrieval: knowledge.RetrievalConfig{MinResults: 2, ToolFallback: knowledge.ToolFallbackEscalate},
 		}
-		entry := svc.summarizeRetrieval(ctx, binding, nil, "initial")
+		entry := summarizeRetrieval(ctx, binding, nil, "initial")
 		require.NotNil(t, entry)
 		assert.Equal(t, knowledge.RetrievalStatusEscalated, entry.Status)
 		assert.Empty(t, entry.Contexts)

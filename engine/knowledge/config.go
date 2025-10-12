@@ -498,9 +498,10 @@ func validateVectorProvider(vector *VectorDBConfig) []error {
 	switch vector.Type {
 	case VectorDBTypePGVector:
 		dsn := strings.TrimSpace(vector.Config.DSN)
-		if dsn == "" {
-			errs = append(errs, fmt.Errorf("knowledge: vector_db %q requires config.dsn", vector.ID))
-		} else if !isTemplatedValue(dsn) {
+		if dsn != vector.Config.DSN {
+			vector.Config.DSN = dsn
+		}
+		if dsn != "" && !isTemplatedValue(dsn) {
 			errs = append(
 				errs,
 				fmt.Errorf("knowledge: vector_db %q dsn must use env or secret interpolation", vector.ID),
@@ -513,9 +514,13 @@ func validateVectorProvider(vector *VectorDBConfig) []error {
 			)
 		}
 	case VectorDBTypeQdrant:
-		if vector.Config.DSN == "" {
+		dsn := strings.TrimSpace(vector.Config.DSN)
+		if dsn != vector.Config.DSN {
+			vector.Config.DSN = dsn
+		}
+		if dsn == "" {
 			errs = append(errs, fmt.Errorf("knowledge: vector_db %q requires config.dsn", vector.ID))
-		} else if !isTemplatedValue(vector.Config.DSN) {
+		} else if !isTemplatedValue(dsn) {
 			errs = append(errs, fmt.Errorf("knowledge: vector_db %q dsn must use env or secret interpolation", vector.ID))
 		}
 		if vector.Config.Dimension <= 0 {

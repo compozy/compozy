@@ -84,7 +84,7 @@ func TestRequestBuilder_KnowledgePrompts(t *testing.T) {
 		req := Request{
 			Agent:     &agent.Config{ID: "agent"},
 			Action:    &agent.ActionConfig{ID: "action"},
-			Knowledge: []KnowledgeEntry{entry},
+			Knowledge: KnowledgePayload{Entries: []KnowledgeEntry{entry}},
 		}
 		output, err := rb.Build(context.Background(), req, &MemoryContext{})
 		require.NoError(t, err)
@@ -107,13 +107,15 @@ func TestRequestBuilder_KnowledgePrompts(t *testing.T) {
 		req := Request{
 			Agent:  &agent.Config{ID: "agent"},
 			Action: &agent.ActionConfig{ID: "action"},
-			Knowledge: []KnowledgeEntry{{
-				BindingID: "support_docs",
-				Retrieval: knowledge.RetrievalConfig{
-					InjectAs: "Support Docs",
-					Fallback: "No indexed knowledge available.",
-				},
-			}},
+			Knowledge: KnowledgePayload{
+				Entries: []KnowledgeEntry{{
+					BindingID: "support_docs",
+					Retrieval: knowledge.RetrievalConfig{
+						InjectAs: "Support Docs",
+						Fallback: "No indexed knowledge available.",
+					},
+				}},
+			},
 		}
 		output, err := rb.Build(context.Background(), req, &MemoryContext{})
 		require.NoError(t, err)

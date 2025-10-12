@@ -124,7 +124,7 @@ func (b *requestBuilder) requiresJSONMode(request Request, format llmadapter.Out
 	// If we already requested native JSON schema support, only skip forcing JSON when the
 	// provider supports structured output natively.
 	if format.IsJSONSchema() {
-		return !request.ProviderCaps.StructuredOutput
+		return !request.Execution.ProviderCaps.StructuredOutput
 	}
 	return true
 }
@@ -133,9 +133,9 @@ func (b *requestBuilder) requiresJSONMode(request Request, format llmadapter.Out
 func (b *requestBuilder) buildPromptData(ctx context.Context, request Request) (PromptBuildResult, error) {
 	result, err := b.prompts.Build(ctx, PromptBuildInput{
 		Action:       request.Action,
-		ProviderCaps: request.ProviderCaps,
+		ProviderCaps: request.Execution.ProviderCaps,
 		Tools:        request.Agent.Tools,
-		Dynamic:      request.PromptContext,
+		Dynamic:      request.Prompt.DynamicContext,
 	})
 	if err != nil {
 		return PromptBuildResult{}, NewLLMError(err, ErrCodePromptBuild, map[string]any{
@@ -162,7 +162,7 @@ func (b *requestBuilder) buildMessages(
 	memoryCtx *MemoryContext,
 	request Request,
 ) ([]llmadapter.Message, error) {
-	parts := request.AttachmentParts
+	parts := request.Prompt.Attachments
 	if len(parts) > 0 {
 		clonedParts, err := llmadapter.CloneContentParts(parts)
 		if err != nil {
@@ -186,7 +186,7 @@ func (b *requestBuilder) buildMessages(
 	if memoryCtx != nil {
 		messages = b.memory.Inject(ctx, messages, memoryCtx)
 	}
-	messages = b.injectKnowledge(ctx, messages, request.Knowledge)
+	messages = b.injectKnowledge(ctx, messages, request.Knowledge.Entries)
 
 	return messages, nil
 }
@@ -227,8 +227,8 @@ func (b *requestBuilder) decideToolStrategy(
 		return "", defs
 	}
 	allowTools := true
-	for i := range request.Knowledge {
-		entry := request.Knowledge[i]
+	for i := range request.Knowledge.Entries {
+		entry := request.Knowledge.Entries[i]
 		switch entry.Status {
 		case knowledge.RetrievalStatusEscalated:
 			return "auto", defs
