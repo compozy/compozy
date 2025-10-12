@@ -116,3 +116,38 @@ func TestBuildKnowledgeRuntimeConfigRendersEmbedderTemplates(t *testing.T) {
 		assert.Equal(t, "resolved-secret", resolved.APIKey)
 	})
 }
+
+func TestNewKnowledgeRuntimeConfigAggregatesKnowledgeBases(t *testing.T) {
+	projectCfg := &project.Config{
+		Name: "demo",
+		KnowledgeBases: []knowledge.BaseConfig{{
+			ID:       "  project_kb  ",
+			Embedder: "embedder",
+			VectorDB: "vector",
+			Sources:  []knowledge.SourceConfig{{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"}},
+		}},
+		Embedders: []knowledge.EmbedderConfig{
+			{ID: "embedder", Provider: "openai", Model: "text", Config: knowledge.EmbedderRuntimeConfig{Dimension: 1}},
+		},
+		VectorDBs: []knowledge.VectorDBConfig{
+			{ID: "vector", Type: knowledge.VectorDBTypeMemory, Config: knowledge.VectorDBConnConfig{Dimension: 1}},
+		},
+	}
+	workflowCfg := &workflow.Config{
+		ID: "wf",
+		KnowledgeBases: []knowledge.BaseConfig{{
+			ID:       " wf_kb ",
+			Embedder: "embedder",
+			VectorDB: "vector",
+			Sources:  []knowledge.SourceConfig{{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"}},
+		}},
+	}
+	cfg := newKnowledgeRuntimeConfig(&ExecuteTaskInput{ProjectConfig: projectCfg, WorkflowConfig: workflowCfg})
+	require.NotNil(t, cfg)
+	require.Len(t, cfg.Definitions.KnowledgeBases, 1)
+	assert.Equal(t, "project_kb", cfg.Definitions.KnowledgeBases[0].ID)
+	assert.Equal(t, knowledge.IngestManual, cfg.Definitions.KnowledgeBases[0].Ingest)
+	require.Len(t, cfg.WorkflowKnowledgeBases, 1)
+	assert.Equal(t, "wf_kb", cfg.WorkflowKnowledgeBases[0].ID)
+	assert.Equal(t, knowledge.IngestManual, cfg.WorkflowKnowledgeBases[0].Ingest)
+}

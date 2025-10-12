@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/logger"
@@ -39,6 +40,9 @@ func (w *Config) IndexToResourceStore(ctx context.Context, project string, store
 		return err
 	}
 	if err := w.indexMCPs(ctx, project, store); err != nil {
+		return err
+	}
+	if err := w.indexKnowledgeBases(ctx, project, store); err != nil {
 		return err
 	}
 	return nil
@@ -220,3 +224,43 @@ func (w *Config) indexMCPs(ctx context.Context, project string, store resources.
 }
 
 func schemaID(s *schema.Schema) string { return schema.GetID(s) }
+
+func (w *Config) indexKnowledgeBases(ctx context.Context, project string, store resources.ResourceStore) error {
+	log := logger.FromContext(ctx)
+	for i := range w.KnowledgeBases {
+		kb := &w.KnowledgeBases[i]
+		if kb.ID == "" {
+			return fmt.Errorf("workflow knowledge_base at index %d missing id", i)
+		}
+		if kb.Ingest == "" {
+			kb.Ingest = knowledge.IngestManual
+		}
+		key := resources.ResourceKey{Project: project, Type: resources.ResourceKnowledgeBase, ID: kb.ID}
+		prev := resources.GetMetaSource(ctx, store, project, resources.ResourceKnowledgeBase, kb.ID)
+		if _, err := store.Put(ctx, key, kb); err != nil {
+			return fmt.Errorf("store put workflow knowledge_base '%s': %w", kb.ID, err)
+		}
+		if prev != "" && prev != wfMetaSourceYAML {
+			log.Warn(
+				"yaml indexing overwrote existing resource",
+				"project", project,
+				"type", string(resources.ResourceKnowledgeBase),
+				"id", kb.ID,
+				"old_source", prev,
+				"new_source", wfMetaSourceYAML,
+			)
+		}
+		if err := resources.WriteMeta(
+			ctx,
+			store,
+			project,
+			resources.ResourceKnowledgeBase,
+			kb.ID,
+			wfMetaSourceYAML,
+			"indexer",
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}

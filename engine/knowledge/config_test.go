@@ -247,6 +247,69 @@ func TestDefinitionsNormalizeWithDefaults(t *testing.T) {
 	assert.InDelta(t, 0.45, defs.KnowledgeBases[0].Retrieval.MinScoreValue(), 0.0001)
 }
 
+func TestKnowledgeBaseIngestMode(t *testing.T) {
+	t.Run("Should default ingest to manual during normalization", func(t *testing.T) {
+		defs := knowledge.Definitions{
+			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("default_embedder")},
+			VectorDBs: []knowledge.VectorDBConfig{createVectorDBConfig("pgvector_main")},
+			KnowledgeBases: []knowledge.BaseConfig{
+				{
+					ID:       "kb_manual_default",
+					Embedder: "default_embedder",
+					VectorDB: "pgvector_main",
+					Sources: []knowledge.SourceConfig{
+						{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+					},
+				},
+			},
+		}
+		defs.Normalize()
+		require.NoError(t, defs.Validate())
+		assert.Equal(t, knowledge.IngestManual, defs.KnowledgeBases[0].Ingest)
+	})
+	t.Run("Should accept on_start ingest mode", func(t *testing.T) {
+		defs := knowledge.Definitions{
+			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("default_embedder")},
+			VectorDBs: []knowledge.VectorDBConfig{createVectorDBConfig("pgvector_main")},
+			KnowledgeBases: []knowledge.BaseConfig{
+				{
+					ID:       "kb_on_start",
+					Embedder: "default_embedder",
+					VectorDB: "pgvector_main",
+					Ingest:   knowledge.IngestOnStart,
+					Sources: []knowledge.SourceConfig{
+						{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+					},
+				},
+			},
+		}
+		defs.Normalize()
+		require.NoError(t, defs.Validate())
+		assert.Equal(t, knowledge.IngestOnStart, defs.KnowledgeBases[0].Ingest)
+	})
+	t.Run("Should reject unsupported ingest mode", func(t *testing.T) {
+		defs := knowledge.Definitions{
+			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("default_embedder")},
+			VectorDBs: []knowledge.VectorDBConfig{createVectorDBConfig("pgvector_main")},
+			KnowledgeBases: []knowledge.BaseConfig{
+				{
+					ID:       "kb_invalid_mode",
+					Embedder: "default_embedder",
+					VectorDB: "pgvector_main",
+					Ingest:   "nightly",
+					Sources: []knowledge.SourceConfig{
+						{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+					},
+				},
+			},
+		}
+		defs.Normalize()
+		err := defs.Validate()
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "ingest must be one of")
+	})
+}
+
 func createEmbedderConfig(id string) knowledge.EmbedderConfig {
 	defaults := knowledge.DefaultDefaults()
 	return knowledge.EmbedderConfig{

@@ -27,6 +27,7 @@ vector_dbs:
 
 knowledge_bases:
   - id: quickstart_docs
+    ingest: on_start
     embedder: openai_default
     vector_db: in_memory_faststart
     sources:

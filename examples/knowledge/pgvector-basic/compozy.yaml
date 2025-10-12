@@ -31,6 +31,7 @@ vector_dbs:
 
 knowledge_bases:
   - id: company_docs
+    ingest: on_start
     embedder: openai_default
     vector_db: pgvector_local
     sources:

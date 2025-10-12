@@ -453,6 +453,25 @@ func (w *Config) SetFilePath(path string) {
 	w.filePath = path
 }
 
+// KnowledgeBaseDefinitions exposes workflow-scoped knowledge bases for aggregation.
+func (w *Config) KnowledgeBaseDefinitions() []knowledge.BaseConfig {
+	if w == nil {
+		return nil
+	}
+	return w.KnowledgeBases
+}
+
+// KnowledgeBaseProviderName identifies the workflow when contributing knowledge bases.
+func (w *Config) KnowledgeBaseProviderName() string {
+	if w == nil {
+		return ""
+	}
+	if strings.TrimSpace(w.ID) == "" {
+		return "workflow"
+	}
+	return fmt.Sprintf("workflow %q", strings.TrimSpace(w.ID))
+}
+
 func (w *Config) HasSchema() bool {
 	return w.Opts.InputSchema != nil
 }

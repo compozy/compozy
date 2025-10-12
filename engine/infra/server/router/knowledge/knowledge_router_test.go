@@ -83,6 +83,7 @@ func seedKnowledge(t *testing.T, store resources.ResourceStore, project string, 
 			ID:       id,
 			Embedder: embedder.ID,
 			VectorDB: vector.ID,
+			Ingest:   knowledge.IngestManual,
 			Sources: []knowledge.SourceConfig{
 				{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
 			},
@@ -114,6 +115,13 @@ func TestKnowledgeGetConditional(t *testing.T) {
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusOK, rec.Code)
+		var payload apiResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+		data, ok := payload.Data.(map[string]any)
+		require.True(t, ok)
+		kb, ok := data["knowledge_base"].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "manual", kb["ingest"])
 		etag := rec.Header().Get("ETag")
 		require.NotEmpty(t, etag)
 		req2, err := http.NewRequestWithContext(

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/logger"
@@ -289,6 +290,9 @@ func (p *Config) indexProjectKnowledgeBases(ctx context.Context, store resources
 		kb := &p.KnowledgeBases[i]
 		if kb.ID == "" {
 			return fmt.Errorf("project knowledge_base at index %d missing id", i)
+		}
+		if kb.Ingest == "" {
+			kb.Ingest = knowledge.IngestManual
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceKnowledgeBase, ID: kb.ID}
 		prev := resources.GetMetaSource(ctx, store, p.Name, resources.ResourceKnowledgeBase, kb.ID)

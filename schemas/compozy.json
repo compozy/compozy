@@ -45,6 +45,9 @@
         "id": {
           "type": "string"
         },
+        "ingest": {
+          "type": "string"
+        },
         "metadata": {
           "$ref": "#/$defs/MetadataConfig"
         },

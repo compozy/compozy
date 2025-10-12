@@ -685,22 +685,24 @@ func newKnowledgeRuntimeConfig(input *ExecuteTaskInput) *llm.KnowledgeRuntimeCon
 	if input == nil || input.ProjectConfig == nil {
 		return nil
 	}
+	providers := aggregatedKnowledgeProviders(input.WorkflowConfig)
+	projectBases, workflowBases := partitionKnowledgeBaseRefs(
+		input.ProjectConfig.AggregatedKnowledgeBases(providers...),
+	)
 	cfg := &llm.KnowledgeRuntimeConfig{
 		ProjectID: strings.TrimSpace(input.ProjectConfig.Name),
 		Definitions: knowledge.Definitions{
 			Embedders:      append([]knowledge.EmbedderConfig{}, input.ProjectConfig.Embedders...),
 			VectorDBs:      append([]knowledge.VectorDBConfig{}, input.ProjectConfig.VectorDBs...),
-			KnowledgeBases: append([]knowledge.BaseConfig{}, input.ProjectConfig.KnowledgeBases...),
+			KnowledgeBases: projectBases,
 		},
 		ProjectBinding: append([]core.KnowledgeBinding{}, input.ProjectConfig.Knowledge...),
 	}
-	if input.WorkflowConfig != nil {
-		if len(input.WorkflowConfig.KnowledgeBases) > 0 {
-			cfg.WorkflowKnowledgeBases = append([]knowledge.BaseConfig{}, input.WorkflowConfig.KnowledgeBases...)
-		}
-		if len(input.WorkflowConfig.Knowledge) > 0 {
-			cfg.WorkflowBinding = append([]core.KnowledgeBinding{}, input.WorkflowConfig.Knowledge...)
-		}
+	if len(workflowBases) > 0 {
+		cfg.WorkflowKnowledgeBases = workflowBases
+	}
+	if input.WorkflowConfig != nil && len(input.WorkflowConfig.Knowledge) > 0 {
+		cfg.WorkflowBinding = append([]core.KnowledgeBinding{}, input.WorkflowConfig.Knowledge...)
 	}
 	if input.TaskConfig != nil && len(input.TaskConfig.Knowledge) > 0 {
 		cfg.InlineBinding = append([]core.KnowledgeBinding{}, input.TaskConfig.Knowledge...)
@@ -716,6 +718,32 @@ func newKnowledgeRuntimeConfig(input *ExecuteTaskInput) *llm.KnowledgeRuntimeCon
 		return nil
 	}
 	return cfg
+}
+
+func aggregatedKnowledgeProviders(wf *workflow.Config) []project.KnowledgeBaseProvider {
+	if wf == nil {
+		return nil
+	}
+	return []project.KnowledgeBaseProvider{wf}
+}
+
+func partitionKnowledgeBaseRefs(refs []project.KnowledgeBaseRef) (
+	projectBases []knowledge.BaseConfig,
+	workflowBases []knowledge.BaseConfig,
+) {
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	projectBases = make([]knowledge.BaseConfig, 0, len(refs))
+	for i := range refs {
+		ref := refs[i]
+		if ref.Origin == "project" {
+			projectBases = append(projectBases, ref.Base)
+			continue
+		}
+		workflowBases = append(workflowBases, ref.Base)
+	}
+	return projectBases, workflowBases
 }
 
 func (uc *ExecuteTask) resolveEmbedderConfigs(

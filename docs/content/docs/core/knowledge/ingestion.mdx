@@ -31,6 +31,11 @@ Only `markdown_glob` and `pdf_url` ship in the MVP. Mention other kinds as plann
 Avoid inline magic numbers—define defaults in `config.knowledge` so pipelines stay consistent across projects.
 </Callout>
 
+## Ingest Modes
+
+- `manual` (default) keeps ingestion as an operator-triggered task via CLI or API.
+- `on_start` instructs the server to run ingestion immediately after project indexing completes for both project- and workflow-scoped knowledge bases; startup fails fast if any pipeline returns an error so issues surface before the API becomes available.
+
 ## Running Ingestion
 
 <Tabs items={["CLI", "HTTP API"]}>

@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,6 +70,9 @@ func TestProject_IndexToResourceStore(t *testing.T) {
 		kbVal, _, err := store.Get(ctx, kbKey)
 		require.NoError(t, err)
 		require.NotNil(t, kbVal)
+		kbCfg, ok := kbVal.(*knowledge.BaseConfig)
+		require.True(t, ok)
+		assert.Equal(t, knowledge.IngestManual, kbCfg.Ingest)
 	})
 }
 

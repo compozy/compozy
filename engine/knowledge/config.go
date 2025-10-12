@@ -167,6 +167,14 @@ const (
 	SourceTypeMediaTranscript SourceType = "media_transcript"
 )
 
+// IngestMode determines when a knowledge base ingestion pipeline should run.
+type IngestMode string
+
+const (
+	IngestManual  IngestMode = "manual"
+	IngestOnStart IngestMode = "on_start"
+)
+
 // ChunkStrategy enumerates supported approaches to splitting content into chunks.
 type ChunkStrategy string
 
@@ -233,6 +241,7 @@ type BaseConfig struct {
 	Description string           `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
 	Embedder    string           `json:"embedder"              yaml:"embedder"              mapstructure:"embedder"`
 	VectorDB    string           `json:"vector_db"             yaml:"vector_db"             mapstructure:"vector_db"`
+	Ingest      IngestMode       `json:"ingest,omitempty"      yaml:"ingest,omitempty"      mapstructure:"ingest,omitempty"`
 	Sources     []SourceConfig   `json:"sources"               yaml:"sources"               mapstructure:"sources"`
 	Chunking    ChunkingConfig   `json:"chunking,omitempty"    yaml:"chunking,omitempty"    mapstructure:"chunking,omitempty"`
 	Preprocess  PreprocessConfig `json:"preprocess,omitempty"  yaml:"preprocess,omitempty"  mapstructure:"preprocess,omitempty"`
@@ -338,6 +347,9 @@ func (c *EmbedderConfig) normalize(defaults Defaults) {
 func (c *VectorDBConfig) normalize() {}
 
 func (c *BaseConfig) normalize(defaults Defaults) {
+	if c.Ingest == "" {
+		c.Ingest = IngestManual
+	}
 	c.Chunking.normalize(defaults)
 	c.Preprocess.normalize()
 	c.Retrieval.normalize(defaults)
@@ -496,11 +508,26 @@ func validateKnowledgeBase(
 	vector *VectorDBConfig,
 ) []error {
 	errs := make([]error, 0, 10)
+	errs = append(errs, validateKnowledgeBaseIngest(kb)...)
 	errs = append(errs, validateKnowledgeBaseReferences(kb, embedder, vector)...)
 	errs = append(errs, validateKnowledgeBaseSources(kb)...)
 	errs = append(errs, validateKnowledgeBaseChunking(kb)...)
 	errs = append(errs, validateKnowledgeBaseRetrieval(kb)...)
 	return errs
+}
+
+func validateKnowledgeBaseIngest(kb *BaseConfig) []error {
+	switch kb.Ingest {
+	case IngestManual, IngestOnStart:
+		return nil
+	default:
+		return []error{fmt.Errorf(
+			"knowledge: knowledge_base %q ingest must be one of %q or %q",
+			kb.ID,
+			IngestManual,
+			IngestOnStart,
+		)}
+	}
 }
 
 func validateKnowledgeBaseReferences(
