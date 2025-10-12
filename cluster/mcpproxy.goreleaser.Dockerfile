@@ -48,8 +48,7 @@ RUN addgroup -g 1001 -S mcpproxy \
 WORKDIR /app
 
 # Copy the pre-built binary from GoReleaser
-ARG TARGETPLATFORM
-COPY ${TARGETPLATFORM}/compozy /app/compozy
+COPY compozy /app/compozy
 RUN chmod +x /app/compozy
 
 # Copy additional files if they exist

@@ -1,0 +1,168 @@
+---
+title: "Knowledge Configuration"
+description: "Define embedders, vector databases, knowledge bases, and bindings in project and workflow YAML."
+icon: SlidersHorizontal
+---
+
+import { Callout } from "@/components/ui/callout";
+import { Tabs, Tab } from "@/components/ui/tabs";
+import { Step, Steps } from "@/components/ui/steps";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+
+## Where Configuration Lives
+
+Compozy loads knowledge resources from the same declarative YAML used across the platform:
+
+1. **Project YAML** – Declares embedders, vector databases, and knowledge bases under top-level arrays.
+2. **Workflow YAML** – Defines workflow-scoped knowledge bases or binds to project resources.
+3. **Task & Agent YAML** – Override retrieval parameters or select a different knowledge base per execution context.
+
+All runtime code accesses configuration through `config.FromContext(ctx)`; never rely on global singletons.
+
+## Declaring Embedders
+
+```yaml title="compozy.yaml"
+embedders:
+  - id: openai_default
+    provider: openai
+    model: text-embedding-3-small
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    config:
+      batch_size: 64 # optional, overrides config.knowledge.embedder_batch_size
+      timeout: 30s
+```
+
+- `provider` must match a LangChain Go embedding client.
+- Secrets are always supplied through env interpolation—never commit keys to source control.
+- Default batch size, chunk size, and retrieval knobs fall back to `config.knowledge.*` when omitted.
+
+## Declaring Vector Databases
+
+```yaml title="compozy.yaml"
+vector_dbs:
+  - id: in_memory_faststart
+    type: in_memory
+  - id: pgvector_local
+    type: pgvector
+    config:
+      dsn: "{{ .env.PGVECTOR_DSN }}"
+      ensure_index: true
+      table: knowledge_chunks
+```
+
+- Use `in_memory` for quick starts and tests. Production workloads should use `pgvector` or `qdrant`.
+- Set `ensure_index` to automatically create the IVF/IVFFlat index; disable if migrations manage it elsewhere.
+- Keep DSNs inside environment variables to avoid leaking credentials.
+
+## Defining Knowledge Bases
+
+```yaml title="compozy.yaml"
+knowledge_bases:
+  - id: quickstart_docs
+    embedder: openai_default
+    vector_db: in_memory_faststart
+    sources:
+      - kind: markdown_glob
+        glob: "docs/**/*.md"
+    chunking:
+      strategy: token
+      size: 512   # falls back to config.knowledge.chunk_size when omitted
+      overlap: 64 # falls back to config.knowledge.chunk_overlap when omitted
+    retrieval:
+      top_k: 5        # default k
+      min_score: 0.2  # discard low-signal matches
+      filters:
+        tag: "policy" # optional exact-match tag filters
+```
+
+Each knowledge base references exactly one embedder and vector database. Supported sources in the MVP:
+
+- `markdown_glob` – Glob pattern relative to the project root.
+- `pdf_url` – HTTPS URL to a small, publicly reachable PDF.
+- `cloud_storage` and `media_transcript` – Support for these sources is planned for a future release. Surface them in user docs only if your deployment enables the feature flag.
+
+<Callout type="warning">
+`cloud_storage` and `media_transcript` require an explicit feature flag. They are **not** available in the default Compozy build.
+</Callout>
+
+<Callout type="warning">
+Always verify source paths and URL sizes. Keep committed artifacts below 100KB to prevent bloated repositories.
+</Callout>
+
+## Binding Knowledge in Workflows, Tasks, and Agents
+
+```yaml title="workflows/qa.yaml"
+id: qa
+knowledge:
+  id: quickstart_docs
+  retrieval:
+    top_k: 3
+    min_score: 0.15
+tasks:
+  - id: answer
+    type: basic
+    agent: qa_agent
+    knowledge:
+      id: quickstart_docs
+      retrieval:
+        top_k: 4
+agents:
+  - id: qa_agent
+    model: groq/llama-3.1-8b-instruct
+    instructions: ./prompts/qa.md
+    knowledge:
+      id: quickstart_docs
+```
+
+### Precedence Rules
+
+<Steps>
+  <Step title="Workflow binding">
+    Defines the default knowledge base and retrieval parameters for all tasks and agents in the workflow.
+  </Step>
+  <Step title="Task override">
+    Tasks can override the knowledge base ID or retrieval parameters for fine-grained control.
+  </Step>
+  <Step title="Agent override">
+    Agent-level overrides apply when the agent executes outside task context (e.g., agent CLI).
+  </Step>
+</Steps>
+
+Bindings inherit missing fields from their parent scope. The MVP supports a single knowledge binding per scope; multi-binding fanout is on the roadmap.
+
+## Autoload, Import, and Export
+
+Knowledge resources participate in the standard resource workflow:
+
+- `compozy knowledge apply` writes definitions to the runtime store.
+- `compozy knowledge export` and `compozy knowledge get --output yaml` round-trip configuration for review.
+- Autoloaders treat `knowledge_bases`, `embedders`, and `vector_dbs` like other resource groups—store them alongside existing YAML.
+
+## Related Schemas
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Embedder Schema"
+    description="Reference for provider-specific embedder properties."
+    href="/docs/schema/embedders"
+    icon="Cpu"
+  />
+  <ReferenceCard
+    title="Vector Database Schema"
+    description="Supported vector store types and connection options."
+    href="/docs/schema/vector-dbs"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Knowledge Base Schema"
+    description="Source, chunking, and retrieval defaults."
+    href="/docs/schema/knowledge-bases"
+    icon="Book"
+  />
+  <ReferenceCard
+    title="Knowledge Binding Schema"
+    description="Workflow, task, and agent binding structure."
+    href="/docs/schema/bindings"
+    icon="Link"
+  />
+</ReferenceCardList>

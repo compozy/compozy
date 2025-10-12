@@ -8,6 +8,7 @@ import (
 // Standard type definitions for consistency
 var (
 	durationType = reflect.TypeOf(time.Duration(0))
+	float64Type  = reflect.TypeOf(float64(0))
 )
 
 // CreateRegistry creates and populates the configuration registry
@@ -21,6 +22,7 @@ func CreateRegistry() *Registry {
 	registerLimitsFields(registry)
 	registerAttachmentsFields(registry)
 	registerMemoryFields(registry)
+	registerKnowledgeFields(registry)
 	registerLLMFields(registry)
 	registerRateLimitFields(registry)
 	registerCLIFields(registry)
@@ -30,6 +32,49 @@ func CreateRegistry() *Registry {
 	registerMCPProxyFields(registry)
 	registerWebhooksFields(registry)
 	return registry
+}
+
+func registerKnowledgeFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "knowledge.embedder_batch_size",
+		Default: 512,
+		CLIFlag: "knowledge-embedder-batch-size",
+		EnvVar:  "KNOWLEDGE_EMBEDDER_BATCH_SIZE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default batch size for embedder requests when not set explicitly",
+	})
+	registry.Register(&FieldDef{
+		Path:    "knowledge.chunk_size",
+		Default: 800,
+		CLIFlag: "knowledge-chunk-size",
+		EnvVar:  "KNOWLEDGE_CHUNK_SIZE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default chunk size applied to knowledge base sources that omit chunking.size",
+	})
+	registry.Register(&FieldDef{
+		Path:    "knowledge.chunk_overlap",
+		Default: 120,
+		CLIFlag: "knowledge-chunk-overlap",
+		EnvVar:  "KNOWLEDGE_CHUNK_OVERLAP",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default chunk overlap applied when chunking.overlap is not provided",
+	})
+	registry.Register(&FieldDef{
+		Path:    "knowledge.retrieval_top_k",
+		Default: 5,
+		CLIFlag: "knowledge-retrieval-top-k",
+		EnvVar:  "KNOWLEDGE_RETRIEVAL_TOP_K",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default number of results to return during knowledge retrieval when unspecified",
+	})
+	registry.Register(&FieldDef{
+		Path:    "knowledge.retrieval_min_score",
+		Default: 0.0,
+		CLIFlag: "knowledge-retrieval-min-score",
+		EnvVar:  "KNOWLEDGE_RETRIEVAL_MIN_SCORE",
+		Type:    float64Type,
+		Help:    "Default minimum similarity score threshold when retrieval.min_score is not defined",
+	})
 }
 
 func registerServerFields(registry *Registry) {

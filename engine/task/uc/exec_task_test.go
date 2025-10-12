@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
@@ -66,5 +67,52 @@ func TestNormalizeProviderConfigWithEnv(t *testing.T) {
 		assert.Equal(t, "test-secret", providerCfg.APIKey)
 		require.NotNil(t, taskCfg.Env)
 		assert.Equal(t, "test-secret", (*taskCfg.Env)["GROQ_API_KEY"])
+	})
+}
+
+func TestBuildKnowledgeRuntimeConfigRendersEmbedderTemplates(t *testing.T) {
+	t.Run("Should build runtime config and resolve embedder templates", func(t *testing.T) {
+		exec := &ExecuteTask{templateEngine: tplengine.NewEngine(tplengine.FormatJSON)}
+		projectCfg := &project.Config{
+			Name: "demo",
+			Embedders: []knowledge.EmbedderConfig{{
+				ID:       "openai_default",
+				Provider: "openai",
+				Model:    "text-embedding-3-small",
+				APIKey:   "{{ .env.OPENAI_API_KEY }}",
+				Config: knowledge.EmbedderRuntimeConfig{
+					Dimension: 1536,
+					BatchSize: 64,
+				},
+			}},
+			VectorDBs: []knowledge.VectorDBConfig{{
+				ID:   "memory",
+				Type: knowledge.VectorDBTypeMemory,
+				Config: knowledge.VectorDBConnConfig{
+					Dimension: 1536,
+				},
+			}},
+			KnowledgeBases: []knowledge.BaseConfig{{
+				ID:       "kb",
+				Embedder: "openai_default",
+				VectorDB: "memory",
+				Sources: []knowledge.SourceConfig{{
+					Type: knowledge.SourceTypePDFURL,
+					URLs: []string{"https://example.com/example.pdf"},
+				}},
+			}},
+		}
+		projectCfg.SetEnv(core.EnvMap{"OPENAI_API_KEY": "resolved-secret"})
+		input := &ExecuteTaskInput{ProjectConfig: projectCfg}
+
+		cfg, err := exec.buildKnowledgeRuntimeConfig(context.Background(), input)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		require.Len(t, cfg.Definitions.Embedders, 1)
+		assert.Equal(t, "{{ .env.OPENAI_API_KEY }}", cfg.Definitions.Embedders[0].APIKey)
+		require.NotNil(t, cfg.RuntimeEmbedders)
+		resolved, ok := cfg.RuntimeEmbedders["openai_default"]
+		require.True(t, ok, "runtime embedder should be resolved")
+		assert.Equal(t, "resolved-secret", resolved.APIKey)
 	})
 }

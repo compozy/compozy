@@ -1,0 +1,57 @@
+{
+  "$defs": {
+    "VectorDBConnConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "auth": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "consistency": {
+          "type": "string"
+        },
+        "dimension": {
+          "type": "integer"
+        },
+        "dsn": {
+          "type": "string"
+        },
+        "ensure_index": {
+          "type": "boolean"
+        },
+        "index": {
+          "type": "string"
+        },
+        "metric": {
+          "type": "string"
+        },
+        "collection": {
+          "type": "string"
+        },
+        "table": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "vectordb.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "config": {
+      "$ref": "#/$defs/VectorDBConnConfig"
+    },
+    "id": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "title": "Vector Database Configuration",
+  "type": "object",
+  "yamlCompatible": true
+}

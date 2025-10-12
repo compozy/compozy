@@ -1,0 +1,59 @@
+---
+title: Knowledge Binding Schema
+description: JSON Schema for workflow, task, and agent knowledge bindings
+icon: Link
+---
+
+import knowledgeBindingSchema from "@/schemas/knowledge-binding.json";
+
+## Knowledge Binding Definition
+
+<SchemaParams
+  schema={knowledgeBindingSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+### Example
+
+```yaml
+workflows:
+  - id: qa
+    knowledge:
+      id: quickstart_docs
+      retrieval:
+        top_k: 3
+        min_score: 0.15
+        max_tokens: 1200
+    tasks:
+      - id: answer
+        type: basic
+        agent: qa_agent
+        knowledge:
+          id: quickstart_docs
+          retrieval:
+            top_k: 4
+```
+
+- Bindings inherit missing fields from parent scopes (workflow → task → agent).
+- The MVP supports a single knowledge binding object per scope. Multi-binding arrays are planned.
+- Use `filters` to limit retrieval to tagged content without changing the underlying knowledge base definition.
+
+## Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Knowledge Configuration"
+    description="How bindings interact with knowledge bases and vector stores."
+    href="/docs/core/knowledge/configuration"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Retrieval & Prompt Injection"
+    description="Operational guide for tuning retrieval parameters."
+    href="/docs/core/knowledge/retrieval-injection"
+    icon="Bot"
+  />
+</ReferenceCardList>

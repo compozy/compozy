@@ -107,6 +107,10 @@ func patchProjectReferences(projectMap map[string]any) {
 	}
 	ensureTopLevelArrayRef(props, "tools", "tool.json")
 	ensureTopLevelArrayRef(props, "memories", "memory.json")
+	ensureTopLevelArrayRef(props, "embedders", "embedder.json")
+	ensureTopLevelArrayRef(props, "vector_dbs", "vectordb.json")
+	ensureTopLevelArrayRef(props, "knowledge_bases", "knowledge-base.json")
+	ensureTopLevelArrayRef(props, "knowledge", "knowledge-binding.json")
 	ensureTopLevelRef(props, "autoload", "autoload.json")
 	ensureTopLevelRef(props, "monitoring", "monitoring.json")
 }

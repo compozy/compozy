@@ -1,0 +1,66 @@
+name: knowledge-pgvector
+version: 0.1.0
+description: Knowledge base backed by pgvector using Docker services
+
+models:
+  - provider: groq
+    model: openai/gpt-oss-120b
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    default: true
+    params:
+      temperature: 0.3
+
+embedders:
+  - id: openai_default
+    provider: openai
+    model: text-embedding-3-small
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    config:
+      dimension: 1536
+      batch_size: 64
+
+vector_dbs:
+  - id: pgvector_local
+    type: pgvector
+    config:
+      dsn: "{{ .env.PGVECTOR_DSN }}"
+      ensure_index: true
+      table: knowledge_chunks
+      metric: cosine
+      dimension: 1536
+
+knowledge_bases:
+  - id: company_docs
+    embedder: openai_default
+    vector_db: pgvector_local
+    sources:
+      - type: markdown_glob
+        path: "docs/**/*.md"
+    chunking:
+      strategy: recursive_text_splitter
+      size: 512
+      overlap: 64
+    retrieval:
+      top_k: 5
+      min_score: 0.2
+      max_tokens: 1500
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
+
+workflows:
+  - source: ./workflows/qa.yaml
+
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "workflows/*.yaml"
+    - "agents/*.yaml"
+    - "docs/**/*.md"
+  exclude:
+    - "**/*.tmp"

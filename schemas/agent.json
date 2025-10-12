@@ -296,6 +296,36 @@
     "Input": {
       "type": "object"
     },
+    "KnowledgeBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "fallback": {
+          "type": "string"
+        },
+        "filters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "id": {
+          "type": "string"
+        },
+        "inject_as": {
+          "type": "string"
+        },
+        "max_tokens": {
+          "type": "integer"
+        },
+        "min_score": {
+          "type": "number"
+        },
+        "top_k": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "MemoryReference": {
       "additionalProperties": false,
       "description": "MemoryReference is used in Agent configuration to point to a MemoryResource and define how the agent interacts with it.",
@@ -465,6 +495,13 @@
     "instructions": {
       "description": "Provider configuration is now expressed through the polymorphic `Model` field.\nThe previous `Config core.ProviderConfig` field has been removed.\nSystem instructions that define the agent's personality, behavior, and constraints.\nThese instructions guide how the agent interprets tasks and generates responses.\n\n**Best practices:**\n- Be clear and specific about the agent's role\n- Define boundaries and ethical guidelines\n- Include domain-specific knowledge or constraints\n- Use markdown formatting for better structure",
       "type": "string"
+    },
+    "knowledge": {
+      "description": "Knowledge declares knowledge bindings scoped to this agent.",
+      "items": {
+        "$ref": "knowledge-binding.json"
+      },
+      "type": "array"
     },
     "max_iterations": {
       "description": "Maximum number of reasoning iterations the agent can perform.\nThe agent may self-correct and refine its response across multiple iterations\nto improve accuracy and address complex multi-step problems.\n\n**Default:** `5` iterations\n\n**Trade-offs:**\n- Higher values enable more thorough problem-solving and self-correction\n- Each iteration consumes additional tokens and increases response latency\n- Configure based on task complexity, accuracy requirements, and cost constraints",

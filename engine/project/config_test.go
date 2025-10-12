@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -246,6 +247,50 @@ workflows:
 		assert.True(t, cfg.MonitoringConfig.Enabled)               // MONITORING_ENABLED env var overrides YAML
 		assert.Equal(t, "/env/metrics", cfg.MonitoringConfig.Path) // MONITORING_PATH env var overrides YAML
 	})
+}
+
+func TestConfig_ValidateKnowledge(t *testing.T) {
+	cfg := &Config{
+		Embedders: []knowledge.EmbedderConfig{
+			{
+				ID:       "embedder",
+				Provider: "openai",
+				Model:    "text-embedding-3-small",
+				APIKey:   "{{ .env.OPENAI_API_KEY }}",
+				Config: knowledge.EmbedderRuntimeConfig{
+					Dimension: 1536,
+				},
+			},
+		},
+		VectorDBs: []knowledge.VectorDBConfig{
+			{
+				ID:   "vectordb",
+				Type: knowledge.VectorDBTypePGVector,
+				Config: knowledge.VectorDBConnConfig{
+					DSN:       "{{ .secrets.PGVECTOR_DSN }}",
+					Dimension: 1536,
+				},
+			},
+		},
+		KnowledgeBases: []knowledge.BaseConfig{
+			{
+				ID:       "kb",
+				Embedder: "embedder",
+				VectorDB: "vectordb",
+				Sources: []knowledge.SourceConfig{
+					{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+				},
+			},
+		},
+		Knowledge: []core.KnowledgeBinding{
+			{ID: "kb"},
+		},
+	}
+	require.NoError(t, cfg.validateKnowledge())
+	cfg.Knowledge = append(cfg.Knowledge, core.KnowledgeBinding{ID: "kb"})
+	err := cfg.validateKnowledge()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "only one knowledge binding")
 }
 
 func TestConfig_Validate_Monitoring(t *testing.T) {

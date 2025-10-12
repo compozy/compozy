@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "ChunkingConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "overlap": {
+          "type": "integer"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "strategy": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "MetadataConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "owners": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PreprocessConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "dedupe": {
+          "type": "boolean"
+        },
+        "remove_html": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "RetrievalConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "fallback": {
+          "type": "string"
+        },
+        "filters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "inject_as": {
+          "type": "string"
+        },
+        "max_tokens": {
+          "type": "integer"
+        },
+        "min_score": {
+          "type": "number"
+        },
+        "top_k": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "SourceConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "bucket": {
+          "type": "string"
+        },
+        "options": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "path": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "urls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "video_id": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "knowledge-base.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "chunking": {
+      "$ref": "#/$defs/ChunkingConfig"
+    },
+    "description": {
+      "type": "string"
+    },
+    "embedder": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/MetadataConfig"
+    },
+    "preprocess": {
+      "$ref": "#/$defs/PreprocessConfig"
+    },
+    "retrieval": {
+      "$ref": "#/$defs/RetrievalConfig"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/SourceConfig"
+      },
+      "type": "array"
+    },
+    "vector_db": {
+      "type": "string"
+    }
+  },
+  "title": "Knowledge Base Configuration",
+  "type": "object",
+  "yamlCompatible": true
+}

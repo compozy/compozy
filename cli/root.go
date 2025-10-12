@@ -10,6 +10,7 @@ import (
 	configcmd "github.com/compozy/compozy/cli/cmd/config"
 	"github.com/compozy/compozy/cli/cmd/dev"
 	initcmd "github.com/compozy/compozy/cli/cmd/init"
+	knowledgecmd "github.com/compozy/compozy/cli/cmd/knowledge"
 	mcpproxycmd "github.com/compozy/compozy/cli/cmd/mcpproxy"
 	mcpcmd "github.com/compozy/compozy/cli/cmd/mcps"
 	memoriescmd "github.com/compozy/compozy/cli/cmd/memories"
@@ -91,6 +92,7 @@ and events with both interactive TUI and automation-friendly JSON output.`,
 		workflowscmd.Cmd(),
 		taskscmd.Cmd(),
 		toolscmd.Cmd(),
+		knowledgecmd.Cmd(),
 		mcpcmd.Cmd(),
 		schemascmd.Cmd(),
 		modelscmd.Cmd(),

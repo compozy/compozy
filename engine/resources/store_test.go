@@ -54,7 +54,17 @@ func (s *exampleStore) PutIfMatch(_ context.Context, key ResourceKey, value any,
 	defer s.mu.Unlock()
 	cur, ok := s.m[key]
 	if !ok {
-		return ETag(""), ErrNotFound
+		if expectedETag != "" {
+			return ETag(""), ErrNotFound
+		}
+		if m, ok := value.(map[string]any); ok {
+			c := make(map[string]any, len(m))
+			maps.Copy(c, m)
+			s.m[key] = c
+		} else {
+			s.m[key] = value
+		}
+		return ETag(core.ETagFromAny(s.m[key])), nil
 	}
 	if core.ETagFromAny(cur) != string(expectedETag) {
 		return ETag(""), ErrETagMismatch

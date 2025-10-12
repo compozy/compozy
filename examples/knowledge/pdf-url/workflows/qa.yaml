@@ -1,0 +1,35 @@
+resource: workflow
+id: pdf-demo
+name: PDF Knowledge Demo
+version: 0.1.0
+description: Answer questions about a remote PDF using the knowledge service
+
+input:
+  schema:
+    type: object
+    properties:
+      question:
+        type: string
+        description: Question to answer from the PDF contents
+    required:
+      - question
+
+output:
+  schema:
+    type: object
+    properties:
+      answer:
+        type: string
+
+tasks:
+  - id: pdf-answer
+    name: Answer From PDF
+    type: basic
+    agent: pdf_agent
+    action: answer
+    with:
+      question: "{{ .workflow.input.question }}"
+    final: true
+
+outputs:
+  answer: "{{ .tasks.pdf-answer.output.answer }}"

@@ -32,6 +32,15 @@ func (p *Config) IndexToResourceStore(ctx context.Context, store resources.Resou
 	if err := p.indexProjectSchemas(ctx, store); err != nil {
 		return err
 	}
+	if err := p.indexProjectEmbedders(ctx, store); err != nil {
+		return err
+	}
+	if err := p.indexProjectVectorDBs(ctx, store); err != nil {
+		return err
+	}
+	if err := p.indexProjectKnowledgeBases(ctx, store); err != nil {
+		return err
+	}
 	if err := p.indexProjectModels(ctx, store); err != nil {
 		return err
 	}
@@ -191,6 +200,117 @@ func (p *Config) indexProjectModels(ctx context.Context, store resources.Resourc
 			p.Name,
 			resources.ResourceModel,
 			id,
+			metaSourceYAML,
+			"indexer",
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Config) indexProjectEmbedders(ctx context.Context, store resources.ResourceStore) error {
+	log := logger.FromContext(ctx)
+	for i := range p.Embedders {
+		emb := &p.Embedders[i]
+		if emb.ID == "" {
+			return fmt.Errorf("project embedder at index %d missing id", i)
+		}
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceEmbedder, ID: emb.ID}
+		prev := resources.GetMetaSource(ctx, store, p.Name, resources.ResourceEmbedder, emb.ID)
+		if _, err := store.Put(ctx, key, emb); err != nil {
+			return fmt.Errorf("store put embedder '%s': %w", emb.ID, err)
+		}
+		if prev != "" && prev != metaSourceYAML {
+			log.Warn(
+				"yaml indexing overwrote existing resource",
+				"project", p.Name,
+				"type", string(resources.ResourceEmbedder),
+				"id", emb.ID,
+				"old_source", prev,
+				"new_source", metaSourceYAML,
+			)
+		}
+		if err := resources.WriteMeta(
+			ctx,
+			store,
+			p.Name,
+			resources.ResourceEmbedder,
+			emb.ID,
+			metaSourceYAML,
+			"indexer",
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Config) indexProjectVectorDBs(ctx context.Context, store resources.ResourceStore) error {
+	log := logger.FromContext(ctx)
+	for i := range p.VectorDBs {
+		vdb := &p.VectorDBs[i]
+		if vdb.ID == "" {
+			return fmt.Errorf("project vector_db at index %d missing id", i)
+		}
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceVectorDB, ID: vdb.ID}
+		prev := resources.GetMetaSource(ctx, store, p.Name, resources.ResourceVectorDB, vdb.ID)
+		if _, err := store.Put(ctx, key, vdb); err != nil {
+			return fmt.Errorf("store put vector_db '%s': %w", vdb.ID, err)
+		}
+		if prev != "" && prev != metaSourceYAML {
+			log.Warn(
+				"yaml indexing overwrote existing resource",
+				"project", p.Name,
+				"type", string(resources.ResourceVectorDB),
+				"id", vdb.ID,
+				"old_source", prev,
+				"new_source", metaSourceYAML,
+			)
+		}
+		if err := resources.WriteMeta(
+			ctx,
+			store,
+			p.Name,
+			resources.ResourceVectorDB,
+			vdb.ID,
+			metaSourceYAML,
+			"indexer",
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Config) indexProjectKnowledgeBases(ctx context.Context, store resources.ResourceStore) error {
+	log := logger.FromContext(ctx)
+	for i := range p.KnowledgeBases {
+		kb := &p.KnowledgeBases[i]
+		if kb.ID == "" {
+			return fmt.Errorf("project knowledge_base at index %d missing id", i)
+		}
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceKnowledgeBase, ID: kb.ID}
+		prev := resources.GetMetaSource(ctx, store, p.Name, resources.ResourceKnowledgeBase, kb.ID)
+		if _, err := store.Put(ctx, key, kb); err != nil {
+			return fmt.Errorf("store put knowledge_base '%s': %w", kb.ID, err)
+		}
+		if prev != "" && prev != metaSourceYAML {
+			log.Warn(
+				"yaml indexing overwrote existing resource",
+				"project", p.Name,
+				"type", string(resources.ResourceKnowledgeBase),
+				"id", kb.ID,
+				"old_source", prev,
+				"new_source", metaSourceYAML,
+			)
+		}
+		if err := resources.WriteMeta(
+			ctx,
+			store,
+			p.Name,
+			resources.ResourceKnowledgeBase,
+			kb.ID,
 			metaSourceYAML,
 			"indexer",
 		); err != nil {

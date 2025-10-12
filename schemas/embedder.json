@@ -1,0 +1,45 @@
+{
+  "$defs": {
+    "EmbedderRuntimeConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "batch_size": {
+          "type": "integer"
+        },
+        "dimension": {
+          "type": "integer"
+        },
+        "retry": {
+          "type": "object"
+        },
+        "strip_newlines": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "embedder.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "api_key": {
+      "type": "string"
+    },
+    "config": {
+      "$ref": "#/$defs/EmbedderRuntimeConfig"
+    },
+    "id": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    }
+  },
+  "title": "Embedder Configuration",
+  "type": "object",
+  "yamlCompatible": true
+}

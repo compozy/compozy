@@ -2,10 +2,13 @@ package resourceutil
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
@@ -79,6 +82,126 @@ func WorkflowsReferencingMCP(
 		}
 		return false
 	})
+}
+
+func WorkflowsReferencingKnowledgeBase(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	kbID string,
+) ([]string, error) {
+	target := strings.TrimSpace(kbID)
+	if target == "" {
+		return nil, nil
+	}
+	return collectWorkflowReferences(ctx, store, project, func(cfg *workflow.Config) bool {
+		if bindingListHasID(cfg.Knowledge, target) {
+			return true
+		}
+		for i := range cfg.Tasks {
+			if bindingListHasID(cfg.Tasks[i].Knowledge, target) {
+				return true
+			}
+		}
+		for i := range cfg.Agents {
+			if bindingListHasID(cfg.Agents[i].Knowledge, target) {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func AgentsReferencingKnowledgeBase(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	kbID string,
+) ([]string, error) {
+	target := strings.TrimSpace(kbID)
+	if target == "" {
+		return nil, nil
+	}
+	items, err := store.ListWithValues(ctx, project, resources.ResourceAgent)
+	if err != nil {
+		return nil, err
+	}
+	refs := make([]string, 0)
+	for i := range items {
+		ag, err := decodeAgent(items[i].Value, items[i].Key.ID)
+		if err != nil {
+			return nil, err
+		}
+		if bindingListHasID(ag.Knowledge, target) {
+			refs = append(refs, ag.ID)
+		}
+	}
+	return refs, nil
+}
+
+func TasksReferencingKnowledgeBase(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	kbID string,
+) ([]string, error) {
+	target := strings.TrimSpace(kbID)
+	if target == "" {
+		return nil, nil
+	}
+	items, err := store.ListWithValues(ctx, project, resources.ResourceTask)
+	if err != nil {
+		return nil, err
+	}
+	refs := make([]string, 0)
+	for i := range items {
+		tk, err := decodeTask(items[i].Value, items[i].Key.ID)
+		if err != nil {
+			return nil, err
+		}
+		if bindingListHasID(tk.Knowledge, target) {
+			refs = append(refs, tk.ID)
+		}
+	}
+	return refs, nil
+}
+
+func bindingListHasID(bindings []core.KnowledgeBinding, kbID string) bool {
+	target := strings.TrimSpace(kbID)
+	if target == "" {
+		return false
+	}
+	for i := range bindings {
+		if strings.TrimSpace(bindings[i].ID) == target {
+			return true
+		}
+	}
+	return false
+}
+
+func ProjectReferencesKnowledgeBase(
+	ctx context.Context,
+	store resources.ResourceStore,
+	projectID string,
+	kbID string,
+) (bool, error) {
+	target := strings.TrimSpace(kbID)
+	if target == "" {
+		return false, nil
+	}
+	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceProject, ID: projectID}
+	val, _, err := store.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	proj, err := decodeProject(val, projectID)
+	if err != nil {
+		return false, err
+	}
+	return bindingListHasID(proj.Knowledge, target), nil
 }
 
 func WorkflowsReferencingSchema(
@@ -391,6 +514,33 @@ func decodeAgent(value any, id string) (*agent.Config, error) {
 		return cfg, nil
 	default:
 		return nil, fmt.Errorf("decode agent: unsupported type %T", value)
+	}
+}
+
+func decodeProject(value any, id string) (*project.Config, error) {
+	switch v := value.(type) {
+	case *project.Config:
+		if strings.TrimSpace(v.Name) == "" {
+			v.Name = id
+		}
+		return v, nil
+	case project.Config:
+		clone := v
+		if strings.TrimSpace(clone.Name) == "" {
+			clone.Name = id
+		}
+		return &clone, nil
+	case map[string]any:
+		cfg, err := core.FromMapDefault[project.Config](v)
+		if err != nil {
+			return nil, fmt.Errorf("decode project: %w", err)
+		}
+		if strings.TrimSpace(cfg.Name) == "" {
+			cfg.Name = id
+		}
+		return &cfg, nil
+	default:
+		return nil, fmt.Errorf("decode project: unsupported type %T", value)
 	}
 }
 

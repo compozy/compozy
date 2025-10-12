@@ -111,6 +111,12 @@ The Compozy REST API serves as the **central management interface** for the work
     href="/docs/api/memory"
   />
   <ReferenceCard
+    title="Knowledge Bases"
+    description="CRUD operations, ingestion, and query APIs for reusable knowledge bases."
+    icon={BookOpen}
+    href="/docs/api/knowledge"
+  />
+  <ReferenceCard
     title="Operations"
     description="Monitor system health and metrics. Access Prometheus metrics, health checks, and operational data for production monitoring."
     icon={Activity}
@@ -134,10 +140,14 @@ http://<your-compozy-instance>/api/v0
 Most endpoints require authentication. Include your API key in requests:
 
 ```bash
-Authorization: Bearer your_api_key_here
+Authorization: Bearer {{ COMPOZY_API_KEY }}
 ```
 
 </Step>
+
+<Callout type="warning">
+Never commit real API keys. Replace `{{ COMPOZY_API_KEY }}` with a secret loaded from your environment (for example, `export COMPOZY_API_KEY=...`).
+</Callout>
 
 <Step title="Make Your First Request" description="Test the API with a simple workflow execution">
 
@@ -148,7 +158,7 @@ Authorization: Bearer your_api_key_here
 # Execute a workflow
 curl -X POST http://localhost:5001/api/v0/workflows/my-workflow/executions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your_api_key" \
+  -H "Authorization: Bearer {{ COMPOZY_API_KEY }}" \
   -d '{
     "input": {
       "message": "Hello, world!"
@@ -161,11 +171,12 @@ curl -X POST http://localhost:5001/api/v0/workflows/my-workflow/executions \
 <Tab>
 
 ```javascript
+const apiKey = process.env.COMPOZY_API_KEY;
 const response = await fetch('http://localhost:5001/api/v0/workflows/my-workflow/executions', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer your_api_key'
+    'Authorization': `Bearer ${apiKey}`
   },
   body: JSON.stringify({
     input: {
@@ -183,13 +194,16 @@ console.log('Execution ID:', result.data.exec_id);
 <Tab>
 
 ```python
+import os
 import requests
+
+api_key = os.environ.get("COMPOZY_API_KEY")
 
 response = requests.post(
     'http://localhost:5001/api/v0/workflows/my-workflow/executions',
     headers={
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer your_api_key'
+        'Authorization': f'Bearer {api_key}'
     },
     json={
         'input': {
@@ -208,7 +222,7 @@ print(f"Execution ID: {result['data']['exec_id']}")
 
 ```http
 @baseUrl = http://localhost:5001/api/v0
-@apiKey = your_api_key_here
+@apiKey = {{ COMPOZY_API_KEY }}
 
 ### Execute workflow
 POST {{baseUrl}}/workflows/my-workflow/executions
@@ -239,11 +253,11 @@ Check execution status and retrieve outputs:
 ```bash
 # Get execution status
 curl -X GET http://localhost:5001/api/v0/executions/workflows/{execution_id} \
-  -H "Authorization: Bearer your_api_key"
+  -H "Authorization: Bearer {{ COMPOZY_API_KEY }}"
 
 # Get execution outputs (when completed)
 curl -X GET http://localhost:5001/api/v0/executions/workflows/{execution_id}/outputs \
-  -H "Authorization: Bearer your_api_key"
+  -H "Authorization: Bearer {{ COMPOZY_API_KEY }}"
 ```
 
 </Step>

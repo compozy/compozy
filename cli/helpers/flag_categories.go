@@ -26,6 +26,7 @@ func getFlagCategoryDefinitions() []FlagCategory {
 	categories = append(categories, getCoreCategories()...)
 	categories = append(categories, getServerCategories()...)
 	categories = append(categories, getRuntimeCategories()...)
+	categories = append(categories, getKnowledgeCategories()...)
 	categories = append(categories, getAttachmentsCategories()...)
 	categories = append(categories, getInfrastructureCategories()...)
 	return categories
@@ -124,6 +125,22 @@ func getRuntimeCategories() []FlagCategory {
 			Flags: []string{
 				"max-nesting-depth", "max-string-length",
 				"max-message-content-length", "max-total-content-size",
+			},
+		},
+	}
+}
+
+func getKnowledgeCategories() []FlagCategory {
+	return []FlagCategory{
+		{
+			Name:        "Knowledge Configuration",
+			Description: "Knowledge ingestion and retrieval defaults",
+			Flags: []string{
+				"knowledge-embedder-batch-size",
+				"knowledge-chunk-size",
+				"knowledge-chunk-overlap",
+				"knowledge-retrieval-top-k",
+				"knowledge-retrieval-min-score",
 			},
 		},
 	}

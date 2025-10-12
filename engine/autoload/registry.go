@@ -18,6 +18,37 @@ type configEntry struct {
 	source string // "manual" or "autoload"
 }
 
+func registryKeyToResourceType(t string) (resources.ResourceType, bool) {
+	switch strings.ToLower(strings.TrimSpace(t)) {
+	case "workflow":
+		return resources.ResourceWorkflow, true
+	case "task":
+		return resources.ResourceTask, true
+	case "agent":
+		return resources.ResourceAgent, true
+	case "tool":
+		return resources.ResourceTool, true
+	case "mcp":
+		return resources.ResourceMCP, true
+	case "project":
+		return resources.ResourceProject, true
+	case "memory":
+		return resources.ResourceMemory, true
+	case "schema":
+		return resources.ResourceSchema, true
+	case "model":
+		return resources.ResourceModel, true
+	case "knowledge_base", "knowledge-base", "knowledgebase":
+		return resources.ResourceKnowledgeBase, true
+	case "embedder", "knowledge_embedder":
+		return resources.ResourceEmbedder, true
+	case "vector_db", "vector-db", "vectordb", "knowledge_vector_db":
+		return resources.ResourceVectorDB, true
+	default:
+		return "", false
+	}
+}
+
 // ConfigRegistry stores and manages discovered configurations
 type ConfigRegistry struct {
 	mu      sync.RWMutex
@@ -185,16 +216,22 @@ func extractResourceType(v reflect.Value, typeName string) string {
 	}
 	// If Resource field is empty or not found, determine from type
 	resourceTypeMap := map[string]string{
-		"*workflow.Config": string(core.ConfigWorkflow),
-		"*task.Config":     string(core.ConfigTask),
-		"*agent.Config":    string(core.ConfigAgent),
-		"*tool.Config":     string(core.ConfigTool),
-		"*mcp.Config":      string(core.ConfigMCP),
-		"*project.Config":  string(core.ConfigProject),
-		"*memory.Config":   string(core.ConfigMemory), // Added for memory.Config
-		"task.Config":      string(core.ConfigTask),
-		"task.BaseConfig":  string(core.ConfigTask),
-		"memory.Config":    string(core.ConfigMemory), // Added for memory.Config by value
+		"*workflow.Config":          string(core.ConfigWorkflow),
+		"*task.Config":              string(core.ConfigTask),
+		"*agent.Config":             string(core.ConfigAgent),
+		"*tool.Config":              string(core.ConfigTool),
+		"*mcp.Config":               string(core.ConfigMCP),
+		"*project.Config":           string(core.ConfigProject),
+		"*memory.Config":            string(core.ConfigMemory), // Added for memory.Config
+		"task.Config":               string(core.ConfigTask),
+		"task.BaseConfig":           string(core.ConfigTask),
+		"memory.Config":             string(core.ConfigMemory), // Added for memory.Config by value
+		"*knowledge.BaseConfig":     string(core.ConfigKnowledgeBase),
+		"knowledge.BaseConfig":      string(core.ConfigKnowledgeBase),
+		"*knowledge.EmbedderConfig": string(core.ConfigEmbedder),
+		"knowledge.EmbedderConfig":  string(core.ConfigEmbedder),
+		"*knowledge.VectorDBConfig": string(core.ConfigVectorDB),
+		"knowledge.VectorDBConfig":  string(core.ConfigVectorDB),
 	}
 	if rt, ok := resourceTypeMap[typeName]; ok {
 		return rt
@@ -299,33 +336,8 @@ func (r *ConfigRegistry) SyncToResourceStore(ctx context.Context, project string
 	if strings.TrimSpace(project) == "" {
 		return fmt.Errorf("project name is required")
 	}
-	// Helper to translate registry type keys to resources.ResourceType
-	toType := func(t string) (resources.ResourceType, bool) {
-		switch strings.ToLower(strings.TrimSpace(t)) {
-		case "workflow":
-			return resources.ResourceWorkflow, true
-		case "task":
-			return resources.ResourceTask, true
-		case "agent":
-			return resources.ResourceAgent, true
-		case "tool":
-			return resources.ResourceTool, true
-		case "mcp":
-			return resources.ResourceMCP, true
-		case "project":
-			return resources.ResourceProject, true
-		case "memory":
-			return resources.ResourceMemory, true
-		case "schema":
-			return resources.ResourceSchema, true
-		case "model":
-			return resources.ResourceModel, true
-		default:
-			return "", false
-		}
-	}
 	for t, byID := range r.configs {
-		rtype, ok := toType(t)
+		rtype, ok := registryKeyToResourceType(t)
 		if !ok {
 			continue
 		}

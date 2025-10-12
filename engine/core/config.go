@@ -29,13 +29,16 @@ type Config interface {
 type ConfigType string
 
 const (
-	ConfigProject  ConfigType = "project"
-	ConfigWorkflow ConfigType = "workflow"
-	ConfigTask     ConfigType = "task"
-	ConfigAgent    ConfigType = "agent"
-	ConfigTool     ConfigType = "tool"
-	ConfigMCP      ConfigType = "mcp"
-	ConfigMemory   ConfigType = "memory" // Added for memory resources
+	ConfigProject       ConfigType = "project"
+	ConfigWorkflow      ConfigType = "workflow"
+	ConfigTask          ConfigType = "task"
+	ConfigAgent         ConfigType = "agent"
+	ConfigTool          ConfigType = "tool"
+	ConfigMCP           ConfigType = "mcp"
+	ConfigMemory        ConfigType = "memory" // Added for memory resources
+	ConfigKnowledgeBase ConfigType = "knowledge_base"
+	ConfigEmbedder      ConfigType = "embedder"
+	ConfigVectorDB      ConfigType = "vector_db"
 )
 
 func AsMapDefault(config any) (map[string]any, error) {

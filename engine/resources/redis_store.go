@@ -150,10 +150,8 @@ func (s *RedisResourceStore) PutIfMatch(
 	etagKey := s.etagKey(key)
 	current, err := s.r.Get(ctx, valueKey).Bytes()
 	if err != nil {
-		if err == redis.Nil {
-			return ETag(""), ErrNotFound
-		}
-		return ETag(""), fmt.Errorf("redis GET current value: %w", err)
+		etag, handleErr := s.handlePutIfMatchMiss(ctx, key, expectedETag, jsonBytes, newETag, valueKey, etagKey, err)
+		return etag, handleErr
 	}
 	curSum := sha256.Sum256(current)
 	curETag := hex.EncodeToString(curSum[:])
@@ -183,6 +181,56 @@ return ARGV[3]`
 		log.Warn("publish put failed", "error", err)
 	}
 	return ETag(newETag), nil
+}
+
+func (s *RedisResourceStore) handlePutIfMatchMiss(
+	ctx context.Context,
+	key ResourceKey,
+	expectedETag ETag,
+	jsonBytes []byte,
+	newETag string,
+	valueKey string,
+	etagKey string,
+	getErr error,
+) (ETag, error) {
+	if getErr != redis.Nil {
+		return ETag(""), fmt.Errorf("redis GET current value: %w", getErr)
+	}
+	if expectedETag != "" {
+		return ETag(""), ErrNotFound
+	}
+	if err := s.createIfAbsent(ctx, key, jsonBytes, newETag, valueKey, etagKey); err != nil {
+		return ETag(""), err
+	}
+	return ETag(newETag), nil
+}
+
+func (s *RedisResourceStore) createIfAbsent(
+	ctx context.Context,
+	key ResourceKey,
+	jsonBytes []byte,
+	newETag string,
+	valueKey string,
+	etagKey string,
+) error {
+	const insertScript = `if redis.call("EXISTS", KEYS[1]) == 1 then return {err="ALREADY_EXISTS"} end
+redis.call("SET", KEYS[1], ARGV[1])
+redis.call("SET", KEYS[2], ARGV[2])
+return ARGV[2]`
+	cmd := s.r.Eval(ctx, insertScript, []string{valueKey, etagKey}, string(jsonBytes), newETag)
+	if evalErr := cmd.Err(); evalErr != nil {
+		switch {
+		case strings.Contains(evalErr.Error(), "ALREADY_EXISTS"):
+			return ErrETagMismatch
+		default:
+			return fmt.Errorf("redis create eval: %w", evalErr)
+		}
+	}
+	evt := Event{Type: EventPut, Key: key, ETag: ETag(newETag), At: time.Now().UTC()}
+	if err := s.publish(ctx, key.Project, key.Type, &evt); err != nil {
+		logger.FromContext(ctx).Warn("publish put failed", "error", err)
+	}
+	return nil
 }
 
 // Get retrieves a resource by key. Returns ErrNotFound if not present.

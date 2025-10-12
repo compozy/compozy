@@ -1,0 +1,40 @@
+# LangChainGo v0.1.13 Embedding & Vector Store Notes
+
+- Module pin confirmed at `github.com/tmc/langchaingo v0.1.13` in Compozy `go.mod`.
+- Embedding interface (`embeddings.Embedder`) exposes:
+  - `EmbedDocuments(ctx context.Context, texts []string) ([][]float32, error)`
+  - `EmbedQuery(ctx context.Context, text string) ([]float32, error)`
+  - Implemented by `embeddings.EmbedderImpl` wrapping an `EmbedderClient`.
+- `EmbedderImpl` defaults:
+  - `BatchSize` → 512 by default (via `defaultBatchSize` constant, not overridden in source yet).
+  - `StripNewLines` → true by default (replaces `\n` with space before embedding).
+  - Batching helper `BatchedEmbed` splits inputs respecting `BatchSize`.
+- Providers included in v0.1.13:
+  - `embeddings/cybertron`, `huggingface`, `vertexai`, `bedrock`, `ernie`, `openai`, etc. (validated via repo tree).
+  - Each provider constructs an `EmbedderClient` that honors the shared interface.
+- Vector store abstractions in `vectorstores` package:
+  - Interface `VectorStore` implements `AddDocuments` and `SimilaritySearch` (returns `[]schema.Document` with scores).
+  - `options.go` defines shared `Option` struct:
+    - `NameSpace string`
+    - `ScoreThreshold float32`
+    - `Filters any` (supports provider-specific filter maps, e.g., Pinecone metadata exact match).
+    - `Embedder embeddings.Embedder` override for per-call embedding.
+    - `Deduplicater func(context.Context, schema.Document) bool` to short-circuit duplicate chunks.
+  - Supported stores enumerated in repo tree: `pgvector`, `qdrant`, `pinecone`, `redisvector`, `weaviate`, `azureaisearch`, `chroma`, `milvus`, `mongovector`, `opensearch`.
+  - Store clients accept `WithFilters` Option to enforce metadata filters server-side (aligns with MVP tag filters).
+- Error handling patterns:
+  - `EmbedQuery` wraps provider errors with context (`"error embedding query"`), implying adapters should propagate meaningful messages.
+  - `BatchedEmbed` returns early on the first failing batch (`"error embedding batch"`).
+- Dimension alignment:
+  - Providers expose dimension metadata through config; vector stores typically require an explicit dimension parameter (e.g., pgvector).
+  - Need to validate `EmbedderConfig.Dimension` vs `VectorDBConfig.Dimension` per tech spec.
+- Rate limiting considerations:
+  - No built-in retry/backoff; call sites must implement retries or rely on provider clients (OpenAI drivers often expose built-in retry knobs).
+- Metadata payload:
+  - `schema.Document` includes `Metadata map[string]any`; vector store implementations persist metadata alongside vectors.
+- Filters:
+  - `Filters any` + provider docs confirm Pinecone metadata filtering supports exact match map; other stores vary (Qdrant supports `models.Filter` structure).
+- Namespaces:
+  - `NameSpace` option surfaces Pinecone-style segmentation; other stores may ignore if unsupported.
+- Deduplication:
+  - `WithDeduplicater` allows skipping expensive embeddings when duplicates detected, aligning with chunk hashing requirement from tech spec.

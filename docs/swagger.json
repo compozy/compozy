@@ -2822,6 +2822,496 @@
                 }
             }
         },
+        "/knowledge-bases": {
+            "get": {
+                "description": "List knowledge bases with cursor-based pagination.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge"
+                ],
+                "summary": "List knowledge bases",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 50,
+                        "description": "Page size (max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Knowledge bases retrieved\" example({\"status\":200,\"message\":\"knowledge bases retrieved\",\"data\":{\"knowledge_bases\":[{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\"}],\"page\":{\"limit\":1,\"next_cursor\":\"eyJpZCI6ICJiIn0=\",\"prev_cursor\":\"\"}},\"error\":null})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/knowledgerouter.KnowledgeBaseListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Link": {
+                                "type": "string",
+                                "description": "RFC 8288 pagination links for next/prev"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid cursor parameter",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge-bases/{kb_id}": {
+            "get": {
+                "description": "Retrieve a knowledge base by ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge"
+                ],
+                "summary": "Get knowledge base",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"support-docs\"",
+                        "description": "Knowledge base ID",
+                        "name": "kb_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Knowledge base retrieved\" example({\"status\":200,\"message\":\"knowledge base retrieved\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"_etag\":\"etag-value\"}},\"error\":null})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/knowledgerouter.KnowledgeBaseResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag for caching"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Knowledge base not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Create a knowledge base when absent or update an existing one using strong ETag concurrency.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge"
+                ],
+                "summary": "Create or update knowledge base",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"support-docs\"",
+                        "description": "Knowledge base ID",
+                        "name": "kb_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"\\\"etag123\\\"\"",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Knowledge base definition",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Knowledge base updated\" example({\"status\":200,\"message\":\"knowledge base updated\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"description\":\"Support knowledge base\",\"_etag\":\"etag-value\"}},\"error\":null})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/knowledgerouter.KnowledgeBaseResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "ETag": {
+                                "type": "string",
+                                "description": "Strong entity tag"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Knowledge base created\" example({\"status\":201,\"message\":\"knowledge base created\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"description\":\"Support knowledge base\",\"_etag\":\"etag-value\"}},\"error\":null})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/knowledgerouter.KnowledgeBaseResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Relative URL for the knowledge base"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Knowledge base not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "412": {
+                        "description": "ETag mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a knowledge base and remove persisted vectors.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge"
+                ],
+                "summary": "Delete knowledge base",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"support-docs\"",
+                        "description": "Knowledge base ID",
+                        "name": "kb_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"\\\"etag123\\\"\"",
+                        "description": "Strong ETag for optimistic concurrency",
+                        "name": "If-Match",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Knowledge base not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "409": {
+                        "description": "Knowledge base referenced",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge-bases/{kb_id}/ingest": {
+            "post": {
+                "description": "Trigger ingestion for configured sources using the requested strategy.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge"
+                ],
+                "summary": "Ingest knowledge base",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"support-docs\"",
+                        "description": "Knowledge base ID",
+                        "name": "kb_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "description": "Ingestion request",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/knowledgerouter.KnowledgeIngestRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Ingestion summary\" example({\"status\":200,\"message\":\"knowledge ingestion completed\",\"data\":{\"knowledge_base_id\":\"support\",\"binding_id\":\"binding-123\",\"documents\":2,\"chunks\":16,\"persisted\":16},\"error\":null})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/knowledgerouter.KnowledgeIngestResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Knowledge base not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge-bases/{kb_id}/query": {
+            "post": {
+                "description": "Execute a dense similarity query against a knowledge base.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge"
+                ],
+                "summary": "Query knowledge base",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"support-docs\"",
+                        "description": "Knowledge base ID",
+                        "name": "kb_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"demo\"",
+                        "description": "Project override",
+                        "name": "project",
+                        "in": "query"
+                    },
+                    {
+                        "description": "Query request",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/knowledgerouter.KnowledgeQueryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Query matches\" example({\"status\":200,\"message\":\"knowledge query completed\",\"data\":{\"matches\":[{\"binding_id\":\"binding-123\",\"content\":\"Reset your password from the account settings page.\",\"score\":0.83,\"token_estimate\":120}]},\"error\":null})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/knowledgerouter.KnowledgeQueryResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "404": {
+                        "description": "Knowledge base not found",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ProblemDocument"
+                        }
+                    }
+                }
+            }
+        },
         "/mcp-proxy/{name}/sse": {
             "get": {
                 "description": "Proxy Server-Sent Events requests to a specific MCP server",
@@ -10579,6 +11069,13 @@
                     "description": "Provider configuration is now expressed through the polymorphic `Model` field.\nThe previous `Config core.ProviderConfig` field has been removed.\nSystem instructions that define the agent's personality, behavior, and constraints.\nThese instructions guide how the agent interprets tasks and generates responses.\n\n**Best practices:**\n- Be clear and specific about the agent's role\n- Define boundaries and ethical guidelines\n- Include domain-specific knowledge or constraints\n- Use markdown formatting for better structure",
                     "type": "string"
                 },
+                "knowledge": {
+                    "description": "Knowledge declares knowledge bindings scoped to this agent.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.KnowledgeBinding"
+                    }
+                },
                 "max_iterations": {
                     "description": "Maximum number of reasoning iterations the agent can perform.\nThe agent may self-correct and refine its response across multiple iterations\nto improve accuracy and address complex multi-step problems.\n\n**Default:** `5` iterations\n\n**Trade-offs:**\n- Higher values enable more thorough problem-solving and self-correction\n- Each iteration consumes additional tokens and increases response latency\n- Configure based on task complexity, accuracy requirements, and cost constraints",
                     "type": "integer"
@@ -11130,6 +11627,35 @@
             "type": "object",
             "additionalProperties": {}
         },
+        "core.KnowledgeBinding": {
+            "type": "object",
+            "properties": {
+                "fallback": {
+                    "type": "string"
+                },
+                "filters": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inject_as": {
+                    "type": "string"
+                },
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "min_score": {
+                    "type": "number"
+                },
+                "top_k": {
+                    "type": "integer"
+                }
+            }
+        },
         "core.LockConfig": {
             "type": "object",
             "properties": {
@@ -11581,6 +12107,294 @@
                 "total": {
                     "type": "integer",
                     "example": 2
+                }
+            }
+        },
+        "knowledge.BaseConfig": {
+            "type": "object",
+            "properties": {
+                "chunking": {
+                    "$ref": "#/definitions/knowledge.ChunkingConfig"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "embedder": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "$ref": "#/definitions/knowledge.MetadataConfig"
+                },
+                "preprocess": {
+                    "$ref": "#/definitions/knowledge.PreprocessConfig"
+                },
+                "retrieval": {
+                    "$ref": "#/definitions/knowledge.RetrievalConfig"
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/knowledge.SourceConfig"
+                    }
+                },
+                "vector_db": {
+                    "type": "string"
+                }
+            }
+        },
+        "knowledge.ChunkStrategy": {
+            "type": "string",
+            "enum": [
+                "recursive_text_splitter"
+            ],
+            "x-enum-varnames": [
+                "ChunkStrategyRecursiveTextSplitter"
+            ]
+        },
+        "knowledge.ChunkingConfig": {
+            "type": "object",
+            "properties": {
+                "overlap": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "strategy": {
+                    "$ref": "#/definitions/knowledge.ChunkStrategy"
+                }
+            }
+        },
+        "knowledge.MetadataConfig": {
+            "type": "object",
+            "properties": {
+                "owners": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "knowledge.PreprocessConfig": {
+            "type": "object",
+            "properties": {
+                "dedupe": {
+                    "type": "boolean"
+                },
+                "remove_html": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "knowledge.RetrievalConfig": {
+            "type": "object",
+            "properties": {
+                "fallback": {
+                    "type": "string"
+                },
+                "filters": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "inject_as": {
+                    "type": "string"
+                },
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "min_score": {
+                    "type": "number"
+                },
+                "top_k": {
+                    "type": "integer"
+                }
+            }
+        },
+        "knowledge.SourceConfig": {
+            "type": "object",
+            "properties": {
+                "bucket": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "path": {
+                    "type": "string"
+                },
+                "paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "prefix": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/knowledge.SourceType"
+                },
+                "urls": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "video_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "knowledge.SourceType": {
+            "type": "string",
+            "enum": [
+                "pdf_url",
+                "markdown_glob",
+                "cloud_storage",
+                "media_transcript"
+            ],
+            "x-enum-varnames": [
+                "SourceTypePDFURL",
+                "SourceTypeMarkdownGlob",
+                "SourceTypeCloudStorage",
+                "SourceTypeMediaTranscript"
+            ]
+        },
+        "knowledgerouter.KnowledgeBaseListResponse": {
+            "type": "object",
+            "properties": {
+                "knowledge_bases": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "page": {
+                    "$ref": "#/definitions/httpdto.PageInfoDTO"
+                }
+            }
+        },
+        "knowledgerouter.KnowledgeBaseResponse": {
+            "type": "object",
+            "properties": {
+                "knowledge_base": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "knowledgerouter.KnowledgeIngestRequest": {
+            "type": "object",
+            "properties": {
+                "strategy": {
+                    "type": "string",
+                    "example": "replace"
+                }
+            }
+        },
+        "knowledgerouter.KnowledgeIngestResponse": {
+            "type": "object",
+            "properties": {
+                "binding_id": {
+                    "type": "string",
+                    "example": "binding-123"
+                },
+                "chunks": {
+                    "type": "integer",
+                    "example": 16
+                },
+                "documents": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "knowledge_base_id": {
+                    "type": "string",
+                    "example": "support"
+                },
+                "persisted": {
+                    "type": "integer",
+                    "example": 16
+                }
+            }
+        },
+        "knowledgerouter.KnowledgeMatch": {
+            "type": "object",
+            "properties": {
+                "binding_id": {
+                    "type": "string",
+                    "example": "binding-123"
+                },
+                "content": {
+                    "type": "string",
+                    "example": "Reset your password by visiting the account settings page."
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "score": {
+                    "type": "number",
+                    "example": 0.83
+                },
+                "token_estimate": {
+                    "type": "integer",
+                    "example": 120
+                }
+            }
+        },
+        "knowledgerouter.KnowledgeQueryRequest": {
+            "type": "object",
+            "required": [
+                "query"
+            ],
+            "properties": {
+                "filters": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "min_score": {
+                    "type": "number",
+                    "example": 0.4
+                },
+                "query": {
+                    "type": "string",
+                    "example": "How do I reset my password?"
+                },
+                "top_k": {
+                    "type": "integer",
+                    "example": 5
+                }
+            }
+        },
+        "knowledgerouter.KnowledgeQueryResponse": {
+            "type": "object",
+            "properties": {
+                "matches": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/knowledgerouter.KnowledgeMatch"
+                    }
                 }
             }
         },
@@ -12805,6 +13619,13 @@
                 "key_template": {
                     "description": "KeyTemplate is a template expression for the memory key\nSupports template variables for dynamic key generation\n- **Example**: \"user:{{ .workflow.input.user_id }}:profile\"",
                     "type": "string"
+                },
+                "knowledge": {
+                    "description": "Knowledge declares task-scoped knowledge bindings (MVP single binding).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.KnowledgeBinding"
+                    }
                 },
                 "max_iterations": {
                     "description": "Maximum number of reasoning iterations the agent can perform.\nThe agent may self-correct and refine its response across multiple iterations\nto improve accuracy and address complex multi-step problems.\n\n**Default:** `5` iterations\n\n**Trade-offs:**\n- Higher values enable more thorough problem-solving and self-correction\n- Each iteration consumes additional tokens and increases response latency\n- Configure based on task complexity, accuracy requirements, and cost constraints",
@@ -14598,6 +15419,20 @@
                 "id": {
                     "description": "Unique identifier for the workflow (required)\nMust be unique within the project scope. Used for referencing and execution.\n- **Example**: \"customer-support\", \"data-processing\", \"content-generation\"",
                     "type": "string"
+                },
+                "knowledge": {
+                    "description": "Knowledge defines the default knowledge binding for the workflow context.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.KnowledgeBinding"
+                    }
+                },
+                "knowledge_bases": {
+                    "description": "KnowledgeBases declares workflow-scoped knowledge definitions.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/knowledge.BaseConfig"
+                    }
                 },
                 "mcps": {
                     "description": "Model Context Protocol servers for extending AI capabilities\nMCP servers provide specialized tools and knowledge to agents\nEnable integration with external services and domain-specific functionality\n$ref: schema://mcp",

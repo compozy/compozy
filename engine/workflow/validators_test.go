@@ -29,6 +29,19 @@ func TestConfig_Validation(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("Should enforce single knowledge binding", func(t *testing.T) {
+		config := &Config{
+			ID: workflowID,
+			Knowledge: []core.KnowledgeBinding{
+				{ID: "kb-1"},
+				{ID: "kb-2"},
+			},
+		}
+		err := validateWorkflowKnowledge(config)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "only one knowledge binding")
+	})
+
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
 		config := &Config{
 			ID: "test-workflow",

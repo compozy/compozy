@@ -1,0 +1,52 @@
+---
+title: Vector Database Schema
+description: JSON Schema for vector store configuration
+icon: Database
+---
+
+import vectorDbSchema from "@/schemas/vectordb.json";
+
+## Vector Database Definition
+
+<SchemaParams
+  schema={vectorDbSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+### Example
+
+```yaml
+vector_dbs:
+  - id: in_memory_faststart
+    type: in_memory
+  - id: pgvector_local
+    type: pgvector
+    config:
+      dsn: "{{ .env.PGVECTOR_DSN }}"
+      ensure_index: true
+      table: knowledge_chunks
+```
+
+- `in_memory` is ideal for quickstarts and tests; persistent workloads should use `pgvector` or `qdrant`.
+- `config.ensure_index` controls whether Compozy enforces pgvector index creation on startup.
+- Use `config.auth` to pass API keys or bearer tokens for managed vector databases.
+
+## Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Knowledge Configuration Guide"
+    description="See how vector databases pair with embedders inside knowledge bases."
+    href="/docs/core/knowledge/configuration"
+    icon="BookOpenCheck"
+  />
+  <ReferenceCard
+    title="pgvector Example"
+    description="Run the pgvector basic example end-to-end."
+    href="https://github.com/compozy/compozy/tree/main/examples/knowledge/pgvector-basic"
+    icon="Server"
+  />
+</ReferenceCardList>

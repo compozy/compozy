@@ -8,6 +8,7 @@
     "dev-commands",
     "auth-commands",
     "config-commands",
+    "knowledge-commands",
     "workflow-commands",
     "mcp-commands"
   ]

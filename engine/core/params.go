@@ -1,12 +1,5 @@
 package core
 
-import (
-	"fmt"
-	"maps"
-
-	"dario.cat/mergo"
-)
-
 type (
 	Input  map[string]any
 	Output map[string]any
@@ -17,15 +10,6 @@ type (
 // output whose schema root is not "object", the orchestrator wraps the value
 // under this key so downstream consumers can still access it in a consistent way.
 const OutputRootKey = "__value__"
-
-func merge(dst, src map[string]any, kind string) (map[string]any, error) {
-	result := make(map[string]any)
-	maps.Copy(result, dst)
-	if err := mergo.Merge(&result, src, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
-		return nil, fmt.Errorf("failed to merge %s: %w", kind, err)
-	}
-	return result, nil
-}
 
 // -----------------------------------------------------------------------------
 // Input
@@ -42,12 +26,15 @@ func (i *Input) Merge(other *Input) (*Input, error) {
 	if i == nil {
 		return other, nil
 	}
-	result, err := merge(*i, *other, "input")
+	var source Input
+	if other != nil {
+		source = *other
+	}
+	result, err := Merge(*i, source, "input")
 	if err != nil {
 		return nil, err
 	}
-	newInput := Input(result)
-	return &newInput, nil
+	return &result, nil
 }
 
 func (i *Input) Prop(key string) any {
@@ -68,9 +55,7 @@ func (i *Input) AsMap() map[string]any {
 	if i == nil {
 		return nil
 	}
-	result := make(map[string]any)
-	maps.Copy(result, *i)
-	return result
+	return CloneMap(map[string]any(*i))
 }
 
 // -----------------------------------------------------------------------------
@@ -81,7 +66,7 @@ func (o *Output) Merge(other Output) (Output, error) {
 	if o == nil {
 		return other, nil
 	}
-	return merge(*o, other, "output")
+	return Merge(*o, other, "output")
 }
 
 func (o *Output) Prop(key string) any {
@@ -102,9 +87,7 @@ func (o *Output) AsMap() map[string]any {
 	if o == nil {
 		return nil
 	}
-	result := make(map[string]any)
-	maps.Copy(result, *o)
-	return result
+	return CloneMap(map[string]any(*o))
 }
 
 // DeepCopy creates a deep copy of Input

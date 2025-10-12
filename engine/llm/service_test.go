@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
@@ -312,6 +313,118 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		require.NotNil(t, out)
 		assert.Equal(t, true, (*out)["enhanced"])
 		assert.Equal(t, true, (*out)["focused"])
+	})
+}
+
+func TestService_applyKnowledgeOverrides(t *testing.T) {
+	t.Run("Should apply runtime overrides to resolved knowledge bindings", func(t *testing.T) {
+		t.Parallel()
+
+		svc := &Service{
+			knowledgeRuntimeEmbedders: map[string]*knowledge.EmbedderConfig{
+				"openai_default": {
+					ID:       "openai_default",
+					APIKey:   "resolved-secret",
+					Model:    "text-embedding-3-small",
+					Provider: "openai",
+					Config: knowledge.EmbedderRuntimeConfig{
+						Dimension: 1536,
+						BatchSize: 64,
+					},
+				},
+			},
+			knowledgeRuntimeVectorDBs: map[string]*knowledge.VectorDBConfig{
+				"memory": {
+					ID:   "memory",
+					Type: knowledge.VectorDBTypeMemory,
+					Config: knowledge.VectorDBConnConfig{
+						Dimension: 1536,
+					},
+				},
+			},
+			knowledgeRuntimeKBs: map[string]*knowledge.BaseConfig{
+				"kb": {
+					ID:       "kb",
+					Embedder: "openai_default",
+					VectorDB: "memory",
+				},
+			},
+		}
+		binding := &knowledge.ResolvedBinding{
+			ID: "binding",
+			KnowledgeBase: knowledge.BaseConfig{
+				ID:       "kb",
+				Embedder: "openai_default",
+				VectorDB: "memory",
+			},
+			Embedder: knowledge.EmbedderConfig{
+				ID:       "openai_default",
+				APIKey:   "{{ .env.OPENAI_API_KEY }}",
+				Model:    "text-embedding-3-small",
+				Provider: "openai",
+				Config: knowledge.EmbedderRuntimeConfig{
+					Dimension: 1536,
+					BatchSize: 64,
+				},
+			},
+			Vector: knowledge.VectorDBConfig{
+				ID:   "memory",
+				Type: knowledge.VectorDBTypeMemory,
+				Config: knowledge.VectorDBConnConfig{
+					Dimension: 1536,
+				},
+			},
+			Retrieval: knowledge.RetrievalConfig{TopK: 5},
+		}
+
+		svc.applyKnowledgeOverrides(binding)
+
+		assert.Equal(t, "resolved-secret", binding.Embedder.APIKey)
+		assert.Equal(t, "memory", binding.Vector.ID)
+		assert.Equal(t, "kb", binding.KnowledgeBase.ID)
+	})
+}
+
+func TestBuildKnowledgeQuery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include prompt intent and input values when available", func(t *testing.T) {
+		input := core.Input{
+			"question": "What phases does NIST recommend for incident handling?",
+			"context": map[string]any{
+				"note": "Summarize key actions in each phase.",
+			},
+		}
+		action := &agent.ActionConfig{
+			Prompt: "Answer the question: {{ .input.question }}",
+			With:   &input,
+		}
+		query := buildKnowledgeQuery(action)
+		require.NotEmpty(t, query)
+		assert.NotContains(t, query, "{{")
+		assert.Contains(t, query, "Answer the question:")
+		assert.Contains(t, query, "What phases does NIST recommend for incident handling?")
+		assert.Contains(t, query, "Summarize key actions in each phase.")
+	})
+
+	t.Run("Should fall back to prompt when inputs are empty", func(t *testing.T) {
+		action := &agent.ActionConfig{
+			Prompt: "Outline the incident response lifecycle.",
+		}
+		query := buildKnowledgeQuery(action)
+		assert.Equal(t, "Outline the incident response lifecycle.", query)
+	})
+
+	t.Run("Should ignore templated input values", func(t *testing.T) {
+		input := core.Input{
+			"question": "{{ .workflow.input.question }}",
+		}
+		action := &agent.ActionConfig{
+			Prompt: "Provide a concise answer.",
+			With:   &input,
+		}
+		query := buildKnowledgeQuery(action)
+		assert.Equal(t, "Provide a concise answer.", query)
 	})
 }
 

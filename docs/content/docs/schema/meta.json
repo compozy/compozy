@@ -6,6 +6,10 @@
   "pages": [
     "project",
     "application",
+    "embedders",
+    "vector-dbs",
+    "knowledge-bases",
+    "bindings",
     "provider",
     "tools",
     "agents",

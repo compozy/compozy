@@ -228,6 +228,7 @@ func (r *Reconciler) Start(ctx context.Context) error {
 		resources.ResourceSchema,
 		resources.ResourceModel,
 		resources.ResourceMCP,
+		resources.ResourceKnowledgeBase,
 	}
 	for i := range types {
 		typ := types[i]

@@ -15,13 +15,16 @@ import (
 type ResourceType = core.ConfigType
 
 const (
-	ResourceProject  ResourceType = core.ConfigProject
-	ResourceWorkflow ResourceType = core.ConfigWorkflow
-	ResourceTask     ResourceType = core.ConfigTask
-	ResourceAgent    ResourceType = core.ConfigAgent
-	ResourceTool     ResourceType = core.ConfigTool
-	ResourceMCP      ResourceType = core.ConfigMCP
-	ResourceMemory   ResourceType = core.ConfigMemory
+	ResourceProject       ResourceType = core.ConfigProject
+	ResourceWorkflow      ResourceType = core.ConfigWorkflow
+	ResourceTask          ResourceType = core.ConfigTask
+	ResourceAgent         ResourceType = core.ConfigAgent
+	ResourceTool          ResourceType = core.ConfigTool
+	ResourceMCP           ResourceType = core.ConfigMCP
+	ResourceMemory        ResourceType = core.ConfigMemory
+	ResourceKnowledgeBase ResourceType = core.ConfigKnowledgeBase
+	ResourceEmbedder      ResourceType = core.ConfigEmbedder
+	ResourceVectorDB      ResourceType = core.ConfigVectorDB
 	// Resource-specific extensions not yet in core:
 	ResourceSchema ResourceType = "schema"
 	ResourceModel  ResourceType = "model"
@@ -80,7 +83,8 @@ type ResourceStore interface {
 	Put(ctx context.Context, key ResourceKey, value any) (etag ETag, err error)
 
 	// PutIfMatch replaces a resource value only if the current ETag matches the expected value.
-	// Returns ErrNotFound if the resource does not exist and ErrETagMismatch when the ETag differs.
+	// If expectedETag is empty and the resource does not exist, creates a new resource.
+	// Returns ErrETagMismatch when the ETag differs.
 	PutIfMatch(ctx context.Context, key ResourceKey, value any, expectedETag ETag) (etag ETag, err error)
 
 	// Get retrieves a resource by key. If not found, returns (nil, "", ErrNotFound).

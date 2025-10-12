@@ -3,11 +3,18 @@ package llm
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
+	"github.com/compozy/compozy/engine/knowledge/configutil"
+	"github.com/compozy/compozy/engine/knowledge/embedder"
+	"github.com/compozy/compozy/engine/knowledge/retriever"
+	"github.com/compozy/compozy/engine/knowledge/vectordb"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	orchestratorpkg "github.com/compozy/compozy/engine/llm/orchestrator"
 	"github.com/compozy/compozy/engine/llm/telemetry"
@@ -19,15 +26,30 @@ import (
 	"github.com/compozy/compozy/engine/tool/native"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 const directPromptActionID = "direct-prompt"
 
 // Service provides LLM integration capabilities using clean architecture
 type Service struct {
-	orchestrator orchestratorpkg.Orchestrator
-	config       *Config
-	toolRegistry ToolRegistry
+	orchestrator              orchestratorpkg.Orchestrator
+	config                    *Config
+	toolRegistry              ToolRegistry
+	knowledgeResolver         *knowledge.Resolver
+	knowledgeWorkflowKBs      []knowledge.BaseConfig
+	knowledgeProjectBinding   []core.KnowledgeBinding
+	knowledgeWorkflowBinding  []core.KnowledgeBinding
+	knowledgeInlineBinding    []core.KnowledgeBinding
+	knowledgeRuntimeEmbedders map[string]*knowledge.EmbedderConfig
+	knowledgeRuntimeVectorDBs map[string]*knowledge.VectorDBConfig
+	knowledgeRuntimeKBs       map[string]*knowledge.BaseConfig
+	knowledgeRuntimeWorkflow  map[string]*knowledge.BaseConfig
+	knowledgeProjectID        string
+	closeCtx                  context.Context
+	cacheMu                   sync.RWMutex
+	embedderCache             map[string]*embedder.Adapter
+	vectorStoreCache          map[string]vectordb.Store
 }
 
 type builtinRegistryAdapter struct {
@@ -246,6 +268,79 @@ func (a *orchestratorToolRegistryAdapter) Close() error {
 	return a.registry.Close()
 }
 
+type knowledgeRuntimeState struct {
+	resolver              *knowledge.Resolver
+	workflowKBs           []knowledge.BaseConfig
+	projectBinding        []core.KnowledgeBinding
+	workflowBinding       []core.KnowledgeBinding
+	inlineBinding         []core.KnowledgeBinding
+	runtimeEmbedders      map[string]*knowledge.EmbedderConfig
+	runtimeVectorDBs      map[string]*knowledge.VectorDBConfig
+	runtimeKnowledgeBases map[string]*knowledge.BaseConfig
+	runtimeWorkflowKBs    map[string]*knowledge.BaseConfig
+	projectID             string
+}
+
+func newKnowledgeRuntimeState(ctx context.Context, cfg *KnowledgeRuntimeConfig) (*knowledgeRuntimeState, error) {
+	resolver,
+		workflowKBs,
+		projectBinding,
+		workflowBinding,
+		inlineBinding,
+		runtimeEmbedders,
+		runtimeVectorDBs,
+		runtimeKnowledgeBases,
+		runtimeWorkflowKBs,
+		projectID,
+		err := initKnowledgeRuntime(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &knowledgeRuntimeState{
+		resolver:              resolver,
+		workflowKBs:           workflowKBs,
+		projectBinding:        projectBinding,
+		workflowBinding:       workflowBinding,
+		inlineBinding:         inlineBinding,
+		runtimeEmbedders:      runtimeEmbedders,
+		runtimeVectorDBs:      runtimeVectorDBs,
+		runtimeKnowledgeBases: runtimeKnowledgeBases,
+		runtimeWorkflowKBs:    runtimeWorkflowKBs,
+		projectID:             projectID,
+	}, nil
+}
+
+func newServiceInstance(
+	ctx context.Context,
+	orchestrator orchestratorpkg.Orchestrator,
+	config *Config,
+	registry ToolRegistry,
+	state *knowledgeRuntimeState,
+) *Service {
+	service := &Service{
+		orchestrator:     orchestrator,
+		config:           config,
+		toolRegistry:     registry,
+		closeCtx:         context.WithoutCancel(ctx),
+		embedderCache:    make(map[string]*embedder.Adapter),
+		vectorStoreCache: make(map[string]vectordb.Store),
+	}
+	if state == nil {
+		return service
+	}
+	service.knowledgeResolver = state.resolver
+	service.knowledgeWorkflowKBs = state.workflowKBs
+	service.knowledgeProjectBinding = state.projectBinding
+	service.knowledgeWorkflowBinding = state.workflowBinding
+	service.knowledgeInlineBinding = state.inlineBinding
+	service.knowledgeRuntimeEmbedders = state.runtimeEmbedders
+	service.knowledgeRuntimeVectorDBs = state.runtimeVectorDBs
+	service.knowledgeRuntimeKBs = state.runtimeKnowledgeBases
+	service.knowledgeRuntimeWorkflow = state.runtimeWorkflowKBs
+	service.knowledgeProjectID = state.projectID
+	return service
+}
+
 // NewService creates a new LLM service with clean architecture
 func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Config, opts ...Option) (*Service, error) {
 	log := logger.FromContext(ctx)
@@ -262,6 +357,10 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
+	knowledgeState, err := newKnowledgeRuntimeState(ctx, config.Knowledge)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize knowledge resolver: %w", err)
+	}
 	if config.LLMFactory == nil {
 		factory, err := llmadapter.NewDefaultFactory(ctx)
 		if err != nil {
@@ -269,19 +368,9 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		}
 		config.LLMFactory = factory
 	}
-	// Create MCP client if configured
-	var mcpClient *mcp.Client
-	if config.ProxyURL != "" {
-		client, err := config.CreateMCPClient()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create MCP client: %w", err)
-		}
-		mcpClient = client
-		toRegister := collectMCPsToRegister(agent, config)
-		uniq := dedupeMCPsByID(toRegister)
-		if err := registerMCPsWithProxy(ctx, mcpClient, uniq, config.FailOnMCPRegistrationError); err != nil {
-			return nil, err
-		}
+	mcpClient, err := setupMCPClient(ctx, config, agent)
+	if err != nil {
+		return nil, err
 	}
 	// Create tool registry
 	toolRegistry := NewToolRegistry(ToolRegistryConfig{
@@ -305,11 +394,7 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		}
 		return nil, fmt.Errorf("failed to create orchestrator: %w", err)
 	}
-	return &Service{
-		orchestrator: llmOrchestrator,
-		config:       config,
-		toolRegistry: toolRegistry,
-	}, nil
+	return newServiceInstance(ctx, llmOrchestrator, config, toolRegistry, knowledgeState), nil
 }
 
 // GenerateContent generates content using the orchestrator
@@ -352,10 +437,16 @@ func (s *Service) GenerateContent(
 		return nil, err
 	}
 
+	knowledgeEntries, err := s.resolveKnowledge(ctx, agentConfig, actionCopy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve knowledge context: %w", err)
+	}
+
 	request := orchestratorpkg.Request{
 		Agent:           effectiveAgent,
 		Action:          actionCopy,
 		AttachmentParts: attachmentParts,
+		Knowledge:       knowledgeEntries,
 	}
 	return s.orchestrator.Execute(ctx, request)
 }
@@ -412,6 +503,492 @@ func (s *Service) buildEffectiveAgent(agentConfig *agent.Config) (*agent.Config,
 	return &tmp, nil
 }
 
+func (s *Service) resolveKnowledge(
+	ctx context.Context,
+	agentConfig *agent.Config,
+	action *agent.ActionConfig,
+) ([]orchestratorpkg.KnowledgeEntry, error) {
+	if s.knowledgeResolver == nil || action == nil {
+		return nil, nil
+	}
+	query := buildKnowledgeQuery(action)
+	if query == "" {
+		return nil, nil
+	}
+	inline := s.buildInlineKnowledgeBinding(agentConfig)
+	input := knowledge.ResolveInput{
+		WorkflowKnowledgeBases: s.knowledgeWorkflowKBs,
+		ProjectBinding:         s.knowledgeProjectBinding,
+		WorkflowBinding:        s.knowledgeWorkflowBinding,
+		InlineBinding:          inline,
+	}
+	binding, err := s.knowledgeResolver.Resolve(&input)
+	if err != nil {
+		return nil, err
+	}
+	if binding == nil {
+		return nil, nil
+	}
+	s.applyKnowledgeOverrides(binding)
+	entry, err := s.retrieveKnowledgeContexts(ctx, binding, query)
+	if err != nil {
+		return nil, err
+	}
+	if entry == nil {
+		return nil, nil
+	}
+	if len(entry.Contexts) == 0 && strings.TrimSpace(entry.Retrieval.Fallback) == "" {
+		return nil, nil
+	}
+	logger.FromContext(ctx).Debug(
+		"Knowledge retrieval completed",
+		"binding_id",
+		binding.ID,
+		"results",
+		len(entry.Contexts),
+	)
+	return []orchestratorpkg.KnowledgeEntry{*entry}, nil
+}
+
+func (s *Service) applyKnowledgeOverrides(binding *knowledge.ResolvedBinding) {
+	if binding == nil {
+		return
+	}
+	if id := strings.TrimSpace(binding.Embedder.ID); id != "" {
+		if override, ok := s.knowledgeRuntimeEmbedders[id]; ok && override != nil {
+			binding.Embedder = *override
+		}
+	}
+	if id := strings.TrimSpace(binding.Vector.ID); id != "" {
+		if override, ok := s.knowledgeRuntimeVectorDBs[id]; ok && override != nil {
+			binding.Vector = *override
+		}
+	}
+	if id := strings.TrimSpace(binding.KnowledgeBase.ID); id != "" {
+		if override, ok := s.knowledgeRuntimeKBs[id]; ok && override != nil {
+			binding.KnowledgeBase = *override
+		} else if override, ok := s.knowledgeRuntimeWorkflow[id]; ok && override != nil {
+			binding.KnowledgeBase = *override
+		}
+	}
+}
+
+func (s *Service) retrieveKnowledgeContexts(
+	ctx context.Context,
+	binding *knowledge.ResolvedBinding,
+	query string,
+) (*orchestratorpkg.KnowledgeEntry, error) {
+	if binding == nil {
+		return nil, nil
+	}
+	embedAdapter, err := s.getOrCreateEmbedder(ctx, &binding.Embedder)
+	if err != nil {
+		return nil, err
+	}
+	store, err := s.getOrCreateVectorStore(ctx, &binding.Vector)
+	if err != nil {
+		return nil, err
+	}
+	retrievalService, err := retriever.NewService(embedAdapter, store, nil)
+	if err != nil {
+		return nil, err
+	}
+	contexts, err := retrievalService.Retrieve(ctx, binding, query)
+	if err != nil {
+		return nil, err
+	}
+	return &orchestratorpkg.KnowledgeEntry{
+		BindingID: binding.ID,
+		Retrieval: binding.Retrieval,
+		Contexts:  contexts,
+	}, nil
+}
+
+const knowledgeQueryMaxPartRunes = 2048
+
+func buildKnowledgeQuery(action *agent.ActionConfig) string {
+	if action == nil {
+		return ""
+	}
+	seen := make(map[string]struct{})
+	parts := make([]string, 0)
+	if action.With != nil {
+		inputMap := action.With.AsMap()
+		appendKnowledgeQueryValue(inputMap, &parts, seen)
+	}
+	prompt := strings.TrimSpace(action.Prompt)
+	cleanPrompt := stripTemplateTokens(prompt)
+	if cleanPrompt != "" {
+		addKnowledgeQueryPart(cleanPrompt, &parts, seen)
+	}
+	if len(parts) == 0 {
+		return prompt
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func appendKnowledgeQueryValue(
+	value any,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	switch v := value.(type) {
+	case nil:
+		return
+	case string:
+		addKnowledgeQueryPart(v, dest, seen)
+	case fmt.Stringer:
+		addKnowledgeQueryPart(v.String(), dest, seen)
+	case *core.Input:
+		if v != nil {
+			appendKnowledgeFromMap(v.AsMap(), dest, seen)
+		}
+	case map[string]any:
+		appendKnowledgeFromMap(v, dest, seen)
+	case map[string]string:
+		appendKnowledgeFromStringMap(v, dest, seen)
+	case []string:
+		appendKnowledgeFromStringSlice(v, dest, seen)
+	case []any:
+		appendKnowledgeFromSlice(v, dest, seen)
+	default:
+		addKnowledgeQueryPart(fmt.Sprintf("%v", v), dest, seen)
+	}
+}
+
+func addKnowledgeQueryPart(
+	text string,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return
+	}
+	if tplengine.HasTemplate(trimmed) {
+		return
+	}
+	runes := []rune(trimmed)
+	if len(runes) > knowledgeQueryMaxPartRunes {
+		trimmed = string(runes[:knowledgeQueryMaxPartRunes])
+	}
+	if _, exists := seen[trimmed]; exists {
+		return
+	}
+	seen[trimmed] = struct{}{}
+	*dest = append(*dest, trimmed)
+}
+
+func appendKnowledgeFromMap(
+	m map[string]any,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	if len(m) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		appendKnowledgeQueryValue(m[k], dest, seen)
+	}
+}
+
+func appendKnowledgeFromStringMap(
+	m map[string]string,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	if len(m) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		addKnowledgeQueryPart(m[k], dest, seen)
+	}
+}
+
+func appendKnowledgeFromStringSlice(
+	values []string,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	for _, v := range values {
+		addKnowledgeQueryPart(v, dest, seen)
+	}
+}
+
+func appendKnowledgeFromSlice(
+	values []any,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	for _, v := range values {
+		appendKnowledgeQueryValue(v, dest, seen)
+	}
+}
+
+func stripTemplateTokens(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return ""
+	}
+	if !tplengine.HasTemplate(text) {
+		return strings.TrimSpace(text)
+	}
+	var b strings.Builder
+	for i := 0; i < len(text); {
+		if strings.HasPrefix(text[i:], "{{") {
+			end := strings.Index(text[i:], "}}")
+			if end == -1 {
+				break
+			}
+			i += end + 2
+			continue
+		}
+		b.WriteByte(text[i])
+		i++
+	}
+	clean := strings.TrimSpace(b.String())
+	if clean == "" {
+		return ""
+	}
+	return strings.Join(strings.Fields(clean), " ")
+}
+
+func (s *Service) getOrCreateEmbedder(ctx context.Context, cfg *knowledge.EmbedderConfig) (*embedder.Adapter, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("knowledge: embedder config is required")
+	}
+	id := strings.TrimSpace(cfg.ID)
+	if id == "" {
+		return nil, fmt.Errorf("knowledge: embedder id is required")
+	}
+	s.cacheMu.RLock()
+	adapter, ok := s.embedderCache[id]
+	s.cacheMu.RUnlock()
+	if ok {
+		return adapter, nil
+	}
+	adapterCfg, err := configutil.ToEmbedderAdapterConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	if adapter, ok := s.embedderCache[id]; ok {
+		return adapter, nil
+	}
+	created, err := embedder.New(ctx, adapterCfg)
+	if err != nil {
+		return nil, err
+	}
+	s.embedderCache[id] = created
+	return created, nil
+}
+
+func (s *Service) getOrCreateVectorStore(ctx context.Context, cfg *knowledge.VectorDBConfig) (vectordb.Store, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("knowledge: vector store config is required")
+	}
+	id := strings.TrimSpace(cfg.ID)
+	if id == "" {
+		return nil, fmt.Errorf("knowledge: vector store id is required")
+	}
+	s.cacheMu.RLock()
+	store, ok := s.vectorStoreCache[id]
+	s.cacheMu.RUnlock()
+	if ok {
+		return store, nil
+	}
+	storeCfg, err := configutil.ToVectorStoreConfig(s.knowledgeProjectID, cfg)
+	if err != nil {
+		return nil, err
+	}
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	if store, ok := s.vectorStoreCache[id]; ok {
+		return store, nil
+	}
+	created, err := vectordb.New(ctx, storeCfg)
+	if err != nil {
+		return nil, err
+	}
+	s.vectorStoreCache[id] = created
+	return created, nil
+}
+
+func (s *Service) buildInlineKnowledgeBinding(agentConfig *agent.Config) []core.KnowledgeBinding {
+	var combined *core.KnowledgeBinding
+	if len(s.knowledgeInlineBinding) > 0 {
+		clone := s.knowledgeInlineBinding[0].Clone()
+		combined = &clone
+	}
+	if agentConfig != nil && len(agentConfig.Knowledge) > 0 {
+		agentClone := agentConfig.Knowledge[0].Clone()
+		if combined == nil {
+			combined = &agentClone
+		} else {
+			combined.Merge(&agentClone)
+			if agentClone.ID != "" {
+				combined.ID = agentClone.ID
+			}
+		}
+	}
+	if combined == nil {
+		return nil
+	}
+	return []core.KnowledgeBinding{*combined}
+}
+
+func cloneBindingSlice(src []core.KnowledgeBinding) []core.KnowledgeBinding {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make([]core.KnowledgeBinding, len(src))
+	for i := range src {
+		out[i] = src[i].Clone()
+	}
+	return out
+}
+
+func cloneWorkflowKnowledge(src []knowledge.BaseConfig) []knowledge.BaseConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	if copied, err := core.DeepCopy(src); err == nil {
+		return copied
+	}
+	return append([]knowledge.BaseConfig{}, src...)
+}
+
+func cloneEmbedderOverrides(src map[string]*knowledge.EmbedderConfig) map[string]*knowledge.EmbedderConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]*knowledge.EmbedderConfig, len(src))
+	for id, cfg := range src {
+		if cfg == nil {
+			continue
+		}
+		if clone, err := core.DeepCopy(*cfg); err == nil {
+			cloneCopy := clone
+			out[id] = &cloneCopy
+		} else {
+			cfgCopy := *cfg
+			out[id] = &cfgCopy
+		}
+	}
+	return out
+}
+
+func cloneVectorOverrides(src map[string]*knowledge.VectorDBConfig) map[string]*knowledge.VectorDBConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]*knowledge.VectorDBConfig, len(src))
+	for id, cfg := range src {
+		if cfg == nil {
+			continue
+		}
+		if clone, err := core.DeepCopy(*cfg); err == nil {
+			cloneCopy := clone
+			out[id] = &cloneCopy
+		} else {
+			cfgCopy := *cfg
+			out[id] = &cfgCopy
+		}
+	}
+	return out
+}
+
+func cloneKnowledgeOverrides(src map[string]*knowledge.BaseConfig) map[string]*knowledge.BaseConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]*knowledge.BaseConfig, len(src))
+	for id, cfg := range src {
+		if cfg == nil {
+			continue
+		}
+		if clone, err := core.DeepCopy(*cfg); err == nil {
+			cloneCopy := clone
+			out[id] = &cloneCopy
+		} else {
+			cfgCopy := *cfg
+			out[id] = &cfgCopy
+		}
+	}
+	return out
+}
+
+func initKnowledgeRuntime(
+	ctx context.Context,
+	cfg *KnowledgeRuntimeConfig,
+) (
+	*knowledge.Resolver,
+	[]knowledge.BaseConfig,
+	[]core.KnowledgeBinding,
+	[]core.KnowledgeBinding,
+	[]core.KnowledgeBinding,
+	map[string]*knowledge.EmbedderConfig,
+	map[string]*knowledge.VectorDBConfig,
+	map[string]*knowledge.BaseConfig,
+	map[string]*knowledge.BaseConfig,
+	string,
+	error,
+) {
+	if cfg == nil {
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, "", nil
+	}
+	defsCopy, err := core.DeepCopy(cfg.Definitions)
+	if err != nil {
+		defsCopy = cfg.Definitions
+	}
+	resolver, err := knowledge.NewResolver(defsCopy, knowledge.DefaultsFromContext(ctx))
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, "", err
+	}
+	workflowKBs := cloneWorkflowKnowledge(cfg.WorkflowKnowledgeBases)
+	projectBinding := cloneBindingSlice(cfg.ProjectBinding)
+	workflowBinding := cloneBindingSlice(cfg.WorkflowBinding)
+	inlineBinding := cloneBindingSlice(cfg.InlineBinding)
+	projectID := strings.TrimSpace(cfg.ProjectID)
+	return resolver,
+		workflowKBs,
+		projectBinding,
+		workflowBinding,
+		inlineBinding,
+		cloneEmbedderOverrides(cfg.RuntimeEmbedders),
+		cloneVectorOverrides(cfg.RuntimeVectorDBs),
+		cloneKnowledgeOverrides(cfg.RuntimeKnowledgeBases),
+		cloneKnowledgeOverrides(cfg.RuntimeWorkflowKBs),
+		projectID,
+		nil
+}
+
+func setupMCPClient(ctx context.Context, cfg *Config, agent *agent.Config) (*mcp.Client, error) {
+	if cfg == nil || cfg.ProxyURL == "" {
+		return nil, nil
+	}
+	client, err := cfg.CreateMCPClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create MCP client: %w", err)
+	}
+	toRegister := collectMCPsToRegister(agent, cfg)
+	uniq := dedupeMCPsByID(toRegister)
+	if err := registerMCPsWithProxy(ctx, client, uniq, cfg.FailOnMCPRegistrationError); err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
 // InvalidateToolsCache invalidates the tools cache
 func (s *Service) InvalidateToolsCache(ctx context.Context) {
 	if s.toolRegistry != nil {
@@ -421,10 +998,34 @@ func (s *Service) InvalidateToolsCache(ctx context.Context) {
 
 // Close cleans up resources
 func (s *Service) Close() error {
-	if s.orchestrator != nil {
-		return s.orchestrator.Close()
+	var result error
+	stores := make([]vectordb.Store, 0, len(s.vectorStoreCache))
+	s.cacheMu.Lock()
+	for key, store := range s.vectorStoreCache {
+		stores = append(stores, store)
+		delete(s.vectorStoreCache, key)
 	}
-	return nil
+	s.cacheMu.Unlock()
+	if len(stores) > 0 {
+		timeoutCtx, cancel := context.WithTimeout(s.closeCtx, 10*time.Second)
+		defer cancel()
+		for i := range stores {
+			if err := stores[i].Close(timeoutCtx); err != nil && result == nil {
+				result = err
+			}
+		}
+	}
+	if s.toolRegistry != nil {
+		if err := s.toolRegistry.Close(); err != nil && result == nil {
+			result = err
+		}
+	}
+	if s.orchestrator != nil {
+		if err := s.orchestrator.Close(); err != nil && result == nil {
+			result = err
+		}
+	}
+	return result
 }
 
 // collectMCPsToRegister combines agent-declared and workflow-level MCPs for

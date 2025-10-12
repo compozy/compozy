@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
@@ -328,6 +329,15 @@ type Config struct {
 	// ```
 	Tools []tool.Config `json:"tools,omitempty" yaml:"tools,omitempty" mapstructure:"tools,omitempty"`
 
+	// Embedders declares project-level embedding providers that can be reused across workflows.
+	Embedders []knowledge.EmbedderConfig `json:"embedders,omitempty"       yaml:"embedders,omitempty"       mapstructure:"embedders,omitempty"`
+	// VectorDBs declares project-level vector database connections that knowledge bases can reference.
+	VectorDBs []knowledge.VectorDBConfig `json:"vector_dbs,omitempty"      yaml:"vector_dbs,omitempty"      mapstructure:"vector_dbs,omitempty"`
+	// KnowledgeBases declares reusable knowledge base definitions scoped to the project.
+	KnowledgeBases []knowledge.BaseConfig `json:"knowledge_bases,omitempty" yaml:"knowledge_bases,omitempty" mapstructure:"knowledge_bases,omitempty"`
+	// Knowledge defines the default binding for tasks or agents within the project scope (MVP single binding).
+	Knowledge []core.KnowledgeBinding `json:"knowledge,omitempty"       yaml:"knowledge,omitempty"       mapstructure:"knowledge,omitempty"`
+
 	// Memories declares project-scoped memory resources that agents and tasks can reference
 	// by ID. These are indexed into the ResourceStore under the current project and can be
 	// used across workflows for conversation and state sharing.
@@ -429,6 +439,9 @@ func (p *Config) Validate() error {
 	// Validate project-level tools
 	if err := p.validateTools(); err != nil {
 		return fmt.Errorf("project tools validation failed: %w", err)
+	}
+	if err := p.validateKnowledge(); err != nil {
+		return err
 	}
 	// Validate project-level memories
 	if err := p.validateMemories(); err != nil {
@@ -541,6 +554,25 @@ func (p *Config) validateMemories() error {
 			return fmt.Errorf("memory[%d] validation failed: %w", i, err)
 		}
 		ids[p.Memories[i].ID] = struct{}{}
+	}
+	return nil
+}
+
+func (p *Config) validateKnowledge() error {
+	defs := knowledge.Definitions{
+		Embedders:      p.Embedders,
+		VectorDBs:      p.VectorDBs,
+		KnowledgeBases: p.KnowledgeBases,
+	}
+	defs.NormalizeWithDefaults(knowledge.DefaultDefaults())
+	if err := defs.Validate(); err != nil {
+		return fmt.Errorf("knowledge configuration validation failed: %w", err)
+	}
+	if len(p.Knowledge) > 1 {
+		return fmt.Errorf("project configuration error: only one knowledge binding is supported in MVP")
+	}
+	if len(p.Knowledge) == 1 && strings.TrimSpace(p.Knowledge[0].ID) == "" {
+		return fmt.Errorf("project configuration error: knowledge binding requires an id reference")
 	}
 	return nil
 }
