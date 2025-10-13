@@ -11,10 +11,11 @@ import (
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/pkg/tplengine"
+	testhelpers "github.com/compozy/compozy/test/helpers"
 )
 
 func TestGetExecute(t *testing.T) {
-	ctx := newContext(t)
+	ctx := testhelpers.NewTestContext(t)
 	store := resources.NewMemoryResourceStore()
 	base := &knowledge.BaseConfig{
 		ID:       "kb",
@@ -41,7 +42,7 @@ func TestGetExecute(t *testing.T) {
 			Dimension: 1536,
 		},
 	}
-	stubKnowledgeTriple(t, store, "proj", base, embedderCfg, vectorCfg)
+	stubKnowledgeTriple(ctx, t, store, "proj", base, embedderCfg, vectorCfg)
 	getUC := NewGet(store)
 
 	t.Run("returns stored knowledge base", func(t *testing.T) {
@@ -65,7 +66,7 @@ func TestGetExecute(t *testing.T) {
 }
 
 func TestListExecute(t *testing.T) {
-	ctx := newContext(t)
+	ctx := testhelpers.NewTestContext(t)
 	store := resources.NewMemoryResourceStore()
 	baseA := &knowledge.BaseConfig{
 		ID:       "alpha",
@@ -100,8 +101,8 @@ func TestListExecute(t *testing.T) {
 			Dimension: 8,
 		},
 	}
-	stubKnowledgeTriple(t, store, "proj", baseA, embedderCfg, vectorCfg)
-	stubKnowledgeTriple(t, store, "proj", baseB, embedderCfg, vectorCfg)
+	stubKnowledgeTriple(ctx, t, store, "proj", baseA, embedderCfg, vectorCfg)
+	stubKnowledgeTriple(ctx, t, store, "proj", baseB, embedderCfg, vectorCfg)
 	listUC := NewList(store)
 
 	out, err := listUC.Execute(ctx, &ListInput{Project: "proj", Prefix: "a", Limit: 1})
@@ -112,7 +113,7 @@ func TestListExecute(t *testing.T) {
 }
 
 func TestLoadKnowledgeTriple(t *testing.T) {
-	ctx := newContext(t)
+	ctx := testhelpers.NewTestContext(t)
 	store := resources.NewMemoryResourceStore()
 	base := &knowledge.BaseConfig{
 		ID:       "kb",
@@ -139,7 +140,7 @@ func TestLoadKnowledgeTriple(t *testing.T) {
 			Dimension: 4,
 		},
 	}
-	stubKnowledgeTriple(t, store, "proj", base, embedderCfg, vectorCfg)
+	stubKnowledgeTriple(ctx, t, store, "proj", base, embedderCfg, vectorCfg)
 
 	triple, err := loadKnowledgeTriple(ctx, store, "proj", "kb")
 	require.NoError(t, err)
@@ -152,7 +153,7 @@ func TestLoadKnowledgeTriple(t *testing.T) {
 }
 
 func TestNormalizeKnowledgeTriple(t *testing.T) {
-	ctx := newContext(t)
+	ctx := testhelpers.NewTestContext(t)
 	base, embedder, vector, err := normalizeKnowledgeTriple(
 		ctx,
 		nil,

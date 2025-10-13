@@ -234,6 +234,7 @@ type VectorDBConnConfig struct {
 	Dimension   int               `json:"dimension,omitempty"    yaml:"dimension,omitempty"    mapstructure:"dimension,omitempty"`
 	Consistency string            `json:"consistency,omitempty"  yaml:"consistency,omitempty"  mapstructure:"consistency,omitempty"`
 	Auth        map[string]string `json:"auth,omitempty"         yaml:"auth,omitempty"         mapstructure:"auth,omitempty"`
+	MaxTopK     int               `json:"max_top_k,omitempty"    yaml:"max_top_k,omitempty"    mapstructure:"max_top_k,omitempty"`
 }
 
 // BaseConfig declares a knowledge base and governs how it is ingested and retrieved.

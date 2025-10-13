@@ -11,6 +11,35 @@
 | --from   | string   | Range of comments to address                |
 </arguments_table>
 
+## Helper Commands
+
+Before starting work on fixing issues, use the `read_pr_issues.sh` script to review what needs to be addressed:
+
+```bash
+# Read all issues for a PR
+scripts/read_pr_issues.sh --pr 277 --type issue --all
+
+# Read a specific range of issues
+scripts/read_pr_issues.sh --pr 277 --type issue --from 1 --to 10
+
+# Read duplicated comments
+scripts/read_pr_issues.sh --pr 277 --type duplicated --all
+
+# Read outside-of-diff comments
+scripts/read_pr_issues.sh --pr 277 --type outside --all
+
+# Read nitpicks
+scripts/read_pr_issues.sh --pr 277 --type nitpick --all
+```
+
+This script displays issues in a clean, readable format with:
+
+- Issue numbers and titles
+- File locations
+- Current status (resolved/unresolved)
+- Issue descriptions
+- Thread IDs for GitHub reference
+
 <critical>
 - **YOU NEED** to fix the $ARGUMENTS:type from $ARGUMENTS:from in the ai-docs/reviews-pr-$ARGUMENTS:pr, and only finish when ALL THESE ISSUES are addressed;
 - This should be fixed in THE BEST WAY possible, not using workarounds;

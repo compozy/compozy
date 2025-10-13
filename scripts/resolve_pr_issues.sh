@@ -78,6 +78,34 @@ validate_args() {
   fi
 }
 
+find_issue_file() {
+  local issues_dir="$1"
+  local padded="$2"
+  local legacy="${issues_dir}/issue_${padded}.md"
+  if [[ -f "$legacy" ]]; then
+    echo "$legacy"
+    return 0
+  fi
+
+  local glob=()
+  local oldopt=$(shopt -p nullglob || true)
+  shopt -s nullglob
+  glob=("${issues_dir}/${padded}-"*.md)
+  eval "$oldopt"
+  if (( ${#glob[@]} == 1 )); then
+    echo "${glob[0]}"
+    return 0
+  fi
+
+  if (( ${#glob[@]} > 1 )); then
+    printf 'Warning: multiple grouped files match index %s. Using first match: %s\n' "$padded" "${glob[0]}" >&2
+    echo "${glob[0]}"
+    return 0
+  fi
+
+  return 1
+}
+
 zero_pad() {
   printf "%03d" "$1"
 }
@@ -110,7 +138,7 @@ update_summary_checkbox() {
 import re, sys
 summary, issue_num, padded = sys.argv[1:4]
 text = open(summary, encoding="utf-8").read()
-pattern = rf"(- \[)[ xX](\] \[Issue {int(issue_num)}\]\(issues/issue_{padded}\.md\))"
+pattern = rf"(- \[)[ xX](\] \[Issue {int(issue_num)}\]\(issues/(?:issue_{padded}|{padded}-[^)]+)\.md\))"
 new_text = re.sub(pattern, r"\1x\2", text, count=1)
 if new_text != text:
     with open(summary, "w", encoding="utf-8") as fh:
@@ -124,8 +152,10 @@ refresh_summary_counts() {
 import re, sys
 summary_path = sys.argv[1]
 text = open(summary_path, encoding="utf-8").read()
-resolved = len(re.findall(r"- \[[xX]\] \[Issue \d+\]\(issues/issue_\d+\.md\)", text))
-unresolved = len(re.findall(r"- \[ \] \[Issue \d+\]\(issues/issue_\d+\.md\)", text))
+pattern_resolved = r"- \[[xX]\] \[Issue \d+\]\(issues/(?:issue_\d+|\d+-[^)]+)\.md\)"
+pattern_unresolved = r"- \[ \] \[Issue \d+\]\(issues/(?:issue_\d+|\d+-[^)]+)\.md\)"
+resolved = len(re.findall(pattern_resolved, text))
+unresolved = len(re.findall(pattern_unresolved, text))
 text = re.sub(r"(\*\*Resolved issues:\*\*\s*)(\d+)", lambda m: m.group(1) + str(resolved), text)
 text = re.sub(r"(\*\*Unresolved issues:\*\*\s*)(\d+)", lambda m: m.group(1) + str(unresolved), text)
 with open(summary_path, "w", encoding="utf-8") as fh:
@@ -171,14 +201,13 @@ main() {
   for (( num=10#$from_issue; num<=10#$to_issue; num++ )); do
     local padded
     padded=$(zero_pad "$num")
-    local issue_file="${issues_dir}/issue_${padded}.md"
-
-    if [[ ! -f "$issue_file" ]]; then
-      echo "❌ Missing issue file: $issue_file"
+    local issue_file
+    if ! issue_file=$(find_issue_file "$issues_dir" "$padded"); then
+      echo "❌ Missing issue file for index ${padded}"
       continue
     fi
 
-    echo "➡️  Processing issue_${padded}.md"
+    echo "➡️  Processing $(basename "$issue_file")"
     mark_issue_resolved "$issue_file"
     update_summary_checkbox "$summary_file" "$num" "$padded"
     resolve_threads "$issue_file"

@@ -65,4 +65,5 @@ type Config struct {
 	Consistency string
 	Auth        map[string]string
 	Options     map[string]any
+	MaxTopK     int
 }

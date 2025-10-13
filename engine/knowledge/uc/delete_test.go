@@ -14,23 +14,25 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	testhelpers "github.com/compozy/compozy/test/helpers"
 )
 
 func TestDeleteParseInput(t *testing.T) {
-	uc := &Delete{}
-	t.Run("rejects nil input", func(t *testing.T) {
+	store := resources.NewMemoryResourceStore()
+	uc := NewDelete(store)
+	t.Run("Should return error for nil input", func(t *testing.T) {
 		_, _, err := uc.parseInput(nil)
 		require.ErrorIs(t, err, ErrInvalidInput)
 	})
-	t.Run("rejects blank project", func(t *testing.T) {
+	t.Run("Should return error for blank project", func(t *testing.T) {
 		_, _, err := uc.parseInput(&DeleteInput{Project: " "})
 		require.ErrorIs(t, err, ErrProjectMissing)
 	})
-	t.Run("rejects blank id", func(t *testing.T) {
+	t.Run("Should return error for blank ID", func(t *testing.T) {
 		_, _, err := uc.parseInput(&DeleteInput{Project: "proj", ID: ""})
 		require.ErrorIs(t, err, ErrIDMissing)
 	})
-	t.Run("returns trimmed identifiers", func(t *testing.T) {
+	t.Run("Should return trimmed identifiers", func(t *testing.T) {
 		project, id, err := uc.parseInput(&DeleteInput{Project: " proj ", ID: " kb "})
 		require.NoError(t, err)
 		assert.Equal(t, "proj", project)
@@ -39,7 +41,7 @@ func TestDeleteParseInput(t *testing.T) {
 }
 
 func TestDeleteCleanupVectors(t *testing.T) {
-	ctx := newContext(t)
+	ctx := testhelpers.NewTestContext(t)
 	store := resources.NewMemoryResourceStore()
 	vectorDir := t.TempDir()
 	vecCfg := &knowledge.VectorDBConfig{
@@ -50,14 +52,14 @@ func TestDeleteCleanupVectors(t *testing.T) {
 			Dimension: 3,
 		},
 	}
-	uc := &Delete{store: store}
+	uc := NewDelete(store)
 
-	t.Run("successfully deletes records via filesystem store", func(t *testing.T) {
+	t.Run("Should delete records via filesystem store", func(t *testing.T) {
 		err := uc.cleanupVectors(ctx, "proj", "kb", vecCfg)
 		require.NoError(t, err)
 	})
 
-	t.Run("fails when vector config invalid", func(t *testing.T) {
+	t.Run("Should fail when vector config invalid", func(t *testing.T) {
 		badVec := &knowledge.VectorDBConfig{
 			ID:   "vec",
 			Type: knowledge.VectorDBTypeFilesystem,
@@ -71,43 +73,47 @@ func TestDeleteCleanupVectors(t *testing.T) {
 	})
 }
 
-func TestDeleteExecuteReturnsConflict(t *testing.T) {
-	ctx := newContext(t)
-	store := resources.NewMemoryResourceStore()
-	base := &knowledge.BaseConfig{
-		ID:       "kb",
-		Embedder: "embed",
-		VectorDB: "vec",
-		Sources: []knowledge.SourceConfig{
-			{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
-		},
-	}
-	emb := &knowledge.EmbedderConfig{
-		ID:       "embed",
-		Provider: "openai",
-		Model:    "text-embedding-3-small",
-		Config:   knowledge.EmbedderRuntimeConfig{Dimension: 16, BatchSize: 1},
-	}
-	vec := &knowledge.VectorDBConfig{
-		ID:   "vec",
-		Type: knowledge.VectorDBTypeFilesystem,
-		Config: knowledge.VectorDBConnConfig{
-			Path:      filepath.Join(t.TempDir(), "vec.store"),
-			Dimension: 16,
-		},
-	}
-	stubKnowledgeTriple(t, store, "proj", base, emb, vec)
-	projectCfg := &project.Config{Knowledge: []core.KnowledgeBinding{{ID: "kb"}}}
-	putResource(
-		t,
-		store,
-		resources.ResourceKey{Project: "proj", Type: resources.ResourceProject, ID: "proj"},
-		projectCfg,
-	)
-	deleteUC := NewDelete(store)
-	err := deleteUC.Execute(ctx, &DeleteInput{Project: "proj", ID: "kb"})
-	require.Error(t, err)
-	assert.IsType(t, resourceutil.ConflictError{}, err)
+func TestDeleteExecute(t *testing.T) {
+	t.Run("Should return conflict error when knowledge is referenced", func(t *testing.T) {
+		ctx := testhelpers.NewTestContext(t)
+		store := resources.NewMemoryResourceStore()
+		base := &knowledge.BaseConfig{
+			ID:       "kb",
+			Embedder: "embed",
+			VectorDB: "vec",
+			Sources: []knowledge.SourceConfig{
+				{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+			},
+		}
+		emb := &knowledge.EmbedderConfig{
+			ID:       "embed",
+			Provider: "openai",
+			Model:    "text-embedding-3-small",
+			Config:   knowledge.EmbedderRuntimeConfig{Dimension: 16, BatchSize: 1},
+		}
+		vec := &knowledge.VectorDBConfig{
+			ID:   "vec",
+			Type: knowledge.VectorDBTypeFilesystem,
+			Config: knowledge.VectorDBConnConfig{
+				Path:      filepath.Join(t.TempDir(), "vec.store"),
+				Dimension: 16,
+			},
+		}
+		stubKnowledgeTriple(ctx, t, store, "proj", base, emb, vec)
+		projectCfg := &project.Config{Knowledge: []core.KnowledgeBinding{{ID: "kb"}}}
+		putResource(
+			ctx,
+			t,
+			store,
+			resources.ResourceKey{Project: "proj", Type: resources.ResourceProject, ID: "proj"},
+			projectCfg,
+		)
+		deleteUC := NewDelete(store)
+		err := deleteUC.Execute(ctx, &DeleteInput{Project: "proj", ID: "kb"})
+		require.Error(t, err)
+		var conflict resourceutil.ConflictError
+		assert.ErrorAs(t, err, &conflict)
+	})
 }
 
 type failingStore struct {
@@ -121,8 +127,11 @@ func (s *failingStore) Get(context.Context, resources.ResourceKey) (any, resourc
 }
 
 func TestCollectConflictsPropagatesErrors(t *testing.T) {
-	store := &failingStore{getErr: errors.New("boom")}
-	deleteUC := &Delete{store: store}
-	_, err := deleteUC.collectConflicts(newContext(t), "proj", "kb")
-	require.Error(t, err)
+	t.Run("Should propagate store errors during conflict collection", func(t *testing.T) {
+		ctx := testhelpers.NewTestContext(t)
+		store := &failingStore{getErr: errors.New("boom")}
+		deleteUC := NewDelete(store)
+		_, err := deleteUC.collectConflicts(ctx, "proj", "kb")
+		require.Error(t, err)
+	})
 }

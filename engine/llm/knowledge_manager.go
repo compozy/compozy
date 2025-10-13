@@ -488,31 +488,24 @@ type knowledgeRuntimeState struct {
 }
 
 func newKnowledgeRuntimeState(ctx context.Context, cfg *KnowledgeRuntimeConfig) (*knowledgeRuntimeState, error) {
-	resolver,
-		workflowKBs,
-		projectBinding,
-		workflowBinding,
-		inlineBinding,
-		runtimeEmbedders,
-		runtimeVectorDBs,
-		runtimeKnowledgeBases,
-		runtimeWorkflowKBs,
-		projectID,
-		err := initKnowledgeRuntime(ctx, cfg)
+	result, err := initKnowledgeRuntime(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
+	if result == nil {
+		return &knowledgeRuntimeState{}, nil
+	}
 	return &knowledgeRuntimeState{
-		resolver:              resolver,
-		workflowKBs:           workflowKBs,
-		projectBinding:        projectBinding,
-		workflowBinding:       workflowBinding,
-		inlineBinding:         inlineBinding,
-		runtimeEmbedders:      runtimeEmbedders,
-		runtimeVectorDBs:      runtimeVectorDBs,
-		runtimeKnowledgeBases: runtimeKnowledgeBases,
-		runtimeWorkflowKBs:    runtimeWorkflowKBs,
-		projectID:             projectID,
+		resolver:              result.Resolver,
+		workflowKBs:           result.WorkflowKnowledgeBases,
+		projectBinding:        result.ProjectBinding,
+		workflowBinding:       result.WorkflowBinding,
+		inlineBinding:         result.InlineBinding,
+		runtimeEmbedders:      result.EmbedderOverrides,
+		runtimeVectorDBs:      result.VectorOverrides,
+		runtimeKnowledgeBases: result.KnowledgeOverrides,
+		runtimeWorkflowKBs:    result.WorkflowKnowledgeOverrides,
+		projectID:             result.ProjectID,
 	}, nil
 }
 

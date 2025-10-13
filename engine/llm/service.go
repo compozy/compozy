@@ -25,7 +25,8 @@ import (
 )
 
 const (
-	directPromptActionID = "direct-prompt"
+	directPromptActionID     = "direct-prompt"
+	closeVectorStoresTimeout = 10 * time.Second
 )
 
 // Service provides LLM integration capabilities using clean architecture
@@ -630,24 +631,25 @@ func stripTemplateTokens(text string) string {
 	return strings.Join(strings.Fields(clean), " ")
 }
 
+type knowledgeRuntimeResult struct {
+	Resolver                   *knowledge.Resolver
+	WorkflowKnowledgeBases     []knowledge.BaseConfig
+	ProjectBinding             []core.KnowledgeBinding
+	WorkflowBinding            []core.KnowledgeBinding
+	InlineBinding              []core.KnowledgeBinding
+	EmbedderOverrides          map[string]*knowledge.EmbedderConfig
+	VectorOverrides            map[string]*knowledge.VectorDBConfig
+	KnowledgeOverrides         map[string]*knowledge.BaseConfig
+	WorkflowKnowledgeOverrides map[string]*knowledge.BaseConfig
+	ProjectID                  string
+}
+
 func initKnowledgeRuntime(
 	ctx context.Context,
 	cfg *KnowledgeRuntimeConfig,
-) (
-	*knowledge.Resolver,
-	[]knowledge.BaseConfig,
-	[]core.KnowledgeBinding,
-	[]core.KnowledgeBinding,
-	[]core.KnowledgeBinding,
-	map[string]*knowledge.EmbedderConfig,
-	map[string]*knowledge.VectorDBConfig,
-	map[string]*knowledge.BaseConfig,
-	map[string]*knowledge.BaseConfig,
-	string,
-	error,
-) {
+) (*knowledgeRuntimeResult, error) {
 	if cfg == nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, "", nil
+		return nil, nil
 	}
 	defsCopy, err := core.DeepCopy(cfg.Definitions)
 	if err != nil {
@@ -655,24 +657,21 @@ func initKnowledgeRuntime(
 	}
 	resolver, err := knowledge.NewResolver(defsCopy, knowledge.DefaultsFromContext(ctx))
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, "", err
+		return nil, err
 	}
-	workflowKBs := cloneWorkflowKnowledge(cfg.WorkflowKnowledgeBases)
-	projectBinding := cloneBindingSlice(cfg.ProjectBinding)
-	workflowBinding := cloneBindingSlice(cfg.WorkflowBinding)
-	inlineBinding := cloneBindingSlice(cfg.InlineBinding)
-	projectID := strings.TrimSpace(cfg.ProjectID)
-	return resolver,
-		workflowKBs,
-		projectBinding,
-		workflowBinding,
-		inlineBinding,
-		cloneEmbedderOverrides(cfg.RuntimeEmbedders),
-		cloneVectorOverrides(cfg.RuntimeVectorDBs),
-		cloneKnowledgeOverrides(cfg.RuntimeKnowledgeBases),
-		cloneKnowledgeOverrides(cfg.RuntimeWorkflowKBs),
-		projectID,
-		nil
+	result := &knowledgeRuntimeResult{
+		Resolver:                   resolver,
+		WorkflowKnowledgeBases:     cloneWorkflowKnowledge(cfg.WorkflowKnowledgeBases),
+		ProjectBinding:             cloneBindingSlice(cfg.ProjectBinding),
+		WorkflowBinding:            cloneBindingSlice(cfg.WorkflowBinding),
+		InlineBinding:              cloneBindingSlice(cfg.InlineBinding),
+		EmbedderOverrides:          cloneEmbedderOverrides(cfg.RuntimeEmbedders),
+		VectorOverrides:            cloneVectorOverrides(cfg.RuntimeVectorDBs),
+		KnowledgeOverrides:         cloneKnowledgeOverrides(cfg.RuntimeKnowledgeBases),
+		WorkflowKnowledgeOverrides: cloneKnowledgeOverrides(cfg.RuntimeWorkflowKBs),
+		ProjectID:                  strings.TrimSpace(cfg.ProjectID),
+	}
+	return result, nil
 }
 
 func setupMCPClient(ctx context.Context, cfg *Config, agent *agent.Config) (*mcp.Client, error) {
@@ -703,7 +702,7 @@ func (s *Service) Close() error {
 	var result error
 	entries := s.drainVectorStoreCache()
 	if len(entries) > 0 {
-		timeoutCtx, cancel := context.WithTimeout(s.closeCtx, 10*time.Second)
+		timeoutCtx, cancel := context.WithTimeout(s.closeCtx, closeVectorStoresTimeout)
 		defer cancel()
 		if err := closeVectorStores(timeoutCtx, entries); err != nil {
 			result = err

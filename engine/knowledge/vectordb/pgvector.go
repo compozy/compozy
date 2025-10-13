@@ -24,11 +24,12 @@ type pgStore struct {
 	dimension  int
 	metric     string
 	ensureIdx  bool
+	maxTopK    int
 }
 
 const (
-	pgvectorDefaultTopK = 5
-	pgvectorMaxTopK     = 1000
+	pgvectorDefaultTopK    = 5
+	pgvectorDefaultMaxTopK = 1000
 )
 
 func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
@@ -54,6 +55,10 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 		dimension: cfg.Dimension,
 		metric:    strings.ToLower(strings.TrimSpace(cfg.Metric)),
 		ensureIdx: cfg.EnsureIndex,
+		maxTopK:   cfg.MaxTopK,
+	}
+	if store.maxTopK <= 0 {
+		store.maxTopK = pgvectorDefaultMaxTopK
 	}
 	store.tableIdent = sanitizeIdentifier(store.table)
 	if store.indexName != "" {
@@ -272,8 +277,8 @@ func (p *pgStore) Search(ctx context.Context, query []float32, opts SearchOption
 	if topK <= 0 {
 		topK = pgvectorDefaultTopK
 	}
-	if topK > pgvectorMaxTopK {
-		return nil, fmt.Errorf("pgvector: topK exceeds maximum allowed value of %d", pgvectorMaxTopK)
+	if topK > p.maxTopK {
+		return nil, fmt.Errorf("pgvector: topK exceeds maximum allowed value of %d", p.maxTopK)
 	}
 	sql, args := buildSearchQuery(p.tableIdent, p.metric, opts.Filters, opts.MinScore)
 	args[0] = pgvector.NewVector(query)

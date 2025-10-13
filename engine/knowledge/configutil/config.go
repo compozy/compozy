@@ -74,6 +74,7 @@ func ToVectorStoreConfig(ctx context.Context, project string, cfg *knowledge.Vec
 		Metric:      strings.TrimSpace(cfg.Config.Metric),
 		Dimension:   cfg.Config.Dimension,
 		Consistency: strings.TrimSpace(cfg.Config.Consistency),
+		MaxTopK:     cfg.Config.MaxTopK,
 	}
 	if len(cfg.Config.Auth) > 0 {
 		storeCfg.Auth = core.CopyMap(cfg.Config.Auth)

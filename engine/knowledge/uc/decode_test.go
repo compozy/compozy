@@ -9,7 +9,7 @@ import (
 )
 
 func TestDecodeKnowledgeBase(t *testing.T) {
-	t.Run("fills missing id from expected value", func(t *testing.T) {
+	t.Run("Should fill missing id from expected value", func(t *testing.T) {
 		body := map[string]any{
 			"id":        "   ",
 			"embedder":  "embed",
@@ -23,7 +23,7 @@ func TestDecodeKnowledgeBase(t *testing.T) {
 		assert.Equal(t, "docs", cfg.ID)
 	})
 
-	t.Run("rejects mismatched identifiers", func(t *testing.T) {
+	t.Run("Should reject mismatched identifiers", func(t *testing.T) {
 		body := map[string]any{"id": "alpha", "embedder": "emb", "vector_db": "vec", "sources": []map[string]any{}}
 		cfg, err := decodeKnowledgeBase(body, "beta")
 		require.ErrorIs(t, err, ErrIDMismatch)
@@ -32,7 +32,7 @@ func TestDecodeKnowledgeBase(t *testing.T) {
 }
 
 func TestDecodeStoredKnowledgeBase(t *testing.T) {
-	t.Run("decodes map input", func(t *testing.T) {
+	t.Run("Should decode map input", func(t *testing.T) {
 		val := map[string]any{
 			"id":        "kb",
 			"embedder":  "embed",
@@ -44,19 +44,19 @@ func TestDecodeStoredKnowledgeBase(t *testing.T) {
 		assert.Equal(t, "kb", cfg.ID)
 	})
 
-	t.Run("fails on unsupported type", func(t *testing.T) {
+	t.Run("Should fail on unsupported type", func(t *testing.T) {
 		cfg, err := decodeStoredKnowledgeBase(42, "kb")
 		require.Nil(t, cfg)
 		assert.ErrorContains(t, err, "unsupported type")
 	})
 
-	t.Run("rejects nil pointer", func(t *testing.T) {
+	t.Run("Should reject nil pointer", func(t *testing.T) {
 		cfg, err := decodeStoredKnowledgeBase((*knowledge.BaseConfig)(nil), "kb")
 		require.Error(t, err)
 		assert.Nil(t, cfg)
 	})
 
-	t.Run("detects mismatched id", func(t *testing.T) {
+	t.Run("Should detect mismatched id", func(t *testing.T) {
 		cfg, err := decodeStoredKnowledgeBase(&knowledge.BaseConfig{ID: "other"}, "kb")
 		require.ErrorIs(t, err, ErrIDMismatch)
 		assert.Nil(t, cfg)
@@ -64,13 +64,13 @@ func TestDecodeStoredKnowledgeBase(t *testing.T) {
 }
 
 func TestDecodeStoredEmbedder(t *testing.T) {
-	t.Run("rejects nil pointer", func(t *testing.T) {
+	t.Run("Should reject nil pointer", func(t *testing.T) {
 		cfg, err := decodeStoredEmbedder((*knowledge.EmbedderConfig)(nil), "emb")
 		require.Nil(t, cfg)
 		assert.ErrorContains(t, err, "nil value")
 	})
 
-	t.Run("coerces id when empty", func(t *testing.T) {
+	t.Run("Should coerce id when empty", func(t *testing.T) {
 		cfg, err := decodeStoredEmbedder(&knowledge.EmbedderConfig{
 			ID:       " ",
 			Provider: "openai",
@@ -84,7 +84,7 @@ func TestDecodeStoredEmbedder(t *testing.T) {
 		assert.Equal(t, "embed", cfg.ID)
 	})
 
-	t.Run("decodes map inputs", func(t *testing.T) {
+	t.Run("Should decode map inputs", func(t *testing.T) {
 		cfg, err := decodeStoredEmbedder(map[string]any{
 			"id":       "map-embed",
 			"provider": "openai",
@@ -100,7 +100,7 @@ func TestDecodeStoredEmbedder(t *testing.T) {
 }
 
 func TestDecodeStoredVectorDB(t *testing.T) {
-	t.Run("rejects mismatched ids", func(t *testing.T) {
+	t.Run("Should reject mismatched ids", func(t *testing.T) {
 		cfg, err := decodeStoredVectorDB(knowledge.VectorDBConfig{
 			ID:   "other",
 			Type: knowledge.VectorDBTypeFilesystem,
@@ -114,7 +114,7 @@ func TestDecodeStoredVectorDB(t *testing.T) {
 		assert.Nil(t, cfg)
 	})
 
-	t.Run("accepts matching struct values", func(t *testing.T) {
+	t.Run("Should accept matching struct values", func(t *testing.T) {
 		cfg, err := decodeStoredVectorDB(knowledge.VectorDBConfig{
 			ID:   "vec",
 			Type: knowledge.VectorDBTypeFilesystem,
@@ -127,7 +127,7 @@ func TestDecodeStoredVectorDB(t *testing.T) {
 		assert.Equal(t, "vec", cfg.ID)
 	})
 
-	t.Run("decodes map values", func(t *testing.T) {
+	t.Run("Should decode map values", func(t *testing.T) {
 		cfg, err := decodeStoredVectorDB(map[string]any{
 			"id":   "vec",
 			"type": string(knowledge.VectorDBTypeFilesystem),
@@ -142,14 +142,14 @@ func TestDecodeStoredVectorDB(t *testing.T) {
 }
 
 func TestEnsureStoredID(t *testing.T) {
-	t.Run("inherits expected id when actual empty", func(t *testing.T) {
+	t.Run("Should inherit expected id when actual empty", func(t *testing.T) {
 		id := ""
 		err := ensureStoredID("component", &id, "expected")
 		require.NoError(t, err)
 		assert.Equal(t, "expected", id)
 	})
 
-	t.Run("errors on mismatch", func(t *testing.T) {
+	t.Run("Should error on mismatch", func(t *testing.T) {
 		id := "actual"
 		err := ensureStoredID("component", &id, "expected")
 		require.ErrorIs(t, err, ErrIDMismatch)
