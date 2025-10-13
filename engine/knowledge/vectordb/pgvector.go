@@ -191,6 +191,44 @@ func (p *pgStore) ensureSchema(ctx context.Context) error {
 	return nil
 }
 
+// prepareBatchRecords validates each record's dimension, marshals its metadata,
+// enqueues it into the batch, and returns the ordered list of IDs.
+func prepareBatchRecords(records []Record, dimension int, stmt string, batch *pgx.Batch) ([]string, error) {
+	ids := make([]string, 0, len(records))
+	for i := range records {
+		rec := records[i]
+		if len(rec.Embedding) != dimension {
+			return nil, fmt.Errorf(
+				"pgvector: record %q dimension mismatch (got %d want %d)",
+				rec.ID,
+				len(rec.Embedding),
+				dimension,
+			)
+		}
+		vector := pgvector.NewVector(rec.Embedding)
+		metadata, marshalErr := json.Marshal(rec.Metadata)
+		if marshalErr != nil {
+			return nil, fmt.Errorf("pgvector: marshal metadata for %q: %w", rec.ID, marshalErr)
+		}
+		batch.Queue(stmt, rec.ID, vector, rec.Text, metadata, time.Now().UTC())
+		ids = append(ids, rec.ID)
+	}
+	return ids, nil
+}
+
+// executeBatchResults sends the batch, iterates over results in order, and
+// returns the first Exec error encountered (if any).
+func executeBatchResults(ctx context.Context, tx pgx.Tx, batch *pgx.Batch, ids []string) error {
+	results := tx.SendBatch(ctx, batch)
+	defer results.Close()
+	for i := range ids {
+		if _, execErr := results.Exec(); execErr != nil {
+			return fmt.Errorf("pgvector: upsert %q: %w", ids[i], execErr)
+		}
+	}
+	return nil
+}
+
 func (p *pgStore) Upsert(ctx context.Context, records []Record) (err error) {
 	if len(records) == 0 {
 		return nil
@@ -217,39 +255,13 @@ ON CONFLICT (id) DO UPDATE SET
     document = excluded.document,
     metadata = excluded.metadata,
     updated_at = excluded.updated_at`, p.tableIdent)
+
 	batch := &pgx.Batch{}
-	ids := make([]string, 0, len(records))
-	for i := range records {
-		rec := records[i]
-		if len(rec.Embedding) != p.dimension {
-			return fmt.Errorf(
-				"pgvector: record %q dimension mismatch (got %d want %d)",
-				rec.ID,
-				len(rec.Embedding),
-				p.dimension,
-			)
-		}
-		vector := pgvector.NewVector(rec.Embedding)
-		metadata, marshalErr := json.Marshal(rec.Metadata)
-		if marshalErr != nil {
-			return fmt.Errorf("pgvector: marshal metadata for %q: %w", rec.ID, marshalErr)
-		}
-		batch.Queue(stmt, rec.ID, vector, rec.Text, metadata, time.Now().UTC())
-		ids = append(ids, rec.ID)
+	ids, err := prepareBatchRecords(records, p.dimension, stmt, batch)
+	if err != nil {
+		return err
 	}
-	results := tx.SendBatch(ctx, batch)
-	defer func() {
-		closeErr := results.Close()
-		if closeErr != nil && err == nil {
-			err = fmt.Errorf("pgvector: close batch: %w", closeErr)
-		}
-	}()
-	for i := range ids {
-		if _, execErr := results.Exec(); execErr != nil {
-			return fmt.Errorf("pgvector: upsert %q: %w", ids[i], execErr)
-		}
-	}
-	return nil
+	return executeBatchResults(ctx, tx, batch, ids)
 }
 
 func (p *pgStore) Search(ctx context.Context, query []float32, opts SearchOptions) ([]Match, error) {

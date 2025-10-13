@@ -385,6 +385,16 @@ func (s *Service) GenerateContent(
 		return nil, fmt.Errorf("failed to resolve knowledge context: %w", err)
 	}
 
+	// Derive provider capabilities from agent config
+	providerConfig := agentConfig.GetProviderConfig()
+	var providerCaps llmadapter.ProviderCapabilities
+	if s.config.LLMFactory != nil && providerConfig != nil {
+		providerCaps, err = s.config.LLMFactory.Capabilities(providerConfig.Provider)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get provider capabilities: %w", err)
+		}
+	}
+
 	request := orchestratorpkg.Request{
 		Agent:  effectiveAgent,
 		Action: actionCopy,
@@ -393,6 +403,9 @@ func (s *Service) GenerateContent(
 		},
 		Knowledge: orchestratorpkg.KnowledgePayload{
 			Entries: knowledgeEntries,
+		},
+		Execution: orchestratorpkg.ExecutionOptions{
+			ProviderCaps: providerCaps,
 		},
 	}
 	return s.orchestrator.Execute(ctx, request)

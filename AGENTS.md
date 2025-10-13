@@ -32,12 +32,15 @@ cat .cursor/rules/{go-coding-standards,architecture,test-standards,backwards-com
   - **MUST** use `config.FromContext(ctx)` to read configuration in all code paths
   - **NEVER** use any global configuration singleton.
   - **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
-  - **MUST** run `make lint` and `make test` before completing ANY subtask
   - **ALWAYS CHECK** the .cursor/rules/zen-mcp-tools.mdc if you are using Zen MCP tools
   - **ALWAYS CHECK** the .cursor/rules/test-standards.mdc if you are writing tests
-  - **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
-  - **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
   - **YOU MUST NEED** to use perplexity and context7 to get updated information when dealing with external libraries or tools and **NEVER RELY** only in the models data
+
+### For tests
+
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
+- **TIP:** Since our project is big, **YOU SHOULD** run `make test` (test entire suite) just in the end before finish the task, test in the middle of the development, should use `go test <folder>` against the respective scope
 
 ### For complex/big tasks
 

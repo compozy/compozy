@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"os"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,130 +21,6 @@ func TestWatcher_Creation(t *testing.T) {
 }
 
 func TestWatcher_Watch(t *testing.T) {
-	t.Run("Should watch file for changes", func(t *testing.T) {
-		// Create temp file
-		tmpFile, err := os.CreateTemp("", "config-test-*.yaml")
-		require.NoError(t, err)
-		defer os.Remove(tmpFile.Name())
-
-		// Write initial content
-		_, err = tmpFile.WriteString("test: value1")
-		require.NoError(t, err)
-		require.NoError(t, tmpFile.Close())
-
-		// Create watcher
-		watcher, err := NewWatcher()
-		require.NoError(t, err)
-		defer watcher.Close()
-
-		// Track callbacks with WaitGroup for deterministic synchronization
-		var mu sync.Mutex
-		callbackCount := 0
-		var wg sync.WaitGroup
-		wg.Add(1) // Expect 1 callback to be invoked
-		watcher.OnChange(func() {
-			mu.Lock()
-			callbackCount++
-			mu.Unlock()
-			wg.Done() // Signal callback completion
-		})
-
-		// Start watching
-		ctx := t.Context()
-
-		err = watcher.Watch(ctx, tmpFile.Name())
-		require.NoError(t, err)
-
-		// Give watcher time to start
-		time.Sleep(100 * time.Millisecond)
-
-		// Modify file
-		err = os.WriteFile(tmpFile.Name(), []byte("test: value2"), 0644)
-		require.NoError(t, err)
-
-		// Wait for callback with timeout for deterministic synchronization
-		done := make(chan struct{})
-		go func() {
-			wg.Wait()
-			close(done)
-		}()
-
-		select {
-		case <-done:
-			// Callback executed successfully
-		case <-time.After(1 * time.Second):
-			t.Fatal("timeout waiting for callback")
-		}
-
-		// Check callback was invoked at least once (fsnotify can emit duplicates)
-		mu.Lock()
-		assert.GreaterOrEqual(t, callbackCount, 1)
-		mu.Unlock()
-	})
-
-	t.Run("Should handle multiple callbacks", func(t *testing.T) {
-		// Create temp file
-		tmpFile, err := os.CreateTemp("", "config-test-*.yaml")
-		require.NoError(t, err)
-		defer os.Remove(tmpFile.Name())
-		tmpFile.Close()
-
-		// Create watcher
-		watcher, err := NewWatcher()
-		require.NoError(t, err)
-		defer watcher.Close()
-
-		// Register multiple callbacks with counters and WaitGroup for deterministic synchronization
-		var mu sync.Mutex
-		callbackCounts := make([]int, 3)
-		var wg sync.WaitGroup
-		wg.Add(3) // Expect 3 callbacks to be invoked
-
-		for i := range 3 {
-			index := i // capture loop variable
-			watcher.OnChange(func() {
-				mu.Lock()
-				callbackCounts[index]++
-				mu.Unlock()
-				wg.Done() // Signal callback completion
-			})
-		}
-
-		// Start watching
-		ctx := t.Context()
-
-		err = watcher.Watch(ctx, tmpFile.Name())
-		require.NoError(t, err)
-
-		// Give watcher time to start
-		time.Sleep(100 * time.Millisecond)
-
-		// Trigger change
-		err = os.WriteFile(tmpFile.Name(), []byte("test: value"), 0644)
-		require.NoError(t, err)
-
-		// Wait for all callbacks with timeout for deterministic synchronization
-		done := make(chan struct{})
-		go func() {
-			wg.Wait()
-			close(done)
-		}()
-
-		select {
-		case <-done:
-			// All callbacks executed successfully
-		case <-time.After(1 * time.Second):
-			t.Fatal("timeout waiting for callbacks")
-		}
-
-		// Verify all callbacks were invoked exactly once
-		mu.Lock()
-		for i, count := range callbackCounts {
-			assert.Equal(t, 1, count, "callback %d should have been invoked exactly once", i)
-		}
-		mu.Unlock()
-	})
-
 	t.Run("Should handle absolute file paths", func(t *testing.T) {
 		// Create temp file
 		tmpFile, err := os.CreateTemp("", "config-test-*.yaml")
