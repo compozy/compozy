@@ -17,7 +17,7 @@ blocked_by: ["2.0", "3.0", "4.0"]
 
 ## Overview
 
-Build enumerate → embed → persist pipeline supporting `markdown_glob` and `pdf_url` sources (cloud/media optional). Handle batching, retries, and idempotency.
+Build enumerate → embed → persist pipeline supporting `markdown_glob` and `url` sources (cloud/media optional). Handle batching, retries, and idempotency.
 
 <import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
 

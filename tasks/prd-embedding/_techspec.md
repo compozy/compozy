@@ -87,7 +87,7 @@ type DocumentMatch struct {
 - **KnowledgeBaseConfig** (MVP): `{ id, description, embedder_ref, vector_db_ref, sources[], chunking{strategy, size, overlap}, preprocess{dedupe, remove_html}, retrieval{top_k, min_score}, metadata{tags, owners} }`.
   - Retrieval is dense only; payloads are stored inline within vector metadata.
 - **Supported source types** (MVP):
-  - `pdf_url`: Fetch and process a small public PDF.
+  - `url`: Fetch and process a small public document (PDF, HTML, Markdown, etc.).
   - `markdown_glob`: Ingest local Markdown files matching a glob pattern.
   - `cloud_storage` (optional): S3 or GCS prefix via existing attachment pipeline.
   - `media_transcript` (optional): Ingest `.vtt`/`.srt` transcript files.
@@ -143,7 +143,7 @@ knowledge_bases:
     embedder: openai_embedder
     vector_db: pgvector_main
     sources:
-      - type: pdf_url
+      - type: url
         urls:
           - "https://example.com/support.pdf"
       - type: markdown_glob

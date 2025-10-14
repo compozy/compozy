@@ -44,9 +44,9 @@ This plan defines the examples to add under `examples/` to demonstrate PRD cover
 
 4. examples/knowledge/pdf-url (P0)
 
-- Purpose: Ingest a small public PDF via `pdf_url`.
+- Purpose: Ingest a small public PDF via the generic `url` source.
 - Files:
-  - `compozy.yaml` – knowledge base `pdf_demo` with source `pdf_url` pointing to a small public doc.
+  - `compozy.yaml` – knowledge base `pdf_demo` with source `url` pointing to a small public doc.
   - `workflows/qa.yaml` – binds `pdf_demo`.
 - Demonstrates: remote source ingestion and hash/ETag idempotency.
 

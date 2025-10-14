@@ -31,7 +31,7 @@ knowledge_bases:
     embedder: openai_default
     vector_db: redis_vectors
     sources:
-      - type: pdf_url
+      - type: url
         urls:
           - "https://arxiv.org/pdf/2312.10997"
     chunking:

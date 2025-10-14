@@ -161,7 +161,7 @@ func ptrFloat64(v float64) *float64 {
 type SourceType string
 
 const (
-	SourceTypePDFURL       SourceType = "pdf_url"
+	SourceTypeURL          SourceType = "url"
 	SourceTypeMarkdownGlob SourceType = "markdown_glob"
 )
 
@@ -722,9 +722,12 @@ func validateKnowledgeBaseRetrieval(kb *BaseConfig) []error {
 
 func validateSource(kbID string, source *SourceConfig) error {
 	switch source.Type {
-	case SourceTypePDFURL:
-		if len(source.URLs) == 0 {
-			return fmt.Errorf("knowledge: knowledge_base %q pdf_url source requires urls", kbID)
+	case SourceTypeURL:
+		if strings.TrimSpace(source.Path) == "" && len(source.URLs) == 0 {
+			return fmt.Errorf("knowledge: knowledge_base %q url source requires url or urls", kbID)
+		}
+		if len(source.Paths) > 0 {
+			return fmt.Errorf("knowledge: knowledge_base %q url source does not support paths", kbID)
 		}
 	case SourceTypeMarkdownGlob:
 		if source.Path == "" && len(source.Paths) == 0 {

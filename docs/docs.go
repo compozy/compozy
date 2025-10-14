@@ -12235,8 +12235,14 @@ const docTemplate = `{
                 "max_tokens": {
                     "type": "integer"
                 },
+                "min_results": {
+                    "type": "integer"
+                },
                 "min_score": {
                     "type": "number"
+                },
+                "tool_fallback": {
+                    "$ref": "#/definitions/knowledge.ToolFallbackMode"
                 },
                 "top_k": {
                     "type": "integer"
@@ -12287,16 +12293,25 @@ const docTemplate = `{
         "knowledge.SourceType": {
             "type": "string",
             "enum": [
-                "pdf_url",
-                "markdown_glob",
-                "cloud_storage",
-                "media_transcript"
+                "url",
+                "markdown_glob"
             ],
             "x-enum-varnames": [
-                "SourceTypePDFURL",
-                "SourceTypeMarkdownGlob",
-                "SourceTypeCloudStorage",
-                "SourceTypeMediaTranscript"
+                "SourceTypeURL",
+                "SourceTypeMarkdownGlob"
+            ]
+        },
+        "knowledge.ToolFallbackMode": {
+            "type": "string",
+            "enum": [
+                "never",
+                "escalate",
+                "auto"
+            ],
+            "x-enum-varnames": [
+                "ToolFallbackNever",
+                "ToolFallbackEscalate",
+                "ToolFallbackAuto"
             ]
         },
         "knowledgerouter.KnowledgeBaseListResponse": {

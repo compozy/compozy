@@ -42,7 +42,7 @@ R2. Scope and precedence
 
 R3. Source types and ingestion
 
-- Core: `pdf_url`, `markdown_glob`.
+- Core: `url`, `markdown_glob`.
 - Optional (if time/available): `cloud_storage` (S3/GCS; requires credentials via env), `media_transcript`.
 - CLI/API for ad‑hoc ingestion only; background sync/schedules are deferred. No bespoke job polling API in MVP.
 

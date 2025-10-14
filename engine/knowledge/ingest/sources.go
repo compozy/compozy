@@ -1,17 +1,24 @@
 package ingest
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/gabriel-vasile/mimetype"
+	"golang.org/x/net/html/charset"
+	"golang.org/x/text/transform"
 
 	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
@@ -29,7 +36,18 @@ type documentList struct {
 	hash  map[string]struct{}
 }
 
-var pdfFetcher = fetchPDFText
+var (
+	downloadToTemp = attachment.DownloadURLToTemp
+	pdfExtractor   = extractPDF
+)
+
+type remoteFetchResult struct {
+	text        string
+	contentType string
+	size        int64
+	filename    string
+	pdfStats    *pdftext.Stats
+}
 
 func enumerateSources(ctx context.Context, kb *knowledge.BaseConfig, opts *Options) ([]chunk.Document, error) {
 	if kb == nil {
@@ -46,12 +64,12 @@ func enumerateSources(ctx context.Context, kb *knowledge.BaseConfig, opts *Optio
 			if err := list.appendMarkdown(ctx, kb.ID, src, opts.CWD); err != nil {
 				return nil, err
 			}
-		case knowledge.SourceTypePDFURL:
-			if err := list.appendPDFURLs(ctx, kb.ID, src); err != nil {
+		case knowledge.SourceTypeURL:
+			if err := list.appendRemoteURLs(ctx, kb.ID, src); err != nil {
 				return nil, err
 			}
 		default:
-			return nil, fmt.Errorf("knowledge: source type %q not supported in ingestion MVP", src.Type)
+			return nil, fmt.Errorf("knowledge: source type %q not supported", src.Type)
 		}
 	}
 	return list.items, nil
@@ -118,27 +136,35 @@ func (l *documentList) appendMarkdownPattern(
 		if readErr != nil {
 			return readErr
 		}
-		if text == "" {
-			continue
-		}
-		hash := hashContent(text)
-		if _, exists := l.hash[hash]; exists {
-			continue
-		}
-		l.hash[hash] = struct{}{}
 		docID := filepath.ToSlash(rel)
 		meta := map[string]any{
-			"source_type":  string(knowledge.SourceTypeMarkdownGlob),
-			"source_path":  docID,
-			"content_hash": hash,
-			"kb_id":        kbID,
+			"source_type": string(knowledge.SourceTypeMarkdownGlob),
+			"source_path": docID,
 		}
-		l.items = append(l.items, chunk.Document{ID: docID, Text: text, Metadata: meta})
+		l.appendDocument(kbID, docID, text, meta)
 	}
 	return nil
 }
 
-func (l *documentList) appendPDFURLs(ctx context.Context, kbID string, src *knowledge.SourceConfig) error {
+func (l *documentList) appendDocument(kbID, docID, text string, meta map[string]any) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return
+	}
+	hash := hashContent(trimmed)
+	if _, exists := l.hash[hash]; exists {
+		return
+	}
+	if meta == nil {
+		meta = make(map[string]any, 2)
+	}
+	meta["content_hash"] = hash
+	meta["kb_id"] = kbID
+	l.hash[hash] = struct{}{}
+	l.items = append(l.items, chunk.Document{ID: docID, Text: trimmed, Metadata: meta})
+}
+
+func (l *documentList) appendRemoteURLs(ctx context.Context, kbID string, src *knowledge.SourceConfig) error {
 	urls := make([]string, 0, len(src.URLs))
 	for i := range src.URLs {
 		if u := strings.TrimSpace(src.URLs[i]); u != "" {
@@ -149,31 +175,30 @@ func (l *documentList) appendPDFURLs(ctx context.Context, kbID string, src *know
 		urls = append(urls, primary)
 	}
 	if len(urls) == 0 {
-		return fmt.Errorf("knowledge: pdf_url source requires urls")
+		return fmt.Errorf("knowledge: url source requires url or urls")
 	}
-	for i := range urls {
-		url := urls[i]
-		result, err := pdfFetcher(ctx, url)
+	for _, raw := range urls {
+		result, err := fetchRemoteDocument(ctx, raw)
 		if err != nil {
 			return err
 		}
-		content := strings.TrimSpace(result.Text)
-		if content == "" {
+		if result.text == "" {
 			continue
 		}
-		logPDFReadability(ctx, url, result.Stats)
-		hash := hashContent(content)
-		if _, exists := l.hash[hash]; exists {
-			continue
-		}
-		l.hash[hash] = struct{}{}
 		meta := map[string]any{
-			"source_type":  string(knowledge.SourceTypePDFURL),
-			"source_url":   url,
-			"content_hash": hash,
-			"kb_id":        kbID,
+			"source_type":  string(knowledge.SourceTypeURL),
+			"source_url":   raw,
+			"content_type": result.contentType,
+			"bytes":        result.size,
 		}
-		l.items = append(l.items, chunk.Document{ID: url, Text: content, Metadata: meta})
+		if result.filename != "" {
+			meta["filename"] = result.filename
+		}
+		if result.pdfStats != nil {
+			logPDFReadability(ctx, raw, *result.pdfStats)
+			meta["pdf_readability"] = encodePDFStats(*result.pdfStats)
+		}
+		l.appendDocument(kbID, raw, result.text, meta)
 	}
 	return nil
 }
@@ -232,34 +257,130 @@ func pathInside(root, target string) (bool, error) {
 	return true, nil
 }
 
-func fetchPDFText(ctx context.Context, url string) (pdftext.Result, error) {
-	att := &attachment.PDFAttachment{Source: attachment.SourceURL, URL: url}
-	resolved, err := att.Resolve(ctx, nil)
+func fetchRemoteDocument(ctx context.Context, rawURL string) (remoteFetchResult, error) {
+	handle, size, err := downloadToTemp(ctx, rawURL, 0)
 	if err != nil {
-		return pdftext.Result{}, fmt.Errorf("knowledge: resolve pdf url %q: %w", url, err)
+		return remoteFetchResult{}, fmt.Errorf("knowledge: download url %q: %w", rawURL, err)
 	}
-	defer resolved.Cleanup()
+	defer handle.Cleanup()
 
+	path, ok := handle.AsFilePath()
+	if !ok || path == "" {
+		return remoteFetchResult{}, fmt.Errorf("knowledge: downloaded url %q missing file path", rawURL)
+	}
+	mime := normalizeContentType(path, handle.MIME())
+	filename := filenameFromURL(rawURL)
+
+	if isPDFContentType(mime) {
+		result, err := pdfExtractor(ctx, path)
+		if err != nil {
+			return remoteFetchResult{}, fmt.Errorf("knowledge: extract pdf %q: %w", rawURL, err)
+		}
+		return remoteFetchResult{
+			text:        strings.TrimSpace(normalizeRemoteText(result.Text)),
+			contentType: mime,
+			size:        size,
+			filename:    filename,
+			pdfStats:    &result.Stats,
+		}, nil
+	}
+
+	data, readErr := os.ReadFile(path)
+	if readErr != nil {
+		return remoteFetchResult{}, fmt.Errorf("knowledge: read url %q: %w", rawURL, readErr)
+	}
+	if len(data) > MaxMarkdownFileSizeBytes {
+		return remoteFetchResult{}, fmt.Errorf(
+			"knowledge: url %q exceeds maximum size of %d bytes",
+			rawURL,
+			MaxMarkdownFileSizeBytes,
+		)
+	}
+	text, decodeErr := decodeRemoteText(data, mime)
+	if decodeErr != nil {
+		return remoteFetchResult{}, fmt.Errorf("knowledge: decode url %q: %w", rawURL, decodeErr)
+	}
+	return remoteFetchResult{
+		text:        strings.TrimSpace(text),
+		contentType: mime,
+		size:        size,
+		filename:    filename,
+	}, nil
+}
+
+func decodeRemoteText(data []byte, mime string) (string, error) {
+	if utf8.Valid(data) {
+		return normalizeRemoteText(string(data)), nil
+	}
+	enc, name, _ := charset.DetermineEncoding(data, mime)
+	reader := transform.NewReader(bytes.NewReader(data), enc.NewDecoder())
+	decoded, err := io.ReadAll(reader)
+	if err != nil {
+		return "", fmt.Errorf("transcode from %s: %w", name, err)
+	}
+	if !utf8.Valid(decoded) {
+		return "", fmt.Errorf("transcoded result invalid utf-8")
+	}
+	return normalizeRemoteText(string(decoded)), nil
+}
+
+func normalizeRemoteText(s string) string {
+	if s == "" {
+		return s
+	}
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	return s
+}
+
+func normalizeContentType(path string, raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" || strings.EqualFold(value, "application/octet-stream") {
+		if detected, err := mimetype.DetectFile(path); err == nil && detected != nil {
+			return detected.String()
+		}
+	}
+	return value
+}
+
+func isPDFContentType(contentType string) bool {
+	if contentType == "" {
+		return false
+	}
+	lowered := strings.ToLower(contentType)
+	return strings.HasPrefix(lowered, "application/pdf")
+}
+
+func filenameFromURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	name := path.Base(parsed.Path)
+	if name == "." || name == "/" {
+		return ""
+	}
+	return name
+}
+
+func encodePDFStats(stats pdftext.Stats) map[string]any {
+	return map[string]any{
+		"rune_count":          stats.RuneCount,
+		"word_count":          stats.WordCount,
+		"space_count":         stats.SpaceCount,
+		"line_count":          stats.LineCount,
+		"average_word_length": stats.AverageWordLength,
+		"space_ratio":         stats.SpaceRatio,
+		"fallback_used":       stats.FallbackUsed,
+	}
+}
+
+func extractPDF(ctx context.Context, path string) (pdftext.Result, error) {
 	extractor, err := pdftext.Default()
 	if err != nil {
 		return pdftext.Result{}, fmt.Errorf("knowledge: initialize pdf extractor: %w", err)
 	}
-	limit := pdfRuneLimit(ctx)
-
-	path, ok := resolved.AsFilePath()
-	if !ok || path == "" {
-		rc, oerr := resolved.Open()
-		if oerr != nil {
-			return pdftext.Result{}, fmt.Errorf("knowledge: open pdf stream %q: %w", url, oerr)
-		}
-		defer rc.Close()
-		data, rerr := io.ReadAll(rc)
-		if rerr != nil {
-			return pdftext.Result{}, fmt.Errorf("knowledge: read pdf stream: %w", rerr)
-		}
-		return extractor.ExtractBytes(ctx, data, limit)
-	}
-	return extractor.ExtractFile(ctx, path, limit)
+	return extractor.ExtractFile(ctx, path, pdfRuneLimit(ctx))
 }
 
 func pdfRuneLimit(ctx context.Context) int64 {

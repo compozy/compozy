@@ -1166,8 +1166,12 @@ definitions:
         type: string
       max_tokens:
         type: integer
+      min_results:
+        type: integer
       min_score:
         type: number
+      tool_fallback:
+        $ref: '#/definitions/knowledge.ToolFallbackMode'
       top_k:
         type: integer
     type: object
@@ -1200,16 +1204,22 @@ definitions:
     type: object
   knowledge.SourceType:
     enum:
-      - pdf_url
+      - url
       - markdown_glob
-      - cloud_storage
-      - media_transcript
     type: string
     x-enum-varnames:
-      - SourceTypePDFURL
+      - SourceTypeURL
       - SourceTypeMarkdownGlob
-      - SourceTypeCloudStorage
-      - SourceTypeMediaTranscript
+  knowledge.ToolFallbackMode:
+    enum:
+      - never
+      - escalate
+      - auto
+    type: string
+    x-enum-varnames:
+      - ToolFallbackNever
+      - ToolFallbackEscalate
+      - ToolFallbackAuto
   knowledgerouter.KnowledgeBaseListResponse:
     properties:
       knowledge_bases:

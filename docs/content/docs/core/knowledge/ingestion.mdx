@@ -14,11 +14,11 @@ import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card
 | Kind            | Description                                                   | Example keys                                         |
 | --------------- | ------------------------------------------------------------- | ---------------------------------------------------- |
 | `markdown_glob` | Expand local Markdown files via glob pattern                  | `glob`, optional `ignore`                            |
-| `pdf_url`       | Fetch and cache a small remote PDF                            | `url`, optional `etag_header`                        |
+| `url`           | Fetch and cache a small remote document (PDF, HTML, text, …) | `url`, optional `etag_header`                        |
 | `cloud_storage` | (Planned) Enumerate objects from S3/GCS prefixes              | `provider`, `bucket`, `prefix`, credentials via env  |
 | `media_transcript` | (Planned) Convert `.srt`/`.vtt` transcripts to documents | `path`, optional language metadata                   |
 
-Only `markdown_glob` and `pdf_url` ship in the MVP. Mention other kinds as planned features unless your deployment explicitly enables them.
+Only `markdown_glob` and `url` ship in the MVP. Mention other kinds as planned features unless your deployment explicitly enables them.
 
 ## Chunking & Preprocessing
 

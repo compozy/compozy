@@ -104,7 +104,7 @@ func TestPDFKnowledgeWorkflowEndToEnd(t *testing.T) {
 				VectorDB: "pdf_demo_store",
 				Sources: []knowledge.SourceConfig{
 					{
-						Type: knowledge.SourceTypePDFURL,
+						Type: knowledge.SourceTypeURL,
 						URLs: []string{"https://arxiv.org/pdf/2312.10997"},
 					},
 				},

@@ -31,7 +31,7 @@ Source of truth: tasks/prd-embedding/\_prd.md and tasks/prd-embedding/\_techspec
 - docs/content/docs/core/knowledge/ingestion.mdx (new)
   - Purpose: Sources and ingestion flows (CLI/API), manual only.
   - Outline:
-    - Supported source kinds: pdf_url, markdown_glob (cloud_storage/media optional if implemented)
+    - Supported source kinds: url, markdown_glob (cloud_storage/media optional if implemented)
     - Chunking policies (size/overlap/strategy)
     - Ingestion via CLI/API; idempotency via hashes/ETags
     - Re‑ingest to pick up changes; no background sync in MVP

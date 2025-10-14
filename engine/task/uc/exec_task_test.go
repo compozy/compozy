@@ -101,7 +101,7 @@ func TestBuildKnowledgeRuntimeConfigRendersEmbedderTemplates(t *testing.T) {
 				Embedder: "openai_default",
 				VectorDB: "filesystem",
 				Sources: []knowledge.SourceConfig{{
-					Type: knowledge.SourceTypePDFURL,
+					Type: knowledge.SourceTypeURL,
 					URLs: []string{"https://example.com/example.pdf"},
 				}},
 			}},
