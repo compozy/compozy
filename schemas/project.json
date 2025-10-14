@@ -378,8 +378,14 @@
         "max_tokens": {
           "type": "integer"
         },
+        "min_results": {
+          "type": "integer"
+        },
         "min_score": {
           "type": "number"
+        },
+        "tool_fallback": {
+          "type": "string"
         },
         "top_k": {
           "type": "integer"
@@ -541,14 +547,13 @@
         "index": {
           "type": "string"
         },
-        "metric": {
-          "type": "string"
-        },
         "max_top_k": {
           "type": "integer"
         },
+        "metric": {
+          "type": "string"
+        },
         "path": {
-          "description": "Filesystem storage path; defaults to `.compozy/cache/<vector_db_id>.store` when omitted.",
           "type": "string"
         },
         "table": {

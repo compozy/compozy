@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -168,4 +169,60 @@ func TestNewKnowledgeRuntimeConfigAggregatesKnowledgeBases(t *testing.T) {
 		assert.Equal(t, "wf_kb", cfg.WorkflowKnowledgeBases[0].ID)
 		assert.Equal(t, knowledge.IngestManual, cfg.WorkflowKnowledgeBases[0].Ingest)
 	})
+}
+
+func TestReparseAgentConfigHandlesNilWorkflowState(t *testing.T) {
+	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	exec := &ExecuteTask{templateEngine: tplengine.NewEngine(tplengine.FormatYAML)}
+	question := "What has written about Indexing Optimizations in the document?"
+	env := core.EnvMap{"OPENAI_API_KEY": "dummy"}
+
+	agentCfg := &agent.Config{
+		ID:        "pdf_agent",
+		Knowledge: []core.KnowledgeBinding{{ID: "pdf_demo"}},
+		Model: agent.Model{
+			Config: core.ProviderConfig{
+				Provider: core.ProviderOpenAI,
+				Model:    "o3-mini",
+				APIKey:   "{{ .env.OPENAI_API_KEY }}",
+			},
+		},
+		Actions: []*agent.ActionConfig{{
+			ID:     "answer",
+			Prompt: "Question:\n```\n{{ .input.question }}\n```",
+		}},
+		Env: &env,
+	}
+
+	taskCfg := &task.Config{
+		BaseConfig: task.BaseConfig{
+			ID:    "pdf-answer",
+			Type:  task.TaskTypeBasic,
+			Agent: agentCfg,
+			With:  &core.Input{"question": question},
+		},
+		BasicTask: task.BasicTask{
+			Action: "answer",
+		},
+	}
+
+	projectCfg := &project.Config{Name: "demo"}
+	projectCfg.SetEnv(env)
+	workflowCfg := &workflow.Config{
+		ID:    "pdf-demo",
+		Tasks: []task.Config{*taskCfg},
+	}
+
+	input := &ExecuteTaskInput{
+		TaskConfig:     taskCfg,
+		WorkflowConfig: workflowCfg,
+		ProjectConfig:  projectCfg,
+		WorkflowState:  nil,
+	}
+
+	require.NoError(t, exec.reparseAgentConfig(ctx, agentCfg, input, "answer"))
+	require.Len(t, agentCfg.Actions, 1)
+	parsedPrompt := agentCfg.Actions[0].Prompt
+	assert.NotContains(t, parsedPrompt, "{{")
+	assert.Contains(t, parsedPrompt, question)
 }

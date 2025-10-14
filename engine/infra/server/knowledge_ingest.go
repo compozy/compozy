@@ -88,7 +88,7 @@ func runStartupKnowledgeIngest(
 	_, err := ingestUseCase.Execute(runCtx, &uc.IngestInput{
 		Project:  projectConfig.Name,
 		ID:       kb.ID,
-		Strategy: ingest.StrategyUpsert,
+		Strategy: ingest.StrategyReplace,
 		CWD:      projectConfig.GetCWD(),
 	})
 	if err != nil {

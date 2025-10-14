@@ -78,7 +78,7 @@ func TestIngestKnowledgeBasesOnStart_TriggersOnStartBases(t *testing.T) {
 		assert.Equal(t, "demo", call.Project)
 		assert.Equal(t, "startup_kb", call.ID)
 		assert.Equal(t, knowledge.IngestOnStart, projectConfig.KnowledgeBases[1].Ingest)
-		assert.Equal(t, rec.calls[0].Strategy, ingest.StrategyUpsert)
+		assert.Equal(t, rec.calls[0].Strategy, ingest.StrategyReplace)
 		assert.NotNil(t, call.CWD)
 		assert.Equal(t, projectConfig.GetCWD(), call.CWD)
 	})

@@ -184,7 +184,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 	state.SetMonitoringService(s.monitoring)
 	state.SetResourceStore(resourceStore)
-	if err := ingestKnowledgeBasesOnStart(s.ctx, state, projectConfig, workflows); err != nil {
+	if err := s.seedAndIngestKnowledge(state, resourceStore, projectConfig, workflows); err != nil {
 		return nil, cleanupFuncs, err
 	}
 	if configRegistry != nil {
@@ -201,6 +201,18 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 	s.emitStartupSummary(time.Since(setupStart))
 	return state, cleanupFuncs, nil
+}
+
+func (s *Server) seedAndIngestKnowledge(
+	state *appstate.State,
+	store resources.ResourceStore,
+	projectConfig *project.Config,
+	workflows []*workflow.Config,
+) error {
+	if err := seedKnowledgeDefinitions(s.ctx, store, projectConfig, workflows); err != nil {
+		return fmt.Errorf("seed knowledge definitions: %w", err)
+	}
+	return ingestKnowledgeBasesOnStart(s.ctx, state, projectConfig, workflows)
 }
 
 func chooseResourceStore(redisClient *redis.Client, cfg *config.Config) resources.ResourceStore {

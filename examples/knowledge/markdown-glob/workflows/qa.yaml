@@ -24,9 +24,8 @@ output:
 
 tasks:
   - id: answer
-    name: Provide Answer
-    type: basic
     description: Answer user questions using knowledge context
+    type: basic
     agent: quickstart_agent
     action: answer
     with:

@@ -10,7 +10,7 @@ Accept: application/json
 
 {
   "input": {
-    "question": "What is the main takeaway from the paper?"
+    "question": "What has written about Indexing Optimizations in the document?"
   }
 }
 

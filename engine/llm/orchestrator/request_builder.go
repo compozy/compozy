@@ -199,17 +199,13 @@ func (b *requestBuilder) injectKnowledge(
 	if len(entries) == 0 || len(messages) == 0 {
 		return messages
 	}
-	block := buildKnowledgeBlock(entries)
-	if block == "" {
-		return messages
-	}
 	idx := len(messages) - 1
 	existing := messages[idx].Content
-	if strings.TrimSpace(existing) == "" {
-		messages[idx].Content = block
-	} else {
-		messages[idx].Content = block + "\n\n" + existing
+	combined, injected := combineKnowledgeWithPrompt(existing, entries)
+	if !injected {
+		return messages
 	}
+	messages[idx].Content = combined
 	logger.FromContext(ctx).Debug(
 		"Knowledge context injected into prompt",
 		"entries",
@@ -282,6 +278,17 @@ func buildKnowledgeBlock(entries []KnowledgeEntry) string {
 		}
 	}
 	return strings.TrimSpace(builder.String())
+}
+
+func combineKnowledgeWithPrompt(prompt string, entries []KnowledgeEntry) (string, bool) {
+	block := buildKnowledgeBlock(entries)
+	if block == "" {
+		return prompt, false
+	}
+	if strings.TrimSpace(prompt) == "" {
+		return block, true
+	}
+	return block + "\n\n" + prompt, true
 }
 
 func (b *requestBuilder) buildToolDefinitions(

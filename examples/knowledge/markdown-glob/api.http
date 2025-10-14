@@ -11,7 +11,7 @@ Accept: application/json
 
 {
   "input": {
-    "question": "What is the recommended way to ingest the quickstart documents?"
+    "question": "What does quickstart explain?"
   }
 }
 

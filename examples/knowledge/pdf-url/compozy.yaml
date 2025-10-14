@@ -3,13 +3,10 @@ version: 0.1.0
 description: Ingest a remote PDF into a knowledge base
 
 models:
-  - provider: openai
-    model: o3
-    api_key: "{{ .env.OPENAI_API_KEY }}"
+  - provider: groq
+    model: openai/gpt-oss-120b
+    api_key: "{{ .env.GROQ_API_KEY }}"
     default: true
-    params:
-      temperature: 1
-      max_tokens: 100000
 
 embedders:
   - id: openai_default
@@ -21,10 +18,6 @@ embedders:
       batch_size: 64
 
 vector_dbs:
-  - id: pdf_demo_store
-    type: filesystem
-    config:
-      dimension: 1536
   - id: pgvector_local
     type: pgvector
     config:

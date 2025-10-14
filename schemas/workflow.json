@@ -265,8 +265,14 @@
         "max_tokens": {
           "type": "integer"
         },
+        "min_results": {
+          "type": "integer"
+        },
         "min_score": {
           "type": "number"
+        },
+        "tool_fallback": {
+          "type": "string"
         },
         "top_k": {
           "type": "integer"

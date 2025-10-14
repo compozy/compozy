@@ -56,5 +56,8 @@ func validateConfig(cfg *Config) error {
 	if cfg.Dimension <= 0 {
 		return fmt.Errorf("vector_db %q: %w", cfg.ID, errInvalidDimension)
 	}
+	if cfg.MaxTopK < 0 {
+		return fmt.Errorf("vector_db %q: max_top_k must be non-negative", cfg.ID)
+	}
 	return nil
 }

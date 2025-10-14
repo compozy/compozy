@@ -12,12 +12,12 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/ledongthuc/pdf"
 
 	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/chunk"
+	"github.com/compozy/compozy/engine/pdftext"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -28,6 +28,8 @@ type documentList struct {
 	items []chunk.Document
 	hash  map[string]struct{}
 }
+
+var pdfFetcher = fetchPDFText
 
 func enumerateSources(ctx context.Context, kb *knowledge.BaseConfig, opts *Options) ([]chunk.Document, error) {
 	if kb == nil {
@@ -151,14 +153,15 @@ func (l *documentList) appendPDFURLs(ctx context.Context, kbID string, src *know
 	}
 	for i := range urls {
 		url := urls[i]
-		text, err := fetchPDFText(ctx, url)
+		result, err := pdfFetcher(ctx, url)
 		if err != nil {
 			return err
 		}
-		content := strings.TrimSpace(text)
+		content := strings.TrimSpace(result.Text)
 		if content == "" {
 			continue
 		}
+		logPDFReadability(ctx, url, result.Stats)
 		hash := hashContent(content)
 		if _, exists := l.hash[hash]; exists {
 			continue
@@ -229,61 +232,69 @@ func pathInside(root, target string) (bool, error) {
 	return true, nil
 }
 
-func fetchPDFText(ctx context.Context, url string) (string, error) {
+func fetchPDFText(ctx context.Context, url string) (pdftext.Result, error) {
 	att := &attachment.PDFAttachment{Source: attachment.SourceURL, URL: url}
 	resolved, err := att.Resolve(ctx, nil)
 	if err != nil {
-		return "", fmt.Errorf("knowledge: resolve pdf url %q: %w", url, err)
+		return pdftext.Result{}, fmt.Errorf("knowledge: resolve pdf url %q: %w", url, err)
 	}
 	defer resolved.Cleanup()
+
+	extractor, err := pdftext.Default()
+	if err != nil {
+		return pdftext.Result{}, fmt.Errorf("knowledge: initialize pdf extractor: %w", err)
+	}
+	limit := pdfRuneLimit(ctx)
+
 	path, ok := resolved.AsFilePath()
 	if !ok || path == "" {
 		rc, oerr := resolved.Open()
 		if oerr != nil {
-			return "", fmt.Errorf("knowledge: open pdf stream %q: %w", url, oerr)
+			return pdftext.Result{}, fmt.Errorf("knowledge: open pdf stream %q: %w", url, oerr)
 		}
 		defer rc.Close()
-		temp, terr := os.CreateTemp("", "kb-pdf-*")
-		if terr != nil {
-			return "", fmt.Errorf("knowledge: create temp file: %w", terr)
+		data, rerr := io.ReadAll(rc)
+		if rerr != nil {
+			return pdftext.Result{}, fmt.Errorf("knowledge: read pdf stream: %w", rerr)
 		}
-		defer func() {
-			temp.Close()
-			os.Remove(temp.Name())
-		}()
-		if _, werr := io.Copy(temp, rc); werr != nil {
-			return "", fmt.Errorf("knowledge: buffer pdf stream: %w", werr)
-		}
-		if _, serr := temp.Seek(0, io.SeekStart); serr != nil {
-			return "", fmt.Errorf("knowledge: rewind temp file: %w", serr)
-		}
-		return extractPDFText(ctx, temp.Name())
+		return extractor.ExtractBytes(ctx, data, limit)
 	}
-	return extractPDFText(ctx, path)
+	return extractor.ExtractFile(ctx, path, limit)
 }
 
-func extractPDFText(ctx context.Context, path string) (string, error) {
-	f, r, err := pdf.Open(path)
-	if err != nil {
-		return "", fmt.Errorf("knowledge: open pdf %q: %w", path, err)
-	}
-	defer f.Close()
-	rd, err := r.GetPlainText()
-	if err != nil {
-		return "", fmt.Errorf("knowledge: extract pdf text %q: %w", path, err)
-	}
-	if closer, ok := rd.(io.ReadCloser); ok {
-		defer closer.Close()
-	}
+func pdfRuneLimit(ctx context.Context) int64 {
 	limit := int64(attachment.MaxPDFExtractChars)
 	if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.Attachments.PDFExtractMaxChars > 0 {
 		limit = int64(cfg.Attachments.PDFExtractMaxChars)
 	}
-	var b strings.Builder
-	if _, err := io.Copy(&b, io.LimitReader(rd, limit)); err != nil {
-		return "", fmt.Errorf("knowledge: read pdf %q: %w", path, err)
+	return limit
+}
+
+func logPDFReadability(ctx context.Context, source string, stats pdftext.Stats) {
+	if stats.FallbackUsed && stats.IsReadable() {
+		logger.FromContext(ctx).Debug(
+			"PDF extraction fallback succeeded",
+			"source", source,
+			"space_ratio", stats.SpaceRatio,
+			"avg_word_length", stats.AverageWordLength,
+		)
+		return
 	}
-	return b.String(), nil
+	if stats.IsReadable() {
+		return
+	}
+	issues := stats.Issues()
+	if len(issues) == 0 {
+		return
+	}
+	logger.FromContext(ctx).Warn(
+		"PDF extraction readability issues",
+		"source", source,
+		"issues", strings.Join(issues, ", "),
+		"space_ratio", stats.SpaceRatio,
+		"avg_word_length", stats.AverageWordLength,
+		"fallback_used", stats.FallbackUsed,
+	)
 }
 
 func hashContent(text string) string {

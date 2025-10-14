@@ -70,6 +70,10 @@
         "http_write": {
           "type": "integer"
         },
+        "knowledge_ingest": {
+          "description": "KnowledgeIngest bounds startup knowledge ingestion executions.\nApplies to ingestKnowledgeBasesOnStart. Zero disables the timeout.",
+          "type": "integer"
+        },
         "monitoring_init": {
           "type": "integer"
         },
@@ -91,10 +95,6 @@
           "type": "integer"
         },
         "schedule_retry_max_duration": {
-          "type": "integer"
-        },
-        "knowledge_ingest": {
-          "description": "Timeout for startup knowledge ingestion runs (0 disables timeouts).",
           "type": "integer"
         },
         "server_shutdown": {

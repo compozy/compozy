@@ -40,7 +40,9 @@ cat .cursor/rules/{go-coding-standards,architecture,test-standards,backwards-com
 
 - **MUST** run `make lint` and `make test` before completing ANY subtask
 - **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
-- **TIP:** Since our project is big, **YOU SHOULD** run `make test` (test entire suite) just in the end before finish the task, test in the middle of the development, should use `go test <folder>` against the respective scope
+- **TIP:** Since our project is big, **YOU SHOULD** run `make test` just in the end before finish the task when running for the entire project; tests during the your task development, should use `gotestsum -- -race -parallel=4 <scope>` using the respective pkg folder as scope; **IF YOUR SCOPE** is `.../.` then you need to run `make test`
+
+Example: if you are testing a thing in the `engine/agent` folder, **YOU DON'T NEED** to run the entire test suite, you can run just `gotestsum --format pkgname  -- -race -parallel=4 ./engine/agent` and JUST IN THE END of the task, before delivery it, you need to run `make test`
 
 ### For complex/big tasks
 

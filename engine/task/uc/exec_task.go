@@ -277,13 +277,22 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	input *ExecuteTaskInput,
 	actionID string,
 ) error {
-	if input.WorkflowState == nil {
-		return nil
+	state := input.WorkflowState
+	if state == nil {
+		state = &workflow.State{
+			Tasks: make(map[string]*task.State),
+		}
+	}
+	if state.Tasks == nil {
+		state.Tasks = make(map[string]*task.State)
+	}
+	if state.WorkflowID == "" && input.WorkflowConfig != nil {
+		state.WorkflowID = input.WorkflowConfig.ID
 	}
 
 	// Build normalization context for runtime re-parsing
 	normCtx := &shared.NormalizationContext{
-		WorkflowState:  input.WorkflowState,
+		WorkflowState:  state,
 		WorkflowConfig: input.WorkflowConfig,
 		TaskConfig:     input.TaskConfig,
 		Variables:      make(map[string]any),
@@ -297,7 +306,7 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	}
 
 	// Build full context with tasks data
-	fullCtx := contextBuilder.BuildContext(input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
+	fullCtx := contextBuilder.BuildContext(state, input.WorkflowConfig, input.TaskConfig)
 	normCtx.Variables = fullCtx.Variables
 
 	// Ensure task's current input (containing collection variables) is added to variables

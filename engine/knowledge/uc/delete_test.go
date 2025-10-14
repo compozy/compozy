@@ -54,12 +54,12 @@ func TestDeleteCleanupVectors(t *testing.T) {
 	}
 	uc := NewDelete(store)
 
-	t.Run("Should delete records via filesystem store", func(t *testing.T) {
+	t.Run("Should successfully delete records via filesystem store", func(t *testing.T) {
 		err := uc.cleanupVectors(ctx, "proj", "kb", vecCfg)
 		require.NoError(t, err)
 	})
 
-	t.Run("Should fail when vector config invalid", func(t *testing.T) {
+	t.Run("Should fail when vector config is invalid", func(t *testing.T) {
 		badVec := &knowledge.VectorDBConfig{
 			ID:   "vec",
 			Type: knowledge.VectorDBTypeFilesystem,

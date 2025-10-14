@@ -378,8 +378,14 @@
         "max_tokens": {
           "type": "integer"
         },
+        "min_results": {
+          "type": "integer"
+        },
         "min_score": {
           "type": "number"
+        },
+        "tool_fallback": {
+          "type": "string"
         },
         "top_k": {
           "type": "integer"
@@ -541,14 +547,13 @@
         "index": {
           "type": "string"
         },
-        "metric": {
-          "type": "string"
-        },
         "max_top_k": {
           "type": "integer"
         },
+        "metric": {
+          "type": "string"
+        },
         "path": {
-          "description": "Filesystem storage path; defaults to `.compozy/cache/<vector_db_id>.store` when omitted.",
           "type": "string"
         },
         "table": {
@@ -1500,6 +1505,10 @@
         "http_write": {
           "type": "integer"
         },
+        "knowledge_ingest": {
+          "description": "KnowledgeIngest bounds startup knowledge ingestion executions.\nApplies to ingestKnowledgeBasesOnStart. Zero disables the timeout.",
+          "type": "integer"
+        },
         "monitoring_init": {
           "type": "integer"
         },
@@ -1521,10 +1530,6 @@
           "type": "integer"
         },
         "schedule_retry_max_duration": {
-          "type": "integer"
-        },
-        "knowledge_ingest": {
-          "description": "Timeout for startup knowledge ingestion runs (0 disables timeouts).",
           "type": "integer"
         },
         "server_shutdown": {

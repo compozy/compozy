@@ -38,7 +38,7 @@ func TestConflictErrorReferenceCounting(t *testing.T) {
 				{Resource: "workflows", IDs: []string{"wf1", "wf2"}},
 				{Resource: "agents", IDs: []string{"ag1"}},
 			},
-			expect: "resource referenced by 3 collections",
+			expect: "resource referenced by 3 collections: agents, workflows",
 		},
 		{
 			name:    "Should handle blank resources using total references",
@@ -49,7 +49,7 @@ func TestConflictErrorReferenceCounting(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			msg := ConflictError{Details: tc.details}.Error()
-			assert.Contains(t, msg, tc.expect)
+			assert.Equal(t, tc.expect, msg)
 		})
 	}
 }
@@ -64,8 +64,7 @@ func TestConflictErrorFormatsResourceTypes(t *testing.T) {
 			},
 		}
 		msg := err.Error()
-		assert.Contains(t, msg, "resource referenced by 3 collections")
-		assert.Contains(t, msg, "agents, workflows")
+		assert.Equal(t, "resource referenced by 3 collections: agents, workflows", msg)
 	})
 }
 
@@ -98,6 +97,19 @@ func TestRespondConflictDefaultDetail(t *testing.T) {
 		RespondConflict(c, errors.New("   "), nil)
 		response := decodeProblemResponse(t, w.Body.Bytes())
 		assert.Equal(t, "resource has active references", response["detail"])
+	})
+}
+
+func TestRespondConflictWritesBody(t *testing.T) {
+	t.Run("Should respond with HTTP 409 and non-empty body", func(t *testing.T) {
+		c, w := setupTestContext(t)
+		details := []ReferenceDetail{
+			{Resource: "tasks", IDs: []string{"tk1", "tk2"}},
+		}
+		err := errors.New("resource has dependencies")
+		RespondConflict(c, err, details)
+		require.Equal(t, http.StatusConflict, w.Code)
+		assert.NotEmpty(t, w.Body.String())
 	})
 }
 

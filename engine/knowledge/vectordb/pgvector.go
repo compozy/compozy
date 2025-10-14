@@ -30,11 +30,21 @@ type pgStore struct {
 const (
 	pgvectorDefaultTopK    = 5
 	pgvectorDefaultMaxTopK = 1000
+	pgvectorDefaultProbes  = 10
+)
+
+const (
+	metricCosine = "cosine"
+	metricL2     = "l2"
+	metricIP     = "ip"
 )
 
 func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 	if cfg == nil {
 		return nil, errors.New("vector_db config is required")
+	}
+	if cfg.MaxTopK < 0 {
+		return nil, fmt.Errorf("vector_db %q: max_top_k must be non-negative", cfg.ID)
 	}
 	dsn := strings.TrimSpace(cfg.DSN)
 	if dsn == "" {
@@ -57,7 +67,7 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 		ensureIdx: cfg.EnsureIndex,
 		maxTopK:   cfg.MaxTopK,
 	}
-	if store.maxTopK <= 0 {
+	if store.maxTopK == 0 {
 		store.maxTopK = pgvectorDefaultMaxTopK
 	}
 	store.tableIdent = sanitizeIdentifier(store.table)
@@ -174,10 +184,10 @@ func (p *pgStore) ensureSchema(ctx context.Context) error {
 		return fmt.Errorf("pgvector: create table: %w", err)
 	}
 	if p.ensureIdx {
-		distance := "cosine"
+		distance := metricCosine
 		if p.metric != "" {
 			switch p.metric {
-			case "cosine", "l2", "ip":
+			case metricCosine, metricL2, metricIP:
 				distance = p.metric
 			default:
 				return fmt.Errorf("pgvector: unsupported metric %q", p.metric)
@@ -225,11 +235,14 @@ func prepareBatchRecords(records []Record, dimension int, stmt string, batch *pg
 // returns the first Exec error encountered (if any).
 func executeBatchResults(ctx context.Context, tx pgx.Tx, batch *pgx.Batch, ids []string) error {
 	results := tx.SendBatch(ctx, batch)
-	defer results.Close()
 	for i := range ids {
 		if _, execErr := results.Exec(); execErr != nil {
+			_ = results.Close()
 			return fmt.Errorf("pgvector: upsert %q: %w", ids[i], execErr)
 		}
+	}
+	if closeErr := results.Close(); closeErr != nil {
+		return fmt.Errorf("pgvector: close batch: %w", closeErr)
 	}
 	return nil
 }
@@ -283,12 +296,40 @@ func (p *pgStore) Search(ctx context.Context, query []float32, opts SearchOption
 	sql, args := buildSearchQuery(p.tableIdent, p.metric, opts.Filters, opts.MinScore)
 	args[0] = pgvector.NewVector(query)
 	args = append(args, topK)
-	rows, err := p.pool.Query(ctx, sql, args...)
+	conn, err := p.pool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("pgvector: acquire connection: %w", err)
+	}
+	defer conn.Release()
+
+	probes := topK
+	if probes <= 0 {
+		probes = pgvectorDefaultProbes
+	}
+	if probes < 1 {
+		probes = 1
+	}
+	// SET does not support query parameters for the value; probes originates from internal configuration.
+	setCmd := fmt.Sprintf("SET ivfflat.probes = %d", probes)
+	if _, err := conn.Exec(ctx, setCmd); err != nil {
+		return nil, fmt.Errorf("pgvector: set probes: %w", err)
+	}
+	defer func() {
+		resetCtx := context.WithoutCancel(ctx)
+		if _, resetErr := conn.Exec(resetCtx, "RESET ivfflat.probes"); resetErr != nil {
+			logger.FromContext(resetCtx).Warn(
+				"pgvector: failed to reset ivfflat.probes",
+				"error", resetErr,
+			)
+		}
+	}()
+
+	rows, err := conn.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("pgvector: search: %w", err)
 	}
 	defer rows.Close()
-	return scanSearchResults(rows, opts.MinScore, topK)
+	return scanSearchResults(rows, topK)
 }
 
 func buildSearchQuery(tableIdent string, metric string, filters map[string]string, minScore float64) (string, []any) {
@@ -320,16 +361,16 @@ func buildSearchQuery(tableIdent string, metric string, filters map[string]strin
 
 func searchExpressions(metric string) (string, string) {
 	switch strings.ToLower(strings.TrimSpace(metric)) {
-	case "l2":
+	case metricL2:
 		return "1.0 / (1.0 + (embedding <-> $1))", "embedding <-> $1"
-	case "ip":
+	case metricIP:
 		return "-(embedding <#> $1)", "embedding <#> $1"
 	default:
 		return "1 - (embedding <=> $1)", "embedding <=> $1"
 	}
 }
 
-func scanSearchResults(rows pgx.Rows, minScore float64, topK int) ([]Match, error) {
+func scanSearchResults(rows pgx.Rows, topK int) ([]Match, error) {
 	capacity := topK
 	if capacity <= 0 {
 		capacity = pgvectorDefaultTopK
@@ -344,9 +385,6 @@ func scanSearchResults(rows pgx.Rows, minScore float64, topK int) ([]Match, erro
 		)
 		if err := rows.Scan(&id, &document, &metadataRaw, &score); err != nil {
 			return nil, fmt.Errorf("pgvector: scan: %w", err)
-		}
-		if score < minScore {
-			continue
 		}
 		meta := make(map[string]any)
 		if len(metadataRaw) > 0 {

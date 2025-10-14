@@ -158,18 +158,18 @@ func TestMergeRetrieval(t *testing.T) {
 }
 
 func TestQueryPrepareQuery(t *testing.T) {
-	t.Run("Should return error when knowledge triple missing", func(t *testing.T) {
+	t.Run("Should return ErrNotFound when knowledge triple missing", func(t *testing.T) {
 		ctx := testhelpers.NewTestContext(t)
 		store := resources.NewMemoryResourceStore()
 		queryUC := NewQuery(store)
 		out, adapter, vecStore, err := queryUC.prepareQuery(ctx, "proj", "kb", &QueryInput{TopK: 5})
-		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, out)
 		assert.Nil(t, adapter)
 		assert.Nil(t, vecStore)
 	})
 
-	t.Run("Should validate embedder configuration", func(t *testing.T) {
+	t.Run("Should return error when embedder dimension is invalid", func(t *testing.T) {
 		ctx := testhelpers.NewTestContext(t)
 		store := resources.NewMemoryResourceStore()
 		base := createKnowledgeBase("kb", "embed", "vec", "docs/**/*.md")
@@ -183,7 +183,7 @@ func TestQueryPrepareQuery(t *testing.T) {
 		stubKnowledgeTriple(ctx, t, store, "proj", base, emb, vec)
 		queryUC := NewQuery(store)
 		out, adapter, vecStore, err := queryUC.prepareQuery(ctx, "proj", "kb", &QueryInput{Query: "text"})
-		require.Error(t, err)
+		assert.ErrorContains(t, err, "dimension")
 		assert.Nil(t, out)
 		assert.Nil(t, adapter)
 		assert.Nil(t, vecStore)

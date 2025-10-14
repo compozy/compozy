@@ -47,7 +47,8 @@ func (l *conversationLoop) refreshUserPrompt(ctx context.Context, loopCtx *LoopC
 	if err != nil {
 		return err
 	}
-	loopCtx.LLMRequest.Messages[index].Content = rendered
+	combined, _ := combineKnowledgeWithPrompt(rendered, loopCtx.Request.Knowledge.Entries)
+	loopCtx.LLMRequest.Messages[index].Content = combined
 	return nil
 }
 
