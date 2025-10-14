@@ -55,6 +55,28 @@ func TestValidateConfig_PgvectorDSN(t *testing.T) {
 		assert.Contains(t, err.Error(), "path is required")
 	})
 
+	t.Run("Should allow empty DSN for redis provider", func(t *testing.T) {
+		cfg := &Config{
+			ID:        "test-redis",
+			Provider:  ProviderRedis,
+			DSN:       "",
+			Dimension: 384,
+		}
+		err := validateConfig(cfg)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should accept redis provider with DSN", func(t *testing.T) {
+		cfg := &Config{
+			ID:        "test-redis",
+			Provider:  ProviderRedis,
+			DSN:       "redis://localhost:6379/0",
+			Dimension: 384,
+		}
+		err := validateConfig(cfg)
+		assert.NoError(t, err)
+	})
+
 	t.Run("Should reject invalid dimension", func(t *testing.T) {
 		cfg := &Config{
 			ID:        "test-pg",

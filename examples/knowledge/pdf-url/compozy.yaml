@@ -18,21 +18,18 @@ embedders:
       batch_size: 64
 
 vector_dbs:
-  - id: pgvector_local
-    type: pgvector
+  - id: redis_vectors
+    type: redis
     config:
-      # DSN is optional - if not provided, uses global postgres database config
-      # dsn: "{{ .env.PGVECTOR_DSN }}"
-      ensure_index: true
-      table: knowledge_chunks
-      metric: cosine
+      # dsn: "{{ .env.REDIS_URL }}"
       dimension: 1536
+      max_top_k: 200
 
 knowledge_bases:
   - id: pdf_demo
     ingest: on_start
     embedder: openai_default
-    vector_db: pgvector_local
+    vector_db: redis_vectors
     sources:
       - type: pdf_url
         urls:

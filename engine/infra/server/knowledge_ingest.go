@@ -72,10 +72,17 @@ func runStartupKnowledgeIngest(
 	timeout time.Duration,
 	kb startupKnowledgeBase,
 ) error {
+	if projectConfig == nil {
+		return fmt.Errorf("knowledge: project configuration is required for startup ingest")
+	}
+	projectName := strings.TrimSpace(projectConfig.Name)
+	if projectName == "" {
+		return fmt.Errorf("knowledge: project name is required for startup ingest")
+	}
 	log := logger.FromContext(ctx)
 	log.Info(
 		"startup knowledge ingestion triggered",
-		"project", projectConfig.Name,
+		"project", projectName,
 		"kb_id", kb.ID,
 		"origin", kb.Origin,
 	)
@@ -86,7 +93,7 @@ func runStartupKnowledgeIngest(
 	}
 	defer cancel()
 	_, err := ingestUseCase.Execute(runCtx, &uc.IngestInput{
-		Project:  projectConfig.Name,
+		Project:  projectName,
 		ID:       kb.ID,
 		Strategy: ingest.StrategyReplace,
 		CWD:      projectConfig.GetCWD(),
@@ -96,7 +103,7 @@ func runStartupKnowledgeIngest(
 	}
 	log.Info(
 		"startup knowledge ingestion completed",
-		"project", projectConfig.Name,
+		"project", projectName,
 		"kb_id", kb.ID,
 		"origin", kb.Origin,
 	)

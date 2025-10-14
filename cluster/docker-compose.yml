@@ -18,7 +18,7 @@
 # REDIS_HOST=localhost
 # REDIS_PORT=6379
 # REDIS_PASSWORD=redis_secret
-# REDIS_VERSION=7.2-alpine
+# REDIS_VERSION=8.2-alpine
 # REDIS_MAXMEMORY=512mb
 # REDIS_MAXMEMORY_POLICY=allkeys-lru
 #
@@ -36,7 +36,7 @@ services:
   # Redis for caching, config storage, and pub/sub
   redis:
     container_name: redis
-    image: redis:${REDIS_VERSION:-7.2-alpine}
+    image: redis:${REDIS_VERSION:-8.2-alpine}
     command: redis-server /usr/local/etc/redis/redis.conf
     networks:
       - temporal-network

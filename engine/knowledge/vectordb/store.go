@@ -29,6 +29,8 @@ func instantiateStore(ctx context.Context, cfg *Config) (Store, error) {
 		return newPGStore(ctx, cfg)
 	case ProviderQdrant:
 		return newQdrantStore(ctx, cfg)
+	case ProviderRedis:
+		return newRedisStore(ctx, cfg)
 	case ProviderFilesystem:
 		return newFileStore(cfg)
 	default:
@@ -46,12 +48,23 @@ func validateConfig(cfg *Config) error {
 	if strings.TrimSpace(string(cfg.Provider)) == "" {
 		return fmt.Errorf("vector_db %q: %w", cfg.ID, errMissingProvider)
 	}
-	// DSN is required for Qdrant, but optional for pgvector (falls back to global postgres config)
-	if cfg.Provider == ProviderQdrant && strings.TrimSpace(cfg.DSN) == "" {
-		return fmt.Errorf("vector_db %q: %w", cfg.ID, errMissingDSN)
+	dsn := strings.TrimSpace(cfg.DSN)
+	path := strings.TrimSpace(cfg.Path)
+	if dsn != cfg.DSN {
+		cfg.DSN = dsn
 	}
-	if cfg.Provider == ProviderFilesystem && strings.TrimSpace(cfg.Path) == "" {
-		return fmt.Errorf("vector_db %q: %w", cfg.ID, errMissingPath)
+	if path != cfg.Path {
+		cfg.Path = path
+	}
+	switch cfg.Provider {
+	case ProviderQdrant:
+		if dsn == "" {
+			return fmt.Errorf("vector_db %q: %w", cfg.ID, errMissingDSN)
+		}
+	case ProviderFilesystem:
+		if path == "" {
+			return fmt.Errorf("vector_db %q: %w", cfg.ID, errMissingPath)
+		}
 	}
 	if cfg.Dimension <= 0 {
 		return fmt.Errorf("vector_db %q: %w", cfg.ID, errInvalidDimension)

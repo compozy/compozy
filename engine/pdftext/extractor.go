@@ -97,6 +97,12 @@ func (e *Extractor) ExtractFile(ctx context.Context, path string, runeLimit int6
 
 // ExtractBytes extracts text from a PDF byte slice.
 func (e *Extractor) ExtractBytes(ctx context.Context, data []byte, runeLimit int64) (Result, error) {
+	if e == nil {
+		return Result{}, errors.New("pdftext: extractor is nil")
+	}
+	if e.pool == nil {
+		return Result{}, errors.New("pdftext: extractor pool is uninitialized")
+	}
 	if len(data) == 0 {
 		return Result{}, errors.New("pdftext: empty pdf payload")
 	}

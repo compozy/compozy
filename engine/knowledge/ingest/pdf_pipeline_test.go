@@ -45,19 +45,40 @@ func (c *captureStore) Delete(context.Context, vectordb.Filter) error { return n
 func (c *captureStore) Close(context.Context) error { return nil }
 
 func TestPipelinePDFSourceProducesReadableChunks(t *testing.T) {
-	originalFetcher := pdfFetcher
-	defer func() { pdfFetcher = originalFetcher }()
-
 	extractor, err := pdftext.New(pdftext.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { extractor.Close() })
 
 	fixture := filepath.Join("..", "..", "..", "test", "fixtures", "pdf", "indexing_optimization.pdf")
-	pdfFetcher = func(ctx context.Context, _ string) (pdftext.Result, error) {
-		return extractor.ExtractFile(ctx, fixture, 0)
-	}
+	t.Run("Should produce readable chunks from PDF source", func(t *testing.T) {
+		originalFetcher := pdfFetcher
+		t.Cleanup(func() { pdfFetcher = originalFetcher })
 
-	binding := &knowledge.ResolvedBinding{
+		pdfFetcher = func(ctx context.Context, _ string) (pdftext.Result, error) {
+			return extractor.ExtractFile(ctx, fixture, 0)
+		}
+
+		binding := testPipelinePDFBinding()
+		embed := &testEmbedder{}
+		store := &captureStore{}
+
+		pipe, err := NewPipeline(binding, embed, store, Options{})
+		require.NoError(t, err)
+		_, err = pipe.Run(context.Background())
+		require.NoError(t, err)
+		require.NotEmpty(t, store.records)
+
+		var combined strings.Builder
+		for _, rec := range store.records {
+			combined.WriteString(rec.Text)
+		}
+		require.Contains(t, combined.String(), "Indexing Optimization")
+	})
+}
+
+// testPipelinePDFBinding returns the resolved binding used by the PDF pipeline test.
+func testPipelinePDFBinding() *knowledge.ResolvedBinding {
+	return &knowledge.ResolvedBinding{
 		ID: "kb_pdf",
 		KnowledgeBase: knowledge.BaseConfig{
 			ID:       "kb_pdf",
@@ -66,7 +87,10 @@ func TestPipelinePDFSourceProducesReadableChunks(t *testing.T) {
 			Sources: []knowledge.SourceConfig{
 				{Type: knowledge.SourceTypePDFURL, URLs: []string{"http://example.test/doc.pdf"}},
 			},
-			Chunking: knowledge.ChunkingConfig{Strategy: knowledge.ChunkStrategyRecursiveTextSplitter, Size: 512},
+			Chunking: knowledge.ChunkingConfig{
+				Strategy: knowledge.ChunkStrategyRecursiveTextSplitter,
+				Size:     512,
+			},
 		},
 		Embedder: knowledge.EmbedderConfig{
 			ID:       "embedder",
@@ -80,19 +104,4 @@ func TestPipelinePDFSourceProducesReadableChunks(t *testing.T) {
 			Config: knowledge.VectorDBConnConfig{Dimension: 1},
 		},
 	}
-
-	embed := &testEmbedder{}
-	store := &captureStore{}
-
-	pipe, err := NewPipeline(binding, embed, store, Options{})
-	require.NoError(t, err)
-	_, err = pipe.Run(context.Background())
-	require.NoError(t, err)
-	require.NotEmpty(t, store.records)
-
-	var combined strings.Builder
-	for _, rec := range store.records {
-		combined.WriteString(rec.Text)
-	}
-	require.Contains(t, combined.String(), "Indexing Optimization")
 }

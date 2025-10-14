@@ -7,12 +7,18 @@ Ingest the public NIST incident handling guide PDF and answer questions about it
 ## Prerequisites
 
 - `OPENAI_API_KEY`
+- `REDIS_URL` pointing to a Redis 8 instance with vector sets enabled (Redis Stack 7.4+ or Redis 8 preview)
 - Network access to `nvlpubs.nist.gov` for the NIST PDF
 
 Prepare the environment:
 
 ```bash
 cp .env.example .env
+# start redis stack locally (optional helper)
+# Redis 8 preview includes Vector Sets in beta
+docker run --rm -p 6379:6379 redis:8.2-alpine
+# update .env with:
+# REDIS_URL=redis://localhost:6379
 ```
 
 ## Steps

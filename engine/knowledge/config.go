@@ -161,10 +161,8 @@ func ptrFloat64(v float64) *float64 {
 type SourceType string
 
 const (
-	SourceTypePDFURL          SourceType = "pdf_url"
-	SourceTypeMarkdownGlob    SourceType = "markdown_glob"
-	SourceTypeCloudStorage    SourceType = "cloud_storage"
-	SourceTypeMediaTranscript SourceType = "media_transcript"
+	SourceTypePDFURL       SourceType = "pdf_url"
+	SourceTypeMarkdownGlob SourceType = "markdown_glob"
 )
 
 // IngestMode determines when a knowledge base ingestion pipeline should run.
@@ -188,6 +186,7 @@ type VectorDBType string
 const (
 	VectorDBTypePGVector   VectorDBType = "pgvector"
 	VectorDBTypeQdrant     VectorDBType = "qdrant"
+	VectorDBTypeRedis      VectorDBType = "redis"
 	VectorDBTypeFilesystem VectorDBType = "filesystem"
 )
 
@@ -495,52 +494,86 @@ func validateVectorProvider(vector *VectorDBConfig) []error {
 	if vector == nil {
 		return []error{fmt.Errorf("knowledge: vector_db config cannot be nil")}
 	}
-	var errs []error
 	switch vector.Type {
 	case VectorDBTypePGVector:
-		dsn := strings.TrimSpace(vector.Config.DSN)
-		if dsn != vector.Config.DSN {
-			vector.Config.DSN = dsn
-		}
-		if dsn != "" && !isTemplatedValue(dsn) {
-			errs = append(
-				errs,
-				fmt.Errorf("knowledge: vector_db %q dsn must use env or secret interpolation", vector.ID),
-			)
-		}
-		if vector.Config.Dimension <= 0 {
-			errs = append(
-				errs,
-				fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
-			)
-		}
+		return validatePGVectorConfig(vector)
 	case VectorDBTypeQdrant:
-		dsn := strings.TrimSpace(vector.Config.DSN)
-		if dsn != vector.Config.DSN {
-			vector.Config.DSN = dsn
-		}
-		if dsn == "" {
-			errs = append(errs, fmt.Errorf("knowledge: vector_db %q requires config.dsn", vector.ID))
-		} else if !isTemplatedValue(dsn) {
-			errs = append(errs, fmt.Errorf("knowledge: vector_db %q dsn must use env or secret interpolation", vector.ID))
-		}
-		if vector.Config.Dimension <= 0 {
-			errs = append(
-				errs,
-				fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
-			)
-		}
+		return validateQdrantConfig(vector)
+	case VectorDBTypeRedis:
+		return validateRedisConfig(vector)
 	case VectorDBTypeFilesystem:
-		if vector.Config.Dimension <= 0 {
-			errs = append(
-				errs,
-				fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
-			)
-		}
+		return validateFilesystemConfig(vector)
 	default:
-		errs = append(errs, fmt.Errorf("knowledge: vector_db %q type %q is not supported", vector.ID, vector.Type))
+		return []error{fmt.Errorf("knowledge: vector_db %q type %q is not supported", vector.ID, vector.Type)}
+	}
+}
+
+func validatePGVectorConfig(vector *VectorDBConfig) []error {
+	dsn := strings.TrimSpace(vector.Config.DSN)
+	if dsn != vector.Config.DSN {
+		vector.Config.DSN = dsn
+	}
+	var errs []error
+	if dsn != "" && !isTemplatedValue(dsn) {
+		errs = append(
+			errs,
+			fmt.Errorf("knowledge: vector_db %q dsn must use env or secret interpolation", vector.ID),
+		)
+	}
+	if vector.Config.Dimension <= 0 {
+		errs = append(
+			errs,
+			fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
+		)
 	}
 	return errs
+}
+
+func validateQdrantConfig(vector *VectorDBConfig) []error {
+	dsn := strings.TrimSpace(vector.Config.DSN)
+	if dsn != vector.Config.DSN {
+		vector.Config.DSN = dsn
+	}
+	var errs []error
+	if dsn == "" {
+		errs = append(errs, fmt.Errorf("knowledge: vector_db %q requires config.dsn", vector.ID))
+	} else if !isTemplatedValue(dsn) {
+		errs = append(errs, fmt.Errorf("knowledge: vector_db %q dsn must use env or secret interpolation", vector.ID))
+	}
+	if vector.Config.Dimension <= 0 {
+		errs = append(
+			errs,
+			fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
+		)
+	}
+	return errs
+}
+
+func validateRedisConfig(vector *VectorDBConfig) []error {
+	dsn := strings.TrimSpace(vector.Config.DSN)
+	if dsn != vector.Config.DSN {
+		vector.Config.DSN = dsn
+	}
+	var errs []error
+	if dsn != "" && !isTemplatedValue(dsn) {
+		errs = append(errs, fmt.Errorf("knowledge: vector_db %q dsn must use env or secret interpolation", vector.ID))
+	}
+	if vector.Config.Dimension <= 0 {
+		errs = append(
+			errs,
+			fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
+		)
+	}
+	return errs
+}
+
+func validateFilesystemConfig(vector *VectorDBConfig) []error {
+	if vector.Config.Dimension <= 0 {
+		return []error{
+			fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
+		}
+	}
+	return nil
 }
 
 func validateKnowledgeBases(
@@ -696,23 +729,6 @@ func validateSource(kbID string, source *SourceConfig) error {
 	case SourceTypeMarkdownGlob:
 		if source.Path == "" && len(source.Paths) == 0 {
 			return fmt.Errorf("knowledge: knowledge_base %q markdown_glob source requires path or paths", kbID)
-		}
-	case SourceTypeCloudStorage:
-		if source.Provider == "" {
-			return fmt.Errorf("knowledge: knowledge_base %q cloud_storage source requires provider", kbID)
-		}
-		if source.Bucket == "" {
-			return fmt.Errorf("knowledge: knowledge_base %q cloud_storage source requires bucket", kbID)
-		}
-		if source.Prefix == "" {
-			return fmt.Errorf("knowledge: knowledge_base %q cloud_storage source requires prefix", kbID)
-		}
-	case SourceTypeMediaTranscript:
-		if source.Provider == "" {
-			return fmt.Errorf("knowledge: knowledge_base %q media_transcript source requires provider", kbID)
-		}
-		if source.VideoID == "" {
-			return fmt.Errorf("knowledge: knowledge_base %q media_transcript source requires video_id", kbID)
 		}
 	default:
 		return fmt.Errorf("knowledge: knowledge_base %q source type %q is not supported", kbID, source.Type)

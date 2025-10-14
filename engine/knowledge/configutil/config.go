@@ -3,6 +3,7 @@ package configutil
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -50,13 +51,16 @@ func ToVectorStoreConfig(ctx context.Context, project string, cfg *knowledge.Vec
 	}
 	provider := vectordb.Provider(strings.TrimSpace(string(cfg.Type)))
 	switch provider {
-	case vectordb.ProviderPGVector, vectordb.ProviderQdrant, vectordb.ProviderFilesystem:
+	case vectordb.ProviderPGVector, vectordb.ProviderQdrant, vectordb.ProviderRedis, vectordb.ProviderFilesystem:
 	default:
 		return nil, fmt.Errorf("project %s vector_db %q: unsupported type %q", project, cfg.ID, cfg.Type)
 	}
 	dsn := strings.TrimSpace(cfg.Config.DSN)
 	if dsn == "" && provider == vectordb.ProviderPGVector {
 		dsn = resolvePGVectorDSN(ctx, cfg.ID)
+	}
+	if dsn == "" && provider == vectordb.ProviderRedis {
+		dsn = resolveRedisDSN(ctx, cfg.ID)
 	}
 	pathValue := strings.TrimSpace(cfg.Config.Path)
 	if provider == vectordb.ProviderFilesystem && pathValue == "" {
@@ -91,6 +95,17 @@ func resolvePGVectorDSN(ctx context.Context, vectorDBID string) string {
 		return ""
 	}
 	return buildPostgresDSN(&globalCfg.Database)
+}
+
+func resolveRedisDSN(ctx context.Context, vectorDBID string) string {
+	log := logger.FromContext(ctx)
+	log.Debug("redis vector_db: DSN not provided, using global redis config", "vector_db_id", vectorDBID)
+	globalCfg := config.FromContext(ctx)
+	if globalCfg == nil {
+		log.Warn("redis vector_db: failed to retrieve global config for DSN fallback", "vector_db_id", vectorDBID)
+		return ""
+	}
+	return buildRedisDSN(&globalCfg.Redis)
 }
 
 func buildPostgresDSN(cfg *config.DatabaseConfig) string {
@@ -149,4 +164,29 @@ func defaultFilesystemPath(ctx context.Context, id string) string {
 	}
 	storeDir := core.GetStoreDir(root)
 	return filepath.Join(storeDir, "cache", safe+".store")
+}
+
+func buildRedisDSN(cfg *config.RedisConfig) string {
+	if cfg == nil {
+		return ""
+	}
+	if trimmed := strings.TrimSpace(cfg.URL); trimmed != "" {
+		return trimmed
+	}
+	host := defaultIfEmpty(cfg.Host, "localhost")
+	port := defaultIfEmpty(cfg.Port, "6379")
+	scheme := "redis"
+	if cfg.TLSEnabled {
+		scheme = "rediss"
+	}
+	addr := fmt.Sprintf("%s:%s", host, port)
+	u := &url.URL{
+		Scheme: scheme,
+		Host:   addr,
+		Path:   fmt.Sprintf("/%d", cfg.DB),
+	}
+	if pwd := strings.TrimSpace(cfg.Password); pwd != "" {
+		u.User = url.UserPassword("", pwd)
+	}
+	return u.String()
 }

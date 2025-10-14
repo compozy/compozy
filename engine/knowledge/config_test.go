@@ -425,6 +425,92 @@ func TestPgvectorDSNValidation(t *testing.T) {
 		assert.ErrorContains(t, err, "requires config.dsn")
 	})
 
+	t.Run("Should allow redis without DSN", func(t *testing.T) {
+		defs := knowledge.Definitions{
+			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("embedder1")},
+			VectorDBs: []knowledge.VectorDBConfig{
+				{
+					ID:   "redis_no_dsn",
+					Type: knowledge.VectorDBTypeRedis,
+					Config: knowledge.VectorDBConnConfig{
+						Dimension: testDimension,
+					},
+				},
+			},
+			KnowledgeBases: []knowledge.BaseConfig{
+				{
+					ID:       "kb1",
+					Embedder: "embedder1",
+					VectorDB: "redis_no_dsn",
+					Sources: []knowledge.SourceConfig{
+						{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+					},
+				},
+			},
+		}
+		defs.Normalize()
+		require.NoError(t, defs.Validate())
+	})
+
+	t.Run("Should allow redis with templated DSN", func(t *testing.T) {
+		defs := knowledge.Definitions{
+			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("embedder1")},
+			VectorDBs: []knowledge.VectorDBConfig{
+				{
+					ID:   "redis_with_dsn",
+					Type: knowledge.VectorDBTypeRedis,
+					Config: knowledge.VectorDBConnConfig{
+						DSN:       "{{ .env.REDIS_URL }}",
+						Dimension: testDimension,
+					},
+				},
+			},
+			KnowledgeBases: []knowledge.BaseConfig{
+				{
+					ID:       "kb1",
+					Embedder: "embedder1",
+					VectorDB: "redis_with_dsn",
+					Sources: []knowledge.SourceConfig{
+						{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+					},
+				},
+			},
+		}
+		defs.Normalize()
+		err := defs.Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("Should reject redis with non-templated DSN", func(t *testing.T) {
+		defs := knowledge.Definitions{
+			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("embedder1")},
+			VectorDBs: []knowledge.VectorDBConfig{
+				{
+					ID:   "redis_plain_dsn",
+					Type: knowledge.VectorDBTypeRedis,
+					Config: knowledge.VectorDBConnConfig{
+						DSN:       "redis://localhost:6379",
+						Dimension: testDimension,
+					},
+				},
+			},
+			KnowledgeBases: []knowledge.BaseConfig{
+				{
+					ID:       "kb1",
+					Embedder: "embedder1",
+					VectorDB: "redis_plain_dsn",
+					Sources: []knowledge.SourceConfig{
+						{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
+					},
+				},
+			},
+		}
+		defs.Normalize()
+		err := defs.Validate()
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "dsn must use env or secret interpolation")
+	})
+
 	t.Run("Should reject non-templated DSN for pgvector", func(t *testing.T) {
 		defs := knowledge.Definitions{
 			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("embedder1")},

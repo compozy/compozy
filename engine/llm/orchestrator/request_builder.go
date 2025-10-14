@@ -82,6 +82,7 @@ func (b *requestBuilder) Build(
 	if len(toolDefs) > 0 {
 		toolChoice, toolDefs = b.decideToolStrategy(&request, toolDefs)
 		if len(toolDefs) == 0 {
+			// Preserve empty choice when no tools are advertised so downstream adapters skip the field.
 			toolChoice = ""
 		}
 	}
@@ -228,7 +229,7 @@ func (b *requestBuilder) decideToolStrategy(
 		switch entry.Status {
 		case knowledge.RetrievalStatusEscalated:
 			return "auto", defs
-		case knowledge.RetrievalStatusFallback, knowledge.RetrievalStatusHit:
+		case knowledge.RetrievalStatusFallback:
 			allowTools = false
 		}
 	}
