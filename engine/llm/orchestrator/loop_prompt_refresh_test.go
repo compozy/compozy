@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,7 @@ func (s stubPromptTemplate) Render(context.Context, PromptDynamicContext) (strin
 }
 
 func TestRefreshUserPrompt(t *testing.T) {
-	t.Run("ShouldRespectMemoryInjection", func(t *testing.T) {
+	t.Run("Should respect memory injection", func(t *testing.T) {
 		t.Helper()
 		loop := &conversationLoop{}
 		memoryMsg := llmadapter.Message{Role: roleUser, Content: "memory-transcript"}
@@ -41,7 +42,43 @@ func TestRefreshUserPrompt(t *testing.T) {
 		require.Equal(t, "memory-transcript", loopCtx.LLMRequest.Messages[0].Content)
 		require.Equal(t, "rendered", loopCtx.LLMRequest.Messages[1].Content)
 	})
-	t.Run("ShouldHandleMissingUserMessage", func(t *testing.T) {
+	t.Run("Should preserve knowledge context", func(t *testing.T) {
+		t.Helper()
+		entries := []KnowledgeEntry{
+			{
+				BindingID: "pdf_demo",
+				Retrieval: knowledge.RetrievalConfig{InjectAs: "Retrieved Knowledge (pdf_demo)"},
+				Contexts: []knowledge.RetrievedContext{
+					{
+						Content:       "Indexing Optimizations explain composite and partial indexes.",
+						Score:         0.92,
+						TokenEstimate: 42,
+					},
+				},
+				Status: knowledge.RetrievalStatusHit,
+			},
+		}
+		initialContent, _ := combineKnowledgeWithPrompt("stale prompt", entries)
+		request := &llmadapter.LLMRequest{
+			Messages: []llmadapter.Message{
+				{Role: roleUser, Content: initialContent},
+			},
+		}
+		loopCtx := &LoopContext{
+			Request: Request{
+				Knowledge: KnowledgePayload{Entries: entries},
+			},
+			LLMRequest:       request,
+			baseMessageCount: len(request.Messages),
+			PromptTemplate:   stubPromptTemplate{output: "updated prompt"},
+		}
+		loop := &conversationLoop{}
+		err := loop.refreshUserPrompt(context.Background(), loopCtx)
+		require.NoError(t, err)
+		expected, _ := combineKnowledgeWithPrompt("updated prompt", entries)
+		require.Equal(t, expected, loopCtx.LLMRequest.Messages[0].Content)
+	})
+	t.Run("Should handle missing user message", func(t *testing.T) {
 		t.Helper()
 		loop := &conversationLoop{}
 		request := &llmadapter.LLMRequest{
@@ -59,7 +96,7 @@ func TestRefreshUserPrompt(t *testing.T) {
 }
 
 func TestRestartLoop(t *testing.T) {
-	t.Run("ShouldDeepCopyBaseMessages", func(t *testing.T) {
+	t.Run("Should deep copy base messages", func(t *testing.T) {
 		t.Helper()
 		cfg := settings{
 			enableProgressTracking: true,

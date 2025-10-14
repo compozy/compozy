@@ -29,6 +29,62 @@
       },
       "type": "object"
     },
+    "BaseConfig": {
+      "additionalProperties": false,
+      "description": "BaseConfig declares a knowledge base and governs how it is ingested and retrieved.",
+      "properties": {
+        "chunking": {
+          "$ref": "#/$defs/ChunkingConfig"
+        },
+        "description": {
+          "type": "string"
+        },
+        "embedder": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "ingest": {
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MetadataConfig"
+        },
+        "preprocess": {
+          "$ref": "#/$defs/PreprocessConfig"
+        },
+        "retrieval": {
+          "$ref": "#/$defs/RetrievalConfig"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/SourceConfig"
+          },
+          "type": "array"
+        },
+        "vector_db": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ChunkingConfig": {
+      "additionalProperties": false,
+      "description": "ChunkingConfig tunes how documents are split before embedding.",
+      "properties": {
+        "overlap": {
+          "type": "integer"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "strategy": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "Contributor": {
       "additionalProperties": false,
       "description": "Contributor represents an individual who contributed to the project.",
@@ -52,6 +108,47 @@
       },
       "type": "object"
     },
+    "EmbedderConfig": {
+      "additionalProperties": false,
+      "description": "EmbedderConfig describes an embedding provider used during knowledge ingestion.",
+      "properties": {
+        "api_key": {
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/EmbedderRuntimeConfig"
+        },
+        "id": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "EmbedderRuntimeConfig": {
+      "additionalProperties": false,
+      "description": "EmbedderRuntimeConfig captures runtime tuning options for an embedder client.",
+      "properties": {
+        "batch_size": {
+          "type": "integer"
+        },
+        "dimension": {
+          "type": "integer"
+        },
+        "retry": {
+          "type": "object"
+        },
+        "strip_newlines": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
     "ErrorTransition": {
       "additionalProperties": false,
       "description": "ErrorTransition defines error handling behavior when a task fails.",
@@ -68,6 +165,55 @@
       "type": "object"
     },
     "Input": {
+      "type": "object"
+    },
+    "KnowledgeBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "fallback": {
+          "type": "string"
+        },
+        "filters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "id": {
+          "type": "string"
+        },
+        "inject_as": {
+          "type": "string"
+        },
+        "max_tokens": {
+          "type": "integer"
+        },
+        "min_score": {
+          "type": "number"
+        },
+        "top_k": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "MetadataConfig": {
+      "additionalProperties": false,
+      "description": "MetadataConfig carries optional descriptive metadata for knowledge bases.",
+      "properties": {
+        "owners": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
       "type": "object"
     },
     "Opts": {
@@ -111,6 +257,19 @@
         "path": {
           "description": "Path holds the absolute working directory.",
           "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PreprocessConfig": {
+      "additionalProperties": false,
+      "description": "PreprocessConfig configures preprocessing steps applied to raw content.",
+      "properties": {
+        "dedupe": {
+          "type": "boolean"
+        },
+        "remove_html": {
+          "type": "boolean"
         }
       },
       "type": "object"
@@ -200,6 +359,40 @@
       },
       "type": "object"
     },
+    "RetrievalConfig": {
+      "additionalProperties": false,
+      "description": "RetrievalConfig manages how stored chunks are queried and injected into prompts.",
+      "properties": {
+        "fallback": {
+          "type": "string"
+        },
+        "filters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "inject_as": {
+          "type": "string"
+        },
+        "max_tokens": {
+          "type": "integer"
+        },
+        "min_results": {
+          "type": "integer"
+        },
+        "min_score": {
+          "type": "number"
+        },
+        "tool_fallback": {
+          "type": "string"
+        },
+        "top_k": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "RetryPolicyConfig": {
       "additionalProperties": false,
       "description": "RetryPolicyConfig defines automatic retry behavior for failed tasks.",
@@ -267,6 +460,108 @@
     "Schema": {
       "type": "object"
     },
+    "SourceConfig": {
+      "additionalProperties": false,
+      "description": "SourceConfig describes a single ingestion source such as a glob, URL, or bucket.",
+      "properties": {
+        "bucket": {
+          "type": "string"
+        },
+        "options": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "path": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "urls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "video_id": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "VectorDBConfig": {
+      "additionalProperties": false,
+      "description": "VectorDBConfig configures a vector database target for knowledge storage.",
+      "properties": {
+        "config": {
+          "$ref": "#/$defs/VectorDBConnConfig"
+        },
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "VectorDBConnConfig": {
+      "additionalProperties": false,
+      "description": "VectorDBConnConfig defines connection and table options for a vector database.",
+      "properties": {
+        "auth": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "collection": {
+          "type": "string"
+        },
+        "consistency": {
+          "type": "string"
+        },
+        "dimension": {
+          "type": "integer"
+        },
+        "dsn": {
+          "type": "string"
+        },
+        "ensure_index": {
+          "type": "boolean"
+        },
+        "index": {
+          "type": "string"
+        },
+        "max_top_k": {
+          "type": "integer"
+        },
+        "metric": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "table": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "WorkflowSourceConfig": {
       "additionalProperties": false,
       "description": "WorkflowSourceConfig defines the source location for a workflow file.",
@@ -299,6 +594,27 @@
     "description": {
       "description": "Description provides a human-readable explanation of the project's purpose and capabilities.\n\n**Guidelines**:\n  - Be specific about what the project does\n  - Include primary use cases and benefits\n  - Keep it concise (1-3 sentences)\n  - Avoid technical jargon for broader understanding\n\n**Example**: `\"Multi-agent customer support system with automated ticket routing\"`",
       "type": "string"
+    },
+    "embedders": {
+      "description": "Embedders declares project-level embedding providers that can be reused across workflows.",
+      "items": {
+        "$ref": "embedder.json"
+      },
+      "type": "array"
+    },
+    "knowledge": {
+      "description": "Knowledge defines the default binding for tasks or agents within the project scope (MVP single binding).",
+      "items": {
+        "$ref": "knowledge-binding.json"
+      },
+      "type": "array"
+    },
+    "knowledge_bases": {
+      "description": "KnowledgeBases declares reusable knowledge base definitions scoped to the project.",
+      "items": {
+        "$ref": "knowledge-base.json"
+      },
+      "type": "array"
     },
     "memories": {
       "description": "Memories declares project-scoped memory resources that agents and tasks can reference\nby ID. These are indexed into the ResourceStore under the current project and can be\nused across workflows for conversation and state sharing.\n\nExample:\n\n memories:\n   - id: conversation\n     type: buffer\n     persistence:\n       type: in_memory\n\nThe Resource field on memory.Config is optional in project-level definitions and will\ndefault to \"memory\" during validation.",
@@ -337,6 +653,13 @@
       "description": "Tools defines shared tool definitions available to all workflows and agents\nwithin this project. These tools are inherited unless explicitly overridden.\n\n**Inheritance Rules**:\n  - Agent tools completely override inheritance when present\n  - Workflow tools override project tools by ID\n  - Tool ID collisions resolved by precedence: Agent \u003e Workflow \u003e Project\n\n**Location \u0026 autoload**:\n  - Place reusable tool configuration files under the `tools/` directory (e.g., `tools/*.yaml`)\n  - If autoload is enabled, files in `tools/` will be discovered and validated automatically\n\n**Example**:\n\n```yaml\ntools:\n  - id: code-analyzer\n    description: Analyzes code quality and patterns\n    timeout: 30s\n  - id: data-processor\n    description: Processes and transforms data\n```",
       "items": {
         "$ref": "tool.json"
+      },
+      "type": "array"
+    },
+    "vector_dbs": {
+      "description": "VectorDBs declares project-level vector database connections that knowledge bases can reference.",
+      "items": {
+        "$ref": "vectordb.json"
       },
       "type": "array"
     },

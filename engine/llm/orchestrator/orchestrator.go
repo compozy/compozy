@@ -98,7 +98,7 @@ func (o *orchestrator) Execute(ctx context.Context, request Request) (_ *core.Ou
 	if capErr != nil {
 		return nil, capErr
 	}
-	request.ProviderCaps = caps
+	request.Execution.ProviderCaps = caps
 	recorder := o.trace
 	if recorder == nil {
 		recorder = telemetry.NopRecorder()
@@ -134,7 +134,7 @@ func (o *orchestrator) Execute(ctx context.Context, request Request) (_ *core.Ou
 	}
 	defer o.client.Close(ctx, client)
 	state := newLoopState(&o.settings, memoryCtx, request.Action)
-	request.PromptContext = buildResult.PromptContext
+	request.Prompt.DynamicContext = buildResult.PromptContext
 	output, response, err := o.loop.Run(ctx, client, &buildResult.Request, request, state, buildResult.PromptTemplate)
 	if err != nil {
 		return nil, err

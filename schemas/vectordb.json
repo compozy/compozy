@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "VectorDBConnConfig": {
+      "additionalProperties": false,
+      "description": "VectorDBConnConfig defines connection and table options for a vector database.",
+      "properties": {
+        "auth": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "collection": {
+          "type": "string"
+        },
+        "consistency": {
+          "type": "string"
+        },
+        "dimension": {
+          "type": "integer"
+        },
+        "dsn": {
+          "type": "string"
+        },
+        "ensure_index": {
+          "type": "boolean"
+        },
+        "index": {
+          "type": "string"
+        },
+        "max_top_k": {
+          "type": "integer"
+        },
+        "metric": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "table": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "vectordb.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "VectorDBConfig configures a vector database target for knowledge storage.",
+  "properties": {
+    "config": {
+      "$ref": "#/$defs/VectorDBConnConfig"
+    },
+    "id": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "title": "Vector Database Configuration",
+  "type": "object",
+  "yamlCompatible": true
+}

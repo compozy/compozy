@@ -68,7 +68,7 @@ agents:
         prompt: |
           Given a short video related to a Pokémon, return JSON with the likely pokemon (string) and confidence (0-1).
         output:
-          type: object
+          type:
           properties:
             pokemon: {type: string}
             confidence: {type: number}

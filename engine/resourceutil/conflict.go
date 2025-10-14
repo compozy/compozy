@@ -30,19 +30,31 @@ func (e ConflictError) Error() string {
 	}
 	types := make([]string, 0, len(e.Details))
 	seen := make(map[string]bool, len(e.Details))
+	totalRefs := 0
 	for i := range e.Details {
 		r := strings.TrimSpace(e.Details[i].Resource)
+		totalRefs += len(e.Details[i].IDs)
 		if r == "" || seen[r] {
 			continue
 		}
 		seen[r] = true
 		types = append(types, r)
 	}
+	if totalRefs == 0 {
+		totalRefs = len(types)
+		if totalRefs == 0 {
+			totalRefs = len(e.Details)
+		}
+	}
+	label := "collections"
+	if totalRefs == 1 {
+		label = "collection"
+	}
 	if len(types) == 0 {
-		return fmt.Sprintf("resource referenced by %d collections", len(e.Details))
+		return fmt.Sprintf("resource referenced by %d %s", totalRefs, label)
 	}
 	sort.Strings(types)
-	return fmt.Sprintf("resource referenced by %d collections: %s", len(e.Details), strings.Join(types, ", "))
+	return fmt.Sprintf("resource referenced by %d %s: %s", totalRefs, label, strings.Join(types, ", "))
 }
 
 func RespondConflict(c *gin.Context, err error, details []ReferenceDetail) {

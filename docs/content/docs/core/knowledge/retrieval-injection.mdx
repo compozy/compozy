@@ -1,0 +1,127 @@
+---
+title: "Retrieval & Prompt Injection"
+description: "Tune dense retrieval parameters and understand how knowledge context reaches your LLM prompts."
+icon: Bot
+---
+
+import { Callout } from "@/components/ui/callout";
+import { Tabs, Tab } from "@/components/ui/tabs";
+import { Step, Steps } from "@/components/ui/steps";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+
+## Retrieval Pipeline
+
+1. **Embed Query** – The selected embedder projects the caller's query or task input into the same vector space as stored chunks.
+2. **Similarity Search** – The vector database runs a dense similarity query with optional tag filters and returns scored matches.
+3. **Post Processing** – Matches below `min_score` are discarded. Remaining passages are truncated to honor the binding's `max_tokens`.
+4. **Prompt Injection** – The orchestrator appends the formatted passages to the LLM prompt before tools, memory, and attachments.
+
+<Callout type="info">
+Retrieval happens synchronously within the LLM orchestrator execution path. Propagate request contexts so `logger.FromContext(ctx)` and `config.FromContext(ctx)` remain available for observability and feature toggles.
+</Callout>
+
+## Key Parameters
+
+| Field           | Scope                | Default Source                 | Purpose                                                       |
+| --------------- | -------------------- | ------------------------------ | ------------------------------------------------------------- |
+| `top_k`         | Knowledge base/binding | `retrieval.top_k` or `config.knowledge.retrieval_top_k` | Number of passages returned                                    |
+| `min_score`     | Knowledge base/binding | `retrieval.min_score` or `config.knowledge.retrieval_min_score` | Similarity threshold (−1.0–1.0); use ≥0 when embeddings are L2-normalized |
+| `max_tokens`    | Binding              | Inline override                | Upper bound on tokens injected into the prompt               |
+| `filters`       | Knowledge base/binding | Inline map                     | Exact-match metadata filters (e.g., `{ tag: "policy" }`)     |
+| `reranker`      | Planned              | N/A                            | Currently unavailable in the MVP; leave unset until the feature ships |
+
+Set conservative defaults at the knowledge base level, then tighten or loosen them per workflow or task.
+
+## Formatting Retrieved Passages
+
+Compozy injects matches in descending score order using the following template:
+
+```markdown
+<!-- knowledge:quickstart_docs -->
+### {title or source}
+
+{chunk_text}
+```
+
+- `[source]` metadata surfaces when available; otherwise, the source path or URL is displayed.
+- Passages are separated by blank lines to keep prompts readable.
+- Token limits are enforced before the prompt reaches the LLM to prevent truncation in provider SDKs.
+
+## Coordinating With Other Context
+
+<Steps>
+  <Step title="System instructions">
+    Base prompt authored in agent or workflow YAML.
+  </Step>
+  <Step title="Knowledge context">
+    Injected here. Retrieval happens before tool results and memory so the LLM sees authoritative guidance first.
+  </Step>
+  <Step title="Tool outputs">
+    Any tool executions triggered during the same turn append after knowledge context.
+  </Step>
+  <Step title="Memory">
+    Long-term memory results append last to avoid polluting retrieval scoring with conversational noise.
+  </Step>
+</Steps>
+
+## Guardrails & Safety
+
+- Configure `min_score` to avoid low-signal passages drowning out relevant content.
+- Use tag filters to restrict context to the correct audience (e.g., `{ audience: "support" }`).
+- Keep `max_tokens` under your provider's prompt budget. Monitor the `prompt_tokens` metric from your LLM provider dashboards.
+- If retrieval returns no matches, the orchestrator logs a warning and skips prompt injection rather than returning stale context.
+
+## Testing Retrieval Locally
+
+<Tabs items={["CLI", "HTTP API"]}>
+  <Tab>
+
+  ```bash
+  compozy knowledge query --id quickstart_docs \
+    --text "What is our support SLA?" \
+    --top_k 3 \
+    --min_score 0.25 \
+    --output json
+  ```
+
+  </Tab>
+  <Tab>
+
+  ```bash
+  curl -X POST "http://localhost:5001/api/v0/knowledge-bases/quickstart_docs/query" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $COMPOZY_API_KEY" \
+    -d '{
+      "text": "What is our support SLA?",
+      "top_k": 3,
+      "min_score": 0.25
+    }'
+  ```
+
+  </Tab>
+</Tabs>
+
+Inspect responses to ensure metadata and ETags align with expectations before binding knowledge to production workflows.
+
+## Related Topics
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Agents & LLM Integration"
+    description="Understand where knowledge sits in the full prompt assembly pipeline."
+    href="/docs/core/agents/llm-integration#knowledge-retrieval"
+    icon="Workflow"
+  />
+  <ReferenceCard
+    title="Knowledge Observability"
+    description="Capture query latency and match counts for SLO tracking."
+    href="/docs/core/knowledge/observability"
+    icon="Activity"
+  />
+  <ReferenceCard
+    title="CLI Knowledge Commands"
+    description="List, ingest, and query knowledge bases from the CLI."
+    href="/docs/cli/knowledge-commands"
+    icon="Terminal"
+  />
+</ReferenceCardList>

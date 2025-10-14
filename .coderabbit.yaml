@@ -1,6 +1,14 @@
 language: "en"
 early_access: true
 
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
+      - "**/AGENTS.md"
+      - ".cursor/rules/**/*.mdc"
+
 reviews:
   request_changes_workflow: true
   high_level_summary: true
@@ -8,7 +16,11 @@ reviews:
   review_status: true
   collapse_walkthrough: false
   sequence_diagrams: true
-  profile: "chill"
+  profile: "assertive"
+  related_prs: false
+  tools:
+    golangci-lint:
+      enabled: true
   path_filters:
     - "!**/*.md"
     - "!**/*.yaml"
@@ -29,30 +41,3 @@ reviews:
     - "!**/*.pb.gw.go"
     - "!**/fixtures/**"
     - "!test/testdata/**"
-  path_instructions:
-    - path: "**/*_test.go"
-      instructions: |-
-        # Test Review Requirements
-
-        ## Critical Patterns to ENFORCE:
-        - MUST use t.Run("Should...") pattern for ALL test cases
-        - MUST use stretchr/testify for assertions (assert/require)
-        - MUST test meaningful business logic, not trivial operations
-        - MUST have specific error assertions (ErrorContains, ErrorAs)
-        - MUST avoid redundant validation tests across packages
-
-        ## Anti-Patterns to REJECT:
-        - ❌ Constructor tests that only check != nil
-        - ❌ Getter/setter tests without business logic
-        - ❌ Tests with 90% mock setup, 10% actual testing
-        - ❌ Weak assertions like assert.Error(t, err) without message validation
-        - ❌ Tests that verify Go standard library functionality
-        - ❌ Duplicate test scenarios across packages
-        - ❌ Tests using suite.Suite or any testify suite patterns
-
-        ## Must Check:
-        - Integration tests MUST be in test/integration/, not alongside unit tests
-        - Focus on critical paths: workflow execution, state management, error handling
-        - Verify tests can fail when business logic changes
-        - Check for shared test utilities usage to avoid duplication
-        - Ensure tests verify behavior outcomes, not just function calls

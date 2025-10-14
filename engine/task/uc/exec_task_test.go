@@ -2,14 +2,17 @@ package uc
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,4 +70,159 @@ func TestNormalizeProviderConfigWithEnv(t *testing.T) {
 		require.NotNil(t, taskCfg.Env)
 		assert.Equal(t, "test-secret", (*taskCfg.Env)["GROQ_API_KEY"])
 	})
+}
+
+func TestBuildKnowledgeRuntimeConfigRendersEmbedderTemplates(t *testing.T) {
+	t.Run("Should build runtime config and resolve embedder templates", func(t *testing.T) {
+		exec := &ExecuteTask{templateEngine: tplengine.NewEngine(tplengine.FormatJSON)}
+		storePath := filepath.Join(t.TempDir(), "vector.store")
+		projectCfg := &project.Config{
+			Name: "demo",
+			Embedders: []knowledge.EmbedderConfig{{
+				ID:       "openai_default",
+				Provider: "openai",
+				Model:    "text-embedding-3-small",
+				APIKey:   "{{ .env.OPENAI_API_KEY }}",
+				Config: knowledge.EmbedderRuntimeConfig{
+					Dimension: 1536,
+					BatchSize: 64,
+				},
+			}},
+			VectorDBs: []knowledge.VectorDBConfig{{
+				ID:   "filesystem",
+				Type: knowledge.VectorDBTypeFilesystem,
+				Config: knowledge.VectorDBConnConfig{
+					Path:      storePath,
+					Dimension: 1536,
+				},
+			}},
+			KnowledgeBases: []knowledge.BaseConfig{{
+				ID:       "kb",
+				Embedder: "openai_default",
+				VectorDB: "filesystem",
+				Sources: []knowledge.SourceConfig{{
+					Type: knowledge.SourceTypeURL,
+					URLs: []string{"https://example.com/example.pdf"},
+				}},
+			}},
+		}
+		projectCfg.SetEnv(core.EnvMap{"OPENAI_API_KEY": "resolved-secret"})
+		input := &ExecuteTaskInput{ProjectConfig: projectCfg}
+
+		cfg, err := exec.buildKnowledgeRuntimeConfig(context.Background(), input)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		require.Len(t, cfg.Definitions.Embedders, 1)
+		assert.Equal(t, "{{ .env.OPENAI_API_KEY }}", cfg.Definitions.Embedders[0].APIKey)
+		require.NotNil(t, cfg.RuntimeEmbedders)
+		resolved, ok := cfg.RuntimeEmbedders["openai_default"]
+		require.True(t, ok, "runtime embedder should be resolved")
+		assert.Equal(t, "resolved-secret", resolved.APIKey)
+	})
+}
+
+func TestNewKnowledgeRuntimeConfigAggregatesKnowledgeBases(t *testing.T) {
+	t.Run("Should aggregate trimmed project and workflow knowledge bases", func(t *testing.T) {
+		storePath := filepath.Join(t.TempDir(), "vector.store")
+		projectCfg := &project.Config{
+			Name: "demo",
+			KnowledgeBases: []knowledge.BaseConfig{{
+				ID:       "  project_kb  ",
+				Embedder: "embedder",
+				VectorDB: "vector",
+				Sources:  []knowledge.SourceConfig{{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"}},
+			}},
+			Embedders: []knowledge.EmbedderConfig{
+				{
+					ID:       "embedder",
+					Provider: "openai",
+					Model:    "text",
+					Config:   knowledge.EmbedderRuntimeConfig{Dimension: 1},
+				},
+			},
+			VectorDBs: []knowledge.VectorDBConfig{
+				{
+					ID:   "vector",
+					Type: knowledge.VectorDBTypeFilesystem,
+					Config: knowledge.VectorDBConnConfig{
+						Path:      storePath,
+						Dimension: 1,
+					},
+				},
+			},
+		}
+		workflowCfg := &workflow.Config{
+			ID: "wf",
+			KnowledgeBases: []knowledge.BaseConfig{{
+				ID:       " wf_kb ",
+				Embedder: "embedder",
+				VectorDB: "vector",
+				Sources:  []knowledge.SourceConfig{{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"}},
+			}},
+		}
+		cfg := newKnowledgeRuntimeConfig(&ExecuteTaskInput{ProjectConfig: projectCfg, WorkflowConfig: workflowCfg})
+		require.NotNil(t, cfg)
+		require.Len(t, cfg.Definitions.KnowledgeBases, 1)
+		assert.Equal(t, "project_kb", cfg.Definitions.KnowledgeBases[0].ID)
+		assert.Equal(t, knowledge.IngestManual, cfg.Definitions.KnowledgeBases[0].Ingest)
+		require.Len(t, cfg.WorkflowKnowledgeBases, 1)
+		assert.Equal(t, "wf_kb", cfg.WorkflowKnowledgeBases[0].ID)
+		assert.Equal(t, knowledge.IngestManual, cfg.WorkflowKnowledgeBases[0].Ingest)
+	})
+}
+
+func TestReparseAgentConfigHandlesNilWorkflowState(t *testing.T) {
+	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	exec := &ExecuteTask{templateEngine: tplengine.NewEngine(tplengine.FormatYAML)}
+	question := "What has written about Indexing Optimizations in the document?"
+	env := core.EnvMap{"OPENAI_API_KEY": "dummy"}
+
+	agentCfg := &agent.Config{
+		ID:        "pdf_agent",
+		Knowledge: []core.KnowledgeBinding{{ID: "pdf_demo"}},
+		Model: agent.Model{
+			Config: core.ProviderConfig{
+				Provider: core.ProviderOpenAI,
+				Model:    "o3-mini",
+				APIKey:   "{{ .env.OPENAI_API_KEY }}",
+			},
+		},
+		Actions: []*agent.ActionConfig{{
+			ID:     "answer",
+			Prompt: "Question:\n```\n{{ .input.question }}\n```",
+		}},
+		Env: &env,
+	}
+
+	taskCfg := &task.Config{
+		BaseConfig: task.BaseConfig{
+			ID:    "pdf-answer",
+			Type:  task.TaskTypeBasic,
+			Agent: agentCfg,
+			With:  &core.Input{"question": question},
+		},
+		BasicTask: task.BasicTask{
+			Action: "answer",
+		},
+	}
+
+	projectCfg := &project.Config{Name: "demo"}
+	projectCfg.SetEnv(env)
+	workflowCfg := &workflow.Config{
+		ID:    "pdf-demo",
+		Tasks: []task.Config{*taskCfg},
+	}
+
+	input := &ExecuteTaskInput{
+		TaskConfig:     taskCfg,
+		WorkflowConfig: workflowCfg,
+		ProjectConfig:  projectCfg,
+		WorkflowState:  nil,
+	}
+
+	require.NoError(t, exec.reparseAgentConfig(ctx, agentCfg, input, "answer"))
+	require.Len(t, agentCfg.Actions, 1)
+	parsedPrompt := agentCfg.Actions[0].Prompt
+	assert.NotContains(t, parsedPrompt, "{{")
+	assert.Contains(t, parsedPrompt, question)
 }

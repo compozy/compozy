@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/llm"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	memcore "github.com/compozy/compozy/engine/memory/core"
@@ -276,13 +277,22 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	input *ExecuteTaskInput,
 	actionID string,
 ) error {
-	if input.WorkflowState == nil {
-		return nil
+	state := input.WorkflowState
+	if state == nil {
+		state = &workflow.State{
+			Tasks: make(map[string]*task.State),
+		}
+	}
+	if state.Tasks == nil {
+		state.Tasks = make(map[string]*task.State)
+	}
+	if state.WorkflowID == "" && input.WorkflowConfig != nil {
+		state.WorkflowID = input.WorkflowConfig.ID
 	}
 
 	// Build normalization context for runtime re-parsing
 	normCtx := &shared.NormalizationContext{
-		WorkflowState:  input.WorkflowState,
+		WorkflowState:  state,
 		WorkflowConfig: input.WorkflowConfig,
 		TaskConfig:     input.TaskConfig,
 		Variables:      make(map[string]any),
@@ -296,7 +306,7 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	}
 
 	// Build full context with tasks data
-	fullCtx := contextBuilder.BuildContext(input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
+	fullCtx := contextBuilder.BuildContext(state, input.WorkflowConfig, input.TaskConfig)
 	normCtx.Variables = fullCtx.Variables
 
 	// Ensure task's current input (containing collection variables) is added to variables
@@ -619,6 +629,13 @@ func (uc *ExecuteTask) createLLMService(
 		llmOpts = append(llmOpts, llm.WithTimeout(effectiveTimeout))
 		log.Debug("Configured LLM timeout", "timeout", effectiveTimeout.String())
 	}
+	knowledgeCfg, err := uc.buildKnowledgeRuntimeConfig(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build knowledge context: %w", err)
+	}
+	if knowledgeCfg != nil {
+		llmOpts = append(llmOpts, llm.WithKnowledgeContext(knowledgeCfg))
+	}
 	// MCP registration is handled by server startup (engine/mcp.SetupForWorkflows)
 	// We no longer register workflow-level MCPs from the exec task.
 	if uc.toolEnvironment != nil {
@@ -629,6 +646,207 @@ func (uc *ExecuteTask) createLLMService(
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
 	}
 	return llmService, nil
+}
+
+func (uc *ExecuteTask) buildKnowledgeRuntimeConfig(
+	ctx context.Context,
+	input *ExecuteTaskInput,
+) (*llm.KnowledgeRuntimeConfig, error) {
+	cfg := newKnowledgeRuntimeConfig(input)
+	if cfg == nil {
+		return nil, nil
+	}
+	if uc.templateEngine == nil {
+		return cfg, nil
+	}
+	normCtx, err := uc.buildNormalizationContext(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("build knowledge normalization context: %w", err)
+	}
+	templateContext := map[string]any{}
+	if normCtx != nil {
+		templateContext = normCtx.BuildTemplateContext()
+	}
+	runtimeEmbedders, err := uc.resolveEmbedderConfigs(templateContext, cfg.Definitions.Embedders)
+	if err != nil {
+		return nil, err
+	}
+	runtimeVectorDBs, err := uc.resolveVectorDBConfigs(templateContext, cfg.Definitions.VectorDBs)
+	if err != nil {
+		return nil, err
+	}
+	runtimeKnowledgeBases, err := uc.resolveKnowledgeBases(templateContext, cfg.Definitions.KnowledgeBases)
+	if err != nil {
+		return nil, err
+	}
+	runtimeWorkflowKBs, err := uc.resolveKnowledgeBases(templateContext, cfg.WorkflowKnowledgeBases)
+	if err != nil {
+		return nil, err
+	}
+	cfg.RuntimeEmbedders = runtimeEmbedders
+	cfg.RuntimeVectorDBs = runtimeVectorDBs
+	cfg.RuntimeKnowledgeBases = runtimeKnowledgeBases
+	cfg.RuntimeWorkflowKBs = runtimeWorkflowKBs
+	return cfg, nil
+}
+
+func newKnowledgeRuntimeConfig(input *ExecuteTaskInput) *llm.KnowledgeRuntimeConfig {
+	if input == nil || input.ProjectConfig == nil {
+		return nil
+	}
+	providers := aggregatedKnowledgeProviders(input.WorkflowConfig)
+	projectBases, workflowBases := partitionKnowledgeBaseRefs(
+		input.ProjectConfig.AggregatedKnowledgeBases(providers...),
+	)
+	cfg := &llm.KnowledgeRuntimeConfig{
+		ProjectID: strings.TrimSpace(input.ProjectConfig.Name),
+		Definitions: knowledge.Definitions{
+			Embedders:      append([]knowledge.EmbedderConfig{}, input.ProjectConfig.Embedders...),
+			VectorDBs:      append([]knowledge.VectorDBConfig{}, input.ProjectConfig.VectorDBs...),
+			KnowledgeBases: projectBases,
+		},
+		ProjectBinding: append([]core.KnowledgeBinding{}, input.ProjectConfig.Knowledge...),
+	}
+	if len(workflowBases) > 0 {
+		cfg.WorkflowKnowledgeBases = workflowBases
+	}
+	if input.WorkflowConfig != nil && len(input.WorkflowConfig.Knowledge) > 0 {
+		cfg.WorkflowBinding = append([]core.KnowledgeBinding{}, input.WorkflowConfig.Knowledge...)
+	}
+	if input.TaskConfig != nil && len(input.TaskConfig.Knowledge) > 0 {
+		cfg.InlineBinding = append([]core.KnowledgeBinding{}, input.TaskConfig.Knowledge...)
+	}
+	hasDefinitions := len(cfg.Definitions.Embedders) > 0 ||
+		len(cfg.Definitions.VectorDBs) > 0 ||
+		len(cfg.Definitions.KnowledgeBases) > 0
+	hasBindings := len(cfg.ProjectBinding) > 0 ||
+		len(cfg.WorkflowBinding) > 0 ||
+		len(cfg.InlineBinding) > 0
+	hasWorkflowBases := len(cfg.WorkflowKnowledgeBases) > 0
+	if !hasDefinitions && !hasBindings && !hasWorkflowBases {
+		return nil
+	}
+	return cfg
+}
+
+func aggregatedKnowledgeProviders(wf *workflow.Config) []project.KnowledgeBaseProvider {
+	if wf == nil {
+		return nil
+	}
+	return []project.KnowledgeBaseProvider{wf}
+}
+
+func partitionKnowledgeBaseRefs(refs []project.KnowledgeBaseRef) (
+	projectBases []knowledge.BaseConfig,
+	workflowBases []knowledge.BaseConfig,
+) {
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	projectBases = make([]knowledge.BaseConfig, 0, len(refs))
+	for i := range refs {
+		ref := refs[i]
+		if ref.Origin == "project" {
+			projectBases = append(projectBases, ref.Base)
+			continue
+		}
+		workflowBases = append(workflowBases, ref.Base)
+	}
+	return projectBases, workflowBases
+}
+
+func (uc *ExecuteTask) resolveEmbedderConfigs(
+	templateContext map[string]any,
+	list []knowledge.EmbedderConfig,
+) (map[string]*knowledge.EmbedderConfig, error) {
+	if len(list) == 0 {
+		return nil, nil
+	}
+	engine := uc.templateEngine
+	out := make(map[string]*knowledge.EmbedderConfig, len(list))
+	for i := range list {
+		current := list[i]
+		resolved, err := renderKnowledgeValue(engine, templateContext, current)
+		if err != nil {
+			return nil, fmt.Errorf("knowledge embedder %q template render failed: %w", current.ID, err)
+		}
+		id := strings.TrimSpace(resolved.ID)
+		if id == "" {
+			continue
+		}
+		resolvedCopy := resolved
+		out[id] = &resolvedCopy
+	}
+	return out, nil
+}
+
+func (uc *ExecuteTask) resolveVectorDBConfigs(
+	templateContext map[string]any,
+	list []knowledge.VectorDBConfig,
+) (map[string]*knowledge.VectorDBConfig, error) {
+	if len(list) == 0 {
+		return nil, nil
+	}
+	engine := uc.templateEngine
+	out := make(map[string]*knowledge.VectorDBConfig, len(list))
+	for i := range list {
+		current := list[i]
+		resolved, err := renderKnowledgeValue(engine, templateContext, current)
+		if err != nil {
+			return nil, fmt.Errorf("knowledge vector_db %q template render failed: %w", current.ID, err)
+		}
+		id := strings.TrimSpace(resolved.ID)
+		if id == "" {
+			continue
+		}
+		resolvedCopy := resolved
+		out[id] = &resolvedCopy
+	}
+	return out, nil
+}
+
+func (uc *ExecuteTask) resolveKnowledgeBases(
+	templateContext map[string]any,
+	list []knowledge.BaseConfig,
+) (map[string]*knowledge.BaseConfig, error) {
+	if len(list) == 0 {
+		return nil, nil
+	}
+	engine := uc.templateEngine
+	out := make(map[string]*knowledge.BaseConfig, len(list))
+	for i := range list {
+		current := list[i]
+		resolved, err := renderKnowledgeValue(engine, templateContext, current)
+		if err != nil {
+			return nil, fmt.Errorf("knowledge base %q template render failed: %w", current.ID, err)
+		}
+		id := strings.TrimSpace(resolved.ID)
+		if id == "" {
+			continue
+		}
+		resolvedCopy := resolved
+		out[id] = &resolvedCopy
+	}
+	return out, nil
+}
+
+func renderKnowledgeValue[T any](
+	engine *tplengine.TemplateEngine,
+	templateContext map[string]any,
+	value T,
+) (T, error) {
+	if engine == nil {
+		return value, nil
+	}
+	asMap, err := core.AsMapDefault(value)
+	if err != nil {
+		return value, err
+	}
+	parsed, err := engine.ParseAny(asMap, templateContext)
+	if err != nil {
+		return value, err
+	}
+	return core.FromMapDefault[T](parsed)
 }
 
 func deriveLLMTimeout(ctx context.Context, input *ExecuteTaskInput) time.Duration {
@@ -845,6 +1063,9 @@ func buildWorkflowContext(
 		if taskConfig.With != nil {
 			context["task_input"] = *taskConfig.With
 			context["with"] = dereferenceInput(taskConfig.With)
+			if _, ok := context["input"]; !ok {
+				context["input"] = dereferenceInput(taskConfig.With)
+			}
 		}
 	}
 

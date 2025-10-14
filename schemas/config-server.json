@@ -70,6 +70,10 @@
         "http_write": {
           "type": "integer"
         },
+        "knowledge_ingest": {
+          "description": "KnowledgeIngest bounds startup knowledge ingestion executions.\nApplies to ingestKnowledgeBasesOnStart. Zero disables the timeout.",
+          "type": "integer"
+        },
         "monitoring_init": {
           "type": "integer"
         },

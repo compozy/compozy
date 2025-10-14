@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
@@ -344,59 +345,63 @@ type Opts struct {
 type Config struct {
 	// Resource reference for external workflow definitions
 	// Format: "compozy:workflow:<name>" - allows referencing pre-built workflows
-	Resource string `json:"resource,omitempty"    yaml:"resource,omitempty"    mapstructure:"resource,omitempty"`
+	Resource string `json:"resource,omitempty"        yaml:"resource,omitempty"        mapstructure:"resource,omitempty"`
 	// Unique identifier for the workflow (required)
 	// Must be unique within the project scope. Used for referencing and execution.
 	// - **Example**: "customer-support", "data-processing", "content-generation"
-	ID string `json:"id"                    yaml:"id"                    mapstructure:"id"`
+	ID string `json:"id"                        yaml:"id"                        mapstructure:"id"`
 	// Version of the workflow for tracking changes
 	// Follows semantic versioning (e.g., "1.0.0", "2.1.3")
 	// Useful for managing workflow evolution and backwards compatibility
-	Version string `json:"version,omitempty"     yaml:"version,omitempty"     mapstructure:"version,omitempty"`
+	Version string `json:"version,omitempty"         yaml:"version,omitempty"         mapstructure:"version,omitempty"`
 	// Human-readable description of the workflow's purpose
 	// Should clearly explain what the workflow does and when to use it
-	Description string `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Description string `json:"description,omitempty"     yaml:"description,omitempty"     mapstructure:"description,omitempty"`
 	// JSON schemas for validating data structures used in the workflow
 	// Define reusable schemas that can be referenced throughout the workflow
 	// using $ref syntax (e.g., $ref: local::schemas.#(id="user_schema"))
-	Schemas []schema.Schema `json:"schemas,omitempty"     yaml:"schemas,omitempty"     mapstructure:"schemas,omitempty"`
+	Schemas []schema.Schema `json:"schemas,omitempty"         yaml:"schemas,omitempty"         mapstructure:"schemas,omitempty"`
 	// Configuration options including input schema and environment variables
 	// Controls workflow behavior, validation, and runtime environment
-	Opts Opts `json:"config"                yaml:"config"                mapstructure:"config"`
+	Opts Opts `json:"config"                    yaml:"config"                    mapstructure:"config"`
 	// Author information for workflow attribution
 	// Helps track ownership and responsibility for workflow maintenance
-	Author *core.Author `json:"author,omitempty"      yaml:"author,omitempty"      mapstructure:"author,omitempty"`
+	Author *core.Author `json:"author,omitempty"          yaml:"author,omitempty"          mapstructure:"author,omitempty"`
 	// External tools that can be invoked by agents or tasks
 	// Define executable scripts or programs that perform specific operations
 	// Tools provide deterministic, non-AI functionality like API calls or data processing
 	// $ref: schema://tools
-	Tools []tool.Config `json:"tools,omitempty"       yaml:"tools,omitempty"       mapstructure:"tools,omitempty"`
+	Tools []tool.Config `json:"tools,omitempty"           yaml:"tools,omitempty"           mapstructure:"tools,omitempty"`
 	// AI agents with specific instructions and capabilities
 	// Configure LLM-powered agents with custom prompts, tools access, and behavior
 	// Agents can be referenced by tasks using $use: agent(...) syntax
 	// $ref: schema://agents
-	Agents []agent.Config `json:"agents,omitempty"      yaml:"agents,omitempty"      mapstructure:"agents,omitempty"`
+	Agents []agent.Config `json:"agents,omitempty"          yaml:"agents,omitempty"          mapstructure:"agents,omitempty"`
+	// KnowledgeBases declares workflow-scoped knowledge definitions.
+	KnowledgeBases []knowledge.BaseConfig `json:"knowledge_bases,omitempty" yaml:"knowledge_bases,omitempty" mapstructure:"knowledge_bases,omitempty"`
+	// Knowledge defines the default knowledge binding for the workflow context.
+	Knowledge []core.KnowledgeBinding `json:"knowledge,omitempty"       yaml:"knowledge,omitempty"       mapstructure:"knowledge,omitempty"`
 	// Model Context Protocol servers for extending AI capabilities
 	// MCP servers provide specialized tools and knowledge to agents
 	// Enable integration with external services and domain-specific functionality
 	// $ref: schema://mcp
-	MCPs []mcp.Config `json:"mcps,omitempty"        yaml:"mcps,omitempty"        mapstructure:"mcps,omitempty"`
+	MCPs []mcp.Config `json:"mcps,omitempty"            yaml:"mcps,omitempty"            mapstructure:"mcps,omitempty"`
 	// Event triggers that can initiate workflow execution
 	// Define external events (webhooks, signals) that can start the workflow
 	// Each trigger can have its own input schema for validation
-	Triggers []Trigger `json:"triggers,omitempty"    yaml:"triggers,omitempty"    mapstructure:"triggers,omitempty"`
+	Triggers []Trigger `json:"triggers,omitempty"        yaml:"triggers,omitempty"        mapstructure:"triggers,omitempty"`
 	// Sequential tasks that define the workflow execution plan (required)
 	// Tasks are the core execution units, processed in order with conditional branching
 	// Each task uses either an agent or tool to perform its operation
 	// $ref: schema://tasks
-	Tasks []task.Config `json:"tasks"                 yaml:"tasks"                 mapstructure:"tasks"`
+	Tasks []task.Config `json:"tasks"                     yaml:"tasks"                     mapstructure:"tasks"`
 	// Output mappings to structure the final workflow results
 	// Use template expressions to extract and transform task outputs
 	// - **Example**: ticket_id: "{{ .tasks.create-ticket.output.id }}"
-	Outputs *core.Output `json:"outputs,omitempty"     yaml:"outputs,omitempty"     mapstructure:"outputs,omitempty"`
+	Outputs *core.Output `json:"outputs,omitempty"         yaml:"outputs,omitempty"         mapstructure:"outputs,omitempty"`
 	// Schedule configuration for automated workflow execution
 	// Enable cron-based scheduling with timezone support and overlap policies
-	Schedule *Schedule `json:"schedule,omitempty"    yaml:"schedule,omitempty"    mapstructure:"schedule,omitempty"`
+	Schedule *Schedule `json:"schedule,omitempty"        yaml:"schedule,omitempty"        mapstructure:"schedule,omitempty"`
 
 	// Internal field for tracking the source file path
 	filePath string
@@ -446,6 +451,25 @@ func (w *Config) GetFilePath() string {
 
 func (w *Config) SetFilePath(path string) {
 	w.filePath = path
+}
+
+// KnowledgeBaseDefinitions exposes workflow-scoped knowledge bases for aggregation.
+func (w *Config) KnowledgeBaseDefinitions() []knowledge.BaseConfig {
+	if w == nil {
+		return nil
+	}
+	return w.KnowledgeBases
+}
+
+// KnowledgeBaseProviderName identifies the workflow when contributing knowledge bases.
+func (w *Config) KnowledgeBaseProviderName() string {
+	if w == nil {
+		return ""
+	}
+	if strings.TrimSpace(w.ID) == "" {
+		return "workflow"
+	}
+	return fmt.Sprintf("workflow %q", strings.TrimSpace(w.ID))
 }
 
 func (w *Config) HasSchema() bool {

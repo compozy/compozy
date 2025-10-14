@@ -1,0 +1,36 @@
+resource: workflow
+id: knowledge-qa
+name: Knowledge Quickstart QA
+version: 0.1.0
+description: Ask questions against the quickstart knowledge base
+
+input:
+  schema:
+    type: object
+    properties:
+      question:
+        type: string
+        description: Natural language question to answer using knowledge
+    required:
+      - question
+
+output:
+  schema:
+    type: object
+    properties:
+      answer:
+        type: string
+        description: Answer grounded in the knowledge base
+
+tasks:
+  - id: answer
+    description: Answer user questions using knowledge context
+    type: basic
+    agent: quickstart_agent
+    action: answer
+    with:
+      question: "{{ .workflow.input.question }}"
+    final: true
+
+outputs:
+  answer: "{{ .tasks.answer.output.answer }}"

@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	"github.com/compozy/compozy/engine/pdftext"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
-	pdf "github.com/ledongthuc/pdf"
 )
 
 // resolverFunc defines the signature for attachment resolver functions
@@ -195,24 +195,19 @@ func textPartFromResolved(ctx context.Context, r Resolved, mime string) llmadapt
 
 // extractTextFromPDF reads a PDF file and extracts plain text
 func extractTextFromPDF(ctx context.Context, path string) (string, error) {
-	f, r, err := pdf.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	rd, err := r.GetPlainText()
+	extractor, err := pdftext.Default()
 	if err != nil {
 		return "", err
 	}
 	limit := int64(MaxPDFExtractChars)
-	if ac := appconfig.FromContext(ctx); ac != nil && ac.Attachments.PDFExtractMaxChars > 0 {
-		limit = int64(ac.Attachments.PDFExtractMaxChars)
+	if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.Attachments.PDFExtractMaxChars > 0 {
+		limit = int64(cfg.Attachments.PDFExtractMaxChars)
 	}
-	var sb strings.Builder
-	if _, err := io.Copy(&sb, io.LimitReader(rd, limit)); err != nil {
+	result, err := extractor.ExtractFile(ctx, path, limit)
+	if err != nil {
 		return "", err
 	}
-	return sb.String(), nil
+	return strings.TrimSpace(result.Text), nil
 }
 
 func detailFromMeta(meta map[string]any) string {

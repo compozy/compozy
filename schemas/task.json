@@ -343,6 +343,36 @@
     "Input": {
       "type": "object"
     },
+    "KnowledgeBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "fallback": {
+          "type": "string"
+        },
+        "filters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "id": {
+          "type": "string"
+        },
+        "inject_as": {
+          "type": "string"
+        },
+        "max_tokens": {
+          "type": "integer"
+        },
+        "min_score": {
+          "type": "number"
+        },
+        "top_k": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "MemoryReference": {
       "additionalProperties": false,
       "description": "MemoryReference is used in Agent configuration to point to a MemoryResource and define how the agent interacts with it.",
@@ -644,6 +674,13 @@
     "key_template": {
       "description": "KeyTemplate is a template expression for the memory key\nSupports template variables for dynamic key generation\n- **Example**: \"user:{{ .workflow.input.user_id }}:profile\"",
       "type": "string"
+    },
+    "knowledge": {
+      "description": "Knowledge declares task-scoped knowledge bindings (MVP single binding).",
+      "items": {
+        "$ref": "knowledge-binding.json"
+      },
+      "type": "array"
     },
     "max_iterations": {
       "description": "Maximum number of reasoning iterations the agent can perform.\nThe agent may self-correct and refine its response across multiple iterations\nto improve accuracy and address complex multi-step problems.\n\n**Default:** `5` iterations\n\n**Trade-offs:**\n- Higher values enable more thorough problem-solving and self-correction\n- Each iteration consumes additional tokens and increases response latency\n- Configure based on task complexity, accuracy requirements, and cost constraints",

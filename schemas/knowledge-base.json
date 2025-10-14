@@ -1,0 +1,171 @@
+{
+  "$defs": {
+    "ChunkingConfig": {
+      "additionalProperties": false,
+      "description": "ChunkingConfig tunes how documents are split before embedding.",
+      "properties": {
+        "overlap": {
+          "type": "integer"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "strategy": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "MetadataConfig": {
+      "additionalProperties": false,
+      "description": "MetadataConfig carries optional descriptive metadata for knowledge bases.",
+      "properties": {
+        "owners": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PreprocessConfig": {
+      "additionalProperties": false,
+      "description": "PreprocessConfig configures preprocessing steps applied to raw content.",
+      "properties": {
+        "dedupe": {
+          "type": "boolean"
+        },
+        "remove_html": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "RetrievalConfig": {
+      "additionalProperties": false,
+      "description": "RetrievalConfig manages how stored chunks are queried and injected into prompts.",
+      "properties": {
+        "fallback": {
+          "type": "string"
+        },
+        "filters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "inject_as": {
+          "type": "string"
+        },
+        "max_tokens": {
+          "type": "integer"
+        },
+        "min_results": {
+          "type": "integer"
+        },
+        "min_score": {
+          "type": "number"
+        },
+        "tool_fallback": {
+          "type": "string"
+        },
+        "top_k": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "SourceConfig": {
+      "additionalProperties": false,
+      "description": "SourceConfig describes a single ingestion source such as a glob, URL, or bucket.",
+      "properties": {
+        "bucket": {
+          "type": "string"
+        },
+        "options": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "path": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "urls": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "video_id": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "knowledge-base.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "BaseConfig declares a knowledge base and governs how it is ingested and retrieved.",
+  "properties": {
+    "chunking": {
+      "$ref": "#/$defs/ChunkingConfig"
+    },
+    "description": {
+      "type": "string"
+    },
+    "embedder": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "ingest": {
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/MetadataConfig"
+    },
+    "preprocess": {
+      "$ref": "#/$defs/PreprocessConfig"
+    },
+    "retrieval": {
+      "$ref": "#/$defs/RetrievalConfig"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/SourceConfig"
+      },
+      "type": "array"
+    },
+    "vector_db": {
+      "type": "string"
+    }
+  },
+  "title": "Knowledge Base Configuration",
+  "type": "object",
+  "yamlCompatible": true
+}

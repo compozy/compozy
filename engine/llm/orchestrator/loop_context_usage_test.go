@@ -17,7 +17,9 @@ func TestComputeContextUsage_UsesProviderContextWindow(t *testing.T) {
 		t.Helper()
 		loopCtx := &LoopContext{
 			Request: Request{
-				ProviderCaps: llmadapter.ProviderCapabilities{ContextWindowTokens: 1000},
+				Execution: ExecutionOptions{
+					ProviderCaps: llmadapter.ProviderCapabilities{ContextWindowTokens: 1000},
+				},
 			},
 			LLMRequest: &llmadapter.LLMRequest{},
 		}
@@ -40,7 +42,9 @@ func TestComputeContextUsage_FallsBackToAgentMaxTokens(t *testing.T) {
 		t.Helper()
 		loopCtx := &LoopContext{
 			Request: Request{
-				ProviderCaps: llmadapter.ProviderCapabilities{},
+				Execution: ExecutionOptions{
+					ProviderCaps: llmadapter.ProviderCapabilities{},
+				},
 				Agent: &agent.Config{
 					Model: agent.Model{
 						Config: core.ProviderConfig{
@@ -70,7 +74,9 @@ func TestComputeContextUsage_FallsBackToRequestOptions(t *testing.T) {
 		t.Helper()
 		loopCtx := &LoopContext{
 			Request: Request{
-				ProviderCaps: llmadapter.ProviderCapabilities{},
+				Execution: ExecutionOptions{
+					ProviderCaps: llmadapter.ProviderCapabilities{},
+				},
 			},
 			LLMRequest: &llmadapter.LLMRequest{
 				Options: llmadapter.CallOptions{MaxTokens: 128},

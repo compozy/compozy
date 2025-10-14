@@ -104,14 +104,18 @@ func (s *MemoryResourceStore) PutIfMatch(
 	}
 	entry, ok := s.items[key]
 	if !ok {
-		s.mu.Unlock()
-		return ETag(""), ErrNotFound
+		if expectedETag != "" {
+			s.mu.Unlock()
+			return ETag(""), ErrNotFound
+		}
+		s.items[key] = storedEntry{value: cp, etag: etag}
+	} else {
+		if entry.etag != expectedETag {
+			s.mu.Unlock()
+			return ETag(""), ErrETagMismatch
+		}
+		s.items[key] = storedEntry{value: cp, etag: etag}
 	}
-	if entry.etag != expectedETag {
-		s.mu.Unlock()
-		return ETag(""), ErrETagMismatch
-	}
-	s.items[key] = storedEntry{value: cp, etag: etag}
 	evt := Event{Type: EventPut, Key: key, ETag: etag, At: time.Now().UTC()}
 	keyspace := watcherKeyspace(key.Project, key.Type)
 	for _, w := range s.watchers[keyspace] {

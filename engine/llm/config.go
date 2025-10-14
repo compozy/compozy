@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	orchestratorpkg "github.com/compozy/compozy/engine/llm/orchestrator"
 	"github.com/compozy/compozy/engine/mcp"
@@ -89,6 +90,8 @@ type Config struct {
 	LLMFactory llmadapter.Factory
 	// Memory provider for agent memory support
 	MemoryProvider MemoryProvider
+	// Knowledge contains resolved knowledge context for retrieval during orchestration.
+	Knowledge *KnowledgeRuntimeConfig
 	// ResolvedTools contains pre-resolved tools from hierarchical inheritance
 	ResolvedTools []tool.Config
 	// AllowedMCPNames restricts MCP tool advertisement/lookup to these MCP IDs.
@@ -105,6 +108,19 @@ type Config struct {
 	RegisterMCPs []mcp.Config
 	// ToolEnvironment provides dependency access for builtin tools.
 	ToolEnvironment toolenv.Environment
+}
+
+type KnowledgeRuntimeConfig struct {
+	ProjectID              string
+	Definitions            knowledge.Definitions
+	WorkflowKnowledgeBases []knowledge.BaseConfig
+	ProjectBinding         []core.KnowledgeBinding
+	WorkflowBinding        []core.KnowledgeBinding
+	InlineBinding          []core.KnowledgeBinding
+	RuntimeEmbedders       map[string]*knowledge.EmbedderConfig
+	RuntimeVectorDBs       map[string]*knowledge.VectorDBConfig
+	RuntimeKnowledgeBases  map[string]*knowledge.BaseConfig
+	RuntimeWorkflowKBs     map[string]*knowledge.BaseConfig
 }
 
 func DefaultConfig() *Config {
@@ -371,6 +387,13 @@ func WithMemoryProvider(provider MemoryProvider) Option {
 	}
 }
 
+// WithKnowledgeContext wires knowledge runtime context for retrieval-aware prompts.
+func WithKnowledgeContext(cfg *KnowledgeRuntimeConfig) Option {
+	return func(c *Config) {
+		c.Knowledge = cloneKnowledgeConfig(cfg)
+	}
+}
+
 // WithResolvedTools sets the pre-resolved tools from hierarchical inheritance
 // The slice is copied to prevent external mutation after construction
 func WithResolvedTools(tools []tool.Config) Option {
@@ -390,6 +413,107 @@ func WithResolvedTools(tools []tool.Config) Option {
 			}
 		}
 	}
+}
+
+func cloneKnowledgeConfig(cfg *KnowledgeRuntimeConfig) *KnowledgeRuntimeConfig {
+	if cfg == nil {
+		return nil
+	}
+	cloned, err := core.DeepCopy(*cfg)
+	if err != nil {
+		return cloneKnowledgeConfigFallback(cfg)
+	}
+	cloned.ProjectID = strings.TrimSpace(cloned.ProjectID)
+	return &cloned
+}
+
+func cloneKnowledgeConfigFallback(cfg *KnowledgeRuntimeConfig) *KnowledgeRuntimeConfig {
+	fallback := KnowledgeRuntimeConfig{
+		ProjectID:       strings.TrimSpace(cfg.ProjectID),
+		ProjectBinding:  append([]core.KnowledgeBinding(nil), cfg.ProjectBinding...),
+		WorkflowBinding: append([]core.KnowledgeBinding(nil), cfg.WorkflowBinding...),
+		InlineBinding:   append([]core.KnowledgeBinding(nil), cfg.InlineBinding...),
+	}
+	if defsCopy, copyErr := core.DeepCopy(cfg.Definitions); copyErr == nil {
+		fallback.Definitions = defsCopy
+	} else {
+		fallback.Definitions = cfg.Definitions
+	}
+	if len(cfg.WorkflowKnowledgeBases) > 0 {
+		if basesCopy, copyErr := core.DeepCopy(cfg.WorkflowKnowledgeBases); copyErr == nil {
+			fallback.WorkflowKnowledgeBases = basesCopy
+		} else {
+			fallback.WorkflowKnowledgeBases = append([]knowledge.BaseConfig{}, cfg.WorkflowKnowledgeBases...)
+		}
+	}
+	fallback.RuntimeEmbedders = cloneEmbedderOverrides(cfg.RuntimeEmbedders)
+	fallback.RuntimeVectorDBs = cloneVectorOverrides(cfg.RuntimeVectorDBs)
+	fallback.RuntimeKnowledgeBases = cloneKnowledgeOverrides(cfg.RuntimeKnowledgeBases)
+	fallback.RuntimeWorkflowKBs = cloneKnowledgeOverrides(cfg.RuntimeWorkflowKBs)
+	return &fallback
+}
+
+func cloneEmbedderOverrides(src map[string]*knowledge.EmbedderConfig) map[string]*knowledge.EmbedderConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]*knowledge.EmbedderConfig, len(src))
+	for key, cfg := range src {
+		if cfg == nil {
+			out[key] = nil
+			continue
+		}
+		if cloned, err := core.DeepCopy(*cfg); err == nil {
+			copyCfg := cloned
+			out[key] = &copyCfg
+			continue
+		}
+		copyCfg := *cfg
+		out[key] = &copyCfg
+	}
+	return out
+}
+
+func cloneVectorOverrides(src map[string]*knowledge.VectorDBConfig) map[string]*knowledge.VectorDBConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]*knowledge.VectorDBConfig, len(src))
+	for key, cfg := range src {
+		if cfg == nil {
+			out[key] = nil
+			continue
+		}
+		if cloned, err := core.DeepCopy(*cfg); err == nil {
+			copyCfg := cloned
+			out[key] = &copyCfg
+			continue
+		}
+		copyCfg := *cfg
+		out[key] = &copyCfg
+	}
+	return out
+}
+
+func cloneKnowledgeOverrides(src map[string]*knowledge.BaseConfig) map[string]*knowledge.BaseConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]*knowledge.BaseConfig, len(src))
+	for key, cfg := range src {
+		if cfg == nil {
+			out[key] = nil
+			continue
+		}
+		if cloned, err := core.DeepCopy(*cfg); err == nil {
+			copyCfg := cloned
+			out[key] = &copyCfg
+			continue
+		}
+		copyCfg := *cfg
+		out[key] = &copyCfg
+	}
+	return out
 }
 
 // WithRetryAttempts sets the number of retry attempts for LLM operations

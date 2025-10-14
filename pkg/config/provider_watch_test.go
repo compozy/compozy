@@ -35,17 +35,23 @@ func TestYAMLProvider_MultipleWatchCalls(t *testing.T) {
 		// Track callback invocations
 		var callbackCount int32
 
+		var firstCallbackOnce sync.Once
 		// Register first callback
 		err = provider.Watch(ctx, func() {
-			atomic.AddInt32(&callbackCount, 1)
-			wg.Done()
+			firstCallbackOnce.Do(func() {
+				atomic.AddInt32(&callbackCount, 1)
+				wg.Done()
+			})
 		})
 		require.NoError(t, err)
 
+		var secondCallbackOnce sync.Once
 		// Register second callback (should not start watching again)
 		err = provider.Watch(ctx, func() {
-			atomic.AddInt32(&callbackCount, 10)
-			wg.Done()
+			secondCallbackOnce.Do(func() {
+				atomic.AddInt32(&callbackCount, 10)
+				wg.Done()
+			})
 		})
 		require.NoError(t, err)
 

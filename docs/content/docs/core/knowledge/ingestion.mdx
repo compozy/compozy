@@ -1,0 +1,133 @@
+---
+title: "Knowledge Ingestion"
+description: "Enumerate sources, chunk documents, and ingest content through CLI or API with deterministic idempotency."
+icon: Rocket
+---
+
+import { Callout } from "@/components/ui/callout";
+import { Tabs, Tab } from "@/components/ui/tabs";
+import { Step, Steps } from "@/components/ui/steps";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+
+## Supported Source Types
+
+| Kind            | Description                                                   | Example keys                                         |
+| --------------- | ------------------------------------------------------------- | ---------------------------------------------------- |
+| `markdown_glob` | Expand local Markdown files via glob pattern                  | `glob`, optional `ignore`                            |
+| `url`           | Fetch and cache a small remote document (PDF, HTML, text, …) | `url`, optional `etag_header`                        |
+| `cloud_storage` | (Planned) Enumerate objects from S3/GCS prefixes              | `provider`, `bucket`, `prefix`, credentials via env  |
+| `media_transcript` | (Planned) Convert `.srt`/`.vtt` transcripts to documents | `path`, optional language metadata                   |
+
+Only `markdown_glob` and `url` ship in the MVP. Mention other kinds as planned features unless your deployment explicitly enables them.
+
+## Chunking & Preprocessing
+
+- **Strategy** – `token` (default) balances embedding quality and throughput.
+- **Size** – Default from `config.knowledge.chunk_size` (a practical starting value is `512`).
+- **Overlap** – Default from `config.knowledge.chunk_overlap` (a practical starting value is `64`).
+- **Normalization** – Hashes are stored per chunk to make ingestion idempotent; unchanged content is skipped automatically.
+
+<Callout type="info">
+Avoid inline magic numbers—define defaults in `config.knowledge` so pipelines stay consistent across projects.
+</Callout>
+
+## Ingest Modes
+
+- `manual` (default) keeps ingestion as an operator-triggered task via CLI or API.
+- `on_start` instructs the server to run ingestion immediately after project indexing completes for both project- and workflow-scoped knowledge bases; startup fails fast if any pipeline returns an error so issues surface before the API becomes available.
+
+## Running Ingestion
+
+<Tabs items={["CLI", "HTTP API"]}>
+  <Tab>
+
+  ```bash
+  # Apply resource definitions first
+  compozy knowledge apply --file compozy.yaml
+
+  # Trigger ingestion
+  compozy knowledge ingest --id quickstart_docs
+
+  # Re-run to pick up changes; unchanged chunks are skipped
+  compozy knowledge ingest --id quickstart_docs
+  ```
+
+  </Tab>
+  <Tab>
+
+  ```bash
+  curl -X POST "http://localhost:5001/api/v0/knowledge-bases/quickstart_docs/ingest" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $COMPOZY_API_KEY" \
+    -d '{
+      "force": false,
+      "batch_size": 32
+    }'
+  ```
+
+  </Tab>
+</Tabs>
+
+### Job Lifecycle
+
+<Steps>
+  <Step title="Enumerate">
+    Resolve sources, expand globs, and detect remote downloads. Skips files larger than 100KB by default.
+  </Step>
+  <Step title="Chunk & Embed">
+    Apply chunking policy, generate embeddings in batches (respecting `config.knowledge.embedder_batch_size`), and retry provider throttles with jitter.
+  </Step>
+  <Step title="Persist & Commit">
+    Write vectors and metadata to the configured store, hash results, and emit `knowledge_ingest_duration_seconds` and `knowledge_chunks_total` metrics.
+  </Step>
+</Steps>
+
+### Monitoring Progress
+
+- CLI commands print structured logs (start, completion, error) sourced from `logger.FromContext(ctx)`.
+- The API responds with an updated ETag for the knowledge base; poll `GET /knowledge-bases/{kb_id}` until the response returns the new value.
+- Observability metrics are detailed in the [Knowledge Observability guide](/docs/core/knowledge/observability).
+
+## Quickstart Walkthrough
+
+The [Quickstart Markdown Glob example](https://github.com/compozy/compozy/tree/main/examples/knowledge/quickstart-markdown-glob) demonstrates the full ingestion workflow:
+
+1. Clone example assets and ensure `OPENAI_API_KEY` is present in `.env`.
+2. Run `compozy knowledge apply` to register resources.
+3. Execute `compozy knowledge ingest --id quickstart_docs`.
+4. Launch `compozy run workflows/qa.yaml --input '{"question":"What is Compozy knowledge?"}'` to see retrieval in action.
+
+Because ingestion is idempotent, you can edit Markdown files and repeat the step to refresh embeddings without truncating the vector store manually.
+
+## Common Pitfalls
+
+<Callout type="error">
+**403/401 during ingestion** – Check environment variables for the embedder provider. Secrets must be injected at runtime; do not hardcode them.
+</Callout>
+
+<Callout type="warning">
+**Large documents** – Split PDFs or Markdown into smaller files when they exceed provider limits. Batch sizes above provider quotas will trigger retries and slow down pipelines.
+</Callout>
+
+## Related Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Observability Metrics"
+    description="Measure ingestion latency, success rate, and chunk volume."
+    href="/docs/core/knowledge/observability"
+    icon="Activity"
+  />
+  <ReferenceCard
+    title="CLI Commands"
+    description="Run `compozy knowledge ingest` and other operations."
+    href="/docs/cli/knowledge-commands"
+    icon="Terminal"
+  />
+  <ReferenceCard
+    title="API Reference"
+    description="Programmatically trigger ingestion via REST."
+    href="/docs/api/knowledge"
+    icon="Globe"
+  />
+</ReferenceCardList>

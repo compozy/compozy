@@ -17,13 +17,15 @@
  *                               in any comment will be un-resolved via GraphQL.
  *   --hide-resolved            If set, resolved review threads will not have issue
  *                               files generated (only unresolved issues will be created).
+ *   --grouped                  If set, files will be generated per file path instead of
+ *                               per individual issue/nitpick (grouped output).
  */
 
 import { graphql } from "@octokit/graphql";
 import { Octokit } from "@octokit/rest";
 import { $ } from "bun";
 import { promises as fs } from "fs";
-import { join } from "path";
+import { basename, join } from "path";
 
 // ---------- Constants ----------
 const CODERABBIT_BOT_LOGIN = "coderabbitai[bot]";
@@ -84,6 +86,18 @@ interface ReviewThread {
 
 type ResolutionPolicy = "strict" | "github";
 
+type DetailSection = "nitpick" | "outside" | "duplicate";
+
+interface GroupedFile {
+  filePath: string;
+  relativePath: string;
+  displayPath: string;
+  entries: string[];
+  index: number;
+}
+
+type GroupCollection = Map<string, GroupedFile>;
+
 interface PageInfo {
   hasNextPage: boolean;
   endCursor: string | null;
@@ -117,7 +131,7 @@ async function main() {
   const args = process.argv.slice(2);
   if (args.length === 0) {
     console.error(
-      "Usage: bun pr-review.ts <pr_number> [--unresolve-missing-marker] [--hide-resolved]"
+      "Usage: bun pr-review.ts <pr_number> [--unresolve-missing-marker] [--hide-resolved] [--grouped]"
     );
     process.exit(1);
   }
@@ -125,6 +139,7 @@ async function main() {
   const prNumber = Number(args[0]);
   const unresolveMissingMarker = args.includes("--unresolve-missing-marker");
   const hideResolved = args.includes("--hide-resolved");
+  const groupedOutput = args.includes("--grouped");
   let resolutionPolicy: ResolutionPolicy = "strict";
   const policyArg = args.find(a => a.startsWith("--resolution-policy="));
   if (policyArg) {
@@ -207,6 +222,20 @@ async function main() {
   await fs.mkdir(outsideDir, { recursive: true });
   await fs.mkdir(duplicatedDir, { recursive: true });
 
+  const groupedIssues: GroupCollection = new Map();
+  const groupedNitpicks: GroupCollection = new Map();
+  const groupedOutside: GroupCollection = new Map();
+  const groupedDuplicated: GroupCollection = new Map();
+  const groupedCounters: Record<DetailSection, number> = {
+    nitpick: 0,
+    outside: 0,
+    duplicate: 0,
+  };
+  let groupedIssueCounter = 0;
+
+  const issueFilePaths: string[] = [];
+  const commentFilePaths: string[] = [];
+
   // Categories:
   // - issues: resolvable review comments (inline threads)
   // - comments: simple comments (general PR issue comments + PR review bodies)
@@ -236,7 +265,40 @@ async function main() {
       continue;
     }
 
-    await createIssueFile(issuesDir, ++createdIssueCount, comment, reviewThreads, resolutionPolicy);
+    createdIssueCount++;
+    let issueRelativePath: string;
+    if (groupedOutput) {
+      const groupKey = comment.path || "unknown";
+      const grouped = ensureGroup(groupedIssues, groupKey, () => {
+        groupedIssueCounter++;
+        const fileBase = buildGroupedIssueFileName(comment);
+        const fileName = `${formatIndex(groupedIssueCounter)}-${fileBase}`;
+        return {
+          filePath: join(issuesDir, fileName),
+          relativePath: `issues/${fileName}`,
+          displayPath: groupKey,
+          entries: [],
+          index: groupedIssueCounter,
+        };
+      });
+      grouped.entries.push(
+        renderIssueContent(createdIssueCount, comment, reviewThreads, resolutionPolicy, 2)
+      );
+      issueRelativePath = grouped.relativePath;
+    } else {
+      issueRelativePath = await createIssueFile(
+        issuesDir,
+        createdIssueCount,
+        comment,
+        reviewThreads,
+        resolutionPolicy
+      );
+    }
+    issueFilePaths.push(issueRelativePath);
+  }
+
+  if (groupedOutput) {
+    await writeGroupedFiles(groupedIssues, pathLabel => `# Issues for \`${pathLabel}\``);
   }
 
   console.log("Creating comment files (simple comments) in comments/ ...");
@@ -252,16 +314,38 @@ async function main() {
     file: string;
     resolved: boolean;
     summaryPath: string;
-    section: "nitpick" | "outside" | "duplicate";
+    section: DetailSection;
   };
   const allExtracted: ExtractedInfo[] = [];
   for (let i = 0; i < simpleItems.length; i++) {
-    const created = await createSimpleCommentFile(commentsDir, i + 1, simpleItems[i], {
-      nitpicksDir,
-      outsideDir,
-      duplicatedDir,
-    });
+    const created = await createSimpleCommentFile(
+      commentsDir,
+      i + 1,
+      simpleItems[i],
+      commentFilePaths,
+      {
+        nitpicksDir,
+        outsideDir,
+        duplicatedDir,
+        grouped: groupedOutput,
+        groupedMaps: {
+          nitpick: groupedNitpicks,
+          outside: groupedOutside,
+          duplicate: groupedDuplicated,
+        },
+        groupedCounters,
+      }
+    );
     allExtracted.push(...created);
+  }
+
+  if (groupedOutput) {
+    await writeGroupedFiles(groupedNitpicks, pathLabel => `# Nitpicks for \`${pathLabel}\``);
+    await writeGroupedFiles(groupedOutside, pathLabel => `# Outside-of-diff for \`${pathLabel}\``);
+    await writeGroupedFiles(
+      groupedDuplicated,
+      pathLabel => `# Duplicate comments for \`${pathLabel}\``
+    );
   }
 
   await createSummaryFile(
@@ -269,6 +353,8 @@ async function main() {
     prNumber,
     reviewComments,
     simpleItems,
+    issueFilePaths,
+    commentFilePaths,
     resolvedCount,
     unresolvedCount,
     reviewThreads,
@@ -553,21 +639,21 @@ function isCommentResolvedByPolicy(
   return false;
 }
 
-async function createIssueFile(
-  outputDir: string,
+function renderIssueContent(
   issueNumber: number,
   comment: ReviewComment,
   reviewThreads: ReviewThread[],
-  resolutionPolicy: ResolutionPolicy
-): Promise<void> {
-  const file = join(outputDir, `issue_${issueNumber.toString().padStart(3, "0")}.md`);
+  resolutionPolicy: ResolutionPolicy,
+  headingLevel = 1
+): string {
   const formattedDate = formatDate(comment.created_at);
   const resolvedStatus = isCommentResolvedByPolicy(comment, reviewThreads, resolutionPolicy)
     ? "- [x] RESOLVED ✓"
     : "- [ ] UNRESOLVED";
   const thread = findThreadForReviewComment(comment, reviewThreads);
   const threadId = thread?.id ?? "";
-  const content = `# Issue ${issueNumber} - Review Thread Comment
+  const heading = `${"#".repeat(headingLevel)} Issue ${issueNumber} - Review Thread Comment`;
+  return `${heading}
 
 **File:** \`${comment.path}:${comment.line}\`
 **Date:** ${formattedDate}
@@ -588,8 +674,67 @@ gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$
 ---
 *Generated from PR review - CodeRabbit AI*
 `;
+}
+
+async function createIssueFile(
+  outputDir: string,
+  issueNumber: number,
+  comment: ReviewComment,
+  reviewThreads: ReviewThread[],
+  resolutionPolicy: ResolutionPolicy
+): Promise<string> {
+  const fileName = `${formatIndex(issueNumber)}-issue.md`;
+  const file = join(outputDir, fileName);
+  const content = renderIssueContent(issueNumber, comment, reviewThreads, resolutionPolicy);
   await fs.writeFile(file, content, "utf8");
   console.log(`  Created ${file}`);
+  return `issues/${fileName}`;
+}
+
+function buildGroupedIssueFileName(comment: ReviewComment): string {
+  const rawPath = comment.path || "unknown_file";
+  const sanitized = sanitizePath(rawPath);
+  const base = sanitized || "unknown_file";
+  return `${base}.md`;
+}
+
+function buildGroupedDetailFileName(section: DetailSection, summaryPath: string): string {
+  const prefix =
+    section === "outside" ? "outside" : section === "duplicate" ? "duplicate" : "nitpick";
+  const sanitized = sanitizePath(summaryPath || "unknown_detail");
+  const base = sanitized || "unknown_detail";
+  return `${prefix}_${base}.md`;
+}
+
+function formatIndex(index: number): string {
+  return index.toString().padStart(3, "0");
+}
+
+function ensureGroup(
+  collection: GroupCollection,
+  key: string,
+  factory: () => GroupedFile
+): GroupedFile {
+  let group = collection.get(key);
+  if (!group) {
+    group = factory();
+    collection.set(key, group);
+  }
+  return group;
+}
+
+async function writeGroupedFiles(
+  collection: GroupCollection,
+  headerBuilder: (displayPath: string) => string
+): Promise<void> {
+  const groups = Array.from(collection.values()).sort((a, b) => a.index - b.index);
+  for (const group of groups) {
+    const header = headerBuilder(group.displayPath || "unknown");
+    const normalizedHeader = header.endsWith("\n") ? header : `${header}\n`;
+    const content = `${normalizedHeader}\n${group.entries.join("\n\n---\n\n")}`;
+    await fs.writeFile(group.filePath, content, "utf8");
+    console.log(`  Created ${group.filePath}`);
+  }
 }
 
 // Maps a REST review comment to its GraphQL review thread, if available.
@@ -608,22 +753,47 @@ function findThreadForReviewComment(
   return undefined;
 }
 
+function renderDetailContent(
+  section: DetailSection,
+  commentNumber: number,
+  formattedDate: string,
+  summaryPath: string,
+  resolved: boolean,
+  detailsHtml: string,
+  headingLevel = 1
+): string {
+  const headingPrefix = "#".repeat(headingLevel);
+  const title =
+    section === "outside" ? "Outside-of-diff" : section === "duplicate" ? "Duplicate" : "Nitpick";
+  const status = resolved ? "- [x] RESOLVED ✓" : "- [ ] UNRESOLVED";
+  return `${headingPrefix} ${title} from Comment ${commentNumber}\n\n**File:** \`${summaryPath}\`\n**Date:** ${formattedDate}\n**Status:** ${status}\n\n## Details\n\n${detailsHtml}\n`;
+}
+
 async function createSimpleCommentFile(
   outputDir: string,
   commentNumber: number,
   item:
     | { kind: "issue_comment"; data: IssueComment }
     | { kind: "review"; data: SimpleReviewComment },
-  dirs: { nitpicksDir: string; outsideDir: string; duplicatedDir: string }
+  commentFiles: string[],
+  dirs: {
+    nitpicksDir: string;
+    outsideDir: string;
+    duplicatedDir: string;
+    grouped?: boolean;
+    groupedMaps?: Record<DetailSection, GroupCollection>;
+    groupedCounters?: Record<DetailSection, number>;
+  }
 ): Promise<
   {
     file: string;
     resolved: boolean;
     summaryPath: string;
-    section: "nitpick" | "outside" | "duplicate";
+    section: DetailSection;
   }[]
 > {
-  const file = join(outputDir, `comment_${commentNumber.toString().padStart(3, "0")}.md`);
+  const fileName = `${formatIndex(commentNumber)}-comment.md`;
+  const file = join(outputDir, fileName);
   const d = item.data;
   const formattedDate = formatDate(d.created_at);
   const typeLabel =
@@ -644,13 +814,14 @@ ${d.body}
 `;
   await fs.writeFile(file, content, "utf8");
   console.log(`  Created ${file}`);
+  commentFiles.push(`comments/${fileName}`);
   // Parse and extract nitpicks <details> blocks into separate files
   const perFile = extractPerFileDetailsFromMarkdown(d.body);
   const createdFiles: {
     file: string;
     resolved: boolean;
     summaryPath: string;
-    section: "nitpick" | "outside" | "duplicate";
+    section: DetailSection;
   }[] = [];
   for (let i = 0; i < perFile.length; i++) {
     const { detailsHtml, summaryPath, section } = perFile[i];
@@ -658,25 +829,78 @@ ${d.body}
     const base = sanitizePath(summaryPath);
     const prefix =
       section === "outside" ? "outside" : section === "duplicate" ? "duplicate" : "nitpick";
+    const folderName =
+      section === "outside" ? "outside" : section === "duplicate" ? "duplicated" : "nitpicks";
     const targetDir =
       section === "outside"
         ? dirs.outsideDir
         : section === "duplicate"
           ? dirs.duplicatedDir
           : dirs.nitpicksDir;
-    const nitFile = join(
-      targetDir,
-      `${prefix}_${commentNumber.toString().padStart(3, "0")}_${(i + 1)
+    const writeIndividual = async () => {
+      const nitFileName = `${formatIndex(commentNumber)}-${prefix}_${(i + 1)
         .toString()
-        .padStart(2, "0")}_${base}.md`
-    );
-    const status = resolved ? "- [x] RESOLVED ✓" : "- [ ] UNRESOLVED";
-    const title =
-      section === "outside" ? "Outside-of-diff" : section === "duplicate" ? "Duplicate" : "Nitpick";
-    const nitContent = `# ${title} from Comment ${commentNumber}\n\n**File:** \`${summaryPath}\`\n**Date:** ${formattedDate}\n**Status:** ${status}\n\n## Details\n\n${detailsHtml}\n`;
-    await fs.writeFile(nitFile, nitContent, "utf8");
-    createdFiles.push({ file: nitFile, resolved, summaryPath, section });
-    console.log(`    ↳ ${title} ${i + 1}: ${nitFile}`);
+        .padStart(2, "0")}_${base}.md`;
+      const nitFile = join(targetDir, nitFileName);
+      const nitContent = renderDetailContent(
+        section,
+        commentNumber,
+        formattedDate,
+        summaryPath,
+        resolved,
+        detailsHtml
+      );
+      await fs.writeFile(nitFile, nitContent, "utf8");
+      createdFiles.push({ file: nitFile, resolved, summaryPath, section });
+      const title =
+        section === "outside"
+          ? "Outside-of-diff"
+          : section === "duplicate"
+            ? "Duplicate"
+            : "Nitpick";
+      console.log(`    ↳ ${title} ${i + 1}: ${nitFile}`);
+    };
+
+    if (dirs.grouped && dirs.groupedMaps) {
+      const collection = dirs.groupedMaps[section];
+      if (!collection) {
+        console.warn(
+          `    Warning: grouped map missing for section '${section}'. Falling back to individual files.`
+        );
+        await writeIndividual();
+        continue;
+      }
+      const fileBase = buildGroupedDetailFileName(section, summaryPath);
+      const groupKey = summaryPath || "unknown_detail";
+      const groupedFile = ensureGroup(collection, groupKey, () => {
+        const nextIndex = dirs.groupedCounters
+          ? (dirs.groupedCounters[section] += 1)
+          : collection.size + 1;
+        const fileName = `${formatIndex(nextIndex)}-${fileBase}`;
+        return {
+          filePath: join(targetDir, fileName),
+          relativePath: `${folderName}/${fileName}`,
+          displayPath: summaryPath,
+          entries: [],
+          index: nextIndex,
+        };
+      });
+      groupedFile.entries.push(
+        renderDetailContent(
+          section,
+          commentNumber,
+          formattedDate,
+          summaryPath,
+          resolved,
+          detailsHtml,
+          2
+        )
+      );
+      createdFiles.push({ file: groupedFile.filePath, resolved, summaryPath, section });
+      continue;
+    }
+
+    await writeIndividual();
   }
   return createdFiles;
 }
@@ -689,6 +913,8 @@ async function createSummaryFile(
     | { kind: "issue_comment"; data: IssueComment }
     | { kind: "review"; data: SimpleReviewComment }
   )[],
+  issueFiles: string[],
+  commentFiles: string[],
   resolvedCount: number,
   unresolvedCount: number,
   reviewThreads: ReviewThread[],
@@ -697,7 +923,7 @@ async function createSummaryFile(
     file: string;
     resolved: boolean;
     summaryPath: string;
-    section: "nitpick" | "outside" | "duplicate";
+    section: DetailSection;
   }[],
   createdIssueCount: number,
   hideResolved: boolean
@@ -734,22 +960,21 @@ This folder contains exported issues (resolvable review threads) and simple comm
 
     issueIndex++;
     const checked = isResolved ? "x" : " ";
-    const issueFile = `issues/issue_${issueIndex.toString().padStart(3, "0")}.md`;
+    const issueFile = issueFiles[issueIndex - 1] || `issues/${formatIndex(issueIndex)}-issue.md`;
     const loc = ` ${comment.path}:${comment.line}`;
     content += `- [${checked}] [Issue ${issueIndex}](${issueFile}) -${loc}\n`;
   }
 
   content += `\n## Comments (not resolvable)\n\n`;
   for (let i = 0; i < simpleItems.length; i++) {
-    const commentFile = `comments/comment_${(i + 1).toString().padStart(3, "0")}.md`;
+    const commentFile = commentFiles[i] || `comments/${formatIndex(i + 1)}-comment.md`;
     const label = simpleItems[i].kind === "review" ? "review" : "general";
     content += `- [ ] [Comment ${i + 1}](${commentFile}) (${label})\n`;
   }
 
-  const bySection = (s: "nitpick" | "outside" | "duplicate") =>
-    extracted.filter(e => e.section === s);
+  const bySection = (s: DetailSection) => extracted.filter(e => e.section === s);
   const sectionSpec: Array<{
-    key: "nitpick" | "outside" | "duplicate";
+    key: DetailSection;
     title: string;
     folder: string;
   }> = [
@@ -766,7 +991,7 @@ This folder contains exported issues (resolvable review threads) and simple comm
     content += `- Resolved: ${resolvedCnt} ✓\n`;
     content += `- Unresolved: ${unresolvedCnt}\n\n`;
     for (const n of items) {
-      const rel = `${s.folder}/${n.file.split(`${s.folder}/`).pop()}`;
+      const rel = `${s.folder}/${basename(n.file)}`;
       const checked = n.resolved ? "x" : " ";
       content += `- [${checked}] [${n.summaryPath}](${rel})\n`;
     }
@@ -779,7 +1004,7 @@ This folder contains exported issues (resolvable review threads) and simple comm
 // ---- Nitpicks extraction ----
 function extractPerFileDetailsFromMarkdown(
   body: string
-): { detailsHtml: string; summaryPath: string; section: "nitpick" | "outside" | "duplicate" }[] {
+): { detailsHtml: string; summaryPath: string; section: DetailSection }[] {
   if (!body) return [];
   // Limit extraction strictly to known sections to avoid pulling from
   // "Review details" (e.g., Code graph analysis, Additional comments).
@@ -792,7 +1017,7 @@ function extractPerFileDetailsFromMarkdown(
   const out: {
     detailsHtml: string;
     summaryPath: string;
-    section: "nitpick" | "outside" | "duplicate";
+    section: DetailSection;
   }[] = [];
   const summaryRe = /<summary[^>]*>([\s\S]*?)<\/summary>/gi;
   let m: RegExpExecArray | null;
@@ -819,7 +1044,7 @@ function extractPerFileDetailsFromMarkdown(
   return dedupeByContent(out);
 }
 
-type Range = { start: number; end: number; section: "nitpick" | "outside" | "duplicate" };
+type Range = { start: number; end: number; section: DetailSection };
 
 function findAllowedSectionRanges(body: string): Range[] {
   const ranges: Range[] = [];
@@ -892,7 +1117,7 @@ function dedupeByContent<T extends { detailsHtml: string; summaryPath: string }>
   return out;
 }
 
-function inferSection(body: string, beforeIndex: number): "nitpick" | "outside" | "duplicate" {
+function inferSection(body: string, beforeIndex: number): DetailSection {
   const prefix = body.slice(0, beforeIndex).toLowerCase();
   const idxOutside = Math.max(
     prefix.lastIndexOf("outside diff range comments"),

@@ -117,12 +117,14 @@ func GetResourceStore(c *gin.Context) (resources.ResourceStore, bool) {
 func GetRequestBody[T any](c *gin.Context) *T {
 	var input T
 	if err := c.ShouldBindJSON(&input); err != nil {
-		reqErr := NewRequestError(
-			http.StatusBadRequest,
-			"invalid input",
-			err,
-		)
-		RespondWithError(c, reqErr.StatusCode, reqErr)
+		core.RespondProblem(c, &core.Problem{
+			Status: http.StatusBadRequest,
+			Detail: "invalid input",
+			Extras: map[string]any{
+				"code":   ErrBadRequestCode,
+				"detail": err.Error(),
+			},
+		})
 		return nil
 	}
 

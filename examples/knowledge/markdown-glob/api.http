@@ -1,0 +1,86 @@
+### Knowledge Quickstart API
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = knowledge-qa
+@knowledgeBaseId = quickstart_docs
+
+### Execute knowledge quickstart workflow
+# @name executeWorkflow
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "question": "What does quickstart explain?"
+  }
+}
+
+### Check execution status
+@execId = {{executeWorkflow.response.body.data.exec_id}}
+GET {{baseUrl}}/executions/workflows/{{execId}}
+Accept: application/json
+
+### List knowledge bases
+# @name listKnowledgeBases
+GET {{baseUrl}}/knowledge-bases?limit=10
+Accept: application/json
+
+### Get knowledge base definition
+# @name getKnowledgeBase
+GET {{baseUrl}}/knowledge-bases/{{knowledgeBaseId}}
+Accept: application/json
+
+### Upsert knowledge base definition
+# @name upsertKnowledgeBase
+PUT {{baseUrl}}/knowledge-bases/{{knowledgeBaseId}}
+Content-Type: application/json
+Accept: application/json
+If-Match: {{getKnowledgeBase.response.headers.ETag}}
+
+{
+  "embedder": "openai_default",
+  "vector_db": "filesystem_faststart",
+  "sources": [
+    {
+      "type": "markdown_glob",
+      "path": "docs/**/*.md"
+    }
+  ],
+  "chunking": {
+    "strategy": "recursive_text_splitter",
+    "size": 512,
+    "overlap": 64
+  },
+  "retrieval": {
+    "top_k": 5,
+    "min_score": 0.2,
+    "max_tokens": 1200
+  }
+}
+
+### Delete knowledge base
+DELETE {{baseUrl}}/knowledge-bases/{{knowledgeBaseId}}
+Accept: application/json
+If-Match: {{getKnowledgeBase.response.headers.ETag}}
+
+### Ingest knowledge base sources
+# @name ingestKnowledge
+POST {{baseUrl}}/knowledge-bases/{{knowledgeBaseId}}/ingest
+Content-Type: application/json
+Accept: application/json
+
+{
+  "strategy": "replace"
+}
+
+### Query knowledge base
+# @name queryKnowledge
+POST {{baseUrl}}/knowledge-bases/{{knowledgeBaseId}}/query
+Content-Type: application/json
+Accept: application/json
+
+{
+  "query": "Summarize the quickstart setup steps.",
+  "top_k": 5,
+  "min_score": 0.2
+}

@@ -63,7 +63,7 @@ func GetSharedPostgresDB(ctx context.Context, t *testing.T) (*pgxpool.Pool, func
 // createPostgresContainer creates a PostgreSQL container with standard configuration
 func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, *pgxpool.Pool, error) {
 	pgContainer, err := postgres.Run(ctx,
-		"postgres:15-alpine",
+		"pgvector/pgvector:pg16",
 		postgres.WithDatabase("test-db"),
 		postgres.WithUsername("user"),
 		postgres.WithPassword("password"),

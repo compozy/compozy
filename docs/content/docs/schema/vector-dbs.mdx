@@ -1,0 +1,61 @@
+---
+title: Vector Database Schema
+description: JSON Schema for vector store configuration
+icon: Database
+---
+
+import vectorDbSchema from "@/schemas/vectordb.json";
+
+## Vector Database Definition
+
+<SchemaParams
+  schema={vectorDbSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+### Example
+
+```yaml
+vector_dbs:
+  - id: filesystem_faststart
+    type: filesystem
+  - id: pgvector_local
+    type: pgvector
+    config:
+      dsn: "{{ .env.PGVECTOR_DSN }}"  # Optional for pgvector
+      ensure_index: true
+      table: knowledge_chunks
+  - id: pgvector_default
+    type: pgvector
+    config:
+      # DSN omitted - uses global postgres database config
+      ensure_index: true
+      table: knowledge_chunks
+      dimension: 1536
+```
+
+- `filesystem` is ideal for quickstarts and tests and persists embeddings to `.compozy/cache/<vector_db_id>.store` when no `config.path` is provided, so quickstarts do not require extra configuration.
+- **pgvector DSN is optional** - when not provided, pgvector uses the global postgres database configuration, reducing configuration duplication.
+- Qdrant requires an explicit DSN.
+- `config.ensure_index` controls whether Compozy enforces pgvector index creation on startup.
+- Use `config.auth` to pass API keys or bearer tokens for managed vector databases.
+
+## Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Knowledge Configuration Guide"
+    description="See how vector databases pair with embedders inside knowledge bases."
+    href="/docs/core/knowledge/configuration"
+    icon="BookOpenCheck"
+  />
+  <ReferenceCard
+    title="pgvector Example"
+    description="Run the pgvector basic example end-to-end."
+    href="https://github.com/compozy/compozy/tree/main/examples/knowledge/pgvector-basic"
+    icon="Server"
+  />
+</ReferenceCardList>

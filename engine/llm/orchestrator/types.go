@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/llm/contracts"
 	"github.com/compozy/compozy/engine/llm/telemetry"
@@ -20,11 +21,27 @@ type AsyncHook interface {
 
 // Request represents an orchestrator request.
 type Request struct {
-	Agent           *agent.Config
-	Action          *agent.ActionConfig
-	AttachmentParts []llmadapter.ContentPart
-	ProviderCaps    llmadapter.ProviderCapabilities
-	PromptContext   PromptDynamicContext
+	Agent     *agent.Config
+	Action    *agent.ActionConfig
+	Prompt    PromptPayload
+	Knowledge KnowledgePayload
+	Execution ExecutionOptions
+}
+
+// PromptPayload aggregates prompt attachments and dynamic metadata.
+type PromptPayload struct {
+	Attachments    []llmadapter.ContentPart
+	DynamicContext PromptDynamicContext
+}
+
+// KnowledgePayload groups retrieved knowledge entries for prompt injection.
+type KnowledgePayload struct {
+	Entries []KnowledgeEntry
+}
+
+// ExecutionOptions captures provider-specific execution capabilities.
+type ExecutionOptions struct {
+	ProviderCaps llmadapter.ProviderCapabilities
 }
 
 // RequestBuildOutput captures the constructed LLM request and prompt metadata.
@@ -32,6 +49,15 @@ type RequestBuildOutput struct {
 	Request        llmadapter.LLMRequest
 	PromptTemplate PromptTemplateState
 	PromptContext  PromptDynamicContext
+}
+
+// KnowledgeEntry bundles the binding metadata, retrieval settings, and resolved contexts for prompt injection.
+type KnowledgeEntry struct {
+	BindingID string
+	Retrieval knowledge.RetrievalConfig
+	Contexts  []knowledge.RetrievedContext
+	Status    knowledge.RetrievalStatus
+	Notice    string
 }
 
 // Config configures orchestrator behavior.

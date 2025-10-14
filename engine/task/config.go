@@ -74,6 +74,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"dario.cat/mergo"
@@ -220,6 +221,8 @@ type BaseConfig struct {
 	// Can override or extend workflow-level environment variables
 	// - **Example**: { "API_KEY": "{{ .env.SECRET_KEY }}" }
 	Env *core.EnvMap `json:"env,omitempty"        yaml:"env,omitempty"        mapstructure:"env,omitempty"`
+	// Knowledge declares task-scoped knowledge bindings (MVP single binding).
+	Knowledge []core.KnowledgeBinding `json:"knowledge,omitempty"  yaml:"knowledge,omitempty"  mapstructure:"knowledge,omitempty"`
 	// Task execution control
 	// Defines what happens after successful task completion
 	// Can specify next task ID or conditional routing
@@ -2464,6 +2467,12 @@ func (t *Config) Validate() error {
 	)
 	if err := v.Validate(); err != nil {
 		return err
+	}
+	if len(t.Knowledge) > 1 {
+		return fmt.Errorf("task configuration error: only one knowledge binding is supported in MVP")
+	}
+	if len(t.Knowledge) == 1 && strings.TrimSpace(t.Knowledge[0].ID) == "" {
+		return fmt.Errorf("task configuration error: knowledge binding requires an id reference")
 	}
 	// Then check for cycles in parallel tasks
 	if t.Type == TaskTypeParallel {

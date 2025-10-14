@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
@@ -312,6 +314,178 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		require.NotNil(t, out)
 		assert.Equal(t, true, (*out)["enhanced"])
 		assert.Equal(t, true, (*out)["focused"])
+	})
+}
+
+func TestService_applyKnowledgeOverrides(t *testing.T) {
+	t.Run("Should apply runtime overrides to resolved knowledge bindings", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
+		manager := appconfig.NewManager(appconfig.NewService())
+		_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
+		require.NoError(t, err)
+		ctx = appconfig.ContextWithManager(ctx, manager)
+		runtimeMgr := &mockRuntime{}
+		agentConfig := createTestAgentConfig()
+		svc, err := NewService(ctx, runtimeMgr, agentConfig)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = svc.Close() })
+		storePath := filepath.Join(t.TempDir(), "vector.store")
+		require.NotNil(t, svc.knowledge)
+		svc.knowledge.runtimeEmbedders = map[string]*knowledge.EmbedderConfig{
+			"openai_default": {
+				ID:       "openai_default",
+				APIKey:   "resolved-secret",
+				Model:    "text-embedding-3-small",
+				Provider: "openai",
+				Config: knowledge.EmbedderRuntimeConfig{
+					Dimension: 1536,
+					BatchSize: 64,
+				},
+			},
+		}
+		svc.knowledge.runtimeVectorDBs = map[string]*knowledge.VectorDBConfig{
+			"filesystem": {
+				ID:   "filesystem",
+				Type: knowledge.VectorDBTypeFilesystem,
+				Config: knowledge.VectorDBConnConfig{
+					Path:      storePath,
+					Dimension: 1536,
+				},
+			},
+		}
+		svc.knowledge.runtimeKnowledgeBases = map[string]*knowledge.BaseConfig{
+			"kb": {
+				ID:       "kb",
+				Embedder: "openai_default",
+				VectorDB: "filesystem",
+			},
+		}
+		binding := &knowledge.ResolvedBinding{
+			ID: "binding",
+			KnowledgeBase: knowledge.BaseConfig{
+				ID:       "kb",
+				Embedder: "openai_default",
+				VectorDB: "memory",
+			},
+			Embedder: knowledge.EmbedderConfig{
+				ID:       "openai_default",
+				APIKey:   "{{ .env.OPENAI_API_KEY }}",
+				Model:    "text-embedding-3-small",
+				Provider: "openai",
+				Config: knowledge.EmbedderRuntimeConfig{
+					Dimension: 1536,
+					BatchSize: 64,
+				},
+			},
+			Vector: knowledge.VectorDBConfig{
+				ID:   "filesystem",
+				Type: knowledge.VectorDBTypeFilesystem,
+				Config: knowledge.VectorDBConnConfig{
+					Path:      storePath,
+					Dimension: 1536,
+				},
+			},
+			Retrieval: knowledge.RetrievalConfig{TopK: 5},
+		}
+
+		svc.knowledge.applyOverrides(binding)
+
+		assert.Equal(t, "resolved-secret", binding.Embedder.APIKey)
+		assert.Equal(t, "filesystem", binding.Vector.ID)
+		assert.Equal(t, "kb", binding.KnowledgeBase.ID)
+	})
+}
+
+func TestBuildKnowledgeQuery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include prompt intent and input values when available", func(t *testing.T) {
+		input := core.Input{
+			"question": "What phases does NIST recommend for incident handling?",
+			"context": map[string]any{
+				"note": "Summarize key actions in each phase.",
+			},
+		}
+		action := &agent.ActionConfig{
+			Prompt: "Answer the question: {{ .input.question }}",
+			With:   &input,
+		}
+		query := buildKnowledgeQuery(action)
+		require.NotEmpty(t, query)
+		assert.NotContains(t, query, "{{")
+		assert.Contains(t, query, "Answer the question:")
+		assert.Contains(t, query, "What phases does NIST recommend for incident handling?")
+		assert.Contains(t, query, "Summarize key actions in each phase.")
+	})
+
+	t.Run("Should fall back to prompt when inputs are empty", func(t *testing.T) {
+		action := &agent.ActionConfig{
+			Prompt: "Outline the incident response lifecycle.",
+		}
+		query := buildKnowledgeQuery(action)
+		assert.Equal(t, "Outline the incident response lifecycle.", query)
+	})
+
+	t.Run("Should ignore templated input values", func(t *testing.T) {
+		input := core.Input{
+			"question": "{{ .workflow.input.question }}",
+		}
+		action := &agent.ActionConfig{
+			Prompt: "Provide a concise answer.",
+			With:   &input,
+		}
+		query := buildKnowledgeQuery(action)
+		assert.Equal(t, "Provide a concise answer.", query)
+	})
+}
+
+func TestServiceSummarizeRetrieval(t *testing.T) {
+	ctx := context.Background()
+	ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
+	manager := appconfig.NewManager(appconfig.NewService())
+	_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
+	require.NoError(t, err)
+	ctx = appconfig.ContextWithManager(ctx, manager)
+	runtimeMgr := &mockRuntime{}
+	agentConfig := createTestAgentConfig()
+	svc, err := NewService(ctx, runtimeMgr, agentConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = svc.Close() })
+
+	t.Run("marks hit when enough contexts", func(t *testing.T) {
+		binding := &knowledge.ResolvedBinding{ID: "kb", Retrieval: knowledge.RetrievalConfig{MinResults: 1}}
+		contexts := []knowledge.RetrievedContext{{BindingID: "kb", Content: "body", Score: 0.9}}
+		entry := summarizeRetrieval(ctx, binding, contexts, "initial")
+		require.NotNil(t, entry)
+		assert.Equal(t, knowledge.RetrievalStatusHit, entry.Status)
+		assert.Len(t, entry.Contexts, 1)
+		assert.Equal(t, "", entry.Notice)
+	})
+
+	t.Run("suppresses tools on fallback", func(t *testing.T) {
+		binding := &knowledge.ResolvedBinding{
+			ID:        "kb",
+			Retrieval: knowledge.RetrievalConfig{MinResults: 2, ToolFallback: knowledge.ToolFallbackNever},
+		}
+		entry := summarizeRetrieval(ctx, binding, nil, "initial")
+		require.NotNil(t, entry)
+		assert.Equal(t, knowledge.RetrievalStatusFallback, entry.Status)
+		assert.Empty(t, entry.Contexts)
+		assert.NotEmpty(t, entry.Notice)
+	})
+
+	t.Run("escalates when configured", func(t *testing.T) {
+		binding := &knowledge.ResolvedBinding{
+			ID:        "kb",
+			Retrieval: knowledge.RetrievalConfig{MinResults: 2, ToolFallback: knowledge.ToolFallbackEscalate},
+		}
+		entry := summarizeRetrieval(ctx, binding, nil, "initial")
+		require.NotNil(t, entry)
+		assert.Equal(t, knowledge.RetrievalStatusEscalated, entry.Status)
+		assert.Empty(t, entry.Contexts)
 	})
 }
 

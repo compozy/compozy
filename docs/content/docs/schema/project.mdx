@@ -21,6 +21,16 @@ import monitoringSchema from "@/schemas/monitoring.json";
   paramType="path"
 />
 
+### Knowledge Resources
+
+The project schema now includes dedicated arrays for:
+
+- `embedders` – provider configurations for generating embeddings.
+- `vector_dbs` – vector store connections (e.g., `pgvector`, `qdrant`, `filesystem`).
+- `knowledge_bases` – source, chunking, and retrieval defaults.
+
+See the dedicated schema pages for each resource to review individual properties.
+
 ## Project Options
 
 <SchemaParams

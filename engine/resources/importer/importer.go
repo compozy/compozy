@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/auth/userctx"
 	"github.com/compozy/compozy/engine/core"
+	knowledgeuc "github.com/compozy/compozy/engine/knowledge/uc"
 	mcpuc "github.com/compozy/compozy/engine/mcp/uc"
 	memoryuc "github.com/compozy/compozy/engine/memoryconfig/uc"
 	modeluc "github.com/compozy/compozy/engine/model/uc"
@@ -92,6 +93,7 @@ func ImportFromDir(
 		resources.ResourceMCP,
 		resources.ResourceModel,
 		resources.ResourceMemory,
+		resources.ResourceKnowledgeBase,
 		resources.ResourceProject,
 	}
 	for _, typ := range types {
@@ -308,15 +310,16 @@ type upsertHandler func(
 ) (resources.ETag, bool, error)
 
 var standardUpsertHandlers = map[resources.ResourceType]upsertHandler{
-	resources.ResourceWorkflow: workflowUpsert,
-	resources.ResourceAgent:    agentUpsert,
-	resources.ResourceTool:     toolUpsert,
-	resources.ResourceTask:     taskUpsert,
-	resources.ResourceSchema:   schemaUpsert,
-	resources.ResourceModel:    modelUpsert,
-	resources.ResourceMemory:   memoryUpsert,
-	resources.ResourceProject:  projectUpsert,
-	resources.ResourceMCP:      mcpUpsert,
+	resources.ResourceWorkflow:      workflowUpsert,
+	resources.ResourceAgent:         agentUpsert,
+	resources.ResourceTool:          toolUpsert,
+	resources.ResourceTask:          taskUpsert,
+	resources.ResourceSchema:        schemaUpsert,
+	resources.ResourceModel:         modelUpsert,
+	resources.ResourceMemory:        memoryUpsert,
+	resources.ResourceProject:       projectUpsert,
+	resources.ResourceMCP:           mcpUpsert,
+	resources.ResourceKnowledgeBase: knowledgeUpsert,
 }
 
 var _ = ensureStandardUpsertHandlers()
@@ -332,6 +335,7 @@ func ensureStandardUpsertHandlers() bool {
 		resources.ResourceMemory,
 		resources.ResourceProject,
 		resources.ResourceMCP,
+		resources.ResourceKnowledgeBase,
 	}
 	for _, typ := range required {
 		if _, ok := standardUpsertHandlers[typ]; !ok {
@@ -413,6 +417,22 @@ func toolUpsert(
 		IfMatch: ifMatch,
 	}
 	out, err := tooluc.NewUpsert(store).Execute(ctx, input)
+	if err != nil {
+		return "", false, err
+	}
+	return out.ETag, out.Created, nil
+}
+
+func knowledgeUpsert(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	id string,
+	ifMatch string,
+	body map[string]any,
+) (resources.ETag, bool, error) {
+	input := &knowledgeuc.UpsertInput{Project: project, ID: id, Body: body, IfMatch: ifMatch}
+	out, err := knowledgeuc.NewUpsert(store).Execute(ctx, input)
 	if err != nil {
 		return "", false, err
 	}

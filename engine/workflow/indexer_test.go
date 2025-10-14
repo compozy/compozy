@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
@@ -106,4 +107,42 @@ func TestSchemaID_Helper(t *testing.T) {
 		assert.Equal(t, "", schemaID(&s2))
 		assert.Equal(t, "", schemaID(nil))
 	})
+}
+
+func TestWorkflow_IndexToResourceStore_KnowledgeBases(t *testing.T) {
+	ctx := logger.ContextWithLogger(ctxWithBG(), logger.NewForTests())
+	store := resources.NewMemoryResourceStore()
+	wf := &Config{
+		ID: "wf-kb",
+		KnowledgeBases: []knowledge.BaseConfig{
+			{
+				ID:       "kb_manual_default",
+				Embedder: "embedder",
+				VectorDB: "vector",
+			},
+			{
+				ID:       "kb_on_start",
+				Embedder: "embedder",
+				VectorDB: "vector",
+				Ingest:   knowledge.IngestOnStart,
+			},
+		},
+	}
+	require.NoError(t, wf.IndexToResourceStore(ctx, "demo", store))
+	val, _, err := store.Get(
+		ctx,
+		resources.ResourceKey{Project: "demo", Type: resources.ResourceKnowledgeBase, ID: "kb_manual_default"},
+	)
+	require.NoError(t, err)
+	cfg, ok := val.(*knowledge.BaseConfig)
+	require.True(t, ok)
+	assert.Equal(t, knowledge.IngestManual, cfg.Ingest)
+	val, _, err = store.Get(
+		ctx,
+		resources.ResourceKey{Project: "demo", Type: resources.ResourceKnowledgeBase, ID: "kb_on_start"},
+	)
+	require.NoError(t, err)
+	cfg, ok = val.(*knowledge.BaseConfig)
+	require.True(t, ok)
+	assert.Equal(t, knowledge.IngestOnStart, cfg.Ingest)
 }

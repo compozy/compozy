@@ -350,6 +350,28 @@ If a per-model value is set, it overrides the global cap for that model.
 For provider-specific parameter validation and requirements, consult the [Provider Schema Documentation](/docs/schema/provider) which contains the authoritative schema definitions.
 </Callout>
 
+## Knowledge Retrieval
+
+When a workflow or agent binds a knowledge base, the orchestrator retrieves relevant passages before issuing the LLM request:
+
+<Steps>
+  <Step title="Resolve Binding">
+    Workflow, task, and agent bindings are merged (workflow → task → agent) to determine the active knowledge base and retrieval overrides.
+  </Step>
+  <Step title="Query Knowledge">
+    The knowledge service embeds the request, executes a dense similarity search, and filters results using `top_k`, `min_score`, and optional tag filters.
+  </Step>
+  <Step title="Inject Context">
+    Retrieved passages are truncated to the binding's `max_tokens` and appended to the prompt ahead of tool outputs and memory.
+  </Step>
+</Steps>
+
+- Missing or empty results generate a `knowledge.query.miss` warning but do not block the LLM call.
+- Use [CLI knowledge commands](/docs/cli/knowledge-commands) to verify binding behavior locally before deployment.
+- Monitor `knowledge_query_latency_seconds` to ensure retrieval stays within SLO budgets.
+
+Learn more in the [Retrieval & Prompt Injection guide](/docs/core/knowledge/retrieval-injection).
+
 ## Global Model Configuration
 
 Define reusable model configurations in your project's `compozy.yaml`:

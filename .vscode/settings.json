@@ -48,5 +48,8 @@
   },
   "[mdx]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "yaml.schemas": {
+    "https://coderabbit.ai/integrations/schema.v2.json": "file:///Users/pedronauck/Dev/compozy/compozy2/.coderabbit.yaml"
   }
 }

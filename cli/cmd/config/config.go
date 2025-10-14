@@ -431,6 +431,7 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	flattenLimitsConfig(cfg, result)
 	flattenAttachmentsConfig(cfg, result)
 	flattenMemoryConfig(cfg, result)
+	flattenKnowledgeConfig(cfg, result)
 	flattenLLMConfig(cfg, result)
 	flattenCLIConfig(cfg, result)
 	flattenRedisConfig(cfg, result)
@@ -448,6 +449,7 @@ func flattenServerConfig(cfg *config.Config, result map[string]string) {
 	result["server.port"] = fmt.Sprintf("%d", cfg.Server.Port)
 	result["server.cors_enabled"] = fmt.Sprintf("%v", cfg.Server.CORSEnabled)
 	result["server.timeout"] = cfg.Server.Timeout.String()
+	result["server.timeouts.knowledge_ingest"] = cfg.Server.Timeouts.KnowledgeIngest.String()
 }
 
 // flattenDatabaseConfig flattens database configuration
@@ -559,6 +561,19 @@ func flattenMemoryConfig(cfg *config.Config, result map[string]string) {
 	}
 	if cfg.Memory.MaxEntries > 0 {
 		result["memory.max_entries"] = fmt.Sprintf("%d", cfg.Memory.MaxEntries)
+	}
+}
+
+// flattenKnowledgeConfig flattens knowledge configuration defaults
+func flattenKnowledgeConfig(cfg *config.Config, result map[string]string) {
+	result["knowledge.embedder_batch_size"] = fmt.Sprintf("%d", cfg.Knowledge.EmbedderBatchSize)
+	result["knowledge.chunk_size"] = fmt.Sprintf("%d", cfg.Knowledge.ChunkSize)
+	result["knowledge.chunk_overlap"] = fmt.Sprintf("%d", cfg.Knowledge.ChunkOverlap)
+	result["knowledge.retrieval_top_k"] = fmt.Sprintf("%d", cfg.Knowledge.RetrievalTopK)
+	result["knowledge.retrieval_min_score"] = strconv.FormatFloat(cfg.Knowledge.RetrievalMinScore, 'f', -1, 64)
+	result["knowledge.max_markdown_file_size_bytes"] = fmt.Sprintf("%d", cfg.Knowledge.MaxMarkdownFileSizeBytes)
+	if cfg.Knowledge.VectorHTTPTimeout > 0 {
+		result["knowledge.vector_http_timeout"] = cfg.Knowledge.VectorHTTPTimeout.String()
 	}
 }
 

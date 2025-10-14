@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
@@ -190,9 +191,11 @@ func TestRequestBuilder_RequiresJSONMode(t *testing.T) {
 	schemaObj := &schema.Schema{"type": "object"}
 	action := &agent.ActionConfig{ID: "structured", OutputSchema: schemaObj}
 	request := Request{
-		Agent:        &agent.Config{Model: agent.Model{Config: core.ProviderConfig{Provider: core.ProviderGoogle}}},
-		Action:       action,
-		ProviderCaps: llmadapter.ProviderCapabilities{StructuredOutput: true},
+		Agent:  &agent.Config{Model: agent.Model{Config: core.ProviderConfig{Provider: core.ProviderGoogle}}},
+		Action: action,
+		Execution: ExecutionOptions{
+			ProviderCaps: llmadapter.ProviderCapabilities{StructuredOutput: true},
+		},
 	}
 
 	force := rb.requiresJSONMode(request, llmadapter.DefaultOutputFormat())
@@ -205,4 +208,68 @@ func TestRequestBuilder_RequiresJSONMode(t *testing.T) {
 	request.Action = nil
 	force = rb.requiresJSONMode(request, llmadapter.DefaultOutputFormat())
 	assert.False(t, force)
+}
+
+func TestRequestBuilderDecideToolStrategy(t *testing.T) {
+	rb := &requestBuilder{}
+	defs := []llmadapter.ToolDefinition{{Name: "dummy"}}
+
+	t.Run("Disables tools on fallback", func(t *testing.T) {
+		req := Request{
+			Knowledge: KnowledgePayload{
+				Entries: []KnowledgeEntry{{Status: knowledge.RetrievalStatusFallback}},
+			},
+		}
+		choice, filtered := rb.decideToolStrategy(&req, defs)
+		require.Equal(t, "none", choice)
+		require.Empty(t, filtered)
+	})
+
+	t.Run("Keeps tools on escalation", func(t *testing.T) {
+		req := Request{
+			Knowledge: KnowledgePayload{
+				Entries: []KnowledgeEntry{{Status: knowledge.RetrievalStatusEscalated}},
+			},
+		}
+		choice, filtered := rb.decideToolStrategy(&req, defs)
+		require.Equal(t, "auto", choice)
+		require.Len(t, filtered, 1)
+	})
+
+	t.Run("Defaults to auto when no knowledge verdicts", func(t *testing.T) {
+		req := Request{}
+		choice, filtered := rb.decideToolStrategy(&req, defs)
+		require.Equal(t, "auto", choice)
+		require.Len(t, filtered, 1)
+	})
+}
+
+func TestRequestBuilderDisablesToolChoiceWhenToolsRemoved(t *testing.T) {
+	rb := &requestBuilder{
+		prompts:       knowledgePromptBuilder{prompt: "respond"},
+		systemPrompts: systemRendererStub{},
+		memory:        stubKnowledgeMemory{},
+	}
+	registryTool := &regToolWithArgs{name: "cp__read_file"}
+	rb.tools = &listableRegistry{
+		find:  map[string]RegistryTool{"cp__read_file": registryTool},
+		tools: []RegistryTool{registryTool},
+	}
+	request := Request{
+		Agent: &agent.Config{
+			LLMProperties: agent.LLMProperties{Tools: []tool.Config{{ID: "cp__read_file"}}},
+			ID:            "agent",
+			Model:         agent.Model{Config: core.ProviderConfig{Provider: core.ProviderOpenAI}},
+		},
+		Action: &agent.ActionConfig{ID: "action", Prompt: "hi"},
+		Knowledge: KnowledgePayload{
+			Entries: []KnowledgeEntry{{
+				Status: knowledge.RetrievalStatusFallback,
+			}},
+		},
+	}
+	output, err := rb.Build(context.Background(), request, &MemoryContext{})
+	require.NoError(t, err)
+	assert.Empty(t, output.Request.Tools)
+	assert.Equal(t, "", output.Request.Options.ToolChoice)
 }

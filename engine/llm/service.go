@@ -3,11 +3,13 @@ package llm
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	orchestratorpkg "github.com/compozy/compozy/engine/llm/orchestrator"
 	"github.com/compozy/compozy/engine/llm/telemetry"
@@ -19,15 +21,21 @@ import (
 	"github.com/compozy/compozy/engine/tool/native"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
-const directPromptActionID = "direct-prompt"
+const (
+	directPromptActionID     = "direct-prompt"
+	closeVectorStoresTimeout = 10 * time.Second
+)
 
 // Service provides LLM integration capabilities using clean architecture
 type Service struct {
 	orchestrator orchestratorpkg.Orchestrator
 	config       *Config
 	toolRegistry ToolRegistry
+	knowledge    *knowledgeManager
+	closeCtx     context.Context
 }
 
 type builtinRegistryAdapter struct {
@@ -246,6 +254,37 @@ func (a *orchestratorToolRegistryAdapter) Close() error {
 	return a.registry.Close()
 }
 
+func newServiceInstance(
+	ctx context.Context,
+	orchestrator orchestratorpkg.Orchestrator,
+	config *Config,
+	registry ToolRegistry,
+	state *knowledgeRuntimeState,
+) *Service {
+	service := &Service{
+		orchestrator: orchestrator,
+		config:       config,
+		toolRegistry: registry,
+		closeCtx:     deriveCloseContext(ctx),
+	}
+	if state != nil {
+		service.knowledge = newKnowledgeManager(state)
+	}
+	return service
+}
+
+func deriveCloseContext(ctx context.Context) context.Context {
+	base := context.Background()
+	if mgr := appconfig.ManagerFromContext(ctx); mgr != nil {
+		base = appconfig.ContextWithManager(base, mgr)
+	}
+	log := logger.FromContext(ctx)
+	if log != nil {
+		base = logger.ContextWithLogger(base, log)
+	}
+	return base
+}
+
 // NewService creates a new LLM service with clean architecture
 func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Config, opts ...Option) (*Service, error) {
 	log := logger.FromContext(ctx)
@@ -262,6 +301,10 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
+	knowledgeState, err := newKnowledgeRuntimeState(ctx, config.Knowledge)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize knowledge resolver: %w", err)
+	}
 	if config.LLMFactory == nil {
 		factory, err := llmadapter.NewDefaultFactory(ctx)
 		if err != nil {
@@ -269,19 +312,9 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		}
 		config.LLMFactory = factory
 	}
-	// Create MCP client if configured
-	var mcpClient *mcp.Client
-	if config.ProxyURL != "" {
-		client, err := config.CreateMCPClient()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create MCP client: %w", err)
-		}
-		mcpClient = client
-		toRegister := collectMCPsToRegister(agent, config)
-		uniq := dedupeMCPsByID(toRegister)
-		if err := registerMCPsWithProxy(ctx, mcpClient, uniq, config.FailOnMCPRegistrationError); err != nil {
-			return nil, err
-		}
+	mcpClient, err := setupMCPClient(ctx, config, agent)
+	if err != nil {
+		return nil, err
 	}
 	// Create tool registry
 	toolRegistry := NewToolRegistry(ToolRegistryConfig{
@@ -305,11 +338,7 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		}
 		return nil, fmt.Errorf("failed to create orchestrator: %w", err)
 	}
-	return &Service{
-		orchestrator: llmOrchestrator,
-		config:       config,
-		toolRegistry: toolRegistry,
-	}, nil
+	return newServiceInstance(ctx, llmOrchestrator, config, toolRegistry, knowledgeState), nil
 }
 
 // GenerateContent generates content using the orchestrator
@@ -352,10 +381,33 @@ func (s *Service) GenerateContent(
 		return nil, err
 	}
 
+	knowledgeEntries, err := s.resolveKnowledge(ctx, agentConfig, actionCopy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve knowledge context: %w", err)
+	}
+
+	// Derive provider capabilities from agent config
+	providerConfig := agentConfig.GetProviderConfig()
+	var providerCaps llmadapter.ProviderCapabilities
+	if s.config.LLMFactory != nil && providerConfig != nil {
+		providerCaps, err = s.config.LLMFactory.Capabilities(providerConfig.Provider)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get provider capabilities: %w", err)
+		}
+	}
+
 	request := orchestratorpkg.Request{
-		Agent:           effectiveAgent,
-		Action:          actionCopy,
-		AttachmentParts: attachmentParts,
+		Agent:  effectiveAgent,
+		Action: actionCopy,
+		Prompt: orchestratorpkg.PromptPayload{
+			Attachments: attachmentParts,
+		},
+		Knowledge: orchestratorpkg.KnowledgePayload{
+			Entries: knowledgeEntries,
+		},
+		Execution: orchestratorpkg.ExecutionOptions{
+			ProviderCaps: providerCaps,
+		},
 	}
 	return s.orchestrator.Execute(ctx, request)
 }
@@ -412,6 +464,232 @@ func (s *Service) buildEffectiveAgent(agentConfig *agent.Config) (*agent.Config,
 	return &tmp, nil
 }
 
+func (s *Service) resolveKnowledge(
+	ctx context.Context,
+	agentConfig *agent.Config,
+	action *agent.ActionConfig,
+) ([]orchestratorpkg.KnowledgeEntry, error) {
+	if s.knowledge == nil {
+		return nil, nil
+	}
+	return s.knowledge.resolveKnowledge(ctx, agentConfig, action)
+}
+
+func buildKnowledgeQuery(action *agent.ActionConfig) string {
+	if action == nil {
+		return ""
+	}
+	seen := make(map[string]struct{})
+	parts := make([]string, 0)
+	if action.With != nil {
+		inputMap := action.With.AsMap()
+		appendKnowledgeQueryValue(inputMap, &parts, seen)
+	}
+	prompt := strings.TrimSpace(action.Prompt)
+	cleanPrompt := stripTemplateTokens(prompt)
+	if cleanPrompt != "" {
+		addKnowledgeQueryPart(cleanPrompt, &parts, seen)
+	}
+	if len(parts) == 0 {
+		return prompt
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func appendKnowledgeQueryValue(
+	value any,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	switch v := value.(type) {
+	case nil:
+		return
+	case string:
+		addKnowledgeQueryPart(v, dest, seen)
+	case fmt.Stringer:
+		addKnowledgeQueryPart(v.String(), dest, seen)
+	case *core.Input:
+		if v != nil {
+			appendKnowledgeFromMap(v.AsMap(), dest, seen)
+		}
+	case map[string]any:
+		appendKnowledgeFromMap(v, dest, seen)
+	case map[string]string:
+		appendKnowledgeFromStringMap(v, dest, seen)
+	case []string:
+		appendKnowledgeFromStringSlice(v, dest, seen)
+	case []any:
+		appendKnowledgeFromSlice(v, dest, seen)
+	default:
+		addKnowledgeQueryPart(fmt.Sprintf("%v", v), dest, seen)
+	}
+}
+
+func addKnowledgeQueryPart(
+	text string,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return
+	}
+	if tplengine.HasTemplate(trimmed) {
+		return
+	}
+	runes := []rune(trimmed)
+	if len(runes) > knowledgeQueryMaxPartRunes {
+		trimmed = string(runes[:knowledgeQueryMaxPartRunes])
+	}
+	if _, exists := seen[trimmed]; exists {
+		return
+	}
+	seen[trimmed] = struct{}{}
+	*dest = append(*dest, trimmed)
+}
+
+func appendKnowledgeFromMap(
+	m map[string]any,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	if len(m) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		appendKnowledgeQueryValue(m[k], dest, seen)
+	}
+}
+
+func appendKnowledgeFromStringMap(
+	m map[string]string,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	if len(m) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		addKnowledgeQueryPart(m[k], dest, seen)
+	}
+}
+
+func appendKnowledgeFromStringSlice(
+	values []string,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	for _, v := range values {
+		addKnowledgeQueryPart(v, dest, seen)
+	}
+}
+
+func appendKnowledgeFromSlice(
+	values []any,
+	dest *[]string,
+	seen map[string]struct{},
+) {
+	for _, v := range values {
+		appendKnowledgeQueryValue(v, dest, seen)
+	}
+}
+
+func stripTemplateTokens(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return ""
+	}
+	if !tplengine.HasTemplate(text) {
+		return strings.TrimSpace(text)
+	}
+	var b strings.Builder
+	for i := 0; i < len(text); {
+		if strings.HasPrefix(text[i:], "{{") {
+			end := strings.Index(text[i:], "}}")
+			if end == -1 {
+				break
+			}
+			i += end + 2
+			continue
+		}
+		b.WriteByte(text[i])
+		i++
+	}
+	clean := strings.TrimSpace(b.String())
+	if clean == "" {
+		return ""
+	}
+	return strings.Join(strings.Fields(clean), " ")
+}
+
+type knowledgeRuntimeResult struct {
+	Resolver                   *knowledge.Resolver
+	WorkflowKnowledgeBases     []knowledge.BaseConfig
+	ProjectBinding             []core.KnowledgeBinding
+	WorkflowBinding            []core.KnowledgeBinding
+	InlineBinding              []core.KnowledgeBinding
+	EmbedderOverrides          map[string]*knowledge.EmbedderConfig
+	VectorOverrides            map[string]*knowledge.VectorDBConfig
+	KnowledgeOverrides         map[string]*knowledge.BaseConfig
+	WorkflowKnowledgeOverrides map[string]*knowledge.BaseConfig
+	ProjectID                  string
+}
+
+func initKnowledgeRuntime(
+	ctx context.Context,
+	cfg *KnowledgeRuntimeConfig,
+) (*knowledgeRuntimeResult, error) {
+	if cfg == nil {
+		return nil, nil
+	}
+	defsCopy, err := core.DeepCopy(cfg.Definitions)
+	if err != nil {
+		defsCopy = cfg.Definitions
+	}
+	resolver, err := knowledge.NewResolver(defsCopy, knowledge.DefaultsFromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	result := &knowledgeRuntimeResult{
+		Resolver:                   resolver,
+		WorkflowKnowledgeBases:     cloneWorkflowKnowledge(cfg.WorkflowKnowledgeBases),
+		ProjectBinding:             cloneBindingSlice(cfg.ProjectBinding),
+		WorkflowBinding:            cloneBindingSlice(cfg.WorkflowBinding),
+		InlineBinding:              cloneBindingSlice(cfg.InlineBinding),
+		EmbedderOverrides:          cloneEmbedderOverrides(cfg.RuntimeEmbedders),
+		VectorOverrides:            cloneVectorOverrides(cfg.RuntimeVectorDBs),
+		KnowledgeOverrides:         cloneKnowledgeOverrides(cfg.RuntimeKnowledgeBases),
+		WorkflowKnowledgeOverrides: cloneKnowledgeOverrides(cfg.RuntimeWorkflowKBs),
+		ProjectID:                  strings.TrimSpace(cfg.ProjectID),
+	}
+	return result, nil
+}
+
+func setupMCPClient(ctx context.Context, cfg *Config, agent *agent.Config) (*mcp.Client, error) {
+	if cfg == nil || cfg.ProxyURL == "" {
+		return nil, nil
+	}
+	client, err := cfg.CreateMCPClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create MCP client: %w", err)
+	}
+	toRegister := collectMCPsToRegister(agent, cfg)
+	uniq := dedupeMCPsByID(toRegister)
+	if err := registerMCPsWithProxy(ctx, client, uniq, cfg.FailOnMCPRegistrationError); err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
 // InvalidateToolsCache invalidates the tools cache
 func (s *Service) InvalidateToolsCache(ctx context.Context) {
 	if s.toolRegistry != nil {
@@ -421,10 +699,65 @@ func (s *Service) InvalidateToolsCache(ctx context.Context) {
 
 // Close cleans up resources
 func (s *Service) Close() error {
-	if s.orchestrator != nil {
-		return s.orchestrator.Close()
+	var result error
+	entries := s.drainVectorStoreCache()
+	if len(entries) > 0 {
+		timeoutCtx, cancel := context.WithTimeout(s.closeCtx, closeVectorStoresTimeout)
+		defer cancel()
+		if err := closeVectorStores(timeoutCtx, entries); err != nil {
+			result = err
+		}
 	}
-	return nil
+	if err := s.closeToolRegistry(); err != nil && result == nil {
+		result = err
+	}
+	if err := s.closeOrchestrator(); err != nil && result == nil {
+		result = err
+	}
+	return result
+}
+
+func (s *Service) drainVectorStoreCache() []*cachedVectorStore {
+	if s.knowledge == nil {
+		return nil
+	}
+	return s.knowledge.drainVectorStores()
+}
+
+func closeVectorStores(ctx context.Context, entries []*cachedVectorStore) error {
+	var firstErr error
+	for i := range entries {
+		entry := entries[i]
+		if entry == nil {
+			continue
+		}
+		if entry.release != nil {
+			if err := entry.release(ctx); err != nil && firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if entry.store != nil {
+			if err := entry.store.Close(ctx); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
+}
+
+func (s *Service) closeToolRegistry() error {
+	if s.toolRegistry == nil {
+		return nil
+	}
+	return s.toolRegistry.Close()
+}
+
+func (s *Service) closeOrchestrator() error {
+	if s.orchestrator == nil {
+		return nil
+	}
+	return s.orchestrator.Close()
 }
 
 // collectMCPsToRegister combines agent-declared and workflow-level MCPs for

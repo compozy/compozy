@@ -1,0 +1,65 @@
+name: knowledge-quickstart
+version: 0.1.0
+description: Quickstart knowledge base using local Markdown documents and filesystem vector store
+
+models:
+  - provider: groq
+    model: openai/gpt-oss-120b
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    default: true
+    params:
+      temperature: 0.3
+
+embedders:
+  - id: openai_default
+    provider: openai
+    model: text-embedding-3-small
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    config:
+      dimension: 1536
+      batch_size: 32
+
+vector_dbs:
+  - id: pgvector_local
+    type: pgvector
+    config:
+      # dsn: "{{ .env.REDIS_URL }}"
+      dimension: 1536
+      max_top_k: 200
+
+knowledge_bases:
+  - id: quickstart_docs
+    ingest: on_start
+    embedder: openai_default
+    vector_db: pgvector_local
+    sources:
+      - type: markdown_glob
+        path: "docs/**/*.md"
+    chunking:
+      strategy: recursive_text_splitter
+      size: 512
+      overlap: 64
+    retrieval:
+      top_k: 5
+      min_score: 0.2
+      max_tokens: 1200
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
+
+workflows:
+  - source: ./workflows/qa.yaml
+
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "workflows/*.yaml"
+    - "agents/*.yaml"
+  exclude:
+    - "**/*.tmp"
+    - "**/*~"

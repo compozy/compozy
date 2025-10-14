@@ -131,6 +131,11 @@ definitions:
           - Include domain-specific knowledge or constraints
           - Use markdown formatting for better structure
         type: string
+      knowledge:
+        description: Knowledge declares knowledge bindings scoped to this agent.
+        items:
+          $ref: '#/definitions/core.KnowledgeBinding'
+        type: array
       max_iterations:
         description: |-
           Maximum number of reasoning iterations the agent can perform.
@@ -621,6 +626,25 @@ definitions:
   core.Input:
     additionalProperties: {}
     type: object
+  core.KnowledgeBinding:
+    properties:
+      fallback:
+        type: string
+      filters:
+        additionalProperties:
+          type: string
+        type: object
+      id:
+        type: string
+      inject_as:
+        type: string
+      max_tokens:
+        type: integer
+      min_score:
+        type: number
+      top_k:
+        type: integer
+    type: object
   core.LockConfig:
     properties:
       append_ttl:
@@ -1063,6 +1087,221 @@ definitions:
       total:
         example: 2
         type: integer
+    type: object
+  knowledge.BaseConfig:
+    properties:
+      chunking:
+        $ref: '#/definitions/knowledge.ChunkingConfig'
+      description:
+        type: string
+      embedder:
+        type: string
+      id:
+        type: string
+      ingest:
+        $ref: '#/definitions/knowledge.IngestMode'
+      metadata:
+        $ref: '#/definitions/knowledge.MetadataConfig'
+      preprocess:
+        $ref: '#/definitions/knowledge.PreprocessConfig'
+      retrieval:
+        $ref: '#/definitions/knowledge.RetrievalConfig'
+      sources:
+        items:
+          $ref: '#/definitions/knowledge.SourceConfig'
+        type: array
+      vector_db:
+        type: string
+    type: object
+  knowledge.ChunkStrategy:
+    enum:
+      - recursive_text_splitter
+    type: string
+    x-enum-varnames:
+      - ChunkStrategyRecursiveTextSplitter
+  knowledge.ChunkingConfig:
+    properties:
+      overlap:
+        type: integer
+      size:
+        type: integer
+      strategy:
+        $ref: '#/definitions/knowledge.ChunkStrategy'
+    type: object
+  knowledge.IngestMode:
+    enum:
+      - manual
+      - on_start
+    type: string
+    x-enum-varnames:
+      - IngestManual
+      - IngestOnStart
+  knowledge.MetadataConfig:
+    properties:
+      owners:
+        items:
+          type: string
+        type: array
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  knowledge.PreprocessConfig:
+    properties:
+      dedupe:
+        type: boolean
+      remove_html:
+        type: boolean
+    type: object
+  knowledge.RetrievalConfig:
+    properties:
+      fallback:
+        type: string
+      filters:
+        additionalProperties:
+          type: string
+        type: object
+      inject_as:
+        type: string
+      max_tokens:
+        type: integer
+      min_results:
+        type: integer
+      min_score:
+        type: number
+      tool_fallback:
+        $ref: '#/definitions/knowledge.ToolFallbackMode'
+      top_k:
+        type: integer
+    type: object
+  knowledge.SourceConfig:
+    properties:
+      bucket:
+        type: string
+      options:
+        additionalProperties:
+          type: string
+        type: object
+      path:
+        type: string
+      paths:
+        items:
+          type: string
+        type: array
+      prefix:
+        type: string
+      provider:
+        type: string
+      type:
+        $ref: '#/definitions/knowledge.SourceType'
+      urls:
+        items:
+          type: string
+        type: array
+      video_id:
+        type: string
+    type: object
+  knowledge.SourceType:
+    enum:
+      - url
+      - markdown_glob
+    type: string
+    x-enum-varnames:
+      - SourceTypeURL
+      - SourceTypeMarkdownGlob
+  knowledge.ToolFallbackMode:
+    enum:
+      - never
+      - escalate
+      - auto
+    type: string
+    x-enum-varnames:
+      - ToolFallbackNever
+      - ToolFallbackEscalate
+      - ToolFallbackAuto
+  knowledgerouter.KnowledgeBaseListResponse:
+    properties:
+      knowledge_bases:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      page:
+        $ref: '#/definitions/httpdto.PageInfoDTO'
+    type: object
+  knowledgerouter.KnowledgeBaseResponse:
+    properties:
+      knowledge_base:
+        additionalProperties: {}
+        type: object
+    type: object
+  knowledgerouter.KnowledgeIngestRequest:
+    properties:
+      strategy:
+        example: replace
+        type: string
+    type: object
+  knowledgerouter.KnowledgeIngestResponse:
+    properties:
+      binding_id:
+        example: binding-123
+        type: string
+      chunks:
+        example: 16
+        type: integer
+      documents:
+        example: 2
+        type: integer
+      knowledge_base_id:
+        example: support
+        type: string
+      persisted:
+        example: 16
+        type: integer
+    type: object
+  knowledgerouter.KnowledgeMatch:
+    properties:
+      binding_id:
+        example: binding-123
+        type: string
+      content:
+        example: Reset your password by visiting the account settings page.
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      score:
+        example: 0.83
+        type: number
+      token_estimate:
+        example: 120
+        type: integer
+    type: object
+  knowledgerouter.KnowledgeQueryRequest:
+    properties:
+      filters:
+        additionalProperties:
+          type: string
+        type: object
+      min_score:
+        example: 0.4
+        type: number
+      query:
+        example: How do I reset my password?
+        type: string
+      top_k:
+        example: 5
+        type: integer
+    required:
+      - query
+    type: object
+  knowledgerouter.KnowledgeQueryResponse:
+    properties:
+      matches:
+        items:
+          $ref: '#/definitions/knowledgerouter.KnowledgeMatch'
+        type: array
     type: object
   mcp.Config:
     properties:
@@ -2084,6 +2323,11 @@ definitions:
           Supports template variables for dynamic key generation
           - **Example**: "user:{{ .workflow.input.user_id }}:profile"
         type: string
+      knowledge:
+        description: Knowledge declares task-scoped knowledge bindings (MVP single binding).
+        items:
+          $ref: '#/definitions/core.KnowledgeBinding'
+        type: array
       max_iterations:
         description: |-
           Maximum number of reasoning iterations the agent can perform.
@@ -3514,6 +3758,16 @@ definitions:
           Must be unique within the project scope. Used for referencing and execution.
           - **Example**: "customer-support", "data-processing", "content-generation"
         type: string
+      knowledge:
+        description: Knowledge defines the default knowledge binding for the workflow context.
+        items:
+          $ref: '#/definitions/core.KnowledgeBinding'
+        type: array
+      knowledge_bases:
+        description: KnowledgeBases declares workflow-scoped knowledge definitions.
+        items:
+          $ref: '#/definitions/knowledge.BaseConfig'
+        type: array
       mcps:
         description: |-
           Model Context Protocol servers for extending AI capabilities
@@ -5440,6 +5694,326 @@ paths:
         data:
           result: ok
         message: Success
+  /knowledge-bases:
+    get:
+      consumes:
+        - application/json
+      description: List knowledge bases with cursor-based pagination.
+      parameters:
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Page size (max 500)
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Opaque pagination cursor
+          in: query
+          name: cursor
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Knowledge bases retrieved. Example: {\"status\":200,\"message\":\"knowledge bases
+            retrieved\",\"data\":{\"knowledge_bases\":[{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"ingest\":\"manual\"}],\"page\":{\"limit\":1,\"next_cursor\":\"eyJpZCI6ICJiIn0=\",\"prev_cursor\":\"\"}},\"error\":null}'
+          headers:
+            Link:
+              description: RFC 8288 pagination links for next/prev
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/knowledgerouter.KnowledgeBaseListResponse'
+                type: object
+        "400":
+          description: Invalid cursor parameter
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: List knowledge bases
+      tags:
+        - knowledge
+  /knowledge-bases/{kb_id}:
+    delete:
+      description: Delete a knowledge base and remove persisted vectors.
+      parameters:
+        - description: Knowledge base ID
+          example: '"support-docs"'
+          in: path
+          name: kb_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Strong ETag for optimistic concurrency
+          example: '"\"etag123\""'
+          in: header
+          name: If-Match
+          type: string
+      produces:
+        - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "404":
+          description: Knowledge base not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "409":
+          description: Knowledge base referenced
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Delete knowledge base
+      tags:
+        - knowledge
+    get:
+      consumes:
+        - application/json
+      description: Retrieve a knowledge base by ID.
+      parameters:
+        - description: Knowledge base ID
+          example: '"support-docs"'
+          in: path
+          name: kb_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Knowledge base retrieved. Example: {\"status\":200,\"message\":\"knowledge base
+            retrieved\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"ingest\":\"manual\",\"_etag\":\"etag-value\"}},\"error\":null}'
+          headers:
+            ETag:
+              description: Strong entity tag for caching
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/knowledgerouter.KnowledgeBaseResponse'
+                type: object
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Knowledge base not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Get knowledge base
+      tags:
+        - knowledge
+    put:
+      consumes:
+        - application/json
+      description: Create a knowledge base when absent or update an existing one using strong ETag concurrency.
+      parameters:
+        - description: Knowledge base ID
+          example: '"support-docs"'
+          in: path
+          name: kb_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Strong ETag for optimistic concurrency
+          example: '"\"etag123\""'
+          in: header
+          name: If-Match
+          type: string
+        - description: Knowledge base definition
+          in: body
+          name: payload
+          required: true
+          schema:
+            additionalProperties: true
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Knowledge base updated. Example: {\"status\":200,\"message\":\"knowledge base
+            updated\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"ingest\":\"manual\",\"description\":\"Support
+            knowledge base\",\"_etag\":\"etag-value\"}},\"error\":null}'
+          headers:
+            ETag:
+              description: Strong entity tag
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/knowledgerouter.KnowledgeBaseResponse'
+                type: object
+        "201":
+          description: 'Knowledge base created. Example: {\"status\":201,\"message\":\"knowledge base
+            created\",\"data\":{\"knowledge_base\":{\"id\":\"support\",\"embedder\":\"default-embedder\",\"vector_db\":\"default-vector\",\"ingest\":\"manual\",\"description\":\"Support
+            knowledge base\",\"_etag\":\"etag-value\"}},\"error\":null}'
+          headers:
+            Location:
+              description: Relative URL for the knowledge base
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/knowledgerouter.KnowledgeBaseResponse'
+                type: object
+        "400":
+          description: Invalid request body
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Knowledge base not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "412":
+          description: ETag mismatch
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Create or update knowledge base
+      tags:
+        - knowledge
+  /knowledge-bases/{kb_id}/ingest:
+    post:
+      consumes:
+        - application/json
+      description: Trigger ingestion for configured sources using the requested strategy.
+      parameters:
+        - description: Knowledge base ID
+          example: '"support-docs"'
+          in: path
+          name: kb_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Ingestion request
+          in: body
+          name: payload
+          required: true
+          schema:
+            $ref: '#/definitions/knowledgerouter.KnowledgeIngestRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Ingestion summary. Example: {\"status\":200,\"message\":\"knowledge ingestion
+            completed\",\"data\":{\"knowledge_base_id\":\"support\",\"binding_id\":\"binding-123\",\"documents\":2,\"chunks\":16,\"persisted\":16},\"error\":null}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/knowledgerouter.KnowledgeIngestResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Knowledge base not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Ingest knowledge base
+      tags:
+        - knowledge
+  /knowledge-bases/{kb_id}/query:
+    post:
+      consumes:
+        - application/json
+      description: Execute a dense similarity query against a knowledge base.
+      parameters:
+        - description: Knowledge base ID
+          example: '"support-docs"'
+          in: path
+          name: kb_id
+          required: true
+          type: string
+        - description: Project override
+          example: '"demo"'
+          in: query
+          name: project
+          type: string
+        - description: Query request
+          in: body
+          name: payload
+          required: true
+          schema:
+            $ref: '#/definitions/knowledgerouter.KnowledgeQueryRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Query matches. Example: {\"status\":200,\"message\":\"knowledge query completed\",\"data\":{\"matches\":[{\"binding_id\":\"binding-123\",\"content\":\"Reset
+            your password from the account settings page.\",\"score\":0.83,\"token_estimate\":120}]},\"error\":null}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/knowledgerouter.KnowledgeQueryResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "404":
+          description: Knowledge base not found
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ProblemDocument'
+      summary: Query knowledge base
+      tags:
+        - knowledge
   /mcp-proxy/{name}/sse:
     get:
       consumes:
@@ -10182,6 +10756,8 @@ tags:
     name: schedules
   - description: Memory management operations
     name: memory
+  - description: Knowledge base management operations
+    name: knowledge
   - description: Authentication and API key management operations
     name: auth
   - description: User management operations (admin only)

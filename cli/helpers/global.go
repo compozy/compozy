@@ -43,6 +43,8 @@ func addFlagByType(flags *pflag.FlagSet, field *definition.FieldDef) {
 		addFloat64SliceFlag(flags, field)
 	case reflect.TypeOf(int64(0)):
 		addInt64Flag(flags, field)
+	case reflect.TypeOf(float64(0)):
+		addFloat64Flag(flags, field)
 	}
 	addShorthandFlags(flags, field)
 }
@@ -117,6 +119,16 @@ func addInt64Flag(flags *pflag.FlagSet, field *definition.FieldDef) {
 	flags.Int64(field.CLIFlag, defaultVal, field.Help)
 }
 
+func addFloat64Flag(flags *pflag.FlagSet, field *definition.FieldDef) {
+	defaultVal := 0.0
+	if field.Default != nil {
+		if val, ok := field.Default.(float64); ok {
+			defaultVal = val
+		}
+	}
+	flags.Float64(field.CLIFlag, defaultVal, field.Help)
+}
+
 func addShorthandFlags(flags *pflag.FlagSet, field *definition.FieldDef) {
 	if field.Shorthand != "" {
 		if flag := flags.Lookup(field.CLIFlag); flag != nil {
@@ -167,6 +179,8 @@ func extractFlagByType(cmd *cobra.Command, flags map[string]any, field *definiti
 		return extractFloat64SliceFlag(cmd, flags, field)
 	case reflect.TypeOf(int64(0)):
 		return extractInt64Flag(cmd, flags, field)
+	case reflect.TypeOf(float64(0)):
+		return extractFloat64Flag(cmd, flags, field)
 	}
 	return nil
 }
@@ -207,6 +221,17 @@ func extractBoolFlag(cmd *cobra.Command, flags map[string]any, field *definition
 func extractDurationFlag(cmd *cobra.Command, flags map[string]any, field *definition.FieldDef) error {
 	if cmd.Flags().Changed(field.CLIFlag) {
 		val, err := cmd.Flags().GetDuration(field.CLIFlag)
+		if err != nil {
+			return fmt.Errorf("failed to get %s flag: %w", field.CLIFlag, err)
+		}
+		flags[field.CLIFlag] = val
+	}
+	return nil
+}
+
+func extractFloat64Flag(cmd *cobra.Command, flags map[string]any, field *definition.FieldDef) error {
+	if cmd.Flags().Changed(field.CLIFlag) {
+		val, err := cmd.Flags().GetFloat64(field.CLIFlag)
 		if err != nil {
 			return fmt.Errorf("failed to get %s flag: %w", field.CLIFlag, err)
 		}

@@ -10,6 +10,7 @@ import temporalSchema from "@/schemas/config-temporal.json";
 import runtimeSchema from "@/schemas/runtime.json";
 import limitsSchema from "@/schemas/config-limits.json";
 import memorySchema from "@/schemas/config-memory.json";
+import knowledgeSchema from "@/schemas/config-knowledge.json";
 import llmSchema from "@/schemas/config-llm.json";
 import ratelimitSchema from "@/schemas/config-ratelimit.json";
 import cliSchema from "@/schemas/config-cli.json";
@@ -84,6 +85,16 @@ import webhooksSchema from "@/schemas/config-webhooks.json";
 
 <SchemaParams
   schema={memorySchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Knowledge
+
+<SchemaParams
+  schema={knowledgeSchema}
   title="Schema Definition"
   collapsible={true}
   defaultExpanded={true}

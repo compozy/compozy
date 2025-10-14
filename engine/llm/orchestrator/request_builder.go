@@ -14,6 +14,7 @@ import (
 	"github.com/adrg/strutil/metrics"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/llm/orchestrator/prompts"
 	"github.com/compozy/compozy/engine/tool"
@@ -79,7 +80,11 @@ func (b *requestBuilder) Build(
 	temperature := request.Agent.Model.Config.Params.Temperature
 	toolChoice := ""
 	if len(toolDefs) > 0 {
-		toolChoice = "auto"
+		toolChoice, toolDefs = b.decideToolStrategy(&request, toolDefs)
+		if len(toolDefs) == 0 {
+			// Preserve empty choice when no tools are advertised so downstream adapters skip the field.
+			toolChoice = ""
+		}
 	}
 	forceJSON := b.requiresJSONMode(request, promptResult.Format)
 	logger.FromContext(ctx).Debug("LLM request prepared",
@@ -120,7 +125,7 @@ func (b *requestBuilder) requiresJSONMode(request Request, format llmadapter.Out
 	// If we already requested native JSON schema support, only skip forcing JSON when the
 	// provider supports structured output natively.
 	if format.IsJSONSchema() {
-		return !request.ProviderCaps.StructuredOutput
+		return !request.Execution.ProviderCaps.StructuredOutput
 	}
 	return true
 }
@@ -129,9 +134,9 @@ func (b *requestBuilder) requiresJSONMode(request Request, format llmadapter.Out
 func (b *requestBuilder) buildPromptData(ctx context.Context, request Request) (PromptBuildResult, error) {
 	result, err := b.prompts.Build(ctx, PromptBuildInput{
 		Action:       request.Action,
-		ProviderCaps: request.ProviderCaps,
+		ProviderCaps: request.Execution.ProviderCaps,
 		Tools:        request.Agent.Tools,
-		Dynamic:      request.PromptContext,
+		Dynamic:      request.Prompt.DynamicContext,
 	})
 	if err != nil {
 		return PromptBuildResult{}, NewLLMError(err, ErrCodePromptBuild, map[string]any{
@@ -158,7 +163,7 @@ func (b *requestBuilder) buildMessages(
 	memoryCtx *MemoryContext,
 	request Request,
 ) ([]llmadapter.Message, error) {
-	parts := request.AttachmentParts
+	parts := request.Prompt.Attachments
 	if len(parts) > 0 {
 		clonedParts, err := llmadapter.CloneContentParts(parts)
 		if err != nil {
@@ -182,8 +187,109 @@ func (b *requestBuilder) buildMessages(
 	if memoryCtx != nil {
 		messages = b.memory.Inject(ctx, messages, memoryCtx)
 	}
+	messages = b.injectKnowledge(ctx, messages, request.Knowledge.Entries)
 
 	return messages, nil
+}
+
+func (b *requestBuilder) injectKnowledge(
+	ctx context.Context,
+	messages []llmadapter.Message,
+	entries []KnowledgeEntry,
+) []llmadapter.Message {
+	if len(entries) == 0 || len(messages) == 0 {
+		return messages
+	}
+	idx := len(messages) - 1
+	existing := messages[idx].Content
+	combined, injected := combineKnowledgeWithPrompt(existing, entries)
+	if !injected {
+		return messages
+	}
+	messages[idx].Content = combined
+	logger.FromContext(ctx).Debug(
+		"Knowledge context injected into prompt",
+		"entries",
+		len(entries),
+	)
+	return messages
+}
+
+// decideToolStrategy determines final tool advertisement based on knowledge routing outcomes.
+func (b *requestBuilder) decideToolStrategy(
+	request *Request,
+	defs []llmadapter.ToolDefinition,
+) (string, []llmadapter.ToolDefinition) {
+	if len(defs) == 0 {
+		return "", defs
+	}
+	allowTools := true
+	for i := range request.Knowledge.Entries {
+		entry := request.Knowledge.Entries[i]
+		switch entry.Status {
+		case knowledge.RetrievalStatusEscalated:
+			return "auto", defs
+		case knowledge.RetrievalStatusFallback:
+			allowTools = false
+		}
+	}
+	if allowTools {
+		return "auto", defs
+	}
+	return "none", nil
+}
+
+func buildKnowledgeBlock(entries []KnowledgeEntry) string {
+	if len(entries) == 0 {
+		return ""
+	}
+	var builder strings.Builder
+	for i := range entries {
+		e := entries[i]
+		label := strings.TrimSpace(e.Retrieval.InjectAs)
+		if label == "" {
+			label = "Retrieved Knowledge"
+			if e.BindingID != "" {
+				label = label + " (" + e.BindingID + ")"
+			}
+		}
+		if builder.Len() > 0 {
+			builder.WriteString("\n\n")
+		}
+		builder.WriteString(label)
+		builder.WriteString(":\n")
+		if len(e.Contexts) == 0 {
+			fallback := strings.TrimSpace(e.Retrieval.Fallback)
+			if fallback != "" {
+				builder.WriteString(fallback)
+			}
+			continue
+		}
+		for j := range e.Contexts {
+			ctx := e.Contexts[j]
+			builder.WriteString(fmt.Sprintf("[%d] score=%.3f", j+1, ctx.Score))
+			if ctx.TokenEstimate > 0 {
+				builder.WriteString(fmt.Sprintf(" tokens=%d", ctx.TokenEstimate))
+			}
+			builder.WriteString("\n")
+			builder.WriteString(strings.TrimSpace(ctx.Content))
+			if j+1 < len(e.Contexts) {
+				builder.WriteString("\n")
+			}
+		}
+	}
+	return strings.TrimSpace(builder.String())
+}
+
+func combineKnowledgeWithPrompt(prompt string, entries []KnowledgeEntry) (string, bool) {
+	block := buildKnowledgeBlock(entries)
+	if block == "" {
+		return prompt, false
+	}
+	if strings.TrimSpace(prompt) == "" {
+		return block, true
+	}
+	return block + "\n\n" + prompt, true
 }
 
 func (b *requestBuilder) buildToolDefinitions(

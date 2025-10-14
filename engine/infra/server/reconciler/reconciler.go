@@ -3,11 +3,13 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/autoload"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
@@ -228,6 +230,7 @@ func (r *Reconciler) Start(ctx context.Context) error {
 		resources.ResourceSchema,
 		resources.ResourceModel,
 		resources.ResourceMCP,
+		resources.ResourceKnowledgeBase,
 	}
 	for i := range types {
 		typ := types[i]
@@ -619,6 +622,7 @@ func (r *Reconciler) collectDeps(wf *workflow.Config) []depKey {
 	if wf == nil {
 		return out
 	}
+	appendKnowledgeDeps(&out, wf.Knowledge)
 	for i := range wf.MCPs {
 		appendMCPDep(&out, &wf.MCPs[i])
 	}
@@ -661,6 +665,7 @@ func (r *Reconciler) walkTask(tcfg *task.Config, out *[]depKey) {
 	if tcfg == nil {
 		return
 	}
+	appendKnowledgeDeps(out, tcfg.Knowledge)
 	if tcfg.InputSchema != nil {
 		if ok, id := tcfg.InputSchema.IsRef(); ok {
 			*out = append(*out, depKey{typ: resources.ResourceSchema, id: id})
@@ -679,6 +684,7 @@ func (r *Reconciler) walkTask(tcfg *task.Config, out *[]depKey) {
 			}
 		}
 		appendAgentMCPDeps(tcfg.Agent, out)
+		appendKnowledgeDeps(out, tcfg.Agent.Knowledge)
 	}
 	if tcfg.Tool != nil {
 		if r.isToolSelector(tcfg.Tool) {
@@ -715,6 +721,7 @@ func (r *Reconciler) collectAgentDeps(a *agent.Config, out *[]depKey) {
 	if a == nil {
 		return
 	}
+	appendKnowledgeDeps(out, a.Knowledge)
 	if a.Model.HasRef() {
 		*out = append(*out, depKey{typ: resources.ResourceModel, id: a.Model.Ref})
 	}
@@ -751,6 +758,16 @@ func appendMCPDep(out *[]depKey, mc *mcp.Config) {
 		return
 	}
 	*out = append(*out, depKey{typ: resources.ResourceMCP, id: mc.ID})
+}
+
+func appendKnowledgeDeps(out *[]depKey, bindings []core.KnowledgeBinding) {
+	for i := range bindings {
+		id := strings.TrimSpace(bindings[i].ID)
+		if id == "" {
+			continue
+		}
+		*out = append(*out, depKey{typ: resources.ResourceKnowledgeBase, id: id})
+	}
 }
 
 func (r *Reconciler) isAgentSelector(a *agent.Config) bool {
