@@ -48,3 +48,17 @@ func TestToVectorStoreConfig_DefaultFilesystemPath(t *testing.T) {
 		assert.Equal(t, expected, storeCfg.Path)
 	})
 }
+
+func TestToVectorStoreConfig_RejectsInvalidDimension(t *testing.T) {
+	cfg := &knowledge.VectorDBConfig{
+		ID:   "pgvector_main",
+		Type: knowledge.VectorDBTypePGVector,
+		Config: knowledge.VectorDBConnConfig{
+			DSN:       "postgresql://localhost:5432/demo",
+			Dimension: 0,
+		},
+	}
+	_, err := ToVectorStoreConfig(context.Background(), "demo-project", cfg)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "config.dimension must be greater than zero")
+}

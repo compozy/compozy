@@ -10,7 +10,7 @@ import (
 )
 
 func TestValidateConfig_PgvectorDSN(t *testing.T) {
-	t.Run("Should allow empty DSN for pgvector provider", func(t *testing.T) {
+	t.Run("Should reject empty DSN for pgvector provider", func(t *testing.T) {
 		cfg := &Config{
 			ID:        "test-pg",
 			Provider:  ProviderPGVector,
@@ -18,7 +18,8 @@ func TestValidateConfig_PgvectorDSN(t *testing.T) {
 			Dimension: 384,
 		}
 		err := validateConfig(cfg)
-		assert.NoError(t, err, "pgvector allows empty DSN as it can fall back to global config")
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "dsn is required")
 	})
 
 	t.Run("Should accept explicit DSN for pgvector provider", func(t *testing.T) {

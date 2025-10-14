@@ -202,127 +202,120 @@ func (l *capturingLogger) record(level, msg string, keyvals ...any) {
 }
 
 func TestPipeline_ShouldBatchByLimit(t *testing.T) {
-	t.Run("ShouldBatchByLimit", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc1.md"), "alpha beta gamma delta")
-		writeFile(t, filepath.Join(dir, "doc2.md"), "epsilon zeta eta theta")
-		cwd := cwdFromDir(t, dir)
-		embed := &recordingEmbedder{}
-		store := &memoryStore{}
-		binding := resolvedBinding(1)
-		pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
-		require.NoError(t, err)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		result, err := pipe.Run(ctx)
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		assert.Equal(t, 2, result.Documents)
-		assert.Len(t, embed.calls, 2)
-		for i := range embed.calls {
-			assert.Len(t, embed.calls[i], 1)
-		}
-		assert.Len(t, store.records, 2)
-	})
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "doc1.md"), "alpha beta gamma delta")
+	writeFile(t, filepath.Join(dir, "doc2.md"), "epsilon zeta eta theta")
+	cwd := cwdFromDir(t, dir)
+	embed := &recordingEmbedder{}
+	store := &memoryStore{}
+	binding := resolvedBinding(1)
+	pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := pipe.Run(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, 2, result.Documents)
+	assert.Len(t, embed.calls, 2)
+	for i := range embed.calls {
+		assert.Len(t, embed.calls[i], 1)
+	}
+	assert.Len(t, store.records, 2)
 }
 
 func TestPipeline_ShouldPropagateProviderErrors(t *testing.T) {
-	t.Run("ShouldPropagateProviderErrors", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "doc.md"), "single document text content")
-		cwd := cwdFromDir(t, dir)
-		embed := &recordingEmbedder{failures: 5}
-		store := &memoryStore{}
-		binding := resolvedBinding(2)
-		pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
-		require.NoError(t, err)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		_, err = pipe.Run(ctx)
-		require.Error(t, err)
-		assert.Empty(t, store.records)
-	})
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "doc.md"), "single document text content")
+	cwd := cwdFromDir(t, dir)
+	embed := &recordingEmbedder{failures: 5}
+	store := &memoryStore{}
+	binding := resolvedBinding(2)
+	pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err = pipe.Run(ctx)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "embed failed")
+	assert.Empty(t, store.records)
 }
 
 func TestPipeline_ShouldPersistInlinePayloadsAndReingestIdempotent(t *testing.T) {
-	t.Run("ShouldPersistInlinePayloadsAndReingestIdempotently", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "first.md"), "alpha beta")
-		writeFile(t, filepath.Join(dir, "second.md"), "gamma delta")
-		cwd := cwdFromDir(t, dir)
-		embed := &recordingEmbedder{}
-		store := &memoryStore{}
-		binding := resolvedBinding(3)
-		pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
-		require.NoError(t, err)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		result, err := pipe.Run(ctx)
-		require.NoError(t, err)
-		require.Equal(t, 2, result.Documents)
-		require.Len(t, store.records, 2)
-		firstIDs := collectIDs(store.records)
-		secondEmbed := &recordingEmbedder{}
-		pipe2, err := ingest.NewPipeline(binding, secondEmbed, store, ingest.Options{CWD: cwd})
-		require.NoError(t, err)
-		_, err = pipe2.Run(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, firstIDs, collectIDs(store.records))
-		for _, rec := range store.records {
-			assert.NotEmpty(t, rec.Text)
-			assert.NotEmpty(t, rec.Metadata["content_hash"])
-			assert.Equal(t, binding.ID, rec.Metadata["knowledge_binding_id"])
-			assert.Equal(t, binding.KnowledgeBase.ID, rec.Metadata["knowledge_base_id"])
-		}
-	})
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "first.md"), "alpha beta")
+	writeFile(t, filepath.Join(dir, "second.md"), "gamma delta")
+	cwd := cwdFromDir(t, dir)
+	embed := &recordingEmbedder{}
+	store := &memoryStore{}
+	binding := resolvedBinding(3)
+	pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := pipe.Run(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 2, result.Documents)
+	require.Len(t, store.records, 2)
+	initialIDs := collectIDs(store.records)
+	secondEmbed := &recordingEmbedder{}
+	pipe2, err := ingest.NewPipeline(binding, secondEmbed, store, ingest.Options{CWD: cwd})
+	require.NoError(t, err)
+	_, err = pipe2.Run(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, initialIDs, collectIDs(store.records))
+	for _, rec := range store.records {
+		assert.NotEmpty(t, rec.Text)
+		assert.NotEmpty(t, rec.Metadata["content_hash"])
+		assert.Equal(t, binding.ID, rec.Metadata["knowledge_binding_id"])
+		assert.Equal(t, binding.KnowledgeBase.ID, rec.Metadata["knowledge_base_id"])
+	}
 }
 
 func TestPipeline_ShouldReplaceExistingRecords(t *testing.T) {
-	t.Run("ShouldReplaceExistingRecordsForReplaceStrategy", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, filepath.Join(dir, "new.md"), "fresh content")
-		cwd := cwdFromDir(t, dir)
-		binding := resolvedBinding(1)
-		store := &memoryStore{
-			records: []vectordb.Record{
-				{
-					ID:   "old-record",
-					Text: "stale",
-					Metadata: map[string]any{
-						"knowledge_binding_id": binding.ID,
-						"knowledge_base_id":    binding.KnowledgeBase.ID,
-					},
-				},
-				{
-					ID:   "other-record",
-					Text: "keep",
-					Metadata: map[string]any{
-						"knowledge_binding_id": "other-binding",
-						"knowledge_base_id":    binding.KnowledgeBase.ID,
-					},
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "new.md"), "fresh content")
+	cwd := cwdFromDir(t, dir)
+	binding := resolvedBinding(1)
+	store := &memoryStore{
+		records: []vectordb.Record{
+			{
+				ID:   "old-record",
+				Text: "stale",
+				Metadata: map[string]any{
+					"knowledge_binding_id": binding.ID,
+					"knowledge_base_id":    binding.KnowledgeBase.ID,
 				},
 			},
-		}
-		embed := &recordingEmbedder{}
-		pipe, err := ingest.NewPipeline(
-			binding,
-			embed,
-			store,
-			ingest.Options{CWD: cwd, Strategy: ingest.StrategyReplace},
-		)
-		require.NoError(t, err)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		_, err = pipe.Run(ctx)
-		require.NoError(t, err)
-		require.Len(t, store.deleteCalls, 1)
-		deleteFilter := store.deleteCalls[0]
-		assert.Equal(t, binding.ID, deleteFilter.Metadata["knowledge_binding_id"])
-		assert.Equal(t, binding.KnowledgeBase.ID, deleteFilter.Metadata["knowledge_base_id"])
-		ids := collectIDs(store.records)
-		assert.Contains(t, ids, "other-record")
-		assert.NotContains(t, ids, "old-record")
-	})
+			{
+				ID:   "other-record",
+				Text: "keep",
+				Metadata: map[string]any{
+					"knowledge_binding_id": "other-binding",
+					"knowledge_base_id":    binding.KnowledgeBase.ID,
+				},
+			},
+		},
+	}
+	embed := &recordingEmbedder{}
+	pipe, err := ingest.NewPipeline(
+		binding,
+		embed,
+		store,
+		ingest.Options{CWD: cwd, Strategy: ingest.StrategyReplace},
+	)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err = pipe.Run(ctx)
+	require.NoError(t, err)
+	require.Len(t, store.deleteCalls, 1)
+	deleteFilter := store.deleteCalls[0]
+	assert.Equal(t, binding.ID, deleteFilter.Metadata["knowledge_binding_id"])
+	assert.Equal(t, binding.KnowledgeBase.ID, deleteFilter.Metadata["knowledge_base_id"])
+	ids := collectIDs(store.records)
+	assert.Contains(t, ids, "other-record")
+	assert.NotContains(t, ids, "old-record")
 }
 
 func TestPipeline_ShouldRejectLargeMarkdownFile(t *testing.T) {
@@ -368,23 +361,25 @@ func TestPipeline_ShouldRejectLargeMarkdownFile(t *testing.T) {
 }
 
 func TestPipeline_ShouldEmitObservabilitySignals(t *testing.T) {
+	artifacts := runPipelineWithObservability(t)
+	assertPipelineMetrics(t, artifacts.reader, artifacts.binding, artifacts.result)
+	assertPipelineTracing(t, artifacts.spanRecorder, artifacts.binding)
+	assertPipelineLogs(t, artifacts.log.entries, artifacts.binding)
+}
+
+type observabilityArtifacts struct {
+	reader       *sdkmetric.ManualReader
+	spanRecorder *tracetest.SpanRecorder
+	binding      *knowledge.ResolvedBinding
+	result       *ingest.Result
+	log          *capturingLogger
+}
+
+func runPipelineWithObservability(t *testing.T) observabilityArtifacts {
+	t.Helper()
 	knowledge.ResetMetricsForTesting()
-	reader := sdkmetric.NewManualReader()
-	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	prevMeter := otel.GetMeterProvider()
-	otel.SetMeterProvider(meterProvider)
-	t.Cleanup(func() {
-		require.NoError(t, meterProvider.Shutdown(context.Background()))
-		otel.SetMeterProvider(prevMeter)
-	})
-	spanRecorder := tracetest.NewSpanRecorder()
-	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
-	prevTracer := otel.GetTracerProvider()
-	otel.SetTracerProvider(tracerProvider)
-	t.Cleanup(func() {
-		require.NoError(t, tracerProvider.Shutdown(context.Background()))
-		otel.SetTracerProvider(prevTracer)
-	})
+	reader := setupMeterProvider(t)
+	spanRecorder := setupTracerProvider(t)
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "doc.md"), "observability content to chunk")
 	cwd := cwdFromDir(t, dir)
@@ -395,31 +390,68 @@ func TestPipeline_ShouldEmitObservabilitySignals(t *testing.T) {
 	require.NoError(t, err)
 	log := newCapturingLogger()
 	ctx := logger.ContextWithLogger(context.Background(), log)
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	t.Cleanup(cancel)
 	result, err := pipe.Run(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, result)
+	return observabilityArtifacts{
+		reader:       reader,
+		spanRecorder: spanRecorder,
+		binding:      binding,
+		result:       result,
+		log:          log,
+	}
+}
+
+func setupMeterProvider(t *testing.T) *sdkmetric.ManualReader {
+	t.Helper()
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	prev := otel.GetMeterProvider()
+	otel.SetMeterProvider(provider)
+	t.Cleanup(func() {
+		require.NoError(t, provider.Shutdown(context.Background()))
+		otel.SetMeterProvider(prev)
+	})
+	return reader
+}
+
+func setupTracerProvider(t *testing.T) *tracetest.SpanRecorder {
+	t.Helper()
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	prev := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() {
+		require.NoError(t, provider.Shutdown(context.Background()))
+		otel.SetTracerProvider(prev)
+	})
+	return recorder
+}
+
+func assertPipelineMetrics(
+	t *testing.T,
+	reader *sdkmetric.ManualReader,
+	binding *knowledge.ResolvedBinding,
+	result *ingest.Result,
+) {
+	t.Helper()
 	var rm metricdata.ResourceMetrics
-	err = reader.Collect(context.Background(), &rm)
-	require.NoError(t, err)
+	require.NoError(t, reader.Collect(context.Background(), &rm))
 	foundDuration := false
 	foundChunks := false
 	for _, scope := range rm.ScopeMetrics {
 		for _, metric := range scope.Metrics {
 			switch metric.Name {
 			case "knowledge_ingest_duration_seconds":
-				hist, ok := metric.Data.(metricdata.Histogram[float64])
-				require.True(t, ok)
-				require.Len(t, hist.DataPoints, 1)
-				data := hist.DataPoints[0]
+				data := getHistogramData(t, metric)
 				attrs := attributesToMap(data.Attributes)
 				assert.Equal(t, binding.KnowledgeBase.ID, attrs["kb_id"])
 				assert.Greater(t, data.Sum, 0.0)
 				foundDuration = true
 			case "knowledge_chunks_total":
-				sum, ok := metric.Data.(metricdata.Sum[int64])
-				require.True(t, ok)
-				require.Len(t, sum.DataPoints, 1)
-				data := sum.DataPoints[0]
+				data := getSumDataPoint(t, metric)
 				attrs := attributesToMap(data.Attributes)
 				assert.Equal(t, binding.KnowledgeBase.ID, attrs["kb_id"])
 				assert.Equal(t, int64(result.Chunks), data.Value)
@@ -429,7 +461,31 @@ func TestPipeline_ShouldEmitObservabilitySignals(t *testing.T) {
 	}
 	assert.True(t, foundDuration, "expected knowledge_ingest_duration_seconds metric")
 	assert.True(t, foundChunks, "expected knowledge_chunks_total metric")
-	spans := spanRecorder.Ended()
+}
+
+func getHistogramData(t *testing.T, metric metricdata.Metrics) metricdata.HistogramDataPoint[float64] {
+	t.Helper()
+	hist, ok := metric.Data.(metricdata.Histogram[float64])
+	require.True(t, ok)
+	require.Len(t, hist.DataPoints, 1)
+	return hist.DataPoints[0]
+}
+
+func getSumDataPoint(t *testing.T, metric metricdata.Metrics) metricdata.DataPoint[int64] {
+	t.Helper()
+	sum, ok := metric.Data.(metricdata.Sum[int64])
+	require.True(t, ok)
+	require.Len(t, sum.DataPoints, 1)
+	return sum.DataPoints[0]
+}
+
+func assertPipelineTracing(
+	t *testing.T,
+	recorder *tracetest.SpanRecorder,
+	binding *knowledge.ResolvedBinding,
+) {
+	t.Helper()
+	spans := recorder.Ended()
 	require.NotEmpty(t, spans)
 	require.NotNil(t, findSpan(t, spans, "compozy.knowledge.ingest.run"))
 	embedSpan := findSpan(t, spans, "compozy.knowledge.ingest.embed_batch")
@@ -443,11 +499,19 @@ func TestPipeline_ShouldEmitObservabilitySignals(t *testing.T) {
 	upsertAttrs := spanAttributesToMap(upsertSpan.Attributes())
 	assert.Equal(t, binding.Vector.ID, upsertAttrs["vector_id"])
 	assert.Equal(t, string(binding.Vector.Type), upsertAttrs["vector_type"])
-	require.NotEmpty(t, *log.entries)
-	startLog := findLogEntry(*log.entries, "Knowledge ingestion started")
+}
+
+func assertPipelineLogs(
+	t *testing.T,
+	entries *[]logEntry,
+	binding *knowledge.ResolvedBinding,
+) {
+	t.Helper()
+	require.NotEmpty(t, *entries)
+	startLog := findLogEntry(*entries, "Knowledge ingestion started")
 	require.NotNil(t, startLog)
 	assert.Equal(t, binding.KnowledgeBase.ID, startLog.fields["kb_id"])
-	finishLog := findLogEntry(*log.entries, "Knowledge ingestion finished")
+	finishLog := findLogEntry(*entries, "Knowledge ingestion finished")
 	require.NotNil(t, finishLog)
 	assert.Equal(t, binding.KnowledgeBase.ID, finishLog.fields["kb_id"])
 }

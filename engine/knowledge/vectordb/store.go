@@ -57,7 +57,7 @@ func validateConfig(cfg *Config) error {
 		cfg.Path = path
 	}
 	switch cfg.Provider {
-	case ProviderQdrant:
+	case ProviderPGVector, ProviderQdrant:
 		if dsn == "" {
 			return fmt.Errorf("vector_db %q: %w", cfg.ID, errMissingDSN)
 		}

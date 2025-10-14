@@ -14,9 +14,10 @@ import (
 )
 
 func TestRedisStore_UpsertSearchAndDelete(t *testing.T) {
-	ctx := context.Background()
-	dsn := startRedisTestInstance(ctx, t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 
+	dsn := startRedisTestInstance(ctx, t)
 	cfg := &Config{
 		ID:         "redis_vectors",
 		Provider:   ProviderRedis,
@@ -51,43 +52,57 @@ func TestRedisStore_UpsertSearchAndDelete(t *testing.T) {
 			},
 		},
 	}
+	query := []float32{1, 0, 0, 0}
+	var skipVectorTests bool
 
-	err = store.Upsert(ctx, records)
-	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "unknown command") {
-			t.Skipf("vector sets not available in Redis server: %v", err)
+	t.Run("Upsert", func(t *testing.T) {
+		err := store.Upsert(ctx, records)
+		if err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "unknown command") {
+				skipVectorTests = true
+				t.Skipf("vector sets not available in Redis server: %v", err)
+			}
+			require.NoError(t, err)
 		}
-		require.NoError(t, err)
+	})
+
+	if skipVectorTests {
+		t.Skip("vector sets not available in Redis server")
 	}
 
-	query := []float32{1, 0, 0, 0}
-	matches, err := store.Search(ctx, query, SearchOptions{TopK: 2})
-	require.NoError(t, err)
-	require.NotEmpty(t, matches)
-	assert.Equal(t, "doc-1", matches[0].ID)
-	assert.Equal(t, "alpha document", matches[0].Text)
-	assert.Equal(t, "kb1", matches[0].Metadata["knowledge_base_id"])
-
-	filtered, err := store.Search(ctx, query, SearchOptions{
-		TopK:    2,
-		Filters: map[string]string{"lang": "en"},
+	t.Run("Search", func(t *testing.T) {
+		matches, err := store.Search(ctx, query, SearchOptions{TopK: 2})
+		require.NoError(t, err)
+		require.NotEmpty(t, matches)
+		assert.Equal(t, "doc-1", matches[0].ID)
+		assert.Equal(t, "alpha document", matches[0].Text)
+		assert.Equal(t, "kb1", matches[0].Metadata["knowledge_base_id"])
 	})
-	require.NoError(t, err)
-	require.Len(t, filtered, 1)
-	assert.Equal(t, "doc-1", filtered[0].ID)
 
-	require.NoError(t, store.Delete(ctx, Filter{Metadata: map[string]string{"knowledge_base_id": "kb1"}}))
+	t.Run("FilteredSearch", func(t *testing.T) {
+		filtered, err := store.Search(ctx, query, SearchOptions{
+			TopK:    2,
+			Filters: map[string]string{"lang": "en"},
+		})
+		require.NoError(t, err)
+		require.Len(t, filtered, 1)
+		assert.Equal(t, "doc-1", filtered[0].ID)
+	})
 
-	afterDelete, err := store.Search(ctx, query, SearchOptions{TopK: 2})
-	require.NoError(t, err)
-	require.Len(t, afterDelete, 1)
-	assert.Equal(t, "doc-2", afterDelete[0].ID)
+	t.Run("DeleteByMetadata", func(t *testing.T) {
+		require.NoError(t, store.Delete(ctx, Filter{Metadata: map[string]string{"knowledge_base_id": "kb1"}}))
+		afterDelete, err := store.Search(ctx, query, SearchOptions{TopK: 2})
+		require.NoError(t, err)
+		require.Len(t, afterDelete, 1)
+		assert.Equal(t, "doc-2", afterDelete[0].ID)
+	})
 
-	require.NoError(t, store.Delete(ctx, Filter{IDs: []string{"doc-2"}}))
-
-	finalMatches, err := store.Search(ctx, query, SearchOptions{TopK: 2})
-	require.NoError(t, err)
-	assert.Empty(t, finalMatches)
+	t.Run("DeleteByIDs", func(t *testing.T) {
+		require.NoError(t, store.Delete(ctx, Filter{IDs: []string{"doc-2"}}))
+		finalMatches, err := store.Search(ctx, query, SearchOptions{TopK: 2})
+		require.NoError(t, err)
+		assert.Empty(t, finalMatches)
+	})
 }
 
 func startRedisTestInstance(ctx context.Context, t *testing.T) string {
@@ -104,10 +119,14 @@ func startRedisTestInstance(ctx context.Context, t *testing.T) string {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = container.Terminate(ctx)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cleanupCancel()
+		_ = container.Terminate(cleanupCtx)
 	})
 
-	endpoint, err := container.Endpoint(ctx, "")
+	host, err := container.Host(ctx)
 	require.NoError(t, err)
-	return fmt.Sprintf("redis://%s", endpoint)
+	port, err := container.MappedPort(ctx, "6379/tcp")
+	require.NoError(t, err)
+	return fmt.Sprintf("redis://%s:%s", host, port.Port())
 }

@@ -525,11 +525,11 @@ func TestRedisNotificationSystem_Metrics(t *testing.T) {
 
 		// Check metrics
 		metrics := ns.GetMetrics()
-		// Allow readiness ping to count (6) or not (5) under coverage timing
-		assert.GreaterOrEqual(t, metrics.MessagesPublished, int64(5))
-		assert.LessOrEqual(t, metrics.MessagesPublished, int64(6))
-		assert.GreaterOrEqual(t, metrics.MessagesReceived, int64(5))
-		assert.LessOrEqual(t, metrics.MessagesReceived, int64(6))
+		// Readiness ping may be included depending on timing
+		assert.Contains(t, []int64{5, 6}, metrics.MessagesPublished,
+			"Expected exactly 5 (no ping) or 6 (with ping) published messages")
+		assert.Contains(t, []int64{5, 6}, metrics.MessagesReceived,
+			"Expected exactly 5 (no ping) or 6 (with ping) received messages")
 		assert.Equal(t, int64(0), metrics.PublishErrors)
 		assert.Equal(t, int64(0), metrics.SubscribeErrors)
 		assert.Greater(t, metrics.ActiveChannels, 0)

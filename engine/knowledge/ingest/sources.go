@@ -306,27 +306,31 @@ func fetchRemoteDocument(ctx context.Context, rawURL string, maxBytes int) (remo
 		}, nil
 	}
 
-	data, readErr := os.ReadFile(path)
-	if readErr != nil {
-		return remoteFetchResult{}, fmt.Errorf("knowledge: read url %q: %w", rawURL, readErr)
-	}
-	if len(data) > limit {
-		return remoteFetchResult{}, fmt.Errorf(
-			"knowledge: url %q exceeds maximum size of %d bytes",
-			rawURL,
-			limit,
-		)
-	}
-	text, decodeErr := decodeRemoteText(data, mime)
-	if decodeErr != nil {
-		return remoteFetchResult{}, fmt.Errorf("knowledge: decode url %q: %w", rawURL, decodeErr)
+	text, err := readAndDecodeDocument(rawURL, path, mime, limit)
+	if err != nil {
+		return remoteFetchResult{}, err
 	}
 	return remoteFetchResult{
-		text:        strings.TrimSpace(text),
+		text:        text,
 		contentType: mime,
 		size:        size,
 		filename:    filename,
 	}, nil
+}
+
+func readAndDecodeDocument(rawURL, path, mime string, limit int) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("knowledge: read url %q: %w", rawURL, err)
+	}
+	if len(data) > limit {
+		return "", fmt.Errorf("knowledge: url %q exceeds maximum size of %d bytes", rawURL, limit)
+	}
+	text, err := decodeRemoteText(data, mime)
+	if err != nil {
+		return "", fmt.Errorf("knowledge: decode url %q: %w", rawURL, err)
+	}
+	return strings.TrimSpace(text), nil
 }
 
 func decodeRemoteText(data []byte, mime string) (string, error) {

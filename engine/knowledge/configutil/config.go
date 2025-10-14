@@ -16,6 +16,17 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+const (
+	defaultPGHost = "localhost"
+	defaultPGPort = "5432"
+	defaultPGUser = "postgres"
+	defaultPGDB   = "postgres"
+	defaultPGSSL  = "disable"
+
+	defaultRedisHost = "localhost"
+	defaultRedisPort = "6379"
+)
+
 func ToEmbedderAdapterConfig(cfg *knowledge.EmbedderConfig) (*embedder.Config, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("embedder config is required")
@@ -66,6 +77,13 @@ func ToVectorStoreConfig(ctx context.Context, project string, cfg *knowledge.Vec
 	if provider == vectordb.ProviderFilesystem && pathValue == "" {
 		pathValue = defaultFilesystemPath(ctx, cfg.ID)
 	}
+	if cfg.Config.Dimension <= 0 {
+		return nil, fmt.Errorf(
+			"project %s vector_db %q: config.dimension must be greater than zero",
+			project,
+			cfg.ID,
+		)
+	}
 	storeCfg := &vectordb.Config{
 		ID:          cfg.ID,
 		Provider:    provider,
@@ -115,12 +133,12 @@ func buildPostgresDSN(cfg *config.DatabaseConfig) string {
 	if cfg.ConnString != "" {
 		return cfg.ConnString
 	}
-	host := defaultIfEmpty(cfg.Host, "localhost")
-	port := defaultIfEmpty(cfg.Port, "5432")
-	user := defaultIfEmpty(cfg.User, "postgres")
+	host := defaultIfEmpty(cfg.Host, defaultPGHost)
+	port := defaultIfEmpty(cfg.Port, defaultPGPort)
+	user := defaultIfEmpty(cfg.User, defaultPGUser)
 	password := defaultIfEmpty(cfg.Password, "")
-	dbname := defaultIfEmpty(cfg.DBName, "postgres")
-	sslmode := defaultIfEmpty(cfg.SSLMode, "disable")
+	dbname := defaultIfEmpty(cfg.DBName, defaultPGDB)
+	sslmode := defaultIfEmpty(cfg.SSLMode, defaultPGSSL)
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		host, port, user, password, dbname, sslmode,
@@ -173,8 +191,8 @@ func buildRedisDSN(cfg *config.RedisConfig) string {
 	if trimmed := strings.TrimSpace(cfg.URL); trimmed != "" {
 		return trimmed
 	}
-	host := defaultIfEmpty(cfg.Host, "localhost")
-	port := defaultIfEmpty(cfg.Port, "6379")
+	host := defaultIfEmpty(cfg.Host, defaultRedisHost)
+	port := defaultIfEmpty(cfg.Port, defaultRedisPort)
 	scheme := "redis"
 	if cfg.TLSEnabled {
 		scheme = "rediss"
