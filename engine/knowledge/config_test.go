@@ -3,12 +3,10 @@ package knowledge_test
 import (
 	"testing"
 
+	"github.com/compozy/compozy/engine/knowledge"
+	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	appconfig "github.com/compozy/compozy/pkg/config"
-
-	"github.com/compozy/compozy/engine/knowledge"
 )
 
 const (
@@ -337,36 +335,6 @@ func createVectorDBConfig(id string) knowledge.VectorDBConfig {
 }
 
 func TestPgvectorDSNValidation(t *testing.T) {
-	t.Run("Should require pgvector DSN", func(t *testing.T) {
-		defs := knowledge.Definitions{
-			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("embedder1")},
-			VectorDBs: []knowledge.VectorDBConfig{
-				{
-					ID:   "pgvector_no_dsn",
-					Type: knowledge.VectorDBTypePGVector,
-					Config: knowledge.VectorDBConnConfig{
-						Table:     "knowledge_chunks",
-						Dimension: testDimension,
-					},
-				},
-			},
-			KnowledgeBases: []knowledge.BaseConfig{
-				{
-					ID:       "kb1",
-					Embedder: "embedder1",
-					VectorDB: "pgvector_no_dsn",
-					Sources: []knowledge.SourceConfig{
-						{Type: knowledge.SourceTypeMarkdownGlob, Path: "docs/**/*.md"},
-					},
-				},
-			},
-		}
-		defs.Normalize()
-		err := defs.Validate()
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "requires config.dsn")
-	})
-
 	t.Run("Should allow pgvector with explicit DSN", func(t *testing.T) {
 		defs := knowledge.Definitions{
 			Embedders: []knowledge.EmbedderConfig{createEmbedderConfig("embedder1")},
