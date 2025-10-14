@@ -29,11 +29,12 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
-const MaxMarkdownFileSizeBytes = 4 * 1024 * 1024
+const DefaultMaxMarkdownFileSizeBytes = 4 * 1024 * 1024
 
 type documentList struct {
-	items []chunk.Document
-	hash  map[string]struct{}
+	items            []chunk.Document
+	hash             map[string]struct{}
+	maxMarkdownBytes int
 }
 
 var (
@@ -49,6 +50,13 @@ type remoteFetchResult struct {
 	pdfStats    *pdftext.Stats
 }
 
+func resolveMaxMarkdownFileSizeBytes(ctx context.Context) int {
+	if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.Knowledge.MaxMarkdownFileSizeBytes > 0 {
+		return cfg.Knowledge.MaxMarkdownFileSizeBytes
+	}
+	return DefaultMaxMarkdownFileSizeBytes
+}
+
 func enumerateSources(ctx context.Context, kb *knowledge.BaseConfig, opts *Options) ([]chunk.Document, error) {
 	if kb == nil {
 		return nil, errors.New("knowledge: knowledge base is required")
@@ -56,7 +64,11 @@ func enumerateSources(ctx context.Context, kb *knowledge.BaseConfig, opts *Optio
 	if opts == nil {
 		return nil, errors.New("knowledge: ingest options are required")
 	}
-	list := documentList{items: make([]chunk.Document, 0), hash: make(map[string]struct{})}
+	list := documentList{
+		items:            make([]chunk.Document, 0),
+		hash:             make(map[string]struct{}),
+		maxMarkdownBytes: resolveMaxMarkdownFileSizeBytes(ctx),
+	}
 	for i := range kb.Sources {
 		src := &kb.Sources[i]
 		switch src.Type {
@@ -132,7 +144,7 @@ func (l *documentList) appendMarkdownPattern(
 		if rerr != nil {
 			return fmt.Errorf("knowledge: resolve relative path for %q: %w", abs, rerr)
 		}
-		text, readErr := readMarkdownFile(abs)
+		text, readErr := l.readMarkdownFile(abs)
 		if readErr != nil {
 			return readErr
 		}
@@ -178,7 +190,7 @@ func (l *documentList) appendRemoteURLs(ctx context.Context, kbID string, src *k
 		return fmt.Errorf("knowledge: url source requires url or urls")
 	}
 	for _, raw := range urls {
-		result, err := fetchRemoteDocument(ctx, raw)
+		result, err := fetchRemoteDocument(ctx, raw, l.maxMarkdownBytes)
 		if err != nil {
 			return err
 		}
@@ -203,7 +215,7 @@ func (l *documentList) appendRemoteURLs(ctx context.Context, kbID string, src *k
 	return nil
 }
 
-func readMarkdownFile(path string) (string, error) {
+func (l *documentList) readMarkdownFile(path string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("knowledge: open markdown %q: %w", path, err)
@@ -213,23 +225,28 @@ func readMarkdownFile(path string) (string, error) {
 	if statErr != nil {
 		return "", fmt.Errorf("knowledge: stat markdown %q: %w", path, statErr)
 	}
-	if info.Size() > int64(MaxMarkdownFileSizeBytes) {
+	limit := l.maxMarkdownBytes
+	if limit <= 0 {
+		limit = DefaultMaxMarkdownFileSizeBytes
+	}
+	maxBytes := int64(limit)
+	if info.Size() > maxBytes {
 		return "", fmt.Errorf(
 			"knowledge: markdown file %q exceeds maximum size of %d bytes",
 			path,
-			MaxMarkdownFileSizeBytes,
+			limit,
 		)
 	}
-	reader := io.LimitReader(file, int64(MaxMarkdownFileSizeBytes)+1)
+	reader := io.LimitReader(file, maxBytes+1)
 	data, readErr := io.ReadAll(reader)
 	if readErr != nil {
 		return "", fmt.Errorf("knowledge: read markdown %q: %w", path, readErr)
 	}
-	if len(data) > MaxMarkdownFileSizeBytes {
+	if len(data) > limit {
 		return "", fmt.Errorf(
 			"knowledge: markdown file %q changed during ingestion and exceeded %d bytes",
 			path,
-			MaxMarkdownFileSizeBytes,
+			limit,
 		)
 	}
 	return strings.TrimSpace(string(data)), nil
@@ -257,8 +274,12 @@ func pathInside(root, target string) (bool, error) {
 	return true, nil
 }
 
-func fetchRemoteDocument(ctx context.Context, rawURL string) (remoteFetchResult, error) {
-	handle, size, err := downloadToTemp(ctx, rawURL, 0)
+func fetchRemoteDocument(ctx context.Context, rawURL string, maxBytes int) (remoteFetchResult, error) {
+	limit := maxBytes
+	if limit <= 0 {
+		limit = DefaultMaxMarkdownFileSizeBytes
+	}
+	handle, size, err := downloadToTemp(ctx, rawURL, int64(limit))
 	if err != nil {
 		return remoteFetchResult{}, fmt.Errorf("knowledge: download url %q: %w", rawURL, err)
 	}
@@ -289,11 +310,11 @@ func fetchRemoteDocument(ctx context.Context, rawURL string) (remoteFetchResult,
 	if readErr != nil {
 		return remoteFetchResult{}, fmt.Errorf("knowledge: read url %q: %w", rawURL, readErr)
 	}
-	if len(data) > MaxMarkdownFileSizeBytes {
+	if len(data) > limit {
 		return remoteFetchResult{}, fmt.Errorf(
 			"knowledge: url %q exceeds maximum size of %d bytes",
 			rawURL,
-			MaxMarkdownFileSizeBytes,
+			limit,
 		)
 	}
 	text, decodeErr := decodeRemoteText(data, mime)

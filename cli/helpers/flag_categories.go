@@ -141,6 +141,8 @@ func getKnowledgeCategories() []FlagCategory {
 				"knowledge-chunk-overlap",
 				"knowledge-retrieval-top-k",
 				"knowledge-retrieval-min-score",
+				"knowledge-max-markdown-file-size-bytes",
+				"knowledge-vector-http-timeout",
 			},
 		},
 	}

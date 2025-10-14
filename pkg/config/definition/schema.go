@@ -75,6 +75,22 @@ func registerKnowledgeFields(registry *Registry) {
 		Type:    float64Type,
 		Help:    "Default minimum similarity score threshold when retrieval.min_score is not defined",
 	})
+	registry.Register(&FieldDef{
+		Path:    "knowledge.max_markdown_file_size_bytes",
+		Default: 4 * 1024 * 1024,
+		CLIFlag: "knowledge-max-markdown-file-size-bytes",
+		EnvVar:  "KNOWLEDGE_MAX_MARKDOWN_FILE_SIZE_BYTES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum markdown file size (in bytes) accepted during knowledge ingestion",
+	})
+	registry.Register(&FieldDef{
+		Path:    "knowledge.vector_http_timeout",
+		Default: 10 * time.Second,
+		CLIFlag: "knowledge-vector-http-timeout",
+		EnvVar:  "KNOWLEDGE_VECTOR_HTTP_TIMEOUT",
+		Type:    durationType,
+		Help:    "HTTP client timeout applied to knowledge vector stores that use HTTP backends",
+	})
 }
 
 func registerServerFields(registry *Registry) {

@@ -571,6 +571,10 @@ func flattenKnowledgeConfig(cfg *config.Config, result map[string]string) {
 	result["knowledge.chunk_overlap"] = fmt.Sprintf("%d", cfg.Knowledge.ChunkOverlap)
 	result["knowledge.retrieval_top_k"] = fmt.Sprintf("%d", cfg.Knowledge.RetrievalTopK)
 	result["knowledge.retrieval_min_score"] = strconv.FormatFloat(cfg.Knowledge.RetrievalMinScore, 'f', -1, 64)
+	result["knowledge.max_markdown_file_size_bytes"] = fmt.Sprintf("%d", cfg.Knowledge.MaxMarkdownFileSizeBytes)
+	if cfg.Knowledge.VectorHTTPTimeout > 0 {
+		result["knowledge.vector_http_timeout"] = cfg.Knowledge.VectorHTTPTimeout.String()
+	}
 }
 
 // flattenLLMConfig flattens LLM configuration (optional)

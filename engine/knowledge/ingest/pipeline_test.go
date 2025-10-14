@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/ingest"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
+	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -327,7 +328,7 @@ func TestPipeline_ShouldReplaceExistingRecords(t *testing.T) {
 func TestPipeline_ShouldRejectLargeMarkdownFile(t *testing.T) {
 	t.Run("ShouldRejectOversizedMarkdownFiles", func(t *testing.T) {
 		dir := t.TempDir()
-		oversized := strings.Repeat("a", ingest.MaxMarkdownFileSizeBytes+1)
+		oversized := strings.Repeat("a", ingest.DefaultMaxMarkdownFileSizeBytes+1)
 		writeFile(t, filepath.Join(dir, "large.md"), oversized)
 		cwd := cwdFromDir(t, dir)
 		binding := resolvedBinding(1)
@@ -336,6 +337,29 @@ func TestPipeline_ShouldRejectLargeMarkdownFile(t *testing.T) {
 		pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 		require.NoError(t, err)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_, err = pipe.Run(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds maximum size")
+	})
+
+	t.Run("ShouldHonorConfiguredMarkdownLimit", func(t *testing.T) {
+		dir := t.TempDir()
+		limit := 1024
+		content := strings.Repeat("a", limit+1)
+		writeFile(t, filepath.Join(dir, "limit.md"), content)
+		cwd := cwdFromDir(t, dir)
+		binding := resolvedBinding(1)
+		store := &memoryStore{}
+		embed := &recordingEmbedder{}
+		pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
+		require.NoError(t, err)
+		manager := appconfig.NewManager(appconfig.NewService())
+		cfg, err := manager.Load(context.Background(), appconfig.NewDefaultProvider())
+		require.NoError(t, err)
+		cfg.Knowledge.MaxMarkdownFileSizeBytes = limit
+		ctx := appconfig.ContextWithManager(context.Background(), manager)
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		_, err = pipe.Run(ctx)
 		require.Error(t, err)

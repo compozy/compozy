@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	appconfig "github.com/compozy/compozy/pkg/config"
 )
 
 type qdrantStore struct {
@@ -50,8 +51,12 @@ func newQdrantStore(ctx context.Context, cfg *Config) (Store, error) {
 	if collection == "" {
 		collection = cfg.ID
 	}
+	timeout := qdrantDefaultTimeout
+	if globalCfg := appconfig.FromContext(ctx); globalCfg != nil && globalCfg.Knowledge.VectorHTTPTimeout > 0 {
+		timeout = globalCfg.Knowledge.VectorHTTPTimeout
+	}
 	store := &qdrantStore{
-		client:     &http.Client{Timeout: qdrantDefaultTimeout},
+		client:     &http.Client{Timeout: timeout},
 		baseURL:    base,
 		collection: collection,
 		dimension:  cfg.Dimension,

@@ -598,6 +598,16 @@ type KnowledgeConfig struct {
 	//
 	// Applied when retrieval.min_score is not provided. Must fall within [0.0, 1.0].
 	RetrievalMinScore float64 `koanf:"retrieval_min_score" env:"KNOWLEDGE_RETRIEVAL_MIN_SCORE" json:"retrieval_min_score" yaml:"retrieval_min_score" mapstructure:"retrieval_min_score" validate:"min=0,max=1"`
+
+	// MaxMarkdownFileSizeBytes limits the size of markdown files ingested from disk or URLs.
+	//
+	// Files exceeding this threshold are rejected during ingestion.
+	MaxMarkdownFileSizeBytes int `koanf:"max_markdown_file_size_bytes" env:"KNOWLEDGE_MAX_MARKDOWN_FILE_SIZE_BYTES" json:"max_markdown_file_size_bytes" yaml:"max_markdown_file_size_bytes" mapstructure:"max_markdown_file_size_bytes" validate:"min=1024"`
+
+	// VectorHTTPTimeout bounds HTTP requests made by knowledge vector backends.
+	//
+	// Applies to HTTP-based vector stores such as Qdrant.
+	VectorHTTPTimeout time.Duration `koanf:"vector_http_timeout" env:"KNOWLEDGE_VECTOR_HTTP_TIMEOUT" json:"vector_http_timeout" yaml:"vector_http_timeout" mapstructure:"vector_http_timeout" validate:"min=0"`
 }
 
 // LLMConfig contains LLM service configuration.
@@ -1785,11 +1795,13 @@ func buildMemoryConfig(registry *definition.Registry) MemoryConfig {
 
 func buildKnowledgeConfig(registry *definition.Registry) KnowledgeConfig {
 	return KnowledgeConfig{
-		EmbedderBatchSize: getInt(registry, "knowledge.embedder_batch_size"),
-		ChunkSize:         getInt(registry, "knowledge.chunk_size"),
-		ChunkOverlap:      getInt(registry, "knowledge.chunk_overlap"),
-		RetrievalTopK:     getInt(registry, "knowledge.retrieval_top_k"),
-		RetrievalMinScore: getFloat64(registry, "knowledge.retrieval_min_score"),
+		EmbedderBatchSize:        getInt(registry, "knowledge.embedder_batch_size"),
+		ChunkSize:                getInt(registry, "knowledge.chunk_size"),
+		ChunkOverlap:             getInt(registry, "knowledge.chunk_overlap"),
+		RetrievalTopK:            getInt(registry, "knowledge.retrieval_top_k"),
+		RetrievalMinScore:        getFloat64(registry, "knowledge.retrieval_min_score"),
+		MaxMarkdownFileSizeBytes: getInt(registry, "knowledge.max_markdown_file_size_bytes"),
+		VectorHTTPTimeout:        getDuration(registry, "knowledge.vector_http_timeout"),
 	}
 }
 
