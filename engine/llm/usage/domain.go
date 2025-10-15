@@ -1,0 +1,41 @@
+package usage
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/compozy/compozy/engine/core"
+)
+
+// ErrNotFound indicates that usage data does not exist for the requested execution.
+var ErrNotFound = errors.New("usage not found")
+
+// Row represents a persisted LLM usage record for a workflow, task, or agent execution.
+// It captures model attribution and token counts for downstream reporting.
+type Row struct {
+	ID                 int64
+	WorkflowExecID     *core.ID
+	TaskExecID         *core.ID
+	Component          core.ComponentType
+	AgentID            *core.ID
+	Provider           string
+	Model              string
+	PromptTokens       int
+	CompletionTokens   int
+	TotalTokens        int
+	ReasoningTokens    *int
+	CachedPromptTokens *int
+	InputAudioTokens   *int
+	OutputAudioTokens  *int
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+// Repository exposes storage operations for usage rows so collectors can persist results.
+// Implementations must enforce referential integrity against workflow and task executions.
+type Repository interface {
+	Upsert(ctx context.Context, row *Row) error
+	GetByTaskExecID(ctx context.Context, id core.ID) (*Row, error)
+	GetByWorkflowExecID(ctx context.Context, id core.ID) (*Row, error)
+}
