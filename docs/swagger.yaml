@@ -4742,6 +4742,83 @@ paths:
     post:
       consumes:
         - application/json
+      description: Start an asynchronous agent execution and return a polling handle.
+      parameters:
+        - description: Agent ID
+          example: '"assistant"'
+          in: path
+          name: agent_id
+          required: true
+          type: string
+        - description: Optional correlation ID for request tracing
+          in: header
+          name: X-Correlation-ID
+          type: string
+        - description: Execution request
+          in: body
+          name: payload
+          required: true
+          schema:
+            $ref: '#/definitions/agentrouter.AgentExecRequest'
+      produces:
+        - application/json
+      responses:
+        "202":
+          description: Agent execution started
+          headers:
+            Location:
+              description: Execution status URL
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/agentrouter.AgentExecAsyncResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Agent not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "409":
+          description: Duplicate request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Start agent execution asynchronously
+      tags:
+        - agents
+  /agents/{agent_id}/executions/sync:
+    post:
+      consumes:
+        - application/json
       description: Execute an agent and wait for the output in the same HTTP response.
       parameters:
         - description: Agent ID
@@ -4818,83 +4895,6 @@ paths:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Execute agent synchronously
-      tags:
-        - agents
-  /agents/{agent_id}/executions/async:
-    post:
-      consumes:
-        - application/json
-      description: Start an asynchronous agent execution and return a polling handle.
-      parameters:
-        - description: Agent ID
-          example: '"assistant"'
-          in: path
-          name: agent_id
-          required: true
-          type: string
-        - description: Optional correlation ID for request tracing
-          in: header
-          name: X-Correlation-ID
-          type: string
-        - description: Execution request
-          in: body
-          name: payload
-          required: true
-          schema:
-            $ref: '#/definitions/agentrouter.AgentExecRequest'
-      produces:
-        - application/json
-      responses:
-        "202":
-          description: Agent execution started
-          headers:
-            Location:
-              description: Execution status URL
-              type: string
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    $ref: '#/definitions/agentrouter.AgentExecAsyncResponse'
-                type: object
-        "400":
-          description: Invalid request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "404":
-          description: Agent not found
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "409":
-          description: Duplicate request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Start agent execution asynchronously
       tags:
         - agents
   /agents/export:
@@ -9060,6 +9060,83 @@ paths:
     post:
       consumes:
         - application/json
+      description: Start an asynchronous task execution and return a polling handle.
+      parameters:
+        - description: Task ID
+          example: '"task-build-artifact"'
+          in: path
+          name: task_id
+          required: true
+          type: string
+        - description: Optional correlation ID for request tracing
+          in: header
+          name: X-Correlation-ID
+          type: string
+        - description: Execution request
+          in: body
+          name: payload
+          required: true
+          schema:
+            $ref: '#/definitions/tkrouter.TaskExecRequest'
+      produces:
+        - application/json
+      responses:
+        "202":
+          description: Task execution started
+          headers:
+            Location:
+              description: Execution status URL
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/tkrouter.TaskExecAsyncResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Task not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "409":
+          description: Duplicate request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Start task execution asynchronously
+      tags:
+        - tasks
+  /tasks/{task_id}/executions/sync:
+    post:
+      consumes:
+        - application/json
       description: Execute a task and wait for the output in the same HTTP response.
       parameters:
         - description: Task ID
@@ -9136,83 +9213,6 @@ paths:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Execute task synchronously
-      tags:
-        - tasks
-  /tasks/{task_id}/executions/async:
-    post:
-      consumes:
-        - application/json
-      description: Start an asynchronous task execution and return a polling handle.
-      parameters:
-        - description: Task ID
-          example: '"task-build-artifact"'
-          in: path
-          name: task_id
-          required: true
-          type: string
-        - description: Optional correlation ID for request tracing
-          in: header
-          name: X-Correlation-ID
-          type: string
-        - description: Execution request
-          in: body
-          name: payload
-          required: true
-          schema:
-            $ref: '#/definitions/tkrouter.TaskExecRequest'
-      produces:
-        - application/json
-      responses:
-        "202":
-          description: Task execution started
-          headers:
-            Location:
-              description: Execution status URL
-              type: string
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    $ref: '#/definitions/tkrouter.TaskExecAsyncResponse'
-                type: object
-        "400":
-          description: Invalid request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "404":
-          description: Task not found
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "409":
-          description: Duplicate request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Start task execution asynchronously
       tags:
         - tasks
   /tasks/export:

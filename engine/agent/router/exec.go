@@ -309,7 +309,7 @@ func handlePreparationError(c *gin.Context, err error) int {
 	return http.StatusInternalServerError
 }
 
-// executeAgentSync handles POST /agents/{agent_id}/executions.
+// executeAgentSync handles POST /agents/{agent_id}/executions/sync.
 //
 //	@Summary		Execute agent synchronously
 //	@Description	Execute an agent and wait for the output in the same HTTP response.
@@ -325,7 +325,7 @@ func handlePreparationError(c *gin.Context, err error) int {
 //	@Failure		408	{object}	router.Response{error=router.ErrorInfo}	"Execution timeout"
 //	@Failure		409	{object}	router.Response{error=router.ErrorInfo}	"Duplicate request"
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/agents/{agent_id}/executions [post]
+//	@Router			/agents/{agent_id}/executions/sync [post]
 func executeAgentSync(c *gin.Context) {
 	state := router.GetAppState(c)
 	if state == nil {
@@ -405,7 +405,7 @@ func parseAsyncResources(c *gin.Context) (*asyncResources, int, bool) {
 	}, http.StatusOK, true
 }
 
-// executeAgentAsync handles POST /agents/{agent_id}/executions/async.
+// executeAgentAsync handles POST /agents/{agent_id}/executions.
 //
 //	@Summary		Start agent execution asynchronously
 //	@Description	Start an asynchronous agent execution and return a polling handle.
@@ -421,7 +421,7 @@ func parseAsyncResources(c *gin.Context) (*asyncResources, int, bool) {
 //	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Agent not found"
 //	@Failure		409	{object}	router.Response{error=router.ErrorInfo}	"Duplicate request"
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/agents/{agent_id}/executions/async [post]
+//	@Router			/agents/{agent_id}/executions [post]
 func executeAgentAsync(c *gin.Context) {
 	asyncCtx, _, ok := validateAsyncRequest(c)
 	if !ok {

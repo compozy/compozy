@@ -46,7 +46,7 @@ Accept: application/json
 
 ### Execute agent asynchronously
 # @name runAgentAsync
-POST {{baseUrl}}/agents/{{agentId}}/executions/async
+POST {{baseUrl}}/agents/{{agentId}}/executions
 Content-Type: application/json
 Accept: application/json
 
@@ -59,7 +59,7 @@ Accept: application/json
 
 ### Execute agent action asynchronously
 # @name runAgentActionAsync
-POST {{baseUrl}}/agents/{{agentId}}/executions/async
+POST {{baseUrl}}/agents/{{agentId}}/executions
 Content-Type: application/json
 Accept: application/json
 
@@ -80,7 +80,7 @@ Accept: application/json
 
 ### Execute task synchronously
 # @name runTaskSync
-POST {{baseUrl}}/tasks/{{taskId}}/executions
+POST {{baseUrl}}/tasks/{{taskId}}/executions/sync
 Content-Type: application/json
 Accept: application/json
 
@@ -93,7 +93,7 @@ Accept: application/json
 
 ### Execute task asynchronously
 # @name runTaskAsync
-POST {{baseUrl}}/tasks/{{taskId}}/executions/async
+POST {{baseUrl}}/tasks/{{taskId}}/executions
 Content-Type: application/json
 Accept: application/json
 

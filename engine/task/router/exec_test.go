@@ -174,7 +174,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-one/executions",
+			"/api/v0/tasks/task-one/executions/sync",
 			strings.NewReader(`{"timeout":-1}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -209,7 +209,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-limit/executions",
+			"/api/v0/tasks/task-limit/executions/sync",
 			strings.NewReader(`{"with":{"foo":"bar"},"timeout":301}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -248,7 +248,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-three/executions",
+			"/api/v0/tasks/task-three/executions/sync",
 			strings.NewReader(`{"with":{"foo":"bar"}}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -304,7 +304,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-with-timeout/executions",
+			"/api/v0/tasks/task-with-timeout/executions/sync",
 			strings.NewReader(`{"with":{"foo":"bar"}}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -349,7 +349,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-project-timeout/executions",
+			"/api/v0/tasks/task-project-timeout/executions/sync",
 			strings.NewReader(`{"with":{"foo":"bar"}}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -390,7 +390,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-max/executions",
+			"/api/v0/tasks/task-max/executions/sync",
 			strings.NewReader(`{"timeout":50}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -436,7 +436,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-config-max/executions",
+			"/api/v0/tasks/task-config-max/executions/sync",
 			strings.NewReader(`{"with":{"foo":"bar"}}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -477,7 +477,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-state/executions",
+			"/api/v0/tasks/task-state/executions/sync",
 			strings.NewReader(`{"with":{"foo":"fallback"}}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -528,7 +528,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-four/executions",
+			"/api/v0/tasks/task-four/executions/sync",
 			strings.NewReader(`{"with":{"a":1}}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -578,7 +578,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-five/executions/async",
+			"/api/v0/tasks/task-five/executions",
 			strings.NewReader(`{"with":{"b":2}}`),
 		)
 		req.Header.Set("Content-Type", "application/json")

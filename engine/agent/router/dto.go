@@ -82,13 +82,13 @@ type AgentsListResponse struct {
 	Page   httpdto.PageInfoDTO `json:"page"`
 }
 
-// AgentExecSyncResponse is returned from POST /agents/{agent_id}/executions.
+// AgentExecSyncResponse is returned from POST /agents/{agent_id}/executions/sync.
 type AgentExecSyncResponse struct {
 	Output *core.Output `json:"output,omitempty"`
 	ExecID string       `json:"exec_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 }
 
-// AgentExecAsyncResponse is returned from POST /agents/{agent_id}/executions/async.
+// AgentExecAsyncResponse is returned from POST /agents/{agent_id}/executions.
 type AgentExecAsyncResponse struct {
 	ExecID  string `json:"exec_id"  example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 	ExecURL string `json:"exec_url" example:"https://api.compozy.dev/api/v0/executions/agents/2Z4PVTL6K27XVT4A3NPKMDD5BG"`

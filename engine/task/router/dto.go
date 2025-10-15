@@ -89,13 +89,13 @@ type TasksListResponse struct {
 	Page  httpdto.PageInfoDTO `json:"page"`
 }
 
-// TaskExecSyncResponse is returned from POST /tasks/{task_id}/executions.
+// TaskExecSyncResponse is returned from POST /tasks/{task_id}/executions/sync.
 type TaskExecSyncResponse struct {
 	Output *core.Output `json:"output,omitempty"`
 	ExecID string       `json:"exec_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 }
 
-// TaskExecAsyncResponse is returned from POST /tasks/{task_id}/executions/async.
+// TaskExecAsyncResponse is returned from POST /tasks/{task_id}/executions.
 type TaskExecAsyncResponse struct {
 	ExecID  string `json:"exec_id"  example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 	ExecURL string `json:"exec_url" example:"https://api.compozy.dev/api/v0/executions/tasks/2Z4PVTL6K27XVT4A3NPKMDD5BG"`

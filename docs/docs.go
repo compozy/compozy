@@ -1301,6 +1301,144 @@ const docTemplate = `{
         },
         "/agents/{agent_id}/executions": {
             "post": {
+                "description": "Start an asynchronous agent execution and return a polling handle.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "summary": "Start agent execution asynchronously",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"assistant\"",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Execution request",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentrouter.AgentExecRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Agent execution started",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/agentrouter.AgentExecAsyncResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Execution status URL"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Agent not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/agents/{agent_id}/executions/sync": {
+            "post": {
                 "description": "Execute an agent and wait for the output in the same HTTP response.",
                 "consumes": [
                     "application/json"
@@ -1394,144 +1532,6 @@ const docTemplate = `{
                     },
                     "408": {
                         "description": "Execution timeout",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "409": {
-                        "description": "Duplicate request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/agents/{agent_id}/executions/async": {
-            "post": {
-                "description": "Start an asynchronous agent execution and return a polling handle.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "agents"
-                ],
-                "summary": "Start agent execution asynchronously",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"assistant\"",
-                        "description": "Agent ID",
-                        "name": "agent_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional correlation ID for request tracing",
-                        "name": "X-Correlation-ID",
-                        "in": "header"
-                    },
-                    {
-                        "description": "Execution request",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/agentrouter.AgentExecRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Agent execution started",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/agentrouter.AgentExecAsyncResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        },
-                        "headers": {
-                            "Location": {
-                                "type": "string",
-                                "description": "Execution status URL"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Agent not found",
                         "schema": {
                             "allOf": [
                                 {
@@ -8320,6 +8320,144 @@ const docTemplate = `{
         },
         "/tasks/{task_id}/executions": {
             "post": {
+                "description": "Start an asynchronous task execution and return a polling handle.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Start task execution asynchronously",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"task-build-artifact\"",
+                        "description": "Task ID",
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Execution request",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/tkrouter.TaskExecRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Task execution started",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/tkrouter.TaskExecAsyncResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Execution status URL"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Task not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{task_id}/executions/sync": {
+            "post": {
                 "description": "Execute a task and wait for the output in the same HTTP response.",
                 "consumes": [
                     "application/json"
@@ -8413,144 +8551,6 @@ const docTemplate = `{
                     },
                     "408": {
                         "description": "Execution timeout",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "409": {
-                        "description": "Duplicate request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/tasks/{task_id}/executions/async": {
-            "post": {
-                "description": "Start an asynchronous task execution and return a polling handle.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tasks"
-                ],
-                "summary": "Start task execution asynchronously",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"task-build-artifact\"",
-                        "description": "Task ID",
-                        "name": "task_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Optional correlation ID for request tracing",
-                        "name": "X-Correlation-ID",
-                        "in": "header"
-                    },
-                    {
-                        "description": "Execution request",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/tkrouter.TaskExecRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Task execution started",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/tkrouter.TaskExecAsyncResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        },
-                        "headers": {
-                            "Location": {
-                                "type": "string",
-                                "description": "Execution status URL"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Task not found",
                         "schema": {
                             "allOf": [
                                 {

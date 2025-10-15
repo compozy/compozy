@@ -367,7 +367,7 @@ type TaskExecRequest struct {
 	Timeout *int `json:"timeout,omitempty"`
 }
 
-// executeTaskSync handles POST /tasks/{task_id}/executions.
+// executeTaskSync handles POST /tasks/{task_id}/executions/sync.
 //
 //	@Summary		Execute task synchronously
 //	@Description	Execute a task and wait for the output in the same HTTP response.
@@ -383,7 +383,7 @@ type TaskExecRequest struct {
 //	@Failure		408	{object}	router.Response{error=router.ErrorInfo}	"Execution timeout"
 //	@Failure		409	{object}	router.Response{error=router.ErrorInfo}	"Duplicate request"
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/tasks/{task_id}/executions [post]
+//	@Router			/tasks/{task_id}/executions/sync [post]
 func executeTaskSync(c *gin.Context) {
 	setup, ok := validateTaskExecution(c)
 	if !ok {
@@ -515,7 +515,7 @@ func executeTaskSyncAndRespond(
 	return monitoring.ExecutionOutcomeSuccess
 }
 
-// executeTaskAsync handles POST /tasks/{task_id}/executions/async.
+// executeTaskAsync handles POST /tasks/{task_id}/executions.
 //
 //	@Summary		Start task execution asynchronously
 //	@Description	Start an asynchronous task execution and return a polling handle.
@@ -531,7 +531,7 @@ func executeTaskSyncAndRespond(
 //	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Task not found"
 //	@Failure		409	{object}	router.Response{error=router.ErrorInfo}	"Duplicate request"
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/tasks/{task_id}/executions/async [post]
+//	@Router			/tasks/{task_id}/executions [post]
 func executeTaskAsync(c *gin.Context) {
 	taskID := router.GetTaskID(c)
 	if taskID == "" {
