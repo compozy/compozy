@@ -229,7 +229,7 @@ func TestExecutionEndpoints_AgentAsync(t *testing.T) {
 		t,
 		harness.Engine,
 		http.MethodPost,
-		fmt.Sprintf("/api/v0/agents/%s/executions/async", agentID),
+		fmt.Sprintf("/api/v0/agents/%s/executions", agentID),
 		body,
 		nil,
 	)
@@ -267,7 +267,7 @@ func TestExecutionEndpoints_TaskAsync(t *testing.T) {
 		t,
 		harness.Engine,
 		http.MethodPost,
-		fmt.Sprintf("/api/v0/tasks/%s/executions/async", taskID),
+		fmt.Sprintf("/api/v0/tasks/%s/executions", taskID),
 		body,
 		nil,
 	)

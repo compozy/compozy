@@ -206,7 +206,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		})
 		api := r.Group("/api/v0")
 		Register(api)
-		req := httptest.NewRequest(http.MethodPost, "/api/v0/agents/agent-one/executions", strings.NewReader(`{}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/v0/agents/agent-one/executions/sync", strings.NewReader(`{}`))
 		req.Header.Set("Content-Type", "application/json")
 		req = routertest.WithConfig(t, req)
 		w := httptest.NewRecorder()
@@ -243,7 +243,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/agents/agent-timeout/executions",
+			"/api/v0/agents/agent-timeout/executions/sync",
 			strings.NewReader(`{"prompt":"run","timeout":301}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -284,7 +284,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/agents/agent-three/executions",
+			"/api/v0/agents/agent-three/executions/sync",
 			strings.NewReader(`{"prompt":"hello"}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -346,7 +346,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/agents/agent-action/executions",
+			"/api/v0/agents/agent-action/executions/sync",
 			strings.NewReader(`{"action":"acknowledge","with":{"message":"Agent action payload"}}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -406,7 +406,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/agents/agent-state/executions",
+			"/api/v0/agents/agent-state/executions/sync",
 			strings.NewReader(`{"prompt":"should use state"}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -457,7 +457,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/agents/agent-four/executions",
+			"/api/v0/agents/agent-four/executions/sync",
 			strings.NewReader(`{"prompt":"hi"}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -507,7 +507,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/agents/agent-five/executions/async",
+			"/api/v0/agents/agent-five/executions",
 			strings.NewReader(`{"prompt":"hi"}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
