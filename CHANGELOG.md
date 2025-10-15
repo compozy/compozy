@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ♻️  Refactoring
 
+- *(repo)* Standardize executions routes
+
+## 0.0.17 - 2025-10-15
+
+### ♻️  Refactoring
+
 - *(repo)* Add built-in tools in Go ([#264](https://github.com/compozy/compozy/issues/264))
 
 ### 🎉 Features
@@ -23,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 CI/CD
 
+- *(release)* Release v0.0.17 ([#284](https://github.com/compozy/compozy/issues/284))
 - *(repo)* Fix bun config
 - *(repo)* Fix dry-run release
 
@@ -372,6 +379,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(repo)* Fix testcontainer timeouts
 - *(server)* Add basic tests for server
 
+[0.0.17]: https://github.com/compozy/compozy/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/compozy/compozy/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/compozy/compozy/compare/v0.0.14...v0.0.15
 [0.0.14]: https://github.com/compozy/compozy/compare/v0.0.13...v0.0.14

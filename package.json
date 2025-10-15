@@ -46,14 +46,14 @@
     "format:yaml": "prettier --write \"**/*.{yml,yaml}\"",
     "lint": "turbo run lint",
     "pr:review": "bun scripts/pr-review.ts",
-    "reinstall": "bun run clean:deps && bun install",
+    "reinstall": "bun run clean:deps \u0026\u0026 bun install",
     "storybook": "turbo run storybook",
     "test": "turbo run test",
     "type-check": "turbo run type-check",
     "update:deps": "turbo run update:deps"
   },
   "type": "module",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "workspaces": [
     "examples/**",
     "docs"
