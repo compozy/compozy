@@ -343,7 +343,7 @@ func mapWorkflowExecutions(
 	states []*workflow.State,
 ) []*WorkflowExecutionDTO {
 	if len(states) == 0 {
-		return nil
+		return make([]*WorkflowExecutionDTO, 0)
 	}
 	dtos := make([]*WorkflowExecutionDTO, 0, len(states))
 	for i := range states {

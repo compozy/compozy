@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/apitypes"
 )
 
 // WorkflowService defines read-only operations for workflow management
@@ -112,17 +113,8 @@ type ExecutionDetail struct {
 	Metrics     *ExecutionMetrics `json:"metrics"`
 }
 
-type UsageSummary struct {
-	Provider           string `json:"provider"`
-	Model              string `json:"model"`
-	PromptTokens       int    `json:"prompt_tokens"`
-	CompletionTokens   int    `json:"completion_tokens"`
-	TotalTokens        int    `json:"total_tokens"`
-	ReasoningTokens    *int   `json:"reasoning_tokens,omitempty"`
-	CachedPromptTokens *int   `json:"cached_prompt_tokens,omitempty"`
-	InputAudioTokens   *int   `json:"input_audio_tokens,omitempty"`
-	OutputAudioTokens  *int   `json:"output_audio_tokens,omitempty"`
-}
+// UsageSummary aliases the shared transport type to keep CLI responses in sync.
+type UsageSummary = apitypes.UsageSummary
 
 // ExecutionStatus represents execution status
 type ExecutionStatus string

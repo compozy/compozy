@@ -51,7 +51,19 @@ func newStubUsageRepo() *stubUsageRepo {
 	}
 }
 
-func (s *stubUsageRepo) Upsert(context.Context, *usage.Row) error { return nil }
+func (s *stubUsageRepo) Upsert(_ context.Context, row *usage.Row) error {
+	if row == nil {
+		return nil
+	}
+	if row.TaskExecID != nil {
+		s.taskRows[row.TaskExecID.String()] = row
+	}
+	if row.WorkflowExecID != nil {
+		s.workflowRows[row.WorkflowExecID.String()] = row
+		s.summaryRows[row.WorkflowExecID.String()] = row
+	}
+	return nil
+}
 
 func (s *stubUsageRepo) GetByTaskExecID(_ context.Context, id core.ID) (*usage.Row, error) {
 	if s.err != nil {

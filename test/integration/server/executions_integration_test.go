@@ -197,10 +197,10 @@ func TestExecutionEndpoints_WorkflowSync(t *testing.T) {
 		execID, ok := data["exec_id"].(string)
 		require.True(t, ok)
 		assert.NotEmpty(t, execID)
-		statePayload, hasState := data["state"].(map[string]any)
-		assert.True(t, hasState)
-		if hasState {
-			status, ok := statePayload["status"].(string)
+		workflowPayload, hasWorkflow := data["workflow"].(map[string]any)
+		assert.True(t, hasWorkflow)
+		if hasWorkflow {
+			status, ok := workflowPayload["status"].(string)
 			require.True(t, ok)
 			assert.Equal(t, string(core.StatusRunning), status)
 		}

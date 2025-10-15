@@ -17,10 +17,24 @@ CREATE TABLE IF NOT EXISTS execution_llm_usage (
     output_audio_tokens  integer,
     created_at           timestamptz NOT NULL DEFAULT now(),
     updated_at           timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT check_exec_id_not_null CHECK (
-        workflow_exec_id IS NOT NULL OR task_exec_id IS NOT NULL
+    CONSTRAINT check_exec_id_exactly_one CHECK (
+        (workflow_exec_id IS NOT NULL) <> (task_exec_id IS NOT NULL)
     )
 );
+
+CREATE OR REPLACE FUNCTION set_execution_llm_usage_updated_at()
+RETURNS trigger AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_execution_llm_usage_updated_at ON execution_llm_usage;
+CREATE TRIGGER trg_execution_llm_usage_updated_at
+    BEFORE UPDATE ON execution_llm_usage
+    FOR EACH ROW
+    EXECUTE FUNCTION set_execution_llm_usage_updated_at();
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_execution_usage_task_component
     ON execution_llm_usage (task_exec_id, component)
@@ -28,7 +42,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_execution_usage_task_component
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_execution_usage_workflow_component
     ON execution_llm_usage (workflow_exec_id, component)
-    WHERE task_exec_id IS NULL;
+    WHERE task_exec_id IS NULL AND workflow_exec_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_execution_usage_workflow_exec_id ON execution_llm_usage (workflow_exec_id);
 CREATE INDEX IF NOT EXISTS idx_execution_usage_task_exec_id ON execution_llm_usage (task_exec_id);
@@ -37,6 +51,8 @@ CREATE INDEX IF NOT EXISTS idx_execution_usage_component_created_at ON execution
 
 -- +goose Down
 -- +goose StatementBegin
+DROP TRIGGER IF EXISTS trg_execution_llm_usage_updated_at ON execution_llm_usage;
+DROP FUNCTION IF EXISTS set_execution_llm_usage_updated_at;
 DROP INDEX IF EXISTS uq_execution_usage_workflow_component;
 DROP INDEX IF EXISTS uq_execution_usage_task_component;
 DROP INDEX IF EXISTS idx_execution_usage_component_created_at;

@@ -286,9 +286,8 @@ func (a *Activities) ExecuteSubtask(
 	ctx context.Context,
 	input *tkfacts.ExecuteSubtaskInput,
 ) (*task.SubtaskResponse, error) {
-	// Ensure logger is attached to the activity context so downstream code
-	// (use-cases, LLM orchestrator) can emit debug logs when enabled.
-	ctx = withActivityLogger(ctx)
+	// Ensure logger and configuration manager are attached for downstream code.
+	ctx = a.withActivityContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

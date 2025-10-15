@@ -48,7 +48,6 @@ type WorkflowSyncResponse struct {
 	Workflow *WorkflowExecutionDTO `json:"workflow"`
 	Output   *core.Output          `json:"output,omitempty"`
 	ExecID   string                `json:"exec_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
-	Usage    *router.UsageSummary  `json:"usage,omitempty"`
 }
 
 // executeWorkflowSync handles POST /workflows/{workflow_id}/executions/sync.
@@ -127,7 +126,6 @@ func executeWorkflowSync(c *gin.Context) {
 		Workflow: newWorkflowExecutionDTO(stateResult, summary),
 		Output:   stateResult.Output,
 		ExecID:   execID.String(),
-		Usage:    summary,
 	}
 	outcome = monitoring.ExecutionOutcomeSuccess
 	router.RespondOK(c, "workflow execution completed", response)
@@ -338,7 +336,7 @@ func applyWorkflowJitter(base time.Duration, execID core.ID, attempt int) time.D
 	for i := 0; i < len(id); i++ {
 		hashVal = (hashVal*33 + int64(id[i])) % rangeSize
 	}
-	rawHash := max(hashVal, 0)
+	rawHash := hashVal
 	offset := (rawHash % rangeSize) - spanNanos
 	result := base + time.Duration(offset)
 	if result < time.Millisecond {
@@ -378,7 +376,7 @@ func respondWorkflowTimeout(
 	var summary *router.UsageSummary
 	if state != nil {
 		stateSummary := router.ResolveWorkflowUsageSummary(ctx, usageRepo, state.WorkflowExecID)
-		payload["state"] = newWorkflowExecutionDTO(state, stateSummary)
+		payload["workflow"] = newWorkflowExecutionDTO(state, stateSummary)
 		summary = stateSummary
 	}
 	if summary == nil {

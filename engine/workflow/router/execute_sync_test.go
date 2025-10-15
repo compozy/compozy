@@ -271,10 +271,9 @@ func Test_executeWorkflowSync(t *testing.T) {
 		var resp struct {
 			Status int `json:"status"`
 			Data   struct {
-				ExecID   string                  `json:"exec_id"`
-				Output   *core.Output            `json:"output"`
-				Usage    *routerpkg.UsageSummary `json:"usage"`
-				Workflow *WorkflowExecutionDTO   `json:"workflow"`
+				ExecID   string                `json:"exec_id"`
+				Output   *core.Output          `json:"output"`
+				Workflow *WorkflowExecutionDTO `json:"workflow"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
@@ -283,8 +282,6 @@ func Test_executeWorkflowSync(t *testing.T) {
 		assert.Equal(t, core.StatusSuccess, resp.Data.Workflow.Status)
 		require.NotNil(t, resp.Data.Workflow.Usage)
 		assert.Equal(t, 25, resp.Data.Workflow.Usage.TotalTokens)
-		require.NotNil(t, resp.Data.Usage)
-		assert.Equal(t, "gpt-4o", resp.Data.Usage.Model)
 		require.NotNil(t, resp.Data.Output)
 		assert.Equal(t, "ok", (*resp.Data.Output)["result"])
 	})

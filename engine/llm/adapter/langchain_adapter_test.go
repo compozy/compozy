@@ -536,6 +536,54 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 		assert.Equal(t, 12, resp.Usage.TotalTokens)
 	})
 
+	t.Run("Should parse usage metadata from provider key variants", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		langchainResp := &llms.ContentResponse{
+			Choices: []*llms.ContentChoice{
+				{
+					Content: "Done",
+					GenerationInfo: map[string]any{
+						"promptTokenCount":     json.Number("11"),
+						"input_tokens":         11,
+						"candidatesTokenCount": json.Number("7"),
+						"output_tokens":        7,
+						"totalTokenCount":      float64(25),
+					},
+				},
+			},
+		}
+
+		resp, err := adapter.convertResponse(ctx, langchainResp)
+		require.NoError(t, err)
+		require.NotNil(t, resp.Usage)
+		assert.Equal(t, 11, resp.Usage.PromptTokens)
+		assert.Equal(t, 7, resp.Usage.CompletionTokens)
+		assert.Equal(t, 25, resp.Usage.TotalTokens)
+	})
+
+	t.Run("Should clamp negative usage values to zero", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		langchainResp := &llms.ContentResponse{
+			Choices: []*llms.ContentChoice{
+				{
+					Content: "Done",
+					GenerationInfo: map[string]any{
+						"prompt_tokens":     -5,
+						"completion_tokens": -3,
+						"total_tokens":      -8,
+					},
+				},
+			},
+		}
+
+		resp, err := adapter.convertResponse(ctx, langchainResp)
+		require.NoError(t, err)
+		require.NotNil(t, resp.Usage)
+		assert.Equal(t, 0, resp.Usage.PromptTokens)
+		assert.Equal(t, 0, resp.Usage.CompletionTokens)
+		assert.Equal(t, 0, resp.Usage.TotalTokens)
+	})
+
 	t.Run("Should leave usage nil when metadata missing", func(t *testing.T) {
 		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{

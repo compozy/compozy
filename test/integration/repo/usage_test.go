@@ -3,6 +3,7 @@ package store
 import (
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,7 +36,6 @@ func TestUsageRepoIntegration(t *testing.T) {
 		reasoning := 2
 		cachedPrompt := 3
 		row := &usage.Row{
-			WorkflowExecID:     &workflowExecID,
 			TaskExecID:         &taskExecID,
 			Component:          core.ComponentTask,
 			Provider:           "openai",
@@ -100,7 +100,6 @@ func TestUsageRepoIntegration(t *testing.T) {
 
 		reasoning := 4
 		require.NoError(t, env.usageRepo.Upsert(env.ctx, &usage.Row{
-			WorkflowExecID:   &workflowExecID,
 			TaskExecID:       &firstTask,
 			Component:        core.ComponentTask,
 			Provider:         "openai",
@@ -114,7 +113,6 @@ func TestUsageRepoIntegration(t *testing.T) {
 		cachedPrompt := 8
 		inputAudio := 2
 		require.NoError(t, env.usageRepo.Upsert(env.ctx, &usage.Row{
-			WorkflowExecID:     &workflowExecID,
 			TaskExecID:         &secondTask,
 			Component:          core.ComponentAgent,
 			Provider:           "anthropic",
@@ -198,19 +196,19 @@ func TestUsageRepoIntegration(t *testing.T) {
 		env := newRepoTestEnv(t)
 		truncateRepoTables(env.ctx, t, env.pool)
 
-		workflowExecID := core.MustNewID()
 		taskExecID := core.MustNewID()
 		row := &usage.Row{
-			WorkflowExecID: &workflowExecID,
-			TaskExecID:     &taskExecID,
-			Component:      core.ComponentTask,
-			Provider:       "openai",
-			Model:          "gpt-4o-mini",
-			PromptTokens:   5,
+			TaskExecID:   &taskExecID,
+			Component:    core.ComponentTask,
+			Provider:     "openai",
+			Model:        "gpt-4o-mini",
+			PromptTokens: 5,
 		}
 
 		err := env.usageRepo.Upsert(env.ctx, row)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "foreign key")
+		var pgErr *pgconn.PgError
+		require.ErrorAs(t, err, &pgErr)
+		assert.Equal(t, "23503", pgErr.Code)
 	})
 }

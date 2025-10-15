@@ -37,13 +37,22 @@ type Service struct {
 
 // newDisabledService creates a service instance with no-op implementations
 func newDisabledService(cfg *Config, initErr error) *Service {
+	m := noop.NewMeterProvider().Meter("compozy")
+	execMetrics, execErr := newExecutionMetrics(m)
+	if execErr != nil || execMetrics == nil {
+		execMetrics = &ExecutionMetrics{}
+	}
+	llmMetrics, llmErr := newLLMUsageMetrics(m)
+	if llmErr != nil || llmMetrics == nil {
+		llmMetrics = &llmUsageMetrics{}
+	}
 	return &Service{
 		config:            cfg,
-		meter:             noop.NewMeterProvider().Meter("compozy"),
+		meter:             m,
 		initialized:       false,
 		initializationErr: initErr,
-		executionMetrics:  &ExecutionMetrics{},
-		llmUsageMetrics:   &llmUsageMetrics{},
+		executionMetrics:  execMetrics,
+		llmUsageMetrics:   llmMetrics,
 	}
 }
 

@@ -138,60 +138,104 @@ func (c *Collector) Finalize(ctx context.Context, status core.StatusType) error 
 	if c == nil || c.repo == nil {
 		return nil
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.provider == "" || c.model == "" {
+	snapshot, ok := c.snapshotFinalizeState()
+	if !ok {
 		return nil
 	}
+	return persistFinalize(ctx, status, snapshot)
+}
 
-	total := c.total
-	if !c.totalProvided {
-		total = c.prompt + c.completion
+// finalizeSnapshot stores the data required to persist usage once the collector lock is released.
+type finalizeSnapshot struct {
+	repo     Repository
+	metrics  Metrics
+	meta     Metadata
+	provider string
+	model    string
+	row      *Row
+}
+
+// snapshotFinalizeState captures the collector state needed to persist usage outside the lock.
+func (c *Collector) snapshotFinalizeState() (*finalizeSnapshot, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.provider == "" || c.model == "" {
+		return nil, false
 	}
-
+	meta := c.meta
+	prompt := c.prompt
+	completion := c.completion
+	total := prompt + completion
+	if c.totalProvided && c.total > total {
+		total = c.total
+	}
+	var (
+		workflowID *core.ID
+		taskID     *core.ID
+	)
+	if !meta.TaskExecID.IsZero() {
+		taskID = optionalID(meta.TaskExecID)
+	} else {
+		workflowID = optionalID(meta.WorkflowExecID)
+	}
 	row := &Row{
-		WorkflowExecID:     optionalID(c.meta.WorkflowExecID),
-		TaskExecID:         optionalID(c.meta.TaskExecID),
-		Component:          c.meta.Component,
-		AgentID:            parseAgentID(c.meta.AgentID),
+		WorkflowExecID:     workflowID,
+		TaskExecID:         taskID,
+		Component:          meta.Component,
+		AgentID:            parseAgentID(meta.AgentID),
 		Provider:           c.provider,
 		Model:              c.model,
-		PromptTokens:       c.prompt,
-		CompletionTokens:   c.completion,
+		PromptTokens:       prompt,
+		CompletionTokens:   completion,
 		TotalTokens:        total,
 		ReasoningTokens:    optionalInt(c.hasReasoning, c.reasoning),
 		CachedPromptTokens: optionalInt(c.hasCachedPrompt, c.cachedPrompt),
 		InputAudioTokens:   optionalInt(c.hasInputAudio, c.inputAudio),
 		OutputAudioTokens:  optionalInt(c.hasOutputAudio, c.outputAudio),
 	}
+	return &finalizeSnapshot{
+		repo:     c.repo,
+		metrics:  c.metrics,
+		meta:     meta,
+		provider: c.provider,
+		model:    c.model,
+		row:      row,
+	}, true
+}
 
+// persistFinalize writes the usage row and records metrics using the captured snapshot.
+func persistFinalize(
+	ctx context.Context,
+	status core.StatusType,
+	snapshot *finalizeSnapshot,
+) error {
 	start := time.Now()
-	err := c.repo.Upsert(ctx, row)
+	err := snapshot.repo.Upsert(ctx, snapshot.row)
 	duration := time.Since(start)
 	if err != nil {
 		log := logger.FromContext(ctx)
+		workflowLogID := maybeString(optionalID(snapshot.meta.WorkflowExecID))
 		log.Error(
 			"Failed to persist LLM usage",
 			"status", status,
-			"component", c.meta.Component,
-			"task_exec_id", maybeString(row.TaskExecID),
-			"workflow_exec_id", maybeString(row.WorkflowExecID),
+			"component", snapshot.meta.Component,
+			"task_exec_id", maybeString(snapshot.row.TaskExecID),
+			"workflow_exec_id", workflowLogID,
 			"error", err,
 		)
-		if c.metrics != nil {
-			c.metrics.RecordFailure(ctx, c.meta.Component, c.provider, c.model, duration)
+		if snapshot.metrics != nil {
+			snapshot.metrics.RecordFailure(ctx, snapshot.meta.Component, snapshot.provider, snapshot.model, duration)
 		}
 		return fmt.Errorf("finalize usage: %w", err)
 	}
-	if c.metrics != nil {
-		c.metrics.RecordSuccess(
+	if snapshot.metrics != nil {
+		snapshot.metrics.RecordSuccess(
 			ctx,
-			c.meta.Component,
-			c.provider,
-			c.model,
-			row.PromptTokens,
-			row.CompletionTokens,
+			snapshot.meta.Component,
+			snapshot.provider,
+			snapshot.model,
+			snapshot.row.PromptTokens,
+			snapshot.row.CompletionTokens,
 			duration,
 		)
 	}

@@ -6,21 +6,12 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm/usage"
+	"github.com/compozy/compozy/pkg/apitypes"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
 // UsageSummary serializes execution-level LLM usage metrics for API consumers.
-type UsageSummary struct {
-	Provider           string `json:"provider"`
-	Model              string `json:"model"`
-	PromptTokens       int    `json:"prompt_tokens"`
-	CompletionTokens   int    `json:"completion_tokens"`
-	TotalTokens        int    `json:"total_tokens"`
-	ReasoningTokens    *int   `json:"reasoning_tokens,omitempty"`
-	CachedPromptTokens *int   `json:"cached_prompt_tokens,omitempty"`
-	InputAudioTokens   *int   `json:"input_audio_tokens,omitempty"`
-	OutputAudioTokens  *int   `json:"output_audio_tokens,omitempty"`
-}
+type UsageSummary = apitypes.UsageSummary
 
 // NewUsageSummary constructs a UsageSummary from a persisted usage row.
 func NewUsageSummary(row *usage.Row) *UsageSummary {

@@ -3,6 +3,7 @@ package helpers
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,10 @@ func CreateMockRuntime(t *testing.T) coreruntime.Runtime {
 	return rtManager
 }
 
+// NoopUsageRepo implements usage.Repository for tests; all reads return ErrNotFound.
 type NoopUsageRepo struct{}
+
+var _ usage.Repository = (*NoopUsageRepo)(nil)
 
 func (NoopUsageRepo) Upsert(context.Context, *usage.Row) error { return nil }
 
@@ -53,6 +57,31 @@ func (NoopUsageRepo) GetByWorkflowExecID(context.Context, core.ID) (*usage.Row, 
 
 func (NoopUsageRepo) SummarizeByWorkflowExecID(context.Context, core.ID) (*usage.Row, error) {
 	return nil, usage.ErrNotFound
+}
+
+// NoopUsageMetrics implements usage.Metrics for tests.
+type NoopUsageMetrics struct{}
+
+var _ usage.Metrics = (*NoopUsageMetrics)(nil)
+
+func (NoopUsageMetrics) RecordSuccess(
+	context.Context,
+	core.ComponentType,
+	string,
+	string,
+	int,
+	int,
+	time.Duration,
+) {
+}
+
+func (NoopUsageMetrics) RecordFailure(
+	context.Context,
+	core.ComponentType,
+	string,
+	string,
+	time.Duration,
+) {
 }
 
 // CreateTestProjectConfig creates a minimal project config for testing

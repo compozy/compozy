@@ -341,9 +341,10 @@ func buildTaskSyncPayload(
 		payload["output"] = output
 	}
 	snapshotCtx := context.WithoutCancel(ctx)
+	summary := router.ResolveTaskUsageSummary(snapshotCtx, usageRepo, execID)
 	if stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID); stateErr == nil && stateSnapshot != nil {
 		dto := newTaskExecutionStatusDTO(stateSnapshot)
-		dto.Usage = router.ResolveTaskUsageSummary(ctx, usageRepo, stateSnapshot.TaskExecID)
+		dto.Usage = summary
 		payload["state"] = dto
 		if stateSnapshot.Output != nil {
 			payload["output"] = stateSnapshot.Output
@@ -356,7 +357,7 @@ func buildTaskSyncPayload(
 			"error", stateErr,
 		)
 	}
-	if summary := router.ResolveTaskUsageSummary(ctx, usageRepo, execID); summary != nil {
+	if summary != nil {
 		payload["usage"] = summary
 	}
 	return payload

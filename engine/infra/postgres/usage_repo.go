@@ -16,28 +16,28 @@ import (
 )
 
 var usageColumns = []string{
-	"id",
-	"workflow_exec_id",
-	"task_exec_id",
-	"component",
-	"agent_id",
-	"provider",
-	"model",
-	"prompt_tokens",
-	"completion_tokens",
-	"total_tokens",
-	"reasoning_tokens",
-	"cached_prompt_tokens",
-	"input_audio_tokens",
-	"output_audio_tokens",
-	"created_at",
-	"updated_at",
+	"e.id AS id",
+	"e.workflow_exec_id AS workflow_exec_id",
+	"e.task_exec_id AS task_exec_id",
+	"e.component AS component",
+	"e.agent_id AS agent_id",
+	"e.provider AS provider",
+	"e.model AS model",
+	"e.prompt_tokens AS prompt_tokens",
+	"e.completion_tokens AS completion_tokens",
+	"e.total_tokens AS total_tokens",
+	"e.reasoning_tokens AS reasoning_tokens",
+	"e.cached_prompt_tokens AS cached_prompt_tokens",
+	"e.input_audio_tokens AS input_audio_tokens",
+	"e.output_audio_tokens AS output_audio_tokens",
+	"e.created_at AS created_at",
+	"e.updated_at AS updated_at",
 }
 
 func selectUsageBuilder() squirrel.SelectBuilder {
 	return squirrel.
 		Select(usageColumns...).
-		From("execution_llm_usage").
+		From("execution_llm_usage e").
 		PlaceholderFormat(squirrel.Dollar)
 }
 
@@ -83,7 +83,7 @@ func buildUsageUpsert(row *usage.Row) (string, []any, error) {
 func usageConflictClause(row *usage.Row) string {
 	target := "(task_exec_id, component) WHERE task_exec_id IS NOT NULL"
 	if isZeroID(row.TaskExecID) {
-		target = "(workflow_exec_id, component) WHERE task_exec_id IS NULL"
+		target = "(workflow_exec_id, component) WHERE task_exec_id IS NULL AND workflow_exec_id IS NOT NULL"
 	}
 	return fmt.Sprintf(`
 ON CONFLICT %s DO UPDATE SET
@@ -148,7 +148,8 @@ func (r *UsageRepo) Upsert(ctx context.Context, row *usage.Row) error {
 // It returns usage.ErrNotFound when no matching record exists.
 func (r *UsageRepo) GetByTaskExecID(ctx context.Context, id core.ID) (*usage.Row, error) {
 	builder := selectUsageBuilder().
-		Where(squirrel.Eq{"task_exec_id": id.String()}).
+		Where(squirrel.Eq{"e.task_exec_id": id.String()}).
+		OrderBy("e.updated_at DESC").
 		Limit(1)
 	return r.getOne(ctx, builder)
 }
@@ -157,8 +158,8 @@ func (r *UsageRepo) GetByTaskExecID(ctx context.Context, id core.ID) (*usage.Row
 // It filters on the workflow component to avoid task-level collisions.
 func (r *UsageRepo) GetByWorkflowExecID(ctx context.Context, id core.ID) (*usage.Row, error) {
 	builder := selectUsageBuilder().
-		Where(squirrel.Eq{"workflow_exec_id": id.String()}).
-		Where(squirrel.Eq{"component": string(core.ComponentWorkflow)}).
+		Where(squirrel.Eq{"e.workflow_exec_id": id.String()}).
+		Where(squirrel.Eq{"e.component": string(core.ComponentWorkflow)}).
 		Limit(1)
 	return r.getOne(ctx, builder)
 }
@@ -166,9 +167,12 @@ func (r *UsageRepo) GetByWorkflowExecID(ctx context.Context, id core.ID) (*usage
 // SummarizeByWorkflowExecID aggregates token usage across all components for a workflow execution.
 func (r *UsageRepo) SummarizeByWorkflowExecID(ctx context.Context, id core.ID) (*usage.Row, error) {
 	builder := selectUsageBuilder().
-		Where(squirrel.Eq{"workflow_exec_id": id.String()}).
-		Where(squirrel.NotEq{"component": string(core.ComponentWorkflow)}).
-		Where("task_exec_id IS NOT NULL")
+		LeftJoin("task_states ts ON e.task_exec_id = ts.task_exec_id").
+		Where(squirrel.NotEq{"e.component": string(core.ComponentWorkflow)}).
+		Where(squirrel.Or{
+			squirrel.Eq{"e.workflow_exec_id": id.String()},
+			squirrel.Eq{"ts.workflow_exec_id": id.String()},
+		})
 	sql, args, err := builder.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build workflow usage summary select: %w", err)

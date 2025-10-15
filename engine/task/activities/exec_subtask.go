@@ -190,28 +190,9 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 	if err != nil {
 		return nil, err
 	}
-	collector := usage.NewCollector(a.usageRepo, a.usageMetrics, usage.Metadata{
-		Component:      taskState.Component,
-		WorkflowExecID: taskState.WorkflowExecID,
-		TaskExecID:     taskState.TaskExecID,
-		AgentID:        taskState.AgentID,
-	})
-	if collector != nil {
-		ctx = usage.ContextWithCollector(ctx, collector)
-	}
+	ctx, finalizeCollector := a.attachUsageCollector(ctx, taskState)
 	status := core.StatusFailed
-	defer func() {
-		if collector == nil {
-			return
-		}
-		if err := collector.Finalize(ctx, status); err != nil {
-			logger.FromContext(ctx).Warn(
-				"Failed to persist usage for subtask execution",
-				"error", err,
-				"task_exec_id", taskState.TaskExecID.String(),
-			)
-		}
-	}()
+	defer func() { finalizeCollector(status) }()
 	output, executionError := a.executeTaskUC.Execute(ctx, &uc.ExecuteTaskInput{
 		TaskConfig:     taskConfig,
 		WorkflowState:  workflowState,
@@ -271,6 +252,32 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 	// We only return an error if there's an infrastructure issue that Temporal should retry.
 	// Business logic failures are captured in the response status.
 	return subtaskResponse, nil
+}
+
+// attachUsageCollector adds a usage collector to the context and provides a finalize callback.
+func (a *ExecuteSubtask) attachUsageCollector(
+	ctx context.Context,
+	taskState *task.State,
+) (context.Context, func(core.StatusType)) {
+	collector := usage.NewCollector(a.usageRepo, a.usageMetrics, usage.Metadata{
+		Component:      taskState.Component,
+		WorkflowExecID: taskState.WorkflowExecID,
+		TaskExecID:     taskState.TaskExecID,
+		AgentID:        taskState.AgentID,
+	})
+	if collector == nil {
+		return ctx, func(core.StatusType) {}
+	}
+	ctx = usage.ContextWithCollector(ctx, collector)
+	return ctx, func(status core.StatusType) {
+		if err := collector.Finalize(ctx, status); err != nil {
+			logger.FromContext(ctx).Warn(
+				"Failed to persist usage for subtask execution",
+				"error", err,
+				"task_exec_id", taskState.TaskExecID.String(),
+			)
+		}
+	}
 }
 
 // getChildStateWithRetry retrieves child state with exponential backoff retry

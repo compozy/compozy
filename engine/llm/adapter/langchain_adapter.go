@@ -563,6 +563,9 @@ func (a *LangChainAdapter) convertResponse(ctx context.Context, resp *llms.Conte
 	if resp == nil || len(resp.Choices) == 0 {
 		return nil, fmt.Errorf("empty response from LLM")
 	}
+	if resp.Choices[0] == nil {
+		return nil, fmt.Errorf("empty response from LLM")
+	}
 
 	choice := resp.Choices[0]
 	response := &LLMResponse{
@@ -604,9 +607,9 @@ func (a *LangChainAdapter) buildUsage(info map[string]any) (*Usage, bool) {
 		return nil, false
 	}
 	usage := &Usage{
-		PromptTokens:       counts.prompt,
-		CompletionTokens:   counts.completion,
-		TotalTokens:        counts.total(),
+		PromptTokens:       nonNeg(counts.prompt),
+		CompletionTokens:   nonNeg(counts.completion),
+		TotalTokens:        nonNeg(counts.total()),
 		ReasoningTokens:    counts.reasoning,
 		CachedPromptTokens: counts.cachedPrompt,
 		InputAudioTokens:   counts.inputAudio,
@@ -632,14 +635,32 @@ func collectUsageCounts(info map[string]any) usageCounts {
 	if len(info) == 0 {
 		return counts
 	}
-	counts.prompt, counts.hasPrompt = readUsageInt(info, "prompt_tokens", "PromptTokens", "promptTokens")
+	counts.prompt, counts.hasPrompt = readUsageInt(
+		info,
+		"prompt_tokens",
+		"PromptTokens",
+		"promptTokens",
+		"input_tokens",
+		"inputTokens",
+		"promptTokenCount",
+	)
 	counts.completion, counts.hasCompletion = readUsageInt(
 		info,
 		"completion_tokens",
 		"CompletionTokens",
 		"completionTokens",
+		"output_tokens",
+		"outputTokens",
+		"candidatesTokenCount",
+		"candidateTokenCount",
 	)
-	if total, ok := readUsageInt(info, "total_tokens", "TotalTokens", "totalTokens"); ok {
+	if total, ok := readUsageInt(
+		info,
+		"total_tokens",
+		"TotalTokens",
+		"totalTokens",
+		"totalTokenCount",
+	); ok {
 		counts.totalValue = intPtr(total)
 	}
 	if reasoning, ok := readUsageInt(info, "reasoning_tokens", "ReasoningTokens"); ok {
@@ -756,6 +777,13 @@ func coerceToInt(value any) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+func nonNeg(v int) int {
+	if v < 0 {
+		return 0
+	}
+	return v
 }
 
 func intPtr(v int) *int {
