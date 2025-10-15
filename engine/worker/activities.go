@@ -31,6 +31,7 @@ type Activities struct {
 	workflowRepo     workflow.Repository
 	taskRepo         task.Repository
 	usageRepo        usage.Repository
+	usageMetrics     usage.Metrics
 	runtime          runtime.Runtime
 	configStore      services.ConfigStore
 	signalDispatcher services.SignalDispatcher
@@ -55,6 +56,7 @@ func NewActivities(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	usageRepo usage.Repository,
+	usageMetrics usage.Metrics,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
@@ -104,6 +106,7 @@ func NewActivities(
 		workflowRepo:     workflowRepo,
 		taskRepo:         taskRepo,
 		usageRepo:        usageRepo,
+		usageMetrics:     usageMetrics,
 		runtime:          runtime,
 		configStore:      configStore,
 		signalDispatcher: signalDispatcher,
@@ -221,6 +224,7 @@ func (a *Activities) ExecuteBasicTask(
 		a.workflowRepo,
 		a.taskRepo,
 		a.usageRepo,
+		a.usageMetrics,
 		a.runtime,
 		a.configStore,
 		memcore.ManagerInterface(a.memoryManager),
@@ -298,6 +302,7 @@ func (a *Activities) ExecuteSubtask(
 		a.templateEngine,
 		a.projectConfig,
 		a.usageRepo,
+		a.usageMetrics,
 		a.toolEnvironment,
 	)
 	return act.Run(ctx, input)

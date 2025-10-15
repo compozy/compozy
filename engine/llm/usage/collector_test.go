@@ -2,7 +2,9 @@ package usage_test
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm/usage"
@@ -34,16 +36,62 @@ func (s *stubRepo) SummarizeByWorkflowExecID(context.Context, core.ID) (*usage.R
 	return nil, usage.ErrNotFound
 }
 
+type stubMetrics struct {
+	successes int
+	failures  int
+	last      struct {
+		component  core.ComponentType
+		provider   string
+		model      string
+		prompt     int
+		completion int
+		latency    time.Duration
+	}
+}
+
+func (m *stubMetrics) RecordSuccess(
+	_ context.Context,
+	component core.ComponentType,
+	provider string,
+	model string,
+	promptTokens int,
+	completionTokens int,
+	latency time.Duration,
+) {
+	m.successes++
+	m.last.component = component
+	m.last.provider = provider
+	m.last.model = model
+	m.last.prompt = promptTokens
+	m.last.completion = completionTokens
+	m.last.latency = latency
+}
+
+func (m *stubMetrics) RecordFailure(
+	_ context.Context,
+	component core.ComponentType,
+	provider string,
+	model string,
+	latency time.Duration,
+) {
+	m.failures++
+	m.last.component = component
+	m.last.provider = provider
+	m.last.model = model
+	m.last.latency = latency
+}
+
 func TestCollector_RecordAndFinalize(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubRepo{}
+	metrics := &stubMetrics{}
 	meta := usage.Metadata{
 		Component:      core.ComponentAgent,
 		WorkflowExecID: core.MustNewID(),
 		TaskExecID:     core.MustNewID(),
 	}
-	collector := usage.NewCollector(repo, meta)
+	collector := usage.NewCollector(repo, metrics, meta)
 	require.NotNil(t, collector)
 
 	ctx := context.Background()
@@ -94,13 +142,22 @@ func TestCollector_RecordAndFinalize(t *testing.T) {
 	require.Equal(t, inputAudio, *row.InputAudioTokens)
 	require.NotNil(t, row.OutputAudioTokens)
 	require.Equal(t, outputAudio, *row.OutputAudioTokens)
+
+	require.Equal(t, 1, metrics.successes)
+	require.Equal(t, 0, metrics.failures)
+	require.Equal(t, "openai", metrics.last.provider)
+	require.Equal(t, "gpt-4o-mini", metrics.last.model)
+	require.Equal(t, 16, metrics.last.prompt)
+	require.Equal(t, 12, metrics.last.completion)
+	require.Equal(t, core.ComponentAgent, metrics.last.component)
 }
 
 func TestCollector_FinalizeWithoutProviderSkipsPersistence(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubRepo{}
-	collector := usage.NewCollector(repo, usage.Metadata{
+	metrics := &stubMetrics{}
+	collector := usage.NewCollector(repo, metrics, usage.Metadata{
 		Component: core.ComponentTask,
 	})
 	require.NotNil(t, collector)
@@ -108,4 +165,29 @@ func TestCollector_FinalizeWithoutProviderSkipsPersistence(t *testing.T) {
 	err := collector.Finalize(context.Background(), core.StatusFailed)
 	require.NoError(t, err)
 	require.Empty(t, repo.rows)
+	require.Zero(t, metrics.successes)
+	require.Zero(t, metrics.failures)
+}
+
+func TestCollector_FinalizeRecordsFailureMetric(t *testing.T) {
+	t.Parallel()
+
+	repo := &stubRepo{err: errors.New("boom")}
+	metrics := &stubMetrics{}
+	meta := usage.Metadata{
+		Component: core.ComponentWorkflow,
+	}
+	collector := usage.NewCollector(repo, metrics, meta)
+	require.NotNil(t, collector)
+
+	collector.Record(context.Background(), &usage.Snapshot{
+		Provider: "openai",
+		Model:    "gpt-4o-mini",
+	})
+
+	err := collector.Finalize(context.Background(), core.StatusFailed)
+	require.Error(t, err)
+	require.Equal(t, 0, metrics.successes)
+	require.Equal(t, 1, metrics.failures)
+	require.Equal(t, core.ComponentWorkflow, metrics.last.component)
 }

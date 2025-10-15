@@ -36,6 +36,7 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 			nil, // workflowRepo
 			nil, // taskRepo
 			helpers.NoopUsageRepo{},
+			nil,  // usageMetrics
 			nil,  // runtime
 			nil,  // configStore
 			nil,  // signalDispatcher

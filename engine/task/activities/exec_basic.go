@@ -37,6 +37,7 @@ type ExecuteBasic struct {
 	workflowRepo   workflow.Repository
 	taskRepo       task.Repository
 	usageRepo      usage.Repository
+	usageMetrics   usage.Metrics
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 	projectConfig  *project.Config
@@ -54,6 +55,7 @@ func NewExecuteBasic(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	usageRepo usage.Repository,
+	usageMetrics usage.Metrics,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
 	memoryManager memcore.ManagerInterface,
@@ -73,6 +75,7 @@ func NewExecuteBasic(
 		workflowRepo:   workflowRepo,
 		taskRepo:       taskRepo,
 		usageRepo:      usageRepo,
+		usageMetrics:   usageMetrics,
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
 		projectConfig:  projectConfig,
@@ -181,7 +184,7 @@ func (a *ExecuteBasic) attachUsageCollector(
 	if a == nil || a.usageRepo == nil || state == nil {
 		return ctx, func(core.StatusType) {}
 	}
-	collector := usage.NewCollector(a.usageRepo, usage.Metadata{
+	collector := usage.NewCollector(a.usageRepo, a.usageMetrics, usage.Metadata{
 		Component:      state.Component,
 		WorkflowExecID: state.WorkflowExecID,
 		TaskExecID:     state.TaskExecID,

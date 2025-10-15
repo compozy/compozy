@@ -157,6 +157,7 @@ func createTestActivities(
 		workflowRepo,
 		taskRepo,
 		helpers.NoopUsageRepo{},
+		nil,
 		mockRuntime,
 		configStore,
 		nil, // signalDispatcher - not needed for basic test

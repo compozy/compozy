@@ -346,6 +346,10 @@ func NewWorker(
 		projectName = projectConfig.Name
 	}
 	dispatcher := createDispatcher(workerCore.taskQueue, projectName, client)
+	var usageMetrics usage.Metrics
+	if config.MonitoringService != nil && config.MonitoringService.IsInitialized() {
+		usageMetrics = config.MonitoringService.LLMUsageMetrics()
+	}
 	activities, err := NewActivities(
 		ctx,
 		projectConfig,
@@ -353,6 +357,7 @@ func NewWorker(
 		config.WorkflowRepo(),
 		config.TaskRepo(),
 		config.UsageRepo(),
+		usageMetrics,
 		workerCore.rtManager,
 		workerCore.configStore,
 		dispatcher.signalDispatcher,

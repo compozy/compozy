@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
@@ -36,6 +37,7 @@ type Snapshot struct {
 type Collector struct {
 	mu         sync.Mutex
 	repo       Repository
+	metrics    Metrics
 	meta       Metadata
 	provider   string
 	model      string
@@ -58,12 +60,16 @@ type Collector struct {
 	hasOutputAudio bool
 }
 
-// NewCollector constructs a collector bound to the provided repository and metadata.
-func NewCollector(repo Repository, meta Metadata) *Collector {
+// NewCollector constructs a collector bound to the provided repository, metrics, and metadata.
+func NewCollector(repo Repository, metrics Metrics, meta Metadata) *Collector {
 	if repo == nil {
 		return nil
 	}
-	return &Collector{repo: repo, meta: meta}
+	return &Collector{
+		repo:    repo,
+		metrics: metrics,
+		meta:    meta,
+	}
 }
 
 // ContextWithCollector attaches the collector to the context so downstream orchestrator
@@ -160,7 +166,10 @@ func (c *Collector) Finalize(ctx context.Context, status core.StatusType) error 
 		OutputAudioTokens:  optionalInt(c.hasOutputAudio, c.outputAudio),
 	}
 
-	if err := c.repo.Upsert(ctx, row); err != nil {
+	start := time.Now()
+	err := c.repo.Upsert(ctx, row)
+	duration := time.Since(start)
+	if err != nil {
 		log := logger.FromContext(ctx)
 		log.Error(
 			"Failed to persist LLM usage",
@@ -170,7 +179,21 @@ func (c *Collector) Finalize(ctx context.Context, status core.StatusType) error 
 			"workflow_exec_id", maybeString(row.WorkflowExecID),
 			"error", err,
 		)
+		if c.metrics != nil {
+			c.metrics.RecordFailure(ctx, c.meta.Component, c.provider, c.model, duration)
+		}
 		return fmt.Errorf("finalize usage: %w", err)
+	}
+	if c.metrics != nil {
+		c.metrics.RecordSuccess(
+			ctx,
+			c.meta.Component,
+			c.provider,
+			c.model,
+			row.PromptTokens,
+			row.CompletionTokens,
+			duration,
+		)
 	}
 	return nil
 }

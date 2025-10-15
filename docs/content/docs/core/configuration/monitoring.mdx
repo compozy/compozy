@@ -319,6 +319,27 @@ description: Configure Prometheus-compatible monitoring and metrics collection f
   </Accordion>
 </AccordionGroup>
 
+## LLM Usage Runbook
+
+<Steps>
+  <Step title="Check Coverage">
+    Open the *LLM Usage Monitoring* row on the Grafana dashboard and confirm coverage is ≥95%. If coverage drops, run `sum(increase(compozy_llm_usage_failures_total[15m])) by (component, provider, model)` to isolate the failing path.
+  </Step>
+  <Step title="Inspect Worker Logs">
+    Search worker logs for `Failed to persist LLM usage`. These entries include execution identifiers and provider/model pairs required for triage.
+  </Step>
+  <Step title="Validate Database Health">
+    Verify the `execution_llm_usage` table accepts writes and foreign-key constraints are intact. Use `SELECT count(*) FROM execution_llm_usage WHERE updated_at > now() - interval '5 minutes';` to confirm fresh rows.
+  </Step>
+  <Step title="Escalate on Critical Alerts">
+    The `LLMUsageIngestionFailuresCritical` alert signals sustained failures (>1% for 15 minutes). Page the on-call LLM platform engineer and include the provider/model labels from the alert payload.
+  </Step>
+</Steps>
+
+<Callout type="info" icon="ChartBar">
+  See [Monitor LLM Usage](/docs/core/metrics/monitor-usage) for query recipes, dashboard screenshots, and alert configuration.
+</Callout>
+
 ## Troubleshooting
 
 <Collapsible>

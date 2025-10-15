@@ -45,6 +45,7 @@ type ExecuteSubtask struct {
 	configStore    services.ConfigStore
 	projectConfig  *project.Config
 	usageRepo      usage.Repository
+	usageMetrics   usage.Metrics
 }
 
 // NewExecuteSubtask creates and returns an ExecuteSubtask wired with the provided dependencies.
@@ -61,6 +62,7 @@ func NewExecuteSubtask(
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
 	usageRepo usage.Repository,
+	usageMetrics usage.Metrics,
 	toolEnvironment toolenv.Environment,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
@@ -79,6 +81,7 @@ func NewExecuteSubtask(
 		configStore:    configStore,
 		projectConfig:  projectConfig,
 		usageRepo:      usageRepo,
+		usageMetrics:   usageMetrics,
 	}
 }
 
@@ -187,7 +190,7 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 	if err != nil {
 		return nil, err
 	}
-	collector := usage.NewCollector(a.usageRepo, usage.Metadata{
+	collector := usage.NewCollector(a.usageRepo, a.usageMetrics, usage.Metadata{
 		Component:      taskState.Component,
 		WorkflowExecID: taskState.WorkflowExecID,
 		TaskExecID:     taskState.TaskExecID,

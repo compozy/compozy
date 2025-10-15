@@ -1,0 +1,100 @@
+---
+title: Monitor LLM Usage
+description: Track LLM token ingestion coverage, latency, and alerting for executions.
+icon: ChartBar
+---
+
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+
+## Overview
+
+LLM usage monitoring helps operators confirm that executions record token totals reliably and surface ingestion regressions before customers notice gaps. This guide covers the metrics, dashboards, and alerts introduced with the usage reporting pipeline.
+
+## Prerequisites
+
+- Monitoring is enabled in `compozy.yaml` or via `MONITORING_ENABLED=true`.
+- Prometheus (or Grafana Cloud) scrapes the Compozy `/metrics` endpoint.
+- The deployment includes the `cluster/grafana/alerts/llm-usage-alerts.yaml` rule file.
+
+## Metrics
+
+| Metric | Type | Labels | Description |
+| --- | --- | --- | --- |
+| `compozy_llm_prompt_tokens_total` | Counter | `component`, `provider`, `model` | Prompt tokens ingested per execution scope. |
+| `compozy_llm_completion_tokens_total` | Counter | `component`, `provider`, `model` | Completion tokens returned by the provider. |
+| `compozy_llm_usage_events_total` | Counter | `component`, `provider`, `model`, `outcome` | Every flush attempt (`outcome=success|failure`). |
+| `compozy_llm_usage_failures_total` | Counter | `component`, `provider`, `model` | Finalize attempts that failed to persist usage. |
+| `compozy_llm_usage_latency_seconds` | Histogram | `component`, `provider`, `model`, `outcome` | Persistence latency for the usage collector. |
+
+> **Tip:** Aggregate by `component` to compare workflows, tasks, and agents.
+
+### Common Queries
+
+```text
+# 15 minute coverage percentage by component/provider/model
+100 * (1 - (
+  sum by (component, provider, model) (increase(compozy_llm_usage_failures_total[15m]))
+/
+  clamp_min(sum by (component, provider, model) (increase(compozy_llm_usage_events_total[15m])), 1)
+))
+```
+
+```text
+# Persistence p95 latency (ms) across all executions
+histogram_quantile(
+  0.95,
+  sum by (le) (rate(compozy_llm_usage_latency_seconds_bucket[5m]))
+) * 1000
+```
+
+## Dashboard
+
+Open the **LLM Usage Monitoring** row on the `compozy-monitoring` Grafana dashboard. The new panels highlight:
+
+- **Coverage (15m):** Successful persistence percentage derived from events vs. failures.
+- **Failure Rate (5m):** Provider/model level trend for ingestion errors.
+- **Latency (p95/p99):** `histogram_quantile` visualizations over the persistence histogram.
+
+Link the dashboard into your Grafana navigation by provisioning `cluster/grafana/dashboards/compozy-monitoring.json`.
+
+## Alerts
+
+The `cluster/grafana/alerts/llm-usage-alerts.yaml` file defines three rules:
+
+- **LLMUsageIngestionFailuresCritical:** Failure ratio &gt; 1% for 15 minutes.
+- **LLMUsageTokenSpikeWarning:** 15-minute token volume &gt; 3× the 24h rolling average.
+- **LLMUsageZeroTrafficWarning:** No workflow usage events for 30 minutes despite prior activity.
+
+After provisioning, run `grafana dashboards provisioning reload` (or redeploy) and confirm notifications fire by temporarily muting persistence or replaying synthetic metrics.
+
+## Operational Playbook
+
+1. **Confirm coverage:** Check the coverage stat. If below target (≥95%), inspect `compozy_llm_usage_failures_total` by component to isolate the failing path.
+2. **Validate persistence:** Tail worker logs for messages containing `Failed to persist usage`. Errors often indicate database connectivity or foreign-key violations.
+3. **Review latency:** Elevated latency without failures suggests database contention—review indexes on `execution_llm_usage`.
+4. **Escalate:** If the critical alert remains active for more than one evaluation window, page the on-call LLM platform engineer and provide the provider/model pair from the alert payload.
+
+Document incident resolution in your runbook tooling and link back to this page for future reference.
+
+## Further Reading
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Monitoring Configuration"
+    description="Enable and secure the `/metrics` endpoint."
+    href="/docs/core/configuration/monitoring"
+    icon="Server"
+  />
+  <ReferenceCard
+    title="Execution Usage Schema"
+    description="JSON schema describing the usage payload returned by APIs."
+    href="/docs/schema/execution-usage"
+    icon="FileJson"
+  />
+  <ReferenceCard
+    title="CLI Executions Commands"
+    description="Inspect usage information through the CLI."
+    href="/docs/cli/executions"
+    icon="Terminal"
+  />
+</ReferenceCardList>

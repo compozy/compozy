@@ -10,6 +10,7 @@
     "config-commands",
     "knowledge-commands",
     "workflow-commands",
+    "executions",
     "mcp-commands"
   ]
 }

@@ -8,6 +8,7 @@ import (
 
 	interceptorpkg "github.com/compozy/compozy/engine/infra/monitoring/interceptor"
 	"github.com/compozy/compozy/engine/infra/monitoring/middleware"
+	"github.com/compozy/compozy/engine/llm/usage"
 	builtin "github.com/compozy/compozy/engine/tool/builtin"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,7 @@ type Service struct {
 	initialized       bool
 	initializationErr error
 	executionMetrics  *ExecutionMetrics
+	llmUsageMetrics   usage.Metrics
 }
 
 // newDisabledService creates a service instance with no-op implementations
@@ -41,6 +43,7 @@ func newDisabledService(cfg *Config, initErr error) *Service {
 		initialized:       false,
 		initializationErr: initErr,
 		executionMetrics:  &ExecutionMetrics{},
+		llmUsageMetrics:   &llmUsageMetrics{},
 	}
 }
 
@@ -91,6 +94,11 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 		return nil, err
 	}
 	service.executionMetrics = execMetrics
+	llmMetrics, err := newLLMUsageMetrics(meter)
+	if err != nil {
+		return nil, err
+	}
+	service.llmUsageMetrics = llmMetrics
 	// Check for context cancellation before system metrics
 	select {
 	case <-ctx.Done():
@@ -137,6 +145,14 @@ func (s *Service) ExecutionMetrics() *ExecutionMetrics {
 		return nil
 	}
 	return s.executionMetrics
+}
+
+// LLMUsageMetrics exposes usage aggregation instruments for collectors.
+func (s *Service) LLMUsageMetrics() usage.Metrics {
+	if s == nil {
+		return nil
+	}
+	return s.llmUsageMetrics
 }
 
 // GinMiddleware returns Gin middleware for HTTP metrics.

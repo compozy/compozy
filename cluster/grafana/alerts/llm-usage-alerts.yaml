@@ -1,0 +1,61 @@
+groups:
+  - name: compozy_llm_usage
+    interval: 60s
+    rules:
+      - alert: LLMUsageIngestionFailuresCritical
+        expr: |
+          (
+            sum by (component, provider, model) (increase(compozy_llm_usage_failures_total[15m]))
+            /
+            clamp_min(sum by (component, provider, model) (increase(compozy_llm_usage_events_total[15m])), 1)
+          ) > 0.01
+        for: 1m
+        labels:
+          severity: critical
+          component: llm-usage
+        annotations:
+          summary: "LLM usage ingestion failures exceeded 1% for {{ $labels.component }}"
+          description: "Failure ratio {{ $value | humanizePercentage }} for provider {{ $labels.provider }} model {{ $labels.model }} in the last 15 minutes."
+
+      - alert: LLMUsageTokenSpikeWarning
+        expr: |
+          (
+            sum by (component, provider, model) (
+              increase(compozy_llm_prompt_tokens_total[15m]) +
+              increase(compozy_llm_completion_tokens_total[15m])
+            )
+          )
+          /
+          clamp_min(
+            (
+              sum by (component, provider, model) (
+                increase(compozy_llm_prompt_tokens_total[24h]) +
+                increase(compozy_llm_completion_tokens_total[24h])
+              )
+            ) / 96,
+            1
+          ) > 3
+        for: 5m
+        labels:
+          severity: warning
+          component: llm-usage
+        annotations:
+          summary: "LLM token usage spike detected for {{ $labels.component }}"
+          description: "15-minute token volume is {{ printf \"%.2f\" $value }}× the 24h average for provider {{ $labels.provider }} model {{ $labels.model }}."
+
+      - alert: LLMUsageZeroTrafficWarning
+        expr: |
+          (
+            sum by (component) (increase(compozy_llm_usage_events_total{component="workflow"}[30m])) == bool 0
+          )
+          and
+          (
+            sum by (component) (compozy_llm_usage_events_total{component="workflow"}) > bool 0
+          )
+        for: 5m
+        labels:
+          severity: warning
+          component: llm-usage
+        annotations:
+          summary: "No LLM usage events observed for workflows"
+          description: "No workflow usage events recorded in the past 30 minutes despite previous activity. Investigate ingestion pipeline health."

@@ -1,0 +1,60 @@
+{
+  "$id": "https://github.com/compozy/compozy/schemas/execution-usage",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Execution Usage Summary",
+  "description": "Token usage totals captured for a single workflow, task, or agent execution.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "provider": {
+      "type": "string",
+      "description": "LLM provider identifier, for example 'openai' or 'anthropic'."
+    },
+    "model": {
+      "type": "string",
+      "description": "Provider model name used for the execution."
+    },
+    "prompt_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total prompt tokens submitted to the provider across the execution."
+    },
+    "completion_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total completion tokens returned by the provider."
+    },
+    "total_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Sum of prompt and completion tokens reported by the provider."
+    },
+    "reasoning_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Optional reasoning tokens reported for models that separate reasoning output."
+    },
+    "cached_prompt_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Cached prompt tokens reused by the provider, when reported."
+    },
+    "input_audio_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Input audio tokens consumed during multimodal executions, if available."
+    },
+    "output_audio_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Output audio tokens generated during multimodal executions, if available."
+    }
+  },
+  "required": [
+    "provider",
+    "model",
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens"
+  ]
+}

@@ -2,5 +2,7 @@
   "title": "Metrics",
   "description": "Monitoring and metrics",
   "icon": "ChartBar",
-  "pages": []
+  "pages": [
+    "monitor-usage"
+  ]
 }

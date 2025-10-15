@@ -50,6 +50,7 @@ type directExecutor struct {
 	toolEnvironment    toolenv.Environment
 	appState           *appstate.State
 	usageRepo          usage.Repository
+	usageMetrics       usage.Metrics
 	resourceStore      resources.ResourceStore
 	projectConfig      *project.Config
 	memoryManager      memcore.ManagerInterface
@@ -265,6 +266,10 @@ func NewDirectExecutor(
 	if state.Store != nil {
 		usageRepo = state.Store.NewUsageRepo()
 	}
+	var usageMetrics usage.Metrics
+	if svc, ok := state.MonitoringService(); ok && svc != nil && svc.IsInitialized() {
+		usageMetrics = svc.LLMUsageMetrics()
+	}
 	orchestrator, tplEng, err := setupConfigOrchestrator(workflowRepo, taskRepo)
 	if err != nil {
 		return nil, err
@@ -290,6 +295,7 @@ func NewDirectExecutor(
 		toolEnvironment:    toolEnvironment,
 		appState:           state,
 		usageRepo:          usageRepo,
+		usageMetrics:       usageMetrics,
 		resourceStore:      resourceStore,
 		projectConfig:      projCfg,
 		memoryManager:      memManager,
@@ -316,7 +322,7 @@ func (d *directExecutor) attachUsageCollector(ctx context.Context, state *task.S
 		TaskExecID:     state.TaskExecID,
 		AgentID:        state.AgentID,
 	}
-	collector := usage.NewCollector(d.usageRepo, meta)
+	collector := usage.NewCollector(d.usageRepo, d.usageMetrics, meta)
 	if collector == nil {
 		return ctx
 	}

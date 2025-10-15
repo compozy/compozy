@@ -41,3 +41,24 @@ type Repository interface {
 	// SummarizeByWorkflowExecID aggregates usage across all components for a workflow execution.
 	SummarizeByWorkflowExecID(ctx context.Context, id core.ID) (*Row, error)
 }
+
+// Metrics captures observability hooks for usage collection so callers can emit counters
+// without depending on concrete monitoring implementations.
+type Metrics interface {
+	RecordSuccess(
+		ctx context.Context,
+		component core.ComponentType,
+		provider string,
+		model string,
+		promptTokens int,
+		completionTokens int,
+		latency time.Duration,
+	)
+	RecordFailure(
+		ctx context.Context,
+		component core.ComponentType,
+		provider string,
+		model string,
+		latency time.Duration,
+	)
+}
