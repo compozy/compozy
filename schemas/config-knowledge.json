@@ -16,12 +16,20 @@
       "description": "EmbedderBatchSize defines the default batch size used when projecting documents.\n\nApplies when an embedder configuration omits config.batch_size.\nLarger batches improve throughput but may increase provider throttling risk.",
       "type": "integer"
     },
+    "max_markdown_file_size_bytes": {
+      "description": "MaxMarkdownFileSizeBytes limits the size of markdown files ingested from disk or URLs.\n\nFiles exceeding this threshold are rejected during ingestion.",
+      "type": "integer"
+    },
     "retrieval_min_score": {
       "description": "RetrievalMinScore sets the default minimum similarity score required for matches.\n\nApplied when retrieval.min_score is not provided. Must fall within [0.0, 1.0].",
       "type": "number"
     },
     "retrieval_top_k": {
       "description": "RetrievalTopK specifies the default number of results returned during retrieval.\n\nUsed when retrieval.top_k is unset on a knowledge binding or base definition.",
+      "type": "integer"
+    },
+    "vector_http_timeout": {
+      "description": "VectorHTTPTimeout bounds HTTP requests made by knowledge vector backends.\n\nApplies to HTTP-based vector stores such as Qdrant.",
       "type": "integer"
     }
   },

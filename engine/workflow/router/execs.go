@@ -1,6 +1,7 @@
 package wfrouter
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -8,6 +9,8 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/llm/usage"
+	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/engine/workflow/uc"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -23,7 +26,7 @@ import (
 //	@Accept			json
 //	@Produce		json
 //	@Param			exec_id	path		string										true	"Workflow Execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
-//	@Success		200					{object}	router.Response{data=workflow.State}	"Workflow execution retrieved successfully"
+//	@Success		200					{object}	router.Response{data=wfrouter.WorkflowExecutionDTO}	"Workflow execution retrieved successfully"
 //	@Failure		400					{object}	router.Response{error=router.ErrorInfo}		"Invalid execution ID"
 //	@Failure		404					{object}	router.Response{error=router.ErrorInfo}		"Execution not found"
 //	@Failure		503					{object}	router.Response{error=router.ErrorInfo}		"Worker unavailable"
@@ -44,8 +47,10 @@ func getExecution(c *gin.Context) {
 		return
 	}
 	repo := appState.Worker.WorkflowRepo()
+	usageRepo := router.ResolveUsageRepository(c, appState)
+	ctx := c.Request.Context()
 	useCase := uc.NewGetExecution(repo, execID)
-	exec, err := useCase.Execute(c.Request.Context())
+	exec, err := useCase.Execute(ctx)
 	if err != nil {
 		respondWithExecutionError(c, err, executionErrorMessages{
 			notFound:   "execution not found",
@@ -55,7 +60,8 @@ func getExecution(c *gin.Context) {
 		})
 		return
 	}
-	router.RespondOK(c, "workflow execution retrieved", exec)
+	summary := router.ResolveWorkflowUsageSummary(ctx, usageRepo, exec.WorkflowExecID)
+	router.RespondOK(c, "workflow execution retrieved", newWorkflowExecutionDTO(exec, summary))
 }
 
 // listAllExecutions retrieves all workflow executions
@@ -65,7 +71,7 @@ func getExecution(c *gin.Context) {
 //	@Tags			executions
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	router.Response{data=object{executions=[]workflow.State}}	"Workflow executions retrieved successfully"
+//	@Success		200	{object}	router.Response{data=object{executions=[]wfrouter.WorkflowExecutionDTO}}	"Workflow executions retrieved successfully"
 //	@Failure		503	{object}	router.Response{error=router.ErrorInfo}								"Worker unavailable"
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}								"Internal server error"
 //	@Router			/executions/workflows [get]
@@ -76,7 +82,8 @@ func listAllExecutions(c *gin.Context) {
 	}
 	repo := appState.Worker.WorkflowRepo()
 	useCase := uc.NewListAllExecutions(repo)
-	executions, err := useCase.Execute(c.Request.Context())
+	ctx := c.Request.Context()
+	executions, err := useCase.Execute(ctx)
 	if err != nil {
 		respondWithExecutionError(c, err, executionErrorMessages{
 			notFound:   "executions not found",
@@ -86,8 +93,9 @@ func listAllExecutions(c *gin.Context) {
 		})
 		return
 	}
+	usageRepo := router.ResolveUsageRepository(c, appState)
 	router.RespondOK(c, "workflow executions retrieved", gin.H{
-		"executions": executions,
+		"executions": mapWorkflowExecutions(ctx, usageRepo, executions),
 	})
 }
 
@@ -99,7 +107,7 @@ func listAllExecutions(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string																true	"Workflow ID"	example("data-processing")
-//	@Success		200			{object}	router.Response{data=object{executions=[]workflow.State}}	"Workflow executions retrieved successfully"
+//	@Success		200			{object}	router.Response{data=object{executions=[]wfrouter.WorkflowExecutionDTO}}	"Workflow executions retrieved successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}								"Invalid workflow ID"
 //	@Failure		503			{object}	router.Response{error=router.ErrorInfo}								"Worker unavailable"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}								"Internal server error"
@@ -115,7 +123,8 @@ func listExecutionsByID(c *gin.Context) {
 	}
 	repo := appState.Worker.WorkflowRepo()
 	useCase := uc.NewListExecutionsByID(repo, wfID)
-	execs, err := useCase.Execute(c.Request.Context())
+	ctx := c.Request.Context()
+	execs, err := useCase.Execute(ctx)
 	if err != nil {
 		respondWithExecutionError(c, err, executionErrorMessages{
 			notFound:   "execution not found",
@@ -125,8 +134,9 @@ func listExecutionsByID(c *gin.Context) {
 		})
 		return
 	}
+	usageRepo := router.ResolveUsageRepository(c, appState)
 	router.RespondOK(c, "workflow executions retrieved", gin.H{
-		"executions": execs,
+		"executions": mapWorkflowExecutions(ctx, usageRepo, execs),
 	})
 }
 
@@ -325,6 +335,26 @@ func sendSignalToExecution(c *gin.Context) {
 	router.RespondOK(c, "signal sent successfully", SignalResponse{
 		Message: "Signal sent successfully",
 	})
+}
+
+func mapWorkflowExecutions(
+	ctx context.Context,
+	repo usage.Repository,
+	states []*workflow.State,
+) []*WorkflowExecutionDTO {
+	if len(states) == 0 {
+		return nil
+	}
+	dtos := make([]*WorkflowExecutionDTO, 0, len(states))
+	for i := range states {
+		state := states[i]
+		if state == nil {
+			continue
+		}
+		summary := router.ResolveWorkflowUsageSummary(ctx, repo, state.WorkflowExecID)
+		dtos = append(dtos, newWorkflowExecutionDTO(state, summary))
+	}
+	return dtos
 }
 
 type executionErrorMessages struct {

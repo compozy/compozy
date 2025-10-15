@@ -38,4 +38,6 @@ type Repository interface {
 	Upsert(ctx context.Context, row *Row) error
 	GetByTaskExecID(ctx context.Context, id core.ID) (*Row, error)
 	GetByWorkflowExecID(ctx context.Context, id core.ID) (*Row, error)
+	// SummarizeByWorkflowExecID aggregates usage across all components for a workflow execution.
+	SummarizeByWorkflowExecID(ctx context.Context, id core.ID) (*Row, error)
 }

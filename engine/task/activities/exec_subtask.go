@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
@@ -43,6 +44,7 @@ type ExecuteSubtask struct {
 	taskRepo       task.Repository
 	configStore    services.ConfigStore
 	projectConfig  *project.Config
+	usageRepo      usage.Repository
 }
 
 // NewExecuteSubtask creates and returns an ExecuteSubtask wired with the provided dependencies.
@@ -58,6 +60,7 @@ func NewExecuteSubtask(
 	task2Factory task2.Factory,
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
+	usageRepo usage.Repository,
 	toolEnvironment toolenv.Environment,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
@@ -75,6 +78,7 @@ func NewExecuteSubtask(
 		taskRepo:       taskRepo,
 		configStore:    configStore,
 		projectConfig:  projectConfig,
+		usageRepo:      usageRepo,
 	}
 }
 
@@ -183,12 +187,37 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 	if err != nil {
 		return nil, err
 	}
+	collector := usage.NewCollector(a.usageRepo, usage.Metadata{
+		Component:      taskState.Component,
+		WorkflowExecID: taskState.WorkflowExecID,
+		TaskExecID:     taskState.TaskExecID,
+		AgentID:        taskState.AgentID,
+	})
+	if collector != nil {
+		ctx = usage.ContextWithCollector(ctx, collector)
+	}
+	status := core.StatusFailed
+	defer func() {
+		if collector == nil {
+			return
+		}
+		if err := collector.Finalize(ctx, status); err != nil {
+			logger.FromContext(ctx).Warn(
+				"Failed to persist usage for subtask execution",
+				"error", err,
+				"task_exec_id", taskState.TaskExecID.String(),
+			)
+		}
+	}()
 	output, executionError := a.executeTaskUC.Execute(ctx, &uc.ExecuteTaskInput{
 		TaskConfig:     taskConfig,
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 		ProjectConfig:  a.projectConfig,
 	})
+	if executionError == nil {
+		status = core.StatusSuccess
+	}
 	// Update task status and output based on execution result
 	if executionError != nil {
 		taskState.Status = core.StatusFailed

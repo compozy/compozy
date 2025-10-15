@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	"github.com/compozy/compozy/engine/llm/usage"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
@@ -48,6 +49,7 @@ type directExecutor struct {
 	workflowRepo       workflow.Repository
 	toolEnvironment    toolenv.Environment
 	appState           *appstate.State
+	usageRepo          usage.Repository
 	resourceStore      resources.ResourceStore
 	projectConfig      *project.Config
 	memoryManager      memcore.ManagerInterface
@@ -259,6 +261,10 @@ func NewDirectExecutor(
 	if workflowRepo == nil && state.Store != nil {
 		workflowRepo = state.Store.NewWorkflowRepo()
 	}
+	var usageRepo usage.Repository
+	if state.Store != nil {
+		usageRepo = state.Store.NewUsageRepo()
+	}
 	orchestrator, tplEng, err := setupConfigOrchestrator(workflowRepo, taskRepo)
 	if err != nil {
 		return nil, err
@@ -283,6 +289,7 @@ func NewDirectExecutor(
 		workflowRepo:       workflowRepo,
 		toolEnvironment:    toolEnvironment,
 		appState:           state,
+		usageRepo:          usageRepo,
 		resourceStore:      resourceStore,
 		projectConfig:      projCfg,
 		memoryManager:      memManager,
@@ -297,6 +304,23 @@ func resolveProjectRoot(state *appstate.State) string {
 		return ""
 	}
 	return state.CWD.PathStr()
+}
+
+func (d *directExecutor) attachUsageCollector(ctx context.Context, state *task.State) context.Context {
+	if d.usageRepo == nil || state == nil {
+		return ctx
+	}
+	meta := usage.Metadata{
+		Component:      state.Component,
+		WorkflowExecID: state.WorkflowExecID,
+		TaskExecID:     state.TaskExecID,
+		AgentID:        state.AgentID,
+	}
+	collector := usage.NewCollector(d.usageRepo, meta)
+	if collector == nil {
+		return ctx
+	}
+	return usage.ContextWithCollector(ctx, collector)
 }
 
 func (d *directExecutor) ExecuteSync(
@@ -342,6 +366,7 @@ func (d *directExecutor) ExecuteSync(
 	}
 	resultCh := make(chan execResult, 1)
 	execCtx, cancel := context.WithCancel(ctx)
+	execCtx = d.attachUsageCollector(execCtx, state)
 	go d.runExecution(execCtx, state, plan, resultCh)
 	if timeout <= 0 {
 		res := <-resultCh
@@ -423,6 +448,7 @@ func (d *directExecutor) ExecuteAsync(ctx context.Context, cfg *task.Config, met
 		return zeroID, err
 	}
 	bgCtx := context.WithoutCancel(ctx)
+	bgCtx = d.attachUsageCollector(bgCtx, state)
 	go d.runExecution(bgCtx, state, plan, nil)
 	return execID, nil
 }
@@ -519,6 +545,11 @@ func (d *directExecutor) recoverExecution(
 				"exec_id", state.TaskExecID.String(),
 			)
 		}
+		if collector := usage.FromContext(ctx); collector != nil {
+			if finalizeErr := collector.Finalize(ctx, core.StatusFailed); finalizeErr != nil {
+				log.Warn("Failed to persist usage after execution panic", "error", finalizeErr)
+			}
+		}
 		res.err = err
 	}
 }
@@ -557,6 +588,11 @@ func (d *directExecutor) markExecutionFailure(
 	}); upErr != nil {
 		log.Error("Failed to update execution state", "error", upErr)
 	}
+	if collector := usage.FromContext(ctx); collector != nil {
+		if finalizeErr := collector.Finalize(ctx, core.StatusFailed); finalizeErr != nil {
+			log.Warn("Failed to persist usage after execution failure", "error", finalizeErr)
+		}
+	}
 }
 
 func (d *directExecutor) markExecutionSuccess(
@@ -571,6 +607,11 @@ func (d *directExecutor) markExecutionSuccess(
 		s.Output = output
 	}); upErr != nil {
 		log.Error("Failed to update execution state", "error", upErr)
+	}
+	if collector := usage.FromContext(ctx); collector != nil {
+		if err := collector.Finalize(ctx, core.StatusSuccess); err != nil {
+			log.Warn("Failed to persist usage after execution success", "error", err)
+		}
 	}
 }
 

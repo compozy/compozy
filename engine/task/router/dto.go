@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/core/httpdto"
+	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
@@ -91,8 +92,9 @@ type TasksListResponse struct {
 
 // TaskExecSyncResponse is returned from POST /tasks/{task_id}/executions/sync.
 type TaskExecSyncResponse struct {
-	Output *core.Output `json:"output,omitempty"`
-	ExecID string       `json:"exec_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	Output *core.Output         `json:"output,omitempty"`
+	ExecID string               `json:"exec_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	Usage  *router.UsageSummary `json:"usage,omitempty"`
 }
 
 // TaskExecAsyncResponse is returned from POST /tasks/{task_id}/executions.

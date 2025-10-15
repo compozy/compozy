@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	srrouter "github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/router/routertest"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/test/helpers/ginmode"
@@ -33,6 +34,53 @@ type stubDirectExecutor struct {
 type stateSavingTaskExecutor struct {
 	repo  *routertest.StubTaskRepo
 	state *task.State
+}
+
+type stubUsageRepo struct {
+	taskRows     map[string]*usage.Row
+	workflowRows map[string]*usage.Row
+	summaryRows  map[string]*usage.Row
+	err          error
+}
+
+func newStubUsageRepo() *stubUsageRepo {
+	return &stubUsageRepo{
+		taskRows:     make(map[string]*usage.Row),
+		workflowRows: make(map[string]*usage.Row),
+		summaryRows:  make(map[string]*usage.Row),
+	}
+}
+
+func (s *stubUsageRepo) Upsert(context.Context, *usage.Row) error { return nil }
+
+func (s *stubUsageRepo) GetByTaskExecID(_ context.Context, id core.ID) (*usage.Row, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	if row, ok := s.taskRows[id.String()]; ok {
+		return row, nil
+	}
+	return nil, usage.ErrNotFound
+}
+
+func (s *stubUsageRepo) GetByWorkflowExecID(_ context.Context, id core.ID) (*usage.Row, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	if row, ok := s.workflowRows[id.String()]; ok {
+		return row, nil
+	}
+	return nil, usage.ErrNotFound
+}
+
+func (s *stubUsageRepo) SummarizeByWorkflowExecID(_ context.Context, id core.ID) (*usage.Row, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	if row, ok := s.summaryRows[id.String()]; ok {
+		return row, nil
+	}
+	return nil, usage.ErrNotFound
 }
 
 func (s *stateSavingTaskExecutor) ExecuteSync(
@@ -84,11 +132,20 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		repo := routertest.NewStubTaskRepo()
 		execID := core.MustNewID()
 		repo.AddState(newTestTaskState(execID))
+		usageRepo := newStubUsageRepo()
+		usageRepo.taskRows[execID.String()] = &usage.Row{
+			Provider:         "openai",
+			Model:            "gpt-4o",
+			PromptTokens:     12,
+			CompletionTokens: 7,
+			TotalTokens:      19,
+		}
 		r := gin.New()
 		r.Use(appstate.StateMiddleware(state))
 		r.Use(srrouter.ErrorHandler())
 		r.Use(func(c *gin.Context) {
 			srrouter.SetTaskRepository(c, repo)
+			srrouter.SetUsageRepository(c, usageRepo)
 			c.Next()
 		})
 		api := r.Group("/api/v0")
@@ -106,6 +163,9 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
 		require.Equal(t, execID.String(), payload.Data.ExecID)
 		require.Equal(t, core.StatusSuccess, payload.Data.Status)
+		require.NotNil(t, payload.Data.Usage)
+		require.Equal(t, "openai", payload.Data.Usage.Provider)
+		require.Equal(t, 19, payload.Data.Usage.TotalTokens)
 	})
 
 	t.Run("ShouldReturnNotFoundWhenExecutionMissing", func(t *testing.T) {
@@ -237,11 +297,24 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		stub := &stubDirectExecutor{syncOutput: &output, syncExecID: core.MustNewID()}
 		cleanup := installTaskExecutor(state, stub)
 		defer cleanup()
+		usageRepo := newStubUsageRepo()
+		usageRepo.taskRows[stub.syncExecID.String()] = &usage.Row{
+			Provider:         "openai",
+			Model:            "gpt-4o",
+			PromptTokens:     9,
+			CompletionTokens: 4,
+			TotalTokens:      13,
+		}
+		stateSnapshot := newTestTaskState(stub.syncExecID)
+		matchOutput := core.Output{"foo": "bar"}
+		stateSnapshot.Output = &matchOutput
+		repo.AddState(stateSnapshot)
 		r := gin.New()
 		r.Use(appstate.StateMiddleware(state))
 		r.Use(srrouter.ErrorHandler())
 		r.Use(func(c *gin.Context) {
 			srrouter.SetTaskRepository(c, repo)
+			srrouter.SetUsageRepository(c, usageRepo)
 			c.Next()
 		})
 		api := r.Group("/api/v0")
@@ -259,14 +332,20 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		var payload struct {
 			Status int `json:"status"`
 			Data   struct {
-				ExecID string      `json:"exec_id"`
-				Output core.Output `json:"output"`
+				ExecID string                 `json:"exec_id"`
+				Output core.Output            `json:"output"`
+				Usage  *srrouter.UsageSummary `json:"usage"`
+				State  TaskExecutionStatusDTO `json:"state"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
 		require.Equal(t, http.StatusOK, payload.Status)
 		require.Equal(t, stub.syncExecID.String(), payload.Data.ExecID)
 		require.Equal(t, "bar", payload.Data.Output["foo"])
+		require.NotNil(t, payload.Data.Usage)
+		require.Equal(t, 13, payload.Data.Usage.TotalTokens)
+		require.NotNil(t, payload.Data.State.Usage)
+		require.Equal(t, "openai", payload.Data.State.Usage.Provider)
 		require.Equal(t, 60*time.Second, stub.syncTimeout)
 	})
 

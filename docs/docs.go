@@ -2073,7 +2073,7 @@ const docTemplate = `{
                                                 "executions": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/definitions/workflow.State"
+                                                        "$ref": "#/definitions/wfrouter.WorkflowExecutionDTO"
                                                     }
                                                 }
                                             }
@@ -2157,7 +2157,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/workflow.State"
+                                            "$ref": "#/definitions/wfrouter.WorkflowExecutionDTO"
                                         }
                                     }
                                 }
@@ -10227,7 +10227,7 @@ const docTemplate = `{
                                                 "executions": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/definitions/workflow.State"
+                                                        "$ref": "#/definitions/wfrouter.WorkflowExecutionDTO"
                                                     }
                                                 }
                                             }
@@ -11271,6 +11271,9 @@ const docTemplate = `{
                 },
                 "output": {
                     "$ref": "#/definitions/core.Output"
+                },
+                "usage": {
+                    "$ref": "#/definitions/router.UsageSummary"
                 }
             }
         },
@@ -11386,6 +11389,9 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                },
+                "usage": {
+                    "$ref": "#/definitions/router.UsageSummary"
                 },
                 "workflow_exec_id": {
                     "type": "string"
@@ -13354,6 +13360,38 @@ const docTemplate = `{
                 }
             }
         },
+        "router.UsageSummary": {
+            "type": "object",
+            "properties": {
+                "cached_prompt_tokens": {
+                    "type": "integer"
+                },
+                "completion_tokens": {
+                    "type": "integer"
+                },
+                "input_audio_tokens": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "output_audio_tokens": {
+                    "type": "integer"
+                },
+                "prompt_tokens": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "reasoning_tokens": {
+                    "type": "integer"
+                },
+                "total_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
         "schedulerouter.ScheduleInfoResponse": {
             "type": "object",
             "properties": {
@@ -14309,6 +14347,9 @@ const docTemplate = `{
                 },
                 "output": {
                     "$ref": "#/definitions/core.Output"
+                },
+                "usage": {
+                    "$ref": "#/definitions/router.UsageSummary"
                 }
             }
         },
@@ -14338,6 +14379,9 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                },
+                "usage": {
+                    "$ref": "#/definitions/router.UsageSummary"
                 },
                 "workflow_exec_id": {
                     "type": "string"
@@ -15287,6 +15331,38 @@ const docTemplate = `{
                 }
             }
         },
+        "wfrouter.WorkflowExecutionDTO": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/core.Error"
+                },
+                "input": {
+                    "$ref": "#/definitions/core.Input"
+                },
+                "output": {
+                    "$ref": "#/definitions/core.Output"
+                },
+                "status": {
+                    "$ref": "#/definitions/core.StatusType"
+                },
+                "tasks": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/task.State"
+                    }
+                },
+                "usage": {
+                    "$ref": "#/definitions/router.UsageSummary"
+                },
+                "workflow_exec_id": {
+                    "type": "string"
+                },
+                "workflow_id": {
+                    "type": "string"
+                }
+            }
+        },
         "wfrouter.WorkflowListItem": {
             "type": "object",
             "properties": {
@@ -15395,8 +15471,11 @@ const docTemplate = `{
                 "output": {
                     "$ref": "#/definitions/core.Output"
                 },
+                "usage": {
+                    "$ref": "#/definitions/router.UsageSummary"
+                },
                 "workflow": {
-                    "$ref": "#/definitions/workflow.State"
+                    "$ref": "#/definitions/wfrouter.WorkflowExecutionDTO"
                 }
             }
         },
@@ -15640,35 +15719,6 @@ const docTemplate = `{
                 },
                 "timezone": {
                     "description": "Timezone for schedule execution (optional, default UTC)\nUses IANA timezone names (e.g., \"America/New_York\", \"Europe/London\")",
-                    "type": "string"
-                }
-            }
-        },
-        "workflow.State": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "$ref": "#/definitions/core.Error"
-                },
-                "input": {
-                    "$ref": "#/definitions/core.Input"
-                },
-                "output": {
-                    "$ref": "#/definitions/core.Output"
-                },
-                "status": {
-                    "$ref": "#/definitions/core.StatusType"
-                },
-                "tasks": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/task.State"
-                    }
-                },
-                "workflow_exec_id": {
-                    "type": "string"
-                },
-                "workflow_id": {
                     "type": "string"
                 }
             }

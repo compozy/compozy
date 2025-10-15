@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/core/httpdto"
+	router "github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
 	tool "github.com/compozy/compozy/engine/tool"
@@ -84,8 +85,9 @@ type AgentsListResponse struct {
 
 // AgentExecSyncResponse is returned from POST /agents/{agent_id}/executions/sync.
 type AgentExecSyncResponse struct {
-	Output *core.Output `json:"output,omitempty"`
-	ExecID string       `json:"exec_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	Output *core.Output         `json:"output,omitempty"`
+	ExecID string               `json:"exec_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	Usage  *router.UsageSummary `json:"usage,omitempty"`
 }
 
 // AgentExecAsyncResponse is returned from POST /agents/{agent_id}/executions.

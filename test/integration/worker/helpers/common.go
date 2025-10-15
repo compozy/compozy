@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
@@ -36,6 +37,22 @@ func CreateMockRuntime(t *testing.T) coreruntime.Runtime {
 	rtManager, err := factory.CreateRuntime(ctx, config)
 	require.NoError(t, err, "failed to create mock runtime manager")
 	return rtManager
+}
+
+type NoopUsageRepo struct{}
+
+func (NoopUsageRepo) Upsert(context.Context, *usage.Row) error { return nil }
+
+func (NoopUsageRepo) GetByTaskExecID(context.Context, core.ID) (*usage.Row, error) {
+	return nil, usage.ErrNotFound
+}
+
+func (NoopUsageRepo) GetByWorkflowExecID(context.Context, core.ID) (*usage.Row, error) {
+	return nil, usage.ErrNotFound
+}
+
+func (NoopUsageRepo) SummarizeByWorkflowExecID(context.Context, core.ID) (*usage.Row, error) {
+	return nil, usage.ErrNotFound
 }
 
 // CreateTestProjectConfig creates a minimal project config for testing
@@ -431,6 +448,7 @@ func CreateTestActivities(
 		workflows,
 		workflowRepo,
 		taskRepo,
+		NoopUsageRepo{},
 		runtime,
 		configStore,
 		nil, // signalDispatcher - not needed for test

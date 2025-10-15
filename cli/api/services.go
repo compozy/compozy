@@ -101,6 +101,7 @@ type Execution struct {
 	Input       any             `json:"input,omitempty"`
 	Output      any             `json:"output,omitempty"`
 	Error       *ExecutionError `json:"error,omitempty"`
+	Usage       *UsageSummary   `json:"usage,omitempty"`
 }
 
 // ExecutionDetail represents detailed execution information
@@ -109,6 +110,18 @@ type ExecutionDetail struct {
 	Logs        []LogEntry        `json:"logs"`
 	TaskResults []TaskResult      `json:"task_results"`
 	Metrics     *ExecutionMetrics `json:"metrics"`
+}
+
+type UsageSummary struct {
+	Provider           string `json:"provider"`
+	Model              string `json:"model"`
+	PromptTokens       int    `json:"prompt_tokens"`
+	CompletionTokens   int    `json:"completion_tokens"`
+	TotalTokens        int    `json:"total_tokens"`
+	ReasoningTokens    *int   `json:"reasoning_tokens,omitempty"`
+	CachedPromptTokens *int   `json:"cached_prompt_tokens,omitempty"`
+	InputAudioTokens   *int   `json:"input_audio_tokens,omitempty"`
+	OutputAudioTokens  *int   `json:"output_audio_tokens,omitempty"`
 }
 
 // ExecutionStatus represents execution status

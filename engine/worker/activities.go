@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/infra/cache"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/memory"
 	memacts "github.com/compozy/compozy/engine/memory/activities"
 	memcore "github.com/compozy/compozy/engine/memory/core"
@@ -29,6 +30,7 @@ type Activities struct {
 	workflows        []*workflow.Config
 	workflowRepo     workflow.Repository
 	taskRepo         task.Repository
+	usageRepo        usage.Repository
 	runtime          runtime.Runtime
 	configStore      services.ConfigStore
 	signalDispatcher services.SignalDispatcher
@@ -52,6 +54,7 @@ func NewActivities(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
+	usageRepo usage.Repository,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
@@ -100,6 +103,7 @@ func NewActivities(
 		workflows:        workflows,
 		workflowRepo:     workflowRepo,
 		taskRepo:         taskRepo,
+		usageRepo:        usageRepo,
 		runtime:          runtime,
 		configStore:      configStore,
 		signalDispatcher: signalDispatcher,
@@ -216,6 +220,7 @@ func (a *Activities) ExecuteBasicTask(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
+		a.usageRepo,
 		a.runtime,
 		a.configStore,
 		memcore.ManagerInterface(a.memoryManager),
@@ -292,6 +297,7 @@ func (a *Activities) ExecuteSubtask(
 		a.task2Factory,
 		a.templateEngine,
 		a.projectConfig,
+		a.usageRepo,
 		a.toolEnvironment,
 	)
 	return act.Run(ctx, input)

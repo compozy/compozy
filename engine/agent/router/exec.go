@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/pkg/logger"
@@ -59,7 +60,10 @@ func getAgentExecutionStatus(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
+	usageRepo := router.ResolveUsageRepository(c, state)
+	usageSummary := router.ResolveTaskUsageSummary(ctx, usageRepo, taskState.TaskExecID)
 	resp := newExecutionStatusDTO(taskState)
+	resp.Usage = usageSummary
 	router.RespondOK(c, "execution status retrieved", resp)
 }
 
@@ -118,6 +122,7 @@ func parseAgentExecRequest(c *gin.Context) (*AgentExecRequest, bool) {
 func respondAgentTimeout(
 	c *gin.Context,
 	repo task.Repository,
+	usageRepo usage.Repository,
 	agentID string,
 	execID core.ID,
 	metrics *monitoring.ExecutionMetrics,
@@ -127,7 +132,13 @@ func respondAgentTimeout(
 		repo,
 		execID,
 		func(state *task.State) any {
-			return newExecutionStatusDTO(state)
+			if state == nil {
+				return nil
+			}
+			ctx := c.Request.Context()
+			dto := newExecutionStatusDTO(state)
+			dto.Usage = router.ResolveTaskUsageSummary(ctx, usageRepo, state.TaskExecID)
+			return dto
 		},
 		router.TimeoutResponseOptions{
 			ResourceKind:  "Agent",
@@ -141,6 +152,7 @@ func respondAgentTimeout(
 func buildAgentSyncPayload(
 	ctx context.Context,
 	repo task.Repository,
+	usageRepo usage.Repository,
 	agentID string,
 	execID core.ID,
 	output *core.Output,
@@ -151,7 +163,9 @@ func buildAgentSyncPayload(
 	}
 	snapshotCtx := context.WithoutCancel(ctx)
 	if stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID); stateErr == nil && stateSnapshot != nil {
-		payload["state"] = newExecutionStatusDTO(stateSnapshot)
+		dto := newExecutionStatusDTO(stateSnapshot)
+		dto.Usage = router.ResolveTaskUsageSummary(ctx, usageRepo, stateSnapshot.TaskExecID)
+		payload["state"] = dto
 		if stateSnapshot.Output != nil {
 			payload["output"] = stateSnapshot.Output
 		}
@@ -163,20 +177,24 @@ func buildAgentSyncPayload(
 			"error", stateErr,
 		)
 	}
+	if summary := router.ResolveTaskUsageSummary(ctx, usageRepo, execID); summary != nil {
+		payload["usage"] = summary
+	}
 	return payload
 }
 
 type ExecutionStatusDTO struct {
-	ExecID         string             `json:"exec_id"`
-	Status         core.StatusType    `json:"status"`
-	Component      core.ComponentType `json:"component"`
-	TaskID         string             `json:"task_id"`
-	WorkflowID     string             `json:"workflow_id"`
-	WorkflowExecID string             `json:"workflow_exec_id"`
-	Output         *core.Output       `json:"output,omitempty"`
-	Error          *core.Error        `json:"error,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
+	ExecID         string               `json:"exec_id"`
+	Status         core.StatusType      `json:"status"`
+	Component      core.ComponentType   `json:"component"`
+	TaskID         string               `json:"task_id"`
+	WorkflowID     string               `json:"workflow_id"`
+	WorkflowExecID string               `json:"workflow_exec_id"`
+	Output         *core.Output         `json:"output,omitempty"`
+	Error          *core.Error          `json:"error,omitempty"`
+	CreatedAt      time.Time            `json:"created_at"`
+	UpdatedAt      time.Time            `json:"updated_at"`
+	Usage          *router.UsageSummary `json:"usage,omitempty"`
 }
 
 // AgentExecRequest represents the payload accepted by agent execution endpoints.
@@ -251,6 +269,7 @@ func runAgentExecution(
 	c *gin.Context,
 	runner *agentexec.Runner,
 	repo task.Repository,
+	usageRepo usage.Repository,
 	prepared *agentexec.PreparedExecution,
 	metrics *monitoring.ExecutionMetrics,
 ) *executionResult {
@@ -261,7 +280,7 @@ func runAgentExecution(
 			execID = result.ExecID
 		}
 		if errors.Is(err, context.DeadlineExceeded) && result != nil {
-			reqTimeout := respondAgentTimeout(c, repo, prepared.Metadata.AgentID, execID, metrics)
+			reqTimeout := respondAgentTimeout(c, repo, usageRepo, prepared.Metadata.AgentID, execID, metrics)
 			return &executionResult{
 				execID:  execID,
 				outcome: monitoring.ExecutionOutcomeTimeout,
@@ -344,12 +363,13 @@ func executeAgentSync(c *gin.Context) {
 		recordError(status)
 		return
 	}
+	usageRepo := router.ResolveUsageRepository(c, state)
 	prepared, err := runner.Prepare(c.Request.Context(), execReq)
 	if err != nil {
 		recordError(handlePreparationError(c, err))
 		return
 	}
-	result := runAgentExecution(c, runner, repo, prepared, metrics)
+	result := runAgentExecution(c, runner, repo, usageRepo, prepared, metrics)
 	outcome = result.outcome
 	if result.outcome != monitoring.ExecutionOutcomeSuccess {
 		recordError(result.status)
@@ -358,7 +378,7 @@ func executeAgentSync(c *gin.Context) {
 	router.RespondOK(
 		c,
 		"agent executed",
-		buildAgentSyncPayload(c.Request.Context(), repo, syncReq.agentID, result.execID, result.output),
+		buildAgentSyncPayload(c.Request.Context(), repo, usageRepo, syncReq.agentID, result.execID, result.output),
 	)
 }
 

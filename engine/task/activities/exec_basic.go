@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -15,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/task2"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
@@ -34,6 +36,7 @@ type ExecuteBasic struct {
 	task2Factory   task2.Factory
 	workflowRepo   workflow.Repository
 	taskRepo       task.Repository
+	usageRepo      usage.Repository
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 	projectConfig  *project.Config
@@ -50,6 +53,7 @@ func NewExecuteBasic(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
+	usageRepo usage.Repository,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
 	memoryManager memcore.ManagerInterface,
@@ -68,6 +72,7 @@ func NewExecuteBasic(
 		task2Factory:   task2Factory,
 		workflowRepo:   workflowRepo,
 		taskRepo:       taskRepo,
+		usageRepo:      usageRepo,
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
 		projectConfig:  projectConfig,
@@ -127,12 +132,20 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 		return nil, err
 	}
 	// Execute component
+	ctx, finalizeUsage := a.attachUsageCollector(ctx, taskState)
+	status := core.StatusFailed
+	defer func() {
+		finalizeUsage(status)
+	}()
 	output, executionError := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
 		TaskConfig:     normalizedConfig,
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 		ProjectConfig:  a.projectConfig,
 	})
+	if executionError == nil {
+		status = core.StatusSuccess
+	}
 	taskState.Output = output
 	// Use task2 ResponseHandler for basic type
 	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
@@ -159,6 +172,34 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 		return mainTaskResponse, executionError
 	}
 	return mainTaskResponse, nil
+}
+
+func (a *ExecuteBasic) attachUsageCollector(
+	ctx context.Context,
+	state *task.State,
+) (context.Context, func(core.StatusType)) {
+	if a == nil || a.usageRepo == nil || state == nil {
+		return ctx, func(core.StatusType) {}
+	}
+	collector := usage.NewCollector(a.usageRepo, usage.Metadata{
+		Component:      state.Component,
+		WorkflowExecID: state.WorkflowExecID,
+		TaskExecID:     state.TaskExecID,
+		AgentID:        state.AgentID,
+	})
+	if collector == nil {
+		return ctx, func(core.StatusType) {}
+	}
+	collectorCtx := usage.ContextWithCollector(ctx, collector)
+	return collectorCtx, func(status core.StatusType) {
+		if err := collector.Finalize(collectorCtx, status); err != nil {
+			logger.FromContext(collectorCtx).Warn(
+				"Failed to persist usage for task execution",
+				"error", err,
+				"task_exec_id", state.TaskExecID.String(),
+			)
+		}
+	}
 }
 
 // convertToMainTaskResponse converts shared.ResponseOutput to task.MainTaskResponse

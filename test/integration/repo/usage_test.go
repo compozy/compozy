@@ -66,6 +66,85 @@ func TestUsageRepoIntegration(t *testing.T) {
 		assert.Equal(t, 17, updated.TotalTokens)
 	})
 
+	t.Run("Should summarize workflow usage from task rows", func(t *testing.T) {
+		env := newRepoTestEnv(t)
+		truncateRepoTables(env.ctx, t, env.pool)
+
+		workflowID := "wf-usage-summary"
+		workflowExecID := core.MustNewID()
+		upsertWorkflowState(t, env, workflowID, workflowExecID, nil)
+
+		firstTask := core.MustNewID()
+		firstState := &task.State{
+			Component:      core.ComponentTask,
+			Status:         core.StatusSuccess,
+			TaskID:         "task-a",
+			TaskExecID:     firstTask,
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+		}
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, firstState))
+
+		secondTask := core.MustNewID()
+		secondState := &task.State{
+			Component:      core.ComponentAgent,
+			Status:         core.StatusSuccess,
+			TaskID:         "task-b",
+			TaskExecID:     secondTask,
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+		}
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, secondState))
+
+		reasoning := 4
+		require.NoError(t, env.usageRepo.Upsert(env.ctx, &usage.Row{
+			WorkflowExecID:   &workflowExecID,
+			TaskExecID:       &firstTask,
+			Component:        core.ComponentTask,
+			Provider:         "openai",
+			Model:            "gpt-4o",
+			PromptTokens:     12,
+			CompletionTokens: 6,
+			TotalTokens:      18,
+			ReasoningTokens:  &reasoning,
+		}))
+
+		cachedPrompt := 8
+		inputAudio := 2
+		require.NoError(t, env.usageRepo.Upsert(env.ctx, &usage.Row{
+			WorkflowExecID:     &workflowExecID,
+			TaskExecID:         &secondTask,
+			Component:          core.ComponentAgent,
+			Provider:           "anthropic",
+			Model:              "claude-3",
+			PromptTokens:       20,
+			CompletionTokens:   9,
+			TotalTokens:        29,
+			CachedPromptTokens: &cachedPrompt,
+			InputAudioTokens:   &inputAudio,
+		}))
+
+		summary, err := env.usageRepo.SummarizeByWorkflowExecID(env.ctx, workflowExecID)
+		require.NoError(t, err)
+		require.NotNil(t, summary)
+		assert.Equal(t, core.ComponentWorkflow, summary.Component)
+		require.NotNil(t, summary.WorkflowExecID)
+		assert.Equal(t, workflowExecID.String(), summary.WorkflowExecID.String())
+		assert.Equal(t, 32, summary.PromptTokens)
+		assert.Equal(t, 15, summary.CompletionTokens)
+		assert.Equal(t, 47, summary.TotalTokens)
+		require.NotNil(t, summary.ReasoningTokens)
+		assert.Equal(t, 4, *summary.ReasoningTokens)
+		require.NotNil(t, summary.CachedPromptTokens)
+		assert.Equal(t, 8, *summary.CachedPromptTokens)
+		require.NotNil(t, summary.InputAudioTokens)
+		assert.Equal(t, 2, *summary.InputAudioTokens)
+		assert.Equal(t, "mixed", summary.Provider)
+		assert.Equal(t, "mixed", summary.Model)
+	})
+
 	t.Run("Should upsert workflow usage without task reference", func(t *testing.T) {
 		env := newRepoTestEnv(t)
 		truncateRepoTables(env.ctx, t, env.pool)

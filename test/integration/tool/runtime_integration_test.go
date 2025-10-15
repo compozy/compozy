@@ -81,6 +81,7 @@ func TestToolInheritance_Runtime(t *testing.T) {
 			[]*workflow.Config{wfCfg},
 			workflowRepo,
 			taskRepo,
+			helpers.NoopUsageRepo{},
 			rt,
 			cfgStore,
 			nil, // signal dispatcher

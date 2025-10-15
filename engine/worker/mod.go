@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/monitoring/interceptor"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/memory"
 	memacts "github.com/compozy/compozy/engine/memory/activities"
@@ -61,6 +62,7 @@ const (
 type Config struct {
 	WorkflowRepo      func() wf.Repository
 	TaskRepo          func() task.Repository
+	UsageRepo         func() usage.Repository
 	MonitoringService *monitoring.Service
 	ResourceRegistry  *autoload.ConfigRegistry // For memory resource configs
 }
@@ -350,6 +352,7 @@ func NewWorker(
 		workflows,
 		config.WorkflowRepo(),
 		config.TaskRepo(),
+		config.UsageRepo(),
 		workerCore.rtManager,
 		workerCore.configStore,
 		dispatcher.signalDispatcher,

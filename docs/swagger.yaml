@@ -327,6 +327,8 @@ definitions:
         type: string
       output:
         $ref: '#/definitions/core.Output'
+      usage:
+        $ref: '#/definitions/router.UsageSummary'
     type: object
   agentrouter.AgentListItem:
     properties:
@@ -403,6 +405,8 @@ definitions:
         type: string
       updated_at:
         type: string
+      usage:
+        $ref: '#/definitions/router.UsageSummary'
       workflow_exec_id:
         type: string
       workflow_id:
@@ -2064,6 +2068,27 @@ definitions:
       role:
         type: string
     type: object
+  router.UsageSummary:
+    properties:
+      cached_prompt_tokens:
+        type: integer
+      completion_tokens:
+        type: integer
+      input_audio_tokens:
+        type: integer
+      model:
+        type: string
+      output_audio_tokens:
+        type: integer
+      prompt_tokens:
+        type: integer
+      provider:
+        type: string
+      reasoning_tokens:
+        type: integer
+      total_tokens:
+        type: integer
+    type: object
   schedulerouter.ScheduleInfoResponse:
     properties:
       cron:
@@ -2927,6 +2952,8 @@ definitions:
         type: string
       output:
         $ref: '#/definitions/core.Output'
+      usage:
+        $ref: '#/definitions/router.UsageSummary'
     type: object
   tkrouter.TaskExecutionStatusDTO:
     properties:
@@ -2946,6 +2973,8 @@ definitions:
         type: string
       updated_at:
         type: string
+      usage:
+        $ref: '#/definitions/router.UsageSummary'
       workflow_exec_id:
         type: string
       workflow_id:
@@ -3637,6 +3666,27 @@ definitions:
       version:
         type: string
     type: object
+  wfrouter.WorkflowExecutionDTO:
+    properties:
+      error:
+        $ref: '#/definitions/core.Error'
+      input:
+        $ref: '#/definitions/core.Input'
+      output:
+        $ref: '#/definitions/core.Output'
+      status:
+        $ref: '#/definitions/core.StatusType'
+      tasks:
+        additionalProperties:
+          $ref: '#/definitions/task.State'
+        type: object
+      usage:
+        $ref: '#/definitions/router.UsageSummary'
+      workflow_exec_id:
+        type: string
+      workflow_id:
+        type: string
+    type: object
   wfrouter.WorkflowListItem:
     properties:
       agent_count:
@@ -3708,8 +3758,10 @@ definitions:
         type: string
       output:
         $ref: '#/definitions/core.Output'
+      usage:
+        $ref: '#/definitions/router.UsageSummary'
       workflow:
-        $ref: '#/definitions/workflow.State'
+        $ref: '#/definitions/wfrouter.WorkflowExecutionDTO'
     type: object
   wfrouter.WorkflowsListResponse:
     properties:
@@ -3950,25 +4002,6 @@ definitions:
         type: string
     required:
       - cron
-    type: object
-  workflow.State:
-    properties:
-      error:
-        $ref: '#/definitions/core.Error'
-      input:
-        $ref: '#/definitions/core.Input'
-      output:
-        $ref: '#/definitions/core.Output'
-      status:
-        $ref: '#/definitions/core.StatusType'
-      tasks:
-        additionalProperties:
-          $ref: '#/definitions/task.State'
-        type: object
-      workflow_exec_id:
-        type: string
-      workflow_id:
-        type: string
     type: object
   workflow.Trigger:
     properties:
@@ -5261,7 +5294,7 @@ paths:
                     properties:
                       executions:
                         items:
-                          $ref: '#/definitions/workflow.State'
+                          $ref: '#/definitions/wfrouter.WorkflowExecutionDTO'
                         type: array
                     type: object
                 type: object
@@ -5308,7 +5341,7 @@ paths:
               - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: '#/definitions/workflow.State'
+                    $ref: '#/definitions/wfrouter.WorkflowExecutionDTO'
                 type: object
         "400":
           description: Invalid execution ID
@@ -10233,7 +10266,7 @@ paths:
                     properties:
                       executions:
                         items:
-                          $ref: '#/definitions/workflow.State'
+                          $ref: '#/definitions/wfrouter.WorkflowExecutionDTO'
                         type: array
                     type: object
                 type: object

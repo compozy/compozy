@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/llm/telemetry"
+	"github.com/compozy/compozy/engine/llm/usage"
 )
 
 const (
@@ -499,6 +500,11 @@ func (l *conversationLoop) recordLLMResponse(
 	if response == nil {
 		return
 	}
+	if collector := usage.FromContext(ctx); collector != nil {
+		if snapshot, ok := buildUsageSnapshot(loopCtx, response); ok {
+			collector.Record(ctx, &snapshot)
+		}
+	}
 	usage := computeContextUsage(loopCtx, response)
 	payload := map[string]any{
 		"response": snapshotResponse(ctx, response),
@@ -550,6 +556,36 @@ func (l *conversationLoop) recordLLMResponse(
 			}
 		}
 	}
+}
+
+func buildUsageSnapshot(loopCtx *LoopContext, response *llmadapter.LLMResponse) (usage.Snapshot, bool) {
+	if loopCtx == nil || response == nil || response.Usage == nil {
+		return usage.Snapshot{}, false
+	}
+	provider, model := resolveUsageIdentifiers(loopCtx)
+	if provider == "" || model == "" {
+		return usage.Snapshot{}, false
+	}
+	usageMetrics := response.Usage
+	return usage.Snapshot{
+		Provider:           provider,
+		Model:              model,
+		PromptTokens:       usageMetrics.PromptTokens,
+		CompletionTokens:   usageMetrics.CompletionTokens,
+		TotalTokens:        usageMetrics.TotalTokens,
+		ReasoningTokens:    usageMetrics.ReasoningTokens,
+		CachedPromptTokens: usageMetrics.CachedPromptTokens,
+		InputAudioTokens:   usageMetrics.InputAudioTokens,
+		OutputAudioTokens:  usageMetrics.OutputAudioTokens,
+	}, true
+}
+
+func resolveUsageIdentifiers(loopCtx *LoopContext) (string, string) {
+	if loopCtx == nil || loopCtx.Request.Agent == nil {
+		return "", ""
+	}
+	cfg := loopCtx.Request.Agent.Model.Config
+	return string(cfg.Provider), cfg.Model
 }
 
 func (l *conversationLoop) warnIfContextLimitUnknown(

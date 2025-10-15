@@ -163,6 +163,124 @@ func (r *UsageRepo) GetByWorkflowExecID(ctx context.Context, id core.ID) (*usage
 	return r.getOne(ctx, builder)
 }
 
+// SummarizeByWorkflowExecID aggregates token usage across all components for a workflow execution.
+func (r *UsageRepo) SummarizeByWorkflowExecID(ctx context.Context, id core.ID) (*usage.Row, error) {
+	builder := selectUsageBuilder().
+		Where(squirrel.Eq{"workflow_exec_id": id.String()}).
+		Where(squirrel.NotEq{"component": string(core.ComponentWorkflow)}).
+		Where("task_exec_id IS NOT NULL")
+	sql, args, err := builder.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build workflow usage summary select: %w", err)
+	}
+	var rows []usageRowDB
+	if err := scanAll(ctx, r.db, &rows, sql, args...); err != nil {
+		return nil, fmt.Errorf("query workflow usage summary: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, usage.ErrNotFound
+	}
+	summary := &usage.Row{Component: core.ComponentWorkflow}
+	workflowID := id
+	summary.WorkflowExecID = &workflowID
+
+	var acc usageAccumulator
+	for i := range rows {
+		acc.add(&rows[i])
+	}
+	acc.apply(summary)
+
+	return summary, nil
+}
+
+type usageAccumulator struct {
+	prompt      int
+	completion  int
+	total       int
+	reasoning   optionalAccumulator
+	cached      optionalAccumulator
+	inputAudio  optionalAccumulator
+	outputAudio optionalAccumulator
+	providers   map[string]struct{}
+	provider    string
+	model       string
+	createdAt   time.Time
+	updatedAt   time.Time
+}
+
+func (a *usageAccumulator) add(row *usageRowDB) {
+	if row == nil {
+		return
+	}
+	a.prompt += row.PromptTokens
+	a.completion += row.CompletionTokens
+	a.total += row.TotalTokens
+	a.reasoning.add(row.ReasoningTokens)
+	a.cached.add(row.CachedPromptTokens)
+	a.inputAudio.add(row.InputAudioTokens)
+	a.outputAudio.add(row.OutputAudioTokens)
+	if a.providers == nil {
+		a.providers = make(map[string]struct{})
+	}
+	comboKey := row.Provider + "|" + row.Model
+	if _, ok := a.providers[comboKey]; !ok {
+		a.providers[comboKey] = struct{}{}
+		if len(a.providers) == 1 {
+			a.provider = row.Provider
+			a.model = row.Model
+		}
+	}
+	if a.createdAt.IsZero() || row.CreatedAt.Before(a.createdAt) {
+		a.createdAt = row.CreatedAt
+	}
+	if row.UpdatedAt.After(a.updatedAt) {
+		a.updatedAt = row.UpdatedAt
+	}
+}
+
+func (a *usageAccumulator) apply(summary *usage.Row) {
+	summary.PromptTokens = a.prompt
+	summary.CompletionTokens = a.completion
+	summary.TotalTokens = a.total
+	if summary.TotalTokens == 0 {
+		summary.TotalTokens = summary.PromptTokens + summary.CompletionTokens
+	}
+	if a.reasoning.set {
+		summary.ReasoningTokens = intPtr(a.reasoning.total)
+	}
+	if a.cached.set {
+		summary.CachedPromptTokens = intPtr(a.cached.total)
+	}
+	if a.inputAudio.set {
+		summary.InputAudioTokens = intPtr(a.inputAudio.total)
+	}
+	if a.outputAudio.set {
+		summary.OutputAudioTokens = intPtr(a.outputAudio.total)
+	}
+	summary.CreatedAt = a.createdAt
+	summary.UpdatedAt = a.updatedAt
+	if len(a.providers) == 1 {
+		summary.Provider = a.provider
+		summary.Model = a.model
+	} else {
+		summary.Provider = "mixed"
+		summary.Model = "mixed"
+	}
+}
+
+type optionalAccumulator struct {
+	total int
+	set   bool
+}
+
+func (o *optionalAccumulator) add(value sql.NullInt32) {
+	if !value.Valid {
+		return
+	}
+	o.total += int(value.Int32)
+	o.set = true
+}
+
 func (r *UsageRepo) getOne(ctx context.Context, builder squirrel.SelectBuilder) (*usage.Row, error) {
 	var dbRow usageRowDB
 	sql, args, err := builder.ToSql()
@@ -230,6 +348,11 @@ func nullableInt(value *int) any {
 		return nil
 	}
 	return *value
+}
+
+func intPtr(value int) *int {
+	v := value
+	return &v
 }
 
 func toCoreIDPtr(ns sql.NullString) *core.ID {
