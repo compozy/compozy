@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/task"
 )
 
@@ -19,6 +20,7 @@ type State struct {
 	WorkflowID     string                 `json:"workflow_id"      db:"workflow_id"`
 	WorkflowExecID core.ID                `json:"workflow_exec_id" db:"workflow_exec_id"`
 	Status         core.StatusType        `json:"status"           db:"status"`
+	Usage          *usage.Summary         `json:"usage,omitempty"  db:"usage"`
 	Input          *core.Input            `json:"input"            db:"input"`
 	Output         *core.Output           `json:"output"           db:"output"`
 	Error          *core.Error            `json:"error"            db:"error"`
@@ -30,6 +32,7 @@ type StateDB struct {
 	WorkflowID     string          `db:"workflow_id"`
 	WorkflowExecID core.ID         `db:"workflow_exec_id"`
 	Status         core.StatusType `db:"status"`
+	UsageRaw       []byte          `db:"usage"`
 	InputRaw       []byte          `db:"input"`
 	OutputRaw      []byte          `db:"output"`
 	ErrorRaw       []byte          `db:"error"`
@@ -44,6 +47,18 @@ func (sdb *StateDB) ToState() (*State, error) {
 		WorkflowExecID: sdb.WorkflowExecID,
 		Status:         sdb.Status,
 		Tasks:          make(map[string]*task.State),
+	}
+
+	if len(sdb.UsageRaw) > 0 {
+		var summary usage.Summary
+		if err := json.Unmarshal(sdb.UsageRaw, &summary); err != nil {
+			return nil, fmt.Errorf("unmarshaling usage: %w", err)
+		}
+		if err := summary.Validate(); err != nil {
+			return nil, fmt.Errorf("validating usage: %w", err)
+		}
+		summary.Sort()
+		state.Usage = &summary
 	}
 
 	// Unmarshal input

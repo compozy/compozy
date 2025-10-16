@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/infra/cache"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/memory"
 	memacts "github.com/compozy/compozy/engine/memory/activities"
 	memcore "github.com/compozy/compozy/engine/memory/core"
@@ -29,6 +30,7 @@ type Activities struct {
 	workflows        []*workflow.Config
 	workflowRepo     workflow.Repository
 	taskRepo         task.Repository
+	usageMetrics     usage.Metrics
 	runtime          runtime.Runtime
 	configStore      services.ConfigStore
 	signalDispatcher services.SignalDispatcher
@@ -52,6 +54,7 @@ func NewActivities(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
+	usageMetrics usage.Metrics,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
@@ -100,6 +103,7 @@ func NewActivities(
 		workflows:        workflows,
 		workflowRepo:     workflowRepo,
 		taskRepo:         taskRepo,
+		usageMetrics:     usageMetrics,
 		runtime:          runtime,
 		configStore:      configStore,
 		signalDispatcher: signalDispatcher,
@@ -216,6 +220,7 @@ func (a *Activities) ExecuteBasicTask(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
+		a.usageMetrics,
 		a.runtime,
 		a.configStore,
 		memcore.ManagerInterface(a.memoryManager),
@@ -277,9 +282,8 @@ func (a *Activities) ExecuteSubtask(
 	ctx context.Context,
 	input *tkfacts.ExecuteSubtaskInput,
 ) (*task.SubtaskResponse, error) {
-	// Ensure logger is attached to the activity context so downstream code
-	// (use-cases, LLM orchestrator) can emit debug logs when enabled.
-	ctx = withActivityLogger(ctx)
+	// Ensure logger and configuration manager are attached for downstream code.
+	ctx = a.withActivityContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -292,6 +296,7 @@ func (a *Activities) ExecuteSubtask(
 		a.task2Factory,
 		a.templateEngine,
 		a.projectConfig,
+		a.usageMetrics,
 		a.toolEnvironment,
 	)
 	return act.Run(ctx, input)

@@ -11,9 +11,9 @@ require (
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/atotto/clipboard v0.1.4
 	github.com/bmatcuk/doublestar/v4 v4.9.1
-	github.com/charmbracelet/bubbles v0.21.0
+	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7
 	github.com/charmbracelet/bubbletea v1.3.10
-	github.com/charmbracelet/huh v0.7.0
+	github.com/charmbracelet/huh v0.8.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/log v0.4.2
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
@@ -36,7 +36,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/joho/godotenv v1.5.1
 	github.com/jung-kurt/gofpdf v1.16.2
-	github.com/kaptinlin/jsonschema v0.5.0
+	github.com/kaptinlin/jsonschema v0.5.1
 	github.com/klippa-app/go-pdfium v1.17.2
 	github.com/knadh/koanf/providers/env/v2 v2.0.0
 	github.com/knadh/koanf/providers/structs v1.0.0
@@ -172,7 +172,7 @@ require (
 	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.1 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -262,8 +262,8 @@ require (
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.35.0 // indirect
-	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.38.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.7.1 // indirect
 	go.starlark.net v0.0.0-20230302034142-4b1e35fe2254 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

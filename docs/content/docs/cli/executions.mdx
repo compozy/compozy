@@ -1,0 +1,133 @@
+---
+title: Executions Commands
+description: Inspect workflow, task, and agent executions with usage summaries.
+icon: Terminal
+---
+
+import { Tabs, Tab } from "@/components/ui/tabs";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+
+## Overview
+
+The `compozy executions` sub-commands surface real-time execution status, outputs, and the new LLM usage summaries. All commands support human-friendly table output as well as machine-readable JSON for automation.
+
+## Workflow Executions
+
+### Usage
+
+```bash
+compozy executions workflows get <workflow-exec-id> [flags]
+```
+
+### Examples
+
+<Tabs items={["Table", "JSON"]}>
+
+<Tab>
+```bash
+# Show a workflow execution in the interactive table view
+compozy executions workflows get 01JZMB7Z1B6KM0J6R2AVB59S4A
+
+# Stream updates until completion
+compozy executions workflows get 01JZMB7Z1B6KM0J6R2AVB59S4A --follow
+```
+</Tab>
+
+<Tab>
+```bash
+compozy executions workflows get 01JZMB7Z1B6KM0J6R2AVB59S4A \
+  --format json --pretty
+```
+
+```json title="JSON excerpt"
+{
+  "workflow_exec_id": "01JZMB7Z1B6KM0J6R2AVB59S4A",
+  "status": "completed",
+  "output": {
+    "summary": "All steps finished successfully"
+  },
+  "usage": [
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "prompt_tokens": 1512,
+      "completion_tokens": 204,
+      "total_tokens": 1716,
+      "reasoning_tokens": null
+    }
+  ]
+}
+```
+</Tab>
+
+</Tabs>
+
+## Task Executions
+
+### Usage
+
+```bash
+compozy executions tasks get <task-exec-id> [flags]
+```
+
+### Examples
+
+```bash
+# Fetch task execution details with usage metrics
+compozy executions tasks get 01JZMB8ADP1T3QCW1SBBCX9KHF --format json --pretty
+
+# Filter down to just the usage object
+compozy executions tasks get 01JZMB8ADP1T3QCW1SBBCX9KHF \
+  --format json | jq '.usage'
+```
+
+> **Tip:** The usage object matches the [Execution Usage Schema](/docs/schema/execution-usage), making it straightforward to push into billing or analytics pipelines.
+
+## Agent Executions
+
+### Usage
+
+```bash
+compozy executions agents get <agent-exec-id> [flags]
+```
+
+### Examples
+
+```bash
+# Display an agent execution with the new usage summary field
+compozy executions agents get 01JZMB8Z7F7T25N1M1SC1JW4S2 --format json | jq '.usage'
+```
+
+## Filtering & Formats
+
+All execution commands support the common flags:
+
+| Flag | Description |
+| --- | --- |
+| `--format json` | Emit JSON output suitable for automation. |
+| `--pretty` | Pretty-print JSON responses. |
+| `--follow` | Stream execution updates until completion. |
+| `--quiet` | Suppress progress logs in script mode. |
+
+## Related Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Execution Usage Schema"
+    description="Field-level documentation for the usage object returned by the CLI and APIs."
+    href="/docs/schema/execution-usage"
+    icon="FileJson"
+  />
+  <ReferenceCard
+    title="Monitor LLM Usage"
+    description="Dashboards and alerts for tracking coverage, failures, and latency."
+    href="/docs/core/metrics/monitor-usage"
+    icon="ChartBar"
+  />
+  <ReferenceCard
+    title="Workflow Commands"
+    description="Execute workflows and stream live output from the CLI."
+    href="/docs/cli/workflow-commands"
+    icon="Play"
+  />
+</ReferenceCardList>

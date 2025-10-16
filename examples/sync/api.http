@@ -19,7 +19,7 @@ Accept: application/json
 
 ### Execute agent synchronously
 # @name runAgentSync
-POST {{baseUrl}}/agents/{{agentId}}/executions
+POST {{baseUrl}}/agents/{{agentId}}/executions/sync
 Content-Type: application/json
 Accept: application/json
 
@@ -32,7 +32,7 @@ Accept: application/json
 
 ### Execute agent action synchronously
 # @name runAgentActionSync
-POST {{baseUrl}}/agents/{{agentId}}/executions
+POST {{baseUrl}}/agents/{{agentId}}/executions/sync
 Content-Type: application/json
 Accept: application/json
 

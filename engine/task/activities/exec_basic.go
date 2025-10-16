@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -15,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/task2"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
@@ -34,6 +36,7 @@ type ExecuteBasic struct {
 	task2Factory   task2.Factory
 	workflowRepo   workflow.Repository
 	taskRepo       task.Repository
+	usageMetrics   usage.Metrics
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 	projectConfig  *project.Config
@@ -50,6 +53,7 @@ func NewExecuteBasic(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
+	usageMetrics usage.Metrics,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
 	memoryManager memcore.ManagerInterface,
@@ -68,6 +72,7 @@ func NewExecuteBasic(
 		task2Factory:   task2Factory,
 		workflowRepo:   workflowRepo,
 		taskRepo:       taskRepo,
+		usageMetrics:   usageMetrics,
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
 		projectConfig:  projectConfig,
@@ -127,12 +132,20 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 		return nil, err
 	}
 	// Execute component
+	ctx, finalizeUsage := a.attachUsageCollector(ctx, taskState)
+	status := core.StatusFailed
+	defer func() {
+		finalizeUsage(status)
+	}()
 	output, executionError := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
 		TaskConfig:     normalizedConfig,
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 		ProjectConfig:  a.projectConfig,
 	})
+	if executionError == nil {
+		status = core.StatusSuccess
+	}
 	taskState.Output = output
 	// Use task2 ResponseHandler for basic type
 	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
@@ -154,11 +167,66 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	}
 	// Convert shared.ResponseOutput to task.MainTaskResponse
 	mainTaskResponse := a.convertToMainTaskResponse(result)
+	if taskState.Status != "" {
+		status = taskState.Status
+	}
 	// If there was an execution error, return it
 	if executionError != nil {
 		return mainTaskResponse, executionError
 	}
 	return mainTaskResponse, nil
+}
+
+func (a *ExecuteBasic) attachUsageCollector(
+	ctx context.Context,
+	state *task.State,
+) (context.Context, func(core.StatusType)) {
+	if a == nil || state == nil {
+		return ctx, func(core.StatusType) {}
+	}
+	collector := usage.NewCollector(a.usageMetrics, usage.Metadata{
+		Component:      state.Component,
+		WorkflowExecID: state.WorkflowExecID,
+		TaskExecID:     state.TaskExecID,
+		AgentID:        state.AgentID,
+	})
+	collectorCtx := usage.ContextWithCollector(ctx, collector)
+	return collectorCtx, func(status core.StatusType) {
+		finalized, err := collector.Finalize(collectorCtx, status)
+		if err != nil {
+			logger.FromContext(collectorCtx).Warn(
+				"Failed to aggregate usage for task execution",
+				"error", err,
+				"task_exec_id", state.TaskExecID.String(),
+			)
+			return
+		}
+		a.persistUsageSummary(collectorCtx, state, finalized)
+	}
+}
+
+func (a *ExecuteBasic) persistUsageSummary(ctx context.Context, state *task.State, finalized *usage.Finalized) {
+	if a == nil || state == nil || finalized == nil || finalized.Summary == nil {
+		return
+	}
+	taskSummary := finalized.Summary.CloneWithSource(usage.SourceTask)
+	if taskSummary == nil || len(taskSummary.Entries) == 0 {
+		return
+	}
+	log := logger.FromContext(ctx)
+	if err := a.taskRepo.MergeUsage(ctx, state.TaskExecID, taskSummary); err != nil {
+		log.Warn(
+			"Failed to merge task usage", "task_exec_id", state.TaskExecID.String(), "error", err,
+		)
+	}
+	if a.workflowRepo != nil && !state.WorkflowExecID.IsZero() {
+		workflowSummary := finalized.Summary.CloneWithSource(usage.SourceWorkflow)
+		if err := a.workflowRepo.MergeUsage(ctx, state.WorkflowExecID, workflowSummary); err != nil {
+			log.Warn(
+				"Failed to merge workflow usage", "workflow_exec_id", state.WorkflowExecID.String(), "error", err,
+			)
+		}
+	}
 }
 
 // convertToMainTaskResponse converts shared.ResponseOutput to task.MainTaskResponse

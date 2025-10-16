@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/llms"
@@ -437,6 +438,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 	adapter := &LangChainAdapter{}
 
 	t.Run("Should convert simple text response", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{
 			Choices: []*llms.ContentChoice{
 				{
@@ -445,7 +447,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 			},
 		}
 
-		resp, err := adapter.convertResponse(langchainResp)
+		resp, err := adapter.convertResponse(ctx, langchainResp)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Hello, world!", resp.Content)
@@ -453,6 +455,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 	})
 
 	t.Run("Should convert response with tool calls", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{
 			Choices: []*llms.ContentChoice{
 				{
@@ -470,7 +473,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 			},
 		}
 
-		resp, err := adapter.convertResponse(langchainResp)
+		resp, err := adapter.convertResponse(ctx, langchainResp)
 
 		require.NoError(t, err)
 		assert.Empty(t, resp.Content)
@@ -480,22 +483,138 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 		assert.Equal(t, `{"query": "test"}`, string(resp.ToolCalls[0].Arguments))
 	})
 
-	// Note: Usage information is not supported by langchaingo ContentResponse
-	// This is documented in the convertResponse method
+	t.Run("Should attach usage metadata when generation info present", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		langchainResp := &llms.ContentResponse{
+			Choices: []*llms.ContentChoice{
+				{
+					Content: "Done",
+					GenerationInfo: map[string]any{
+						"prompt_tokens":        10.0,
+						"completion_tokens":    json.Number("5"),
+						"total_tokens":         15,
+						"reasoning_tokens":     "2",
+						"cached_prompt_tokens": 3,
+						"output_audio_tokens":  1,
+					},
+				},
+			},
+		}
+
+		resp, err := adapter.convertResponse(ctx, langchainResp)
+
+		require.NoError(t, err)
+		require.NotNil(t, resp.Usage)
+		assert.Equal(t, 10, resp.Usage.PromptTokens)
+		assert.Equal(t, 5, resp.Usage.CompletionTokens)
+		assert.Equal(t, 15, resp.Usage.TotalTokens)
+		require.NotNil(t, resp.Usage.ReasoningTokens)
+		assert.Equal(t, 2, *resp.Usage.ReasoningTokens)
+		require.NotNil(t, resp.Usage.CachedPromptTokens)
+		assert.Equal(t, 3, *resp.Usage.CachedPromptTokens)
+		require.NotNil(t, resp.Usage.OutputAudioTokens)
+		assert.Equal(t, 1, *resp.Usage.OutputAudioTokens)
+	})
+
+	t.Run("Should compute total when missing but prompt and completion present", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		langchainResp := &llms.ContentResponse{
+			Choices: []*llms.ContentChoice{
+				{
+					Content: "Done",
+					GenerationInfo: map[string]any{
+						"prompt_tokens":     8,
+						"completion_tokens": 4,
+					},
+				},
+			},
+		}
+
+		resp, err := adapter.convertResponse(ctx, langchainResp)
+		require.NoError(t, err)
+		require.NotNil(t, resp.Usage)
+		assert.Equal(t, 12, resp.Usage.TotalTokens)
+	})
+
+	t.Run("Should parse usage metadata from provider key variants", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		langchainResp := &llms.ContentResponse{
+			Choices: []*llms.ContentChoice{
+				{
+					Content: "Done",
+					GenerationInfo: map[string]any{
+						"promptTokenCount":     json.Number("11"),
+						"input_tokens":         11,
+						"candidatesTokenCount": json.Number("7"),
+						"output_tokens":        7,
+						"totalTokenCount":      float64(25),
+					},
+				},
+			},
+		}
+
+		resp, err := adapter.convertResponse(ctx, langchainResp)
+		require.NoError(t, err)
+		require.NotNil(t, resp.Usage)
+		assert.Equal(t, 11, resp.Usage.PromptTokens)
+		assert.Equal(t, 7, resp.Usage.CompletionTokens)
+		assert.Equal(t, 25, resp.Usage.TotalTokens)
+	})
+
+	t.Run("Should clamp negative usage values to zero", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		langchainResp := &llms.ContentResponse{
+			Choices: []*llms.ContentChoice{
+				{
+					Content: "Done",
+					GenerationInfo: map[string]any{
+						"prompt_tokens":     -5,
+						"completion_tokens": -3,
+						"total_tokens":      -8,
+					},
+				},
+			},
+		}
+
+		resp, err := adapter.convertResponse(ctx, langchainResp)
+		require.NoError(t, err)
+		require.NotNil(t, resp.Usage)
+		assert.Equal(t, 0, resp.Usage.PromptTokens)
+		assert.Equal(t, 0, resp.Usage.CompletionTokens)
+		assert.Equal(t, 0, resp.Usage.TotalTokens)
+	})
+
+	t.Run("Should leave usage nil when metadata missing", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		langchainResp := &llms.ContentResponse{
+			Choices: []*llms.ContentChoice{
+				{
+					Content:        "Done",
+					GenerationInfo: map[string]any{},
+				},
+			},
+		}
+
+		resp, err := adapter.convertResponse(ctx, langchainResp)
+		require.NoError(t, err)
+		assert.Nil(t, resp.Usage)
+	})
 
 	t.Run("Should return error for empty response", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{
 			Choices: []*llms.ContentChoice{},
 		}
 
-		resp, err := adapter.convertResponse(langchainResp)
+		resp, err := adapter.convertResponse(ctx, langchainResp)
 
 		assert.ErrorContains(t, err, "empty response")
 		assert.Nil(t, resp)
 	})
 
 	t.Run("Should return error for nil response", func(t *testing.T) {
-		resp, err := adapter.convertResponse(nil)
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		resp, err := adapter.convertResponse(ctx, nil)
 
 		assert.ErrorContains(t, err, "empty response")
 		assert.Nil(t, resp)

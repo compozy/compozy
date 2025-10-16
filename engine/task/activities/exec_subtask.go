@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
@@ -40,9 +41,11 @@ type ExecuteSubtask struct {
 	executeTaskUC  *uc.ExecuteTask
 	task2Factory   task2.Factory
 	templateEngine *tplengine.TemplateEngine
+	workflowRepo   workflow.Repository
 	taskRepo       task.Repository
 	configStore    services.ConfigStore
 	projectConfig  *project.Config
+	usageMetrics   usage.Metrics
 }
 
 // NewExecuteSubtask creates and returns an ExecuteSubtask wired with the provided dependencies.
@@ -58,6 +61,7 @@ func NewExecuteSubtask(
 	task2Factory task2.Factory,
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
+	usageMetrics usage.Metrics,
 	toolEnvironment toolenv.Environment,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
@@ -72,9 +76,11 @@ func NewExecuteSubtask(
 		),
 		task2Factory:   task2Factory,
 		templateEngine: templateEngine,
+		workflowRepo:   workflowRepo,
 		taskRepo:       taskRepo,
 		configStore:    configStore,
 		projectConfig:  projectConfig,
+		usageMetrics:   usageMetrics,
 	}
 }
 
@@ -183,17 +189,92 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 	if err != nil {
 		return nil, err
 	}
+	ctx, finalizeCollector := a.attachUsageCollector(ctx, taskState)
+	status := core.StatusFailed
+	defer func() { finalizeCollector(status) }()
 	output, executionError := a.executeTaskUC.Execute(ctx, &uc.ExecuteTaskInput{
 		TaskConfig:     taskConfig,
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 		ProjectConfig:  a.projectConfig,
 	})
-	// Update task status and output based on execution result
+	status, err = a.applySubtaskExecutionResult(ctx, taskState, output, executionError)
+	if err != nil {
+		return nil, err
+	}
+	result, err := a.handleSubtaskResponse(ctx, taskConfig, workflowState, workflowConfig, taskState, executionError)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle subtask response: %w", err)
+	}
+	if taskState.Status != "" {
+		status = taskState.Status
+	}
+	subtaskResponse := a.buildSubtaskResponse(result)
+	if executionError != nil {
+		return subtaskResponse, executionError
+	}
+	return subtaskResponse, nil
+}
+
+// attachUsageCollector adds a usage collector to the context and provides a finalize callback.
+func (a *ExecuteSubtask) attachUsageCollector(
+	ctx context.Context,
+	taskState *task.State,
+) (context.Context, func(core.StatusType)) {
+	collector := usage.NewCollector(a.usageMetrics, usage.Metadata{
+		Component:      taskState.Component,
+		WorkflowExecID: taskState.WorkflowExecID,
+		TaskExecID:     taskState.TaskExecID,
+		AgentID:        taskState.AgentID,
+	})
+	ctx = usage.ContextWithCollector(ctx, collector)
+	return ctx, func(status core.StatusType) {
+		finalized, err := collector.Finalize(ctx, status)
+		if err != nil {
+			logger.FromContext(ctx).Warn(
+				"Failed to aggregate usage for subtask execution",
+				"error", err,
+				"task_exec_id", taskState.TaskExecID.String(),
+			)
+			return
+		}
+		a.persistUsageSummary(ctx, taskState, finalized)
+	}
+}
+
+func (a *ExecuteSubtask) persistUsageSummary(ctx context.Context, state *task.State, finalized *usage.Finalized) {
+	if state == nil || finalized == nil || finalized.Summary == nil {
+		return
+	}
+	taskSummary := finalized.Summary.CloneWithSource(usage.SourceTask)
+	if taskSummary == nil || len(taskSummary.Entries) == 0 {
+		return
+	}
+	log := logger.FromContext(ctx)
+	if err := a.taskRepo.MergeUsage(ctx, state.TaskExecID, taskSummary); err != nil {
+		log.Warn(
+			"Failed to merge task usage", "task_exec_id", state.TaskExecID.String(), "error", err,
+		)
+	}
+	if a.workflowRepo != nil && !state.WorkflowExecID.IsZero() {
+		workflowSummary := finalized.Summary.CloneWithSource(usage.SourceWorkflow)
+		if err := a.workflowRepo.MergeUsage(ctx, state.WorkflowExecID, workflowSummary); err != nil {
+			log.Warn(
+				"Failed to merge workflow usage", "workflow_exec_id", state.WorkflowExecID.String(), "error", err,
+			)
+		}
+	}
+}
+
+func (a *ExecuteSubtask) applySubtaskExecutionResult(
+	ctx context.Context,
+	taskState *task.State,
+	output *core.Output,
+	executionError error,
+) (core.StatusType, error) {
 	if executionError != nil {
 		taskState.Status = core.StatusFailed
-		taskState.Output = nil // Clear output on failure to prevent partial data
-		// Convert error to core.Error if needed
+		taskState.Output = nil
 		if coreErr, ok := executionError.(*core.Error); ok {
 			taskState.Error = coreErr
 		} else {
@@ -201,21 +282,28 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 		}
 	} else {
 		taskState.Status = core.StatusSuccess
-		taskState.Output = output // Only set output on success
+		taskState.Output = output
+		taskState.Error = nil
 	}
-	// Manual timestamp update: Required because the database schema doesn't use
-	// ON UPDATE CURRENT_TIMESTAMP for the updated_at column, and the ORM doesn't
-	// automatically manage timestamps. This ensures the change is properly tracked.
 	taskState.UpdatedAt = time.Now()
 	if err := a.taskRepo.UpsertState(ctx, taskState); err != nil {
-		return nil, fmt.Errorf("failed to persist task output and status: %w", err)
+		return taskState.Status, fmt.Errorf("failed to persist task output and status: %w", err)
 	}
-	// Use task2 ResponseHandler for subtask
+	return taskState.Status, nil
+}
+
+func (a *ExecuteSubtask) handleSubtaskResponse(
+	ctx context.Context,
+	taskConfig *task.Config,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	taskState *task.State,
+	executionError error,
+) (*shared.ResponseOutput, error) {
 	handler, err := a.task2Factory.CreateResponseHandler(ctx, taskConfig.Type)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subtask response handler: %w", err)
 	}
-	// Prepare input for response handler
 	responseInput := &shared.ResponseInput{
 		TaskConfig:     taskConfig,
 		TaskState:      taskState,
@@ -223,22 +311,15 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 		WorkflowState:  workflowState,
 		ExecutionError: executionError,
 	}
-	// Handle the response
-	result, err := handler.HandleResponse(ctx, responseInput)
-	if err != nil {
-		return nil, fmt.Errorf("failed to handle subtask response: %w", err)
-	}
-	// Convert shared.ResponseOutput to task.SubtaskResponse
+	return handler.HandleResponse(ctx, responseInput)
+}
+
+func (a *ExecuteSubtask) buildSubtaskResponse(result *shared.ResponseOutput) *task.SubtaskResponse {
 	converter := NewResponseConverter()
-	// Convert to MainTaskResponse first then extract subtask data
 	mainTaskResponse := converter.ConvertToMainTaskResponse(result)
-	subtaskResponse := &task.SubtaskResponse{
+	return &task.SubtaskResponse{
 		State: mainTaskResponse.State,
 	}
-	// Return the response with the execution status embedded.
-	// We only return an error if there's an infrastructure issue that Temporal should retry.
-	// Business logic failures are captured in the response status.
-	return subtaskResponse, nil
 }
 
 // getChildStateWithRetry retrieves child state with exponential backoff retry

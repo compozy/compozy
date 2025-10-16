@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 )
 
 // -----------------------------------------------------------------------------
@@ -44,6 +45,9 @@ type State struct {
 	// Parent-child relationship for hierarchical tasks
 	ParentStateID *core.ID `json:"parent_state_id,omitempty" db:"parent_state_id"`
 
+	// Aggregated usage information keyed by provider/model.
+	Usage *usage.Summary `json:"usage,omitempty" db:"usage"`
+
 	// Execution type and strategy
 	ExecutionType ExecutionType `json:"execution_type" db:"execution_type"`
 
@@ -72,6 +76,7 @@ type StateDB struct {
 	WorkflowID     string             `db:"workflow_id"`
 	WorkflowExecID core.ID            `db:"workflow_exec_id"`
 	ParentStateID  sql.NullString     `db:"parent_state_id"`
+	UsageRaw       []byte             `db:"usage"`
 	ExecutionType  ExecutionType      `db:"execution_type"`
 	AgentIDRaw     sql.NullString     `db:"agent_id"`
 	ActionIDRaw    sql.NullString     `db:"action_id"`
@@ -95,6 +100,18 @@ func (sdb *StateDB) ToState() (*State, error) {
 		ExecutionType:  sdb.ExecutionType,
 		CreatedAt:      sdb.CreatedAt,
 		UpdatedAt:      sdb.UpdatedAt,
+	}
+
+	if len(sdb.UsageRaw) > 0 {
+		var summary usage.Summary
+		if err := json.Unmarshal(sdb.UsageRaw, &summary); err != nil {
+			return nil, fmt.Errorf("unmarshaling usage: %w", err)
+		}
+		if err := summary.Validate(); err != nil {
+			return nil, fmt.Errorf("validating usage: %w", err)
+		}
+		summary.Sort()
+		state.Usage = &summary
 	}
 
 	// Handle parent-child relationship

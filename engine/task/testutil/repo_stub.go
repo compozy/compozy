@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/task"
 )
 
@@ -116,6 +117,35 @@ func (r *InMemoryRepo) GetChildByTaskID(_ context.Context, parentStateID core.ID
 	}
 
 	return nil, fmt.Errorf("child state not found for parent %s and task %s", parentStateID, taskID)
+}
+
+func (r *InMemoryRepo) MergeUsage(_ context.Context, taskExecID core.ID, summary *usage.Summary) error {
+	if summary == nil || len(summary.Entries) == 0 {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	state, ok := r.states[taskExecID]
+	if !ok {
+		return fmt.Errorf("state not found for task exec ID: %s", taskExecID)
+	}
+
+	merged := summary.Clone()
+	if state.Usage != nil {
+		base := state.Usage.Clone()
+		if base == nil {
+			base = &usage.Summary{}
+		}
+		base.MergeAll(merged)
+		base.Sort()
+		state.Usage = base
+		return nil
+	}
+
+	merged.Sort()
+	state.Usage = merged
+	return nil
 }
 
 // GetProgressInfo calculates progress information for a parent task

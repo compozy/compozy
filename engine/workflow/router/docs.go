@@ -1,5 +1,7 @@
 package wfrouter
 
+import "github.com/compozy/compozy/engine/infra/server/router"
+
 // WorkflowDocument models the serialized workflow returned by the HTTP API.
 type WorkflowDocument struct {
 	ID          string   `json:"id"                    example:"data-processing"`
@@ -56,9 +58,10 @@ type WorkflowExecutionListDocument struct {
 
 // WorkflowExecutionStateDocument trims the execution state for documentation purposes.
 type WorkflowExecutionStateDocument struct {
-	ExecutionID string `json:"execution_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
-	WorkflowID  string `json:"workflow_id"           example:"data-processing"`
-	Status      string `json:"status"                example:"completed"`
-	StartedAt   string `json:"started_at"            example:"2025-09-20T12:00:00Z"`
-	FinishedAt  string `json:"finished_at,omitempty" example:"2025-09-20T12:05:14Z"`
+	ExecutionID string               `json:"execution_id"          example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	WorkflowID  string               `json:"workflow_id"           example:"data-processing"`
+	Status      string               `json:"status"                example:"completed"`
+	StartedAt   string               `json:"started_at"            example:"2025-09-20T12:00:00Z"`
+	FinishedAt  string               `json:"finished_at,omitempty" example:"2025-09-20T12:05:14Z"`
+	Usage       *router.UsageSummary `json:"usage,omitempty"`
 }

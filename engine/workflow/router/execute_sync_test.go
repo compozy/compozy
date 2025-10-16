@@ -13,6 +13,7 @@ import (
 
 	appstate "github.com/compozy/compozy/engine/infra/server/appstate"
 	routerpkg "github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/worker"
@@ -125,6 +126,39 @@ func (s *stubWorkflowRepo) CompleteWorkflow(
 	return nil, errors.New("not implemented")
 }
 
+func (s *stubWorkflowRepo) MergeUsage(_ context.Context, execID core.ID, summary *usage.Summary) error {
+	if summary == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, state := range s.states {
+		if state != nil && state.WorkflowExecID == execID {
+			if state.Usage == nil {
+				state.Usage = summary.Clone()
+			} else {
+				clone := state.Usage.Clone()
+				clone.MergeAll(summary)
+				clone.Sort()
+				state.Usage = clone
+			}
+			return nil
+		}
+	}
+	if s.last != nil && s.last.WorkflowExecID == execID {
+		if s.last.Usage == nil {
+			s.last.Usage = summary.Clone()
+		} else {
+			clone := s.last.Usage.Clone()
+			clone.MergeAll(summary)
+			clone.Sort()
+			s.last.Usage = clone
+		}
+		return nil
+	}
+	return errors.New("state not found")
+}
+
 func setupWorkflowSyncRouter(
 	t *testing.T,
 	repo workflow.Repository,
@@ -200,6 +234,14 @@ func Test_executeWorkflowSync(t *testing.T) {
 		completed := workflow.NewState(workflowID, execID, nil).WithStatus(core.StatusSuccess)
 		output := core.Output{"result": "ok"}
 		completed.Output = &output
+		completed.Usage = &usage.Summary{Entries: []usage.Entry{{
+			Provider:         "openai",
+			Model:            "gpt-4o",
+			PromptTokens:     18,
+			CompletionTokens: 7,
+			TotalTokens:      25,
+			Source:           string(usage.SourceWorkflow),
+		}}}
 		repo := &stubWorkflowRepo{states: []*workflow.State{completed}}
 		store := resources.NewMemoryResourceStore()
 		r, state := setupWorkflowSyncRouter(t, repo, runner, store)
@@ -217,15 +259,18 @@ func Test_executeWorkflowSync(t *testing.T) {
 		var resp struct {
 			Status int `json:"status"`
 			Data   struct {
-				ExecID   string          `json:"exec_id"`
-				Output   *core.Output    `json:"output"`
-				Workflow *workflow.State `json:"workflow"`
+				ExecID   string                `json:"exec_id"`
+				Output   *core.Output          `json:"output"`
+				Workflow *WorkflowExecutionDTO `json:"workflow"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		assert.Equal(t, execID.String(), resp.Data.ExecID)
 		require.NotNil(t, resp.Data.Workflow)
 		assert.Equal(t, core.StatusSuccess, resp.Data.Workflow.Status)
+		require.NotNil(t, resp.Data.Workflow.Usage)
+		require.Len(t, resp.Data.Workflow.Usage.Entries, 1)
+		assert.Equal(t, 25, resp.Data.Workflow.Usage.Entries[0].TotalTokens)
 		require.NotNil(t, resp.Data.Output)
 		assert.Equal(t, "ok", (*resp.Data.Output)["result"])
 	})
@@ -234,6 +279,14 @@ func Test_executeWorkflowSync(t *testing.T) {
 		execID := core.MustNewID()
 		runner := &stubWorkflowRunner{execID: execID}
 		running := workflow.NewState(workflowID, execID, nil)
+		running.Usage = &usage.Summary{Entries: []usage.Entry{{
+			Provider:         "anthropic",
+			Model:            "claude-3",
+			PromptTokens:     11,
+			CompletionTokens: 5,
+			TotalTokens:      16,
+			Source:           string(usage.SourceWorkflow),
+		}}}
 		repo := &stubWorkflowRepo{states: []*workflow.State{running}}
 		store := resources.NewMemoryResourceStore()
 		r, state := setupWorkflowSyncRouter(t, repo, runner, store)
@@ -258,6 +311,18 @@ func Test_executeWorkflowSync(t *testing.T) {
 		execVal, ok := resp.Data["exec_id"].(string)
 		require.True(t, ok)
 		assert.Equal(t, execID.String(), execVal)
+		_, hasUsage := resp.Data["usage"]
+		require.False(t, hasUsage)
+		workflowPayload, ok := resp.Data["workflow"].(map[string]any)
+		require.True(t, ok)
+		usageArr, ok := workflowPayload["usage"].([]any)
+		require.True(t, ok)
+		require.Len(t, usageArr, 1)
+		entry, ok := usageArr[0].(map[string]any)
+		require.True(t, ok)
+		total, ok := entry["total_tokens"].(float64)
+		require.True(t, ok)
+		assert.Equal(t, float64(16), total)
 	})
 
 	t.Run("ShouldRejectTimeoutAboveLimit", func(t *testing.T) {

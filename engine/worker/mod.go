@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/monitoring/interceptor"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/memory"
 	memacts "github.com/compozy/compozy/engine/memory/activities"
@@ -344,12 +345,17 @@ func NewWorker(
 		projectName = projectConfig.Name
 	}
 	dispatcher := createDispatcher(workerCore.taskQueue, projectName, client)
+	var usageMetrics usage.Metrics
+	if config.MonitoringService != nil && config.MonitoringService.IsInitialized() {
+		usageMetrics = config.MonitoringService.LLMUsageMetrics()
+	}
 	activities, err := NewActivities(
 		ctx,
 		projectConfig,
 		workflows,
 		config.WorkflowRepo(),
 		config.TaskRepo(),
+		usageMetrics,
 		workerCore.rtManager,
 		workerCore.configStore,
 		dispatcher.signalDispatcher,

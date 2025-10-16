@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -161,6 +162,11 @@ func (m *mockTaskRepository) GetProgressInfo(ctx context.Context, parentStateID 
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*task.ProgressInfo), args.Error(1)
+}
+
+func (m *mockTaskRepository) MergeUsage(ctx context.Context, taskExecID core.ID, summary *usage.Summary) error {
+	args := m.Called(ctx, taskExecID, summary)
+	return args.Error(0)
 }
 
 func TestProcessParentTask(t *testing.T) {

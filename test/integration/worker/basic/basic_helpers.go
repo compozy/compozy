@@ -156,6 +156,7 @@ func createTestActivities(
 		workflows,
 		workflowRepo,
 		taskRepo,
+		nil,
 		mockRuntime,
 		configStore,
 		nil, // signalDispatcher - not needed for basic test

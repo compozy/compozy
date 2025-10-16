@@ -3,6 +3,7 @@ package helpers
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
@@ -36,6 +38,31 @@ func CreateMockRuntime(t *testing.T) coreruntime.Runtime {
 	rtManager, err := factory.CreateRuntime(ctx, config)
 	require.NoError(t, err, "failed to create mock runtime manager")
 	return rtManager
+}
+
+// NoopUsageMetrics implements usage.Metrics for tests.
+type NoopUsageMetrics struct{}
+
+var _ usage.Metrics = (*NoopUsageMetrics)(nil)
+
+func (NoopUsageMetrics) RecordSuccess(
+	context.Context,
+	core.ComponentType,
+	string,
+	string,
+	int,
+	int,
+	time.Duration,
+) {
+}
+
+func (NoopUsageMetrics) RecordFailure(
+	context.Context,
+	core.ComponentType,
+	string,
+	string,
+	time.Duration,
+) {
 }
 
 // CreateTestProjectConfig creates a minimal project config for testing
@@ -431,6 +458,7 @@ func CreateTestActivities(
 		workflows,
 		workflowRepo,
 		taskRepo,
+		&NoopUsageMetrics{},
 		runtime,
 		configStore,
 		nil, // signalDispatcher - not needed for test

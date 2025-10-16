@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	"github.com/compozy/compozy/engine/llm/usage"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
@@ -48,6 +49,7 @@ type directExecutor struct {
 	workflowRepo       workflow.Repository
 	toolEnvironment    toolenv.Environment
 	appState           *appstate.State
+	usageMetrics       usage.Metrics
 	resourceStore      resources.ResourceStore
 	projectConfig      *project.Config
 	memoryManager      memcore.ManagerInterface
@@ -259,6 +261,10 @@ func NewDirectExecutor(
 	if workflowRepo == nil && state.Store != nil {
 		workflowRepo = state.Store.NewWorkflowRepo()
 	}
+	var usageMetrics usage.Metrics
+	if svc, ok := state.MonitoringService(); ok && svc != nil && svc.IsInitialized() {
+		usageMetrics = svc.LLMUsageMetrics()
+	}
 	orchestrator, tplEng, err := setupConfigOrchestrator(workflowRepo, taskRepo)
 	if err != nil {
 		return nil, err
@@ -283,6 +289,7 @@ func NewDirectExecutor(
 		workflowRepo:       workflowRepo,
 		toolEnvironment:    toolEnvironment,
 		appState:           state,
+		usageMetrics:       usageMetrics,
 		resourceStore:      resourceStore,
 		projectConfig:      projCfg,
 		memoryManager:      memManager,
@@ -297,6 +304,43 @@ func resolveProjectRoot(state *appstate.State) string {
 		return ""
 	}
 	return state.CWD.PathStr()
+}
+
+func (d *directExecutor) attachUsageCollector(ctx context.Context, state *task.State) context.Context {
+	if state == nil {
+		return ctx
+	}
+	collector := usage.NewCollector(d.usageMetrics, usage.Metadata{
+		Component:      state.Component,
+		WorkflowExecID: state.WorkflowExecID,
+		TaskExecID:     state.TaskExecID,
+		AgentID:        state.AgentID,
+	})
+	return usage.ContextWithCollector(ctx, collector)
+}
+
+func (d *directExecutor) persistUsageSummary(ctx context.Context, state *task.State, finalized *usage.Finalized) {
+	if d == nil || state == nil || finalized == nil || finalized.Summary == nil {
+		return
+	}
+	taskSummary := finalized.Summary.CloneWithSource(usage.SourceTask)
+	if taskSummary == nil || len(taskSummary.Entries) == 0 {
+		return
+	}
+	log := logger.FromContext(ctx)
+	if err := d.taskRepo.MergeUsage(ctx, state.TaskExecID, taskSummary); err != nil {
+		log.Warn(
+			"Failed to merge task usage", "task_exec_id", state.TaskExecID.String(), "error", err,
+		)
+	}
+	if d.workflowRepo != nil && !state.WorkflowExecID.IsZero() {
+		workflowSummary := finalized.Summary.CloneWithSource(usage.SourceWorkflow)
+		if err := d.workflowRepo.MergeUsage(ctx, state.WorkflowExecID, workflowSummary); err != nil {
+			log.Warn(
+				"Failed to merge workflow usage", "workflow_exec_id", state.WorkflowExecID.String(), "error", err,
+			)
+		}
+	}
 }
 
 func (d *directExecutor) ExecuteSync(
@@ -342,6 +386,7 @@ func (d *directExecutor) ExecuteSync(
 	}
 	resultCh := make(chan execResult, 1)
 	execCtx, cancel := context.WithCancel(ctx)
+	execCtx = d.attachUsageCollector(execCtx, state)
 	go d.runExecution(execCtx, state, plan, resultCh)
 	if timeout <= 0 {
 		res := <-resultCh
@@ -423,6 +468,7 @@ func (d *directExecutor) ExecuteAsync(ctx context.Context, cfg *task.Config, met
 		return zeroID, err
 	}
 	bgCtx := context.WithoutCancel(ctx)
+	bgCtx = d.attachUsageCollector(bgCtx, state)
 	go d.runExecution(bgCtx, state, plan, nil)
 	return execID, nil
 }
@@ -519,6 +565,14 @@ func (d *directExecutor) recoverExecution(
 				"exec_id", state.TaskExecID.String(),
 			)
 		}
+		if collector := usage.FromContext(ctx); collector != nil {
+			finalized, finalizeErr := collector.Finalize(ctx, core.StatusFailed)
+			if finalizeErr != nil {
+				log.Warn("Failed to aggregate usage after execution panic", "error", finalizeErr)
+			} else {
+				d.persistUsageSummary(ctx, state, finalized)
+			}
+		}
 		res.err = err
 	}
 }
@@ -557,6 +611,14 @@ func (d *directExecutor) markExecutionFailure(
 	}); upErr != nil {
 		log.Error("Failed to update execution state", "error", upErr)
 	}
+	if collector := usage.FromContext(ctx); collector != nil {
+		finalized, finalizeErr := collector.Finalize(ctx, core.StatusFailed)
+		if finalizeErr != nil {
+			log.Warn("Failed to aggregate usage after execution failure", "error", finalizeErr)
+		} else {
+			d.persistUsageSummary(ctx, state, finalized)
+		}
+	}
 }
 
 func (d *directExecutor) markExecutionSuccess(
@@ -571,6 +633,14 @@ func (d *directExecutor) markExecutionSuccess(
 		s.Output = output
 	}); upErr != nil {
 		log.Error("Failed to update execution state", "error", upErr)
+	}
+	if collector := usage.FromContext(ctx); collector != nil {
+		finalized, err := collector.Finalize(ctx, core.StatusSuccess)
+		if err != nil {
+			log.Warn("Failed to aggregate usage after execution success", "error", err)
+		} else {
+			d.persistUsageSummary(ctx, state, finalized)
+		}
 	}
 }
 

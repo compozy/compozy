@@ -4,12 +4,17 @@ CREATE TABLE IF NOT EXISTS workflow_states (
     workflow_exec_id text NOT NULL PRIMARY KEY,
     workflow_id      text NOT NULL,
     status           text NOT NULL,
+    usage            jsonb,
     input            jsonb,
     output           jsonb,
     error            jsonb,
     created_at       timestamptz NOT NULL DEFAULT now(),
     updated_at       timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE workflow_states
+    ADD CONSTRAINT chk_workflow_states_usage_json
+    CHECK (usage IS NULL OR jsonb_typeof(usage) = 'array');
 
 CREATE INDEX IF NOT EXISTS idx_workflow_states_status ON workflow_states (status);
 CREATE INDEX IF NOT EXISTS idx_workflow_states_workflow_id ON workflow_states (workflow_id);

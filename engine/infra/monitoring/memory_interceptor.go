@@ -54,7 +54,7 @@ func InitializeMemoryMonitoring(ctx context.Context, meter metric.Meter) {
 	log.Info("Memory monitoring initialized")
 }
 
-const defaultProjectID = "unknown"
+const defaultProjectID = labelValueUnknown
 
 // getProjectIDFromContext extracts project ID from context
 func getProjectIDFromContext(ctx context.Context) string {

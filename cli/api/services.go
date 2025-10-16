@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/apitypes"
 )
 
 // WorkflowService defines read-only operations for workflow management
@@ -101,6 +102,7 @@ type Execution struct {
 	Input       any             `json:"input,omitempty"`
 	Output      any             `json:"output,omitempty"`
 	Error       *ExecutionError `json:"error,omitempty"`
+	Usage       *UsageSummary   `json:"usage,omitempty"`
 }
 
 // ExecutionDetail represents detailed execution information
@@ -110,6 +112,9 @@ type ExecutionDetail struct {
 	TaskResults []TaskResult      `json:"task_results"`
 	Metrics     *ExecutionMetrics `json:"metrics"`
 }
+
+// UsageSummary aliases the shared transport type to keep CLI responses in sync.
+type UsageSummary = apitypes.UsageSummary
 
 // ExecutionStatus represents execution status
 type ExecutionStatus string

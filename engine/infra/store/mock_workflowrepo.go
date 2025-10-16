@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/mock"
 )
@@ -93,4 +94,9 @@ func (m *MockWorkflowRepo) CompleteWorkflow(
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*workflow.State), args.Error(1)
+}
+
+func (m *MockWorkflowRepo) MergeUsage(ctx context.Context, workflowExecID core.ID, summary *usage.Summary) error {
+	args := m.Called(ctx, workflowExecID, summary)
+	return args.Error(0)
 }

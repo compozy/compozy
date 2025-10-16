@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS task_states (
     workflow_exec_id text NOT NULL,
     workflow_id      text NOT NULL,
     execution_type   text NOT NULL DEFAULT 'basic',
+    usage            jsonb,
     agent_id         text,
     tool_id          text,
     action_id        text,
@@ -42,7 +43,10 @@ CREATE TABLE IF NOT EXISTS task_states (
         (execution_type = 'router' AND agent_id IS NULL AND action_id IS NULL AND tool_id IS NULL) OR
         (execution_type IN ('parallel', 'collection', 'composite')) OR
         (execution_type NOT IN ('parallel', 'collection', 'composite', 'basic', 'router'))
-    )
+    ),
+
+    CONSTRAINT chk_task_states_usage_json
+    CHECK (usage IS NULL OR jsonb_typeof(usage) = 'array')
 );
 
 -- Basic indexes

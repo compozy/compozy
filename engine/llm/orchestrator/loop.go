@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/llm/telemetry"
+	"github.com/compozy/compozy/engine/llm/usage"
 )
 
 const (
@@ -499,6 +500,7 @@ func (l *conversationLoop) recordLLMResponse(
 	if response == nil {
 		return
 	}
+	l.recordUsageIfAvailable(ctx, loopCtx, response)
 	usage := computeContextUsage(loopCtx, response)
 	payload := map[string]any{
 		"response": snapshotResponse(ctx, response),
@@ -550,6 +552,89 @@ func (l *conversationLoop) recordLLMResponse(
 			}
 		}
 	}
+}
+
+func (l *conversationLoop) recordUsageIfAvailable(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	response *llmadapter.LLMResponse,
+) {
+	collector := usage.FromContext(ctx)
+	if collector == nil {
+		return
+	}
+	snapshot, ok := buildUsageSnapshot(loopCtx, response)
+	if !ok {
+		return
+	}
+	collector.Record(ctx, &snapshot)
+}
+
+func buildUsageSnapshot(loopCtx *LoopContext, response *llmadapter.LLMResponse) (usage.Snapshot, bool) {
+	if loopCtx == nil || response == nil || response.Usage == nil {
+		return usage.Snapshot{}, false
+	}
+	provider, model := resolveUsageIdentifiers(loopCtx)
+	if provider == "" || model == "" {
+		return usage.Snapshot{}, false
+	}
+	usageMetrics := response.Usage
+	return usage.Snapshot{
+		Provider:           provider,
+		Model:              model,
+		PromptTokens:       usageMetrics.PromptTokens,
+		CompletionTokens:   usageMetrics.CompletionTokens,
+		TotalTokens:        usageMetrics.TotalTokens,
+		ReasoningTokens:    usageMetrics.ReasoningTokens,
+		CachedPromptTokens: usageMetrics.CachedPromptTokens,
+		InputAudioTokens:   usageMetrics.InputAudioTokens,
+		OutputAudioTokens:  usageMetrics.OutputAudioTokens,
+	}, true
+}
+
+// providerMetadataSource exposes provider attribution for dynamically resolved clients.
+// Implementations return the logical provider name and model used for the request.
+type providerMetadataSource interface {
+	ProviderMetadata() (core.ProviderName, string)
+}
+
+func resolveUsageIdentifiers(loopCtx *LoopContext) (string, string) {
+	if loopCtx == nil {
+		return "", ""
+	}
+	var provider string
+	var model string
+	if loopCtx.Request.Agent != nil {
+		cfg := loopCtx.Request.Agent.Model.Config
+		if provider == "" {
+			provider = string(cfg.Provider)
+		}
+		if model == "" {
+			model = cfg.Model
+		}
+	}
+	if loopCtx.LLMRequest != nil {
+		options := loopCtx.LLMRequest.Options
+		if provider == "" {
+			provider = string(options.Provider)
+		}
+		if model == "" {
+			model = options.Model
+		}
+	}
+	if source, ok := loopCtx.LLMClient.(providerMetadataSource); ok && source != nil {
+		p, m := source.ProviderMetadata()
+		if provider == "" {
+			provider = string(p)
+		}
+		if model == "" {
+			model = m
+		}
+	}
+	if provider == "" && model == "" {
+		return "", ""
+	}
+	return provider, model
 }
 
 func (l *conversationLoop) warnIfContextLimitUnknown(

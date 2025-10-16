@@ -7,6 +7,7 @@ import (
 	agentrouter "github.com/compozy/compozy/engine/agent/router"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/core/httpdto"
+	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
@@ -48,6 +49,19 @@ type WorkflowListItem struct {
 type WorkflowsListResponse struct {
 	Workflows []WorkflowListItem  `json:"workflows"`
 	Page      httpdto.PageInfoDTO `json:"page"`
+}
+
+// WorkflowExecutionDTO wraps workflow.State with an optional aggregated usage summary.
+type WorkflowExecutionDTO struct {
+	*workflow.State
+	Usage *router.UsageSummary `json:"usage,omitempty"`
+}
+
+func newWorkflowExecutionDTO(state *workflow.State, usageSummary *router.UsageSummary) *WorkflowExecutionDTO {
+	if state == nil {
+		return nil
+	}
+	return &WorkflowExecutionDTO{State: state, Usage: usageSummary}
 }
 
 // ConvertWorkflowConfigToDTO converts a workflow.Config to WorkflowDTO

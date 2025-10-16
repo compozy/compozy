@@ -1,0 +1,44 @@
+---
+title: Execution Usage Schema
+description: JSON Schema for execution-level LLM usage summaries
+icon: Activity
+---
+
+import executionUsageSchema from "@/schemas/execution-usage.json";
+
+<SchemaParams
+  schema={executionUsageSchema}
+  title="Execution Usage Summary"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="response"
+/>
+
+## Usage Notes
+
+- `prompt_tokens`, `completion_tokens`, and `total_tokens` are always present when usage is recorded. Totals are reported exactly as provided by the upstream LLM provider.
+- Optional fields (`reasoning_tokens`, `cached_prompt_tokens`, `input_audio_tokens`, `output_audio_tokens`) appear only when the provider supplies the respective counters.
+- `provider` and `model` values align with the identifiers configured in `compozy.yaml`, enabling aggregation across executions by provider/model pair.
+
+## Related Documentation
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Workflow Executions API"
+    description="Fetch workflow execution status, outputs, and usage summaries."
+    href="/docs/api/workflows#workflow-executions"
+    icon="FileJson"
+  />
+  <ReferenceCard
+    title="CLI Executions Commands"
+    description="Inspect usage metrics via `compozy executions` commands."
+    href="/docs/cli/executions"
+    icon="Terminal"
+  />
+  <ReferenceCard
+    title="Monitoring LLM Usage"
+    description="Dashboards and alerts for tracking ingestion coverage and latency."
+    href="/docs/core/metrics/monitor-usage"
+    icon="ChartBar"
+  />
+</ReferenceCardList>

@@ -6,6 +6,7 @@ This directory contains Grafana alerting rules for the Compozy system. The rules
 
 - `schedule-alerts.yaml` - Alerting rules for workflow scheduling system
 - `memory-alerts.yaml` - Alerting rules for memory system (NEW)
+- `llm-usage-alerts.yaml` - Alerting rules for LLM usage ingestion and health (NEW)
 
 ## Memory System Alerts
 
@@ -213,3 +214,26 @@ These rules are designed for Grafana alerting but can be adapted for Prometheus 
 4. Check alert routing rules and notification channel configuration
 
 For more information, see the Compozy monitoring and observability documentation.
+
+## LLM Usage Alerts (`compozy_llm_usage`)
+
+### LLMUsageIngestionFailuresCritical (Critical)
+
+- **Condition**: Failure ratio > 1% over 15 minutes
+- **Severity**: Critical
+- **Description**: Indicates persistent ingestion failures for specific provider/model/component combinations
+- **Action**: Inspect collector logs, validate database connectivity, confirm provider API availability
+
+### LLMUsageTokenSpikeWarning (Warning)
+
+- **Condition**: 15-minute token volume exceeds 3× rolling 24-hour average
+- **Severity**: Warning
+- **Description**: Highlights potential runaway executions or configuration changes driving unexpected token growth
+- **Action**: Review recent deployments, audit high-traffic workflows, validate throttling policies
+
+### LLMUsageZeroTrafficWarning (Warning)
+
+- **Condition**: No workflow usage events for 30 minutes despite prior activity
+- **Severity**: Warning
+- **Description**: Signals potential ingestion backlog or orchestrator outage impacting workflow reporting
+- **Action**: Verify orchestrator health, check collector queue depth, ensure usage table writes are succeeding

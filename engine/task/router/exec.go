@@ -34,11 +34,11 @@ const (
 // getTaskExecutionStatus handles GET /executions/tasks/{exec_id}.
 //
 //	@Summary		Get task execution status
-//	@Description	Retrieve the latest status for a direct task execution.
+//	@Description	Retrieve the latest status for a direct task execution. The response includes a usage field containing aggregated LLM token counts grouped by provider and model.
 //	@Tags			executions
 //	@Produce		json
 //	@Param			exec_id	path	string	true	"Task execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
-//	@Success		200	{object}	router.Response{data=tkrouter.TaskExecutionStatusDTO}	"Execution status retrieved"
+//	@Success		200	{object}	router.Response{data=tkrouter.TaskExecutionStatusDTO}	"Execution status retrieved. The data.usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination."
 //	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Execution not found"
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Failed to load execution"
 //	@Router			/executions/tasks/{exec_id} [get]
@@ -70,6 +70,7 @@ func getTaskExecutionStatus(c *gin.Context) {
 		return
 	}
 	resp := newTaskExecutionStatusDTO(taskState)
+	resp.Usage = router.NewUsageSummary(taskState.Usage)
 	router.RespondOK(c, "execution status retrieved", resp)
 }
 
@@ -307,7 +308,12 @@ func respondTaskTimeout(
 		repo,
 		execID,
 		func(state *task.State) any {
-			return newTaskExecutionStatusDTO(state)
+			if state == nil {
+				return nil
+			}
+			dto := newTaskExecutionStatusDTO(state)
+			dto.Usage = router.NewUsageSummary(state.Usage)
+			return dto
 		},
 		router.TimeoutResponseOptions{
 			ResourceKind:  "Task",
@@ -330,8 +336,15 @@ func buildTaskSyncPayload(
 		payload["output"] = output
 	}
 	snapshotCtx := context.WithoutCancel(ctx)
-	if stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID); stateErr == nil && stateSnapshot != nil {
-		payload["state"] = newTaskExecutionStatusDTO(stateSnapshot)
+	stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
+	embeddedUsage := false
+	if stateErr == nil && stateSnapshot != nil {
+		dto := newTaskExecutionStatusDTO(stateSnapshot)
+		dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
+		if dto.Usage != nil {
+			embeddedUsage = true
+		}
+		payload["state"] = dto
 		if stateSnapshot.Output != nil {
 			payload["output"] = stateSnapshot.Output
 		}
@@ -343,20 +356,26 @@ func buildTaskSyncPayload(
 			"error", stateErr,
 		)
 	}
+	if !embeddedUsage {
+		if summary := router.ResolveTaskUsageSummary(snapshotCtx, repo, execID); summary != nil {
+			payload["usage"] = summary
+		}
+	}
 	return payload
 }
 
 type TaskExecutionStatusDTO struct {
-	ExecID         string             `json:"exec_id"`
-	Status         core.StatusType    `json:"status"`
-	Component      core.ComponentType `json:"component"`
-	TaskID         string             `json:"task_id"`
-	WorkflowID     string             `json:"workflow_id"`
-	WorkflowExecID string             `json:"workflow_exec_id"`
-	Output         *core.Output       `json:"output,omitempty"`
-	Error          *core.Error        `json:"error,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
+	ExecID         string               `json:"exec_id"`
+	Status         core.StatusType      `json:"status"`
+	Component      core.ComponentType   `json:"component"`
+	TaskID         string               `json:"task_id"`
+	WorkflowID     string               `json:"workflow_id"`
+	WorkflowExecID string               `json:"workflow_exec_id"`
+	Output         *core.Output         `json:"output,omitempty"`
+	Error          *core.Error          `json:"error,omitempty"`
+	CreatedAt      time.Time            `json:"created_at"`
+	UpdatedAt      time.Time            `json:"updated_at"`
+	Usage          *router.UsageSummary `json:"usage,omitempty"`
 }
 
 // TaskExecRequest represents the payload accepted by task execution endpoints.

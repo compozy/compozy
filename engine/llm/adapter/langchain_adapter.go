@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -86,6 +88,15 @@ func (a *LangChainAdapter) SetValidationMode(mode ValidationMode) { a.validation
 // Capabilities reports the provider capabilities associated with this adapter.
 func (a *LangChainAdapter) Capabilities() ProviderCapabilities { return a.capabilities }
 
+// ProviderMetadata returns the configured provider and model for downstream attribution.
+// Callers can use this when agent metadata is unavailable, such as tool-only flows.
+func (a *LangChainAdapter) ProviderMetadata() (core.ProviderName, string) {
+	if a == nil {
+		return "", ""
+	}
+	return a.provider.Provider, a.provider.Model
+}
+
 // GenerateContent implements LLMClient interface
 func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest) (*LLMResponse, error) {
 	// Guard against nil request
@@ -132,7 +143,7 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 		)
 	}
 	// Convert response back to our format
-	return a.convertResponse(response)
+	return a.convertResponse(ctx, response)
 }
 
 // convertMessages converts our Message format to langchain MessageContent
@@ -556,9 +567,12 @@ func (a *LangChainAdapter) shouldForceJSON(req *LLMRequest) bool {
 	return a.capabilities.StructuredOutput
 }
 
-// convertResponse converts langchain response to our format
-func (a *LangChainAdapter) convertResponse(resp *llms.ContentResponse) (*LLMResponse, error) {
+// convertResponse converts langchain response to our format and attaches usage metadata.
+func (a *LangChainAdapter) convertResponse(ctx context.Context, resp *llms.ContentResponse) (*LLMResponse, error) {
 	if resp == nil || len(resp.Choices) == 0 {
+		return nil, fmt.Errorf("empty response from LLM")
+	}
+	if resp.Choices[0] == nil {
 		return nil, fmt.Errorf("empty response from LLM")
 	}
 
@@ -581,8 +595,11 @@ func (a *LangChainAdapter) convertResponse(resp *llms.ContentResponse) (*LLMResp
 		}
 	}
 
-	// Note: langchaingo ContentResponse doesn't have Usage field
-	// Usage tracking would need to be implemented at a different level
+	if usage, ok := a.buildUsage(choice.GenerationInfo); ok {
+		response.Usage = usage
+	} else {
+		a.logMissingUsage(ctx, choice.GenerationInfo)
+	}
 	return response, nil
 }
 
@@ -591,4 +608,225 @@ func (a *LangChainAdapter) Close() error {
 	// LangChain models don't expose cleanup methods directly
 	// HTTP clients and connections are managed by the underlying providers
 	return nil
+}
+
+func (a *LangChainAdapter) buildUsage(info map[string]any) (*Usage, bool) {
+	counts := collectUsageCounts(info)
+	if !counts.hasAny() {
+		return nil, false
+	}
+	usage := &Usage{
+		PromptTokens:       nonNeg(counts.prompt),
+		CompletionTokens:   nonNeg(counts.completion),
+		TotalTokens:        nonNeg(counts.total()),
+		ReasoningTokens:    clampPtrNonNeg(counts.reasoning),
+		CachedPromptTokens: clampPtrNonNeg(counts.cachedPrompt),
+		InputAudioTokens:   clampPtrNonNeg(counts.inputAudio),
+		OutputAudioTokens:  clampPtrNonNeg(counts.outputAudio),
+	}
+	return usage, true
+}
+
+type usageCounts struct {
+	prompt        int
+	completion    int
+	totalValue    *int
+	reasoning     *int
+	cachedPrompt  *int
+	inputAudio    *int
+	outputAudio   *int
+	hasPrompt     bool
+	hasCompletion bool
+}
+
+func collectUsageCounts(info map[string]any) usageCounts {
+	var counts usageCounts
+	if len(info) == 0 {
+		return counts
+	}
+	counts.prompt, counts.completion, counts.totalValue, counts.hasPrompt, counts.hasCompletion =
+		collectBaseTokenCounts(info)
+	counts.reasoning, counts.cachedPrompt, counts.inputAudio, counts.outputAudio =
+		collectExtendedTokenCounts(info)
+	return counts
+}
+
+func (c usageCounts) hasAny() bool {
+	return c.hasPrompt ||
+		c.hasCompletion ||
+		c.totalValue != nil ||
+		c.reasoning != nil ||
+		c.cachedPrompt != nil ||
+		c.inputAudio != nil ||
+		c.outputAudio != nil
+}
+
+func (c usageCounts) total() int {
+	if c.totalValue != nil {
+		return *c.totalValue
+	}
+	if c.hasPrompt && c.hasCompletion {
+		return c.prompt + c.completion
+	}
+	return 0
+}
+
+// collectBaseTokenCounts extracts prompt, completion, and total token usage.
+// It returns counts alongside presence flags so callers can detect missing fields.
+func collectBaseTokenCounts(
+	info map[string]any,
+) (prompt, completion int, totalValue *int, hasPrompt, hasCompletion bool) {
+	prompt, hasPrompt = readUsageInt(
+		info,
+		"prompt_tokens",
+		"PromptTokens",
+		"promptTokens",
+		"input_tokens",
+		"inputTokens",
+		"promptTokenCount",
+	)
+	completion, hasCompletion = readUsageInt(
+		info,
+		"completion_tokens",
+		"CompletionTokens",
+		"completionTokens",
+		"output_tokens",
+		"outputTokens",
+		"candidatesTokenCount",
+		"candidateTokenCount",
+	)
+	if total, ok := readUsageInt(
+		info,
+		"total_tokens",
+		"TotalTokens",
+		"totalTokens",
+		"totalTokenCount",
+	); ok {
+		totalValue = intPtr(total)
+	}
+	return prompt, completion, totalValue, hasPrompt, hasCompletion
+}
+
+// collectExtendedTokenCounts extracts optional usage categories reported by providers.
+// Optional fields remain nil when providers omit the corresponding usage counters.
+func collectExtendedTokenCounts(
+	info map[string]any,
+) (reasoning, cachedPrompt, inputAudio, outputAudio *int) {
+	if r, ok := readUsageInt(info, "reasoning_tokens", "ReasoningTokens"); ok {
+		reasoning = intPtr(r)
+	}
+	if cached, ok := readUsageInt(
+		info,
+		"cached_prompt_tokens",
+		"CachedPromptTokens",
+		"cached_tokens",
+		"cachedTokens",
+	); ok {
+		cachedPrompt = intPtr(cached)
+	}
+	if input, ok := readUsageInt(info, "input_audio_tokens", "InputAudioTokens"); ok {
+		inputAudio = intPtr(input)
+	}
+	if output, ok := readUsageInt(info, "output_audio_tokens", "OutputAudioTokens"); ok {
+		outputAudio = intPtr(output)
+	}
+	return
+}
+
+func (a *LangChainAdapter) logMissingUsage(ctx context.Context, info map[string]any) {
+	log := logger.FromContext(ctx)
+	if log == nil {
+		return
+	}
+	if len(info) == 0 {
+		log.Debug(
+			"Provider omitted usage metadata",
+			"provider",
+			string(a.provider.Provider),
+			"model",
+			a.provider.Model,
+		)
+		return
+	}
+	keys := make([]string, 0, len(info))
+	for k := range info {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	log.Debug(
+		"Failed to parse usage metadata",
+		"provider",
+		string(a.provider.Provider),
+		"model",
+		a.provider.Model,
+		"metadata_keys",
+		keys,
+	)
+}
+
+func readUsageInt(info map[string]any, keys ...string) (int, bool) {
+	for _, key := range keys {
+		if value, ok := info[key]; ok {
+			if parsed, ok := coerceToInt(value); ok {
+				return parsed, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func coerceToInt(value any) (int, bool) {
+	switch v := value.(type) {
+	case int:
+		return v, true
+	case int32:
+		return int(v), true
+	case int64:
+		return int(v), true
+	case float32:
+		return int(v), true
+	case float64:
+		return int(v), true
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			return int(i), true
+		}
+		if f, err := strconv.ParseFloat(v.String(), 64); err == nil {
+			return int(f), true
+		}
+	case string:
+		if v == "" {
+			return 0, false
+		}
+		if i, err := strconv.Atoi(v); err == nil {
+			return i, true
+		}
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return int(f), true
+		}
+	}
+	return 0, false
+}
+
+func nonNeg(v int) int {
+	if v < 0 {
+		return 0
+	}
+	return v
+}
+
+func clampPtrNonNeg(p *int) *int {
+	if p == nil {
+		return nil
+	}
+	value := *p
+	if value < 0 {
+		value = 0
+	}
+	return &value
+}
+
+func intPtr(v int) *int {
+	value := v
+	return &value
 }

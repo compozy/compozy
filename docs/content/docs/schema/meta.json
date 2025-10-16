@@ -14,6 +14,7 @@
     "tools",
     "agents",
     "tasks",
+    "execution-usage",
     "memory",
     "mcp",
     "workflows",

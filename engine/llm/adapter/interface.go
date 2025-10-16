@@ -123,6 +123,8 @@ type CallOptions struct {
 	OutputFormat OutputFormat
 	ForceJSON    bool
 	ResponseMIME string
+	Provider     core.ProviderName
+	Model        string
 }
 
 // LLMResponse represents the response from the LLM
@@ -139,11 +141,16 @@ type ToolCall struct {
 	Arguments json.RawMessage // JSON bytes
 }
 
-// Usage represents token usage information
+// Usage represents token usage information returned by the provider.
+// Optional token categories remain nil when the provider omits the data.
 type Usage struct {
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
+	PromptTokens       int
+	CompletionTokens   int
+	TotalTokens        int
+	ReasoningTokens    *int
+	CachedPromptTokens *int
+	InputAudioTokens   *int
+	OutputAudioTokens  *int
 }
 
 // LLMClient is the main interface for LLM interactions

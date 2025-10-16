@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -130,6 +131,11 @@ func (m *MockTaskRepository) ListChildrenOutputs(
 func (m *MockTaskRepository) GetProgressInfo(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error) {
 	args := m.Called(ctx, parentStateID)
 	return args.Get(0).(*task.ProgressInfo), args.Error(1)
+}
+
+func (m *MockTaskRepository) MergeUsage(ctx context.Context, taskExecID core.ID, summary *usage.Summary) error {
+	args := m.Called(ctx, taskExecID, summary)
+	return args.Error(0)
 }
 
 func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {

@@ -107,6 +107,8 @@ func (b *requestBuilder) Build(
 			ToolChoice:   toolChoice,
 			OutputFormat: promptResult.Format,
 			ForceJSON:    forceJSON,
+			Provider:     request.Agent.Model.Config.Provider,
+			Model:        request.Agent.Model.Config.Model,
 		},
 	}
 	return RequestBuildOutput{

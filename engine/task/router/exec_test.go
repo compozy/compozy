@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	srrouter "github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/router/routertest"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/test/helpers/ginmode"
@@ -83,7 +84,15 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		state := routertest.NewTestAppState(t)
 		repo := routertest.NewStubTaskRepo()
 		execID := core.MustNewID()
-		repo.AddState(newTestTaskState(execID))
+		stateWithUsage := newTestTaskState(execID)
+		stateWithUsage.Usage = &usage.Summary{Entries: []usage.Entry{{
+			Provider:         "openai",
+			Model:            "gpt-4o",
+			PromptTokens:     12,
+			CompletionTokens: 7,
+			TotalTokens:      19,
+		}}}
+		repo.AddState(stateWithUsage)
 		r := gin.New()
 		r.Use(appstate.StateMiddleware(state))
 		r.Use(srrouter.ErrorHandler())
@@ -106,6 +115,10 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
 		require.Equal(t, execID.String(), payload.Data.ExecID)
 		require.Equal(t, core.StatusSuccess, payload.Data.Status)
+		require.NotNil(t, payload.Data.Usage)
+		require.Len(t, payload.Data.Usage.Entries, 1)
+		require.Equal(t, "openai", payload.Data.Usage.Entries[0].Provider)
+		require.Equal(t, 19, payload.Data.Usage.Entries[0].TotalTokens)
 	})
 
 	t.Run("ShouldReturnNotFoundWhenExecutionMissing", func(t *testing.T) {
@@ -237,6 +250,17 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		stub := &stubDirectExecutor{syncOutput: &output, syncExecID: core.MustNewID()}
 		cleanup := installTaskExecutor(state, stub)
 		defer cleanup()
+		stateSnapshot := newTestTaskState(stub.syncExecID)
+		matchOutput := core.Output{"foo": "bar"}
+		stateSnapshot.Output = &matchOutput
+		stateSnapshot.Usage = &usage.Summary{Entries: []usage.Entry{{
+			Provider:         "openai",
+			Model:            "gpt-4o",
+			PromptTokens:     9,
+			CompletionTokens: 4,
+			TotalTokens:      13,
+		}}}
+		repo.AddState(stateSnapshot)
 		r := gin.New()
 		r.Use(appstate.StateMiddleware(state))
 		r.Use(srrouter.ErrorHandler())
@@ -259,14 +283,20 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		var payload struct {
 			Status int `json:"status"`
 			Data   struct {
-				ExecID string      `json:"exec_id"`
-				Output core.Output `json:"output"`
+				ExecID string                 `json:"exec_id"`
+				Output core.Output            `json:"output"`
+				Usage  *srrouter.UsageSummary `json:"usage"`
+				State  TaskExecutionStatusDTO `json:"state"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
 		require.Equal(t, http.StatusOK, payload.Status)
 		require.Equal(t, stub.syncExecID.String(), payload.Data.ExecID)
 		require.Equal(t, "bar", payload.Data.Output["foo"])
+		require.Nil(t, payload.Data.Usage)
+		require.NotNil(t, payload.Data.State.Usage)
+		require.Len(t, payload.Data.State.Usage.Entries, 1)
+		require.Equal(t, "openai", payload.Data.State.Usage.Entries[0].Provider)
 		require.Equal(t, 60*time.Second, stub.syncTimeout)
 	})
 

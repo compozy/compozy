@@ -2,6 +2,7 @@
 @workflowId = agentic
 
 ### Run structured workflow
+# @name executeWorkflow
 POST {{baseUrl}}/workflows/{{workflowId}}/executions
 Content-Type: application/json
 Accept: application/json
@@ -12,11 +13,11 @@ Accept: application/json
   }
 }
 
-### Sample payload when invoking cp__agent_orchestrate directly (planner enabled)
-### The tools API or agent tool-calling surface should receive a JSON body shaped like:
-# {
-#   "prompt": "Plan a research, summarization, and review workflow for the provided topic using our researcher, writer, and reviewer agents.",
-#   "bindings": {
-#     "topic": "Edge caching for e-commerce"
-#   }
-# }
+### Get execution ID from response (use this in subsequent requests)
+@execId = {{executeWorkflow.response.body.data.exec_id}}
+
+### -----------------------------------------------------------------------------
+### Get specific execution details
+### -----------------------------------------------------------------------------
+GET {{baseUrl}}/executions/workflows/{{execId}}
+Accept: application/json

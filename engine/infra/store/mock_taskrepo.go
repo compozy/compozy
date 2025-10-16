@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/stretchr/testify/mock"
 )
@@ -117,6 +118,11 @@ func (m *MockTaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.I
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*task.ProgressInfo), args.Error(1)
+}
+
+func (m *MockTaskRepo) MergeUsage(ctx context.Context, taskExecID core.ID, summary *usage.Summary) error {
+	args := m.Called(ctx, taskExecID, summary)
+	return args.Error(0)
 }
 
 func (m *MockTaskRepo) GetChildByTaskID(
