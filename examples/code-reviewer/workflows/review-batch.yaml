@@ -1,0 +1,50 @@
+id: review-batch
+version: 1.0.0
+description: Batch review workflow that triggers multiple review workflows via signals
+
+schemas:
+  - id: review_batch_input
+    type: object
+    properties:
+      directories:
+        type: array
+        items:
+          type: string
+        description: Array of directories to review
+      review_type:
+        type: string
+        enum:
+          - "performance"
+          - "security"
+          - "monitoring"
+          - "architecture"
+          - "testing"
+          - "error_handling"
+          - "doc_comment"
+          - "readme"
+          - "all"
+        default: "all"
+        description: "Type of review to perform for all directories"
+    required:
+      - directories
+
+config:
+  input: review_batch_input
+
+tasks:
+  - id: trigger_reviews
+    type: collection
+    mode: parallel
+    items: "{{ .workflow.input.directories }}"
+    item_var: directory
+    final: true
+    task:
+      id: "signal-review-{{ .index }}"
+      type: signal
+      signal:
+        id: review-directory
+        payload:
+          directory: "{{ .directory }}"
+          review_type: "{{ .workflow.input.review_type }}"
+          batch_id: "{{ .workflow.id }}"
+          triggered_at: "{{ now }}"

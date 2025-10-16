@@ -1,6 +1,11 @@
 id: review
-version: 0.1.0
-description: Review Go code for a given directory
+version: 2.2.0
+description: Review Go code with specialized analysis types (performance, security, monitoring, architecture,
+  testing, error_handling, doc_comment)
+
+triggers:
+  - type: signal
+    name: review-directory
 
 schemas:
   - id: review_input
@@ -9,6 +14,21 @@ schemas:
       directory:
         type: string
         description: The directory to review
+      review_type:
+        type: string
+        enum:
+          - "performance"
+          - "security"
+          - "monitoring"
+          - "architecture"
+          - "testing"
+          - "error_handling"
+          - "doc_comment"
+          - "readme"
+          - "all"
+        default: "all"
+        description: "Type of review to perform: performance, security, monitoring, architecture, testing,\
+          \ error_handling, doc_comment, readme, or all"
     required:
       - directory
 
@@ -16,25 +36,131 @@ config:
   input: review_input
 
 tasks:
-  - id: review
+  - id: list_files
     type: basic
     tool: cp__list_files
     with:
       dir: "{{ .workflow.input.directory }}"
-      exclude: "!*.go"
+      exclude:
+        - "!*.go"
+        # - "*.md"
+        # - "*.yaml"
+        # - "*.yml"
+        # - "*.json"
+        # - "*.txt"
+        # - "*.toml"
+      recursive: false
     on_success:
-      next: review_files
+      next: route_review_type
 
-  - id: review_files
+  - id: route_review_type
+    type: router
+    condition: "{{ .workflow.input.review_type }}"
+    routes:
+      performance: "review_single"
+      security: "review_single"
+      monitoring: "review_single"
+      architecture: "review_single"
+      testing: "review_single"
+      error_handling: "review_single"
+      doc_comment: "review_single"
+      readme: "review_readme"
+      all: "review_all"
+      default: "review_all"
+
+  # README documentation review
+  - id: review_readme
+    type: basic
+    agent: readme_reviewer
+    action: review_readme
+    final: true
+    with:
+      directory: "{{ .workflow.input.directory }}"
+
+  # Single review type using dynamic action
+  - id: review_single
     type: collection
     mode: parallel
-    items: "{{ .tasks.review.output.files }}"
+    items: "{{ .tasks.list_files.output.files }}"
     item_var: file
     final: true
     task:
-      id: "process-{{ .index }}"
+      id: "review-{{ .index }}"
       type: basic
       agent: analyzer
-      action: analyze
+      action: "{{ .workflow.input.review_type }}"
       with:
         file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+
+  # All reviews (runs README review + all code review types in parallel)
+  - id: review_all
+    type: parallel
+    strategy: wait_all
+    final: true
+    tasks:
+      # README documentation review (once per directory)
+      - id: readme_doc_review
+        type: basic
+        agent: readme_reviewer
+        action: review_readme
+        with:
+          directory: "{{ .workflow.input.directory }}"
+
+      # Code reviews (all types for each file)
+      - id: code_reviews
+        type: collection
+        mode: parallel
+        items: "{{ .tasks.list_files.output.files }}"
+        item_var: file
+        task:
+          id: "all-{{ .index }}"
+          type: parallel
+          tasks:
+            - id: perf
+              type: basic
+              agent: analyzer
+              action: performance
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+
+            - id: sec
+              type: basic
+              agent: analyzer
+              action: security
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+
+            - id: mon
+              type: basic
+              agent: analyzer
+              action: monitoring
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+
+            - id: arch
+              type: basic
+              agent: analyzer
+              action: architecture
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+
+            - id: test
+              type: basic
+              agent: analyzer
+              action: testing
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+
+            - id: err
+              type: basic
+              agent: analyzer
+              action: error_handling
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+
+            - id: doc
+              type: basic
+              agent: analyzer
+              action: doc_comment
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"

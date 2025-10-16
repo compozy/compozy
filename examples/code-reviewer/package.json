@@ -1,7 +1,7 @@
 {
   "name": "@compozy/example-codereview",
-  "version": "0.0.1",
-  "description": "Workflows to review a Go project using Compozy agents",
+  "version": "2.2.0",
+  "description": "AI-powered code review system with 7 specialized analysis types (performance, security, monitoring, architecture, testing, error_handling, doc_comment) following project coding standards",
   "private": true,
   "type": "module",
   "main": "./entrypoint.ts",
@@ -12,13 +12,18 @@
     "test": "echo 'No tests configured'",
     "clean": "echo 'No clean step required'"
   },
+  "keywords": [
+    "compozy",
+    "code-review",
+    "ai-agent",
+    "static-analysis",
+    "golang",
+    "performance",
+    "security",
+    "monitoring"
+  ],
   "devDependencies": {
     "typescript": "^5.8.0",
     "@types/bun": "latest"
-  },
-  "dependencies": {
-    "@anthropic-ai/claude-code": "^1.0.70",
-    "@anthropic-ai/sdk": "^0.58.0",
-    "@instantlyeasy/claude-code-sdk-ts": "^0.3.3"
   }
 }

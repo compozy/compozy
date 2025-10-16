@@ -1,11 +1,24 @@
 name: code-reviewer
-version: "0.0.1"
-description: Workflows to review a Go project using Compozy agents
+version: "2.2.0"
+description: |
+  AI-powered code review system for Go projects with eight specialized analysis types:
+  - Performance: Memory, algorithms, concurrency, hot paths
+  - Security: Validation, auth, vulnerabilities, error handling
+  - Monitoring: Logging, metrics, tracing, observability
+  - Architecture: SOLID principles, Clean Architecture, layer separation
+  - Testing: Test quality, coverage, anti-patterns, naming conventions
+  - Error Handling: Unified strategy, propagation, wrapping patterns
+  - Doc Comments: Missing documentation, comment quality, godoc format
+  - README: Documentation accuracy, completeness, outdated info, missing sections
+  Reviews follow project coding standards from .cursor/rules/
 
 workflows:
   - source: ./workflows/review.yaml
+  - source: ./workflows/review-batch.yaml
 
 models:
+  # Configure your preferred LLM provider
+  # Options: groq, openai, anthropic, google, etc.
   - provider: groq
     model: openai/gpt-oss-120b
     api_key: "{{ .env.GROQ_API_KEY }}"
@@ -17,13 +30,15 @@ config:
 runtime:
   type: bun
   entrypoint: "./entrypoint.ts"
-  tool_execution_timeout: 180s
+  # Increase timeout for complex reviews
+  tool_execution_timeout: 300s
   permissions:
     - --allow-read
     - --allow-write
     - --allow-net
     - --allow-env
   native_tools:
+    # Set to project root to access .cursor/rules/ and all Go files
     root_dir: ../..
 
 autoload:

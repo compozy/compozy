@@ -6,22 +6,229 @@
 @workflowId = review
 
 ### -----------------------------------------------------------------------------
-### Execute review workflow
+### Execute ALL reviews (performance + security + monitoring)
 ### -----------------------------------------------------------------------------
-# @name review
+# @name reviewAll
 POST {{baseUrl}}/workflows/{{workflowId}}/executions
 Content-Type: application/json
 Accept: application/json
 
 {
   "input": {
-    "directory": "engine/schema"
+    "directory": "engine/schema",
+    "review_type": "all"
   }
 }
 
 ### Get execution ID from response
-@execId1 = {{review.response.body.data.exec_id}}
+@execIdAll = {{reviewAll.response.body.data.exec_id}}
 
 ### Check execution status
-GET {{baseUrl}}/executions/workflows/{{execId1}}
+GET {{baseUrl}}/executions/workflows/{{execIdAll}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute PERFORMANCE review only
+### -----------------------------------------------------------------------------
+# @name reviewPerf
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/agent",
+    "review_type": "performance"
+  }
+}
+
+### Get execution ID
+@execIdPerf = {{reviewPerf.response.body.data.exec_id}}
+
+### Check performance review status
+GET {{baseUrl}}/executions/workflows/{{execIdPerf}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute SECURITY review only
+### -----------------------------------------------------------------------------
+# @name reviewSec
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/auth",
+    "review_type": "security"
+  }
+}
+
+### Get execution ID
+@execIdSec = {{reviewSec.response.body.data.exec_id}}
+
+### Check security review status
+GET {{baseUrl}}/executions/workflows/{{execIdSec}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute MONITORING review only
+### -----------------------------------------------------------------------------
+# @name reviewMon
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/workflow",
+    "review_type": "monitoring"
+  }
+}
+
+### Get execution ID
+@execIdMon = {{reviewMon.response.body.data.exec_id}}
+
+### Check monitoring review status
+GET {{baseUrl}}/executions/workflows/{{execIdMon}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute ARCHITECTURE review only
+### -----------------------------------------------------------------------------
+# @name reviewArch
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/core",
+    "review_type": "architecture"
+  }
+}
+
+### Get execution ID
+@execIdArch = {{reviewArch.response.body.data.exec_id}}
+
+### Check architecture review status
+GET {{baseUrl}}/executions/workflows/{{execIdArch}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute TESTING review only
+### -----------------------------------------------------------------------------
+# @name reviewTest
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/task2",
+    "review_type": "testing"
+  }
+}
+
+### Get execution ID
+@execIdTest = {{reviewTest.response.body.data.exec_id}}
+
+### Check testing review status
+GET {{baseUrl}}/executions/workflows/{{execIdTest}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute ERROR_HANDLING review only
+### -----------------------------------------------------------------------------
+# @name reviewErr
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/llm",
+    "review_type": "error_handling"
+  }
+}
+
+### Get execution ID
+@execIdErr = {{reviewErr.response.body.data.exec_id}}
+
+### Check error handling review status
+GET {{baseUrl}}/executions/workflows/{{execIdErr}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute DOC_COMMENT review only
+### -----------------------------------------------------------------------------
+# @name reviewDoc
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/infra",
+    "review_type": "doc_comment"
+  }
+}
+
+### Get execution ID
+@execIdDoc = {{reviewDoc.response.body.data.exec_id}}
+
+### Check doc comment review status
+GET {{baseUrl}}/executions/workflows/{{execIdDoc}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute README documentation review
+### -----------------------------------------------------------------------------
+# @name reviewReadme
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/agent",
+    "review_type": "readme"
+  }
+}
+
+### Get execution ID
+@execIdReadme = {{reviewReadme.response.body.data.exec_id}}
+
+### Check README review status
+GET {{baseUrl}}/executions/workflows/{{execIdReadme}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### BATCH REVIEW - Trigger multiple reviews via signals
+### -----------------------------------------------------------------------------
+# @name reviewBatch
+POST {{baseUrl}}/workflows/review-batch/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directories": [
+      "engine/agent",
+      "engine/task",
+      "engine/workflow"
+    ],
+    "review_type": "all"
+  }
+}
+
+### Get batch execution ID
+@execIdBatch = {{reviewBatch.response.body.data.exec_id}}
+
+### Check batch execution status
+GET {{baseUrl}}/executions/workflows/{{execIdBatch}}
+Accept: application/json
+
+### List all triggered review workflows
+GET {{baseUrl}}/workflows/review/executions?limit=10
 Accept: application/json
