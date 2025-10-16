@@ -142,17 +142,18 @@ func (c *Collector) emitMetrics(ctx context.Context, status core.StatusType, sum
 	}
 	for i := range summary.Entries {
 		entry := &summary.Entries[i]
-		c.metrics.RecordSuccess(
-			ctx,
-			c.meta.Component,
-			entry.Provider,
-			entry.Model,
-			entry.PromptTokens,
-			entry.CompletionTokens,
-			0,
-		)
-		if status != core.StatusSuccess {
-			c.metrics.RecordFailure(ctx, c.meta.Component, entry.Provider, entry.Model, 0)
+		if status == core.StatusSuccess {
+			c.metrics.RecordSuccess(
+				ctx,
+				c.meta.Component,
+				entry.Provider,
+				entry.Model,
+				entry.PromptTokens,
+				entry.CompletionTokens,
+				0,
+			)
+			continue
 		}
+		c.metrics.RecordFailure(ctx, c.meta.Component, entry.Provider, entry.Model, 0)
 	}
 }

@@ -1889,7 +1889,7 @@ const docTemplate = `{
         },
         "/executions/agents/{exec_id}": {
             "get": {
-                "description": "Retrieve the latest status for a direct agent execution.",
+                "description": "Retrieve the latest status for a direct agent execution. The response includes a usage field containing aggregated LLM token counts grouped by provider and model.",
                 "produces": [
                     "application/json"
                 ],
@@ -1909,7 +1909,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Execution status retrieved",
+                        "description": "Execution status retrieved. The data.usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination.",
                         "schema": {
                             "allOf": [
                                 {
@@ -1967,7 +1967,7 @@ const docTemplate = `{
         },
         "/executions/tasks/{exec_id}": {
             "get": {
-                "description": "Retrieve the latest status for a direct task execution.",
+                "description": "Retrieve the latest status for a direct task execution. The response includes a usage field containing aggregated LLM token counts grouped by provider and model.",
                 "produces": [
                     "application/json"
                 ],
@@ -1987,7 +1987,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Execution status retrieved",
+                        "description": "Execution status retrieved. The data.usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination.",
                         "schema": {
                             "allOf": [
                                 {
@@ -2045,7 +2045,7 @@ const docTemplate = `{
         },
         "/executions/workflows": {
             "get": {
-                "description": "Retrieve a list of all workflow executions across all workflows",
+                "description": "Retrieve a list of all workflow executions across all workflows. Each execution includes a usage field containing aggregated LLM token counts grouped by provider and model.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2058,7 +2058,7 @@ const docTemplate = `{
                 "summary": "List all workflow executions",
                 "responses": {
                     "200": {
-                        "description": "Workflow executions retrieved successfully",
+                        "description": "Workflow executions retrieved successfully. Each execution's usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination.",
                         "schema": {
                             "allOf": [
                                 {
@@ -2124,7 +2124,7 @@ const docTemplate = `{
         },
         "/executions/workflows/{exec_id}": {
             "get": {
-                "description": "Retrieve a specific workflow execution by its execution ID",
+                "description": "Retrieve a specific workflow execution by its execution ID. The response includes a usage field containing aggregated LLM token counts grouped by provider and model.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2147,7 +2147,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Workflow execution retrieved successfully",
+                        "description": "Workflow execution retrieved successfully. The data.usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination.",
                         "schema": {
                             "allOf": [
                                 {
@@ -10189,7 +10189,7 @@ const docTemplate = `{
         },
         "/workflows/{workflow_id}/executions": {
             "get": {
-                "description": "Retrieve all executions for a specific workflow",
+                "description": "Retrieve all executions for a specific workflow. Each execution includes a usage field containing aggregated LLM token counts grouped by provider and model.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10212,7 +10212,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Workflow executions retrieved successfully",
+                        "description": "Workflow executions retrieved successfully. Each execution's usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination.",
                         "schema": {
                             "allOf": [
                                 {
@@ -10432,7 +10432,7 @@ const docTemplate = `{
         },
         "/workflows/{workflow_id}/executions/sync": {
             "post": {
-                "description": "Execute a workflow and wait for completion within the provided timeout.",
+                "description": "Execute a workflow and wait for completion within the provided timeout. The response includes a workflow.usage field containing aggregated LLM token counts grouped by provider and model.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10470,7 +10470,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Workflow execution completed",
+                        "description": "Workflow execution completed. The data.workflow.usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination.",
                         "schema": {
                             "allOf": [
                                 {
@@ -11397,6 +11397,53 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workflow_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "apitypes.UsageEntry": {
+            "type": "object",
+            "properties": {
+                "agent_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "cached_prompt_tokens": {
+                    "type": "integer"
+                },
+                "captured_at": {
+                    "type": "string"
+                },
+                "completion_tokens": {
+                    "type": "integer"
+                },
+                "input_audio_tokens": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "output_audio_tokens": {
+                    "type": "integer"
+                },
+                "prompt_tokens": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "reasoning_tokens": {
+                    "type": "integer"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "total_tokens": {
+                    "type": "integer"
+                },
+                "updated_at": {
                     "type": "string"
                 }
             }
@@ -13363,32 +13410,11 @@ const docTemplate = `{
         "router.UsageSummary": {
             "type": "object",
             "properties": {
-                "cached_prompt_tokens": {
-                    "type": "integer"
-                },
-                "completion_tokens": {
-                    "type": "integer"
-                },
-                "input_audio_tokens": {
-                    "type": "integer"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "output_audio_tokens": {
-                    "type": "integer"
-                },
-                "prompt_tokens": {
-                    "type": "integer"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "reasoning_tokens": {
-                    "type": "integer"
-                },
-                "total_tokens": {
-                    "type": "integer"
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/apitypes.UsageEntry"
+                    }
                 }
             }
         },
@@ -14060,6 +14086,14 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                },
+                "usage": {
+                    "description": "Aggregated usage information keyed by provider/model.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/usage.Summary"
+                        }
+                    ]
                 },
                 "workflow_exec_id": {
                     "type": "string"
@@ -15035,6 +15069,64 @@ const docTemplate = `{
                 }
             }
         },
+        "usage.Entry": {
+            "type": "object",
+            "properties": {
+                "agent_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "cached_prompt_tokens": {
+                    "type": "integer"
+                },
+                "captured_at": {
+                    "type": "string"
+                },
+                "completion_tokens": {
+                    "type": "integer"
+                },
+                "input_audio_tokens": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "output_audio_tokens": {
+                    "type": "integer"
+                },
+                "prompt_tokens": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "reasoning_tokens": {
+                    "type": "integer"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "total_tokens": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "usage.Summary": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/usage.Entry"
+                    }
+                }
+            }
+        },
         "webhook.Config": {
             "type": "object",
             "properties": {
@@ -15470,9 +15562,6 @@ const docTemplate = `{
                 },
                 "output": {
                     "$ref": "#/definitions/core.Output"
-                },
-                "usage": {
-                    "$ref": "#/definitions/router.UsageSummary"
                 },
                 "workflow": {
                     "$ref": "#/definitions/wfrouter.WorkflowExecutionDTO"

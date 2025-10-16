@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -49,24 +50,28 @@ func (s *Summary) MarshalJSON() ([]byte, error) {
 	if s == nil {
 		return []byte("null"), nil
 	}
+	if s.Entries == nil {
+		return []byte("[]"), nil
+	}
 	return json.Marshal(s.Entries)
 }
 
 // UnmarshalJSON decodes either a raw array or a wrapped object into the summary.
 func (s *Summary) UnmarshalJSON(data []byte) error {
-	if len(data) == 0 || string(data) == "null" {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 		s.Entries = nil
 		return nil
 	}
 	var entries []Entry
-	if err := json.Unmarshal(data, &entries); err == nil {
+	if err := json.Unmarshal(trimmed, &entries); err == nil {
 		s.Entries = entries
 		return nil
 	}
 	var wrapper struct {
 		Entries []Entry `json:"entries"`
 	}
-	if err := json.Unmarshal(data, &wrapper); err != nil {
+	if err := json.Unmarshal(trimmed, &wrapper); err != nil {
 		return err
 	}
 	s.Entries = wrapper.Entries
@@ -178,10 +183,14 @@ func (e *Entry) normalize() {
 func mergeEntries(base, delta *Entry) {
 	base.PromptTokens += delta.PromptTokens
 	base.CompletionTokens += delta.CompletionTokens
-	if delta.TotalTokens > 0 {
-		base.TotalTokens += delta.TotalTokens
+	addTotal := delta.TotalTokens
+	if addTotal == 0 {
+		addTotal = delta.PromptTokens + delta.CompletionTokens
+	}
+	if base.TotalTokens == 0 {
+		base.TotalTokens = addTotal
 	} else {
-		base.TotalTokens = base.PromptTokens + base.CompletionTokens
+		base.TotalTokens += addTotal
 	}
 	base.ReasoningTokens = mergeOptionalInt(base.ReasoningTokens, delta.ReasoningTokens)
 	base.CachedPromptTokens = mergeOptionalInt(base.CachedPromptTokens, delta.CachedPromptTokens)

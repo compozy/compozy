@@ -1,6 +1,7 @@
 package apitypes
 
 import (
+	"bytes"
 	"encoding/json"
 	"time"
 )
@@ -32,24 +33,28 @@ func (s *UsageSummary) MarshalJSON() ([]byte, error) {
 	if s == nil {
 		return []byte("null"), nil
 	}
+	if s.Entries == nil {
+		return []byte("[]"), nil
+	}
 	return json.Marshal(s.Entries)
 }
 
 // UnmarshalJSON accepts either an array or object wrapper.
 func (s *UsageSummary) UnmarshalJSON(data []byte) error {
-	if len(data) == 0 || string(data) == "null" {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 		s.Entries = nil
 		return nil
 	}
 	var entries []UsageEntry
-	if err := json.Unmarshal(data, &entries); err == nil {
+	if err := json.Unmarshal(trimmed, &entries); err == nil {
 		s.Entries = entries
 		return nil
 	}
 	var wrapper struct {
 		Entries []UsageEntry `json:"entries"`
 	}
-	if err := json.Unmarshal(data, &wrapper); err != nil {
+	if err := json.Unmarshal(trimmed, &wrapper); err != nil {
 		return err
 	}
 	s.Entries = wrapper.Entries

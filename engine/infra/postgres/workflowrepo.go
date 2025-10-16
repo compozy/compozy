@@ -269,9 +269,13 @@ func (r *WorkflowRepo) MergeUsage(ctx context.Context, workflowExecID core.ID, s
 		delta.Sort()
 		base.MergeAll(delta)
 		base.Sort()
-		payload, err := ToJSONB(base)
-		if err != nil {
-			return fmt.Errorf("marshaling usage: %w", err)
+		var payload []byte
+		if len(base.Entries) > 0 {
+			var err error
+			payload, err = ToJSONB(base)
+			if err != nil {
+				return fmt.Errorf("marshaling usage: %w", err)
+			}
 		}
 		if _, err := tx.Exec(ctx, `UPDATE workflow_states SET usage = $1, updated_at = now() WHERE workflow_exec_id = $2`, payload, workflowExecID); err != nil {
 			return fmt.Errorf("update workflow usage: %w", err)

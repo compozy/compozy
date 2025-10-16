@@ -1,12 +1,45 @@
 # Compozy Infrastructure Services
 # This is a simplified version for local development
+#
+# Configuration options (create a .env file to override):
+# Database Configuration
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_USER=postgres
+# DB_PASSWORD=postgres
+# DB_NAME=compozy
+# APP_POSTGRES_IMAGE=pgvector/pgvector:pg16
+#
+# Temporal Database Configuration
+# TEMPORAL_DB_HOST=localhost
+# TEMPORAL_DB_PORT=5433
+# TEMPORAL_DB_USER=temporal
+# TEMPORAL_DB_PASSWORD=temporal
+# TEMPORAL_DB_NAME=temporal
+# TEMPORAL_POSTGRESQL_VERSION=15-alpine
+#
+# Redis Configuration
+# REDIS_HOST=localhost
+# REDIS_PORT=6379
+# REDIS_PASSWORD=redis_secret
+# REDIS_VERSION=8.2-alpine
+#
+# Temporal Configuration
+# TEMPORAL_VERSION=latest
+# TEMPORAL_UI_VERSION=latest
+# TEMPORAL_HOST=localhost
+# TEMPORAL_PORT=7233
+# TEMPORAL_UI_PORT=8080
+# TEMPORAL_NAMESPACE=default
 
 services:
   # Redis for caching and pub/sub
   redis:
     container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-redis
-    image: redis:7.2-alpine
+    image: redis:${REDIS_VERSION:-8.2-alpine}
     command: redis-server --requirepass ${REDIS_PASSWORD:-redis_secret}
+    networks:
+      - compozy-network
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
@@ -20,13 +53,13 @@ services:
   # PostgreSQL for the application
   postgres:
     container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-postgres
-    # pgvector image pins PostgreSQL 16 with the pgvector extension pre-installed for RAG defaults.
-    # Upgrade existing Postgres 15 deployments (backup, extension upgrade, migrations) before adopting.
-    image: ${APP_POSTGRES_IMAGE:-pgvector/pgvector:0.8.1-pg16}
+    image: ${APP_POSTGRES_IMAGE:-pgvector/pgvector:pg16}
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-compozy}
+    networks:
+      - compozy-network
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
@@ -40,11 +73,13 @@ services:
   # PostgreSQL for Temporal
   temporal-postgres:
     container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-temporal-postgres
-    image: postgres:15-alpine
+    image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
     environment:
       POSTGRES_USER: ${TEMPORAL_DB_USER:-temporal}
       POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:-temporal}
       POSTGRES_DB: ${TEMPORAL_DB_NAME:-temporal}
+    networks:
+      - compozy-network
     ports:
       - "${TEMPORAL_DB_PORT:-5433}:5432"
     volumes:
@@ -58,7 +93,7 @@ services:
   # Temporal workflow engine
   temporal:
     container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-temporal
-    image: temporalio/auto-setup:latest
+    image: temporalio/auto-setup:${TEMPORAL_VERSION:-latest}
     depends_on:
       - temporal-postgres
     environment:
@@ -67,8 +102,11 @@ services:
       - POSTGRES_USER=${TEMPORAL_DB_USER:-temporal}
       - POSTGRES_PWD=${TEMPORAL_DB_PASSWORD:-temporal}
       - POSTGRES_SEEDS=temporal-postgres
-      - TEMPORAL_HOST=temporal:7233
+      - TEMPORAL_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
+      - TEMPORAL_CLI_HOST=${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}
       - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+    networks:
+      - compozy-network
     ports:
       - "${TEMPORAL_PORT:-7233}:7233"
     healthcheck:
@@ -79,6 +117,8 @@ services:
         - "list"
         - "--namespace"
         - "${TEMPORAL_NAMESPACE:-default}"
+        - "--address"
+        - "${TEMPORAL_HOST:-temporal}:${TEMPORAL_PORT:-7233}"
       interval: 10s
       timeout: 5s
       retries: 5
@@ -86,42 +126,27 @@ services:
   # Temporal Web UI
   temporal-ui:
     container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-temporal-ui
-    image: temporalio/ui:latest
+    image: temporalio/ui:${TEMPORAL_UI_VERSION:-latest}
     depends_on:
       - temporal
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_CORS_ORIGINS=http://localhost:3000,http://localhost:5001
       - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+    networks:
+      - compozy-network
     ports:
       - "${TEMPORAL_UI_PORT:-8080}:8080"
 
-  # MCP Proxy for Model Context Protocol servers
-  mcp-proxy:
-    container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-mcp-proxy
-    image: ghcr.io/compozy/mcp-proxy:${MCP_PROXY_VERSION:-latest}
-    environment:
-      - MCP_PROXY_HOST=0.0.0.0
-      - MCP_PROXY_PORT=6001
-      - MCP_PROXY_BASE_URL=http://localhost:6001
-    ports:
-      - "${MCP_PROXY_PORT:-6001}:6001"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:6001/healthz",
-        ]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
+networks:
+  compozy-network:
+    driver: bridge
+    name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-network
 
 volumes:
   redis_data:
+    driver: local
   postgres_data:
+    driver: local
   temporal_postgres_data:
+    driver: local

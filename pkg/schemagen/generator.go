@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,19 +16,46 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	jsonSchemaVersion = "http://json-schema.org/draft-07/schema#"
+	schemaFilePerms   = 0o600
+	schemaDirPerms    = 0o755
+	jsonIndent        = "  "
+)
+
+var bufferPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
+}
+
 type SchemaGenerator struct {
 	definitions []schemaDefinition
+	reflector   *jsonschema.Reflector
+	initOnce    sync.Once
+	initErr     error
 }
 
 func NewSchemaGenerator() *SchemaGenerator {
 	return &SchemaGenerator{definitions: schemaDefinitions}
 }
 
+func (g *SchemaGenerator) initReflector() error {
+	g.initOnce.Do(func() {
+		g.reflector = newJSONSchemaReflector()
+		g.initErr = g.reflector.AddGoComments("github.com/compozy/compozy", "./")
+	})
+	return g.initErr
+}
+
 func (g *SchemaGenerator) Generate(ctx context.Context, outDir string) error {
 	log := logger.FromContext(ctx)
 	log.Info("Generating JSON schemas")
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
+	if err := os.MkdirAll(outDir, schemaDirPerms); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+	if err := g.initReflector(); err != nil {
+		return fmt.Errorf("failed to initialize reflector: %w", err)
 	}
 	var projectRuntimeSchema []byte
 	var configRuntimeSchema []byte
@@ -35,12 +63,13 @@ func (g *SchemaGenerator) Generate(ctx context.Context, outDir string) error {
 	group, _ := errgroup.WithContext(ctx)
 	group.SetLimit(runtime.GOMAXPROCS(0))
 	for _, definition := range g.definitions {
+		def := definition
 		group.Go(func() error {
-			schemaJSON, err := g.buildSchema(definition)
+			schemaJSON, err := g.buildSchema(def)
 			if err != nil {
-				return fmt.Errorf("failed to build schema for %s: %w", definition.name, err)
+				return fmt.Errorf("failed to build schema for %s: %w", def.name, err)
 			}
-			switch definition.capture {
+			switch def.capture {
 			case captureProjectRuntime:
 				schemaMu.Lock()
 				projectRuntimeSchema = schemaJSON
@@ -52,8 +81,8 @@ func (g *SchemaGenerator) Generate(ctx context.Context, outDir string) error {
 				schemaMu.Unlock()
 				return nil
 			}
-			filePath := filepath.Join(outDir, definition.fileName())
-			if err := os.WriteFile(filePath, schemaJSON, 0o600); err != nil {
+			filePath := filepath.Join(outDir, def.fileName())
+			if err := os.WriteFile(filePath, schemaJSON, schemaFilePerms); err != nil {
 				return fmt.Errorf("failed to write schema to %s: %w", filePath, err)
 			}
 			log.Info("Generated schema", "file", filePath)
@@ -79,41 +108,30 @@ func (g *SchemaGenerator) Generate(ctx context.Context, outDir string) error {
 }
 
 func (g *SchemaGenerator) buildSchema(definition schemaDefinition) ([]byte, error) {
-	reflector := newJSONSchemaReflector()
-	if err := reflector.AddGoComments("github.com/compozy/compozy", "./"); err != nil {
-		return nil, fmt.Errorf("failed to add Go comments: %w", err)
-	}
-	schema := reflector.Reflect(definition.source)
+	schema := g.reflector.Reflect(definition.source)
 	schema.ID = jsonschema.ID(definition.fileName())
 	schema.Extras = map[string]any{"yamlCompatible": true}
-	schema.Version = "http://json-schema.org/draft-07/schema#"
-	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
+	schema.Version = jsonSchemaVersion
+	if definition.title != "" {
+		schema.Title = definition.title
+	}
+	buf := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufferPool.Put(buf)
+	encoder := json.NewEncoder(buf)
+	if err := encoder.Encode(schema); err != nil {
 		return nil, fmt.Errorf("failed to marshal schema: %w", err)
 	}
 	var schemaMap map[string]any
-	if err := json.Unmarshal(schemaJSON, &schemaMap); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(buf.Bytes()))
+	if err := decoder.Decode(&schemaMap); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal schema map: %w", err)
 	}
-	updated := false
-	if definition.title != "" {
-		schemaMap["title"] = definition.title
-		updated = true
+	removeCWDProperties(schemaMap)
+	if definition.postProcess != nil {
+		definition.postProcess(schemaMap)
 	}
-	if removeCWDProperties(schemaMap) {
-		updated = true
-	}
-	if definition.postProcess != nil && definition.postProcess(schemaMap) {
-		updated = true
-	}
-	if !updated {
-		return schemaJSON, nil
-	}
-	marshaled, err := json.MarshalIndent(schemaMap, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal processed schema: %w", err)
-	}
-	return marshaled, nil
+	return json.MarshalIndent(schemaMap, "", jsonIndent)
 }
 
 func removeCWDProperties(schemaMap map[string]any) bool {
@@ -125,24 +143,22 @@ func cleanseCWD(node any) bool {
 	case map[string]any:
 		updated := false
 		for key, entry := range value {
-			switch key {
-			case "properties":
-				props, ok := entry.(map[string]any)
-				if ok && pruneCWDFromProperties(props) {
-					updated = true
+			if key == "properties" {
+				if props, ok := entry.(map[string]any); ok {
+					if pruneCWDFromProperties(props) {
+						updated = true
+					}
 				}
-			case "definitions", "$defs":
-				if pruneCWDFromDefinitions(entry) {
-					updated = true
+			} else if key == "definitions" || key == "$defs" {
+				if defs, ok := entry.(map[string]any); ok {
+					for _, defValue := range defs {
+						if cleanseCWD(defValue) {
+							updated = true
+						}
+					}
 				}
-			case "items", "additionalProperties":
-				if cleanseCWD(entry) {
-					updated = true
-				}
-			default:
-				if cleanseCWD(entry) {
-					updated = true
-				}
+			} else if cleanseCWD(entry) {
+				updated = true
 			}
 		}
 		return updated
@@ -160,32 +176,17 @@ func cleanseCWD(node any) bool {
 }
 
 func pruneCWDFromProperties(props map[string]any) bool {
-	updated := false
+	hasCWD := false
 	for key := range props {
 		if strings.EqualFold(key, "cwd") {
 			delete(props, key)
-			updated = true
+			hasCWD = true
+			break
 		}
 	}
-	for key, entry := range props {
-		if strings.EqualFold(key, "cwd") {
-			continue
-		}
+	updated := hasCWD
+	for _, entry := range props {
 		if cleanseCWD(entry) {
-			updated = true
-		}
-	}
-	return updated
-}
-
-func pruneCWDFromDefinitions(entry any) bool {
-	defs, ok := entry.(map[string]any)
-	if !ok {
-		return false
-	}
-	updated := false
-	for _, value := range defs {
-		if cleanseCWD(value) {
 			updated = true
 		}
 	}

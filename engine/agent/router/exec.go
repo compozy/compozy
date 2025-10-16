@@ -24,11 +24,11 @@ import (
 // getAgentExecutionStatus handles GET /executions/agents/{exec_id}.
 //
 //	@Summary		Get agent execution status
-//	@Description	Retrieve the latest status for a direct agent execution.
+//	@Description	Retrieve the latest status for a direct agent execution. The response includes a usage field containing aggregated LLM token counts grouped by provider and model.
 //	@Tags			executions
 //	@Produce		json
 //	@Param			exec_id	path	string	true	"Agent execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
-//	@Success		200	{object}	router.Response{data=agentrouter.ExecutionStatusDTO}	"Execution status retrieved"
+//	@Success		200	{object}	router.Response{data=agentrouter.ExecutionStatusDTO}	"Execution status retrieved. The data.usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination."
 //	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Execution not found"
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Failed to load execution"
 //	@Router			/executions/agents/{exec_id} [get]
@@ -158,11 +158,13 @@ func buildAgentSyncPayload(
 	}
 	snapshotCtx := context.WithoutCancel(ctx)
 	stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
-	var summary *router.UsageSummary
+	embeddedUsage := false
 	if stateErr == nil && stateSnapshot != nil {
 		dto := newExecutionStatusDTO(stateSnapshot)
 		dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
-		summary = dto.Usage
+		if dto.Usage != nil {
+			embeddedUsage = true
+		}
 		payload["state"] = dto
 		if stateSnapshot.Output != nil {
 			payload["output"] = stateSnapshot.Output
@@ -175,11 +177,10 @@ func buildAgentSyncPayload(
 			"error", stateErr,
 		)
 	}
-	if summary == nil {
-		summary = router.ResolveTaskUsageSummary(snapshotCtx, repo, execID)
-	}
-	if summary != nil {
-		payload["usage"] = summary
+	if !embeddedUsage {
+		if summary := router.ResolveTaskUsageSummary(snapshotCtx, repo, execID); summary != nil {
+			payload["usage"] = summary
+		}
 	}
 	return payload
 }

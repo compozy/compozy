@@ -38,12 +38,12 @@ func (g *SchemaGenerator) generateMergedRuntimeSchema(
 	projectRuntime["title"] = "Compozy Runtime Configuration"
 	projectRuntime["description"] = "Complete runtime configuration for both tool execution and system behavior"
 	removeCWDProperties(projectRuntime)
-	merged, err := json.MarshalIndent(projectRuntime, "", "  ")
+	merged, err := json.MarshalIndent(projectRuntime, "", jsonIndent)
 	if err != nil {
 		return fmt.Errorf("failed to marshal merged runtime schema: %w", err)
 	}
 	filePath := filepath.Join(outDir, "runtime.json")
-	if err := os.WriteFile(filePath, merged, 0o600); err != nil {
+	if err := os.WriteFile(filePath, merged, schemaFilePerms); err != nil {
 		return fmt.Errorf("failed to write merged runtime schema to %s: %w", filePath, err)
 	}
 	log.Info("Generated merged runtime schema", "file", filePath)

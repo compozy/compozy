@@ -39,16 +39,8 @@ func (g *SchemaGenerator) generateUnifiedSchema(ctx context.Context, outDir stri
 }
 
 func (g *SchemaGenerator) buildUnifiedSchemaMaps() (map[string]any, map[string]any, error) {
-	projectReflector := newJSONSchemaReflector()
-	configReflector := newJSONSchemaReflector()
-	if err := projectReflector.AddGoComments("github.com/compozy/compozy", "./"); err != nil {
-		return nil, nil, fmt.Errorf("failed to add project comments: %w", err)
-	}
-	if err := configReflector.AddGoComments("github.com/compozy/compozy", "./"); err != nil {
-		return nil, nil, fmt.Errorf("failed to add config comments: %w", err)
-	}
-	projectSchema := projectReflector.Reflect(&project.Config{})
-	configSchema := configReflector.Reflect(&config.Config{})
+	projectSchema := g.reflector.Reflect(&project.Config{})
+	configSchema := g.reflector.Reflect(&config.Config{})
 	projectMap, err := marshalSchemaToMap(projectSchema)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal project schema: %w", err)

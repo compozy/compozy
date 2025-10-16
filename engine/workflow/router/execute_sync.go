@@ -52,14 +52,14 @@ type WorkflowSyncResponse struct {
 // executeWorkflowSync handles POST /workflows/{workflow_id}/executions/sync.
 //
 //	@Summary		Execute workflow synchronously
-//	@Description	Execute a workflow and wait for completion within the provided timeout.
+//	@Description	Execute a workflow and wait for completion within the provided timeout. The response includes a workflow.usage field containing aggregated LLM token counts grouped by provider and model.
 //	@Tags			workflows
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string	true	"Workflow ID"	example("data-processing")
 //	@Param			X-Correlation-ID	header		string	false	"Optional correlation ID for request tracing"
 //	@Param			payload	body	wfrouter.WorkflowSyncRequest	true	"Execution request"
-//	@Success		200	{object}	router.Response{data=wfrouter.WorkflowSyncResponse}	"Workflow execution completed"
+//	@Success		200	{object}	router.Response{data=wfrouter.WorkflowSyncResponse}	"Workflow execution completed. The data.workflow.usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination."
 //	@Failure		400	{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Workflow not found"
 //	@Failure		408	{object}	router.Response{error=router.ErrorInfo}	"Execution timeout"
@@ -370,10 +370,16 @@ func respondWorkflowTimeout(
 			)
 		}
 	}
+	embeddedUsage := false
 	if state != nil {
 		summary := router.NewUsageSummary(state.Usage)
-		payload["workflow"] = newWorkflowExecutionDTO(state, summary)
 		if summary != nil {
+			embeddedUsage = true
+		}
+		payload["workflow"] = newWorkflowExecutionDTO(state, summary)
+	}
+	if !embeddedUsage && repo != nil {
+		if summary := router.ResolveWorkflowUsageSummary(context.WithoutCancel(ctx), repo, execID); summary != nil {
 			payload["usage"] = summary
 		}
 	}

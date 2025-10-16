@@ -53,50 +53,84 @@ type llmUsageMetrics struct {
 	latency          metric.Float64Histogram
 }
 
+func createInt64Counter(meter metric.Meter, name, description string) (metric.Int64Counter, error) {
+	counter, err := meter.Int64Counter(
+		name,
+		metric.WithDescription(description),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create counter %q: %w", name, err)
+	}
+	return counter, nil
+}
+
+func createFloat64Histogram(
+	meter metric.Meter,
+	name string,
+	description string,
+	unit string,
+	buckets []float64,
+) (metric.Float64Histogram, error) {
+	options := []metric.Float64HistogramOption{
+		metric.WithDescription(description),
+		metric.WithUnit(unit),
+	}
+	if len(buckets) > 0 {
+		options = append(options, metric.WithExplicitBucketBoundaries(buckets...))
+	}
+	histogram, err := meter.Float64Histogram(name, options...)
+	if err != nil {
+		return nil, fmt.Errorf("create histogram %q: %w", name, err)
+	}
+	return histogram, nil
+}
+
 func newLLMUsageMetrics(meter metric.Meter) (usage.Metrics, error) {
 	if meter == nil {
-		return &llmUsageMetrics{}, nil
+		return &noopLLMUsageMetrics{}, nil
 	}
-	promptTokens, err := meter.Int64Counter(
+	promptTokens, err := createInt64Counter(
+		meter,
 		llmPromptTokensMetric,
-		metric.WithDescription("Total prompt tokens recorded for LLM executions"),
-		metric.WithUnit("1"),
+		"Total prompt tokens recorded for LLM executions",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create counter %q: %w", llmPromptTokensMetric, err)
+		return nil, err
 	}
-	completionTokens, err := meter.Int64Counter(
+	completionTokens, err := createInt64Counter(
+		meter,
 		llmCompletionTokensMetric,
-		metric.WithDescription("Total completion tokens recorded for LLM executions"),
-		metric.WithUnit("1"),
+		"Total completion tokens recorded for LLM executions",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create counter %q: %w", llmCompletionTokensMetric, err)
+		return nil, err
 	}
-	events, err := meter.Int64Counter(
+	events, err := createInt64Counter(
+		meter,
 		llmUsageEventsMetric,
-		metric.WithDescription("Total LLM usage events processed by collectors"),
-		metric.WithUnit("1"),
+		"Total LLM usage events processed by collectors",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create counter %q: %w", llmUsageEventsMetric, err)
+		return nil, err
 	}
-	failures, err := meter.Int64Counter(
+	failures, err := createInt64Counter(
+		meter,
 		llmUsageFailuresMetric,
-		metric.WithDescription("Total LLM usage persistence failures"),
-		metric.WithUnit("1"),
+		"Total LLM usage persistence failures",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create counter %q: %w", llmUsageFailuresMetric, err)
+		return nil, err
 	}
-	latency, err := meter.Float64Histogram(
+	latency, err := createFloat64Histogram(
+		meter,
 		llmUsageLatencyMetric,
-		metric.WithDescription("Histogram of LLM usage persistence latency"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(llmLatencyBuckets...),
+		"Histogram of LLM usage persistence latency",
+		"s",
+		llmLatencyBuckets,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create histogram %q: %w", llmUsageLatencyMetric, err)
+		return nil, err
 	}
 	return &llmUsageMetrics{
 		promptTokens:     promptTokens,

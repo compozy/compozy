@@ -167,6 +167,9 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	}
 	// Convert shared.ResponseOutput to task.MainTaskResponse
 	mainTaskResponse := a.convertToMainTaskResponse(result)
+	if taskState.Status != "" {
+		status = taskState.Status
+	}
 	// If there was an execution error, return it
 	if executionError != nil {
 		return mainTaskResponse, executionError

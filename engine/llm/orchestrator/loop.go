@@ -500,11 +500,7 @@ func (l *conversationLoop) recordLLMResponse(
 	if response == nil {
 		return
 	}
-	if collector := usage.FromContext(ctx); collector != nil {
-		if snapshot, ok := buildUsageSnapshot(loopCtx, response); ok {
-			collector.Record(ctx, &snapshot)
-		}
-	}
+	l.recordUsageIfAvailable(ctx, loopCtx, response)
 	usage := computeContextUsage(loopCtx, response)
 	payload := map[string]any{
 		"response": snapshotResponse(ctx, response),
@@ -556,6 +552,22 @@ func (l *conversationLoop) recordLLMResponse(
 			}
 		}
 	}
+}
+
+func (l *conversationLoop) recordUsageIfAvailable(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	response *llmadapter.LLMResponse,
+) {
+	collector := usage.FromContext(ctx)
+	if collector == nil {
+		return
+	}
+	snapshot, ok := buildUsageSnapshot(loopCtx, response)
+	if !ok {
+		return
+	}
+	collector.Record(ctx, &snapshot)
 }
 
 func buildUsageSnapshot(loopCtx *LoopContext, response *llmadapter.LLMResponse) (usage.Snapshot, bool) {

@@ -34,11 +34,11 @@ const (
 // getTaskExecutionStatus handles GET /executions/tasks/{exec_id}.
 //
 //	@Summary		Get task execution status
-//	@Description	Retrieve the latest status for a direct task execution.
+//	@Description	Retrieve the latest status for a direct task execution. The response includes a usage field containing aggregated LLM token counts grouped by provider and model.
 //	@Tags			executions
 //	@Produce		json
 //	@Param			exec_id	path	string	true	"Task execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
-//	@Success		200	{object}	router.Response{data=tkrouter.TaskExecutionStatusDTO}	"Execution status retrieved"
+//	@Success		200	{object}	router.Response{data=tkrouter.TaskExecutionStatusDTO}	"Execution status retrieved. The data.usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination."
 //	@Failure		404	{object}	router.Response{error=router.ErrorInfo}	"Execution not found"
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Failed to load execution"
 //	@Router			/executions/tasks/{exec_id} [get]
@@ -337,11 +337,13 @@ func buildTaskSyncPayload(
 	}
 	snapshotCtx := context.WithoutCancel(ctx)
 	stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
-	var summary *router.UsageSummary
+	embeddedUsage := false
 	if stateErr == nil && stateSnapshot != nil {
 		dto := newTaskExecutionStatusDTO(stateSnapshot)
 		dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
-		summary = dto.Usage
+		if dto.Usage != nil {
+			embeddedUsage = true
+		}
 		payload["state"] = dto
 		if stateSnapshot.Output != nil {
 			payload["output"] = stateSnapshot.Output
@@ -354,11 +356,10 @@ func buildTaskSyncPayload(
 			"error", stateErr,
 		)
 	}
-	if summary == nil {
-		summary = router.ResolveTaskUsageSummary(snapshotCtx, repo, execID)
-	}
-	if summary != nil {
-		payload["usage"] = summary
+	if !embeddedUsage {
+		if summary := router.ResolveTaskUsageSummary(snapshotCtx, repo, execID); summary != nil {
+			payload["usage"] = summary
+		}
 	}
 	return payload
 }

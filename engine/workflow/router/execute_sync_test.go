@@ -311,7 +311,11 @@ func Test_executeWorkflowSync(t *testing.T) {
 		execVal, ok := resp.Data["exec_id"].(string)
 		require.True(t, ok)
 		assert.Equal(t, execID.String(), execVal)
-		usageArr, ok := resp.Data["usage"].([]any)
+		_, hasUsage := resp.Data["usage"]
+		require.False(t, hasUsage)
+		workflowPayload, ok := resp.Data["workflow"].(map[string]any)
+		require.True(t, ok)
+		usageArr, ok := workflowPayload["usage"].([]any)
 		require.True(t, ok)
 		require.Len(t, usageArr, 1)
 		entry, ok := usageArr[0].(map[string]any)

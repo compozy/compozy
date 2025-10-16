@@ -19,12 +19,12 @@ import (
 // getExecution retrieves a workflow execution by ID
 //
 //	@Summary		Get workflow execution by ID
-//	@Description	Retrieve a specific workflow execution by its execution ID
+//	@Description	Retrieve a specific workflow execution by its execution ID. The response includes a usage field containing aggregated LLM token counts grouped by provider and model.
 //	@Tags			executions
 //	@Accept			json
 //	@Produce		json
 //	@Param			exec_id	path		string										true	"Workflow Execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
-//	@Success		200					{object}	router.Response{data=wfrouter.WorkflowExecutionDTO}	"Workflow execution retrieved successfully"
+//	@Success		200					{object}	router.Response{data=wfrouter.WorkflowExecutionDTO}	"Workflow execution retrieved successfully. The data.usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination."
 //	@Failure		400					{object}	router.Response{error=router.ErrorInfo}		"Invalid execution ID"
 //	@Failure		404					{object}	router.Response{error=router.ErrorInfo}		"Execution not found"
 //	@Failure		503					{object}	router.Response{error=router.ErrorInfo}		"Worker unavailable"
@@ -64,11 +64,11 @@ func getExecution(c *gin.Context) {
 // listAllExecutions retrieves all workflow executions
 //
 //	@Summary		List all workflow executions
-//	@Description	Retrieve a list of all workflow executions across all workflows
+//	@Description	Retrieve a list of all workflow executions across all workflows. Each execution includes a usage field containing aggregated LLM token counts grouped by provider and model.
 //	@Tags			executions
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	router.Response{data=object{executions=[]wfrouter.WorkflowExecutionDTO}}	"Workflow executions retrieved successfully"
+//	@Success		200	{object}	router.Response{data=object{executions=[]wfrouter.WorkflowExecutionDTO}}	"Workflow executions retrieved successfully. Each execution's usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination."
 //	@Failure		503	{object}	router.Response{error=router.ErrorInfo}								"Worker unavailable"
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}								"Internal server error"
 //	@Router			/executions/workflows [get]
@@ -98,12 +98,12 @@ func listAllExecutions(c *gin.Context) {
 // listExecutionsByID retrieves executions for a specific workflow
 //
 //	@Summary		List executions by workflow ID
-//	@Description	Retrieve all executions for a specific workflow
+//	@Description	Retrieve all executions for a specific workflow. Each execution includes a usage field containing aggregated LLM token counts grouped by provider and model.
 //	@Tags			workflows
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string																true	"Workflow ID"	example("data-processing")
-//	@Success		200			{object}	router.Response{data=object{executions=[]wfrouter.WorkflowExecutionDTO}}	"Workflow executions retrieved successfully"
+//	@Success		200			{object}	router.Response{data=object{executions=[]wfrouter.WorkflowExecutionDTO}}	"Workflow executions retrieved successfully. Each execution's usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination."
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}								"Invalid workflow ID"
 //	@Failure		503			{object}	router.Response{error=router.ErrorInfo}								"Worker unavailable"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}								"Internal server error"

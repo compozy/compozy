@@ -104,6 +104,34 @@ func TestSummaryValidateErrors(t *testing.T) {
 	}
 }
 
+func TestMergeEntriesAccumulatesTotals(t *testing.T) {
+	base := Entry{
+		Provider:         "openai",
+		Model:            "gpt-4o-mini",
+		PromptTokens:     10,
+		CompletionTokens: 5,
+		TotalTokens:      15,
+	}
+	implicit := Entry{
+		PromptTokens:     3,
+		CompletionTokens: 2,
+	}
+	mergeEntries(&base, &implicit)
+	require.Equal(t, 13, base.PromptTokens)
+	require.Equal(t, 7, base.CompletionTokens)
+	require.Equal(t, 20, base.TotalTokens)
+
+	explicit := Entry{
+		PromptTokens:     1,
+		CompletionTokens: 1,
+		TotalTokens:      40,
+	}
+	mergeEntries(&base, &explicit)
+	require.Equal(t, 14, base.PromptTokens)
+	require.Equal(t, 8, base.CompletionTokens)
+	require.Equal(t, 60, base.TotalTokens)
+}
+
 func intPtr(v int) *int {
 	return &v
 }

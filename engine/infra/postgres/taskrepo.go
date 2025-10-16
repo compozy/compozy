@@ -618,7 +618,7 @@ func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*tas
         WITH RECURSIVE task_tree AS (
             SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
                    status, execution_type, parent_state_id, agent_id, action_id, tool_id,
-                   input, output, error, created_at, updated_at, 0 as depth
+                   usage, input, output, error, created_at, updated_at, 0 as depth
             FROM task_states
             WHERE task_exec_id = $1
 
@@ -626,14 +626,14 @@ func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*tas
 
             SELECT ts.task_exec_id, ts.task_id, ts.workflow_exec_id, ts.workflow_id, ts.component,
                    ts.status, ts.execution_type, ts.parent_state_id, ts.agent_id, ts.action_id, ts.tool_id,
-                   ts.input, ts.output, ts.error, ts.created_at, ts.updated_at, tt.depth + 1
+                   ts.usage, ts.input, ts.output, ts.error, ts.created_at, ts.updated_at, tt.depth + 1
             FROM task_states ts
             INNER JOIN task_tree tt ON ts.parent_state_id = tt.task_exec_id
             WHERE tt.depth < $2
         )
         SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
                status, execution_type, parent_state_id, agent_id, action_id, tool_id,
-               input, output, error, created_at, updated_at
+               usage, input, output, error, created_at, updated_at
         FROM task_tree
         ORDER BY depth, created_at
     `
@@ -699,20 +699,20 @@ func (r *TaskRepo) getTaskTreeWith(ctx context.Context, q pgxscan.Querier, rootS
         WITH RECURSIVE task_tree AS (
             SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
                    status, execution_type, parent_state_id, agent_id, action_id, tool_id,
-                   input, output, error, created_at, updated_at, 0 as depth
+                   usage, input, output, error, created_at, updated_at, 0 as depth
             FROM task_states
             WHERE task_exec_id = $1
             UNION ALL
             SELECT ts.task_exec_id, ts.task_id, ts.workflow_exec_id, ts.workflow_id, ts.component,
                    ts.status, ts.execution_type, ts.parent_state_id, ts.agent_id, ts.action_id, ts.tool_id,
-                   ts.input, ts.output, ts.error, ts.created_at, ts.updated_at, tt.depth + 1
+                   ts.usage, ts.input, ts.output, ts.error, ts.created_at, ts.updated_at, tt.depth + 1
             FROM task_states ts
             INNER JOIN task_tree tt ON ts.parent_state_id = tt.task_exec_id
             WHERE tt.depth < $2
         )
         SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
                status, execution_type, parent_state_id, agent_id, action_id, tool_id,
-               input, output, error, created_at, updated_at
+               usage, input, output, error, created_at, updated_at
         FROM task_tree
         ORDER BY depth, created_at
     `
