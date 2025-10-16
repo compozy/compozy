@@ -42,14 +42,13 @@ tasks:
     with:
       dir: "{{ .workflow.input.directory }}"
       exclude:
-        - "!*.go"
-        # - "*.md"
-        # - "*.yaml"
-        # - "*.yml"
-        # - "*.json"
-        # - "*.txt"
-        # - "*.toml"
-      recursive: false
+        - "*.md"
+        - "*.yaml"
+        - "*.yml"
+        - "*.json"
+        - "*.txt"
+        - "*.toml"
+      recursive: true
     on_success:
       next: route_review_type
 
@@ -76,6 +75,7 @@ tasks:
     final: true
     with:
       directory: "{{ .workflow.input.directory }}"
+      num: "000"
 
   # Single review type using dynamic action
   - id: review_single
@@ -83,6 +83,7 @@ tasks:
     mode: parallel
     items: "{{ .tasks.list_files.output.files }}"
     item_var: file
+    batch: 3
     final: true
     task:
       id: "review-{{ .index }}"
@@ -91,6 +92,7 @@ tasks:
       action: "{{ .workflow.input.review_type }}"
       with:
         file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+        num: '{{ printf "%03d" .index }}'
 
   # All reviews (runs README review + all code review types in parallel)
   - id: review_all
@@ -105,6 +107,7 @@ tasks:
         action: review_readme
         with:
           directory: "{{ .workflow.input.directory }}"
+          num: "000"
 
       # Code reviews (all types for each file)
       - id: code_reviews
@@ -122,6 +125,7 @@ tasks:
               action: performance
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'
 
             - id: sec
               type: basic
@@ -129,6 +133,7 @@ tasks:
               action: security
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'
 
             - id: mon
               type: basic
@@ -136,6 +141,7 @@ tasks:
               action: monitoring
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'
 
             - id: arch
               type: basic
@@ -143,6 +149,7 @@ tasks:
               action: architecture
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'
 
             - id: test
               type: basic
@@ -150,6 +157,7 @@ tasks:
               action: testing
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'
 
             - id: err
               type: basic
@@ -157,6 +165,7 @@ tasks:
               action: error_handling
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'
 
             - id: doc
               type: basic
@@ -164,3 +173,4 @@ tasks:
               action: doc_comment
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'

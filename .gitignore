@@ -65,6 +65,7 @@ dev-debug.log
 .envrc
 .env.*
 .env*.local
+!.env.example
 
 # === GENERATED CONTENT ===
 .contentlayer

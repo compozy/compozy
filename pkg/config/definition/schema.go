@@ -1004,6 +1004,7 @@ func registerLLMFields(registry *Registry) {
 	})
 
 	registerLLMRetryAndLimits(registry)
+	registerLLMRateLimiterFields(registry)
 	registerLLMConversationControls(registry)
 	registerLLMMCPExtras(registry)
 	registerLLMDefaultParams(registry)
@@ -1132,6 +1133,88 @@ func registerLLMRetryAndLimits(registry *Registry) {
 		EnvVar:  "LLM_MAX_SEQUENTIAL_TOOL_ERRORS",
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum sequential tool/content errors tolerated per tool before aborting",
+	})
+}
+
+func registerLLMRateLimiterFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.enabled",
+		Default: true,
+		CLIFlag: "llm-rate-limiting-enabled",
+		EnvVar:  "LLM_RATE_LIMITING_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable per-provider concurrency limiting for upstream LLM calls",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_concurrency",
+		Default: 10,
+		CLIFlag: "llm-rate-limiting-default-concurrency",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_CONCURRENCY",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default concurrent request limit applied when a provider override is not present",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_queue_size",
+		Default: 100,
+		CLIFlag: "llm-rate-limiting-default-queue-size",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_QUEUE_SIZE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default queue size for pending requests waiting on concurrency slots",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_requests_per_minute",
+		Default: 0,
+		CLIFlag: "llm-rate-limiting-default-rpm",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_REQUESTS_PER_MINUTE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default request throughput cap (per minute) when provider overrides are absent",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_tokens_per_minute",
+		Default: 0,
+		CLIFlag: "llm-rate-limiting-default-tpm",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_TOKENS_PER_MINUTE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default total-token throughput cap (per minute) when provider overrides are absent",
+	})
+	registry.Register(&FieldDef{
+		Path: "llm.rate_limiting.per_provider_limits",
+		Default: map[string]map[string]int{
+			"cerebras": {
+				"concurrency":         10,
+				"queue_size":          100,
+				"requests_per_minute": 60,
+				"tokens_per_minute":   0,
+			},
+			"groq": {
+				"concurrency":         10,
+				"queue_size":          100,
+				"requests_per_minute": 60,
+				"tokens_per_minute":   0,
+			},
+			"openai": {
+				"concurrency":         50,
+				"queue_size":          200,
+				"requests_per_minute": 120,
+				"tokens_per_minute":   0,
+			},
+			"anthropic": {
+				"concurrency":         20,
+				"queue_size":          150,
+				"requests_per_minute": 60,
+				"tokens_per_minute":   0,
+			},
+			"google": {
+				"concurrency":         30,
+				"queue_size":          150,
+				"requests_per_minute": 90,
+				"tokens_per_minute":   0,
+			},
+		},
+		CLIFlag: "",
+		EnvVar:  "LLM_RATE_LIMITING_PER_PROVIDER_LIMITS",
+		Type:    reflect.TypeOf(map[string]any{}),
+		Help:    "Per-provider concurrency and queue overrides keyed by provider name",
 	})
 }
 

@@ -54,7 +54,7 @@ Key capabilities include:
 - **Agent Orchestration**: Coordinate AI agents with custom instructions and actions
 - **Tool Integration**: Execute both local and remote tools through MCP (Model Context Protocol)
 - **Memory Management**: Persistent conversation memory with context integration
-- **Multi-Provider Support**: OpenAI, Anthropic, Google, and other LLM providers
+- **Multi-Provider Support**: OpenAI, Anthropic, Google, Cerebras, and other LLM providers
 - **Structured Output**: JSON schema validation and structured response parsing
 - **Async Operations**: Non-blocking memory storage and tool execution
 
@@ -300,13 +300,14 @@ type Config struct {
     StructuredOutput bool                   // Enable structured output parsing
     Timeout          time.Duration          // Request timeout
     LLMFactory       llmadapter.Factory     // Custom LLM provider factory
+    RateLimiter      *llmadapter.RateLimiterRegistry // Shared provider concurrency limiter
     MemoryProvider   MemoryProvider         // Memory provider implementation
 }
 ```
 
 ### Configuration Options
 
-```go
+````go
 // Available configuration options
 llm.WithTimeout(30*time.Second)
 llm.WithMaxConcurrentTools(10)
@@ -317,7 +318,39 @@ llm.WithMemoryProvider(memoryProvider)
 llm.WithLLMFactory(customFactory)
 llm.WithProxyURL("http://mcp-proxy:3000")
 // Admin token option has been removed
+
+### Provider Rate Limiting
+
+Per-provider concurrency controls smooth out spikes and honor upstream quotas. Global defaults live under `llm.rate_limiting`:
+
+```yaml
+llm:
+  rate_limiting:
+    enabled: true
+    default_concurrency: 10      # max in-flight requests per provider
+    default_queue_size: 100      # queued requests waiting for a slot
+    per_provider_limits:
+      groq:
+        concurrency: 20
+        queue_size: 150
+      cerebras:
+        concurrency: 12
+````
+
+Agent/provider configs can fine-tune limits with a `rate_limit` block:
+
+```yaml
+models:
+  - provider: groq
+    model: llama-3.1-8b
+    rate_limit:
+      concurrency: 8
+      queue_size: 50
 ```
+
+When providers return `Retry-After` hints, the orchestrator adopts that delay before retrying, preventing hot-looping on tight quotas.
+
+````
 
 ---
 
@@ -361,7 +394,7 @@ func ExampleBasicAgent() {
 
     fmt.Printf("Response: %v\n", result)
 }
-```
+````
 
 ### Tool-Enabled Agents
 

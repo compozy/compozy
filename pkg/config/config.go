@@ -664,6 +664,12 @@ type LLMConfig struct {
 	// Default: 10s
 	RetryBackoffMax time.Duration `koanf:"retry_backoff_max" env:"LLM_RETRY_BACKOFF_MAX" json:"retry_backoff_max" yaml:"retry_backoff_max" mapstructure:"retry_backoff_max"`
 
+	// RateLimiting configures concurrency throttles and provider queues.
+	//
+	// The limiter guards upstream APIs from bursty traffic and honors Retry-After headers.
+	// Defaults ensure conservative limits that can be tuned per provider.
+	RateLimiting LLMRateLimitConfig `koanf:"rate_limiting" json:"rate_limiting" yaml:"rate_limiting" mapstructure:"rate_limiting"`
+
 	// ProviderTimeout sets the maximum duration allowed for a single provider invocation.
 	//
 	// Applies to each GenerateContent call (including retries) to keep the orchestrator responsive.
@@ -797,6 +803,47 @@ type LLMConfig struct {
 type ToolCallCapsConfig struct {
 	Default   int            `koanf:"default"   json:"default"   yaml:"default"   mapstructure:"default"`
 	Overrides map[string]int `koanf:"overrides" json:"overrides" yaml:"overrides" mapstructure:"overrides"`
+}
+
+// LLMRateLimitConfig defines shared throttling settings for provider calls.
+//
+// Disabled limiters allow unbounded concurrency, while enabling the limiter applies
+// bounded worker pools with queueing to smooth spikes. Map overrides provide per-provider tuning.
+type LLMRateLimitConfig struct {
+	Enabled bool `koanf:"enabled" json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+
+	// DefaultConcurrency limits concurrent requests per provider when overrides are absent.
+	// Zero defers to registry defaults; values beyond provider quotas are discouraged.
+	DefaultConcurrency int `koanf:"default_concurrency" json:"default_concurrency" yaml:"default_concurrency" mapstructure:"default_concurrency" validate:"min=0"`
+
+	// DefaultQueueSize bounds queued work waiting for a concurrency slot.
+	// Zero disables queuing and causes immediate rejection when the pool is saturated.
+	DefaultQueueSize int `koanf:"default_queue_size" json:"default_queue_size" yaml:"default_queue_size" mapstructure:"default_queue_size" validate:"min=0"`
+
+	// DefaultRequestsPerMinute throttles average request throughput when per-provider overrides
+	// are not supplied. Zero disables request-rate shaping.
+	DefaultRequestsPerMinute int `koanf:"default_requests_per_minute" json:"default_requests_per_minute" yaml:"default_requests_per_minute" mapstructure:"default_requests_per_minute" validate:"min=0"`
+
+	// DefaultTokensPerMinute constrains total tokens consumed per minute when overrides are absent.
+	// Zero disables token-based shaping.
+	DefaultTokensPerMinute int `koanf:"default_tokens_per_minute" json:"default_tokens_per_minute" yaml:"default_tokens_per_minute" mapstructure:"default_tokens_per_minute" validate:"min=0"`
+
+	// PerProviderLimits customizes concurrency and queue depth for specific providers.
+	// Keys should match provider names (e.g., "openai", "groq").
+	PerProviderLimits map[string]ProviderRateLimitConfig `koanf:"per_provider_limits" json:"per_provider_limits" yaml:"per_provider_limits" mapstructure:"per_provider_limits"`
+}
+
+// ProviderRateLimitConfig describes concurrency limits for a single provider.
+//
+// Concurrency controls in-flight requests, while queue size bounds waiting work. Leaving
+// fields at zero causes the limiter to fall back to global defaults.
+type ProviderRateLimitConfig struct {
+	Concurrency int `koanf:"concurrency"         json:"concurrency"         yaml:"concurrency"         mapstructure:"concurrency"         validate:"min=0"`
+	QueueSize   int `koanf:"queue_size"          json:"queue_size"          yaml:"queue_size"          mapstructure:"queue_size"          validate:"min=0"`
+	// RequestsPerMinute limits average throughput; zero disables the limiter.
+	RequestsPerMinute int `koanf:"requests_per_minute" json:"requests_per_minute" yaml:"requests_per_minute" mapstructure:"requests_per_minute" validate:"min=0"`
+	// TokensPerMinute constrains the total tokens consumed per minute; zero disables shaping.
+	TokensPerMinute int `koanf:"tokens_per_minute"   json:"tokens_per_minute"   yaml:"tokens_per_minute"   mapstructure:"tokens_per_minute"   validate:"min=0"`
 }
 
 // RateLimitConfig contains rate limiting configuration.

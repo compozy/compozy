@@ -1,0 +1,188 @@
+package llmadapter
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/compozy/compozy/engine/core"
+	appconfig "github.com/compozy/compozy/pkg/config"
+)
+
+func TestProviderRateLimiter_ConcurrencyLimit(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRateLimiterRegistry(appconfig.LLMRateLimitConfig{
+		Enabled:            true,
+		DefaultConcurrency: 1,
+		DefaultQueueSize:   0,
+	})
+
+	ctx := context.Background()
+	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
+
+	err := registry.Acquire(ctx, core.ProviderOpenAI, nil)
+	require.Error(t, err)
+	llmErr, ok := IsLLMError(err)
+	require.True(t, ok)
+	require.Equal(t, ErrCodeRateLimit, llmErr.Code)
+
+	registry.Release(ctx, core.ProviderOpenAI, 0)
+	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
+	registry.Release(ctx, core.ProviderOpenAI, 0)
+}
+
+func TestProviderRateLimiter_QueueWaitsForSlot(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRateLimiterRegistry(appconfig.LLMRateLimitConfig{
+		Enabled:            true,
+		DefaultConcurrency: 1,
+		DefaultQueueSize:   1,
+	})
+
+	ctx := context.Background()
+	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- registry.Acquire(ctx, core.ProviderOpenAI, nil)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	snapshot, ok := registry.Metrics(core.ProviderOpenAI)
+	require.True(t, ok)
+	require.Equal(t, int32(1), snapshot.ActiveRequests)
+	require.Equal(t, int32(1), snapshot.QueuedRequests)
+
+	registry.Release(ctx, core.ProviderOpenAI, 0)
+
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("expected queued acquire to complete")
+	}
+
+	registry.Release(ctx, core.ProviderOpenAI, 0)
+}
+
+func TestProviderRateLimiter_QueueOverflow(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRateLimiterRegistry(appconfig.LLMRateLimitConfig{
+		Enabled:            true,
+		DefaultConcurrency: 1,
+		DefaultQueueSize:   1,
+	})
+
+	ctx := context.Background()
+	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
+
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- registry.Acquire(ctx, core.ProviderOpenAI, nil)
+	}()
+
+	require.Eventually(t, func() bool {
+		snapshot, ok := registry.Metrics(core.ProviderOpenAI)
+		return ok && snapshot.QueuedRequests == 1
+	}, time.Second, 10*time.Millisecond)
+
+	err := registry.Acquire(ctx, core.ProviderOpenAI, nil)
+	require.Error(t, err)
+	llmErr, ok := IsLLMError(err)
+	require.True(t, ok)
+	require.Equal(t, ErrCodeRateLimit, llmErr.Code)
+
+	registry.Release(ctx, core.ProviderOpenAI, 0)
+	require.NoError(t, <-waitErr)
+	registry.Release(ctx, core.ProviderOpenAI, 0)
+}
+
+func TestRateLimiterRegistry_Overrides(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRateLimiterRegistry(appconfig.LLMRateLimitConfig{
+		Enabled:            true,
+		DefaultConcurrency: 2,
+		DefaultQueueSize:   0,
+		PerProviderLimits: map[string]appconfig.ProviderRateLimitConfig{
+			"OpenAI": {Concurrency: 3},
+		},
+	})
+
+	override := &appconfig.ProviderRateLimitConfig{Concurrency: 1}
+	ctx := context.Background()
+
+	// Override should clamp concurrency to 1.
+	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, override))
+	err := registry.Acquire(ctx, core.ProviderOpenAI, override)
+	require.Error(t, err)
+	registry.Release(ctx, core.ProviderOpenAI, 0)
+
+	// Lower-case lookup should also work for defaults.
+	require.NoError(t, registry.Acquire(ctx, core.ProviderAnthropic, nil))
+	require.NoError(t, registry.Acquire(ctx, core.ProviderAnthropic, nil))
+	err = registry.Acquire(ctx, core.ProviderAnthropic, nil)
+	require.Error(t, err)
+	registry.Release(ctx, core.ProviderAnthropic, 0)
+	registry.Release(ctx, core.ProviderAnthropic, 0)
+}
+
+func TestProviderRateLimiter_RequestRateLimit(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRateLimiterRegistry(appconfig.LLMRateLimitConfig{
+		Enabled:            true,
+		DefaultConcurrency: 1,
+		DefaultQueueSize:   0,
+	})
+
+	override := &appconfig.ProviderRateLimitConfig{
+		Concurrency:       1,
+		RequestsPerMinute: 60, // roughly one request per second
+	}
+
+	ctx := context.Background()
+	require.NoError(t, registry.Acquire(ctx, core.ProviderAnthropic, override))
+	registry.Release(ctx, core.ProviderAnthropic, 0)
+	start := time.Now()
+	require.NoError(t, registry.Acquire(ctx, core.ProviderAnthropic, override))
+	elapsed := time.Since(start)
+	registry.Release(ctx, core.ProviderAnthropic, 0)
+
+	if elapsed < 900*time.Millisecond {
+		t.Fatalf("expected rate limiter to enforce ~1s spacing, elapsed=%v", elapsed)
+	}
+}
+
+func TestProviderRateLimiter_TokenRateLimit(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRateLimiterRegistry(appconfig.LLMRateLimitConfig{
+		Enabled:                true,
+		DefaultConcurrency:     1,
+		DefaultQueueSize:       0,
+		DefaultTokensPerMinute: 0,
+	})
+
+	override := &appconfig.ProviderRateLimitConfig{
+		Concurrency:     1,
+		TokensPerMinute: 120, // roughly two tokens per second
+	}
+
+	ctx := context.Background()
+	require.NoError(t, registry.Acquire(ctx, core.ProviderAnthropic, override))
+	registry.Release(ctx, core.ProviderAnthropic, 2)
+	start := time.Now()
+	require.NoError(t, registry.Acquire(ctx, core.ProviderAnthropic, override))
+	registry.Release(ctx, core.ProviderAnthropic, 2)
+	elapsed := time.Since(start)
+
+	if elapsed < 900*time.Millisecond {
+		t.Fatalf("expected token limiter to enforce ~1s spacing, elapsed=%v", elapsed)
+	}
+}

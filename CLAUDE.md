@@ -36,13 +36,14 @@ cat .cursor/rules/{go-coding-standards,architecture,test-standards,backwards-com
   - **ALWAYS CHECK** the .cursor/rules/test-standards.mdc if you are writing tests
   - **YOU MUST NEED** to use perplexity and context7 to get updated information when dealing with external libraries or tools and **NEVER RELY** only in the models data
 
-### For tests
+### For tests and linting
 
 - **MUST** run `make lint` and `make test` before completing ANY subtask
 - **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
-- **TIP:** Since our project is big, **YOU SHOULD** run `make test` just in the end before finish the task when running for the entire project; tests during the your task development, should use `gotestsum -- -race -parallel=4 <scope>` using the respective pkg folder as scope; **IF YOUR SCOPE** is `.../.` then you need to run `make test`
-
-Example: if you are testing a thing in the `engine/agent` folder, **YOU DON'T NEED** to run the entire test suite, you can run just `gotestsum --format pkgname  -- -race -parallel=4 ./engine/agent` and JUST IN THE END of the task, before delivery it, you need to run `make test`
+- **TIP:** Since our project is big, **YOU SHOULD** run `make test` and `make lint` just at the end before finishing the task; during development, use scoped commands:
+  - **Tests:** `gotestsum --format pkgname -- -race -parallel=4 <scope>` (e.g., `./engine/agent`)
+  - **Linting:** `golangci-lint run --fix --allow-parallel-runners <scope>` (e.g., `./engine/agent/...`)
+  - **IF YOUR SCOPE** is `.../.` then you need to run `make test` and `make lint`
 
 ### For complex/big tasks
 

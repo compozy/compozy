@@ -314,14 +314,6 @@ func (v *CollectionValidator) validateConfig() error {
 		return errors.New("collection config: batch size cannot be negative")
 	}
 
-	// Validate batch and mode compatibility
-	if cc.Batch > 0 && cc.Mode == CollectionModeParallel {
-		return errors.New(
-			"collection config: batch size cannot be combined with parallel mode – " +
-				"switch to sequential or remove batch",
-		)
-	}
-
 	return nil
 }
 

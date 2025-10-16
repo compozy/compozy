@@ -17,15 +17,18 @@ workflows:
   - source: ./workflows/review-batch.yaml
 
 models:
-  # Configure your preferred LLM provider
-  # Options: groq, openai, anthropic, google, etc.
   - provider: groq
     model: openai/gpt-oss-120b
     api_key: "{{ .env.GROQ_API_KEY }}"
     default: true
+    rate_limit:
+      tokens_per_minute: 50000
 
 config:
   schedule_to_start_timeout: 5m
+  llm:
+    rate_limiting:
+      enabled: true
 
 runtime:
   type: bun

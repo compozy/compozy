@@ -1,0 +1,356 @@
+package llmadapter
+
+import (
+	"context"
+	"fmt"
+	"math"
+	"strings"
+	"sync"
+	"sync/atomic"
+
+	"golang.org/x/sync/semaphore"
+	"golang.org/x/time/rate"
+
+	"github.com/compozy/compozy/engine/core"
+	appconfig "github.com/compozy/compozy/pkg/config"
+)
+
+// RateLimiterRegistry coordinates provider-specific concurrency throttles backed by semaphores.
+// The registry shares limiters across orchestrator runs so parallel workflows observe the same limits.
+type RateLimiterRegistry struct {
+	enabled bool
+	config  appconfig.LLMRateLimitConfig
+
+	limiters sync.Map // map[string]*providerRateLimiter (lower-cased provider names)
+}
+
+// RateLimiterMetricsSnapshot provides introspection for active/queued/rejected counters.
+type RateLimiterMetricsSnapshot struct {
+	ActiveRequests   int32
+	QueuedRequests   int32
+	RejectedRequests int64
+	TotalRequests    int64
+}
+
+type providerRateLimiter struct {
+	provider core.ProviderName
+	enabled  bool
+
+	concurrency       int64
+	queueSize         int64
+	requestsPerMinute float64
+	tokensPerMinute   float64
+
+	sem          *semaphore.Weighted
+	queueSem     *semaphore.Weighted
+	rateLimiter  *rate.Limiter
+	tokenLimiter *rate.Limiter
+
+	metrics limiterMetrics
+}
+
+type limiterMetrics struct {
+	activeRequests   atomic.Int32
+	queuedRequests   atomic.Int32
+	rejectedRequests atomic.Int64
+	totalRequests    atomic.Int64
+}
+
+type limiterSettings struct {
+	concurrency       int64
+	queueSize         int64
+	requestsPerMinute float64
+	tokensPerMinute   float64
+}
+
+// NewRateLimiterRegistry creates a registry using the supplied configuration.
+func NewRateLimiterRegistry(cfg appconfig.LLMRateLimitConfig) *RateLimiterRegistry {
+	cfg.PerProviderLimits = normalizeProviderLimits(cfg.PerProviderLimits)
+	return &RateLimiterRegistry{
+		enabled: cfg.Enabled,
+		config:  cfg,
+	}
+}
+
+// Acquire reserves a concurrency slot for the requested provider.
+// When rate limiting is disabled or resolves to zero concurrency, Acquire is a no-op.
+func (r *RateLimiterRegistry) Acquire(
+	ctx context.Context,
+	provider core.ProviderName,
+	override *appconfig.ProviderRateLimitConfig,
+) error {
+	if provider == "" {
+		return nil
+	}
+	limiter := r.ensureLimiter(provider, override)
+	if limiter == nil {
+		return nil
+	}
+	return limiter.acquire(ctx)
+}
+
+// Release frees a previously acquired slot for the requested provider.
+func (r *RateLimiterRegistry) Release(ctx context.Context, provider core.ProviderName, tokens int) {
+	if provider == "" {
+		return
+	}
+	key := strings.ToLower(string(provider))
+	value, ok := r.limiters.Load(key)
+	if !ok {
+		return
+	}
+	if limiter, ok := value.(*providerRateLimiter); ok {
+		limiter.release(ctx, tokens)
+	}
+}
+
+// Metrics provides a snapshot of limiter counters for observability and tests.
+func (r *RateLimiterRegistry) Metrics(provider core.ProviderName) (RateLimiterMetricsSnapshot, bool) {
+	if provider == "" {
+		return RateLimiterMetricsSnapshot{}, false
+	}
+	key := strings.ToLower(string(provider))
+	value, ok := r.limiters.Load(key)
+	if !ok {
+		return RateLimiterMetricsSnapshot{}, false
+	}
+	if limiter, ok := value.(*providerRateLimiter); ok {
+		return limiter.metrics.snapshot(), true
+	}
+	return RateLimiterMetricsSnapshot{}, false
+}
+
+func (m *limiterMetrics) snapshot() RateLimiterMetricsSnapshot {
+	if m == nil {
+		return RateLimiterMetricsSnapshot{}
+	}
+	return RateLimiterMetricsSnapshot{
+		ActiveRequests:   m.activeRequests.Load(),
+		QueuedRequests:   m.queuedRequests.Load(),
+		RejectedRequests: m.rejectedRequests.Load(),
+		TotalRequests:    m.totalRequests.Load(),
+	}
+}
+
+func (r *RateLimiterRegistry) ensureLimiter(
+	provider core.ProviderName,
+	override *appconfig.ProviderRateLimitConfig,
+) *providerRateLimiter {
+	if !r.enabled {
+		return nil
+	}
+	settings := r.buildSettings(provider, override)
+	if settings.concurrency <= 0 {
+		return nil
+	}
+	key := strings.ToLower(string(provider))
+	if existing, ok := r.limiters.Load(key); ok {
+		if current, ok := existing.(*providerRateLimiter); ok {
+			if current.matches(settings) {
+				return current
+			}
+		}
+		newLimiter := newProviderRateLimiter(provider, settings)
+		r.limiters.Store(key, newLimiter)
+		return newLimiter
+	}
+	limiter := newProviderRateLimiter(provider, settings)
+	actual, loaded := r.limiters.LoadOrStore(key, limiter)
+	if loaded {
+		if existing, ok := actual.(*providerRateLimiter); ok {
+			return existing
+		}
+		return limiter
+	}
+	return limiter
+}
+
+func (r *RateLimiterRegistry) buildSettings(
+	provider core.ProviderName,
+	override *appconfig.ProviderRateLimitConfig,
+) limiterSettings {
+	concurrency := int64(r.config.DefaultConcurrency)
+	queueSize := int64(r.config.DefaultQueueSize)
+	requestsPerMinute := float64(r.config.DefaultRequestsPerMinute)
+	tokensPerMinute := float64(r.config.DefaultTokensPerMinute)
+
+	if perProvider := r.lookupPerProvider(strings.ToLower(string(provider))); perProvider != nil {
+		if perProvider.Concurrency > 0 {
+			concurrency = int64(perProvider.Concurrency)
+		}
+		if perProvider.QueueSize > 0 {
+			queueSize = int64(perProvider.QueueSize)
+		}
+		if perProvider.RequestsPerMinute > 0 {
+			requestsPerMinute = float64(perProvider.RequestsPerMinute)
+		}
+		if perProvider.TokensPerMinute > 0 {
+			tokensPerMinute = float64(perProvider.TokensPerMinute)
+		}
+	}
+
+	if override != nil {
+		if override.Concurrency > 0 {
+			concurrency = int64(override.Concurrency)
+		}
+		if override.QueueSize > 0 {
+			queueSize = int64(override.QueueSize)
+		}
+		if override.RequestsPerMinute > 0 {
+			requestsPerMinute = float64(override.RequestsPerMinute)
+		}
+		if override.TokensPerMinute > 0 {
+			tokensPerMinute = float64(override.TokensPerMinute)
+		}
+	}
+
+	return limiterSettings{
+		concurrency:       concurrency,
+		queueSize:         queueSize,
+		requestsPerMinute: requestsPerMinute,
+		tokensPerMinute:   tokensPerMinute,
+	}
+}
+
+func (r *RateLimiterRegistry) lookupPerProvider(
+	provider string,
+) *appconfig.ProviderRateLimitConfig {
+	if len(r.config.PerProviderLimits) == 0 {
+		return nil
+	}
+	if cfg, ok := r.config.PerProviderLimits[provider]; ok {
+		return &cfg
+	}
+	return nil
+}
+
+func newProviderRateLimiter(
+	provider core.ProviderName,
+	settings limiterSettings,
+) *providerRateLimiter {
+	limiter := &providerRateLimiter{
+		provider:          provider,
+		enabled:           settings.concurrency > 0,
+		concurrency:       settings.concurrency,
+		queueSize:         settings.queueSize,
+		requestsPerMinute: settings.requestsPerMinute,
+		tokensPerMinute:   settings.tokensPerMinute,
+	}
+	if !limiter.enabled {
+		return limiter
+	}
+	limiter.sem = semaphore.NewWeighted(settings.concurrency)
+	if settings.queueSize > 0 {
+		limiter.queueSem = semaphore.NewWeighted(settings.queueSize)
+	}
+	if settings.requestsPerMinute > 0 {
+		perSecond := settings.requestsPerMinute / 60.0
+		burst := computeBurst(perSecond)
+		limiter.rateLimiter = rate.NewLimiter(rate.Limit(perSecond), burst)
+	}
+	if settings.tokensPerMinute > 0 {
+		perSecond := settings.tokensPerMinute / 60.0
+		burst := computeBurst(perSecond)
+		limiter.tokenLimiter = rate.NewLimiter(rate.Limit(perSecond), burst)
+	}
+	return limiter
+}
+
+func computeBurst(perSecond float64) int {
+	if perSecond <= 0 {
+		return 1
+	}
+	return int(math.Ceil(perSecond))
+}
+
+func (l *providerRateLimiter) matches(settings limiterSettings) bool {
+	if l == nil {
+		return false
+	}
+	return l.concurrency == settings.concurrency &&
+		l.queueSize == settings.queueSize &&
+		math.Abs(l.requestsPerMinute-settings.requestsPerMinute) < 1e-9 &&
+		math.Abs(l.tokensPerMinute-settings.tokensPerMinute) < 1e-9
+}
+
+func (l *providerRateLimiter) acquire(ctx context.Context) error {
+	if l == nil || !l.enabled || l.sem == nil {
+		return nil
+	}
+	if l.rateLimiter != nil {
+		if err := l.rateLimiter.Wait(ctx); err != nil {
+			l.metrics.rejectedRequests.Add(1)
+			return newRateLimitError(l.provider, "provider request rate wait canceled", err)
+		}
+	}
+	l.metrics.totalRequests.Add(1)
+
+	if l.sem.TryAcquire(1) {
+		l.metrics.activeRequests.Add(1)
+		return nil
+	}
+
+	if l.queueSem == nil {
+		l.metrics.rejectedRequests.Add(1)
+		return newRateLimitError(l.provider, "provider concurrency limit reached", nil)
+	}
+
+	if !l.queueSem.TryAcquire(1) {
+		l.metrics.rejectedRequests.Add(1)
+		return newRateLimitError(l.provider, "provider rate limit queue is full", nil)
+	}
+	l.metrics.queuedRequests.Add(1)
+	defer func() {
+		l.queueSem.Release(1)
+		l.metrics.queuedRequests.Add(-1)
+	}()
+
+	if err := l.sem.Acquire(ctx, 1); err != nil {
+		l.metrics.rejectedRequests.Add(1)
+		return newRateLimitError(l.provider, "provider rate limit wait canceled", err)
+	}
+	l.metrics.activeRequests.Add(1)
+	return nil
+}
+
+func (l *providerRateLimiter) release(ctx context.Context, tokens int) {
+	if l == nil || !l.enabled || l.sem == nil {
+		return
+	}
+	if l.tokenLimiter != nil && tokens > 0 {
+		waitCtx := ctx
+		if waitCtx == nil {
+			waitCtx = context.Background()
+		}
+		if err := l.tokenLimiter.WaitN(waitCtx, tokens); err != nil {
+			_ = l.tokenLimiter.WaitN(context.Background(), tokens) //nolint:errcheck // ignore fallback wait failure
+		}
+	}
+	l.sem.Release(1)
+	l.metrics.activeRequests.Add(-1)
+}
+
+func newRateLimitError(provider core.ProviderName, message string, underlying error) error {
+	details := message
+	if provider != "" {
+		details = fmt.Sprintf("%s (%s)", message, provider)
+	}
+	return NewErrorWithCode(ErrCodeRateLimit, details, string(provider), underlying)
+}
+
+func normalizeProviderLimits(
+	input map[string]appconfig.ProviderRateLimitConfig,
+) map[string]appconfig.ProviderRateLimitConfig {
+	if len(input) == 0 {
+		return nil
+	}
+	normalized := make(map[string]appconfig.ProviderRateLimitConfig, len(input))
+	for key, value := range input {
+		canonical := strings.ToLower(strings.TrimSpace(key))
+		if canonical == "" {
+			continue
+		}
+		normalized[canonical] = value
+	}
+	return normalized
+}

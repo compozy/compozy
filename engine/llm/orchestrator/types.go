@@ -94,6 +94,7 @@ type Config struct {
 	Middlewares                    []Middleware
 	FinalizeOutputRetryAttempts    int
 	ProjectRoot                    string
+	RateLimiter                    *llmadapter.RateLimiterRegistry
 	TelemetryRecorder              telemetry.RunRecorder
 	TelemetryOptions               *telemetry.Options
 }

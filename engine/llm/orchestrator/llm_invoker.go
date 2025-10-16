@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -63,20 +64,38 @@ func (i *llmInvoker) Invoke(
 	} else {
 		backoff = retry.WithMaxRetries(maxRetries, exponential)
 	}
+	rateLimitedBackoff := newAdaptiveBackoff(backoff)
 
 	callAttempts := 0
 	var lastErr error
 	var response *llmadapter.LLMResponse
-	err := retry.Do(ctx, backoff, func(ctx context.Context) error {
+	err := retry.Do(ctx, rateLimitedBackoff, func(ctx context.Context) error {
 		callAttempts++
+		releaseLimiter, acquireErr := i.acquireRateLimiter(ctx, &request, rateLimitedBackoff, &lastErr)
+		if acquireErr != nil {
+			return acquireErr
+		}
+		tokensUsed := 0
+		if releaseLimiter != nil {
+			defer func() {
+				releaseLimiter(tokensUsed)
+			}()
+		}
 		var callErr error
 		response, callErr = client.GenerateContent(ctx, req)
 		if callErr != nil {
 			lastErr = callErr
 			if isRetryableErrorWithContext(ctx, callErr) {
+				applyRetryAfterHint(callErr, rateLimitedBackoff)
 				return retry.RetryableError(callErr)
 			}
 			return callErr
+		}
+		if response != nil && response.Usage != nil {
+			tokensUsed = response.Usage.TotalTokens
+			if tokensUsed < 0 {
+				tokensUsed = 0
+			}
 		}
 		lastErr = nil
 		return nil
@@ -90,6 +109,39 @@ func (i *llmInvoker) Invoke(
 		})
 	}
 	return response, nil
+}
+
+func (i *llmInvoker) acquireRateLimiter(
+	ctx context.Context,
+	request *Request,
+	backoff *adaptiveBackoff,
+	lastErr *error,
+) (func(tokens int), error) {
+	if request == nil {
+		return nil, nil
+	}
+	limiter := i.cfg.rateLimiter
+	if limiter == nil || request.Agent == nil {
+		return nil, nil
+	}
+	providerCfg := request.Agent.Model.Config
+	providerName := providerCfg.Provider
+	if providerName == "" {
+		return nil, nil
+	}
+	if acquireErr := limiter.Acquire(ctx, providerName, providerCfg.RateLimit); acquireErr != nil {
+		if lastErr != nil {
+			*lastErr = acquireErr
+		}
+		if isRetryableErrorWithContext(ctx, acquireErr) {
+			applyRetryAfterHint(acquireErr, backoff)
+			return nil, retry.RetryableError(acquireErr)
+		}
+		return nil, acquireErr
+	}
+	return func(tokens int) {
+		limiter.Release(ctx, providerName, tokens)
+	}, nil
 }
 
 func (i *llmInvoker) recordProviderCall(
@@ -129,4 +181,51 @@ func (i *llmInvoker) recordProviderCall(
 		event.Metadata["error"] = core.RedactError(err)
 	}
 	telemetry.RecordEvent(ctx, &event)
+}
+
+func applyRetryAfterHint(err error, backoff *adaptiveBackoff) {
+	if backoff == nil || err == nil {
+		return
+	}
+	if llmErr, ok := llmadapter.IsLLMError(err); ok && llmErr != nil {
+		if delay := llmErr.SuggestedRetryDelay(); delay > 0 {
+			backoff.setOverride(delay)
+		}
+	}
+}
+
+type adaptiveBackoff struct {
+	base     retry.Backoff
+	mu       sync.Mutex
+	override time.Duration
+}
+
+func newAdaptiveBackoff(base retry.Backoff) *adaptiveBackoff {
+	return &adaptiveBackoff{base: base}
+}
+
+func (a *adaptiveBackoff) Next() (time.Duration, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.override > 0 {
+		delay := a.override
+		a.override = 0
+		if _, stop := a.base.Next(); stop {
+			return 0, true
+		}
+		return delay, false
+	}
+	return a.base.Next()
+}
+
+func (a *adaptiveBackoff) setOverride(delay time.Duration) {
+	if a == nil {
+		return
+	}
+	if delay < 0 {
+		delay = 0
+	}
+	a.mu.Lock()
+	a.override = delay
+	a.mu.Unlock()
 }

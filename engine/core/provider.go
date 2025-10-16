@@ -3,6 +3,8 @@ package core
 import (
 	"encoding/json"
 
+	appconfig "github.com/compozy/compozy/pkg/config"
+
 	"dario.cat/mergo"
 	"gopkg.in/yaml.v3"
 )
@@ -19,6 +21,7 @@ const (
 	ProviderOllama    ProviderName = "ollama"    // Ollama local model hosting
 	ProviderDeepSeek  ProviderName = "deepseek"  // DeepSeek AI models
 	ProviderXAI       ProviderName = "xai"       // xAI Grok models
+	ProviderCerebras  ProviderName = "cerebras"  // Cerebras fast inference platform
 	ProviderMock      ProviderName = "mock"      // Mock provider for testing
 )
 
@@ -27,7 +30,7 @@ const (
 // json_schema payloads, so they return false here to force prompt-based fallbacks.
 func SupportsNativeJSONSchema(provider ProviderName) bool {
 	switch provider {
-	case ProviderOpenAI, ProviderXAI:
+	case ProviderOpenAI, ProviderXAI, ProviderCerebras:
 		return true
 	default:
 		return false
@@ -416,6 +419,10 @@ type ProviderConfig struct {
 	// during a single LLM request when tools are available.
 	// When > 0, overrides the global default for this model; 0 uses the global default.
 	MaxToolIterations int `json:"max_tool_iterations,omitempty" yaml:"max_tool_iterations,omitempty" mapstructure:"max_tool_iterations,omitempty" validate:"min=0"`
+
+	// RateLimit overrides concurrency limits and queue size for this provider.
+	// When omitted the orchestrator applies the global defaults.
+	RateLimit *appconfig.ProviderRateLimitConfig `json:"rate_limit,omitempty" yaml:"rate_limit,omitempty" mapstructure:"rate_limit,omitempty"`
 }
 
 // NewProviderConfig creates a new ProviderConfig with the specified core parameters.

@@ -3,6 +3,8 @@ package orchestrator
 import (
 	"strings"
 	"time"
+
+	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 )
 
 const (
@@ -47,6 +49,7 @@ type settings struct {
 	middlewares                    []Middleware
 	restartAfterStallRequested     int
 	restartThresholdClamped        bool
+	rateLimiter                    *llmadapter.RateLimiterRegistry
 }
 
 func buildSettings(cfg *Config) settings {
@@ -82,6 +85,7 @@ func buildSettings(cfg *Config) settings {
 		toolCaps:                       newToolCallCaps(cfg.ToolCallCaps),
 		middlewares:                    cloneMiddlewares(cfg.Middlewares),
 		restartAfterStallRequested:     cfg.RestartStallThreshold,
+		rateLimiter:                    cfg.RateLimiter,
 	}
 
 	normalizeNumericDefaults(cfg, &s)

@@ -40,85 +40,160 @@ instructions: |
      - Tool: read_file
      - Parameter: { "path": "{{ .input.file_path }}" }
 
-  2. **Analyze the code** based on your action type (performance/security/monitoring)
+  2. **Analyze the code** based on your action type (performance/security/monitoring/architecture/testing/error_handling/doc_comment)
      - Cross-reference against project rules
      - Identify violations, issues, and improvement opportunities
      - Provide specific code examples for fixes
 
-  3. **Generate review report** in markdown format:
+  3. **Determine review filename**:
+     - Use provided review number: {{ .input.num }}
+     - Use full file path from {{ .input.file_path }} sanitized for filesystem
+     - Replace directory separators (/) with underscores (_)
+     - Format: <num>_<full_path_sanitized>.md
+     - Example: engine/agent/uc/create.go → 001_engine_agent_uc_create.go.md
+
+  4. **Generate review report** in markdown format:
      Structure:
+     - File Path: Full path of the reviewed file
      - Summary: Brief overview of file purpose
-     - Findings: Categorized issues with severity
+     - Findings: Categorized issues with severity (using emojis)
      - Recommendations: Actionable improvements with code examples
      - Rule References: Link to specific project rules violated
 
-  4. **Save the review** using write_file tool:
-     - IMPORTANT: The file path from {{ .input.file_path }} may include directory structure
-     - Extract the directory and filename from the full file path
-     - Output path format: <directory_of_file>/_reviews/<review_type>/<filename>.md
+  5. **Save the review** using write_file tool:
+     - Sanitize file path: Replace "/" with "_" in {{ .input.file_path }}
+     - Output path format: ai-docs/reviews/<review_type>/{{ .input.num }}_<sanitized_path>.md
+     - Review type is based on the action being executed (performance, security, monitoring, etc.)
 
-     Path construction steps:
-     1. Parse {{ .input.file_path }} to separate directory and filename
-     2. If path contains "/": split to get directory part and filename
-     3. If path has no "/": file is at root of input directory
-     4. Construct output: <file_directory>/_reviews/<review_type>/<filename>.md
+     Examples:
+     * Input: file_path=engine/agent/action_config.go, num=001, review_type=performance
+       → Output: ai-docs/reviews/performance/001_engine_agent_action_config.go.md
 
-     Examples (assuming input directory is "engine/agent"):
-     * Input: engine/agent/action_config.go (root level file)
-       → Output: engine/agent/_reviews/performance/action_config.go.md
+     * Input: file_path=engine/agent/uc/create.go, num=003, review_type=security
+       → Output: ai-docs/reviews/security/003_engine_agent_uc_create.go.md
 
-     * Input: engine/agent/uc/create.go (nested in uc/ subdirectory)
-       → Output: engine/agent/uc/_reviews/performance/create.go.md
-
-     * Input: engine/agent/router/handlers.go (nested in router/ subdirectory)
-       → Output: engine/agent/router/_reviews/security/handlers.go.md
+     * Input: file_path=engine/agent/router/handlers.go, num=007, review_type=monitoring
+       → Output: ai-docs/reviews/monitoring/007_engine_agent_router_handlers.go.md
 
      - Tool: write_file
      - Parameters: { "path": "[calculated path]", "content": "[markdown report]" }
 
-  5. **Return summary** of key findings
+  6. **Return summary** of key findings and saved file location
   </workflow>
 
   <output_format>
   Your markdown reports must use this structure:
 
   # Code Review: [filename]
-  **Review Type:** [Performance/Security/Monitoring]
+
+  **File Path:** `[full/path/to/file]`
+  **Review Type:** [Performance/Security/Monitoring/Architecture/Testing/Error Handling/Documentation]
+  **Review Date:** [Current Date]
   **Severity:** [Critical/High/Medium/Low]
 
   ## Summary
   Brief overview of the file and its purpose
 
   ## Findings
-  ### Critical Issues
-  - List critical violations with rule references
 
-  ### High Priority
-  - List high priority issues
+  ### 🔴 Critical Issues
+  [Issues that must be fixed immediately - security vulnerabilities, data loss risks, crashes]
 
-  ### Medium Priority
-  - List medium priority improvements
+  - **[Issue Title]**
+    - **Problem**: [Clear description]
+    - **Current Code**: [What exists now]
+    - **Impact**: [Why this is critical]
+    - **Fix**: [Specific recommendation]
+    - **Rule Reference**: [Link to .cursor/rules/]
 
-  ### Low Priority / Suggestions
-  - List minor improvements
+    ```go
+    // ❌ Current implementation
+    [problematic code snippet from the file]
 
-  ## Code Examples
-  For each significant issue, provide:
-  ```go
-  // ❌ Current implementation
-  [problematic code]
+    // ✅ Recommended fix
+    [improved code with explanation]
+    ```
 
-  // ✅ Recommended fix
-  [improved code]
-  ```
+  ### 🟠 High Priority Issues
+  [Significant problems that affect reliability, performance, or maintainability]
+
+  - **[Issue Title]**
+    - **Problem**: [Clear description]
+    - **Impact**: [Why this matters]
+    - **Fix**: [Specific recommendation]
+    - **Rule Reference**: [Link to .cursor/rules/]
+
+    ```go
+    // ❌ Current implementation
+    [problematic code]
+
+    // ✅ Recommended fix
+    [improved code]
+    ```
+
+  ### 🟡 Medium Priority Issues
+  [Important improvements that should be addressed]
+
+  - **[Issue Title]**
+    - **Problem**: [Clear description]
+    - **Fix**: [Specific recommendation]
+    - **Rule Reference**: [Link to .cursor/rules/]
+
+    ```go
+    // ❌ Current implementation (if applicable)
+    [problematic code]
+
+    // ✅ Recommended fix
+    [improved code]
+    ```
+
+  ### 🔵 Low Priority / Suggestions
+  [Nice-to-have improvements and optimizations]
+
+  - **[Issue Title]**
+    - **Suggestion**: [Improvement idea]
+    - **Benefit**: [Why this helps]
+
+    ```go
+    // Current implementation
+    [current code]
+
+    // Suggested improvement
+    [improved code]
+    ```
 
   ## Rule References
-  - Link to specific rules from .cursor/rules/ that apply
+
+  - `.cursor/rules/go-coding-standards.mdc`: [Specific sections violated]
+  - `.cursor/rules/architecture.mdc`: [Relevant patterns]
+  - `.cursor/rules/[other-relevant-rules].mdc`: [Specific guidelines]
 
   ## Impact Assessment
-  - Performance impact
-  - Maintainability impact
-  - Security impact (if applicable)
+
+  - **Performance Impact**: [How this affects runtime performance]
+  - **Maintainability Impact**: [How this affects code maintenance]
+  - **Security Impact**: [Security implications if any]
+  - **Reliability Impact**: [Impact on system reliability]
+
+  ## Recommendations
+
+  ### Immediate Actions (Critical/High Priority)
+  1. [Most urgent fix with priority]
+  2. [Second priority fix]
+
+  ### Short-term Improvements (Medium Priority)
+  1. [Important enhancement]
+  2. [Another improvement]
+
+  ### Long-term Enhancements (Low Priority)
+  1. [Nice-to-have improvement]
+  2. [Strategic enhancement]
+
+  ## Positive Aspects
+
+  - [What the code does well]
+  - [Good practices to maintain]
+  - [Commendable patterns used]
   </output_format>
 
 actions:

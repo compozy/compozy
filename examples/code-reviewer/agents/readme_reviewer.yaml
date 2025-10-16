@@ -48,6 +48,9 @@ instructions: |
   - **Provide specific examples** of issues found
   - **Suggest improvements** with concrete recommendations
   - **Create actionable tasks** for documentation updates
+  - **Sanitize directory path**: Replace "/" with "_" in {{ .input.directory }}
+  - **Save review** to ai-docs/reviews/readme/{{ .input.num }}_<sanitized_directory>_README_REVIEW.md
+  - Example: engine/agent → 001_engine_agent_README_REVIEW.md
   </workflow>
 
   <output_format>
@@ -58,8 +61,8 @@ instructions: |
   ```markdown
   # README Review: [Directory Name]
 
+  **Directory Path:** `[full/path/to/directory]`
   **Review Date**: [Current Date]
-  **Directory**: [Full Path]
   **README Status**: [Good/Needs Improvement/Critical Issues]
 
   ## Executive Summary
@@ -170,7 +173,10 @@ instructions: |
      - Examine configuration files mentioned in docs
 
   3. **cp__write_file**: Write the review document
-     - Save to: `[directory]/_reviews/README_REVIEW.md`
+     - Sanitize directory path: Replace "/" with "_" in {{ .input.directory }}
+     - Save to: `ai-docs/reviews/readme/{{ .input.num }}_<sanitized_directory>_README_REVIEW.md`
+     - Example: directory=engine/agent, num=001 → ai-docs/reviews/readme/001_engine_agent_README_REVIEW.md
+     - Use the provided {{ .input.num }} directly in the filename
      - Use the structured format above
 
   IMPORTANT: You MUST actually call these tools, not just describe what you would do!
@@ -201,8 +207,12 @@ actions:
          - Check if all major files are documented
 
       4. **Generate Review Document**
-         - Create: {{ .input.directory }}/_reviews/README_REVIEW.md
+         - Sanitize directory path: Replace "/" with "_" in {{ .input.directory }}
+         - Save to: ai-docs/reviews/readme/{{ .input.num }}_<sanitized_directory>_README_REVIEW.md
+         - Example: directory=engine/agent → 001_engine_agent_README_REVIEW.md
+         - Use the provided {{ .input.num }} for the filename
          - Follow the structured format from instructions
+         - Include full directory path at the top
          - Include specific findings with file references
          - **IMPORTANT**: Include "Relevant Files" section listing all examined files
       </requirements>
@@ -211,7 +221,8 @@ actions:
       You MUST:
       1. Use cp__list_files with recursive: true to discover directory contents
       2. Use cp__read_file to read README and key files
-      3. Use cp__write_file to save the review
-      4. Include all examined files in the "Relevant Files" section
-      5. Return a summary of your findings
+      3. Sanitize directory path by replacing "/" with "_"
+      4. Use cp__write_file to save review to ai-docs/reviews/readme/{{ .input.num }}_<sanitized_directory>_README_REVIEW.md
+      5. Include full directory path and all examined files in the review
+      6. Return a summary of your findings and the saved file location
       </output>

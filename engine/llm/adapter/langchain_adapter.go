@@ -126,6 +126,15 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 	if err != nil {
 		return nil, err
 	}
+	log := logger.FromContext(ctx)
+	log.Debug("Calling LLM GenerateContent",
+		"provider", string(a.provider.Provider),
+		"model", a.provider.Model,
+		"messages_count", len(messages),
+		"options_count", len(options),
+		"tools_count", len(req.Tools),
+		"tool_choice", req.Options.ToolChoice,
+	)
 	response, err := model.GenerateContent(ctx, messages, options...)
 	if err != nil {
 		// Try to extract structured error information before wrapping

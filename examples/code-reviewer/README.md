@@ -168,15 +168,24 @@ Enables reviewing multiple directories in parallel using signal-based communicat
 ### Prerequisites
 
 - Compozy installed and running
-- Groq API key (or configure a different LLM provider)
+- [Ollama](https://ollama.ai) installed and running locally
 - Bun runtime installed
+
+> **Note:** Ollama must be running locally with the required model pulled. By default, this example uses `llama3.1:70b`, but you can use any model you have locally.
 
 ### Setup
 
-1. Set your API key:
+1. Install and start Ollama:
 
 ```bash
-export GROQ_API_KEY="your-groq-api-key"
+# Install Ollama (if not already installed)
+# Visit: https://ollama.ai
+
+# Pull the model
+ollama pull llama3.1:70b
+
+# Verify Ollama is running
+ollama list
 ```
 
 2. Start Compozy server:
@@ -321,7 +330,7 @@ This review type:
 - Analyzes the directory structure and all files
 - Reads and evaluates the README.md
 - Identifies missing documentation, outdated information, and incorrect examples
-- Generates a comprehensive review document at `[directory]/_reviews/README_REVIEW.md`
+- Generates a comprehensive review document at `ai-docs/reviews/readme/<num>_README_REVIEW.md`
 
 ### Batch Review (Signal-Based)
 
@@ -375,24 +384,42 @@ POST /api/v0/workflows/review-batch/executions
 
 ## Output
 
-Reviews are saved as markdown files in a `reviews/` subdirectory within the analyzed directory. For example, reviewing `engine/schema/cwd.go` produces `engine/schema/reviews/cwd.go.md`.
+Reviews are saved centrally in the `ai-docs/reviews/<review_type>/` directory from the project root. Each review file is named with a sequential number and the full file path (sanitized):
+
+**Naming Format:** `<num>_<full_path_sanitized>.md`
+
+**Examples:**
+
+- `engine/schema/cwd.go` → `ai-docs/reviews/performance/001_engine_schema_cwd.go.md`
+- `engine/agent/uc/create.go` → `ai-docs/reviews/security/003_engine_agent_uc_create.go.md`
+- README review → `ai-docs/reviews/readme/001_README_REVIEW.md`
 
 ### Review Report Structure
 
 Each review includes:
 
+- **File Path**: Full path of the reviewed file
+- **Review Type**: Type of analysis performed
 - **Summary**: Brief overview of the file's purpose
-- **Findings**: Categorized by severity (Critical, High, Medium, Low)
-- **Code Examples**: Side-by-side comparisons of current vs. recommended code
-- **Rule References**: Links to specific project rules that apply
-- **Impact Assessment**: Performance, maintainability, and security implications
+- **Findings**: Categorized by severity with emoji indicators
+  - 🔴 **Critical Issues**: Must fix immediately
+  - 🟠 **High Priority Issues**: Significant problems
+  - 🟡 **Medium Priority Issues**: Important improvements
+  - 🔵 **Low Priority / Suggestions**: Nice-to-have enhancements
+- **Inline Code Examples**: Each issue includes before/after code snippets
+- **Rule References**: Links to specific project rules
+- **Impact Assessment**: Performance, maintainability, security implications
+- **Recommendations**: Prioritized action items
+- **Positive Aspects**: What the code does well
 
 Example:
 
 ````markdown
 # Code Review: cwd.go
 
+**File Path:** `engine/schema/cwd.go`
 **Review Type:** Performance
+**Review Date:** 2024-10-16
 **Severity:** Medium
 
 ## Summary
@@ -401,42 +428,81 @@ Brief overview of the file and its purpose
 
 ## Findings
 
-### Critical Issues
+### 🔴 Critical Issues
 
-- [Issue description with rule reference]
+- **[Issue Title]**
+  - **Problem**: [Clear description]
+  - **Impact**: [Why this is critical]
+  - **Fix**: [Specific recommendation]
+  - **Rule Reference**: `.cursor/rules/go-coding-standards.mdc`
 
-### High Priority
+  ```go
+  // ❌ Current implementation
+  [problematic code from the file]
 
-- [Issue description]
+  // ✅ Recommended fix
+  [improved code with explanation]
+  ```
 
-## Code Examples
+### 🟠 High Priority Issues
 
-```go
-// ❌ Current implementation
-[problematic code]
+- **[Issue Title]**
+  - **Problem**: [Clear description]
+  - **Impact**: [Why this matters]
+  - **Fix**: [Specific recommendation]
 
-// ✅ Recommended fix
-[improved code]
-```
-````
+  ```go
+  // ❌ Current implementation
+  [problematic code]
+
+  // ✅ Recommended fix
+  [improved code]
+  ```
 
 ## Rule References
 
-- .cursor/rules/go-coding-standards.mdc#map-operations
-- .cursor/rules/architecture.mdc#solid-principles
+- `.cursor/rules/go-coding-standards.mdc`: Map operations, Context propagation
+- `.cursor/rules/architecture.mdc`: SOLID principles
 
 ## Impact Assessment
 
-- Performance impact: [description]
-- Maintainability impact: [description]
+- **Performance Impact**: [How this affects runtime]
+- **Maintainability Impact**: [How this affects maintenance]
 
+## Recommendations
+
+### Immediate Actions (Critical/High Priority)
+
+1. [Most urgent fix]
+2. [Second priority]
+
+### Short-term Improvements (Medium Priority)
+
+1. [Important enhancement]
+
+## Positive Aspects
+
+- [What the code does well]
+- [Good practices to maintain]
 ````
 
 ## Configuration
 
 ### Custom LLM Provider
 
-Edit `compozy.yaml` to use a different provider:
+This example uses Ollama by default, but you can configure any LLM provider.
+
+**Using a different Ollama model:**
+
+```yaml
+models:
+  - provider: ollama
+    model: codellama:34b # Or any other local model
+    # api_url: http://localhost:11434  # Optional: defaults to localhost:11434
+    default: true
+```
+
+**Using a cloud provider (OpenAI, Anthropic, Groq, etc.):**
 
 ```yaml
 models:
@@ -444,7 +510,9 @@ models:
     model: gpt-4o
     api_key: "{{ .env.OPENAI_API_KEY }}"
     default: true
-````
+```
+
+Available providers: `ollama`, `openai`, `anthropic`, `google`, `groq`, `deepseek`, `xai``
 
 ### Native Tools Configuration
 
@@ -537,13 +605,16 @@ instructions: |
 ### Reviews Not Generated
 
 - Check that the directory path is relative to the `native_tools.root_dir`
-- Verify the Groq API key is set correctly
+- Verify Ollama is running: `ollama list`
+- Ensure the model is pulled: `ollama pull llama3.1:70b`
 - Check Compozy logs: `compozy logs`
 
 ### Empty Review Files
 
 - Increase `tool_execution_timeout` in `compozy.yaml` if reviews are timing out
-- Check the LLM provider quota and rate limits
+- For Ollama: Ensure you have enough RAM/VRAM for the model size
+- For cloud providers: Check the LLM provider quota and rate limits
+- Consider using a smaller model if running into resource constraints (e.g., `llama3.1:8b`)
 
 ### Permission Errors
 
@@ -572,3 +643,7 @@ Found an issue or have a suggestion? Please open an issue or PR in the main Comp
 ## License
 
 This example is part of the Compozy project and follows the same license.
+
+```
+
+```

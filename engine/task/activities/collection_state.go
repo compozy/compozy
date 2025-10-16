@@ -106,6 +106,10 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		collectionMetadata := &task2core.CollectionTaskMetadata{
 			ParentStateID: state.TaskExecID,
 			ChildConfigs:  expansionResult.ChildConfigs,
+			Strategy:      string(input.TaskConfig.GetStrategy()),
+			MaxWorkers:    input.TaskConfig.GetMaxWorkers(),
+			Mode:          string(input.TaskConfig.GetMode()),
+			BatchSize:     input.TaskConfig.Batch,
 			ItemCount:     expansionResult.ItemCount,
 			SkippedCount:  expansionResult.SkippedCount,
 		}

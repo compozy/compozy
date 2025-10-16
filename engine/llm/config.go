@@ -88,6 +88,9 @@ type Config struct {
 	ProjectRoot            string
 	// LLM factory for creating clients
 	LLMFactory llmadapter.Factory
+	// RateLimiter coordinates provider concurrency throttles shared across orchestrations.
+	// When nil, requests execute without centralized throttling.
+	RateLimiter *llmadapter.RateLimiterRegistry
 	// Memory provider for agent memory support
 	MemoryProvider MemoryProvider
 	// Knowledge contains resolved knowledge context for retrieval during orchestration.
@@ -555,6 +558,7 @@ func WithAppConfig(appConfig *config.Config) Option {
 		applyLLMToolLimits(c, &appConfig.LLM)
 		applyLLMTelemetryConfig(c, &appConfig.LLM)
 		applyLLMMCPOptions(c, &appConfig.LLM)
+		applyLLMRateLimiter(c, &appConfig.LLM)
 	}
 }
 
@@ -662,6 +666,13 @@ func applyLLMMCPOptions(c *Config, llm *config.LLMConfig) {
 			c.RegisterMCPs = converted
 		}
 	}
+}
+
+func applyLLMRateLimiter(c *Config, llm *config.LLMConfig) {
+	if llm == nil {
+		return
+	}
+	c.RateLimiter = llmadapter.NewRateLimiterRegistry(llm.RateLimiting)
 }
 
 // Validate validates the configuration

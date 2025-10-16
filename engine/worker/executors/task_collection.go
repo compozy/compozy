@@ -144,11 +144,19 @@ func (e *CollectionTaskExecutor) HandleCollectionTask(
 		// Collection completes successfully even with no items
 		return nil
 	}
+	rawConcurrency := collectionConcurrencyLimit(taskConfig)
+	effectiveConcurrency := rawConcurrency
+	if effectiveConcurrency <= 0 || effectiveConcurrency > MaxConcurrentChildTasks {
+		effectiveConcurrency = MaxConcurrentChildTasks
+	}
 	log.Debug("Executing collection child tasks",
 		"task_id", taskConfig.ID,
 		"child_count", len(childStates),
 		"expected_count", childCount,
-		"mode", taskConfig.GetMode())
+		"mode", taskConfig.GetMode(),
+		"max_workers", taskConfig.GetMaxWorkers(),
+		"batch_limit", taskConfig.Batch,
+		"effective_concurrency", effectiveConcurrency)
 	// Branch based on collection mode
 	mode := taskConfig.GetMode()
 	switch mode {
@@ -165,6 +173,7 @@ func (e *CollectionTaskExecutor) HandleCollectionTask(
 			&failed,
 			childCount,
 			depth,
+			rawConcurrency,
 		)
 	default:
 		// Default to parallel for backward compatibility
@@ -178,6 +187,7 @@ func (e *CollectionTaskExecutor) HandleCollectionTask(
 			&failed,
 			childCount,
 			depth,
+			rawConcurrency,
 		)
 	}
 }
@@ -192,12 +202,13 @@ func (e *CollectionTaskExecutor) handleCollectionParallel(
 	completed, failed *int32,
 	childCount int32,
 	depth int,
+	maxConcurrency int,
 ) error {
 	log := workflow.GetLogger(ctx)
 	// Use the loaded child configs instead of the template
 	e.executeChildrenInParallel(ctx, cState, childStates, func(cs *task.State) *task.Config {
 		return childCfgs[cs.TaskID]
-	}, taskConfig, depth, completed, failed)
+	}, taskConfig, depth, completed, failed, maxConcurrency)
 	// Wait for tasks to complete based on strategy
 	err := e.awaitStrategyCompletion(ctx, taskConfig.GetStrategy(), completed, failed, childCount)
 	if err != nil {
@@ -238,5 +249,20 @@ func (e *CollectionTaskExecutor) handleCollectionSequential(
 		"completed", completedCount,
 		"failed", failedCount,
 		"total", len(childStates))
+
 	return nil
+}
+
+func collectionConcurrencyLimit(cfg *task.Config) int {
+	if cfg == nil {
+		return 0
+	}
+	limit := cfg.GetMaxWorkers()
+	if cfg.Batch > 0 && (limit == 0 || cfg.Batch < limit) {
+		limit = cfg.Batch
+	}
+	if limit < 0 {
+		return 0
+	}
+	return limit
 }

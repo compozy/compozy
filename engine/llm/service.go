@@ -196,6 +196,7 @@ func assembleOrchestratorConfig(
 		SystemPromptRenderer:           systemPromptRenderer,
 		RuntimeManager:                 runtime,
 		LLMFactory:                     config.LLMFactory,
+		RateLimiter:                    config.RateLimiter,
 		MemoryProvider:                 config.MemoryProvider,
 		MemorySync:                     NewMemorySync(),
 		Timeout:                        config.Timeout,
