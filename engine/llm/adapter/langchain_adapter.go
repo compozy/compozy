@@ -619,10 +619,10 @@ func (a *LangChainAdapter) buildUsage(info map[string]any) (*Usage, bool) {
 		PromptTokens:       nonNeg(counts.prompt),
 		CompletionTokens:   nonNeg(counts.completion),
 		TotalTokens:        nonNeg(counts.total()),
-		ReasoningTokens:    counts.reasoning,
-		CachedPromptTokens: counts.cachedPrompt,
-		InputAudioTokens:   counts.inputAudio,
-		OutputAudioTokens:  counts.outputAudio,
+		ReasoningTokens:    clampPtrNonNeg(counts.reasoning),
+		CachedPromptTokens: clampPtrNonNeg(counts.cachedPrompt),
+		InputAudioTokens:   clampPtrNonNeg(counts.inputAudio),
+		OutputAudioTokens:  clampPtrNonNeg(counts.outputAudio),
 	}
 	return usage, true
 }
@@ -813,6 +813,17 @@ func nonNeg(v int) int {
 		return 0
 	}
 	return v
+}
+
+func clampPtrNonNeg(p *int) *int {
+	if p == nil {
+		return nil
+	}
+	value := *p
+	if value < 0 {
+		value = 0
+	}
+	return &value
 }
 
 func intPtr(v int) *int {

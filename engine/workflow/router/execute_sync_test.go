@@ -66,6 +66,8 @@ type stubWorkflowRepo struct {
 }
 
 type stubUsageRepo struct {
+	mu           sync.Mutex
+	taskRows     map[string]*usage.Row
 	workflowRows map[string]*usage.Row
 	summaryRows  map[string]*usage.Row
 	err          error
@@ -73,18 +75,44 @@ type stubUsageRepo struct {
 
 func newStubUsageRepo() *stubUsageRepo {
 	return &stubUsageRepo{
+		taskRows:     make(map[string]*usage.Row),
 		workflowRows: make(map[string]*usage.Row),
 		summaryRows:  make(map[string]*usage.Row),
 	}
 }
 
-func (s *stubUsageRepo) Upsert(context.Context, *usage.Row) error { return nil }
+func (s *stubUsageRepo) Upsert(_ context.Context, row *usage.Row) error {
+	if row == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if row.TaskExecID != nil {
+		s.taskRows[row.TaskExecID.String()] = row
+	}
+	if row.WorkflowExecID != nil {
+		key := row.WorkflowExecID.String()
+		s.workflowRows[key] = row
+		s.summaryRows[key] = row
+	}
+	return nil
+}
 
-func (s *stubUsageRepo) GetByTaskExecID(context.Context, core.ID) (*usage.Row, error) {
+func (s *stubUsageRepo) GetByTaskExecID(_ context.Context, id core.ID) (*usage.Row, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.err != nil {
+		return nil, s.err
+	}
+	if row, ok := s.taskRows[id.String()]; ok {
+		return row, nil
+	}
 	return nil, usage.ErrNotFound
 }
 
 func (s *stubUsageRepo) GetByWorkflowExecID(_ context.Context, id core.ID) (*usage.Row, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -95,6 +123,8 @@ func (s *stubUsageRepo) GetByWorkflowExecID(_ context.Context, id core.ID) (*usa
 }
 
 func (s *stubUsageRepo) SummarizeByWorkflowExecID(_ context.Context, id core.ID) (*usage.Row, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -108,6 +138,8 @@ func (s *stubUsageRepo) SummariesByWorkflowExecIDs(
 	_ context.Context,
 	ids []core.ID,
 ) (map[core.ID]*usage.Row, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.err != nil {
 		return nil, s.err
 	}

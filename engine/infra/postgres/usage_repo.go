@@ -160,6 +160,7 @@ func (r *UsageRepo) GetByWorkflowExecID(ctx context.Context, id core.ID) (*usage
 	builder := selectUsageBuilder().
 		Where(squirrel.Eq{"e.workflow_exec_id": id.String()}).
 		Where(squirrel.Eq{"e.component": string(core.ComponentWorkflow)}).
+		OrderBy("e.updated_at DESC").
 		Limit(1)
 	return r.getOne(ctx, builder)
 }
@@ -397,11 +398,11 @@ type optionalAccumulator struct {
 	set   bool
 }
 
-func (o *optionalAccumulator) add(value sql.NullInt32) {
+func (o *optionalAccumulator) add(value sql.NullInt64) {
 	if !value.Valid {
 		return
 	}
-	o.total += int(value.Int32)
+	o.total += int(value.Int64)
 	o.set = true
 }
 
@@ -431,10 +432,10 @@ type usageRowDB struct {
 	PromptTokens       int                `db:"prompt_tokens"`
 	CompletionTokens   int                `db:"completion_tokens"`
 	TotalTokens        int                `db:"total_tokens"`
-	ReasoningTokens    sql.NullInt32      `db:"reasoning_tokens"`
-	CachedPromptTokens sql.NullInt32      `db:"cached_prompt_tokens"`
-	InputAudioTokens   sql.NullInt32      `db:"input_audio_tokens"`
-	OutputAudioTokens  sql.NullInt32      `db:"output_audio_tokens"`
+	ReasoningTokens    sql.NullInt64      `db:"reasoning_tokens"`
+	CachedPromptTokens sql.NullInt64      `db:"cached_prompt_tokens"`
+	InputAudioTokens   sql.NullInt64      `db:"input_audio_tokens"`
+	OutputAudioTokens  sql.NullInt64      `db:"output_audio_tokens"`
 	CreatedAt          time.Time          `db:"created_at"`
 	UpdatedAt          time.Time          `db:"updated_at"`
 }
@@ -492,11 +493,11 @@ func toCoreIDPtr(ns sql.NullString) *core.ID {
 	return &id
 }
 
-func toIntPtr(ns sql.NullInt32) *int {
+func toIntPtr(ns sql.NullInt64) *int {
 	if !ns.Valid {
 		return nil
 	}
-	value := int(ns.Int32)
+	value := int(ns.Int64)
 	return &value
 }
 

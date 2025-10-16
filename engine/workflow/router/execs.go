@@ -345,48 +345,69 @@ func mapWorkflowExecutions(
 	if len(states) == 0 {
 		return make([]*WorkflowExecutionDTO, 0)
 	}
-	preloaded := map[core.ID]*usage.Row{}
-	if repo != nil {
-		ids := make([]core.ID, 0, len(states))
-		seen := make(map[string]struct{}, len(states))
-		for i := range states {
-			state := states[i]
-			if state == nil {
-				continue
-			}
-			if state.WorkflowExecID.IsZero() {
-				continue
-			}
-			key := state.WorkflowExecID.String()
-			if _, exists := seen[key]; exists {
-				continue
-			}
-			ids = append(ids, state.WorkflowExecID)
-			seen[key] = struct{}{}
+	ids := collectWorkflowExecIDs(states)
+	preloaded := preloadWorkflowUsageSummaries(ctx, repo, ids)
+	return buildWorkflowExecutionDTOs(ctx, repo, states, preloaded)
+}
+
+func collectWorkflowExecIDs(states []*workflow.State) []core.ID {
+	seen := make(map[string]struct{}, len(states))
+	ids := make([]core.ID, 0, len(states))
+	for i := range states {
+		state := states[i]
+		if state == nil || state.WorkflowExecID.IsZero() {
+			continue
 		}
-		if len(ids) > 0 {
-			rows, err := repo.SummariesByWorkflowExecIDs(ctx, ids)
-			if err != nil {
-				logger.FromContext(ctx).Warn(
-					"Failed to preload workflow usage summaries",
-					"error",
-					err,
-					"workflows",
-					len(ids),
-				)
-			} else if rows != nil {
-				preloaded = rows
-			}
+		key := state.WorkflowExecID.String()
+		if _, exists := seen[key]; exists {
+			continue
 		}
+		ids = append(ids, state.WorkflowExecID)
+		seen[key] = struct{}{}
 	}
+	return ids
+}
+
+func preloadWorkflowUsageSummaries(
+	ctx context.Context,
+	repo usage.Repository,
+	ids []core.ID,
+) map[core.ID]*usage.Row {
+	if repo == nil || len(ids) == 0 {
+		return map[core.ID]*usage.Row{}
+	}
+	rows, err := repo.SummariesByWorkflowExecIDs(ctx, ids)
+	if err != nil {
+		logger.FromContext(ctx).Warn(
+			"Failed to preload workflow usage summaries",
+			"error",
+			err,
+			"workflows",
+			len(ids),
+		)
+		return map[core.ID]*usage.Row{}
+	}
+	if rows == nil {
+		return map[core.ID]*usage.Row{}
+	}
+	return rows
+}
+
+func buildWorkflowExecutionDTOs(
+	ctx context.Context,
+	repo usage.Repository,
+	states []*workflow.State,
+	preloaded map[core.ID]*usage.Row,
+) []*WorkflowExecutionDTO {
 	dtos := make([]*WorkflowExecutionDTO, 0, len(states))
 	for i := range states {
 		state := states[i]
 		if state == nil {
 			continue
 		}
+		row := preloaded[state.WorkflowExecID]
 		var summary *router.UsageSummary
-		if row, ok := preloaded[state.WorkflowExecID]; ok && row != nil {
+		if row != nil {
 			summary = router.NewUsageSummary(row)
 		} else {
 			summary = router.ResolveWorkflowUsageSummary(ctx, repo, state.WorkflowExecID)

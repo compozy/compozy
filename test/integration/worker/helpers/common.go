@@ -485,7 +485,7 @@ func CreateTestActivities(
 		workflowRepo,
 		taskRepo,
 		NoopUsageRepo{},
-		nil,
+		&NoopUsageMetrics{},
 		runtime,
 		configStore,
 		nil, // signalDispatcher - not needed for test

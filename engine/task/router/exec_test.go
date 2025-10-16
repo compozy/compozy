@@ -161,13 +161,15 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		execID := core.MustNewID()
 		repo.AddState(newTestTaskState(execID))
 		usageRepo := newStubUsageRepo()
-		usageRepo.taskRows[execID.String()] = &usage.Row{
+		execIDCopy := execID
+		require.NoError(t, usageRepo.Upsert(context.Background(), &usage.Row{
+			TaskExecID:       &execIDCopy,
 			Provider:         "openai",
 			Model:            "gpt-4o",
 			PromptTokens:     12,
 			CompletionTokens: 7,
 			TotalTokens:      19,
-		}
+		}))
 		r := gin.New()
 		r.Use(appstate.StateMiddleware(state))
 		r.Use(srrouter.ErrorHandler())
@@ -326,13 +328,15 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		cleanup := installTaskExecutor(state, stub)
 		defer cleanup()
 		usageRepo := newStubUsageRepo()
-		usageRepo.taskRows[stub.syncExecID.String()] = &usage.Row{
+		taskExecID := stub.syncExecID
+		require.NoError(t, usageRepo.Upsert(context.Background(), &usage.Row{
+			TaskExecID:       &taskExecID,
 			Provider:         "openai",
 			Model:            "gpt-4o",
 			PromptTokens:     9,
 			CompletionTokens: 4,
 			TotalTokens:      13,
-		}
+		}))
 		stateSnapshot := newTestTaskState(stub.syncExecID)
 		matchOutput := core.Output{"foo": "bar"}
 		stateSnapshot.Output = &matchOutput

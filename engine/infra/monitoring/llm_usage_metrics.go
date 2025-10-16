@@ -2,6 +2,7 @@ package monitoring
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -62,7 +63,7 @@ func newLLMUsageMetrics(meter metric.Meter) (usage.Metrics, error) {
 		metric.WithUnit("1"),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create counter %q: %w", llmPromptTokensMetric, err)
 	}
 	completionTokens, err := meter.Int64Counter(
 		llmCompletionTokensMetric,
@@ -70,7 +71,7 @@ func newLLMUsageMetrics(meter metric.Meter) (usage.Metrics, error) {
 		metric.WithUnit("1"),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create counter %q: %w", llmCompletionTokensMetric, err)
 	}
 	events, err := meter.Int64Counter(
 		llmUsageEventsMetric,
@@ -78,7 +79,7 @@ func newLLMUsageMetrics(meter metric.Meter) (usage.Metrics, error) {
 		metric.WithUnit("1"),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create counter %q: %w", llmUsageEventsMetric, err)
 	}
 	failures, err := meter.Int64Counter(
 		llmUsageFailuresMetric,
@@ -86,7 +87,7 @@ func newLLMUsageMetrics(meter metric.Meter) (usage.Metrics, error) {
 		metric.WithUnit("1"),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create counter %q: %w", llmUsageFailuresMetric, err)
 	}
 	latency, err := meter.Float64Histogram(
 		llmUsageLatencyMetric,
@@ -95,7 +96,7 @@ func newLLMUsageMetrics(meter metric.Meter) (usage.Metrics, error) {
 		metric.WithExplicitBucketBoundaries(llmLatencyBuckets...),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create histogram %q: %w", llmUsageLatencyMetric, err)
 	}
 	return &llmUsageMetrics{
 		promptTokens:     promptTokens,
@@ -151,7 +152,7 @@ func (m *llmUsageMetrics) RecordFailure(
 	outcomeAttrs = append(outcomeAttrs, attrs...)
 	outcomeAttrs = append(outcomeAttrs, attribute.String(labelOutcome, outcomeFailure))
 	if m.failures != nil {
-		m.failures.Add(ctx, 1, metric.WithAttributes(attrs...))
+		m.failures.Add(ctx, 1, metric.WithAttributes(outcomeAttrs...))
 	}
 	if m.events != nil {
 		m.events.Add(ctx, 1, metric.WithAttributes(outcomeAttrs...))

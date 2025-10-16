@@ -590,27 +590,39 @@ func resolveUsageIdentifiers(loopCtx *LoopContext) (string, string) {
 	if loopCtx == nil {
 		return "", ""
 	}
+	var provider string
+	var model string
 	if loopCtx.Request.Agent != nil {
 		cfg := loopCtx.Request.Agent.Model.Config
-		provider := string(cfg.Provider)
-		if provider != "" || cfg.Model != "" {
-			return provider, cfg.Model
+		if provider == "" {
+			provider = string(cfg.Provider)
+		}
+		if model == "" {
+			model = cfg.Model
 		}
 	}
 	if loopCtx.LLMRequest != nil {
-		provider := string(loopCtx.LLMRequest.Options.Provider)
-		model := loopCtx.LLMRequest.Options.Model
-		if provider != "" || model != "" {
-			return provider, model
+		options := loopCtx.LLMRequest.Options
+		if provider == "" {
+			provider = string(options.Provider)
+		}
+		if model == "" {
+			model = options.Model
 		}
 	}
 	if source, ok := loopCtx.LLMClient.(providerMetadataSource); ok && source != nil {
-		provider, model := source.ProviderMetadata()
-		if provider != "" || model != "" {
-			return string(provider), model
+		p, m := source.ProviderMetadata()
+		if provider == "" {
+			provider = string(p)
+		}
+		if model == "" {
+			model = m
 		}
 	}
-	return "", ""
+	if provider == "" && model == "" {
+		return "", ""
+	}
+	return provider, model
 }
 
 func (l *conversationLoop) warnIfContextLimitUnknown(
