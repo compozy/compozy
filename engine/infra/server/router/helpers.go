@@ -11,7 +11,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
-	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/resources/importer"
 	"github.com/compozy/compozy/engine/task"
@@ -27,7 +26,6 @@ const (
 	workflowRepoContextKey     = "router.workflow_repo"
 	workflowRunnerContextKey   = "router.workflow_runner"
 	executionMetricsContextKey = "router.execution_metrics"
-	usageRepoContextKey        = "router.usage_repo"
 )
 
 type WorkflowRunner interface {
@@ -254,13 +252,6 @@ func SetWorkflowRepository(c *gin.Context, repo workflow.Repository) {
 	c.Set(workflowRepoContextKey, repo)
 }
 
-func SetUsageRepository(c *gin.Context, repo usage.Repository) {
-	if c == nil {
-		return
-	}
-	c.Set(usageRepoContextKey, repo)
-}
-
 func TaskRepositoryFromContext(c *gin.Context) (task.Repository, bool) {
 	if c == nil {
 		return nil, false
@@ -400,21 +391,6 @@ func workflowRepositoryFromContext(c *gin.Context) (workflow.Repository, bool) {
 	return repo, true
 }
 
-func usageRepositoryFromContext(c *gin.Context) (usage.Repository, bool) {
-	if c == nil {
-		return nil, false
-	}
-	v, ok := c.Get(usageRepoContextKey)
-	if !ok {
-		return nil, false
-	}
-	repo, ok := v.(usage.Repository)
-	if !ok || repo == nil {
-		return nil, false
-	}
-	return repo, true
-}
-
 func workflowRunnerFromContext(c *gin.Context) (WorkflowRunner, bool) {
 	if c == nil {
 		return nil, false
@@ -448,20 +424,6 @@ func ResolveWorkflowRepository(c *gin.Context, state *appstate.State) workflow.R
 		repo := state.Store.NewWorkflowRepo()
 		if repo != nil {
 			SetWorkflowRepository(c, repo)
-		}
-		return repo
-	}
-	return nil
-}
-
-func ResolveUsageRepository(c *gin.Context, state *appstate.State) usage.Repository {
-	if repo, ok := usageRepositoryFromContext(c); ok {
-		return repo
-	}
-	if state != nil && state.Store != nil {
-		repo := state.Store.NewUsageRepo()
-		if repo != nil {
-			SetUsageRepository(c, repo)
 		}
 		return repo
 	}

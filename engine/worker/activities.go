@@ -30,7 +30,6 @@ type Activities struct {
 	workflows        []*workflow.Config
 	workflowRepo     workflow.Repository
 	taskRepo         task.Repository
-	usageRepo        usage.Repository
 	usageMetrics     usage.Metrics
 	runtime          runtime.Runtime
 	configStore      services.ConfigStore
@@ -55,7 +54,6 @@ func NewActivities(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
-	usageRepo usage.Repository,
 	usageMetrics usage.Metrics,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
@@ -105,7 +103,6 @@ func NewActivities(
 		workflows:        workflows,
 		workflowRepo:     workflowRepo,
 		taskRepo:         taskRepo,
-		usageRepo:        usageRepo,
 		usageMetrics:     usageMetrics,
 		runtime:          runtime,
 		configStore:      configStore,
@@ -223,7 +220,6 @@ func (a *Activities) ExecuteBasicTask(
 		a.workflows,
 		a.workflowRepo,
 		a.taskRepo,
-		a.usageRepo,
 		a.usageMetrics,
 		a.runtime,
 		a.configStore,
@@ -300,7 +296,6 @@ func (a *Activities) ExecuteSubtask(
 		a.task2Factory,
 		a.templateEngine,
 		a.projectConfig,
-		a.usageRepo,
 		a.usageMetrics,
 		a.toolEnvironment,
 	)

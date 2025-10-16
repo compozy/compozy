@@ -156,7 +156,6 @@ func createTestActivities(
 		workflows,
 		workflowRepo,
 		taskRepo,
-		helpers.NoopUsageRepo{},
 		nil,
 		mockRuntime,
 		configStore,

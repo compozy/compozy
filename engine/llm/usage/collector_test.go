@@ -2,46 +2,15 @@ package usage_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm/usage"
-	"github.com/stretchr/testify/require"
 )
-
-type stubRepo struct {
-	rows []*usage.Row
-	err  error
-}
-
-func (s *stubRepo) Upsert(_ context.Context, row *usage.Row) error {
-	if s.err != nil {
-		return s.err
-	}
-	s.rows = append(s.rows, row)
-	return nil
-}
-
-func (s *stubRepo) GetByTaskExecID(context.Context, core.ID) (*usage.Row, error) {
-	panic("not implemented")
-}
-
-func (s *stubRepo) GetByWorkflowExecID(context.Context, core.ID) (*usage.Row, error) {
-	panic("not implemented")
-}
-
-func (s *stubRepo) SummarizeByWorkflowExecID(context.Context, core.ID) (*usage.Row, error) {
-	return nil, usage.ErrNotFound
-}
-
-func (s *stubRepo) SummariesByWorkflowExecIDs(
-	context.Context,
-	[]core.ID,
-) (map[core.ID]*usage.Row, error) {
-	return map[core.ID]*usage.Row{}, nil
-}
 
 type stubMetrics struct {
 	successes int
@@ -88,113 +57,118 @@ func (m *stubMetrics) RecordFailure(
 	m.last.latency = latency
 }
 
-func TestCollector_Finalize(t *testing.T) {
+func TestCollector_FinalizeAggregatesSummary(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should record and finalize usage snapshot aggregate", func(t *testing.T) {
-		t.Parallel()
-		repo := &stubRepo{}
-		metrics := &stubMetrics{}
-		meta := usage.Metadata{
-			Component:      core.ComponentAgent,
-			WorkflowExecID: core.MustNewID(),
-			TaskExecID:     core.MustNewID(),
-		}
-		collector := usage.NewCollector(repo, metrics, meta)
-		require.NotNil(t, collector)
+	meta := usage.Metadata{
+		Component:      core.ComponentAgent,
+		TaskExecID:     core.MustNewID(),
+		WorkflowExecID: core.MustNewID(),
+	}
+	metrics := &stubMetrics{}
+	collector := usage.NewCollector(metrics, meta)
+	require.NotNil(t, collector)
 
-		ctx := usage.ContextWithCollector(context.Background(), collector)
+	ctx := usage.ContextWithCollector(context.Background(), collector)
 
-		firstReasoning := 7
-		secondReasoning := 3
-		cached := 2
-		inputAudio := 5
-		outputAudio := 9
+	firstReasoning := 7
+	secondReasoning := 3
+	cached := 2
+	inputAudio := 5
+	outputAudio := 9
 
-		collector.Record(ctx, &usage.Snapshot{
-			Provider:         "openai",
-			Model:            "gpt-4o-mini",
-			PromptTokens:     10,
-			CompletionTokens: 4,
-			TotalTokens:      14,
-			ReasoningTokens:  &firstReasoning,
-		})
-		collector.Record(ctx, &usage.Snapshot{
-			Provider:           "openai",
-			Model:              "gpt-4o-mini",
-			PromptTokens:       6,
-			CompletionTokens:   8,
-			TotalTokens:        15,
-			ReasoningTokens:    &secondReasoning,
-			CachedPromptTokens: &cached,
-			InputAudioTokens:   &inputAudio,
-			OutputAudioTokens:  &outputAudio,
-		})
-
-		err := collector.Finalize(ctx, core.StatusSuccess)
-		require.NoError(t, err)
-
-		require.Len(t, repo.rows, 1)
-		row := repo.rows[0]
-		require.Equal(t, "openai", row.Provider)
-		require.Equal(t, "gpt-4o-mini", row.Model)
-		require.Equal(t, 16, row.PromptTokens)
-		require.Equal(t, 12, row.CompletionTokens)
-		require.Equal(t, 29, row.TotalTokens)
-
-		require.NotNil(t, row.ReasoningTokens)
-		require.Equal(t, 10, *row.ReasoningTokens)
-		require.NotNil(t, row.CachedPromptTokens)
-		require.Equal(t, cached, *row.CachedPromptTokens)
-		require.NotNil(t, row.InputAudioTokens)
-		require.Equal(t, inputAudio, *row.InputAudioTokens)
-		require.NotNil(t, row.OutputAudioTokens)
-		require.Equal(t, outputAudio, *row.OutputAudioTokens)
-
-		require.Equal(t, 1, metrics.successes)
-		require.Equal(t, 0, metrics.failures)
-		require.Equal(t, "openai", metrics.last.provider)
-		require.Equal(t, "gpt-4o-mini", metrics.last.model)
-		require.Equal(t, 16, metrics.last.prompt)
-		require.Equal(t, 12, metrics.last.completion)
-		require.Equal(t, core.ComponentAgent, metrics.last.component)
+	collector.Record(ctx, &usage.Snapshot{
+		Provider:         "openai",
+		Model:            "gpt-4o-mini",
+		PromptTokens:     10,
+		CompletionTokens: 4,
+		TotalTokens:      14,
+		ReasoningTokens:  &firstReasoning,
+	})
+	collector.Record(ctx, &usage.Snapshot{
+		Provider:           "openai",
+		Model:              "gpt-4o-mini",
+		PromptTokens:       6,
+		CompletionTokens:   8,
+		TotalTokens:        15,
+		ReasoningTokens:    &secondReasoning,
+		CachedPromptTokens: &cached,
+		InputAudioTokens:   &inputAudio,
+		OutputAudioTokens:  &outputAudio,
 	})
 
-	t.Run("Should skip persistence when required identifiers missing", func(t *testing.T) {
-		t.Parallel()
-		repo := &stubRepo{}
-		metrics := &stubMetrics{}
-		collector := usage.NewCollector(repo, metrics, usage.Metadata{
-			Component: core.ComponentTask,
-		})
-		require.NotNil(t, collector)
+	finalized, err := collector.Finalize(ctx, core.StatusSuccess)
+	require.NoError(t, err)
+	require.NotNil(t, finalized)
+	require.Equal(t, meta, finalized.Metadata)
+	require.NotNil(t, finalized.Summary)
+	require.Len(t, finalized.Summary.Entries, 1)
 
-		err := collector.Finalize(context.Background(), core.StatusFailed)
-		require.NoError(t, err)
-		require.Empty(t, repo.rows)
-		require.Zero(t, metrics.successes)
-		require.Zero(t, metrics.failures)
+	entry := finalized.Summary.Entries[0]
+	assert.Equal(t, "openai", entry.Provider)
+	assert.Equal(t, "gpt-4o-mini", entry.Model)
+	assert.Equal(t, 16, entry.PromptTokens)
+	assert.Equal(t, 12, entry.CompletionTokens)
+	assert.Equal(t, 29, entry.TotalTokens)
+	require.NotNil(t, entry.ReasoningTokens)
+	assert.Equal(t, 10, *entry.ReasoningTokens)
+	require.NotNil(t, entry.CachedPromptTokens)
+	assert.Equal(t, cached, *entry.CachedPromptTokens)
+	require.NotNil(t, entry.InputAudioTokens)
+	assert.Equal(t, inputAudio, *entry.InputAudioTokens)
+	require.NotNil(t, entry.OutputAudioTokens)
+	assert.Equal(t, outputAudio, *entry.OutputAudioTokens)
+	assert.Equal(t, string(usage.SourceTask), entry.Source)
+
+	assert.Equal(t, 1, metrics.successes)
+	assert.Equal(t, 0, metrics.failures)
+	assert.Equal(t, core.ComponentAgent, metrics.last.component)
+	assert.Equal(t, "openai", metrics.last.provider)
+	assert.Equal(t, "gpt-4o-mini", metrics.last.model)
+	assert.Equal(t, 16, metrics.last.prompt)
+	assert.Equal(t, 12, metrics.last.completion)
+
+	// Collector should reset internal state after finalize.
+	repeat, repeatErr := collector.Finalize(ctx, core.StatusSuccess)
+	require.NoError(t, repeatErr)
+	assert.Nil(t, repeat)
+}
+
+func TestCollector_FinalizeWithoutSnapshotsReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	collector := usage.NewCollector(&stubMetrics{}, usage.Metadata{
+		Component: core.ComponentTask,
+	})
+	require.NotNil(t, collector)
+
+	finalized, err := collector.Finalize(context.Background(), core.StatusSuccess)
+	require.NoError(t, err)
+	assert.Nil(t, finalized)
+}
+
+func TestCollector_FinalizeRecordsFailureMetricForNonSuccessStatus(t *testing.T) {
+	t.Parallel()
+
+	metrics := &stubMetrics{}
+	collector := usage.NewCollector(metrics, usage.Metadata{
+		Component: core.ComponentWorkflow,
+	})
+	require.NotNil(t, collector)
+
+	collector.Record(context.Background(), &usage.Snapshot{
+		Provider:         "anthropic",
+		Model:            "claude-3",
+		PromptTokens:     5,
+		CompletionTokens: 2,
 	})
 
-	t.Run("Should record failure metric when persistence fails", func(t *testing.T) {
-		t.Parallel()
-		repo := &stubRepo{err: errors.New("boom")}
-		metrics := &stubMetrics{}
-		meta := usage.Metadata{
-			Component: core.ComponentWorkflow,
-		}
-		collector := usage.NewCollector(repo, metrics, meta)
-		require.NotNil(t, collector)
-
-		collector.Record(context.Background(), &usage.Snapshot{
-			Provider: "openai",
-			Model:    "gpt-4o-mini",
-		})
-
-		err := collector.Finalize(context.Background(), core.StatusFailed)
-		require.Error(t, err)
-		require.Equal(t, 0, metrics.successes)
-		require.Equal(t, 1, metrics.failures)
-		require.Equal(t, core.ComponentWorkflow, metrics.last.component)
-	})
+	finalized, err := collector.Finalize(context.Background(), core.StatusFailed)
+	require.NoError(t, err)
+	require.NotNil(t, finalized)
+	assert.Equal(t, 1, metrics.successes)
+	assert.Equal(t, 1, metrics.failures)
+	assert.Equal(t, core.ComponentWorkflow, metrics.last.component)
+	assert.Equal(t, "anthropic", metrics.last.provider)
+	assert.Equal(t, "claude-3", metrics.last.model)
 }

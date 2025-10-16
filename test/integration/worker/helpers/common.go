@@ -40,32 +40,6 @@ func CreateMockRuntime(t *testing.T) coreruntime.Runtime {
 	return rtManager
 }
 
-// NoopUsageRepo implements usage.Repository for tests; all reads return ErrNotFound.
-type NoopUsageRepo struct{}
-
-var _ usage.Repository = (*NoopUsageRepo)(nil)
-
-func (NoopUsageRepo) Upsert(context.Context, *usage.Row) error { return nil }
-
-func (NoopUsageRepo) GetByTaskExecID(context.Context, core.ID) (*usage.Row, error) {
-	return nil, usage.ErrNotFound
-}
-
-func (NoopUsageRepo) GetByWorkflowExecID(context.Context, core.ID) (*usage.Row, error) {
-	return nil, usage.ErrNotFound
-}
-
-func (NoopUsageRepo) SummarizeByWorkflowExecID(context.Context, core.ID) (*usage.Row, error) {
-	return nil, usage.ErrNotFound
-}
-
-func (NoopUsageRepo) SummariesByWorkflowExecIDs(
-	context.Context,
-	[]core.ID,
-) (map[core.ID]*usage.Row, error) {
-	return map[core.ID]*usage.Row{}, nil
-}
-
 // NoopUsageMetrics implements usage.Metrics for tests.
 type NoopUsageMetrics struct{}
 
@@ -484,7 +458,6 @@ func CreateTestActivities(
 		workflows,
 		workflowRepo,
 		taskRepo,
-		NoopUsageRepo{},
 		&NoopUsageMetrics{},
 		runtime,
 		configStore,

@@ -8,7 +8,6 @@ import (
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
-	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
@@ -34,7 +33,6 @@ func setupWorker(
 	workerConfig := &worker.Config{
 		WorkflowRepo:      func() workflow.Repository { return deps.Store.NewWorkflowRepo() },
 		TaskRepo:          func() task.Repository { return deps.Store.NewTaskRepo() },
-		UsageRepo:         func() usage.Repository { return deps.Store.NewUsageRepo() },
 		MonitoringService: monitoringService,
 		ResourceRegistry:  configRegistry,
 	}

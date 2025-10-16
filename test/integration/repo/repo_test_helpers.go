@@ -22,7 +22,6 @@ type repoTestEnv struct {
 	pool         *pgxpool.Pool
 	taskRepo     *postgres.TaskRepo
 	workflowRepo *postgres.WorkflowRepo
-	usageRepo    *postgres.UsageRepo
 }
 
 func newRepoTestEnv(t *testing.T) repoTestEnv {
@@ -50,13 +49,12 @@ func newRepoTestEnv(t *testing.T) repoTestEnv {
 		pool:         pool,
 		taskRepo:     postgres.NewTaskRepo(pool),
 		workflowRepo: postgres.NewWorkflowRepo(pool),
-		usageRepo:    postgres.NewUsageRepo(pool),
 	}
 }
 
 func truncateRepoTables(ctx context.Context, t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	_, err := pool.Exec(ctx, "TRUNCATE execution_llm_usage, task_states, workflow_states CASCADE")
+	_, err := pool.Exec(ctx, "TRUNCATE task_states, workflow_states CASCADE")
 	require.NoError(t, err)
 }
 

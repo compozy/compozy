@@ -1,7 +1,6 @@
 package wfrouter
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -9,7 +8,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
-	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/engine/workflow/uc"
 	"github.com/compozy/compozy/pkg/logger"
@@ -47,7 +45,6 @@ func getExecution(c *gin.Context) {
 		return
 	}
 	repo := appState.Worker.WorkflowRepo()
-	usageRepo := router.ResolveUsageRepository(c, appState)
 	ctx := c.Request.Context()
 	useCase := uc.NewGetExecution(repo, execID)
 	exec, err := useCase.Execute(ctx)
@@ -60,7 +57,7 @@ func getExecution(c *gin.Context) {
 		})
 		return
 	}
-	summary := router.ResolveWorkflowUsageSummary(ctx, usageRepo, exec.WorkflowExecID)
+	summary := router.NewUsageSummary(exec.Usage)
 	router.RespondOK(c, "workflow execution retrieved", newWorkflowExecutionDTO(exec, summary))
 }
 
@@ -93,9 +90,8 @@ func listAllExecutions(c *gin.Context) {
 		})
 		return
 	}
-	usageRepo := router.ResolveUsageRepository(c, appState)
 	router.RespondOK(c, "workflow executions retrieved", gin.H{
-		"executions": mapWorkflowExecutions(ctx, usageRepo, executions),
+		"executions": mapWorkflowExecutions(executions),
 	})
 }
 
@@ -134,9 +130,8 @@ func listExecutionsByID(c *gin.Context) {
 		})
 		return
 	}
-	usageRepo := router.ResolveUsageRepository(c, appState)
 	router.RespondOK(c, "workflow executions retrieved", gin.H{
-		"executions": mapWorkflowExecutions(ctx, usageRepo, execs),
+		"executions": mapWorkflowExecutions(execs),
 	})
 }
 
@@ -337,81 +332,14 @@ func sendSignalToExecution(c *gin.Context) {
 	})
 }
 
-func mapWorkflowExecutions(
-	ctx context.Context,
-	repo usage.Repository,
-	states []*workflow.State,
-) []*WorkflowExecutionDTO {
-	if len(states) == 0 {
-		return make([]*WorkflowExecutionDTO, 0)
-	}
-	ids := collectWorkflowExecIDs(states)
-	preloaded := preloadWorkflowUsageSummaries(ctx, repo, ids)
-	return buildWorkflowExecutionDTOs(ctx, repo, states, preloaded)
-}
-
-func collectWorkflowExecIDs(states []*workflow.State) []core.ID {
-	seen := make(map[string]struct{}, len(states))
-	ids := make([]core.ID, 0, len(states))
-	for i := range states {
-		state := states[i]
-		if state == nil || state.WorkflowExecID.IsZero() {
-			continue
-		}
-		key := state.WorkflowExecID.String()
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		ids = append(ids, state.WorkflowExecID)
-		seen[key] = struct{}{}
-	}
-	return ids
-}
-
-func preloadWorkflowUsageSummaries(
-	ctx context.Context,
-	repo usage.Repository,
-	ids []core.ID,
-) map[core.ID]*usage.Row {
-	if repo == nil || len(ids) == 0 {
-		return map[core.ID]*usage.Row{}
-	}
-	rows, err := repo.SummariesByWorkflowExecIDs(ctx, ids)
-	if err != nil {
-		logger.FromContext(ctx).Warn(
-			"Failed to preload workflow usage summaries",
-			"error",
-			err,
-			"workflows",
-			len(ids),
-		)
-		return map[core.ID]*usage.Row{}
-	}
-	if rows == nil {
-		return map[core.ID]*usage.Row{}
-	}
-	return rows
-}
-
-func buildWorkflowExecutionDTOs(
-	ctx context.Context,
-	repo usage.Repository,
-	states []*workflow.State,
-	preloaded map[core.ID]*usage.Row,
-) []*WorkflowExecutionDTO {
+func mapWorkflowExecutions(states []*workflow.State) []*WorkflowExecutionDTO {
 	dtos := make([]*WorkflowExecutionDTO, 0, len(states))
 	for i := range states {
 		state := states[i]
 		if state == nil {
 			continue
 		}
-		row := preloaded[state.WorkflowExecID]
-		var summary *router.UsageSummary
-		if row != nil {
-			summary = router.NewUsageSummary(row)
-		} else {
-			summary = router.ResolveWorkflowUsageSummary(ctx, repo, state.WorkflowExecID)
-		}
+		summary := router.NewUsageSummary(state.Usage)
 		dtos = append(dtos, newWorkflowExecutionDTO(state, summary))
 	}
 	return dtos

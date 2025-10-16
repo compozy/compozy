@@ -36,7 +36,6 @@ type ExecuteBasic struct {
 	task2Factory   task2.Factory
 	workflowRepo   workflow.Repository
 	taskRepo       task.Repository
-	usageRepo      usage.Repository
 	usageMetrics   usage.Metrics
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
@@ -54,7 +53,6 @@ func NewExecuteBasic(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
-	usageRepo usage.Repository,
 	usageMetrics usage.Metrics,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
@@ -74,7 +72,6 @@ func NewExecuteBasic(
 		task2Factory:   task2Factory,
 		workflowRepo:   workflowRepo,
 		taskRepo:       taskRepo,
-		usageRepo:      usageRepo,
 		usageMetrics:   usageMetrics,
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
@@ -181,25 +178,49 @@ func (a *ExecuteBasic) attachUsageCollector(
 	ctx context.Context,
 	state *task.State,
 ) (context.Context, func(core.StatusType)) {
-	if a == nil || a.usageRepo == nil || state == nil {
+	if a == nil || state == nil {
 		return ctx, func(core.StatusType) {}
 	}
-	collector := usage.NewCollector(a.usageRepo, a.usageMetrics, usage.Metadata{
+	collector := usage.NewCollector(a.usageMetrics, usage.Metadata{
 		Component:      state.Component,
 		WorkflowExecID: state.WorkflowExecID,
 		TaskExecID:     state.TaskExecID,
 		AgentID:        state.AgentID,
 	})
-	if collector == nil {
-		return ctx, func(core.StatusType) {}
-	}
 	collectorCtx := usage.ContextWithCollector(ctx, collector)
 	return collectorCtx, func(status core.StatusType) {
-		if err := collector.Finalize(collectorCtx, status); err != nil {
+		finalized, err := collector.Finalize(collectorCtx, status)
+		if err != nil {
 			logger.FromContext(collectorCtx).Warn(
-				"Failed to persist usage for task execution",
+				"Failed to aggregate usage for task execution",
 				"error", err,
 				"task_exec_id", state.TaskExecID.String(),
+			)
+			return
+		}
+		a.persistUsageSummary(collectorCtx, state, finalized)
+	}
+}
+
+func (a *ExecuteBasic) persistUsageSummary(ctx context.Context, state *task.State, finalized *usage.Finalized) {
+	if a == nil || state == nil || finalized == nil || finalized.Summary == nil {
+		return
+	}
+	taskSummary := finalized.Summary.CloneWithSource(usage.SourceTask)
+	if taskSummary == nil || len(taskSummary.Entries) == 0 {
+		return
+	}
+	log := logger.FromContext(ctx)
+	if err := a.taskRepo.MergeUsage(ctx, state.TaskExecID, taskSummary); err != nil {
+		log.Warn(
+			"Failed to merge task usage", "task_exec_id", state.TaskExecID.String(), "error", err,
+		)
+	}
+	if a.workflowRepo != nil && !state.WorkflowExecID.IsZero() {
+		workflowSummary := finalized.Summary.CloneWithSource(usage.SourceWorkflow)
+		if err := a.workflowRepo.MergeUsage(ctx, state.WorkflowExecID, workflowSummary); err != nil {
+			log.Warn(
+				"Failed to merge workflow usage", "workflow_exec_id", state.WorkflowExecID.String(), "error", err,
 			)
 		}
 	}

@@ -31,11 +31,10 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 		toolEnv := toolenv.New(nil, nil, nil)
 		acts, err := worker.NewActivities(
 			ctx,
-			nil, // projectConfig
-			nil, // workflows
-			nil, // workflowRepo
-			nil, // taskRepo
-			helpers.NoopUsageRepo{},
+			nil,  // projectConfig
+			nil,  // workflows
+			nil,  // workflowRepo
+			nil,  // taskRepo
 			nil,  // usageMetrics
 			nil,  // runtime
 			nil,  // configStore

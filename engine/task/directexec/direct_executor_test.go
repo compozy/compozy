@@ -2,11 +2,13 @@ package directexec
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router/routertest"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/runtime/toolenvstate"
 	"github.com/compozy/compozy/engine/task"
@@ -76,6 +78,27 @@ func (s *stubWorkflowRepo) GetStateByToolID(context.Context, string, string) (*w
 
 func (s *stubWorkflowRepo) CompleteWorkflow(_ context.Context, _ core.ID, _ wf.OutputTransformer) (*wf.State, error) {
 	return nil, nil
+}
+
+func (s *stubWorkflowRepo) MergeUsage(_ context.Context, execID core.ID, summary *usage.Summary) error {
+	if summary == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, ok := s.states[execID]
+	if !ok {
+		return fmt.Errorf("state not found")
+	}
+	if state.Usage == nil {
+		state.Usage = summary.Clone()
+		return nil
+	}
+	merged := state.Usage.Clone()
+	merged.MergeAll(summary)
+	merged.Sort()
+	state.Usage = merged
+	return nil
 }
 
 func TestPrepareExecutionPlanNormalizesAgentInput(t *testing.T) {

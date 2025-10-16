@@ -62,7 +62,6 @@ const (
 type Config struct {
 	WorkflowRepo      func() wf.Repository
 	TaskRepo          func() task.Repository
-	UsageRepo         func() usage.Repository
 	MonitoringService *monitoring.Service
 	ResourceRegistry  *autoload.ConfigRegistry // For memory resource configs
 }
@@ -356,7 +355,6 @@ func NewWorker(
 		workflows,
 		config.WorkflowRepo(),
 		config.TaskRepo(),
-		config.UsageRepo(),
 		usageMetrics,
 		workerCore.rtManager,
 		workerCore.configStore,

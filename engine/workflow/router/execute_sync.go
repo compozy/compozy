@@ -14,7 +14,6 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
-	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/engine/workflow/uc"
@@ -77,7 +76,6 @@ func executeWorkflowSync(c *gin.Context) {
 	if state == nil {
 		return
 	}
-	usageRepo := router.ResolveUsageRepository(c, state)
 	metrics, finalizeMetrics, recordError := router.SyncExecutionMetricsScope(
 		c,
 		state,
@@ -117,11 +115,11 @@ func executeWorkflowSync(c *gin.Context) {
 	}
 	if timedOut {
 		outcome = monitoring.ExecutionOutcomeTimeout
-		status := respondWorkflowTimeout(c, repo, usageRepo, workflowID, execID, stateResult, metrics)
+		status := respondWorkflowTimeout(c, repo, workflowID, execID, stateResult, metrics)
 		recordError(status)
 		return
 	}
-	summary := router.ResolveWorkflowUsageSummary(c.Request.Context(), usageRepo, execID)
+	summary := router.NewUsageSummary(stateResult.Usage)
 	response := WorkflowSyncResponse{
 		Workflow: newWorkflowExecutionDTO(stateResult, summary),
 		Output:   stateResult.Output,
@@ -348,7 +346,6 @@ func applyWorkflowJitter(base time.Duration, execID core.ID, attempt int) time.D
 func respondWorkflowTimeout(
 	c *gin.Context,
 	repo workflow.Repository,
-	usageRepo usage.Repository,
 	workflowID string,
 	execID core.ID,
 	state *workflow.State,
@@ -373,17 +370,12 @@ func respondWorkflowTimeout(
 			)
 		}
 	}
-	var summary *router.UsageSummary
 	if state != nil {
-		stateSummary := router.ResolveWorkflowUsageSummary(ctx, usageRepo, state.WorkflowExecID)
-		payload["workflow"] = newWorkflowExecutionDTO(state, stateSummary)
-		summary = stateSummary
-	}
-	if summary == nil {
-		summary = router.ResolveWorkflowUsageSummary(ctx, usageRepo, execID)
-	}
-	if summary != nil {
-		payload["usage"] = summary
+		summary := router.NewUsageSummary(state.Usage)
+		payload["workflow"] = newWorkflowExecutionDTO(state, summary)
+		if summary != nil {
+			payload["usage"] = summary
+		}
 	}
 	log.Warn("Workflow execution timed out", "workflow_id", workflowID, "exec_id", execID.String())
 	resp := router.Response{

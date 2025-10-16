@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 )
 
 // StateFilter updated to include execution type filtering
@@ -53,6 +54,9 @@ type Repository interface {
 
 	// Progress aggregation operations
 	GetProgressInfo(ctx context.Context, parentStateID core.ID) (*ProgressInfo, error)
+
+	// Usage aggregation
+	MergeUsage(ctx context.Context, taskExecID core.ID, summary *usage.Summary) error
 }
 
 // -----------------------------------------------------------------------------

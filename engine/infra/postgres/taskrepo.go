@@ -9,6 +9,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -24,6 +25,7 @@ var taskStateColumns = []string{
 	"task_id",
 	"workflow_exec_id",
 	"workflow_id",
+	"usage",
 	"component",
 	"status",
 	"execution_type",
@@ -38,7 +40,7 @@ var taskStateColumns = []string{
 	"updated_at",
 }
 
-const taskStateColumnsSQL = "task_exec_id, task_id, workflow_exec_id, workflow_id, " +
+const taskStateColumnsSQL = "task_exec_id, task_id, workflow_exec_id, workflow_id, usage, " +
 	"component, status, execution_type, parent_state_id, agent_id, action_id, " +
 	"tool_id, input, output, error, created_at, updated_at"
 
@@ -141,6 +143,10 @@ func convertStates(statesDB []*task.StateDB) ([]*task.State, error) {
 
 // buildUpsertArgs prepares the SQL query and arguments for upserting a task state
 func (r *TaskRepo) buildUpsertArgs(state *task.State) (string, []any, error) {
+	usageJSON, err := ToJSONB(state.Usage)
+	if err != nil {
+		return "", nil, fmt.Errorf("marshaling usage: %w", err)
+	}
 	input, err := ToJSONB(state.Input)
 	if err != nil {
 		return "", nil, fmt.Errorf("marshaling input: %w", err)
@@ -160,27 +166,28 @@ func (r *TaskRepo) buildUpsertArgs(state *task.State) (string, []any, error) {
 	}
 	query := `
         INSERT INTO task_states (
-            task_exec_id, task_id, workflow_exec_id, workflow_id, component, status,
+            task_exec_id, task_id, workflow_exec_id, workflow_id, usage, component, status,
             execution_type, parent_state_id, agent_id, action_id, tool_id, input, output, error
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         ON CONFLICT (task_exec_id) DO UPDATE SET
             task_id = $2,
             workflow_exec_id = $3,
             workflow_id = $4,
-            component = $5,
-            status = $6,
-            execution_type = $7,
-            parent_state_id = $8,
-            agent_id = $9,
-            action_id = $10,
-            tool_id = $11,
-            input = $12,
-            output = $13,
-            error = $14,
+            usage = $5,
+            component = $6,
+            status = $7,
+            execution_type = $8,
+            parent_state_id = $9,
+            agent_id = $10,
+            action_id = $11,
+            tool_id = $12,
+            input = $13,
+            output = $14,
+            error = $15,
             updated_at = now()
     `
 	args := []any{
-		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID,
+		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, usageJSON,
 		state.Component, state.Status, state.ExecutionType, parentStateID,
 		state.AgentID, state.ActionID, state.ToolID,
 		input, output, errJSON,
@@ -216,6 +223,16 @@ func (r *TaskRepo) GetState(ctx context.Context, taskExecID core.ID) (*task.Stat
 // GetStateForUpdate is not allowed outside of a transaction on the non-tx repo.
 func (r *TaskRepo) GetStateForUpdate(_ context.Context, _ core.ID) (*task.State, error) {
 	return nil, fmt.Errorf("GetStateForUpdate requires transactional context")
+}
+
+// MergeUsage merges usage entries into the task record.
+func (r *TaskRepo) MergeUsage(ctx context.Context, taskExecID core.ID, summary *usage.Summary) error {
+	if summary == nil || len(summary.Entries) == 0 {
+		return nil
+	}
+	return r.WithTransaction(ctx, func(repo task.Repository) error {
+		return repo.MergeUsage(ctx, taskExecID, summary)
+	})
 }
 
 func (r *TaskRepo) getStateForUpdateTx(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*task.State, error) {
@@ -291,6 +308,33 @@ func (t *taskRepoTx) GetState(ctx context.Context, taskExecID core.ID) (*task.St
 
 func (t *taskRepoTx) GetStateForUpdate(ctx context.Context, taskExecID core.ID) (*task.State, error) {
 	return t.parent.getStateForUpdateTx(ctx, t.tx, taskExecID)
+}
+
+func (t *taskRepoTx) MergeUsage(ctx context.Context, taskExecID core.ID, summary *usage.Summary) error {
+	if summary == nil || len(summary.Entries) == 0 {
+		return nil
+	}
+	state, err := t.parent.getStateForUpdateTx(ctx, t.tx, taskExecID)
+	if err != nil {
+		return err
+	}
+	var base *usage.Summary
+	if state.Usage != nil {
+		base = state.Usage.Clone()
+	} else {
+		base = &usage.Summary{}
+	}
+	delta := summary.Clone()
+	if delta == nil {
+		delta = &usage.Summary{}
+	}
+	delta.Sort()
+	base.MergeAll(delta)
+	base.Sort()
+
+	stateCopy := *state
+	stateCopy.Usage = base
+	return t.parent.UpsertStateWithTx(ctx, t.tx, &stateCopy)
 }
 
 func (t *taskRepoTx) ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*task.State, error) {

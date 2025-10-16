@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	expectedWorkflowColumns = 8
+	expectedWorkflowColumns = 9
 	minWorkflowIndexes      = 5
 )
 

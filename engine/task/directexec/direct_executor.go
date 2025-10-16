@@ -49,7 +49,6 @@ type directExecutor struct {
 	workflowRepo       workflow.Repository
 	toolEnvironment    toolenv.Environment
 	appState           *appstate.State
-	usageRepo          usage.Repository
 	usageMetrics       usage.Metrics
 	resourceStore      resources.ResourceStore
 	projectConfig      *project.Config
@@ -262,10 +261,6 @@ func NewDirectExecutor(
 	if workflowRepo == nil && state.Store != nil {
 		workflowRepo = state.Store.NewWorkflowRepo()
 	}
-	var usageRepo usage.Repository
-	if state.Store != nil {
-		usageRepo = state.Store.NewUsageRepo()
-	}
 	var usageMetrics usage.Metrics
 	if svc, ok := state.MonitoringService(); ok && svc != nil && svc.IsInitialized() {
 		usageMetrics = svc.LLMUsageMetrics()
@@ -294,7 +289,6 @@ func NewDirectExecutor(
 		workflowRepo:       workflowRepo,
 		toolEnvironment:    toolEnvironment,
 		appState:           state,
-		usageRepo:          usageRepo,
 		usageMetrics:       usageMetrics,
 		resourceStore:      resourceStore,
 		projectConfig:      projCfg,
@@ -313,20 +307,40 @@ func resolveProjectRoot(state *appstate.State) string {
 }
 
 func (d *directExecutor) attachUsageCollector(ctx context.Context, state *task.State) context.Context {
-	if d.usageRepo == nil || state == nil {
+	if state == nil {
 		return ctx
 	}
-	meta := usage.Metadata{
+	collector := usage.NewCollector(d.usageMetrics, usage.Metadata{
 		Component:      state.Component,
 		WorkflowExecID: state.WorkflowExecID,
 		TaskExecID:     state.TaskExecID,
 		AgentID:        state.AgentID,
-	}
-	collector := usage.NewCollector(d.usageRepo, d.usageMetrics, meta)
-	if collector == nil {
-		return ctx
-	}
+	})
 	return usage.ContextWithCollector(ctx, collector)
+}
+
+func (d *directExecutor) persistUsageSummary(ctx context.Context, state *task.State, finalized *usage.Finalized) {
+	if d == nil || state == nil || finalized == nil || finalized.Summary == nil {
+		return
+	}
+	taskSummary := finalized.Summary.CloneWithSource(usage.SourceTask)
+	if taskSummary == nil || len(taskSummary.Entries) == 0 {
+		return
+	}
+	log := logger.FromContext(ctx)
+	if err := d.taskRepo.MergeUsage(ctx, state.TaskExecID, taskSummary); err != nil {
+		log.Warn(
+			"Failed to merge task usage", "task_exec_id", state.TaskExecID.String(), "error", err,
+		)
+	}
+	if d.workflowRepo != nil && !state.WorkflowExecID.IsZero() {
+		workflowSummary := finalized.Summary.CloneWithSource(usage.SourceWorkflow)
+		if err := d.workflowRepo.MergeUsage(ctx, state.WorkflowExecID, workflowSummary); err != nil {
+			log.Warn(
+				"Failed to merge workflow usage", "workflow_exec_id", state.WorkflowExecID.String(), "error", err,
+			)
+		}
+	}
 }
 
 func (d *directExecutor) ExecuteSync(
@@ -552,8 +566,11 @@ func (d *directExecutor) recoverExecution(
 			)
 		}
 		if collector := usage.FromContext(ctx); collector != nil {
-			if finalizeErr := collector.Finalize(ctx, core.StatusFailed); finalizeErr != nil {
-				log.Warn("Failed to persist usage after execution panic", "error", finalizeErr)
+			finalized, finalizeErr := collector.Finalize(ctx, core.StatusFailed)
+			if finalizeErr != nil {
+				log.Warn("Failed to aggregate usage after execution panic", "error", finalizeErr)
+			} else {
+				d.persistUsageSummary(ctx, state, finalized)
 			}
 		}
 		res.err = err
@@ -595,8 +612,11 @@ func (d *directExecutor) markExecutionFailure(
 		log.Error("Failed to update execution state", "error", upErr)
 	}
 	if collector := usage.FromContext(ctx); collector != nil {
-		if finalizeErr := collector.Finalize(ctx, core.StatusFailed); finalizeErr != nil {
-			log.Warn("Failed to persist usage after execution failure", "error", finalizeErr)
+		finalized, finalizeErr := collector.Finalize(ctx, core.StatusFailed)
+		if finalizeErr != nil {
+			log.Warn("Failed to aggregate usage after execution failure", "error", finalizeErr)
+		} else {
+			d.persistUsageSummary(ctx, state, finalized)
 		}
 	}
 }
@@ -615,8 +635,11 @@ func (d *directExecutor) markExecutionSuccess(
 		log.Error("Failed to update execution state", "error", upErr)
 	}
 	if collector := usage.FromContext(ctx); collector != nil {
-		if err := collector.Finalize(ctx, core.StatusSuccess); err != nil {
-			log.Warn("Failed to persist usage after execution success", "error", err)
+		finalized, err := collector.Finalize(ctx, core.StatusSuccess)
+		if err != nil {
+			log.Warn("Failed to aggregate usage after execution success", "error", err)
+		} else {
+			d.persistUsageSummary(ctx, state, finalized)
 		}
 	}
 }

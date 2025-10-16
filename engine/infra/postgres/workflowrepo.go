@@ -9,6 +9,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
@@ -17,7 +18,7 @@ import (
 )
 
 const selectWorkflowStateByExecID = "SELECT " +
-	"workflow_exec_id, workflow_id, status, input, output, error " +
+	"workflow_exec_id, workflow_id, status, usage, input, output, error " +
 	"FROM workflow_states WHERE workflow_exec_id = $1"
 
 // WorkflowRepo implements the workflow.Repository interface.
@@ -112,7 +113,7 @@ func (r *WorkflowRepo) populateTaskStatesWithTx(ctx context.Context, tx pgx.Tx, 
 }
 
 func (r *WorkflowRepo) ListStates(ctx context.Context, filter *workflow.StateFilter) ([]*workflow.State, error) {
-	sb := squirrel.Select("workflow_exec_id", "workflow_id", "status", "input", "output", "error").
+	sb := squirrel.Select("workflow_exec_id", "workflow_id", "status", "usage", "input", "output", "error").
 		From("workflow_states").
 		PlaceholderFormat(squirrel.Dollar)
 	if filter != nil {
@@ -172,6 +173,10 @@ func (r *WorkflowRepo) ListStates(ctx context.Context, filter *workflow.StateFil
 }
 
 func (r *WorkflowRepo) UpsertState(ctx context.Context, state *workflow.State) error {
+	usageJSON, err := ToJSONB(state.Usage)
+	if err != nil {
+		return fmt.Errorf("marshaling usage: %w", err)
+	}
 	input, err := ToJSONB(state.Input)
 	if err != nil {
 		return fmt.Errorf("marshaling input: %w", err)
@@ -185,10 +190,10 @@ func (r *WorkflowRepo) UpsertState(ctx context.Context, state *workflow.State) e
 		return fmt.Errorf("marshaling error: %w", err)
 	}
 	query := `
-        INSERT INTO workflow_states (workflow_exec_id, workflow_id, status, input, output, error)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO workflow_states (workflow_exec_id, workflow_id, status, usage, input, output, error)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         ON CONFLICT (workflow_exec_id) DO UPDATE SET
-            workflow_id = $2, status = $3, input = $4, output = $5, error = $6, updated_at = now()
+            workflow_id = $2, status = $3, usage = $4, input = $5, output = $6, error = $7, updated_at = now()
     `
 	if _, err := r.db.Exec(
 		ctx,
@@ -196,6 +201,7 @@ func (r *WorkflowRepo) UpsertState(ctx context.Context, state *workflow.State) e
 		state.WorkflowExecID,
 		state.WorkflowID,
 		state.Status,
+		usageJSON,
 		input,
 		output,
 		errJSON,
@@ -237,10 +243,47 @@ func (r *WorkflowRepo) GetState(ctx context.Context, workflowExecID core.ID) (*w
 	return result, err
 }
 
+func (r *WorkflowRepo) MergeUsage(ctx context.Context, workflowExecID core.ID, summary *usage.Summary) error {
+	if summary == nil || len(summary.Entries) == 0 {
+		return nil
+	}
+	return r.withTransaction(ctx, func(tx pgx.Tx) error {
+		stateDB, err := r.getStateDBWithTx(ctx, tx, selectWorkflowStateByExecID+" FOR UPDATE", workflowExecID)
+		if err != nil {
+			return err
+		}
+		state, err := stateDB.ToState()
+		if err != nil {
+			return err
+		}
+		var base *usage.Summary
+		if state.Usage != nil {
+			base = state.Usage.Clone()
+		} else {
+			base = &usage.Summary{}
+		}
+		delta := summary.Clone()
+		if delta == nil {
+			delta = &usage.Summary{}
+		}
+		delta.Sort()
+		base.MergeAll(delta)
+		base.Sort()
+		payload, err := ToJSONB(base)
+		if err != nil {
+			return fmt.Errorf("marshaling usage: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `UPDATE workflow_states SET usage = $1, updated_at = now() WHERE workflow_exec_id = $2`, payload, workflowExecID); err != nil {
+			return fmt.Errorf("update workflow usage: %w", err)
+		}
+		return nil
+	})
+}
+
 func (r *WorkflowRepo) GetStateByID(ctx context.Context, workflowID string) (*workflow.State, error) {
 	var result *workflow.State
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
-		query := `SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states WHERE workflow_id = $1 LIMIT 1`
+		query := `SELECT workflow_exec_id, workflow_id, status, usage, input, output, error FROM workflow_states WHERE workflow_id = $1 LIMIT 1`
 		stateDB, err := r.getStateDBWithTx(ctx, tx, query, workflowID)
 		if err != nil {
 			return err
@@ -262,7 +305,7 @@ func (r *WorkflowRepo) GetStateByTaskID(ctx context.Context, workflowID, taskID 
 	var result *workflow.State
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-            SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error
+            SELECT w.workflow_exec_id, w.workflow_id, w.status, w.usage, w.input, w.output, w.error
             FROM workflow_states w JOIN task_states t ON w.workflow_exec_id = t.workflow_exec_id
             WHERE w.workflow_id = $1 AND t.task_id = $2`
 		stateDB, err := r.getStateDBWithTx(ctx, tx, query, workflowID, taskID)
@@ -286,7 +329,7 @@ func (r *WorkflowRepo) GetStateByAgentID(ctx context.Context, workflowID, agentI
 	var result *workflow.State
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-            SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error
+            SELECT w.workflow_exec_id, w.workflow_id, w.status, w.usage, w.input, w.output, w.error
             FROM workflow_states w JOIN task_states t ON w.workflow_exec_id = t.workflow_exec_id
             WHERE w.workflow_id = $1 AND t.agent_id = $2`
 		stateDB, err := r.getStateDBWithTx(ctx, tx, query, workflowID, agentID)
@@ -310,7 +353,7 @@ func (r *WorkflowRepo) GetStateByToolID(ctx context.Context, workflowID, toolID 
 	var result *workflow.State
 	err := r.withTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-            SELECT w.workflow_exec_id, w.workflow_id, w.status, w.input, w.output, w.error
+            SELECT w.workflow_exec_id, w.workflow_id, w.status, w.usage, w.input, w.output, w.error
             FROM workflow_states w JOIN task_states t ON w.workflow_exec_id = t.workflow_exec_id
             WHERE w.workflow_id = $1 AND t.tool_id = $2`
 		stateDB, err := r.getStateDBWithTx(ctx, tx, query, workflowID, toolID)
@@ -511,7 +554,7 @@ func (r *WorkflowRepo) determineWorkflowOutput(
 	if outputTransformer == nil {
 		return r.createWorkflowOutputMap(tasks), nil
 	}
-	query := `SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states WHERE workflow_exec_id = $1`
+	query := `SELECT workflow_exec_id, workflow_id, status, usage, input, output, error FROM workflow_states WHERE workflow_exec_id = $1`
 	stateDB, err := r.getStateDBWithTx(ctx, tx, query, workflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow state: %w", err)
@@ -554,7 +597,7 @@ func (r *WorkflowRepo) retrieveUpdatedWorkflowState(
 	tx pgx.Tx,
 	workflowExecID core.ID,
 ) (*workflow.State, error) {
-	getQuery := `SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states WHERE workflow_exec_id = $1`
+	getQuery := `SELECT workflow_exec_id, workflow_id, status, usage, input, output, error FROM workflow_states WHERE workflow_exec_id = $1`
 	stateDB, err := r.getStateDBWithTx(ctx, tx, getQuery, workflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("fetching updated workflow state: %w", err)

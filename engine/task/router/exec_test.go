@@ -36,81 +36,6 @@ type stateSavingTaskExecutor struct {
 	state *task.State
 }
 
-type stubUsageRepo struct {
-	taskRows     map[string]*usage.Row
-	workflowRows map[string]*usage.Row
-	summaryRows  map[string]*usage.Row
-	err          error
-}
-
-func newStubUsageRepo() *stubUsageRepo {
-	return &stubUsageRepo{
-		taskRows:     make(map[string]*usage.Row),
-		workflowRows: make(map[string]*usage.Row),
-		summaryRows:  make(map[string]*usage.Row),
-	}
-}
-
-func (s *stubUsageRepo) Upsert(_ context.Context, row *usage.Row) error {
-	if row == nil {
-		return nil
-	}
-	if row.TaskExecID != nil {
-		s.taskRows[row.TaskExecID.String()] = row
-	}
-	if row.WorkflowExecID != nil {
-		s.workflowRows[row.WorkflowExecID.String()] = row
-		s.summaryRows[row.WorkflowExecID.String()] = row
-	}
-	return nil
-}
-
-func (s *stubUsageRepo) GetByTaskExecID(_ context.Context, id core.ID) (*usage.Row, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	if row, ok := s.taskRows[id.String()]; ok {
-		return row, nil
-	}
-	return nil, usage.ErrNotFound
-}
-
-func (s *stubUsageRepo) GetByWorkflowExecID(_ context.Context, id core.ID) (*usage.Row, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	if row, ok := s.workflowRows[id.String()]; ok {
-		return row, nil
-	}
-	return nil, usage.ErrNotFound
-}
-
-func (s *stubUsageRepo) SummarizeByWorkflowExecID(_ context.Context, id core.ID) (*usage.Row, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	if row, ok := s.summaryRows[id.String()]; ok {
-		return row, nil
-	}
-	return nil, usage.ErrNotFound
-}
-
-func (s *stubUsageRepo) SummariesByWorkflowExecIDs(
-	_ context.Context,
-	ids []core.ID,
-) (map[core.ID]*usage.Row, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	result := make(map[core.ID]*usage.Row, len(ids))
-	for _, id := range ids {
-		if row, ok := s.summaryRows[id.String()]; ok {
-			result[id] = row
-		}
-	}
-	return result, nil
-}
-
 func (s *stateSavingTaskExecutor) ExecuteSync(
 	_ context.Context,
 	_ *task.Config,
@@ -159,23 +84,20 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		state := routertest.NewTestAppState(t)
 		repo := routertest.NewStubTaskRepo()
 		execID := core.MustNewID()
-		repo.AddState(newTestTaskState(execID))
-		usageRepo := newStubUsageRepo()
-		execIDCopy := execID
-		require.NoError(t, usageRepo.Upsert(context.Background(), &usage.Row{
-			TaskExecID:       &execIDCopy,
+		stateWithUsage := newTestTaskState(execID)
+		stateWithUsage.Usage = &usage.Summary{Entries: []usage.Entry{{
 			Provider:         "openai",
 			Model:            "gpt-4o",
 			PromptTokens:     12,
 			CompletionTokens: 7,
 			TotalTokens:      19,
-		}))
+		}}}
+		repo.AddState(stateWithUsage)
 		r := gin.New()
 		r.Use(appstate.StateMiddleware(state))
 		r.Use(srrouter.ErrorHandler())
 		r.Use(func(c *gin.Context) {
 			srrouter.SetTaskRepository(c, repo)
-			srrouter.SetUsageRepository(c, usageRepo)
 			c.Next()
 		})
 		api := r.Group("/api/v0")
@@ -194,8 +116,9 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		require.Equal(t, execID.String(), payload.Data.ExecID)
 		require.Equal(t, core.StatusSuccess, payload.Data.Status)
 		require.NotNil(t, payload.Data.Usage)
-		require.Equal(t, "openai", payload.Data.Usage.Provider)
-		require.Equal(t, 19, payload.Data.Usage.TotalTokens)
+		require.Len(t, payload.Data.Usage.Entries, 1)
+		require.Equal(t, "openai", payload.Data.Usage.Entries[0].Provider)
+		require.Equal(t, 19, payload.Data.Usage.Entries[0].TotalTokens)
 	})
 
 	t.Run("ShouldReturnNotFoundWhenExecutionMissing", func(t *testing.T) {
@@ -327,26 +250,22 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		stub := &stubDirectExecutor{syncOutput: &output, syncExecID: core.MustNewID()}
 		cleanup := installTaskExecutor(state, stub)
 		defer cleanup()
-		usageRepo := newStubUsageRepo()
-		taskExecID := stub.syncExecID
-		require.NoError(t, usageRepo.Upsert(context.Background(), &usage.Row{
-			TaskExecID:       &taskExecID,
+		stateSnapshot := newTestTaskState(stub.syncExecID)
+		matchOutput := core.Output{"foo": "bar"}
+		stateSnapshot.Output = &matchOutput
+		stateSnapshot.Usage = &usage.Summary{Entries: []usage.Entry{{
 			Provider:         "openai",
 			Model:            "gpt-4o",
 			PromptTokens:     9,
 			CompletionTokens: 4,
 			TotalTokens:      13,
-		}))
-		stateSnapshot := newTestTaskState(stub.syncExecID)
-		matchOutput := core.Output{"foo": "bar"}
-		stateSnapshot.Output = &matchOutput
+		}}}
 		repo.AddState(stateSnapshot)
 		r := gin.New()
 		r.Use(appstate.StateMiddleware(state))
 		r.Use(srrouter.ErrorHandler())
 		r.Use(func(c *gin.Context) {
 			srrouter.SetTaskRepository(c, repo)
-			srrouter.SetUsageRepository(c, usageRepo)
 			c.Next()
 		})
 		api := r.Group("/api/v0")
@@ -375,9 +294,11 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		require.Equal(t, stub.syncExecID.String(), payload.Data.ExecID)
 		require.Equal(t, "bar", payload.Data.Output["foo"])
 		require.NotNil(t, payload.Data.Usage)
-		require.Equal(t, 13, payload.Data.Usage.TotalTokens)
+		require.Len(t, payload.Data.Usage.Entries, 1)
+		require.Equal(t, 13, payload.Data.Usage.Entries[0].TotalTokens)
 		require.NotNil(t, payload.Data.State.Usage)
-		require.Equal(t, "openai", payload.Data.State.Usage.Provider)
+		require.Len(t, payload.Data.State.Usage.Entries, 1)
+		require.Equal(t, "openai", payload.Data.State.Usage.Entries[0].Provider)
 		require.Equal(t, 60*time.Second, stub.syncTimeout)
 	})
 

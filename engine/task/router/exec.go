@@ -16,7 +16,6 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/engine/infra/store"
-	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	taskuc "github.com/compozy/compozy/engine/task/uc"
@@ -58,7 +57,6 @@ func getTaskExecutionStatus(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	usageRepo := router.ResolveUsageRepository(c, state)
 	ctx := c.Request.Context()
 	taskState, err := repo.GetState(ctx, execID)
 	if err != nil {
@@ -72,7 +70,7 @@ func getTaskExecutionStatus(c *gin.Context) {
 		return
 	}
 	resp := newTaskExecutionStatusDTO(taskState)
-	resp.Usage = router.ResolveTaskUsageSummary(ctx, usageRepo, taskState.TaskExecID)
+	resp.Usage = router.NewUsageSummary(taskState.Usage)
 	router.RespondOK(c, "execution status retrieved", resp)
 }
 
@@ -301,7 +299,6 @@ func computeDirectExecutionTimeout(
 func respondTaskTimeout(
 	c *gin.Context,
 	repo task.Repository,
-	usageRepo usage.Repository,
 	taskID string,
 	execID core.ID,
 	metrics *monitoring.ExecutionMetrics,
@@ -314,9 +311,8 @@ func respondTaskTimeout(
 			if state == nil {
 				return nil
 			}
-			ctx := c.Request.Context()
 			dto := newTaskExecutionStatusDTO(state)
-			dto.Usage = router.ResolveTaskUsageSummary(ctx, usageRepo, state.TaskExecID)
+			dto.Usage = router.NewUsageSummary(state.Usage)
 			return dto
 		},
 		router.TimeoutResponseOptions{
@@ -331,7 +327,6 @@ func respondTaskTimeout(
 func buildTaskSyncPayload(
 	ctx context.Context,
 	repo task.Repository,
-	usageRepo usage.Repository,
 	taskID string,
 	execID core.ID,
 	output *core.Output,
@@ -341,10 +336,12 @@ func buildTaskSyncPayload(
 		payload["output"] = output
 	}
 	snapshotCtx := context.WithoutCancel(ctx)
-	summary := router.ResolveTaskUsageSummary(snapshotCtx, usageRepo, execID)
-	if stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID); stateErr == nil && stateSnapshot != nil {
+	stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
+	var summary *router.UsageSummary
+	if stateErr == nil && stateSnapshot != nil {
 		dto := newTaskExecutionStatusDTO(stateSnapshot)
-		dto.Usage = summary
+		dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
+		summary = dto.Usage
 		payload["state"] = dto
 		if stateSnapshot.Output != nil {
 			payload["output"] = stateSnapshot.Output
@@ -356,6 +353,9 @@ func buildTaskSyncPayload(
 			"exec_id", execID.String(),
 			"error", stateErr,
 		)
+	}
+	if summary == nil {
+		summary = router.ResolveTaskUsageSummary(snapshotCtx, repo, execID)
 	}
 	if summary != nil {
 		payload["usage"] = summary
@@ -509,7 +509,6 @@ func executeTaskSyncAndRespond(
 	setup *syncTaskExecutionSetup,
 	prep *syncTaskPreparation,
 ) string {
-	usageRepo := router.ResolveUsageRepository(c, setup.state)
 	output, execID, execErr := prep.executor.ExecuteSync(
 		c.Request.Context(),
 		prep.taskCfg,
@@ -518,7 +517,7 @@ func executeTaskSyncAndRespond(
 	)
 	if execErr != nil {
 		if errors.Is(execErr, context.DeadlineExceeded) {
-			status := respondTaskTimeout(c, prep.repo, usageRepo, setup.taskID, execID, setup.metrics)
+			status := respondTaskTimeout(c, prep.repo, setup.taskID, execID, setup.metrics)
 			setup.recordError(status)
 			return monitoring.ExecutionOutcomeTimeout
 		}
@@ -529,7 +528,7 @@ func executeTaskSyncAndRespond(
 	router.RespondOK(
 		c,
 		"task executed",
-		buildTaskSyncPayload(c.Request.Context(), prep.repo, usageRepo, setup.taskID, execID, output),
+		buildTaskSyncPayload(c.Request.Context(), prep.repo, setup.taskID, execID, output),
 	)
 	return monitoring.ExecutionOutcomeSuccess
 }

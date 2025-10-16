@@ -15,7 +15,6 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/engine/infra/store"
-	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/pkg/logger"
@@ -60,8 +59,7 @@ func getAgentExecutionStatus(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	usageRepo := router.ResolveUsageRepository(c, state)
-	usageSummary := router.ResolveTaskUsageSummary(ctx, usageRepo, taskState.TaskExecID)
+	usageSummary := router.NewUsageSummary(taskState.Usage)
 	resp := newExecutionStatusDTO(taskState)
 	resp.Usage = usageSummary
 	router.RespondOK(c, "execution status retrieved", resp)
@@ -122,7 +120,6 @@ func parseAgentExecRequest(c *gin.Context) (*AgentExecRequest, bool) {
 func respondAgentTimeout(
 	c *gin.Context,
 	repo task.Repository,
-	usageRepo usage.Repository,
 	agentID string,
 	execID core.ID,
 	metrics *monitoring.ExecutionMetrics,
@@ -135,9 +132,8 @@ func respondAgentTimeout(
 			if state == nil {
 				return nil
 			}
-			ctx := c.Request.Context()
 			dto := newExecutionStatusDTO(state)
-			dto.Usage = router.ResolveTaskUsageSummary(ctx, usageRepo, state.TaskExecID)
+			dto.Usage = router.NewUsageSummary(state.Usage)
 			return dto
 		},
 		router.TimeoutResponseOptions{
@@ -152,7 +148,6 @@ func respondAgentTimeout(
 func buildAgentSyncPayload(
 	ctx context.Context,
 	repo task.Repository,
-	usageRepo usage.Repository,
 	agentID string,
 	execID core.ID,
 	output *core.Output,
@@ -162,10 +157,12 @@ func buildAgentSyncPayload(
 		payload["output"] = output
 	}
 	snapshotCtx := context.WithoutCancel(ctx)
-	summary := router.ResolveTaskUsageSummary(snapshotCtx, usageRepo, execID)
-	if stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID); stateErr == nil && stateSnapshot != nil {
+	stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
+	var summary *router.UsageSummary
+	if stateErr == nil && stateSnapshot != nil {
 		dto := newExecutionStatusDTO(stateSnapshot)
-		dto.Usage = summary
+		dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
+		summary = dto.Usage
 		payload["state"] = dto
 		if stateSnapshot.Output != nil {
 			payload["output"] = stateSnapshot.Output
@@ -177,6 +174,9 @@ func buildAgentSyncPayload(
 			"exec_id", execID.String(),
 			"error", stateErr,
 		)
+	}
+	if summary == nil {
+		summary = router.ResolveTaskUsageSummary(snapshotCtx, repo, execID)
 	}
 	if summary != nil {
 		payload["usage"] = summary
@@ -270,7 +270,6 @@ func runAgentExecution(
 	c *gin.Context,
 	runner *agentexec.Runner,
 	repo task.Repository,
-	usageRepo usage.Repository,
 	prepared *agentexec.PreparedExecution,
 	metrics *monitoring.ExecutionMetrics,
 ) *executionResult {
@@ -281,7 +280,7 @@ func runAgentExecution(
 			execID = result.ExecID
 		}
 		if errors.Is(err, context.DeadlineExceeded) && result != nil {
-			reqTimeout := respondAgentTimeout(c, repo, usageRepo, prepared.Metadata.AgentID, execID, metrics)
+			reqTimeout := respondAgentTimeout(c, repo, prepared.Metadata.AgentID, execID, metrics)
 			return &executionResult{
 				execID:  execID,
 				outcome: monitoring.ExecutionOutcomeTimeout,
@@ -364,13 +363,12 @@ func executeAgentSync(c *gin.Context) {
 		recordError(status)
 		return
 	}
-	usageRepo := router.ResolveUsageRepository(c, state)
 	prepared, err := runner.Prepare(c.Request.Context(), execReq)
 	if err != nil {
 		recordError(handlePreparationError(c, err))
 		return
 	}
-	result := runAgentExecution(c, runner, repo, usageRepo, prepared, metrics)
+	result := runAgentExecution(c, runner, repo, prepared, metrics)
 	outcome = result.outcome
 	if result.outcome != monitoring.ExecutionOutcomeSuccess {
 		recordError(result.status)
@@ -379,7 +377,7 @@ func executeAgentSync(c *gin.Context) {
 	router.RespondOK(
 		c,
 		"agent executed",
-		buildAgentSyncPayload(c.Request.Context(), repo, usageRepo, syncReq.agentID, result.execID, result.output),
+		buildAgentSyncPayload(c.Request.Context(), repo, syncReq.agentID, result.execID, result.output),
 	)
 }
 

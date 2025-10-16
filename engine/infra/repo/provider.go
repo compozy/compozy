@@ -3,7 +3,6 @@ package repo
 import (
 	"github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/infra/postgres"
-	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,10 +31,4 @@ func (p *Provider) NewTaskRepo() task.Repository {
 // NewWorkflowRepo returns a workflow repository backed by Postgres.
 func (p *Provider) NewWorkflowRepo() workflow.Repository {
 	return postgres.NewWorkflowRepo(p.pg)
-}
-
-// NewUsageRepo returns an LLM usage repository backed by Postgres.
-// Callers use this to persist execution token summaries.
-func (p *Provider) NewUsageRepo() usage.Repository {
-	return postgres.NewUsageRepo(p.pg)
 }

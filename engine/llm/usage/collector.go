@@ -2,15 +2,11 @@ package usage
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/pkg/logger"
 )
-
-type contextKey struct{}
 
 // Metadata captures execution identifiers used to persist LLM usage rows.
 type Metadata struct {
@@ -33,44 +29,30 @@ type Snapshot struct {
 	OutputAudioTokens  *int
 }
 
-// Collector aggregates usage snapshots for an execution and persists them via Repository.
-type Collector struct {
-	mu         sync.Mutex
-	repo       Repository
-	metrics    Metrics
-	meta       Metadata
-	provider   string
-	model      string
-	prompt     int
-	completion int
-
-	total         int
-	totalProvided bool
-
-	reasoning    int
-	hasReasoning bool
-
-	cachedPrompt    int
-	hasCachedPrompt bool
-
-	inputAudio    int
-	hasInputAudio bool
-
-	outputAudio    int
-	hasOutputAudio bool
+// Finalized bundles the aggregated usage summary for the execution.
+type Finalized struct {
+	Metadata Metadata
+	Summary  *Summary
 }
 
-// NewCollector constructs a collector bound to the provided repository, metrics, and metadata.
-func NewCollector(repo Repository, metrics Metrics, meta Metadata) *Collector {
-	if repo == nil {
-		return nil
-	}
+// Collector aggregates usage snapshots for an execution.
+type Collector struct {
+	mu      sync.Mutex
+	metrics Metrics
+	meta    Metadata
+	summary *Summary
+}
+
+// NewCollector constructs a collector bound to the provided metrics sink and metadata.
+func NewCollector(metrics Metrics, meta Metadata) *Collector {
 	return &Collector{
-		repo:    repo,
 		metrics: metrics,
 		meta:    meta,
+		summary: &Summary{},
 	}
 }
+
+type contextKey struct{}
 
 // ContextWithCollector attaches the collector to the context so downstream orchestrator
 // components can record usage snapshots without additional plumbing.
@@ -94,183 +76,83 @@ func FromContext(ctx context.Context) *Collector {
 
 // Record adds a usage snapshot to the aggregate totals.
 func (c *Collector) Record(_ context.Context, snapshot *Snapshot) {
-	if c == nil || c.repo == nil || snapshot == nil {
+	if c == nil || snapshot == nil {
+		return
+	}
+	if snapshot.Provider == "" || snapshot.Model == "" {
 		return
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if snapshot.Provider != "" {
-		c.provider = snapshot.Provider
+	entry := Entry{
+		Provider:           snapshot.Provider,
+		Model:              snapshot.Model,
+		PromptTokens:       snapshot.PromptTokens,
+		CompletionTokens:   snapshot.CompletionTokens,
+		TotalTokens:        snapshot.TotalTokens,
+		ReasoningTokens:    snapshot.ReasoningTokens,
+		CachedPromptTokens: snapshot.CachedPromptTokens,
+		InputAudioTokens:   snapshot.InputAudioTokens,
+		OutputAudioTokens:  snapshot.OutputAudioTokens,
+		Source:             string(SourceTask),
 	}
-	if snapshot.Model != "" {
-		c.model = snapshot.Model
+	if c.meta.AgentID != nil && *c.meta.AgentID != "" {
+		entry.AgentIDs = []string{*c.meta.AgentID}
 	}
-	c.prompt += snapshot.PromptTokens
-	c.completion += snapshot.CompletionTokens
-
-	if snapshot.TotalTokens > 0 {
-		c.total += snapshot.TotalTokens
-		c.totalProvided = true
-	}
-
-	if snapshot.ReasoningTokens != nil {
-		c.reasoning += *snapshot.ReasoningTokens
-		c.hasReasoning = true
-	}
-	if snapshot.CachedPromptTokens != nil {
-		c.cachedPrompt += *snapshot.CachedPromptTokens
-		c.hasCachedPrompt = true
-	}
-	if snapshot.InputAudioTokens != nil {
-		c.inputAudio += *snapshot.InputAudioTokens
-		c.hasInputAudio = true
-	}
-	if snapshot.OutputAudioTokens != nil {
-		c.outputAudio += *snapshot.OutputAudioTokens
-		c.hasOutputAudio = true
-	}
+	now := time.Now().UTC()
+	entry.CapturedAt = &now
+	entry.UpdatedAt = &now
+	c.summary.MergeEntry(&entry)
 }
 
-// Finalize persists aggregated usage counts for the execution. It is safe to call Finalize
-// multiple times; each call overwrites the previous totals using Repository.Upsert semantics.
-func (c *Collector) Finalize(ctx context.Context, status core.StatusType) error {
-	if c == nil || c.repo == nil {
-		return nil
+// Finalize returns the aggregated usage summary for downstream persistence.
+func (c *Collector) Finalize(ctx context.Context, status core.StatusType) (*Finalized, error) {
+	if c == nil {
+		return nil, nil
 	}
-	snapshot, ok := c.snapshotFinalizeState()
-	if !ok {
-		return nil
+	summary := c.snapshotSummary()
+	if summary == nil || len(summary.Entries) == 0 {
+		return nil, nil
 	}
-	return persistFinalize(ctx, status, snapshot)
+	c.emitMetrics(ctx, status, summary)
+	return &Finalized{
+		Metadata: c.meta,
+		Summary:  summary,
+	}, nil
 }
 
-// finalizeSnapshot stores the data required to persist usage once the collector lock is released.
-type finalizeSnapshot struct {
-	repo     Repository
-	metrics  Metrics
-	meta     Metadata
-	provider string
-	model    string
-	row      *Row
-}
-
-// snapshotFinalizeState captures the collector state needed to persist usage outside the lock.
-func (c *Collector) snapshotFinalizeState() (*finalizeSnapshot, bool) {
+func (c *Collector) snapshotSummary() *Summary {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.provider == "" || c.model == "" {
-		return nil, false
+	if c.summary == nil || len(c.summary.Entries) == 0 {
+		return nil
 	}
-	meta := c.meta
-	prompt := c.prompt
-	completion := c.completion
-	total := prompt + completion
-	if c.totalProvided && c.total > total {
-		total = c.total
+	clone := c.summary.Clone()
+	c.summary = &Summary{}
+	if clone != nil {
+		clone.Sort()
 	}
-	var (
-		workflowID *core.ID
-		taskID     *core.ID
-	)
-	if !meta.TaskExecID.IsZero() {
-		taskID = optionalID(meta.TaskExecID)
-	} else {
-		workflowID = optionalID(meta.WorkflowExecID)
-	}
-	row := &Row{
-		WorkflowExecID:     workflowID,
-		TaskExecID:         taskID,
-		Component:          meta.Component,
-		AgentID:            parseAgentID(meta.AgentID),
-		Provider:           c.provider,
-		Model:              c.model,
-		PromptTokens:       prompt,
-		CompletionTokens:   completion,
-		TotalTokens:        total,
-		ReasoningTokens:    optionalInt(c.hasReasoning, c.reasoning),
-		CachedPromptTokens: optionalInt(c.hasCachedPrompt, c.cachedPrompt),
-		InputAudioTokens:   optionalInt(c.hasInputAudio, c.inputAudio),
-		OutputAudioTokens:  optionalInt(c.hasOutputAudio, c.outputAudio),
-	}
-	return &finalizeSnapshot{
-		repo:     c.repo,
-		metrics:  c.metrics,
-		meta:     meta,
-		provider: c.provider,
-		model:    c.model,
-		row:      row,
-	}, true
+	return clone
 }
 
-// persistFinalize writes the usage row and records metrics using the captured snapshot.
-func persistFinalize(
-	ctx context.Context,
-	status core.StatusType,
-	snapshot *finalizeSnapshot,
-) error {
-	start := time.Now()
-	err := snapshot.repo.Upsert(ctx, snapshot.row)
-	duration := time.Since(start)
-	if err != nil {
-		log := logger.FromContext(ctx)
-		workflowLogID := maybeString(optionalID(snapshot.meta.WorkflowExecID))
-		log.Error(
-			"Failed to persist LLM usage",
-			"status", status,
-			"component", snapshot.meta.Component,
-			"task_exec_id", maybeString(snapshot.row.TaskExecID),
-			"workflow_exec_id", workflowLogID,
-			"error", err,
-		)
-		if snapshot.metrics != nil {
-			snapshot.metrics.RecordFailure(ctx, snapshot.meta.Component, snapshot.provider, snapshot.model, duration)
-		}
-		return fmt.Errorf("finalize usage: %w", err)
+func (c *Collector) emitMetrics(ctx context.Context, status core.StatusType, summary *Summary) {
+	if c.metrics == nil || summary == nil {
+		return
 	}
-	if snapshot.metrics != nil {
-		snapshot.metrics.RecordSuccess(
+	for i := range summary.Entries {
+		entry := &summary.Entries[i]
+		c.metrics.RecordSuccess(
 			ctx,
-			snapshot.meta.Component,
-			snapshot.provider,
-			snapshot.model,
-			snapshot.row.PromptTokens,
-			snapshot.row.CompletionTokens,
-			duration,
+			c.meta.Component,
+			entry.Provider,
+			entry.Model,
+			entry.PromptTokens,
+			entry.CompletionTokens,
+			0,
 		)
+		if status != core.StatusSuccess {
+			c.metrics.RecordFailure(ctx, c.meta.Component, entry.Provider, entry.Model, 0)
+		}
 	}
-	return nil
-}
-
-func optionalID(id core.ID) *core.ID {
-	if id.IsZero() {
-		return nil
-	}
-	value := id
-	return &value
-}
-
-func optionalInt(ok bool, value int) *int {
-	if !ok {
-		return nil
-	}
-	return &value
-}
-
-func parseAgentID(id *string) *core.ID {
-	if id == nil || *id == "" {
-		return nil
-	}
-	parsed, err := core.ParseID(*id)
-	if err != nil {
-		return nil
-	}
-	return &parsed
-}
-
-func maybeString(id *core.ID) string {
-	if id == nil {
-		return ""
-	}
-	return id.String()
 }

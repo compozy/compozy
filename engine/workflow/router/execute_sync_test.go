@@ -65,93 +65,6 @@ type stubWorkflowRepo struct {
 	err    error
 }
 
-type stubUsageRepo struct {
-	mu           sync.Mutex
-	taskRows     map[string]*usage.Row
-	workflowRows map[string]*usage.Row
-	summaryRows  map[string]*usage.Row
-	err          error
-}
-
-func newStubUsageRepo() *stubUsageRepo {
-	return &stubUsageRepo{
-		taskRows:     make(map[string]*usage.Row),
-		workflowRows: make(map[string]*usage.Row),
-		summaryRows:  make(map[string]*usage.Row),
-	}
-}
-
-func (s *stubUsageRepo) Upsert(_ context.Context, row *usage.Row) error {
-	if row == nil {
-		return nil
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if row.TaskExecID != nil {
-		s.taskRows[row.TaskExecID.String()] = row
-	}
-	if row.WorkflowExecID != nil {
-		key := row.WorkflowExecID.String()
-		s.workflowRows[key] = row
-		s.summaryRows[key] = row
-	}
-	return nil
-}
-
-func (s *stubUsageRepo) GetByTaskExecID(_ context.Context, id core.ID) (*usage.Row, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.err != nil {
-		return nil, s.err
-	}
-	if row, ok := s.taskRows[id.String()]; ok {
-		return row, nil
-	}
-	return nil, usage.ErrNotFound
-}
-
-func (s *stubUsageRepo) GetByWorkflowExecID(_ context.Context, id core.ID) (*usage.Row, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.err != nil {
-		return nil, s.err
-	}
-	if row, ok := s.workflowRows[id.String()]; ok {
-		return row, nil
-	}
-	return nil, usage.ErrNotFound
-}
-
-func (s *stubUsageRepo) SummarizeByWorkflowExecID(_ context.Context, id core.ID) (*usage.Row, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.err != nil {
-		return nil, s.err
-	}
-	if row, ok := s.summaryRows[id.String()]; ok {
-		return row, nil
-	}
-	return nil, usage.ErrNotFound
-}
-
-func (s *stubUsageRepo) SummariesByWorkflowExecIDs(
-	_ context.Context,
-	ids []core.ID,
-) (map[core.ID]*usage.Row, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.err != nil {
-		return nil, s.err
-	}
-	rows := make(map[core.ID]*usage.Row, len(ids))
-	for _, id := range ids {
-		if row, ok := s.summaryRows[id.String()]; ok {
-			rows[id] = row
-		}
-	}
-	return rows, nil
-}
-
 func (s *stubWorkflowRepo) ListStates(context.Context, *workflow.StateFilter) ([]*workflow.State, error) {
 	return nil, errors.New("not implemented")
 }
@@ -213,12 +126,44 @@ func (s *stubWorkflowRepo) CompleteWorkflow(
 	return nil, errors.New("not implemented")
 }
 
+func (s *stubWorkflowRepo) MergeUsage(_ context.Context, execID core.ID, summary *usage.Summary) error {
+	if summary == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, state := range s.states {
+		if state != nil && state.WorkflowExecID == execID {
+			if state.Usage == nil {
+				state.Usage = summary.Clone()
+			} else {
+				clone := state.Usage.Clone()
+				clone.MergeAll(summary)
+				clone.Sort()
+				state.Usage = clone
+			}
+			return nil
+		}
+	}
+	if s.last != nil && s.last.WorkflowExecID == execID {
+		if s.last.Usage == nil {
+			s.last.Usage = summary.Clone()
+		} else {
+			clone := s.last.Usage.Clone()
+			clone.MergeAll(summary)
+			clone.Sort()
+			s.last.Usage = clone
+		}
+		return nil
+	}
+	return errors.New("state not found")
+}
+
 func setupWorkflowSyncRouter(
 	t *testing.T,
 	repo workflow.Repository,
 	runner routerpkg.WorkflowRunner,
 	store resources.ResourceStore,
-	usageRepo usage.Repository,
 ) (*gin.Engine, *appstate.State) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -248,9 +193,6 @@ func setupWorkflowSyncRouter(
 		}
 		if runner != nil {
 			routerpkg.SetWorkflowRunner(c, runner)
-		}
-		if usageRepo != nil {
-			routerpkg.SetUsageRepository(c, usageRepo)
 		}
 		c.Next()
 	})
@@ -292,19 +234,17 @@ func Test_executeWorkflowSync(t *testing.T) {
 		completed := workflow.NewState(workflowID, execID, nil).WithStatus(core.StatusSuccess)
 		output := core.Output{"result": "ok"}
 		completed.Output = &output
-		repo := &stubWorkflowRepo{states: []*workflow.State{completed}}
-		store := resources.NewMemoryResourceStore()
-		usageRepo := newStubUsageRepo()
-		usageRepo.summaryRows[execID.String()] = &usage.Row{
-			WorkflowExecID:   &execID,
-			Component:        core.ComponentWorkflow,
+		completed.Usage = &usage.Summary{Entries: []usage.Entry{{
 			Provider:         "openai",
 			Model:            "gpt-4o",
 			PromptTokens:     18,
 			CompletionTokens: 7,
 			TotalTokens:      25,
-		}
-		r, state := setupWorkflowSyncRouter(t, repo, runner, store, usageRepo)
+			Source:           string(usage.SourceWorkflow),
+		}}}
+		repo := &stubWorkflowRepo{states: []*workflow.State{completed}}
+		store := resources.NewMemoryResourceStore()
+		r, state := setupWorkflowSyncRouter(t, repo, runner, store)
 		putWorkflowConfig(t, store, state.ProjectConfig.Name, workflowID)
 		body := `{"input": {"foo": "bar"}}`
 		req := httptest.NewRequest(
@@ -329,7 +269,8 @@ func Test_executeWorkflowSync(t *testing.T) {
 		require.NotNil(t, resp.Data.Workflow)
 		assert.Equal(t, core.StatusSuccess, resp.Data.Workflow.Status)
 		require.NotNil(t, resp.Data.Workflow.Usage)
-		assert.Equal(t, 25, resp.Data.Workflow.Usage.TotalTokens)
+		require.Len(t, resp.Data.Workflow.Usage.Entries, 1)
+		assert.Equal(t, 25, resp.Data.Workflow.Usage.Entries[0].TotalTokens)
 		require.NotNil(t, resp.Data.Output)
 		assert.Equal(t, "ok", (*resp.Data.Output)["result"])
 	})
@@ -338,19 +279,17 @@ func Test_executeWorkflowSync(t *testing.T) {
 		execID := core.MustNewID()
 		runner := &stubWorkflowRunner{execID: execID}
 		running := workflow.NewState(workflowID, execID, nil)
-		repo := &stubWorkflowRepo{states: []*workflow.State{running}}
-		store := resources.NewMemoryResourceStore()
-		usageRepo := newStubUsageRepo()
-		usageRepo.summaryRows[execID.String()] = &usage.Row{
-			WorkflowExecID:   &execID,
-			Component:        core.ComponentWorkflow,
+		running.Usage = &usage.Summary{Entries: []usage.Entry{{
 			Provider:         "anthropic",
 			Model:            "claude-3",
 			PromptTokens:     11,
 			CompletionTokens: 5,
 			TotalTokens:      16,
-		}
-		r, state := setupWorkflowSyncRouter(t, repo, runner, store, usageRepo)
+			Source:           string(usage.SourceWorkflow),
+		}}}
+		repo := &stubWorkflowRepo{states: []*workflow.State{running}}
+		store := resources.NewMemoryResourceStore()
+		r, state := setupWorkflowSyncRouter(t, repo, runner, store)
 		putWorkflowConfig(t, store, state.ProjectConfig.Name, workflowID)
 		body := `{"timeout": 1}`
 		req := httptest.NewRequest(
@@ -372,9 +311,12 @@ func Test_executeWorkflowSync(t *testing.T) {
 		execVal, ok := resp.Data["exec_id"].(string)
 		require.True(t, ok)
 		assert.Equal(t, execID.String(), execVal)
-		usageVal, ok := resp.Data["usage"].(map[string]any)
+		usageArr, ok := resp.Data["usage"].([]any)
 		require.True(t, ok)
-		total, ok := usageVal["total_tokens"].(float64)
+		require.Len(t, usageArr, 1)
+		entry, ok := usageArr[0].(map[string]any)
+		require.True(t, ok)
+		total, ok := entry["total_tokens"].(float64)
 		require.True(t, ok)
 		assert.Equal(t, float64(16), total)
 	})
@@ -384,7 +326,7 @@ func Test_executeWorkflowSync(t *testing.T) {
 		runner := &stubWorkflowRunner{execID: execID}
 		repo := &stubWorkflowRepo{states: []*workflow.State{}}
 		store := resources.NewMemoryResourceStore()
-		r, state := setupWorkflowSyncRouter(t, repo, runner, store, nil)
+		r, state := setupWorkflowSyncRouter(t, repo, runner, store)
 		putWorkflowConfig(t, store, state.ProjectConfig.Name, workflowID)
 		req := httptest.NewRequest(
 			http.MethodPost,
@@ -402,7 +344,7 @@ func Test_executeWorkflowSync(t *testing.T) {
 		runner := &stubWorkflowRunner{execID: execID}
 		repo := &stubWorkflowRepo{states: []*workflow.State{}}
 		store := resources.NewMemoryResourceStore()
-		r, _ := setupWorkflowSyncRouter(t, repo, runner, store, nil)
+		r, _ := setupWorkflowSyncRouter(t, repo, runner, store)
 		req := httptest.NewRequest(
 			http.MethodPost,
 			"/api/v0/workflows/"+workflowID+"/executions/sync",

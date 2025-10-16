@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/llm/usage"
 )
 
 // OutputTransformer transforms workflow output from the final state.
@@ -29,4 +30,5 @@ type Repository interface {
 	GetStateByAgentID(ctx context.Context, workflowID, agentID string) (*State, error)
 	GetStateByToolID(ctx context.Context, workflowID, toolID string) (*State, error)
 	CompleteWorkflow(ctx context.Context, workflowExecID core.ID, outputTransformer OutputTransformer) (*State, error)
+	MergeUsage(ctx context.Context, workflowExecID core.ID, summary *usage.Summary) error
 }
