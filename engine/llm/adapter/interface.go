@@ -116,15 +116,26 @@ func NewJSONSchemaOutputFormat(name string, schema *schema.Schema, strict bool) 
 
 // CallOptions represents options for the LLM call
 type CallOptions struct {
-	Temperature  float64
-	MaxTokens    int32
-	StopWords    []string
-	ToolChoice   string // "auto", "none", or specific tool name
-	OutputFormat OutputFormat
-	ForceJSON    bool
-	ResponseMIME string
-	Provider     core.ProviderName
-	Model        string
+	Temperature       float64
+	MaxTokens         int32
+	StopWords         []string
+	ToolChoice        string // "auto", "none", or specific tool name
+	OutputFormat      OutputFormat
+	ForceJSON         bool
+	ResponseMIME      string
+	Provider          core.ProviderName
+	Model             string
+	TopP              float64
+	TopK              int
+	FrequencyPenalty  float64
+	PresencePenalty   float64
+	Seed              int
+	N                 int
+	CandidateCount    int
+	RepetitionPenalty float64
+	MaxLength         int
+	MinLength         int
+	Metadata          map[string]any
 }
 
 // LLMResponse represents the response from the LLM

@@ -375,43 +375,91 @@ func (a *LangChainAdapter) mapMessageRole(role string) llms.ChatMessageType {
 // buildCallOptions builds langchain call options from our request
 func (a *LangChainAdapter) buildCallOptions(req *LLMRequest) []llms.CallOption {
 	var options []llms.CallOption
+	options = append(options, buildBasicOptions(req)...)
+	options = append(options, buildSamplingOptions(req)...)
+	options = append(options, buildProviderSpecificOptions(req)...)
+	options = append(options, buildToolOptions(a, req)...)
+	options = append(options, buildOutputOptions(a, req)...)
+	return options
+}
 
-	// Add temperature if specified
+func buildBasicOptions(req *LLMRequest) []llms.CallOption {
+	var options []llms.CallOption
 	if req.Options.Temperature > 0 {
 		options = append(options, llms.WithTemperature(req.Options.Temperature))
 	}
-
-	// Add max tokens if specified
 	if req.Options.MaxTokens > 0 {
 		options = append(options, llms.WithMaxTokens(int(req.Options.MaxTokens)))
 	}
+	if len(req.Options.StopWords) > 0 {
+		options = append(options, llms.WithStopWords(req.Options.StopWords))
+	}
+	return options
+}
 
-	// Add stop words if specified
-	// TODO: Fix WithStopWords API compatibility
-	// TODO: Implement stop words when API compatibility allows
-	// if len(req.Options.StopWords) > 0 {
-	//     options = append(options, llms.WithStopWords(req.Options.StopWords))
-	// }
+func buildSamplingOptions(req *LLMRequest) []llms.CallOption {
+	var options []llms.CallOption
+	if req.Options.TopP > 0 {
+		options = append(options, llms.WithTopP(req.Options.TopP))
+	}
+	if req.Options.TopK > 0 {
+		options = append(options, llms.WithTopK(req.Options.TopK))
+	}
+	if req.Options.FrequencyPenalty != 0 {
+		options = append(options, llms.WithFrequencyPenalty(req.Options.FrequencyPenalty))
+	}
+	if req.Options.PresencePenalty != 0 {
+		options = append(options, llms.WithPresencePenalty(req.Options.PresencePenalty))
+	}
+	if req.Options.Seed != 0 {
+		options = append(options, llms.WithSeed(req.Options.Seed))
+	}
+	if req.Options.N > 0 {
+		options = append(options, llms.WithN(req.Options.N))
+	}
+	return options
+}
 
-	// Add tools if specified
+func buildProviderSpecificOptions(req *LLMRequest) []llms.CallOption {
+	var options []llms.CallOption
+	if req.Options.CandidateCount > 0 {
+		options = append(options, llms.WithCandidateCount(req.Options.CandidateCount))
+	}
+	if req.Options.RepetitionPenalty > 0 {
+		options = append(options, llms.WithRepetitionPenalty(req.Options.RepetitionPenalty))
+	}
+	if req.Options.MaxLength > 0 {
+		options = append(options, llms.WithMaxLength(req.Options.MaxLength))
+	}
+	if req.Options.MinLength > 0 {
+		options = append(options, llms.WithMinLength(req.Options.MinLength))
+	}
+	if len(req.Options.Metadata) > 0 {
+		options = append(options, llms.WithMetadata(req.Options.Metadata))
+	}
+	return options
+}
+
+func buildToolOptions(a *LangChainAdapter, req *LLMRequest) []llms.CallOption {
+	var options []llms.CallOption
 	if len(req.Tools) > 0 {
 		tools := a.convertTools(req.Tools)
 		options = append(options, llms.WithTools(tools))
 	}
-
-	if a.shouldForceJSON(req) {
-		options = append(options, llms.WithJSONMode())
-	}
-
-	if req.Options.ResponseMIME != "" {
-		options = append(options, llms.WithResponseMIMEType(req.Options.ResponseMIME))
-	}
-
-	// Set tool choice directive when provided (including "none")
 	if req.Options.ToolChoice != "" {
 		options = append(options, llms.WithToolChoice(req.Options.ToolChoice))
 	}
+	return options
+}
 
+func buildOutputOptions(a *LangChainAdapter, req *LLMRequest) []llms.CallOption {
+	var options []llms.CallOption
+	if a.shouldForceJSON(req) {
+		options = append(options, llms.WithJSONMode())
+	}
+	if req.Options.ResponseMIME != "" {
+		options = append(options, llms.WithResponseMIMEType(req.Options.ResponseMIME))
+	}
 	return options
 }
 

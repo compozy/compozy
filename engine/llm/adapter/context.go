@@ -58,5 +58,11 @@ func cloneCallOptions(opts *CallOptions) CallOptions {
 	if len(out.StopWords) > 0 {
 		out.StopWords = append([]string{}, out.StopWords...)
 	}
+	if len(out.Metadata) > 0 {
+		out.Metadata = make(map[string]any, len(out.Metadata))
+		for k, v := range opts.Metadata {
+			out.Metadata[k] = v
+		}
+	}
 	return out
 }

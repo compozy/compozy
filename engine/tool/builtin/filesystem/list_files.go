@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -19,8 +20,9 @@ import (
 )
 
 type ListFilesArgs struct {
-	Dir     string `json:"dir"`
-	Exclude any    `json:"exclude,omitempty"`
+	Dir       string `json:"dir"`
+	Exclude   any    `json:"exclude,omitempty"`
+	Recursive bool   `json:"recursive,omitempty"`
 }
 
 var listFilesInputSchema = &schema.Schema{
@@ -37,6 +39,10 @@ var listFilesInputSchema = &schema.Schema{
 				map[string]any{"type": "string"},
 				map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 			},
+		},
+		"recursive": map[string]any{
+			"type":        "boolean",
+			"description": "Traverse the directory tree recursively when true.",
 		},
 	},
 }
@@ -107,33 +113,83 @@ func listFilesHandler(ctx context.Context, payload map[string]any) (core.Output,
 	if !info.IsDir() {
 		return nil, builtin.InvalidArgument(errors.New("path is not a directory"), map[string]any{"dir": args.Dir})
 	}
-	entries, err := os.ReadDir(resolvedPath)
-	if err != nil {
-		if errors.Is(err, fs.ErrPermission) {
-			return nil, builtin.PermissionDenied(err, map[string]any{"dir": args.Dir})
-		}
-		return nil, builtin.Internal(fmt.Errorf("failed to read directory: %w", err), map[string]any{"dir": args.Dir})
-	}
 	patterns, err := normalizeExcludePatterns(args.Exclude)
 	if err != nil {
 		return nil, builtin.InvalidArgument(err, map[string]any{"field": "exclude"})
 	}
 	compiled := compileExcludePatterns(patterns)
-	files := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.Type().IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if shouldExclude(name, compiled) {
-			continue
-		}
-		files = append(files, name)
+	files, err := collectFiles(ctx, cfg, resolvedPath, rootUsed, compiled, args.Recursive)
+	if err != nil {
+		return nil, err
 	}
-	sort.Strings(files)
 	logListFiles(ctx, relativePath(rootUsed, resolvedPath), len(files))
 	success = true
 	return core.Output{"files": files}, nil
+}
+
+func collectFiles(
+	ctx context.Context,
+	cfg toolConfig,
+	basePath string,
+	root string,
+	patterns []compiledPattern,
+	recursive bool,
+) ([]string, error) {
+	queue := []string{basePath}
+	results := make([]string, 0)
+	visited := 0
+	for head := 0; head < len(queue); head++ {
+		current := queue[head]
+		if err := progressContext(ctx); err != nil {
+			return nil, err
+		}
+		entries, err := os.ReadDir(current)
+		if err != nil {
+			relative := relativePath(root, current)
+			if errors.Is(err, fs.ErrPermission) {
+				return nil, builtin.PermissionDenied(err, map[string]any{"dir": relative})
+			}
+			return nil, builtin.Internal(
+				fmt.Errorf("failed to read directory: %w", err),
+				map[string]any{"dir": relative},
+			)
+		}
+		sort.SliceStable(entries, func(i, j int) bool {
+			return entries[i].Name() < entries[j].Name()
+		})
+		for _, entry := range entries {
+			name := entry.Name()
+			fullPath := filepath.Join(current, name)
+			info, infoErr := entry.Info()
+			if infoErr != nil {
+				continue
+			}
+			if info.IsDir() {
+				if recursive && info.Mode()&fs.ModeSymlink == 0 {
+					queue = append(queue, fullPath)
+				}
+				continue
+			}
+			relative, relErr := filepath.Rel(basePath, fullPath)
+			if relErr != nil {
+				return nil, builtin.Internal(
+					fmt.Errorf("failed to compute relative path: %w", relErr),
+					map[string]any{"path": fullPath},
+				)
+			}
+			normalized := filepath.ToSlash(relative)
+			if shouldExclude(normalized, patterns) || shouldExclude(name, patterns) {
+				continue
+			}
+			visited++
+			if err := visitLimit(visited, cfg.Limits.MaxListEntries); err != nil {
+				return nil, err
+			}
+			results = append(results, normalized)
+		}
+	}
+	sort.Strings(results)
+	return results, nil
 }
 
 type compiledPattern struct {
@@ -207,6 +263,8 @@ func compileExcludePatterns(patterns []string) []compiledPattern {
 	return compiled
 }
 
+// expandBracePatterns handles simple brace expansion (e.g., "*.{js,ts}"), including
+// nested braces, but intentionally skips shell-style ranges or escape sequences.
 func expandBracePatterns(pattern string) []string {
 	start := strings.Index(pattern, "{")
 	if start == -1 {
@@ -279,6 +337,10 @@ func splitBraceOptions(body string) []string {
 	return options
 }
 
+// shouldExclude applies gitignore-like semantics to determine whether a given
+// path should be filtered. Positive patterns exclude matching entries. Negative
+// patterns (`!pattern`) re-include matches, and when only negative patterns are
+// provided any path that fails to match them remains excluded.
 func shouldExclude(name string, patterns []compiledPattern) bool {
 	excluded := false
 	hasPositive := false
@@ -296,6 +358,8 @@ func shouldExclude(name string, patterns []compiledPattern) bool {
 				continue
 			}
 			if !hasPositive {
+				// When only negated patterns are provided we exclude every entry
+				// by default, then selectively re-include matches.
 				excluded = true
 			}
 			continue

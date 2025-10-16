@@ -1006,6 +1006,7 @@ func registerLLMFields(registry *Registry) {
 	registerLLMRetryAndLimits(registry)
 	registerLLMConversationControls(registry)
 	registerLLMMCPExtras(registry)
+	registerLLMDefaultParams(registry)
 }
 
 // registerLLMMCPExtras splits MCP-related LLM fields to keep function sizes small
@@ -1278,6 +1279,42 @@ func registerLLMTelemetryControls(registry *Registry) {
 		EnvVar:  "LLM_CONTEXT_WARNING_THRESHOLDS",
 		Type:    reflect.TypeOf([]float64{}),
 		Help:    "Comma-separated context usage ratios (0-1) that trigger telemetry warnings",
+	})
+}
+
+// registerLLMDefaultParams registers global default LLM parameters
+func registerLLMDefaultParams(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "llm.default_top_p",
+		Default: 0.0,
+		CLIFlag: "llm-default-top-p",
+		EnvVar:  "LLM_DEFAULT_TOP_P",
+		Type:    reflect.TypeOf(0.0),
+		Help:    "Default TopP (nucleus sampling) for LLM requests (0 = use provider default)",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.default_frequency_penalty",
+		Default: 0.0,
+		CLIFlag: "llm-default-frequency-penalty",
+		EnvVar:  "LLM_DEFAULT_FREQUENCY_PENALTY",
+		Type:    reflect.TypeOf(0.0),
+		Help:    "Default frequency penalty to reduce repetition (0 = no penalty)",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.default_presence_penalty",
+		Default: 0.0,
+		CLIFlag: "llm-default-presence-penalty",
+		EnvVar:  "LLM_DEFAULT_PRESENCE_PENALTY",
+		Type:    reflect.TypeOf(0.0),
+		Help:    "Default presence penalty to encourage diversity (0 = no penalty)",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.default_seed",
+		Default: 0,
+		CLIFlag: "llm-default-seed",
+		EnvVar:  "LLM_DEFAULT_SEED",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default seed for reproducible outputs (0 = disabled/non-deterministic)",
 	})
 }
 

@@ -124,6 +124,34 @@ type PromptParams struct {
 	// - **Recommended**: 1.0 (no penalty) to 1.2 (moderate penalty)
 	// - **Provider Support**: Primarily local models (Ollama, etc.)
 	RepetitionPenalty float64 `json:"repetition_penalty,omitempty" yaml:"repetition_penalty,omitempty" mapstructure:"repetition_penalty,omitempty"`
+	// FrequencyPenalty penalizes tokens based on their frequency in the text so far.
+	// Positive values reduce repetition, negative values encourage it.
+	// - **Range**: -2.0 to 2.0
+	// - **Recommended**: 0.0 (no penalty) to 0.5 (moderate penalty)
+	// - **Provider Support**: OpenAI, Groq
+	FrequencyPenalty float64 `json:"frequency_penalty,omitempty"  yaml:"frequency_penalty,omitempty"  mapstructure:"frequency_penalty,omitempty"`
+	// PresencePenalty penalizes tokens that have already appeared in the text.
+	// Positive values encourage the model to talk about new topics.
+	// - **Range**: -2.0 to 2.0
+	// - **Recommended**: 0.0 (no penalty) to 0.5 (moderate penalty)
+	// - **Provider Support**: OpenAI, Groq
+	PresencePenalty float64 `json:"presence_penalty,omitempty"   yaml:"presence_penalty,omitempty"   mapstructure:"presence_penalty,omitempty"`
+	// N specifies how many completion choices to generate for each prompt.
+	// Useful for generating multiple alternatives and selecting the best one.
+	// - **Range**: 1 to provider-specific maximum (typically 1-10)
+	// - **Default**: 1
+	// - **Provider Support**: OpenAI
+	N int `json:"n,omitempty"                  yaml:"n,omitempty"                  mapstructure:"n,omitempty"`
+	// CandidateCount specifies the number of response candidates to generate.
+	// Similar to N but used by Google AI models.
+	// - **Range**: 1 to provider-specific maximum
+	// - **Provider Support**: Google AI (Gemini)
+	CandidateCount int `json:"candidate_count,omitempty"    yaml:"candidate_count,omitempty"    mapstructure:"candidate_count,omitempty"`
+	// Metadata contains backend-specific parameters not covered by standard fields.
+	// Use this for provider-specific features or experimental parameters.
+	// - **Example**: Custom headers, request tracking, A/B test variants
+	// - **Provider Support**: Varies by provider
+	Metadata map[string]any `json:"metadata,omitempty"           yaml:"metadata,omitempty"           mapstructure:"metadata,omitempty"`
 	// internal presence flags (not serialized)
 	_set ppSet `json:"-"                            yaml:"-"`
 }
@@ -139,19 +167,15 @@ type ppSet struct {
 	Seed              bool
 	MinLength         bool
 	RepetitionPenalty bool
+	FrequencyPenalty  bool
+	PresencePenalty   bool
+	N                 bool
+	CandidateCount    bool
+	Metadata          bool
 }
 
-// UnmarshalYAML records which keys are present, then decodes into the struct.
-// This preserves intent for zero values during merges.
-func (p *PromptParams) UnmarshalYAML(value *yaml.Node) error {
-	if value == nil {
-		return nil
-	}
-	// Track key presence
-	var raw map[string]any
-	if err := value.Decode(&raw); err != nil {
-		return err
-	}
+// buildPresenceFlags extracts which YAML keys were explicitly provided
+func buildPresenceFlags(raw map[string]any) ppSet {
 	flags := ppSet{}
 	for k := range raw {
 		switch k {
@@ -171,8 +195,33 @@ func (p *PromptParams) UnmarshalYAML(value *yaml.Node) error {
 			flags.MinLength = true
 		case "repetition_penalty":
 			flags.RepetitionPenalty = true
+		case "frequency_penalty":
+			flags.FrequencyPenalty = true
+		case "presence_penalty":
+			flags.PresencePenalty = true
+		case "n":
+			flags.N = true
+		case "candidate_count":
+			flags.CandidateCount = true
+		case "metadata":
+			flags.Metadata = true
 		}
 	}
+	return flags
+}
+
+// UnmarshalYAML records which keys are present, then decodes into the struct.
+// This preserves intent for zero values during merges.
+func (p *PromptParams) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+	// Track key presence
+	var raw map[string]any
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	flags := buildPresenceFlags(raw)
 	type alias PromptParams
 	var tmp alias
 	if err := value.Decode(&tmp); err != nil {
@@ -192,6 +241,11 @@ func (p *PromptParams) IsSetTopP() bool              { return p._set.TopP }
 func (p *PromptParams) IsSetSeed() bool              { return p._set.Seed }
 func (p *PromptParams) IsSetMinLength() bool         { return p._set.MinLength }
 func (p *PromptParams) IsSetRepetitionPenalty() bool { return p._set.RepetitionPenalty }
+func (p *PromptParams) IsSetFrequencyPenalty() bool  { return p._set.FrequencyPenalty }
+func (p *PromptParams) IsSetPresencePenalty() bool   { return p._set.PresencePenalty }
+func (p *PromptParams) IsSetN() bool                 { return p._set.N }
+func (p *PromptParams) IsSetCandidateCount() bool    { return p._set.CandidateCount }
+func (p *PromptParams) IsSetMetadata() bool          { return p._set.Metadata }
 
 // SetMaxTokens sets MaxTokens and records its explicit configuration.
 func (p *PromptParams) SetMaxTokens(value int32) {
@@ -244,6 +298,44 @@ func (p *PromptParams) SetMinLength(value int) {
 func (p *PromptParams) SetRepetitionPenalty(value float64) {
 	p.RepetitionPenalty = value
 	p._set.RepetitionPenalty = true
+}
+
+// SetFrequencyPenalty sets FrequencyPenalty and records its explicit configuration.
+func (p *PromptParams) SetFrequencyPenalty(value float64) {
+	p.FrequencyPenalty = value
+	p._set.FrequencyPenalty = true
+}
+
+// SetPresencePenalty sets PresencePenalty and records its explicit configuration.
+func (p *PromptParams) SetPresencePenalty(value float64) {
+	p.PresencePenalty = value
+	p._set.PresencePenalty = true
+}
+
+// SetN sets N and records its explicit configuration.
+func (p *PromptParams) SetN(value int) {
+	p.N = value
+	p._set.N = true
+}
+
+// SetCandidateCount sets CandidateCount and records its explicit configuration.
+func (p *PromptParams) SetCandidateCount(value int) {
+	p.CandidateCount = value
+	p._set.CandidateCount = true
+}
+
+// SetMetadata copies the provided metadata map and records its presence.
+func (p *PromptParams) SetMetadata(metadata map[string]any) {
+	if len(metadata) == 0 {
+		p.Metadata = nil
+		p._set.Metadata = true
+		return
+	}
+	p.Metadata = make(map[string]any, len(metadata))
+	for k, v := range metadata {
+		p.Metadata[k] = v
+	}
+	p._set.Metadata = true
 }
 
 // ProviderConfig represents the complete configuration for an LLM provider in Compozy workflows.

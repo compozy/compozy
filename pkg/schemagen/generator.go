@@ -60,11 +60,14 @@ func (g *SchemaGenerator) Generate(ctx context.Context, outDir string) error {
 	var projectRuntimeSchema []byte
 	var configRuntimeSchema []byte
 	var schemaMu sync.Mutex
-	group, _ := errgroup.WithContext(ctx)
+	group, gCtx := errgroup.WithContext(ctx)
 	group.SetLimit(runtime.GOMAXPROCS(0))
 	for _, definition := range g.definitions {
 		def := definition
 		group.Go(func() error {
+			if err := gCtx.Err(); err != nil {
+				return err
+			}
 			schemaJSON, err := g.buildSchema(def)
 			if err != nil {
 				return fmt.Errorf("failed to build schema for %s: %w", def.name, err)
@@ -115,7 +118,12 @@ func (g *SchemaGenerator) buildSchema(definition schemaDefinition) ([]byte, erro
 	if definition.title != "" {
 		schema.Title = definition.title
 	}
-	buf := bufferPool.Get().(*bytes.Buffer)
+	rawBuf := bufferPool.Get()
+	buf, ok := rawBuf.(*bytes.Buffer)
+	if !ok {
+		bufferPool.Put(rawBuf)
+		buf = &bytes.Buffer{}
+	}
 	buf.Reset()
 	defer bufferPool.Put(buf)
 	encoder := json.NewEncoder(buf)
@@ -134,8 +142,11 @@ func (g *SchemaGenerator) buildSchema(definition schemaDefinition) ([]byte, erro
 	return json.MarshalIndent(schemaMap, "", jsonIndent)
 }
 
-func removeCWDProperties(schemaMap map[string]any) bool {
-	return cleanseCWD(schemaMap)
+// removeCWDProperties strips the reflector-injected "cwd" metadata that leaks the
+// schema generation host path. This defensive pass keeps emitted schemas stable
+// across environments.
+func removeCWDProperties(schemaMap map[string]any) {
+	cleanseCWD(schemaMap)
 }
 
 func cleanseCWD(node any) bool {
@@ -143,13 +154,14 @@ func cleanseCWD(node any) bool {
 	case map[string]any:
 		updated := false
 		for key, entry := range value {
-			if key == "properties" {
+			switch key {
+			case "properties":
 				if props, ok := entry.(map[string]any); ok {
 					if pruneCWDFromProperties(props) {
 						updated = true
 					}
 				}
-			} else if key == "definitions" || key == "$defs" {
+			case "definitions", "$defs":
 				if defs, ok := entry.(map[string]any); ok {
 					for _, defValue := range defs {
 						if cleanseCWD(defValue) {
@@ -157,8 +169,10 @@ func cleanseCWD(node any) bool {
 						}
 					}
 				}
-			} else if cleanseCWD(entry) {
-				updated = true
+			default:
+				if cleanseCWD(entry) {
+					updated = true
+				}
 			}
 		}
 		return updated

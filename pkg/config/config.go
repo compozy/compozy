@@ -771,6 +771,26 @@ type LLMConfig struct {
 
 	// ContextWarningThresholds defines usage ratios (0-1) that trigger telemetry warnings.
 	ContextWarningThresholds []float64 `koanf:"context_warning_thresholds" env:"LLM_CONTEXT_WARNING_THRESHOLDS" json:"context_warning_thresholds" yaml:"context_warning_thresholds" mapstructure:"context_warning_thresholds"`
+
+	// DefaultTopP sets the default nucleus sampling threshold for all LLM requests.
+	// Value of 0 means use the provider's default. Range: 0.0 to 1.0.
+	// Default: 0.0
+	DefaultTopP float64 `koanf:"default_top_p" json:"default_top_p" yaml:"default_top_p" mapstructure:"default_top_p" env:"LLM_DEFAULT_TOP_P"`
+
+	// DefaultFrequencyPenalty sets the default penalty for token frequency.
+	// Positive values reduce repetition. Range: -2.0 to 2.0.
+	// Default: 0.0
+	DefaultFrequencyPenalty float64 `koanf:"default_frequency_penalty" json:"default_frequency_penalty" yaml:"default_frequency_penalty" mapstructure:"default_frequency_penalty" env:"LLM_DEFAULT_FREQUENCY_PENALTY"`
+
+	// DefaultPresencePenalty sets the default penalty for token presence.
+	// Positive values encourage talking about new topics. Range: -2.0 to 2.0.
+	// Default: 0.0
+	DefaultPresencePenalty float64 `koanf:"default_presence_penalty" json:"default_presence_penalty" yaml:"default_presence_penalty" mapstructure:"default_presence_penalty" env:"LLM_DEFAULT_PRESENCE_PENALTY"`
+
+	// DefaultSeed sets the default seed for reproducible outputs.
+	// Value of 0 means non-deterministic (no seed).
+	// Default: 0
+	DefaultSeed int `koanf:"default_seed" json:"default_seed" yaml:"default_seed" mapstructure:"default_seed" env:"LLM_DEFAULT_SEED"`
 }
 
 // ToolCallCapsConfig captures default and per-tool invocation caps.
@@ -1842,6 +1862,10 @@ func buildLLMConfig(registry *definition.Registry) LLMConfig {
 		MCPClientTimeout:              getDuration(registry, "llm.mcp_client_timeout"),
 		RetryJitterPercent:            getInt(registry, "llm.retry_jitter_percent"),
 		ContextWarningThresholds:      getFloat64Slice(registry, "llm.context_warning_thresholds"),
+		DefaultTopP:                   getFloat64(registry, "llm.default_top_p"),
+		DefaultFrequencyPenalty:       getFloat64(registry, "llm.default_frequency_penalty"),
+		DefaultPresencePenalty:        getFloat64(registry, "llm.default_presence_penalty"),
+		DefaultSeed:                   getInt(registry, "llm.default_seed"),
 	}
 }
 
