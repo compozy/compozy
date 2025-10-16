@@ -197,6 +197,126 @@ func (r *UsageRepo) SummarizeByWorkflowExecID(ctx context.Context, id core.ID) (
 	return summary, nil
 }
 
+// SummariesByWorkflowExecIDs aggregates usage rows for multiple workflow executions in a single query.
+// Missing executions are omitted from the result map so callers can fall back to secondary strategies.
+func (r *UsageRepo) SummariesByWorkflowExecIDs(
+	ctx context.Context,
+	ids []core.ID,
+) (map[core.ID]*usage.Row, error) {
+	requested := dedupeWorkflowExecIDs(ids)
+	if len(requested) == 0 {
+		return map[core.ID]*usage.Row{}, nil
+	}
+	rows, err := r.loadWorkflowUsageRows(ctx, requested)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return map[core.ID]*usage.Row{}, nil
+	}
+	accumulators := reduceWorkflowUsage(rows, requested)
+	if len(accumulators) == 0 {
+		return map[core.ID]*usage.Row{}, nil
+	}
+	return buildWorkflowSummaries(accumulators, requested), nil
+}
+
+func dedupeWorkflowExecIDs(ids []core.ID) map[string]core.ID {
+	unique := make(map[string]core.ID, len(ids))
+	for _, id := range ids {
+		if id.IsZero() {
+			continue
+		}
+		unique[id.String()] = id
+	}
+	return unique
+}
+
+func (r *UsageRepo) loadWorkflowUsageRows(
+	ctx context.Context,
+	requested map[string]core.ID,
+) ([]workflowUsageRow, error) {
+	idValues := make([]string, 0, len(requested))
+	for key := range requested {
+		idValues = append(idValues, key)
+	}
+	builder := selectUsageBuilder().
+		LeftJoin("task_states ts ON e.task_exec_id = ts.task_exec_id").
+		Column("ts.workflow_exec_id AS task_workflow_exec_id").
+		Where(squirrel.NotEq{"e.component": string(core.ComponentWorkflow)}).
+		Where(squirrel.Or{
+			squirrel.Eq{"e.workflow_exec_id": idValues},
+			squirrel.Eq{"ts.workflow_exec_id": idValues},
+		})
+	query, args, err := builder.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build workflow usage batch select: %w", err)
+	}
+	var rows []workflowUsageRow
+	if err := scanAll(ctx, r.db, &rows, query, args...); err != nil {
+		return nil, fmt.Errorf("query workflow usage batch: %w", err)
+	}
+	return rows, nil
+}
+
+func reduceWorkflowUsage(
+	rows []workflowUsageRow,
+	requested map[string]core.ID,
+) map[string]*usageAccumulator {
+	acc := make(map[string]*usageAccumulator, len(requested))
+	for i := range rows {
+		key := resolvedWorkflowExecKey(&rows[i])
+		if key == "" {
+			continue
+		}
+		if _, ok := requested[key]; !ok {
+			continue
+		}
+		collector := acc[key]
+		if collector == nil {
+			collector = &usageAccumulator{}
+			acc[key] = collector
+		}
+		rowCopy := rows[i].usageRowDB
+		collector.add(&rowCopy)
+	}
+	return acc
+}
+
+func resolvedWorkflowExecKey(row *workflowUsageRow) string {
+	if row == nil {
+		return ""
+	}
+	if row.WorkflowExecID.Valid && row.WorkflowExecID.String != "" {
+		return row.WorkflowExecID.String
+	}
+	if row.TaskWorkflowExecID.Valid && row.TaskWorkflowExecID.String != "" {
+		return row.TaskWorkflowExecID.String
+	}
+	return ""
+}
+
+func buildWorkflowSummaries(
+	accumulators map[string]*usageAccumulator,
+	requested map[string]core.ID,
+) map[core.ID]*usage.Row {
+	summaries := make(map[core.ID]*usage.Row, len(accumulators))
+	for key, collector := range accumulators {
+		idValue, ok := requested[key]
+		if !ok {
+			continue
+		}
+		idCopy := idValue
+		summary := &usage.Row{
+			Component:      core.ComponentWorkflow,
+			WorkflowExecID: &idCopy,
+		}
+		collector.apply(summary)
+		summaries[idValue] = summary
+	}
+	return summaries
+}
+
 type usageAccumulator struct {
 	prompt      int
 	completion  int
@@ -317,6 +437,11 @@ type usageRowDB struct {
 	OutputAudioTokens  sql.NullInt32      `db:"output_audio_tokens"`
 	CreatedAt          time.Time          `db:"created_at"`
 	UpdatedAt          time.Time          `db:"updated_at"`
+}
+
+type workflowUsageRow struct {
+	usageRowDB
+	TaskWorkflowExecID sql.NullString `db:"task_workflow_exec_id"`
 }
 
 func (r *usageRowDB) toDomain() *usage.Row {

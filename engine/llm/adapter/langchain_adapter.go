@@ -88,6 +88,15 @@ func (a *LangChainAdapter) SetValidationMode(mode ValidationMode) { a.validation
 // Capabilities reports the provider capabilities associated with this adapter.
 func (a *LangChainAdapter) Capabilities() ProviderCapabilities { return a.capabilities }
 
+// ProviderMetadata returns the configured provider and model for downstream attribution.
+// Callers can use this when agent metadata is unavailable, such as tool-only flows.
+func (a *LangChainAdapter) ProviderMetadata() (core.ProviderName, string) {
+	if a == nil {
+		return "", ""
+	}
+	return a.provider.Provider, a.provider.Model
+}
+
 // GenerateContent implements LLMClient interface
 func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest) (*LLMResponse, error) {
 	// Guard against nil request
@@ -635,52 +644,10 @@ func collectUsageCounts(info map[string]any) usageCounts {
 	if len(info) == 0 {
 		return counts
 	}
-	counts.prompt, counts.hasPrompt = readUsageInt(
-		info,
-		"prompt_tokens",
-		"PromptTokens",
-		"promptTokens",
-		"input_tokens",
-		"inputTokens",
-		"promptTokenCount",
-	)
-	counts.completion, counts.hasCompletion = readUsageInt(
-		info,
-		"completion_tokens",
-		"CompletionTokens",
-		"completionTokens",
-		"output_tokens",
-		"outputTokens",
-		"candidatesTokenCount",
-		"candidateTokenCount",
-	)
-	if total, ok := readUsageInt(
-		info,
-		"total_tokens",
-		"TotalTokens",
-		"totalTokens",
-		"totalTokenCount",
-	); ok {
-		counts.totalValue = intPtr(total)
-	}
-	if reasoning, ok := readUsageInt(info, "reasoning_tokens", "ReasoningTokens"); ok {
-		counts.reasoning = intPtr(reasoning)
-	}
-	if cached, ok := readUsageInt(
-		info,
-		"cached_prompt_tokens",
-		"CachedPromptTokens",
-		"cached_tokens",
-		"cachedTokens",
-	); ok {
-		counts.cachedPrompt = intPtr(cached)
-	}
-	if input, ok := readUsageInt(info, "input_audio_tokens", "InputAudioTokens"); ok {
-		counts.inputAudio = intPtr(input)
-	}
-	if output, ok := readUsageInt(info, "output_audio_tokens", "OutputAudioTokens"); ok {
-		counts.outputAudio = intPtr(output)
-	}
+	counts.prompt, counts.completion, counts.totalValue, counts.hasPrompt, counts.hasCompletion =
+		collectBaseTokenCounts(info)
+	counts.reasoning, counts.cachedPrompt, counts.inputAudio, counts.outputAudio =
+		collectExtendedTokenCounts(info)
 	return counts
 }
 
@@ -704,13 +671,75 @@ func (c usageCounts) total() int {
 	return 0
 }
 
+// collectBaseTokenCounts extracts prompt, completion, and total token usage.
+// It returns counts alongside presence flags so callers can detect missing fields.
+func collectBaseTokenCounts(
+	info map[string]any,
+) (prompt, completion int, totalValue *int, hasPrompt, hasCompletion bool) {
+	prompt, hasPrompt = readUsageInt(
+		info,
+		"prompt_tokens",
+		"PromptTokens",
+		"promptTokens",
+		"input_tokens",
+		"inputTokens",
+		"promptTokenCount",
+	)
+	completion, hasCompletion = readUsageInt(
+		info,
+		"completion_tokens",
+		"CompletionTokens",
+		"completionTokens",
+		"output_tokens",
+		"outputTokens",
+		"candidatesTokenCount",
+		"candidateTokenCount",
+	)
+	if total, ok := readUsageInt(
+		info,
+		"total_tokens",
+		"TotalTokens",
+		"totalTokens",
+		"totalTokenCount",
+	); ok {
+		totalValue = intPtr(total)
+	}
+	return prompt, completion, totalValue, hasPrompt, hasCompletion
+}
+
+// collectExtendedTokenCounts extracts optional usage categories reported by providers.
+// Optional fields remain nil when providers omit the corresponding usage counters.
+func collectExtendedTokenCounts(
+	info map[string]any,
+) (reasoning, cachedPrompt, inputAudio, outputAudio *int) {
+	if r, ok := readUsageInt(info, "reasoning_tokens", "ReasoningTokens"); ok {
+		reasoning = intPtr(r)
+	}
+	if cached, ok := readUsageInt(
+		info,
+		"cached_prompt_tokens",
+		"CachedPromptTokens",
+		"cached_tokens",
+		"cachedTokens",
+	); ok {
+		cachedPrompt = intPtr(cached)
+	}
+	if input, ok := readUsageInt(info, "input_audio_tokens", "InputAudioTokens"); ok {
+		inputAudio = intPtr(input)
+	}
+	if output, ok := readUsageInt(info, "output_audio_tokens", "OutputAudioTokens"); ok {
+		outputAudio = intPtr(output)
+	}
+	return
+}
+
 func (a *LangChainAdapter) logMissingUsage(ctx context.Context, info map[string]any) {
 	log := logger.FromContext(ctx)
 	if log == nil {
 		return
 	}
 	if len(info) == 0 {
-		log.Warn(
+		log.Debug(
 			"Provider omitted usage metadata",
 			"provider",
 			string(a.provider.Provider),
@@ -724,7 +753,7 @@ func (a *LangChainAdapter) logMissingUsage(ctx context.Context, info map[string]
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	log.Warn(
+	log.Debug(
 		"Failed to parse usage metadata",
 		"provider",
 		string(a.provider.Provider),

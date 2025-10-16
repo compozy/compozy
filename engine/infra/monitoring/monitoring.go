@@ -44,7 +44,7 @@ func newDisabledService(cfg *Config, initErr error) *Service {
 	}
 	llmMetrics, llmErr := newLLMUsageMetrics(m)
 	if llmErr != nil || llmMetrics == nil {
-		llmMetrics = &llmUsageMetrics{}
+		llmMetrics = noopLLMUsageMetrics{}
 	}
 	return &Service{
 		config:            cfg,

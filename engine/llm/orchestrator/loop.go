@@ -580,12 +580,37 @@ func buildUsageSnapshot(loopCtx *LoopContext, response *llmadapter.LLMResponse) 
 	}, true
 }
 
+// providerMetadataSource exposes provider attribution for dynamically resolved clients.
+// Implementations return the logical provider name and model used for the request.
+type providerMetadataSource interface {
+	ProviderMetadata() (core.ProviderName, string)
+}
+
 func resolveUsageIdentifiers(loopCtx *LoopContext) (string, string) {
-	if loopCtx == nil || loopCtx.Request.Agent == nil {
+	if loopCtx == nil {
 		return "", ""
 	}
-	cfg := loopCtx.Request.Agent.Model.Config
-	return string(cfg.Provider), cfg.Model
+	if loopCtx.Request.Agent != nil {
+		cfg := loopCtx.Request.Agent.Model.Config
+		provider := string(cfg.Provider)
+		if provider != "" || cfg.Model != "" {
+			return provider, cfg.Model
+		}
+	}
+	if loopCtx.LLMRequest != nil {
+		provider := string(loopCtx.LLMRequest.Options.Provider)
+		model := loopCtx.LLMRequest.Options.Model
+		if provider != "" || model != "" {
+			return provider, model
+		}
+	}
+	if source, ok := loopCtx.LLMClient.(providerMetadataSource); ok && source != nil {
+		provider, model := source.ProviderMetadata()
+		if provider != "" || model != "" {
+			return string(provider), model
+		}
+	}
+	return "", ""
 }
 
 func (l *conversationLoop) warnIfContextLimitUnknown(

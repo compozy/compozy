@@ -345,13 +345,52 @@ func mapWorkflowExecutions(
 	if len(states) == 0 {
 		return make([]*WorkflowExecutionDTO, 0)
 	}
+	preloaded := map[core.ID]*usage.Row{}
+	if repo != nil {
+		ids := make([]core.ID, 0, len(states))
+		seen := make(map[string]struct{}, len(states))
+		for i := range states {
+			state := states[i]
+			if state == nil {
+				continue
+			}
+			if state.WorkflowExecID.IsZero() {
+				continue
+			}
+			key := state.WorkflowExecID.String()
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			ids = append(ids, state.WorkflowExecID)
+			seen[key] = struct{}{}
+		}
+		if len(ids) > 0 {
+			rows, err := repo.SummariesByWorkflowExecIDs(ctx, ids)
+			if err != nil {
+				logger.FromContext(ctx).Warn(
+					"Failed to preload workflow usage summaries",
+					"error",
+					err,
+					"workflows",
+					len(ids),
+				)
+			} else if rows != nil {
+				preloaded = rows
+			}
+		}
+	}
 	dtos := make([]*WorkflowExecutionDTO, 0, len(states))
 	for i := range states {
 		state := states[i]
 		if state == nil {
 			continue
 		}
-		summary := router.ResolveWorkflowUsageSummary(ctx, repo, state.WorkflowExecID)
+		var summary *router.UsageSummary
+		if row, ok := preloaded[state.WorkflowExecID]; ok && row != nil {
+			summary = router.NewUsageSummary(row)
+		} else {
+			summary = router.ResolveWorkflowUsageSummary(ctx, repo, state.WorkflowExecID)
+		}
 		dtos = append(dtos, newWorkflowExecutionDTO(state, summary))
 	}
 	return dtos

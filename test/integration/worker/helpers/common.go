@@ -59,6 +59,13 @@ func (NoopUsageRepo) SummarizeByWorkflowExecID(context.Context, core.ID) (*usage
 	return nil, usage.ErrNotFound
 }
 
+func (NoopUsageRepo) SummariesByWorkflowExecIDs(
+	context.Context,
+	[]core.ID,
+) (map[core.ID]*usage.Row, error) {
+	return map[core.ID]*usage.Row{}, nil
+}
+
 // NoopUsageMetrics implements usage.Metrics for tests.
 type NoopUsageMetrics struct{}
 

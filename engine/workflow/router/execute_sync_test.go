@@ -104,6 +104,22 @@ func (s *stubUsageRepo) SummarizeByWorkflowExecID(_ context.Context, id core.ID)
 	return nil, usage.ErrNotFound
 }
 
+func (s *stubUsageRepo) SummariesByWorkflowExecIDs(
+	_ context.Context,
+	ids []core.ID,
+) (map[core.ID]*usage.Row, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	rows := make(map[core.ID]*usage.Row, len(ids))
+	for _, id := range ids {
+		if row, ok := s.summaryRows[id.String()]; ok {
+			rows[id] = row
+		}
+	}
+	return rows, nil
+}
+
 func (s *stubWorkflowRepo) ListStates(context.Context, *workflow.StateFilter) ([]*workflow.State, error) {
 	return nil, errors.New("not implemented")
 }

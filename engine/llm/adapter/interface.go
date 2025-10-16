@@ -123,6 +123,8 @@ type CallOptions struct {
 	OutputFormat OutputFormat
 	ForceJSON    bool
 	ResponseMIME string
+	Provider     core.ProviderName
+	Model        string
 }
 
 // LLMResponse represents the response from the LLM

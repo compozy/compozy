@@ -36,6 +36,13 @@ func (s *stubRepo) SummarizeByWorkflowExecID(context.Context, core.ID) (*usage.R
 	return nil, usage.ErrNotFound
 }
 
+func (s *stubRepo) SummariesByWorkflowExecIDs(
+	context.Context,
+	[]core.ID,
+) (map[core.ID]*usage.Row, error) {
+	return map[core.ID]*usage.Row{}, nil
+}
+
 type stubMetrics struct {
 	successes int
 	failures  int

@@ -40,6 +40,9 @@ type Repository interface {
 	GetByWorkflowExecID(ctx context.Context, id core.ID) (*Row, error)
 	// SummarizeByWorkflowExecID aggregates usage across all components for a workflow execution.
 	SummarizeByWorkflowExecID(ctx context.Context, id core.ID) (*Row, error)
+	// SummariesByWorkflowExecIDs preloads aggregated usage summaries for multiple workflow executions.
+	// Implementations should return summaries keyed by workflow execution ID and skip missing rows gracefully.
+	SummariesByWorkflowExecIDs(ctx context.Context, ids []core.ID) (map[core.ID]*Row, error)
 }
 
 // Metrics captures observability hooks for usage collection so callers can emit counters

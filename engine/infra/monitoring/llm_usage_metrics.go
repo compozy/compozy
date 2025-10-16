@@ -18,6 +18,8 @@ const (
 	llmUsageFailuresMetric    = "compozy_llm_usage_failures_total"
 	llmUsageLatencyMetric     = "compozy_llm_usage_latency_seconds"
 
+	labelValueUnknown = "unknown"
+
 	labelComponent = "component"
 	labelProvider  = "provider"
 	labelModel     = "model"
@@ -169,7 +171,31 @@ func usageAttributes(component core.ComponentType, provider, model string) []att
 
 func normalizeLabelValue(value string) string {
 	if value == "" {
-		return "unknown"
+		return labelValueUnknown
 	}
 	return value
+}
+
+type noopLLMUsageMetrics struct{}
+
+var _ usage.Metrics = (*noopLLMUsageMetrics)(nil)
+
+func (noopLLMUsageMetrics) RecordSuccess(
+	context.Context,
+	core.ComponentType,
+	string,
+	string,
+	int,
+	int,
+	time.Duration,
+) {
+}
+
+func (noopLLMUsageMetrics) RecordFailure(
+	context.Context,
+	core.ComponentType,
+	string,
+	string,
+	time.Duration,
+) {
 }
