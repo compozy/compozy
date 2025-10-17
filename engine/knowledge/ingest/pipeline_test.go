@@ -159,7 +159,7 @@ func (l *capturingLogger) Error(msg string, keyvals ...any) {
 }
 
 func (l *capturingLogger) With(args ...any) logger.Logger {
-	nextFields := core.CopyMap(l.fields)
+	nextFields := core.CloneMap(l.fields)
 	if nextFields == nil {
 		nextFields = make(map[string]any, len(args)/2)
 	}
@@ -181,7 +181,7 @@ func (l *capturingLogger) record(level, msg string, keyvals ...any) {
 	if l.entries == nil {
 		return
 	}
-	fields := core.CopyMap(l.fields)
+	fields := core.CloneMap(l.fields)
 	if fields == nil {
 		fields = make(map[string]any, len(keyvals)/2)
 	}

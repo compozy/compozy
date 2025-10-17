@@ -6,7 +6,7 @@ type (
 )
 
 // OutputRootKey is the canonical map key used to store non-object JSON values
-// (arrays, scalars) inside a core.Output map. When an action returns structured
+// (arrays, scalars) inside a Output map. When an action returns structured
 // output whose schema root is not "object", the orchestrator wraps the value
 // under this key so downstream consumers can still access it in a consistent way.
 const OutputRootKey = "__value__"

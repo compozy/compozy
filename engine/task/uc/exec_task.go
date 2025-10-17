@@ -3,7 +3,6 @@ package uc
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -165,12 +164,12 @@ func (uc *ExecuteTask) buildNormalizationContext(
 	if input != nil && input.ProjectConfig != nil {
 		projectEnv := input.ProjectConfig.GetEnv()
 		if len(projectEnv) > 0 {
-			mergedCopy := core.EnvMap{}
-			maps.Copy(mergedCopy, projectEnv)
+			var mergedEnv core.EnvMap
 			if merged != nil {
-				maps.Copy(mergedCopy, *merged)
+				mergedEnv = core.CopyMaps(projectEnv, *merged)
+			} else {
+				mergedEnv = core.CloneMap(projectEnv)
 			}
-			mergedEnv := mergedCopy
 			merged = &mergedEnv
 			if input.TaskConfig != nil {
 				input.TaskConfig.Env = merged

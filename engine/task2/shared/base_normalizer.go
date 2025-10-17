@@ -2,7 +2,6 @@ package shared
 
 import (
 	"fmt"
-	"maps"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -86,9 +85,8 @@ func (n *BaseNormalizer) Normalize(config *task.Config, ctx contracts.Normalizat
 	}
 	// Merge existing With values back into the normalized config
 	if existingWith != nil && config.With != nil {
-		mergedWith := make(core.Input)
-		maps.Copy(mergedWith, *existingWith)
-		maps.Copy(mergedWith, *config.With)
+		merged := core.CopyMaps(*existingWith, *config.With)
+		mergedWith := core.Input(merged)
 		config.With = &mergedWith
 	} else if existingWith != nil {
 		config.With = existingWith

@@ -35,6 +35,14 @@ func (m *MockTaskRepo) GetState(ctx context.Context, taskExecID core.ID) (*task.
 	return args.Get(0).(*task.State), args.Error(1)
 }
 
+func (m *MockTaskRepo) GetUsageSummary(ctx context.Context, taskExecID core.ID) (*usage.Summary, error) {
+	args := m.Called(ctx, taskExecID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*usage.Summary), args.Error(1)
+}
+
 func (m *MockTaskRepo) ListTasksInWorkflow(ctx context.Context, workflowID core.ID) (map[string]*task.State, error) {
 	args := m.Called(ctx, workflowID)
 	if args.Get(0) == nil {

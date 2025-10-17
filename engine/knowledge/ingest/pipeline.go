@@ -337,9 +337,6 @@ func (p *Pipeline) persistChunks(ctx context.Context, chunks []chunk.Chunk) (int
 		records := make([]vectordb.Record, len(batch))
 		for i := range batch {
 			metadata := core.CloneMap(batch[i].Metadata)
-			if metadata == nil {
-				metadata = make(map[string]any)
-			}
 			metadata["knowledge_binding_id"] = p.binding.ID
 			metadata["knowledge_base_id"] = p.binding.KnowledgeBase.ID
 			if len(p.binding.KnowledgeBase.Metadata.Tags) > 0 {

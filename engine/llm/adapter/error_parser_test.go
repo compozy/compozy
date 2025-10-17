@@ -49,7 +49,7 @@ func TestErrorParserSuggestedRetryDelay(t *testing.T) {
 				}
 			},
 			wantSec: 3,
-			delta:   1.5,
+			delta:   1.0,
 		},
 	}
 

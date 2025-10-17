@@ -325,36 +325,40 @@ func respondTaskTimeout(
 }
 
 func buildTaskSyncPayload(
-	ctx context.Context,
+	c *gin.Context,
 	repo task.Repository,
 	taskID string,
 	execID core.ID,
 	output *core.Output,
 ) gin.H {
+	ctx := c.Request.Context()
 	payload := gin.H{"exec_id": execID.String()}
 	if output != nil {
 		payload["output"] = output
 	}
+	includeState := includesStateDetails(c)
 	snapshotCtx := context.WithoutCancel(ctx)
-	stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
 	embeddedUsage := false
-	if stateErr == nil && stateSnapshot != nil {
-		dto := newTaskExecutionStatusDTO(stateSnapshot)
-		dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
-		if dto.Usage != nil {
-			embeddedUsage = true
+	if includeState {
+		stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
+		if stateErr == nil && stateSnapshot != nil {
+			dto := newTaskExecutionStatusDTO(stateSnapshot)
+			dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
+			if dto.Usage != nil {
+				embeddedUsage = true
+			}
+			payload["state"] = dto
+			if stateSnapshot.Output != nil {
+				payload["output"] = stateSnapshot.Output
+			}
+		} else if stateErr != nil {
+			logger.FromContext(ctx).Warn(
+				"Failed to load task execution state after completion",
+				"task_id", taskID,
+				"exec_id", execID.String(),
+				"error", stateErr,
+			)
 		}
-		payload["state"] = dto
-		if stateSnapshot.Output != nil {
-			payload["output"] = stateSnapshot.Output
-		}
-	} else if stateErr != nil {
-		logger.FromContext(ctx).Warn(
-			"Failed to load task execution state after completion",
-			"task_id", taskID,
-			"exec_id", execID.String(),
-			"error", stateErr,
-		)
 	}
 	if !embeddedUsage {
 		if summary := router.ResolveTaskUsageSummary(snapshotCtx, repo, execID); summary != nil {
@@ -362,6 +366,19 @@ func buildTaskSyncPayload(
 		}
 	}
 	return payload
+}
+
+func includesStateDetails(c *gin.Context) bool {
+	raw := c.Query("include")
+	if raw == "" {
+		return false
+	}
+	for _, token := range strings.Split(raw, ",") {
+		if strings.EqualFold(strings.TrimSpace(token), "state") {
+			return true
+		}
+	}
+	return false
 }
 
 type TaskExecutionStatusDTO struct {
@@ -529,7 +546,7 @@ func executeTaskSyncAndRespond(
 	router.RespondOK(
 		c,
 		"task executed",
-		buildTaskSyncPayload(c.Request.Context(), prep.repo, setup.taskID, execID, output),
+		buildTaskSyncPayload(c, prep.repo, setup.taskID, execID, output),
 	)
 	return monitoring.ExecutionOutcomeSuccess
 }

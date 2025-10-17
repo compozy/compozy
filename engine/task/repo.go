@@ -28,6 +28,8 @@ type Repository interface {
 	ListStates(ctx context.Context, filter *StateFilter) ([]*State, error)
 	UpsertState(ctx context.Context, state *State) error
 	GetState(ctx context.Context, taskExecID core.ID) (*State, error)
+	// GetUsageSummary retrieves only the usage summary for a task execution without loading the full state.
+	GetUsageSummary(ctx context.Context, taskExecID core.ID) (*usage.Summary, error)
 
 	// Transactional-closure API (driver-neutral)
 	// Executes fn within a single transaction, providing a repository bound

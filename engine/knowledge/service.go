@@ -212,7 +212,7 @@ func bindingFromRetrieval(cfg *RetrievalConfig) core.KnowledgeBinding {
 	result.MaxTokens = &maxTokens
 	result.InjectAs = cfg.InjectAs
 	result.Fallback = cfg.Fallback
-	result.Filters = core.CopyMap(cfg.Filters)
+	result.Filters = core.CloneMap(cfg.Filters)
 	return result
 }
 
@@ -241,9 +241,9 @@ func retrievalFromBinding(base *RetrievalConfig, binding *core.KnowledgeBinding)
 	}
 	switch {
 	case binding.Filters != nil:
-		result.Filters = core.CopyMap(binding.Filters)
+		result.Filters = core.CloneMap(binding.Filters)
 	case base != nil && len(base.Filters) > 0:
-		result.Filters = core.CopyMap(base.Filters)
+		result.Filters = core.CloneMap(base.Filters)
 	default:
 		result.Filters = nil
 	}

@@ -2,7 +2,6 @@ package shared
 
 import (
 	"fmt"
-	"maps"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -192,12 +191,9 @@ func (n *BaseSubTaskNormalizer) prepareSubTaskContext(
 	// This ensures parent-provided input (from collection.with) is accessible
 	if subTask.With != nil {
 		if subTaskCtx.CurrentInput != nil {
-			// Merge parent input with sub-task's With
-			mergedInput := make(core.Input)
-			// First copy parent input
-			maps.Copy(mergedInput, *subTaskCtx.CurrentInput)
-			// Then overlay sub-task's With
-			maps.Copy(mergedInput, *subTask.With)
+			// Merge parent input with sub-task's With (sub-task's With takes precedence)
+			merged := core.CopyMaps(*subTaskCtx.CurrentInput, *subTask.With)
+			mergedInput := core.Input(merged)
 			subTaskCtx.CurrentInput = &mergedInput
 		} else {
 			subTaskCtx.CurrentInput = subTask.With

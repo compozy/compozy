@@ -219,7 +219,7 @@ func WithToolCallCaps(caps orchestratorpkg.ToolCallCaps) Option {
 	return func(cCfg *Config) {
 		var overrides map[string]int
 		if len(caps.Overrides) > 0 {
-			overrides = core.CopyMap(caps.Overrides)
+			overrides = core.CloneMap(caps.Overrides)
 		}
 		cCfg.ToolCallCaps = orchestratorpkg.ToolCallCaps{
 			Default:   caps.Default,
@@ -360,10 +360,10 @@ func WithRegisterMCPs(mcps []mcp.Config) Option {
 		for i := range mcps {
 			dst := mcps[i]
 			if mcps[i].Headers != nil {
-				dst.Headers = core.CopyMap(mcps[i].Headers)
+				dst.Headers = core.CloneMap(mcps[i].Headers)
 			}
 			if mcps[i].Env != nil {
-				dst.Env = core.CopyMap(mcps[i].Env)
+				dst.Env = core.CloneMap(mcps[i].Env)
 			}
 			c.RegisterMCPs = append(c.RegisterMCPs, dst)
 		}
@@ -633,7 +633,7 @@ func cloneToolCapOverrides(src map[string]int) map[string]int {
 	if len(src) == 0 {
 		return nil
 	}
-	return core.CopyMap(src)
+	return core.CloneMap(src)
 }
 
 func applyLLMMCPOptions(c *Config, llm *config.LLMConfig) {

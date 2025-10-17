@@ -167,7 +167,7 @@ func (s *Service) buildSearchOptions(binding *knowledge.ResolvedBinding) vectord
 	opts := vectordb.SearchOptions{
 		TopK:     binding.Retrieval.TopK,
 		MinScore: binding.Retrieval.MinScoreValue(),
-		Filters:  core.CopyMap(binding.Retrieval.Filters),
+		Filters:  core.CloneMap(binding.Retrieval.Filters),
 	}
 	if opts.TopK <= 0 {
 		opts.TopK = knowledge.DefaultDefaults().RetrievalTopK

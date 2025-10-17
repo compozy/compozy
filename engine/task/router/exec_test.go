@@ -272,7 +272,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-three/executions/sync",
+			"/api/v0/tasks/task-three/executions/sync?include=state",
 			strings.NewReader(`{"with":{"foo":"bar"}}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -507,7 +507,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/tasks/task-state/executions/sync",
+			"/api/v0/tasks/task-state/executions/sync?include=state",
 			strings.NewReader(`{"with":{"foo":"fallback"}}`),
 		)
 		req.Header.Set("Content-Type", "application/json")

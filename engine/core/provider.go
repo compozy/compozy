@@ -2,7 +2,6 @@ package core
 
 import (
 	"encoding/json"
-	"maps"
 
 	"dario.cat/mergo"
 	"gopkg.in/yaml.v3"
@@ -334,8 +333,7 @@ func (p *PromptParams) SetMetadata(metadata map[string]any) {
 		p._set.Metadata = true
 		return
 	}
-	p.Metadata = make(map[string]any, len(metadata))
-	maps.Copy(p.Metadata, metadata)
+	p.Metadata = CloneMap(metadata)
 	p._set.Metadata = true
 }
 

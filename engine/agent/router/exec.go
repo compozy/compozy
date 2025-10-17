@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	agentexec "github.com/compozy/compozy/engine/agent/exec"
@@ -146,36 +147,40 @@ func respondAgentTimeout(
 }
 
 func buildAgentSyncPayload(
-	ctx context.Context,
+	c *gin.Context,
 	repo task.Repository,
 	agentID string,
 	execID core.ID,
 	output *core.Output,
 ) gin.H {
+	ctx := c.Request.Context()
 	payload := gin.H{"exec_id": execID.String()}
 	if output != nil {
 		payload["output"] = output
 	}
 	snapshotCtx := context.WithoutCancel(ctx)
-	stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
+	includeState := includesStateDetails(c)
 	embeddedUsage := false
-	if stateErr == nil && stateSnapshot != nil {
-		dto := newExecutionStatusDTO(stateSnapshot)
-		dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
-		if dto.Usage != nil {
-			embeddedUsage = true
+	if includeState {
+		stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
+		if stateErr == nil && stateSnapshot != nil {
+			dto := newExecutionStatusDTO(stateSnapshot)
+			dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
+			if dto.Usage != nil {
+				embeddedUsage = true
+			}
+			payload["state"] = dto
+			if stateSnapshot.Output != nil {
+				payload["output"] = stateSnapshot.Output
+			}
+		} else if stateErr != nil {
+			logger.FromContext(ctx).Warn(
+				"Failed to load agent execution state after completion",
+				"agent_id", agentID,
+				"exec_id", execID.String(),
+				"error", stateErr,
+			)
 		}
-		payload["state"] = dto
-		if stateSnapshot.Output != nil {
-			payload["output"] = stateSnapshot.Output
-		}
-	} else if stateErr != nil {
-		logger.FromContext(ctx).Warn(
-			"Failed to load agent execution state after completion",
-			"agent_id", agentID,
-			"exec_id", execID.String(),
-			"error", stateErr,
-		)
 	}
 	if !embeddedUsage {
 		if summary := router.ResolveTaskUsageSummary(snapshotCtx, repo, execID); summary != nil {
@@ -183,6 +188,19 @@ func buildAgentSyncPayload(
 		}
 	}
 	return payload
+}
+
+func includesStateDetails(c *gin.Context) bool {
+	raw := c.Query("include")
+	if raw == "" {
+		return false
+	}
+	for _, token := range strings.Split(raw, ",") {
+		if strings.EqualFold(strings.TrimSpace(token), "state") {
+			return true
+		}
+	}
+	return false
 }
 
 type ExecutionStatusDTO struct {
@@ -378,7 +396,7 @@ func executeAgentSync(c *gin.Context) {
 	router.RespondOK(
 		c,
 		"agent executed",
-		buildAgentSyncPayload(c.Request.Context(), repo, syncReq.agentID, result.execID, result.output),
+		buildAgentSyncPayload(c, repo, syncReq.agentID, result.execID, result.output),
 	)
 }
 

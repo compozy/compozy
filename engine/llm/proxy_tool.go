@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
@@ -94,9 +93,7 @@ func (t *ProxyTool) ParameterSchema() map[string]any {
 	}
 	copied, err := core.DeepCopy(t.inputSchema)
 	if err != nil {
-		fallback := make(map[string]any, len(t.inputSchema))
-		maps.Copy(fallback, t.inputSchema)
-		return fallback
+		return core.CloneMap(t.inputSchema)
 	}
 	return copied
 }

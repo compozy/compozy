@@ -376,9 +376,6 @@ func buildRedisAttributes(record Record) map[string]any {
 	attrs := make(map[string]any, len(record.Metadata)+2)
 	attrs[redisTextAttrKey] = record.Text
 	meta := core.CloneMap(record.Metadata)
-	if meta == nil {
-		meta = make(map[string]any)
-	}
 	attrs[redisMetadataAttrKey] = meta
 	for key, value := range record.Metadata {
 		attrKey := metadataAttributeKey(key)

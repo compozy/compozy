@@ -406,7 +406,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/agents/agent-state/executions/sync",
+			"/api/v0/agents/agent-state/executions/sync?include=state",
 			strings.NewReader(`{"prompt":"should use state"}`),
 		)
 		req.Header.Set("Content-Type", "application/json")

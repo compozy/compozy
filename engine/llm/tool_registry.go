@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"sort"
 	"strings"
 	"sync"
@@ -104,9 +103,7 @@ func copySchemaMap(s *schema.Schema) map[string]any {
 	cloned, err := core.DeepCopy(map[string]any(*s))
 	if err != nil {
 		// fall back to a shallow copy to avoid mutating original schema
-		m := make(map[string]any, len(*s))
-		maps.Copy(m, *s)
-		return m
+		return core.CloneMap(*s)
 	}
 	return cloned
 }
@@ -395,9 +392,7 @@ func (a *mcpToolAdapter) ParameterSchema() map[string]any {
 			}
 			copied, err := core.DeepCopy(v)
 			if err != nil {
-				fallback := make(map[string]any, len(v))
-				maps.Copy(fallback, v)
-				return fallback
+				return core.CloneMap(v)
 			}
 			return copied
 		}
@@ -490,9 +485,7 @@ func (a *localToolAdapter) ParameterSchema() map[string]any {
 	source := map[string]any(*a.config.InputSchema)
 	copied, err := core.DeepCopy(source)
 	if err != nil {
-		fallback := make(map[string]any, len(source))
-		maps.Copy(fallback, source)
-		return fallback
+		return core.CloneMap(source)
 	}
 	return copied
 }

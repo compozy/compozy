@@ -51,7 +51,7 @@ func ToEmbedderAdapterConfig(cfg *knowledge.EmbedderConfig) (*embedder.Config, e
 		StripNewLines: strip,
 	}
 	if len(cfg.Config.Retry) > 0 {
-		adapter.Options = core.CopyMap(cfg.Config.Retry)
+		adapter.Options = core.CloneMap(cfg.Config.Retry)
 	}
 	return adapter, nil
 }
@@ -99,7 +99,7 @@ func ToVectorStoreConfig(ctx context.Context, project string, cfg *knowledge.Vec
 		MaxTopK:     cfg.Config.MaxTopK,
 	}
 	if len(cfg.Config.Auth) > 0 {
-		storeCfg.Auth = core.CopyMap(cfg.Config.Auth)
+		storeCfg.Auth = core.CloneMap(cfg.Config.Auth)
 	}
 	return storeCfg, nil
 }

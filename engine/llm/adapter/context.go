@@ -63,7 +63,7 @@ func cloneCallOptions(opts *CallOptions) CallOptions {
 		out.StopWords = append([]string{}, out.StopWords...)
 	}
 	if len(out.Metadata) > 0 {
-		out.Metadata = core.CopyMap(opts.Metadata)
+		out.Metadata = core.CloneMap(opts.Metadata)
 	}
 	return out
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/kaptinlin/jsonschema"
@@ -138,9 +137,7 @@ func (s *Schema) ApplyDefaults(input map[string]any) (map[string]any, error) {
 	// Extract defaults from schema properties
 	defaults := s.extractDefaults()
 	// Create result by merging defaults with input (input takes precedence)
-	result := make(map[string]any)
-	maps.Copy(result, defaults)
-	maps.Copy(result, input)
+	result := core.CopyMaps(defaults, input)
 	return result, nil
 }
 

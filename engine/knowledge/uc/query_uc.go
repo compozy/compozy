@@ -104,7 +104,7 @@ func mergeRetrieval(
 		merged.MinScore = &value
 	}
 	if filters != nil {
-		merged.Filters = core.CopyMap(filters)
+		merged.Filters = core.CloneMap(filters)
 	}
 	return merged
 }

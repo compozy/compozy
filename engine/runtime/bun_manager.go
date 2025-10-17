@@ -1,12 +1,14 @@
 package runtime
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -265,15 +267,16 @@ func (bm *BunManager) executeBunWorker(ctx context.Context, requestData []byte, 
 	}
 	// Read stderr and stdout concurrently
 	stderrBuf, stderrWg := bm.readStderrInBackground(ctx, stderr)
-	response, err := bm.readStdoutResponse(stdout)
+	responseBuf, err := bm.readStdoutResponse(stdout)
 	if err != nil {
 		return nil, err
 	}
+	defer releaseBuffer(responseBuf)
 	// Wait for process completion and stderr reading
 	if err := bm.waitForProcessCompletion(ctx, cmd, stderrWg, stderrBuf); err != nil {
 		return nil, err
 	}
-	return bm.parseToolResponse(response)
+	return bm.parseToolResponse(responseBuf.Bytes())
 }
 
 // createBunCommand creates and configures the Bun command with environment variables
@@ -346,9 +349,9 @@ func (bm *BunManager) setupProcessPipes(cmd *exec.Cmd) (io.WriteCloser, io.ReadC
 }
 
 // parseToolResponse parses the tool response and handles different response types
-func (bm *BunManager) parseToolResponse(response string) (*core.Output, error) {
-	response = strings.TrimSpace(response)
-	if response == "" {
+func (bm *BunManager) parseToolResponse(response []byte) (*core.Output, error) {
+	response = bytes.TrimSpace(response)
+	if len(response) == 0 {
 		return &core.Output{}, nil
 	}
 
@@ -359,13 +362,13 @@ func (bm *BunManager) parseToolResponse(response string) (*core.Output, error) {
 		Metadata any `json:"metadata"`
 	}
 
-	if err := json.Unmarshal([]byte(response), &toolResponse); err != nil {
+	if err := json.Unmarshal(response, &toolResponse); err != nil {
 		// If JSON parsing fails, this indicates a problem with the worker or tool
 		// Log the non-JSON response for debugging but return an error
 		const maxResponseLength = 512
-		truncatedResponse := response
-		if len(response) > maxResponseLength {
-			truncatedResponse = response[:maxResponseLength] + "..."
+		truncatedResponse := string(response)
+		if len(truncatedResponse) > maxResponseLength {
+			truncatedResponse = truncatedResponse[:maxResponseLength] + "..."
 		}
 		return nil, fmt.Errorf(
 			"tool produced non-JSON output, indicating a potential error or malformed response: %s",
@@ -417,97 +420,94 @@ func (bm *BunManager) readStderrInBackground(
 	stderr io.ReadCloser,
 ) (*bytes.Buffer, *sync.WaitGroup) {
 	var stderrBuf bytes.Buffer
-	stderrBuf.Grow(64 * 1024) // pre-allocate small buffer to reduce reallocs
+	maxCapture := bm.config.MaxStderrCaptureSize
+	if maxCapture == 0 {
+		maxCapture = MaxStderrCaptureSize
+	}
+	prealloc := maxCapture
+	if prealloc == 0 || prealloc > 64*1024 {
+		prealloc = 64 * 1024
+	}
+	stderrBuf.Grow(prealloc)
 	var stderrWg sync.WaitGroup
 	stderrWg.Go(func() {
 		log := logger.FromContext(ctx)
-		// Use a small buffer for real-time reading
-		buf := make([]byte, 256) // Small buffer for immediate reads
-		var lineBuf bytes.Buffer
-		var captured int
-		maxCapture := bm.config.MaxStderrCaptureSize
-		if maxCapture == 0 {
-			maxCapture = MaxStderrCaptureSize // Use constant as fallback
+		bufferSize := 64 * 1024
+		if maxCapture > bufferSize {
+			bufferSize = maxCapture
 		}
-		for {
-			// Read with small buffer for immediate output
-			n, err := stderr.Read(buf)
-			if n > 0 {
-				// Process the bytes we just read
-				for i := range n {
-					b := buf[i]
-					lineBuf.WriteByte(b)
-					// When we hit a newline, process the complete line
-					if b == '\n' {
-						line := strings.TrimRight(lineBuf.String(), "\r\n")
-						if line != "" {
-							// Log immediately with redaction
-							log.Debug("Bun worker stderr", "output", core.RedactString(line))
-							// Capture for error context
-							if captured < maxCapture {
-								remaining := maxCapture - captured
-								toWrite := line + "\n"
-								if len(toWrite) > remaining {
-									toWrite = toWrite[:remaining]
-								}
-								stderrBuf.WriteString(toWrite)
-								captured += len(toWrite)
-							}
-						}
-						lineBuf.Reset()
-					}
+		if bufferSize < 4096 {
+			bufferSize = 4096
+		}
+		scanner := bufio.NewScanner(stderr)
+		scanner.Buffer(make([]byte, 0, bufferSize), bufferSize)
+		captured := 0
+		for scanner.Scan() {
+			line := strings.TrimRight(scanner.Text(), "\r\n")
+			if line == "" {
+				continue
+			}
+			log.Debug("Bun worker stderr", "output", core.RedactString(line))
+			if captured < maxCapture {
+				remaining := maxCapture - captured
+				if remaining <= 0 {
+					continue
+				}
+				writeLen := len(line)
+				if writeLen > remaining {
+					writeLen = remaining
+				}
+				if writeLen > 0 {
+					stderrBuf.WriteString(line[:writeLen])
+					captured += writeLen
+				}
+				if captured < maxCapture {
+					stderrBuf.WriteByte('\n')
+					captured++
 				}
 			}
-			if err != nil {
-				// Process any remaining data in lineBuf
-				if lineBuf.Len() > 0 {
-					line := strings.TrimRight(lineBuf.String(), "\r\n")
-					if line != "" {
-						log.Debug("Bun worker stderr", "output", core.RedactString(line))
-						if captured < maxCapture {
-							remaining := maxCapture - captured
-							toWrite := line + "\n"
-							if len(toWrite) > remaining {
-								toWrite = toWrite[:remaining]
-							}
-							stderrBuf.WriteString(toWrite)
-							// No need to update captured here as we're breaking
-						}
-					}
-				}
-				break // EOF or error
-			}
+		}
+		if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) {
+			log.Warn("stderr read error", "error", err)
 		}
 	})
 	return &stderrBuf, &stderrWg
 }
 
 // readStdoutResponse reads the response from stdout with size limiting
-func (bm *BunManager) readStdoutResponse(stdout io.ReadCloser) (string, error) {
+func (bm *BunManager) readStdoutResponse(stdout io.ReadCloser) (*bytes.Buffer, error) {
 	raw := bufferPool.Get()
 	buf, ok := raw.(*bytes.Buffer)
 	if !ok {
 		// Safe fallback if pool returns unexpected type
-		buf = bytes.NewBuffer(make([]byte, 0, 1024))
-	}
-	defer func() {
+		buf = bytes.NewBuffer(make([]byte, 0, InitialBufferSize))
+	} else {
 		buf.Reset()
-		bufferPool.Put(buf)
-	}()
+	}
 
 	// Use LimitReader to prevent memory exhaustion from malicious tools
 	limitedReader := io.LimitReader(stdout, MaxOutputSize+1) // Read one extra byte to detect overflow
 	bytesRead, err := io.Copy(buf, limitedReader)
 	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
+		releaseBuffer(buf)
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	// Check if output exceeded the size limit
 	if bytesRead > MaxOutputSize {
-		return "", fmt.Errorf("tool output exceeds maximum size limit of %d bytes", MaxOutputSize)
+		releaseBuffer(buf)
+		return nil, fmt.Errorf("tool output exceeds maximum size limit of %d bytes", MaxOutputSize)
 	}
 
-	return buf.String(), nil
+	return buf, nil
+}
+
+func releaseBuffer(buf *bytes.Buffer) {
+	if buf == nil {
+		return
+	}
+	buf.Reset()
+	bufferPool.Put(buf)
 }
 
 // waitForProcessCompletion waits for the process to complete and handles errors

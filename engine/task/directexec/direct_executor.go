@@ -3,7 +3,6 @@ package directexec
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sync"
 	"time"
 
@@ -76,7 +75,7 @@ func cloneTaskInput(input *core.Input) (*core.Input, error) {
 	if input == nil {
 		return nil, nil
 	}
-	cloned, err := core.DeepCopy[*core.Input](input)
+	cloned, err := core.DeepCopy(input)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +90,9 @@ func restoreDirectInput(cfg *task.Config, original *core.Input) {
 		cfg.With = original
 		return
 	}
-	maps.Copy((*cfg.With), *original)
+	mergedMap := core.CopyMaps(*original, *cfg.With)
+	merged := core.Input(mergedMap)
+	cfg.With = &merged
 }
 
 func (d *directExecutor) normalizeTaskConfig(

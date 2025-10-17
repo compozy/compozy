@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -227,7 +226,16 @@ func waitForWorkflowCompletion(
 	defer cancel()
 	interval := workflowPollInitialBackoff
 	attempt := 0
+	execIDStr := execID.String()
 	var lastState *workflow.State
+	timer := time.NewTimer(time.Hour)
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+	defer timer.Stop()
 	for {
 		if pollCtx.Err() != nil {
 			state, err := finalWorkflowState(ctx, repo, execID, lastState)
@@ -244,10 +252,10 @@ func waitForWorkflowCompletion(
 				return state, false, nil
 			}
 		}
-		wait := applyWorkflowJitter(interval, execID, attempt)
+		wait := applyWorkflowJitter(interval, execIDStr, attempt)
 		interval = nextWorkflowBackoff(interval)
 		attempt++
-		if !waitForNextWorkflowPoll(pollCtx, wait) {
+		if !waitForNextWorkflowPoll(pollCtx, timer, wait) {
 			state, finalErr := finalWorkflowState(ctx, repo, execID, lastState)
 			return state, true, finalErr
 		}
@@ -272,8 +280,17 @@ func nextWorkflowBackoff(current time.Duration) time.Duration {
 	return next
 }
 
-func waitForNextWorkflowPoll(ctx context.Context, delay time.Duration) bool {
-	timer := time.NewTimer(delay)
+func waitForNextWorkflowPoll(ctx context.Context, timer *time.Timer, delay time.Duration) bool {
+	if delay <= 0 {
+		delay = time.Millisecond
+	}
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+	timer.Reset(delay)
 	select {
 	case <-ctx.Done():
 		if !timer.Stop() {
@@ -316,7 +333,7 @@ func isWorkflowTerminal(status core.StatusType) bool {
 	}
 }
 
-func applyWorkflowJitter(base time.Duration, execID core.ID, attempt int) time.Duration {
+func applyWorkflowJitter(base time.Duration, execID string, attempt int) time.Duration {
 	if base <= 0 {
 		return base
 	}
@@ -324,18 +341,41 @@ func applyWorkflowJitter(base time.Duration, execID core.ID, attempt int) time.D
 	if span <= 0 {
 		span = time.Millisecond
 	}
-	id := execID.String() + strconv.Itoa(attempt)
 	spanNanos := int64(span)
 	rangeSize := spanNanos*2 + 1
 	if rangeSize <= 0 {
 		rangeSize = 1
 	}
-	hashVal := int64(0)
-	for i := 0; i < len(id); i++ {
-		hashVal = (hashVal*33 + int64(id[i])) % rangeSize
+	hashVal := int64(5381)
+	for i := 0; i < len(execID); i++ {
+		hashVal = ((hashVal << 5) + hashVal + int64(execID[i])) % rangeSize
 	}
-	rawHash := hashVal
-	offset := (rawHash % rangeSize) - spanNanos
+	if attempt < 0 {
+		hashVal = ((hashVal << 5) + hashVal + int64('-')) % rangeSize
+	} else {
+		hashVal = ((hashVal << 5) + hashVal + int64('+')) % rangeSize
+	}
+	var digits [20]byte
+	idx := 0
+	value := attempt
+	if value < 0 {
+		value = -value
+	}
+	if value == 0 {
+		digits[idx] = '0'
+		idx++
+	} else {
+		for value > 0 && idx < len(digits) {
+			digits[idx] = byte('0' + value%10)
+			value /= 10
+			idx++
+		}
+	}
+	for idx > 0 {
+		idx--
+		hashVal = ((hashVal << 5) + hashVal + int64(digits[idx])) % rangeSize
+	}
+	offset := (hashVal % rangeSize) - spanNanos
 	result := base + time.Duration(offset)
 	if result < time.Millisecond {
 		return time.Millisecond

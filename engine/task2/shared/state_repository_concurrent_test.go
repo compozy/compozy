@@ -43,6 +43,14 @@ func (m *MockTaskRepository) GetState(ctx context.Context, taskExecID core.ID) (
 	return args.Get(0).(*task.State), args.Error(1)
 }
 
+func (m *MockTaskRepository) GetUsageSummary(ctx context.Context, taskExecID core.ID) (*usage.Summary, error) {
+	args := m.Called(ctx, taskExecID)
+	if summary, ok := args.Get(0).(*usage.Summary); ok {
+		return summary, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockTaskRepository) ListStates(ctx context.Context, filter *task.StateFilter) ([]*task.State, error) {
 	args := m.Called(ctx, filter)
 	return args.Get(0).([]*task.State), args.Error(1)

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
@@ -106,9 +105,7 @@ func (b *BuiltinTool) ParameterSchema() map[string]any {
 	source := map[string]any(*b.definition.InputSchema)
 	copied, err := core.DeepCopy(source)
 	if err != nil {
-		fallback := make(map[string]any, len(source))
-		maps.Copy(fallback, source)
-		return fallback
+		return core.CloneMap(source)
 	}
 	return copied
 }

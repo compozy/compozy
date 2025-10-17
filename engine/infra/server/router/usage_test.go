@@ -168,6 +168,19 @@ func (s *stubTaskRepo) GetState(context.Context, core.ID) (*task.State, error) {
 	return s.state, s.err
 }
 
+func (s *stubTaskRepo) GetUsageSummary(_ context.Context, taskExecID core.ID) (*usage.Summary, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.state == nil || s.state.TaskExecID != taskExecID {
+		return nil, nil
+	}
+	if s.state.Usage == nil {
+		return nil, nil
+	}
+	return s.state.Usage.Clone(), nil
+}
+
 func (s *stubTaskRepo) WithTransaction(context.Context, func(task.Repository) error) error {
 	panic("WithTransaction not implemented")
 }

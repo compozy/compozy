@@ -488,22 +488,18 @@ func nearestToolNames(target string, names []string, limit int) []string {
 }
 
 func normalizeToolParameters(input map[string]any) map[string]any {
-	params := cloneMap(input)
+	params := core.CloneMap(input)
 	if !isObjectType(params["type"]) {
 		params["type"] = "object"
 	}
-	if _, ok := params["properties"]; !ok {
-		params["properties"] = map[string]any{}
+	props, ok := params["properties"].(map[string]any)
+	if !ok || props == nil {
+		props = map[string]any{}
+	} else {
+		props = core.CloneMap(props)
 	}
+	params["properties"] = props
 	return params
-}
-
-func cloneMap(src map[string]any) map[string]any {
-	clone := core.CloneMap(src)
-	if clone == nil {
-		return map[string]any{}
-	}
-	return clone
 }
 
 func isObjectType(value any) bool {

@@ -2,9 +2,9 @@ package uc
 
 import (
 	"context"
-	"maps"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
 	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 )
@@ -60,8 +60,7 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 		if err != nil {
 			return nil, err
 		}
-		entry := make(map[string]any, len(*sc)+1) // +1 for _etag
-		maps.Copy(entry, *sc)
+		entry := core.CloneMap(*sc)
 		entry["_etag"] = string(window[i].ETag)
 		payload = append(payload, entry)
 	}

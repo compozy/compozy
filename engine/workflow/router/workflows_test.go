@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/compozy/compozy/engine/core"
 	appstate "github.com/compozy/compozy/engine/infra/server/appstate"
 	routerpkg "github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/project"
@@ -52,8 +52,8 @@ func workflowBody(overrides map[string]any) []byte {
 		"config": map[string]any{},
 		"tasks":  []map[string]any{},
 	}
-	maps.Copy(base, overrides)
-	payload, _ := json.Marshal(base)
+	merged := core.CopyMaps(base, overrides)
+	payload, _ := json.Marshal(merged)
 	return payload
 }
 

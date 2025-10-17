@@ -90,10 +90,10 @@ func TestKnowledgeBindingCloneStringFields(t *testing.T) {
 	assert.Nil(t, cloned.TopK)
 	assert.Nil(t, cloned.MinScore)
 	assert.Nil(t, cloned.MaxTokens)
-	assert.Nil(t, cloned.Filters)
+	assert.Empty(t, cloned.Filters)
 }
 
-// TestKnowledgeBindingCloneNilFilters ensures nil filter maps remain nil.
+// TestKnowledgeBindingCloneNilFilters ensures nil filter maps become empty initialized maps.
 func TestKnowledgeBindingCloneNilFilters(t *testing.T) {
 	t.Parallel()
 	topK := 15
@@ -106,7 +106,7 @@ func TestKnowledgeBindingCloneNilFilters(t *testing.T) {
 	assert.Equal(t, original.ID, cloned.ID)
 	require.NotNil(t, cloned.TopK)
 	assert.Equal(t, *original.TopK, *cloned.TopK)
-	assert.Nil(t, cloned.Filters)
+	assert.Empty(t, cloned.Filters)
 }
 
 // TestKnowledgeBindingMergeNilReceiver verifies merging into a nil binding is safe.
