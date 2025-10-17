@@ -1938,9 +1938,7 @@ func buildPerProviderRateLimitOverrides(registry *definition.Registry) map[strin
 	out := make(map[string]ProviderRateLimitConfig)
 	switch raw := val.(type) {
 	case map[string]ProviderRateLimitConfig:
-		for key, cfg := range raw {
-			out[key] = cfg
-		}
+		maps.Copy(out, raw)
 	case map[string]any:
 		for provider, candidate := range raw {
 			m, ok := candidate.(map[string]any)

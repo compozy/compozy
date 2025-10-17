@@ -32,10 +32,7 @@ func New(cfg Config) (*Extractor, error) {
 	pool := cfg.Pool
 	ownsPool := false
 	if pool == nil {
-		size := max(runtime.NumCPU(), 2)
-		if size > 8 {
-			size = 8
-		}
+		size := min(max(runtime.NumCPU(), 2), 8)
 		initCfg := webassembly.Config{
 			MinIdle:      1,
 			MaxIdle:      size,

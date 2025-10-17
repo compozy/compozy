@@ -2,7 +2,6 @@ package llm
 
 import (
 	"fmt"
-	"maps"
 	"net/url"
 	"strings"
 	"time"
@@ -220,8 +219,7 @@ func WithToolCallCaps(caps orchestratorpkg.ToolCallCaps) Option {
 	return func(cCfg *Config) {
 		var overrides map[string]int
 		if len(caps.Overrides) > 0 {
-			overrides = make(map[string]int, len(caps.Overrides))
-			maps.Copy(overrides, caps.Overrides)
+			overrides = core.CopyMap(caps.Overrides)
 		}
 		cCfg.ToolCallCaps = orchestratorpkg.ToolCallCaps{
 			Default:   caps.Default,
@@ -362,12 +360,10 @@ func WithRegisterMCPs(mcps []mcp.Config) Option {
 		for i := range mcps {
 			dst := mcps[i]
 			if mcps[i].Headers != nil {
-				dst.Headers = make(map[string]string, len(mcps[i].Headers))
-				maps.Copy(dst.Headers, mcps[i].Headers)
+				dst.Headers = core.CopyMap(mcps[i].Headers)
 			}
 			if mcps[i].Env != nil {
-				dst.Env = make(map[string]string, len(mcps[i].Env))
-				maps.Copy(dst.Env, mcps[i].Env)
+				dst.Env = core.CopyMap(mcps[i].Env)
 			}
 			c.RegisterMCPs = append(c.RegisterMCPs, dst)
 		}
@@ -458,15 +454,13 @@ func cloneEmbedderOverrides(src map[string]*knowledge.EmbedderConfig) map[string
 	if len(src) == 0 {
 		return nil
 	}
+	if out, err := core.DeepCopy(src); err == nil {
+		return out
+	}
 	out := make(map[string]*knowledge.EmbedderConfig, len(src))
 	for key, cfg := range src {
 		if cfg == nil {
 			out[key] = nil
-			continue
-		}
-		if cloned, err := core.DeepCopy(*cfg); err == nil {
-			copyCfg := cloned
-			out[key] = &copyCfg
 			continue
 		}
 		copyCfg := *cfg
@@ -479,15 +473,13 @@ func cloneVectorOverrides(src map[string]*knowledge.VectorDBConfig) map[string]*
 	if len(src) == 0 {
 		return nil
 	}
+	if out, err := core.DeepCopy(src); err == nil {
+		return out
+	}
 	out := make(map[string]*knowledge.VectorDBConfig, len(src))
 	for key, cfg := range src {
 		if cfg == nil {
 			out[key] = nil
-			continue
-		}
-		if cloned, err := core.DeepCopy(*cfg); err == nil {
-			copyCfg := cloned
-			out[key] = &copyCfg
 			continue
 		}
 		copyCfg := *cfg
@@ -500,15 +492,13 @@ func cloneKnowledgeOverrides(src map[string]*knowledge.BaseConfig) map[string]*k
 	if len(src) == 0 {
 		return nil
 	}
+	if out, err := core.DeepCopy(src); err == nil {
+		return out
+	}
 	out := make(map[string]*knowledge.BaseConfig, len(src))
 	for key, cfg := range src {
 		if cfg == nil {
 			out[key] = nil
-			continue
-		}
-		if cloned, err := core.DeepCopy(*cfg); err == nil {
-			copyCfg := cloned
-			out[key] = &copyCfg
 			continue
 		}
 		copyCfg := *cfg
@@ -643,9 +633,7 @@ func cloneToolCapOverrides(src map[string]int) map[string]int {
 	if len(src) == 0 {
 		return nil
 	}
-	out := make(map[string]int, len(src))
-	maps.Copy(out, src)
-	return out
+	return core.CopyMap(src)
 }
 
 func applyLLMMCPOptions(c *Config, llm *config.LLMConfig) {

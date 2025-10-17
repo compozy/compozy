@@ -8,6 +8,9 @@ import (
 const defaultTopK = 5
 
 func cosineSimilarity(vecA, vecB []float32) float64 {
+	if len(vecA) == 0 || len(vecA) != len(vecB) {
+		return 0
+	}
 	var dot float64
 	var magA float64
 	var magB float64

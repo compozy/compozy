@@ -33,6 +33,73 @@ func NewLLMInvoker(cfg *settings) LLMInvoker {
 	return &llmInvoker{cfg: *cfg}
 }
 
+func (i *llmInvoker) applyTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if i.cfg.timeout <= 0 {
+		return ctx, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, i.cfg.timeout)
+	return ctx, cancel
+}
+
+func (i *llmInvoker) retryAttemptCount() uint64 {
+	attempts := i.cfg.retryAttempts
+	if attempts <= 0 || attempts > 100 {
+		attempts = defaultRetryAttempts
+	}
+	return uint64(attempts) // #nosec G115 -- sanitized earlier
+}
+
+func (i *llmInvoker) buildBackoff(maxRetries uint64) retry.Backoff {
+	exponential := retry.NewExponential(i.cfg.retryBackoffBase)
+	exponential = retry.WithMaxDuration(i.cfg.retryBackoffMax, exponential)
+	if i.cfg.retryJitter {
+		return retry.WithMaxRetries(maxRetries, retry.WithJitter(defaultRetryJitter, exponential))
+	}
+	return retry.WithMaxRetries(maxRetries, exponential)
+}
+
+func (i *llmInvoker) invokeOnce(
+	ctx context.Context,
+	client llmadapter.LLMClient,
+	req *llmadapter.LLMRequest,
+	request *Request,
+	backoff *adaptiveBackoff,
+	response **llmadapter.LLMResponse,
+	lastErr *error,
+) error {
+	releaseLimiter, acquireErr := i.acquireRateLimiter(ctx, request, backoff, lastErr)
+	if acquireErr != nil {
+		return acquireErr
+	}
+	tokensUsed := 0
+	if releaseLimiter != nil {
+		defer func() {
+			releaseLimiter(tokensUsed)
+		}()
+	}
+	resp, callErr := client.GenerateContent(ctx, req)
+	if callErr != nil {
+		if lastErr != nil {
+			*lastErr = callErr
+		}
+		if isRetryableErrorWithContext(ctx, callErr) {
+			applyRetryAfterHint(callErr, backoff)
+			return retry.RetryableError(callErr)
+		}
+		return callErr
+	}
+	if resp != nil && resp.Usage != nil {
+		tokensUsed = max(resp.Usage.TotalTokens, 0)
+	}
+	if lastErr != nil {
+		*lastErr = nil
+	}
+	if response != nil {
+		*response = resp
+	}
+	return nil
+}
+
 //nolint:gocritic // Request is copied intentionally to snapshot invocation metadata for retries.
 func (i *llmInvoker) Invoke(
 	ctx context.Context,
@@ -41,64 +108,24 @@ func (i *llmInvoker) Invoke(
 	request Request,
 ) (*llmadapter.LLMResponse, error) {
 	callStarted := time.Now()
-	if i.cfg.timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, i.cfg.timeout)
+	ctx, cancel := i.applyTimeout(ctx)
+	if cancel != nil {
 		defer cancel()
 	}
 
-	attempts := i.cfg.retryAttempts
-	backoffBase := i.cfg.retryBackoffBase
-	backoffMax := i.cfg.retryBackoffMax
-	exponential := retry.NewExponential(backoffBase)
-	exponential = retry.WithMaxDuration(backoffMax, exponential)
-
-	if attempts <= 0 || attempts > 100 {
-		attempts = defaultRetryAttempts
-	}
-
-	maxRetries := uint64(attempts) // #nosec G115 -- attempts sanitized above
-	var backoff retry.Backoff
-	if i.cfg.retryJitter {
-		backoff = retry.WithMaxRetries(maxRetries, retry.WithJitter(defaultRetryJitter, exponential))
-	} else {
-		backoff = retry.WithMaxRetries(maxRetries, exponential)
-	}
+	maxRetries := i.retryAttemptCount()
+	backoff := i.buildBackoff(maxRetries)
 	rateLimitedBackoff := newAdaptiveBackoff(backoff)
 
-	callAttempts := 0
+	attempts := 0
 	var lastErr error
 	var response *llmadapter.LLMResponse
 	err := retry.Do(ctx, rateLimitedBackoff, func(ctx context.Context) error {
-		callAttempts++
-		releaseLimiter, acquireErr := i.acquireRateLimiter(ctx, &request, rateLimitedBackoff, &lastErr)
-		if acquireErr != nil {
-			return acquireErr
-		}
-		tokensUsed := 0
-		if releaseLimiter != nil {
-			defer func() {
-				releaseLimiter(tokensUsed)
-			}()
-		}
-		var callErr error
-		response, callErr = client.GenerateContent(ctx, req)
-		if callErr != nil {
-			lastErr = callErr
-			if isRetryableErrorWithContext(ctx, callErr) {
-				applyRetryAfterHint(callErr, rateLimitedBackoff)
-				return retry.RetryableError(callErr)
-			}
-			return callErr
-		}
-		if response != nil && response.Usage != nil {
-			tokensUsed = max(response.Usage.TotalTokens, 0)
-		}
-		lastErr = nil
-		return nil
+		attempts++
+		return i.invokeOnce(ctx, client, req, &request, rateLimitedBackoff, &response, &lastErr)
 	})
 	callDuration := time.Since(callStarted)
-	i.recordProviderCall(ctx, &request, callAttempts, callDuration, lastErr)
+	i.recordProviderCall(ctx, &request, attempts, callDuration, lastErr)
 	if err != nil {
 		return nil, NewLLMError(err, ErrCodeLLMGeneration, map[string]any{
 			"agent":  request.Agent.ID,
@@ -118,7 +145,7 @@ func (i *llmInvoker) acquireRateLimiter(
 		return nil, nil
 	}
 	limiter := i.cfg.rateLimiter
-	if limiter == nil || request.Agent == nil {
+	if limiter == nil || request.Agent == nil || request.Agent.Model.IsEmpty() {
 		return nil, nil
 	}
 	providerCfg := request.Agent.Model.Config
@@ -158,11 +185,13 @@ func (i *llmInvoker) recordProviderCall(
 	}
 	if request != nil && request.Agent != nil {
 		metadata["agent_id"] = request.Agent.ID
-		if provider := request.Agent.Model.Config.Provider; provider != "" {
-			metadata["provider"] = provider
-		}
-		if model := request.Agent.Model.Config.Model; model != "" {
-			metadata["model"] = model
+		if !request.Agent.Model.IsEmpty() {
+			if provider := request.Agent.Model.Config.Provider; provider != "" {
+				metadata["provider"] = provider
+			}
+			if model := request.Agent.Model.Config.Model; model != "" {
+				metadata["model"] = model
+			}
 		}
 	}
 	if request != nil && request.Action != nil {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
+	"golang.org/x/sync/errgroup"
 )
 
 // Manager handles configuration with atomic updates and hot-reload support.
@@ -21,7 +22,7 @@ type Manager struct {
 	reloadMu    sync.Mutex
 	watchCtx    context.Context
 	watchCancel context.CancelFunc
-	watchWg     sync.WaitGroup
+	watchWg     *errgroup.Group
 	closeOnce   sync.Once
 	debounce    time.Duration // configurable debounce duration for file watching
 }
@@ -31,10 +32,14 @@ func NewManager(service Service) *Manager {
 	if service == nil {
 		service = NewService()
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
-		Service:   service,
-		callbacks: make([]func(*Config), 0),
-		debounce:  100 * time.Millisecond, // default debounce
+		Service:     service,
+		callbacks:   make([]func(*Config), 0),
+		debounce:    100 * time.Millisecond, // default debounce
+		watchCtx:    ctx,
+		watchCancel: cancel,
+		watchWg:     &errgroup.Group{},
 	}
 }
 
@@ -60,8 +65,14 @@ func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) 
 		if m.watchCancel != nil {
 			m.watchCancel()
 		}
+		if m.watchWg != nil {
+			if err := m.watchWg.Wait(); err != nil {
+				logger.FromContext(ctx).Debug("failed to wait for previous config watchers", "error", err)
+			}
+		}
 		base := context.WithoutCancel(ctx)
 		m.watchCtx, m.watchCancel = context.WithCancel(base)
+		m.watchWg = &errgroup.Group{}
 	}
 
 	// Start watching sources that support it
@@ -140,7 +151,11 @@ func (m *Manager) Close(ctx context.Context) error {
 		}
 
 		// Wait for all watchers to finish
-		m.watchWg.Wait()
+		if m.watchWg != nil {
+			if err := m.watchWg.Wait(); err != nil {
+				logger.FromContext(ctx).Debug("failed to wait for config watchers", "error", err)
+			}
+		}
 
 		m.reloadMu.Lock()
 		sourcesCopy := append([]Source(nil), m.sources...)
@@ -165,10 +180,13 @@ func (m *Manager) startWatching(sources []Source) {
 			continue
 		}
 		src := source
-		m.watchWg.Go(func() {
+		if m.watchWg == nil {
+			m.watchWg = &errgroup.Group{}
+		}
+		m.watchWg.Go(func() error {
 			ctx := m.watchCtx
 			if ctx == nil {
-				ctx = context.Background()
+				return nil
 			}
 			err := src.Watch(ctx, func() {
 				if m.debounce > 0 {
@@ -178,10 +196,10 @@ func (m *Manager) startWatching(sources []Source) {
 					logger.FromContext(ctx).Error("failed to reload configuration", "error", err)
 				}
 			})
-
 			if err != nil {
 				logger.FromContext(ctx).Debug("source does not support watching", "error", err)
 			}
+			return nil
 		})
 	}
 }

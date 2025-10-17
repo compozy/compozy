@@ -36,6 +36,15 @@ cat .cursor/rules/{go-coding-standards,architecture,test-standards,backwards-com
   - **ALWAYS CHECK** the .cursor/rules/test-standards.mdc if you are writing tests
   - **YOU MUST NEED** to use perplexity and context7 to get updated information when dealing with external libraries or tools and **NEVER RELY** only in the models data
 
+### For Go Version Compatibility
+
+- **PROJECT USES Go 1.25.2** - Always verify language features against this version
+- **Go 1.25+ NEW FEATURES YOU MUST KNOW:**
+  - `sync.WaitGroup.Go(func())` method is VALID and PREFERRED over manual `Add(1)` + `go func()` + `defer Done()`
+  - This is NOT an error - it's the modern Go 1.25+ pattern
+  - Example: `wg.Go(func() { /* work */ })` is correct syntax
+- **NEVER FLAG** valid Go 1.25+ features as errors based on outdated knowledge
+
 ### For tests and linting
 
 - **MUST** run `make lint` and `make test` before completing ANY subtask

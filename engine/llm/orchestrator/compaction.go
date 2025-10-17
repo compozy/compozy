@@ -60,10 +60,7 @@ func buildCompactionPlan(loopCtx *LoopContext) (compactionPlan, error) {
 		return compactionPlan{}, ErrCompactionUnavailable
 	}
 	messages := loopCtx.LLMRequest.Messages
-	base := max(loopCtx.baseMessageCount, 0)
-	if base > len(messages) {
-		base = len(messages)
-	}
+	base := min(max(loopCtx.baseMessageCount, 0), len(messages))
 	target, err := llmadapter.CloneMessages(messages[base:])
 	if err != nil {
 		return compactionPlan{}, fmt.Errorf("clone messages for compaction: %w", err)

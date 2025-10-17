@@ -88,8 +88,7 @@ func lineEstimate(text string) int {
 	if text == "" {
 		return 0
 	}
-	lines := max(strings.Count(text, "\n")+1, 1)
-	return lines
+	return strings.Count(text, "\n") + 1
 }
 
 func safeRatio(numerator, denominator int) float64 {
