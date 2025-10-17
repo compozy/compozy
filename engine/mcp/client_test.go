@@ -373,6 +373,16 @@ func TestNewProxyClient(t *testing.T) {
 	}
 }
 
+func TestNewProxyClient_ConfiguresConnectionPool(t *testing.T) {
+	client := newTestClient(t, "http://localhost:7077", 5*time.Second)
+	transport, ok := client.http.Transport.(*http.Transport)
+	require.True(t, ok, "expected transport to be *http.Transport")
+	assert.Equal(t, proxyDefaultMaxIdleConns, transport.MaxIdleConns)
+	assert.Equal(t, proxyDefaultMaxIdleConnsPerHost, transport.MaxIdleConnsPerHost)
+	assert.Equal(t, proxyDefaultMaxIdleConnsPerHost, transport.MaxConnsPerHost)
+	assert.Equal(t, proxyDefaultIdleConnTimeout, transport.IdleConnTimeout)
+}
+
 func TestClient_CallTool(t *testing.T) {
 	t.Run("Should successfully call tool", func(t *testing.T) {
 		// Create test server

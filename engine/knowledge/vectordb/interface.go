@@ -1,6 +1,9 @@
 package vectordb
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Provider enumerates supported vector database backends.
 type Provider string
@@ -67,4 +70,37 @@ type Config struct {
 	Auth        map[string]string
 	Options     map[string]any
 	MaxTopK     int
+	PGVector    *PGVectorOptions
+}
+
+// PGVectorOptions configures postgres vector stores.
+type PGVectorOptions struct {
+	Index  PGVectorIndexOptions
+	Pool   PGVectorPoolOptions
+	Search PGVectorSearchOptions
+}
+
+// PGVectorIndexOptions tunes index creation and runtime behavior.
+type PGVectorIndexOptions struct {
+	Type           string
+	Lists          int
+	Probes         int
+	M              int
+	EFConstruction int
+	EFSearch       int
+}
+
+// PGVectorPoolOptions customizes pgxpool behavior.
+type PGVectorPoolOptions struct {
+	MinConns          int32
+	MaxConns          int32
+	MaxConnLifetime   time.Duration
+	MaxConnIdleTime   time.Duration
+	HealthCheckPeriod time.Duration
+}
+
+// PGVectorSearchOptions adjusts search-related GUCs.
+type PGVectorSearchOptions struct {
+	Probes   int
+	EFSearch int
 }

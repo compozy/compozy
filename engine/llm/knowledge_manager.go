@@ -334,6 +334,11 @@ func (m *knowledgeManager) getOrCreateEmbedder(
 	if err != nil {
 		return nil, err
 	}
+	if cacheCfg := cfg.Config.Cache; cacheCfg != nil && cacheCfg.Enabled {
+		if err := created.EnableCache(cacheCfg.Size); err != nil {
+			return nil, err
+		}
+	}
 	m.embedderCache[id] = created
 	return created, nil
 }

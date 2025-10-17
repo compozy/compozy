@@ -2,10 +2,14 @@ package embedder
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/embeddings/cybertron"
 	"github.com/tmc/langchaingo/llms/googleai"
@@ -22,6 +26,8 @@ type Adapter struct {
 	dimension int
 	batchSize int
 	impl      embeddings.Embedder
+	cacheMu   sync.Mutex
+	cache     *lru.Cache[string, []float32]
 }
 
 var (
@@ -87,17 +93,47 @@ func (a *Adapter) BatchSize() int {
 	return a.batchSize
 }
 
+// EnableCache initializes an LRU cache for embeddings.
+func (a *Adapter) EnableCache(size int) error {
+	if size <= 0 {
+		return fmt.Errorf("embedder %q: cache size must be greater than zero", a.id)
+	}
+	cache, err := lru.New[string, []float32](size)
+	if err != nil {
+		return fmt.Errorf("embedder %q: init cache: %w", a.id, err)
+	}
+	a.cacheMu.Lock()
+	a.cache = cache
+	a.cacheMu.Unlock()
+	return nil
+}
+
 // EmbedDocuments delegates to the underlying implementation with contextual errors.
 func (a *Adapter) EmbedDocuments(ctx context.Context, texts []string) ([][]float32, error) {
-	embeddings, err := a.impl.EmbedDocuments(ctx, texts)
+	if cache := a.getCache(); cache != nil {
+		return a.cachedEmbedDocuments(ctx, cache, texts)
+	}
+	vectors, err := a.impl.EmbedDocuments(ctx, texts)
 	if err != nil {
 		return nil, a.withContext(err)
 	}
-	return embeddings, nil
+	return vectors, nil
 }
 
 // EmbedQuery delegates to the underlying implementation with contextual errors.
 func (a *Adapter) EmbedQuery(ctx context.Context, text string) ([]float32, error) {
+	if cache := a.getCache(); cache != nil {
+		if vector, ok := a.lookupCache(cache, text); ok {
+			return vector, nil
+		}
+		result, err := a.impl.EmbedQuery(ctx, text)
+		if err != nil {
+			return nil, a.withContext(err)
+		}
+		cloned := cloneVector(result)
+		a.storeCache(cache, text, cloned)
+		return cloned, nil
+	}
 	vector, err := a.impl.EmbedQuery(ctx, text)
 	if err != nil {
 		return nil, a.withContext(err)
@@ -105,11 +141,100 @@ func (a *Adapter) EmbedQuery(ctx context.Context, text string) ([]float32, error
 	return vector, nil
 }
 
+func (a *Adapter) cachedEmbedDocuments(
+	ctx context.Context,
+	cache *lru.Cache[string, []float32],
+	texts []string,
+) ([][]float32, error) {
+	results := make([][]float32, len(texts))
+	missing := make([]string, 0)
+	missingIdx := make([]int, 0)
+	for i := range texts {
+		text := texts[i]
+		if vector, ok := a.lookupCache(cache, text); ok {
+			results[i] = vector
+			continue
+		}
+		missing = append(missing, text)
+		missingIdx = append(missingIdx, i)
+	}
+	if len(missing) == 0 {
+		return results, nil
+	}
+	embedded, err := a.impl.EmbedDocuments(ctx, missing)
+	if err != nil {
+		return nil, a.withContext(err)
+	}
+	if len(embedded) != len(missing) {
+		return nil, a.withContext(fmt.Errorf("received %d embeddings for %d texts", len(embedded), len(missing)))
+	}
+	for i := range embedded {
+		idx := missingIdx[i]
+		cloned := cloneVector(embedded[i])
+		results[idx] = cloned
+		a.storeCache(cache, missing[i], cloned)
+	}
+	return results, nil
+}
+
+func (a *Adapter) getCache() *lru.Cache[string, []float32] {
+	a.cacheMu.Lock()
+	cache := a.cache
+	a.cacheMu.Unlock()
+	return cache
+}
+
+func (a *Adapter) lookupCache(cache *lru.Cache[string, []float32], text string) ([]float32, bool) {
+	if cache == nil {
+		return nil, false
+	}
+	key := cacheKey(text)
+	a.cacheMu.Lock()
+	current := a.cache
+	if current == nil || current != cache {
+		a.cacheMu.Unlock()
+		return nil, false
+	}
+	value, ok := current.Get(key)
+	a.cacheMu.Unlock()
+	if !ok {
+		return nil, false
+	}
+	return cloneVector(value), true
+}
+
+func (a *Adapter) storeCache(cache *lru.Cache[string, []float32], text string, vector []float32) {
+	if cache == nil || len(vector) == 0 {
+		return
+	}
+	key := cacheKey(text)
+	cloned := cloneVector(vector)
+	a.cacheMu.Lock()
+	if a.cache == cache && a.cache != nil {
+		a.cache.Add(key, cloned)
+	}
+	a.cacheMu.Unlock()
+}
+
 func (a *Adapter) withContext(err error) error {
 	if err == nil {
 		return nil
 	}
 	return fmt.Errorf("embedder %q: %w", a.id, err)
+}
+
+func cacheKey(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:])
+}
+
+func cloneVector(src []float32) []float32 {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make([]float32, len(src))
+	copy(dst, src)
+	return dst
 }
 
 func validateConfig(cfg *Config) error {

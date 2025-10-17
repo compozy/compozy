@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -37,11 +38,14 @@ func floatPtr(v float64) *float64 {
 }
 
 type recordingEmbedder struct {
+	mu       sync.Mutex
 	failures int
 	calls    [][]string
 }
 
 func (r *recordingEmbedder) EmbedDocuments(_ context.Context, texts []string) ([][]float32, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.failures > 0 {
 		r.failures--
 		return nil, errors.New("embed failed")
@@ -59,12 +63,15 @@ func (r *recordingEmbedder) EmbedQuery(_ context.Context, _ string) ([]float32, 
 }
 
 type memoryStore struct {
+	mu          sync.Mutex
 	records     []vectordb.Record
 	fail        int
 	deleteCalls []vectordb.Filter
 }
 
 func (m *memoryStore) Upsert(_ context.Context, recs []vectordb.Record) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.fail > 0 {
 		m.fail--
 		return errors.New("upsert failed")
@@ -91,6 +98,8 @@ func (m *memoryStore) Search(context.Context, []float32, vectordb.SearchOptions)
 }
 
 func (m *memoryStore) Delete(_ context.Context, filter vectordb.Filter) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.deleteCalls = append(m.deleteCalls, filter)
 	if len(filter.IDs) == 0 && len(filter.Metadata) == 0 {
 		return nil

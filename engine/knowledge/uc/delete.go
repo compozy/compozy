@@ -81,13 +81,17 @@ func (uc *Delete) cleanupVectors(
 	if err != nil {
 		return err
 	}
-	vectorStore, err := vectordb.New(ctx, storeCfg)
+	vectorStore, release, err := vectordb.AcquireShared(ctx, storeCfg)
 	if err != nil {
 		return fmt.Errorf("init vector store: %w", err)
 	}
 	log := logger.FromContext(ctx)
 	defer func() {
-		if cerr := vectorStore.Close(ctx); cerr != nil {
+		if release == nil {
+			return
+		}
+		releaseCtx := context.WithoutCancel(ctx)
+		if cerr := release(releaseCtx); cerr != nil {
 			log.Warn("failed to close vector store", "kb_id", kbID, "error", cerr)
 		}
 	}()

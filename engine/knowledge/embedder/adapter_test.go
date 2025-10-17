@@ -96,6 +96,57 @@ func TestAdapter_EmbedDocuments(t *testing.T) {
 	})
 }
 
+func TestAdapter_Cache(t *testing.T) {
+	ctx := newTestContext(t)
+	client := &fakeClient{}
+	impl, err := embeddings.NewEmbedder(client, embeddings.WithBatchSize(4))
+	require.NoError(t, err)
+	cfg := &Config{
+		ID:        "cache",
+		Provider:  ProviderLocal,
+		Model:     "stub",
+		Dimension: 4,
+		BatchSize: 4,
+	}
+	adapter, err := Wrap(cfg, impl)
+	require.NoError(t, err)
+	require.NoError(t, adapter.EnableCache(16))
+
+	_, err = adapter.EmbedDocuments(ctx, []string{"alpha", "beta"})
+	require.NoError(t, err)
+	assert.Equal(t, 1, client.callCount)
+
+	client.callCount = 0
+	vectors, err := adapter.EmbedDocuments(ctx, []string{"beta", "alpha"})
+	require.NoError(t, err)
+	assert.Equal(t, 0, client.callCount)
+	require.Len(t, vectors, 2)
+	vectors[0][0] = 999 // mutate returned slice
+
+	next, err := adapter.EmbedDocuments(ctx, []string{"beta"})
+	require.NoError(t, err)
+	require.Len(t, next, 1)
+	assert.Equal(t, float32(len("beta")), next[0][0])
+
+	client.callCount = 0
+	vec, err := adapter.EmbedQuery(ctx, "gamma")
+	require.NoError(t, err)
+	assert.Equal(t, 1, client.callCount)
+	require.Len(t, vec, 1)
+
+	client.callCount = 0
+	vec2, err := adapter.EmbedQuery(ctx, "gamma")
+	require.NoError(t, err)
+	assert.Equal(t, 0, client.callCount)
+	require.Len(t, vec2, 1)
+	vec2[0] = 77
+
+	vec3, err := adapter.EmbedQuery(ctx, "gamma")
+	require.NoError(t, err)
+	require.Len(t, vec3, 1)
+	assert.Equal(t, float32(len("gamma")), vec3[0])
+}
+
 func TestNew(t *testing.T) {
 	t.Run("ShouldReturnErrorForUnsupportedProvider", func(t *testing.T) {
 		ctx := newTestContext(t)

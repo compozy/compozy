@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	appconfig "github.com/compozy/compozy/pkg/config"
 )
@@ -208,10 +209,17 @@ type EmbedderConfig struct {
 
 // EmbedderRuntimeConfig captures runtime tuning options for an embedder client.
 type EmbedderRuntimeConfig struct {
-	Dimension     int            `json:"dimension"                yaml:"dimension"                mapstructure:"dimension"`
-	BatchSize     int            `json:"batch_size,omitempty"     yaml:"batch_size,omitempty"     mapstructure:"batch_size,omitempty"`
-	StripNewLines *bool          `json:"strip_newlines,omitempty" yaml:"strip_newlines,omitempty" mapstructure:"strip_newlines,omitempty"`
-	Retry         map[string]any `json:"retry,omitempty"          yaml:"retry,omitempty"          mapstructure:"retry,omitempty"`
+	Dimension     int                  `json:"dimension"                yaml:"dimension"                mapstructure:"dimension"`
+	BatchSize     int                  `json:"batch_size,omitempty"     yaml:"batch_size,omitempty"     mapstructure:"batch_size,omitempty"`
+	StripNewLines *bool                `json:"strip_newlines,omitempty" yaml:"strip_newlines,omitempty" mapstructure:"strip_newlines,omitempty"`
+	Retry         map[string]any       `json:"retry,omitempty"          yaml:"retry,omitempty"          mapstructure:"retry,omitempty"`
+	Cache         *EmbedderCacheConfig `json:"cache,omitempty"          yaml:"cache,omitempty"          mapstructure:"cache,omitempty"`
+}
+
+// EmbedderCacheConfig toggles client-side embedding caches.
+type EmbedderCacheConfig struct {
+	Enabled bool `json:"enabled"        yaml:"enabled"        mapstructure:"enabled"`
+	Size    int  `json:"size,omitempty" yaml:"size,omitempty" mapstructure:"size,omitempty"`
 }
 
 // VectorDBConfig configures a vector database target for knowledge storage.
@@ -234,6 +242,39 @@ type VectorDBConnConfig struct {
 	Consistency string            `json:"consistency,omitempty"  yaml:"consistency,omitempty"  mapstructure:"consistency,omitempty"`
 	Auth        map[string]string `json:"auth,omitempty"         yaml:"auth,omitempty"         mapstructure:"auth,omitempty"`
 	MaxTopK     int               `json:"max_top_k,omitempty"    yaml:"max_top_k,omitempty"    mapstructure:"max_top_k,omitempty"`
+	PGVector    *PGVectorConfig   `json:"pgvector,omitempty"     yaml:"pgvector,omitempty"     mapstructure:"pgvector,omitempty"`
+}
+
+// PGVectorConfig exposes advanced tuning knobs for the pgvector provider.
+type PGVectorConfig struct {
+	Index  *PGVectorIndexConfig  `json:"index,omitempty"  yaml:"index,omitempty"  mapstructure:"index,omitempty"`
+	Pool   *PGVectorPoolConfig   `json:"pool,omitempty"   yaml:"pool,omitempty"   mapstructure:"pool,omitempty"`
+	Search *PGVectorSearchConfig `json:"search,omitempty" yaml:"search,omitempty" mapstructure:"search,omitempty"`
+}
+
+// PGVectorIndexConfig tunes index creation for pgvector-backed stores.
+type PGVectorIndexConfig struct {
+	Type           string `json:"type,omitempty"            yaml:"type,omitempty"            mapstructure:"type,omitempty"`
+	Lists          int    `json:"lists,omitempty"           yaml:"lists,omitempty"           mapstructure:"lists,omitempty"`
+	Probes         int    `json:"probes,omitempty"          yaml:"probes,omitempty"          mapstructure:"probes,omitempty"`
+	M              int    `json:"m,omitempty"               yaml:"m,omitempty"               mapstructure:"m,omitempty"`
+	EFConstruction int    `json:"ef_construction,omitempty" yaml:"ef_construction,omitempty" mapstructure:"ef_construction,omitempty"`
+	EFSearch       int    `json:"ef_search,omitempty"       yaml:"ef_search,omitempty"       mapstructure:"ef_search,omitempty"`
+}
+
+// PGVectorPoolConfig customizes pgxpool behavior for pgvector stores.
+type PGVectorPoolConfig struct {
+	MinConns          int32         `json:"min_conns,omitempty"           yaml:"min_conns,omitempty"           mapstructure:"min_conns,omitempty"`
+	MaxConns          int32         `json:"max_conns,omitempty"           yaml:"max_conns,omitempty"           mapstructure:"max_conns,omitempty"`
+	MaxConnLifetime   time.Duration `json:"max_conn_lifetime,omitempty"   yaml:"max_conn_lifetime,omitempty"   mapstructure:"max_conn_lifetime,omitempty"`
+	MaxConnIdleTime   time.Duration `json:"max_conn_idle_time,omitempty"  yaml:"max_conn_idle_time,omitempty"  mapstructure:"max_conn_idle_time,omitempty"`
+	HealthCheckPeriod time.Duration `json:"health_check_period,omitempty" yaml:"health_check_period,omitempty" mapstructure:"health_check_period,omitempty"`
+}
+
+// PGVectorSearchConfig adjusts runtime search parameters for pgvector queries.
+type PGVectorSearchConfig struct {
+	Probes   int `json:"probes,omitempty"    yaml:"probes,omitempty"    mapstructure:"probes,omitempty"`
+	EFSearch int `json:"ef_search,omitempty" yaml:"ef_search,omitempty" mapstructure:"ef_search,omitempty"`
 }
 
 // BaseConfig declares a knowledge base and governs how it is ingested and retrieved.
@@ -466,6 +507,14 @@ func validateEmbedders(list []EmbedderConfig) (map[string]*EmbedderConfig, []err
 				fmt.Errorf("knowledge: embedder %q config.batch_size must be greater than zero", embedder.ID),
 			)
 		}
+		if embedder.Config.Cache != nil && embedder.Config.Cache.Enabled {
+			if embedder.Config.Cache.Size <= 0 {
+				errs = append(
+					errs,
+					fmt.Errorf("knowledge: embedder %q config.cache.size must be greater than zero", embedder.ID),
+				)
+			}
+		}
 		index[embedder.ID] = embedder
 	}
 	return index, errs
@@ -525,6 +574,122 @@ func validatePGVectorConfig(vector *VectorDBConfig) []error {
 			errs,
 			fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
 		)
+	}
+	if cfg := vector.Config.PGVector; cfg != nil {
+		errs = append(errs, validatePGVectorIndex(vector.ID, cfg.Index)...)
+		errs = append(errs, validatePGVectorPool(vector.ID, cfg.Pool)...)
+		errs = append(errs, validatePGVectorSearch(vector.ID, cfg.Search)...)
+	}
+	return errs
+}
+
+func validatePGVectorIndex(vectorID string, idx *PGVectorIndexConfig) []error {
+	if idx == nil {
+		return nil
+	}
+	errs := make([]error, 0, 6)
+	switch normalized := strings.TrimSpace(strings.ToLower(idx.Type)); normalized {
+	case "", "ivfflat", "hnsw":
+	default:
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.type %q must be ivfflat or hnsw",
+			vectorID,
+			idx.Type,
+		))
+	}
+	if idx.Lists < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.lists must be >= 0",
+			vectorID,
+		))
+	}
+	if idx.Probes < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.probes must be >= 0",
+			vectorID,
+		))
+	}
+	if idx.M < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.m must be >= 0",
+			vectorID,
+		))
+	}
+	if idx.EFConstruction < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.ef_construction must be >= 0",
+			vectorID,
+		))
+	}
+	if idx.EFSearch < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.ef_search must be >= 0",
+			vectorID,
+		))
+	}
+	return errs
+}
+
+func validatePGVectorPool(vectorID string, pool *PGVectorPoolConfig) []error {
+	if pool == nil {
+		return nil
+	}
+	errs := make([]error, 0, 6)
+	if pool.MinConns < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.min_conns must be >= 0",
+			vectorID,
+		))
+	}
+	if pool.MaxConns < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.max_conns must be >= 0",
+			vectorID,
+		))
+	}
+	if pool.MaxConns > 0 && pool.MinConns > pool.MaxConns {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.min_conns cannot exceed max_conns",
+			vectorID,
+		))
+	}
+	if pool.MaxConnLifetime < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.max_conn_lifetime must be >= 0",
+			vectorID,
+		))
+	}
+	if pool.MaxConnIdleTime < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.max_conn_idle_time must be >= 0",
+			vectorID,
+		))
+	}
+	if pool.HealthCheckPeriod < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.health_check_period must be >= 0",
+			vectorID,
+		))
+	}
+	return errs
+}
+
+func validatePGVectorSearch(vectorID string, search *PGVectorSearchConfig) []error {
+	if search == nil {
+		return nil
+	}
+	errs := make([]error, 0, 2)
+	if search.Probes < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.search.probes must be >= 0",
+			vectorID,
+		))
+	}
+	if search.EFSearch < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.search.ef_search must be >= 0",
+			vectorID,
+		))
 	}
 	return errs
 }

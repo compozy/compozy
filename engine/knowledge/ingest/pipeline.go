@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 type retrySettings struct {
@@ -320,45 +321,117 @@ func (p *Pipeline) backoffDuration(attempt int) time.Duration {
 }
 
 func (p *Pipeline) persistChunks(ctx context.Context, chunks []chunk.Chunk) (int, error) {
-	total := 0
-	for start := 0; start < len(chunks); start += p.batchSize {
-		if ctx.Err() != nil {
-			return 0, ctx.Err()
-		}
-		end := min(start+p.batchSize, len(chunks))
-		batch := chunks[start:end]
-		vectors, err := p.embedBatch(ctx, batch)
-		if err != nil {
-			return 0, err
-		}
-		if len(vectors) != len(batch) {
-			return 0, fmt.Errorf("knowledge: embedder returned %d vectors for %d chunks", len(vectors), len(batch))
-		}
-		records := make([]vectordb.Record, len(batch))
-		for i := range batch {
-			metadata := core.CloneMap(batch[i].Metadata)
-			metadata["knowledge_binding_id"] = p.binding.ID
-			metadata["knowledge_base_id"] = p.binding.KnowledgeBase.ID
-			if len(p.binding.KnowledgeBase.Metadata.Tags) > 0 {
-				metadata["tags"] = p.binding.KnowledgeBase.Metadata.Tags
+	batches := p.partitionChunks(chunks)
+	if len(batches) == 0 {
+		return 0, nil
+	}
+	workers := p.embeddingWorkerCount(len(batches))
+	g, groupCtx := errgroup.WithContext(ctx)
+	results := make(chan []vectordb.Record, workers)
+	var total int
+
+	g.Go(func() error {
+		defer close(results)
+		return p.runEmbeddingStage(groupCtx, batches, workers, results)
+	})
+
+	g.Go(func() error {
+		for records := range results {
+			if err := p.upsertBatch(groupCtx, records); err != nil {
+				return err
 			}
-			if len(p.binding.KnowledgeBase.Metadata.Owners) > 0 {
-				metadata["owners"] = p.binding.KnowledgeBase.Metadata.Owners
-			}
-			metadata["chunk_hash"] = batch[i].Hash
-			records[i] = vectordb.Record{
-				ID:        batch[i].ID,
-				Text:      batch[i].Text,
-				Embedding: vectors[i],
-				Metadata:  metadata,
-			}
+			total += len(records)
 		}
-		if err := p.upsertBatch(ctx, records); err != nil {
-			return 0, err
-		}
-		total += len(records)
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return 0, err
 	}
 	return total, nil
+}
+
+func (p *Pipeline) runEmbeddingStage(
+	ctx context.Context,
+	batches [][]chunk.Chunk,
+	workers int,
+	out chan<- []vectordb.Record,
+) error {
+	if workers <= 0 {
+		workers = 1
+	}
+	group, stageCtx := errgroup.WithContext(ctx)
+	group.SetLimit(workers)
+	for i := range batches {
+		batch := batches[i]
+		group.Go(func() error {
+			vectors, err := p.embedBatch(stageCtx, batch)
+			if err != nil {
+				return err
+			}
+			records, buildErr := p.buildRecords(batch, vectors)
+			if buildErr != nil {
+				return buildErr
+			}
+			select {
+			case <-stageCtx.Done():
+				return stageCtx.Err()
+			case out <- records:
+				return nil
+			}
+		})
+	}
+	return group.Wait()
+}
+
+func (p *Pipeline) partitionChunks(chunks []chunk.Chunk) [][]chunk.Chunk {
+	if len(chunks) == 0 || p.batchSize <= 0 {
+		return nil
+	}
+	total := (len(chunks) + p.batchSize - 1) / p.batchSize
+	batches := make([][]chunk.Chunk, 0, total)
+	for start := 0; start < len(chunks); start += p.batchSize {
+		end := min(start+p.batchSize, len(chunks))
+		batches = append(batches, chunks[start:end])
+	}
+	return batches
+}
+
+func (p *Pipeline) embeddingWorkerCount(batchCount int) int {
+	const maxWorkers = 4
+	if batchCount <= 0 {
+		return 0
+	}
+	if batchCount < maxWorkers {
+		return batchCount
+	}
+	return maxWorkers
+}
+
+func (p *Pipeline) buildRecords(batch []chunk.Chunk, vectors [][]float32) ([]vectordb.Record, error) {
+	if len(vectors) != len(batch) {
+		return nil, fmt.Errorf("knowledge: embedder returned %d vectors for %d chunks", len(vectors), len(batch))
+	}
+	records := make([]vectordb.Record, len(batch))
+	for i := range batch {
+		metadata := core.CloneMap(batch[i].Metadata)
+		metadata["knowledge_binding_id"] = p.binding.ID
+		metadata["knowledge_base_id"] = p.binding.KnowledgeBase.ID
+		if tags := p.binding.KnowledgeBase.Metadata.Tags; len(tags) > 0 {
+			metadata["tags"] = tags
+		}
+		if owners := p.binding.KnowledgeBase.Metadata.Owners; len(owners) > 0 {
+			metadata["owners"] = owners
+		}
+		metadata["chunk_hash"] = batch[i].Hash
+		records[i] = vectordb.Record{
+			ID:        batch[i].ID,
+			Text:      batch[i].Text,
+			Embedding: vectors[i],
+			Metadata:  metadata,
+		}
+	}
+	return records, nil
 }
 
 func (p *Pipeline) deleteExistingRecords(ctx context.Context) error {

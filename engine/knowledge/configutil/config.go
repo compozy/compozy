@@ -101,6 +101,35 @@ func ToVectorStoreConfig(ctx context.Context, project string, cfg *knowledge.Vec
 	if len(cfg.Config.Auth) > 0 {
 		storeCfg.Auth = core.CloneMap(cfg.Config.Auth)
 	}
+	if cfg.Config.PGVector != nil {
+		options := &vectordb.PGVectorOptions{}
+		if idx := cfg.Config.PGVector.Index; idx != nil {
+			options.Index = vectordb.PGVectorIndexOptions{
+				Type:           strings.TrimSpace(strings.ToLower(idx.Type)),
+				Lists:          idx.Lists,
+				Probes:         idx.Probes,
+				M:              idx.M,
+				EFConstruction: idx.EFConstruction,
+				EFSearch:       idx.EFSearch,
+			}
+		}
+		if pool := cfg.Config.PGVector.Pool; pool != nil {
+			options.Pool = vectordb.PGVectorPoolOptions{
+				MinConns:          pool.MinConns,
+				MaxConns:          pool.MaxConns,
+				MaxConnLifetime:   pool.MaxConnLifetime,
+				MaxConnIdleTime:   pool.MaxConnIdleTime,
+				HealthCheckPeriod: pool.HealthCheckPeriod,
+			}
+		}
+		if search := cfg.Config.PGVector.Search; search != nil {
+			options.Search = vectordb.PGVectorSearchOptions{
+				Probes:   search.Probes,
+				EFSearch: search.EFSearch,
+			}
+		}
+		storeCfg.PGVector = options
+	}
 	return storeCfg, nil
 }
 

@@ -19,6 +19,15 @@ import (
 	"github.com/sethvargo/go-retry"
 )
 
+const (
+	// proxyDefaultMaxIdleConns defines the number of idle connections kept open globally.
+	proxyDefaultMaxIdleConns = 128
+	// proxyDefaultMaxIdleConnsPerHost controls idle pooling per MCP proxy host.
+	proxyDefaultMaxIdleConnsPerHost = 128
+	// proxyDefaultIdleConnTimeout aligns with common reverse-proxy keep-alives to maximize reuse.
+	proxyDefaultIdleConnTimeout = 90 * time.Second
+)
+
 // Definition represents the structure for registering an MCP with the proxy
 type Definition struct {
 	Name      string                 `json:"name"`
@@ -118,8 +127,10 @@ func NewProxyClient(baseURL string, timeout time.Duration) *Client {
 		http: &http.Client{
 			Timeout: timeout,
 			Transport: &http.Transport{
-				MaxIdleConns:          10,
-				IdleConnTimeout:       30 * time.Second,
+				MaxIdleConns:          proxyDefaultMaxIdleConns,
+				MaxIdleConnsPerHost:   proxyDefaultMaxIdleConnsPerHost,
+				MaxConnsPerHost:       proxyDefaultMaxIdleConnsPerHost,
+				IdleConnTimeout:       proxyDefaultIdleConnTimeout,
 				DisableCompression:    false,
 				DisableKeepAlives:     false,
 				TLSHandshakeTimeout:   10 * time.Second,

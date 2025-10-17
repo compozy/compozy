@@ -206,6 +206,34 @@ func TestToolRegistry_FindRefreshesOnStaleMiss(t *testing.T) {
 	require.GreaterOrEqual(t, dynamic.Hits(), 2)
 }
 
+func TestToolRegistry_InvalidateCacheClearsIndex(t *testing.T) {
+	dynamic := newDynamicToolsServer(t, []mcp.ToolDefinition{
+		{Name: "alpha", Description: "A", MCPName: "mcp-one"},
+	})
+
+	client := mcp.NewProxyClient(dynamic.URL(), 2*time.Second)
+	reg := NewToolRegistry(ToolRegistryConfig{
+		ProxyClient: client,
+		CacheTTL:    time.Minute,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	tool, ok := reg.Find(ctx, "alpha")
+	require.True(t, ok, "expected to resolve initial MCP tool")
+	require.Equal(t, "alpha", tool.Name())
+
+	dynamic.Set([]mcp.ToolDefinition{
+		{Name: "beta", Description: "B", MCPName: "mcp-one"},
+	})
+	reg.InvalidateCache(ctx)
+
+	tool, ok = reg.Find(ctx, "beta")
+	require.True(t, ok, "expected lookup to find refreshed tool after cache invalidation")
+	require.Equal(t, "beta", tool.Name())
+}
+
 func makeToolsServer(t *testing.T, defs []mcp.ToolDefinition) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
