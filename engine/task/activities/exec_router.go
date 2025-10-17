@@ -3,6 +3,7 @@ package activities
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
@@ -55,6 +56,9 @@ func NewExecuteRouter(
 }
 
 func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*task.MainTaskResponse, error) {
+	if input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
 	// Validate task type early
 	taskConfig := input.TaskConfig
 	if taskConfig == nil {
@@ -270,6 +274,7 @@ func getRouteKeys(routes map[string]any) []string {
 	for key := range routes {
 		keys = append(keys, key)
 	}
+	sort.Strings(keys)
 	return keys
 }
 

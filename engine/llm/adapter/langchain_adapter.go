@@ -398,7 +398,9 @@ func (a *LangChainAdapter) buildCallOptions(req *LLMRequest) []llms.CallOption {
 
 func buildBasicOptions(req *LLMRequest) []llms.CallOption {
 	var options []llms.CallOption
-	if req.Options.Temperature > 0 {
+	if req.Options.TemperatureSet {
+		options = append(options, llms.WithTemperature(req.Options.Temperature))
+	} else if req.Options.Temperature > 0 {
 		options = append(options, llms.WithTemperature(req.Options.Temperature))
 	}
 	if req.Options.MaxTokens > 0 {

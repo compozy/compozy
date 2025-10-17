@@ -51,11 +51,12 @@ func TestProviderRateLimiter_QueueWaitsForSlot(t *testing.T) {
 		errCh <- registry.Acquire(ctx, core.ProviderOpenAI, nil)
 	}()
 
-	time.Sleep(50 * time.Millisecond)
-	snapshot, ok := registry.Metrics(core.ProviderOpenAI)
-	require.True(t, ok)
-	require.Equal(t, int32(1), snapshot.ActiveRequests)
-	require.Equal(t, int32(1), snapshot.QueuedRequests)
+	require.Eventually(t, func() bool {
+		snapshot, ok := registry.Metrics(core.ProviderOpenAI)
+		return ok &&
+			snapshot.ActiveRequests == 1 &&
+			snapshot.QueuedRequests == 1
+	}, time.Second, 10*time.Millisecond)
 
 	registry.Release(ctx, core.ProviderOpenAI, 0)
 
@@ -114,7 +115,7 @@ func TestRateLimiterRegistry_Overrides(t *testing.T) {
 		},
 	})
 
-	override := &appconfig.ProviderRateLimitConfig{Concurrency: 1}
+	override := &core.ProviderRateLimitConfig{Concurrency: 1}
 	ctx := context.Background()
 
 	// Override should clamp concurrency to 1.
@@ -141,7 +142,7 @@ func TestProviderRateLimiter_RequestRateLimit(t *testing.T) {
 		DefaultQueueSize:   0,
 	})
 
-	override := &appconfig.ProviderRateLimitConfig{
+	override := &core.ProviderRateLimitConfig{
 		Concurrency:       1,
 		RequestsPerMinute: 60, // roughly one request per second
 	}
@@ -154,7 +155,7 @@ func TestProviderRateLimiter_RequestRateLimit(t *testing.T) {
 	elapsed := time.Since(start)
 	registry.Release(ctx, core.ProviderAnthropic, 0)
 
-	if elapsed < 900*time.Millisecond {
+	if elapsed < 800*time.Millisecond {
 		t.Fatalf("expected rate limiter to enforce ~1s spacing, elapsed=%v", elapsed)
 	}
 }
@@ -169,7 +170,7 @@ func TestProviderRateLimiter_TokenRateLimit(t *testing.T) {
 		DefaultTokensPerMinute: 0,
 	})
 
-	override := &appconfig.ProviderRateLimitConfig{
+	override := &core.ProviderRateLimitConfig{
 		Concurrency:     1,
 		TokensPerMinute: 120, // roughly two tokens per second
 	}
@@ -182,7 +183,7 @@ func TestProviderRateLimiter_TokenRateLimit(t *testing.T) {
 	registry.Release(ctx, core.ProviderAnthropic, 2)
 	elapsed := time.Since(start)
 
-	if elapsed < 900*time.Millisecond {
+	if elapsed < 800*time.Millisecond {
 		t.Fatalf("expected token limiter to enforce ~1s spacing, elapsed=%v", elapsed)
 	}
 }

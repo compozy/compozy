@@ -57,42 +57,8 @@ func (g *SchemaGenerator) Generate(ctx context.Context, outDir string) error {
 	if err := g.initReflector(); err != nil {
 		return fmt.Errorf("failed to initialize reflector: %w", err)
 	}
-	var projectRuntimeSchema []byte
-	var configRuntimeSchema []byte
-	var schemaMu sync.Mutex
-	group, gCtx := errgroup.WithContext(ctx)
-	group.SetLimit(runtime.GOMAXPROCS(0))
-	for _, definition := range g.definitions {
-		def := definition
-		group.Go(func() error {
-			if err := gCtx.Err(); err != nil {
-				return err
-			}
-			schemaJSON, err := g.buildSchema(def)
-			if err != nil {
-				return fmt.Errorf("failed to build schema for %s: %w", def.name, err)
-			}
-			switch def.capture {
-			case captureProjectRuntime:
-				schemaMu.Lock()
-				projectRuntimeSchema = schemaJSON
-				schemaMu.Unlock()
-				return nil
-			case captureConfigRuntime:
-				schemaMu.Lock()
-				configRuntimeSchema = schemaJSON
-				schemaMu.Unlock()
-				return nil
-			}
-			filePath := filepath.Join(outDir, def.fileName())
-			if err := os.WriteFile(filePath, schemaJSON, schemaFilePerms); err != nil {
-				return fmt.Errorf("failed to write schema to %s: %w", filePath, err)
-			}
-			log.Info("Generated schema", "file", filePath)
-			return nil
-		})
-	}
-	if err := group.Wait(); err != nil {
+	projectRuntimeSchema, configRuntimeSchema, err := g.generateDefinitions(ctx, outDir, log)
+	if err != nil {
 		return err
 	}
 	if len(projectRuntimeSchema) == 0 {
@@ -110,6 +76,52 @@ func (g *SchemaGenerator) Generate(ctx context.Context, outDir string) error {
 	return nil
 }
 
+func (g *SchemaGenerator) generateDefinitions(
+	ctx context.Context,
+	outDir string,
+	log logger.Logger,
+) ([]byte, []byte, error) {
+	var (
+		projectRuntimeSchema []byte
+		configRuntimeSchema  []byte
+	)
+	schemaMu := sync.Mutex{}
+	group, _ := errgroup.WithContext(ctx)
+	group.SetLimit(runtime.GOMAXPROCS(0))
+	for _, definition := range g.definitions {
+		def := definition
+		group.Go(func() error {
+			schemaJSON, err := g.buildSchema(def)
+			if err != nil {
+				return fmt.Errorf("failed to build schema for %s: %w", def.name, err)
+			}
+			switch def.capture {
+			case captureProjectRuntime:
+				schemaMu.Lock()
+				projectRuntimeSchema = schemaJSON
+				schemaMu.Unlock()
+				return nil
+			case captureConfigRuntime:
+				schemaMu.Lock()
+				configRuntimeSchema = schemaJSON
+				schemaMu.Unlock()
+				return nil
+			default:
+				filePath := filepath.Join(outDir, def.fileName())
+				if err := os.WriteFile(filePath, schemaJSON, schemaFilePerms); err != nil {
+					return fmt.Errorf("failed to write schema to %s: %w", filePath, err)
+				}
+				log.Info("Generated schema", "file", filePath)
+				return nil
+			}
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, nil, err
+	}
+	return projectRuntimeSchema, configRuntimeSchema, nil
+}
+
 func (g *SchemaGenerator) buildSchema(definition schemaDefinition) ([]byte, error) {
 	schema := g.reflector.Reflect(definition.source)
 	schema.ID = jsonschema.ID(definition.fileName())
@@ -121,7 +133,6 @@ func (g *SchemaGenerator) buildSchema(definition schemaDefinition) ([]byte, erro
 	rawBuf := bufferPool.Get()
 	buf, ok := rawBuf.(*bytes.Buffer)
 	if !ok {
-		bufferPool.Put(rawBuf)
 		buf = &bytes.Buffer{}
 	}
 	buf.Reset()

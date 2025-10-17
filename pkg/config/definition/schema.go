@@ -1137,6 +1137,11 @@ func registerLLMRetryAndLimits(registry *Registry) {
 }
 
 func registerLLMRateLimiterFields(registry *Registry) {
+	registerLLMRateLimiterDefaults(registry)
+	registerLLMRateLimiterPerProvider(registry)
+}
+
+func registerLLMRateLimiterDefaults(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "llm.rate_limiting.enabled",
 		Default: true,
@@ -1177,6 +1182,9 @@ func registerLLMRateLimiterFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Default total-token throughput cap (per minute) when provider overrides are absent",
 	})
+}
+
+func registerLLMRateLimiterPerProvider(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path: "llm.rate_limiting.per_provider_limits",
 		Default: map[string]map[string]int{
@@ -1210,10 +1218,22 @@ func registerLLMRateLimiterFields(registry *Registry) {
 				"requests_per_minute": 90,
 				"tokens_per_minute":   0,
 			},
+			"ollama": {
+				"concurrency":         10,
+				"queue_size":          100,
+				"requests_per_minute": 60,
+				"tokens_per_minute":   0,
+			},
+			"openrouter": {
+				"concurrency":         10,
+				"queue_size":          100,
+				"requests_per_minute": 60,
+				"tokens_per_minute":   0,
+			},
 		},
 		CLIFlag: "",
 		EnvVar:  "LLM_RATE_LIMITING_PER_PROVIDER_LIMITS",
-		Type:    reflect.TypeOf(map[string]any{}),
+		Type:    reflect.TypeOf(map[string]map[string]int{}),
 		Help:    "Per-provider concurrency and queue overrides keyed by provider name",
 	})
 }

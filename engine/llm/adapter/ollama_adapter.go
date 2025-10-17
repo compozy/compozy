@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -188,9 +189,7 @@ func (a *ollamaAdapter) callOllamaAPI(ctx context.Context, req *api.ChatRequest)
 			contentBuf.WriteString(resp.Message.Content)
 		}
 		if len(resp.Message.ToolCalls) > 0 {
-			copied := make([]api.ToolCall, len(resp.Message.ToolCalls))
-			copy(copied, resp.Message.ToolCalls)
-			toolCalls = copied
+			toolCalls = append(toolCalls, resp.Message.ToolCalls...)
 		}
 		respCopy := resp
 		finalResp = &respCopy
@@ -225,7 +224,30 @@ func (a *ollamaAdapter) ensureHTTPClient() *http.Client {
 }
 
 func (a *ollamaAdapter) fetchRemoteImage(ctx context.Context, imageURL string) ([]byte, error) {
-	client := a.ensureHTTPClient()
+	u, err := url.Parse(imageURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid image URL: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported image URL scheme: %s", u.Scheme)
+	}
+	host := u.Hostname()
+	if isLocalOrPrivateHost(host) {
+		return nil, fmt.Errorf("refusing to fetch image from private/loopback host: %s", host)
+	}
+
+	baseClient := a.ensureHTTPClient()
+	client := *baseClient
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 3 {
+			return fmt.Errorf("stopped after 3 redirects")
+		}
+		if redirectHost := req.URL.Hostname(); isLocalOrPrivateHost(redirectHost) {
+			return fmt.Errorf("redirect to private/loopback host blocked: %s", redirectHost)
+		}
+		return nil
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, http.NoBody)
 	if err != nil {
 		return nil, err
@@ -247,6 +269,40 @@ func (a *ollamaAdapter) fetchRemoteImage(ctx context.Context, imageURL string) (
 		return nil, fmt.Errorf("image size %d exceeds limit %d", len(data), maxRemoteImageBytes)
 	}
 	return data, nil
+}
+
+func isLocalOrPrivateHost(host string) bool {
+	if host == "" {
+		return true
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	if ip.IsLoopback() || ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() {
+		return true
+	}
+	privateCIDRs := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",
+		"::1/128",
+		"fc00::/7",
+	}
+	for _, cidr := range privateCIDRs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			continue
+		}
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *ollamaAdapter) convertFromOllamaResponse(resp *api.ChatResponse) (*LLMResponse, error) {
@@ -560,7 +616,9 @@ func (a *ollamaAdapter) buildOllamaOptions(ctx context.Context, req *LLMRequest)
 		return nil
 	}
 	options := make(map[string]any)
-	if req.Options.Temperature > 0 {
+	if req.Options.TemperatureSet {
+		options["temperature"] = req.Options.Temperature
+	} else if req.Options.Temperature > 0 {
 		options["temperature"] = req.Options.Temperature
 	}
 	if req.Options.TopP > 0 {

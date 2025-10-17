@@ -190,6 +190,8 @@ Accept: application/json
 
 ### -----------------------------------------------------------------------------
 ### MIXED STRATEGY - Run both analysis types
+### Use this when you need detailed per-file findings and a holistic per-directory view
+### to identify architectural or cross-file issues in the same review session.
 ### -----------------------------------------------------------------------------
 
 ### Step 1: Per-file for detailed analysis
@@ -249,5 +251,6 @@ Accept: application/json
 ### -----------------------------------------------------------------------------
 
 ### Cancel a batch review workflow
+### Uncomment to test cancellation (use a valid exec_id)
 # POST {{baseUrl}}/executions/workflows/{{execIdBatchAllPerFile}}/cancel
 # Accept: application/json

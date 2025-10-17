@@ -14,14 +14,19 @@ import (
 type ProcessWaitSignal struct {
 	taskRepo    task.Repository
 	configStore services.ConfigStore
-	evaluator   *task.CELEvaluator
+	evaluator   ConditionEvaluator
+}
+
+// ConditionEvaluator evaluates conditional expressions for wait tasks.
+type ConditionEvaluator interface {
+	Evaluate(ctx context.Context, expression string, data map[string]any) (bool, error)
 }
 
 // NewProcessWaitSignal creates a new ProcessWaitSignal use case
 func NewProcessWaitSignal(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	evaluator *task.CELEvaluator,
+	evaluator ConditionEvaluator,
 ) *ProcessWaitSignal {
 	return &ProcessWaitSignal{
 		taskRepo:    taskRepo,

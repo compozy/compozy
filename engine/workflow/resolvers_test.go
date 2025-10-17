@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -177,6 +178,44 @@ func TestApplyAgentModelSelector(t *testing.T) {
 		require.Error(t, err)
 		var tmErr *TypeMismatchError
 		assert.ErrorAs(t, err, &tmErr)
+	})
+}
+
+func TestModelConfigFromStoreNormalizesAllShapes(t *testing.T) {
+	t.Run("Should normalize pointer inputs", func(t *testing.T) {
+		original := &core.ProviderConfig{
+			Provider:     core.ProviderName(" openai "),
+			Model:        " gpt-4o ",
+			APIKey:       " sk-123 ",
+			APIURL:       " https://api.openai.com/v1 ",
+			Organization: " org-123 ",
+		}
+		got, err := modelConfigFromStore(original)
+		require.NoError(t, err)
+		require.Same(t, original, got)
+		assert.Equal(t, core.ProviderOpenAI, got.Provider)
+		assert.Equal(t, "gpt-4o", got.Model)
+		assert.Equal(t, "sk-123", got.APIKey)
+		assert.Equal(t, "https://api.openai.com/v1", got.APIURL)
+		assert.Equal(t, "org-123", got.Organization)
+	})
+
+	t.Run("Should normalize value inputs", func(t *testing.T) {
+		value := core.ProviderConfig{
+			Provider:     core.ProviderName(" openrouter "),
+			Model:        " claude-3 ",
+			APIKey:       " key ",
+			APIURL:       " https://proxy ",
+			Organization: " team ",
+		}
+		got, err := modelConfigFromStore(value)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, core.ProviderName(strings.TrimSpace(" openrouter ")), got.Provider)
+		assert.Equal(t, "claude-3", got.Model)
+		assert.Equal(t, "key", got.APIKey)
+		assert.Equal(t, "https://proxy", got.APIURL)
+		assert.Equal(t, "team", got.Organization)
 	})
 }
 

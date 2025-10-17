@@ -31,28 +31,32 @@ func (c *retryAfterClient) GenerateContent(
 
 func (c *retryAfterClient) Close() error { return nil }
 
-func TestLLMInvokerRespectsRetryAfterDelay(t *testing.T) {
+func TestLLMInvoker(t *testing.T) {
 	t.Parallel()
 
-	delay := 35 * time.Millisecond
-	client := &retryAfterClient{delay: delay}
-	invoker := NewLLMInvoker(&settings{
-		retryAttempts:      2,
-		retryBackoffBase:   time.Millisecond,
-		retryBackoffMax:    100 * time.Millisecond,
-		retryJitter:        false,
-		maxConcurrentTools: 0,
+	t.Run("Should respect retry-after delay", func(t *testing.T) {
+		t.Parallel()
+
+		delay := 35 * time.Millisecond
+		client := &retryAfterClient{delay: delay}
+		invoker := NewLLMInvoker(&settings{
+			retryAttempts:      2,
+			retryBackoffBase:   time.Millisecond,
+			retryBackoffMax:    100 * time.Millisecond,
+			retryJitter:        false,
+			maxConcurrentTools: 0,
+		})
+
+		ctx := context.Background()
+		start := time.Now()
+		resp, err := invoker.Invoke(ctx, client, &llmadapter.LLMRequest{}, Request{})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.True(t, client.succeeded)
+		require.GreaterOrEqual(t, client.attempts, 2)
+
+		elapsed := time.Since(start)
+		require.GreaterOrEqual(t, elapsed, delay)
+		require.Less(t, elapsed, delay+80*time.Millisecond)
 	})
-
-	ctx := context.Background()
-	start := time.Now()
-	resp, err := invoker.Invoke(ctx, client, &llmadapter.LLMRequest{}, Request{})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.True(t, client.succeeded)
-	require.GreaterOrEqual(t, client.attempts, 2)
-
-	elapsed := time.Since(start)
-	require.GreaterOrEqual(t, elapsed, delay)
-	require.Less(t, elapsed, delay+80*time.Millisecond)
 }

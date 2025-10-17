@@ -127,6 +127,7 @@ func listFilesHandler(ctx context.Context, payload map[string]any) (core.Output,
 	return core.Output{"files": files}, nil
 }
 
+// collectFiles performs breadth-first traversal and returns relative file paths.
 func collectFiles(
 	ctx context.Context,
 	cfg toolConfig,
@@ -143,53 +144,94 @@ func collectFiles(
 		if err := progressContext(ctx); err != nil {
 			return nil, err
 		}
-		entries, err := os.ReadDir(current)
-		if err != nil {
-			relative := relativePath(root, current)
-			if errors.Is(err, fs.ErrPermission) {
-				return nil, builtin.PermissionDenied(err, map[string]any{"dir": relative})
-			}
-			return nil, builtin.Internal(
-				fmt.Errorf("failed to read directory: %w", err),
-				map[string]any{"dir": relative},
-			)
-		}
-		sort.SliceStable(entries, func(i, j int) bool {
-			return entries[i].Name() < entries[j].Name()
-		})
-		for _, entry := range entries {
-			name := entry.Name()
-			fullPath := filepath.Join(current, name)
-			info, infoErr := entry.Info()
-			if infoErr != nil {
-				continue
-			}
-			if info.IsDir() {
-				if recursive && info.Mode()&fs.ModeSymlink == 0 {
-					queue = append(queue, fullPath)
-				}
-				continue
-			}
-			relative, relErr := filepath.Rel(basePath, fullPath)
-			if relErr != nil {
-				return nil, builtin.Internal(
-					fmt.Errorf("failed to compute relative path: %w", relErr),
-					map[string]any{"path": fullPath},
-				)
-			}
-			normalized := filepath.ToSlash(relative)
-			if shouldExclude(normalized, patterns) || shouldExclude(name, patterns) {
-				continue
-			}
-			visited++
-			if err := visitLimit(visited, cfg.Limits.MaxListEntries); err != nil {
-				return nil, err
-			}
-			results = append(results, normalized)
+		if err := processDirectory(
+			cfg,
+			basePath,
+			root,
+			current,
+			patterns,
+			recursive,
+			&queue,
+			&results,
+			&visited,
+		); err != nil {
+			return nil, err
 		}
 	}
 	sort.Strings(results)
 	return results, nil
+}
+
+func processDirectory(
+	cfg toolConfig,
+	basePath string,
+	root string,
+	current string,
+	patterns []compiledPattern,
+	recursive bool,
+	queue *[]string,
+	results *[]string,
+	visited *int,
+) error {
+	entries, err := os.ReadDir(current)
+	if err != nil {
+		relative := relativePath(root, current)
+		if errors.Is(err, fs.ErrPermission) {
+			return builtin.PermissionDenied(err, map[string]any{"dir": relative})
+		}
+		return builtin.Internal(
+			fmt.Errorf("failed to read directory: %w", err),
+			map[string]any{"dir": relative},
+		)
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		return entries[i].Name() < entries[j].Name()
+	})
+	for _, entry := range entries {
+		info, infoErr := entry.Info()
+		if infoErr != nil {
+			continue
+		}
+		fullPath := filepath.Join(current, entry.Name())
+		if info.IsDir() {
+			if recursive && info.Mode()&fs.ModeSymlink == 0 {
+				*queue = append(*queue, fullPath)
+			}
+			continue
+		}
+		if err := addFileResult(cfg, basePath, fullPath, entry.Name(), patterns, results, visited); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func addFileResult(
+	cfg toolConfig,
+	basePath string,
+	fullPath string,
+	name string,
+	patterns []compiledPattern,
+	results *[]string,
+	visited *int,
+) error {
+	relative, relErr := filepath.Rel(basePath, fullPath)
+	if relErr != nil {
+		return builtin.Internal(
+			fmt.Errorf("failed to compute relative path: %w", relErr),
+			map[string]any{"path": fullPath},
+		)
+	}
+	normalized := filepath.ToSlash(relative)
+	if shouldExclude(normalized, patterns) || shouldExclude(name, patterns) {
+		return nil
+	}
+	*visited++
+	if err := visitLimit(*visited, cfg.Limits.MaxListEntries); err != nil {
+		return err
+	}
+	*results = append(*results, normalized)
+	return nil
 }
 
 type compiledPattern struct {

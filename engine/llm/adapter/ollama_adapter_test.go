@@ -17,6 +17,12 @@ import (
 	"github.com/tmc/langchaingo/llms/openai"
 )
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
 func TestOllamaAdapter_GenerateContent_WithTools(t *testing.T) {
 	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
 	t.Run("Should call Ollama API with tools", func(t *testing.T) {
@@ -46,7 +52,7 @@ func TestOllamaAdapter_GenerateContent_WithTools(t *testing.T) {
 			response := api.ChatResponse{
 				Model: "test-model",
 				Message: api.Message{
-					Role:    "assistant",
+					Role:    RoleAssistant,
 					Content: "",
 					ToolCalls: []api.ToolCall{
 						{
@@ -79,7 +85,7 @@ func TestOllamaAdapter_GenerateContent_WithTools(t *testing.T) {
 		req := &LLMRequest{
 			SystemPrompt: "You are a helpful assistant",
 			Messages: []Message{
-				{Role: "user", Content: "What's the weather in Tokyo?"},
+				{Role: RoleUser, Content: "What's the weather in Tokyo?"},
 			},
 			Tools: []ToolDefinition{
 				{
@@ -130,7 +136,7 @@ func TestOllamaAdapter_GenerateContent_WithTools(t *testing.T) {
 		// Create request without tools
 		req := &LLMRequest{
 			Messages: []Message{
-				{Role: "user", Content: "Hello"},
+				{Role: RoleUser, Content: "Hello"},
 			},
 		}
 		// Should use base implementation (mock LLM)
@@ -153,7 +159,7 @@ func TestOllamaAdapter_ConvertToOllamaRequest(t *testing.T) {
 		req := &LLMRequest{
 			SystemPrompt: "You are helpful",
 			Messages: []Message{
-				{Role: "user", Content: "Test"},
+				{Role: RoleUser, Content: "Test"},
 			},
 			Tools: []ToolDefinition{
 				{
@@ -170,9 +176,9 @@ func TestOllamaAdapter_ConvertToOllamaRequest(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "test-model", ollamaReq.Model)
 		assert.Len(t, ollamaReq.Messages, 2) // system + user
-		assert.Equal(t, "system", ollamaReq.Messages[0].Role)
+		assert.Equal(t, RoleSystem, ollamaReq.Messages[0].Role)
 		assert.Equal(t, "You are helpful", ollamaReq.Messages[0].Content)
-		assert.Equal(t, "user", ollamaReq.Messages[1].Role)
+		assert.Equal(t, RoleUser, ollamaReq.Messages[1].Role)
 		assert.Len(t, ollamaReq.Tools, 1)
 		assert.Equal(t, "test_tool", ollamaReq.Tools[0].Function.Name)
 		if assert.NotNil(t, ollamaReq.Stream) {
@@ -249,18 +255,21 @@ func TestOllamaAdapter_ConvertToOllamaRequest(t *testing.T) {
 		result, err := adapter.convertToOllamaRequest(ctx, req)
 		require.NoError(t, err)
 		require.Len(t, result.Messages, 2)
-		assert.Equal(t, "tool", result.Messages[0].Role)
+		assert.Equal(t, RoleTool, result.Messages[0].Role)
 		assert.Equal(t, "alpha", result.Messages[0].ToolName)
 		assert.Equal(t, "beta", result.Messages[1].ToolName)
 	})
 
 	t.Run("Should fetch remote image URLs into binary data", func(t *testing.T) {
 		imageData := []byte{0x01, 0x02, 0x03}
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(imageData)
-		}))
-		defer server.Close()
+		client := &http.Client{
+			Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+				rec := httptest.NewRecorder()
+				rec.WriteHeader(http.StatusOK)
+				_, _ = rec.Write(imageData)
+				return rec.Result(), nil
+			}),
+		}
 
 		remoteAdapter := newOllamaAdapter(
 			&LangChainAdapter{
@@ -269,15 +278,15 @@ func TestOllamaAdapter_ConvertToOllamaRequest(t *testing.T) {
 					Model:    "test-model",
 				},
 			},
-			server.URL,
-			WithOllamaHTTPClient(server.Client()),
+			"https://example.com",
+			WithOllamaHTTPClient(client),
 		)
 
 		req := &LLMRequest{
 			Messages: []Message{
 				{
 					Role:  RoleUser,
-					Parts: []ContentPart{ImageURLPart{URL: server.URL}},
+					Parts: []ContentPart{ImageURLPart{URL: "https://example.com/image.png"}},
 				},
 			},
 		}
@@ -326,7 +335,7 @@ func TestOllamaAdapter_ConvertToOllamaRequest(t *testing.T) {
 		result, err := adapter.convertToOllamaRequest(ctx, req)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(result.Messages), 1)
-		assert.Equal(t, "system", result.Messages[0].Role)
+		assert.Equal(t, RoleSystem, result.Messages[0].Role)
 		assert.Contains(t, result.Messages[0].Content, "must invoke the function \"preferred\"")
 	})
 }

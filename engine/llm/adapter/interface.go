@@ -117,6 +117,7 @@ func NewJSONSchemaOutputFormat(name string, schema *schema.Schema, strict bool) 
 // CallOptions represents options for the LLM call
 type CallOptions struct {
 	Temperature       float64
+	TemperatureSet    bool
 	MaxTokens         int32
 	StopWords         []string
 	ToolChoice        string // "auto", "none", or specific tool name

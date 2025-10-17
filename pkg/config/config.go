@@ -1907,11 +1907,67 @@ func buildLLMConfig(registry *definition.Registry) LLMConfig {
 		MCPClientTimeout:              getDuration(registry, "llm.mcp_client_timeout"),
 		RetryJitterPercent:            getInt(registry, "llm.retry_jitter_percent"),
 		ContextWarningThresholds:      getFloat64Slice(registry, "llm.context_warning_thresholds"),
+		RateLimiting:                  buildLLMRateLimitConfig(registry),
 		DefaultTopP:                   getFloat64(registry, "llm.default_top_p"),
 		DefaultFrequencyPenalty:       getFloat64(registry, "llm.default_frequency_penalty"),
 		DefaultPresencePenalty:        getFloat64(registry, "llm.default_presence_penalty"),
 		DefaultSeed:                   getInt(registry, "llm.default_seed"),
 	}
+}
+
+func buildLLMRateLimitConfig(registry *definition.Registry) LLMRateLimitConfig {
+	cfg := LLMRateLimitConfig{
+		Enabled:                  getBool(registry, "llm.rate_limiting.enabled"),
+		DefaultConcurrency:       getInt(registry, "llm.rate_limiting.default_concurrency"),
+		DefaultQueueSize:         getInt(registry, "llm.rate_limiting.default_queue_size"),
+		DefaultRequestsPerMinute: getInt(registry, "llm.rate_limiting.default_requests_per_minute"),
+		DefaultTokensPerMinute:   getInt(registry, "llm.rate_limiting.default_tokens_per_minute"),
+		PerProviderLimits:        buildPerProviderRateLimitOverrides(registry),
+	}
+	if len(cfg.PerProviderLimits) == 0 {
+		cfg.PerProviderLimits = nil
+	}
+	return cfg
+}
+
+func buildPerProviderRateLimitOverrides(registry *definition.Registry) map[string]ProviderRateLimitConfig {
+	val := registry.GetDefault("llm.rate_limiting.per_provider_limits")
+	if val == nil {
+		return nil
+	}
+	out := make(map[string]ProviderRateLimitConfig)
+	switch raw := val.(type) {
+	case map[string]ProviderRateLimitConfig:
+		for key, cfg := range raw {
+			out[key] = cfg
+		}
+	case map[string]any:
+		for provider, candidate := range raw {
+			m, ok := candidate.(map[string]any)
+			if !ok {
+				continue
+			}
+			var cfg ProviderRateLimitConfig
+			decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+				TagName:          "mapstructure",
+				Result:           &cfg,
+				WeaklyTypedInput: true,
+			})
+			if err != nil {
+				continue
+			}
+			if err := decoder.Decode(m); err != nil {
+				continue
+			}
+			out[provider] = cfg
+		}
+	default:
+		return nil
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func buildRateLimitConfig(registry *definition.Registry) RateLimitConfig {

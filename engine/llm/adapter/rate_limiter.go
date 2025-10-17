@@ -77,7 +77,7 @@ func NewRateLimiterRegistry(cfg appconfig.LLMRateLimitConfig) *RateLimiterRegist
 func (r *RateLimiterRegistry) Acquire(
 	ctx context.Context,
 	provider core.ProviderName,
-	override *appconfig.ProviderRateLimitConfig,
+	override *core.ProviderRateLimitConfig,
 ) error {
 	if provider == "" {
 		return nil
@@ -134,7 +134,7 @@ func (m *limiterMetrics) snapshot() RateLimiterMetricsSnapshot {
 
 func (r *RateLimiterRegistry) ensureLimiter(
 	provider core.ProviderName,
-	override *appconfig.ProviderRateLimitConfig,
+	override *core.ProviderRateLimitConfig,
 ) *providerRateLimiter {
 	if !r.enabled {
 		return nil
@@ -167,7 +167,7 @@ func (r *RateLimiterRegistry) ensureLimiter(
 
 func (r *RateLimiterRegistry) buildSettings(
 	provider core.ProviderName,
-	override *appconfig.ProviderRateLimitConfig,
+	override *core.ProviderRateLimitConfig,
 ) limiterSettings {
 	concurrency := int64(r.config.DefaultConcurrency)
 	queueSize := int64(r.config.DefaultQueueSize)
@@ -317,14 +317,9 @@ func (l *providerRateLimiter) release(ctx context.Context, tokens int) {
 	if l == nil || !l.enabled || l.sem == nil {
 		return
 	}
-	if l.tokenLimiter != nil && tokens > 0 {
-		waitCtx := ctx
-		if waitCtx == nil {
-			waitCtx = context.Background()
-		}
-		if err := l.tokenLimiter.WaitN(waitCtx, tokens); err != nil {
-			_ = l.tokenLimiter.WaitN(context.Background(), tokens) //nolint:errcheck // ignore fallback wait failure
-		}
+	if l.tokenLimiter != nil && tokens > 0 && ctx != nil {
+		// best-effort token release; ignore context cancellation errors
+		_ = l.tokenLimiter.WaitN(ctx, tokens) //nolint:errcheck // release tokens even if context is done
 	}
 	l.sem.Release(1)
 	l.metrics.activeRequests.Add(-1)

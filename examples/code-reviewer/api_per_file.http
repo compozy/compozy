@@ -1,8 +1,8 @@
 ### Per-File Code Review API Tests
 ### Analyzes each file independently - Best for detailed line-by-line analysis
-### Make sure Compozy is running on localhost:5001 before executing these requests
+### Configure COMPOZY_API_URL in your .env before executing these requests
 
-@baseUrl = http://localhost:5001/api/v0
+@baseUrl = {{$dotenv COMPOZY_API_URL}}
 @workflowId = review_per_file
 
 ### -----------------------------------------------------------------------------

@@ -102,6 +102,7 @@ func (b *requestBuilder) Build(
 		Tools:        toolDefs,
 		Options: llmadapter.CallOptions{
 			Temperature:       temperature,
+			TemperatureSet:    request.Agent.Model.Config.Params.IsSetTemperature(),
 			MaxTokens:         request.Agent.Model.Config.Params.MaxTokens,
 			StopWords:         request.Agent.Model.Config.Params.StopWords,
 			ToolChoice:        toolChoice,

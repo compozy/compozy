@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"maps"
 
-	appconfig "github.com/compozy/compozy/pkg/config"
-
 	"dario.cat/mergo"
 	"gopkg.in/yaml.v3"
 )
@@ -422,7 +420,7 @@ type ProviderConfig struct {
 
 	// RateLimit overrides concurrency limits and queue size for this provider.
 	// When omitted the orchestrator applies the global defaults.
-	RateLimit *appconfig.ProviderRateLimitConfig `json:"rate_limit,omitempty" yaml:"rate_limit,omitempty" mapstructure:"rate_limit,omitempty"`
+	RateLimit *ProviderRateLimitConfig `json:"rate_limit,omitempty" yaml:"rate_limit,omitempty" mapstructure:"rate_limit,omitempty"`
 
 	// ContextWindow optionally overrides the provider's default context window size.
 	// When > 0, this value replaces the provider's default ContextWindowTokens capability.
@@ -430,6 +428,15 @@ type ProviderConfig struct {
 	// - **Example**: 200000 for Claude 3.5 Sonnet via OpenRouter
 	// - **Default**: Uses provider's default when not specified or <= 0
 	ContextWindow int `json:"context_window,omitempty" yaml:"context_window,omitempty" mapstructure:"context_window,omitempty" validate:"min=0"`
+}
+
+// ProviderRateLimitConfig describes concurrency and throughput limits scoped to a provider.
+// Zero values delegate to orchestrator defaults, allowing selective overrides per provider.
+type ProviderRateLimitConfig struct {
+	Concurrency       int `json:"concurrency,omitempty"         yaml:"concurrency,omitempty"         mapstructure:"concurrency,omitempty"         validate:"min=0"`
+	QueueSize         int `json:"queue_size,omitempty"          yaml:"queue_size,omitempty"          mapstructure:"queue_size,omitempty"          validate:"min=0"`
+	RequestsPerMinute int `json:"requests_per_minute,omitempty" yaml:"requests_per_minute,omitempty" mapstructure:"requests_per_minute,omitempty" validate:"min=0"`
+	TokensPerMinute   int `json:"tokens_per_minute,omitempty"   yaml:"tokens_per_minute,omitempty"   mapstructure:"tokens_per_minute,omitempty"   validate:"min=0"`
 }
 
 // NewProviderConfig creates a new ProviderConfig with the specified core parameters.

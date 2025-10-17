@@ -212,6 +212,11 @@ func (p *ErrorParser) extractRetryAfter(err error) *time.Duration {
 	if err == nil {
 		return nil
 	}
+	if llmErr, ok := IsLLMError(err); ok && llmErr != nil {
+		if delay := llmErr.SuggestedRetryDelay(); delay > 0 {
+			return &delay
+		}
+	}
 	type retryAfterProvider interface {
 		RetryAfter() time.Duration
 	}

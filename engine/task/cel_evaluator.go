@@ -8,7 +8,6 @@ import (
 	"github.com/dgraph-io/ristretto/v2"
 	"github.com/google/cel-go/cel"
 
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -83,13 +82,9 @@ func NewCELEvaluator(opts ...CELEvaluatorOption) (*CELEvaluator, error) {
 	return evaluator, nil
 }
 
-// normalizeExpression normalizes a CEL expression for better cache hit rate
+// normalizeExpression preserves the original expression to avoid cache collisions.
 func normalizeExpression(expression string) string {
-	// Trim whitespace
-	normalized := strings.TrimSpace(expression)
-	// Replace multiple spaces with single space
-	normalized = strings.Join(strings.Fields(normalized), " ")
-	return normalized
+	return expression
 }
 
 // getProgram retrieves a compiled program from cache or compiles and caches it
@@ -177,11 +172,7 @@ func (c *CELEvaluator) observeEvaluationCost(ctx context.Context, details *cel.E
 			)
 		}
 		if *cost > c.costLimit {
-			return core.NewError(
-				fmt.Errorf("CEL expression exceeded cost limit: %d", *cost),
-				"CEL_COST_EXCEEDED",
-				map[string]any{"cost": *cost, "limit": c.costLimit},
-			)
+			return fmt.Errorf("CEL expression exceeded cost limit: %d (limit %d)", *cost, c.costLimit)
 		}
 	}
 	return nil
