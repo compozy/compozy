@@ -1,6 +1,6 @@
 ### Batch Code Review API Tests
 ### Trigger multiple directory reviews in parallel via signals
-### Make sure Compozy is running on localhost:5001 before executing these requests
+### Configure COMPOZY_API_URL in your .env before executing these requests
 
 @baseUrl = http://localhost:5001/api/v0
 @workflowId = review-batch

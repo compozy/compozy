@@ -828,6 +828,14 @@ type LLMRateLimitConfig struct {
 	// Zero disables token-based shaping.
 	DefaultTokensPerMinute int `koanf:"default_tokens_per_minute" json:"default_tokens_per_minute" yaml:"default_tokens_per_minute" mapstructure:"default_tokens_per_minute" validate:"min=0"`
 
+	// DefaultRequestBurst overrides the burst size used for request-per-minute limiters.
+	// Zero falls back to ceiling(perSecond) for compatibility.
+	DefaultRequestBurst int `koanf:"default_request_burst" json:"default_request_burst" yaml:"default_request_burst" mapstructure:"default_request_burst" validate:"min=0"`
+
+	// DefaultTokenBurst overrides the burst size used for token-per-minute limiters.
+	// Zero falls back to ceiling(perSecond) for compatibility.
+	DefaultTokenBurst int `koanf:"default_token_burst" json:"default_token_burst" yaml:"default_token_burst" mapstructure:"default_token_burst" validate:"min=0"`
+
 	// PerProviderLimits customizes concurrency and queue depth for specific providers.
 	// Keys should match provider names (e.g., "openai", "groq").
 	PerProviderLimits map[string]ProviderRateLimitConfig `koanf:"per_provider_limits" json:"per_provider_limits" yaml:"per_provider_limits" mapstructure:"per_provider_limits"`
@@ -844,6 +852,10 @@ type ProviderRateLimitConfig struct {
 	RequestsPerMinute int `koanf:"requests_per_minute" json:"requests_per_minute" yaml:"requests_per_minute" mapstructure:"requests_per_minute" validate:"min=0"`
 	// TokensPerMinute constrains the total tokens consumed per minute; zero disables shaping.
 	TokensPerMinute int `koanf:"tokens_per_minute"   json:"tokens_per_minute"   yaml:"tokens_per_minute"   mapstructure:"tokens_per_minute"   validate:"min=0"`
+	// RequestBurst overrides the burst size for request-per-minute limiters. Zero defers to defaults.
+	RequestBurst int `koanf:"request_burst"       json:"request_burst"       yaml:"request_burst"       mapstructure:"request_burst"       validate:"min=0"`
+	// TokenBurst overrides the burst size for token-per-minute limiters. Zero defers to defaults.
+	TokenBurst int `koanf:"token_burst"         json:"token_burst"         yaml:"token_burst"         mapstructure:"token_burst"         validate:"min=0"`
 }
 
 // RateLimitConfig contains rate limiting configuration.
@@ -1922,6 +1934,8 @@ func buildLLMRateLimitConfig(registry *definition.Registry) LLMRateLimitConfig {
 		DefaultQueueSize:         getInt(registry, "llm.rate_limiting.default_queue_size"),
 		DefaultRequestsPerMinute: getInt(registry, "llm.rate_limiting.default_requests_per_minute"),
 		DefaultTokensPerMinute:   getInt(registry, "llm.rate_limiting.default_tokens_per_minute"),
+		DefaultRequestBurst:      getInt(registry, "llm.rate_limiting.default_request_burst"),
+		DefaultTokenBurst:        getInt(registry, "llm.rate_limiting.default_token_burst"),
 		PerProviderLimits:        buildPerProviderRateLimitOverrides(registry),
 	}
 	if len(cfg.PerProviderLimits) == 0 {

@@ -2,6 +2,7 @@ package llmadapter
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -186,4 +187,41 @@ func TestProviderRateLimiter_TokenRateLimit(t *testing.T) {
 	if elapsed < 800*time.Millisecond {
 		t.Fatalf("expected token limiter to enforce ~1s spacing, elapsed=%v", elapsed)
 	}
+}
+
+func TestRateLimiterRegistry_BurstOverrides(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRateLimiterRegistry(appconfig.LLMRateLimitConfig{
+		Enabled:                  true,
+		DefaultConcurrency:       2,
+		DefaultQueueSize:         0,
+		DefaultRequestsPerMinute: 120,
+		DefaultRequestBurst:      7,
+	})
+
+	ctx := context.Background()
+	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
+	registry.Release(ctx, core.ProviderOpenAI, 0)
+
+	value, ok := registry.limiters.Load(strings.ToLower(string(core.ProviderOpenAI)))
+	require.True(t, ok)
+	limiter, ok := value.(*providerRateLimiter)
+	require.True(t, ok)
+	require.NotNil(t, limiter.rateLimiter)
+	require.Equal(t, 7, limiter.rateLimiter.Burst())
+
+	override := &core.ProviderRateLimitConfig{
+		RequestsPerMinute: 90,
+		RequestBurst:      5,
+	}
+	require.NoError(t, registry.Acquire(ctx, core.ProviderAnthropic, override))
+	registry.Release(ctx, core.ProviderAnthropic, 0)
+
+	value, ok = registry.limiters.Load(strings.ToLower(string(core.ProviderAnthropic)))
+	require.True(t, ok)
+	limiter, ok = value.(*providerRateLimiter)
+	require.True(t, ok)
+	require.NotNil(t, limiter.rateLimiter)
+	require.Equal(t, 5, limiter.rateLimiter.Burst())
 }

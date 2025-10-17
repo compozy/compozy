@@ -244,10 +244,10 @@ type BaseConfig struct {
 	VectorDB    string           `json:"vector_db"             yaml:"vector_db"             mapstructure:"vector_db"`
 	Ingest      IngestMode       `json:"ingest,omitempty"      yaml:"ingest,omitempty"      mapstructure:"ingest,omitempty"`
 	Sources     []SourceConfig   `json:"sources"               yaml:"sources"               mapstructure:"sources"`
-	Chunking    ChunkingConfig   `json:"chunking"              yaml:"chunking,omitempty"    mapstructure:"chunking,omitempty"`
-	Preprocess  PreprocessConfig `json:"preprocess"            yaml:"preprocess,omitempty"  mapstructure:"preprocess,omitempty"`
-	Retrieval   RetrievalConfig  `json:"retrieval"             yaml:"retrieval,omitempty"   mapstructure:"retrieval,omitempty"`
-	Metadata    MetadataConfig   `json:"metadata"              yaml:"metadata,omitempty"    mapstructure:"metadata,omitempty"`
+	Chunking    ChunkingConfig   `json:"chunking,omitempty"    yaml:"chunking,omitempty"    mapstructure:"chunking,omitempty"`
+	Preprocess  PreprocessConfig `json:"preprocess,omitempty"  yaml:"preprocess,omitempty"  mapstructure:"preprocess,omitempty"`
+	Retrieval   RetrievalConfig  `json:"retrieval,omitempty"   yaml:"retrieval,omitempty"   mapstructure:"retrieval,omitempty"`
+	Metadata    MetadataConfig   `json:"metadata,omitempty"    yaml:"metadata,omitempty"    mapstructure:"metadata,omitempty"`
 }
 
 // SourceConfig describes a single ingestion source such as a glob, URL, or bucket.

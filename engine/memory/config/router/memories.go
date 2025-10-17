@@ -10,9 +10,9 @@ import (
 	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
-	memoryuc "github.com/compozy/compozy/engine/memoryconfig/uc"
+	memoryuc "github.com/compozy/compozy/engine/memory/config/uc"
 	"github.com/compozy/compozy/engine/resources"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 	"github.com/gin-gonic/gin"
 )
 

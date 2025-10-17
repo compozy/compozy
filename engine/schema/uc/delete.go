@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/resources"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 )
 
 type DeleteInput struct {

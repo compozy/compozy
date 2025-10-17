@@ -490,8 +490,16 @@
           "description": "DefaultQueueSize bounds queued work waiting for a concurrency slot.\nZero disables queuing and causes immediate rejection when the pool is saturated.",
           "type": "integer"
         },
+        "default_request_burst": {
+          "description": "DefaultRequestBurst overrides the burst size used for request-per-minute limiters.\nZero falls back to ceiling(perSecond) for compatibility.",
+          "type": "integer"
+        },
         "default_requests_per_minute": {
           "description": "DefaultRequestsPerMinute throttles average request throughput when per-provider overrides\nare not supplied. Zero disables request-rate shaping.",
+          "type": "integer"
+        },
+        "default_token_burst": {
+          "description": "DefaultTokenBurst overrides the burst size used for token-per-minute limiters.\nZero falls back to ceiling(perSecond) for compatibility.",
           "type": "integer"
         },
         "default_tokens_per_minute": {
@@ -741,8 +749,16 @@
         "queue_size": {
           "type": "integer"
         },
+        "request_burst": {
+          "description": "RequestBurst overrides the burst size for request-per-minute limiters. Zero defers to defaults.",
+          "type": "integer"
+        },
         "requests_per_minute": {
           "description": "RequestsPerMinute limits average throughput; zero disables the limiter.",
+          "type": "integer"
+        },
+        "token_burst": {
+          "description": "TokenBurst overrides the burst size for token-per-minute limiters. Zero defers to defaults.",
           "type": "integer"
         },
         "tokens_per_minute": {

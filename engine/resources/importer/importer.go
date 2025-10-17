@@ -16,7 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	knowledgeuc "github.com/compozy/compozy/engine/knowledge/uc"
 	mcpuc "github.com/compozy/compozy/engine/mcp/uc"
-	memoryuc "github.com/compozy/compozy/engine/memoryconfig/uc"
+	memoryuc "github.com/compozy/compozy/engine/memory/config/uc"
 	modeluc "github.com/compozy/compozy/engine/model/uc"
 	projectuc "github.com/compozy/compozy/engine/project/uc"
 	"github.com/compozy/compozy/engine/resources"

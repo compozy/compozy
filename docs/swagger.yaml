@@ -443,23 +443,6 @@ definitions:
       updated_at:
         type: string
     type: object
-  config.ProviderRateLimitConfig:
-    properties:
-      concurrency:
-        minimum: 0
-        type: integer
-      queue_size:
-        minimum: 0
-        type: integer
-      requests_per_minute:
-        description: RequestsPerMinute limits average throughput; zero disables the limiter.
-        minimum: 0
-        type: integer
-      tokens_per_minute:
-        description: TokensPerMinute constrains the total tokens consumed per minute; zero disables shaping.
-        minimum: 0
-        type: integer
-    type: object
   core.Author:
     properties:
       contributors:
@@ -1004,7 +987,7 @@ definitions:
           - **Examples**: `"openai"`, `"anthropic"`, `"google"`, `"ollama"`
       rate_limit:
         allOf:
-          - $ref: '#/definitions/config.ProviderRateLimitConfig'
+          - $ref: '#/definitions/core.ProviderRateLimitConfig'
         description: |-
           RateLimit overrides concurrency limits and queue size for this provider.
           When omitted the orchestrator applies the global defaults.
@@ -1055,6 +1038,27 @@ definitions:
       - ProviderCerebras
       - ProviderOpenRouter
       - ProviderMock
+  core.ProviderRateLimitConfig:
+    properties:
+      concurrency:
+        minimum: 0
+        type: integer
+      queue_size:
+        minimum: 0
+        type: integer
+      request_burst:
+        minimum: 0
+        type: integer
+      requests_per_minute:
+        minimum: 0
+        type: integer
+      token_burst:
+        minimum: 0
+        type: integer
+      tokens_per_minute:
+        minimum: 0
+        type: integer
+    type: object
   core.RetryPolicyConfig:
     properties:
       backoff_coefficient:

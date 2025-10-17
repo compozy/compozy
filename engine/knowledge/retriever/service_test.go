@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +15,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/retriever"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
@@ -106,8 +106,10 @@ func (l *capturingLogger) Error(msg string, keyvals ...any) {
 }
 
 func (l *capturingLogger) With(args ...any) logger.Logger {
-	nextFields := make(map[string]any, len(l.fields)+len(args)/2)
-	maps.Copy(nextFields, l.fields)
+	nextFields := core.CopyMap(l.fields)
+	if nextFields == nil {
+		nextFields = make(map[string]any, len(args)/2)
+	}
 	for i := 0; i < len(args); i += 2 {
 		key := fmt.Sprint(args[i])
 		var val any
@@ -126,8 +128,10 @@ func (l *capturingLogger) record(level, msg string, keyvals ...any) {
 	if l.entries == nil {
 		return
 	}
-	fields := make(map[string]any, len(l.fields)+len(keyvals)/2)
-	maps.Copy(fields, l.fields)
+	fields := core.CopyMap(l.fields)
+	if fields == nil {
+		fields = make(map[string]any, len(keyvals)/2)
+	}
 	for i := 0; i < len(keyvals); i += 2 {
 		key := fmt.Sprint(keyvals[i])
 		var val any

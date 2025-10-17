@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -211,7 +210,7 @@ func TestModelConfigFromStoreNormalizesAllShapes(t *testing.T) {
 		got, err := modelConfigFromStore(value)
 		require.NoError(t, err)
 		require.NotNil(t, got)
-		assert.Equal(t, core.ProviderName(strings.TrimSpace(" openrouter ")), got.Provider)
+		assert.Equal(t, core.ProviderName("openrouter"), got.Provider)
 		assert.Equal(t, "claude-3", got.Model)
 		assert.Equal(t, "key", got.APIKey)
 		assert.Equal(t, "https://proxy", got.APIURL)

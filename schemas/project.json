@@ -389,7 +389,7 @@
     },
     "ProviderRateLimitConfig": {
       "additionalProperties": false,
-      "description": "ProviderRateLimitConfig describes concurrency limits for a single provider.",
+      "description": "ProviderRateLimitConfig describes concurrency and throughput limits scoped to a provider.",
       "properties": {
         "concurrency": {
           "type": "integer"
@@ -397,12 +397,16 @@
         "queue_size": {
           "type": "integer"
         },
+        "request_burst": {
+          "type": "integer"
+        },
         "requests_per_minute": {
-          "description": "RequestsPerMinute limits average throughput; zero disables the limiter.",
+          "type": "integer"
+        },
+        "token_burst": {
           "type": "integer"
         },
         "tokens_per_minute": {
-          "description": "TokensPerMinute constrains the total tokens consumed per minute; zero disables shaping.",
           "type": "integer"
         }
       },

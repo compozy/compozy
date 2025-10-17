@@ -40,6 +40,8 @@ type providerRateLimiter struct {
 	queueSize         int64
 	requestsPerMinute float64
 	tokensPerMinute   float64
+	requestBurst      int
+	tokenBurst        int
 
 	sem          *semaphore.Weighted
 	queueSem     *semaphore.Weighted
@@ -61,6 +63,8 @@ type limiterSettings struct {
 	queueSize         int64
 	requestsPerMinute float64
 	tokensPerMinute   float64
+	requestBurst      int
+	tokenBurst        int
 }
 
 // NewRateLimiterRegistry creates a registry using the supplied configuration.
@@ -173,6 +177,8 @@ func (r *RateLimiterRegistry) buildSettings(
 	queueSize := int64(r.config.DefaultQueueSize)
 	requestsPerMinute := float64(r.config.DefaultRequestsPerMinute)
 	tokensPerMinute := float64(r.config.DefaultTokensPerMinute)
+	requestBurst := r.config.DefaultRequestBurst
+	tokenBurst := r.config.DefaultTokenBurst
 
 	if perProvider := r.lookupPerProvider(strings.ToLower(string(provider))); perProvider != nil {
 		if perProvider.Concurrency > 0 {
@@ -186,6 +192,12 @@ func (r *RateLimiterRegistry) buildSettings(
 		}
 		if perProvider.TokensPerMinute > 0 {
 			tokensPerMinute = float64(perProvider.TokensPerMinute)
+		}
+		if perProvider.RequestBurst > 0 {
+			requestBurst = perProvider.RequestBurst
+		}
+		if perProvider.TokenBurst > 0 {
+			tokenBurst = perProvider.TokenBurst
 		}
 	}
 
@@ -202,6 +214,12 @@ func (r *RateLimiterRegistry) buildSettings(
 		if override.TokensPerMinute > 0 {
 			tokensPerMinute = float64(override.TokensPerMinute)
 		}
+		if override.RequestBurst > 0 {
+			requestBurst = override.RequestBurst
+		}
+		if override.TokenBurst > 0 {
+			tokenBurst = override.TokenBurst
+		}
 	}
 
 	return limiterSettings{
@@ -209,6 +227,8 @@ func (r *RateLimiterRegistry) buildSettings(
 		queueSize:         queueSize,
 		requestsPerMinute: requestsPerMinute,
 		tokensPerMinute:   tokensPerMinute,
+		requestBurst:      requestBurst,
+		tokenBurst:        tokenBurst,
 	}
 }
 
@@ -235,6 +255,8 @@ func newProviderRateLimiter(
 		queueSize:         settings.queueSize,
 		requestsPerMinute: settings.requestsPerMinute,
 		tokensPerMinute:   settings.tokensPerMinute,
+		requestBurst:      settings.requestBurst,
+		tokenBurst:        settings.tokenBurst,
 	}
 	if !limiter.enabled {
 		return limiter
@@ -245,18 +267,21 @@ func newProviderRateLimiter(
 	}
 	if settings.requestsPerMinute > 0 {
 		perSecond := settings.requestsPerMinute / 60.0
-		burst := computeBurst(perSecond)
+		burst := computeBurst(perSecond, settings.requestBurst)
 		limiter.rateLimiter = rate.NewLimiter(rate.Limit(perSecond), burst)
 	}
 	if settings.tokensPerMinute > 0 {
 		perSecond := settings.tokensPerMinute / 60.0
-		burst := computeBurst(perSecond)
+		burst := computeBurst(perSecond, settings.tokenBurst)
 		limiter.tokenLimiter = rate.NewLimiter(rate.Limit(perSecond), burst)
 	}
 	return limiter
 }
 
-func computeBurst(perSecond float64) int {
+func computeBurst(perSecond float64, configured int) int {
+	if configured > 0 {
+		return configured
+	}
 	if perSecond <= 0 {
 		return 1
 	}
@@ -270,7 +295,9 @@ func (l *providerRateLimiter) matches(settings limiterSettings) bool {
 	return l.concurrency == settings.concurrency &&
 		l.queueSize == settings.queueSize &&
 		math.Abs(l.requestsPerMinute-settings.requestsPerMinute) < 1e-9 &&
-		math.Abs(l.tokensPerMinute-settings.tokensPerMinute) < 1e-9
+		math.Abs(l.tokensPerMinute-settings.tokensPerMinute) < 1e-9 &&
+		l.requestBurst == settings.requestBurst &&
+		l.tokenBurst == settings.tokenBurst
 }
 
 func (l *providerRateLimiter) acquire(ctx context.Context) error {

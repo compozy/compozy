@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"maps"
 	"sort"
 	"strings"
 	"sync"
@@ -120,7 +119,7 @@ func (b *requestBuilder) Build(
 			RepetitionPenalty: request.Agent.Model.Config.Params.RepetitionPenalty,
 			MaxLength:         request.Agent.Model.Config.Params.MaxLength,
 			MinLength:         request.Agent.Model.Config.Params.MinLength,
-			Metadata:          request.Agent.Model.Config.Params.Metadata,
+			Metadata:          core.CloneMap(request.Agent.Model.Config.Params.Metadata),
 		},
 	}
 	return RequestBuildOutput{
@@ -500,11 +499,10 @@ func normalizeToolParameters(input map[string]any) map[string]any {
 }
 
 func cloneMap(src map[string]any) map[string]any {
-	if src == nil {
+	clone := core.CloneMap(src)
+	if clone == nil {
 		return map[string]any{}
 	}
-	clone := make(map[string]any, len(src))
-	maps.Copy(clone, src)
 	return clone
 }
 

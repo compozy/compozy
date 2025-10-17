@@ -437,6 +437,8 @@ type ProviderRateLimitConfig struct {
 	QueueSize         int `json:"queue_size,omitempty"          yaml:"queue_size,omitempty"          mapstructure:"queue_size,omitempty"          validate:"min=0"`
 	RequestsPerMinute int `json:"requests_per_minute,omitempty" yaml:"requests_per_minute,omitempty" mapstructure:"requests_per_minute,omitempty" validate:"min=0"`
 	TokensPerMinute   int `json:"tokens_per_minute,omitempty"   yaml:"tokens_per_minute,omitempty"   mapstructure:"tokens_per_minute,omitempty"   validate:"min=0"`
+	RequestBurst      int `json:"request_burst,omitempty"       yaml:"request_burst,omitempty"       mapstructure:"request_burst,omitempty"       validate:"min=0"`
+	TokenBurst        int `json:"token_burst,omitempty"         yaml:"token_burst,omitempty"         mapstructure:"token_burst,omitempty"         validate:"min=0"`
 }
 
 // NewProviderConfig creates a new ProviderConfig with the specified core parameters.

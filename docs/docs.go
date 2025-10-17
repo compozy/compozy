@@ -11448,29 +11448,6 @@ const docTemplate = `{
                 }
             }
         },
-        "config.ProviderRateLimitConfig": {
-            "type": "object",
-            "properties": {
-                "concurrency": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "queue_size": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "requests_per_minute": {
-                    "description": "RequestsPerMinute limits average throughput; zero disables the limiter.",
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "tokens_per_minute": {
-                    "description": "TokensPerMinute constrains the total tokens consumed per minute; zero disables shaping.",
-                    "type": "integer",
-                    "minimum": 0
-                }
-            }
-        },
         "core.Author": {
             "type": "object",
             "properties": {
@@ -12005,7 +11982,7 @@ const docTemplate = `{
                     "description": "RateLimit overrides concurrency limits and queue size for this provider.\nWhen omitted the orchestrator applies the global defaults.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/config.ProviderRateLimitConfig"
+                            "$ref": "#/definitions/core.ProviderRateLimitConfig"
                         }
                     ]
                 }
@@ -12061,6 +12038,35 @@ const docTemplate = `{
                 "ProviderOpenRouter",
                 "ProviderMock"
             ]
+        },
+        "core.ProviderRateLimitConfig": {
+            "type": "object",
+            "properties": {
+                "concurrency": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "queue_size": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "request_burst": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "requests_per_minute": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "token_burst": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "tokens_per_minute": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            }
         },
         "core.RetryPolicyConfig": {
             "type": "object",

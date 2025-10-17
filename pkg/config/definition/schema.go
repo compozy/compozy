@@ -1182,6 +1182,22 @@ func registerLLMRateLimiterDefaults(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Default total-token throughput cap (per minute) when provider overrides are absent",
 	})
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_request_burst",
+		Default: 0,
+		CLIFlag: "llm-rate-limiting-default-request-burst",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_REQUEST_BURST",
+		Type:    reflect.TypeOf(0),
+		Help:    "Burst size applied to request-per-minute limiters when provider overrides are absent",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_token_burst",
+		Default: 0,
+		CLIFlag: "llm-rate-limiting-default-token-burst",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_TOKEN_BURST",
+		Type:    reflect.TypeOf(0),
+		Help:    "Burst size applied to token-per-minute limiters when provider overrides are absent",
+	})
 }
 
 func registerLLMRateLimiterPerProvider(registry *Registry) {
@@ -1193,42 +1209,56 @@ func registerLLMRateLimiterPerProvider(registry *Registry) {
 				"queue_size":          100,
 				"requests_per_minute": 60,
 				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
 			},
 			"groq": {
 				"concurrency":         10,
 				"queue_size":          100,
 				"requests_per_minute": 60,
 				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
 			},
 			"openai": {
 				"concurrency":         50,
 				"queue_size":          200,
 				"requests_per_minute": 120,
 				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
 			},
 			"anthropic": {
 				"concurrency":         20,
 				"queue_size":          150,
 				"requests_per_minute": 60,
 				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
 			},
 			"google": {
 				"concurrency":         30,
 				"queue_size":          150,
 				"requests_per_minute": 90,
 				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
 			},
 			"ollama": {
 				"concurrency":         10,
 				"queue_size":          100,
 				"requests_per_minute": 60,
 				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
 			},
 			"openrouter": {
 				"concurrency":         10,
 				"queue_size":          100,
 				"requests_per_minute": 60,
 				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
 			},
 		},
 		CLIFlag: "",

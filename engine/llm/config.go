@@ -656,7 +656,11 @@ func applyLLMRateLimiter(c *Config, llm *config.LLMConfig) {
 	if llm == nil {
 		return
 	}
-	c.RateLimiter = llmadapter.NewRateLimiterRegistry(llm.RateLimiting)
+	if llm.RateLimiting.Enabled {
+		c.RateLimiter = llmadapter.NewRateLimiterRegistry(llm.RateLimiting)
+		return
+	}
+	c.RateLimiter = nil
 }
 
 // Validate validates the configuration

@@ -145,10 +145,14 @@ func (i *llmInvoker) acquireRateLimiter(
 		return nil, nil
 	}
 	limiter := i.cfg.rateLimiter
-	if limiter == nil || request.Agent == nil || request.Agent.Model.IsEmpty() {
+	if limiter == nil || request.Agent == nil {
 		return nil, nil
 	}
-	providerCfg := request.Agent.Model.Config
+	model := request.Agent.Model
+	if model.IsEmpty() || !model.HasConfig() {
+		return nil, nil
+	}
+	providerCfg := model.Config
 	providerName := providerCfg.Provider
 	if providerName == "" {
 		return nil, nil
@@ -185,12 +189,13 @@ func (i *llmInvoker) recordProviderCall(
 	}
 	if request != nil && request.Agent != nil {
 		metadata["agent_id"] = request.Agent.ID
-		if !request.Agent.Model.IsEmpty() {
-			if provider := request.Agent.Model.Config.Provider; provider != "" {
+		model := request.Agent.Model
+		if !model.IsEmpty() && model.HasConfig() {
+			if provider := model.Config.Provider; provider != "" {
 				metadata["provider"] = provider
 			}
-			if model := request.Agent.Model.Config.Model; model != "" {
-				metadata["model"] = model
+			if modelID := model.Config.Model; modelID != "" {
+				metadata["model"] = modelID
 			}
 		}
 	}

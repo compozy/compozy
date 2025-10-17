@@ -2,7 +2,7 @@
 ### Analyzes each file independently - Best for detailed line-by-line analysis
 ### Configure COMPOZY_API_URL in your .env before executing these requests
 
-@baseUrl = {{$dotenv COMPOZY_API_URL}}
+@baseUrl = http://localhost:5001/api/v0
 @workflowId = review_per_file
 
 ### -----------------------------------------------------------------------------

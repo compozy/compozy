@@ -82,17 +82,10 @@ func NewCELEvaluator(opts ...CELEvaluatorOption) (*CELEvaluator, error) {
 	return evaluator, nil
 }
 
-// normalizeExpression preserves the original expression to avoid cache collisions.
-func normalizeExpression(expression string) string {
-	return expression
-}
-
 // getProgram retrieves a compiled program from cache or compiles and caches it
 func (c *CELEvaluator) getProgram(expression string) (cel.Program, error) {
-	// Normalize expression for better cache hit rate
-	cacheKey := normalizeExpression(expression)
 	// Try to get from cache
-	if program, found := c.programCache.Get(cacheKey); found {
+	if program, found := c.programCache.Get(expression); found {
 		return program, nil
 	}
 	// Not in cache, compile it
@@ -108,7 +101,7 @@ func (c *CELEvaluator) getProgram(expression string) (cel.Program, error) {
 		return nil, fmt.Errorf("failed to create CEL program: %w", err)
 	}
 	// Store in cache with cost of 1
-	c.programCache.Set(cacheKey, program, 1)
+	c.programCache.Set(expression, program, 1)
 	// Wait for the value to be processed
 	c.programCache.Wait()
 	return program, nil

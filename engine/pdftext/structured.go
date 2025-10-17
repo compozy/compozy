@@ -13,13 +13,15 @@ import (
 	"github.com/klippa-app/go-pdfium/responses"
 )
 
+const estimatedLineOutputsPerPage = 16
+
 func (e *Extractor) processPages(
 	ctx context.Context,
 	instance pdfium.Pdfium,
 	doc *responses.OpenDocument,
 	pageCount int,
 ) ([]*lineOutput, error) {
-	allOutputs := make([]*lineOutput, 0, pageCount*16)
+	allOutputs := make([]*lineOutput, 0, pageCount*estimatedLineOutputsPerPage)
 	for page := range pageCount {
 		if err := ctx.Err(); err != nil {
 			return nil, err
