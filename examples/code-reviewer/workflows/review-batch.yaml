@@ -1,6 +1,7 @@
 id: review-batch
-version: 1.0.0
-description: Batch review workflow that triggers multiple review workflows via signals
+version: 2.0.0
+description: Batch review workflow that triggers multiple review workflows via signals (per-file or per-directory
+  analysis)
 
 schemas:
   - id: review_batch_input
@@ -11,6 +12,13 @@ schemas:
         items:
           type: string
         description: Array of directories to review
+      analysis_type:
+        type: string
+        enum:
+          - "per_file"
+          - "per_dir"
+        default: "per_file"
+        description: "Analysis approach: per_file (file-by-file) or per_dir (directory as cohesive unit)"
       review_type:
         type: string
         enum:
@@ -32,17 +40,44 @@ config:
   input: review_batch_input
 
 tasks:
-  - id: trigger_reviews
+  - id: route_analysis_type
+    type: router
+    condition: "workflow.input.analysis_type"
+    routes:
+      per_file: "trigger_per_file_reviews"
+      per_dir: "trigger_per_dir_reviews"
+      default: "trigger_per_file_reviews"
+
+  # Trigger per-file reviews for all directories
+  - id: trigger_per_file_reviews
     type: collection
     mode: parallel
     items: "{{ .workflow.input.directories }}"
     item_var: directory
     final: true
     task:
-      id: "signal-review-{{ .index }}"
+      id: "signal-per-file-{{ .index }}"
       type: signal
       signal:
         id: review-directory
+        payload:
+          directory: "{{ .directory }}"
+          review_type: "{{ .workflow.input.review_type }}"
+          batch_id: "{{ .workflow.id }}"
+          triggered_at: "{{ now }}"
+
+  # Trigger per-directory reviews for all directories
+  - id: trigger_per_dir_reviews
+    type: collection
+    mode: parallel
+    items: "{{ .workflow.input.directories }}"
+    item_var: directory
+    final: true
+    task:
+      id: "signal-per-dir-{{ .index }}"
+      type: signal
+      signal:
+        id: review-directory-holistic
         payload:
           directory: "{{ .directory }}"
           review_type: "{{ .workflow.input.review_type }}"

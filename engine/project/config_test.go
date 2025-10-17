@@ -23,7 +23,7 @@ func TestSetRuntimeDefaults(t *testing.T) {
 			CWD:  cwd,
 			Runtime: RuntimeConfig{
 				Type:        "",  // Will be set to default
-				Entrypoint:  "",  // Will be set to default
+				Entrypoint:  "",  // Remains empty unless explicitly provided
 				Permissions: nil, // Should get default permissions
 			},
 		}
@@ -31,7 +31,7 @@ func TestSetRuntimeDefaults(t *testing.T) {
 		config.setRuntimeDefaults()
 
 		assert.Equal(t, "bun", config.Runtime.Type)
-		assert.Equal(t, "./tools.ts", config.Runtime.Entrypoint)
+		assert.Equal(t, "", config.Runtime.Entrypoint)
 		assert.Equal(t, []string{"--allow-read"}, config.Runtime.Permissions)
 	})
 
@@ -650,15 +650,12 @@ workflows:
 		workflowPath := filepath.Join(tmpDir, "workflow.yaml")
 		err = os.WriteFile(workflowPath, []byte("name: test-workflow\nversion: 0.1.0"), 0644)
 		require.NoError(t, err)
-		entrypointPath := filepath.Join(tmpDir, "tools.ts")
-		err = os.WriteFile(entrypointPath, []byte("export {}"), 0644)
-		require.NoError(t, err)
 		cwd, err := core.CWDFromPath(tmpDir)
 		require.NoError(t, err)
 		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err)
 		assert.Equal(t, "bun", cfg.Runtime.Type)
-		assert.Equal(t, "./tools.ts", cfg.Runtime.Entrypoint)
+		assert.Equal(t, "", cfg.Runtime.Entrypoint)
 		assert.Equal(t, []string{"--allow-read"}, cfg.Runtime.Permissions)
 	})
 

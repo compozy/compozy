@@ -1,19 +1,10 @@
 name: code-reviewer
-version: "2.2.0"
-description: |
-  AI-powered code review system for Go projects with eight specialized analysis types:
-  - Performance: Memory, algorithms, concurrency, hot paths
-  - Security: Validation, auth, vulnerabilities, error handling
-  - Monitoring: Logging, metrics, tracing, observability
-  - Architecture: SOLID principles, Clean Architecture, layer separation
-  - Testing: Test quality, coverage, anti-patterns, naming conventions
-  - Error Handling: Unified strategy, propagation, wrapping patterns
-  - Doc Comments: Missing documentation, comment quality, godoc format
-  - README: Documentation accuracy, completeness, outdated info, missing sections
-  Reviews follow project coding standards from .cursor/rules/
+version: "2.3.0"
+description: AI-powered code review system for Go projects with per_file or per_directory analysis.
 
 workflows:
-  - source: ./workflows/review.yaml
+  - source: ./workflows/review_per_file.yaml
+  - source: ./workflows/review_per_dir.yaml
   - source: ./workflows/review-batch.yaml
 
 models:
@@ -21,6 +12,14 @@ models:
     model: openai/gpt-oss-120b
     api_key: "{{ .env.GROQ_API_KEY }}"
     default: true
+    rate_limit:
+      tokens_per_minute: 50000
+  - provider: openrouter
+    model: x-ai/grok-4-fast
+    api_key: "{{ .env.OPENROUTER_API_KEY }}"
+    context_window: 2000000
+    params:
+      max_tokens: 2000000
     rate_limit:
       tokens_per_minute: 50000
 

@@ -1,7 +1,7 @@
-id: review
+id: review_per_file
 version: 2.2.0
-description: Review Go code with specialized analysis types (performance, security, monitoring, architecture,
-  testing, error_handling, doc_comment)
+description: Review Go code file-by-file with specialized analysis types (performance, security, monitoring,
+  architecture, testing, error_handling, doc_comment)
 
 triggers:
   - type: signal
@@ -54,7 +54,7 @@ tasks:
 
   - id: route_review_type
     type: router
-    condition: 'workflow.input.review_type'
+    condition: "workflow.input.review_type"
     routes:
       performance: "review_single"
       security: "review_single"
@@ -104,7 +104,7 @@ tasks:
     task:
       id: "review-{{ .index }}"
       type: basic
-      agent: analyzer
+      agent: file_analyzer
       action: "{{ .workflow.input.review_type }}"
       with:
         file_path: "{{ .workflow.input.directory }}/{{ .file }}"
@@ -152,7 +152,7 @@ tasks:
           tasks:
             - id: perf
               type: basic
-              agent: analyzer
+              agent: file_analyzer
               action: performance
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
@@ -160,7 +160,7 @@ tasks:
 
             - id: sec
               type: basic
-              agent: analyzer
+              agent: file_analyzer
               action: security
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
@@ -168,7 +168,7 @@ tasks:
 
             - id: mon
               type: basic
-              agent: analyzer
+              agent: file_analyzer
               action: monitoring
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
@@ -176,7 +176,7 @@ tasks:
 
             - id: arch
               type: basic
-              agent: analyzer
+              agent: file_analyzer
               action: architecture
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
@@ -184,7 +184,7 @@ tasks:
 
             - id: test
               type: basic
-              agent: analyzer
+              agent: file_analyzer
               action: testing
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
@@ -192,7 +192,7 @@ tasks:
 
             - id: err
               type: basic
-              agent: analyzer
+              agent: file_analyzer
               action: error_handling
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"

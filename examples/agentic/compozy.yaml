@@ -13,7 +13,6 @@ models:
 
 runtime:
   type: bun
-  entrypoint: "./entrypoint.ts"
   tool_execution_timeout: 180s
   permissions:
     - --allow-read

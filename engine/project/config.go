@@ -765,9 +765,6 @@ func (p *Config) setRuntimeDefaults() {
 	if p.Runtime.Type == "" {
 		p.Runtime.Type = "bun"
 	}
-	if p.Runtime.Entrypoint == "" {
-		p.Runtime.Entrypoint = "./tools.ts"
-	}
 	// Set default permissions for project runtime if not specified
 	// Use nil check to distinguish between unspecified (nil) and explicitly empty ([]string{})
 	if p.Runtime.Permissions == nil {

@@ -11448,6 +11448,29 @@ const docTemplate = `{
                 }
             }
         },
+        "config.ProviderRateLimitConfig": {
+            "type": "object",
+            "properties": {
+                "concurrency": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "queue_size": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "requests_per_minute": {
+                    "description": "RequestsPerMinute limits average throughput; zero disables the limiter.",
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "tokens_per_minute": {
+                    "description": "TokensPerMinute constrains the total tokens consumed per minute; zero disables shaping.",
+                    "type": "integer",
+                    "minimum": 0
+                }
+            }
+        },
         "core.Author": {
             "type": "object",
             "properties": {
@@ -11867,6 +11890,14 @@ const docTemplate = `{
         "core.PromptParams": {
             "type": "object",
             "properties": {
+                "candidate_count": {
+                    "description": "CandidateCount specifies the number of response candidates to generate.\nSimilar to N but used by Google AI models.\n- **Range**: 1 to provider-specific maximum\n- **Provider Support**: Google AI (Gemini)",
+                    "type": "integer"
+                },
+                "frequency_penalty": {
+                    "description": "FrequencyPenalty penalizes tokens based on their frequency in the text so far.\nPositive values reduce repetition, negative values encourage it.\n- **Range**: -2.0 to 2.0\n- **Recommended**: 0.0 (no penalty) to 0.5 (moderate penalty)\n- **Provider Support**: OpenAI, Groq",
+                    "type": "number"
+                },
                 "max_length": {
                     "description": "MaxLength provides an alternative way to specify maximum response length.\nTypically used by providers that distinguish between length and token limits.\n- **Range**: MinLength to provider-specific maximum\n- **Provider Support**: Primarily local models and some API providers",
                     "type": "integer"
@@ -11875,9 +11906,22 @@ const docTemplate = `{
                     "description": "MaxTokens limits the maximum number of tokens in the generated response.\nThis parameter is crucial for cost control and response time management.\n- **Range**: 1 to model-specific maximum (e.g., 8192 for GPT-4)\n- **Default**: Provider-specific default (typically 1000-2000)",
                     "type": "integer"
                 },
+                "metadata": {
+                    "description": "Metadata contains backend-specific parameters not covered by standard fields.\nUse this for provider-specific features or experimental parameters.\n- **Example**: Custom headers, request tracking, A/B test variants\n- **Provider Support**: Varies by provider",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
                 "min_length": {
                     "description": "MinLength specifies the minimum number of tokens that must be generated.\nPrevents the model from generating responses that are too short.\n- **Range**: 1 to MaxTokens\n- **Provider Support**: Limited; primarily local models",
                     "type": "integer"
+                },
+                "n": {
+                    "description": "N specifies how many completion choices to generate for each prompt.\nUseful for generating multiple alternatives and selecting the best one.\n- **Range**: 1 to provider-specific maximum (typically 1-10)\n- **Default**: 1\n- **Provider Support**: OpenAI",
+                    "type": "integer"
+                },
+                "presence_penalty": {
+                    "description": "PresencePenalty penalizes tokens that have already appeared in the text.\nPositive values encourage the model to talk about new topics.\n- **Range**: -2.0 to 2.0\n- **Recommended**: 0.0 (no penalty) to 0.5 (moderate penalty)\n- **Provider Support**: OpenAI, Groq",
+                    "type": "number"
                 },
                 "repetition_penalty": {
                     "description": "RepetitionPenalty reduces the likelihood of repeating the same tokens.\nValues \u003e 1.0 penalize repetition, values \u003c 1.0 encourage it.\n- **Range**: 0.1 to 2.0\n- **Recommended**: 1.0 (no penalty) to 1.2 (moderate penalty)\n- **Provider Support**: Primarily local models (Ollama, etc.)",
@@ -11919,6 +11963,11 @@ const docTemplate = `{
                     "description": "APIURL specifies a custom API endpoint for the provider.\n**Use Cases**:\n  - Local model hosting (Ollama, OpenAI-compatible servers)\n  - Enterprise API gateways\n  - Regional API endpoints\n  - Custom proxy servers\n\n**Examples**: ` + "`" + `\"http://localhost:11434\"` + "`" + `, ` + "`" + `\"https://api.openai.com/v1\"` + "`" + `",
                     "type": "string"
                 },
+                "context_window": {
+                    "description": "ContextWindow optionally overrides the provider's default context window size.\nWhen \u003e 0, this value replaces the provider's default ContextWindowTokens capability.\nUseful for providers like OpenRouter that support multiple models with varying limits.\n- **Example**: 200000 for Claude 3.5 Sonnet via OpenRouter\n- **Default**: Uses provider's default when not specified or \u003c= 0",
+                    "type": "integer",
+                    "minimum": 0
+                },
                 "default": {
                     "description": "Default indicates that this model should be used as the fallback when no explicit\nmodel configuration is provided at the task or agent level.\n\n**Behavior**:\n  - Only one model per project can be marked as default\n  - When set to true, this model will be used for tasks/agents without explicit model config\n  - Validation ensures at most one default model per project\n\n**Example**:\n` + "`" + `` + "`" + `` + "`" + `yaml\nmodels:\n  - provider: openai\n    model: gpt-4\n    default: true  # This will be used by default\n` + "`" + `` + "`" + `` + "`" + `",
                     "type": "boolean"
@@ -11951,6 +12000,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/core.ProviderName"
                         }
                     ]
+                },
+                "rate_limit": {
+                    "description": "RateLimit overrides concurrency limits and queue size for this provider.\nWhen omitted the orchestrator applies the global defaults.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/config.ProviderRateLimitConfig"
+                        }
+                    ]
                 }
             }
         },
@@ -11964,16 +12021,20 @@ const docTemplate = `{
                 "ollama",
                 "deepseek",
                 "xai",
+                "cerebras",
+                "openrouter",
                 "mock"
             ],
             "x-enum-comments": {
                 "ProviderAnthropic": "Anthropic Claude models",
+                "ProviderCerebras": "Cerebras fast inference platform",
                 "ProviderDeepSeek": "DeepSeek AI models",
                 "ProviderGoogle": "Google Gemini models",
                 "ProviderGroq": "Groq fast inference platform",
                 "ProviderMock": "Mock provider for testing",
                 "ProviderOllama": "Ollama local model hosting",
                 "ProviderOpenAI": "OpenAI GPT models (GPT-4, GPT-3.5, etc.)",
+                "ProviderOpenRouter": "OpenRouter multi-model gateway",
                 "ProviderXAI": "xAI Grok models"
             },
             "x-enum-descriptions": [
@@ -11984,6 +12045,8 @@ const docTemplate = `{
                 "Ollama local model hosting",
                 "DeepSeek AI models",
                 "xAI Grok models",
+                "Cerebras fast inference platform",
+                "OpenRouter multi-model gateway",
                 "Mock provider for testing"
             ],
             "x-enum-varnames": [
@@ -11994,6 +12057,8 @@ const docTemplate = `{
                 "ProviderOllama",
                 "ProviderDeepSeek",
                 "ProviderXAI",
+                "ProviderCerebras",
+                "ProviderOpenRouter",
                 "ProviderMock"
             ]
         },

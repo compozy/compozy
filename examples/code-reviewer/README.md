@@ -128,27 +128,51 @@ The agent is configured with references to your project's coding standards:
 
 ### Workflow Architecture
 
-The code-reviewer system includes two workflows and three specialized agents:
+The code-reviewer system includes **two review approaches** with three workflows and four specialized agents:
+
+#### Review Approaches
+
+**1. Per-File Reviews** (`review_per_file` workflow)
+
+- Analyzes each file independently
+- Best for: Detailed line-by-line analysis, adding doc comments, file-specific issues
+- More granular but can miss cross-file architectural patterns
+
+**2. Per-Directory Reviews** (`review_per_dir` workflow)
+
+- Analyzes entire directories as cohesive units
+- Best for: Architectural patterns, cross-file issues, holistic view, directory organization
+- Sees the bigger picture but less detailed on individual files
 
 #### Agents
 
-1. **Analyzer Agent** (`analyzer.yaml`)
+1. **File Analyzer Agent** (`file_analyzer.yaml`)
    - Handles 6 review types: performance, security, monitoring, architecture, testing, error_handling
+   - **Analyzes individual files**
    - Generates detailed markdown reports in `ai-docs/reviews/<type>/`
    - Uses dynamic actions to avoid code duplication
 
-2. **Doc Comment Agent** (`doc_comment.yaml`)
+2. **Directory Analyzer Agent** (`dir_analyzer.yaml`)
+   - Handles 6 review types: performance, security, monitoring, architecture, testing, error_handling
+   - **Analyzes entire directories as cohesive units**
+   - Identifies cross-file issues and architectural patterns
+   - Generates comprehensive directory-level reports
+   - Best for understanding how files work together
+
+3. **Doc Comment Agent** (`doc_comment.yaml`)
    - Adds doc comments to Go source files
    - **Modifies files directly** (unlike other agents)
    - Follows Go documentation standards (2-4 lines max)
    - Skips trivial elements
+   - **Only available in per-file reviews**
 
-3. **README Reviewer Agent** (`readme_reviewer.yaml`)
+4. **README Reviewer Agent** (`readme_reviewer.yaml`)
    - Analyzes directory structure and README documentation
    - Identifies missing, outdated, or incorrect documentation
    - Generates comprehensive review reports
+   - **Only available in per-file reviews**
 
-#### 1. Review Workflow (`review.yaml`)
+#### 1. Per-File Review Workflow (`review_per_file.yaml`)
 
 Uses an intelligent routing system that optimizes execution based on the review type:
 
@@ -157,10 +181,11 @@ Uses an intelligent routing system that optimizes execution based on the review 
 1. **File Discovery**: Lists all `.go` files in the target directory
 2. **Smart Routing**: Routes to appropriate execution path based on `review_type` input
 3. **Dynamic Execution**:
-   - **Analysis Reviews** (performance, security, monitoring, architecture, testing, error_handling): Uses analyzer agent with dynamic action parameter
-   - **Doc Comment Review**: Uses doc_comment agent to modify files directly
-   - **README Review**: Uses readme_reviewer agent to analyze documentation
-   - **All Reviews** (default): Runs all review types in parallel
+
+- **Analysis Reviews** (performance, security, monitoring, architecture, testing, error_handling): Uses the `file_analyzer` agent with dynamic action parameter
+- **Doc Comment Review**: Uses doc_comment agent to modify files directly
+- **README Review**: Uses readme_reviewer agent to analyze documentation
+- **All Reviews** (default): Runs all review types in parallel
 
 **Trigger Support:**
 
@@ -168,7 +193,37 @@ Uses an intelligent routing system that optimizes execution based on the review 
 - Can be triggered by signals from the batch review workflow
 - Signal payload provides directory and review_type parameters
 
-#### 2. Batch Review Workflow (`review-batch.yaml`)
+#### 2. Per-Directory Review Workflow (`review_per_dir.yaml`)
+
+Analyzes entire directories as cohesive units instead of file-by-file:
+
+**Holistic Analysis:**
+
+1. **Directory Discovery**: Lists all files in the target directory
+2. **Smart Routing**: Routes to appropriate execution path based on `review_type` input
+3. **Comprehensive Analysis**: Analyzes all files together to understand:
+   - Overall architecture and design patterns
+   - Cross-file dependencies and relationships
+   - Directory-level organization issues
+   - Missing components or structure problems
+4. **Execution Modes**:
+   - **Single Review Type**: Uses the `dir_analyzer` agent with dynamic action
+   - **All Reviews**: Runs all 6 review types in parallel for the directory
+
+**Key Differences from Per-File:**
+
+- **Cross-File Issues**: Identifies problems spanning multiple files
+- **Architectural View**: Sees how components work together
+- **Missing Components**: Detects what should exist but doesn't
+- **Less Granular**: May miss file-specific issues that per-file reviews catch
+- **Faster for Architecture**: Better for understanding overall design
+
+**Trigger Support:**
+
+- Can be triggered manually via API
+- Can be triggered by signals (future enhancement)
+
+#### 3. Batch Review Workflow (`review-batch.yaml`)
 
 Enables reviewing multiple directories in parallel using signal-based communication:
 
@@ -177,7 +232,7 @@ Enables reviewing multiple directories in parallel using signal-based communicat
 1. **Input**: Accepts array of directories to review
 2. **Collection Processing**: Iterates over each directory in parallel
 3. **Signal Emission**: Each iteration sends a `review-directory` signal
-4. **Workflow Triggering**: Each signal automatically triggers a new review workflow instance
+4. **Workflow Triggering**: Each signal automatically triggers a new `review_per_file` workflow instance
 
 **Key Benefits:**
 
@@ -186,6 +241,18 @@ Enables reviewing multiple directories in parallel using signal-based communicat
 - **Scalable**: Parallel execution maximizes throughput with multiple workflow instances
 - **Distributed**: Each directory review runs as an independent workflow
 - **Event-Driven**: Signal-based triggering enables loose coupling between workflows
+
+**Choosing the Right Approach:**
+
+| Scenario                     | Use Per-File | Use Per-Directory |
+| ---------------------------- | ------------ | ----------------- |
+| Adding doc comments          | ✅           | ❌                |
+| Finding specific bugs        | ✅           | ❌                |
+| Detailed line-by-line review | ✅           | ❌                |
+| Understanding architecture   | ❌           | ✅                |
+| Cross-file dependencies      | ❌           | ✅                |
+| Directory organization       | ❌           | ✅                |
+| Comprehensive coverage       | Use both!    | Use both!         |
 
 ## Quick Start
 
@@ -222,8 +289,8 @@ compozy start
 3. In another terminal, execute a review:
 
 ```bash
-# Review all aspects (performance + security + monitoring)
-curl -X POST http://localhost:5001/api/v0/workflows/review/executions \
+# Per-file review (analyzes each file independently)
+curl -X POST http://localhost:5001/api/v0/workflows/review_per_file/executions \
   -H "Content-Type: application/json" \
   -d '{
     "input": {
@@ -232,7 +299,20 @@ curl -X POST http://localhost:5001/api/v0/workflows/review/executions \
     }
   }'
 
-# Or use the .http file with VS Code REST Client extension
+# Per-directory review (analyzes directory as cohesive unit)
+curl -X POST http://localhost:5001/api/v0/workflows/review_per_dir/executions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": {
+      "directory": "engine/schema",
+      "review_type": "all"
+    }
+  }'
+
+# Or use the .http files with VS Code REST Client extension:
+# - api_per_file.http  : Per-file analysis examples
+# - api_per_dir.http   : Per-directory analysis examples
+# - api_batch.http     : Batch review examples
 ```
 
 ## Usage
@@ -377,9 +457,9 @@ This review type:
 
 ### Batch Review (Signal-Based)
 
-Review multiple directories in parallel by triggering separate workflow instances:
+Review multiple directories in parallel by triggering separate workflow instances. The batch workflow now supports both per-file and per-directory analysis types:
 
-#### Batch All Reviews
+#### Batch Per-File Reviews (Default)
 
 ```bash
 POST /api/v0/workflows/review-batch/executions
@@ -390,19 +470,30 @@ POST /api/v0/workflows/review-batch/executions
       "engine/task",
       "engine/workflow"
     ],
+    "analysis_type": "per_file",
     "review_type": "all"
   }
 }
 ```
 
-This will:
+#### Batch Per-Directory Reviews
 
-1. Send a signal for each directory
-2. Each signal triggers an independent review workflow instance
-3. All reviews run in parallel as separate workflows
-4. Results are generated independently for each directory
+```bash
+POST /api/v0/workflows/review-batch/executions
+{
+  "input": {
+    "directories": [
+      "engine/agent",
+      "engine/task",
+      "engine/workflow"
+    ],
+    "analysis_type": "per_dir",
+    "review_type": "all"
+  }
+}
+```
 
-#### Batch Security Review
+#### Batch Security Review (Per-File)
 
 ```bash
 POST /api/v0/workflows/review-batch/executions
@@ -413,17 +504,45 @@ POST /api/v0/workflows/review-batch/executions
       "engine/infra/server",
       "engine/webhook"
     ],
+    "analysis_type": "per_file",
     "review_type": "security"
   }
 }
 ```
 
+#### Batch Architecture Review (Per-Directory)
+
+```bash
+POST /api/v0/workflows/review-batch/executions
+{
+  "input": {
+    "directories": [
+      "engine/agent",
+      "engine/workflow",
+      "engine/task2"
+    ],
+    "analysis_type": "per_dir",
+    "review_type": "architecture"
+  }
+}
+```
+
+**How it works:**
+
+1. Routes to appropriate signal based on `analysis_type`
+2. Sends a signal for each directory
+3. Each signal triggers an independent review workflow instance (per-file or per-directory)
+4. All reviews run in parallel as separate workflows
+5. Results are generated independently for each directory
+
 **Benefits of batch review:**
 
-- Each directory review runs independently
-- Failures in one review don't affect others
-- Results are isolated and easier to manage
-- Scales to many directories efficiently
+- **Flexible Analysis**: Choose per-file or per-directory approach for all directories at once
+- **Independent Execution**: Each directory review runs independently
+- **Fault Tolerant**: Failures in one review don't affect others
+- **Isolated Results**: Results are isolated and easier to manage
+- **Scalable**: Scales to many directories efficiently
+- **Mixed Approaches**: Run per-file batch for detailed analysis, then per-directory batch for architecture
 
 ## Output
 
@@ -614,16 +733,18 @@ autoload:
 ```
 code-reviewer/
 ├── agents/
-│   ├── analyzer.yaml          # Code analysis agent (6 review types)
+│   ├── file_analyzer.yaml     # Per-file code analysis (6 review types)
+│   ├── dir_analyzer.yaml      # Per-directory analysis (6 review types)
 │   ├── doc_comment.yaml       # Documentation agent (adds doc comments)
 │   └── readme_reviewer.yaml   # README analysis agent
 ├── workflows/
-│   ├── review.yaml            # Main review workflow with routing
-│   └── review-batch.yaml      # Batch review workflow (multiple dirs)
+│   ├── review_per_file.yaml   # Per-file review workflow with routing
+│   ├── review_per_dir.yaml    # Per-directory review workflow
+│   └── review-batch.yaml      # Batch review workflow (supports both types)
 ├── compozy.yaml               # Project configuration
-├── api.http                   # API test examples
-├── entrypoint.ts              # Runtime entry point (minimal)
-├── package.json               # Node dependencies
+├── api_per_file.http          # Per-file API test examples
+├── api_per_dir.http           # Per-directory API test examples
+├── api_batch.http             # Batch review API test examples
 └── README.md                  # This file
 ```
 
@@ -680,7 +801,7 @@ The doc_comment agent modifies files directly, so use it carefully:
 
 #### Add New Analysis Review Types
 
-Add new review types by creating additional actions in `agents/analyzer.yaml`:
+Add new review types by creating additional actions in `agents/file_analyzer.yaml`:
 
 ```yaml
 actions:

@@ -29,6 +29,11 @@ import (
 //go:embed bun/worker.tpl.ts
 var bunWorkerTemplate string
 
+const (
+	defaultEntrypointFileName = "default_entrypoint.ts"
+	defaultEntrypointStub     = "export default {}\n"
+)
+
 // Constants for security and performance limits
 const (
 	// MaxOutputSize limits the maximum size of tool output to prevent memory exhaustion attacks
@@ -690,22 +695,21 @@ func (bm *BunManager) compileBunWorker() error {
 
 	workerPath := filepath.Join(compozyDir, "bun_worker.ts")
 
-	// Generate worker content with entrypoint path
-	entrypointPath := bm.config.EntrypointPath
-	if entrypointPath == "" {
-		entrypointPath = "./tools.ts" // Default entrypoint
+	entrypointPath := strings.TrimSpace(bm.config.EntrypointPath)
+	importPath := entrypointPath
+
+	// Generate a minimal stub when no entrypoint is provided so the runtime
+	// remains operable without user-defined TypeScript tools.
+	if importPath == "" {
+		if err := bm.ensureDefaultEntrypoint(compozyDir); err != nil {
+			return err
+		}
+		importPath = "./" + defaultEntrypointFileName
+	} else {
+		importPath = toWorkerRelativeImport(importPath)
 	}
 
-	// Adjust entrypoint path to be relative to the worker location (.compozy directory)
-	// If the path starts with "./" it needs to be "../" to go up one level
-	if strings.HasPrefix(entrypointPath, "./") {
-		entrypointPath = "../" + entrypointPath[2:]
-	} else if !strings.HasPrefix(entrypointPath, "/") && !strings.HasPrefix(entrypointPath, "../") {
-		// If it's a relative path without prefix, make it relative to parent
-		entrypointPath = "../" + entrypointPath
-	}
-
-	workerContent := strings.ReplaceAll(bunWorkerTemplate, "{{.EntrypointPath}}", entrypointPath)
+	workerContent := strings.ReplaceAll(bunWorkerTemplate, "{{.EntrypointPath}}", importPath)
 
 	// Write worker file using configured permissions
 	if err := os.WriteFile(workerPath, []byte(workerContent), bm.config.WorkerFilePerm); err != nil {
@@ -713,6 +717,24 @@ func (bm *BunManager) compileBunWorker() error {
 	}
 
 	return nil
+}
+
+func (bm *BunManager) ensureDefaultEntrypoint(storeDir string) error {
+	fallbackPath := filepath.Join(storeDir, defaultEntrypointFileName)
+	if err := os.WriteFile(fallbackPath, []byte(defaultEntrypointStub), bm.config.WorkerFilePerm); err != nil {
+		return fmt.Errorf("failed to write default entrypoint: %w", err)
+	}
+	return nil
+}
+
+func toWorkerRelativeImport(entrypointPath string) string {
+	if strings.HasPrefix(entrypointPath, "./") {
+		return "../" + entrypointPath[2:]
+	}
+	if strings.HasPrefix(entrypointPath, "/") || strings.HasPrefix(entrypointPath, "../") {
+		return entrypointPath
+	}
+	return "../" + entrypointPath
 }
 
 // IsBunAvailable checks if Bun executable is available in PATH

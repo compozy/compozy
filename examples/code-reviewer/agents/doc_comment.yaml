@@ -2,6 +2,7 @@ resource: agent
 id: doc_comment
 description: Specialized in adding concise documentation comments to Go code following project standards
 version: 1.0.0
+model: "groq:openai/gpt-oss-120b"
 
 instructions: |
   <system>

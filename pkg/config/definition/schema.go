@@ -602,7 +602,7 @@ func registerRuntimeToolFields(registry *Registry) {
 	})
 	registry.Register(&FieldDef{
 		Path:    "runtime.entrypoint_path",
-		Default: "./tools.ts",
+		Default: "",
 		CLIFlag: "entrypoint-path",
 		EnvVar:  "RUNTIME_ENTRYPOINT_PATH",
 		Type:    reflect.TypeOf(""),

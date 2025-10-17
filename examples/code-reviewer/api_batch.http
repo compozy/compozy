@@ -1,0 +1,253 @@
+### Batch Code Review API Tests
+### Trigger multiple directory reviews in parallel via signals
+### Make sure Compozy is running on localhost:5001 before executing these requests
+
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = review-batch
+
+### -----------------------------------------------------------------------------
+### BATCH REVIEWS - PER-FILE ANALYSIS
+### Triggers multiple per-file review workflows in parallel
+### -----------------------------------------------------------------------------
+
+### Batch ALL reviews with per-file analysis (default)
+# @name batchAllPerFile
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directories": [
+      "engine/agent",
+      "engine/task",
+      "engine/workflow"
+    ],
+    "analysis_type": "per_file",
+    "review_type": "all"
+  }
+}
+
+### Get batch execution ID
+@execIdBatchAllPerFile = {{batchAllPerFile.response.body.data.exec_id}}
+
+### Check batch execution status
+GET {{baseUrl}}/executions/workflows/{{execIdBatchAllPerFile}}
+Accept: application/json
+
+### Batch SECURITY review with per-file analysis
+# @name batchSecurityPerFile
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directories": [
+      "engine/auth",
+      "engine/infra/server",
+      "engine/webhook"
+    ],
+    "analysis_type": "per_file",
+    "review_type": "security"
+  }
+}
+
+### Get batch execution ID
+@execIdBatchSecPerFile = {{batchSecurityPerFile.response.body.data.exec_id}}
+
+### Check batch security status
+GET {{baseUrl}}/executions/workflows/{{execIdBatchSecPerFile}}
+Accept: application/json
+
+### Batch PERFORMANCE review with per-file analysis
+# @name batchPerformancePerFile
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directories": [
+      "engine/llm",
+      "engine/memory",
+      "engine/knowledge"
+    ],
+    "analysis_type": "per_file",
+    "review_type": "performance"
+  }
+}
+
+### Batch DOC_COMMENT review (⚠️ MODIFIES FILES)
+# @name batchDocCommentPerFile
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directories": [
+      "engine/core",
+      "engine/schema",
+      "engine/resourceutil"
+    ],
+    "analysis_type": "per_file",
+    "review_type": "doc_comment"
+  }
+}
+
+### -----------------------------------------------------------------------------
+### BATCH REVIEWS - PER-DIRECTORY ANALYSIS
+### Triggers multiple per-directory review workflows in parallel
+### -----------------------------------------------------------------------------
+
+### Batch ALL reviews with per-directory analysis
+# @name batchAllPerDir
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directories": [
+      "engine/agent",
+      "engine/task",
+      "engine/workflow"
+    ],
+    "analysis_type": "per_dir",
+    "review_type": "all"
+  }
+}
+
+### Get batch execution ID
+@execIdBatchAllPerDir = {{batchAllPerDir.response.body.data.exec_id}}
+
+### Check batch per-dir status
+GET {{baseUrl}}/executions/workflows/{{execIdBatchAllPerDir}}
+Accept: application/json
+
+### Batch ARCHITECTURE review with per-directory analysis (RECOMMENDED)
+# @name batchArchPerDir
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directories": [
+      "engine/agent",
+      "engine/workflow",
+      "engine/task2",
+      "engine/tool"
+    ],
+    "analysis_type": "per_dir",
+    "review_type": "architecture"
+  }
+}
+
+### Get batch execution ID
+@execIdBatchArchPerDir = {{batchArchPerDir.response.body.data.exec_id}}
+
+### Check batch architecture status
+GET {{baseUrl}}/executions/workflows/{{execIdBatchArchPerDir}}
+Accept: application/json
+
+### Batch MONITORING review with per-directory analysis
+# @name batchMonitoringPerDir
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directories": [
+      "engine/infra",
+      "engine/worker",
+      "engine/runtime"
+    ],
+    "analysis_type": "per_dir",
+    "review_type": "monitoring"
+  }
+}
+
+### Batch TESTING review with per-directory analysis
+# @name batchTestingPerDir
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directories": [
+      "engine/task2",
+      "engine/workflow",
+      "engine/agent"
+    ],
+    "analysis_type": "per_dir",
+    "review_type": "testing"
+  }
+}
+
+### -----------------------------------------------------------------------------
+### MIXED STRATEGY - Run both analysis types
+### -----------------------------------------------------------------------------
+
+### Step 1: Per-file for detailed analysis
+# @name mixedStep1PerFile
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directories": [
+      "engine/agent"
+    ],
+    "analysis_type": "per_file",
+    "review_type": "all"
+  }
+}
+
+### Step 2: Per-directory for architectural view
+# @name mixedStep2PerDir
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directories": [
+      "engine/agent"
+    ],
+    "analysis_type": "per_dir",
+    "review_type": "architecture"
+  }
+}
+
+### -----------------------------------------------------------------------------
+### WORKFLOW MANAGEMENT
+### -----------------------------------------------------------------------------
+
+### List all batch workflow executions
+GET {{baseUrl}}/workflows/{{workflowId}}/executions?limit=10
+Accept: application/json
+
+### List running batch workflows
+GET {{baseUrl}}/workflows/{{workflowId}}/executions?status=running&limit=10
+Accept: application/json
+
+### List triggered per-file review workflows
+GET {{baseUrl}}/workflows/review_per_file/executions?limit=20
+Accept: application/json
+
+### List triggered per-directory review workflows
+GET {{baseUrl}}/workflows/review_per_dir/executions?limit=20
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### CANCEL BATCH REVIEWS
+### -----------------------------------------------------------------------------
+
+### Cancel a batch review workflow
+# POST {{baseUrl}}/executions/workflows/{{execIdBatchAllPerFile}}/cancel
+# Accept: application/json

@@ -118,21 +118,37 @@ func finishAgentSetup(
 }
 
 func agentConfigFromStore(value any) (*agent.Config, error) {
-	return configFromStore[agent.Config](value, ensureAgentDefaults)
+	switch tv := value.(type) {
+	case *agent.Config:
+		ensureAgentDefaults(tv)
+		return tv, nil
+	case map[string]any:
+		cfg := &agent.Config{}
+		if err := cfg.FromMap(tv); err != nil {
+			return nil, err
+		}
+		ensureAgentDefaults(cfg)
+		return cfg, nil
+	case agent.Config:
+		ensureAgentDefaults(&tv)
+		return &tv, nil
+	default:
+		return nil, nil
+	}
 }
 
 func toolConfigFromStore(value any) (*tool.Config, error) {
-	return configFromStore[tool.Config](value, ensureToolDefaults)
+	return configFromStore(value, ensureToolDefaults)
 }
 
 func mcpConfigFromStore(value any) (*mcp.Config, error) {
-	return configFromStore[mcp.Config](value, func(cfg *mcp.Config) {
+	return configFromStore(value, func(cfg *mcp.Config) {
 		cfg.SetDefaults()
 	})
 }
 
 func modelConfigFromStore(value any) (*core.ProviderConfig, error) {
-	return configFromStore[core.ProviderConfig](value, ensureProviderDefaults)
+	return configFromStore(value, ensureProviderDefaults)
 }
 
 func configFromStore[T any](value any, mapNormalizer func(*T)) (*T, error) {

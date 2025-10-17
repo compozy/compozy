@@ -41,6 +41,28 @@ func TestResolveAgent(t *testing.T) {
 		assert.Equal(t, "analyzer", resolved.ID)
 		assert.Equal(t, "agent", resolved.Resource)
 	})
+
+	t.Run("Should decode agent with string model reference from store", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		store := resources.NewMemoryResourceStore()
+		agentMap := map[string]any{
+			"resource":     "agent",
+			"id":           "doc_comment",
+			"model":        "groq:openai/gpt-oss-120b",
+			"instructions": "Add documentation",
+		}
+		key := resources.ResourceKey{Project: "code-reviewer", Type: resources.ResourceAgent, ID: "doc_comment"}
+		_, err := store.Put(ctx, key, agentMap)
+		require.NoError(t, err)
+		proj := &project.Config{Name: "code-reviewer"}
+		selector := &agent.Config{ID: "doc_comment"}
+		resolved, err := resolveAgent(ctx, proj, store, selector)
+		require.NoError(t, err)
+		require.NotNil(t, resolved)
+		assert.Equal(t, "doc_comment", resolved.ID)
+		assert.True(t, resolved.Model.HasRef(), "model should be a reference")
+		assert.Equal(t, "groq:openai/gpt-oss-120b", resolved.Model.Ref)
+	})
 }
 
 func TestResolveTool(t *testing.T) {

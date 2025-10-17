@@ -457,8 +457,7 @@ type RuntimeConfig struct {
 	RuntimeType string `koanf:"runtime_type" env:"RUNTIME_TYPE" json:"runtime_type" yaml:"runtime_type" mapstructure:"runtime_type" validate:"oneof=bun node"`
 
 	// EntrypointPath specifies the path to the JavaScript/TypeScript entrypoint file.
-	//
-	// Default: "./tools.ts"
+	// Leave empty to disable custom TypeScript tools and rely on built-in capabilities.
 	EntrypointPath string `koanf:"entrypoint_path" env:"RUNTIME_ENTRYPOINT_PATH" json:"entrypoint_path" yaml:"entrypoint_path" mapstructure:"entrypoint_path"`
 
 	// BunPermissions defines runtime security permissions for Bun.

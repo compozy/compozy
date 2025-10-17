@@ -1,6 +1,6 @@
 resource: agent
-id: analyzer
-description: Specialized Go code analyzer following Compozy project standards
+id: file_analyzer
+description: Specialized Go file analyzer following Compozy project standards
 version: 2.3.0
 
 instructions: |
