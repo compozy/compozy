@@ -104,7 +104,7 @@ func Test_LoadTask(t *testing.T) {
 
 		assert.Equal(t, "document-classifier", config.ID)
 		assert.Equal(t, TaskTypeRouter, config.Type)
-		assert.Equal(t, "{{ .tasks.analyze.output.type }}", config.Condition)
+		assert.Equal(t, "tasks.analyze.output.type", config.Condition)
 		assert.Equal(t, 4, len(config.Routes))
 
 		// Validate routes
@@ -518,7 +518,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 				ID:        taskID,
 				Type:      TaskTypeRouter,
 				CWD:       taskCWD,
-				Condition: "test-condition",
+				Condition: "workflow.input.route",
 			},
 			RouterTask: RouterTask{
 				Routes: map[string]any{
@@ -606,15 +606,19 @@ func Test_TaskConfigValidation(t *testing.T) {
 	t.Run("Should return error for router task missing routes", func(t *testing.T) {
 		config := &Config{
 			BaseConfig: BaseConfig{
-				ID:   "test-task",
-				Type: TaskTypeRouter,
-				CWD:  taskCWD,
+				ID:        "test-task",
+				Type:      TaskTypeRouter,
+				CWD:       taskCWD,
+				Condition: "workflow.input.route",
+			},
+			RouterTask: RouterTask{
+				Routes: map[string]any{},
 			},
 		}
 
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "condition is required for router tasks")
+		assert.Contains(t, err.Error(), "routes are required for router tasks")
 	})
 
 	t.Run("Should return error for task with invalid parameters", func(t *testing.T) {
@@ -1645,7 +1649,7 @@ func TestWaitTaskConfig_YAMLParsing(t *testing.T) {
 id: wait-for-approval
 type: wait
 wait_for: approval_signal
-condition: '{{ eq .signal.status "approved" }}'
+condition: 'signal.payload.status == "approved"'
 timeout: 1h
 on_success:
   next: approved_task
@@ -1658,7 +1662,7 @@ on_error:
 		assert.Equal(t, "wait-for-approval", config.ID)
 		assert.Equal(t, TaskTypeWait, config.Type)
 		assert.Equal(t, "approval_signal", config.WaitFor)
-		assert.Equal(t, `{{ eq .signal.status "approved" }}`, config.Condition)
+		assert.Equal(t, `signal.payload.status == "approved"`, config.Condition)
 		assert.Equal(t, "1h", config.Timeout)
 		assert.NotNil(t, config.OnSuccess)
 		assert.Equal(t, "approved_task", *config.OnSuccess.Next)
@@ -1670,7 +1674,7 @@ on_error:
 id: wait-with-processor
 type: wait
 wait_for: data_signal
-condition: '{{ and (.processor.output.valid) (gt .processor.output.score 0.8) }}'
+condition: 'processor.output.valid && processor.output.score > 0.8'
 processor:
   id: validate_data
   type: basic
@@ -1691,7 +1695,7 @@ on_error:
 		assert.Equal(t, "wait-with-processor", config.ID)
 		assert.Equal(t, TaskTypeWait, config.Type)
 		assert.Equal(t, "data_signal", config.WaitFor)
-		assert.Equal(t, `{{ and (.processor.output.valid) (gt .processor.output.score 0.8) }}`, config.Condition)
+		assert.Equal(t, `processor.output.valid && processor.output.score > 0.8`, config.Condition)
 		assert.Equal(t, "timeout_handler", config.OnTimeout)
 		require.NotNil(t, config.Processor)
 		assert.Equal(t, "validate_data", config.Processor.ID)
@@ -1708,7 +1712,7 @@ on_error:
 				ID:        "wait-task",
 				Type:      TaskTypeWait,
 				Timeout:   "30m",
-				Condition: `{{ eq .signal.action "continue" }}`,
+				Condition: `signal.action == "continue"`,
 			},
 			WaitTask: WaitTask{
 				WaitFor:   "user_signal",
@@ -1721,7 +1725,7 @@ on_error:
 		assert.Contains(t, yamlStr, "id: wait-task")
 		assert.Contains(t, yamlStr, "type: wait")
 		assert.Contains(t, yamlStr, "wait_for: user_signal")
-		assert.Contains(t, yamlStr, `condition: "{{ eq .signal.action \"continue\" }}"`)
+		assert.Contains(t, yamlStr, `signal.action == "continue"`)
 		assert.Contains(t, yamlStr, "timeout: 30m")
 		assert.Contains(t, yamlStr, "on_timeout: handle_timeout")
 	})
@@ -1730,7 +1734,7 @@ on_error:
 id: wait-processor-timeout
 type: wait
 wait_for: processing_signal
-condition: '{{ .processor.output.success }}'
+condition: 'processor.output.success'
 processor:
   id: processor_with_timeout
   type: basic

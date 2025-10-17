@@ -1,7 +1,7 @@
 resource: agent
 id: analyzer
 description: Specialized Go code analyzer following Compozy project standards
-version: 2.2.0
+version: 2.3.0
 
 instructions: |
   <critical>
@@ -40,7 +40,7 @@ instructions: |
      - Tool: read_file
      - Parameter: { "path": "{{ .input.file_path }}" }
 
-  2. **Analyze the code** based on your action type (performance/security/monitoring/architecture/testing/error_handling/doc_comment)
+  2. **Analyze the code** based on your action type (performance/security/monitoring/architecture/testing/error_handling)
      - Cross-reference against project rules
      - Identify violations, issues, and improvement opportunities
      - Provide specific code examples for fixes
@@ -300,27 +300,3 @@ actions:
 
       Reference: .cursor/rules/go-coding-standards.mdc (Unified error handling strategy)
       Reference: .cursor/rules/api-standards.mdc (Error responses)
-
-  - id: doc_comment
-    prompt: |-
-      Analyze {{ .input.file_path }} for **missing or inadequate documentation comments**.
-
-      Focus on:
-      - Exported functions without doc comments
-      - Exported types (structs, interfaces) without doc comments
-      - Exported constants and variables without doc comments
-      - Exported methods without doc comments
-      - Doc comment quality (clear, concise, 2-4 lines max)
-      - Proper doc comment format (starts with element name)
-      - Package-level documentation (package doc comment)
-      - Complex internal functions that need documentation
-      - Avoid change explanations in comments (belongs in git/PR)
-      - Technical debt and TODO comments that should be addressed
-
-      List each undocumented element with:
-      - Element type (function, method, struct, interface, etc.)
-      - Element name and signature
-      - Why documentation is needed
-      - Suggested doc comment format
-
-      Reference: .cursor/rules/go-coding-standards.mdc (Documentation policy)

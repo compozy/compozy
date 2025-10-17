@@ -8,6 +8,10 @@ An advanced AI-powered code review system for Go projects using Compozy agents. 
 
 The code-reviewer system supports eight specialized review types:
 
+#### Analysis Agents (Generate Reports)
+
+These agents analyze code and generate detailed review reports:
+
 1. **Performance Review** (`performance`)
    - Memory allocation analysis and GC pressure
    - Algorithm efficiency and complexity
@@ -71,19 +75,19 @@ The code-reviewer system supports eight specialized review types:
    - Proper use of `fmt.Errorf` with `%w` wrapping
    - Domain boundary error handling
 
-7. **Documentation Comment Review** (`doc_comment`)
-   - Missing doc comments on exported functions
-   - Missing doc comments on exported types (structs, interfaces)
-   - Missing doc comments on exported constants and variables
-   - Missing doc comments on exported methods
-   - Doc comment quality (clear, concise, 2-4 lines max)
-   - Proper doc comment format (starts with element name)
-   - Package-level documentation
-   - Complex internal functions needing documentation
-   - Inappropriate change explanations in comments
-   - Technical debt and TODO comments review
+#### Documentation Agents (Modify Files/Generate Reports)
 
-8. **README Documentation Review** (`readme`)
+These specialized agents work with documentation:
+
+7. **Documentation Comment Agent** (`doc_comment`) - **Modifies Files Directly**
+   - **Adds doc comments** to exported functions, types, constants, variables, and methods
+   - Follows Go documentation standards (2-4 lines max)
+   - Starts doc comments with element name
+   - Skips trivial getters/setters and obvious constructors
+   - **Output**: Modified source files with added documentation
+   - **Behavior**: Unlike other review types, this agent updates files in-place
+
+8. **README Documentation Review** (`readme`) - **Generates Report**
    - README accuracy vs actual code structure
    - Missing documentation for files/components
    - Outdated API references and examples
@@ -93,7 +97,7 @@ The code-reviewer system supports eight specialized review types:
    - Incomplete or outdated examples
    - Documentation structure and completeness
    - Cross-reference verification (docs vs code)
-   - Generates `README_REVIEW.md` in `_reviews/` directory
+   - **Output**: Generates review report in `ai-docs/reviews/readme/`
 
 ### Rule-Based Analysis
 
@@ -124,7 +128,25 @@ The agent is configured with references to your project's coding standards:
 
 ### Workflow Architecture
 
-The code-reviewer system includes two workflows that work together:
+The code-reviewer system includes two workflows and three specialized agents:
+
+#### Agents
+
+1. **Analyzer Agent** (`analyzer.yaml`)
+   - Handles 6 review types: performance, security, monitoring, architecture, testing, error_handling
+   - Generates detailed markdown reports in `ai-docs/reviews/<type>/`
+   - Uses dynamic actions to avoid code duplication
+
+2. **Doc Comment Agent** (`doc_comment.yaml`)
+   - Adds doc comments to Go source files
+   - **Modifies files directly** (unlike other agents)
+   - Follows Go documentation standards (2-4 lines max)
+   - Skips trivial elements
+
+3. **README Reviewer Agent** (`readme_reviewer.yaml`)
+   - Analyzes directory structure and README documentation
+   - Identifies missing, outdated, or incorrect documentation
+   - Generates comprehensive review reports
 
 #### 1. Review Workflow (`review.yaml`)
 
@@ -135,8 +157,10 @@ Uses an intelligent routing system that optimizes execution based on the review 
 1. **File Discovery**: Lists all `.go` files in the target directory
 2. **Smart Routing**: Routes to appropriate execution path based on `review_type` input
 3. **Dynamic Execution**:
-   - **Single Review Type** (performance, security, monitoring, etc.): Uses dynamic action parameter to execute the specific review type across all files
-   - **All Reviews** (default): Runs all seven review types in parallel for each file
+   - **Analysis Reviews** (performance, security, monitoring, architecture, testing, error_handling): Uses analyzer agent with dynamic action parameter
+   - **Doc Comment Review**: Uses doc_comment agent to modify files directly
+   - **README Review**: Uses readme_reviewer agent to analyze documentation
+   - **All Reviews** (default): Runs all review types in parallel
 
 **Trigger Support:**
 
@@ -217,7 +241,11 @@ curl -X POST http://localhost:5001/api/v0/workflows/review/executions \
 
 #### All Reviews (Default)
 
-Runs all eight review types in parallel (performance, security, monitoring, architecture, testing, error_handling, doc_comment, readme):
+Runs all eight review types in parallel:
+
+- **6 Analysis Reviews**: performance, security, monitoring, architecture, testing, error_handling (generate reports)
+- **1 Documentation Agent**: doc_comment (modifies files)
+- **1 README Review**: readme (generates report)
 
 ```bash
 POST /api/v0/workflows/review/executions
@@ -228,6 +256,8 @@ POST /api/v0/workflows/review/executions
   }
 }
 ```
+
+**⚠️ Note:** When running "all" reviews, the doc_comment agent will modify your source files. Ensure you have uncommitted changes in version control to review the modifications.
 
 #### Performance Review Only
 
@@ -303,6 +333,8 @@ POST /api/v0/workflows/review/executions
 
 #### Documentation Comment Review Only
 
+**⚠️ Note:** This review type **modifies files directly** by adding doc comments.
+
 ```bash
 POST /api/v0/workflows/review/executions
 {
@@ -312,6 +344,17 @@ POST /api/v0/workflows/review/executions
   }
 }
 ```
+
+This review type:
+
+- **Reads all Go files** in the specified directory
+- **Identifies undocumented exported elements** (functions, types, methods, constants, variables)
+- **Adds concise doc comments** (2-4 lines max) directly to the source files
+- **Skips trivial elements** (obvious getters/setters, simple constructors)
+- **Preserves formatting** and maintains code structure
+- **Returns summary** of how many doc comments were added per file
+
+**⚠️ Important:** Unlike other review types that generate reports, this agent modifies your source files. Use version control to review changes before committing.
 
 #### README Documentation Review Only
 
@@ -384,7 +427,9 @@ POST /api/v0/workflows/review-batch/executions
 
 ## Output
 
-Reviews are saved centrally in the `ai-docs/reviews/<review_type>/` directory from the project root. Each review file is named with a sequential number and the full file path (sanitized):
+### Analysis Reports (Most Review Types)
+
+Code analysis reviews are saved centrally in the `ai-docs/reviews/<review_type>/` directory from the project root. Each review file is named with a sequential number and the full file path (sanitized):
 
 **Naming Format:** `<num>_<full_path_sanitized>.md`
 
@@ -392,7 +437,31 @@ Reviews are saved centrally in the `ai-docs/reviews/<review_type>/` directory fr
 
 - `engine/schema/cwd.go` → `ai-docs/reviews/performance/001_engine_schema_cwd.go.md`
 - `engine/agent/uc/create.go` → `ai-docs/reviews/security/003_engine_agent_uc_create.go.md`
-- README review → `ai-docs/reviews/readme/001_README_REVIEW.md`
+- README review → `ai-docs/reviews/readme/001_engine_agent_README_REVIEW.md`
+
+### File Modifications (Doc Comment Review)
+
+The `doc_comment` review type **does not generate reports**. Instead, it:
+
+- **Modifies source files directly** by adding doc comments
+- **Updates files in-place** at their original locations
+- **Returns console output** summarizing changes made
+
+**Example output:**
+
+```
+✓ Doc comments added to: engine/agent/service.go
+  - Documented 5 functions
+  - Documented 2 types
+  - Documented 1 interface
+  - Total: 8 doc comments added
+```
+
+**⚠️ Important:** Use `git diff` to review changes after running doc_comment reviews:
+
+```bash
+git diff engine/agent/service.go
+```
 
 ### Review Report Structure
 
@@ -545,9 +614,12 @@ autoload:
 ```
 code-reviewer/
 ├── agents/
-│   └── analyzer.yaml          # Agent definition with 3 specialized actions
+│   ├── analyzer.yaml          # Code analysis agent (6 review types)
+│   ├── doc_comment.yaml       # Documentation agent (adds doc comments)
+│   └── readme_reviewer.yaml   # README analysis agent
 ├── workflows/
-│   └── review.yaml            # Workflow with conditional review types
+│   ├── review.yaml            # Main review workflow with routing
+│   └── review-batch.yaml      # Batch review workflow (multiple dirs)
 ├── compozy.yaml               # Project configuration
 ├── api.http                   # API test examples
 ├── entrypoint.ts              # Runtime entry point (minimal)
@@ -557,7 +629,56 @@ code-reviewer/
 
 ## Advanced Usage
 
-### Extending the Agent
+### Using Doc Comment Agent Effectively
+
+The doc_comment agent modifies files directly, so use it carefully:
+
+**Best Practices:**
+
+1. **Use Version Control**: Always commit your work before running doc_comment reviews
+
+   ```bash
+   git commit -am "Before doc comment additions"
+   compozy workflow execute review --directory "engine/agent" --review-type "doc_comment"
+   git diff # Review changes
+   ```
+
+2. **Start Small**: Test on a single package first
+
+   ```bash
+   # Test on one package
+   --directory "engine/core"
+   
+   # If results are good, expand to larger directories
+   --directory "engine"
+   ```
+
+3. **Review Changes**: Always review generated doc comments before committing
+
+   ```bash
+   git diff engine/agent/service.go
+   # Edit any comments that need adjustment
+   git add -p # Stage changes selectively
+   ```
+
+4. **Combine with Analysis**: Run doc_comment first, then run other reviews
+
+   ```bash
+   # Step 1: Add documentation
+   --review-type "doc_comment"
+   
+   # Step 2: Run analysis reviews
+   --review-type "all" # This includes doc_comment again
+   ```
+
+5. **Skip Trivial Packages**: Don't run on packages with obvious functionality
+   - Simple utility packages
+   - Test helpers
+   - Generated code
+
+### Extending the Agents
+
+#### Add New Analysis Review Types
 
 Add new review types by creating additional actions in `agents/analyzer.yaml`:
 
@@ -572,6 +693,25 @@ actions:
       - [Aspect 2]
 
       Reference: .cursor/rules/[relevant-rule].mdc
+```
+
+#### Create Custom Documentation Agents
+
+Create specialized documentation agents similar to `doc_comment.yaml`:
+
+```yaml
+resource: agent
+id: my_custom_doc_agent
+description: Custom documentation agent
+version: 1.0.0
+
+instructions: |
+  # Your custom instructions
+
+actions:
+  - id: add_custom_docs
+    prompt: |-
+      # Your custom prompt
 ```
 
 ### Filtering Files

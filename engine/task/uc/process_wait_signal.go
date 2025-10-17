@@ -14,14 +14,14 @@ import (
 type ProcessWaitSignal struct {
 	taskRepo    task.Repository
 	configStore services.ConfigStore
-	evaluator   task.ConditionEvaluator
+	evaluator   *task.CELEvaluator
 }
 
 // NewProcessWaitSignal creates a new ProcessWaitSignal use case
 func NewProcessWaitSignal(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	evaluator task.ConditionEvaluator,
+	evaluator *task.CELEvaluator,
 ) *ProcessWaitSignal {
 	return &ProcessWaitSignal{
 		taskRepo:    taskRepo,

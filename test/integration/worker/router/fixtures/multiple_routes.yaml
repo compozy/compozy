@@ -8,8 +8,7 @@ workflow:
     # The condition "json" matches the input and routes to process-json task
     - id: data-router
       type: router
-      action: route_by_type
-      condition: "json"  # Condition that matches input.data_type
+      condition: workflow.input.data_type  # Route by declared data type
       routes:
         json: process-json  # Route for JSON data processing
         text: process-text  # Route for text data processing

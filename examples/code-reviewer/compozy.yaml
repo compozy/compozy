@@ -32,8 +32,6 @@ config:
 
 runtime:
   type: bun
-  entrypoint: "./entrypoint.ts"
-  # Increase timeout for complex reviews
   tool_execution_timeout: 300s
   permissions:
     - --allow-read

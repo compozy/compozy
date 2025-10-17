@@ -54,7 +54,7 @@ tasks:
 
   - id: route_review_type
     type: router
-    condition: "{{ .workflow.input.review_type }}"
+    condition: 'workflow.input.review_type'
     routes:
       performance: "review_single"
       security: "review_single"
@@ -62,7 +62,7 @@ tasks:
       architecture: "review_single"
       testing: "review_single"
       error_handling: "review_single"
-      doc_comment: "review_single"
+      doc_comment: "review_doc_comment"
       readme: "review_readme"
       all: "review_all"
       default: "review_all"
@@ -76,6 +76,22 @@ tasks:
     with:
       directory: "{{ .workflow.input.directory }}"
       num: "000"
+
+  # Doc comment review - adds doc comments to files
+  - id: review_doc_comment
+    type: collection
+    mode: parallel
+    items: "{{ .tasks.list_files.output.files }}"
+    item_var: file
+    batch: 3
+    final: true
+    task:
+      id: "doc-{{ .index }}"
+      type: basic
+      agent: doc_comment
+      action: add_docs
+      with:
+        file_path: "{{ .workflow.input.directory }}/{{ .file }}"
 
   # Single review type using dynamic action
   - id: review_single
@@ -94,7 +110,7 @@ tasks:
         file_path: "{{ .workflow.input.directory }}/{{ .file }}"
         num: '{{ printf "%03d" .index }}'
 
-  # All reviews (runs README review + all code review types in parallel)
+  # All reviews (runs README review + doc comments + all code review types in parallel)
   - id: review_all
     type: parallel
     strategy: wait_all
@@ -108,6 +124,21 @@ tasks:
         with:
           directory: "{{ .workflow.input.directory }}"
           num: "000"
+
+      # Doc comment additions (adds doc comments to all files)
+      - id: doc_comment_additions
+        type: collection
+        mode: parallel
+        items: "{{ .tasks.list_files.output.files }}"
+        item_var: file
+        batch: 3
+        task:
+          id: "doc-{{ .index }}"
+          type: basic
+          agent: doc_comment
+          action: add_docs
+          with:
+            file_path: "{{ .workflow.input.directory }}/{{ .file }}"
 
       # Code reviews (all types for each file)
       - id: code_reviews
@@ -163,14 +194,6 @@ tasks:
               type: basic
               agent: analyzer
               action: error_handling
-              with:
-                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
-                num: '{{ printf "%03d" .index }}'
-
-            - id: doc
-              type: basic
-              agent: analyzer
-              action: doc_comment
               with:
                 file_path: "{{ .workflow.input.directory }}/{{ .file }}"
                 num: '{{ printf "%03d" .index }}'

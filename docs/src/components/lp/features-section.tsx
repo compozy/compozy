@@ -204,7 +204,7 @@ agents:
   type: wait
   wait_for: "analysis.approved"
   timeout: "5m"
-  condition: 'signal.payload.analysis_id == "{{ .workflow.id }}"'
+  condition: 'signal.payload.analysis_id == workflow.id'
   processor:
     tool: some_tool
 

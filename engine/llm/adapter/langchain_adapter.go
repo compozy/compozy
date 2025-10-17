@@ -54,6 +54,10 @@ func NewLangChainAdapter(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM model: %w", err)
 	}
+	// Override context window if explicitly configured
+	if config.ContextWindow > 0 {
+		capabilities.ContextWindowTokens = config.ContextWindow
+	}
 	return &LangChainAdapter{
 		provider:     *config,
 		errorParser:  NewErrorParser(string(config.Provider)),

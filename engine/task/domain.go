@@ -408,11 +408,6 @@ type SignalProcessor interface {
 	Process(ctx context.Context, signal *SignalEnvelope) (*ProcessorOutput, error)
 }
 
-// ConditionEvaluator evaluates CEL expressions safely
-type ConditionEvaluator interface {
-	Evaluate(ctx context.Context, expression string, data map[string]any) (bool, error)
-}
-
 // WaitTaskExecutor defines the main execution interface
 type WaitTaskExecutor interface {
 	Execute(ctx context.Context, config *Config) (*WaitTaskResult, error)

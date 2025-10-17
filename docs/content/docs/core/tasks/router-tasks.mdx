@@ -3,14 +3,14 @@ title: Router Tasks
 description: Implement conditional branching and intelligent workflow routing with router tasks in Compozy workflows
 ---
 
-Router tasks are the **decision engine** of Compozy workflows, enabling dynamic routing based on runtime conditions. They evaluate template expressions and direct workflow execution down different paths, making workflows intelligent and adaptive to varying data conditions. When combined with [basic tasks](/docs/core/tasks/basic-tasks) and [parallel processing](/docs/core/tasks/parallel-processing), router tasks create sophisticated automation that can handle complex business logic automatically.
+Router tasks are the **decision engine** of Compozy workflows, enabling dynamic routing based on runtime conditions. They evaluate CEL expressions and direct workflow execution down different paths, making workflows intelligent and adaptive to varying data conditions. When combined with [basic tasks](/docs/core/tasks/basic-tasks) and [parallel processing](/docs/core/tasks/parallel-processing), router tasks create sophisticated automation that can handle complex business logic automatically.
 
 ## Key Benefits
 
 <FeatureCardList cols={2} size="default">
   <FeatureCard
     title="Intelligent Decision Making"
-    description="Evaluate complex conditions using template expressions to automatically route workflows based on data, user context, or business rules"
+    description="Evaluate complex conditions using CEL expressions to automatically route workflows based on data, user context, or business rules"
     icon="GitBranch"
   />
   <FeatureCard
@@ -34,7 +34,7 @@ Router tasks are the **decision engine** of Compozy workflows, enabling dynamic 
 
 <List className="mt-6">
   <ListItem title="Condition Evaluation" icon="Calculator">
-    Router tasks evaluate template expressions against workflow context, task outputs, and input data to determine the routing path
+    Router tasks evaluate CEL expressions against workflow context, task outputs, and input data to determine the routing path
   </ListItem>
   <ListItem title="Route Resolution" icon="Map">
     The condition result becomes a key to look up the target route, which can reference existing tasks or define inline configurations
@@ -48,7 +48,7 @@ Router tasks are the **decision engine** of Compozy workflows, enabling dynamic 
 </List>
 
 <Callout type="info" className="mt-8">
-  Router tasks leverage the same [template engine](/docs/core/yaml-templates/overview) used throughout Compozy, providing access to workflow input, task outputs, environment variables, and utility functions for comprehensive decision-making capabilities.
+  Router tasks use [CEL expressions](https://cel.dev/) for condition evaluation while still supporting the [template engine](/docs/core/yaml-templates/overview) for other fields. This gives you access to workflow input, task outputs, environment variables, and utility functions for comprehensive decision-making capabilities.
 </Callout>
 
 ## Task Structure
@@ -56,7 +56,7 @@ Router tasks are the **decision engine** of Compozy workflows, enabling dynamic 
 Understanding router task configuration is essential for building effective conditional workflows. Router tasks must define a condition expression and route mappings, with optional default and error handling strategies.
 
 <Callout type="warning">
-Before implementing router tasks, ensure you understand [basic task configuration](/docs/core/tasks/basic-tasks) and template expressions. Router tasks build on these foundational concepts.
+Before implementing router tasks, ensure you understand [basic task configuration](/docs/core/tasks/basic-tasks), CEL expression syntax, and template expressions for data mapping. Router tasks build on these foundational concepts.
 </Callout>
 
 ### Core Configuration
@@ -66,7 +66,7 @@ Every router task follows this fundamental structure:
 ```yaml
 id: router-name
 type: router
-condition: "{{ .tasks.previous_task.output.result }}"
+condition: 'tasks.previous_task.output.result'
 
 routes:
   route_key_1: target-task-id
@@ -87,7 +87,7 @@ on_error:
 
 <List className="mt-4">
   <ListItem title="condition" icon="Code">
-    Template expression that evaluates to determine routing. Can access workflow input, task outputs, and environment variables
+    CEL expression that evaluates to determine routing. Can access workflow input, task outputs, and environment variables
   </ListItem>
   <ListItem title="routes" icon="GitBranch">
     Map of condition results to target tasks. Values can be task IDs (string) or inline task configurations (object)
@@ -112,7 +112,7 @@ The simplest router pattern uses string conditions and task ID references. This 
 ```yaml
 id: document-classifier
 type: router
-condition: "{{ .tasks.analyze.output.type }}"
+condition: 'tasks.analyze.output.type'
 
 routes:
   invoice: process-invoice
@@ -130,7 +130,7 @@ on_error:
 
 <List className="mt-4">
   <ListItem title="Simple Conditions" icon="Hash">
-    Use direct template expressions that evaluate to string values matching route keys
+    Use straightforward CEL expressions that evaluate to string values matching route keys
   </ListItem>
   <ListItem title="Task References" icon="Link">
     Route values are task IDs that reference other tasks defined in the same workflow or shared task libraries
@@ -144,28 +144,19 @@ on_error:
 
 <Accordion title="Complex Conditions" description="Advanced conditional logic with multi-factor decision making and business rules">
 
-For sophisticated routing logic, use multi-line template expressions with variables and conditional operators. This pattern excels at implementing complex workflow examples:
+For sophisticated routing logic, use multi-line CEL expressions with helper bindings and conditional operators. This pattern excels at implementing complex workflow examples:
 
 ```yaml
 id: approval-router
 type: router
 condition: |
-  {{
-    $amount := .tasks.calculate_total.output.amount
-    $user := .workflow.input.user
-    $category := .workflow.input.category
-
-    if (and (gt $amount 10000) (eq $category "restricted"))
-      "executive"
-    else if (gt $amount 5000)
-      "manager"
-    else if (eq $category "compliance")
-      "compliance_review"
-    else if (lt $amount 100)
-      "auto_approve"
-    else
-      "standard_review"
-  }}
+  let amount = tasks.calculate_total.output.amount;
+  let category = workflow.input.category;
+  amount > 10000 && category == "restricted" ? "executive" :
+  amount > 5000 ? "manager" :
+  category == "compliance" ? "compliance_review" :
+  amount < 100 ? "auto_approve" :
+  "standard_review"
 
 routes:
   executive:
@@ -193,10 +184,10 @@ default: escalation-handler
 
 <List className="mt-4">
   <ListItem title="Multi-Line Expressions" icon="FileText">
-    Use YAML literal block syntax (`|`) for complex conditional logic with variables and functions
+    Use YAML literal block syntax (`|`) for complex CEL logic with helper bindings and nested conditions
   </ListItem>
   <ListItem title="Variable Assignment" icon="Variable">
-    Assign intermediate values for cleaner logic using template template expressions
+    Assign intermediate values with CEL `let` bindings for cleaner logic
   </ListItem>
   <ListItem title="Business Rules" icon="Shield">
     Implement approval thresholds, compliance checks, and multi-factor decision making declaratively
@@ -212,7 +203,7 @@ Inline task definitions provide maximum flexibility by embedding complete task c
 ```yaml
 id: content-router
 type: router
-condition: "{{ .tasks.analyze_content.output.content_type }}"
+condition: 'tasks.analyze_content.output.content_type'
 
 routes:
   text:
@@ -272,7 +263,7 @@ Robust error handling is essential for production workflows. Router tasks suppor
 ```yaml
 id: resilient-router
 type: router
-condition: "{{ .tasks.classify_request.output.category }}"
+condition: 'tasks.classify_request.output.category'
 
 routes:
   urgent:
@@ -343,12 +334,12 @@ retry_policy:
 
 ## Behind the Scenes
 
-Understanding how router tasks execute helps optimize performance and debug issues. When a router task runs, it follows a sophisticated evaluation and execution pipeline that integrates with Compozy's template engine and task orchestration system.
+Understanding how router tasks execute helps optimize performance and debug issues. When a router task runs, it follows a sophisticated evaluation and execution pipeline that integrates the CEL evaluator with Compozy's task orchestration system.
 
 <Mermaid chart={`sequenceDiagram
     participant WE as Workflow Engine
     participant RT as Router Task
-    participant TE as Template Engine
+    participant CE as CEL Evaluator
     participant TM as Task Manager
     participant Agent as AI Agent/Tool
     participant DB as State Store
@@ -357,9 +348,9 @@ Understanding how router tasks execute helps optimize performance and debug issu
     Note over RT: Gather execution context
     RT->>RT: Collect workflow input, task outputs, env vars
 
-    RT->>TE: Evaluate condition expression
-    TE->>TE: Process template with context
-    TE-->>RT: Return condition result (e.g., "approved")
+    RT->>CE: Evaluate condition expression
+    CE->>CE: Execute CEL with workflow context
+    CE-->>RT: Return condition result (e.g., "approved")
 
     RT->>RT: Look up route for "approved"
     alt Route is Task ID
@@ -389,8 +380,8 @@ Understanding how router tasks execute helps optimize performance and debug issu
   <ListItem title="Context Collection" icon="Database">
     Router tasks gather workflow input, previous task outputs, and environment variables to provide complete context for condition evaluation
   </ListItem>
-  <ListItem title="Template Processing" icon="Code">
-    The [template engine](/docs/core/yaml-templates/overview) evaluates conditions with access to all workflow state and utility functions
+  <ListItem title="CEL Evaluation" icon="Code">
+    The [CEL evaluator](https://cel.dev/) executes condition expressions with access to workflow state and utility functions
   </ListItem>
   <ListItem title="Route Resolution" icon="Map">
     Route lookup supports both task ID references and inline task configurations, enabling flexible workflow design patterns
@@ -405,30 +396,23 @@ Understanding how router tasks execute helps optimize performance and debug issu
 
 ## Conditional Routing Patterns
 
-Router tasks excel at implementing complex business logic through template expressions. These patterns demonstrate common approaches for different types of conditional logic.
+Router tasks excel at implementing complex business logic through CEL expressions. These patterns demonstrate common approaches for different types of conditional logic.
 
 ### Template Expression Routing
 
-The most common pattern uses template expressions to evaluate data and determine routing paths. This approach leverages Compozy's template expressions for powerful data processing:
+The most common pattern uses CEL expressions to evaluate data and determine routing paths. This approach leverages Compozy's expression engine for powerful data processing:
 
 ```yaml
 id: weather-activity-router
 type: router
 condition: |
-  {{
-    $weather := .tasks.get_weather.output
-    $temperature := $weather.temperature
-    $conditions := $weather.conditions
-
-    if (lt $temperature 32)
-      "cold"
-    else if (and (gt $temperature 75) (eq $conditions "sunny"))
-      "hot_sunny"
-    else if (contains $conditions "rain")
-      "rainy"
-    else
-      "moderate"
-  }}
+  let weather = tasks.get_weather.output;
+  let temperature = weather.temperature;
+  let conditions = weather.conditions;
+  temperature < 32 ? "cold" :
+  (temperature > 75 && conditions == "sunny") ? "hot_sunny" :
+  contains(conditions, "rain") ? "rainy" :
+  "moderate"
 
 routes:
   cold:
@@ -465,15 +449,10 @@ Route based on multiple conditions:
 id: user-onboarding-router
 type: router
 condition: |
-  {{
-    $user := .tasks.get_user.output
-    if (eq $user.account_type "premium")
-      "premium_user"
-    else if (eq $user.verification_status "pending")
-      "pending_verification"
-    else
-      "standard_user"
-  }}
+  let user = tasks.get_user.output;
+  user.account_type == "premium" ? "premium_user" :
+  user.verification_status == "pending" ? "pending_verification" :
+  "standard_user"
 
 routes:
   premium_user:
@@ -549,8 +528,8 @@ default: escalation-handler
   />
   <ReferenceCard
     title="Context Variables"
-    description="Learn template expressions for complex routing conditions"
-    href="/docs/core/yaml-templates/context-variables"
+    description="Review CEL expressions and available context for routing conditions"
+    href="https://cel.dev/"
     icon="Code"
   />
   <ReferenceCard

@@ -7,7 +7,7 @@ workflow:
     - id: kind-router
       type: router
       action: select_by_kind
-      condition: "{{ .workflow.input.kind }}"
+      condition: workflow.input.kind
       routes:
         image: analyze-image
         audio: analyze-audio

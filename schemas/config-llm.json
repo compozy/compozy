@@ -1,5 +1,59 @@
 {
   "$defs": {
+    "LLMRateLimitConfig": {
+      "additionalProperties": false,
+      "description": "LLMRateLimitConfig defines shared throttling settings for provider calls.",
+      "properties": {
+        "default_concurrency": {
+          "description": "DefaultConcurrency limits concurrent requests per provider when overrides are absent.\nZero defers to registry defaults; values beyond provider quotas are discouraged.",
+          "type": "integer"
+        },
+        "default_queue_size": {
+          "description": "DefaultQueueSize bounds queued work waiting for a concurrency slot.\nZero disables queuing and causes immediate rejection when the pool is saturated.",
+          "type": "integer"
+        },
+        "default_requests_per_minute": {
+          "description": "DefaultRequestsPerMinute throttles average request throughput when per-provider overrides\nare not supplied. Zero disables request-rate shaping.",
+          "type": "integer"
+        },
+        "default_tokens_per_minute": {
+          "description": "DefaultTokensPerMinute constrains total tokens consumed per minute when overrides are absent.\nZero disables token-based shaping.",
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "per_provider_limits": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ProviderRateLimitConfig"
+          },
+          "description": "PerProviderLimits customizes concurrency and queue depth for specific providers.\nKeys should match provider names (e.g., \"openai\", \"groq\").",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "ProviderRateLimitConfig": {
+      "additionalProperties": false,
+      "description": "ProviderRateLimitConfig describes concurrency limits for a single provider.",
+      "properties": {
+        "concurrency": {
+          "type": "integer"
+        },
+        "queue_size": {
+          "type": "integer"
+        },
+        "requests_per_minute": {
+          "description": "RequestsPerMinute limits average throughput; zero disables the limiter.",
+          "type": "integer"
+        },
+        "tokens_per_minute": {
+          "description": "TokensPerMinute constrains the total tokens consumed per minute; zero disables shaping.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "ToolCallCapsConfig": {
       "additionalProperties": false,
       "description": "ToolCallCapsConfig captures default and per-tool invocation caps.",
@@ -43,6 +97,22 @@
         "type": "number"
       },
       "type": "array"
+    },
+    "default_frequency_penalty": {
+      "description": "DefaultFrequencyPenalty sets the default penalty for token frequency.\nPositive values reduce repetition. Range: -2.0 to 2.0.\nDefault: 0.0",
+      "type": "number"
+    },
+    "default_presence_penalty": {
+      "description": "DefaultPresencePenalty sets the default penalty for token presence.\nPositive values encourage talking about new topics. Range: -2.0 to 2.0.\nDefault: 0.0",
+      "type": "number"
+    },
+    "default_seed": {
+      "description": "DefaultSeed sets the default seed for reproducible outputs.\nValue of 0 means non-deterministic (no seed).\nDefault: 0",
+      "type": "integer"
+    },
+    "default_top_p": {
+      "description": "DefaultTopP sets the default nucleus sampling threshold for all LLM requests.\nValue of 0 means use the provider's default. Range: 0.0 to 1.0.\nDefault: 0.0",
+      "type": "number"
     },
     "denied_mcp_names": {
       "description": "DeniedMCPNames excludes MCP servers/tools from advertisement and invocation.\nEntries take precedence over the allow list.",
@@ -122,6 +192,10 @@
     "proxy_url": {
       "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"\" (empty; supply MCP proxy URL explicitly or derive from MCPProxy.BaseURL)",
       "type": "string"
+    },
+    "rate_limiting": {
+      "$ref": "#/$defs/LLMRateLimitConfig",
+      "description": "RateLimiting configures concurrency throttles and provider queues.\n\nThe limiter guards upstream APIs from bursty traffic and honors Retry-After headers.\nDefaults ensure conservative limits that can be tuned per provider."
     },
     "register_mcps": {
       "description": "RegisterMCPs contains additional MCP configurations to be registered\nwith the MCP proxy at runtime. Represented as a generic slice to avoid\nimport cycles with engine packages.",

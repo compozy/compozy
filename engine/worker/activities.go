@@ -35,7 +35,7 @@ type Activities struct {
 	configStore      services.ConfigStore
 	signalDispatcher services.SignalDispatcher
 	redisCache       *cache.Cache
-	celEvaluator     task.ConditionEvaluator
+	celEvaluator     *task.CELEvaluator
 	memoryManager    *memory.Manager
 	memoryActivities *memacts.MemoryActivities
 	templateEngine   *tplengine.TemplateEngine
@@ -250,6 +250,7 @@ func (a *Activities) ExecuteRouterTask(
 		a.projectConfig.CWD,
 		a.task2Factory,
 		a.templateEngine,
+		a.celEvaluator,
 	)
 	if err != nil {
 		return nil, err

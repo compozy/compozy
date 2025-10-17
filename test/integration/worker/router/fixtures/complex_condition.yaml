@@ -8,8 +8,7 @@ workflow:
     # The 'route_by_condition' action translates input.confidence > 0.9 into "high_confidence"
     - id: condition-router
       type: router
-      action: route_by_condition
-      condition: "high_confidence"  # Business logic result for high confidence scenarios
+      condition: 'workflow.input.confidence > 0.9 ? "high_confidence" : "low_confidence"'
       routes:
         high_confidence: process-fast  # Fast processing for high confidence
         low_confidence: process-manual  # Manual processing for low confidence

@@ -148,7 +148,7 @@ agents:
       - id: user_context
         key: "user:{{.workflow.input.user_id}}"
         mode: read-only
-        condition: "{{.workflow.input.user_id}}"
+        condition: 'workflow.input.user_id'
 
       # Project-specific memory for team collaboration
       - id: project_context
@@ -403,7 +403,7 @@ Complete examples showing how to combine different integration patterns for comm
 
       - id: manage_ticket_memory
         type: router
-        condition: "{{gt .tasks.check_ticket_memory.output.message_count 100}}"
+        condition: 'tasks.check_ticket_memory.output.message_count > 100'
         routes:
           "true":
             - id: summarize_ticket

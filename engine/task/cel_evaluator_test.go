@@ -360,6 +360,36 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	})
 }
 
+func TestCELEvaluator_EvaluateValue(t *testing.T) {
+	t.Run("Should return non-boolean results", func(t *testing.T) {
+		evaluator, err := NewCELEvaluator()
+		require.NoError(t, err)
+		ctx := context.Background()
+		data := map[string]any{
+			"workflow": map[string]any{
+				"input": map[string]any{
+					"kind": "audio",
+				},
+			},
+			"tasks": map[string]any{
+				"classify": map[string]any{
+					"output": map[string]any{
+						"route": "image",
+					},
+				},
+			},
+		}
+		value, err := evaluator.EvaluateValue(ctx, `workflow.input.kind`, data)
+		require.NoError(t, err)
+		assert.Equal(t, "audio", value)
+
+		routeExpr := `tasks.classify.output.route == "image" ? "image" : "fallback"`
+		value, err = evaluator.EvaluateValue(ctx, routeExpr, data)
+		require.NoError(t, err)
+		assert.Equal(t, "image", value)
+	})
+}
+
 func TestCELEvaluator_ValidateExpression(t *testing.T) {
 	t.Run("Should validate correct expression", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()

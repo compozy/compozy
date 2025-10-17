@@ -59,6 +59,7 @@ func BuiltinProviders() []Provider {
 		newDeepSeekProvider(),
 		newXAIProvider(),
 		newCerebrasProvider(),
+		newOpenRouterProvider(),
 	}
 }
 
@@ -410,6 +411,45 @@ func createCerebrasLLM(
 	responseFormat *openai.ResponseFormat,
 ) (llms.Model, error) {
 	baseURL := "https://api.cerebras.ai/v1"
+	if p.APIURL != "" {
+		baseURL = p.APIURL
+	}
+	opts := []openai.Option{
+		openai.WithModel(p.Model),
+		openai.WithBaseURL(baseURL),
+	}
+	if p.APIKey != "" {
+		opts = append(opts, openai.WithToken(p.APIKey))
+	}
+	if p.Organization != "" {
+		opts = append(opts, openai.WithOrganization(p.Organization))
+	}
+	if responseFormat != nil {
+		opts = append(opts, openai.WithResponseFormat(responseFormat))
+	}
+	return openai.New(opts...)
+}
+
+func newOpenRouterProvider() Provider {
+	return newLangChainProvider(
+		core.ProviderOpenRouter,
+		ProviderCapabilities{
+			StructuredOutput:    true,
+			Streaming:           true,
+			Vision:              true,
+			ContextWindowTokens: 128000,
+		},
+		createOpenRouterLLM,
+	)
+}
+
+// createOpenRouterLLM creates an OpenRouter LLM instance.
+func createOpenRouterLLM(
+	_ context.Context,
+	p *core.ProviderConfig,
+	responseFormat *openai.ResponseFormat,
+) (llms.Model, error) {
+	baseURL := "https://openrouter.ai/api/v1"
 	if p.APIURL != "" {
 		baseURL = p.APIURL
 	}

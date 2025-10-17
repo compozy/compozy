@@ -198,8 +198,19 @@ func (v *TypeValidator) validateBasicTask() error {
 }
 
 func (v *TypeValidator) validateRouterTask() error {
-	if v.config.Condition == "" {
+	if strings.TrimSpace(v.config.Action) != "" {
+		return fmt.Errorf("router tasks cannot have an action field")
+	}
+	expression := strings.TrimSpace(v.config.Condition)
+	if expression == "" {
 		return fmt.Errorf("condition is required for router tasks")
+	}
+	evaluator, err := NewCELEvaluator()
+	if err != nil {
+		return fmt.Errorf("failed to create CEL evaluator: %w", err)
+	}
+	if err := evaluator.ValidateExpression(expression); err != nil {
+		return fmt.Errorf("invalid router condition: %w", err)
 	}
 	if len(v.config.Routes) == 0 {
 		return fmt.Errorf("routes are required for router tasks")

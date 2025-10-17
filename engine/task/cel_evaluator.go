@@ -29,7 +29,7 @@ func WithCacheSize(size int) CELEvaluatorOption {
 	}
 }
 
-// CELEvaluator implements ConditionEvaluator using CEL
+// CELEvaluator provides CEL expression evaluation with caching and cost limits.
 type CELEvaluator struct {
 	env          *cel.Env
 	costLimit    uint64
@@ -44,6 +44,15 @@ func NewCELEvaluator(opts ...CELEvaluatorOption) (*CELEvaluator, error) {
 		cel.Variable("processor", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("task", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("workflow", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("tasks", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("input", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("with", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("env", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("item", cel.DynType),
+		cel.Variable("index", cel.DynType),
+		cel.Variable("parent", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("current", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("project", cel.MapType(cel.StringType, cel.DynType)),
 		// Allow webhook filters to use `{ payload, headers, query: map[string]any }`
 		cel.Variable("payload", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("headers", cel.MapType(cel.StringType, cel.DynType)),
@@ -119,42 +128,63 @@ func (c *CELEvaluator) Evaluate(ctx context.Context, expression string, data map
 	if strings.TrimSpace(expression) == "" {
 		return true, nil
 	}
-	program, err := c.getProgram(expression)
+	value, err := c.EvaluateValue(ctx, expression, data)
 	if err != nil {
 		return false, err
 	}
-	out, details, err := program.ContextEval(ctx, data)
-	if err != nil {
-		return false, fmt.Errorf("CEL evaluation failed: %w", err)
-	}
-	// Log CEL evaluation cost for monitoring
-	if details != nil {
-		if cost := details.ActualCost(); cost != nil && c.costLimit > 0 {
-			// Log cost metrics for monitoring and optimization
-			costRatio := float64(*cost) / float64(c.costLimit)
-			if costRatio > 0.8 {
-				// Warn when approaching cost limit (80% threshold)
-				log := logger.FromContext(ctx)
-				log.Warn("CEL expression approaching cost limit",
-					"cost", *cost,
-					"limit", c.costLimit,
-					"ratio_percent", costRatio*100)
-			}
-			// This should not happen as CEL would have errored, but keep for safety
-			if *cost > c.costLimit {
-				return false, core.NewError(
-					fmt.Errorf("CEL expression exceeded cost limit: %d", *cost),
-					"CEL_COST_EXCEEDED",
-					map[string]any{"cost": *cost, "limit": c.costLimit},
-				)
-			}
-		}
-	}
-	result, ok := out.Value().(bool)
+	result, ok := value.(bool)
 	if !ok {
-		return false, fmt.Errorf("CEL expression '%s' must return boolean, got %T", expression, out.Value())
+		return false, fmt.Errorf("CEL expression '%s' must return boolean, got %T", expression, value)
 	}
 	return result, nil
+}
+
+// EvaluateValue evaluates a CEL expression and returns the raw result.
+func (c *CELEvaluator) EvaluateValue(
+	ctx context.Context,
+	expression string,
+	data map[string]any,
+) (any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled before CEL evaluation: %w", err)
+	}
+	program, err := c.getProgram(expression)
+	if err != nil {
+		return nil, err
+	}
+	out, details, err := program.ContextEval(ctx, data)
+	if err != nil {
+		return nil, fmt.Errorf("CEL evaluation failed: %w", err)
+	}
+	if err := c.observeEvaluationCost(ctx, details); err != nil {
+		return nil, err
+	}
+	return out.Value(), nil
+}
+
+func (c *CELEvaluator) observeEvaluationCost(ctx context.Context, details *cel.EvalDetails) error {
+	if details == nil {
+		return nil
+	}
+	if cost := details.ActualCost(); cost != nil && c.costLimit > 0 {
+		costRatio := float64(*cost) / float64(c.costLimit)
+		if costRatio > 0.8 {
+			logger.FromContext(ctx).Warn(
+				"CEL expression approaching cost limit",
+				"cost", *cost,
+				"limit", c.costLimit,
+				"ratio_percent", costRatio*100,
+			)
+		}
+		if *cost > c.costLimit {
+			return core.NewError(
+				fmt.Errorf("CEL expression exceeded cost limit: %d", *cost),
+				"CEL_COST_EXCEEDED",
+				map[string]any{"cost": *cost, "limit": c.costLimit},
+			)
+		}
+	}
+	return nil
 }
 
 // ValidateExpression validates a CEL expression without executing it

@@ -14,15 +14,16 @@ import (
 type ProviderName string
 
 const (
-	ProviderOpenAI    ProviderName = "openai"    // OpenAI GPT models (GPT-4, GPT-3.5, etc.)
-	ProviderGroq      ProviderName = "groq"      // Groq fast inference platform
-	ProviderAnthropic ProviderName = "anthropic" // Anthropic Claude models
-	ProviderGoogle    ProviderName = "google"    // Google Gemini models
-	ProviderOllama    ProviderName = "ollama"    // Ollama local model hosting
-	ProviderDeepSeek  ProviderName = "deepseek"  // DeepSeek AI models
-	ProviderXAI       ProviderName = "xai"       // xAI Grok models
-	ProviderCerebras  ProviderName = "cerebras"  // Cerebras fast inference platform
-	ProviderMock      ProviderName = "mock"      // Mock provider for testing
+	ProviderOpenAI     ProviderName = "openai"     // OpenAI GPT models (GPT-4, GPT-3.5, etc.)
+	ProviderGroq       ProviderName = "groq"       // Groq fast inference platform
+	ProviderAnthropic  ProviderName = "anthropic"  // Anthropic Claude models
+	ProviderGoogle     ProviderName = "google"     // Google Gemini models
+	ProviderOllama     ProviderName = "ollama"     // Ollama local model hosting
+	ProviderDeepSeek   ProviderName = "deepseek"   // DeepSeek AI models
+	ProviderXAI        ProviderName = "xai"        // xAI Grok models
+	ProviderCerebras   ProviderName = "cerebras"   // Cerebras fast inference platform
+	ProviderOpenRouter ProviderName = "openrouter" // OpenRouter multi-model gateway
+	ProviderMock       ProviderName = "mock"       // Mock provider for testing
 )
 
 // SupportsNativeJSONSchema reports whether the provider accepts OpenAI-compatible
@@ -423,6 +424,13 @@ type ProviderConfig struct {
 	// RateLimit overrides concurrency limits and queue size for this provider.
 	// When omitted the orchestrator applies the global defaults.
 	RateLimit *appconfig.ProviderRateLimitConfig `json:"rate_limit,omitempty" yaml:"rate_limit,omitempty" mapstructure:"rate_limit,omitempty"`
+
+	// ContextWindow optionally overrides the provider's default context window size.
+	// When > 0, this value replaces the provider's default ContextWindowTokens capability.
+	// Useful for providers like OpenRouter that support multiple models with varying limits.
+	// - **Example**: 200000 for Claude 3.5 Sonnet via OpenRouter
+	// - **Default**: Uses provider's default when not specified or <= 0
+	ContextWindow int `json:"context_window,omitempty" yaml:"context_window,omitempty" mapstructure:"context_window,omitempty" validate:"min=0"`
 }
 
 // NewProviderConfig creates a new ProviderConfig with the specified core parameters.
