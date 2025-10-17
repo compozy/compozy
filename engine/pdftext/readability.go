@@ -88,10 +88,7 @@ func lineEstimate(text string) int {
 	if text == "" {
 		return 0
 	}
-	lines := strings.Count(text, "\n") + 1
-	if lines < 1 {
-		lines = 1
-	}
+	lines := max(strings.Count(text, "\n")+1, 1)
 	return lines
 }
 

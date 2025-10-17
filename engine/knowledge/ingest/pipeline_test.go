@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -97,13 +99,7 @@ func (m *memoryStore) Delete(_ context.Context, filter vectordb.Filter) error {
 	next := make([]vectordb.Record, 0, len(m.records))
 	for i := range m.records {
 		rec := m.records[i]
-		remove := false
-		for _, id := range filter.IDs {
-			if rec.ID == id {
-				remove = true
-				break
-			}
-		}
+		remove := slices.Contains(filter.IDs, rec.ID)
 		if !remove && len(filter.Metadata) > 0 {
 			match := true
 			for key, val := range filter.Metadata {
@@ -165,9 +161,7 @@ func (l *capturingLogger) Error(msg string, keyvals ...any) {
 
 func (l *capturingLogger) With(args ...any) logger.Logger {
 	nextFields := make(map[string]any, len(l.fields)+len(args)/2)
-	for k, v := range l.fields {
-		nextFields[k] = v
-	}
+	maps.Copy(nextFields, l.fields)
 	for i := 0; i < len(args); i += 2 {
 		key := fmt.Sprint(args[i])
 		var val any
@@ -187,9 +181,7 @@ func (l *capturingLogger) record(level, msg string, keyvals ...any) {
 		return
 	}
 	fields := make(map[string]any, len(l.fields)+len(keyvals)/2)
-	for k, v := range l.fields {
-		fields[k] = v
-	}
+	maps.Copy(fields, l.fields)
 	for i := 0; i < len(keyvals); i += 2 {
 		key := fmt.Sprint(keyvals[i])
 		var val any

@@ -23,7 +23,7 @@ func (e *Extractor) extractStructured(
 	limiter := newTextLimiter(runeLimit)
 	allOutputs := make([]*lineOutput, 0, pageCount*16)
 
-	for page := 0; page < pageCount; page++ {
+	for page := range pageCount {
 		if err := ctx.Err(); err != nil {
 			return "", Stats{}, err
 		}

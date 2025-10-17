@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"maps"
 
 	appconfig "github.com/compozy/compozy/pkg/config"
 
@@ -336,9 +337,7 @@ func (p *PromptParams) SetMetadata(metadata map[string]any) {
 		return
 	}
 	p.Metadata = make(map[string]any, len(metadata))
-	for k, v := range metadata {
-		p.Metadata[k] = v
-	}
+	maps.Copy(p.Metadata, metadata)
 	p._set.Metadata = true
 }
 

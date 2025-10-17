@@ -32,10 +32,7 @@ func New(cfg Config) (*Extractor, error) {
 	pool := cfg.Pool
 	ownsPool := false
 	if pool == nil {
-		size := runtime.NumCPU()
-		if size < 2 {
-			size = 2
-		}
+		size := max(runtime.NumCPU(), 2)
 		if size > 8 {
 			size = 8
 		}
@@ -158,7 +155,7 @@ func (e *Extractor) extractPlain(
 	pageCount int,
 ) (string, Stats, error) {
 	limiter := newTextLimiter(runeLimit)
-	for page := 0; page < pageCount; page++ {
+	for page := range pageCount {
 		if err := ctx.Err(); err != nil {
 			return "", Stats{}, err
 		}

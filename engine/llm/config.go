@@ -221,9 +221,7 @@ func WithToolCallCaps(caps orchestratorpkg.ToolCallCaps) Option {
 		var overrides map[string]int
 		if len(caps.Overrides) > 0 {
 			overrides = make(map[string]int, len(caps.Overrides))
-			for name, limit := range caps.Overrides {
-				overrides[name] = limit
-			}
+			maps.Copy(overrides, caps.Overrides)
 		}
 		cCfg.ToolCallCaps = orchestratorpkg.ToolCallCaps{
 			Default:   caps.Default,
@@ -646,9 +644,7 @@ func cloneToolCapOverrides(src map[string]int) map[string]int {
 		return nil
 	}
 	out := make(map[string]int, len(src))
-	for key, value := range src {
-		out[key] = value
-	}
+	maps.Copy(out, src)
 	return out
 }
 

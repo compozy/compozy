@@ -1,6 +1,9 @@
 package llmadapter
 
-import "context"
+import (
+	"context"
+	"maps"
+)
 
 type clientCtxKey string
 type optionsCtxKey string
@@ -60,9 +63,7 @@ func cloneCallOptions(opts *CallOptions) CallOptions {
 	}
 	if len(out.Metadata) > 0 {
 		out.Metadata = make(map[string]any, len(out.Metadata))
-		for k, v := range opts.Metadata {
-			out.Metadata[k] = v
-		}
+		maps.Copy(out.Metadata, opts.Metadata)
 	}
 	return out
 }

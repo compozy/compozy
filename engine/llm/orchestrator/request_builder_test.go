@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"maps"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -29,9 +30,7 @@ func (r *regToolWithArgs) ParameterSchema() map[string]any {
 		return nil
 	}
 	copied := make(map[string]any, len(r.params))
-	for key, val := range r.params {
-		copied[key] = val
-	}
+	maps.Copy(copied, r.params)
 	return copied
 }
 
@@ -50,9 +49,7 @@ func (s *schemaTool) ParameterSchema() map[string]any {
 	}
 	source := map[string]any(*s.schema)
 	copied := make(map[string]any, len(source))
-	for key, val := range source {
-		copied[key] = val
-	}
+	maps.Copy(copied, source)
 	return copied
 }
 

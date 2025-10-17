@@ -301,7 +301,7 @@ func (p *Pipeline) backoffDuration(attempt int) time.Duration {
 	if maxDelay > 0 && delay > maxDelay {
 		return maxDelay
 	}
-	for i := 0; i < attempt; i++ {
+	for range attempt {
 		if maxDelay > 0 && delay >= maxDelay {
 			return maxDelay
 		}
@@ -325,10 +325,7 @@ func (p *Pipeline) persistChunks(ctx context.Context, chunks []chunk.Chunk) (int
 		if ctx.Err() != nil {
 			return 0, ctx.Err()
 		}
-		end := start + p.batchSize
-		if end > len(chunks) {
-			end = len(chunks)
-		}
+		end := min(start+p.batchSize, len(chunks))
 		batch := chunks[start:end]
 		vectors, err := p.embedBatch(ctx, batch)
 		if err != nil {

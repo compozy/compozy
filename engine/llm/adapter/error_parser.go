@@ -248,17 +248,11 @@ func parseRetryAfterHeaderValue(value string) *time.Duration {
 		return nil
 	}
 	if seconds, err := strconv.Atoi(trimmed); err == nil {
-		delay := time.Duration(seconds) * time.Second
-		if delay < 0 {
-			delay = 0
-		}
+		delay := max(time.Duration(seconds)*time.Second, 0)
 		return &delay
 	}
 	if when, err := http.ParseTime(trimmed); err == nil {
-		delay := time.Until(when)
-		if delay < 0 {
-			delay = 0
-		}
+		delay := max(time.Until(when), 0)
 		return &delay
 	}
 	return nil

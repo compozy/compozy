@@ -191,7 +191,7 @@ func (e *toolExecutor) toolNotFoundResult(
 	log.Warn("Tool not found", "tool_name", call.Name, "tool_call_id", call.ID)
 	payload, errMarshal := json.Marshal(map[string]any{"error": errText})
 	if errMarshal != nil {
-		payload = []byte(fmt.Sprintf(`{"error":%q}`, errText))
+		payload = fmt.Appendf(nil, `{"error":%q}`, errText)
 	}
 	jsonContent := json.RawMessage(payload)
 	if capture {

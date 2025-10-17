@@ -92,10 +92,7 @@ func (i *llmInvoker) Invoke(
 			return callErr
 		}
 		if response != nil && response.Usage != nil {
-			tokensUsed = response.Usage.TotalTokens
-			if tokensUsed < 0 {
-				tokensUsed = 0
-			}
+			tokensUsed = max(response.Usage.TotalTokens, 0)
 		}
 		lastErr = nil
 		return nil

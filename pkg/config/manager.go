@@ -165,9 +165,7 @@ func (m *Manager) startWatching(sources []Source) {
 			continue
 		}
 		src := source
-		m.watchWg.Add(1)
-		go func() {
-			defer m.watchWg.Done()
+		m.watchWg.Go(func() {
 			ctx := m.watchCtx
 			if ctx == nil {
 				ctx = context.Background()
@@ -184,7 +182,7 @@ func (m *Manager) startWatching(sources []Source) {
 			if err != nil {
 				logger.FromContext(ctx).Debug("source does not support watching", "error", err)
 			}
-		}()
+		})
 	}
 }
 

@@ -135,7 +135,6 @@ func TestLangChainAdapter_BuildContentParts_AudioVideo_ByProvider(t *testing.T) 
 		core.ProviderAnthropic,
 	}
 	for _, p := range providers {
-		p := p
 		t.Run("Provider "+string(p)+" should skip audio/video", func(t *testing.T) {
 			t.Parallel()
 			adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: p}}

@@ -60,10 +60,7 @@ func buildCompactionPlan(loopCtx *LoopContext) (compactionPlan, error) {
 		return compactionPlan{}, ErrCompactionUnavailable
 	}
 	messages := loopCtx.LLMRequest.Messages
-	base := loopCtx.baseMessageCount
-	if base < 0 {
-		base = 0
-	}
+	base := max(loopCtx.baseMessageCount, 0)
 	if base > len(messages) {
 		base = len(messages)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -106,9 +107,7 @@ func (l *capturingLogger) Error(msg string, keyvals ...any) {
 
 func (l *capturingLogger) With(args ...any) logger.Logger {
 	nextFields := make(map[string]any, len(l.fields)+len(args)/2)
-	for k, v := range l.fields {
-		nextFields[k] = v
-	}
+	maps.Copy(nextFields, l.fields)
 	for i := 0; i < len(args); i += 2 {
 		key := fmt.Sprint(args[i])
 		var val any
@@ -128,9 +127,7 @@ func (l *capturingLogger) record(level, msg string, keyvals ...any) {
 		return
 	}
 	fields := make(map[string]any, len(l.fields)+len(keyvals)/2)
-	for k, v := range l.fields {
-		fields[k] = v
-	}
+	maps.Copy(fields, l.fields)
 	for i := 0; i < len(keyvals); i += 2 {
 		key := fmt.Sprint(keyvals[i])
 		var val any

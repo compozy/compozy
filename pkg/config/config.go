@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"crypto/tls"
+	"maps"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
@@ -1642,9 +1643,7 @@ func getStringIntMap(registry *definition.Registry, path string) map[string]int 
 	out := make(map[string]int)
 	switch raw := val.(type) {
 	case map[string]int:
-		for k, v := range raw {
-			out[k] = v
-		}
+		maps.Copy(out, raw)
 	case map[string]any:
 		for k, v := range raw {
 			switch num := v.(type) {

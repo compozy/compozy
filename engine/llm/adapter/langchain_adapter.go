@@ -880,10 +880,7 @@ func clampPtrNonNeg(p *int) *int {
 	if p == nil {
 		return nil
 	}
-	value := *p
-	if value < 0 {
-		value = 0
-	}
+	value := max(*p, 0)
 	return &value
 }
 
