@@ -22,6 +22,7 @@ type Manager struct {
 	reloadMu    sync.Mutex
 	watchCtx    context.Context
 	watchCancel context.CancelFunc
+	watchMu     sync.Mutex
 	watchWg     *errgroup.Group
 	closeOnce   sync.Once
 	debounce    time.Duration // configurable debounce duration for file watching
@@ -65,14 +66,19 @@ func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) 
 		if m.watchCancel != nil {
 			m.watchCancel()
 		}
-		if m.watchWg != nil {
-			if err := m.watchWg.Wait(); err != nil {
+		m.watchMu.Lock()
+		prevGroup := m.watchWg
+		m.watchMu.Unlock()
+		if prevGroup != nil {
+			if err := prevGroup.Wait(); err != nil {
 				logger.FromContext(ctx).Debug("failed to wait for previous config watchers", "error", err)
 			}
 		}
 		base := context.WithoutCancel(ctx)
+		m.watchMu.Lock()
 		m.watchCtx, m.watchCancel = context.WithCancel(base)
 		m.watchWg = &errgroup.Group{}
+		m.watchMu.Unlock()
 	}
 
 	// Start watching sources that support it
@@ -151,8 +157,11 @@ func (m *Manager) Close(ctx context.Context) error {
 		}
 
 		// Wait for all watchers to finish
-		if m.watchWg != nil {
-			if err := m.watchWg.Wait(); err != nil {
+		m.watchMu.Lock()
+		currentGroup := m.watchWg
+		m.watchMu.Unlock()
+		if currentGroup != nil {
+			if err := currentGroup.Wait(); err != nil {
 				logger.FromContext(ctx).Debug("failed to wait for config watchers", "error", err)
 			}
 		}
@@ -180,11 +189,14 @@ func (m *Manager) startWatching(sources []Source) {
 			continue
 		}
 		src := source
-		if m.watchWg == nil {
-			m.watchWg = &errgroup.Group{}
+		m.watchMu.Lock()
+		watchGroup := m.watchWg
+		ctx := m.watchCtx
+		m.watchMu.Unlock()
+		if watchGroup == nil || ctx == nil {
+			continue
 		}
-		m.watchWg.Go(func() error {
-			ctx := m.watchCtx
+		watchGroup.Go(func() error {
 			if ctx == nil {
 				return nil
 			}

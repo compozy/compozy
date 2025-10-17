@@ -11,6 +11,9 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+// costWarningThreshold controls when to log that a CEL evaluation is approaching the configured cost limit.
+const costWarningThreshold = 0.8
+
 // CELEvaluatorOption configures CEL evaluator
 type CELEvaluatorOption func(*CELEvaluator)
 
@@ -156,7 +159,7 @@ func (c *CELEvaluator) observeEvaluationCost(ctx context.Context, details *cel.E
 	}
 	if cost := details.ActualCost(); cost != nil && c.costLimit > 0 {
 		costRatio := float64(*cost) / float64(c.costLimit)
-		if costRatio > 0.8 {
+		if costRatio > costWarningThreshold {
 			logger.FromContext(ctx).Warn(
 				"CEL expression approaching cost limit",
 				"cost", *cost,

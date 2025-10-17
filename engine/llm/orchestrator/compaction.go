@@ -217,12 +217,6 @@ func applyCompactionSummary(req *llmadapter.LLMRequest, base int, summary string
 	if req == nil {
 		return
 	}
-	if base < 0 {
-		base = 0
-	}
-	if base > len(req.Messages) {
-		base = len(req.Messages)
-	}
 	compacted := make([]llmadapter.Message, base, base+1)
 	copy(compacted, req.Messages[:base])
 	compacted = append(compacted, llmadapter.Message{Role: llmadapter.RoleSystem, Content: summary})

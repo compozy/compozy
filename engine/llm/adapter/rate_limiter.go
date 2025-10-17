@@ -15,6 +15,8 @@ import (
 	appconfig "github.com/compozy/compozy/pkg/config"
 )
 
+const rateLimitFloatEpsilon = 1e-9
+
 // RateLimiterRegistry coordinates provider-specific concurrency throttles backed by semaphores.
 // The registry shares limiters across orchestrator runs so parallel workflows observe the same limits.
 type RateLimiterRegistry struct {
@@ -173,63 +175,77 @@ func (r *RateLimiterRegistry) buildSettings(
 	provider core.ProviderName,
 	override *core.ProviderRateLimitConfig,
 ) limiterSettings {
-	concurrency := int64(r.config.DefaultConcurrency)
-	queueSize := int64(r.config.DefaultQueueSize)
-	requestsPerMinute := float64(r.config.DefaultRequestsPerMinute)
-	tokensPerMinute := float64(r.config.DefaultTokensPerMinute)
-	requestBurst := r.config.DefaultRequestBurst
-	tokenBurst := r.config.DefaultTokenBurst
+	settings := r.defaultLimiterSettings()
+	settings = r.applyPerProviderSettings(settings, provider)
+	return applyOverrideLimiterSettings(settings, override)
+}
 
-	if perProvider := r.lookupPerProvider(strings.ToLower(string(provider))); perProvider != nil {
-		if perProvider.Concurrency > 0 {
-			concurrency = int64(perProvider.Concurrency)
-		}
-		if perProvider.QueueSize > 0 {
-			queueSize = int64(perProvider.QueueSize)
-		}
-		if perProvider.RequestsPerMinute > 0 {
-			requestsPerMinute = float64(perProvider.RequestsPerMinute)
-		}
-		if perProvider.TokensPerMinute > 0 {
-			tokensPerMinute = float64(perProvider.TokensPerMinute)
-		}
-		if perProvider.RequestBurst > 0 {
-			requestBurst = perProvider.RequestBurst
-		}
-		if perProvider.TokenBurst > 0 {
-			tokenBurst = perProvider.TokenBurst
-		}
-	}
-
-	if override != nil {
-		if override.Concurrency > 0 {
-			concurrency = int64(override.Concurrency)
-		}
-		if override.QueueSize > 0 {
-			queueSize = int64(override.QueueSize)
-		}
-		if override.RequestsPerMinute > 0 {
-			requestsPerMinute = float64(override.RequestsPerMinute)
-		}
-		if override.TokensPerMinute > 0 {
-			tokensPerMinute = float64(override.TokensPerMinute)
-		}
-		if override.RequestBurst > 0 {
-			requestBurst = override.RequestBurst
-		}
-		if override.TokenBurst > 0 {
-			tokenBurst = override.TokenBurst
-		}
-	}
-
+// defaultLimiterSettings creates base limiter settings from global defaults.
+func (r *RateLimiterRegistry) defaultLimiterSettings() limiterSettings {
 	return limiterSettings{
-		concurrency:       concurrency,
-		queueSize:         queueSize,
-		requestsPerMinute: requestsPerMinute,
-		tokensPerMinute:   tokensPerMinute,
-		requestBurst:      requestBurst,
-		tokenBurst:        tokenBurst,
+		concurrency:       int64(r.config.DefaultConcurrency),
+		queueSize:         int64(r.config.DefaultQueueSize),
+		requestsPerMinute: float64(r.config.DefaultRequestsPerMinute),
+		tokensPerMinute:   float64(r.config.DefaultTokensPerMinute),
+		requestBurst:      r.config.DefaultRequestBurst,
+		tokenBurst:        r.config.DefaultTokenBurst,
 	}
+}
+
+// applyPerProviderSettings merges provider-specific config overrides into the limiter settings.
+func (r *RateLimiterRegistry) applyPerProviderSettings(
+	settings limiterSettings,
+	provider core.ProviderName,
+) limiterSettings {
+	perProvider := r.lookupPerProvider(strings.ToLower(string(provider)))
+	if perProvider == nil {
+		return settings
+	}
+	if perProvider.Concurrency > 0 {
+		settings.concurrency = int64(perProvider.Concurrency)
+	}
+	if perProvider.QueueSize > 0 {
+		settings.queueSize = int64(perProvider.QueueSize)
+	}
+	if perProvider.RequestsPerMinute > 0 {
+		settings.requestsPerMinute = float64(perProvider.RequestsPerMinute)
+	}
+	if perProvider.TokensPerMinute > 0 {
+		settings.tokensPerMinute = float64(perProvider.TokensPerMinute)
+	}
+	if perProvider.RequestBurst > 0 {
+		settings.requestBurst = perProvider.RequestBurst
+	}
+	if perProvider.TokenBurst > 0 {
+		settings.tokenBurst = perProvider.TokenBurst
+	}
+	return settings
+}
+
+// applyOverrideLimiterSettings merges runtime overrides into limiter settings.
+func applyOverrideLimiterSettings(settings limiterSettings, override *core.ProviderRateLimitConfig) limiterSettings {
+	if override == nil {
+		return settings
+	}
+	if override.Concurrency > 0 {
+		settings.concurrency = int64(override.Concurrency)
+	}
+	if override.QueueSize > 0 {
+		settings.queueSize = int64(override.QueueSize)
+	}
+	if override.RequestsPerMinute > 0 {
+		settings.requestsPerMinute = float64(override.RequestsPerMinute)
+	}
+	if override.TokensPerMinute > 0 {
+		settings.tokensPerMinute = float64(override.TokensPerMinute)
+	}
+	if override.RequestBurst > 0 {
+		settings.requestBurst = override.RequestBurst
+	}
+	if override.TokenBurst > 0 {
+		settings.tokenBurst = override.TokenBurst
+	}
+	return settings
 }
 
 func (r *RateLimiterRegistry) lookupPerProvider(
@@ -294,8 +310,8 @@ func (l *providerRateLimiter) matches(settings limiterSettings) bool {
 	}
 	return l.concurrency == settings.concurrency &&
 		l.queueSize == settings.queueSize &&
-		math.Abs(l.requestsPerMinute-settings.requestsPerMinute) < 1e-9 &&
-		math.Abs(l.tokensPerMinute-settings.tokensPerMinute) < 1e-9 &&
+		math.Abs(l.requestsPerMinute-settings.requestsPerMinute) < rateLimitFloatEpsilon &&
+		math.Abs(l.tokensPerMinute-settings.tokensPerMinute) < rateLimitFloatEpsilon &&
 		l.requestBurst == settings.requestBurst &&
 		l.tokenBurst == settings.tokenBurst
 }
@@ -344,9 +360,12 @@ func (l *providerRateLimiter) release(ctx context.Context, tokens int) {
 	if l == nil || !l.enabled || l.sem == nil {
 		return
 	}
-	if l.tokenLimiter != nil && tokens > 0 && ctx != nil {
-		// best-effort token release; ignore context cancellation errors
-		_ = l.tokenLimiter.WaitN(ctx, tokens) //nolint:errcheck // release tokens even if context is done
+	if l.tokenLimiter != nil && tokens > 0 {
+		waitCtx := context.Background()
+		if ctx != nil {
+			waitCtx = context.WithoutCancel(ctx)
+		}
+		_ = l.tokenLimiter.WaitN(waitCtx, tokens) //nolint:errcheck // throttle until token budget is available
 	}
 	l.sem.Release(1)
 	l.metrics.activeRequests.Add(-1)

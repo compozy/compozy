@@ -22,6 +22,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	defaultWorkflowsLimit = 50
+	maxWorkflowsLimit     = 500
+)
+
 // getWorkflowByID retrieves a workflow definition by its ID.
 //
 //	@Summary		Get workflow
@@ -98,7 +103,7 @@ func listWorkflows(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), defaultWorkflowsLimit, maxWorkflowsLimit)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
@@ -181,9 +186,8 @@ func upsertWorkflow(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	body := make(map[string]any)
-	if err := c.ShouldBindJSON(&body); err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+	body := router.GetRequestBody[map[string]any](c)
+	if body == nil {
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
@@ -192,7 +196,7 @@ func upsertWorkflow(c *gin.Context) {
 		return
 	}
 	out, execErr := wfuc.NewUpsert(store).
-		Execute(c.Request.Context(), &wfuc.UpsertInput{Project: project, ID: workflowID, Body: body, IfMatch: ifMatch})
+		Execute(c.Request.Context(), &wfuc.UpsertInput{Project: project, ID: workflowID, Body: *body, IfMatch: ifMatch})
 	if execErr != nil {
 		respondWorkflowError(c, execErr)
 		return
@@ -261,6 +265,11 @@ func respondWorkflowError(c *gin.Context, err error) {
 	case errors.Is(err, wfuc.ErrETagMismatch) || errors.Is(err, wfuc.ErrStaleIfMatch):
 		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	default:
+		var conflict resourceutil.ConflictError
+		if errors.As(err, &conflict) {
+			resourceutil.RespondConflict(c, err, conflict.Details)
+			return
+		}
 		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

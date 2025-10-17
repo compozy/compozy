@@ -2,6 +2,7 @@ package llmadapter
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -45,7 +46,7 @@ func TestErrorParserSuggestedRetryDelay(t *testing.T) {
 			err:      fmt.Errorf("status code: 429"),
 			headersFn: func() map[string]string {
 				return map[string]string{
-					"Retry-After": time.Now().Add(3 * time.Second).In(time.FixedZone("GMT", 0)).Format(time.RFC1123),
+					"Retry-After": time.Now().UTC().Add(3 * time.Second).Format(http.TimeFormat),
 				}
 			},
 			wantSec: 3,

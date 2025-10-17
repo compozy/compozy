@@ -17,6 +17,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	defaultKnowledgeLimit = 50
+	maxKnowledgeLimit     = 500
+)
+
 // listKnowledgeBases handles GET /knowledge-bases.
 //
 // @Summary List knowledge bases
@@ -41,7 +46,7 @@ func listKnowledgeBases(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), defaultKnowledgeLimit, maxKnowledgeLimit)
 	cursor, err := router.DecodeCursor(c.Query("cursor"))
 	if err != nil {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})

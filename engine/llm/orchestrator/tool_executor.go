@@ -37,7 +37,10 @@ func (e *toolExecutor) workerCount(callCount int) int {
 	if limit <= 0 {
 		limit = defaultMaxConcurrentTools
 	}
-	workers := min(limit, callCount)
+	workers := limit
+	if callCount < workers {
+		workers = callCount
+	}
 	if workers == 0 {
 		return 1
 	}
@@ -51,7 +54,7 @@ func (e *toolExecutor) startToolWorkers(
 	results []llmadapter.ToolResult,
 	workers int,
 ) {
-	for range workers {
+	for i := 0; i < workers; i++ {
 		g.Go(func() error {
 			for job := range jobs {
 				select {

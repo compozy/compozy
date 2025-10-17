@@ -1142,6 +1142,12 @@ func registerLLMRateLimiterFields(registry *Registry) {
 }
 
 func registerLLMRateLimiterDefaults(registry *Registry) {
+	registerLLMRateLimiterToggle(registry)
+	registerLLMRateLimiterConcurrencyDefaults(registry)
+	registerLLMRateLimiterThroughputDefaults(registry)
+}
+
+func registerLLMRateLimiterToggle(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "llm.rate_limiting.enabled",
 		Default: true,
@@ -1150,6 +1156,9 @@ func registerLLMRateLimiterDefaults(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Enable per-provider concurrency limiting for upstream LLM calls",
 	})
+}
+
+func registerLLMRateLimiterConcurrencyDefaults(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "llm.rate_limiting.default_concurrency",
 		Default: 10,
@@ -1166,6 +1175,9 @@ func registerLLMRateLimiterDefaults(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Default queue size for pending requests waiting on concurrency slots",
 	})
+}
+
+func registerLLMRateLimiterThroughputDefaults(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "llm.rate_limiting.default_requests_per_minute",
 		Default: 0,

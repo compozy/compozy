@@ -463,8 +463,11 @@ func cloneEmbedderOverrides(src map[string]*knowledge.EmbedderConfig) map[string
 			out[key] = nil
 			continue
 		}
-		copyCfg := *cfg
-		out[key] = &copyCfg
+		if copyCfg, err := core.DeepCopy(*cfg); err == nil {
+			out[key] = &copyCfg
+			continue
+		}
+		out[key] = cfg
 	}
 	return out
 }
@@ -482,8 +485,11 @@ func cloneVectorOverrides(src map[string]*knowledge.VectorDBConfig) map[string]*
 			out[key] = nil
 			continue
 		}
-		copyCfg := *cfg
-		out[key] = &copyCfg
+		if copyCfg, err := core.DeepCopy(*cfg); err == nil {
+			out[key] = &copyCfg
+			continue
+		}
+		out[key] = cfg
 	}
 	return out
 }
@@ -501,8 +507,11 @@ func cloneKnowledgeOverrides(src map[string]*knowledge.BaseConfig) map[string]*k
 			out[key] = nil
 			continue
 		}
-		copyCfg := *cfg
-		out[key] = &copyCfg
+		if copyCfg, err := core.DeepCopy(*cfg); err == nil {
+			out[key] = &copyCfg
+			continue
+		}
+		out[key] = cfg
 	}
 	return out
 }

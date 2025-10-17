@@ -95,6 +95,7 @@ func (b *requestBuilder) Build(
 		"output_format", b.describeOutputFormat(promptResult.Format),
 		"force_json", forceJSON,
 	)
+	stopWords := append([]string(nil), request.Agent.Model.Config.Params.StopWords...)
 	llmReq := llmadapter.LLMRequest{
 		SystemPrompt: b.enhanceSystemPromptWithBuiltins(ctx, request.Agent.Instructions),
 		Messages:     messages,
@@ -103,7 +104,7 @@ func (b *requestBuilder) Build(
 			Temperature:       temperature,
 			TemperatureSet:    request.Agent.Model.Config.Params.IsSetTemperature(),
 			MaxTokens:         request.Agent.Model.Config.Params.MaxTokens,
-			StopWords:         request.Agent.Model.Config.Params.StopWords,
+			StopWords:         stopWords,
 			ToolChoice:        toolChoice,
 			OutputFormat:      promptResult.Format,
 			ForceJSON:         forceJSON,
