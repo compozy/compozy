@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/metric"
@@ -29,14 +30,14 @@ func initMetrics(ctx context.Context, meter metric.Meter) {
 	initOnce.Do(func() {
 		var err error
 		httpRequestsTotal, err = meter.Int64Counter(
-			"compozy_http_requests",
+			metrics.MetricNameWithSubsystem("http", "requests"),
 			metric.WithDescription("Total HTTP requests"),
 		)
 		if err != nil {
 			log.Error("Failed to create http requests total counter", "error", err)
 		}
 		httpRequestDuration, err = meter.Float64Histogram(
-			"compozy_http_request_duration_seconds",
+			metrics.MetricNameWithSubsystem("http", "request_duration_seconds"),
 			metric.WithDescription("HTTP request latency"),
 			metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
 		)
@@ -44,7 +45,7 @@ func initMetrics(ctx context.Context, meter metric.Meter) {
 			log.Error("Failed to create http request duration histogram", "error", err)
 		}
 		httpRequestsInFlight, err = meter.Int64UpDownCounter(
-			"compozy_http_requests_in_flight",
+			metrics.MetricNameWithSubsystem("http", "requests_in_flight"),
 			metric.WithDescription("Currently active HTTP requests"),
 		)
 		if err != nil {

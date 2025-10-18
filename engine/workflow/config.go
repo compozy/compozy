@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
@@ -617,13 +618,13 @@ func setupCompileMetrics() (metric.Float64Histogram, metric.Int64Counter) {
 		return nil, nil
 	}
 	if h, err := meter.Float64Histogram(
-		"compozy_compile_duration_seconds",
+		monitoringmetrics.MetricNameWithSubsystem("compile", "duration_seconds"),
 		metric.WithDescription("Duration of workflow compile step"),
 	); err == nil {
 		hist = h
 	}
 	if c, err := meter.Int64Counter(
-		"compozy_compile_total",
+		monitoringmetrics.MetricNameWithSubsystem("compile", "total"),
 		metric.WithDescription("Count of workflow compile attempts"),
 	); err == nil {
 		cnt = c

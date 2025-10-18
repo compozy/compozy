@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -56,7 +57,7 @@ func newExecutionMetrics(meter metric.Meter) (*ExecutionMetrics, error) {
 		return &ExecutionMetrics{}, nil
 	}
 	latency, err := meter.Float64Histogram(
-		"http_exec_sync_latency_seconds",
+		metrics.MetricNameWithSubsystem("http_exec", "sync_latency_seconds"),
 		metric.WithDescription("Latency of synchronous execution endpoints"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(executionLatencyBuckets...),
@@ -65,7 +66,7 @@ func newExecutionMetrics(meter metric.Meter) (*ExecutionMetrics, error) {
 		return nil, fmt.Errorf("failed to create execution latency histogram: %w", err)
 	}
 	timeouts, err := meter.Int64Counter(
-		"http_exec_timeouts_total",
+		metrics.MetricNameWithSubsystem("http_exec", "timeouts_total"),
 		metric.WithDescription("Total timeouts observed for execution endpoints"),
 		metric.WithUnit("1"),
 	)
@@ -73,7 +74,7 @@ func newExecutionMetrics(meter metric.Meter) (*ExecutionMetrics, error) {
 		return nil, fmt.Errorf("failed to create execution timeout counter: %w", err)
 	}
 	errorsCounter, err := meter.Int64Counter(
-		"http_exec_errors_total",
+		metrics.MetricNameWithSubsystem("http_exec", "errors_total"),
 		metric.WithDescription("Total errors returned by execution endpoints grouped by HTTP status"),
 		metric.WithUnit("1"),
 	)

@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/retriever"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
@@ -283,10 +284,11 @@ func TestService_ShouldEmitObservabilitySignals(t *testing.T) {
 	var rm metricdata.ResourceMetrics
 	err = reader.Collect(context.Background(), &rm)
 	require.NoError(t, err)
+	latencyName := monitoringmetrics.MetricNameWithSubsystem("knowledge", "query_latency_seconds")
 	foundLatency := false
 	for _, scope := range rm.ScopeMetrics {
 		for _, metric := range scope.Metrics {
-			if metric.Name != "knowledge_query_latency_seconds" {
+			if metric.Name != latencyName {
 				continue
 			}
 			hist, ok := metric.Data.(metricdata.Histogram[float64])
@@ -299,7 +301,7 @@ func TestService_ShouldEmitObservabilitySignals(t *testing.T) {
 			foundLatency = true
 		}
 	}
-	assert.True(t, foundLatency, "expected knowledge_query_latency_seconds metric")
+	assert.True(t, foundLatency, "expected %s metric", latencyName)
 	spans := spanRecorder.Ended()
 	require.NotEmpty(t, spans)
 	retrieveSpan := findSpan(t, spans, "compozy.knowledge.retriever.retrieve")

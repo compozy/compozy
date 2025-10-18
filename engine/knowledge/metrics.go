@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -115,7 +116,7 @@ func ensureMetrics() error {
 func initLatencyMetrics(meter metric.Meter) error {
 	var err error
 	ingestDurationHist, err = meter.Float64Histogram(
-		"knowledge_ingest_duration_seconds",
+		metrics.MetricNameWithSubsystem("knowledge", "ingest_duration_seconds"),
 		metric.WithDescription("Latency of knowledge base ingestion runs"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(.05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60, 120),
@@ -124,7 +125,7 @@ func initLatencyMetrics(meter metric.Meter) error {
 		return err
 	}
 	chunkCounter, err = meter.Int64Counter(
-		"knowledge_chunks_total",
+		metrics.MetricNameWithSubsystem("knowledge", "chunks_total"),
 		metric.WithDescription("Number of chunks persisted per knowledge base ingestion"),
 		metric.WithUnit("1"),
 	)
@@ -132,7 +133,7 @@ func initLatencyMetrics(meter metric.Meter) error {
 		return err
 	}
 	queryLatencyHist, err = meter.Float64Histogram(
-		"knowledge_query_latency_seconds",
+		metrics.MetricNameWithSubsystem("knowledge", "query_latency_seconds"),
 		metric.WithDescription("Latency of knowledge base retrieval queries"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5),
@@ -143,7 +144,7 @@ func initLatencyMetrics(meter metric.Meter) error {
 func initRetrievalMetrics(meter metric.Meter) error {
 	var err error
 	retrievalAttemptCounter, err = meter.Int64Counter(
-		"knowledge_retrieval_attempt_total",
+		metrics.MetricNameWithSubsystem("knowledge", "retrieval_attempt_total"),
 		metric.WithDescription("Number of retrieval attempts performed by stage"),
 		metric.WithUnit("1"),
 	)
@@ -151,7 +152,7 @@ func initRetrievalMetrics(meter metric.Meter) error {
 		return err
 	}
 	retrievalEmptyCounter, err = meter.Int64Counter(
-		"knowledge_retrieval_empty_total",
+		metrics.MetricNameWithSubsystem("knowledge", "retrieval_empty_total"),
 		metric.WithDescription("Number of retrieval attempts that returned no contexts"),
 		metric.WithUnit("1"),
 	)
@@ -159,7 +160,7 @@ func initRetrievalMetrics(meter metric.Meter) error {
 		return err
 	}
 	routerDecisionCounter, err = meter.Int64Counter(
-		"knowledge_router_decision_total",
+		metrics.MetricNameWithSubsystem("knowledge", "router_decision_total"),
 		metric.WithDescription("Number of router decisions classified by outcome"),
 		metric.WithUnit("1"),
 	)
@@ -167,7 +168,7 @@ func initRetrievalMetrics(meter metric.Meter) error {
 		return err
 	}
 	toolEscalationCounter, err = meter.Int64Counter(
-		"knowledge_tool_escalation_total",
+		metrics.MetricNameWithSubsystem("knowledge", "tool_escalation_total"),
 		metric.WithDescription("Number of times the router escalated to tool usage"),
 		metric.WithUnit("1"),
 	)

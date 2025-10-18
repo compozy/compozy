@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -43,20 +44,48 @@ func initCounterMetrics(ctx context.Context, meter metric.Meter) error {
 		description string
 		target      *metric.Int64Counter
 	}{
-		{"compozy_memory_messages_total", "Total number of messages added to memory", &memoryMessagesTotal},
-		{"compozy_memory_tokens_total", "Total number of tokens added to memory", &memoryTokensTotal},
-		{"compozy_memory_trim_total", "Total number of memory trim operations", &memoryTrimTotal},
-		{"compozy_memory_flush_total", "Total number of memory flush operations", &memoryFlushTotal},
-		{"compozy_memory_lock_acquire_total", "Total number of memory lock acquisitions", &memoryLockAcquireTotal},
-		{"compozy_memory_lock_contention_total", "Total number of memory lock contentions", &memoryLockContentionTotal},
-		{"compozy_memory_tokens_saved_total", "Total number of tokens saved by trimming", &memoryTokensSavedTotal},
 		{
-			"compozy_memory_redaction_operations_total",
+			monitoringmetrics.MetricNameWithSubsystem("memory", "messages_total"),
+			"Total number of messages added to memory",
+			&memoryMessagesTotal,
+		},
+		{
+			monitoringmetrics.MetricNameWithSubsystem("memory", "tokens_total"),
+			"Total number of tokens added to memory",
+			&memoryTokensTotal,
+		},
+		{
+			monitoringmetrics.MetricNameWithSubsystem("memory", "trim_total"),
+			"Total number of memory trim operations",
+			&memoryTrimTotal,
+		},
+		{
+			monitoringmetrics.MetricNameWithSubsystem("memory", "flush_total"),
+			"Total number of memory flush operations",
+			&memoryFlushTotal,
+		},
+		{
+			monitoringmetrics.MetricNameWithSubsystem("memory", "lock_acquire_total"),
+			"Total number of memory lock acquisitions",
+			&memoryLockAcquireTotal,
+		},
+		{
+			monitoringmetrics.MetricNameWithSubsystem("memory", "lock_contention_total"),
+			"Total number of memory lock contentions",
+			&memoryLockContentionTotal,
+		},
+		{
+			monitoringmetrics.MetricNameWithSubsystem("memory", "tokens_saved_total"),
+			"Total number of tokens saved by trimming",
+			&memoryTokensSavedTotal,
+		},
+		{
+			monitoringmetrics.MetricNameWithSubsystem("memory", "redaction_operations_total"),
 			"Total number of redaction operations",
 			&memoryRedactionOperations,
 		},
 		{
-			"compozy_memory_circuit_breaker_trips_total",
+			monitoringmetrics.MetricNameWithSubsystem("memory", "circuit_breaker_trips_total"),
 			"Total number of circuit breaker trips",
 			&memoryCircuitBreakerTrips,
 		},
@@ -75,12 +104,13 @@ func initCounterMetrics(ctx context.Context, meter metric.Meter) error {
 func initHistogramMetrics(ctx context.Context, meter metric.Meter) error {
 	log := logger.FromContext(ctx)
 	var err error
+	histogramName := monitoringmetrics.MetricNameWithSubsystem("memory", "operation_duration_seconds")
 	memoryOperationLatency, err = meter.Float64Histogram(
-		"compozy_memory_operation_duration_seconds",
+		histogramName,
 		metric.WithDescription("Duration of memory operations in seconds"),
 	)
 	if err != nil {
-		log.Error("Failed to create histogram", "name", "compozy_memory_operation_duration_seconds", "error", err)
+		log.Error("Failed to create histogram", "name", histogramName, "error", err)
 		return err
 	}
 	return nil
@@ -94,17 +124,17 @@ func initObservableGauges(ctx context.Context, meter metric.Meter) error {
 		target      *metric.Int64ObservableGauge
 	}{
 		{
-			"compozy_memory_goroutine_pool_active",
+			monitoringmetrics.MetricNameWithSubsystem("memory", "goroutine_pool_active"),
 			"Number of active goroutines in memory pools",
 			&memoryGoroutinePoolActive,
 		},
 		{
-			"compozy_memory_tokens_used",
+			monitoringmetrics.MetricNameWithSubsystem("memory", "tokens_used"),
 			"Current number of tokens used in memory instances",
 			&memoryTokensUsedGauge,
 		},
 		{
-			"compozy_memory_health_status",
+			monitoringmetrics.MetricNameWithSubsystem("memory", "health_status"),
 			"Health status of memory instances (1=healthy, 0=unhealthy)",
 			&memoryHealthStatusGauge,
 		},

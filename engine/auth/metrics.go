@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -26,7 +27,7 @@ func InitMetrics(meter metric.Meter) error {
 	var err error
 	metricsOnce.Do(func() {
 		authRequestsTotal, err = meter.Int64Counter(
-			"auth_requests_total",
+			metrics.MetricNameWithSubsystem("auth", "requests_total"),
 			metric.WithDescription("Total number of auth requests"),
 			metric.WithUnit("1"),
 		)
@@ -35,7 +36,7 @@ func InitMetrics(meter metric.Meter) error {
 		}
 
 		authLatency, err = meter.Float64Histogram(
-			"auth_latency_seconds",
+			metrics.MetricNameWithSubsystem("auth", "latency_seconds"),
 			metric.WithDescription("Auth middleware latency"),
 			metric.WithUnit("s"),
 			metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),

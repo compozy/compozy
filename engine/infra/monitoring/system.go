@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/version"
 	"go.opentelemetry.io/otel/attribute"
@@ -53,7 +54,7 @@ func initSystemMetrics(ctx context.Context, meter metric.Meter) {
 		startTime = time.Now()
 		// Create gauges first (fast operations)
 		buildInfo, err = meter.Float64ObservableGauge(
-			"compozy_build_info",
+			metrics.MetricName("build_info"),
 			metric.WithDescription("Build information (value=1)"),
 		)
 		if err != nil {
@@ -62,7 +63,7 @@ func initSystemMetrics(ctx context.Context, meter metric.Meter) {
 		}
 		// Create observable gauge for uptime
 		uptimeGauge, err = meter.Float64ObservableGauge(
-			"compozy_uptime_seconds",
+			metrics.MetricName("uptime_seconds"),
 			metric.WithDescription("Service uptime in seconds"),
 		)
 		if err != nil {

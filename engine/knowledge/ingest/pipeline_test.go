@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/ingest"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
@@ -443,18 +444,20 @@ func assertPipelineMetrics(
 	t.Helper()
 	var rm metricdata.ResourceMetrics
 	require.NoError(t, reader.Collect(context.Background(), &rm))
+	durationName := monitoringmetrics.MetricNameWithSubsystem("knowledge", "ingest_duration_seconds")
+	chunkName := monitoringmetrics.MetricNameWithSubsystem("knowledge", "chunks_total")
 	foundDuration := false
 	foundChunks := false
 	for _, scope := range rm.ScopeMetrics {
 		for _, metric := range scope.Metrics {
 			switch metric.Name {
-			case "knowledge_ingest_duration_seconds":
+			case durationName:
 				data := getHistogramData(t, metric)
 				attrs := attributesToMap(data.Attributes)
 				assert.Equal(t, binding.KnowledgeBase.ID, attrs["kb_id"])
 				assert.Greater(t, data.Sum, 0.0)
 				foundDuration = true
-			case "knowledge_chunks_total":
+			case chunkName:
 				data := getSumDataPoint(t, metric)
 				attrs := attributesToMap(data.Attributes)
 				assert.Equal(t, binding.KnowledgeBase.ID, attrs["kb_id"])
@@ -463,8 +466,8 @@ func assertPipelineMetrics(
 			}
 		}
 	}
-	assert.True(t, foundDuration, "expected knowledge_ingest_duration_seconds metric")
-	assert.True(t, foundChunks, "expected knowledge_chunks_total metric")
+	assert.True(t, foundDuration, "expected %s metric", durationName)
+	assert.True(t, foundChunks, "expected %s metric", chunkName)
 }
 
 func getHistogramData(t *testing.T, metric metricdata.Metrics) metricdata.HistogramDataPoint[float64] {

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -87,7 +88,7 @@ func initDispatcherHealthMetrics(ctx context.Context, meter metric.Meter) {
 	dispatcherHealthInitOnce.Do(func() {
 		var err error
 		dispatcherHealthGauge, err = meter.Int64ObservableGauge(
-			"compozy_dispatcher_health_status",
+			metrics.MetricNameWithSubsystem("dispatcher", "health_status"),
 			metric.WithDescription("Dispatcher health status (1=healthy, 0=unhealthy)"),
 		)
 		if err != nil {
@@ -95,7 +96,7 @@ func initDispatcherHealthMetrics(ctx context.Context, meter metric.Meter) {
 			return
 		}
 		dispatcherHeartbeatAgeSeconds, err = meter.Float64ObservableGauge(
-			"compozy_dispatcher_heartbeat_age_seconds",
+			metrics.MetricNameWithSubsystem("dispatcher", "heartbeat_age_seconds"),
 			metric.WithDescription("Seconds since the last dispatcher heartbeat was observed"),
 		)
 		if err != nil {
@@ -103,7 +104,7 @@ func initDispatcherHealthMetrics(ctx context.Context, meter metric.Meter) {
 			return
 		}
 		dispatcherFailureCount, err = meter.Int64ObservableGauge(
-			"compozy_dispatcher_consecutive_failures",
+			metrics.MetricNameWithSubsystem("dispatcher", "consecutive_failures"),
 			metric.WithDescription("Number of consecutive dispatcher health check failures"),
 		)
 		if err != nil {

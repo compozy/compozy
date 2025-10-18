@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -47,7 +48,7 @@ func (m *Metrics) init() error {
 func (m *Metrics) initCounters() error {
 	var err error
 	m.receivedTotal, err = m.meter.Int64Counter(
-		"compozy_webhook_received_total",
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "received_total"),
 		metric.WithDescription("Total webhook requests received"),
 		metric.WithUnit("1"),
 	)
@@ -55,7 +56,7 @@ func (m *Metrics) initCounters() error {
 		return fmt.Errorf("failed to create webhook received counter: %w", err)
 	}
 	m.verifiedTotal, err = m.meter.Int64Counter(
-		"compozy_webhook_verified_total",
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "verified_total"),
 		metric.WithDescription("Total webhook requests successfully verified"),
 		metric.WithUnit("1"),
 	)
@@ -63,7 +64,7 @@ func (m *Metrics) initCounters() error {
 		return fmt.Errorf("failed to create webhook verified counter: %w", err)
 	}
 	m.duplicateTotal, err = m.meter.Int64Counter(
-		"compozy_webhook_duplicate_total",
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "duplicate_total"),
 		metric.WithDescription("Total duplicate webhook requests detected"),
 		metric.WithUnit("1"),
 	)
@@ -71,7 +72,7 @@ func (m *Metrics) initCounters() error {
 		return fmt.Errorf("failed to create webhook duplicate counter: %w", err)
 	}
 	m.dispatchedTotal, err = m.meter.Int64Counter(
-		"compozy_webhook_dispatched_total",
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "dispatched_total"),
 		metric.WithDescription("Total webhook events dispatched"),
 		metric.WithUnit("1"),
 	)
@@ -79,7 +80,7 @@ func (m *Metrics) initCounters() error {
 		return fmt.Errorf("failed to create webhook dispatched counter: %w", err)
 	}
 	m.noMatchTotal, err = m.meter.Int64Counter(
-		"compozy_webhook_no_match_total",
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "no_match_total"),
 		metric.WithDescription("Total webhook requests with no matching event"),
 		metric.WithUnit("1"),
 	)
@@ -87,7 +88,7 @@ func (m *Metrics) initCounters() error {
 		return fmt.Errorf("failed to create webhook no_match counter: %w", err)
 	}
 	m.failedTotal, err = m.meter.Int64Counter(
-		"compozy_webhook_failed_total",
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "failed_total"),
 		metric.WithDescription("Total webhook processing failures by reason"),
 		metric.WithUnit("1"),
 	)
@@ -100,7 +101,7 @@ func (m *Metrics) initCounters() error {
 func (m *Metrics) initHistograms() error {
 	var err error
 	m.processingHistogram, err = m.meter.Float64Histogram(
-		"compozy_webhook_processing_duration_seconds",
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "processing_duration_seconds"),
 		metric.WithDescription("Overall webhook processing duration"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
@@ -109,7 +110,7 @@ func (m *Metrics) initHistograms() error {
 		return fmt.Errorf("failed to create webhook processing duration histogram: %w", err)
 	}
 	m.verifyHistogram, err = m.meter.Float64Histogram(
-		"compozy_webhook_verify_duration_seconds",
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "verify_duration_seconds"),
 		metric.WithDescription("Webhook verification duration"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5),
@@ -118,7 +119,7 @@ func (m *Metrics) initHistograms() error {
 		return fmt.Errorf("failed to create webhook verify duration histogram: %w", err)
 	}
 	m.renderHistogram, err = m.meter.Float64Histogram(
-		"compozy_webhook_render_duration_seconds",
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "render_duration_seconds"),
 		metric.WithDescription("Webhook render duration"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5),
@@ -127,7 +128,7 @@ func (m *Metrics) initHistograms() error {
 		return fmt.Errorf("failed to create webhook render duration histogram: %w", err)
 	}
 	m.dispatchHistogram, err = m.meter.Float64Histogram(
-		"compozy_webhook_dispatch_duration_seconds",
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "dispatch_duration_seconds"),
 		metric.WithDescription("Webhook dispatch duration"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5, 1),

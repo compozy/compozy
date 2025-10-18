@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/workflow"
@@ -295,7 +296,7 @@ func (s *service) resolveMode(ctx context.Context, projectConfig *project.Config
 	log.Info("Resolved source of truth mode", "mode", mode)
 	if meter := otel.GetMeterProvider().Meter("compozy"); meter != nil {
 		sel, err := meter.Int64Counter(
-			"compozy_mode_selected_total",
+			monitoringmetrics.MetricNameWithSubsystem("mode", "selected_total"),
 			metric.WithDescription("Count of server mode selections at startup"),
 		)
 		if err == nil {

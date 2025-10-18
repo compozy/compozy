@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -35,7 +36,7 @@ func InitMetrics(meter metric.Meter) error {
 	initMetricsOnce.Do(func() {
 		var err error
 		toolInvocationsTotal, err = meter.Int64Counter(
-			"compozy_tool_invocations_total",
+			metrics.MetricNameWithSubsystem("tool", "invocations_total"),
 			metric.WithDescription("Total cp__ tool invocations grouped by status"),
 		)
 		if err != nil {
@@ -43,7 +44,7 @@ func InitMetrics(meter metric.Meter) error {
 			return
 		}
 		toolLatencySeconds, err = meter.Float64Histogram(
-			"compozy_tool_latency_seconds",
+			metrics.MetricNameWithSubsystem("tool", "latency_seconds"),
 			metric.WithDescription("cp__ tool invocation latency in seconds"),
 		)
 		if err != nil {
@@ -51,7 +52,7 @@ func InitMetrics(meter metric.Meter) error {
 			return
 		}
 		toolResponseBytes, err = meter.Int64Histogram(
-			"compozy_tool_response_bytes",
+			metrics.MetricNameWithSubsystem("tool", "response_bytes"),
 			metric.WithDescription("cp__ tool response size in bytes"),
 		)
 		if err != nil {
@@ -59,7 +60,7 @@ func InitMetrics(meter metric.Meter) error {
 			return
 		}
 		toolStepExecutionsTotal, err = meter.Int64Counter(
-			"compozy_tool_step_executions_total",
+			metrics.MetricNameWithSubsystem("tool", "step_executions_total"),
 			metric.WithDescription("Total cp__ tool step executions grouped by status"),
 		)
 		if err != nil {
@@ -67,7 +68,7 @@ func InitMetrics(meter metric.Meter) error {
 			return
 		}
 		toolStepLatencySeconds, err = meter.Float64Histogram(
-			"compozy_tool_step_latency_seconds",
+			metrics.MetricNameWithSubsystem("tool", "step_latency_seconds"),
 			metric.WithDescription("cp__ tool step execution latency in seconds"),
 		)
 		if err != nil {
