@@ -61,8 +61,8 @@ func (e *Expander) ExpandItems(
 		return nil, fmt.Errorf("failed to create child configs: %w", err)
 	}
 	// Validate all child configurations
-	if err := e.validateChildConfigs(childConfigs); err != nil {
-		return nil, fmt.Errorf("child config validation failed: %w", err)
+	if err := e.validateChildConfigs(ctx, childConfigs); err != nil {
+		return nil, fmt.Errorf("failed to validate child configs: %w", err)
 	}
 	return &shared.ExpansionResult{
 		ChildConfigs: childConfigs,
@@ -72,7 +72,7 @@ func (e *Expander) ExpandItems(
 }
 
 // ValidateExpansion validates the expansion result
-func (e *Expander) ValidateExpansion(result *shared.ExpansionResult) error {
+func (e *Expander) ValidateExpansion(ctx context.Context, result *shared.ExpansionResult) error {
 	if result == nil {
 		return fmt.Errorf("expansion result cannot be nil")
 	}
@@ -93,7 +93,7 @@ func (e *Expander) ValidateExpansion(result *shared.ExpansionResult) error {
 		if childConfig == nil {
 			return fmt.Errorf("child config at index %d is nil", i)
 		}
-		if err := childConfig.Validate(); err != nil {
+		if err := childConfig.Validate(ctx); err != nil {
 			return fmt.Errorf("child config at index %d validation failed: %w", i, err)
 		}
 	}
@@ -222,12 +222,12 @@ func (e *Expander) injectCollectionContext(
 }
 
 // validateChildConfigs validates all child configurations
-func (e *Expander) validateChildConfigs(childConfigs []*task.Config) error {
+func (e *Expander) validateChildConfigs(ctx context.Context, childConfigs []*task.Config) error {
 	for i, childConfig := range childConfigs {
 		if childConfig.ID == "" {
 			return fmt.Errorf("child config at index %d missing required ID field", i)
 		}
-		if err := childConfig.Validate(); err != nil {
+		if err := childConfig.Validate(ctx); err != nil {
 			return fmt.Errorf("child config at index %d validation failed: %w", i, err)
 		}
 	}

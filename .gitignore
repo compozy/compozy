@@ -11,7 +11,12 @@ sessions/
 diff.txt
 engine/schema/reviews/*.md
 ai-docs/**
+!ai-docs/reviews/
+!ai-docs/reviews/**
 .venv-crawl
+_reviews
+**/**/_reviews
+.tmp
 
 # === DEPENDENCIES ===
 node_modules/
@@ -63,6 +68,7 @@ dev-debug.log
 .envrc
 .env.*
 .env*.local
+!.env.example
 
 # === GENERATED CONTENT ===
 .contentlayer

@@ -8,8 +8,7 @@ workflow:
     # The condition "staging" matches the input.environment and routes to staging processing
     - id: fallback-router
       type: router
-      action: route_task
-      condition: "staging"  # Environment condition that matches input
+      condition: workflow.input.environment  # Route by environment using CEL
       routes:
         production: process-production  # Production deployment task
         staging: process-staging  # Staging deployment task

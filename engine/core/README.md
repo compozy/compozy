@@ -74,20 +74,20 @@ import (
 )
 
 // Generate unique IDs
-id, err := core.NewID()
+id, err := NewID()
 if err != nil {
     log.Fatal(err)
 }
 fmt.Printf("Generated ID: %s\n", id)
 
 // Create working directory context
-cwd, err := core.CWDFromPath("/path/to/project")
+cwd, err := CWDFromPath("/path/to/project")
 if err != nil {
     log.Fatal(err)
 }
 
 // Load configuration
-config, _, err := core.LoadConfig[*MyConfig]("/path/to/config.yaml")
+config, _, err := LoadConfig[*MyConfig]("/path/to/config.yaml")
 if err != nil {
     log.Fatal(err)
 }
@@ -108,19 +108,19 @@ if err := config.Validate(); err != nil {
 
 ```go
 // Generate unique identifiers
-id := core.MustNewID()
+id := MustNewID()
 fmt.Printf("ID: %s\n", id.String())
 
 // Work with status types
-status := core.StatusRunning
+status := StatusRunning
 fmt.Printf("Status: %s\n", status)
 
 // Convert proto status to core status
-coreStatus := core.ToStatus("WORKFLOW_STATUS_RUNNING")
+coreStatus := ToStatus("WORKFLOW_STATUS_RUNNING")
 fmt.Printf("Core Status: %s\n", coreStatus)
 
 // Get version information
-version := core.GetVersion()
+version := GetVersion()
 fmt.Printf("Version: %s\n", version)
 ```
 
@@ -128,13 +128,13 @@ fmt.Printf("Version: %s\n", version)
 
 ```go
 // Create working directory context
-cwd, err := core.CWDFromPath("/path/to/project")
+cwd, err := CWDFromPath("/path/to/project")
 if err != nil {
     log.Fatal(err)
 }
 
 // Resolve relative paths safely
-resolved, err := core.ResolvePath(cwd, "configs/agent.yaml")
+resolved, err := ResolvePath(cwd, "configs/agent.yaml")
 if err != nil {
     log.Fatal(err)
 }
@@ -157,12 +157,12 @@ type MyConfig struct {
     Settings     map[string]any    `json:"settings"`
 
     filePath     string
-    cwd          *core.PathCWD
+    cwd          *PathCWD
 }
 
 // Implement Config interface
-func (c *MyConfig) Component() core.ConfigType {
-    return core.ConfigTool // or appropriate type
+func (c *MyConfig) Component() ConfigType {
+    return ConfigTool // or appropriate type
 }
 
 func (c *MyConfig) SetFilePath(path string) {
@@ -174,7 +174,7 @@ func (c *MyConfig) GetFilePath() string {
 }
 
 func (c *MyConfig) SetCWD(path string) error {
-    cwd, err := core.CWDFromPath(path)
+    cwd, err := CWDFromPath(path)
     if err != nil {
         return err
     }
@@ -182,16 +182,16 @@ func (c *MyConfig) SetCWD(path string) error {
     return nil
 }
 
-func (c *MyConfig) GetCWD() *core.PathCWD {
+func (c *MyConfig) GetCWD() *PathCWD {
     return c.cwd
 }
 
-func (c *MyConfig) GetEnv() core.EnvMap {
-    return core.EnvMap{} // Return environment variables
+func (c *MyConfig) GetEnv() EnvMap {
+    return EnvMap{} // Return environment variables
 }
 
-func (c *MyConfig) GetInput() *core.Input {
-    return &core.Input{} // Return input parameters
+func (c *MyConfig) GetInput() *Input {
+    return &Input{} // Return input parameters
 }
 
 func (c *MyConfig) Validate() error {
@@ -201,12 +201,12 @@ func (c *MyConfig) Validate() error {
     return nil
 }
 
-func (c *MyConfig) ValidateInput(ctx context.Context, input *core.Input) error {
+func (c *MyConfig) ValidateInput(ctx context.Context, input *Input) error {
     // Validate input parameters
     return nil
 }
 
-func (c *MyConfig) ValidateOutput(ctx context.Context, output *core.Output) error {
+func (c *MyConfig) ValidateOutput(ctx context.Context, output *Output) error {
     // Validate output parameters
     return nil
 }
@@ -221,11 +221,11 @@ func (c *MyConfig) Merge(other any) error {
 }
 
 func (c *MyConfig) AsMap() (map[string]any, error) {
-    return core.AsMapDefault(c)
+    return AsMapDefault(c)
 }
 
 func (c *MyConfig) FromMap(data any) error {
-    config, err := core.FromMapDefault[*MyConfig](data)
+    config, err := FromMapDefault[*MyConfig](data)
     if err != nil {
         return err
     }
@@ -239,18 +239,18 @@ func (c *MyConfig) FromMap(data any) error {
 
 ```go
 // Generate new ID with error handling
-id, err := core.NewID()
+id, err := NewID()
 if err != nil {
     log.Fatal(err)
 }
 
 // Generate ID that panics on error (for initialization)
-id := core.MustNewID()
+id := MustNewID()
 
 // IDs are sortable by creation time
-id1 := core.MustNewID()
+id1 := MustNewID()
 time.Sleep(1 * time.Millisecond)
-id2 := core.MustNewID()
+id2 := MustNewID()
 
 // id1 < id2 lexicographically
 fmt.Printf("ID1: %s\n", id1)
@@ -263,37 +263,37 @@ fmt.Printf("ID2: %s\n", id2)
 
 ```go
 // Core status types
-statuses := []core.StatusType{
-    core.StatusPending,
-    core.StatusRunning,
-    core.StatusSuccess,
-    core.StatusFailed,
-    core.StatusTimedOut,
-    core.StatusCanceled,
-    core.StatusWaiting,
-    core.StatusPaused,
+statuses := []StatusType{
+    StatusPending,
+    StatusRunning,
+    StatusSuccess,
+    StatusFailed,
+    StatusTimedOut,
+    StatusCanceled,
+    StatusWaiting,
+    StatusPaused,
 }
 
 // Convert from proto statuses
 protoStatus := "WORKFLOW_STATUS_RUNNING"
-coreStatus := core.ToStatus(protoStatus)
+coreStatus := ToStatus(protoStatus)
 fmt.Printf("Core Status: %s\n", coreStatus)
 
 // Event types
-events := []core.EvtType{
-    core.EvtDispatched,
-    core.EvtStarted,
-    core.EvtSuccess,
-    core.EvtFailed,
-    core.EvtCanceled,
+events := []EvtType{
+    EvtDispatched,
+    EvtStarted,
+    EvtSuccess,
+    EvtFailed,
+    EvtCanceled,
 }
 
 // Component types
-components := []core.ComponentType{
-    core.ComponentWorkflow,
-    core.ComponentTask,
-    core.ComponentAgent,
-    core.ComponentTool,
+components := []ComponentType{
+    ComponentWorkflow,
+    ComponentTask,
+    ComponentAgent,
+    ComponentTool,
 }
 ```
 
@@ -303,13 +303,13 @@ components := []core.ComponentType{
 
 ```go
 // Load typed configuration
-config, path, err := core.LoadConfig[*MyConfig]("/path/to/config.yaml")
+config, path, err := LoadConfig[*MyConfig]("/path/to/config.yaml")
 if err != nil {
     log.Fatal(err)
 }
 
 // Load as generic map
-configMap, err := core.MapFromFilePath("/path/to/config.yaml")
+configMap, err := MapFromFilePath("/path/to/config.yaml")
 if err != nil {
     log.Fatal(err)
 }
@@ -405,17 +405,17 @@ type MyToolConfig struct {
     Name         string                 `json:"name" yaml:"name"`
     Runtime      string                 `json:"runtime" yaml:"runtime" validate:"required"`
     Code         string                 `json:"code" yaml:"code"`
-    With         *core.Input           `json:"with,omitempty" yaml:"with,omitempty"`
-    Env          *core.EnvMap          `json:"env,omitempty" yaml:"env,omitempty"`
+    With         *Input           `json:"with,omitempty" yaml:"with,omitempty"`
+    Env          *EnvMap          `json:"env,omitempty" yaml:"env,omitempty"`
     InputSchema  *schema.Schema        `json:"input,omitempty" yaml:"input,omitempty"`
     OutputSchema *schema.Schema        `json:"output,omitempty" yaml:"output,omitempty"`
 
     filePath     string
-    cwd          *core.PathCWD
+    cwd          *PathCWD
 }
 
-func (c *MyToolConfig) Component() core.ConfigType {
-    return core.ConfigTool
+func (c *MyToolConfig) Component() ConfigType {
+    return ConfigTool
 }
 
 func (c *MyToolConfig) SetFilePath(path string) {
@@ -427,7 +427,7 @@ func (c *MyToolConfig) GetFilePath() string {
 }
 
 func (c *MyToolConfig) SetCWD(path string) error {
-    cwd, err := core.CWDFromPath(path)
+    cwd, err := CWDFromPath(path)
     if err != nil {
         return err
     }
@@ -435,20 +435,20 @@ func (c *MyToolConfig) SetCWD(path string) error {
     return nil
 }
 
-func (c *MyToolConfig) GetCWD() *core.PathCWD {
+func (c *MyToolConfig) GetCWD() *PathCWD {
     return c.cwd
 }
 
-func (c *MyToolConfig) GetEnv() core.EnvMap {
+func (c *MyToolConfig) GetEnv() EnvMap {
     if c.Env == nil {
-        return core.EnvMap{}
+        return EnvMap{}
     }
     return *c.Env
 }
 
-func (c *MyToolConfig) GetInput() *core.Input {
+func (c *MyToolConfig) GetInput() *Input {
     if c.With == nil {
-        return &core.Input{}
+        return &Input{}
     }
     return c.With
 }
@@ -461,11 +461,11 @@ func (c *MyToolConfig) Validate() error {
     return validator.Validate()
 }
 
-func (c *MyToolConfig) ValidateInput(ctx context.Context, input *core.Input) error {
+func (c *MyToolConfig) ValidateInput(ctx context.Context, input *Input) error {
     return schema.NewParamsValidator(input, c.InputSchema, c.ID).Validate(ctx)
 }
 
-func (c *MyToolConfig) ValidateOutput(ctx context.Context, output *core.Output) error {
+func (c *MyToolConfig) ValidateOutput(ctx context.Context, output *Output) error {
     return schema.NewParamsValidator(output, c.OutputSchema, c.ID).Validate(ctx)
 }
 
@@ -491,11 +491,11 @@ func (c *MyToolConfig) Merge(other any) error {
 }
 
 func (c *MyToolConfig) AsMap() (map[string]any, error) {
-    return core.AsMapDefault(c)
+    return AsMapDefault(c)
 }
 
 func (c *MyToolConfig) FromMap(data any) error {
-    config, err := core.FromMapDefault[*MyToolConfig](data)
+    config, err := FromMapDefault[*MyToolConfig](data)
     if err != nil {
         return err
     }
@@ -533,7 +533,7 @@ func main() {
 original := &MyToolConfig{
     ID:   "original",
     Name: "Original Tool",
-    With: &core.Input{
+    With: &Input{
         "param1": "value1",
         "param2": map[string]any{
             "nested": "value",
@@ -542,7 +542,7 @@ original := &MyToolConfig{
 }
 
 // Create deep copy
-copied, err := core.DeepCopy(original)
+copied, err := DeepCopy(original)
 if err != nil {
     log.Fatal(err)
 }
@@ -559,7 +559,7 @@ fmt.Printf("Copied: %s\n", copied.Name)     // "Modified Tool"
 
 ```go
 // Create structured error with context
-err := core.NewError(
+err := NewError(
     fmt.Errorf("configuration validation failed"),
     "CONFIG_VALIDATION_ERROR",
     map[string]any{
@@ -570,7 +570,7 @@ err := core.NewError(
 )
 
 // Handle the error
-var coreErr *core.Error
+var coreErr *Error
 if errors.As(err, &coreErr) {
     fmt.Printf("Error Code: %s\n", coreErr.Code)
     fmt.Printf("Context: %+v\n", coreErr.Context)
@@ -692,11 +692,11 @@ The package includes comprehensive tests for:
 ```go
 func TestNewID(t *testing.T) {
     // Test ID generation
-    id1, err := core.NewID()
+    id1, err := NewID()
     require.NoError(t, err)
     require.NotEmpty(t, id1)
 
-    id2, err := core.NewID()
+    id2, err := NewID()
     require.NoError(t, err)
     require.NotEmpty(t, id2)
 
@@ -704,7 +704,7 @@ func TestNewID(t *testing.T) {
     require.NotEqual(t, id1, id2)
 
     // Test MustNewID
-    id3 := core.MustNewID()
+    id3 := MustNewID()
     require.NotEmpty(t, id3)
 }
 ```

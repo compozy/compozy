@@ -3,7 +3,6 @@ package resources
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sync"
 	"testing"
 
@@ -25,9 +24,7 @@ func (s *exampleStore) Put(_ context.Context, key ResourceKey, value any) (ETag,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if m, ok := value.(map[string]any); ok {
-		c := make(map[string]any, len(m))
-		maps.Copy(c, m)
-		s.m[key] = c
+		s.m[key] = core.CloneMap(m)
 	} else {
 		s.m[key] = value
 	}
@@ -42,8 +39,7 @@ func (s *exampleStore) Get(_ context.Context, key ResourceKey) (any, ETag, error
 		return nil, ETag(""), ErrNotFound
 	}
 	if m, ok := v.(map[string]any); ok {
-		c := make(map[string]any, len(m))
-		maps.Copy(c, m)
+		c := core.CloneMap(m)
 		return c, ETag(core.ETagFromAny(c)), nil
 	}
 	return v, ETag(core.ETagFromAny(v)), nil
@@ -58,8 +54,7 @@ func (s *exampleStore) PutIfMatch(_ context.Context, key ResourceKey, value any,
 			return ETag(""), ErrNotFound
 		}
 		if m, ok := value.(map[string]any); ok {
-			c := make(map[string]any, len(m))
-			maps.Copy(c, m)
+			c := core.CloneMap(m)
 			s.m[key] = c
 		} else {
 			s.m[key] = value
@@ -70,8 +65,7 @@ func (s *exampleStore) PutIfMatch(_ context.Context, key ResourceKey, value any,
 		return ETag(""), ErrETagMismatch
 	}
 	if m, ok := value.(map[string]any); ok {
-		c := make(map[string]any, len(m))
-		maps.Copy(c, m)
+		c := core.CloneMap(m)
 		s.m[key] = c
 	} else {
 		s.m[key] = value

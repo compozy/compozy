@@ -87,7 +87,7 @@ func normalizeKnowledgeTriple(
 	}
 	defaults := knowledge.DefaultsFromContext(ctx)
 	defs.NormalizeWithDefaults(defaults)
-	if err := defs.Validate(); err != nil {
+	if err := defs.Validate(ctx); err != nil {
 		return nil, nil, nil, err
 	}
 	if err := renderKnowledgeDefinitions(ctx, &defs); err != nil {

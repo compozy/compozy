@@ -20,7 +20,6 @@ models:
 
 runtime:
   type: bun
-  entrypoint: "./entrypoint.ts"
   permissions:
     - --allow-read
     - --allow-net

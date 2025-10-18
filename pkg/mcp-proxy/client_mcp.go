@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os/exec"
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/version"
 	mcpclient "github.com/mark3labs/mcp-go/client"
@@ -177,8 +177,7 @@ func createStdioMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, er
 func createSSEMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, error) {
 	var options []transport.ClientOption
 	if len(def.Headers) > 0 {
-		hdr := make(map[string]string, len(def.Headers))
-		maps.Copy(hdr, def.Headers)
+		hdr := core.CloneMap(def.Headers)
 		options = append(options, transport.WithHeaders(hdr))
 	}
 
@@ -194,8 +193,7 @@ func createSSEMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, erro
 func createStreamableHTTPMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, error) {
 	var options []transport.StreamableHTTPCOption
 	if len(def.Headers) > 0 {
-		hdr := make(map[string]string, len(def.Headers))
-		maps.Copy(hdr, def.Headers)
+		hdr := core.CloneMap(def.Headers)
 		options = append(options, transport.WithHTTPHeaders(hdr))
 	}
 	if def.Timeout > 0 {

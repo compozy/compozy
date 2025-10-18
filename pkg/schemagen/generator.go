@@ -57,9 +57,35 @@ func (g *SchemaGenerator) Generate(ctx context.Context, outDir string) error {
 	if err := g.initReflector(); err != nil {
 		return fmt.Errorf("failed to initialize reflector: %w", err)
 	}
-	var projectRuntimeSchema []byte
-	var configRuntimeSchema []byte
-	var schemaMu sync.Mutex
+	projectRuntimeSchema, configRuntimeSchema, err := g.generateDefinitions(ctx, outDir, log)
+	if err != nil {
+		return err
+	}
+	if len(projectRuntimeSchema) == 0 {
+		return fmt.Errorf("missing project runtime schema output")
+	}
+	if len(configRuntimeSchema) == 0 {
+		return fmt.Errorf("missing config runtime schema output")
+	}
+	if err := g.generateMergedRuntimeSchema(ctx, outDir, projectRuntimeSchema, configRuntimeSchema); err != nil {
+		return fmt.Errorf("failed to generate merged runtime schema: %w", err)
+	}
+	if err := g.generateUnifiedSchema(ctx, outDir); err != nil {
+		return fmt.Errorf("failed to generate unified schema: %w", err)
+	}
+	return nil
+}
+
+func (g *SchemaGenerator) generateDefinitions(
+	ctx context.Context,
+	outDir string,
+	log logger.Logger,
+) ([]byte, []byte, error) {
+	var (
+		projectRuntimeSchema []byte
+		configRuntimeSchema  []byte
+	)
+	schemaMu := sync.Mutex{}
 	group, _ := errgroup.WithContext(ctx)
 	group.SetLimit(runtime.GOMAXPROCS(0))
 	for _, definition := range g.definitions {
@@ -80,31 +106,20 @@ func (g *SchemaGenerator) Generate(ctx context.Context, outDir string) error {
 				configRuntimeSchema = schemaJSON
 				schemaMu.Unlock()
 				return nil
+			default:
+				filePath := filepath.Join(outDir, def.fileName())
+				if err := os.WriteFile(filePath, schemaJSON, schemaFilePerms); err != nil {
+					return fmt.Errorf("failed to write schema to %s: %w", filePath, err)
+				}
+				log.Info("Generated schema", "file", filePath)
+				return nil
 			}
-			filePath := filepath.Join(outDir, def.fileName())
-			if err := os.WriteFile(filePath, schemaJSON, schemaFilePerms); err != nil {
-				return fmt.Errorf("failed to write schema to %s: %w", filePath, err)
-			}
-			log.Info("Generated schema", "file", filePath)
-			return nil
 		})
 	}
 	if err := group.Wait(); err != nil {
-		return err
+		return nil, nil, err
 	}
-	if len(projectRuntimeSchema) == 0 {
-		return fmt.Errorf("missing project runtime schema output")
-	}
-	if len(configRuntimeSchema) == 0 {
-		return fmt.Errorf("missing config runtime schema output")
-	}
-	if err := g.generateMergedRuntimeSchema(ctx, outDir, projectRuntimeSchema, configRuntimeSchema); err != nil {
-		return fmt.Errorf("failed to generate merged runtime schema: %w", err)
-	}
-	if err := g.generateUnifiedSchema(ctx, outDir); err != nil {
-		return fmt.Errorf("failed to generate unified schema: %w", err)
-	}
-	return nil
+	return projectRuntimeSchema, configRuntimeSchema, nil
 }
 
 func (g *SchemaGenerator) buildSchema(definition schemaDefinition) ([]byte, error) {
@@ -115,7 +130,11 @@ func (g *SchemaGenerator) buildSchema(definition schemaDefinition) ([]byte, erro
 	if definition.title != "" {
 		schema.Title = definition.title
 	}
-	buf := bufferPool.Get().(*bytes.Buffer)
+	rawBuf := bufferPool.Get()
+	buf, ok := rawBuf.(*bytes.Buffer)
+	if !ok {
+		buf = &bytes.Buffer{}
+	}
 	buf.Reset()
 	defer bufferPool.Put(buf)
 	encoder := json.NewEncoder(buf)
@@ -134,8 +153,11 @@ func (g *SchemaGenerator) buildSchema(definition schemaDefinition) ([]byte, erro
 	return json.MarshalIndent(schemaMap, "", jsonIndent)
 }
 
-func removeCWDProperties(schemaMap map[string]any) bool {
-	return cleanseCWD(schemaMap)
+// removeCWDProperties strips the reflector-injected "cwd" metadata that leaks the
+// schema generation host path. This defensive pass keeps emitted schemas stable
+// across environments.
+func removeCWDProperties(schemaMap map[string]any) {
+	cleanseCWD(schemaMap)
 }
 
 func cleanseCWD(node any) bool {
@@ -143,13 +165,14 @@ func cleanseCWD(node any) bool {
 	case map[string]any:
 		updated := false
 		for key, entry := range value {
-			if key == "properties" {
+			switch key {
+			case "properties":
 				if props, ok := entry.(map[string]any); ok {
 					if pruneCWDFromProperties(props) {
 						updated = true
 					}
 				}
-			} else if key == "definitions" || key == "$defs" {
+			case "definitions", "$defs":
 				if defs, ok := entry.(map[string]any); ok {
 					for _, defValue := range defs {
 						if cleanseCWD(defValue) {
@@ -157,8 +180,10 @@ func cleanseCWD(node any) bool {
 						}
 					}
 				}
-			} else if cleanseCWD(entry) {
-				updated = true
+			default:
+				if cleanseCWD(entry) {
+					updated = true
+				}
 			}
 		}
 		return updated

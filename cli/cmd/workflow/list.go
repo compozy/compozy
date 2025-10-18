@@ -100,28 +100,12 @@ func calculateColumnWidths() columnWidths {
 
 	// Calculate proportional widths with minimum guarantees
 	return columnWidths{
-		id:      maxInt(minIDColumnWidth, minInt(maxIDColumnWidth, availableWidth/idColumnRatio)),
-		status:  maxInt(minStatusColumnWidth, minInt(maxStatusColumnWidth, availableWidth/statusColumnRatio)),
-		name:    maxInt(minNameColumnWidth, minInt(maxNameColumnWidth, availableWidth/nameColumnRatio)),
-		created: maxInt(minCreatedColumnWidth, minInt(maxCreatedColumnWidth, availableWidth/createdColumnRatio)),
-		updated: maxInt(minUpdatedColumnWidth, minInt(maxUpdatedColumnWidth, availableWidth/updatedColumnRatio)),
+		id:      max(minIDColumnWidth, min(maxIDColumnWidth, availableWidth/idColumnRatio)),
+		status:  max(minStatusColumnWidth, min(maxStatusColumnWidth, availableWidth/statusColumnRatio)),
+		name:    max(minNameColumnWidth, min(maxNameColumnWidth, availableWidth/nameColumnRatio)),
+		created: max(minCreatedColumnWidth, min(maxCreatedColumnWidth, availableWidth/createdColumnRatio)),
+		updated: max(minUpdatedColumnWidth, min(maxUpdatedColumnWidth, availableWidth/updatedColumnRatio)),
 	}
-}
-
-// maxInt returns the maximum of two integers
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// minInt returns the minimum of two integers
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // ListCmd creates the workflow list command

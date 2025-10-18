@@ -28,10 +28,7 @@ func (r *regToolWithArgs) ParameterSchema() map[string]any {
 	if r.params == nil {
 		return nil
 	}
-	copied := make(map[string]any, len(r.params))
-	for key, val := range r.params {
-		copied[key] = val
-	}
+	copied := core.CloneMap(r.params)
 	return copied
 }
 
@@ -48,12 +45,7 @@ func (s *schemaTool) ParameterSchema() map[string]any {
 	if s.schema == nil {
 		return nil
 	}
-	source := map[string]any(*s.schema)
-	copied := make(map[string]any, len(source))
-	for key, val := range source {
-		copied[key] = val
-	}
-	return copied
+	return core.CloneMap(map[string]any(*s.schema))
 }
 
 type listableRegistry struct {
@@ -87,7 +79,7 @@ func TestRequestBuilder_NormalizeCloneAndType(t *testing.T) {
 	})
 	t.Run("Should clone maps without aliasing", func(t *testing.T) {
 		src := map[string]any{"a": 1}
-		c := cloneMap(src)
+		c := core.CloneMap(src)
 		src["a"] = 2
 		assert.Equal(t, 1, c["a"])
 	})

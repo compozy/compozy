@@ -156,7 +156,7 @@ Conditional branching based on data
 ```yaml title="Router Task"
 - id: route_by_priority
   type: router
-  condition: '{{ .tasks.classify.output.priority }}'
+  condition: 'tasks.classify.output.priority'
   routes:
     high:
       id: urgent_handler
@@ -599,7 +599,7 @@ tasks:
     type: wait
     wait_for: "order-processed"
     timeout: 300s
-    condition: '{{ eq .signal.payload.status "completed" }}'
+    condition: 'signal.payload.status == "completed"'
     on_success:
       next: send_notification
 ```
@@ -741,7 +741,7 @@ with:
   message: "{{ .workflow.input.message }}"
 
 # Access previous task outputs
-condition: "{{ .tasks.classify.output.category }}"
+condition: 'tasks.classify.output.category'
 
 # Transform data
 formatted_data: "{{ .tasks.process.output | toJson }}"

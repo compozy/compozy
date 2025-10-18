@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
 	serverhelpers "github.com/compozy/compozy/test/helpers/server"
 	"github.com/stretchr/testify/require"
@@ -155,9 +155,7 @@ func projectPayload(version string, description string) map[string]any {
 }
 
 func cloneMap(input map[string]any) map[string]any {
-	out := make(map[string]any, len(input))
-	maps.Copy(out, input)
-	return out
+	return core.CloneMap(input)
 }
 
 func decodeList(t *testing.T, res *httptest.ResponseRecorder, key string) ([]map[string]any, map[string]any) {

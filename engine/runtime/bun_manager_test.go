@@ -405,8 +405,13 @@ func TestBunManager_WorkerFileGeneration(t *testing.T) {
 		content, err := os.ReadFile(workerPath)
 		require.NoError(t, err)
 
-		// Verify the default entrypoint path is used and made relative to worker location
-		assert.Contains(t, string(content), `import * as allExports from "../tools.ts"`)
+		// Verify the fallback entrypoint located inside the store is used when none is configured
+		assert.Contains(t, string(content), `import * as allExports from "./default_entrypoint.ts"`)
+
+		fallbackPath := filepath.Join(storeDir, "default_entrypoint.ts")
+		fallbackContent, err := os.ReadFile(fallbackPath)
+		require.NoError(t, err)
+		assert.Equal(t, "export default {}\n", string(fallbackContent))
 	})
 }
 

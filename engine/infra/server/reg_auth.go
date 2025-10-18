@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
 	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,7 +23,26 @@ func setupAuthSystem(
 	if cfg == nil {
 		return fmt.Errorf("missing config in context")
 	}
-	authRepo := state.Store.NewAuthRepo()
+	if state == nil {
+		return fmt.Errorf("application state not initialized")
+	}
+	baseAuth := state.Store.NewAuthRepo()
+	if baseAuth == nil {
+		return fmt.Errorf("auth repository not initialized")
+	}
+	authRepoDriver := driverPostgres
+	authRepo := baseAuth
+	if server != nil {
+		repo, cacheDriver := server.buildAuthRepo(cfg, baseAuth)
+		authRepo = repo
+		server.authRepoDriverLabel = authRepoDriver
+		server.authCacheDriverLabel = cacheDriver
+		logger.FromContext(ctx).Info(
+			"auth repository configured",
+			"auth_repo_driver", authRepoDriver,
+			"auth_cache_driver", cacheDriver,
+		)
+	}
 	authFactory := authuc.NewFactory(authRepo)
 	authManager := authmw.NewManager(authFactory, cfg)
 	if cfg.Server.Auth.Enabled {

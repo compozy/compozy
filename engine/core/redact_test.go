@@ -5,9 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/compozy/compozy/engine/core"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRedactString(t *testing.T) {

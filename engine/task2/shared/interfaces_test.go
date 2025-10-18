@@ -229,7 +229,7 @@ func (m *MockCollectionExpander) ExpandItems(
 	return &ExpansionResult{}, nil
 }
 
-func (m *MockCollectionExpander) ValidateExpansion(result *ExpansionResult) error {
+func (m *MockCollectionExpander) ValidateExpansion(_ context.Context, result *ExpansionResult) error {
 	if m.validateExpansionFunc != nil {
 		return m.validateExpansionFunc(result)
 	}

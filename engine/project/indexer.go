@@ -2,7 +2,12 @@ package project
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"runtime"
+	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/resources"
@@ -11,6 +16,81 @@ import (
 )
 
 const metaSourceYAML = "yaml"
+
+func indexWorkerLimit(total int) int {
+	cpuCount := runtime.NumCPU()
+	if cpuCount < 1 {
+		cpuCount = 1
+	}
+	if total > 0 && total < cpuCount {
+		return total
+	}
+	return cpuCount
+}
+
+func (p *Config) countIndexableResources() int {
+	if p == nil {
+		return 0
+	}
+	total := len(
+		p.Tools,
+	) + len(
+		p.Memories,
+	) + len(
+		p.Schemas,
+	) + len(
+		p.Embedders,
+	) + len(
+		p.VectorDBs,
+	) + len(
+		p.KnowledgeBases,
+	)
+	for i := range p.Models {
+		mdl := p.Models[i]
+		if mdl == nil {
+			continue
+		}
+		if mdl.Model == "" {
+			continue
+		}
+		total++
+	}
+	return total
+}
+
+type metaCache struct {
+	data sync.Map
+}
+
+func newMetaCache(source map[string]string) *metaCache {
+	cache := &metaCache{}
+	for key, value := range source {
+		cache.data.Store(key, value)
+	}
+	return cache
+}
+
+func (c *metaCache) Load(key string) string {
+	if c == nil {
+		return ""
+	}
+	value, ok := c.data.Load(key)
+	if !ok {
+		return ""
+	}
+	str, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return str
+}
+
+func (c *metaCache) Store(key, value string) {
+	if c == nil {
+		return
+	}
+	c.data.Store(key, value)
+}
 
 // IndexToResourceStore publishes project-scoped resources (tools, schemas, models)
 // to the provided ResourceStore using stable (project,type,id) keys.
@@ -24,302 +104,290 @@ func (p *Config) IndexToResourceStore(ctx context.Context, store resources.Resou
 	if p.Name == "" {
 		return fmt.Errorf("project name is required for indexing")
 	}
-	if err := p.indexProjectTools(ctx, store); err != nil {
+	metaSources, err := p.loadMetaSources(ctx, store)
+	if err != nil {
 		return err
 	}
-	if err := p.indexProjectMemories(ctx, store); err != nil {
+	totalResources := p.countIndexableResources()
+	group, groupCtx := errgroup.WithContext(ctx)
+	if limit := indexWorkerLimit(totalResources); limit > 0 {
+		group.SetLimit(limit)
+	}
+	if err := p.indexProjectTools(groupCtx, group, store, metaSources); err != nil {
 		return err
 	}
-	if err := p.indexProjectSchemas(ctx, store); err != nil {
+	if err := p.indexProjectMemories(groupCtx, group, store, metaSources); err != nil {
 		return err
 	}
-	if err := p.indexProjectEmbedders(ctx, store); err != nil {
+	if err := p.indexProjectSchemas(groupCtx, group, store, metaSources); err != nil {
 		return err
 	}
-	if err := p.indexProjectVectorDBs(ctx, store); err != nil {
+	if err := p.indexProjectEmbedders(groupCtx, group, store, metaSources); err != nil {
 		return err
 	}
-	if err := p.indexProjectKnowledgeBases(ctx, store); err != nil {
+	if err := p.indexProjectVectorDBs(groupCtx, group, store, metaSources); err != nil {
 		return err
 	}
-	if err := p.indexProjectModels(ctx, store); err != nil {
+	if err := p.indexProjectKnowledgeBases(groupCtx, group, store, metaSources); err != nil {
 		return err
 	}
+	if err := p.indexProjectModels(groupCtx, group, store, metaSources); err != nil {
+		return err
+	}
+	if err := group.Wait(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// loadMetaSources builds a cache of existing meta sources keyed by project/type/id.
+func (p *Config) loadMetaSources(ctx context.Context, store resources.ResourceStore) (*metaCache, error) {
+	items, err := store.ListWithValues(ctx, p.Name, resources.ResourceMeta)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return newMetaCache(nil), nil
+		}
+		return nil, fmt.Errorf("list meta for project '%s': %w", p.Name, err)
+	}
+	meta := make(map[string]string, len(items))
+	for _, item := range items {
+		source := extractMetaSource(item.Value)
+		if source == "" {
+			continue
+		}
+		typ, id := extractMetaIdentity(item.Value)
+		if typ == "" || id == "" {
+			continue
+		}
+		meta[metaCacheKey(p.Name, resources.ResourceType(typ), id)] = source
+	}
+	return newMetaCache(meta), nil
+}
+
+// extractMetaSource returns the string source from a meta value when present.
+func extractMetaSource(value any) string {
+	if m, ok := value.(map[string]any); ok {
+		if src, ok := m["source"].(string); ok {
+			return src
+		}
+	}
+	return ""
+}
+
+// extractMetaIdentity returns the stored type and id from a meta value.
+func extractMetaIdentity(value any) (string, string) {
+	m, ok := value.(map[string]any)
+	if !ok {
+		return "", ""
+	}
+	typVal, ok := m["type"].(string)
+	if !ok {
+		return "", ""
+	}
+	idVal, ok := m["id"].(string)
+	if !ok {
+		return "", ""
+	}
+	return typVal, idVal
+}
+
+// metaCacheKey produces the canonical meta cache key for a resource.
+func metaCacheKey(project string, typ resources.ResourceType, id string) string {
+	return project + ":" + string(typ) + ":" + id
+}
+
+// putResourceWithMeta writes the resource, emits overwrite warnings, and updates metadata.
+func (p *Config) putResourceWithMeta(
+	ctx context.Context,
+	store resources.ResourceStore,
+	metaSources *metaCache,
+	key resources.ResourceKey,
+	value any,
+) error {
+	cacheKey := metaCacheKey(key.Project, key.Type, key.ID)
+	prev := metaSources.Load(cacheKey)
+	if _, err := store.Put(ctx, key, value); err != nil {
+		return fmt.Errorf("store put %s '%s': %w", string(key.Type), key.ID, err)
+	}
+	if prev != "" && prev != metaSourceYAML {
+		logger.FromContext(ctx).
+			Warn(
+				"yaml indexing overwrote existing resource",
+				"project", key.Project,
+				"type", string(key.Type),
+				"id", key.ID,
+				"old_source", prev,
+				"new_source", metaSourceYAML,
+			)
+	}
+	if err := resources.WriteMeta(
+		ctx,
+		store,
+		key.Project,
+		key.Type,
+		key.ID,
+		metaSourceYAML,
+		"indexer",
+	); err != nil {
+		return err
+	}
+	metaSources.Store(cacheKey, metaSourceYAML)
 	return nil
 }
 
 func schemaID(s *schema.Schema) string { return schema.GetID(s) }
 
 // indexProjectTools publishes project-level tools to the store.
-func (p *Config) indexProjectTools(ctx context.Context, store resources.ResourceStore) error {
+func (p *Config) indexProjectTools(
+	ctx context.Context,
+	group *errgroup.Group,
+	store resources.ResourceStore,
+	metaSources *metaCache,
+) error {
 	for i := range p.Tools {
-		tl := &p.Tools[i]
-		if tl.ID == "" {
+		tool := &p.Tools[i]
+		if tool.ID == "" {
 			return fmt.Errorf("project tool at index %d missing id", i)
 		}
-		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceTool, ID: tl.ID}
-		prev := resources.GetMetaSource(ctx, store, p.Name, resources.ResourceTool, tl.ID)
-		if _, err := store.Put(ctx, key, tl); err != nil {
-			return fmt.Errorf("store put tool '%s': %w", tl.ID, err)
-		}
-		if prev != "" && prev != metaSourceYAML {
-			logger.FromContext(ctx).
-				Warn(
-					"yaml indexing overwrote existing resource",
-					"project", p.Name,
-					"type", string(resources.ResourceTool),
-					"id", tl.ID,
-					"old_source", prev,
-					"new_source", metaSourceYAML,
-				)
-		}
-		if err := resources.WriteMeta(
-			ctx,
-			store,
-			p.Name,
-			resources.ResourceTool,
-			tl.ID,
-			metaSourceYAML,
-			"indexer",
-		); err != nil {
-			return err
-		}
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceTool, ID: tool.ID}
+		value := tool
+		group.Go(func() error {
+			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+		})
 	}
 	return nil
 }
 
 // indexProjectMemories publishes project-level memory resources to the store.
-func (p *Config) indexProjectMemories(ctx context.Context, store resources.ResourceStore) error {
+func (p *Config) indexProjectMemories(
+	ctx context.Context,
+	group *errgroup.Group,
+	store resources.ResourceStore,
+	metaSources *metaCache,
+) error {
 	for i := range p.Memories {
-		m := &p.Memories[i]
-		if m.ID == "" {
+		memory := &p.Memories[i]
+		if memory.ID == "" {
 			return fmt.Errorf("project memory at index %d missing id", i)
 		}
-		if m.Resource == "" {
-			m.Resource = string(resources.ResourceMemory)
+		if memory.Resource == "" {
+			memory.Resource = string(resources.ResourceMemory)
 		}
-		if err := m.Validate(); err != nil {
-			return fmt.Errorf("memory '%s' validation failed: %w", m.ID, err)
+		if err := memory.Validate(ctx); err != nil {
+			return fmt.Errorf("memory '%s' validation failed: %w", memory.ID, err)
 		}
-		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceMemory, ID: m.ID}
-		prev := resources.GetMetaSource(ctx, store, p.Name, resources.ResourceMemory, m.ID)
-		if _, err := store.Put(ctx, key, m); err != nil {
-			return fmt.Errorf("store put memory '%s': %w", m.ID, err)
-		}
-		if prev != "" && prev != metaSourceYAML {
-			logger.FromContext(ctx).
-				Warn(
-					"yaml indexing overwrote existing resource",
-					"project", p.Name,
-					"type", string(resources.ResourceMemory),
-					"id", m.ID,
-					"old_source", prev,
-					"new_source", metaSourceYAML,
-				)
-		}
-		if err := resources.WriteMeta(
-			ctx,
-			store,
-			p.Name,
-			resources.ResourceMemory,
-			m.ID,
-			metaSourceYAML,
-			"indexer",
-		); err != nil {
-			return err
-		}
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceMemory, ID: memory.ID}
+		value := memory
+		group.Go(func() error {
+			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+		})
 	}
 	return nil
 }
 
 // indexProjectSchemas publishes project-level schemas to the store.
-func (p *Config) indexProjectSchemas(ctx context.Context, store resources.ResourceStore) error {
+func (p *Config) indexProjectSchemas(
+	ctx context.Context,
+	group *errgroup.Group,
+	store resources.ResourceStore,
+	metaSources *metaCache,
+) error {
 	for i := range p.Schemas {
-		sc := &p.Schemas[i]
-		sid := schemaID(sc)
+		schemaValue := &p.Schemas[i]
+		sid := schemaID(schemaValue)
 		if sid == "" {
-			continue // skip unnamed schemas
+			continue
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceSchema, ID: sid}
-		prev := resources.GetMetaSource(ctx, store, p.Name, resources.ResourceSchema, sid)
-		if _, err := store.Put(ctx, key, sc); err != nil {
-			return fmt.Errorf("store put schema '%s': %w", sid, err)
-		}
-		if prev != "" && prev != metaSourceYAML {
-			logger.FromContext(ctx).
-				Warn(
-					"yaml indexing overwrote existing resource",
-					"project", p.Name,
-					"type", string(resources.ResourceSchema),
-					"id", sid,
-					"old_source", prev,
-					"new_source", metaSourceYAML,
-				)
-		}
-		if err := resources.WriteMeta(
-			ctx,
-			store,
-			p.Name,
-			resources.ResourceSchema,
-			sid,
-			metaSourceYAML,
-			"indexer",
-		); err != nil {
-			return err
-		}
+		value := schemaValue
+		group.Go(func() error {
+			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+		})
 	}
 	return nil
 }
 
 // indexProjectModels publishes project-level models to the store.
-func (p *Config) indexProjectModels(ctx context.Context, store resources.ResourceStore) error {
+func (p *Config) indexProjectModels(
+	ctx context.Context,
+	group *errgroup.Group,
+	store resources.ResourceStore,
+	metaSources *metaCache,
+) error {
 	for i := range p.Models {
-		m := p.Models[i]
-		if m == nil || m.Model == "" {
+		model := p.Models[i]
+		if model == nil || model.Model == "" {
 			continue
 		}
-		id := fmt.Sprintf("%s:%s", string(m.Provider), m.Model)
+		id := fmt.Sprintf("%s:%s", string(model.Provider), model.Model)
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceModel, ID: id}
-		prev := resources.GetMetaSource(ctx, store, p.Name, resources.ResourceModel, id)
-		if _, err := store.Put(ctx, key, m); err != nil {
-			return fmt.Errorf("store put model '%s': %w", id, err)
-		}
-		if prev != "" && prev != metaSourceYAML {
-			logger.FromContext(ctx).
-				Warn(
-					"yaml indexing overwrote existing resource",
-					"project", p.Name,
-					"type", string(resources.ResourceModel),
-					"id", id,
-					"old_source", prev,
-					"new_source", metaSourceYAML,
-				)
-		}
-		if err := resources.WriteMeta(
-			ctx,
-			store,
-			p.Name,
-			resources.ResourceModel,
-			id,
-			metaSourceYAML,
-			"indexer",
-		); err != nil {
-			return err
-		}
+		value := model
+		group.Go(func() error {
+			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+		})
 	}
 	return nil
 }
 
-func (p *Config) indexProjectEmbedders(ctx context.Context, store resources.ResourceStore) error {
-	log := logger.FromContext(ctx)
+func (p *Config) indexProjectEmbedders(
+	ctx context.Context,
+	group *errgroup.Group,
+	store resources.ResourceStore,
+	metaSources *metaCache,
+) error {
 	for i := range p.Embedders {
-		emb := &p.Embedders[i]
-		if emb.ID == "" {
+		embedder := &p.Embedders[i]
+		if embedder.ID == "" {
 			return fmt.Errorf("project embedder at index %d missing id", i)
 		}
-		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceEmbedder, ID: emb.ID}
-		prev := resources.GetMetaSource(ctx, store, p.Name, resources.ResourceEmbedder, emb.ID)
-		if _, err := store.Put(ctx, key, emb); err != nil {
-			return fmt.Errorf("store put embedder '%s': %w", emb.ID, err)
-		}
-		if prev != "" && prev != metaSourceYAML {
-			log.Warn(
-				"yaml indexing overwrote existing resource",
-				"project", p.Name,
-				"type", string(resources.ResourceEmbedder),
-				"id", emb.ID,
-				"old_source", prev,
-				"new_source", metaSourceYAML,
-			)
-		}
-		if err := resources.WriteMeta(
-			ctx,
-			store,
-			p.Name,
-			resources.ResourceEmbedder,
-			emb.ID,
-			metaSourceYAML,
-			"indexer",
-		); err != nil {
-			return err
-		}
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceEmbedder, ID: embedder.ID}
+		value := embedder
+		group.Go(func() error {
+			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+		})
 	}
 	return nil
 }
 
-func (p *Config) indexProjectVectorDBs(ctx context.Context, store resources.ResourceStore) error {
-	log := logger.FromContext(ctx)
+func (p *Config) indexProjectVectorDBs(
+	ctx context.Context,
+	group *errgroup.Group,
+	store resources.ResourceStore,
+	metaSources *metaCache,
+) error {
 	for i := range p.VectorDBs {
-		vdb := &p.VectorDBs[i]
-		if vdb.ID == "" {
+		vectorDB := &p.VectorDBs[i]
+		if vectorDB.ID == "" {
 			return fmt.Errorf("project vector_db at index %d missing id", i)
 		}
-		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceVectorDB, ID: vdb.ID}
-		prev := resources.GetMetaSource(ctx, store, p.Name, resources.ResourceVectorDB, vdb.ID)
-		if _, err := store.Put(ctx, key, vdb); err != nil {
-			return fmt.Errorf("store put vector_db '%s': %w", vdb.ID, err)
-		}
-		if prev != "" && prev != metaSourceYAML {
-			log.Warn(
-				"yaml indexing overwrote existing resource",
-				"project", p.Name,
-				"type", string(resources.ResourceVectorDB),
-				"id", vdb.ID,
-				"old_source", prev,
-				"new_source", metaSourceYAML,
-			)
-		}
-		if err := resources.WriteMeta(
-			ctx,
-			store,
-			p.Name,
-			resources.ResourceVectorDB,
-			vdb.ID,
-			metaSourceYAML,
-			"indexer",
-		); err != nil {
-			return err
-		}
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceVectorDB, ID: vectorDB.ID}
+		value := vectorDB
+		group.Go(func() error {
+			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+		})
 	}
 	return nil
 }
 
-func (p *Config) indexProjectKnowledgeBases(ctx context.Context, store resources.ResourceStore) error {
-	log := logger.FromContext(ctx)
+func (p *Config) indexProjectKnowledgeBases(
+	ctx context.Context,
+	group *errgroup.Group,
+	store resources.ResourceStore,
+	metaSources *metaCache,
+) error {
 	for i := range p.KnowledgeBases {
-		kb := &p.KnowledgeBases[i]
-		if kb.ID == "" {
+		knowledgeBase := &p.KnowledgeBases[i]
+		if knowledgeBase.ID == "" {
 			return fmt.Errorf("project knowledge_base at index %d missing id", i)
 		}
-		if kb.Ingest == "" {
-			kb.Ingest = knowledge.IngestManual
+		if knowledgeBase.Ingest == "" {
+			knowledgeBase.Ingest = knowledge.IngestManual
 		}
-		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceKnowledgeBase, ID: kb.ID}
-		prev := resources.GetMetaSource(ctx, store, p.Name, resources.ResourceKnowledgeBase, kb.ID)
-		if _, err := store.Put(ctx, key, kb); err != nil {
-			return fmt.Errorf("store put knowledge_base '%s': %w", kb.ID, err)
-		}
-		if prev != "" && prev != metaSourceYAML {
-			log.Warn(
-				"yaml indexing overwrote existing resource",
-				"project", p.Name,
-				"type", string(resources.ResourceKnowledgeBase),
-				"id", kb.ID,
-				"old_source", prev,
-				"new_source", metaSourceYAML,
-			)
-		}
-		if err := resources.WriteMeta(
-			ctx,
-			store,
-			p.Name,
-			resources.ResourceKnowledgeBase,
-			kb.ID,
-			metaSourceYAML,
-			"indexer",
-		); err != nil {
-			return err
-		}
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceKnowledgeBase, ID: knowledgeBase.ID}
+		value := knowledgeBase
+		group.Go(func() error {
+			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+		})
 	}
 	return nil
 }

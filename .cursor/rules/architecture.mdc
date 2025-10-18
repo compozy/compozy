@@ -77,7 +77,7 @@ compozy/
 │   ├── AI & Intelligence:
 │   │   ├── llm/           # LLM provider orchestration
 │   │   ├── memory/        # Memory management and persistence
-│   │   ├── memoryconfig/  # Memory configuration
+│   │   ├── memorycfg/  # Memory configuration
 │   │   ├── knowledge/     # Knowledge bases and RAG
 │   │   └── model/         # AI model definitions
 │   │
@@ -103,7 +103,6 @@ compozy/
 │   │   ├── autoload/      # Auto-discovery and loading
 │   │   ├── project/       # Project management
 │   │   ├── schema/        # Schema definitions and validation
-│   │   ├── resourceutil/  # Resource utilities
 │   │   └── worker/        # Background worker processes
 │   │
 ├── pkg/                    # Shared Packages Layer

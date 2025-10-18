@@ -19,6 +19,8 @@ const (
 	modeStandalone = "standalone"
 	hostAny        = "0.0.0.0"
 	hostLoopback   = "127.0.0.1"
+	driverPostgres = "postgres"
+	driverNone     = "none"
 )
 
 type MCPProxy interface {

@@ -164,6 +164,7 @@ func (h *ContainerHelpers) executeChildrenInParallel(
 	taskConfig *task.Config,
 	depth int,
 	completed, failed *int32,
+	maxConcurrency int,
 ) {
 	log := workflow.GetLogger(ctx)
 	// Sort child states by TaskID to ensure deterministic replay
@@ -171,7 +172,14 @@ func (h *ContainerHelpers) executeChildrenInParallel(
 		return childStates[i].TaskID < childStates[j].TaskID
 	})
 	// Create semaphore to limit concurrent executions
-	sem := workflow.NewSemaphore(ctx, MaxConcurrentChildTasks)
+	limit := MaxConcurrentChildTasks
+	if maxConcurrency > 0 && maxConcurrency < limit {
+		limit = maxConcurrency
+	}
+	if limit <= 0 {
+		limit = 1
+	}
+	sem := workflow.NewSemaphore(ctx, int64(limit))
 	for i := range childStates {
 		childState := childStates[i]
 		// Capture variables by value to avoid race conditions in goroutines

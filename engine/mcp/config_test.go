@@ -51,7 +51,7 @@ func TestConfig_Validate(t *testing.T) {
 			Transport: mcpproxy.TransportSSE,
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -71,7 +71,7 @@ func TestConfig_Validate(t *testing.T) {
 			Transport: mcpproxy.TransportStdio,
 			Proto:     "2025-01-01",
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -80,7 +80,7 @@ func TestConfig_Validate(t *testing.T) {
 			URL: "http://localhost:3000",
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.EqualError(t, err, "mcp id is required")
 	})
 
@@ -89,7 +89,7 @@ func TestConfig_Validate(t *testing.T) {
 			ID: "test-mcp",
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.EqualError(t, err, "mcp url is required for HTTP transports (sse, streamable-http)")
 	})
 }
@@ -97,31 +97,31 @@ func TestConfig_Validate(t *testing.T) {
 func TestConfig_validateURL(t *testing.T) {
 	t.Run("Should validate valid HTTP URL", func(t *testing.T) {
 		config := &Config{URL: "http://localhost:3000", Transport: mcpproxy.TransportSSE}
-		err := config.validateURL()
+		err := config.validateURL(t.Context())
 		assert.NoError(t, err)
 	})
 
 	t.Run("Should validate valid HTTPS URL", func(t *testing.T) {
 		config := &Config{URL: "https://api.example.com/mcp", Transport: mcpproxy.TransportStreamableHTTP}
-		err := config.validateURL()
+		err := config.validateURL(t.Context())
 		assert.NoError(t, err)
 	})
 
 	t.Run("Should fail with invalid scheme", func(t *testing.T) {
 		config := &Config{URL: "ftp://localhost:3000", Transport: mcpproxy.TransportSSE}
-		err := config.validateURL()
+		err := config.validateURL(t.Context())
 		assert.EqualError(t, err, "mcp url must use http or https scheme, got: ftp")
 	})
 
 	t.Run("Should fail with missing host", func(t *testing.T) {
 		config := &Config{URL: "http://", Transport: mcpproxy.TransportSSE}
-		err := config.validateURL()
+		err := config.validateURL(t.Context())
 		assert.EqualError(t, err, "mcp url must include a host")
 	})
 
 	t.Run("Should fail with malformed URL", func(t *testing.T) {
 		config := &Config{URL: "not-a-url", Transport: mcpproxy.TransportSSE}
-		err := config.validateURL()
+		err := config.validateURL(t.Context())
 		// The URL "not-a-url" is parsed as a relative URL with no scheme,
 		// so it fails the scheme validation instead of format validation
 		require.Error(t, err)
@@ -142,7 +142,7 @@ func TestConfig_validateProxy(t *testing.T) {
 		})
 
 		config := &Config{}
-		err := config.validateProxy()
+		err := config.validateProxy(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -156,7 +156,7 @@ func TestConfig_validateProxy(t *testing.T) {
 		})
 
 		config := &Config{}
-		err := config.validateProxy()
+		err := config.validateProxy(t.Context())
 		assert.EqualError(t, err, "MCP_PROXY_URL environment variable is required for MCP server configuration")
 	})
 
@@ -172,7 +172,7 @@ func TestConfig_validateProxy(t *testing.T) {
 		})
 
 		config := &Config{}
-		err := config.validateProxy()
+		err := config.validateProxy(t.Context())
 		assert.EqualError(t, err, "proxy url must use http or https scheme, got: ftp")
 	})
 
@@ -188,7 +188,7 @@ func TestConfig_validateProxy(t *testing.T) {
 		})
 
 		config := &Config{}
-		err := config.validateProxy()
+		err := config.validateProxy(t.Context())
 		assert.EqualError(t, err, "proxy url must include a host")
 	})
 }
@@ -342,31 +342,31 @@ func TestConfig_validateHeaders(t *testing.T) {
 		val := "abc"
 		spacedVal := " " + val + " "
 		c := &Config{Headers: map[string]string{"authorization": " Bearer token ", spacedKey: spacedVal}}
-		err := c.validateHeaders()
+		err := c.validateHeaders(t.Context())
 		assert.NoError(t, err)
 		expected := map[string]string{"Authorization": "Bearer token", "X-Api-Token": "abc"}
 		assert.Equal(t, expected, c.Headers)
 	})
 	t.Run("Should reject empty key", func(t *testing.T) {
 		c := &Config{Headers: map[string]string{" ": "v"}}
-		err := c.validateHeaders()
+		err := c.validateHeaders(t.Context())
 		assert.EqualError(t, err, "headers: empty key")
 	})
 	t.Run("Should reject CRLF in key", func(t *testing.T) {
 		c := &Config{Headers: map[string]string{"X-Bad\r\n": "v"}}
-		err := c.validateHeaders()
+		err := c.validateHeaders(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "CR/LF not allowed")
 	})
 	t.Run("Should reject CRLF in value", func(t *testing.T) {
 		c := &Config{Headers: map[string]string{"X-Good": "bad\r\n"}}
-		err := c.validateHeaders()
+		err := c.validateHeaders(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "CR/LF not allowed")
 	})
 	t.Run("Should reject reserved headers", func(t *testing.T) {
 		c := &Config{Headers: map[string]string{"Host": "example"}}
-		err := c.validateHeaders()
+		err := c.validateHeaders(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "reserved header")
 	})
@@ -390,7 +390,7 @@ func TestConfig_Validate_HeadersAndOrder(t *testing.T) {
 			Transport: mcpproxy.TransportSSE,
 			Headers:   map[string]string{"authorization": "Bearer x", " " + key + " ": " " + "abc" + " "},
 		}
-		err := c.Validate()
+		err := c.Validate(t.Context())
 		assert.NoError(t, err)
 		assert.Equal(t, map[string]string{"Authorization": "Bearer x", "X-Api-Token": "abc"}, c.Headers)
 	})
@@ -410,7 +410,7 @@ func TestConfig_Validate_HeadersAndOrder(t *testing.T) {
 			Command:   "echo",
 			Headers:   map[string]string{"Host": "should-not-error"},
 		}
-		err := c.Validate()
+		err := c.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should validate transport before URL for clearer errors", func(t *testing.T) {
@@ -424,7 +424,7 @@ func TestConfig_Validate_HeadersAndOrder(t *testing.T) {
 			}
 		})
 		c := &Config{ID: "svc", Transport: mcpproxy.TransportType("invalid")}
-		err := c.Validate()
+		err := c.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid transport type")
 	})

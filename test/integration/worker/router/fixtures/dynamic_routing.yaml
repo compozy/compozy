@@ -8,8 +8,7 @@ workflow:
     # The 'route_by_user' action evaluates input.user_type and maps to condition
     - id: user-router
       type: router
-      action: route_by_user
-      condition: "premium"  # Condition derived from input.user_type
+      condition: workflow.input.user_type  # Evaluate user type dynamically via CEL
       routes:
         premium: premium-task  # Enhanced processing for premium users
         standard: standard-task  # Standard processing for regular users

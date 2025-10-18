@@ -41,12 +41,16 @@ func (uc *Query) Execute(ctx context.Context, in *QueryInput) (*QueryOutput, err
 	if err != nil {
 		return nil, err
 	}
-	binding, embAdapter, vecStore, err := uc.prepareQuery(ctx, projectID, kbID, in)
+	binding, embAdapter, vecStore, release, err := uc.prepareQuery(ctx, projectID, kbID, in)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		if cerr := vecStore.Close(ctx); cerr != nil {
+		if release == nil {
+			return
+		}
+		releaseCtx := context.WithoutCancel(ctx)
+		if cerr := release(releaseCtx); cerr != nil {
 			logger.FromContext(ctx).Warn(
 				"failed to close vector store",
 				"kb_id",
@@ -60,7 +64,8 @@ func (uc *Query) Execute(ctx context.Context, in *QueryInput) (*QueryOutput, err
 	if err != nil {
 		return nil, fmt.Errorf("init retriever: %w", err)
 	}
-	contexts, err := service.Retrieve(ctx, binding, queryText)
+	retrievalCtx := retriever.ContextWithStrategy(ctx, retriever.StrategySimilarity)
+	contexts, err := service.Retrieve(retrievalCtx, binding, queryText)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +109,7 @@ func mergeRetrieval(
 		merged.MinScore = &value
 	}
 	if filters != nil {
-		merged.Filters = core.CopyMap(filters)
+		merged.Filters = core.CloneMap(filters)
 	}
 	return merged
 }
@@ -114,31 +119,36 @@ func (uc *Query) prepareQuery(
 	projectID string,
 	kbID string,
 	in *QueryInput,
-) (*knowledge.ResolvedBinding, *embedder.Adapter, vectordb.Store, error) {
+) (*knowledge.ResolvedBinding, *embedder.Adapter, vectordb.Store, func(context.Context) error, error) {
 	triple, err := loadKnowledgeTriple(ctx, uc.store, projectID, kbID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	kb, emb, vec, err := normalizeKnowledgeTriple(ctx, triple)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	retrieval := mergeRetrieval(&kb.Retrieval, in.TopK, in.MinScore, in.Filters)
 	embCfg, err := configutil.ToEmbedderAdapterConfig(emb)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	embAdapter, err := embedder.New(ctx, embCfg)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("init embedder: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("init embedder: %w", err)
+	}
+	if cacheCfg := emb.Config.Cache; cacheCfg != nil && cacheCfg.Enabled {
+		if err := embAdapter.EnableCache(cacheCfg.Size); err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("init embedder cache: %w", err)
+		}
 	}
 	vecCfg, err := configutil.ToVectorStoreConfig(ctx, projectID, vec)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	vecStore, err := vectordb.New(ctx, vecCfg)
+	vecStore, release, err := vectordb.AcquireShared(ctx, vecCfg)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("init vector store: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("init vector store: %w", err)
 	}
 	binding := &knowledge.ResolvedBinding{
 		ID:            kb.ID,
@@ -147,5 +157,5 @@ func (uc *Query) prepareQuery(
 		Vector:        *vec,
 		Retrieval:     retrieval,
 	}
-	return binding, embAdapter, vecStore, nil
+	return binding, embAdapter, vecStore, release, nil
 }

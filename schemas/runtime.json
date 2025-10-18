@@ -173,7 +173,7 @@
       "type": "string"
     },
     "entrypoint_path": {
-      "description": "EntrypointPath specifies the path to the JavaScript/TypeScript entrypoint file.\n\nDefault: \"./tools.ts\"",
+      "description": "EntrypointPath specifies the path to the JavaScript/TypeScript entrypoint file.\nLeave empty to disable custom TypeScript tools and rely on built-in capabilities.",
       "type": "string"
     },
     "environment": {

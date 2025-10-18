@@ -1,6 +1,7 @@
 package project
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,7 +24,7 @@ func TestSetRuntimeDefaults(t *testing.T) {
 			CWD:  cwd,
 			Runtime: RuntimeConfig{
 				Type:        "",  // Will be set to default
-				Entrypoint:  "",  // Will be set to default
+				Entrypoint:  "",  // Remains empty unless explicitly provided
 				Permissions: nil, // Should get default permissions
 			},
 		}
@@ -31,7 +32,7 @@ func TestSetRuntimeDefaults(t *testing.T) {
 		config.setRuntimeDefaults()
 
 		assert.Equal(t, "bun", config.Runtime.Type)
-		assert.Equal(t, "./tools.ts", config.Runtime.Entrypoint)
+		assert.Equal(t, "", config.Runtime.Entrypoint)
 		assert.Equal(t, []string{"--allow-read"}, config.Runtime.Permissions)
 	})
 
@@ -83,11 +84,11 @@ func TestConfig_AutoloadValidationCaching(t *testing.T) {
 				Include: []string{"*.yaml"},
 			},
 		}
-		err1 := config.Validate()
+		err1 := config.Validate(t.Context())
 		assert.NoError(t, err1)
 		assert.True(t, config.autoloadValidated)
 		assert.NoError(t, config.autoloadValidError)
-		err2 := config.Validate()
+		err2 := config.Validate(t.Context())
 		assert.NoError(t, err2)
 	})
 
@@ -100,7 +101,7 @@ func TestConfig_AutoloadValidationCaching(t *testing.T) {
 				Include: []string{},
 			},
 		}
-		err1 := config.Validate()
+		err1 := config.Validate(t.Context())
 		require.Error(t, err1)
 		assert.Contains(t, err1.Error(), "autoload.include patterns are required when autoload is enabled")
 		assert.True(t, config.autoloadValidated)
@@ -110,7 +111,7 @@ func TestConfig_AutoloadValidationCaching(t *testing.T) {
 			config.autoloadValidError.Error(),
 			"autoload.include patterns are required when autoload is enabled",
 		)
-		err2 := config.Validate()
+		err2 := config.Validate(t.Context())
 		require.Error(t, err2)
 		assert.Contains(t, err2.Error(), "autoload.include patterns are required when autoload is enabled")
 		assert.Equal(t, err1.Error(), err2.Error())
@@ -122,7 +123,7 @@ func TestConfig_AutoloadValidationCaching(t *testing.T) {
 			CWD:      cwd,
 			AutoLoad: nil,
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 		assert.False(t, config.autoloadValidated)
 	})
@@ -286,9 +287,9 @@ func TestConfig_ValidateKnowledge(t *testing.T) {
 			{ID: "kb"},
 		},
 	}
-	require.NoError(t, cfg.validateKnowledge())
+	require.NoError(t, cfg.validateKnowledge(t.Context()))
 	cfg.Knowledge = append(cfg.Knowledge, core.KnowledgeBinding{ID: "kb"})
-	err := cfg.validateKnowledge()
+	err := cfg.validateKnowledge(t.Context())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "only one knowledge binding")
 }
@@ -307,7 +308,7 @@ func TestConfig_Validate_Monitoring(t *testing.T) {
 				Path:    "/metrics",
 			},
 		}
-		err = cfg.Validate()
+		err = cfg.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should fail validation for invalid monitoring path", func(t *testing.T) {
@@ -323,7 +324,7 @@ func TestConfig_Validate_Monitoring(t *testing.T) {
 				Path:    "/api/metrics", // Invalid path
 			},
 		}
-		err = cfg.Validate()
+		err = cfg.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "monitoring configuration validation failed")
 		assert.Contains(t, err.Error(), "monitoring path cannot be under /api/")
@@ -338,7 +339,7 @@ func TestConfig_Validate_Monitoring(t *testing.T) {
 			CWD:              cwd,
 			MonitoringConfig: nil,
 		}
-		err = cfg.Validate()
+		err = cfg.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 }
@@ -365,7 +366,7 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 				ToolExecutionTimeout: 90 * time.Second,
 			},
 		}
-		err = cfg.validateRuntimeConfig()
+		err = cfg.validateRuntimeConfig(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -386,7 +387,7 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 				Permissions: []string{"read", "write"},
 			},
 		}
-		err = cfg.validateRuntimeConfig()
+		err = cfg.validateRuntimeConfig(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -404,7 +405,7 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 				Permissions: []string{"read"},
 			},
 		}
-		err = cfg.validateRuntimeConfig()
+		err = cfg.validateRuntimeConfig(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid runtime type")
 	})
@@ -423,7 +424,7 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 				Permissions: []string{"read"},
 			},
 		}
-		err = cfg.validateRuntimeConfig()
+		err = cfg.validateRuntimeConfig(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "entrypoint file 'nonexistent.ts' does not exist")
 	})
@@ -445,7 +446,7 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 				Permissions: []string{"read"},
 			},
 		}
-		err = cfg.validateRuntimeConfig()
+		err = cfg.validateRuntimeConfig(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "has unsupported extension '.py'")
 	})
@@ -467,7 +468,7 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 				ToolExecutionTimeout: -5 * time.Second,
 			},
 		}
-		err = cfg.validateRuntimeConfig()
+		err = cfg.validateRuntimeConfig(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "tool_execution_timeout must be non-negative")
 	})
@@ -484,7 +485,7 @@ func TestRuntimeConfig_Validation(t *testing.T) {
 				CWD:     cwd,
 				// Runtime field will be zero value - validation passes, defaults applied later
 			}
-			err = cfg.validateRuntimeConfig()
+			err = cfg.validateRuntimeConfig(t.Context())
 			assert.NoError(t, err)
 		},
 	)
@@ -549,7 +550,7 @@ func TestDefaultModel_Validation(t *testing.T) {
 				{Provider: "anthropic", Model: "claude-3"},
 			},
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should pass validation with one default model", func(t *testing.T) {
@@ -561,7 +562,7 @@ func TestDefaultModel_Validation(t *testing.T) {
 				{Provider: "anthropic", Model: "claude-3"},
 			},
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should fail validation with multiple default models", func(t *testing.T) {
@@ -574,7 +575,7 @@ func TestDefaultModel_Validation(t *testing.T) {
 				{Provider: "google", Model: "gemini-pro"},
 			},
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "only one model can be marked as default")
 	})
@@ -584,7 +585,7 @@ func TestDefaultModel_Validation(t *testing.T) {
 			CWD:    createTestCWD(t),
 			Models: []*core.ProviderConfig{},
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should handle nil models in array gracefully", func(t *testing.T) {
@@ -597,7 +598,7 @@ func TestDefaultModel_Validation(t *testing.T) {
 				nil,
 			},
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 		defaultModel := config.GetDefaultModel()
 		assert.NotNil(t, defaultModel)
@@ -650,15 +651,12 @@ workflows:
 		workflowPath := filepath.Join(tmpDir, "workflow.yaml")
 		err = os.WriteFile(workflowPath, []byte("name: test-workflow\nversion: 0.1.0"), 0644)
 		require.NoError(t, err)
-		entrypointPath := filepath.Join(tmpDir, "tools.ts")
-		err = os.WriteFile(entrypointPath, []byte("export {}"), 0644)
-		require.NoError(t, err)
 		cwd, err := core.CWDFromPath(tmpDir)
 		require.NoError(t, err)
 		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err)
 		assert.Equal(t, "bun", cfg.Runtime.Type)
-		assert.Equal(t, "./tools.ts", cfg.Runtime.Entrypoint)
+		assert.Equal(t, "", cfg.Runtime.Entrypoint)
 		assert.Equal(t, []string{"--allow-read"}, cfg.Runtime.Permissions)
 	})
 
@@ -689,8 +687,65 @@ workflows:
 		cfg, err := Load(t.Context(), cwd, configPath, "")
 		require.NoError(t, err) // Load should succeed
 		// But validation should fail due to invalid runtime type
-		err = cfg.Validate()
+		err = cfg.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid runtime type")
 	})
+}
+
+func TestProjectConfigCache_ReusesCachedEntry(t *testing.T) {
+	projectConfigCacheStore.reset()
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "compozy.yaml")
+	require.NoError(t, os.WriteFile(filePath, []byte("name: test"), 0644))
+
+	var loads int
+	loader := func() (*Config, error) {
+		loads++
+		return &Config{Name: "cached-project"}, nil
+	}
+
+	configOne, err := projectConfigCacheStore.Load(filePath, loader)
+	require.NoError(t, err)
+	require.NotNil(t, configOne)
+	assert.Equal(t, 1, loads)
+
+	configOne.Name = "mutated-name"
+
+	configTwo, err := projectConfigCacheStore.Load(filePath, loader)
+	require.NoError(t, err)
+	require.NotNil(t, configTwo)
+	assert.Equal(t, 1, loads)
+	assert.Equal(t, "cached-project", configTwo.Name)
+	assert.NotSame(t, configOne, configTwo)
+}
+
+func TestProjectConfigCache_RefreshesOnFileChange(t *testing.T) {
+	projectConfigCacheStore.reset()
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "compozy.yaml")
+	require.NoError(t, os.WriteFile(filePath, []byte("name: test"), 0644))
+
+	var loads int
+	loader := func() (*Config, error) {
+		loads++
+		return &Config{Name: fmt.Sprintf("config-%d", loads)}, nil
+	}
+
+	configOne, err := projectConfigCacheStore.Load(filePath, loader)
+	require.NoError(t, err)
+	require.NotNil(t, configOne)
+	assert.Equal(t, 1, loads)
+	assert.Equal(t, "config-1", configOne.Name)
+
+	info, err := os.Stat(filePath)
+	require.NoError(t, err)
+	newTime := info.ModTime().Add(time.Second)
+	require.NoError(t, os.Chtimes(filePath, newTime, newTime))
+
+	configTwo, err := projectConfigCacheStore.Load(filePath, loader)
+	require.NoError(t, err)
+	require.NotNil(t, configTwo)
+	assert.Equal(t, 2, loads)
+	assert.Equal(t, "config-2", configTwo.Name)
 }

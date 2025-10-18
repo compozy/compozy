@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -24,18 +25,24 @@ func TestExecutionMetrics_Recorders(t *testing.T) {
 		metrics.RecordSyncLatency(ctx, ExecutionKindWorkflow, ExecutionOutcomeSuccess, 1500*time.Millisecond)
 		metrics.RecordTimeout(ctx, ExecutionKindWorkflow)
 		metrics.RecordError(ctx, ExecutionKindWorkflow, http.StatusInternalServerError)
+		metrics.RecordAsyncStarted(ctx, ExecutionKindWorkflow)
 		var rm metricdata.ResourceMetrics
 		require.NoError(t, reader.Collect(ctx, &rm))
 		var (
 			latencyFound bool
 			timeoutFound bool
 			errorFound   bool
+			asyncFound   bool
 		)
+		latencyName := monitoringmetrics.MetricNameWithSubsystem("http_exec", "sync_latency_seconds")
+		timeoutName := monitoringmetrics.MetricNameWithSubsystem("http_exec", "timeouts_total")
+		errorName := monitoringmetrics.MetricNameWithSubsystem("http_exec", "errors_total")
+		asyncName := monitoringmetrics.MetricNameWithSubsystem("http_exec", "started_total")
 		for _, scopeMetrics := range rm.ScopeMetrics {
 			for _, metric := range scopeMetrics.Metrics {
 				switch data := metric.Data.(type) {
 				case metricdata.Histogram[float64]:
-					if metric.Name != "http_exec_sync_latency_seconds" {
+					if metric.Name != latencyName {
 						continue
 					}
 					require.Len(t, data.DataPoints, 1)
@@ -47,7 +54,7 @@ func TestExecutionMetrics_Recorders(t *testing.T) {
 					latencyFound = true
 				case metricdata.Sum[int64]:
 					switch metric.Name {
-					case "http_exec_timeouts_total":
+					case timeoutName:
 						require.True(t, data.IsMonotonic)
 						require.Equal(t, metricdata.CumulativeTemporality, data.Temporality)
 						require.Len(t, data.DataPoints, 1)
@@ -55,7 +62,7 @@ func TestExecutionMetrics_Recorders(t *testing.T) {
 						require.Equal(t, int64(1), dp.Value)
 						require.Equal(t, ExecutionKindWorkflow, attrString(t, dp.Attributes, "kind"))
 						timeoutFound = true
-					case "http_exec_errors_total":
+					case errorName:
 						require.True(t, data.IsMonotonic)
 						require.Equal(t, metricdata.CumulativeTemporality, data.Temporality)
 						require.Len(t, data.DataPoints, 1)
@@ -64,6 +71,14 @@ func TestExecutionMetrics_Recorders(t *testing.T) {
 						require.Equal(t, ExecutionKindWorkflow, attrString(t, dp.Attributes, "kind"))
 						require.Equal(t, int64(http.StatusInternalServerError), attrInt(t, dp.Attributes, "code"))
 						errorFound = true
+					case asyncName:
+						require.True(t, data.IsMonotonic)
+						require.Equal(t, metricdata.CumulativeTemporality, data.Temporality)
+						require.Len(t, data.DataPoints, 1)
+						dp := data.DataPoints[0]
+						require.Equal(t, int64(1), dp.Value)
+						require.Equal(t, ExecutionKindWorkflow, attrString(t, dp.Attributes, "kind"))
+						asyncFound = true
 					}
 				}
 			}
@@ -71,6 +86,7 @@ func TestExecutionMetrics_Recorders(t *testing.T) {
 		require.True(t, latencyFound, "expected latency histogram to be collected")
 		require.True(t, timeoutFound, "expected timeout counter to be collected")
 		require.True(t, errorFound, "expected error counter to be collected")
+		require.True(t, asyncFound, "expected async started counter to be collected")
 	})
 }
 

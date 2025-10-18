@@ -141,6 +141,21 @@ func convertStates(statesDB []*task.StateDB) ([]*task.State, error) {
 	return states, nil
 }
 
+func decodeUsageSummary(blob []byte) (*usage.Summary, error) {
+	if len(blob) == 0 {
+		return nil, nil
+	}
+	var summary usage.Summary
+	if err := json.Unmarshal(blob, &summary); err != nil {
+		return nil, fmt.Errorf("decoding usage summary: %w", err)
+	}
+	if len(summary.Entries) == 0 {
+		return nil, nil
+	}
+	summary.Sort()
+	return summary.Clone(), nil
+}
+
 // buildUpsertArgs prepares the SQL query and arguments for upserting a task state
 func (r *TaskRepo) buildUpsertArgs(state *task.State) (string, []any, error) {
 	usageJSON, err := ToJSONB(state.Usage)
@@ -218,6 +233,19 @@ func (r *TaskRepo) GetState(ctx context.Context, taskExecID core.ID) (*task.Stat
 		return nil, fmt.Errorf("scanning state: %w", err)
 	}
 	return stateDB.ToState()
+}
+
+// GetUsageSummary retrieves the stored usage summary for a task execution without loading the full state.
+func (r *TaskRepo) GetUsageSummary(ctx context.Context, taskExecID core.ID) (*usage.Summary, error) {
+	const query = "SELECT usage FROM task_states WHERE task_exec_id = $1"
+	var usageBlob []byte
+	if err := r.db.QueryRow(ctx, query, taskExecID).Scan(&usageBlob); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, store.ErrTaskNotFound
+		}
+		return nil, fmt.Errorf("scanning usage summary: %w", err)
+	}
+	return decodeUsageSummary(usageBlob)
 }
 
 // GetStateForUpdate is not allowed outside of a transaction on the non-tx repo.
@@ -304,6 +332,18 @@ func (t *taskRepoTx) GetState(ctx context.Context, taskExecID core.ID) (*task.St
 		return nil, fmt.Errorf("scanning state: %w", err)
 	}
 	return stateDB.ToState()
+}
+
+func (t *taskRepoTx) GetUsageSummary(ctx context.Context, taskExecID core.ID) (*usage.Summary, error) {
+	const query = "SELECT usage FROM task_states WHERE task_exec_id = $1 FOR UPDATE"
+	var usageBlob []byte
+	if err := t.tx.QueryRow(ctx, query, taskExecID).Scan(&usageBlob); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, store.ErrTaskNotFound
+		}
+		return nil, fmt.Errorf("scanning usage summary with lock: %w", err)
+	}
+	return decodeUsageSummary(usageBlob)
 }
 
 func (t *taskRepoTx) GetStateForUpdate(ctx context.Context, taskExecID core.ID) (*task.State, error) {

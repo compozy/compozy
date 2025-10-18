@@ -87,7 +87,7 @@ func DefaultConfig() *Config {
 }
 
 // Validate validates the monitoring configuration
-func (c *Config) Validate() error {
+func (c *Config) Validate(_ context.Context) error {
 	if c.Path == "" {
 		return fmt.Errorf("monitoring path cannot be empty")
 	}
@@ -107,7 +107,7 @@ func (c *Config) Validate() error {
 
 // LoadWithEnv creates a monitoring config with environment variable precedence
 // Environment variables take precedence over the provided config values
-func LoadWithEnv(_ context.Context, yamlConfig *Config) (*Config, error) {
+func LoadWithEnv(ctx context.Context, yamlConfig *Config) (*Config, error) {
 	config := DefaultConfig()
 	if yamlConfig != nil {
 		config.Enabled = yamlConfig.Enabled
@@ -127,7 +127,7 @@ func LoadWithEnv(_ context.Context, yamlConfig *Config) (*Config, error) {
 		config.Path = envPath
 	}
 	// Validate configuration before returning
-	if err := config.Validate(); err != nil {
+	if err := config.Validate(ctx); err != nil {
 		return nil, fmt.Errorf("invalid monitoring configuration: %w", err)
 	}
 	return config, nil

@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 	taskuc "github.com/compozy/compozy/engine/task/uc"
 	"github.com/gin-gonic/gin"
 )

@@ -33,7 +33,7 @@ func (v *Validator) Validate(ctx context.Context) error {
 		NewTriggersValidator(v.config),
 		NewOutputsValidator(v.config),
 	)
-	if err := validator.Validate(); err != nil {
+	if err := validator.Validate(ctx); err != nil {
 		return err
 	}
 	if err := validateWorkflowKnowledge(v.config); err != nil {
@@ -56,10 +56,10 @@ func NewTasksValidator(config *Config) *TasksValidator {
 	return &TasksValidator{config: config}
 }
 
-func (v *TasksValidator) Validate() error {
+func (v *TasksValidator) Validate(ctx context.Context) error {
 	for i := range v.config.Tasks {
 		tc := &v.config.Tasks[i]
-		if err := tc.Validate(); err != nil {
+		if err := tc.Validate(ctx); err != nil {
 			return fmt.Errorf("task validation error: %s", err)
 		}
 	}
@@ -78,10 +78,10 @@ func NewAgentsValidator(config *Config) *AgentsValidator {
 	return &AgentsValidator{config: config}
 }
 
-func (v *AgentsValidator) Validate() error {
+func (v *AgentsValidator) Validate(ctx context.Context) error {
 	for i := range v.config.Agents {
 		ac := &v.config.Agents[i]
-		if err := ac.Validate(); err != nil {
+		if err := ac.Validate(ctx); err != nil {
 			return fmt.Errorf("agent validation error: %s", err)
 		}
 	}
@@ -124,7 +124,7 @@ func NewToolsValidator(config *Config) *ToolsValidator {
 	return &ToolsValidator{config: config}
 }
 
-func (v *ToolsValidator) Validate() error {
+func (v *ToolsValidator) Validate(ctx context.Context) error {
 	if len(v.config.Tools) == 0 {
 		return nil
 	}
@@ -132,7 +132,7 @@ func (v *ToolsValidator) Validate() error {
 	for i := range v.config.Tools {
 		tc := &v.config.Tools[i]
 		// Validate tool configuration
-		if err := tc.Validate(); err != nil {
+		if err := tc.Validate(ctx); err != nil {
 			return fmt.Errorf("tool validation error: %s", err)
 		}
 		// Check required ID
@@ -160,10 +160,10 @@ func NewMCPsValidator(config *Config) *MCPsValidator {
 	return &MCPsValidator{config: config}
 }
 
-func (v *MCPsValidator) Validate() error {
+func (v *MCPsValidator) Validate(ctx context.Context) error {
 	for i := range v.config.MCPs {
 		mc := &v.config.MCPs[i]
-		if err := mc.Validate(); err != nil {
+		if err := mc.Validate(ctx); err != nil {
 			return fmt.Errorf("mcp validation error: %s", err)
 		}
 	}
@@ -182,13 +182,13 @@ func NewTriggersValidator(config *Config) *TriggersValidator {
 	return &TriggersValidator{config: config}
 }
 
-func (v *TriggersValidator) Validate() error {
+func (v *TriggersValidator) Validate(ctx context.Context) error {
 	signalNames := map[string]struct{}{}
 	for i := range v.config.Triggers {
 		t := &v.config.Triggers[i]
 		switch t.Type {
 		case TriggerTypeSignal:
-			if err := validateSignalTrigger(t, signalNames, v.config.ID, i); err != nil {
+			if err := validateSignalTrigger(ctx, t, signalNames, v.config.ID, i); err != nil {
 				return err
 			}
 		case TriggerTypeWebhook:
@@ -202,7 +202,7 @@ func (v *TriggersValidator) Validate() error {
 			if t.Name != "" {
 				return fmt.Errorf("workflow '%s' trigger[%d]: name is not allowed for webhook triggers", v.config.ID, i)
 			}
-			if err := webhook.ValidateTrigger(t.Webhook); err != nil {
+			if err := webhook.ValidateTrigger(ctx, t.Webhook); err != nil {
 				return fmt.Errorf("workflow '%s' trigger[%d]: invalid webhook trigger: %w", v.config.ID, i, err)
 			}
 		default:
@@ -212,7 +212,13 @@ func (v *TriggersValidator) Validate() error {
 	return nil
 }
 
-func validateSignalTrigger(t *Trigger, seen map[string]struct{}, workflowID string, triggerIndex int) error {
+func validateSignalTrigger(
+	ctx context.Context,
+	t *Trigger,
+	seen map[string]struct{},
+	workflowID string,
+	triggerIndex int,
+) error {
 	if t.Name == "" {
 		return fmt.Errorf("workflow '%s' trigger[%d]: trigger name is required", workflowID, triggerIndex)
 	}
@@ -229,7 +235,7 @@ func validateSignalTrigger(t *Trigger, seen map[string]struct{}, workflowID stri
 	}
 	seen[t.Name] = struct{}{}
 	if t.Schema != nil {
-		if _, err := t.Schema.Compile(); err != nil {
+		if _, err := t.Schema.Compile(ctx); err != nil {
 			return fmt.Errorf(
 				"workflow '%s' trigger[%d] '%s': invalid trigger schema: %w",
 				workflowID,
@@ -254,7 +260,7 @@ func NewOutputsValidator(config *Config) *OutputsValidator {
 	return &OutputsValidator{config: config}
 }
 
-func (v *OutputsValidator) Validate() error {
+func (v *OutputsValidator) Validate(_ context.Context) error {
 	if v.config.Outputs == nil {
 		return nil
 	}

@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/pkg/logger"
@@ -92,7 +93,7 @@ func TestNewLoopFSM_LogsTransitions(t *testing.T) {
 	machine := newLoopFSM(ctx, &stubLoopDeps{}, loopCtx)
 	require.NoError(t, machine.Event(ctx, EventStartLoop, loopCtx))
 	require.NoError(t, machine.Event(ctx, EventLLMResponse, loopCtx))
-	logs := logBuf.String()
+	logs := stripANSI(logBuf.String())
 	require.Contains(t, logs, "FSM transition start")
 	require.Contains(t, logs, "event=start_loop")
 	require.Contains(t, logs, "from_state=init")
@@ -117,4 +118,25 @@ func assertTransition(
 	err := machine.Event(ctx, event, loopCtx)
 	require.NoError(t, err)
 	require.Equal(t, expectedState, machine.Current())
+}
+
+func stripANSI(input string) string {
+	var b strings.Builder
+	b.Grow(len(input))
+	escaping := false
+	for i := 0; i < len(input); i++ {
+		ch := input[i]
+		if escaping {
+			if ch == 'm' {
+				escaping = false
+			}
+			continue
+		}
+		if ch == 0x1b {
+			escaping = true
+			continue
+		}
+		b.WriteByte(ch)
+	}
+	return b.String()
 }

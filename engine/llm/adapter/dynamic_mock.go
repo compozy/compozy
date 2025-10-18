@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"regexp"
 	"strings"
 
@@ -37,12 +36,9 @@ type DynamicMockLLM struct {
 // NewDynamicMockLLM creates a new dynamic mock LLM that returns fixture-defined outputs
 // for prompts that match expected action patterns. Falls back to NewMockLLM for unmatched prompts.
 func NewDynamicMockLLM(model string, expectedOutputs map[string]core.Output) *DynamicMockLLM {
-	copied := make(map[string]core.Output, len(expectedOutputs))
-	// shallow copy is enough for test fixtures; deep copy if needed later
-	maps.Copy(copied, expectedOutputs)
 	return &DynamicMockLLM{
 		model:           model,
-		expectedOutputs: copied,
+		expectedOutputs: core.CloneMap(expectedOutputs),
 		fallback:        NewMockLLM(model),
 	}
 }

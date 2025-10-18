@@ -3,7 +3,6 @@ package llm
 import (
 	"context"
 	"fmt"
-	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
@@ -108,8 +107,7 @@ func (t *InternalTool) executeTool(ctx context.Context, input *core.Input, confi
 	toolExecID := core.MustNewID()
 	env := core.EnvMap{}
 	if t.env != nil {
-		env = make(core.EnvMap, len(*t.env))
-		maps.Copy(env, *t.env)
+		env = core.CloneMap(*t.env)
 	}
 	globalTimeout := t.runtime.GetGlobalTimeout()
 	toolTimeout, err := t.config.GetTimeout(ctx, globalTimeout)

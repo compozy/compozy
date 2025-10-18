@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -18,7 +19,7 @@ func NewCWDValidator(cwd *core.PathCWD, id string) *CWDValidator {
 	return &CWDValidator{CWD: cwd, id: id}
 }
 
-func (v *CWDValidator) Validate() error {
+func (v *CWDValidator) Validate(_ context.Context) error {
 	if v.CWD == nil || v.CWD.PathStr() == "" {
 		return fmt.Errorf("%w for %s", ErrMissingCWD, v.id)
 	}

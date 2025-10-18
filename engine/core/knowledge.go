@@ -31,7 +31,7 @@ func (b *KnowledgeBinding) Clone() KnowledgeBinding {
 		maxTokens := *b.MaxTokens
 		c.MaxTokens = &maxTokens
 	}
-	c.Filters = CopyMap(b.Filters)
+	c.Filters = CloneMap(b.Filters)
 	return c
 }
 
@@ -58,6 +58,6 @@ func (b *KnowledgeBinding) Merge(override *KnowledgeBinding) {
 		b.Fallback = override.Fallback
 	}
 	if override.Filters != nil {
-		b.Filters = CopyMap(override.Filters)
+		b.Filters = CloneMap(override.Filters)
 	}
 }

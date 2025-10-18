@@ -25,7 +25,7 @@
 - **Developer-Focused**: A comprehensive CLI with hot-reloading for a seamless development experience.
 - **Advanced Task Orchestration**: 8 powerful task types including parallel, sequential, and conditional execution.
 - **Extensible Tools**: Write custom tools in TypeScript/JavaScript to extend agent capabilities.
-- **Multi-Model Support**: Integrates with 7+ LLM providers like OpenAI, Anthropic, Google, and local models.
+- **Multi-Model Support**: Integrates with 8+ LLM providers like OpenAI, Anthropic, Google, Cerebras, and local models.
 - **Enterprise-Ready**: With Temporal behind the scenes, Compozy is built for production with persistence, monitoring, and security features.
 - **High Performance**: Built with Go at its core, Compozy delivers exceptional speed and efficiency.
 

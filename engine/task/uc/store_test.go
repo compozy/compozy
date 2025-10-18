@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/resources"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/assert"

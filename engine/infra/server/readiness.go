@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -54,7 +55,7 @@ func (s *Server) initReadinessMetrics() {
 	log := logger.FromContext(s.ctx)
 	meter := s.monitoring.Meter()
 	g, err := meter.Int64ObservableGauge(
-		"compozy_server_ready",
+		monitoringmetrics.MetricNameWithSubsystem("server", "ready"),
 		metric.WithDescription("Server readiness: 1 ready, 0 not_ready"),
 	)
 	if err == nil {
@@ -85,7 +86,7 @@ func (s *Server) initReadinessMetrics() {
 		log.Error("Failed to create readiness gauge", "error", err)
 	}
 	c, err := meter.Int64Counter(
-		"compozy_server_ready_transitions_total",
+		monitoringmetrics.MetricNameWithSubsystem("server", "ready_transitions_total"),
 		metric.WithDescription("Count of readiness state transitions"),
 	)
 	if err == nil {

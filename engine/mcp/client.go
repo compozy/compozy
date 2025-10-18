@@ -14,9 +14,19 @@ import (
 	"strings"
 	"time"
 
+	mcpmetrics "github.com/compozy/compozy/engine/mcp/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	"github.com/sethvargo/go-retry"
+)
+
+const (
+	// proxyDefaultMaxIdleConns defines the number of idle connections kept open globally.
+	proxyDefaultMaxIdleConns = 128
+	// proxyDefaultMaxIdleConnsPerHost controls idle pooling per MCP proxy host.
+	proxyDefaultMaxIdleConnsPerHost = 128
+	// proxyDefaultIdleConnTimeout aligns with common reverse-proxy keep-alives to maximize reuse.
+	proxyDefaultIdleConnTimeout = 90 * time.Second
 )
 
 // Definition represents the structure for registering an MCP with the proxy
@@ -118,8 +128,10 @@ func NewProxyClient(baseURL string, timeout time.Duration) *Client {
 		http: &http.Client{
 			Timeout: timeout,
 			Transport: &http.Transport{
-				MaxIdleConns:          10,
-				IdleConnTimeout:       30 * time.Second,
+				MaxIdleConns:          proxyDefaultMaxIdleConns,
+				MaxIdleConnsPerHost:   proxyDefaultMaxIdleConnsPerHost,
+				MaxConnsPerHost:       proxyDefaultMaxIdleConnsPerHost,
+				IdleConnTimeout:       proxyDefaultIdleConnTimeout,
 				DisableCompression:    false,
 				DisableKeepAlives:     false,
 				TLSHandshakeTimeout:   10 * time.Second,
@@ -426,10 +438,13 @@ func (c *Client) checkConnections(
 		case "connected":
 			connected++
 			delete(lastErrors, d.Definition.Name)
+			mcpmetrics.MarkServerConnected(ctx, d.Definition.Name)
 		case "error":
 			lastErrors[d.Definition.Name] = d.Status.LastError
+			mcpmetrics.MarkServerDisconnected(ctx, d.Definition.Name)
 		default:
 			lastErrors[d.Definition.Name] = "" // pending/connecting
+			mcpmetrics.MarkServerDisconnected(ctx, d.Definition.Name)
 		}
 	}
 	return connected, nil
@@ -517,6 +532,7 @@ type ToolCallResponse struct {
 // CallTool executes a tool via the proxy
 func (c *Client) CallTool(ctx context.Context, mcpName, toolName string, arguments map[string]any) (any, error) {
 	var response ToolCallResponse
+	start := time.Now()
 	err := c.withRetry(ctx, "call tool", func() error {
 		payload, err := json.Marshal(ToolCallRequest{
 			MCPName:   mcpName,
@@ -558,9 +574,18 @@ func (c *Client) CallTool(ctx context.Context, mcpName, toolName string, argumen
 
 		return nil
 	})
+	duration := time.Since(start)
 	if err != nil {
+		kind := categorizeToolError(err)
+		mcpmetrics.RecordToolError(ctx, mcpName, toolName, kind)
+		outcome := mcpmetrics.OutcomeError
+		if kind == mcpmetrics.ErrorKindTimeout {
+			outcome = mcpmetrics.OutcomeTimeout
+		}
+		mcpmetrics.RecordToolExecution(ctx, mcpName, toolName, duration, outcome)
 		return nil, err
 	}
+	mcpmetrics.RecordToolExecution(ctx, mcpName, toolName, duration, mcpmetrics.OutcomeSuccess)
 	// Normalize proxy-wrapped content: when result is a typed text payload
 	// like {"type":"text","text":"..."}, unwrap to plain string so
 	// downstream success/error heuristics can reason over the textual content.

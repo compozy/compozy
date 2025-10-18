@@ -3,7 +3,6 @@ package shared
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sort"
 
 	"github.com/compozy/compozy/engine/core"
@@ -467,8 +466,7 @@ func (cb *ContextBuilder) buildParentContextWithVisited(
 		// STEP 9: Create isolated visited map copy for recursive call
 		// This prevents visited state pollution between different traversal branches
 		// Essential for handling complex task hierarchies with multiple paths
-		visitedCopy := make(map[string]bool)
-		maps.Copy(visitedCopy, visited)
+		visitedCopy := core.CloneMap(visited)
 		// Recursive call to build grandparent context with incremented depth
 		parentMap[ParentKey] = cb.buildParentContextWithVisited(ctx, grandParentTask, depth+1, visitedCopy)
 	}
@@ -743,7 +741,7 @@ func (cb *ContextBuilder) BuildCollectionContext(
 
 	// Add task-specific context from 'with' parameter
 	if taskConfig.With != nil {
-		maps.Copy(templateContext, *taskConfig.With)
+		templateContext = core.CopyMaps(templateContext, *taskConfig.With)
 	}
 	return templateContext
 }

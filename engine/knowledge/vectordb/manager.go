@@ -131,33 +131,47 @@ func (m *Manager) reset(ctx context.Context) {
 }
 
 func signatureKey(cfg *Config) string {
-	builder := strings.Builder{}
-	builder.WriteString(string(cfg.Provider))
-	builder.WriteString("|")
-	builder.WriteString(strings.TrimSpace(cfg.DSN))
-	builder.WriteString("|")
-	builder.WriteString(strings.TrimSpace(cfg.Path))
-	builder.WriteString("|")
-	builder.WriteString(strings.TrimSpace(cfg.Table))
-	builder.WriteString("|")
-	builder.WriteString(strings.TrimSpace(cfg.Collection))
-	builder.WriteString("|")
-	builder.WriteString(strings.TrimSpace(cfg.Namespace))
-	builder.WriteString("|")
-	builder.WriteString(strings.TrimSpace(cfg.Index))
-	builder.WriteString("|")
-	builder.WriteString(strings.TrimSpace(cfg.Metric))
-	builder.WriteString("|")
-	builder.WriteString(strings.TrimSpace(cfg.Consistency))
-	builder.WriteString("|")
-	builder.WriteString(fmt.Sprintf("%d", cfg.Dimension))
-	builder.WriteString("|")
-	builder.WriteString(fmt.Sprintf("%t", cfg.EnsureIndex))
-	builder.WriteString("|")
-	builder.WriteString(hashStringMap(cfg.Auth))
-	builder.WriteString("|")
-	builder.WriteString(hashOptionsMap(cfg.Options))
-	return builder.String()
+	fields := []string{
+		string(cfg.Provider),
+		strings.TrimSpace(cfg.DSN),
+		strings.TrimSpace(cfg.Path),
+		strings.TrimSpace(cfg.Table),
+		strings.TrimSpace(cfg.Collection),
+		strings.TrimSpace(cfg.Namespace),
+		strings.TrimSpace(cfg.Index),
+		strings.TrimSpace(cfg.Metric),
+		strings.TrimSpace(cfg.Consistency),
+		fmt.Sprintf("%d", cfg.Dimension),
+		fmt.Sprintf("%t", cfg.EnsureIndex),
+		hashStringMap(cfg.Auth),
+		hashOptionsMap(cfg.Options),
+	}
+	fields = append(fields, pgVectorSignature(cfg.PGVector)...)
+	return strings.Join(fields, "|")
+}
+
+func pgVectorSignature(opts *PGVectorOptions) []string {
+	if opts == nil {
+		return nil
+	}
+	index := opts.Index
+	pool := opts.Pool
+	search := opts.Search
+	return []string{
+		strings.TrimSpace(index.Type),
+		fmt.Sprintf("%d", index.Lists),
+		fmt.Sprintf("%d", index.Probes),
+		fmt.Sprintf("%d", index.M),
+		fmt.Sprintf("%d", index.EFConstruction),
+		fmt.Sprintf("%d", index.EFSearch),
+		fmt.Sprintf("%d", pool.MinConns),
+		fmt.Sprintf("%d", pool.MaxConns),
+		pool.MaxConnLifetime.String(),
+		pool.MaxConnIdleTime.String(),
+		pool.HealthCheckPeriod.String(),
+		fmt.Sprintf("%d", search.Probes),
+		fmt.Sprintf("%d", search.EFSearch),
+	}
 }
 
 func hashStringMap(input map[string]string) string {

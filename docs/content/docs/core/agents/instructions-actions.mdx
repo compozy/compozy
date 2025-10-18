@@ -393,7 +393,7 @@ Actions can be selected dynamically based on workflow state using router tasks:
 tasks:
   - id: process-request
     type: router
-    condition: '{{.workflow.input.request_type}}'
+    condition: 'workflow.input.request_type'
     routes:
       analysis:
         type: basic

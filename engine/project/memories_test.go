@@ -61,7 +61,7 @@ func TestProject_ValidateMemories(t *testing.T) {
 			},
 		}
 
-		err = p.Validate()
+		err = p.Validate(t.Context())
 		require.NoError(t, err)
 	})
 }

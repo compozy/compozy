@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html"
 	html_template "html/template"
-	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -163,9 +162,9 @@ func (e *TemplateEngine) RenderString(templateStr string, context map[string]any
 func (e *TemplateEngine) renderTemplate(tmpl *template.Template, context map[string]any) (string, error) {
 	processedContext := e.preprocessContext(context)
 
-	// Thread-safe access to global values
+	// Thread-safe access to global values - merge in global values
 	e.mu.RLock()
-	maps.Copy(processedContext, e.globalValues)
+	processedContext = core.CopyMaps(processedContext, e.globalValues)
 	e.mu.RUnlock()
 
 	var buf bytes.Buffer
@@ -666,8 +665,7 @@ func (e *TemplateEngine) preprocessContext(ctx map[string]any) map[string]any {
 		ctx = make(map[string]any)
 	}
 
-	result := make(map[string]any)
-	maps.Copy(result, ctx)
+	result := core.CloneMap(ctx)
 
 	// Add default fields if they don't exist
 	if _, ok := result["env"]; !ok {

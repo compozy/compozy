@@ -847,10 +847,7 @@ func (l *conversationLoop) emitCompactionCooldown(
 	if l.cfg.compactionCooldown <= 0 {
 		return false
 	}
-	remaining := loopCtx.State.Memory.LastCompactionIteration + l.cfg.compactionCooldown - loopCtx.Iteration
-	if remaining < 0 {
-		remaining = 0
-	}
+	remaining := max(loopCtx.State.Memory.LastCompactionIteration+l.cfg.compactionCooldown-loopCtx.Iteration, 0)
 	telemetry.RecordEvent(ctx, &telemetry.Event{
 		Stage:     "compaction_cooldown",
 		Severity:  telemetry.SeverityInfo,

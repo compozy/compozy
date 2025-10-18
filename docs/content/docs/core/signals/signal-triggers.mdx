@@ -207,7 +207,7 @@ tasks:
 
   - id: route-by-plan
     type: router
-    condition: "{{ .workflow.input.registration_data.plan }}"
+    condition: 'workflow.input.registration_data.plan'
     routes:
       free:
         type: basic

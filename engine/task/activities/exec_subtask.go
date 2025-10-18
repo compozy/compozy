@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -62,6 +63,7 @@ func NewExecuteSubtask(
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
 	usageMetrics usage.Metrics,
+	providerMetrics providermetrics.Recorder,
 	toolEnvironment toolenv.Environment,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
@@ -72,6 +74,7 @@ func NewExecuteSubtask(
 			nil,            // Subtasks don't need memory manager
 			templateEngine, // Ensure templating is available to subtasks
 			nil,
+			providerMetrics,
 			toolEnvironment,
 		),
 		task2Factory:   task2Factory,

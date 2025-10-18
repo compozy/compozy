@@ -130,7 +130,7 @@ type WaitTaskResult struct { /* wait task execution result */ }
 
 // Validation and processing
 type ParamsValidator struct { /* parameter validation */ }
-type ConditionEvaluator interface { /* CEL expression evaluation */ }
+// Wait tasks use the shared CEL evaluator (`task.CELEvaluator`) for condition checks.
 ```
 
 ### Task Configuration

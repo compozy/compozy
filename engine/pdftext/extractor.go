@@ -27,18 +27,17 @@ type Extractor struct {
 	ownsPool bool
 }
 
+const (
+	defaultPoolMinSize = 2
+	defaultPoolMaxSize = 8
+)
+
 // New creates a new Extractor. When cfg.Pool is nil, a WebAssembly-backed pool is created.
 func New(cfg Config) (*Extractor, error) {
 	pool := cfg.Pool
 	ownsPool := false
 	if pool == nil {
-		size := runtime.NumCPU()
-		if size < 2 {
-			size = 2
-		}
-		if size > 8 {
-			size = 8
-		}
+		size := min(max(runtime.NumCPU(), defaultPoolMinSize), defaultPoolMaxSize)
 		initCfg := webassembly.Config{
 			MinIdle:      1,
 			MaxIdle:      size,
@@ -158,7 +157,7 @@ func (e *Extractor) extractPlain(
 	pageCount int,
 ) (string, Stats, error) {
 	limiter := newTextLimiter(runeLimit)
-	for page := 0; page < pageCount; page++ {
+	for page := range pageCount {
 		if err := ctx.Err(); err != nil {
 			return "", Stats{}, err
 		}

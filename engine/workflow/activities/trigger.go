@@ -2,6 +2,7 @@ package activities
 
 import (
 	"context"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/workflow"
@@ -14,6 +15,10 @@ type TriggerInput struct {
 	WorkflowExecID core.ID     `json:"workflow_exec_id"`
 	Input          *core.Input `json:"input"`
 	InitialTaskID  string
+	// ErrorHandlerTimeout bounds error-handling activities; zero uses worker defaults.
+	ErrorHandlerTimeout time.Duration `json:"error_handler_timeout"`
+	// ErrorHandlerMaxRetries limits retries for error-handling activities; zero uses worker defaults.
+	ErrorHandlerMaxRetries int `json:"error_handler_max_retries"`
 }
 
 type Trigger struct {

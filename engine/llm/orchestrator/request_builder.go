@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"maps"
 	"sort"
 	"strings"
 	"sync"
@@ -96,19 +95,32 @@ func (b *requestBuilder) Build(
 		"output_format", b.describeOutputFormat(promptResult.Format),
 		"force_json", forceJSON,
 	)
+	stopWords := append([]string(nil), request.Agent.Model.Config.Params.StopWords...)
 	llmReq := llmadapter.LLMRequest{
 		SystemPrompt: b.enhanceSystemPromptWithBuiltins(ctx, request.Agent.Instructions),
 		Messages:     messages,
 		Tools:        toolDefs,
 		Options: llmadapter.CallOptions{
-			Temperature:  temperature,
-			MaxTokens:    request.Agent.Model.Config.Params.MaxTokens,
-			StopWords:    request.Agent.Model.Config.Params.StopWords,
-			ToolChoice:   toolChoice,
-			OutputFormat: promptResult.Format,
-			ForceJSON:    forceJSON,
-			Provider:     request.Agent.Model.Config.Provider,
-			Model:        request.Agent.Model.Config.Model,
+			Temperature:       temperature,
+			TemperatureSet:    request.Agent.Model.Config.Params.IsSetTemperature(),
+			MaxTokens:         request.Agent.Model.Config.Params.MaxTokens,
+			StopWords:         stopWords,
+			ToolChoice:        toolChoice,
+			OutputFormat:      promptResult.Format,
+			ForceJSON:         forceJSON,
+			Provider:          request.Agent.Model.Config.Provider,
+			Model:             request.Agent.Model.Config.Model,
+			TopP:              request.Agent.Model.Config.Params.TopP,
+			TopK:              request.Agent.Model.Config.Params.TopK,
+			FrequencyPenalty:  request.Agent.Model.Config.Params.FrequencyPenalty,
+			PresencePenalty:   request.Agent.Model.Config.Params.PresencePenalty,
+			Seed:              request.Agent.Model.Config.Params.Seed,
+			N:                 request.Agent.Model.Config.Params.N,
+			CandidateCount:    request.Agent.Model.Config.Params.CandidateCount,
+			RepetitionPenalty: request.Agent.Model.Config.Params.RepetitionPenalty,
+			MaxLength:         request.Agent.Model.Config.Params.MaxLength,
+			MinLength:         request.Agent.Model.Config.Params.MinLength,
+			Metadata:          core.CloneMap(request.Agent.Model.Config.Params.Metadata),
 		},
 	}
 	return RequestBuildOutput{
@@ -477,23 +489,18 @@ func nearestToolNames(target string, names []string, limit int) []string {
 }
 
 func normalizeToolParameters(input map[string]any) map[string]any {
-	params := cloneMap(input)
+	params := core.CloneMap(input)
 	if !isObjectType(params["type"]) {
 		params["type"] = "object"
 	}
-	if _, ok := params["properties"]; !ok {
-		params["properties"] = map[string]any{}
+	props, ok := params["properties"].(map[string]any)
+	if !ok || props == nil {
+		props = map[string]any{}
+	} else {
+		props = core.CloneMap(props)
 	}
+	params["properties"] = props
 	return params
-}
-
-func cloneMap(src map[string]any) map[string]any {
-	if src == nil {
-		return map[string]any{}
-	}
-	clone := make(map[string]any, len(src))
-	maps.Copy(clone, src)
-	return clone
 }
 
 func isObjectType(value any) bool {

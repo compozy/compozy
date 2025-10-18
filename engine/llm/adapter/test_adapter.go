@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"sync"
+
+	"github.com/compozy/compozy/engine/core"
 )
 
 // TestAdapter is a test implementation of LLMClient for unit testing
@@ -107,8 +108,7 @@ func (m *MockToolAdapter) GenerateContent(_ context.Context, req *LLMRequest) (*
 		return nil, err
 	}
 	m.toolMu.RLock()
-	toolResults := make(map[string]string)
-	maps.Copy(toolResults, m.ToolResults)
+	toolResults := core.CloneMap(m.ToolResults)
 	m.toolMu.RUnlock()
 	if len(req.Tools) > 0 && len(toolResults) > 0 {
 		for _, tool := range req.Tools {

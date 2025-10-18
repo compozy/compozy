@@ -39,7 +39,7 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 		}
 
 		// Validate and register config
-		err := testConfig.Validate()
+		err := testConfig.Validate(t.Context())
 		require.NoError(t, err)
 		err = env.configRegistry.Register(testConfig, "test")
 		require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 		}
 
 		// Validate and register config
-		err := testConfig.Validate()
+		err := testConfig.Validate(t.Context())
 		require.NoError(t, err)
 		err = env.configRegistry.Register(testConfig, "test")
 		require.NoError(t, err)
@@ -181,7 +181,7 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 				},
 			}
 
-			err := config.Validate()
+			err := config.Validate(t.Context())
 			require.NoError(t, err)
 			err = env.configRegistry.Register(config, "test")
 			require.NoError(t, err)

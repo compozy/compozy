@@ -89,10 +89,7 @@ func formatErrorBudgets(state *loopState) string {
 	sort.Strings(names)
 	entries := make([]string, 0, len(names))
 	for _, name := range names {
-		remaining := state.budgetFor(name) - state.Budgets.ToolErrors[name]
-		if remaining < 0 {
-			remaining = 0
-		}
+		remaining := max(state.budgetFor(name)-state.Budgets.ToolErrors[name], 0)
 		entries = append(entries, fmt.Sprintf("%s:%d", name, remaining))
 	}
 	return strings.Join(entries, "; ")

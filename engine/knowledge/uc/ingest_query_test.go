@@ -162,11 +162,12 @@ func TestQueryPrepareQuery(t *testing.T) {
 		ctx := testhelpers.NewTestContext(t)
 		store := resources.NewMemoryResourceStore()
 		queryUC := NewQuery(store)
-		out, adapter, vecStore, err := queryUC.prepareQuery(ctx, "proj", "kb", &QueryInput{TopK: 5})
+		out, adapter, vecStore, release, err := queryUC.prepareQuery(ctx, "proj", "kb", &QueryInput{TopK: 5})
 		assert.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, out)
 		assert.Nil(t, adapter)
 		assert.Nil(t, vecStore)
+		assert.Nil(t, release)
 	})
 
 	t.Run("Should return error when embedder dimension is invalid", func(t *testing.T) {
@@ -182,11 +183,12 @@ func TestQueryPrepareQuery(t *testing.T) {
 		vec := createVectorDBConfig(t, "vec", 16)
 		stubKnowledgeTriple(ctx, t, store, "proj", base, emb, vec)
 		queryUC := NewQuery(store)
-		out, adapter, vecStore, err := queryUC.prepareQuery(ctx, "proj", "kb", &QueryInput{Query: "text"})
+		out, adapter, vecStore, release, err := queryUC.prepareQuery(ctx, "proj", "kb", &QueryInput{Query: "text"})
 		assert.ErrorContains(t, err, "dimension")
 		assert.Nil(t, out)
 		assert.Nil(t, adapter)
 		assert.Nil(t, vecStore)
+		assert.Nil(t, release)
 	})
 }
 

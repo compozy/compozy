@@ -62,7 +62,7 @@ tasks:
   # Route based on action type
   - id: process_action
     type: router
-    condition: "{{ .workflow.input.action }}"
+    condition: 'workflow.input.action'
     routes:
       initialize: initialize_user
       update_profile: update_user_profile

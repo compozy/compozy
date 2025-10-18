@@ -121,7 +121,7 @@ func (s *TestRedisSetup) CreateTestMemoryInstance(t *testing.T, instanceID strin
 	}
 
 	// Validate config to set ParsedTTL
-	err := testConfig.Validate()
+	err := testConfig.Validate(t.Context())
 	require.NoError(t, err)
 
 	// Register the config

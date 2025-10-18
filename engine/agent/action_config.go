@@ -124,12 +124,12 @@ func (a *ActionConfig) GetInput() *core.Input {
 	return a.With
 }
 
-func (a *ActionConfig) Validate() error {
+func (a *ActionConfig) Validate(ctx context.Context) error {
 	v := schema.NewCompositeValidator(
 		schema.NewCWDValidator(a.CWD, a.ID),
 		schema.NewStructValidator(a),
 	)
-	return v.Validate()
+	return v.Validate(ctx)
 }
 
 func (a *ActionConfig) ValidateInput(ctx context.Context, input *core.Input) error {

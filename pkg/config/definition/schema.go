@@ -306,6 +306,15 @@ func registerServerHTTPTimeouts(registry *Registry) {
 			Help:    "HTTP server idle timeout",
 		},
 	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.http_read_header",
+			Default: 10 * time.Second,
+			EnvVar:  "SERVER_HTTP_READ_HEADER_TIMEOUT",
+			Type:    durationType,
+			Help:    "HTTP server read header timeout to guard against Slowloris attacks",
+		},
+	)
 }
 
 func registerServerScheduleTimeouts(registry *Registry) {
@@ -387,6 +396,11 @@ func registerServerMiscTimeouts(registry *Registry) {
 }
 
 func registerDatabaseFields(registry *Registry) {
+	registerDatabaseConnectionFields(registry)
+	registerDatabaseOperationalFields(registry)
+}
+
+func registerDatabaseConnectionFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "database.host",
 		Default: "localhost",
@@ -449,7 +463,9 @@ func registerDatabaseFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Database connection string",
 	})
+}
 
+func registerDatabaseOperationalFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "database.auto_migrate",
 		Default: true,
@@ -466,6 +482,42 @@ func registerDatabaseFields(registry *Registry) {
 		EnvVar:  "DB_MIGRATION_TIMEOUT",
 		Type:    durationType,
 		Help:    "Maximum duration allowed for startup database migrations (must be >= 45s)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "database.max_open_conns",
+		Default: 25,
+		CLIFlag: "db-max-open-conns",
+		EnvVar:  "DB_MAX_OPEN_CONNS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum number of open PostgreSQL connections",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "database.max_idle_conns",
+		Default: 5,
+		CLIFlag: "db-max-idle-conns",
+		EnvVar:  "DB_MAX_IDLE_CONNS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum number of idle connections kept in the pool",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "database.conn_max_lifetime",
+		Default: 5 * time.Minute,
+		CLIFlag: "db-conn-max-lifetime",
+		EnvVar:  "DB_CONN_MAX_LIFETIME",
+		Type:    durationType,
+		Help:    "Maximum lifetime for a pooled connection",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "database.conn_max_idle_time",
+		Default: 1 * time.Minute,
+		CLIFlag: "db-conn-max-idle-time",
+		EnvVar:  "DB_CONN_MAX_IDLE_TIME",
+		Type:    durationType,
+		Help:    "Maximum idle time before a connection is recycled",
 	})
 }
 
@@ -602,7 +654,7 @@ func registerRuntimeToolFields(registry *Registry) {
 	})
 	registry.Register(&FieldDef{
 		Path:    "runtime.entrypoint_path",
-		Default: "./tools.ts",
+		Default: "",
 		CLIFlag: "entrypoint-path",
 		EnvVar:  "RUNTIME_ENTRYPOINT_PATH",
 		Type:    reflect.TypeOf(""),
@@ -1004,8 +1056,10 @@ func registerLLMFields(registry *Registry) {
 	})
 
 	registerLLMRetryAndLimits(registry)
+	registerLLMRateLimiterFields(registry)
 	registerLLMConversationControls(registry)
 	registerLLMMCPExtras(registry)
+	registerLLMDefaultParams(registry)
 }
 
 // registerLLMMCPExtras splits MCP-related LLM fields to keep function sizes small
@@ -1131,6 +1185,150 @@ func registerLLMRetryAndLimits(registry *Registry) {
 		EnvVar:  "LLM_MAX_SEQUENTIAL_TOOL_ERRORS",
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum sequential tool/content errors tolerated per tool before aborting",
+	})
+}
+
+func registerLLMRateLimiterFields(registry *Registry) {
+	registerLLMRateLimiterDefaults(registry)
+	registerLLMRateLimiterPerProvider(registry)
+}
+
+func registerLLMRateLimiterDefaults(registry *Registry) {
+	registerLLMRateLimiterToggle(registry)
+	registerLLMRateLimiterConcurrencyDefaults(registry)
+	registerLLMRateLimiterThroughputDefaults(registry)
+}
+
+func registerLLMRateLimiterToggle(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.enabled",
+		Default: true,
+		CLIFlag: "llm-rate-limiting-enabled",
+		EnvVar:  "LLM_RATE_LIMITING_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable per-provider concurrency limiting for upstream LLM calls",
+	})
+}
+
+func registerLLMRateLimiterConcurrencyDefaults(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_concurrency",
+		Default: 10,
+		CLIFlag: "llm-rate-limiting-default-concurrency",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_CONCURRENCY",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default concurrent request limit applied when a provider override is not present",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_queue_size",
+		Default: 100,
+		CLIFlag: "llm-rate-limiting-default-queue-size",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_QUEUE_SIZE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default queue size for pending requests waiting on concurrency slots",
+	})
+}
+
+func registerLLMRateLimiterThroughputDefaults(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_requests_per_minute",
+		Default: 0,
+		CLIFlag: "llm-rate-limiting-default-rpm",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_REQUESTS_PER_MINUTE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default request throughput cap (per minute) when provider overrides are absent",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_tokens_per_minute",
+		Default: 0,
+		CLIFlag: "llm-rate-limiting-default-tpm",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_TOKENS_PER_MINUTE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default total-token throughput cap (per minute) when provider overrides are absent",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_request_burst",
+		Default: 0,
+		CLIFlag: "llm-rate-limiting-default-request-burst",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_REQUEST_BURST",
+		Type:    reflect.TypeOf(0),
+		Help:    "Burst size applied to request-per-minute limiters when provider overrides are absent",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.rate_limiting.default_token_burst",
+		Default: 0,
+		CLIFlag: "llm-rate-limiting-default-token-burst",
+		EnvVar:  "LLM_RATE_LIMITING_DEFAULT_TOKEN_BURST",
+		Type:    reflect.TypeOf(0),
+		Help:    "Burst size applied to token-per-minute limiters when provider overrides are absent",
+	})
+}
+
+func registerLLMRateLimiterPerProvider(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path: "llm.rate_limiting.per_provider_limits",
+		Default: map[string]map[string]int{
+			"cerebras": {
+				"concurrency":         10,
+				"queue_size":          100,
+				"requests_per_minute": 60,
+				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
+			},
+			"groq": {
+				"concurrency":         10,
+				"queue_size":          100,
+				"requests_per_minute": 60,
+				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
+			},
+			"openai": {
+				"concurrency":         50,
+				"queue_size":          200,
+				"requests_per_minute": 120,
+				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
+			},
+			"anthropic": {
+				"concurrency":         20,
+				"queue_size":          150,
+				"requests_per_minute": 60,
+				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
+			},
+			"google": {
+				"concurrency":         30,
+				"queue_size":          150,
+				"requests_per_minute": 90,
+				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
+			},
+			"ollama": {
+				"concurrency":         10,
+				"queue_size":          100,
+				"requests_per_minute": 60,
+				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
+			},
+			"openrouter": {
+				"concurrency":         10,
+				"queue_size":          100,
+				"requests_per_minute": 60,
+				"tokens_per_minute":   0,
+				"request_burst":       0,
+				"token_burst":         0,
+			},
+		},
+		CLIFlag: "",
+		EnvVar:  "LLM_RATE_LIMITING_PER_PROVIDER_LIMITS",
+		Type:    reflect.TypeOf(map[string]map[string]int{}),
+		Help:    "Per-provider concurrency and queue overrides keyed by provider name",
 	})
 }
 
@@ -1278,6 +1476,42 @@ func registerLLMTelemetryControls(registry *Registry) {
 		EnvVar:  "LLM_CONTEXT_WARNING_THRESHOLDS",
 		Type:    reflect.TypeOf([]float64{}),
 		Help:    "Comma-separated context usage ratios (0-1) that trigger telemetry warnings",
+	})
+}
+
+// registerLLMDefaultParams registers global default LLM parameters
+func registerLLMDefaultParams(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "llm.default_top_p",
+		Default: 0.0,
+		CLIFlag: "llm-default-top-p",
+		EnvVar:  "LLM_DEFAULT_TOP_P",
+		Type:    reflect.TypeOf(0.0),
+		Help:    "Default TopP (nucleus sampling) for LLM requests (0 = use provider default)",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.default_frequency_penalty",
+		Default: 0.0,
+		CLIFlag: "llm-default-frequency-penalty",
+		EnvVar:  "LLM_DEFAULT_FREQUENCY_PENALTY",
+		Type:    reflect.TypeOf(0.0),
+		Help:    "Default frequency penalty to reduce repetition (0 = no penalty)",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.default_presence_penalty",
+		Default: 0.0,
+		CLIFlag: "llm-default-presence-penalty",
+		EnvVar:  "LLM_DEFAULT_PRESENCE_PENALTY",
+		Type:    reflect.TypeOf(0.0),
+		Help:    "Default presence penalty to encourage diversity (0 = no penalty)",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.default_seed",
+		Default: 0,
+		CLIFlag: "llm-default-seed",
+		EnvVar:  "LLM_DEFAULT_SEED",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default seed for reproducible outputs (0 = disabled/non-deterministic)",
 	})
 }
 
@@ -1748,6 +1982,15 @@ func registerCacheCompressionFields(registry *Registry) {
 }
 
 func registerWorkerFields(registry *Registry) {
+	registerWorkerCacheLifecycleFields(registry)
+	registerWorkerDispatcherFields(registry)
+	registerWorkerTemporalFields(registry)
+	registerWorkerConcurrencyFields(registry)
+	registerWorkerActivityDefaults(registry)
+	registerWorkerErrorHandlerFields(registry)
+}
+
+func registerWorkerCacheLifecycleFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "worker.config_store_ttl",
 		Default: 24 * time.Hour,
@@ -1775,6 +2018,17 @@ func registerWorkerFields(registry *Registry) {
 		Help:    "Timeout for MCP server shutdown",
 	})
 
+	registry.Register(&FieldDef{
+		Path:    "worker.mcp_proxy_health_check_timeout",
+		Default: 10 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "WORKER_MCP_PROXY_HEALTH_CHECK_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for MCP proxy health checks",
+	})
+}
+
+func registerWorkerDispatcherFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "worker.dispatcher.heartbeat_ttl",
 		Default: 5 * time.Minute,
@@ -1810,16 +2064,9 @@ func registerWorkerFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum number of dispatcher startup retries",
 	})
+}
 
-	registry.Register(&FieldDef{
-		Path:    "worker.mcp_proxy_health_check_timeout",
-		Default: 10 * time.Second,
-		CLIFlag: "",
-		EnvVar:  "WORKER_MCP_PROXY_HEALTH_CHECK_TIMEOUT",
-		Type:    durationType,
-		Help:    "Timeout for MCP proxy health checks",
-	})
-
+func registerWorkerTemporalFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "worker.start_workflow_timeout",
 		Default: 5 * time.Second,
@@ -1827,6 +2074,84 @@ func registerWorkerFields(registry *Registry) {
 		EnvVar:  "WORKER_START_WORKFLOW_TIMEOUT",
 		Type:    durationType,
 		Help:    "Timeout for starting a workflow execution to avoid hanging requests",
+	})
+}
+
+func registerWorkerConcurrencyFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "worker.max_concurrent_activity_execution_size",
+		Default: 0,
+		CLIFlag: "",
+		EnvVar:  "WORKER_MAX_CONCURRENT_ACTIVITIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum concurrent activity executions (0 = auto based on CPU)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.max_concurrent_workflow_execution_size",
+		Default: 0,
+		CLIFlag: "",
+		EnvVar:  "WORKER_MAX_CONCURRENT_WORKFLOWS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum concurrent workflow task executions (0 = auto based on CPU)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.max_concurrent_local_activity_execution_size",
+		Default: 0,
+		CLIFlag: "",
+		EnvVar:  "WORKER_MAX_CONCURRENT_LOCAL_ACTIVITIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum concurrent local activity executions (0 = auto based on CPU)",
+	})
+}
+
+func registerWorkerActivityDefaults(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "worker.activity_start_to_close_timeout",
+		Default: 5 * time.Minute,
+		CLIFlag: "",
+		EnvVar:  "WORKER_ACTIVITY_START_TO_CLOSE_TIMEOUT",
+		Type:    durationType,
+		Help:    "Default activity start-to-close timeout",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.activity_heartbeat_timeout",
+		Default: 30 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "WORKER_ACTIVITY_HEARTBEAT_TIMEOUT",
+		Type:    durationType,
+		Help:    "Default activity heartbeat timeout",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.activity_max_retries",
+		Default: 3,
+		CLIFlag: "",
+		EnvVar:  "WORKER_ACTIVITY_MAX_RETRIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default maximum activity retry attempts",
+	})
+}
+
+func registerWorkerErrorHandlerFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "worker.error_handler_timeout",
+		Default: 30 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "WORKER_ERROR_HANDLER_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for workflow error handler activities",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.error_handler_max_retries",
+		Default: 3,
+		CLIFlag: "",
+		EnvVar:  "WORKER_ERROR_HANDLER_MAX_RETRIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Retry attempts for workflow error handler activities",
 	})
 }
 

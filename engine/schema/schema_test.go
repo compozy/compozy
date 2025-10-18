@@ -250,7 +250,7 @@ func TestSchema_Compile(t *testing.T) {
 			"required": []string{"workflow"},
 		}
 
-		compiledSchema, err := schema.Compile()
+		compiledSchema, err := schema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.NotNil(t, compiledSchema)
 	})
@@ -260,7 +260,7 @@ func TestSchema_Compile(t *testing.T) {
 		schema := &Schema{}
 		(*schema)["self"] = schema // Create circular reference in the map itself
 
-		compiledSchema, err := schema.Compile()
+		compiledSchema, err := schema.Compile(t.Context())
 		require.Error(t, err)
 		assert.Nil(t, compiledSchema)
 		assert.ErrorContains(t, err, "failed to compile schema")
@@ -269,7 +269,7 @@ func TestSchema_Compile(t *testing.T) {
 	t.Run("Should return nil for nil schema without error", func(t *testing.T) {
 		var schema *Schema
 
-		compiledSchema, err := schema.Compile()
+		compiledSchema, err := schema.Compile(t.Context())
 		assert.NoError(t, err)
 		assert.Nil(t, compiledSchema)
 	})

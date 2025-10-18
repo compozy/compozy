@@ -204,7 +204,7 @@ agents:
   type: wait
   wait_for: "analysis.approved"
   timeout: "5m"
-  condition: 'signal.payload.analysis_id == "{{ .workflow.id }}"'
+  condition: 'signal.payload.analysis_id == workflow.id'
   processor:
     tool: some_tool
 
@@ -293,18 +293,19 @@ const featureCard = tv({
     state: {
       active: {
         container: "my-2",
-        card: "border-border bg-accent shadow-sm px-4 py-4 md:px-5 md:py-5",
+        card: "border-border bg-accent shadow-sm px-4 py-4 md:px-5 md:py-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         content: "items-start",
         icon: "w-10 md:w-11 bg-primary text-primary-foreground",
-        title: "font-medium text-foreground text-base md:text-lg lg:text-xl mb-2 leading-tight",
+        title:
+          "font-serif font-medium text-foreground text-base md:text-lg lg:text-xl mb-2 leading-tight",
         descriptionText: "text-xs md:text-sm lg:text-base leading-relaxed",
       },
       inactive: {
         container: "",
-        card: "border-transparent hover:border-border hover:bg-accent/30 px-3 py-1 md:px-4 md:py-1",
+        card: "border-transparent hover:border-border hover:bg-accent/30 px-3 py-1 md:px-4 md:py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         content: "items-center",
         icon: "w-8 md:w-9 bg-muted text-muted-foreground",
-        title: "text-muted-foreground text-sm md:text-base leading-tight",
+        title: "font-serif text-muted-foreground text-sm md:text-base leading-tight",
         descriptionText: "text-xs md:text-sm lg:text-base leading-relaxed",
       },
     },
@@ -339,9 +340,11 @@ function FeatureCard({ feature, isActive, onClick }: FeatureCardProps) {
       layoutId={`card-container-${feature.id}`}
       transition={{ type: "spring", ...ANIMATIONS.spring, duration: ANIMATIONS.duration }}
     >
-      <motion.div
-        className={styles.card()}
+      <motion.button
+        type="button"
+        aria-pressed={isActive}
         onClick={onClick}
+        className={styles.card()}
         layout
         layoutId={`card-${feature.id}`}
         animate={{
@@ -362,7 +365,7 @@ function FeatureCard({ feature, isActive, onClick }: FeatureCardProps) {
           <FeatureIcon icon={Icon} isActive={isActive} styles={styles} featureId={feature.id} />
           <FeatureContent feature={feature} isActive={isActive} styles={styles} />
         </motion.div>
-      </motion.div>
+      </motion.button>
     </motion.div>
   );
 }
@@ -673,7 +676,7 @@ export default function FeaturesSection() {
           <Badge variant="secondary" className="mb-3">
             Powerful Features
           </Badge>
-          <h2 className="!text-foreground max-w-2xl mx-auto text-3xl leading-tight md:text-4xl lg:text-5xl">
+          <h2 className="font-serif !text-foreground max-w-2xl mx-auto text-3xl leading-tight md:text-4xl lg:text-5xl">
             Unlock Advanced Multi-agent Orchestration
           </h2>
           <p className="mx-auto mt-3 max-w-3xl text-sm text-muted-foreground md:mt-4 md:text-base">
@@ -707,7 +710,7 @@ export default function FeaturesSection() {
                             <Icon className="size-5" />
                           </div>
                           <div>
-                            <h3 className="text-lg font-semibold text-foreground">
+                            <h3 className="font-serif text-lg font-semibold text-foreground">
                               {feature.title}
                             </h3>
                           </div>
@@ -742,7 +745,8 @@ export default function FeaturesSection() {
                 {features.map((_, index) => (
                   <button
                     key={index}
-                    className="size-2 rounded-full bg-muted hover:bg-muted-foreground/50"
+                    type="button"
+                    className="size-2 rounded-full bg-muted hover:bg-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     onClick={() => {
                       scrollToIndex(index);
                     }}
@@ -817,7 +821,7 @@ export default function FeaturesSection() {
                         })()}
                       </motion.div>
                       <motion.h3
-                        className="text-xl font-semibold text-foreground"
+                        className="font-serif text-xl font-semibold text-foreground"
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.15, duration: 0.3 }}
@@ -863,7 +867,8 @@ export default function FeaturesSection() {
                   {features.map((_, index) => (
                     <button
                       key={index}
-                      className="size-2 rounded-full bg-muted hover:bg-muted-foreground/50"
+                      type="button"
+                      className="size-2 rounded-full bg-muted hover:bg-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       onClick={() => setActiveFeature(index)}
                       aria-label={`Go to slide ${index + 1}`}
                     />

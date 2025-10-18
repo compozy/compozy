@@ -46,6 +46,18 @@ func (r *InMemoryRepo) GetState(_ context.Context, taskExecID core.ID) (*task.St
 	return &stateCopy, nil
 }
 
+// GetUsageSummary returns a cloned usage summary without loading the full state.
+func (r *InMemoryRepo) GetUsageSummary(ctx context.Context, taskExecID core.ID) (*usage.Summary, error) {
+	state, err := r.GetState(ctx, taskExecID)
+	if err != nil {
+		return nil, err
+	}
+	if state.Usage == nil {
+		return nil, nil
+	}
+	return state.Usage.Clone(), nil
+}
+
 // UpsertState updates or inserts a state
 func (r *InMemoryRepo) UpsertState(_ context.Context, state *task.State) error {
 	r.mu.Lock()

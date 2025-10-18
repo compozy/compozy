@@ -786,7 +786,7 @@ with:
     {{ end }}
 
 # Skip execution if no data to process
-condition: "{{ ne .with.data null }}"
+condition: 'with.data != null'
 
 on_success:
   next: "{{ if .workflow.input.save_results }}save-results{{ else }}notify-completion{{ end }}"
@@ -818,7 +818,7 @@ outputs:
   errors: "{{ .output.errors }}"
 
 on_success:
-  condition: "{{ eq (len .task.outputs.errors) 0 }}"
+  condition: 'size(task.outputs.errors) == 0'
   next: save-clean-data
 on_error:
   next: handle-transformation-errors

@@ -51,9 +51,10 @@ func (e *ParallelTaskExecutor) HandleParallelTask(
 			return nil, err
 		}
 		// Execute subtasks in parallel using executeChild helper
+		maxConcurrency := pConfig.GetMaxWorkers()
 		e.executeChildrenInParallel(ctx, pState, childStates, func(cs *task.State) *task.Config {
 			return childCfgs[cs.TaskID]
-		}, pConfig, currentDepth, &completed, &failed)
+		}, pConfig, currentDepth, &completed, &failed, maxConcurrency)
 		// Wait for tasks to complete based on strategy
 		err = e.awaitStrategyCompletion(ctx, pConfig.GetStrategy(), &completed, &failed, numTasks)
 		if err != nil {

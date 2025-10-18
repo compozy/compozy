@@ -14,7 +14,13 @@ func TestMetrics_Init(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewMetrics failed: %v", err)
 		}
-		m.OnReceived(context.Background(), "slug", "wf")
-		m.ObserveOverall(context.Background(), "slug", "wf", time.Millisecond)
+		ctx := context.Background()
+		m.OnReceived(ctx, "slug", "wf")
+		m.ObserveOverall(ctx, "slug", "wf", time.Millisecond)
+		m.RecordPayloadSize(ctx, "event.created", "slug", 512)
+		m.ObserveEventOutcome(ctx, "event.created", time.Millisecond, "success")
+		m.ObserveEventOutcome(ctx, "event.created", time.Millisecond, "error")
+		m.IncrementQueueDepth(ctx)
+		m.DecrementQueueDepth(ctx)
 	})
 }

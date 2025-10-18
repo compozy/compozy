@@ -13,6 +13,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task/services"
 	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	wf "github.com/compozy/compozy/engine/workflow"
@@ -43,6 +44,15 @@ type CompiledTrigger struct {
 	CompiledSchema *jsonschema.Schema
 }
 
+// compileSchemaActivity compiles a schema in an activity context.
+// Activities can use standard context.Context for operations like schema compilation.
+func compileSchemaActivity(ctx context.Context, sch *schema.Schema) (*jsonschema.Schema, error) {
+	if sch == nil {
+		return nil, nil
+	}
+	return sch.Compile(ctx)
+}
+
 // GetRegisteredSignalNames returns a list of currently registered signal names for logging
 func GetRegisteredSignalNames(signalMap map[string]*CompiledTrigger) []string {
 	names := make([]string, 0, len(signalMap))
@@ -60,7 +70,6 @@ func registerSignalTrigger(
 	trigger *wf.Trigger,
 ) error {
 	log := workflow.GetLogger(ctx)
-
 	if existing, exists := signalMap[trigger.Name]; exists {
 		return fmt.Errorf(
 			"duplicate signal name %q registered by both %q and %q",
@@ -69,10 +78,10 @@ func registerSignalTrigger(
 			wcfg.ID,
 		)
 	}
-
 	target := &CompiledTrigger{Config: wcfg, Trigger: trigger}
 	if trigger.Schema != nil {
-		compiled, err := trigger.Schema.Compile()
+		var compiled *jsonschema.Schema
+		err := workflow.ExecuteLocalActivity(ctx, compileSchemaActivity, trigger.Schema).Get(ctx, &compiled)
 		if err != nil {
 			log.Error("Failed to compile schema for trigger",
 				"signalName", trigger.Name, "workflow", wcfg.ID, "error", err)
@@ -82,7 +91,6 @@ func registerSignalTrigger(
 	}
 	signalMap[trigger.Name] = target
 	log.Debug("Registered signal trigger", "signalName", trigger.Name, "workflow", wcfg.ID)
-
 	return nil
 }
 
@@ -94,8 +102,6 @@ func registerWebhookEvents(
 	trigger *wf.Trigger,
 ) error {
 	log := workflow.GetLogger(ctx)
-
-	// Register each webhook event name as a routable signal
 	if trigger.Webhook == nil {
 		log.Warn("TriggerTypeWebhook has nil config; ignoring",
 			"workflow", wcfg.ID, "trigger", trigger.Name)
@@ -115,10 +121,10 @@ func registerWebhookEvents(
 				wcfg.ID,
 			)
 		}
-
 		target := &CompiledTrigger{Config: wcfg, Trigger: trigger}
 		if ev.Schema != nil {
-			compiled, err := ev.Schema.Compile()
+			var compiled *jsonschema.Schema
+			err := workflow.ExecuteLocalActivity(ctx, compileSchemaActivity, ev.Schema).Get(ctx, &compiled)
 			if err != nil {
 				log.Error("Failed to compile schema for webhook event",
 					"event", name, "workflow", wcfg.ID, "error", err)

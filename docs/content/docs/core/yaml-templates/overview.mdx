@@ -134,7 +134,7 @@ Route workflows based on conditions:
 ```yaml
 - id: result_router
   type: router
-  condition: '{{ .tasks.validation.output.valid | ternary "success" "failure" }}'
+  condition: 'tasks.validation.output.valid ? "success" : "failure"'
   routes:
     success:
       id: process_success

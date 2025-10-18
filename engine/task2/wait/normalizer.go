@@ -2,7 +2,6 @@ package wait
 
 import (
 	"fmt"
-	"maps"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -88,10 +87,9 @@ func (n *Normalizer) NormalizeWithSignal(
 	}
 	// Merge existing With values back into the normalized config
 	if existingWith != nil && config.With != nil {
-		mergedWith := make(core.Input)
 		// Keep consistency with BaseNormalizer: normalized config.With wins on key conflicts
-		maps.Copy(mergedWith, *existingWith)
-		maps.Copy(mergedWith, *config.With)
+		merged := core.CopyMaps(*existingWith, *config.With)
+		mergedWith := core.Input(merged)
 		config.With = &mergedWith
 	} else if existingWith != nil {
 		cloned, err := core.DeepCopy(*existingWith)

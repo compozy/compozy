@@ -3,12 +3,12 @@ package mcpproxy
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -137,8 +137,7 @@ func (m *MCPClientManager) Stop(ctx context.Context) error {
 
 	// Disconnect all clients concurrently using errgroup
 	m.mu.Lock()
-	clients := make(map[string]*MCPClient)
-	maps.Copy(clients, m.clients)
+	clients := core.CloneMap(m.clients)
 	m.mu.Unlock()
 
 	// Use errgroup for concurrent disconnection
@@ -258,8 +257,7 @@ func (m *MCPClientManager) GetClient(name string) (MCPClientInterface, error) {
 func (m *MCPClientManager) ListClientStatuses(ctx context.Context) map[string]*MCPStatus {
 	log := logger.FromContext(ctx)
 	m.mu.RLock()
-	clients := make(map[string]*MCPClient)
-	maps.Copy(clients, m.clients)
+	clients := core.CloneMap(m.clients)
 	m.mu.RUnlock()
 
 	if len(clients) == 0 {
@@ -424,8 +422,7 @@ func (m *MCPClientManager) performHealthChecks() {
 	log := logger.FromContext(m.ctx)
 	// Get client list outside of individual health checks to avoid long lock
 	m.mu.RLock()
-	clientsCopy := make(map[string]*MCPClient)
-	maps.Copy(clientsCopy, m.clients)
+	clientsCopy := core.CloneMap(m.clients)
 	m.mu.RUnlock()
 
 	// Filter clients that need health checks

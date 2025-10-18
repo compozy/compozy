@@ -21,11 +21,11 @@ type EvaluateConditionInput struct {
 
 // EvaluateCondition handles CEL expression evaluation
 type EvaluateCondition struct {
-	evaluator task.ConditionEvaluator
+	evaluator *task.CELEvaluator
 }
 
 // NewEvaluateCondition creates a new condition evaluator activity
-func NewEvaluateCondition(evaluator task.ConditionEvaluator) *EvaluateCondition {
+func NewEvaluateCondition(evaluator *task.CELEvaluator) *EvaluateCondition {
 	return &EvaluateCondition{
 		evaluator: evaluator,
 	}

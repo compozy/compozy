@@ -107,7 +107,7 @@ func createTestRegistry(t *testing.T) *autoload.ConfigRegistry {
 		},
 	}
 
-	err := testMemoryConfig.Validate()
+	err := testMemoryConfig.Validate(t.Context())
 	require.NoError(t, err)
 	err = registry.Register(testMemoryConfig, "test")
 	require.NoError(t, err)

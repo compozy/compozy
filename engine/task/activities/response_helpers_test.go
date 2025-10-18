@@ -41,6 +41,15 @@ func (m *mockTaskRepository) GetState(ctx context.Context, taskExecID core.ID) (
 	return args.Get(0).(*task.State), args.Error(1)
 }
 
+func (m *mockTaskRepository) GetUsageSummary(ctx context.Context, taskExecID core.ID) (*usage.Summary, error) {
+	args := m.Called(ctx, taskExecID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	summary, _ := args.Get(0).(*usage.Summary)
+	return summary, args.Error(1)
+}
+
 func newOutput(data map[string]any) *core.Output {
 	out := core.Output(data)
 	return &out

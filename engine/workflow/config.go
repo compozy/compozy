@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
@@ -476,16 +477,8 @@ func (w *Config) HasSchema() bool {
 	return w.Opts.InputSchema != nil
 }
 
-// Deprecated: Prefer ValidateWithContext(ctx); this uses a context without deadlines/cancellation.
-//
-
-func (w *Config) Validate() error {
-	return w.ValidateWithContext(context.TODO())
-}
-
-// ValidateWithContext validates the workflow configuration using the provided context.
-// Prefer this over Validate() to preserve cancellations and deadlines.
-func (w *Config) ValidateWithContext(ctx context.Context) error {
+// Validate validates the workflow configuration using the provided context.
+func (w *Config) Validate(ctx context.Context) error {
 	validator := NewWorkflowValidator(w)
 	return validator.Validate(ctx)
 }
@@ -617,13 +610,13 @@ func setupCompileMetrics() (metric.Float64Histogram, metric.Int64Counter) {
 		return nil, nil
 	}
 	if h, err := meter.Float64Histogram(
-		"compozy_compile_duration_seconds",
+		monitoringmetrics.MetricNameWithSubsystem("compile", "duration_seconds"),
 		metric.WithDescription("Duration of workflow compile step"),
 	); err == nil {
 		hist = h
 	}
 	if c, err := meter.Int64Counter(
-		"compozy_compile_total",
+		monitoringmetrics.MetricNameWithSubsystem("compile", "total"),
 		metric.WithDescription("Count of workflow compile attempts"),
 	); err == nil {
 		cnt = c

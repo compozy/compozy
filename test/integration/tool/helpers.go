@@ -173,12 +173,13 @@ func AssertDeterministicOrder(t *testing.T, tools []tool.Config) {
 
 // ResolveToolsWithHierarchy resolves tools using the hierarchical resolver
 func ResolveToolsWithHierarchy(
+	ctx context.Context,
 	projectConfig *project.Config,
 	workflowConfig *workflow.Config,
 	agentConfig *agent.Config,
 ) ([]tool.Config, error) {
 	r := resolver.NewHierarchicalResolver()
-	return r.ResolveTools(projectConfig, workflowConfig, agentConfig)
+	return r.ResolveTools(ctx, projectConfig, workflowConfig, agentConfig)
 }
 
 // CreateLLMServiceWithResolvedTools creates an LLM service with resolved tools

@@ -6,19 +6,22 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
-// #nosec G101 -- metric identifiers are safe constants
-const (
-	llmPromptTokensMetric     = "compozy_llm_prompt_tokens_total"
-	llmCompletionTokensMetric = "compozy_llm_completion_tokens_total"
-	llmUsageEventsMetric      = "compozy_llm_usage_events_total"
-	llmUsageFailuresMetric    = "compozy_llm_usage_failures_total"
-	llmUsageLatencyMetric     = "compozy_llm_usage_latency_seconds"
+// #nosec G101 -- metric identifiers are safe values
+var (
+	llmPromptTokensMetric     = metrics.MetricNameWithSubsystem("llm", "prompt_tokens_total")
+	llmCompletionTokensMetric = metrics.MetricNameWithSubsystem("llm", "completion_tokens_total")
+	llmUsageEventsMetric      = metrics.MetricNameWithSubsystem("llm", "usage_events_total")
+	llmUsageFailuresMetric    = metrics.MetricNameWithSubsystem("llm", "usage_failures_total")
+	llmUsageLatencyMetric     = metrics.MetricNameWithSubsystem("llm", "usage_latency_seconds")
+)
 
+const (
 	labelValueUnknown = "unknown"
 
 	labelComponent = "component"

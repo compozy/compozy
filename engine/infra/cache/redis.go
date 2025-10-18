@@ -30,6 +30,7 @@ type RedisInterface interface {
 	Subscribe(ctx context.Context, channels ...string) *redis.PubSub
 	PSubscribe(ctx context.Context, patterns ...string) *redis.PubSub
 	Eval(ctx context.Context, script string, keys []string, args ...any) *redis.Cmd
+	Pipelined(ctx context.Context, fn func(redis.Pipeliner) error) ([]redis.Cmder, error)
 	Pipeline() redis.Pipeliner
 	// List operations
 	LRange(ctx context.Context, key string, start, stop int64) *redis.StringSliceCmd
@@ -203,6 +204,14 @@ func (r *Redis) PSubscribe(ctx context.Context, patterns ...string) *redis.PubSu
 // Eval executes a Lua script
 func (r *Redis) Eval(ctx context.Context, script string, keys []string, args ...any) *redis.Cmd {
 	return r.client.Eval(ctx, script, keys, args...)
+}
+
+// Pipelined executes pipelined commands with the provided callback.
+func (r *Redis) Pipelined(
+	ctx context.Context,
+	fn func(redis.Pipeliner) error,
+) ([]redis.Cmder, error) {
+	return r.client.Pipelined(ctx, fn)
 }
 
 // Pipeline returns a pipeline for batching commands

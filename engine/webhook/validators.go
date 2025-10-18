@@ -1,16 +1,17 @@
 package webhook
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
 
 // ValidateTrigger validates a webhook trigger configuration.
-func ValidateTrigger(cfg *Config) error {
+func ValidateTrigger(ctx context.Context, cfg *Config) error {
 	if err := validateBasics(cfg); err != nil {
 		return err
 	}
-	if err := validateEvents(cfg); err != nil {
+	if err := validateEvents(ctx, cfg); err != nil {
 		return err
 	}
 	if err := validateVerify(cfg); err != nil {
@@ -41,7 +42,7 @@ func validateBasics(cfg *Config) error {
 	return nil
 }
 
-func validateEvents(cfg *Config) error {
+func validateEvents(ctx context.Context, cfg *Config) error {
 	evtNames := map[string]struct{}{}
 	for idx := range cfg.Events {
 		e := &cfg.Events[idx]
@@ -59,7 +60,7 @@ func validateEvents(cfg *Config) error {
 			return fmt.Errorf("event[%s] input is required and cannot be empty", e.Name)
 		}
 		if e.Schema != nil {
-			if _, err := e.Schema.Compile(); err != nil {
+			if _, err := e.Schema.Compile(ctx); err != nil {
 				return fmt.Errorf("invalid event schema for %s: %w", e.Name, err)
 			}
 		}

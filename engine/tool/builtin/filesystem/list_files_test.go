@@ -23,6 +23,56 @@ func TestListFilesHandler(t *testing.T) {
 		assert.Equal(t, []string{"a.go", "b.txt"}, files)
 	})
 
+	t.Run("Should list files recursively", func(t *testing.T) {
+		root := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(root, "root.txt"), []byte("root"), 0o644))
+		require.NoError(t, os.Mkdir(filepath.Join(root, "sub"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "nested.go"), []byte("package nested"), 0o644))
+		require.NoError(t, os.Mkdir(filepath.Join(root, "sub", "inner"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "inner", "deep.txt"), []byte("deep"), 0o644))
+		ctx := testContext(t, root)
+		output, errResult := callHandler(ctx, t, ListFilesDefinition().Handler, map[string]any{
+			"dir":       ".",
+			"recursive": true,
+		})
+		require.Nil(t, errResult)
+		files := output["files"].([]string)
+		assert.Equal(t, []string{"root.txt", "sub/inner/deep.txt", "sub/nested.go"}, files)
+	})
+
+	t.Run("Should apply exclusion when recursive", func(t *testing.T) {
+		root := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(root, "keep.go"), []byte("package keep"), 0o644))
+		require.NoError(t, os.Mkdir(filepath.Join(root, "sub"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "drop.txt"), []byte("drop"), 0o644))
+		ctx := testContext(t, root)
+		output, errResult := callHandler(ctx, t, ListFilesDefinition().Handler, map[string]any{
+			"dir":       ".",
+			"recursive": true,
+			"exclude":   "*.txt",
+		})
+		require.Nil(t, errResult)
+		files := output["files"].([]string)
+		assert.Equal(t, []string{"keep.go"}, files)
+	})
+
+	t.Run("Should apply path-based exclusion when recursive", func(t *testing.T) {
+		root := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(root, "keep.go"), []byte("package keep"), 0o644))
+		require.NoError(t, os.Mkdir(filepath.Join(root, "sub"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "drop.txt"), []byte("drop"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "keep.txt"), []byte("keep"), 0o644))
+		ctx := testContext(t, root)
+		output, errResult := callHandler(ctx, t, ListFilesDefinition().Handler, map[string]any{
+			"dir":       ".",
+			"recursive": true,
+			"exclude":   "sub/d*.txt",
+		})
+		require.Nil(t, errResult)
+		files := output["files"].([]string)
+		assert.Equal(t, []string{"keep.go", "sub/keep.txt"}, files)
+	})
+
 	t.Run("Should apply exclusion pattern string", func(t *testing.T) {
 		root := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(root, "keep.go"), []byte("package main"), 0o644))

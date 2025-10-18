@@ -5,38 +5,59 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	pgvector "github.com/pgvector/pgvector-go"
 )
 
 type pgStore struct {
-	pool       *pgxpool.Pool
-	table      string
-	tableIdent string
-	indexName  string
-	indexIdent string
-	dimension  int
-	metric     string
-	ensureIdx  bool
-	maxTopK    int
+	pool               *pgxpool.Pool
+	table              string
+	tableIdent         string
+	indexName          string
+	indexIdent         string
+	dimension          int
+	metric             string
+	ensureIdx          bool
+	maxTopK            int
+	indexType          string
+	ivfLists           int
+	hnswM              int
+	hnswEFConstruction int
+	hnswEFSearch       int
+	searchProbes       int
+	searchEFSearch     int
 }
 
 const (
-	pgvectorDefaultTopK    = 5
-	pgvectorDefaultMaxTopK = 1000
-	pgvectorDefaultProbes  = 10
+	pgvectorDefaultTopK         = 5
+	pgvectorDefaultMaxTopK      = 1000
+	pgvectorDefaultProbes       = 10
+	pgvectorDefaultIVFLists     = 100
+	pgvectorDefaultHNSWM        = 16
+	pgvectorDefaultHNSWEFBuild  = 64
+	pgvectorDefaultHNSWEFSearch = 40
 )
 
 const (
 	metricCosine = "cosine"
 	metricL2     = "l2"
 	metricIP     = "ip"
+)
+
+const (
+	vectorErrorUnknown    = "unknown"
+	vectorErrorTimeout    = "timeout"
+	vectorErrorConnection = "connection"
+	vectorErrorConstraint = "constraint"
+	vectorErrorQuery      = "query"
 )
 
 func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
@@ -54,9 +75,9 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 		return nil, errors.New("vector_db dsn is required for pgvector")
 	}
 	cfg.DSN = dsn
-	pool, err := pgxpool.New(ctx, dsn)
+	pool, err := setupPGPool(ctx, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("vector_db %q: failed to connect to postgres: %w", cfg.ID, err)
+		return nil, err
 	}
 	store := &pgStore{
 		pool:      pool,
@@ -67,6 +88,7 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 		ensureIdx: cfg.EnsureIndex,
 		maxTopK:   cfg.MaxTopK,
 	}
+	applyPGVectorOptions(store, cfg.PGVector)
 	if store.maxTopK == 0 {
 		store.maxTopK = pgvectorDefaultMaxTopK
 	}
@@ -78,7 +100,83 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 		pool.Close()
 		return nil, err
 	}
+	trackVectorPool(cfg.ID, pool)
 	return store, nil
+}
+
+func setupPGPool(ctx context.Context, cfg *Config) (*pgxpool.Pool, error) {
+	poolConfig, err := pgxpool.ParseConfig(cfg.DSN)
+	if err != nil {
+		return nil, fmt.Errorf("vector_db %q: parse pool config: %w", cfg.ID, err)
+	}
+	applyPoolOptions(poolConfig, cfg.PGVector)
+	poolConfig.ConnConfig.RuntimeParams["application_name"] = "compozy_knowledge_pgvector"
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, fmt.Errorf("vector_db %q: failed to connect to postgres: %w", cfg.ID, err)
+	}
+	return pool, nil
+}
+
+func applyPoolOptions(poolConfig *pgxpool.Config, opts *PGVectorOptions) {
+	if opts == nil {
+		return
+	}
+	pool := opts.Pool
+	if pool.MinConns > 0 {
+		poolConfig.MinConns = pool.MinConns
+	}
+	if pool.MaxConns > 0 {
+		poolConfig.MaxConns = pool.MaxConns
+	}
+	if pool.MaxConnLifetime > 0 {
+		poolConfig.MaxConnLifetime = pool.MaxConnLifetime
+	}
+	if pool.MaxConnIdleTime > 0 {
+		poolConfig.MaxConnIdleTime = pool.MaxConnIdleTime
+	}
+	if pool.HealthCheckPeriod > 0 {
+		poolConfig.HealthCheckPeriod = pool.HealthCheckPeriod
+	}
+}
+
+func applyPGVectorOptions(store *pgStore, opts *PGVectorOptions) {
+	store.indexType = "ivfflat"
+	store.searchProbes = pgvectorDefaultProbes
+	if opts == nil {
+		return
+	}
+	if idx := opts.Index; (idx != PGVectorIndexOptions{}) {
+		if trimmed := strings.TrimSpace(idx.Type); trimmed != "" {
+			store.indexType = strings.ToLower(trimmed)
+		}
+		if idx.Lists > 0 {
+			store.ivfLists = idx.Lists
+		}
+		if idx.M > 0 {
+			store.hnswM = idx.M
+		}
+		if idx.EFConstruction > 0 {
+			store.hnswEFConstruction = idx.EFConstruction
+		}
+		if idx.EFSearch > 0 {
+			store.hnswEFSearch = idx.EFSearch
+		}
+		if idx.Probes > 0 {
+			store.searchProbes = idx.Probes
+		}
+	}
+	if search := opts.Search; (search != PGVectorSearchOptions{}) {
+		if search.Probes > 0 {
+			store.searchProbes = search.Probes
+		}
+		if search.EFSearch > 0 {
+			store.searchEFSearch = search.EFSearch
+		}
+	}
+	if store.indexType == "" {
+		store.indexType = "ivfflat"
+	}
 }
 
 func resolvePGVectorDSN(ctx context.Context, cfg *Config) string {
@@ -183,25 +281,97 @@ func (p *pgStore) ensureSchema(ctx context.Context) error {
 	if _, err = conn.Exec(ctx, createTable); err != nil {
 		return fmt.Errorf("pgvector: create table: %w", err)
 	}
-	if p.ensureIdx {
-		distance := metricCosine
-		if p.metric != "" {
-			switch p.metric {
-			case metricCosine, metricL2, metricIP:
-				distance = p.metric
-			default:
-				return fmt.Errorf("pgvector: unsupported metric %q", p.metric)
-			}
+	if err := p.ensureMetadataIndex(ctx, conn); err != nil {
+		return err
+	}
+	if p.ensureIdx && p.indexIdent != "" {
+		if err := p.ensureVectorIndex(ctx, conn); err != nil {
+			return err
 		}
-		createIndex := fmt.Sprintf(
-			"CREATE INDEX IF NOT EXISTS %s ON %s USING ivfflat (embedding vector_%s_ops)",
-			p.indexIdent,
-			p.tableIdent,
-			distance,
-		)
-		if _, err = conn.Exec(ctx, createIndex); err != nil {
-			return fmt.Errorf("pgvector: create index: %w", err)
+	}
+	return nil
+}
+
+func (p *pgStore) ensureMetadataIndex(ctx context.Context, conn *pgxpool.Conn) error {
+	metadataIndexName := fmt.Sprintf("%s_metadata_idx", strings.ReplaceAll(p.table, ".", "_"))
+	metadataIdent := sanitizeIdentifier(metadataIndexName)
+	createMetadata := fmt.Sprintf(
+		"CREATE INDEX IF NOT EXISTS %s ON %s USING gin (metadata)",
+		metadataIdent,
+		p.tableIdent,
+	)
+	if _, err := conn.Exec(ctx, createMetadata); err != nil {
+		return fmt.Errorf("pgvector: create metadata index: %w", err)
+	}
+	return nil
+}
+
+func (p *pgStore) ensureVectorIndex(ctx context.Context, conn *pgxpool.Conn) error {
+	opClass, err := p.operatorClass()
+	if err != nil {
+		return err
+	}
+	switch strings.ToLower(p.indexType) {
+	case "hnsw":
+		return p.createHNSWIndex(ctx, conn, opClass)
+	default:
+		return p.createIVFFlatIndex(ctx, conn, opClass)
+	}
+}
+
+func (p *pgStore) operatorClass() (string, error) {
+	distance := metricCosine
+	if p.metric != "" {
+		switch p.metric {
+		case metricCosine, metricL2, metricIP:
+			distance = p.metric
+		default:
+			return "", fmt.Errorf("pgvector: unsupported metric %q", p.metric)
 		}
+	}
+	return fmt.Sprintf("vector_%s_ops", distance), nil
+}
+
+func (p *pgStore) createIVFFlatIndex(ctx context.Context, conn *pgxpool.Conn, opClass string) error {
+	lists := p.ivfLists
+	if lists <= 0 {
+		lists = pgvectorDefaultIVFLists
+	}
+	create := fmt.Sprintf(
+		"CREATE INDEX IF NOT EXISTS %s ON %s USING ivfflat (embedding %s) WITH (lists = %d)",
+		p.indexIdent,
+		p.tableIdent,
+		opClass,
+		lists,
+	)
+	if _, err := conn.Exec(ctx, create); err != nil {
+		return fmt.Errorf("pgvector: create ivfflat index: %w", err)
+	}
+	return nil
+}
+
+func (p *pgStore) createHNSWIndex(ctx context.Context, conn *pgxpool.Conn, opClass string) error {
+	m := p.hnswM
+	if m <= 0 {
+		m = pgvectorDefaultHNSWM
+	}
+	efBuild := p.hnswEFConstruction
+	if efBuild <= 0 {
+		efBuild = pgvectorDefaultHNSWEFBuild
+	}
+	withClauses := []string{
+		fmt.Sprintf("m = %d", m),
+		fmt.Sprintf("ef_construction = %d", efBuild),
+	}
+	create := fmt.Sprintf(
+		"CREATE INDEX IF NOT EXISTS %s ON %s USING hnsw (embedding %s) WITH (%s)",
+		p.indexIdent,
+		p.tableIdent,
+		opClass,
+		strings.Join(withClauses, ", "),
+	)
+	if _, err := conn.Exec(ctx, create); err != nil {
+		return fmt.Errorf("pgvector: create hnsw index: %w", err)
 	}
 	return nil
 }
@@ -248,6 +418,11 @@ func executeBatchResults(ctx context.Context, tx pgx.Tx, batch *pgx.Batch, ids [
 }
 
 func (p *pgStore) Upsert(ctx context.Context, records []Record) (err error) {
+	defer func() {
+		if err != nil {
+			recordVectorError(ctx, "insert", categorizeVectorError(err))
+		}
+	}()
 	if len(records) == 0 {
 		return nil
 	}
@@ -283,12 +458,26 @@ ON CONFLICT (id) DO UPDATE SET
 }
 
 func (p *pgStore) Search(ctx context.Context, query []float32, opts SearchOptions) ([]Match, error) {
-	if len(query) != p.dimension {
-		return nil, errors.New("pgvector: query dimension mismatch")
-	}
 	topK := opts.TopK
 	if topK <= 0 {
 		topK = pgvectorDefaultTopK
+	}
+	start := time.Now()
+	matches, err := p.executeSearch(ctx, query, opts, topK)
+	duration := time.Since(start)
+	if err != nil {
+		recordVectorError(ctx, "search", categorizeVectorError(err))
+		recordVectorSearch(ctx, p.indexType, topK, duration, 0, 0, false)
+		return nil, err
+	}
+	minDistance, includeDistance := minDistanceForMetric(p.metric, matches)
+	recordVectorSearch(ctx, p.indexType, topK, duration, len(matches), minDistance, includeDistance)
+	return matches, nil
+}
+
+func (p *pgStore) executeSearch(ctx context.Context, query []float32, opts SearchOptions, topK int) ([]Match, error) {
+	if len(query) != p.dimension {
+		return nil, errors.New("pgvector: query dimension mismatch")
 	}
 	if topK > p.maxTopK {
 		return nil, fmt.Errorf("pgvector: topK exceeds maximum allowed value of %d", p.maxTopK)
@@ -302,27 +491,11 @@ func (p *pgStore) Search(ctx context.Context, query []float32, opts SearchOption
 	}
 	defer conn.Release()
 
-	probes := topK
-	if probes <= 0 {
-		probes = pgvectorDefaultProbes
+	resetStmt, tuneErr := p.applySearchParameters(ctx, conn)
+	if tuneErr != nil {
+		return nil, tuneErr
 	}
-	if probes < 1 {
-		probes = 1
-	}
-	// SET does not support query parameters for the value; probes originates from internal configuration.
-	setCmd := fmt.Sprintf("SET ivfflat.probes = %d", probes)
-	if _, err := conn.Exec(ctx, setCmd); err != nil {
-		return nil, fmt.Errorf("pgvector: set probes: %w", err)
-	}
-	defer func() {
-		resetCtx := context.WithoutCancel(ctx)
-		if _, resetErr := conn.Exec(resetCtx, "RESET ivfflat.probes"); resetErr != nil {
-			logger.FromContext(resetCtx).Warn(
-				"pgvector: failed to reset ivfflat.probes",
-				"error", resetErr,
-			)
-		}
-	}()
+	defer p.resetSearchParameters(ctx, conn, resetStmt)
 
 	rows, err := conn.Query(ctx, sql, args...)
 	if err != nil {
@@ -330,6 +503,120 @@ func (p *pgStore) Search(ctx context.Context, query []float32, opts SearchOption
 	}
 	defer rows.Close()
 	return scanSearchResults(rows, topK)
+}
+
+func (p *pgStore) applySearchParameters(ctx context.Context, conn *pgxpool.Conn) (string, error) {
+	switch strings.ToLower(p.indexType) {
+	case "hnsw":
+		target := p.searchEFSearch
+		if target <= 0 {
+			target = p.hnswEFSearch
+		}
+		if target <= 0 {
+			target = pgvectorDefaultHNSWEFSearch
+		}
+		setCmd := fmt.Sprintf("SET hnsw.ef_search = %d", target)
+		if _, err := conn.Exec(ctx, setCmd); err != nil {
+			return "", fmt.Errorf("pgvector: set hnsw.ef_search: %w", err)
+		}
+		return "RESET hnsw.ef_search", nil
+	default:
+		target := p.searchProbes
+		if target <= 0 {
+			target = pgvectorDefaultProbes
+		}
+		if target < 1 {
+			target = 1
+		}
+		setCmd := fmt.Sprintf("SET ivfflat.probes = %d", target)
+		if _, err := conn.Exec(ctx, setCmd); err != nil {
+			return "", fmt.Errorf("pgvector: set ivfflat.probes: %w", err)
+		}
+		return "RESET ivfflat.probes", nil
+	}
+}
+
+func (p *pgStore) resetSearchParameters(ctx context.Context, conn *pgxpool.Conn, resetStmt string) {
+	if resetStmt == "" {
+		return
+	}
+	resetCtx := context.WithoutCancel(ctx)
+	if _, err := conn.Exec(resetCtx, resetStmt); err != nil {
+		logger.FromContext(resetCtx).Warn(
+			"pgvector: failed to reset search parameter",
+			"parameter", resetStmt,
+			"error", err,
+		)
+		recordVectorError(resetCtx, "search", "query")
+	}
+}
+
+func minDistanceForMetric(metric string, matches []Match) (float64, bool) {
+	if len(matches) == 0 {
+		return 0, false
+	}
+	score := matches[0].Score
+	switch strings.ToLower(strings.TrimSpace(metric)) {
+	case "", metricCosine:
+		distance := 1 - score
+		if distance < 0 {
+			distance = 0
+		}
+		if distance > 1 {
+			distance = 1
+		}
+		return distance, true
+	case metricL2:
+		if score <= 0 {
+			return 0, false
+		}
+		distance := (1 / score) - 1
+		if distance < 0 {
+			distance = 0
+		}
+		return distance, true
+	default:
+		return 0, false
+	}
+}
+
+func categorizeVectorError(err error) string {
+	if err == nil {
+		return vectorErrorUnknown
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return vectorErrorTimeout
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		if netErr.Timeout() {
+			return vectorErrorTimeout
+		}
+		return vectorErrorConnection
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23505", "23514", "23503", "23502", "23513":
+			return vectorErrorConstraint
+		default:
+			return vectorErrorQuery
+		}
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return vectorErrorQuery
+	}
+	lower := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(lower, "timeout"):
+		return vectorErrorTimeout
+	case strings.Contains(lower, "connection"),
+		strings.Contains(lower, "broken pipe"),
+		strings.Contains(lower, "refused"):
+		return vectorErrorConnection
+	default:
+		return vectorErrorQuery
+	}
 }
 
 func buildSearchQuery(tableIdent string, metric string, filters map[string]string, minScore float64) (string, []any) {
@@ -426,6 +713,7 @@ func (p *pgStore) Delete(ctx context.Context, filter Filter) error {
 		argPos += 2
 	}
 	if _, err := p.pool.Exec(ctx, builder.String(), args...); err != nil {
+		recordVectorError(ctx, "delete", categorizeVectorError(err))
 		return fmt.Errorf("pgvector: delete: %w", err)
 	}
 	return nil

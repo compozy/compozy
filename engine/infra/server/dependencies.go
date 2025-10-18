@@ -91,13 +91,17 @@ func (s *Server) setupStore() (*repo.Provider, func(), error) {
 		)
 	}
 	pgCfg := &postgres.Config{
-		ConnString: cfg.Database.ConnString,
-		Host:       cfg.Database.Host,
-		Port:       cfg.Database.Port,
-		User:       cfg.Database.User,
-		Password:   cfg.Database.Password,
-		DBName:     cfg.Database.DBName,
-		SSLMode:    cfg.Database.SSLMode,
+		ConnString:      cfg.Database.ConnString,
+		Host:            cfg.Database.Host,
+		Port:            cfg.Database.Port,
+		User:            cfg.Database.User,
+		Password:        cfg.Database.Password,
+		DBName:          cfg.Database.DBName,
+		SSLMode:         cfg.Database.SSLMode,
+		MaxOpenConns:    cfg.Database.MaxOpenConns,
+		MaxIdleConns:    cfg.Database.MaxIdleConns,
+		ConnMaxLifetime: cfg.Database.ConnMaxLifetime,
+		ConnMaxIdleTime: cfg.Database.ConnMaxIdleTime,
 	}
 	if cfg.Database.AutoMigrate {
 		mctx, mcancel := context.WithTimeout(s.ctx, cfg.Database.MigrationTimeout)
@@ -111,11 +115,16 @@ func (s *Server) setupStore() (*repo.Provider, func(), error) {
 		return nil, nil, fmt.Errorf("failed to initialize postgres store: %w", err)
 	}
 	provider := repo.NewProvider(drv.Pool())
-	s.storeDriverLabel = "postgres"
+	s.storeDriverLabel = driverPostgres
 	log.Info("Database store initialized",
 		"store_driver", s.storeDriverLabel,
 		"duration", time.Since(storeStart),
 	)
+	// Set default auth repository labels; cache driver is finalized when auth middleware wires in.
+	s.authRepoDriverLabel = driverPostgres
+	if s.authCacheDriverLabel == "" {
+		s.authCacheDriverLabel = driverNone
+	}
 	cleanup := func() {
 		ctx, cancel := context.WithTimeout(s.ctx, cfg.Server.Timeouts.DBShutdown)
 		defer cancel()
@@ -235,7 +244,7 @@ func (s *Server) finalizeStartupLabels() {
 	case s.redisClient != nil:
 		s.cacheDriverLabel = "redis"
 	default:
-		s.cacheDriverLabel = "none"
+		s.cacheDriverLabel = driverNone
 	}
 }
 

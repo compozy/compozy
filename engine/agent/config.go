@@ -366,10 +366,10 @@ func (a *Config) NormalizeAndValidateMemoryConfig() error {
 // Validate ensures the agent configuration is complete and correct.
 // This performs comprehensive validation including struct fields, memory configuration,
 // actions, and MCP server settings to prevent runtime errors.
-func (a *Config) Validate() error {
+func (a *Config) Validate(ctx context.Context) error {
 	// Initial struct validation (for required fields like ID, Config, Instructions)
 	baseValidator := schema.NewStructValidator(a)
-	if err := baseValidator.Validate(); err != nil {
+	if err := baseValidator.Validate(ctx); err != nil {
 		return err
 	}
 
@@ -390,13 +390,13 @@ func (a *Config) Validate() error {
 		NewActionsValidator(a.Actions),
 		NewMemoryValidator(a.Memory),
 	)
-	if err := v.Validate(); err != nil {
+	if err := v.Validate(ctx); err != nil {
 		return fmt.Errorf("agent config validation failed: %w", err)
 	}
 
 	var mcpErrors []error
 	for i := range a.MCPs {
-		if err := a.MCPs[i].Validate(); err != nil {
+		if err := a.MCPs[i].Validate(ctx); err != nil {
 			mcpErrors = append(mcpErrors, fmt.Errorf("mcp validation error: %w", err))
 		}
 	}

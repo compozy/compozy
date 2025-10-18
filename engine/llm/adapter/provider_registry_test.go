@@ -41,6 +41,21 @@ func TestRegistry(t *testing.T) {
 		err = registry.Register(&stubProvider{name: ""})
 		assert.ErrorIs(t, err, ErrProviderNameEmpty)
 	})
+	t.Run("ShouldTreatProviderNamesCaseInsensitive", func(t *testing.T) {
+		registry := NewProviderRegistry()
+		require.NoError(t, registry.Register(&stubProvider{
+			name:         core.ProviderName("TestCase"),
+			client:       &stubClient{},
+			capabilities: ProviderCapabilities{},
+		}))
+		err := registry.Register(&stubProvider{
+			name:         core.ProviderName("TESTCASE"),
+			client:       &stubClient{},
+			capabilities: ProviderCapabilities{},
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrProviderAlreadyRegistered)
+	})
 	t.Run("ShouldCreateClientsForRegisteredProviders", func(t *testing.T) {
 		registry := NewProviderRegistry()
 		client := &stubClient{}
@@ -54,6 +69,19 @@ func TestRegistry(t *testing.T) {
 		_, err = registry.NewClient(context.Background(), &core.ProviderConfig{Provider: core.ProviderName("missing")})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not registered")
+	})
+	t.Run("ShouldResolveProvidersCaseInsensitive", func(t *testing.T) {
+		registry := NewProviderRegistry()
+		provider := &stubProvider{name: core.ProviderName("MixedCase"), client: &stubClient{}}
+		require.NoError(t, registry.Register(provider))
+
+		resolved, err := registry.Resolve(core.ProviderName("mixedcase"))
+		require.NoError(t, err)
+		assert.Equal(t, provider, resolved)
+
+		resolved, err = registry.Resolve(core.ProviderName("MIXEDCASE"))
+		require.NoError(t, err)
+		assert.Equal(t, provider, resolved)
 	})
 }
 

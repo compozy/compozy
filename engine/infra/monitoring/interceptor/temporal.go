@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -99,7 +100,7 @@ func initWorkflowMetrics(ctx context.Context, meter metric.Meter) error {
 	log := logger.FromContext(ctx)
 	var err error
 	workflowStartedTotal, err = meter.Int64Counter(
-		"compozy_temporal_workflow_started_total",
+		metrics.MetricNameWithSubsystem("temporal", "workflow_started_total"),
 		metric.WithDescription("Started workflows"),
 	)
 	if err != nil {
@@ -107,7 +108,7 @@ func initWorkflowMetrics(ctx context.Context, meter metric.Meter) error {
 		return err
 	}
 	workflowCompletedTotal, err = meter.Int64Counter(
-		"compozy_temporal_workflow_completed_total",
+		metrics.MetricNameWithSubsystem("temporal", "workflow_completed_total"),
 		metric.WithDescription("Completed workflows"),
 	)
 	if err != nil {
@@ -115,7 +116,7 @@ func initWorkflowMetrics(ctx context.Context, meter metric.Meter) error {
 		return err
 	}
 	workflowFailedTotal, err = meter.Int64Counter(
-		"compozy_temporal_workflow_failed_total",
+		metrics.MetricNameWithSubsystem("temporal", "workflow_failed_total"),
 		metric.WithDescription("Failed workflows"),
 	)
 	if err != nil {
@@ -123,7 +124,7 @@ func initWorkflowMetrics(ctx context.Context, meter metric.Meter) error {
 		return err
 	}
 	workflowTaskDuration, err = meter.Float64Histogram(
-		"compozy_temporal_workflow_duration_seconds",
+		metrics.MetricNameWithSubsystem("temporal", "workflow_duration_seconds"),
 		metric.WithDescription("Workflow execution time"),
 		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
 	)
@@ -139,7 +140,7 @@ func initWorkerMetrics(ctx context.Context, meter metric.Meter) error {
 	log := logger.FromContext(ctx)
 	var err error
 	workersRunning, err = meter.Int64UpDownCounter(
-		"compozy_temporal_workers_running_total",
+		metrics.MetricNameWithSubsystem("temporal", "workers_running_total"),
 		metric.WithDescription("Currently running workers"),
 	)
 	if err != nil {
@@ -147,7 +148,7 @@ func initWorkerMetrics(ctx context.Context, meter metric.Meter) error {
 		return err
 	}
 	workersConfigured, err = meter.Int64ObservableGauge(
-		"compozy_temporal_workers_configured_total",
+		metrics.MetricNameWithSubsystem("temporal", "workers_configured_total"),
 		metric.WithDescription("Configured workers per instance"),
 	)
 	if err != nil {
@@ -177,7 +178,7 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 	log := logger.FromContext(ctx)
 	var err error
 	dispatcherActive, err = meter.Int64UpDownCounter(
-		"compozy_dispatcher_active_total",
+		metrics.MetricNameWithSubsystem("dispatcher", "active_total"),
 		metric.WithDescription("Currently active dispatchers"),
 	)
 	if err != nil {
@@ -185,7 +186,7 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 		return err
 	}
 	dispatcherHeartbeatTotal, err = meter.Int64Counter(
-		"compozy_dispatcher_heartbeat_total",
+		metrics.MetricNameWithSubsystem("dispatcher", "heartbeat_total"),
 		metric.WithDescription("Total dispatcher heartbeats"),
 	)
 	if err != nil {
@@ -193,7 +194,7 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 		return err
 	}
 	dispatcherLifecycleTotal, err = meter.Int64Counter(
-		"compozy_dispatcher_lifecycle_events_total",
+		metrics.MetricNameWithSubsystem("dispatcher", "lifecycle_events_total"),
 		metric.WithDescription("Total dispatcher lifecycle events"),
 	)
 	if err != nil {
@@ -204,7 +205,7 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 		return err
 	}
 	dispatcherUptimeSeconds, err = meter.Float64ObservableGauge(
-		"compozy_dispatcher_uptime_seconds",
+		metrics.MetricNameWithSubsystem("dispatcher", "uptime_seconds"),
 		metric.WithDescription("Dispatcher uptime in seconds"),
 	)
 	if err != nil {
@@ -245,7 +246,7 @@ func initDispatcherTakeoverMetrics(ctx context.Context, meter metric.Meter) erro
 	log := logger.FromContext(ctx)
 	var err error
 	dispatcherTakeoverTotal, err = meter.Int64Counter(
-		"compozy_dispatcher_takeover_total",
+		metrics.MetricNameWithSubsystem("dispatcher", "takeover_total"),
 		metric.WithDescription("Total dispatcher takeover attempts"),
 	)
 	if err != nil {
@@ -253,7 +254,7 @@ func initDispatcherTakeoverMetrics(ctx context.Context, meter metric.Meter) erro
 		return err
 	}
 	dispatcherTakeoverLatency, err = meter.Float64Histogram(
-		"compozy_dispatcher_takeover_latency_seconds",
+		metrics.MetricNameWithSubsystem("dispatcher", "takeover_latency_seconds"),
 		metric.WithDescription("Dispatcher takeover latency in seconds"),
 		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
 	)
@@ -275,7 +276,7 @@ func initDispatcherScanMetrics(ctx context.Context, meter metric.Meter) error {
 	log := logger.FromContext(ctx)
 	var err error
 	dispatcherKeysScannedTotal, err = meter.Int64Counter(
-		"compozy_dispatcher_keys_scanned_total",
+		metrics.MetricNameWithSubsystem("dispatcher", "keys_scanned_total"),
 		metric.WithDescription("Total dispatcher heartbeat keys scanned"),
 	)
 	if err != nil {
@@ -283,7 +284,7 @@ func initDispatcherScanMetrics(ctx context.Context, meter metric.Meter) error {
 		return err
 	}
 	dispatcherStaleFoundTotal, err = meter.Int64Counter(
-		"compozy_dispatcher_stale_heartbeats_total",
+		metrics.MetricNameWithSubsystem("dispatcher", "stale_heartbeats_total"),
 		metric.WithDescription("Total stale dispatcher heartbeats encountered during scans"),
 	)
 	if err != nil {
@@ -291,7 +292,7 @@ func initDispatcherScanMetrics(ctx context.Context, meter metric.Meter) error {
 		return err
 	}
 	dispatcherScanDuration, err = meter.Float64Histogram(
-		"compozy_dispatcher_scan_duration_seconds",
+		metrics.MetricNameWithSubsystem("dispatcher", "scan_duration_seconds"),
 		metric.WithDescription("Duration of dispatcher heartbeat scans"),
 		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5),
 	)

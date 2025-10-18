@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
@@ -459,6 +460,7 @@ func CreateTestActivities(
 		workflowRepo,
 		taskRepo,
 		&NoopUsageMetrics{},
+		providermetrics.Nop(),
 		runtime,
 		configStore,
 		nil, // signalDispatcher - not needed for test

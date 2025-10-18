@@ -226,7 +226,7 @@ tasks:
 
   - id: clothing_check
     type: router
-    condition: '{{ .tasks.clothing.output.save_data.clothing | empty | ternary "no_clothes" "has_clothes" }}'
+    condition: 'tasks.clothing.output.save_data.clothing == "" ? "no_clothes" : "has_clothes"'
     routes:
       has_clothes: save_results
       no_clothes: no_results

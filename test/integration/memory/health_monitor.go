@@ -3,7 +3,6 @@ package memory
 import (
 	"context"
 	"fmt"
-	"maps"
 	"runtime"
 	"strings"
 	"sync"
@@ -282,9 +281,7 @@ func (h *HealthMonitor) recordAlert(component, severity, message string, details
 func (h *HealthMonitor) GetHealthStatus() map[string]HealthStatus {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	result := make(map[string]HealthStatus)
-	maps.Copy(result, h.healthStatus)
-	return result
+	return core.CloneMap(h.healthStatus)
 }
 
 // GetAlerts returns recent alerts

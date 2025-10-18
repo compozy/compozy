@@ -2,9 +2,9 @@ package memory
 
 import (
 	"context"
-	"maps"
 	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -109,10 +109,9 @@ func (aol *AsyncOperationLogger) LogFlushOperation(
 		"flush_type": flushType,
 		"async":      true,
 	}
-
 	// Merge with provided metadata
-	maps.Copy(baseMetadata, metadata)
-	aol.LogAsyncOperationStart(ctx, "memory_flush", memoryID, baseMetadata)
+	merged := core.CopyMaps(baseMetadata, metadata)
+	aol.LogAsyncOperationStart(ctx, "memory_flush", memoryID, merged)
 }
 
 // LogTemporalWorkflow logs Temporal workflow scheduling

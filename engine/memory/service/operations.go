@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/llm"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/instance/strategies"
@@ -54,7 +55,7 @@ func NewMemoryOperationsService(
 
 	// Create metrics
 	operationCount, err := meter.Int64Counter(
-		"memory_operations_total",
+		monitoringmetrics.MetricNameWithSubsystem("memory", "operations_total"),
 		metric.WithDescription("Total number of memory operations"),
 	)
 	if err != nil {
@@ -63,7 +64,7 @@ func NewMemoryOperationsService(
 	}
 
 	operationDuration, err := meter.Float64Histogram(
-		"memory_operation_duration_seconds",
+		monitoringmetrics.MetricNameWithSubsystem("memory", "operation_duration_seconds"),
 		metric.WithDescription("Duration of memory operations in seconds"),
 	)
 	if err != nil {

@@ -1,36 +1,37 @@
 package uc
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/engine/schema"
 )
 
-func decodeSchemaBody(body map[string]any, pathID string) (*schema.Schema, error) {
+func decodeSchemaBody(ctx context.Context, body map[string]any, pathID string) (*schema.Schema, error) {
 	if body == nil {
 		return nil, ErrInvalidInput
 	}
 	s := schema.Schema(body)
-	return normalizeSchema(&s, pathID)
+	return normalizeSchema(ctx, &s, pathID)
 }
 
-func decodeStoredSchema(value any, pathID string) (*schema.Schema, error) {
+func decodeStoredSchema(ctx context.Context, value any, pathID string) (*schema.Schema, error) {
 	switch v := value.(type) {
 	case *schema.Schema:
-		return normalizeSchema(v, pathID)
+		return normalizeSchema(ctx, v, pathID)
 	case schema.Schema:
 		clone := v
-		return normalizeSchema(&clone, pathID)
+		return normalizeSchema(ctx, &clone, pathID)
 	case map[string]any:
 		s := schema.Schema(v)
-		return normalizeSchema(&s, pathID)
+		return normalizeSchema(ctx, &s, pathID)
 	default:
 		return nil, ErrInvalidInput
 	}
 }
 
-func normalizeSchema(sc *schema.Schema, pathID string) (*schema.Schema, error) {
+func normalizeSchema(ctx context.Context, sc *schema.Schema, pathID string) (*schema.Schema, error) {
 	if sc == nil {
 		return nil, ErrInvalidInput
 	}
@@ -47,7 +48,7 @@ func normalizeSchema(sc *schema.Schema, pathID string) (*schema.Schema, error) {
 		}
 	}
 	(*sc)["id"] = sid
-	if _, err := sc.Compile(); err != nil {
+	if _, err := sc.Compile(ctx); err != nil {
 		return nil, fmt.Errorf("compile schema: %w", err)
 	}
 	return sc, nil

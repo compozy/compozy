@@ -413,6 +413,9 @@ func TestManager_buildMemoryComponents_Integration(t *testing.T) {
 		}
 
 		// Verify config has clean separation
+		assert.Equal(t, "component-test", resourceCfg.ID)
+		assert.Equal(t, memcore.TokenBasedMemory, resourceCfg.Type)
+		assert.Equal(t, 1000, resourceCfg.MaxTokens)
 		assert.NotNil(t, resourceCfg.EvictionPolicyConfig)
 		assert.NotNil(t, resourceCfg.FlushingStrategy)
 		assert.Equal(t, memcore.PriorityEviction, resourceCfg.EvictionPolicyConfig.Type)

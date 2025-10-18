@@ -32,7 +32,7 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 			},
 			"required": []string{"name"},
 		}
-		compiledSchema, err := schemaDefinition.Compile()
+		compiledSchema, err := schemaDefinition.Compile(t.Context())
 		assert.NoError(t, err)
 
 		payload := core.Input{
@@ -57,7 +57,7 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 			},
 			"required": []string{"name"},
 		}
-		compiledSchema, err := schemaDefinition.Compile()
+		compiledSchema, err := schemaDefinition.Compile(t.Context())
 		require.NoError(t, err)
 
 		payload := core.Input{
@@ -81,7 +81,7 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 				},
 			},
 		}
-		compiledSchema, err := schemaDefinition.Compile()
+		compiledSchema, err := schemaDefinition.Compile(t.Context())
 		require.NoError(t, err)
 
 		payload := core.Input{
@@ -119,7 +119,7 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 			},
 			"required": []string{"user"},
 		}
-		compiledSchema, err := schemaDefinition.Compile()
+		compiledSchema, err := schemaDefinition.Compile(t.Context())
 		require.NoError(t, err)
 
 		payload := core.Input{} // Empty payload
@@ -143,7 +143,7 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 			},
 			"required": []string{"status"},
 		}
-		compiledSchema, err := validSchema.Compile()
+		compiledSchema, err := validSchema.Compile(t.Context())
 		require.NoError(t, err)
 
 		// Test valid enum value

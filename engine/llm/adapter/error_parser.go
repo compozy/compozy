@@ -1,16 +1,22 @@
 package llmadapter
 
 import (
+	"errors"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ErrorParser handles the extraction and classification of errors from various LLM providers
 type ErrorParser struct {
 	provider string
 }
+
+var retryAfterMessagePattern = regexp.MustCompile(
+	`(?i)(?:retry(?:\s|-)?after|try(?:\s|-)?again(?:\s|-)?in)[^0-9]*(\d+(?:\.\d+)?)(?:\s*(milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h))?`,
+)
 
 // NewErrorParser creates a new error parser for the given provider
 func NewErrorParser(provider string) *ErrorParser {
@@ -26,19 +32,54 @@ func (p *ErrorParser) ParseError(err error) *Error {
 	}
 	errMsg := err.Error()
 	errMsgLower := strings.ToLower(errMsg)
+	retryHint := p.extractRetryAfter(err)
 	// Try to extract HTTP status code from error message
 	if statusCode := p.extractHTTPStatusCode(errMsgLower); statusCode > 0 {
-		return NewError(statusCode, errMsg, p.provider, err)
+		llmErr := NewError(statusCode, errMsg, p.provider, err)
+		if retryHint != nil {
+			llmErr.RetryAfter = retryHint
+		} else if retry := parseRetryAfterFromMessage(errMsg); retry != nil {
+			llmErr.RetryAfter = retry
+		}
+		return llmErr
 	}
 	// Provider-specific error pattern matching
 	if llmErr := p.matchProviderPatterns(errMsgLower, errMsg, err); llmErr != nil {
+		if llmErr.RetryAfter == nil {
+			if retryHint != nil {
+				llmErr.RetryAfter = retryHint
+			} else {
+				llmErr.RetryAfter = parseRetryAfterFromMessage(errMsg)
+			}
+		}
 		return llmErr
 	}
 	// Network-level error patterns
 	if llmErr := p.matchNetworkPatterns(errMsgLower, errMsg, err); llmErr != nil {
+		if llmErr.RetryAfter == nil {
+			if retryHint != nil {
+				llmErr.RetryAfter = retryHint
+			} else {
+				llmErr.RetryAfter = parseRetryAfterFromMessage(errMsg)
+			}
+		}
 		return llmErr
 	}
 	return nil // Return nil to fallback to generic wrapping
+}
+
+// ParseErrorWithHeaders attempts to parse structured error information plus retry hints from headers.
+func (p *ErrorParser) ParseErrorWithHeaders(err error, headers map[string]string) *Error {
+	llmErr := p.ParseError(err)
+	if llmErr == nil {
+		return nil
+	}
+	if llmErr.RetryAfter == nil {
+		if retry := p.parseRetryAfter(headers); retry != nil {
+			llmErr.RetryAfter = retry
+		}
+	}
+	return llmErr
 }
 
 // extractHTTPStatusCode attempts to extract HTTP status codes from error messages
@@ -165,4 +206,92 @@ func (p *ErrorParser) matchGooglePatterns(errMsgLower, errMsg string, originalEr
 		return NewErrorWithCode(ErrCodeQuotaExceeded, errMsg, p.provider, originalErr)
 	}
 	return nil
+}
+
+func (p *ErrorParser) extractRetryAfter(err error) *time.Duration {
+	if err == nil {
+		return nil
+	}
+	if llmErr, ok := IsLLMError(err); ok && llmErr != nil {
+		if delay := llmErr.SuggestedRetryDelay(); delay > 0 {
+			return &delay
+		}
+	}
+	type retryAfterProvider interface {
+		RetryAfter() time.Duration
+	}
+	var rap retryAfterProvider
+	if errors.As(err, &rap) {
+		delay := rap.RetryAfter()
+		if delay > 0 {
+			return &delay
+		}
+	}
+	return nil
+}
+
+func (p *ErrorParser) parseRetryAfter(headers map[string]string) *time.Duration {
+	if len(headers) == 0 {
+		return nil
+	}
+	for key, value := range headers {
+		if strings.EqualFold(key, "Retry-After") {
+			if delay := parseRetryAfterHeaderValue(value); delay != nil {
+				return delay
+			}
+		}
+	}
+	return nil
+}
+
+func parseRetryAfterHeaderValue(value string) *time.Duration {
+	if value == "" {
+		return nil
+	}
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	if seconds, err := strconv.Atoi(trimmed); err == nil {
+		delay := max(time.Duration(seconds)*time.Second, 0)
+		return &delay
+	}
+	if when, err := http.ParseTime(trimmed); err == nil {
+		delay := max(time.Until(when), 0)
+		return &delay
+	}
+	return nil
+}
+
+func parseRetryAfterFromMessage(message string) *time.Duration {
+	if message == "" {
+		return nil
+	}
+	matches := retryAfterMessagePattern.FindStringSubmatch(message)
+	if len(matches) < 2 {
+		return nil
+	}
+	value, err := strconv.ParseFloat(matches[1], 64)
+	if err != nil || value < 0 {
+		return nil
+	}
+	unit := "s"
+	if len(matches) >= 3 && matches[2] != "" {
+		unit = strings.ToLower(matches[2])
+	}
+	var delay time.Duration
+	switch unit {
+	case "millisecond", "milliseconds", "ms":
+		delay = time.Duration(value * float64(time.Millisecond))
+	case "minute", "minutes", "min", "mins", "m":
+		delay = time.Duration(value * float64(time.Minute))
+	case "hour", "hours", "hr", "hrs", "h":
+		delay = time.Duration(value * float64(time.Hour))
+	default:
+		delay = time.Duration(value * float64(time.Second))
+	}
+	if delay < 0 {
+		delay = 0
+	}
+	return &delay
 }

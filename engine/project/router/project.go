@@ -46,13 +46,13 @@ func getProject(c *gin.Context) {
 		respondProjectError(c, err)
 		return
 	}
-	payload, err := out.Config.AsMap()
+	dto, err := toProjectDTO(out.Config)
 	if err != nil {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	router.RespondOK(c, "project retrieved", toProjectDTO(payload))
+	router.RespondOK(c, "project retrieved", dto)
 }
 
 // upsertProject handles PUT /project.
@@ -105,7 +105,7 @@ func upsertProject(c *gin.Context) {
 		respondProjectError(c, execErr)
 		return
 	}
-	payload, err := out.Config.AsMap()
+	dto, err := toProjectDTO(out.Config)
 	if err != nil {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 		return
@@ -113,10 +113,10 @@ func upsertProject(c *gin.Context) {
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	if out.Created {
 		c.Header("Location", routes.Project())
-		router.RespondCreated(c, "project created", toProjectDTO(payload))
+		router.RespondCreated(c, "project created", dto)
 		return
 	}
-	router.RespondOK(c, "project updated", toProjectDTO(payload))
+	router.RespondOK(c, "project updated", dto)
 }
 
 // deleteProject handles DELETE /project.

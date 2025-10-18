@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"maps"
-
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
@@ -243,8 +241,8 @@ func (uc *HandleResponse) normalizeTransitions(
 			With: input.TaskConfig.OnSuccess.With,
 		}
 		if input.TaskConfig.OnSuccess.With != nil {
-			withCopy := make(core.Input)
-			maps.Copy(withCopy, *input.TaskConfig.OnSuccess.With)
+			cloned := core.CloneMap(*input.TaskConfig.OnSuccess.With)
+			withCopy := core.Input(cloned)
 			successCopy.With = &withCopy
 		}
 
@@ -264,8 +262,8 @@ func (uc *HandleResponse) normalizeTransitions(
 			With: input.TaskConfig.OnError.With,
 		}
 		if input.TaskConfig.OnError.With != nil {
-			withCopy := make(core.Input)
-			maps.Copy(withCopy, *input.TaskConfig.OnError.With)
+			cloned := core.CloneMap(*input.TaskConfig.OnError.With)
+			withCopy := core.Input(cloned)
 			errorCopy.With = &withCopy
 		}
 

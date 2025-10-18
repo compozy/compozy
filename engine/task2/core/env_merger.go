@@ -1,8 +1,6 @@
 package core
 
 import (
-	"maps"
-
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
@@ -22,7 +20,9 @@ func (em *EnvMerger) mergeEnvMaps(envMaps ...*core.EnvMap) *core.EnvMap {
 	merged := make(core.EnvMap)
 	for _, envMap := range envMaps {
 		if envMap != nil {
-			maps.Copy(merged, *envMap)
+			for k, v := range *envMap {
+				merged[k] = v
+			}
 		}
 	}
 	return &merged

@@ -15,6 +15,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/retriever"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
@@ -105,9 +107,9 @@ func (l *capturingLogger) Error(msg string, keyvals ...any) {
 }
 
 func (l *capturingLogger) With(args ...any) logger.Logger {
-	nextFields := make(map[string]any, len(l.fields)+len(args)/2)
-	for k, v := range l.fields {
-		nextFields[k] = v
+	nextFields := core.CloneMap(l.fields)
+	if nextFields == nil {
+		nextFields = make(map[string]any, len(args)/2)
 	}
 	for i := 0; i < len(args); i += 2 {
 		key := fmt.Sprint(args[i])
@@ -127,9 +129,9 @@ func (l *capturingLogger) record(level, msg string, keyvals ...any) {
 	if l.entries == nil {
 		return
 	}
-	fields := make(map[string]any, len(l.fields)+len(keyvals)/2)
-	for k, v := range l.fields {
-		fields[k] = v
+	fields := core.CloneMap(l.fields)
+	if fields == nil {
+		fields = make(map[string]any, len(keyvals)/2)
 	}
 	for i := 0; i < len(keyvals); i += 2 {
 		key := fmt.Sprint(keyvals[i])
@@ -282,10 +284,11 @@ func TestService_ShouldEmitObservabilitySignals(t *testing.T) {
 	var rm metricdata.ResourceMetrics
 	err = reader.Collect(context.Background(), &rm)
 	require.NoError(t, err)
+	latencyName := monitoringmetrics.MetricNameWithSubsystem("knowledge", "query_latency_seconds")
 	foundLatency := false
 	for _, scope := range rm.ScopeMetrics {
 		for _, metric := range scope.Metrics {
-			if metric.Name != "knowledge_query_latency_seconds" {
+			if metric.Name != latencyName {
 				continue
 			}
 			hist, ok := metric.Data.(metricdata.Histogram[float64])
@@ -298,7 +301,7 @@ func TestService_ShouldEmitObservabilitySignals(t *testing.T) {
 			foundLatency = true
 		}
 	}
-	assert.True(t, foundLatency, "expected knowledge_query_latency_seconds metric")
+	assert.True(t, foundLatency, "expected %s metric", latencyName)
 	spans := spanRecorder.Ended()
 	require.NotEmpty(t, spans)
 	retrieveSpan := findSpan(t, spans, "compozy.knowledge.retriever.retrieve")

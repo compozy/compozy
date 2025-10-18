@@ -120,6 +120,14 @@ func TestMonitoringService_GinMiddleware(t *testing.T) {
 	})
 }
 
+func TestMonitoringService_LLMProviderMetrics(t *testing.T) {
+	cfg := &Config{Enabled: true, Path: "/metrics"}
+	service, err := NewMonitoringService(t.Context(), cfg)
+	require.NoError(t, err)
+	recorder := service.LLMProviderMetrics()
+	assert.NotNil(t, recorder)
+}
+
 func TestMonitoringService_ExporterHandler(t *testing.T) {
 	t.Run("Should return 503 when not initialized", func(t *testing.T) {
 		cfg := &Config{Enabled: false, Path: "/metrics"}

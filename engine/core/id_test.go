@@ -3,10 +3,9 @@ package core_test
 import (
 	"testing"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/compozy/compozy/engine/core"
 )
 
 func TestID_String(t *testing.T) {

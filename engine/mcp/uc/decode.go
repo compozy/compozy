@@ -1,6 +1,7 @@
 package uc
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/mcp"
 )
 
-func decodeMCPBody(body map[string]any, pathID string) (*mcp.Config, error) {
+func decodeMCPBody(ctx context.Context, body map[string]any, pathID string) (*mcp.Config, error) {
 	if body == nil {
 		return nil, ErrInvalidInput
 	}
@@ -16,10 +17,10 @@ func decodeMCPBody(body map[string]any, pathID string) (*mcp.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode mcp config: %w", err)
 	}
-	return normalizeMCPConfig(cfg, pathID)
+	return normalizeMCPConfig(ctx, cfg, pathID)
 }
 
-func normalizeMCPConfig(cfg *mcp.Config, pathID string) (*mcp.Config, error) {
+func normalizeMCPConfig(ctx context.Context, cfg *mcp.Config, pathID string) (*mcp.Config, error) {
 	if cfg == nil {
 		return nil, ErrInvalidInput
 	}
@@ -33,7 +34,7 @@ func normalizeMCPConfig(cfg *mcp.Config, pathID string) (*mcp.Config, error) {
 	}
 	cfg.ID = id
 	cfg.SetDefaults()
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.Validate(ctx); err != nil {
 		return nil, fmt.Errorf("validate mcp config: %w", err)
 	}
 	return cfg, nil

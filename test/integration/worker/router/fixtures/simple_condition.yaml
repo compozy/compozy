@@ -8,8 +8,7 @@ workflow:
     # and routes to the "deploy-task" defined in the routes map
     - id: simple-router
       type: router
-      action: route_task
-      condition: "production"  # Static condition that matches the route key
+      condition: '"production"'  # Static CEL string literal that matches the route key
       routes:
         production: deploy-task  # Route key matches the condition
       default_route: deploy-task

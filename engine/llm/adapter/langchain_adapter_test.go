@@ -135,7 +135,6 @@ func TestLangChainAdapter_BuildContentParts_AudioVideo_ByProvider(t *testing.T) 
 		core.ProviderAnthropic,
 	}
 	for _, p := range providers {
-		p := p
 		t.Run("Provider "+string(p)+" should skip audio/video", func(t *testing.T) {
 			t.Parallel()
 			adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: p}}
@@ -801,4 +800,25 @@ func (stubModel) GenerateContent(
 
 func (stubModel) Call(context.Context, string, ...llms.CallOption) (string, error) {
 	return "", nil
+}
+func TestBuildBasicOptionsTemperature(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include temperature when explicitly set to zero", func(t *testing.T) {
+		req := &LLMRequest{Options: CallOptions{Temperature: 0, TemperatureSet: true}}
+		opts := buildBasicOptions(req)
+		require.NotEmpty(t, opts)
+	})
+
+	t.Run("Should omit temperature when not set and zero", func(t *testing.T) {
+		req := &LLMRequest{Options: CallOptions{Temperature: 0, TemperatureSet: false}}
+		opts := buildBasicOptions(req)
+		require.Empty(t, opts)
+	})
+
+	t.Run("Should include temperature when positive even without flag", func(t *testing.T) {
+		req := &LLMRequest{Options: CallOptions{Temperature: 0.5}}
+		opts := buildBasicOptions(req)
+		require.NotEmpty(t, opts)
+	})
 }

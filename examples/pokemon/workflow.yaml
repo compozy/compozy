@@ -80,7 +80,7 @@ tasks:
   - id: route-by-kind
     type: router
     action: route_media
-    condition: "{{ .workflow.input.kind }}"
+    condition: 'workflow.input.kind'
     routes:
       image: analyze_image
       audio: analyze_audio

@@ -119,6 +119,11 @@ func initIngestAdapters(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("init embedder: %w", err)
 	}
+	if cacheCfg := emb.Config.Cache; cacheCfg != nil && cacheCfg.Enabled {
+		if err := embAdapter.EnableCache(cacheCfg.Size); err != nil {
+			return nil, nil, nil, fmt.Errorf("init embedder cache: %w", err)
+		}
+	}
 	vecCfg, err := configutil.ToVectorStoreConfig(ctx, projectID, vec)
 	if err != nil {
 		return nil, nil, nil, err

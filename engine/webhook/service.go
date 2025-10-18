@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -20,6 +21,8 @@ var (
 	ErrBadRequest          = errors.New("bad request")
 	ErrUnprocessableEntity = errors.New("unprocessable entity")
 )
+
+const headerWebhookSource = "X-Webhook-Source"
 
 // Result is transport-agnostic processing outcome; router will translate to HTTP
 type Result struct {
@@ -100,6 +103,8 @@ func (o *Orchestrator) Process(ctx context.Context, slug string, r *http.Request
 		workflowID = entry.WorkflowID
 	}
 	if o.metrics != nil {
+		o.metrics.IncrementQueueDepth(ctx)
+		defer o.metrics.DecrementQueueDepth(ctx)
 		o.metrics.OnReceived(ctx, slug, workflowID)
 	}
 	if !ok {
@@ -158,6 +163,17 @@ func requestCorrelationID(r *http.Request) string {
 		return v
 	}
 	return core.MustNewID().String()
+}
+
+// webhookSource extracts the origin identifier for payload size metrics.
+func webhookSource(r *http.Request, fallback string) string {
+	if r == nil {
+		return fallback
+	}
+	if v := strings.TrimSpace(r.Header.Get(headerWebhookSource)); v != "" {
+		return v
+	}
+	return fallback
 }
 
 func (o *Orchestrator) readBody(ctx context.Context, r *http.Request) ([]byte, Result, error) {
@@ -270,27 +286,51 @@ func (o *Orchestrator) processEventsWithMetrics(
 	// Add a reasonable timeout for event processing
 	eventCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	eventSource := webhookSource(r, slug)
+	payloadSize := len(body)
 
 	for _, ev := range entry.Webhook.Events {
 		if err := eventCtx.Err(); err != nil {
 			return Result{Status: http.StatusRequestTimeout}, err
 		}
+		eventType := ev.Name
+		stageStart := time.Now()
 		allow, rres, rerr := o.allowEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, ctxData)
 		if rerr != nil {
+			if o.metrics != nil {
+				o.metrics.ObserveEventOutcome(ctx, eventType, time.Since(stageStart), "error")
+			}
 			return rres, rerr
 		}
 		if !allow {
 			continue
 		}
+		if o.metrics != nil {
+			o.metrics.RecordPayloadSize(ctx, eventType, eventSource, payloadSize)
+		}
 		rendered, rres, rerr := o.renderEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, payload)
 		if rerr != nil {
+			if o.metrics != nil {
+				o.metrics.ObserveEventOutcome(ctx, eventType, time.Since(stageStart), "error")
+			}
 			return rres, rerr
 		}
 		rres2, rerr2 := o.validateEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, rendered)
 		if rerr2 != nil {
+			if o.metrics != nil {
+				o.metrics.ObserveEventOutcome(ctx, eventType, time.Since(stageStart), "error")
+			}
 			return rres2, rerr2
 		}
-		return o.dispatchEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, rendered)
+		res, err := o.dispatchEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, rendered)
+		if o.metrics != nil {
+			outcome := "success"
+			if err != nil {
+				outcome = "error"
+			}
+			o.metrics.ObserveEventOutcome(ctx, eventType, time.Since(stageStart), outcome)
+		}
+		return res, err
 	}
 	if o.metrics != nil {
 		o.metrics.OnNoMatch(ctx, slug, entry.WorkflowID)

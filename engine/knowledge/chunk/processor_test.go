@@ -1,6 +1,7 @@
 package chunk
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,4 +45,31 @@ func TestProcessor(t *testing.T) {
 		}
 		assert.Len(t, ids, len(chunks))
 	})
+}
+
+func TestProcessorAdaptiveSettings(t *testing.T) {
+	processor, err := NewProcessor(Settings{
+		Strategy: StrategyRecursive,
+		Size:     100,
+		Overlap:  10,
+	})
+	require.NoError(t, err)
+
+	shortText := strings.Repeat("z", 400)
+	size, overlap := processor.effectiveChunkSettings(nil, shortText)
+	assert.LessOrEqual(t, size, 100)
+	assert.GreaterOrEqual(t, size, minAdaptiveChunkSize)
+	assert.LessOrEqual(t, overlap, size)
+
+	pdfMeta := map[string]any{"content_type": "application/pdf"}
+	longText := strings.Repeat("a", 25000)
+	pdfSize, pdfOverlap := processor.effectiveChunkSettings(pdfMeta, longText)
+	assert.Greater(t, pdfSize, 100)
+	assert.LessOrEqual(t, pdfSize, maxAdaptiveChunkSize)
+	assert.GreaterOrEqual(t, pdfOverlap, pdfSize/6)
+
+	transcriptMeta := map[string]any{"source_type": "transcript"}
+	transcriptSize, transcriptOverlap := processor.effectiveChunkSettings(transcriptMeta, longText)
+	assert.Less(t, transcriptSize, pdfSize)
+	assert.GreaterOrEqual(t, transcriptOverlap, transcriptSize/4)
 }

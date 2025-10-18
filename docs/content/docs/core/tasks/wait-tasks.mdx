@@ -80,7 +80,7 @@ For the complete task configuration schema, see the [Task Schema Reference](/doc
 | `timeout` | string | ✅ | Maximum wait duration (e.g., `5m`, `300s`, `1h`) - prevents indefinite blocking |
 | `processor` | object | ❌ | [Basic, composite, or agent task](/docs/core/tasks/basic-tasks) to process received signals |
 | `on_timeout` | string | ❌ | Task ID to execute when timeout occurs - enables workflow patterns |
-| `condition` | string | ❌ | template expressions for signal filtering and validation |
+| `condition` | string | ❌ | CEL expression for signal filtering and validation |
 | `retry_policy` | object | ❌ | Automatic retry configuration for resilient wait operations |
 
 ## Signal Configuration Patterns
@@ -147,7 +147,7 @@ Dynamic signals enable parallel processing of multiple requests while maintainin
 
 <Tab value="Conditional Filtering">
 
-Filter signals using template expressions for precise control:
+Filter signals using CEL expressions for precise control:
 
 ```yaml
 # Wait for high-priority orders only
@@ -445,7 +445,7 @@ Always validate signal content to ensure data integrity:
 ```
 
 <Callout type="warning" title="Security Considerations">
-Use template expressions for input validation and consider security guidelines when processing external signals.
+Use CEL expressions for input validation and consider security guidelines when processing external signals.
 </Callout>
 
   </Accordion>

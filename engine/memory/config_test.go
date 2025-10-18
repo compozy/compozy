@@ -208,7 +208,7 @@ func TestConfig_FromMap_ProjectStandard(t *testing.T) {
 		require.NoError(t, err)
 
 		// Validate should pass
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 }

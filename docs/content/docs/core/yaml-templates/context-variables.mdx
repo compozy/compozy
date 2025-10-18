@@ -388,21 +388,16 @@ available_env: "{{ keys .env | join ', ' }}"
 </Tab>
 
 <Tab>
-**Router Tasks** use context for conditional logic:
+**Router Tasks** use context for conditional logic. Router conditions rely on CEL expressions, but those expressions can still reference the same context variables documented here:
 
 ```yaml title="Router Task Context"
 - id: routing_logic
   type: router
   condition: |
-    {{- $user_type := .tasks.classify_user.output.type -}}
-    {{- $priority := .tasks.classify_user.output.priority -}}
-    {{- if and (eq $user_type "premium") (gt $priority 8) -}}
-      premium_fast
-    {{- else if eq $user_type "premium" -}}
-      premium_standard
-    {{- else -}}
-      standard
-    {{- end -}}
+    let user = tasks.classify_user.output;
+    user.type == "premium" && user.priority > 8 ? "premium_fast" :
+    user.type == "premium" ? "premium_standard" :
+    "standard"
   routes:
     premium_fast:
       - id: fast_processing
