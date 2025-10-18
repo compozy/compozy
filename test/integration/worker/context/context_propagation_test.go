@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/worker"
@@ -31,11 +32,12 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 		toolEnv := toolenv.New(nil, nil, nil)
 		acts, err := worker.NewActivities(
 			ctx,
-			nil,  // projectConfig
-			nil,  // workflows
-			nil,  // workflowRepo
-			nil,  // taskRepo
-			nil,  // usageMetrics
+			nil, // projectConfig
+			nil, // workflows
+			nil, // workflowRepo
+			nil, // taskRepo
+			&helpers.NoopUsageMetrics{},
+			providermetrics.Nop(),
 			nil,  // runtime
 			nil,  // configStore
 			nil,  // signalDispatcher

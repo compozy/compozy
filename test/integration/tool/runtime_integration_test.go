@@ -8,6 +8,7 @@ import (
 	"go.temporal.io/sdk/testsuite"
 
 	"github.com/compozy/compozy/engine/core"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
@@ -82,6 +83,7 @@ func TestToolInheritance_Runtime(t *testing.T) {
 			workflowRepo,
 			taskRepo,
 			helpers.NoopUsageMetrics{},
+			providermetrics.Nop(),
 			rt,
 			cfgStore,
 			nil, // signal dispatcher

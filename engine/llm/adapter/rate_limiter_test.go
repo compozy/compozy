@@ -9,8 +9,24 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/core"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	appconfig "github.com/compozy/compozy/pkg/config"
 )
+
+type stubProviderMetrics struct {
+	delays []time.Duration
+}
+
+func (s *stubProviderMetrics) RecordRequest(context.Context, core.ProviderName, string, time.Duration, string) {
+}
+func (s *stubProviderMetrics) RecordTokens(context.Context, core.ProviderName, string, string, int) {}
+func (s *stubProviderMetrics) RecordCost(context.Context, core.ProviderName, string, float64)       {}
+func (s *stubProviderMetrics) RecordError(context.Context, core.ProviderName, string, string)       {}
+func (s *stubProviderMetrics) RecordRateLimitDelay(_ context.Context, _ core.ProviderName, delay time.Duration) {
+	if delay > 0 {
+		s.delays = append(s.delays, delay)
+	}
+}
 
 func TestProviderRateLimiter_ConcurrencyLimit(t *testing.T) {
 	t.Parallel()
@@ -19,7 +35,7 @@ func TestProviderRateLimiter_ConcurrencyLimit(t *testing.T) {
 		Enabled:            true,
 		DefaultConcurrency: 1,
 		DefaultQueueSize:   0,
-	})
+	}, providermetrics.Nop())
 
 	ctx := context.Background()
 	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
@@ -42,7 +58,7 @@ func TestProviderRateLimiter_QueueWaitsForSlot(t *testing.T) {
 		Enabled:            true,
 		DefaultConcurrency: 1,
 		DefaultQueueSize:   1,
-	})
+	}, providermetrics.Nop())
 
 	ctx := context.Background()
 	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
@@ -78,7 +94,7 @@ func TestProviderRateLimiter_QueueOverflow(t *testing.T) {
 		Enabled:            true,
 		DefaultConcurrency: 1,
 		DefaultQueueSize:   1,
-	})
+	}, providermetrics.Nop())
 
 	ctx := context.Background()
 	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
@@ -114,7 +130,7 @@ func TestRateLimiterRegistry_Overrides(t *testing.T) {
 		PerProviderLimits: map[string]appconfig.ProviderRateLimitConfig{
 			"OpenAI": {Concurrency: 3},
 		},
-	})
+	}, providermetrics.Nop())
 
 	override := &core.ProviderRateLimitConfig{Concurrency: 1}
 	ctx := context.Background()
@@ -141,7 +157,7 @@ func TestProviderRateLimiter_RequestRateLimit(t *testing.T) {
 		Enabled:            true,
 		DefaultConcurrency: 1,
 		DefaultQueueSize:   0,
-	})
+	}, providermetrics.Nop())
 
 	override := &core.ProviderRateLimitConfig{
 		Concurrency:       1,
@@ -169,7 +185,7 @@ func TestProviderRateLimiter_TokenRateLimit(t *testing.T) {
 		DefaultConcurrency:     1,
 		DefaultQueueSize:       0,
 		DefaultTokensPerMinute: 0,
-	})
+	}, providermetrics.Nop())
 
 	override := &core.ProviderRateLimitConfig{
 		Concurrency:     1,
@@ -198,7 +214,7 @@ func TestRateLimiterRegistry_BurstOverrides(t *testing.T) {
 		DefaultQueueSize:         0,
 		DefaultRequestsPerMinute: 120,
 		DefaultRequestBurst:      7,
-	})
+	}, providermetrics.Nop())
 
 	ctx := context.Background()
 	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
@@ -224,4 +240,42 @@ func TestRateLimiterRegistry_BurstOverrides(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, limiter.rateLimiter)
 	require.Equal(t, 5, limiter.rateLimiter.Burst())
+}
+
+func TestRateLimiterRegistry_RecordsDelay(t *testing.T) {
+	t.Parallel()
+
+	metrics := &stubProviderMetrics{}
+	registry := NewRateLimiterRegistry(appconfig.LLMRateLimitConfig{
+		Enabled:            true,
+		DefaultConcurrency: 1,
+		DefaultQueueSize:   1,
+	}, metrics)
+
+	ctx := context.Background()
+	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
+
+	ready := make(chan struct{})
+	go func() {
+		require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
+		close(ready)
+	}()
+
+	require.Eventually(t, func() bool {
+		snapshot, ok := registry.Metrics(core.ProviderOpenAI)
+		return ok && snapshot.QueuedRequests == 1
+	}, time.Second, 10*time.Millisecond)
+
+	time.Sleep(20 * time.Millisecond)
+	registry.Release(ctx, core.ProviderOpenAI, 0)
+
+	select {
+	case <-ready:
+	case <-time.After(time.Second):
+		t.Fatal("queued acquire did not complete")
+	}
+
+	require.NotEmpty(t, metrics.delays)
+	require.Greater(t, metrics.delays[0], time.Duration(0))
+	registry.Release(ctx, core.ProviderOpenAI, 0)
 }

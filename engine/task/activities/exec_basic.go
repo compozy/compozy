@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
@@ -30,16 +31,17 @@ type ExecuteBasicInput struct {
 
 // ExecuteBasic handles basic task execution with task2 integration
 type ExecuteBasic struct {
-	loadWorkflowUC *uc.LoadWorkflow
-	createStateUC  *uc.CreateState
-	executeUC      *uc.ExecuteTask
-	task2Factory   task2.Factory
-	workflowRepo   workflow.Repository
-	taskRepo       task.Repository
-	usageMetrics   usage.Metrics
-	memoryManager  memcore.ManagerInterface
-	templateEngine *tplengine.TemplateEngine
-	projectConfig  *project.Config
+	loadWorkflowUC  *uc.LoadWorkflow
+	createStateUC   *uc.CreateState
+	executeUC       *uc.ExecuteTask
+	task2Factory    task2.Factory
+	workflowRepo    workflow.Repository
+	taskRepo        task.Repository
+	usageMetrics    usage.Metrics
+	providerMetrics providermetrics.Recorder
+	memoryManager   memcore.ManagerInterface
+	templateEngine  *tplengine.TemplateEngine
+	projectConfig   *project.Config
 }
 
 // NewExecuteBasic creates and returns a configured ExecuteBasic activity.
@@ -54,6 +56,7 @@ func NewExecuteBasic(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	usageMetrics usage.Metrics,
+	providerMetrics providermetrics.Recorder,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
 	memoryManager memcore.ManagerInterface,
@@ -68,14 +71,23 @@ func NewExecuteBasic(
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configStore),
-		executeUC:      uc.NewExecuteTask(runtime, workflowRepo, memoryManager, templateEngine, nil, toolEnvironment),
-		task2Factory:   task2Factory,
-		workflowRepo:   workflowRepo,
-		taskRepo:       taskRepo,
-		usageMetrics:   usageMetrics,
-		memoryManager:  memoryManager,
-		templateEngine: templateEngine,
-		projectConfig:  projectConfig,
+		executeUC: uc.NewExecuteTask(
+			runtime,
+			workflowRepo,
+			memoryManager,
+			templateEngine,
+			nil,
+			providerMetrics,
+			toolEnvironment,
+		),
+		task2Factory:    task2Factory,
+		workflowRepo:    workflowRepo,
+		taskRepo:        taskRepo,
+		usageMetrics:    usageMetrics,
+		providerMetrics: providerMetrics,
+		memoryManager:   memoryManager,
+		templateEngine:  templateEngine,
+		projectConfig:   projectConfig,
 	}, nil
 }
 

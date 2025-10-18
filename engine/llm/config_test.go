@@ -13,42 +13,42 @@ func TestConfigValidate_ErrorPaths(t *testing.T) {
 	t.Run("Should error when ProxyURL is empty", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.ProxyURL = ""
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "proxy URL cannot be empty")
 	})
 	t.Run("Should error when CacheTTL is negative", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.CacheTTL = -1 * time.Second
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "cache TTL cannot be negative")
 	})
 	t.Run("Should error when Timeout is non-positive", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.Timeout = 0
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "timeout must be positive")
 	})
 	t.Run("Should error when MaxConcurrentTools is non-positive", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.MaxConcurrentTools = 0
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "max concurrent tools must be positive")
 	})
 	t.Run("Should error when ResolvedTools has empty ID", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.ResolvedTools = []tool.Config{{ID: ""}}
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "empty ID")
 	})
 	t.Run("Should error when ResolvedTools has duplicate IDs", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.ResolvedTools = []tool.Config{{ID: "dup"}, {ID: "dup"}}
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "duplicate tool ID")
 		assert.ErrorContains(t, err, "dup")

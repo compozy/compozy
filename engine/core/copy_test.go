@@ -22,7 +22,7 @@ func mutateNestedStructures(m map[string]any) {
 func TestDeepCopy_Input(t *testing.T) {
 	t.Run("Should deep copy Input and preserve type", func(t *testing.T) {
 		orig := Input{"a": 1, "nums": []int{1, 2, 3}, "nested": map[string]any{"k1": "v1"}, "strs": []string{"x", "y"}}
-		cpy, err := DeepCopy[Input](orig)
+		cpy, err := DeepCopy(orig)
 		require.NoError(t, err)
 		assert.Equal(t, orig, cpy)
 		mutateNestedStructures(map[string]any(cpy))
@@ -32,7 +32,7 @@ func TestDeepCopy_Input(t *testing.T) {
 	})
 	t.Run("Should return nil for nil Input", func(t *testing.T) {
 		var orig Input
-		cpy, err := DeepCopy[Input](orig)
+		cpy, err := DeepCopy(orig)
 		require.NoError(t, err)
 		assert.Nil(t, cpy)
 	})
@@ -41,7 +41,7 @@ func TestDeepCopy_Input(t *testing.T) {
 func TestDeepCopy_Output(t *testing.T) {
 	t.Run("Should deep copy Output and preserve type", func(t *testing.T) {
 		orig := Output{"x": "y", "nums": []int{10, 20}, "nested": map[string]any{"n": 1}}
-		cpy, err := DeepCopy[Output](orig)
+		cpy, err := DeepCopy(orig)
 		require.NoError(t, err)
 		assert.Equal(t, orig, cpy)
 		mutateNestedStructures(map[string]any(cpy))
@@ -51,7 +51,7 @@ func TestDeepCopy_Output(t *testing.T) {
 	})
 	t.Run("Should return nil for nil Output", func(t *testing.T) {
 		var orig Output
-		cpy, err := DeepCopy[Output](orig)
+		cpy, err := DeepCopy(orig)
 		require.NoError(t, err)
 		assert.Nil(t, cpy)
 	})
@@ -61,7 +61,7 @@ func TestDeepCopy_InputPtr(t *testing.T) {
 	t.Run("Should deep copy *Input", func(t *testing.T) {
 		v := Input{"k": "v", "nums": []int{1, 2}, "nested": map[string]any{"a": "b"}}
 		orig := &v
-		cpyPtr, err := DeepCopy[*Input](orig)
+		cpyPtr, err := DeepCopy(orig)
 		require.NoError(t, err)
 		require.NotNil(t, cpyPtr)
 		assert.NotSame(t, orig, cpyPtr)
@@ -73,12 +73,12 @@ func TestDeepCopy_InputPtr(t *testing.T) {
 	})
 	t.Run("Should return nil when *Input is nil or points to nil map", func(t *testing.T) {
 		var pnil *Input
-		c1, err := DeepCopy[*Input](pnil)
+		c1, err := DeepCopy(pnil)
 		require.NoError(t, err)
 		assert.Nil(t, c1)
 		tmp := Input(nil)
 		p := &tmp
-		c2, err := DeepCopy[*Input](p)
+		c2, err := DeepCopy(p)
 		require.NoError(t, err)
 		assert.Nil(t, c2)
 	})
@@ -88,7 +88,7 @@ func TestDeepCopy_OutputPtr(t *testing.T) {
 	t.Run("Should deep copy *Output", func(t *testing.T) {
 		v := Output{"ok": true, "nested": map[string]any{"k": "v"}, "nums": []int{4, 5, 6}}
 		orig := &v
-		cpyPtr, err := DeepCopy[*Output](orig)
+		cpyPtr, err := DeepCopy(orig)
 		require.NoError(t, err)
 		require.NotNil(t, cpyPtr)
 		assert.NotSame(t, orig, cpyPtr)
@@ -100,12 +100,12 @@ func TestDeepCopy_OutputPtr(t *testing.T) {
 	})
 	t.Run("Should return nil when *Output is nil or points to nil map", func(t *testing.T) {
 		var pnil *Output
-		c1, err := DeepCopy[*Output](pnil)
+		c1, err := DeepCopy(pnil)
 		require.NoError(t, err)
 		assert.Nil(t, c1)
 		tmp := Output(nil)
 		p := &tmp
-		c2, err := DeepCopy[*Output](p)
+		c2, err := DeepCopy(p)
 		require.NoError(t, err)
 		assert.Nil(t, c2)
 	})
@@ -114,11 +114,11 @@ func TestDeepCopy_OutputPtr(t *testing.T) {
 func TestDeepCopy_Generic(t *testing.T) {
 	t.Run("Should copy primitives", func(t *testing.T) {
 		i := 42
-		ic, err := DeepCopy[int](i)
+		ic, err := DeepCopy(i)
 		require.NoError(t, err)
 		assert.Equal(t, i, ic)
 		s := "hello"
-		sc, err := DeepCopy[string](s)
+		sc, err := DeepCopy(s)
 		require.NoError(t, err)
 		assert.Equal(t, s, sc)
 	})
@@ -139,7 +139,7 @@ func TestDeepCopy_Generic(t *testing.T) {
 			Arr: []int{1, 2, 3},
 			Nst: &nestedStruct{K: "k", V: map[string]int{"x": 1}},
 		}
-		cpy, err := DeepCopy[genericStruct](orig)
+		cpy, err := DeepCopy(orig)
 		require.NoError(t, err)
 		assert.Equal(t, orig, cpy)
 		cpy.N, cpy.Arr[0], cpy.Nst.K, cpy.Nst.V["x"] = 8, 999, "k2", 77
@@ -152,7 +152,7 @@ func TestDeepCopy_Generic(t *testing.T) {
 		}
 		assert.Equal(t, want, orig)
 		m := map[string]any{"a": 1, "b": []string{"a", "b"}, "c": map[string]any{"z": 1}}
-		mc, err := DeepCopy[map[string]any](m)
+		mc, err := DeepCopy(m)
 		require.NoError(t, err)
 		assert.Equal(t, m, mc)
 		mc["a"] = 2

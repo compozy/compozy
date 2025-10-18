@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/llm/contracts"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/telemetry"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
@@ -67,6 +68,7 @@ type Config struct {
 	SystemPromptRenderer           SystemPromptRenderer
 	RuntimeManager                 runtime.Runtime
 	LLMFactory                     llmadapter.Factory
+	ProviderMetrics                providermetrics.Recorder
 	MemoryProvider                 contracts.MemoryProvider
 	MemorySync                     MemorySync
 	AsyncHook                      AsyncHook

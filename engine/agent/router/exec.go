@@ -497,6 +497,9 @@ func executeAgentAsync(c *gin.Context) {
 		recordError(http.StatusInternalServerError)
 		return
 	}
+	if asyncCtx.metrics != nil {
+		asyncCtx.metrics.RecordAsyncStarted(ctx, monitoring.ExecutionKindAgent)
+	}
 	execURL := fmt.Sprintf("%s/agents/%s", routes.Executions(), execID.String())
 	c.Header("Location", execURL)
 	router.RespondAccepted(c, "agent execution started", gin.H{"exec_id": execID.String(), "exec_url": execURL})

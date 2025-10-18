@@ -477,16 +477,8 @@ func (w *Config) HasSchema() bool {
 	return w.Opts.InputSchema != nil
 }
 
-// Deprecated: Prefer ValidateWithContext(ctx); this uses a context without deadlines/cancellation.
-//
-
-func (w *Config) Validate() error {
-	return w.ValidateWithContext(context.TODO())
-}
-
-// ValidateWithContext validates the workflow configuration using the provided context.
-// Prefer this over Validate() to preserve cancellations and deadlines.
-func (w *Config) ValidateWithContext(ctx context.Context) error {
+// Validate validates the workflow configuration using the provided context.
+func (w *Config) Validate(ctx context.Context) error {
 	validator := NewWorkflowValidator(w)
 	return validator.Validate(ctx)
 }

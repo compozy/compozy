@@ -51,7 +51,7 @@ func TestResolver_WorkflowPrecedence(t *testing.T) {
 				},
 			},
 		}
-		resolver, err := knowledge.NewResolver(defs, knowledge.DefaultDefaults())
+		resolver, err := knowledge.NewResolver(t.Context(), defs, knowledge.DefaultDefaults())
 		require.NoError(t, err)
 		input := knowledge.ResolveInput{
 			WorkflowKnowledgeBases: []knowledge.BaseConfig{
@@ -68,7 +68,7 @@ func TestResolver_WorkflowPrecedence(t *testing.T) {
 			ProjectBinding:  []core.KnowledgeBinding{{ID: "support_docs"}},
 			WorkflowBinding: []core.KnowledgeBinding{{ID: "wf_support_docs"}},
 		}
-		result, err := resolver.Resolve(&input)
+		result, err := resolver.Resolve(t.Context(), &input)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, "wf_support_docs", result.ID)
@@ -120,7 +120,7 @@ func TestResolver_InlineOverride(t *testing.T) {
 				},
 			},
 		}
-		resolver, err := knowledge.NewResolver(defs, knowledge.DefaultDefaults())
+		resolver, err := knowledge.NewResolver(t.Context(), defs, knowledge.DefaultDefaults())
 		require.NoError(t, err)
 		topK := 2
 		minScore := 0.5
@@ -137,7 +137,7 @@ func TestResolver_InlineOverride(t *testing.T) {
 				},
 			},
 		}
-		result, err := resolver.Resolve(&input)
+		result, err := resolver.Resolve(t.Context(), &input)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, "support_docs", result.ID)
@@ -192,9 +192,9 @@ func TestResolver_AppliesCustomDefaults(t *testing.T) {
 			RetrievalTopK:     9,
 			RetrievalMinScore: 0.4,
 		}
-		resolver, err := knowledge.NewResolver(defs, customDefaults)
+		resolver, err := knowledge.NewResolver(t.Context(), defs, customDefaults)
 		require.NoError(t, err)
-		result, err := resolver.Resolve(
+		result, err := resolver.Resolve(t.Context(),
 			&knowledge.ResolveInput{ProjectBinding: []core.KnowledgeBinding{{ID: "support_docs"}}},
 		)
 		require.NoError(t, err)
@@ -247,13 +247,13 @@ func TestResolver_EmptyFilterOverrideClearsBase(t *testing.T) {
 				},
 			},
 		}
-		resolver, err := knowledge.NewResolver(defs, knowledge.DefaultDefaults())
+		resolver, err := knowledge.NewResolver(t.Context(), defs, knowledge.DefaultDefaults())
 		require.NoError(t, err)
 		input := knowledge.ResolveInput{
 			ProjectBinding: []core.KnowledgeBinding{{ID: "support_docs"}},
 			InlineBinding:  []core.KnowledgeBinding{{ID: "support_docs", Filters: map[string]string{}}},
 		}
-		resolved, err := resolver.Resolve(&input)
+		resolved, err := resolver.Resolve(t.Context(), &input)
 		require.NoError(t, err)
 		require.NotNil(t, resolved)
 		assert.Len(t, resolved.Retrieval.Filters, 0)

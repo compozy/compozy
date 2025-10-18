@@ -249,7 +249,7 @@ func TestDispatcherWorkflow_PayloadValidationLogic(t *testing.T) {
 			"required": []string{"name"},
 		}
 
-		compiled, err := schemaDefinition.Compile()
+		compiled, err := schemaDefinition.Compile(t.Context())
 		assert.NoError(t, err)
 		assert.NotNil(t, compiled)
 
@@ -277,7 +277,7 @@ func TestDispatcherWorkflow_PayloadValidationLogic(t *testing.T) {
 			"required": []string{"name"},
 		}
 
-		compiled, err := schemaDefinition.Compile()
+		compiled, err := schemaDefinition.Compile(t.Context())
 		assert.NoError(t, err)
 
 		// Test valid payload

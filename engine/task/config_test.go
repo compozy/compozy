@@ -35,7 +35,7 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate the config
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 
 		require.NotNil(t, config.ID)
@@ -53,7 +53,7 @@ func Test_LoadTask(t *testing.T) {
 
 		// Validate input schema
 		schema := config.InputSchema
-		compiledSchema, err := schema.Compile()
+		compiledSchema, err := schema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledSchema.Type))
 		require.NotNil(t, compiledSchema.Properties)
@@ -63,7 +63,7 @@ func Test_LoadTask(t *testing.T) {
 
 		// Validate output schema
 		outSchema := config.OutputSchema
-		compiledOutSchema, err := outSchema.Compile()
+		compiledOutSchema, err := outSchema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledOutSchema.Type))
 		require.NotNil(t, compiledOutSchema.Properties)
@@ -89,7 +89,7 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate the config
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 
 		require.NotNil(t, config.ID)
@@ -115,7 +115,7 @@ func Test_LoadTask(t *testing.T) {
 
 		// Validate input schema
 		schema := config.InputSchema
-		compiledSchema2, err := schema.Compile()
+		compiledSchema2, err := schema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledSchema2.Type))
 		require.NotNil(t, compiledSchema2.Properties)
@@ -125,7 +125,7 @@ func Test_LoadTask(t *testing.T) {
 
 		// Validate output schema
 		outSchema := config.OutputSchema
-		compiledOutSchema2, err := outSchema.Compile()
+		compiledOutSchema2, err := outSchema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledOutSchema2.Type))
 		require.NotNil(t, compiledOutSchema2.Properties)
@@ -152,7 +152,7 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate the config
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 
 		require.NotNil(t, config.ID)
@@ -199,7 +199,7 @@ func Test_LoadTask(t *testing.T) {
 
 		// Validate input schema
 		schema := config.InputSchema
-		compiledSchema, err := schema.Compile()
+		compiledSchema, err := schema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledSchema.Type))
 		require.NotNil(t, compiledSchema.Properties)
@@ -227,7 +227,7 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate the config
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.Error(t, err)
 	})
 
@@ -240,7 +240,7 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate the config - should detect circular dependency
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "circular dependency detected involving task: circular_parent")
 	})
@@ -254,7 +254,7 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate the config
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 
 		// Validate basic task properties
@@ -295,7 +295,7 @@ func Test_LoadTask(t *testing.T) {
 		// Validate input schema
 		require.NotNil(t, config.InputSchema)
 		schema := config.InputSchema
-		compiledSchema, err := schema.Compile()
+		compiledSchema, err := schema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledSchema.Type))
 		require.NotNil(t, compiledSchema.Properties)
@@ -336,7 +336,7 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate the config
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 
 		// Validate basic task properties
@@ -360,7 +360,7 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate it loaded correctly
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 
 		assert.Equal(t, "text-analysis-prompt", config.ID)
@@ -387,7 +387,7 @@ func Test_LoadTask(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate it loaded correctly
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 
 		assert.Equal(t, "enhanced-analysis", config.ID)
@@ -426,7 +426,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -437,7 +437,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BasicTask:  BasicTask{Action: "do_thing"},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -447,7 +447,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BasicTask:  BasicTask{Prompt: "Analyze this input"},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -456,7 +456,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{ID: taskID, Type: TaskTypeBasic, CWD: taskCWD, Agent: &agent.Config{ID: "a"}},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "must specify at least one of 'action' or 'prompt'")
 	})
@@ -467,7 +467,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BasicTask:  BasicTask{Action: "analyze", Prompt: "Focus on security issues"},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err, "Combined action and prompt should be valid for enhanced context")
 	})
 
@@ -477,7 +477,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BasicTask:  BasicTask{Prompt: "Analyze the following text for sentiment"},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err, "Prompt-only mode should be valid")
 	})
 
@@ -487,7 +487,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BasicTask:  BasicTask{Action: "process"},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err, "Action-only mode should remain valid for backward compatibility")
 	})
 
@@ -497,7 +497,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BasicTask:  BasicTask{Prompt: "not allowed"},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "prompt is not allowed when executor type is tool")
 	})
@@ -507,7 +507,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			BaseConfig: BaseConfig{ID: taskID, Type: TaskTypeBasic, CWD: taskCWD, Tool: &tool.Config{ID: "t"}},
 			BasicTask:  BasicTask{Action: "also-not-allowed"},
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "action is not allowed when executor type is tool")
 	})
@@ -529,7 +529,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -558,7 +558,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -570,7 +570,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "current working directory is required for test-task")
 	})
@@ -584,7 +584,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid task type: invalid")
 	})
@@ -598,7 +598,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "condition is required for router tasks")
 	})
@@ -616,7 +616,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "routes are required for router tasks")
 	})
@@ -658,7 +658,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			ParallelTask: ParallelTask{},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "parallel tasks must have at least one sub-task")
 	})
@@ -680,7 +680,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -698,7 +698,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "signal.id is required for signal tasks")
 	})
@@ -717,7 +717,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "signal.id is required for signal tasks")
 	})
@@ -745,7 +745,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "duplicate task ID in parallel execution: duplicate")
 	})
@@ -768,7 +768,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid task configuration")
 	})
@@ -800,7 +800,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "circular dependency detected involving task: parent_task")
 	})
@@ -826,7 +826,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "circular dependency detected involving task: self_ref")
 	})
@@ -861,7 +861,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -887,7 +887,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should validate collection task with sequential mode", func(t *testing.T) {
@@ -912,7 +912,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 				},
 			},
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 		assert.Equal(t, CollectionModeSequential, config.GetMode())
 	})
@@ -947,7 +947,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "items field is required")
 	})
@@ -968,7 +968,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid mode 'invalid-mode'")
 	})
@@ -989,7 +989,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "batch size cannot be negative")
 	})
@@ -1012,7 +1012,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot have both 'task' template and 'tasks' array configured")
 	})
@@ -1032,7 +1032,7 @@ func Test_TaskConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "must have either a 'task' template or 'tasks' array configured")
 	})
@@ -1111,7 +1111,7 @@ func Test_TaskReference(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate the config
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 
 		require.NotNil(t, config.ID)
@@ -1218,7 +1218,7 @@ func TestAggregate_TaskValidation(t *testing.T) {
 				CWD:     cwd,
 			},
 		}
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should fail validation when aggregate task has no outputs", func(t *testing.T) {
@@ -1231,7 +1231,7 @@ func TestAggregate_TaskValidation(t *testing.T) {
 				CWD:  cwd,
 			},
 		}
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "aggregate tasks must have outputs defined")
 	})
@@ -1252,7 +1252,7 @@ func TestAggregate_TaskValidation(t *testing.T) {
 				CWD:     cwd,
 			},
 		}
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "aggregate tasks cannot have an action field")
 	})
@@ -1301,7 +1301,7 @@ func TestAggregate_LoadTask(t *testing.T) {
 		require.NotNil(t, config.OnError)
 		assert.Equal(t, "handle-aggregation-error", *config.OnError.Next)
 		// Validate the loaded config
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 }
@@ -1360,7 +1360,7 @@ func TestCompositeTask(t *testing.T) {
 		assert.Equal(t, TaskTypeComposite, config.Type)
 
 		// Validate the configuration
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		require.NoError(t, err)
 	})
 
@@ -1374,7 +1374,7 @@ func TestCompositeTask(t *testing.T) {
 			Tasks: []Config{},
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "composite tasks must have at least one sub-task")
 	})
@@ -1414,7 +1414,7 @@ func TestCompositeTask(t *testing.T) {
 			// Composite tasks should not have ParallelTask fields set
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		require.NoError(t, err)
 	})
 
@@ -1450,7 +1450,7 @@ func TestCompositeTask(t *testing.T) {
 			// Composite tasks should not have ParallelTask fields set
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		require.NoError(t, err)
 
 		// Verify that composite tasks don't have strategy-related behavior
@@ -1778,7 +1778,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 				WaitFor: "approval_signal",
 			},
 		}
-		err := config.validateWaitTask()
+		err := config.validateWaitTask(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -1792,7 +1792,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 				Condition: `signal.payload.status == "approved"`,
 			},
 		}
-		err := config.validateWaitTask()
+		err := config.validateWaitTask(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "wait_for field is required")
 	})
@@ -1810,7 +1810,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 				WaitFor: "approval_signal",
 			},
 		}
-		err := config.validateWaitTask()
+		err := config.validateWaitTask(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "condition field is required")
 	})
@@ -1828,7 +1828,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 				WaitFor: "approval_signal",
 			},
 		}
-		err := config.validateWaitTask()
+		err := config.validateWaitTask(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid condition")
 	})
@@ -1847,7 +1847,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 				WaitFor: "approval_signal",
 			},
 		}
-		err := config.validateWaitTask()
+		err := config.validateWaitTask(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid timeout")
 	})
@@ -1866,7 +1866,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 				WaitFor: "approval_signal",
 			},
 		}
-		err := config.validateWaitTask()
+		err := config.validateWaitTask(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "timeout must be positive")
 	})
@@ -1887,7 +1887,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 					WaitFor: "approval_signal",
 				},
 			}
-			err := config.validateWaitTask()
+			err := config.validateWaitTask(t.Context())
 			assert.NoError(t, err, "timeout %s should be valid", timeout)
 		}
 	})
@@ -1911,7 +1911,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 				},
 			},
 		}
-		err := config.validateWaitTask()
+		err := config.validateWaitTask(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "processor ID is required")
 	})
@@ -1936,7 +1936,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 				},
 			},
 		}
-		err := config.validateWaitTask()
+		err := config.validateWaitTask(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "processor type is required")
 	})
@@ -1961,7 +1961,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 				},
 			},
 		}
-		err := config.validateWaitTask()
+		err := config.validateWaitTask(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -1979,7 +1979,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 				WaitFor: "approval_signal",
 			},
 		}
-		err := config.validateWaitTask()
+		err := config.validateWaitTask(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -1997,7 +1997,7 @@ func TestConfig_validateWaitTask(t *testing.T) {
 				// No processor specified
 			},
 		}
-		err := config.validateWaitTask()
+		err := config.validateWaitTask(t.Context())
 		assert.NoError(t, err)
 	})
 }
@@ -2022,7 +2022,7 @@ func TestConfig_validateWaitCondition(t *testing.T) {
 		}
 		for _, expr := range validExpressions {
 			config.Condition = expr
-			err := config.validateWaitCondition()
+			err := config.validateWaitCondition(t.Context())
 			assert.NoError(t, err, "expression should be valid: %s", expr)
 		}
 	})
@@ -2045,7 +2045,7 @@ func TestConfig_validateWaitCondition(t *testing.T) {
 		}
 		for _, expr := range invalidExpressions {
 			config.Condition = expr
-			err := config.validateWaitCondition()
+			err := config.validateWaitCondition(t.Context())
 			assert.Error(t, err, "expression should be invalid: %s", expr)
 		}
 	})
@@ -2062,7 +2062,7 @@ func TestConfig_validateWaitTimeout(t *testing.T) {
 				Condition: `signal.payload.status == "approved"`,
 			},
 		}
-		err := config.validateWaitTimeout()
+		err := config.validateWaitTimeout(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -2082,7 +2082,7 @@ func TestConfig_validateWaitTimeout(t *testing.T) {
 		}
 		for _, timeout := range validTimeouts {
 			config.Timeout = timeout
-			err := config.validateWaitTimeout()
+			err := config.validateWaitTimeout(t.Context())
 			assert.NoError(t, err, "timeout should be valid: %s", timeout)
 		}
 	})
@@ -2102,7 +2102,7 @@ func TestConfig_validateWaitTimeout(t *testing.T) {
 		}
 		for _, timeout := range invalidTimeouts {
 			config.Timeout = timeout
-			err := config.validateWaitTimeout()
+			err := config.validateWaitTimeout(t.Context())
 			assert.Error(t, err, "timeout should be invalid: %s", timeout)
 		}
 	})
@@ -2127,7 +2127,7 @@ func TestConfig_validateWaitProcessor(t *testing.T) {
 				},
 			},
 		}
-		err := config.validateWaitProcessor()
+		err := config.validateWaitProcessor(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "processor ID is required")
 	})
@@ -2150,7 +2150,7 @@ func TestConfig_validateWaitProcessor(t *testing.T) {
 				},
 			},
 		}
-		err := config.validateWaitProcessor()
+		err := config.validateWaitProcessor(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "processor type is required")
 	})
@@ -2174,7 +2174,7 @@ func TestConfig_validateWaitProcessor(t *testing.T) {
 				},
 			},
 		}
-		err := config.validateWaitProcessor()
+		err := config.validateWaitProcessor(t.Context())
 		assert.NoError(t, err)
 	})
 }
@@ -2193,7 +2193,7 @@ func TestConfig_Validate_WaitTaskIntegration(t *testing.T) {
 				WaitFor: "approval_signal",
 			},
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -2208,7 +2208,7 @@ func TestConfig_Validate_WaitTaskIntegration(t *testing.T) {
 			},
 			// Missing required fields
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid wait task")
 	})
@@ -2232,7 +2232,7 @@ func TestTypeValidator_validateWaitTask(t *testing.T) {
 			},
 		}
 		validator := NewTaskTypeValidator(config)
-		err := validator.validateWaitTask()
+		err := validator.validateWaitTask(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "wait tasks cannot have an action field")
 	})
@@ -2252,7 +2252,7 @@ func TestTypeValidator_validateWaitTask(t *testing.T) {
 			},
 		}
 		validator := NewTaskTypeValidator(config)
-		err := validator.validateWaitTask()
+		err := validator.validateWaitTask(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "wait tasks cannot have an agent")
 	})
@@ -2272,7 +2272,7 @@ func TestTypeValidator_validateWaitTask(t *testing.T) {
 			},
 		}
 		validator := NewTaskTypeValidator(config)
-		err := validator.validateWaitTask()
+		err := validator.validateWaitTask(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "wait tasks cannot have a tool")
 	})
@@ -2291,7 +2291,7 @@ func TestTypeValidator_validateWaitTask(t *testing.T) {
 			},
 		}
 		validator := NewTaskTypeValidator(config)
-		err := validator.validateWaitTask()
+		err := validator.validateWaitTask(t.Context())
 		assert.NoError(t, err)
 	})
 }

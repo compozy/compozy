@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,14 +23,18 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
 const (
-	unknownFileName = "unknown"
-	ideCodex        = "codex"
-	ideClaude       = "claude"
+	unknownFileName   = "unknown"
+	ideCodex          = "codex"
+	ideClaude         = "claude"
+	ideDroid          = "droid"
+	defaultCodexModel = "gpt-5-codex"
+	defaultAutoLabel  = "auto"
 )
 
 // Port of scripts/solve-pr-issues.ts with concurrency and non-streamed logging.
@@ -37,24 +42,31 @@ const (
 // Usage:
 //   go run scripts/solve-pr-issues.go --pr 259
 //   [--issues-dir ai-docs/<num>/issues] [--dry-run]
-//   [--concurrent 4] [--batch-size 3] [--ide claude|codex]
+//   [--concurrent 4] [--batch-size 3] [--ide claude|codex|droid] [--model gpt-5-codex]
+//   [--tail-lines 5] [--reasoning-effort medium] [--grouped]
 //
 // Behavior:
 // - Scans issue markdown files under the issues dir, groups by the "**File:**`path:line`" header.
-// - Writes grouped summaries to issues/grouped/<safe>.md and prompts to .tmp/codex-prompts/pr-<PR>/.
+// - Optionally writes grouped summaries to issues/grouped/<safe>.md (with --grouped flag).
+// - Generates prompts to .tmp/codex-prompts/pr-<PR>/.
 // - Batches multiple file groups together (controlled by --batch-size) for processing.
-// - Invokes the specified IDE tool (codex or claude) once per batch, feeding the generated prompt via stdin.
+// - Invokes the specified IDE tool (codex, claude, or droid) once per batch, feeding the generated prompt via stdin.
 // - By default, only writes process output to log files; does not stream to current stdout/stderr.
 // - Supports parallel execution with --concurrent N (default 1).
+// - Configure log tail lines shown in UI with --tail-lines (default: 5).
+// - Configure reasoning effort for codex/droid with --reasoning-effort (default: medium, options: low/medium/high).
 
 type cliArgs struct {
-	pr         string
-	issuesDir  string
-	dryRun     bool
-	concurrent int
-	batchSize  int
-	ide        string
-	model      string
+	pr              string
+	issuesDir       string
+	dryRun          bool
+	concurrent      int
+	batchSize       int
+	ide             string
+	model           string
+	grouped         bool
+	tailLines       int
+	reasoningEffort string
 }
 
 type issueEntry struct {
@@ -78,28 +90,49 @@ var rootCmd = &cobra.Command{
 	Long: `Port of scripts/solve-pr-issues.ts with concurrency and non-streamed logging.
 
 Usage:
+  # Interactive mode (recommended for beginners):
+  solve-pr-issues --form
+
+  # Traditional CLI mode:
   solve-pr-issues --pr 259
   [--issues-dir ai-docs/<num>/issues] [--dry-run]
-  [--concurrent 4] [--batch-size 3] [--ide claude|codex] [--model gpt-5]
+  [--concurrent 4] [--batch-size 3] [--ide claude|codex|droid] [--model gpt-5-codex]
+  [--tail-lines 5] [--reasoning-effort medium] [--grouped]
+
+  # Hybrid mode (mix flags with form):
+  solve-pr-issues --form --pr 259 --ide codex
+
+Interactive Form (--form):
+- Beautiful terminal UI for parameter collection
+- Smart field detection (only asks for unset parameters)
+- Real-time input validation with helpful errors
+- Mix CLI flags with interactive prompts
 
 Behavior:
 - Scans issue markdown files under the issues dir, groups by the "**File:** path:line header.
-- Writes grouped summaries to issues/grouped/<safe>.md and prompts to .tmp/codex-prompts/pr-<PR>/.
+- Optionally writes grouped summaries to issues/grouped/<safe>.md (with --grouped flag).
+- Generates prompts to .tmp/codex-prompts/pr-<PR>/.
 - Batches multiple file groups together (controlled by --batch-size) for processing.
-- Invokes the specified IDE tool (codex or claude) once per batch, feeding the generated prompt via stdin.
+- Invokes the specified IDE tool (codex, claude, or droid) once per batch, feeding the generated prompt via stdin.
 - By default, only writes process output to log files; does not stream to current stdout/stderr.
-- Supports parallel execution with --concurrent N (default 1).`,
+- Supports parallel execution with --concurrent N (default 1).
+- Configure log tail lines shown in UI with --tail-lines (default: 5).
+- Configure reasoning effort for codex/droid with --reasoning-effort (default: medium, options: low/medium/high).`,
 	RunE: runSolveIssues,
 }
 
 var (
-	pr         string
-	issuesDir  string
-	dryRun     bool
-	concurrent int
-	batchSize  int
-	ide        string
-	model      string
+	pr              string
+	issuesDir       string
+	dryRun          bool
+	concurrent      int
+	batchSize       int
+	ide             string
+	model           string
+	grouped         bool
+	tailLines       int
+	reasoningEffort string
+	useForm         bool
 )
 
 func setupFlags() {
@@ -109,84 +142,398 @@ func setupFlags() {
 	rootCmd.Flags().IntVar(&concurrent, "concurrent", 1, "Number of batches to process in parallel")
 	rootCmd.Flags().
 		IntVar(&batchSize, "batch-size", 1, "Number of file groups to batch together (default: 1 for no batching)")
-	rootCmd.Flags().StringVar(&ide, "ide", ideCodex, "IDE tool to use: claude or codex")
-	rootCmd.Flags().StringVar(&model, "model", "", "Model to use (default: gpt-5 for codex, auto for claude)")
+	rootCmd.Flags().StringVar(&ide, "ide", ideCodex, "IDE tool to use: claude, codex, or droid")
+	rootCmd.Flags().StringVar(
+		&model,
+		"model",
+		"",
+		"Model to use (default: gpt-5-codex for codex/droid, auto for claude)",
+	)
+	rootCmd.Flags().BoolVar(&grouped, "grouped", false, "Generate grouped issue summaries in issues/grouped/ directory")
+	rootCmd.Flags().IntVar(&tailLines, "tail-lines", 5, "Number of log lines to show in UI for each job")
+	rootCmd.Flags().StringVar(
+		&reasoningEffort,
+		"reasoning-effort",
+		"medium",
+		"Reasoning effort for codex (low, medium, high)",
+	)
+	rootCmd.Flags().BoolVar(&useForm, "form", false, "Use interactive form to collect parameters")
 
-	if err := rootCmd.MarkFlagRequired("pr"); err != nil {
-		panic(fmt.Sprintf("failed to mark flag 'pr' as required: %v", err))
+	// Note: PR is usually required, but we handle this dynamically in runSolveIssues
+	// since --form can provide it interactively
+}
+
+// collectFormParams shows interactive form to collect parameters
+func collectFormParams(cmd *cobra.Command) error {
+	fmt.Println("\n🎯 Interactive Parameter Collection")
+
+	var (
+		prInput              string
+		issuesDirInput       string
+		concurrentInput      string
+		batchSizeInput       string
+		modelInput           string
+		tailLinesInput       string
+		ideInput             string
+		reasoningEffortInput string
+	)
+
+	builder := newFormBuilder(cmd)
+	builder.addPRField(&prInput)
+	builder.addOptionalPathField("issues-dir", &issuesDirInput)
+	builder.addConcurrentField(&concurrentInput)
+	builder.addBatchSizeField(&batchSizeInput)
+	builder.addIDEField(&ideInput)
+	builder.addModelField(&modelInput)
+	builder.addTailLinesField(&tailLinesInput)
+	builder.addReasoningEffortField(&reasoningEffortInput)
+	builder.addConfirmField(
+		"dry-run",
+		"Dry Run?",
+		"Only generate prompts without running IDE tool",
+		&dryRun,
+	)
+	builder.addConfirmField(
+		"grouped",
+		"Generate Grouped Summaries?",
+		"Create grouped issue summaries in issues/grouped/",
+		&grouped,
+	)
+
+	form := huh.NewForm(huh.NewGroup(builder.fields...)).
+		WithTheme(huh.ThemeCharm())
+
+	err := form.Run()
+	if err != nil {
+		return fmt.Errorf("form canceled or error: %w", err)
+	}
+
+	applyStringInput(cmd, "pr", prInput, func(val string) { pr = val })
+	applyStringInput(cmd, "issues-dir", issuesDirInput, func(val string) { issuesDir = val })
+	applyIntInput(cmd, "concurrent", concurrentInput, func(val int) { concurrent = val })
+	applyIntInput(cmd, "batch-size", batchSizeInput, func(val int) { batchSize = val })
+	applyStringInput(cmd, "ide", ideInput, func(val string) { ide = val })
+	applyStringInput(cmd, "model", modelInput, func(val string) { model = val })
+	applyIntInput(cmd, "tail-lines", tailLinesInput, func(val int) { tailLines = val })
+	applyStringInput(cmd, "reasoning-effort", reasoningEffortInput, func(val string) {
+		reasoningEffort = val
+	})
+
+	fmt.Println("\n✅ Parameters collected successfully!")
+	return nil
+}
+
+type formBuilder struct {
+	cmd    *cobra.Command
+	fields []huh.Field
+}
+
+func newFormBuilder(cmd *cobra.Command) *formBuilder {
+	return &formBuilder{cmd: cmd}
+}
+
+func (fb *formBuilder) addField(flag string, build func() huh.Field) {
+	if fb.cmd.Flags().Changed(flag) {
+		return
+	}
+	fb.fields = append(fb.fields, build())
+}
+
+func (fb *formBuilder) addPRField(target *string) {
+	fb.addField("pr", func() huh.Field {
+		return huh.NewInput().
+			Title("PR Number").
+			Placeholder("259").
+			Description("Required: Pull request number or identifier to process").
+			Value(target).
+			Validate(func(str string) error {
+				if str == "" {
+					return errors.New("PR number is required")
+				}
+				return nil
+			})
+	})
+}
+
+func (fb *formBuilder) addOptionalPathField(flag string, target *string) {
+	fb.addField(flag, func() huh.Field {
+		return huh.NewInput().
+			Title("Issues Directory (optional)").
+			Placeholder("ai-docs/reviews-pr-<PR>/issues").
+			Description("Leave empty to auto-generate from PR number").
+			Value(target)
+	})
+}
+
+func (fb *formBuilder) addConcurrentField(target *string) {
+	fb.addField("concurrent", func() huh.Field {
+		return numericInput(
+			"Concurrent Jobs",
+			"1",
+			"Number of batches to process in parallel (1-10)",
+			target,
+			1,
+			10,
+			true,
+		)
+	})
+}
+
+func (fb *formBuilder) addBatchSizeField(target *string) {
+	fb.addField("batch-size", func() huh.Field {
+		return numericInput(
+			"Batch Size",
+			"1",
+			"Number of file groups per batch (1-20)",
+			target,
+			1,
+			20,
+			true,
+		)
+	})
+}
+
+func (fb *formBuilder) addIDEField(target *string) {
+	fb.addField("ide", func() huh.Field {
+		return huh.NewSelect[string]().
+			Title("IDE Tool").
+			Description("Choose which IDE tool to use").
+			Options(
+				huh.NewOption("Codex (recommended)", ideCodex),
+				huh.NewOption("Claude", ideClaude),
+				huh.NewOption("Droid", ideDroid),
+			).
+			Value(target)
+	})
+}
+
+func (fb *formBuilder) addModelField(target *string) {
+	fb.addField("model", func() huh.Field {
+		return huh.NewInput().
+			Title("Model (optional)").
+			Placeholder("auto").
+			Description("Specific model to use (default: gpt-5-codex for codex)").
+			Value(target)
+	})
+}
+
+func (fb *formBuilder) addTailLinesField(target *string) {
+	fb.addField("tail-lines", func() huh.Field {
+		return numericInput(
+			"Log Tail Lines",
+			"5",
+			"Number of log lines to show in UI (1-100)",
+			target,
+			1,
+			100,
+			true,
+		)
+	})
+}
+
+func (fb *formBuilder) addReasoningEffortField(target *string) {
+	fb.addField("reasoning-effort", func() huh.Field {
+		return huh.NewSelect[string]().
+			Title("Reasoning Effort (for Codex/Droid)").
+			Description("Model reasoning effort level").
+			Options(
+				huh.NewOption("Low", "low"),
+				huh.NewOption("Medium (recommended)", "medium"),
+				huh.NewOption("High", "high"),
+			).
+			Value(target)
+	})
+}
+
+func (fb *formBuilder) addConfirmField(flag, title, description string, target *bool) {
+	fb.addField(flag, func() huh.Field {
+		return huh.NewConfirm().
+			Title(title).
+			Description(description).
+			Value(target)
+	})
+}
+
+func numericInput(
+	title string,
+	placeholder string,
+	description string,
+	target *string,
+	minVal int,
+	maxVal int,
+	allowEmpty bool,
+) huh.Field {
+	return huh.NewInput().
+		Title(title).
+		Placeholder(placeholder).
+		Description(description).
+		Value(target).
+		Validate(func(str string) error {
+			if str == "" {
+				if allowEmpty {
+					return nil
+				}
+				return errors.New("value is required")
+			}
+			val, err := strconv.Atoi(str)
+			if err != nil {
+				return errors.New("must be a number")
+			}
+			if val < minVal || val > maxVal {
+				return fmt.Errorf("must be between %d and %d", minVal, maxVal)
+			}
+			return nil
+		})
+}
+
+func applyStringInput(cmd *cobra.Command, flagName, value string, setter func(string)) {
+	if cmd.Flags().Changed(flagName) || value == "" {
+		return
+	}
+	setter(value)
+}
+
+func applyIntInput(cmd *cobra.Command, flagName, value string, setter func(int)) {
+	if cmd.Flags().Changed(flagName) || value == "" {
+		return
+	}
+	val, err := strconv.Atoi(value)
+	if err != nil {
+		return
+	}
+	setter(val)
+}
+
+func runSolveIssues(cmd *cobra.Command, _ []string) error {
+	if err := maybeCollectInteractiveParams(cmd); err != nil {
+		return err
+	}
+	if err := ensurePRProvided(); err != nil {
+		return err
+	}
+	args := buildCLIArgs()
+	if err := args.validate(); err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return executeSolveIssues(ctx, args)
+}
+
+func maybeCollectInteractiveParams(cmd *cobra.Command) error {
+	if !useForm {
+		return nil
+	}
+	if err := collectFormParams(cmd); err != nil {
+		return fmt.Errorf("interactive form failed: %w", err)
+	}
+	return nil
+}
+
+func ensurePRProvided() error {
+	if pr != "" {
+		return nil
+	}
+	return errors.New("PR number is required (use --pr or --form)")
+}
+
+func buildCLIArgs() *cliArgs {
+	return &cliArgs{
+		pr:              pr,
+		issuesDir:       issuesDir,
+		dryRun:          dryRun,
+		concurrent:      concurrent,
+		batchSize:       batchSize,
+		ide:             ide,
+		model:           model,
+		grouped:         grouped,
+		tailLines:       tailLines,
+		reasoningEffort: reasoningEffort,
 	}
 }
 
-func runSolveIssues(_ *cobra.Command, _ []string) error {
-	cliArgs := cliArgs{
-		pr:         pr,
-		issuesDir:  issuesDir,
-		dryRun:     dryRun,
-		concurrent: concurrent,
-		batchSize:  batchSize,
-		ide:        ide,
-		model:      model,
+func (c *cliArgs) validate() error {
+	if c.ide != ideClaude && c.ide != ideCodex && c.ide != ideDroid {
+		return fmt.Errorf(
+			"invalid --ide value '%s': must be '%s', '%s', or '%s'",
+			c.ide,
+			ideClaude,
+			ideCodex,
+			ideDroid,
+		)
 	}
+	return nil
+}
 
-	// Validate IDE parameter
-	if ide != ideClaude && ide != ideCodex {
-		return fmt.Errorf("invalid --ide value '%s': must be '%s' or '%s'", ide, ideClaude, ideCodex)
-	}
+var errNoIssues = errors.New("no issues to process")
 
-	// Create signal-aware context for graceful shutdown
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	resolvedPr, resolvedIssuesDir, resolvedIssuesDirPath, err := resolveInputs(&cliArgs)
+func executeSolveIssues(ctx context.Context, args *cliArgs) error {
+	prepared, err := prepareSolveIssues(args)
 	if err != nil {
+		if errors.Is(err, errNoIssues) {
+			return nil
+		}
 		return err
 	}
-	if err := ensureCLI(&cliArgs); err != nil {
-		return err
-	}
-	template := readTemplateSafely()
-	entries, err := readIssueEntries(resolvedIssuesDirPath)
-	if err != nil {
-		return err
-	}
-	if len(entries) == 0 {
-		fmt.Println("No issue files found.")
-		return nil
-	}
-	entries = filterUnresolved(entries)
-	if len(entries) == 0 {
-		fmt.Println("All issues are already resolved. Nothing to do.")
-		return nil
-	}
-	groups := groupIssues(entries)
-	if err := writeSummaries(resolvedIssuesDirPath, groups); err != nil {
-		return err
-	}
-	promptRoot, err := initPromptRoot(resolvedPr)
-	if err != nil {
-		return err
-	}
-	jobs, err := prepareJobs(resolvedPr, template, groups, promptRoot, cliArgs.batchSize)
-	if err != nil {
-		return err
-	}
-
-	// Execute jobs with graceful shutdown handling
-	failed, failures, total, shutdownErr := executeJobsWithGracefulShutdown(ctx, jobs, &cliArgs)
+	failed, failures, total, shutdownErr := executeJobsWithGracefulShutdown(ctx, prepared.jobs, args)
 	summarizeResults(failed, failures, total)
-
-	// Check for shutdown errors first
 	if shutdownErr != nil {
 		fmt.Fprintf(os.Stderr, "\nShutdown interrupted: %v\n", shutdownErr)
 		return shutdownErr
 	}
-
-	// Then check for job failures
 	if len(failures) > 0 {
 		return errors.New("one or more groups failed; see logs above")
 	}
-	_ = resolvedIssuesDir // keep local var used to mirror original logic flow
 	return nil
+}
+
+type solvePreparation struct {
+	jobs              []job
+	issuesDir         string
+	resolvedPr        string
+	issuesDirPath     string
+	groupedSummarized bool
+}
+
+func prepareSolveIssues(args *cliArgs) (*solvePreparation, error) {
+	prep := &solvePreparation{}
+	var err error
+	prep.resolvedPr, prep.issuesDir, prep.issuesDirPath, err = resolveInputs(args)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureCLI(args); err != nil {
+		return nil, err
+	}
+	entries, err := readIssueEntries(prep.issuesDirPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 {
+		fmt.Println("No issue files found.")
+		return nil, errNoIssues
+	}
+	entries = filterUnresolved(entries)
+	if len(entries) == 0 {
+		fmt.Println("All issues are already resolved. Nothing to do.")
+		return nil, errNoIssues
+	}
+	groups := groupIssues(entries)
+	if args.grouped {
+		if err := writeSummaries(prep.issuesDirPath, groups); err != nil {
+			return nil, err
+		}
+		prep.groupedSummarized = true
+	}
+	promptRoot, err := initPromptRoot(prep.resolvedPr)
+	if err != nil {
+		return nil, err
+	}
+	prep.jobs, err = prepareJobs(prep.resolvedPr, groups, promptRoot, args.batchSize, args.grouped)
+	if err != nil {
+		return nil, err
+	}
+	return prep, nil
 }
 
 type job struct {
@@ -268,13 +615,34 @@ func initPromptRoot(pr string) (string, error) {
 	return promptRoot, nil
 }
 
-func prepareJobs(pr, template string, groups map[string][]issueEntry, promptRoot string, batchSize int) ([]job, error) {
-	// Sort code files for deterministic batching
+func minIssueName(entries []issueEntry) string {
+	if len(entries) == 0 {
+		return ""
+	}
+	minName := entries[0].name
+	for _, e := range entries[1:] {
+		if e.name < minName {
+			minName = e.name
+		}
+	}
+	return minName
+}
+
+func prepareJobs(
+	pr string,
+	groups map[string][]issueEntry,
+	promptRoot string,
+	batchSize int,
+	grouped bool,
+) ([]job, error) {
+	// Sort code files by minimum issue number for deterministic batching that follows issue order
 	codeFiles := make([]string, 0, len(groups))
 	for codeFile := range groups {
 		codeFiles = append(codeFiles, codeFile)
 	}
-	sort.Strings(codeFiles)
+	sort.Slice(codeFiles, func(i, j int) bool {
+		return minIssueName(groups[codeFiles[i]]) < minIssueName(groups[codeFiles[j]])
+	})
 
 	// Create batches
 	batches := make([][]string, 0)
@@ -312,9 +680,9 @@ func prepareJobs(pr, template string, groups map[string][]issueEntry, promptRoot
 
 		// Build the batch prompt
 		promptStr := buildBatchedIssuesPrompt(buildBatchedIssuesParams{
-			PR:           pr,
-			BatchGroups:  batchGroups,
-			BaseTemplate: template,
+			PR:          pr,
+			BatchGroups: batchGroups,
+			Grouped:     grouped,
 		})
 
 		outPromptPath := filepath.Join(promptRoot, fmt.Sprintf("%s.prompt.md", safeName))
@@ -355,7 +723,7 @@ func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, args *cliA
 	}
 
 	// Setup UI if enabled
-	uiCh, uiProg := setupUI(ctx, jobs, !args.dryRun)
+	uiCh, uiProg := setupUI(ctx, jobs, args, !args.dryRun)
 	defer func() {
 		if uiProg != nil {
 			close(uiCh)
@@ -417,19 +785,7 @@ func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, args *cliA
 	}
 }
 
-// executeJobs is kept for backward compatibility but delegates to the new implementation
-//
-//nolint:unused // kept for backward compatibility
-func executeJobs(ctx context.Context, jobs []job, args *cliArgs) (int32, []failInfo, int) {
-	failed, failures, total, err := executeJobsWithGracefulShutdown(ctx, jobs, args)
-	if err != nil {
-		// Log the error but don't fail the old interface
-		fmt.Fprintf(os.Stderr, "Shutdown error in executeJobs: %v\n", err)
-	}
-	return failed, failures, total
-}
-
-func setupUI(ctx context.Context, jobs []job, enabled bool) (chan uiMsg, *tea.Program) {
+func setupUI(ctx context.Context, jobs []job, _ *cliArgs, enabled bool) (chan uiMsg, *tea.Program) {
 	if !enabled {
 		return nil, nil
 	}
@@ -439,8 +795,8 @@ func setupUI(ctx context.Context, jobs []job, enabled bool) (chan uiMsg, *tea.Pr
 	mdl.setEventSource(uiCh)
 	prog := tea.NewProgram(mdl, tea.WithAltScreen())
 	go func() {
-		if err := prog.Start(); err != nil { //nolint:staticcheck // Start acceptable for goroutine UI
-			fmt.Fprintf(os.Stderr, "UI program error: %v\n", err)
+		if _, runErr := prog.Run(); runErr != nil {
+			fmt.Fprintf(os.Stderr, "UI program error: %v\n", runErr)
 		}
 	}()
 	for idx := range jobs {
@@ -454,12 +810,13 @@ func setupUI(ctx context.Context, jobs []job, enabled bool) (chan uiMsg, *tea.Pr
 			codeFileLabel = fmt.Sprintf("%s and %d more", strings.Join(jb.codeFiles[:3], ", "), len(jb.codeFiles)-3)
 		}
 		uiCh <- jobQueuedMsg{
-			Index:    idx,
-			CodeFile: codeFileLabel,
-			Issues:   totalIssues,
-			SafeName: jb.safeName,
-			OutLog:   jb.outLog,
-			ErrLog:   jb.errLog,
+			Index:     idx,
+			CodeFile:  codeFileLabel,
+			CodeFiles: jb.codeFiles,
+			Issues:    totalIssues,
+			SafeName:  jb.safeName,
+			OutLog:    jb.outLog,
+			ErrLog:    jb.errLog,
 		}
 	}
 	go func() {
@@ -488,7 +845,7 @@ func runOneJob(
 		return
 	}
 
-	notifyJobStart(useUI, uiCh, index, j, args.ide, args.model)
+	notifyJobStart(useUI, uiCh, index, j, args.ide, args.model, args.reasoningEffort)
 
 	if args.dryRun {
 		if useUI {
@@ -505,7 +862,7 @@ func runOneJob(
 	executeCommandAndHandleResult(ctx, cmd, outF, errF, j, index, useUI, uiCh, failed, failuresMu, failures)
 }
 
-func notifyJobStart(useUI bool, uiCh chan uiMsg, index int, j *job, ide string, model string) {
+func notifyJobStart(useUI bool, uiCh chan uiMsg, index int, j *job, ide string, model string, reasoningEffort string) {
 	if useUI {
 		uiCh <- jobStartedMsg{Index: index}
 	} else {
@@ -513,10 +870,14 @@ func notifyJobStart(useUI bool, uiCh chan uiMsg, index int, j *job, ide string, 
 		var ideName string
 		switch ide {
 		case ideCodex:
-			if model != "" && model != "gpt-5" {
-				shellCmdStr = fmt.Sprintf("codex --full-auto -m %s -c model_reasoning_effort=medium exec -", model)
+			if model != "" && model != defaultCodexModel {
+				shellCmdStr = fmt.Sprintf("codex --full-auto -m %s -c model_reasoning_effort=%s exec -", model, reasoningEffort)
 			} else {
-				shellCmdStr = "codex --full-auto -m gpt-5 -c model_reasoning_effort=medium exec -"
+				shellCmdStr = fmt.Sprintf(
+					"codex --full-auto -m %s -c model_reasoning_effort=%s exec -",
+					defaultCodexModel,
+					reasoningEffort,
+				)
 			}
 			ideName = "Codex"
 		case ideClaude:
@@ -526,6 +887,17 @@ func notifyJobStart(useUI bool, uiCh chan uiMsg, index int, j *job, ide string, 
 				shellCmdStr = "claude --headless"
 			}
 			ideName = "Claude"
+		case ideDroid:
+			base := fmt.Sprintf("droid exec --auto medium --reasoning-effort %s", reasoningEffort)
+			switch {
+			case model != "" && model != defaultCodexModel:
+				shellCmdStr = fmt.Sprintf("%s --model %s --file -", base, model)
+			case model == defaultCodexModel:
+				shellCmdStr = fmt.Sprintf("%s --model %s --file -", base, defaultCodexModel)
+			default:
+				shellCmdStr = fmt.Sprintf("%s --file -", base)
+			}
+			ideName = "Droid"
 		}
 		totalIssues := 0
 		for _, items := range j.groups {
@@ -551,11 +923,15 @@ func createIDECommand(ctx context.Context, args *cliArgs) *exec.Cmd {
 		// Set default model based on IDE
 		switch args.ide {
 		case ideCodex:
-			model = "gpt-5"
+			model = defaultCodexModel
 		case ideClaude:
 			model = "" // Claude doesn't need explicit model parameter
+		case ideDroid:
+			model = defaultCodexModel
 		}
 	}
+
+	reasoningEffortFlag := fmt.Sprintf("model_reasoning_effort=%s", args.reasoningEffort)
 
 	switch args.ide {
 	case ideCodex:
@@ -565,7 +941,7 @@ func createIDECommand(ctx context.Context, args *cliArgs) *exec.Cmd {
 				ideCodex,
 				"--full-auto",
 				"-m", model,
-				"-c", "model_reasoning_effort=medium",
+				"-c", reasoningEffortFlag,
 				"exec", "-",
 			)
 		}
@@ -573,7 +949,7 @@ func createIDECommand(ctx context.Context, args *cliArgs) *exec.Cmd {
 			ctx,
 			ideCodex,
 			"--full-auto",
-			"-c", "model_reasoning_effort=medium",
+			"-c", reasoningEffortFlag,
 			"exec", "-",
 		)
 	case ideClaude:
@@ -590,6 +966,21 @@ func createIDECommand(ctx context.Context, args *cliArgs) *exec.Cmd {
 			ideClaude,
 			"--headless",
 		)
+	case ideDroid:
+		droidArgs := []string{
+			"exec",
+			"--auto", "medium",
+			"--reasoning-effort", args.reasoningEffort,
+		}
+		if model != "" {
+			droidArgs = append(droidArgs, "--model", model)
+		}
+		droidArgs = append(droidArgs, "--file", "-")
+		return exec.CommandContext(
+			ctx,
+			ideDroid,
+			droidArgs...,
+		)
 	default:
 		return nil
 	}
@@ -602,9 +993,17 @@ func setupCommandIO(
 	useUI bool,
 	uiCh chan uiMsg,
 	index int,
+	tailLines int,
 ) (*os.File, *os.File, error) {
 	cmd.Dir = cwd
 	cmd.Stdin = bytes.NewReader(j.prompt)
+
+	// CRITICAL: Preserve ANSI colors in output
+	cmd.Env = append(os.Environ(),
+		"FORCE_COLOR=1",
+		"CLICOLOR_FORCE=1",
+		"TERM=xterm-256color",
+	)
 
 	outF, err := createLogFile(j.outLog, "out")
 	if err != nil {
@@ -617,7 +1016,6 @@ func setupCommandIO(
 		return nil, nil, fmt.Errorf("create err log: %w", err)
 	}
 
-	const tailLines = 5
 	outRing := newLineRing(tailLines)
 	errRing := newLineRing(tailLines)
 	var outTap, errTap io.Writer
@@ -650,7 +1048,7 @@ func setupCommandExecution(
 		return nil, nil, nil
 	}
 
-	outF, errF, err := setupCommandIO(cmd, j, cwd, useUI, uiCh, index)
+	outF, errF, err := setupCommandIO(cmd, j, cwd, useUI, uiCh, index, args.tailLines)
 	if err != nil {
 		recordFailureWithContext(nil, j, nil, err, -1)
 		return nil, nil, nil
@@ -836,27 +1234,49 @@ const (
 	jobFailed
 )
 
+const (
+	sidebarWidthRatio      = 0.25
+	sidebarMinWidth        = 30
+	sidebarMaxWidth        = 50
+	mainMinWidth           = 60
+	minContentHeight       = 10
+	sidebarChromeWidth     = 4 // border (2) + horizontal padding (2)
+	sidebarChromeHeight    = 2 // rounded border top + bottom
+	mainHorizontalPadding  = 2 // padding applied in renderMainContent
+	logViewportMinHeight   = 6
+	sidebarViewportMinRows = 5
+	headerSectionHeight    = 3 // header line + top/bottom margins
+	helpSectionHeight      = 2 // help line + bottom margin
+	separatorSectionHeight = 1
+	chromeHeight           = headerSectionHeight + helpSectionHeight + separatorSectionHeight
+)
+
 type uiJob struct {
-	codeFile string
-	issues   int
-	safeName string
-	outLog   string
-	errLog   string
-	state    jobState
-	exitCode int
-	lastOut  []string
-	lastErr  []string
+	codeFile    string
+	codeFiles   []string // Multiple files in batch
+	issues      int
+	safeName    string
+	outLog      string
+	errLog      string
+	state       jobState
+	exitCode    int
+	lastOut     []string
+	lastErr     []string
+	startedAt   time.Time
+	completedAt time.Time
+	duration    time.Duration
 }
 
 type tickMsg struct{}
 
 type jobQueuedMsg struct {
-	Index    int
-	CodeFile string
-	Issues   int
-	SafeName string
-	OutLog   string
-	ErrLog   string
+	Index     int
+	CodeFile  string
+	CodeFiles []string
+	Issues    int
+	SafeName  string
+	OutLog    string
+	ErrLog    string
 }
 type jobStartedMsg struct{ Index int }
 type jobFinishedMsg struct {
@@ -872,23 +1292,55 @@ type jobLogUpdateMsg struct {
 type drainMsg struct{}
 
 type uiModel struct {
-	jobs      []uiJob
-	total     int
-	completed int
-	failed    int
-	frame     int
-	events    <-chan uiMsg
-	onQuit    func()
-	viewport  viewport.Model
+	jobs            []uiJob
+	total           int
+	completed       int
+	failed          int
+	frame           int
+	events          <-chan uiMsg
+	onQuit          func()
+	viewport        viewport.Model
+	sidebarViewport viewport.Model
+	selectedJob     int
+	width           int
+	height          int
+	sidebarWidth    int
+	mainWidth       int
+	contentHeight   int
 }
 
 type uiMsg any
 
 func newUIModel(total int) *uiModel {
-	vp := viewport.New(80, 20) // Default size, will be updated on window resize
+	vp := viewport.New(80, 24)        // Increased initial height
+	sidebarVp := viewport.New(30, 24) // Increased initial height
+	defaultWidth := 120
+	defaultHeight := 40
+	initialSidebarWidth := int(float64(defaultWidth) * sidebarWidthRatio)
+	if initialSidebarWidth < sidebarMinWidth {
+		initialSidebarWidth = sidebarMinWidth
+	}
+	if initialSidebarWidth > sidebarMaxWidth {
+		initialSidebarWidth = sidebarMaxWidth
+	}
+	initialMainWidth := defaultWidth - initialSidebarWidth
+	if initialMainWidth < mainMinWidth {
+		initialMainWidth = mainMinWidth
+	}
+	initialContentHeight := defaultHeight - chromeHeight
+	if initialContentHeight < minContentHeight {
+		initialContentHeight = minContentHeight
+	}
 	return &uiModel{
-		total:    total,
-		viewport: vp,
+		total:           total,
+		viewport:        vp,
+		sidebarViewport: sidebarVp,
+		selectedJob:     0,
+		width:           defaultWidth,
+		height:          defaultHeight,
+		sidebarWidth:    initialSidebarWidth,
+		mainWidth:       initialMainWidth,
+		contentHeight:   initialContentHeight,
 	}
 }
 
@@ -952,9 +1404,23 @@ func (m *uiModel) handleKey(v tea.KeyMsg) tea.Cmd {
 		}
 		return tea.Quit
 	case "up", "k":
-		m.viewport.ScrollUp(1)
+		// Navigate jobs in sidebar
+		if m.selectedJob > 0 {
+			m.selectedJob--
+		}
 		return nil
 	case "down", "j":
+		// Navigate jobs in sidebar
+		if m.selectedJob < len(m.jobs)-1 {
+			m.selectedJob++
+		}
+		return nil
+	case "left", "h":
+		// Scroll viewport left (for wide logs)
+		m.viewport.ScrollUp(1)
+		return nil
+	case "right", "l":
+		// Scroll viewport right (for wide logs)
 		m.viewport.ScrollDown(1)
 		return nil
 	case "pgup", "b", "u":
@@ -963,10 +1429,10 @@ func (m *uiModel) handleKey(v tea.KeyMsg) tea.Cmd {
 	case "pgdown", "f", "d":
 		m.viewport.HalfPageDown()
 		return nil
-	case "home", "g":
+	case "home":
 		m.viewport.GotoTop()
 		return nil
-	case "end", "G":
+	case "end":
 		m.viewport.GotoBottom()
 		return nil
 	default:
@@ -975,40 +1441,81 @@ func (m *uiModel) handleKey(v tea.KeyMsg) tea.Cmd {
 }
 
 func (m *uiModel) handleWindowSize(v tea.WindowSizeMsg) {
-	// Update viewport size and refresh content
-	m.viewport.Width = v.Width
-	m.viewport.Height = v.Height - 3 // Leave space for header
-	m.refreshViewportContent()
+	// Update window dimensions
+	m.width = v.Width
+	m.height = v.Height
+
+	sidebarWidth := int(float64(v.Width) * sidebarWidthRatio)
+	if sidebarWidth < sidebarMinWidth {
+		sidebarWidth = sidebarMinWidth
+	}
+	if sidebarWidth > sidebarMaxWidth {
+		sidebarWidth = sidebarMaxWidth
+	}
+	if sidebarWidth >= v.Width {
+		sidebarWidth = v.Width / 2
+	}
+	mainWidth := v.Width - sidebarWidth
+	if mainWidth < mainMinWidth {
+		mainWidth = mainMinWidth
+		if mainWidth >= v.Width {
+			mainWidth = v.Width - sidebarMinWidth
+		}
+		sidebarWidth = v.Width - mainWidth
+		if sidebarWidth < sidebarMinWidth {
+			sidebarWidth = sidebarMinWidth
+			mainWidth = v.Width - sidebarWidth
+		}
+	}
+	if mainWidth < 0 {
+		mainWidth = 0
+	}
+
+	contentHeight := v.Height - chromeHeight
+	if contentHeight < minContentHeight {
+		contentHeight = minContentHeight
+	}
+
+	sidebarViewportWidth := sidebarWidth - sidebarChromeWidth
+	if sidebarViewportWidth < 10 {
+		sidebarViewportWidth = 10
+	}
+	sidebarViewportHeight := contentHeight - sidebarChromeHeight
+	if sidebarViewportHeight < sidebarViewportMinRows {
+		sidebarViewportHeight = sidebarViewportMinRows
+	}
+
+	m.sidebarViewport.Width = sidebarViewportWidth
+	if m.sidebarViewport.YOffset > sidebarViewportHeight {
+		m.sidebarViewport.SetYOffset(sidebarViewportHeight)
+	}
+	m.sidebarViewport.Height = sidebarViewportHeight
+
+	mainViewportWidth := mainWidth - mainHorizontalPadding
+	if mainViewportWidth < 10 {
+		mainViewportWidth = 10
+	}
+	m.viewport.Width = mainViewportWidth
+	if contentHeight < logViewportMinHeight {
+		m.viewport.Height = logViewportMinHeight
+	} else {
+		m.viewport.Height = contentHeight
+	}
+
+	m.sidebarWidth = sidebarWidth
+	m.mainWidth = mainWidth
+	m.contentHeight = contentHeight
 }
 
 func (m *uiModel) refreshViewportContent() {
-	var b strings.Builder
-	green := lipgloss.Color("42")
-	red := lipgloss.Color("196")
-	yellow := lipgloss.Color("220")
-	gray := lipgloss.Color("245")
-	cyan := lipgloss.Color("81")
-	sDim := lipgloss.NewStyle().Foreground(gray)
-	sFile := lipgloss.NewStyle().Foreground(cyan).Bold(true)
-	sIssues := lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	sSuccess := lipgloss.NewStyle().Foreground(green)
-	sFail := lipgloss.NewStyle().Foreground(red)
-	sRun := lipgloss.NewStyle().Foreground(yellow)
-	sLog := lipgloss.NewStyle().Foreground(gray)
-
-	for i := range m.jobs {
-		j := &m.jobs[i]
-		prefix := m.viewPrefix(j, &sDim, &sRun, &sSuccess, &sFail)
-		b.WriteString(prefix)
-		b.WriteString("  ")
-		b.WriteString(sFile.Render(j.codeFile))
-		b.WriteString(" ")
-		b.WriteString(sIssues.Render(fmt.Sprintf("(%d issues)", j.issues)))
-		b.WriteString("\n")
-		m.appendLogs(&b, j, &sDim, &sLog)
+	if len(m.jobs) == 0 {
+		m.viewport.SetContent("")
+		return
 	}
-
-	m.viewport.SetContent(b.String())
+	if m.selectedJob < 0 || m.selectedJob >= len(m.jobs) {
+		m.selectedJob = 0
+	}
+	m.updateViewportForJob(&m.jobs[m.selectedJob])
 }
 
 func (m *uiModel) handleTick() tea.Cmd {
@@ -1025,12 +1532,13 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 		m.jobs = append(m.jobs, make([]uiJob, grow)...)
 	}
 	m.jobs[v.Index] = uiJob{
-		codeFile: v.CodeFile,
-		issues:   v.Issues,
-		safeName: v.SafeName,
-		outLog:   v.OutLog,
-		errLog:   v.ErrLog,
-		state:    jobPending,
+		codeFile:  v.CodeFile,
+		codeFiles: v.CodeFiles,
+		issues:    v.Issues,
+		safeName:  v.SafeName,
+		outLog:    v.OutLog,
+		errLog:    v.ErrLog,
+		state:     jobPending,
 	}
 	m.refreshViewportContent()
 	return m.waitEvent()
@@ -1038,7 +1546,12 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 
 func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 	if v.Index < len(m.jobs) {
-		m.jobs[v.Index].state = jobRunning
+		job := &m.jobs[v.Index]
+		job.state = jobRunning
+		if job.startedAt.IsZero() {
+			job.startedAt = time.Now()
+			job.duration = 0
+		}
 	}
 	m.refreshViewportContent()
 	return m.waitEvent()
@@ -1046,13 +1559,18 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 
 func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 	if v.Index < len(m.jobs) {
+		job := &m.jobs[v.Index]
 		if v.Success {
-			m.jobs[v.Index].state = jobSuccess
+			job.state = jobSuccess
 			m.completed++
 		} else {
-			m.jobs[v.Index].state = jobFailed
-			m.jobs[v.Index].exitCode = v.ExitCode
+			job.state = jobFailed
+			job.exitCode = v.ExitCode
 			m.failed++
+		}
+		if !job.startedAt.IsZero() {
+			job.completedAt = time.Now()
+			job.duration = job.completedAt.Sub(job.startedAt)
 		}
 	}
 	m.refreshViewportContent()
@@ -1074,72 +1592,369 @@ func (m *uiModel) handleJobLogUpdate(v jobLogUpdateMsg) tea.Cmd {
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 func (m *uiModel) View() string {
-	sHeader := lipgloss.NewStyle().Bold(true)
-	header := fmt.Sprintf("processing Codex jobs…: %d/%d completed, %d failed", m.completed, m.total, m.failed)
-	helpText := "↑↓/jk scroll • pgup/pgdn/b/f half page • home/end/g/G top/bottom • q quit"
+	// Header with padding
+	sHeader := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("62")).
+		MarginTop(1).
+		MarginBottom(1)
+	header := fmt.Sprintf("Processing Jobs: %d/%d completed, %d failed", m.completed, m.total, m.failed)
 
-	return sHeader.Render(header) + "\n" +
-		lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render(helpText) + "\n" +
-		m.viewport.View()
+	// Help text with spacing
+	helpText := "↑↓/jk navigate • pgup/pgdn scroll logs • q quit"
+	sHelp := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")).
+		MarginBottom(1)
+
+	// Separator line
+	separator := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("238")).
+		Render(strings.Repeat("─", m.width))
+
+	// Split pane: sidebar (25%) + main content (75%)
+	sidebar := m.renderSidebar()
+	mainContent := m.renderMainContent()
+
+	splitView := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		sidebar,
+		mainContent,
+	)
+
+	// Combine header, help, separator, and split view
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		sHeader.Render(header),
+		sHelp.Render(helpText),
+		separator,
+		splitView,
+	)
 }
 
-func (m *uiModel) viewPrefix(j *uiJob, sDim, sRun, sSuccess, sFail *lipgloss.Style) string {
-	switch j.state {
+func (m *uiModel) renderSidebar() string {
+	sidebarWidth := m.sidebarWidth
+	if sidebarWidth <= 0 {
+		sidebarWidth = int(float64(m.width) * sidebarWidthRatio)
+		if sidebarWidth < sidebarMinWidth {
+			sidebarWidth = sidebarMinWidth
+		}
+		if sidebarWidth > sidebarMaxWidth {
+			sidebarWidth = sidebarMaxWidth
+		}
+	}
+	contentHeight := m.contentHeight
+	if contentHeight < minContentHeight {
+		contentHeight = minContentHeight
+	}
+
+	// Build all sidebar items
+	var items []string
+	for i := range m.jobs {
+		item := m.renderSidebarItem(&m.jobs[i], i == m.selectedJob)
+		items = append(items, item)
+	}
+
+	// Set sidebar viewport content
+	m.sidebarViewport.SetContent(strings.Join(items, "\n"))
+
+	// Auto-scroll to selected job
+	if m.selectedJob >= 0 && m.selectedJob < len(m.jobs) {
+		// Each item is approximately 3 lines (2 lines of text + spacing)
+		lineOffset := m.selectedJob * 3
+		// Scroll to keep selected item visible
+		if lineOffset > m.sidebarViewport.YOffset+m.sidebarViewport.Height-3 {
+			m.sidebarViewport.SetYOffset(lineOffset - m.sidebarViewport.Height + 3)
+		} else if lineOffset < m.sidebarViewport.YOffset {
+			m.sidebarViewport.SetYOffset(lineOffset)
+		}
+	}
+
+	// Wrap viewport in a bordered box
+	sidebar := lipgloss.NewStyle().
+		Width(sidebarWidth).
+		Height(contentHeight).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Padding(0, 1). // Reduced vertical padding
+		Render(m.sidebarViewport.View())
+
+	return sidebar
+}
+
+func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
+	// Status icon
+	var icon string
+	var color lipgloss.Color
+	switch job.state {
 	case jobPending:
-		return sDim.Render("…")
+		icon = "⏸"
+		color = lipgloss.Color("245")
 	case jobRunning:
-		return sRun.Render(spinnerFrames[m.frame%len(spinnerFrames)])
+		icon = spinnerFrames[m.frame%len(spinnerFrames)]
+		color = lipgloss.Color("220")
 	case jobSuccess:
-		return sSuccess.Render("✓")
+		icon = "✓"
+		color = lipgloss.Color("42")
 	case jobFailed:
-		return sFail.Render("✗")
-	default:
+		icon = "✗"
+		color = lipgloss.Color("196")
+	}
+
+	style := lipgloss.NewStyle().Foreground(color)
+	if selected {
+		style = style.Bold(true).Background(lipgloss.Color("235")).Foreground(lipgloss.Color("255"))
+	}
+
+	// Format: "⚡ batch_001"
+	// Second line: "  3 files, 7 issues"
+	line1 := fmt.Sprintf("%s %s", icon, job.safeName)
+	line2 := fmt.Sprintf("  %d file(s), %d issue(s)", len(job.codeFiles), job.issues)
+
+	if selected {
+		line1 = "► " + line1
+	} else {
+		line1 = "  " + line1
+	}
+
+	return style.Render(line1) + "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render(line2)
+}
+
+func (m *uiModel) renderMainContent() string {
+	if m.selectedJob < 0 || m.selectedJob >= len(m.jobs) {
+		emptyMsg := "Select a job from the sidebar"
+		return lipgloss.NewStyle().
+			Padding(2).
+			Foreground(lipgloss.Color("245")).
+			Render(emptyMsg)
+	}
+
+	job := &m.jobs[m.selectedJob]
+	mainWidth, contentHeight := m.mainDimensions()
+	header := m.renderMainHeader(job)
+	fileListRendered := m.renderMainFileList(job)
+	status := m.renderMainStatus(job)
+	runtime := m.renderRuntime(job)
+	logPaths := m.renderLogPaths(job)
+	metaSections := []string{header}
+	if strings.TrimSpace(fileListRendered) != "" {
+		metaSections = append(metaSections, fileListRendered)
+	}
+	metaSections = append(metaSections, status, runtime)
+	if strings.TrimSpace(logPaths) != "" {
+		metaSections = append(metaSections, logPaths)
+	}
+	metaBlock := lipgloss.JoinVertical(lipgloss.Left, metaSections...)
+
+	logsHeader := m.renderLogsHeader()
+
+	usedHeight := lipgloss.Height(metaBlock) + lipgloss.Height(logsHeader)
+	available := contentHeight - usedHeight
+	if available < logViewportMinHeight {
+		available = logViewportMinHeight
+	}
+	m.viewport.Height = available
+	m.updateViewportForJob(job)
+
+	body := lipgloss.JoinVertical(
+		lipgloss.Left,
+		metaBlock,
+		logsHeader,
+		m.viewport.View(),
+	)
+
+	return lipgloss.NewStyle().
+		Width(mainWidth).
+		Height(contentHeight).
+		Padding(0, 1).
+		Render(body)
+}
+
+func (m *uiModel) mainDimensions() (int, int) {
+	contentHeight := m.contentHeight
+	if contentHeight < minContentHeight {
+		contentHeight = minContentHeight
+	}
+	mainWidth := m.mainWidth
+	if mainWidth <= 0 {
+		mainWidth = int(float64(m.width) * (1 - sidebarWidthRatio))
+	}
+	if mainWidth < mainMinWidth {
+		mainWidth = mainMinWidth
+	}
+	return mainWidth, contentHeight
+}
+
+func (m *uiModel) renderMainHeader(job *uiJob) string {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("99")).
+		MarginBottom(1).
+		Render(fmt.Sprintf("Batch: %s", job.safeName))
+}
+
+func (m *uiModel) renderMainFileList(job *uiJob) string {
+	if len(job.codeFiles) == 0 {
 		return ""
 	}
+	var b strings.Builder
+	b.WriteString("Files:\n")
+	for _, file := range job.codeFiles {
+		b.WriteString("  • ")
+		b.WriteString(file)
+		b.WriteString("\n")
+	}
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("212")).
+		MarginBottom(1).
+		Render(b.String())
 }
 
-func (m *uiModel) appendLogs(b *strings.Builder, j *uiJob, sDim, sLog *lipgloss.Style) {
-	if j.state == jobRunning {
-		if len(j.lastOut) > 0 {
-			b.WriteString("     ")
-			b.WriteString(sDim.Render("stdout:"))
-			b.WriteString("\n")
-			for _, line := range j.lastOut {
-				if line == "" {
-					continue
-				}
-				b.WriteString("       ")
-				b.WriteString(sLog.Render(line))
-				b.WriteString("\n")
-			}
-		}
-		if len(j.lastErr) > 0 {
-			b.WriteString("     ")
-			b.WriteString(sDim.Render("stderr:"))
-			b.WriteString("\n")
-			for _, line := range j.lastErr {
-				if line == "" {
-					continue
-				}
-				b.WriteString("       ")
-				b.WriteString(sLog.Render(line))
-				b.WriteString("\n")
-			}
-		}
-		b.WriteString("     ")
-		b.WriteString(sDim.Render(fmt.Sprintf("logs: %s (out), %s (err)", j.outLog, j.errLog)))
-		b.WriteString("\n")
-		return
+func (m *uiModel) renderMainStatus(job *uiJob) string {
+	statusLabel := m.getStateLabel(job.state)
+	if job.state == jobFailed && job.exitCode != 0 {
+		statusLabel = fmt.Sprintf("%s (exit %d)", statusLabel, job.exitCode)
 	}
-	if j.state == jobFailed || j.state == jobSuccess {
-		b.WriteString("     ")
-		b.WriteString(sDim.Render(fmt.Sprintf("logs: %s (out), %s (err)", j.outLog, j.errLog)))
-		if j.state == jobFailed {
-			b.WriteString(" ")
-			styleFail := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-			b.WriteString(styleFail.Render(fmt.Sprintf("exit=%d", j.exitCode)))
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("81")).
+		MarginBottom(1).
+		Render(fmt.Sprintf(
+			"Issues: %d  |  Status: %s",
+			job.issues,
+			statusLabel,
+		))
+}
+
+func (m *uiModel) renderLogsHeader() string {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("99")).
+		MarginBottom(1).
+		Render("Live Logs:")
+}
+
+func (m *uiModel) renderRuntime(job *uiJob) string {
+	var label string
+	var duration time.Duration
+	switch job.state {
+	case jobRunning:
+		label = "Runtime"
+		if !job.startedAt.IsZero() {
+			duration = time.Since(job.startedAt)
 		}
-		b.WriteString("\n")
+	case jobSuccess:
+		label = "Completed in"
+		if job.duration > 0 {
+			duration = job.duration
+		} else if !job.startedAt.IsZero() {
+			duration = time.Since(job.startedAt)
+		}
+	case jobFailed:
+		label = "Ran for"
+		if job.duration > 0 {
+			duration = job.duration
+		} else if !job.startedAt.IsZero() {
+			duration = time.Since(job.startedAt)
+		}
+	default:
+		label = "Runtime"
+		if !job.startedAt.IsZero() {
+			duration = time.Since(job.startedAt)
+		}
+	}
+
+	var rendered string
+	if duration <= 0 {
+		rendered = fmt.Sprintf("%s: --:--", label)
+	} else {
+		rendered = fmt.Sprintf("%s: %s", label, formatDuration(duration))
+	}
+
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("117")).
+		MarginBottom(1).
+		Render(rendered)
+}
+
+func (m *uiModel) renderLogPaths(job *uiJob) string {
+	var lines []string
+	if job.outLog != "" {
+		lines = append(lines, fmt.Sprintf("  • stdout: %s", job.outLog))
+	}
+	if job.errLog != "" {
+		lines = append(lines, fmt.Sprintf("  • stderr: %s", job.errLog))
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")).
+		MarginBottom(1).
+		Render("Log Files:\n" + strings.Join(lines, "\n"))
+}
+
+func formatDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	d = d.Round(time.Second)
+	hours := int(d / time.Hour)
+	minutes := int((d % time.Hour) / time.Minute)
+	seconds := int((d % time.Minute) / time.Second)
+	if hours > 0 {
+		return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
+	}
+	return fmt.Sprintf("%02d:%02d", minutes, seconds)
+}
+
+func (m *uiModel) updateViewportForJob(job *uiJob) {
+	var content strings.Builder
+
+	// Add stdout (preserve ANSI colors)
+	if len(job.lastOut) > 0 {
+		for _, line := range job.lastOut {
+			if line != "" {
+				// CRITICAL: Keep ANSI escape codes intact
+				content.WriteString(line)
+				content.WriteString("\n")
+			}
+		}
+	}
+
+	// Add stderr (preserve ANSI colors)
+	if len(job.lastErr) > 0 {
+		stderrLabel := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("196")).
+			Render("[stderr]")
+		content.WriteString(stderrLabel)
+		content.WriteString("\n")
+		for _, line := range job.lastErr {
+			if line != "" {
+				// CRITICAL: Keep ANSI escape codes intact
+				content.WriteString(line)
+				content.WriteString("\n")
+			}
+		}
+	}
+
+	m.viewport.SetContent(content.String())
+	m.viewport.GotoBottom() // Auto-scroll to latest
+	if len(job.lastOut) == 0 && len(job.lastErr) == 0 {
+		m.viewport.GotoTop()
+	}
+}
+
+func (m *uiModel) getStateLabel(state jobState) string {
+	switch state {
+	case jobPending:
+		return "Pending"
+	case jobRunning:
+		return "Running"
+	case jobSuccess:
+		return "Success ✓"
+	case jobFailed:
+		return "Failed ✗"
+	default:
+		return "Unknown"
 	}
 }
 
@@ -1160,6 +1975,8 @@ func assertExecSupported(ide string) error {
 		cmd = exec.CommandContext(ctx, ideCodex, "exec", "-h")
 	case ideClaude:
 		cmd = exec.CommandContext(ctx, ideClaude, "--help")
+	case ideDroid:
+		cmd = exec.CommandContext(ctx, ideDroid, "exec", "--help")
 	default:
 		return fmt.Errorf("unsupported IDE: %s", ide)
 	}
@@ -1182,6 +1999,10 @@ func readIssueEntries(resolvedIssuesDir string) ([]issueEntry, error) {
 	names := make([]string, 0, len(files))
 	for _, f := range files {
 		if !f.Type().IsRegular() {
+			continue
+		}
+		// Skip _summary.md files generated by pr-review.ts
+		if f.Name() == "_summary.md" {
 			continue
 		}
 		if strings.HasSuffix(f.Name(), ".md") {
@@ -1364,38 +2185,73 @@ func safeFileName(p string) string {
 	return fmt.Sprintf("%s-%s", base, h)
 }
 
-func readTemplateSafely() string {
-	b, err := os.ReadFile(".cursor/commands/pr-fix.md")
-	if err != nil {
-		return ""
-	}
-	return string(b)
-}
-
 // Prompt builders
 
 type buildBatchedIssuesParams struct {
-	PR           string
-	BatchGroups  map[string][]issueEntry
-	BaseTemplate string
+	PR          string
+	BatchGroups map[string][]issueEntry
+	Grouped     bool
 }
 
 func buildBatchedIssuesPrompt(p buildBatchedIssuesParams) string {
 	codeFiles := sortCodeFiles(p.BatchGroups)
+	helperCommands := buildHelperCommands(p.PR, p.BatchGroups)
 	header := buildBatchHeader(p.PR, codeFiles, p.BatchGroups)
-	critical := buildBatchCritical(p.PR, codeFiles)
+	critical := buildBatchCritical(p.PR, codeFiles, p.Grouped)
 	batchNotice := buildBatchNotice(codeFiles)
 	issueGroups := buildIssueGroups(codeFiles, p.BatchGroups)
-	task := buildBatchTask(p.PR, codeFiles)
-	checklist := buildBatchChecklist(p.PR, codeFiles, p.BatchGroups)
+	task := buildBatchTask(p.PR, codeFiles, p.Grouped)
+	checklist := buildBatchChecklist(p.PR, codeFiles, p.BatchGroups, p.Grouped)
 
-	composed := strings.Join([]string{header, critical, batchNotice,
+	composed := strings.Join([]string{helperCommands, header, critical, batchNotice,
 		issueGroups, task, checklist}, "\n\n")
 
-	if t := strings.TrimSpace(p.BaseTemplate); t != "" {
-		return t + "\n\n" + composed
-	}
 	return composed
+}
+
+func buildHelperCommands(pr string, batchGroups map[string][]issueEntry) string {
+	// Extract issue numbers from all issues in the batch
+	var issueNumbers []int
+	for _, items := range batchGroups {
+		for _, item := range items {
+			// Extract issue number from filename (e.g., "001-..." -> 1)
+			parts := strings.SplitN(item.name, "-", 2)
+			if len(parts) > 0 {
+				if num := strings.TrimLeft(parts[0], "0"); num != "" {
+					var issueNum int
+					if _, err := fmt.Sscanf(num, "%d", &issueNum); err == nil {
+						issueNumbers = append(issueNumbers, issueNum)
+					}
+				}
+			}
+		}
+	}
+	if len(issueNumbers) == 0 {
+		return ""
+	}
+	sort.Ints(issueNumbers)
+	minIssue := issueNumbers[0]
+	maxIssue := issueNumbers[len(issueNumbers)-1]
+	return fmt.Sprintf(`## Helper Commands
+
+Before starting work on fixing issues, you can review them using:
+
+`+"```bash"+`
+# Read all issues in this batch (issues %d-%d)
+scripts/read_pr_issues.sh --pr %s --type issue --from %d --to %d
+
+# Read all issues for this PR
+scripts/read_pr_issues.sh --pr %s --type issue --all
+`+"```"+`
+
+<critical>
+- **YOU NEED** to fix ALL issues listed below from PR %s, and only finish when ALL are addressed
+- This should be fixed in THE BEST WAY possible, not using workarounds
+- **YOU MUST** follow project standards and rules from .cursor/rules, and ensure all parameters are addressed
+- If, in the end, you don't have all issues addressed, your work will be **INVALIDATED**
+- After making all the changes, you need to update the progress in the _summary.md file and all the related issue files
+- **MUST DO:** After resolving every issue run `+"`scripts/resolve_pr_issues.sh --pr-dir ai-docs/reviews-pr-%s --from %d --to %d`"+` so the script calls `+"`gh`"+` to close the review threads and refreshes the summary
+</critical>`, minIssue, maxIssue, pr, minIssue, maxIssue, pr, pr, pr, minIssue, maxIssue)
 }
 
 func sortCodeFiles(batchGroups map[string][]issueEntry) []string {
@@ -1420,8 +2276,14 @@ func buildBatchHeader(pr string, codeFiles []string, batchGroups map[string][]is
 </arguments>`, pr, len(codeFiles), totalIssues)
 }
 
-func buildBatchCritical(pr string, codeFiles []string) string {
+func buildBatchCritical(pr string, codeFiles []string, grouped bool) string {
 	codeFileList := strings.Join(codeFiles, "\n  - ")
+	progressFiles := fmt.Sprintf(`  - ai-docs/reviews-pr-%s/issues/_summary.md
+  - Each included issue file under ai-docs/reviews-pr-%s/issues/`, pr, pr)
+	if grouped {
+		progressFiles += fmt.Sprintf(`
+  - The grouped files for each file in ai-docs/reviews-pr-%s/issues/grouped/`, pr)
+	}
 	return fmt.Sprintf(`
 <critical>
 - You MUST fix ALL issues listed below across MULTIPLE files in this batch.
@@ -1430,12 +2292,10 @@ func buildBatchCritical(pr string, codeFiles []string) string {
 - Files in this batch:
   - %s
 - After making changes, update ONLY the progress files generated by pr-review for this PR:
-  - ai-docs/reviews-pr-%s/issues/_summary.md
-  - Each included issue file under ai-docs/reviews-pr-%s/issues/
-  - The grouped files for each file in ai-docs/reviews-pr-%s/issues/grouped/
+%s
 - MUST DO: If these are GitHub review issues, after resolving them you need to call the gh command to resolve each
   thread as per the instructions in the issue files (look for a "Thread ID:" line and use the provided gh command).
-</critical>`, codeFileList, pr, pr, pr)
+</critical>`, codeFileList, progressFiles)
 }
 
 func buildBatchNotice(codeFiles []string) string {
@@ -1455,44 +2315,46 @@ Files in this batch: %s
 
 func buildIssueGroups(codeFiles []string, batchGroups map[string][]issueEntry) string {
 	var issueGroupsBuilder strings.Builder
+	issueGroupsBuilder.WriteString("\n<issues>\n")
+	issueGroupsBuilder.WriteString("Read and address ALL issues from the following files:\n\n")
 	for _, codeFile := range codeFiles {
 		items := batchGroups[codeFile]
-		issueGroupsBuilder.WriteString(fmt.Sprintf(`
-<file-group file="%s">
-  <issues-count>%d</issues-count>
-`, codeFile, len(items)))
-
-		for idx, item := range items {
+		issueGroupsBuilder.WriteString(fmt.Sprintf("**%s** (%d issue%s):\n",
+			codeFile, len(items), func() string {
+				if len(items) == 1 {
+					return ""
+				}
+				return "s"
+			}()))
+		for _, item := range items {
 			relPath := normalizeForPrompt(item.absPath)
-			issueGroupsBuilder.WriteString(fmt.Sprintf(`
-  <issue index="%d">
-    <from>%s</from>
-    <content lang="markdown">
-%s
-    </content>
-  </issue>
-`, idx+1, relPath, item.content))
+			issueGroupsBuilder.WriteString(fmt.Sprintf("  - %s\n", relPath))
 		}
-
-		issueGroupsBuilder.WriteString("</file-group>\n")
+		issueGroupsBuilder.WriteString("\n")
 	}
+	issueGroupsBuilder.WriteString("</issues>")
 	return issueGroupsBuilder.String()
 }
 
-func buildBatchTask(pr string, codeFiles []string) string {
-	groupedFiles := make([]string, len(codeFiles))
-	for i, codeFile := range codeFiles {
-		groupedFiles[i] = fmt.Sprintf("ai-docs/reviews-pr-%s/issues/grouped/%s.md", pr, safeFileName(codeFile))
-	}
-
-	return fmt.Sprintf(`
+func buildBatchTask(pr string, codeFiles []string, grouped bool) string {
+	taskText := fmt.Sprintf(`
 <task>
 - Resolve ALL issues above across ALL %d files in a cohesive set of changes.
 - Update ai-docs/reviews-pr-%s/issues/_summary.md to reflect resolution status for each included issue.
 - In each included issue file under ai-docs/reviews-pr-%s/issues,
-  update the status section/checkbox to RESOLVED ✓ when addressed.
+  update the status section/checkbox to RESOLVED ✓ when addressed.`, len(codeFiles), pr, pr)
+
+	if grouped {
+		groupedFiles := make([]string, len(codeFiles))
+		for i, codeFile := range codeFiles {
+			groupedFiles[i] = fmt.Sprintf("ai-docs/reviews-pr-%s/issues/grouped/%s.md", pr, safeFileName(codeFile))
+		}
+		taskText += fmt.Sprintf(`
 - Update the grouped tracking files for each file in this batch:
-  %s
+  %s`, strings.Join(groupedFiles, "\n  "))
+	}
+
+	taskText += `
 - If a GitHub review thread ID is present in any issue,
   resolve it using gh as per the command snippet included in that issue.
 - Run bun run lint && bun run typecheck && bun run test before concluding this batched task.
@@ -1502,17 +2364,21 @@ func buildBatchTask(pr string, codeFiles []string) string {
   - update _summary.md,
   - mark the specific issue file as RESOLVED ✓,
   - resolve its GitHub review thread via gh if a Thread ID is present.
-</task>`, len(codeFiles), pr, pr, strings.Join(groupedFiles, "\n  "))
+</task>`
+
+	return taskText
 }
 
-func buildBatchChecklist(pr string, codeFiles []string, batchGroups map[string][]issueEntry) string {
+func buildBatchChecklist(pr string, codeFiles []string, batchGroups map[string][]issueEntry, grouped bool) string {
 	var checklistPaths []string
 	checklistPaths = append(checklistPaths, fmt.Sprintf("ai-docs/reviews-pr-%s/issues/_summary.md", pr))
 	for _, codeFile := range codeFiles {
-		checklistPaths = append(
-			checklistPaths,
-			fmt.Sprintf("ai-docs/reviews-pr-%s/issues/grouped/%s.md", pr, safeFileName(codeFile)),
-		)
+		if grouped {
+			checklistPaths = append(
+				checklistPaths,
+				fmt.Sprintf("ai-docs/reviews-pr-%s/issues/grouped/%s.md", pr, safeFileName(codeFile)),
+			)
+		}
 		for _, item := range batchGroups[codeFile] {
 			checklistPaths = append(checklistPaths, normalizeForPrompt(item.absPath))
 		}

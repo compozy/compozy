@@ -678,7 +678,7 @@ type Tool interface {
     Call(ctx context.Context, input string) (string, error)
 }
 
-func NewToolRegistry(config ToolRegistryConfig) ToolRegistry
+func NewToolRegistry(ctx context.Context, config ToolRegistryConfig) ToolRegistry
 ```
 
 ### Memory Integration

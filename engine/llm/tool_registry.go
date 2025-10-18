@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	factorymetrics "github.com/compozy/compozy/engine/llm/factory/metrics"
 	"github.com/compozy/compozy/engine/mcp"
+	mcpmetrics "github.com/compozy/compozy/engine/mcp/metrics"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
@@ -80,8 +82,12 @@ type toolRegistry struct {
 // mcpNamed is implemented by MCP-backed tools to expose their MCP server ID
 type mcpNamed interface{ MCPName() string }
 
-// NewToolRegistry creates a new tool registry
-func NewToolRegistry(config ToolRegistryConfig) ToolRegistry {
+// NewToolRegistry creates a new tool registry bound to the provided context.
+func NewToolRegistry(ctx context.Context, config ToolRegistryConfig) ToolRegistry {
+	if ctx == nil {
+		panic("context must not be nil")
+	}
+	start := time.Now()
 	if config.CacheTTL == 0 {
 		config.CacheTTL = 5 * time.Minute
 	}
@@ -89,13 +95,15 @@ func NewToolRegistry(config ToolRegistryConfig) ToolRegistry {
 		config.EmptyCacheTTL = 30 * time.Second
 	}
 
-	return &toolRegistry{
+	registry := &toolRegistry{
 		config:        config,
 		localTools:    make(map[string]Tool),
 		allowedMCPSet: buildAllowedMCPSet(config.AllowedMCPNames),
 		deniedMCPSet:  buildDeniedMCPSet(config.DeniedMCPNames),
 		now:           time.Now,
 	}
+	factorymetrics.RecordCreate(ctx, factorymetrics.TypeTool, "registry", time.Since(start))
+	return registry
 }
 
 func copySchemaMap(s *schema.Schema) map[string]any {
@@ -197,12 +205,15 @@ func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 		return nil, false
 	}
 
+	lookupStart := time.Now()
 	if tool, ok := r.findMCPTool(canonical); ok {
+		mcpmetrics.RecordRegistryLookup(ctx, time.Since(lookupStart), true)
 		if stale {
 			r.triggerBackgroundRefresh(ctx)
 		}
 		return tool, true
 	}
+	mcpmetrics.RecordRegistryLookup(ctx, time.Since(lookupStart), false)
 
 	if stale {
 		_, refreshErr := r.fetchFreshMCPTools(ctx)
@@ -210,9 +221,12 @@ func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 			log.Warn("Failed to refresh MCP tools after stale cache miss", "error", refreshErr)
 			return nil, false
 		}
+		refreshStart := time.Now()
 		if tool, ok := r.findMCPTool(canonical); ok {
+			mcpmetrics.RecordRegistryLookup(ctx, time.Since(refreshStart), true)
 			return tool, true
 		}
+		mcpmetrics.RecordRegistryLookup(ctx, time.Since(refreshStart), false)
 	}
 
 	return nil, false
@@ -566,9 +580,10 @@ func (r *toolRegistry) triggerBackgroundRefresh(ctx context.Context) {
 	if r.config.ProxyClient == nil {
 		return
 	}
-	log := logger.FromContext(ctx)
+	bgCtx := context.WithoutCancel(ctx)
+	log := logger.FromContext(bgCtx)
 	ch := r.sfGroup.DoChan("refresh-mcp-tools", func() (any, error) {
-		return r.refreshMCPTools(ctx)
+		return r.refreshMCPTools(bgCtx)
 	})
 	go func() {
 		res := <-ch

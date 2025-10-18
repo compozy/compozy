@@ -1,13 +1,17 @@
 package monitoring_test
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"math"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -172,4 +176,104 @@ func TestHTTPMetricsIntegration(t *testing.T) {
 			return true
 		}, 2*time.Second, 50*time.Millisecond, "In-flight requests should return to 0")
 	})
+	t.Run("Should expose request and response size histograms", func(t *testing.T) {
+		env := SetupTestEnvironment(t)
+		defer env.Cleanup()
+
+		const requestPath = "/api/v1/upload"
+		reqPayload := strings.Repeat("a", 2048)
+		respPayload := strings.Repeat("b", 4096)
+
+		env.router.POST(requestPath, func(c *gin.Context) {
+			body, err := io.ReadAll(c.Request.Body)
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			if len(body) == 0 {
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "empty body"})
+				return
+			}
+			c.Data(http.StatusCreated, "text/plain", []byte(respPayload))
+		})
+
+		req, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			env.httpServer.URL+requestPath,
+			strings.NewReader(reqPayload),
+		)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "text/plain")
+
+		resp, err := env.GetHTTPClient().Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+
+		metrics, err := env.GetMetrics()
+		require.NoError(t, err)
+
+		metricFamilies := parseMetrics(t, metrics)
+		labels := map[string]string{
+			"http_method":      http.MethodPost,
+			"http_route":       requestPath,
+			"http_status_code": "201",
+		}
+
+		requestHistogram := findHistogramMetric(metricFamilies["compozy_http_request_size_bytes"], labels)
+		require.NotNil(t, requestHistogram, "request size histogram metric should exist")
+		assert.GreaterOrEqual(t, requestHistogram.GetHistogram().GetSampleCount(), uint64(1))
+		assert.InDelta(t, float64(len(reqPayload)), requestHistogram.GetHistogram().GetSampleSum(), 1.0)
+		assertBucketBoundaries(t, requestHistogram, []float64{100, 1000, 10000, 100000, 1000000, 10000000, 100000000})
+
+		responseHistogram := findHistogramMetric(metricFamilies["compozy_http_response_size_bytes"], labels)
+		require.NotNil(t, responseHistogram, "response size histogram metric should exist")
+		assert.GreaterOrEqual(t, responseHistogram.GetHistogram().GetSampleCount(), uint64(1))
+		assert.InDelta(t, float64(len(respPayload)), responseHistogram.GetHistogram().GetSampleSum(), 1.0)
+		assertBucketBoundaries(t, responseHistogram, []float64{100, 1000, 10000, 100000, 1000000, 10000000, 100000000})
+	})
+}
+
+func findHistogramMetric(mf *dto.MetricFamily, labels map[string]string) *dto.Metric {
+	if mf == nil {
+		return nil
+	}
+	for _, metric := range mf.Metric {
+		if metric.GetHistogram() == nil {
+			continue
+		}
+		if matchMetricLabels(metric, labels) {
+			return metric
+		}
+	}
+	return nil
+}
+
+func matchMetricLabels(metric *dto.Metric, labels map[string]string) bool {
+	for key, value := range labels {
+		found := false
+		for _, label := range metric.Label {
+			if label.GetName() == key && label.GetValue() == value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func assertBucketBoundaries(t *testing.T, metric *dto.Metric, expected []float64) {
+	t.Helper()
+	buckets := metric.GetHistogram().GetBucket()
+	require.GreaterOrEqual(t, len(buckets), len(expected))
+	for index, boundary := range expected {
+		assert.InDelta(t, boundary, buckets[index].GetUpperBound(), 0.001)
+	}
+	if len(buckets) > len(expected) {
+		assert.True(t, math.IsInf(buckets[len(buckets)-1].GetUpperBound(), 1))
+	}
 }

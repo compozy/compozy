@@ -2,6 +2,7 @@ package knowledge
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +23,9 @@ var (
 	retrievalEmptyCounter   metric.Int64Counter
 	routerDecisionCounter   metric.Int64Counter
 	toolEscalationCounter   metric.Int64Counter
+	ragRetrievalLatencyHist metric.Float64Histogram
+	ragContextSizeHist      metric.Float64Histogram
+	ragRelevanceScoreHist   metric.Float64Histogram
 )
 
 func RecordIngestDuration(ctx context.Context, kbID string, d time.Duration) {
@@ -96,6 +100,9 @@ func ResetMetricsForTesting() {
 	retrievalEmptyCounter = nil
 	routerDecisionCounter = nil
 	toolEscalationCounter = nil
+	ragRetrievalLatencyHist = nil
+	ragContextSizeHist = nil
+	ragRelevanceScoreHist = nil
 	metricsMu.Unlock()
 }
 
@@ -172,5 +179,72 @@ func initRetrievalMetrics(meter metric.Meter) error {
 		metric.WithDescription("Number of times the router escalated to tool usage"),
 		metric.WithUnit("1"),
 	)
+	if err != nil {
+		return err
+	}
+	ragRetrievalLatencyHist, err = meter.Float64Histogram(
+		metrics.MetricNameWithSubsystem("rag", "retrieval_seconds"),
+		metric.WithDescription("Latency of RAG retrieval executions grouped by strategy"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(.01, .05, .1, .25, .5, 1, 2),
+	)
+	if err != nil {
+		return err
+	}
+	ragContextSizeHist, err = meter.Float64Histogram(
+		metrics.MetricNameWithSubsystem("rag", "context_size_bytes"),
+		metric.WithDescription("Total size in bytes of the context payload delivered to the LLM"),
+		metric.WithUnit("By"),
+		metric.WithExplicitBucketBoundaries(100, 500, 1000, 5000, 10000, 50000, 100000),
+	)
+	if err != nil {
+		return err
+	}
+	ragRelevanceScoreHist, err = meter.Float64Histogram(
+		metrics.MetricNameWithSubsystem("rag", "retrieval_relevance_score"),
+		metric.WithDescription("Average relevance score of retrieved knowledge contexts"),
+		metric.WithUnit("1"),
+		metric.WithExplicitBucketBoundaries(0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1),
+	)
 	return err
+}
+
+func RecordRAGRetrievalLatency(ctx context.Context, strategy string, d time.Duration) {
+	if err := ensureMetrics(); err != nil || ragRetrievalLatencyHist == nil {
+		return
+	}
+	strategy = strings.TrimSpace(strategy)
+	if strategy == "" {
+		strategy = "unknown"
+	}
+	ragRetrievalLatencyHist.Record(ctx, d.Seconds(), metric.WithAttributes(
+		attribute.String("strategy", strategy),
+	))
+}
+
+func RecordRAGContextSizeBytes(ctx context.Context, kbID string, bytes int) {
+	if err := ensureMetrics(); err != nil || ragContextSizeHist == nil {
+		return
+	}
+	if bytes < 0 {
+		bytes = 0
+	}
+	ragContextSizeHist.Record(ctx, float64(bytes), metric.WithAttributes(
+		attribute.String("kb_id", kbID),
+	))
+}
+
+func RecordRAGRelevanceScore(ctx context.Context, kbID string, score float64) {
+	if err := ensureMetrics(); err != nil || ragRelevanceScoreHist == nil {
+		return
+	}
+	if score < 0 {
+		score = 0
+	}
+	if score > 1 {
+		score = 1
+	}
+	ragRelevanceScoreHist.Record(ctx, score, metric.WithAttributes(
+		attribute.String("kb_id", kbID),
+	))
 }

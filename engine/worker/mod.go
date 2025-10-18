@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/monitoring/interceptor"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/memory"
@@ -68,18 +69,19 @@ type Config struct {
 }
 
 type Worker struct {
-	client        *Client
-	config        *Config
-	activities    *Activities
-	worker        worker.Worker
-	projectConfig *project.Config
-	workflows     []*wf.Config
-	taskQueue     string
-	configStore   services.ConfigStore
-	redisCache    *cache.Cache
-	mcpRegister   *mcp.RegisterService
-	dispatcherID  string // Track dispatcher ID for cleanup
-	serverID      string // Server ID for this worker instance
+	client           *Client
+	config           *Config
+	activities       *Activities
+	worker           worker.Worker
+	queueDepthCancel context.CancelFunc
+	projectConfig    *project.Config
+	workflows        []*wf.Config
+	taskQueue        string
+	configStore      services.ConfigStore
+	redisCache       *cache.Cache
+	mcpRegister      *mcp.RegisterService
+	dispatcherID     string // Track dispatcher ID for cleanup
+	serverID         string // Server ID for this worker instance
 
 	// Memory management
 	memoryManager  *memory.Manager
@@ -277,6 +279,10 @@ func buildWorkerOptions(ctx context.Context, monitoringService *monitoring.Servi
 			autoLocal,
 		)
 	}
+	setWorkerConcurrencyLimits(
+		options.MaxConcurrentActivityExecutionSize,
+		options.MaxConcurrentWorkflowTaskExecutionSize,
+	)
 	if monitoringService != nil && monitoringService.IsInitialized() {
 		interceptor := monitoringService.TemporalInterceptor(ctx)
 		if interceptor != nil {
@@ -284,6 +290,7 @@ func buildWorkerOptions(ctx context.Context, monitoringService *monitoring.Servi
 			log.Info("Added Temporal monitoring interceptor to worker")
 		}
 	}
+	options.Interceptors = append(options.Interceptors, newWorkerMetricsInterceptor(ctx))
 	return options
 }
 
@@ -379,21 +386,13 @@ func NewWorker(
 		projectName = projectConfig.Name
 	}
 	dispatcher := createDispatcher(workerCore.taskQueue, projectName, client)
-	var usageMetrics usage.Metrics
-	if config.MonitoringService != nil && config.MonitoringService.IsInitialized() {
-		usageMetrics = config.MonitoringService.LLMUsageMetrics()
-	}
-	activities, err := NewActivities(
+	activities, err := prepareWorkerActivities(
 		ctx,
+		config,
 		projectConfig,
 		workflows,
-		config.WorkflowRepo(),
-		config.TaskRepo(),
-		usageMetrics,
-		workerCore.rtManager,
-		workerCore.configStore,
-		dispatcher.signalDispatcher,
-		workerCore.redisCache,
+		workerCore,
+		dispatcher,
 		memoryManager,
 		templateEngine,
 		toolEnv,
@@ -719,11 +718,49 @@ func createDispatcher(taskQueue string, projectName string, client *Client) *dis
 	}
 }
 
+func prepareWorkerActivities(
+	ctx context.Context,
+	config *Config,
+	projectConfig *project.Config,
+	workflows []*wf.Config,
+	workerCore *workerCoreComponents,
+	dispatcher *dispatcherComponents,
+	memoryManager *memory.Manager,
+	templateEngine *tplengine.TemplateEngine,
+	toolEnv toolenv.Environment,
+) (*Activities, error) {
+	var usageMetrics usage.Metrics
+	providerMetrics := providermetrics.Nop()
+	if config.MonitoringService != nil && config.MonitoringService.IsInitialized() {
+		usageMetrics = config.MonitoringService.LLMUsageMetrics()
+		providerMetrics = config.MonitoringService.LLMProviderMetrics()
+	}
+	return NewActivities(
+		ctx,
+		projectConfig,
+		workflows,
+		config.WorkflowRepo(),
+		config.TaskRepo(),
+		usageMetrics,
+		providerMetrics,
+		workerCore.rtManager,
+		workerCore.configStore,
+		dispatcher.signalDispatcher,
+		workerCore.redisCache,
+		memoryManager,
+		templateEngine,
+		toolEnv,
+	)
+}
+
 func (o *Worker) Setup(ctx context.Context) error {
 	o.registerActivities()
 	err := o.worker.Start()
 	if err != nil {
 		return err
+	}
+	if o.config != nil && o.config.MonitoringService != nil && o.config.MonitoringService.IsInitialized() {
+		o.startQueueDepthMonitor()
 	}
 	// Track running worker for monitoring
 	interceptor.IncrementRunningWorkers(ctx)
@@ -743,6 +780,7 @@ func (o *Worker) Setup(ctx context.Context) error {
 }
 
 func (o *Worker) Stop(ctx context.Context) {
+	o.stopQueueDepthMonitor()
 	// Track worker stopping for monitoring
 	interceptor.DecrementRunningWorkers(ctx)
 	// Record dispatcher stop event for monitoring

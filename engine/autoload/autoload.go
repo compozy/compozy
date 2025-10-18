@@ -17,13 +17,46 @@ import (
 // AutoLoader is the main orchestrator for auto-loading configurations
 type AutoLoader struct {
 	projectRoot string
+	projectName string
 	config      *Config
 	registry    *ConfigRegistry
 	discoverer  FileDiscoverer
 }
 
+// Option configures AutoLoader construction.
+type Option func(loader *AutoLoader)
+
+// WithProjectName overrides the derived project name used for metrics labels.
+func WithProjectName(name string) Option {
+	return func(loader *AutoLoader) {
+		loader.projectName = strings.TrimSpace(name)
+	}
+}
+
+func deriveProjectName(projectRoot string) string {
+	cleanRoot := strings.TrimSpace(projectRoot)
+	if cleanRoot == "" {
+		return ""
+	}
+	base := filepath.Base(cleanRoot)
+	if base == "." || base == string(filepath.Separator) {
+		return ""
+	}
+	return base
+}
+
+func (al *AutoLoader) projectMetricLabel() string {
+	if al == nil {
+		return projectLabelUnknown
+	}
+	if strings.TrimSpace(al.projectName) != "" {
+		return al.projectName
+	}
+	return deriveProjectName(al.projectRoot)
+}
+
 // New creates a new AutoLoader instance
-func New(projectRoot string, config *Config, registry *ConfigRegistry) *AutoLoader {
+func New(projectRoot string, config *Config, registry *ConfigRegistry, opts ...Option) *AutoLoader {
 	if registry == nil {
 		registry = NewConfigRegistry()
 	}
@@ -32,12 +65,20 @@ func New(projectRoot string, config *Config, registry *ConfigRegistry) *AutoLoad
 		config = NewConfig()
 	}
 
-	return &AutoLoader{
+	loader := &AutoLoader{
 		projectRoot: projectRoot,
+		projectName: deriveProjectName(projectRoot),
 		config:      config,
 		registry:    registry,
 		discoverer:  NewFileDiscoverer(projectRoot),
 	}
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		opt(loader)
+	}
+	return loader
 }
 
 // LoadResult contains the results of the loading operation
@@ -55,8 +96,9 @@ type LoadError struct {
 }
 
 type fileProcessResult struct {
-	success bool
-	err     error
+	success      bool
+	resourceType string
+	err          error
 }
 
 // ErrorSummary provides a categorized summary of all errors that occurred
@@ -90,6 +132,13 @@ func (al *AutoLoader) Load(ctx context.Context) error {
 func (al *AutoLoader) LoadWithResult(ctx context.Context) (*LoadResult, error) {
 	log := logger.FromContext(ctx)
 	startTime := time.Now()
+	project := al.projectMetricLabel()
+	defer func() {
+		if !al.config.Enabled {
+			return
+		}
+		recordAutoloadDuration(ctx, project, time.Since(startTime))
+	}()
 	result := &LoadResult{
 		Errors:       make([]LoadError, 0),
 		ErrorSummary: &ErrorSummary{ByFile: make(map[string]int)},
@@ -186,14 +235,15 @@ func (al *AutoLoader) runFileProcessors(ctx context.Context, files []string, wor
 			if err := gctx.Err(); err != nil {
 				return err
 			}
-			if err := al.loadAndRegisterConfig(gctx, file); err != nil {
+			resourceType, err := al.loadAndRegisterConfig(gctx, file)
+			if err != nil {
 				results[i] = fileProcessResult{err: err}
 				if al.config.Strict {
 					return err
 				}
 				return nil
 			}
-			results[i] = fileProcessResult{success: true}
+			results[i] = fileProcessResult{success: true, resourceType: resourceType}
 			return nil
 		})
 	}
@@ -275,12 +325,16 @@ func (al *AutoLoader) consumeFileResult(
 		}
 		return nil
 	}
+	project := al.projectMetricLabel()
 	accumulated.FilesProcessed++
 	if result.err != nil {
+		recordAutoloadFileOutcome(ctx, project, autoloadOutcomeError)
 		return al.handleLoadError(ctx, file, result.err, accumulated, totalFiles)
 	}
 	if result.success {
+		recordAutoloadFileOutcome(ctx, project, autoloadOutcomeSuccess)
 		accumulated.ConfigsLoaded++
+		recordAutoloadConfigLoaded(ctx, project, result.resourceType)
 	}
 	return nil
 }
@@ -296,7 +350,8 @@ func (al *AutoLoader) handleLoadError(
 	log := logger.FromContext(ctx)
 	loadErr := LoadError{File: file, Error: err}
 	result.Errors = append(result.Errors, loadErr)
-	al.categorizeError(err, result.ErrorSummary, file)
+	errorLabel := al.categorizeError(err, result.ErrorSummary, file)
+	recordAutoloadError(ctx, al.projectMetricLabel(), errorLabel)
 	if al.config.Strict {
 		log.Error("Failed to load config file in strict mode", "file", file, "error", err)
 		return core.NewError(err, "AUTOLOAD_FILE_FAILED", map[string]any{
@@ -370,6 +425,7 @@ func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 
 	tempLoader := &AutoLoader{
 		projectRoot: al.projectRoot,
+		projectName: al.projectMetricLabel(),
 		config:      tempConfig,
 		registry:    tempRegistry,
 		discoverer:  al.discoverer,
@@ -380,21 +436,28 @@ func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 }
 
 // loadAndRegisterConfig loads a configuration file and registers it in the registry
-func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string) error {
+func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string) (string, error) {
 	// Security: Verify the file path doesn't escape the project root
 	if err := al.validateFilePath(filePath); err != nil {
-		return err
+		return "", err
 	}
 	// First, load the file as a map to determine the resource type
 	configMap, err := core.MapFromFilePath(ctx, filePath)
 	if err != nil {
-		return core.NewError(err, "PARSE_ERROR", map[string]any{
+		return "", core.NewError(err, "PARSE_ERROR", map[string]any{
 			"file":       filePath,
 			"suggestion": "Check YAML/JSON syntax and file format",
 		})
 	}
+	resourceType, _, resourceErr := extractResourceInfoFromMap(configMap)
+	if resourceErr != nil {
+		return "", resourceErr
+	}
 	// Register the configuration map - validation happens in the registry
-	return al.registry.Register(configMap, "autoload")
+	if err := al.registry.Register(configMap, "autoload"); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(strings.ToLower(resourceType)), nil
 }
 
 // validateFilePath ensures the file path doesn't escape the project root
@@ -448,12 +511,10 @@ func (al *AutoLoader) validateFilePath(filePath string) error {
 }
 
 // categorizeError categorizes an error for the error summary
-func (al *AutoLoader) categorizeError(err error, summary *ErrorSummary, file string) {
+func (al *AutoLoader) categorizeError(err error, summary *ErrorSummary, file string) autoloadErrorLabel {
 	summary.TotalErrors++
-	if summary.ByFile[file] == 0 {
-		summary.ByFile[file] = 0
-	}
 	summary.ByFile[file]++
+	label := errorLabelValidation
 
 	// Prefer categorization by structured error code if available
 	var ce *core.Error
@@ -462,17 +523,20 @@ func (al *AutoLoader) categorizeError(err error, summary *ErrorSummary, file str
 		switch ce.Code {
 		case "PATH_TRAVERSAL_ATTEMPT", "PATH_RESOLUTION_FAILED":
 			summary.SecurityErrors++
+			label = errorLabelSecurity
 		case "DUPLICATE_CONFIG":
 			summary.DuplicateErrors++
+			label = errorLabelDuplicate
 		case "PARSE_ERROR":
 			summary.ParseErrors++
+			label = errorLabelParse
 		case "INVALID_RESOURCE_INFO", "RESOURCE_NOT_FOUND", "UNKNOWN_CONFIG_TYPE":
 			summary.ValidationErrors++
 		default:
 			// Fallback for unknown core.Error codes
 			summary.ValidationErrors++
 		}
-		return
+		return label
 	}
 
 	// Fallback for non-core.Error types using string matching
@@ -480,13 +544,17 @@ func (al *AutoLoader) categorizeError(err error, summary *ErrorSummary, file str
 	switch {
 	case strings.Contains(errStr, "YAML") || strings.Contains(errStr, "JSON") || strings.Contains(errStr, "syntax"):
 		summary.ParseErrors++
+		label = errorLabelParse
 	case strings.Contains(errStr, "DUPLICATE_CONFIG"):
 		summary.DuplicateErrors++
+		label = errorLabelDuplicate
 	case strings.Contains(errStr, "PATH_TRAVERSAL") || strings.Contains(errStr, "PATH_RESOLUTION"):
 		summary.SecurityErrors++
+		label = errorLabelSecurity
 	case strings.Contains(errStr, "INVALID_RESOURCE"):
 		summary.ValidationErrors++
 	default:
 		summary.ValidationErrors++ // Default fallback
 	}
+	return label
 }

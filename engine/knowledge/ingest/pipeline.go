@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -143,6 +144,7 @@ func (p *Pipeline) finishRun(
 
 	if result != nil && *result != nil {
 		res := *result
+		RecordDocuments(ctx, res.Documents, OutcomeSuccess)
 		knowledge.RecordIngestChunks(ctx, p.binding.KnowledgeBase.ID, res.Chunks)
 		log.Info(
 			"Knowledge ingestion finished",
@@ -177,20 +179,28 @@ func (p *Pipeline) executeIngestion(ctx context.Context, strategy Strategy) (*Re
 	if len(docs) == 0 {
 		return &Result{KnowledgeBaseID: p.binding.KnowledgeBase.ID, BindingID: p.binding.ID}, nil
 	}
+	RecordBatchSize(ctx, len(docs))
+	chunkStart := time.Now()
 	chunks, err := p.chunker.Process(p.binding.KnowledgeBase.ID, docs)
 	if err != nil {
+		RecordError(ctx, StageChunking, categorizeIngestionError(err))
+		RecordDocuments(ctx, len(docs), OutcomeError)
 		return nil, err
 	}
+	RecordPipelineStage(ctx, StageChunking, time.Since(chunkStart))
+	RecordChunks(ctx, len(chunks))
 	if len(chunks) == 0 {
 		return &Result{KnowledgeBaseID: p.binding.KnowledgeBase.ID, BindingID: p.binding.ID, Documents: len(docs)}, nil
 	}
 	if strategy == StrategyReplace {
 		if err := p.deleteExistingRecords(ctx); err != nil {
+			RecordDocuments(ctx, len(docs), OutcomeError)
 			return nil, err
 		}
 	}
 	totalPersisted, err := p.persistChunks(ctx, chunks)
 	if err != nil {
+		RecordDocuments(ctx, len(docs), OutcomeError)
 		return nil, err
 	}
 	return &Result{
@@ -212,6 +222,7 @@ func (p *Pipeline) embedBatch(ctx context.Context, batch []chunk.Chunk) ([][]flo
 		attribute.Int("batch_size", len(batch)),
 	))
 	defer span.End()
+	start := time.Now()
 	texts := make([]string, len(batch))
 	for i := range batch {
 		texts[i] = batch[i].Text
@@ -224,6 +235,7 @@ func (p *Pipeline) embedBatch(ctx context.Context, batch []chunk.Chunk) ([][]flo
 				err = ctx.Err()
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
+				RecordError(ctx, StageEmbedding, categorizeIngestionError(err))
 				return nil, err
 			}
 			time.Sleep(p.backoffDuration(attempt))
@@ -231,6 +243,7 @@ func (p *Pipeline) embedBatch(ctx context.Context, batch []chunk.Chunk) ([][]flo
 		out, err = p.embedder.EmbedDocuments(ctx, texts)
 		if err == nil {
 			span.SetAttributes(attribute.Int("vectors", len(out)))
+			RecordPipelineStage(ctx, StageEmbedding, time.Since(start))
 			return out, nil
 		}
 	}
@@ -244,6 +257,7 @@ func (p *Pipeline) embedBatch(ctx context.Context, batch []chunk.Chunk) ([][]flo
 		)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		RecordError(ctx, StageEmbedding, categorizeIngestionError(err))
 	}
 	return nil, fmt.Errorf("knowledge: embed documents failed: %w", err)
 }
@@ -257,6 +271,7 @@ func (p *Pipeline) upsertBatch(ctx context.Context, records []vectordb.Record) e
 		attribute.Int("records", len(records)),
 	))
 	defer span.End()
+	start := time.Now()
 	var err error
 	for attempt := 0; attempt < p.retry.attempts; attempt++ {
 		if attempt > 0 {
@@ -264,12 +279,14 @@ func (p *Pipeline) upsertBatch(ctx context.Context, records []vectordb.Record) e
 				err = ctx.Err()
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
+				RecordError(ctx, StageStorage, categorizeIngestionError(err))
 				return err
 			}
 			time.Sleep(p.backoffDuration(attempt))
 		}
 		err = p.store.Upsert(ctx, records)
 		if err == nil {
+			RecordPipelineStage(ctx, StageStorage, time.Since(start))
 			return nil
 		}
 	}
@@ -283,6 +300,7 @@ func (p *Pipeline) upsertBatch(ctx context.Context, records []vectordb.Record) e
 		)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		RecordError(ctx, StageStorage, categorizeIngestionError(err))
 	}
 	return fmt.Errorf("knowledge: persist vectors failed: %w", err)
 }
@@ -371,6 +389,7 @@ func (p *Pipeline) runEmbeddingStage(
 			}
 			records, buildErr := p.buildRecords(batch, vectors)
 			if buildErr != nil {
+				RecordError(stageCtx, StageEmbedding, categorizeIngestionError(buildErr))
 				return buildErr
 			}
 			select {
@@ -452,11 +471,15 @@ func (p *Pipeline) deleteExistingRecords(ctx context.Context) error {
 	if len(filter.Metadata) == 0 && len(filter.IDs) == 0 {
 		return nil
 	}
+	start := time.Now()
 	err := p.store.Delete(ctx, filter)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		RecordError(ctx, StageStorage, categorizeIngestionError(err))
+		return err
 	}
+	RecordPipelineStage(ctx, StageStorage, time.Since(start))
 	return err
 }
 
@@ -513,4 +536,36 @@ func derefBool(ptr *bool, fallback bool) bool {
 		return fallback
 	}
 	return *ptr
+}
+
+func categorizeIngestionError(err error) string {
+	if err == nil {
+		return errorTypeInternal
+	}
+	if errors.Is(err, context.Canceled) {
+		return errorTypeCanceled
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return errorTypeTimeout
+	}
+	var coreErr *core.Error
+	if errors.As(err, &coreErr) && coreErr != nil && coreErr.Code != "" {
+		return strings.ToLower(coreErr.Code)
+	}
+	lower := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(lower, "rate limit"), strings.Contains(lower, "429"):
+		return errorTypeRateLimit
+	case strings.Contains(lower, "unauthorized"), strings.Contains(lower, "forbidden"), strings.Contains(lower, "auth"):
+		return errorTypeAuth
+	case strings.Contains(lower, "invalid"),
+		strings.Contains(lower, "bad request"),
+		strings.Contains(lower, "422"),
+		strings.Contains(lower, "400"):
+		return errorTypeInvalid
+	case strings.Contains(lower, "timeout"):
+		return errorTypeTimeout
+	default:
+		return errorTypeInternal
+	}
 }

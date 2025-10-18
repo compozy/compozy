@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/kaptinlin/jsonschema"
@@ -16,6 +18,16 @@ import (
 
 type Schema map[string]any
 type Result = jsonschema.EvaluationResult
+
+type schemaCacheEntry struct {
+	mu          sync.Mutex
+	compiled    *jsonschema.Schema
+	fingerprint string
+}
+
+var (
+	compiledSchemaCache sync.Map
+)
 
 // refKey is an internal sentinel key used when a schema is provided
 // in YAML as a scalar string referencing a schema ID. The loader rejects
@@ -75,34 +87,31 @@ func (s *Schema) IsRef() (bool, string) {
 	return false, ""
 }
 
-func (s *Schema) Compile() (*jsonschema.Schema, error) {
+// Compile returns a compiled schema using a detached metrics context when no caller context is available.
+func (s *Schema) Compile(ctx context.Context) (*jsonschema.Schema, error) {
 	if s == nil {
 		return nil, nil
 	}
-	bytes, err := json.Marshal(s)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compile schema: %w", err)
-	}
-	compiler := jsonschema.NewCompiler()
-	schema, err := compiler.Compile(bytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compile schema: %w", err)
-	}
-	return schema, nil
+	return s.compileFresh(ctx)
 }
 
-func (s *Schema) Validate(_ context.Context, value any) (*Result, error) {
-	schema, err := s.Compile()
+func (s *Schema) Validate(ctx context.Context, value any) (*Result, error) {
+	schema, err := s.compileCached(ctx)
 	if err != nil {
+		recordSchemaValidation(ctx, 0, false)
 		return nil, fmt.Errorf("failed to compile schema: %w", err)
 	}
 	if schema == nil {
 		return nil, nil
 	}
+	start := time.Now()
 	result := schema.Validate(value)
+	duration := time.Since(start)
 	if result.Valid {
+		recordSchemaValidation(ctx, duration, true)
 		return result, nil
 	}
+	recordSchemaValidation(ctx, duration, false)
 	return nil, fmt.Errorf("schema validation failed: %v", result.Errors)
 }
 
@@ -111,6 +120,58 @@ func (s *Schema) Clone() (*Schema, error) {
 		return nil, nil
 	}
 	return core.DeepCopy(s)
+}
+
+func (s *Schema) compileCached(ctx context.Context) (*jsonschema.Schema, error) {
+	if s == nil {
+		return nil, nil
+	}
+
+	start := time.Now()
+	fingerprint := core.ETagFromAny(map[string]any(*s))
+	entryValue, _ := compiledSchemaCache.LoadOrStore(s, &schemaCacheEntry{})
+	entry, ok := entryValue.(*schemaCacheEntry)
+	if !ok {
+		return nil, fmt.Errorf("unexpected schema cache entry type %T", entryValue)
+	}
+
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+
+	if entry.compiled != nil && entry.fingerprint == fingerprint {
+		recordSchemaCompile(ctx, time.Since(start), true)
+		return entry.compiled, nil
+	}
+
+	compiled, err := s.compileFresh(ctx)
+	if err != nil {
+		compiledSchemaCache.Delete(s)
+		return nil, err
+	}
+
+	entry.compiled = compiled
+	entry.fingerprint = fingerprint
+
+	return entry.compiled, nil
+}
+
+func (s *Schema) compileFresh(ctx context.Context) (*jsonschema.Schema, error) {
+	if s == nil {
+		return nil, nil
+	}
+	start := time.Now()
+	bytes, err := json.Marshal(s)
+	if err != nil {
+		recordSchemaCompile(ctx, time.Since(start), false)
+		return nil, fmt.Errorf("failed to compile schema: %w", err)
+	}
+	compiler := jsonschema.NewCompiler()
+	schema, err := compiler.Compile(bytes)
+	recordSchemaCompile(ctx, time.Since(start), false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile schema: %w", err)
+	}
+	return schema, nil
 }
 
 // GetID extracts the id field from a schema when present, else returns empty string.
@@ -198,11 +259,7 @@ func ValidateRawMessage(ctx context.Context, sch *Schema, raw json.RawMessage) e
 	if len(raw) == 0 {
 		raw = json.RawMessage("{}")
 	}
-	var data any
-	if err := json.Unmarshal(raw, &data); err != nil {
-		return fmt.Errorf("failed to unmarshal tool arguments: %w", err)
-	}
-	result, err := sch.Validate(ctx, data)
+	result, err := sch.Validate(ctx, raw)
 	if err != nil {
 		return err
 	}

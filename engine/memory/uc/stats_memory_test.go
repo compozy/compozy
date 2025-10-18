@@ -33,7 +33,7 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		}
 
 		// Validate and register config
-		err := testConfig.Validate()
+		err := testConfig.Validate(t.Context())
 		require.NoError(t, err)
 		err = setup.ConfigRegistry.Register(testConfig, "test")
 		require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		}
 
 		// Validate and register config
-		err := testConfig.Validate()
+		err := testConfig.Validate(t.Context())
 		require.NoError(t, err)
 		err = setup.ConfigRegistry.Register(testConfig, "test")
 		require.NoError(t, err)
@@ -121,7 +121,7 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		}
 
 		// Validate and register config
-		err := testConfig.Validate()
+		err := testConfig.Validate(t.Context())
 		require.NoError(t, err)
 		err = setup.ConfigRegistry.Register(testConfig, "test")
 		require.NoError(t, err)

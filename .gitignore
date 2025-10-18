@@ -16,6 +16,7 @@ ai-docs/**
 .venv-crawl
 _reviews
 **/**/_reviews
+.tmp
 
 # === DEPENDENCIES ===
 node_modules/

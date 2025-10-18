@@ -46,7 +46,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
-		result, err := resolver.ResolveTools(projectConfig, workflowConfig, agentConfig)
+		result, err := resolver.ResolveTools(t.Context(), projectConfig, workflowConfig, agentConfig)
 		// Assert
 		require.NoError(t, err)
 		assert.Len(t, result, 2)
@@ -77,7 +77,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
-		result, err := resolver.ResolveTools(projectConfig, workflowConfig, agentConfig)
+		result, err := resolver.ResolveTools(t.Context(), projectConfig, workflowConfig, agentConfig)
 		// Assert
 		require.NoError(t, err)
 		assert.Len(t, result, 3) // shared-tool (workflow version), project-only, workflow-only
@@ -113,7 +113,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
-		result, err := resolver.ResolveTools(projectConfig, workflowConfig, agentConfig)
+		result, err := resolver.ResolveTools(t.Context(), projectConfig, workflowConfig, agentConfig)
 		// Assert
 		require.NoError(t, err)
 		assert.Len(t, result, 1, "Should only have agent tools")
@@ -124,7 +124,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 		// Arrange
 		resolver := NewHierarchicalResolver()
 		// Act & Assert - all nil
-		result, err := resolver.ResolveTools(nil, nil, nil)
+		result, err := resolver.ResolveTools(t.Context(), nil, nil, nil)
 		require.NoError(t, err)
 		assert.Empty(t, result)
 		// Act & Assert - only project
@@ -134,7 +134,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 			},
 		}
 		setCWDAndValidateProject(t, projectConfig)
-		result, err = resolver.ResolveTools(projectConfig, nil, nil)
+		result, err = resolver.ResolveTools(t.Context(), projectConfig, nil, nil)
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 		// Act & Assert - only workflow
@@ -144,7 +144,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 			},
 		}
 		setCWDAndValidateWorkflow(t, workflowConfig)
-		result, err = resolver.ResolveTools(nil, workflowConfig, nil)
+		result, err = resolver.ResolveTools(t.Context(), nil, workflowConfig, nil)
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 	})
@@ -159,7 +159,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 		setCWDAndValidateProject(t, projectConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
-		result, err := resolver.ResolveTools(projectConfig, nil, nil)
+		result, err := resolver.ResolveTools(t.Context(), projectConfig, nil, nil)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "tool missing ID in project config")
@@ -176,7 +176,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
-		result, err := resolver.ResolveTools(nil, workflowConfig, nil)
+		result, err := resolver.ResolveTools(t.Context(), nil, workflowConfig, nil)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "tool missing ID in workflow config")
@@ -199,7 +199,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
-		result, err := resolver.ResolveTools(projectConfig, workflowConfig, agentConfig)
+		result, err := resolver.ResolveTools(t.Context(), projectConfig, workflowConfig, agentConfig)
 		// Assert
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -225,7 +225,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
-		result, err := resolver.ResolveTools(projectConfig, workflowConfig, agentConfig)
+		result, err := resolver.ResolveTools(t.Context(), projectConfig, workflowConfig, agentConfig)
 		// Assert
 		require.NoError(t, err)
 		assert.Len(t, result, 3)

@@ -72,7 +72,7 @@ func (m *knowledgeManager) resolveKnowledge(
 	if query == "" {
 		return nil, nil
 	}
-	binding, err := m.resolveKnowledgeBinding(agentConfig)
+	binding, err := m.resolveKnowledgeBinding(ctx, agentConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,10 @@ func (m *knowledgeManager) resolveKnowledge(
 	return []orchestratorpkg.KnowledgeEntry{*entry}, nil
 }
 
-func (m *knowledgeManager) resolveKnowledgeBinding(agentConfig *agent.Config) (*knowledge.ResolvedBinding, error) {
+func (m *knowledgeManager) resolveKnowledgeBinding(
+	ctx context.Context,
+	agentConfig *agent.Config,
+) (*knowledge.ResolvedBinding, error) {
 	if m == nil || m.resolver == nil {
 		return nil, nil
 	}
@@ -101,7 +104,7 @@ func (m *knowledgeManager) resolveKnowledgeBinding(agentConfig *agent.Config) (*
 		WorkflowBinding:        m.workflowBinding,
 		InlineBinding:          inline,
 	}
-	return m.resolver.Resolve(&input)
+	return m.resolver.Resolve(ctx, &input)
 }
 
 func (m *knowledgeManager) buildInlineBinding(agentConfig *agent.Config) []core.KnowledgeBinding {
@@ -193,15 +196,16 @@ func (m *knowledgeManager) runRetrievalStages(
 	minResults := binding.Retrieval.MinResultsValue()
 	for i := range stages {
 		stage := stages[i]
-		knowledge.RecordRetrievalAttempt(ctx, binding.ID, stage.name)
-		contexts, err := svc.Retrieve(ctx, binding, stage.query)
+		knowledge.RecordRetrievalAttempt(ctx, binding.KnowledgeBase.ID, stage.name)
+		stageCtx := retriever.ContextWithStrategy(ctx, strategyForStage(stage.name))
+		contexts, err := svc.Retrieve(stageCtx, binding, stage.query)
 		if err != nil {
 			return nil, "", err
 		}
 		if len(contexts) >= minResults {
 			return contexts, stage.name, nil
 		}
-		knowledge.RecordRetrievalEmpty(ctx, binding.ID, stage.name)
+		knowledge.RecordRetrievalEmpty(ctx, binding.KnowledgeBase.ID, stage.name)
 	}
 	return nil, "", nil
 }
@@ -225,13 +229,13 @@ func summarizeRetrieval(
 		switch retrieval.ToolFallback {
 		case knowledge.ToolFallbackEscalate, knowledge.ToolFallbackAuto:
 			status = knowledge.RetrievalStatusEscalated
-			knowledge.RecordToolEscalation(ctx, binding.ID)
+			knowledge.RecordToolEscalation(ctx, binding.KnowledgeBase.ID)
 		default:
 			status = knowledge.RetrievalStatusFallback
 		}
 		contexts = nil
 	}
-	knowledge.RecordRouterDecision(ctx, binding.ID, string(status))
+	knowledge.RecordRouterDecision(ctx, binding.KnowledgeBase.ID, string(status))
 	logger.FromContext(ctx).Debug(
 		"Knowledge retrieval completed",
 		"binding_id", binding.ID,
@@ -274,6 +278,17 @@ func buildRetrievalStages(query string) []retrievalStage {
 		addStage("fallback", query)
 	}
 	return stages
+}
+
+func strategyForStage(stage string) string {
+	switch stage {
+	case "keywords":
+		return retriever.StrategyKeyword
+	case "focus":
+		return retriever.StrategyHybrid
+	default:
+		return retriever.StrategySimilarity
+	}
 }
 
 func sanitizeIdentifier(raw string, field string) (string, error) {

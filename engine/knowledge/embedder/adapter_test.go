@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/embeddings"
 
+	memoryembeddings "github.com/compozy/compozy/engine/memory/embeddings"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -145,6 +146,56 @@ func TestAdapter_Cache(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, vec3, 1)
 	assert.Equal(t, float32(len("gamma")), vec3[0])
+}
+
+func TestCategorizeError(t *testing.T) {
+	testCases := []struct {
+		name     string
+		err      error
+		expected memoryembeddings.ErrorType
+	}{
+		{
+			name:     "NilError",
+			err:      nil,
+			expected: memoryembeddings.ErrorTypeServerError,
+		},
+		{
+			name:     "ContextDeadline",
+			err:      context.DeadlineExceeded,
+			expected: memoryembeddings.ErrorTypeRateLimit,
+		},
+		{
+			name:     "RateLimitMessage",
+			err:      errors.New("rate limit exceeded"),
+			expected: memoryembeddings.ErrorTypeRateLimit,
+		},
+		{
+			name:     "Status429",
+			err:      errors.New("http 429 too many requests"),
+			expected: memoryembeddings.ErrorTypeRateLimit,
+		},
+		{
+			name:     "AuthFailure",
+			err:      errors.New("unauthorized"),
+			expected: memoryembeddings.ErrorTypeAuth,
+		},
+		{
+			name:     "InvalidInput",
+			err:      errors.New("bad request: invalid value"),
+			expected: memoryembeddings.ErrorTypeInvalidInput,
+		},
+		{
+			name:     "ServerErrorFallback",
+			err:      errors.New("internal server error"),
+			expected: memoryembeddings.ErrorTypeServerError,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, categorizeError(tc.err))
+		})
+	}
 }
 
 func TestNew(t *testing.T) {

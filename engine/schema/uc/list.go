@@ -56,7 +56,7 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 	)
 	payload := make([]map[string]any, 0, len(window))
 	for i := range window {
-		sc, err := decodeStoredSchema(window[i].Value, window[i].Key.ID)
+		sc, err := decodeStoredSchema(ctx, window[i].Value, window[i].Key.ID)
 		if err != nil {
 			return nil, err
 		}

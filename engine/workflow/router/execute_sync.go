@@ -106,7 +106,14 @@ func executeWorkflowSync(c *gin.Context) {
 	log := logger.FromContext(c.Request.Context())
 	log.Info("Workflow execution started", "workflow_id", workflowID, "exec_id", execID.String())
 	deadline := time.Duration(req.Timeout) * workflowTimeoutUnit
-	stateResult, timedOut, pollErr := waitForWorkflowCompletion(c.Request.Context(), repo, execID, deadline)
+	stateResult, timedOut, pollErr := waitForWorkflowCompletion(
+		c.Request.Context(),
+		repo,
+		execID,
+		deadline,
+		workflowID,
+		metrics,
+	)
 	if pollErr != nil {
 		recordError(http.StatusInternalServerError)
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to monitor workflow execution", pollErr)
@@ -221,11 +228,22 @@ func waitForWorkflowCompletion(
 	repo workflow.Repository,
 	execID core.ID,
 	timeout time.Duration,
+	workflowID string,
+	metrics *monitoring.ExecutionMetrics,
 ) (*workflow.State, bool, error) {
 	pollCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	interval := workflowPollInitialBackoff
-	attempt := 0
+	pollCount := 0
+	pollOutcome := monitoring.WorkflowPollOutcomeError
+	start := time.Now()
+	defer func() {
+		if metrics == nil {
+			return
+		}
+		metrics.RecordWorkflowPollDuration(ctx, workflowID, time.Since(start))
+		metrics.RecordWorkflowPolls(ctx, workflowID, pollCount, pollOutcome)
+	}()
 	execIDStr := execID.String()
 	var lastState *workflow.State
 	timer := time.NewTimer(time.Hour)
@@ -239,24 +257,29 @@ func waitForWorkflowCompletion(
 	for {
 		if pollCtx.Err() != nil {
 			state, err := finalWorkflowState(ctx, repo, execID, lastState)
+			pollOutcome = monitoring.WorkflowPollOutcomeTimeout
 			return state, true, err
 		}
 		state, err := repo.GetState(pollCtx, execID)
+		pollCount++
 		if err != nil {
 			if !isIgnorablePollError(err) {
+				pollOutcome = monitoring.WorkflowPollOutcomeError
 				return lastState, false, err
 			}
 		} else if state != nil {
 			lastState = state
 			if isWorkflowTerminal(state.Status) {
+				pollOutcome = monitoring.WorkflowPollOutcomeCompleted
 				return state, false, nil
 			}
 		}
-		wait := applyWorkflowJitter(interval, execIDStr, attempt)
+		attemptIndex := pollCount - 1
+		wait := applyWorkflowJitter(interval, execIDStr, attemptIndex)
 		interval = nextWorkflowBackoff(interval)
-		attempt++
 		if !waitForNextWorkflowPoll(pollCtx, timer, wait) {
 			state, finalErr := finalWorkflowState(ctx, repo, execID, lastState)
+			pollOutcome = monitoring.WorkflowPollOutcomeTimeout
 			return state, true, finalErr
 		}
 	}

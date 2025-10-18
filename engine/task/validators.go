@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -92,47 +93,47 @@ func NewTaskTypeValidator(config *Config) *TypeValidator {
 	}
 }
 
-func (v *TypeValidator) Validate() error {
+func (v *TypeValidator) Validate(ctx context.Context) error {
 	if v.config.Type == "" {
 		return nil
 	}
 	switch v.config.Type {
 	case TaskTypeBasic:
-		return v.validateBasicTask()
+		return v.validateBasicTask(ctx)
 	case TaskTypeRouter:
-		if err := v.validateExecutorFields(); err != nil {
+		if err := v.validateExecutorFields(ctx); err != nil {
 			return err
 		}
-		return v.validateRouterTask()
+		return v.validateRouterTask(ctx)
 	case TaskTypeParallel:
-		if err := v.validateExecutorFields(); err != nil {
+		if err := v.validateExecutorFields(ctx); err != nil {
 			return err
 		}
-		return v.validateParallelTask()
+		return v.validateParallelTask(ctx)
 	case TaskTypeCollection:
-		if err := v.validateExecutorFields(); err != nil {
+		if err := v.validateExecutorFields(ctx); err != nil {
 			return err
 		}
-		return v.validateCollectionTask()
+		return v.validateCollectionTask(ctx)
 	case TaskTypeAggregate:
-		return v.validateAggregateTask()
+		return v.validateAggregateTask(ctx)
 	case TaskTypeComposite:
-		if err := v.validateExecutorFields(); err != nil {
+		if err := v.validateExecutorFields(ctx); err != nil {
 			return err
 		}
-		return v.validateCompositeTask()
+		return v.validateCompositeTask(ctx)
 	case TaskTypeSignal:
-		return v.validateSignalTask()
+		return v.validateSignalTask(ctx)
 	case TaskTypeWait:
-		return v.validateWaitTask()
+		return v.validateWaitTask(ctx)
 	case TaskTypeMemory:
-		return v.validateMemoryTask()
+		return v.validateMemoryTask(ctx)
 	default:
 		return fmt.Errorf("invalid task type: %s", v.config.Type)
 	}
 }
 
-func (v *TypeValidator) validateExecutorFields() error {
+func (v *TypeValidator) validateExecutorFields(_ context.Context) error {
 	hasAgent := v.config.GetAgent() != nil
 	hasTool := v.config.GetTool() != nil
 	prompt := strings.TrimSpace(v.config.Prompt)
@@ -190,14 +191,14 @@ func (v *TypeValidator) validateExecutorFields() error {
 	return nil
 }
 
-func (v *TypeValidator) validateBasicTask() error {
+func (v *TypeValidator) validateBasicTask(ctx context.Context) error {
 	// For basic tasks, just run the standard executor field validation
 	// The runtime check in ExecuteTask will catch missing components when they're actually needed
 	// This allows for $use references and other dynamic resolution patterns to work properly
-	return v.validateExecutorFields()
+	return v.validateExecutorFields(ctx)
 }
 
-func (v *TypeValidator) validateRouterTask() error {
+func (v *TypeValidator) validateRouterTask(_ context.Context) error {
 	if strings.TrimSpace(v.config.Action) != "" {
 		return fmt.Errorf("router tasks cannot have an action field")
 	}
@@ -218,7 +219,7 @@ func (v *TypeValidator) validateRouterTask() error {
 	return nil
 }
 
-func (v *TypeValidator) validateParallelTask() error {
+func (v *TypeValidator) validateParallelTask(ctx context.Context) error {
 	if len(v.config.Tasks) == 0 {
 		return fmt.Errorf("parallel tasks must have at least one sub-task")
 	}
@@ -236,7 +237,7 @@ func (v *TypeValidator) validateParallelTask() error {
 	// Then validate each individual task
 	for i := range v.config.Tasks {
 		task := &v.config.Tasks[i]
-		if err := v.validateParallelTaskItem(task); err != nil {
+		if err := v.validateParallelTaskItem(ctx, task); err != nil {
 			return fmt.Errorf("invalid parallel task item %s: %w", task.ID, err)
 		}
 	}
@@ -249,20 +250,20 @@ func (v *TypeValidator) validateParallelTask() error {
 	return nil
 }
 
-func (v *TypeValidator) validateParallelTaskItem(item *Config) error {
+func (v *TypeValidator) validateParallelTaskItem(ctx context.Context, item *Config) error {
 	if item.ID == "" {
 		return fmt.Errorf("task item ID is required")
 	}
 	// Each task in parallel execution should be a valid task configuration
-	if err := item.Validate(); err != nil {
+	if err := item.Validate(ctx); err != nil {
 		return fmt.Errorf("invalid task configuration: %w", err)
 	}
 	return nil
 }
 
-func (v *TypeValidator) validateCollectionTask() error {
+func (v *TypeValidator) validateCollectionTask(ctx context.Context) error {
 	validator := NewCollectionValidator(v.config)
-	return validator.Validate()
+	return validator.Validate(ctx)
 }
 
 // -----------------------------------------------------------------------------
@@ -277,21 +278,21 @@ func NewCollectionValidator(config *Config) *CollectionValidator {
 	return &CollectionValidator{config: config}
 }
 
-func (v *CollectionValidator) Validate() error {
-	if err := v.validateStructure(); err != nil {
+func (v *CollectionValidator) Validate(ctx context.Context) error {
+	if err := v.validateStructure(ctx); err != nil {
 		return err
 	}
-	if err := v.validateConfig(); err != nil {
+	if err := v.validateConfig(ctx); err != nil {
 		return err
 	}
-	if err := v.validateTaskTemplate(); err != nil {
+	if err := v.validateTaskTemplate(ctx); err != nil {
 		return err
 	}
 	return nil
 }
 
 // validateStructure ensures that collection tasks have exactly one of 'task' or 'tasks' configured
-func (v *CollectionValidator) validateStructure() error {
+func (v *CollectionValidator) validateStructure(_ context.Context) error {
 	hasTask := v.config.Task != nil
 	hasTasks := len(v.config.Tasks) > 0
 
@@ -310,7 +311,7 @@ func (v *CollectionValidator) validateStructure() error {
 }
 
 // validateConfig validates collection configuration details
-func (v *CollectionValidator) validateConfig() error {
+func (v *CollectionValidator) validateConfig(_ context.Context) error {
 	cc := &v.config.CollectionConfig
 
 	if strings.TrimSpace(cc.Items) == "" {
@@ -329,9 +330,9 @@ func (v *CollectionValidator) validateConfig() error {
 }
 
 // validateTaskTemplate validates the task template if provided
-func (v *CollectionValidator) validateTaskTemplate() error {
+func (v *CollectionValidator) validateTaskTemplate(ctx context.Context) error {
 	if v.config.Task != nil {
-		if err := v.config.Task.Validate(); err != nil {
+		if err := v.config.Task.Validate(ctx); err != nil {
 			return fmt.Errorf("invalid collection task template: %w", err)
 		}
 	}
@@ -339,7 +340,7 @@ func (v *CollectionValidator) validateTaskTemplate() error {
 	return nil
 }
 
-func (v *TypeValidator) validateAggregateTask() error {
+func (v *TypeValidator) validateAggregateTask(_ context.Context) error {
 	if v.config.Outputs == nil || len(*v.config.Outputs) == 0 {
 		return fmt.Errorf("aggregate tasks must have outputs defined")
 	}
@@ -363,7 +364,7 @@ func (v *TypeValidator) validateAggregateTask() error {
 	return nil
 }
 
-func (v *TypeValidator) validateCompositeTask() error {
+func (v *TypeValidator) validateCompositeTask(ctx context.Context) error {
 	if len(v.config.Tasks) == 0 {
 		return fmt.Errorf("composite tasks must have at least one sub-task")
 	}
@@ -379,7 +380,7 @@ func (v *TypeValidator) validateCompositeTask() error {
 	// Validate each individual task
 	for i := range v.config.Tasks {
 		task := &v.config.Tasks[i]
-		if err := v.validateCompositeTaskItem(task); err != nil {
+		if err := v.validateCompositeTaskItem(ctx, task); err != nil {
 			return fmt.Errorf("invalid composite task item %s: %w", task.ID, err)
 		}
 	}
@@ -390,19 +391,19 @@ func (v *TypeValidator) validateCompositeTask() error {
 	return nil
 }
 
-func (v *TypeValidator) validateCompositeTaskItem(item *Config) error {
+func (v *TypeValidator) validateCompositeTaskItem(ctx context.Context, item *Config) error {
 	if item.ID == "" {
 		return fmt.Errorf("task item ID is required")
 	}
 	// All task types are now supported as subtasks with nested tasks implementation
 	// Each task in composite execution should be a valid task configuration
-	if err := item.Validate(); err != nil {
+	if err := item.Validate(ctx); err != nil {
 		return fmt.Errorf("invalid task configuration: %w", err)
 	}
 	return nil
 }
 
-func (v *TypeValidator) validateSignalTask() error {
+func (v *TypeValidator) validateSignalTask(_ context.Context) error {
 	if v.config.Signal == nil || strings.TrimSpace(v.config.Signal.ID) == "" {
 		return fmt.Errorf("signal.id is required for signal tasks")
 	}
@@ -419,7 +420,7 @@ func (v *TypeValidator) validateSignalTask() error {
 	return nil
 }
 
-func (v *TypeValidator) validateWaitTask() error {
+func (v *TypeValidator) validateWaitTask(_ context.Context) error {
 	// Wait tasks should not have action, agent, or tool
 	if v.config.Action != "" {
 		return fmt.Errorf("wait tasks cannot have an action field")
@@ -434,7 +435,7 @@ func (v *TypeValidator) validateWaitTask() error {
 	return nil
 }
 
-func (v *TypeValidator) validateMemoryTask() error {
+func (v *TypeValidator) validateMemoryTask(_ context.Context) error {
 	// Memory tasks should not have action, agent, or tool
 	if v.config.Action != "" {
 		return fmt.Errorf("memory tasks cannot have an action field")

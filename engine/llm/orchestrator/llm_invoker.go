@@ -2,11 +2,13 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	"github.com/compozy/compozy/engine/llm/provider/pricing"
 	"github.com/compozy/compozy/engine/llm/telemetry"
 	"github.com/sethvargo/go-retry"
 )
@@ -25,6 +27,22 @@ type llmInvoker struct {
 }
 
 const defaultRetryJitter = 50 * time.Millisecond
+
+const (
+	providerOutcomeSuccess     = "success"
+	providerOutcomeError       = "error"
+	providerOutcomeTimeout     = "timeout"
+	providerOutcomeRateLimited = "rate_limited"
+
+	errorTypeAuth       = "auth"
+	errorTypeRateLimit  = "rate_limit"
+	errorTypeInvalid    = "invalid_request"
+	errorTypeServer     = "server_error"
+	errorTypeTimeout    = "timeout"
+	errorTypeUnknown    = "unknown"
+	tokenTypePrompt     = "prompt"
+	tokenTypeCompletion = "completion"
+)
 
 func NewLLMInvoker(cfg *settings) LLMInvoker {
 	if cfg == nil {
@@ -67,8 +85,10 @@ func (i *llmInvoker) invokeOnce(
 	response **llmadapter.LLMResponse,
 	lastErr *error,
 ) error {
+	providerName, modelName := providerAndModel(request)
 	releaseLimiter, acquireErr := i.acquireRateLimiter(ctx, request, backoff, lastErr)
 	if acquireErr != nil {
+		i.recordAttemptMetrics(ctx, providerName, modelName, 0, acquireErr)
 		return acquireErr
 	}
 	tokensUsed := 0
@@ -77,7 +97,10 @@ func (i *llmInvoker) invokeOnce(
 			releaseLimiter(tokensUsed)
 		}()
 	}
+	start := time.Now()
 	resp, callErr := client.GenerateContent(ctx, req)
+	duration := time.Since(start)
+	i.recordAttemptMetrics(ctx, providerName, modelName, duration, callErr)
 	if callErr != nil {
 		if lastErr != nil {
 			*lastErr = callErr
@@ -126,6 +149,9 @@ func (i *llmInvoker) Invoke(
 	})
 	callDuration := time.Since(callStarted)
 	i.recordProviderCall(ctx, &request, attempts, callDuration, lastErr)
+	if err == nil {
+		i.recordUsageMetrics(ctx, &request, response)
+	}
 	if err != nil {
 		return nil, NewLLMError(err, ErrCodeLLMGeneration, map[string]any{
 			"agent":  request.Agent.ID,
@@ -179,10 +205,12 @@ func (i *llmInvoker) recordProviderCall(
 	duration time.Duration,
 	err error,
 ) {
+	outcome, errorType := classifyProviderError(err)
 	metadata := map[string]any{
 		"latency_ms": float64(duration) / float64(time.Millisecond),
 		"attempts":   attempts,
 		"retry_cap":  i.cfg.retryAttempts,
+		"outcome":    outcome,
 	}
 	if i.cfg.timeout > 0 {
 		metadata["timeout_ms"] = float64(i.cfg.timeout) / float64(time.Millisecond)
@@ -210,8 +238,101 @@ func (i *llmInvoker) recordProviderCall(
 	if err != nil {
 		event.Severity = telemetry.SeverityError
 		event.Metadata["error"] = core.RedactError(err)
+		if errorType != "" && errorType != errorTypeUnknown {
+			event.Metadata["error_type"] = errorType
+		}
 	}
 	telemetry.RecordEvent(ctx, &event)
+}
+
+func (i *llmInvoker) recordAttemptMetrics(
+	ctx context.Context,
+	provider core.ProviderName,
+	model string,
+	duration time.Duration,
+	callErr error,
+) {
+	recorder := i.cfg.providerMetrics
+	if recorder == nil {
+		return
+	}
+	outcome, errorType := classifyProviderError(callErr)
+	recorder.RecordRequest(ctx, provider, model, duration, outcome)
+	if outcome != providerOutcomeSuccess && errorType != "" && errorType != errorTypeUnknown {
+		recorder.RecordError(ctx, provider, model, errorType)
+	}
+}
+
+func (i *llmInvoker) recordUsageMetrics(
+	ctx context.Context,
+	request *Request,
+	response *llmadapter.LLMResponse,
+) {
+	if response == nil || response.Usage == nil {
+		return
+	}
+	recorder := i.cfg.providerMetrics
+	if recorder == nil {
+		return
+	}
+	provider, model := providerAndModel(request)
+	usage := response.Usage
+	if usage.PromptTokens > 0 {
+		recorder.RecordTokens(ctx, provider, model, tokenTypePrompt, usage.PromptTokens)
+	}
+	if usage.CompletionTokens > 0 {
+		recorder.RecordTokens(ctx, provider, model, tokenTypeCompletion, usage.CompletionTokens)
+	}
+	if cost, ok := pricing.EstimateCostUSD(provider, model, usage); ok {
+		recorder.RecordCost(ctx, provider, model, cost)
+	}
+}
+
+func providerAndModel(request *Request) (core.ProviderName, string) {
+	if request == nil || request.Agent == nil {
+		return "", ""
+	}
+	model := request.Agent.Model
+	if model.IsEmpty() || !model.HasConfig() {
+		return "", ""
+	}
+	return model.Config.Provider, model.Config.Model
+}
+
+func classifyProviderError(err error) (string, string) {
+	if err == nil {
+		return providerOutcomeSuccess, ""
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return providerOutcomeTimeout, errorTypeTimeout
+	}
+	if llmErr, ok := llmadapter.IsLLMError(err); ok && llmErr != nil {
+		switch llmErr.Code {
+		case llmadapter.ErrCodeRateLimit, llmadapter.ErrCodeQuotaExceeded:
+			return providerOutcomeRateLimited, errorTypeRateLimit
+		case llmadapter.ErrCodeTimeout, llmadapter.ErrCodeGatewayTimeout:
+			return providerOutcomeTimeout, errorTypeTimeout
+		case llmadapter.ErrCodeUnauthorized, llmadapter.ErrCodeForbidden:
+			return providerOutcomeError, errorTypeAuth
+		case llmadapter.ErrCodeBadRequest, llmadapter.ErrCodeInvalidModel, llmadapter.ErrCodeContentPolicy:
+			return providerOutcomeError, errorTypeInvalid
+		case llmadapter.ErrCodeInternalServer,
+			llmadapter.ErrCodeBadGateway,
+			llmadapter.ErrCodeServiceUnavailable,
+			llmadapter.ErrCodeCapacityError,
+			llmadapter.ErrCodeConnectionReset,
+			llmadapter.ErrCodeConnectionRefused:
+			return providerOutcomeError, errorTypeServer
+		}
+		if llmErr.HTTPStatus >= 500 {
+			return providerOutcomeError, errorTypeServer
+		}
+		if llmErr.HTTPStatus >= 400 {
+			return providerOutcomeError, errorTypeInvalid
+		}
+		return providerOutcomeError, errorTypeUnknown
+	}
+	return providerOutcomeError, errorTypeUnknown
 }
 
 func applyRetryAfterHint(err error, backoff *adaptiveBackoff) {

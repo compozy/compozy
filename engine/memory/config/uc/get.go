@@ -46,7 +46,7 @@ func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
 		}
 		return nil, err
 	}
-	cfg, err := decodeStoredMemory(value, memoryID)
+	cfg, err := decodeStoredMemory(ctx, value, memoryID)
 	if err != nil {
 		return nil, err
 	}

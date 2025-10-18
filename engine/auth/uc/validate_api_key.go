@@ -50,7 +50,7 @@ func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 		)
 		if errors.Is(err, ErrAPIKeyNotFound) {
 			log.Debug("API key not found", "error", err)
-			return nil, fmt.Errorf("invalid API key")
+			return nil, ErrInvalidCredentials
 		}
 		log.Error("Failed to get API key by hash", "error", err)
 		return nil, fmt.Errorf("internal error validating API key: %w", err)
@@ -58,7 +58,7 @@ func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 
 	if err := bcrypt.CompareHashAndPassword(apiKey.Hash, []byte(uc.plaintext)); err != nil {
 		log.Debug("API key hash verification failed", "error", err)
-		return nil, fmt.Errorf("invalid API key")
+		return nil, ErrInvalidCredentials
 	}
 
 	// Get the associated user

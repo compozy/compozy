@@ -84,7 +84,7 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		return nil, fmt.Errorf("failed to expand collection items: %w", err)
 	}
 	// Validate expansion result
-	if err := expander.ValidateExpansion(expansionResult); err != nil {
+	if err := expander.ValidateExpansion(ctx, expansionResult); err != nil {
 		return nil, fmt.Errorf("expansion validation failed: %w", err)
 	}
 	var createdState *task.State

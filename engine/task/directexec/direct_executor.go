@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
@@ -49,6 +50,7 @@ type directExecutor struct {
 	toolEnvironment    toolenv.Environment
 	appState           *appstate.State
 	usageMetrics       usage.Metrics
+	providerMetrics    providermetrics.Recorder
 	resourceStore      resources.ResourceStore
 	projectConfig      *project.Config
 	memoryManager      memcore.ManagerInterface
@@ -263,8 +265,10 @@ func NewDirectExecutor(
 		workflowRepo = state.Store.NewWorkflowRepo()
 	}
 	var usageMetrics usage.Metrics
+	providerMetrics := providermetrics.Nop()
 	if svc, ok := state.MonitoringService(); ok && svc != nil && svc.IsInitialized() {
 		usageMetrics = svc.LLMUsageMetrics()
+		providerMetrics = svc.LLMProviderMetrics()
 	}
 	orchestrator, tplEng, err := setupConfigOrchestrator(workflowRepo, taskRepo)
 	if err != nil {
@@ -291,6 +295,7 @@ func NewDirectExecutor(
 		toolEnvironment:    toolEnvironment,
 		appState:           state,
 		usageMetrics:       usageMetrics,
+		providerMetrics:    providerMetrics,
 		resourceStore:      resourceStore,
 		projectConfig:      projCfg,
 		memoryManager:      memManager,
@@ -508,7 +513,15 @@ func (d *directExecutor) executeOnce(
 	if err != nil {
 		return nil, err
 	}
-	ucExec := uc.NewExecuteTask(rt, d.workflowRepo, d.memoryManager, d.templateEngine, nil, d.toolEnvironment)
+	ucExec := uc.NewExecuteTask(
+		rt,
+		d.workflowRepo,
+		d.memoryManager,
+		d.templateEngine,
+		nil,
+		d.providerMetrics,
+		d.toolEnvironment,
+	)
 	wfState := d.buildWorkflowState(plan.meta, state.WorkflowExecID, plan.config)
 	input := &uc.ExecuteTaskInput{
 		TaskConfig:     plan.config,

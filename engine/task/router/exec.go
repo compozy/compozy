@@ -621,6 +621,9 @@ func executeTaskAsync(c *gin.Context) {
 		router.RespondWithServerError(c, router.ErrInternalCode, "task execution failed", execErr)
 		return
 	}
+	if metrics != nil {
+		metrics.RecordAsyncStarted(ctx, monitoring.ExecutionKindTask)
+	}
 	execURL := fmt.Sprintf("%s/tasks/%s", routes.Executions(), execID.String())
 	c.Header("Location", execURL)
 	router.RespondAccepted(c, "task execution started", gin.H{"exec_id": execID.String(), "exec_url": execURL})

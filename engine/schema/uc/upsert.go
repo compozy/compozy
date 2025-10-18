@@ -47,7 +47,7 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 	if schemaID == "" {
 		return nil, ErrIDMissing
 	}
-	sc, err := decodeSchemaBody(in.Body, schemaID)
+	sc, err := decodeSchemaBody(ctx, in.Body, schemaID)
 	if err != nil {
 		return nil, err
 	}

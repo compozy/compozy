@@ -22,7 +22,7 @@ func TestStrategySelectionE2E(t *testing.T) {
 		ctx := context.Background()
 
 		// Register test memory config without hyphens
-		err := env.RegisterMemoryConfig(&memory.Config{
+		err := env.RegisterMemoryConfig(ctx, &memory.Config{
 			Resource:    "memory",
 			ID:          "customersupport",
 			Type:        memcore.TokenBasedMemory,
@@ -94,7 +94,7 @@ func TestStrategySelectionE2E(t *testing.T) {
 		ctx := context.Background()
 
 		// Register test memory config
-		err := env.RegisterMemoryConfig(&memory.Config{
+		err := env.RegisterMemoryConfig(ctx, &memory.Config{
 			Resource:    "memory",
 			ID:          "sharedmemory",
 			Type:        memcore.MessageCountBasedMemory,
@@ -163,7 +163,7 @@ func TestStrategySelectionE2E(t *testing.T) {
 		ctx := context.Background()
 
 		// Register test memory config
-		err := env.RegisterMemoryConfig(&memory.Config{
+		err := env.RegisterMemoryConfig(ctx, &memory.Config{
 			Resource:    "memory",
 			ID:          "flushablememory",
 			Type:        memcore.TokenBasedMemory,
@@ -240,7 +240,7 @@ func TestStrategySelectionE2E(t *testing.T) {
 		ctx := context.Background()
 
 		// Register test memory config
-		err := env.RegisterMemoryConfig(&memory.Config{
+		err := env.RegisterMemoryConfig(ctx, &memory.Config{
 			Resource:    "memory",
 			ID:          "compatmemory",
 			Type:        memcore.TokenBasedMemory,

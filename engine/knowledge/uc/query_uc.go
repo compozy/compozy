@@ -64,7 +64,8 @@ func (uc *Query) Execute(ctx context.Context, in *QueryInput) (*QueryOutput, err
 	if err != nil {
 		return nil, fmt.Errorf("init retriever: %w", err)
 	}
-	contexts, err := service.Retrieve(ctx, binding, queryText)
+	retrievalCtx := retriever.ContextWithStrategy(ctx, retriever.StrategySimilarity)
+	contexts, err := service.Retrieve(retrievalCtx, binding, queryText)
 	if err != nil {
 		return nil, err
 	}

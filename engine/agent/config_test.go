@@ -45,7 +45,7 @@ func Test_LoadAgent(t *testing.T) {
 
 		require.NotNil(t, action.InputSchema)
 		schema := action.InputSchema
-		compiledSchema, err := schema.Compile()
+		compiledSchema, err := schema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledSchema.Type))
 		require.NotNil(t, compiledSchema.Properties)
@@ -55,7 +55,7 @@ func Test_LoadAgent(t *testing.T) {
 
 		require.NotNil(t, action.OutputSchema)
 		outSchema := action.OutputSchema
-		compiledOutSchema, err := outSchema.Compile()
+		compiledOutSchema, err := outSchema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledOutSchema.Type))
 		require.NotNil(t, compiledOutSchema.Properties)
@@ -142,7 +142,7 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 			Prompt: "test prompt",
 			CWD:    actionCWD,
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -151,7 +151,7 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 			ID:     "test-action",
 			Prompt: "test prompt",
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "current working directory is required for test-action")
 	})
@@ -236,7 +236,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 			Instructions: "test instructions",
 			CWD:          agentCWD,
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -246,7 +246,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 			Model:        Model{Config: core.ProviderConfig{}},
 			Instructions: "test instructions",
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "current working directory is required for test-agent")
 	})
@@ -458,7 +458,7 @@ func Test_Config_Validate_WithMemory(t *testing.T) {
 		}
 		// Mock or skip registry check for now in AgentMemoryValidator for this test to pass
 		// by ensuring AgentMemoryValidator doesn't error on placeholder registry logic.
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		assert.NoError(
 			t,
 			err,
@@ -470,7 +470,7 @@ func Test_Config_Validate_WithMemory(t *testing.T) {
 		cfg.Memory = []core.MemoryReference{
 			{ID: "mem1"}, // Missing Key
 		}
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 }
@@ -530,7 +530,7 @@ func Test_Config_Validate_MCPErrorAggregation(t *testing.T) {
 		cwd, _ := core.CWDFromPath("/tmp")
 		cfg := &Config{ID: "a", Model: Model{Config: core.ProviderConfig{}}, Instructions: "i", CWD: cwd}
 		cfg.MCPs = []mcp.Config{{ID: "srv", Resource: "mcp", Transport: mcpproxy.TransportStdio}}
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "mcp validation error")
 	})

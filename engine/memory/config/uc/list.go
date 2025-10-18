@@ -55,7 +55,7 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 	)
 	payload := make([]map[string]any, 0, len(window))
 	for i := range window {
-		cfg, err := decodeStoredMemory(window[i].Value, window[i].Key.ID)
+		cfg, err := decodeStoredMemory(ctx, window[i].Value, window[i].Key.ID)
 		if err != nil {
 			return nil, err
 		}

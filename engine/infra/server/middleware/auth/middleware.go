@@ -61,34 +61,44 @@ func (m *Manager) Middleware() gin.HandlerFunc {
 			return
 		}
 		start := time.Now()
-		log := logger.FromContext(c.Request.Context())
+		ctx := c.Request.Context()
+		log := logger.FromContext(ctx)
+		authMethod := auth.AuthMethodAPIKey
 
 		// Extract bearer token
 		apiKey, err := m.extractBearerToken(c)
 		if err != nil {
 			var authErr *authError
-			if errors.As(err, &authErr) && authErr.message == "no authorization header" {
-				// Allow endpoints to continue without user context
-				// RequireAuth() middleware will block if needed
-				c.Next()
-				return
+			recorded := false
+			if errors.As(err, &authErr) {
+				reason := categorizeHeaderError(authErr)
+				auth.RecordAuthAttempt(ctx, auth.AuthOutcomeFailure, reason, authMethod, time.Since(start))
+				recorded = true
+				if authErr.message == "no authorization header" {
+					// Allow endpoints to continue without user context while still tracking failures
+					c.Next()
+					return
+				}
 			}
 			log.Debug("Authentication failed", "reason", err.Error())
-			auth.RecordAuthAttempt(c.Request.Context(), "fail", time.Since(start))
+			if !recorded {
+				auth.RecordAuthAttempt(ctx, auth.AuthOutcomeFailure, auth.ReasonUnknown, authMethod, time.Since(start))
+			}
 			m.handleAuthError(c, err)
 			return
 		}
 
 		validateUC := m.factory.ValidateAPIKey(apiKey)
-		user, err := validateUC.Execute(c.Request.Context())
+		user, err := validateUC.Execute(ctx)
 		if err != nil {
 			log.Debug("API key validation failed")
-			auth.RecordAuthAttempt(c.Request.Context(), "fail", time.Since(start))
+			reason := categorizeValidationError(err)
+			auth.RecordAuthAttempt(ctx, auth.AuthOutcomeFailure, reason, authMethod, time.Since(start))
 			m.handleAuthError(c, err)
 			return
 		}
 
-		auth.RecordAuthAttempt(c.Request.Context(), "success", time.Since(start))
+		auth.RecordAuthAttempt(ctx, auth.AuthOutcomeSuccess, auth.ReasonNone, authMethod, time.Since(start))
 		m.setAuthContext(c, apiKey, user)
 		c.Next()
 	}
@@ -130,6 +140,46 @@ func (m *Manager) handleAuthError(c *gin.Context, err error) {
 
 	c.JSON(401, response)
 	c.Abort()
+}
+
+func categorizeHeaderError(err *authError) auth.AuthFailureReason {
+	if err == nil {
+		return auth.ReasonUnknown
+	}
+
+	switch err.message {
+	case "no authorization header":
+		return auth.ReasonMissingAuth
+	case "invalid format", "empty token":
+		return auth.ReasonInvalidFormat
+	default:
+		return auth.ReasonUnknown
+	}
+}
+
+func categorizeValidationError(err error) auth.AuthFailureReason {
+	if err == nil {
+		return auth.ReasonUnknown
+	}
+
+	switch {
+	case errors.Is(err, uc.ErrInvalidCredentials):
+		return auth.ReasonInvalidCredentials
+	case errors.Is(err, uc.ErrTokenExpired):
+		return auth.ReasonExpiredToken
+	case errors.Is(err, uc.ErrRateLimited):
+		return auth.ReasonRateLimited
+	}
+
+	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "expired") {
+		return auth.ReasonExpiredToken
+	}
+	if strings.Contains(message, "rate limit") {
+		return auth.ReasonRateLimited
+	}
+
+	return auth.ReasonUnknown
 }
 
 // setAuthContext sets authentication information in context

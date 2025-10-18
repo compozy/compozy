@@ -399,7 +399,7 @@ func (r *Reconciler) recompileAndSwap(
 	}
 	next := r.buildNextSet(compiled, deletes)
 	slugs := workflow.SlugsFromList(next)
-	if err := project.NewWebhookSlugsValidator(slugs).Validate(); err != nil {
+	if err := project.NewWebhookSlugsValidator(slugs).Validate(ctx); err != nil {
 		if r.recompileTotal != nil {
 			r.recompileTotal.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "error")))
 		}

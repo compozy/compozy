@@ -454,10 +454,10 @@ func (c *RetrievalConfig) normalize(defaults Defaults) {
 }
 
 // Validate checks definitions for consistency and aggregates any validation errors.
-func (d *Definitions) Validate() error {
-	embedderIndex, embedderErrs := validateEmbedders(d.Embedders)
-	vectorIndex, vectorErrs := validateVectorDBs(d.VectorDBs)
-	kbErrs := validateKnowledgeBases(d.KnowledgeBases, embedderIndex, vectorIndex)
+func (d *Definitions) Validate(ctx context.Context) error {
+	embedderIndex, embedderErrs := validateEmbedders(ctx, d.Embedders)
+	vectorIndex, vectorErrs := validateVectorDBs(ctx, d.VectorDBs)
+	kbErrs := validateKnowledgeBases(ctx, d.KnowledgeBases, embedderIndex, vectorIndex)
 
 	totalErrs := len(embedderErrs) + len(vectorErrs) + len(kbErrs)
 	errs := make([]error, 0, totalErrs)
@@ -470,7 +470,7 @@ func (d *Definitions) Validate() error {
 	return NewValidationErrors(errs...)
 }
 
-func validateEmbedders(list []EmbedderConfig) (map[string]*EmbedderConfig, []error) {
+func validateEmbedders(_ context.Context, list []EmbedderConfig) (map[string]*EmbedderConfig, []error) {
 	index := make(map[string]*EmbedderConfig, len(list))
 	var errs []error
 	for i := range list {
@@ -520,7 +520,7 @@ func validateEmbedders(list []EmbedderConfig) (map[string]*EmbedderConfig, []err
 	return index, errs
 }
 
-func validateVectorDBs(list []VectorDBConfig) (map[string]*VectorDBConfig, []error) {
+func validateVectorDBs(ctx context.Context, list []VectorDBConfig) (map[string]*VectorDBConfig, []error) {
 	index := make(map[string]*VectorDBConfig, len(list))
 	var errs []error
 	for i := range list {
@@ -533,31 +533,31 @@ func validateVectorDBs(list []VectorDBConfig) (map[string]*VectorDBConfig, []err
 			errs = append(errs, fmt.Errorf("knowledge: vector_db %q defined more than once", vector.ID))
 			continue
 		}
-		errs = append(errs, validateVectorProvider(vector)...)
+		errs = append(errs, validateVectorProvider(ctx, vector)...)
 		index[vector.ID] = vector
 	}
 	return index, errs
 }
 
-func validateVectorProvider(vector *VectorDBConfig) []error {
+func validateVectorProvider(ctx context.Context, vector *VectorDBConfig) []error {
 	if vector == nil {
 		return []error{fmt.Errorf("knowledge: vector_db config cannot be nil")}
 	}
 	switch vector.Type {
 	case VectorDBTypePGVector:
-		return validatePGVectorConfig(vector)
+		return validatePGVectorConfig(ctx, vector)
 	case VectorDBTypeQdrant:
-		return validateQdrantConfig(vector)
+		return validateQdrantConfig(ctx, vector)
 	case VectorDBTypeRedis:
-		return validateRedisConfig(vector)
+		return validateRedisConfig(ctx, vector)
 	case VectorDBTypeFilesystem:
-		return validateFilesystemConfig(vector)
+		return validateFilesystemConfig(ctx, vector)
 	default:
 		return []error{fmt.Errorf("knowledge: vector_db %q type %q is not supported", vector.ID, vector.Type)}
 	}
 }
 
-func validatePGVectorConfig(vector *VectorDBConfig) []error {
+func validatePGVectorConfig(ctx context.Context, vector *VectorDBConfig) []error {
 	dsn := strings.TrimSpace(vector.Config.DSN)
 	if dsn != vector.Config.DSN {
 		vector.Config.DSN = dsn
@@ -576,14 +576,14 @@ func validatePGVectorConfig(vector *VectorDBConfig) []error {
 		)
 	}
 	if cfg := vector.Config.PGVector; cfg != nil {
-		errs = append(errs, validatePGVectorIndex(vector.ID, cfg.Index)...)
-		errs = append(errs, validatePGVectorPool(vector.ID, cfg.Pool)...)
-		errs = append(errs, validatePGVectorSearch(vector.ID, cfg.Search)...)
+		errs = append(errs, validatePGVectorIndex(ctx, vector.ID, cfg.Index)...)
+		errs = append(errs, validatePGVectorPool(ctx, vector.ID, cfg.Pool)...)
+		errs = append(errs, validatePGVectorSearch(ctx, vector.ID, cfg.Search)...)
 	}
 	return errs
 }
 
-func validatePGVectorIndex(vectorID string, idx *PGVectorIndexConfig) []error {
+func validatePGVectorIndex(_ context.Context, vectorID string, idx *PGVectorIndexConfig) []error {
 	if idx == nil {
 		return nil
 	}
@@ -630,7 +630,7 @@ func validatePGVectorIndex(vectorID string, idx *PGVectorIndexConfig) []error {
 	return errs
 }
 
-func validatePGVectorPool(vectorID string, pool *PGVectorPoolConfig) []error {
+func validatePGVectorPool(_ context.Context, vectorID string, pool *PGVectorPoolConfig) []error {
 	if pool == nil {
 		return nil
 	}
@@ -674,7 +674,7 @@ func validatePGVectorPool(vectorID string, pool *PGVectorPoolConfig) []error {
 	return errs
 }
 
-func validatePGVectorSearch(vectorID string, search *PGVectorSearchConfig) []error {
+func validatePGVectorSearch(_ context.Context, vectorID string, search *PGVectorSearchConfig) []error {
 	if search == nil {
 		return nil
 	}
@@ -694,7 +694,7 @@ func validatePGVectorSearch(vectorID string, search *PGVectorSearchConfig) []err
 	return errs
 }
 
-func validateQdrantConfig(vector *VectorDBConfig) []error {
+func validateQdrantConfig(_ context.Context, vector *VectorDBConfig) []error {
 	dsn := strings.TrimSpace(vector.Config.DSN)
 	if dsn != vector.Config.DSN {
 		vector.Config.DSN = dsn
@@ -714,7 +714,7 @@ func validateQdrantConfig(vector *VectorDBConfig) []error {
 	return errs
 }
 
-func validateRedisConfig(vector *VectorDBConfig) []error {
+func validateRedisConfig(_ context.Context, vector *VectorDBConfig) []error {
 	dsn := strings.TrimSpace(vector.Config.DSN)
 	if dsn != vector.Config.DSN {
 		vector.Config.DSN = dsn
@@ -732,7 +732,7 @@ func validateRedisConfig(vector *VectorDBConfig) []error {
 	return errs
 }
 
-func validateFilesystemConfig(vector *VectorDBConfig) []error {
+func validateFilesystemConfig(_ context.Context, vector *VectorDBConfig) []error {
 	if vector.Config.Dimension <= 0 {
 		return []error{
 			fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
@@ -742,6 +742,7 @@ func validateFilesystemConfig(vector *VectorDBConfig) []error {
 }
 
 func validateKnowledgeBases(
+	ctx context.Context,
 	list []BaseConfig,
 	embedderIndex map[string]*EmbedderConfig,
 	vectorIndex map[string]*VectorDBConfig,
@@ -761,26 +762,27 @@ func validateKnowledgeBases(
 		seen[kb.ID] = struct{}{}
 		embedder := embedderIndex[kb.Embedder]
 		vector := vectorIndex[kb.VectorDB]
-		out = append(out, validateKnowledgeBase(kb, embedder, vector)...)
+		out = append(out, validateKnowledgeBase(ctx, kb, embedder, vector)...)
 	}
 	return out
 }
 
 func validateKnowledgeBase(
+	ctx context.Context,
 	kb *BaseConfig,
 	embedder *EmbedderConfig,
 	vector *VectorDBConfig,
 ) []error {
 	errs := make([]error, 0, 10)
-	errs = append(errs, validateKnowledgeBaseIngest(kb)...)
-	errs = append(errs, validateKnowledgeBaseReferences(kb, embedder, vector)...)
-	errs = append(errs, validateKnowledgeBaseSources(kb)...)
-	errs = append(errs, validateKnowledgeBaseChunking(kb)...)
-	errs = append(errs, validateKnowledgeBaseRetrieval(kb)...)
+	errs = append(errs, validateKnowledgeBaseIngest(ctx, kb)...)
+	errs = append(errs, validateKnowledgeBaseReferences(ctx, kb, embedder, vector)...)
+	errs = append(errs, validateKnowledgeBaseSources(ctx, kb)...)
+	errs = append(errs, validateKnowledgeBaseChunking(ctx, kb)...)
+	errs = append(errs, validateKnowledgeBaseRetrieval(ctx, kb)...)
 	return errs
 }
 
-func validateKnowledgeBaseIngest(kb *BaseConfig) []error {
+func validateKnowledgeBaseIngest(_ context.Context, kb *BaseConfig) []error {
 	switch kb.Ingest {
 	case IngestManual, IngestOnStart:
 		return nil
@@ -795,6 +797,7 @@ func validateKnowledgeBaseIngest(kb *BaseConfig) []error {
 }
 
 func validateKnowledgeBaseReferences(
+	_ context.Context,
 	kb *BaseConfig,
 	embedder *EmbedderConfig,
 	vector *VectorDBConfig,
@@ -829,20 +832,20 @@ func validateKnowledgeBaseReferences(
 	return errs
 }
 
-func validateKnowledgeBaseSources(kb *BaseConfig) []error {
+func validateKnowledgeBaseSources(ctx context.Context, kb *BaseConfig) []error {
 	if len(kb.Sources) == 0 {
 		return []error{fmt.Errorf("knowledge: knowledge_base %q must define at least one source", kb.ID)}
 	}
 	errs := make([]error, 0, len(kb.Sources))
 	for j := range kb.Sources {
-		if err := validateSource(kb.ID, &kb.Sources[j]); err != nil {
+		if err := validateSource(ctx, kb.ID, &kb.Sources[j]); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	return errs
 }
 
-func validateKnowledgeBaseChunking(kb *BaseConfig) []error {
+func validateKnowledgeBaseChunking(_ context.Context, kb *BaseConfig) []error {
 	errs := make([]error, 0, 2)
 	if kb.Chunking.Size < MinChunkSize || kb.Chunking.Size > MaxChunkSize {
 		errs = append(errs, fmt.Errorf(
@@ -861,7 +864,7 @@ func validateKnowledgeBaseChunking(kb *BaseConfig) []error {
 	return errs
 }
 
-func validateKnowledgeBaseRetrieval(kb *BaseConfig) []error {
+func validateKnowledgeBaseRetrieval(_ context.Context, kb *BaseConfig) []error {
 	errs := make([]error, 0, 3)
 	if kb.Retrieval.TopK < 1 || kb.Retrieval.TopK > maxRetrievalTopK {
 		errs = append(errs, fmt.Errorf(
@@ -885,7 +888,7 @@ func validateKnowledgeBaseRetrieval(kb *BaseConfig) []error {
 	return errs
 }
 
-func validateSource(kbID string, source *SourceConfig) error {
+func validateSource(_ context.Context, kbID string, source *SourceConfig) error {
 	switch source.Type {
 	case SourceTypeURL:
 		if strings.TrimSpace(source.Path) == "" && len(source.URLs) == 0 {

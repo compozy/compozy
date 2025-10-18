@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/infra/cache"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/memory"
 	memacts "github.com/compozy/compozy/engine/memory/activities"
@@ -31,6 +32,7 @@ type Activities struct {
 	workflowRepo     workflow.Repository
 	taskRepo         task.Repository
 	usageMetrics     usage.Metrics
+	providerMetrics  providermetrics.Recorder
 	runtime          runtime.Runtime
 	configStore      services.ConfigStore
 	signalDispatcher services.SignalDispatcher
@@ -55,6 +57,7 @@ func NewActivities(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	usageMetrics usage.Metrics,
+	providerMetrics providermetrics.Recorder,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
@@ -97,6 +100,9 @@ func NewActivities(
 	if toolEnv == nil {
 		return nil, fmt.Errorf("activities: tool environment is required")
 	}
+	if providerMetrics == nil {
+		providerMetrics = providermetrics.Nop()
+	}
 
 	acts := &Activities{
 		projectConfig:    projectConfig,
@@ -104,6 +110,7 @@ func NewActivities(
 		workflowRepo:     workflowRepo,
 		taskRepo:         taskRepo,
 		usageMetrics:     usageMetrics,
+		providerMetrics:  providerMetrics,
 		runtime:          runtime,
 		configStore:      configStore,
 		signalDispatcher: signalDispatcher,
@@ -221,6 +228,7 @@ func (a *Activities) ExecuteBasicTask(
 		a.workflowRepo,
 		a.taskRepo,
 		a.usageMetrics,
+		a.providerMetrics,
 		a.runtime,
 		a.configStore,
 		memcore.ManagerInterface(a.memoryManager),
@@ -298,6 +306,7 @@ func (a *Activities) ExecuteSubtask(
 		a.templateEngine,
 		a.projectConfig,
 		a.usageMetrics,
+		a.providerMetrics,
 		a.toolEnvironment,
 	)
 	return act.Run(ctx, input)

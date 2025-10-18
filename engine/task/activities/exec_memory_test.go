@@ -763,7 +763,7 @@ func setupTestConfigRegistry(t *testing.T) *autoload.ConfigRegistry {
 		},
 	}
 
-	err := testMemoryConfig.Validate()
+	err := testMemoryConfig.Validate(t.Context())
 	require.NoError(t, err)
 
 	err = configRegistry.Register(testMemoryConfig, "test")

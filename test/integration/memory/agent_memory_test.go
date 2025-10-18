@@ -332,7 +332,7 @@ func createTestAgentWithMemory(t *testing.T, _ *TestEnvironment) *agent.Config {
 	require.NoError(t, err)
 
 	// Validate the configuration to process memory settings
-	err = agentConfig.Validate()
+	err = agentConfig.Validate(t.Context())
 	require.NoError(t, err, "Agent config should be valid")
 
 	return agentConfig
@@ -369,7 +369,7 @@ func createTestAgentWithMultipleMemories(t *testing.T, _ *TestEnvironment) *agen
 	require.NoError(t, err)
 
 	// Validate the configuration to process memory settings
-	err = agentConfig.Validate()
+	err = agentConfig.Validate(t.Context())
 	require.NoError(t, err, "Agent config should be valid")
 
 	return agentConfig
@@ -405,7 +405,7 @@ func createTestAgentWithInvalidTemplate(t *testing.T, _ *TestEnvironment) *agent
 	require.NoError(t, err)
 
 	// Validate the configuration to process memory settings
-	err = agentConfig.Validate()
+	err = agentConfig.Validate(t.Context())
 	require.NoError(t, err, "Agent config should be valid")
 
 	return agentConfig
@@ -441,7 +441,7 @@ func createTestAgentWithReadOnlyMemory(t *testing.T, _ *TestEnvironment) *agent.
 	require.NoError(t, err)
 
 	// Validate the configuration to process memory settings
-	err = agentConfig.Validate()
+	err = agentConfig.Validate(t.Context())
 	require.NoError(t, err, "Agent config should be valid")
 
 	return agentConfig

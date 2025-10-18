@@ -22,6 +22,29 @@ type TokenEstimator interface {
 	EstimateTokens(ctx context.Context, text string) int
 }
 
+// Strategy names used to classify retrieval executions for observability.
+const (
+	StrategySimilarity = "similarity"
+	StrategyHybrid     = "hybrid"
+	StrategyKeyword    = "keyword"
+)
+
+type strategyContextKey struct{}
+
+// ContextWithStrategy returns a context that carries the retrieval strategy label.
+func ContextWithStrategy(ctx context.Context, strategy string) context.Context {
+	normalized := strings.TrimSpace(strings.ToLower(strategy))
+	switch normalized {
+	case StrategySimilarity:
+		return context.WithValue(ctx, strategyContextKey{}, StrategySimilarity)
+	case StrategyHybrid:
+		return context.WithValue(ctx, strategyContextKey{}, StrategyHybrid)
+	case StrategyKeyword:
+		return context.WithValue(ctx, strategyContextKey{}, StrategyKeyword)
+	}
+	return ctx
+}
+
 type runeEstimator struct{}
 
 func (r runeEstimator) EstimateTokens(_ context.Context, text string) int {
@@ -230,7 +253,9 @@ func (s *Service) finishRetrieve(
 	runErr *error,
 ) {
 	duration := time.Since(start)
+	strategy := strategyFromContext(ctx)
 	knowledge.RecordQueryLatency(ctx, binding.KnowledgeBase.ID, duration)
+	knowledge.RecordRAGRetrievalLatency(ctx, strategy, duration)
 	log := logger.FromContext(ctx).With(
 		"kb_id", binding.KnowledgeBase.ID,
 		"binding_id", binding.ID,
@@ -246,7 +271,15 @@ func (s *Service) finishRetrieve(
 	}
 	total := 0
 	if contexts != nil && *contexts != nil {
-		total = len(*contexts)
+		final := *contexts
+		total = len(final)
+		bytes, avg := aggregateContextStats(final)
+		knowledge.RecordRAGContextSizeBytes(ctx, binding.KnowledgeBase.ID, bytes)
+		if total > 0 {
+			knowledge.RecordRAGRelevanceScore(ctx, binding.KnowledgeBase.ID, avg)
+		}
+	} else {
+		knowledge.RecordRAGContextSizeBytes(ctx, binding.KnowledgeBase.ID, 0)
 	}
 	log.Info("Knowledge retrieval finished", "results", total, "duration_seconds", seconds)
 	span.SetAttributes(attribute.Int("results", total))
@@ -260,4 +293,24 @@ func sortMatches(matches []vectordb.Match) {
 		}
 		return matches[i].Score > matches[j].Score
 	})
+}
+
+func strategyFromContext(ctx context.Context) string {
+	if value, ok := ctx.Value(strategyContextKey{}).(string); ok && value != "" {
+		return value
+	}
+	return StrategySimilarity
+}
+
+func aggregateContextStats(contexts []knowledge.RetrievedContext) (int, float64) {
+	if len(contexts) == 0 {
+		return 0, 0
+	}
+	totalBytes := 0
+	totalScore := 0.0
+	for i := range contexts {
+		totalBytes += len(contexts[i].Content)
+		totalScore += contexts[i].Score
+	}
+	return totalBytes, totalScore / float64(len(contexts))
 }

@@ -62,8 +62,6 @@ func TestKnowledgeBindingCloneIndependence(t *testing.T) {
 	*cloned.TopK = 20
 	*cloned.MinScore = 0.9
 	*cloned.MaxTokens = 2000
-	cloned.InjectAs = "user"
-	cloned.Fallback = "new-fallback"
 	cloned.Filters["lang"] = "es"
 	cloned.Filters["new"] = "value"
 	assert.Equal(t, 5, *original.TopK)

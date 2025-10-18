@@ -7,11 +7,13 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/time/rate"
 
 	"github.com/compozy/compozy/engine/core"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	appconfig "github.com/compozy/compozy/pkg/config"
 )
 
@@ -24,6 +26,7 @@ type RateLimiterRegistry struct {
 	config  appconfig.LLMRateLimitConfig
 
 	limiters sync.Map // map[string]*providerRateLimiter (lower-cased provider names)
+	metrics  providermetrics.Recorder
 }
 
 // RateLimiterMetricsSnapshot provides introspection for active/queued/rejected counters.
@@ -70,11 +73,15 @@ type limiterSettings struct {
 }
 
 // NewRateLimiterRegistry creates a registry using the supplied configuration.
-func NewRateLimiterRegistry(cfg appconfig.LLMRateLimitConfig) *RateLimiterRegistry {
+func NewRateLimiterRegistry(cfg appconfig.LLMRateLimitConfig, recorder providermetrics.Recorder) *RateLimiterRegistry {
 	cfg.PerProviderLimits = normalizeProviderLimits(cfg.PerProviderLimits)
+	if recorder == nil {
+		recorder = providermetrics.Nop()
+	}
 	return &RateLimiterRegistry{
 		enabled: cfg.Enabled,
 		config:  cfg,
+		metrics: recorder,
 	}
 }
 
@@ -92,7 +99,12 @@ func (r *RateLimiterRegistry) Acquire(
 	if limiter == nil {
 		return nil
 	}
-	return limiter.acquire(ctx)
+	start := time.Now()
+	err := limiter.acquire(ctx)
+	if delay := time.Since(start); delay > 0 && r.metrics != nil {
+		r.metrics.RecordRateLimitDelay(ctx, provider, delay)
+	}
+	return err
 }
 
 // Release frees a previously acquired slot for the requested provider.

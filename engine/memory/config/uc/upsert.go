@@ -46,7 +46,7 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 	if memoryID == "" {
 		return nil, ErrIDMissing
 	}
-	cfg, err := decodeMemoryBody(in.Body, memoryID)
+	cfg, err := decodeMemoryBody(ctx, in.Body, memoryID)
 	if err != nil {
 		return nil, err
 	}

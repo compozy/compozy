@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
@@ -29,7 +30,7 @@ func getTrimmedString(m map[string]any, k string) string {
 
 // ConvertRegisterMCPsFromMaps converts generic maps into strongly-typed Config values.
 // Invalid entries are skipped; each resulting Config is validated.
-func ConvertRegisterMCPsFromMaps(raw []map[string]any) []Config {
+func ConvertRegisterMCPsFromMaps(ctx context.Context, raw []map[string]any) []Config {
 	out := make([]Config, 0, len(raw))
 	for _, r := range raw {
 		var cfg Config
@@ -60,7 +61,7 @@ func ConvertRegisterMCPsFromMaps(raw []map[string]any) []Config {
 			cfg.MaxSessions = ms
 		}
 		cfg.SetDefaults()
-		if err := cfg.Validate(); err != nil {
+		if err := cfg.Validate(ctx); err != nil {
 			continue
 		}
 		out = append(out, cfg)

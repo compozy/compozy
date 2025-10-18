@@ -13,7 +13,8 @@ import (
 // Store is the concrete PostgreSQL driver backed by pgxpool.Pool.
 // It intentionally does not leak pgx types through its public API.
 type Store struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	metrics *poolMetrics
 }
 
 // NewStore initializes the pgx pool using the provided config and performs a
@@ -27,6 +28,7 @@ func NewStore(ctx context.Context, cfg *Config) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("postgres: parse config: %w", err)
 	}
+	metricsTracker := configurePostgresMetrics(cfg, poolCfg)
 	maxConns := int32(20)
 	if cfg.MaxOpenConns > 0 {
 		if cfg.MaxOpenConns > int(math.MaxInt32) {
@@ -56,10 +58,16 @@ func NewStore(ctx context.Context, cfg *Config) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("postgres: new pool: %w", err)
 	}
+	if metricsTracker != nil {
+		metricsTracker.attach(pool)
+	}
 	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	if err := pool.Ping(pingCtx); err != nil {
 		pool.Close()
+		if metricsTracker != nil {
+			metricsTracker.unregister()
+		}
 		return nil, fmt.Errorf("postgres: ping: %w", err)
 	}
 	log.With(
@@ -69,11 +77,14 @@ func NewStore(ctx context.Context, cfg *Config) (*Store, error) {
 		"db_name", cfg.DBName,
 		"ssl_mode", cfg.SSLMode,
 	).Info("Store initialized")
-	return &Store{pool: pool}, nil
+	return &Store{pool: pool, metrics: metricsTracker}, nil
 }
 
 // Close shuts down the connection pool.
 func (s *Store) Close(ctx context.Context) error {
+	if s.metrics != nil {
+		s.metrics.unregister()
+	}
 	s.pool.Close()
 	logger.FromContext(ctx).Info("Postgres store closed")
 	return nil

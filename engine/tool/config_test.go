@@ -29,7 +29,7 @@ func Test_LoadTool(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate the config
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 
 		require.NotNil(t, config.ID)
@@ -46,7 +46,7 @@ func Test_LoadTool(t *testing.T) {
 
 		// Validate input schema
 		schema := config.InputSchema
-		compiledSchema, err := schema.Compile()
+		compiledSchema, err := schema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledSchema.Type))
 		require.NotNil(t, compiledSchema.Properties)
@@ -56,7 +56,7 @@ func Test_LoadTool(t *testing.T) {
 
 		// Validate output schema
 		outSchema := config.OutputSchema
-		compiledOutSchema, err := outSchema.Compile()
+		compiledOutSchema, err := outSchema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, []string{"object"}, []string(compiledOutSchema.Type))
 		require.NotNil(t, compiledOutSchema.Properties)
@@ -76,7 +76,7 @@ func Test_LoadTool(t *testing.T) {
 		require.NotNil(t, config)
 
 		// Validate the config
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.Error(t, err)
 	})
 }
@@ -93,7 +93,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 			CWD: toolCWD,
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -102,7 +102,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 			ID: toolID,
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "current working directory is required for test-tool")
 	})
@@ -240,7 +240,7 @@ func Test_Config_LLMDefinition_And_Maps(t *testing.T) {
 		assert.Equal(t, "complex", dst.ID)
 		assert.Equal(t, "1", dst.GetEnv().Prop("X"))
 		require.NotNil(t, dst.InputSchema)
-		compiled, err := dst.InputSchema.Compile()
+		compiled, err := dst.InputSchema.Compile(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, compiled.Properties)
 		_, ok := (*compiled.Properties)["k"]

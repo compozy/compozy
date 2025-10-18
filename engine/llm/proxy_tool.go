@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
+	mcptools "github.com/compozy/compozy/engine/mcp/tools"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/tmc/langchaingo/tools"
 )
@@ -17,7 +18,7 @@ type ProxyTool struct {
 	description string
 	inputSchema map[string]any
 	mcpName     string
-	proxyClient *mcp.Client
+	executor    *mcptools.Executor
 }
 
 // NewProxyTool creates a new proxy tool from a tool definition
@@ -27,7 +28,7 @@ func NewProxyTool(toolDef mcp.ToolDefinition, proxyClient *mcp.Client) tools.Too
 		description: toolDef.Description,
 		inputSchema: toolDef.InputSchema,
 		mcpName:     toolDef.MCPName,
-		proxyClient: proxyClient,
+		executor:    mcptools.NewExecutor(proxyClient),
 	}
 }
 
@@ -58,7 +59,7 @@ func (t *ProxyTool) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	// Execute the tool via proxy
-	result, err := t.proxyClient.CallTool(ctx, t.mcpName, t.name, args)
+	result, err := t.executor.Execute(ctx, t.mcpName, t.name, args)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute tool '%s' from MCP '%s': %w", t.name, t.mcpName, err)
 	}

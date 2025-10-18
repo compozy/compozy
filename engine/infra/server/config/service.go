@@ -70,7 +70,7 @@ func (s *service) LoadProject(
 		return nil, nil, nil, err
 	}
 
-	if err := projectConfig.Validate(); err != nil {
+	if err := projectConfig.Validate(ctx); err != nil {
 		log.Error("Invalid project config", "error", err)
 		return nil, nil, nil, err
 	}
@@ -209,7 +209,7 @@ func (s *service) compileFromStore(
 	}
 	// Validate webhook slugs parity with repo mode
 	slugs := workflow.SlugsFromList(decoded)
-	if err := project.NewWebhookSlugsValidator(slugs).Validate(); err != nil {
+	if err := project.NewWebhookSlugsValidator(slugs).Validate(ctx); err != nil {
 		return nil, fmt.Errorf("webhook configuration invalid: %w", err)
 	}
 	// Now compile
@@ -346,7 +346,7 @@ func (s *service) loadFromRepo(
 		return nil, err
 	}
 	slugs := workflow.SlugsFromList(workflows)
-	if err := project.NewWebhookSlugsValidator(slugs).Validate(); err != nil {
+	if err := project.NewWebhookSlugsValidator(slugs).Validate(ctx); err != nil {
 		log.Error("Invalid webhook configuration", "error", err)
 		return nil, fmt.Errorf("webhook configuration invalid: %w", err)
 	}

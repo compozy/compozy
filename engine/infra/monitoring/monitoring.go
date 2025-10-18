@@ -8,7 +8,10 @@ import (
 
 	interceptorpkg "github.com/compozy/compozy/engine/infra/monitoring/interceptor"
 	"github.com/compozy/compozy/engine/infra/monitoring/middleware"
+	factorymetrics "github.com/compozy/compozy/engine/llm/factory/metrics"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
+	mcpmetrics "github.com/compozy/compozy/engine/mcp/metrics"
 	builtin "github.com/compozy/compozy/engine/tool/builtin"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -24,15 +27,16 @@ import (
 
 // Service encapsulates all monitoring and observability logic
 type Service struct {
-	meter             metric.Meter
-	exporter          *prometheus.Exporter
-	provider          *sdkmetric.MeterProvider
-	registry          *prom.Registry
-	config            *Config
-	initialized       bool
-	initializationErr error
-	executionMetrics  *ExecutionMetrics
-	llmUsageMetrics   usage.Metrics
+	meter              metric.Meter
+	exporter           *prometheus.Exporter
+	provider           *sdkmetric.MeterProvider
+	registry           *prom.Registry
+	config             *Config
+	initialized        bool
+	initializationErr  error
+	executionMetrics   *ExecutionMetrics
+	llmUsageMetrics    usage.Metrics
+	llmProviderMetrics providermetrics.Recorder
 }
 
 // newDisabledService creates a service instance with no-op implementations
@@ -46,24 +50,47 @@ func newDisabledService(cfg *Config, initErr error) *Service {
 	if llmErr != nil || llmMetrics == nil {
 		llmMetrics = noopLLMUsageMetrics{}
 	}
+	providerMetrics, providerErr := providermetrics.NewRecorder(m)
+	if providerErr != nil || providerMetrics == nil {
+		providerMetrics = providermetrics.Nop()
+	}
 	return &Service{
-		config:            cfg,
-		meter:             m,
-		initialized:       false,
-		initializationErr: initErr,
-		executionMetrics:  execMetrics,
-		llmUsageMetrics:   llmMetrics,
+		config:             cfg,
+		meter:              m,
+		initialized:        false,
+		initializationErr:  initErr,
+		executionMetrics:   execMetrics,
+		llmUsageMetrics:    llmMetrics,
+		llmProviderMetrics: providerMetrics,
 	}
 }
 
-// NewMonitoringService creates a new monitoring service with Prometheus exporter
+func buildMonitoringMetrics(meter metric.Meter) (*ExecutionMetrics, usage.Metrics, providermetrics.Recorder, error) {
+	execMetrics, err := newExecutionMetrics(meter)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	llmMetrics, err := newLLMUsageMetrics(meter)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	providerMetrics, err := providermetrics.NewRecorder(meter)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return execMetrics, llmMetrics, providerMetrics, nil
+}
+
+// NewMonitoringService creates a new monitoring service with Prometheus exporter.
+//
+//nolint:funlen // initialization requires sequential setup and structured cleanup
 func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 	log := logger.FromContext(ctx)
 	startTime := time.Now()
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.Validate(ctx); err != nil {
 		return nil, err
 	}
 	if !cfg.Enabled {
@@ -98,16 +125,13 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 		config:      cfg,
 		initialized: true,
 	}
-	execMetrics, err := newExecutionMetrics(meter)
+	execMetrics, llmMetrics, providerMetrics, err := buildMonitoringMetrics(meter)
 	if err != nil {
 		return nil, err
 	}
 	service.executionMetrics = execMetrics
-	llmMetrics, err := newLLMUsageMetrics(meter)
-	if err != nil {
-		return nil, err
-	}
 	service.llmUsageMetrics = llmMetrics
+	service.llmProviderMetrics = providerMetrics
 	// Check for context cancellation before system metrics
 	select {
 	case <-ctx.Done():
@@ -128,6 +152,14 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 	dispatcherMetricsStart := time.Now()
 	InitDispatcherHealthMetrics(ctx, meter)
 	log.Debug("Initialized dispatcher health metrics", "duration", time.Since(dispatcherMetricsStart))
+	// Initialize factory metrics
+	factoryMetricsStart := time.Now()
+	factorymetrics.Init(ctx, meter)
+	log.Debug("Initialized factory metrics", "duration", time.Since(factoryMetricsStart))
+	// Initialize MCP client metrics
+	mcpMetricsStart := time.Now()
+	mcpmetrics.Init(ctx, meter)
+	log.Debug("Initialized MCP metrics", "duration", time.Since(mcpMetricsStart))
 	// Initialize memory monitoring metrics
 	memoryMetricsStart := time.Now()
 	InitializeMemoryMonitoring(ctx, meter)
@@ -162,6 +194,14 @@ func (s *Service) LLMUsageMetrics() usage.Metrics {
 		return nil
 	}
 	return s.llmUsageMetrics
+}
+
+// LLMProviderMetrics exposes provider-call instruments to orchestrator components.
+func (s *Service) LLMProviderMetrics() providermetrics.Recorder {
+	if s == nil || s.llmProviderMetrics == nil {
+		return providermetrics.Nop()
+	}
+	return s.llmProviderMetrics
 }
 
 // GinMiddleware returns Gin middleware for HTTP metrics.

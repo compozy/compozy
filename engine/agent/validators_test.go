@@ -13,13 +13,13 @@ import (
 func TestMemoryValidator_Validate(t *testing.T) {
 	t.Run("Should pass with no memory references (nil)", func(t *testing.T) {
 		validator := NewMemoryValidator(nil /*, mockRegistry */)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
 	t.Run("Should pass with no memory references (empty slice)", func(t *testing.T) {
 		validator := NewMemoryValidator([]core.MemoryReference{} /*, mockRegistry */)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -29,7 +29,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		}
 		// Setup mockRegistry to return true for mockRegistry.MemoryExists("mem1") when Task 4 is done
 		validator := NewMemoryValidator(refs /*, mockRegistry */)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -39,7 +39,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 			{ID: "mem2", Key: "key2", Mode: "read-only"},
 		}
 		validator := NewMemoryValidator(refs /*, mockRegistry */)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -48,7 +48,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 			{ID: "", Key: "key1", Mode: "read-write"}, // Empty ID
 		}
 		validator := NewMemoryValidator(refs /*, mockRegistry */)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "memory reference at index 0 has an empty ID")
 	})
@@ -58,7 +58,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 			{ID: "mem1", Key: "", Mode: "read-write"}, // Empty Key allowed
 		}
 		validator := NewMemoryValidator(refs /*, mockRegistry */)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -67,7 +67,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 			{ID: "mem1", Key: "key1", Mode: "write-only"}, // Invalid mode
 		}
 		validator := NewMemoryValidator(refs /*, mockRegistry */)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "memory reference for ID 'mem1' (index 0) has invalid mode 'write-only'")
 	})
@@ -86,7 +86,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		// Let's test the validator's own check for an invalid mode string.
 		refs[0].Mode = "bad-mode"
 		validator := NewMemoryValidator(refs)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid mode 'bad-mode'")
 	})
@@ -96,7 +96,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 func TestActionsValidator_Validate(t *testing.T) {
 	t.Run("Should return nil when actions slice is nil", func(t *testing.T) {
 		v := NewActionsValidator(nil)
-		assert.NoError(t, v.Validate())
+		assert.NoError(t, v.Validate(t.Context()))
 	})
 
 	t.Run("Should validate all actions and return error on invalid", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestActionsValidator_Validate(t *testing.T) {
 		require.NoError(t, valid.SetCWD(tmp))
 		invalid := &ActionConfig{ID: "bad"} // missing CWD -> schema.CWDValidator fails
 		v := NewActionsValidator([]*ActionConfig{valid, invalid})
-		err := v.Validate()
+		err := v.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "current working directory is required")
 	})
@@ -117,6 +117,6 @@ func TestActionsValidator_Validate(t *testing.T) {
 		a2 := &ActionConfig{ID: "a2", Prompt: "p2"}
 		require.NoError(t, a2.SetCWD(tmp))
 		v := NewActionsValidator([]*ActionConfig{a1, a2})
-		assert.NoError(t, v.Validate())
+		assert.NoError(t, v.Validate(t.Context()))
 	})
 }

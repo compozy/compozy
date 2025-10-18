@@ -11,6 +11,12 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+const (
+	labelUnknownValue   = "unknown"
+	outcomeSuccessValue = "success"
+	outcomeErrorValue   = "error"
+)
+
 // Metrics provides instrumentation for webhook processing
 type Metrics struct {
 	meter               metric.Meter
@@ -24,6 +30,9 @@ type Metrics struct {
 	verifyHistogram     metric.Float64Histogram
 	renderHistogram     metric.Float64Histogram
 	dispatchHistogram   metric.Float64Histogram
+	payloadHistogram    metric.Int64Histogram
+	eventOutcomeTotal   metric.Int64Counter
+	queueGauge          metric.Int64UpDownCounter
 }
 
 // NewMetrics initializes webhook metrics using the provided meter
@@ -95,16 +104,41 @@ func (m *Metrics) initCounters() error {
 	if err != nil {
 		return fmt.Errorf("failed to create webhook failed counter: %w", err)
 	}
+	m.eventOutcomeTotal, err = m.meter.Int64Counter(
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "events_total"),
+		metric.WithDescription("Total webhook events received"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create webhook events counter: %w", err)
+	}
+	m.queueGauge, err = m.meter.Int64UpDownCounter(
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "queue_depth"),
+		metric.WithDescription("Number of webhook events waiting to be processed"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create webhook queue depth gauge: %w", err)
+	}
 	return nil
 }
 
 func (m *Metrics) initHistograms() error {
 	var err error
+	m.payloadHistogram, err = m.meter.Int64Histogram(
+		monitoringmetrics.MetricNameWithSubsystem("webhook", "payload_size_bytes"),
+		metric.WithDescription("Size distribution of webhook payloads"),
+		metric.WithUnit("bytes"),
+		metric.WithExplicitBucketBoundaries(100, 1000, 10000, 100000, 1000000),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create webhook payload histogram: %w", err)
+	}
 	m.processingHistogram, err = m.meter.Float64Histogram(
 		monitoringmetrics.MetricNameWithSubsystem("webhook", "processing_duration_seconds"),
 		metric.WithDescription("Overall webhook processing duration"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
+		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2, 2.5, 5, 10),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create webhook processing duration histogram: %w", err)
@@ -149,6 +183,71 @@ func (m *Metrics) attrsWithEvent(slug, workflowID, eventName string) metric.Meas
 		attribute.String("workflow_id", workflowID),
 		attribute.String("event_name", eventName),
 	)
+}
+
+// RecordPayloadSize observes webhook payload sizes grouped by event type and source.
+func (m *Metrics) RecordPayloadSize(ctx context.Context, eventType string, source string, payloadBytes int) {
+	if m.payloadHistogram == nil || payloadBytes < 0 {
+		return
+	}
+	if eventType == "" {
+		eventType = labelUnknownValue
+	}
+	if source == "" {
+		source = labelUnknownValue
+	}
+	m.payloadHistogram.Record(
+		ctx,
+		int64(payloadBytes),
+		metric.WithAttributes(
+			attribute.String("event_type", eventType),
+			attribute.String("source", source),
+		),
+	)
+}
+
+// ObserveEventOutcome records processing duration and totals partitioned by outcome.
+func (m *Metrics) ObserveEventOutcome(ctx context.Context, eventType string, d time.Duration, outcome string) {
+	if eventType == "" {
+		eventType = labelUnknownValue
+	}
+	if outcome != outcomeSuccessValue {
+		outcome = outcomeErrorValue
+	}
+	if m.processingHistogram != nil {
+		m.processingHistogram.Record(
+			ctx,
+			d.Seconds(),
+			metric.WithAttributes(
+				attribute.String("event_type", eventType),
+				attribute.String("outcome", outcome),
+			),
+		)
+	}
+	if m.eventOutcomeTotal != nil {
+		m.eventOutcomeTotal.Add(
+			ctx,
+			1,
+			metric.WithAttributes(
+				attribute.String("event_type", eventType),
+				attribute.String("outcome", outcome),
+			),
+		)
+	}
+}
+
+// IncrementQueueDepth tracks the number of webhook events awaiting processing.
+func (m *Metrics) IncrementQueueDepth(ctx context.Context) {
+	if m.queueGauge != nil {
+		m.queueGauge.Add(ctx, 1)
+	}
+}
+
+// DecrementQueueDepth reduces the in-flight webhook processing gauge.
+func (m *Metrics) DecrementQueueDepth(ctx context.Context) {
+	if m.queueGauge != nil {
+		m.queueGauge.Add(ctx, -1)
+	}
 }
 
 func (m *Metrics) OnReceived(ctx context.Context, slug, workflowID string) {

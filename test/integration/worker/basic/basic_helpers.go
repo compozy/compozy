@@ -16,6 +16,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
@@ -156,7 +157,8 @@ func createTestActivities(
 		workflows,
 		workflowRepo,
 		taskRepo,
-		nil,
+		&helpers.NoopUsageMetrics{},
+		providermetrics.Nop(),
 		mockRuntime,
 		configStore,
 		nil, // signalDispatcher - not needed for basic test

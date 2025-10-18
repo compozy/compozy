@@ -47,7 +47,7 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 	if mcpID == "" {
 		return nil, ErrIDMissing
 	}
-	cfg, err := decodeMCPBody(in.Body, mcpID)
+	cfg, err := decodeMCPBody(ctx, in.Body, mcpID)
 	if err != nil {
 		return nil, err
 	}

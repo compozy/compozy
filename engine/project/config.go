@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"dario.cat/mergo"
@@ -20,6 +21,115 @@ import (
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 )
+
+// projectConfigCacheEntry keeps cached configuration metadata for a project file.
+type projectConfigCacheEntry struct {
+	modTime time.Time
+	config  *Config
+}
+
+// projectConfigCache provides a concurrency-safe cache for prepared project configurations.
+type projectConfigCache struct {
+	mu      sync.RWMutex
+	entries map[string]*projectConfigCacheEntry
+}
+
+// projectConfigCacheStore is the shared cache for project configurations.
+var projectConfigCacheStore = newProjectConfigCache()
+
+// newProjectConfigCache constructs an empty project configuration cache instance.
+func newProjectConfigCache() *projectConfigCache {
+	return &projectConfigCache{entries: make(map[string]*projectConfigCacheEntry)}
+}
+
+// Load returns a cached configuration when the file is unchanged and refreshes the cache with loader otherwise.
+func (c *projectConfigCache) Load(filePath string, loader func() (*Config, error)) (*Config, error) {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat project config %s: %w", filePath, err)
+	}
+	modTime := info.ModTime()
+	if config, ok, err := c.tryGet(filePath, modTime); err != nil {
+		return nil, err
+	} else if ok {
+		return config, nil
+	}
+	loadedConfig, err := loader()
+	if err != nil {
+		return nil, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if config, ok, err := c.tryGetLocked(filePath, modTime); err != nil {
+		return nil, err
+	} else if ok {
+		return config, nil
+	}
+	if err := c.storeLocked(filePath, modTime, loadedConfig); err != nil {
+		return nil, err
+	}
+	return loadedConfig, nil
+}
+
+// checkEntry validates a cached entry for the provided modTime and returns a cloned config when it remains current.
+func (c *projectConfigCache) checkEntry(entry *projectConfigCacheEntry, modTime time.Time) (*Config, bool, error) {
+	if entry == nil {
+		return nil, false, nil
+	}
+	if !entry.modTime.Equal(modTime) {
+		return nil, false, nil
+	}
+	config, err := core.DeepCopy(entry.config)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to clone cached project config: %w", err)
+	}
+	return config, true, nil
+}
+
+// tryGet returns a cached configuration copy when metadata matches the provided modTime.
+func (c *projectConfigCache) tryGet(filePath string, modTime time.Time) (*Config, bool, error) {
+	c.mu.RLock()
+	entry, ok := c.entries[filePath]
+	c.mu.RUnlock()
+	if !ok {
+		return nil, false, nil
+	}
+	return c.checkEntry(entry, modTime)
+}
+
+// tryGetLocked performs the same lookup as tryGet but expects the caller to hold the write lock.
+func (c *projectConfigCache) tryGetLocked(filePath string, modTime time.Time) (*Config, bool, error) {
+	entry, ok := c.entries[filePath]
+	if !ok {
+		return nil, false, nil
+	}
+	config, valid, err := c.checkEntry(entry, modTime)
+	if err != nil {
+		return nil, false, err
+	}
+	if !valid {
+		delete(c.entries, filePath)
+		return nil, false, nil
+	}
+	return config, true, nil
+}
+
+// storeLocked caches the provided configuration using the supplied metadata; caller must hold the write lock.
+func (c *projectConfigCache) storeLocked(filePath string, modTime time.Time, config *Config) error {
+	clone, err := core.DeepCopy(config)
+	if err != nil {
+		return fmt.Errorf("failed to clone project config for cache: %w", err)
+	}
+	c.entries[filePath] = &projectConfigCacheEntry{modTime: modTime, config: clone}
+	return nil
+}
+
+// reset clears all cached entries; intended for use in tests.
+func (c *projectConfigCache) reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries = make(map[string]*projectConfigCacheEntry)
+}
 
 // RuntimeConfig defines project-specific runtime overrides.
 // The main runtime configuration is now in pkg/config.RuntimeConfig.
@@ -419,44 +529,43 @@ func (p *Config) GetDefaultModel() *core.ProviderConfig {
 	return nil
 }
 
-func (p *Config) Validate() error {
+func (p *Config) Validate(ctx context.Context) error {
 	validator := schema.NewCompositeValidator(
 		schema.NewCWDValidator(p.CWD, p.Name),
-		// TODO: Add workflows validator back in
-		// NewWorkflowsValidator(p.Workflows),
+		NewWorkflowsValidator(p.CWD, p.Workflows),
 	)
-	if err := validator.Validate(); err != nil {
+	if err := validator.Validate(ctx); err != nil {
 		return err
 	}
 	// Validate models configuration (including default model)
-	if err := p.validateModels(); err != nil {
+	if err := p.validateModels(ctx); err != nil {
 		return err
 	}
 	// Validate runtime configuration
-	if err := p.validateRuntimeConfig(); err != nil {
+	if err := p.validateRuntimeConfig(ctx); err != nil {
 		return fmt.Errorf("runtime configuration validation failed: %w", err)
 	}
 	// Validate project-level tools
-	if err := p.validateTools(); err != nil {
+	if err := p.validateTools(ctx); err != nil {
 		return fmt.Errorf("project tools validation failed: %w", err)
 	}
-	if err := p.validateKnowledge(); err != nil {
+	if err := p.validateKnowledge(ctx); err != nil {
 		return err
 	}
 	// Validate project-level memories
-	if err := p.validateMemories(); err != nil {
+	if err := p.validateMemories(ctx); err != nil {
 		return fmt.Errorf("project memories validation failed: %w", err)
 	}
 	// Validate monitoring configuration if present
 	if p.MonitoringConfig != nil {
-		if err := p.MonitoringConfig.Validate(); err != nil {
+		if err := p.MonitoringConfig.Validate(ctx); err != nil {
 			return fmt.Errorf("monitoring configuration validation failed: %w", err)
 		}
 	}
 	// Validate autoload configuration if present (with caching)
 	if p.AutoLoad != nil {
 		if !p.autoloadValidated {
-			p.autoloadValidError = p.AutoLoad.Validate()
+			p.autoloadValidError = p.AutoLoad.Validate(ctx)
 			p.autoloadValidated = true
 		}
 		if p.autoloadValidError != nil {
@@ -486,7 +595,7 @@ func (p *Config) ValidateOutput(_ context.Context, _ *core.Output) error {
 }
 
 // validateModels ensures that at most one model is marked as default
-func (p *Config) validateModels() error {
+func (p *Config) validateModels(_ context.Context) error {
 	if len(p.Models) == 0 {
 		return nil
 	}
@@ -508,14 +617,14 @@ func (p *Config) validateModels() error {
 }
 
 // validateTools validates the project-level tools configuration
-func (p *Config) validateTools() error {
+func (p *Config) validateTools(ctx context.Context) error {
 	if len(p.Tools) == 0 {
 		return nil
 	}
 	toolIDs := make(map[string]struct{}, len(p.Tools))
 	for i := range p.Tools {
 		// Validate tool configuration
-		if err := p.Tools[i].Validate(); err != nil {
+		if err := p.Tools[i].Validate(ctx); err != nil {
 			return fmt.Errorf("tool[%d] validation failed: %w", i, err)
 		}
 		// Check for duplicate tool IDs
@@ -533,7 +642,7 @@ func (p *Config) validateTools() error {
 // validateMemories validates project-level memory resources declared inline.
 // It normalizes missing Resource fields to "memory" for parity with autoloaded files
 // and REST validators, enforces unique IDs, and applies memory.Config.Validate().
-func (p *Config) validateMemories() error {
+func (p *Config) validateMemories(ctx context.Context) error {
 	if len(p.Memories) == 0 {
 		return nil
 	}
@@ -550,7 +659,7 @@ func (p *Config) validateMemories() error {
 			return fmt.Errorf("duplicate memory ID '%s' found in project memories", p.Memories[i].ID)
 		}
 		// Reuse memory.Config.Validate to ensure parity with REST validation
-		if err := p.Memories[i].Validate(); err != nil {
+		if err := p.Memories[i].Validate(ctx); err != nil {
 			return fmt.Errorf("memory[%d] validation failed: %w", i, err)
 		}
 		ids[p.Memories[i].ID] = struct{}{}
@@ -558,14 +667,14 @@ func (p *Config) validateMemories() error {
 	return nil
 }
 
-func (p *Config) validateKnowledge() error {
+func (p *Config) validateKnowledge(ctx context.Context) error {
 	defs := knowledge.Definitions{
 		Embedders:      p.Embedders,
 		VectorDBs:      p.VectorDBs,
 		KnowledgeBases: p.KnowledgeBases,
 	}
 	defs.NormalizeWithDefaults(knowledge.DefaultDefaults())
-	if err := defs.Validate(); err != nil {
+	if err := defs.Validate(ctx); err != nil {
 		return fmt.Errorf("knowledge configuration validation failed: %w", err)
 	}
 	if len(p.Knowledge) > 1 {
@@ -578,22 +687,22 @@ func (p *Config) validateKnowledge() error {
 }
 
 // validateRuntimeConfig validates the runtime configuration fields with detailed error messages
-func (p *Config) validateRuntimeConfig() error {
+func (p *Config) validateRuntimeConfig(ctx context.Context) error {
 	runtime := &p.Runtime
 
 	// Validate runtime type if specified
 	if runtime.Type != "" {
-		if err := validateRuntimeType(runtime.Type); err != nil {
+		if err := validateRuntimeType(ctx, runtime.Type); err != nil {
 			return err
 		}
 	}
 
 	// Validate entrypoint path if specified
 	if runtime.Entrypoint != "" {
-		if err := validateEntrypointPath(p.CWD, runtime.Entrypoint); err != nil {
+		if err := validateEntrypointPath(ctx, p.CWD, runtime.Entrypoint); err != nil {
 			return err
 		}
-		if err := validateEntrypointExtension(runtime.Entrypoint); err != nil {
+		if err := validateEntrypointExtension(ctx, runtime.Entrypoint); err != nil {
 			return err
 		}
 	}
@@ -620,7 +729,7 @@ func (p *Config) validateRuntimeConfig() error {
 }
 
 // validateRuntimeType validates that the runtime type is one of the supported values
-func validateRuntimeType(runtimeType string) error {
+func validateRuntimeType(_ context.Context, runtimeType string) error {
 	validTypes := []string{"bun", "node"}
 	if slices.Contains(validTypes, runtimeType) {
 		return nil
@@ -633,7 +742,7 @@ func validateRuntimeType(runtimeType string) error {
 }
 
 // validateEntrypointPath validates that the entrypoint file exists and is accessible
-func validateEntrypointPath(cwd *core.PathCWD, entrypoint string) error {
+func validateEntrypointPath(_ context.Context, cwd *core.PathCWD, entrypoint string) error {
 	if cwd == nil {
 		return fmt.Errorf(
 			"runtime configuration error: working directory must be set before validating entrypoint path '%s'",
@@ -658,7 +767,7 @@ func validateEntrypointPath(cwd *core.PathCWD, entrypoint string) error {
 }
 
 // validateEntrypointExtension validates that the entrypoint file has a supported extension
-func validateEntrypointExtension(entrypoint string) error {
+func validateEntrypointExtension(_ context.Context, entrypoint string) error {
 	ext := filepath.Ext(entrypoint)
 	if ext != ".ts" && ext != ".js" {
 		return fmt.Errorf(
@@ -734,6 +843,20 @@ func loadAndPrepareConfig(ctx context.Context, cwd *core.PathCWD, path string) (
 	if err != nil {
 		return nil, err
 	}
+	config, err := projectConfigCacheStore.Load(filePath, func() (*Config, error) {
+		return readProjectConfig(ctx, cwd, filePath)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if cwd != nil {
+		config.CWD = cwd
+	}
+	return config, nil
+}
+
+// readProjectConfig loads and prepares a project configuration directly from disk.
+func readProjectConfig(ctx context.Context, cwd *core.PathCWD, filePath string) (*Config, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -749,7 +872,6 @@ func loadAndPrepareConfig(ctx context.Context, cwd *core.PathCWD, path string) (
 	if config.AutoLoad != nil {
 		config.AutoLoad.SetDefaults()
 	}
-	// Apply minimal runtime defaults for project-level compatibility
 	config.setRuntimeDefaults()
 	config.MonitoringConfig, err = monitoring.LoadWithEnv(ctx, config.MonitoringConfig)
 	if err != nil {

@@ -159,7 +159,7 @@ func setupTestConfigRegistry(t *testing.T) *autoload.ConfigRegistry {
 		Persistence: memcore.PersistenceConfig{Type: memcore.RedisPersistence, TTL: "24h"},
 		Flushing:    &memcore.FlushingStrategyConfig{Type: memcore.SimpleFIFOFlushing, SummarizeThreshold: 0.8},
 	}
-	require.NoError(t, testMemoryConfig.Validate())
+	require.NoError(t, testMemoryConfig.Validate(t.Context()))
 	require.NoError(t, configRegistry.Register(testMemoryConfig, "test"))
 	return configRegistry
 }

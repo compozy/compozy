@@ -1,6 +1,7 @@
 package autoload
 
 import (
+	"context"
 	"fmt"
 	"slices"
 )
@@ -130,7 +131,7 @@ func NewConfig() *Config {
 }
 
 // Validate validates the autoload configuration
-func (c *Config) Validate() error {
+func (c *Config) Validate(_ context.Context) error {
 	if !c.Enabled {
 		return nil
 	}

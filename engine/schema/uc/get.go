@@ -46,7 +46,7 @@ func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
 		}
 		return nil, err
 	}
-	sc, err := decodeStoredSchema(value, schemaID)
+	sc, err := decodeStoredSchema(ctx, value, schemaID)
 	if err != nil {
 		return nil, err
 	}

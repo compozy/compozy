@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/tmc/langchaingo/embeddings"
@@ -16,13 +17,16 @@ import (
 	"github.com/tmc/langchaingo/llms/googleai/vertex"
 	"github.com/tmc/langchaingo/llms/openai"
 
+	memoryembeddings "github.com/compozy/compozy/engine/memory/embeddings"
 	appconfig "github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // Adapter wraps a langchaingo embedder implementation and augments error reporting.
 type Adapter struct {
 	id        string
 	provider  Provider
+	model     string
 	dimension int
 	batchSize int
 	impl      embeddings.Embedder
@@ -57,6 +61,7 @@ func New(ctx context.Context, cfg *Config) (*Adapter, error) {
 	return &Adapter{
 		id:        cfg.ID,
 		provider:  cfg.Provider,
+		model:     cfg.Model,
 		dimension: cfg.Dimension,
 		batchSize: cfg.BatchSize,
 		impl:      builder,
@@ -77,6 +82,7 @@ func Wrap(cfg *Config, impl embeddings.Embedder) (*Adapter, error) {
 	return &Adapter{
 		id:        cfg.ID,
 		provider:  cfg.Provider,
+		model:     cfg.Model,
 		dimension: cfg.Dimension,
 		batchSize: cfg.BatchSize,
 		impl:      impl,
@@ -113,10 +119,18 @@ func (a *Adapter) EmbedDocuments(ctx context.Context, texts []string) ([][]float
 	if cache := a.getCache(); cache != nil {
 		return a.cachedEmbedDocuments(ctx, cache, texts)
 	}
+	start := time.Now()
 	vectors, err := a.impl.EmbedDocuments(ctx, texts)
 	if err != nil {
+		memoryembeddings.RecordError(ctx, string(a.provider), a.model, categorizeError(err))
 		return nil, a.withContext(err)
 	}
+	tokenCount, tokenErr := memoryembeddings.EstimateTokens(ctx, string(a.provider), a.model, texts)
+	if tokenErr != nil {
+		logger.FromContext(ctx).
+			Warn("failed to estimate embedding tokens", "provider", a.provider, "model", a.model, "error", tokenErr)
+	}
+	memoryembeddings.RecordGeneration(ctx, string(a.provider), a.model, len(texts), time.Since(start), tokenCount)
 	return vectors, nil
 }
 
@@ -124,20 +138,38 @@ func (a *Adapter) EmbedDocuments(ctx context.Context, texts []string) ([][]float
 func (a *Adapter) EmbedQuery(ctx context.Context, text string) ([]float32, error) {
 	if cache := a.getCache(); cache != nil {
 		if vector, ok := a.lookupCache(cache, text); ok {
+			memoryembeddings.RecordCacheHit(ctx, string(a.provider))
 			return vector, nil
 		}
+		memoryembeddings.RecordCacheMiss(ctx, string(a.provider))
+		start := time.Now()
 		result, err := a.impl.EmbedQuery(ctx, text)
 		if err != nil {
+			memoryembeddings.RecordError(ctx, string(a.provider), a.model, categorizeError(err))
 			return nil, a.withContext(err)
 		}
+		tokens, tokenErr := memoryembeddings.EstimateTokens(ctx, string(a.provider), a.model, []string{text})
+		if tokenErr != nil {
+			logger.FromContext(ctx).
+				Warn("failed to estimate embedding tokens", "provider", a.provider, "model", a.model, "error", tokenErr)
+		}
+		memoryembeddings.RecordGeneration(ctx, string(a.provider), a.model, 1, time.Since(start), tokens)
 		cloned := cloneVector(result)
 		a.storeCache(cache, text, cloned)
 		return cloned, nil
 	}
+	start := time.Now()
 	vector, err := a.impl.EmbedQuery(ctx, text)
 	if err != nil {
+		memoryembeddings.RecordError(ctx, string(a.provider), a.model, categorizeError(err))
 		return nil, a.withContext(err)
 	}
+	tokens, tokenErr := memoryembeddings.EstimateTokens(ctx, string(a.provider), a.model, []string{text})
+	if tokenErr != nil {
+		logger.FromContext(ctx).
+			Warn("failed to estimate embedding tokens", "provider", a.provider, "model", a.model, "error", tokenErr)
+	}
+	memoryembeddings.RecordGeneration(ctx, string(a.provider), a.model, 1, time.Since(start), tokens)
 	return vector, nil
 }
 
@@ -152,22 +184,32 @@ func (a *Adapter) cachedEmbedDocuments(
 	for i := range texts {
 		text := texts[i]
 		if vector, ok := a.lookupCache(cache, text); ok {
+			memoryembeddings.RecordCacheHit(ctx, string(a.provider))
 			results[i] = vector
 			continue
 		}
+		memoryembeddings.RecordCacheMiss(ctx, string(a.provider))
 		missing = append(missing, text)
 		missingIdx = append(missingIdx, i)
 	}
 	if len(missing) == 0 {
 		return results, nil
 	}
+	tokens, tokenErr := memoryembeddings.EstimateTokens(ctx, string(a.provider), a.model, missing)
+	if tokenErr != nil {
+		logger.FromContext(ctx).
+			Warn("failed to estimate embedding tokens", "provider", a.provider, "model", a.model, "error", tokenErr)
+	}
+	start := time.Now()
 	embedded, err := a.impl.EmbedDocuments(ctx, missing)
 	if err != nil {
+		memoryembeddings.RecordError(ctx, string(a.provider), a.model, categorizeError(err))
 		return nil, a.withContext(err)
 	}
 	if len(embedded) != len(missing) {
 		return nil, a.withContext(fmt.Errorf("received %d embeddings for %d texts", len(embedded), len(missing)))
 	}
+	memoryembeddings.RecordGeneration(ctx, string(a.provider), a.model, len(missing), time.Since(start), tokens)
 	for i := range embedded {
 		idx := missingIdx[i]
 		cloned := cloneVector(embedded[i])
@@ -221,6 +263,30 @@ func (a *Adapter) withContext(err error) error {
 		return nil
 	}
 	return fmt.Errorf("embedder %q: %w", a.id, err)
+}
+
+// categorizeError inspects the error text to approximate a standard error bucket.
+// NOTE: This relies on string matching; prefer typed errors if providers expose them.
+func categorizeError(err error) memoryembeddings.ErrorType {
+	if err == nil {
+		return memoryembeddings.ErrorTypeServerError
+	}
+	lower := strings.ToLower(err.Error())
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return memoryembeddings.ErrorTypeRateLimit
+	case strings.Contains(lower, "rate limit"), strings.Contains(lower, "429"):
+		return memoryembeddings.ErrorTypeRateLimit
+	case strings.Contains(lower, "unauthorized"), strings.Contains(lower, "forbidden"), strings.Contains(lower, "auth"):
+		return memoryembeddings.ErrorTypeAuth
+	case strings.Contains(lower, "invalid"),
+		strings.Contains(lower, "bad request"),
+		strings.Contains(lower, "422"),
+		strings.Contains(lower, "400"):
+		return memoryembeddings.ErrorTypeInvalidInput
+	default:
+		return memoryembeddings.ErrorTypeServerError
+	}
 }
 
 func cacheKey(text string) string {

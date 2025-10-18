@@ -75,7 +75,7 @@ func TestToolConfig_GetTimeout(t *testing.T) {
 			Timeout: "-5s",
 		}
 		globalTimeout := 60 * time.Second
-		result, err := config.GetTimeout(context.Background(), globalTimeout)
+		result, err := config.GetTimeout(t.Context(), globalTimeout)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "timeout must be positive")
 		require.Equal(t, time.Duration(0), result)
@@ -100,7 +100,7 @@ func TestToolConfig_GetTimeout(t *testing.T) {
 					Timeout: tc.timeout,
 				}
 				globalTimeout := 60 * time.Second
-				result, err := config.GetTimeout(context.Background(), globalTimeout)
+				result, err := config.GetTimeout(t.Context(), globalTimeout)
 				require.NoError(t, err)
 				require.Equal(t, tc.expected, result)
 			})
@@ -135,7 +135,7 @@ func TestToolConfig_ValidateTimeout(t *testing.T) {
 		require.NoError(t, err)
 		config.Timeout = "5m"
 
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 	})
 
@@ -145,7 +145,7 @@ func TestToolConfig_ValidateTimeout(t *testing.T) {
 		require.NoError(t, err)
 		config.Timeout = "invalid-timeout"
 
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid timeout format")
 	})
@@ -156,7 +156,7 @@ func TestToolConfig_ValidateTimeout(t *testing.T) {
 		require.NoError(t, err)
 		config.Timeout = "0s"
 
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "timeout must be positive")
 	})
@@ -167,7 +167,7 @@ func TestToolConfig_ValidateTimeout(t *testing.T) {
 		require.NoError(t, err)
 		config.Timeout = "-5s"
 
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "timeout must be positive")
 	})
@@ -178,7 +178,7 @@ func TestToolConfig_ValidateTimeout(t *testing.T) {
 		require.NoError(t, err)
 		config.Timeout = ""
 
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 	})
 }
@@ -199,7 +199,7 @@ func TestToolConfig_Integration(t *testing.T) {
 		require.Equal(t, 30*time.Second, toolTimeout)
 
 		// Verify config validates successfully
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 	})
 
@@ -218,7 +218,7 @@ func TestToolConfig_Integration(t *testing.T) {
 		require.Equal(t, 10*time.Minute, toolTimeout)
 
 		// Verify config validates successfully
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 	})
 

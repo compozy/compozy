@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	orchestratorpkg "github.com/compozy/compozy/engine/llm/orchestrator"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/telemetry"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
@@ -196,6 +197,7 @@ func assembleOrchestratorConfig(
 		SystemPromptRenderer:           systemPromptRenderer,
 		RuntimeManager:                 runtime,
 		LLMFactory:                     config.LLMFactory,
+		ProviderMetrics:                config.ProviderMetrics,
 		RateLimiter:                    config.RateLimiter,
 		MemoryProvider:                 config.MemoryProvider,
 		MemorySync:                     NewMemorySync(),
@@ -293,13 +295,16 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	config := DefaultConfig()
 	// Context-first: merge application config when available
 	if ac := appconfig.FromContext(ctx); ac != nil {
-		WithAppConfig(ac)(config)
+		WithAppConfig(ctx, ac)(config)
 	}
 	for _, opt := range opts {
 		opt(config)
 	}
+	if config.ProviderMetrics == nil {
+		config.ProviderMetrics = providermetrics.Nop()
+	}
 	// Validate configuration
-	if err := config.Validate(); err != nil {
+	if err := config.Validate(ctx); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 	knowledgeState, err := newKnowledgeRuntimeState(ctx, config.Knowledge)
@@ -318,7 +323,7 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		return nil, err
 	}
 	// Create tool registry
-	toolRegistry := NewToolRegistry(ToolRegistryConfig{
+	toolRegistry := NewToolRegistry(ctx, ToolRegistryConfig{
 		ProxyClient:     mcpClient,
 		CacheTTL:        config.CacheTTL,
 		AllowedMCPNames: config.AllowedMCPNames,
@@ -656,7 +661,7 @@ func initKnowledgeRuntime(
 	if err != nil {
 		defsCopy = cfg.Definitions
 	}
-	resolver, err := knowledge.NewResolver(defsCopy, knowledge.DefaultsFromContext(ctx))
+	resolver, err := knowledge.NewResolver(ctx, defsCopy, knowledge.DefaultsFromContext(ctx))
 	if err != nil {
 		return nil, err
 	}

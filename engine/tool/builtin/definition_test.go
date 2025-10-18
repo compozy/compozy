@@ -87,10 +87,6 @@ func TestValidationHelpers(t *testing.T) {
 		cancel()
 		require.Error(t, CheckContext(ctx))
 	})
-
-	t.Run("Should error on nil context", func(t *testing.T) {
-		require.Error(t, CheckContext(nil)) //nolint:staticcheck // Validate explicit nil handling path.
-	})
 }
 
 type mockFileInfo struct {
