@@ -56,12 +56,14 @@ func (s *Server) createHTTPServer() *http.Server {
 	log := logger.FromContext(s.ctx)
 	log.Info("Starting HTTP server", "address", fmt.Sprintf("http://%s", addr))
 	return &http.Server{
-		Addr:         addr,
-		Handler:      s.router,
-		BaseContext:  func(net.Listener) context.Context { return s.ctx },
-		ReadTimeout:  cfg.Server.Timeouts.HTTPRead,
-		WriteTimeout: cfg.Server.Timeouts.HTTPWrite,
-		IdleTimeout:  cfg.Server.Timeouts.HTTPIdle,
+		Addr:              addr,
+		Handler:           s.router,
+		BaseContext:       func(net.Listener) context.Context { return s.ctx },
+		ReadTimeout:       cfg.Server.Timeouts.HTTPRead,
+		WriteTimeout:      cfg.Server.Timeouts.HTTPWrite,
+		IdleTimeout:       cfg.Server.Timeouts.HTTPIdle,
+		ReadHeaderTimeout: cfg.Server.Timeouts.HTTPReadHeader,
+		MaxHeaderBytes:    1 << 20,
 	}
 }
 

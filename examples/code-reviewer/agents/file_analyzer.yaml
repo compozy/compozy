@@ -46,34 +46,57 @@ instructions: |
      - Provide specific code examples for fixes
 
   3. **Determine review filename**:
-     - Use provided review number: {{ .input.num }}
-     - Use full file path from {{ .input.file_path }} sanitized for filesystem
-     - Replace directory separators (/) with underscores (_)
-     - Format: <num>_<full_path_sanitized>.md
-     - Example: engine/agent/uc/create.go → 001_engine_agent_uc_create.go.md
+     - Use provided review number: {{ .input.num }} (padded to 3 digits)
+     - Extract file slug from {{ .input.file_path }}:
+       * Remove "engine/" prefix
+       * Replace "/" with "-"
+       * Remove file extension
+     - Extract title slug from issue severity/topic (lowercase, hyphenated)
+     - Format: {num}-{file-slug}-{review-type}.md
+     - Example: engine/agent/uc/create.go → 001-agent-uc-create-performance.md
 
-  4. **Generate review report** in markdown format:
-     Structure:
-     - File Path: Full path of the reviewed file
-     - Summary: Brief overview of file purpose
-     - Findings: Categorized issues with severity (using emojis)
-     - Recommendations: Actionable improvements with code examples
-     - Rule References: Link to specific project rules violated
+  4. **Generate review report** in solve_issues.go compatible format:
+     Structure (MUST FOLLOW EXACTLY):
+     ```
+     # Issue {num} - Review Thread Comment
+
+     **File:** `{{ .input.file_path }}:1`
+     **Date:** {current_date}
+     **Status:** - [ ] UNRESOLVED
+
+     ## Body
+
+     ### {Issue Title}
+
+     {Review content with findings, recommendations, code examples}
+
+     ## Resolve
+
+     _Note: This issue was generated from code review analysis._
+
+     **Original analysis type:** {review_type}
+
+     To mark this issue as resolved:
+     1. Update this file's status line by changing `[ ]` to `[x]`
+     2. Update the grouped summary file
+     3. Update `_summary.md`
+     ```
 
   5. **Save the review** using write_file tool:
-     - Sanitize file path: Replace "/" with "_" in {{ .input.file_path }}
-     - Output path format: ai-docs/reviews/<review_type>/{{ .input.num }}_<sanitized_path>.md
-     - Review type is based on the action being executed (performance, security, monitoring, etc.)
+     - Determine review_type from the action being executed (performance, security, monitoring, architecture, testing, error_handling)
+     - Build descriptive filename:
+       * Format number as 3 digits (e.g., 001, 002)
+       * Extract file slug: remove "engine/", replace "/" with "-", remove extension
+       * Use review_type as title slug
+       * Result: {num}-{file-slug}-{review-type}.md
+     - Output path: ai-docs/reviews/{review_type}/issues/{filename}
 
      Examples:
-     * Input: file_path=engine/agent/action_config.go, num=001, review_type=performance
-       → Output: ai-docs/reviews/performance/001_engine_agent_action_config.go.md
+     * Action=performance, file_path=engine/agent/action_config.go, num=1
+       → Output: ai-docs/reviews/performance/issues/001-agent-action_config-performance.md
 
-     * Input: file_path=engine/agent/uc/create.go, num=003, review_type=security
-       → Output: ai-docs/reviews/security/003_engine_agent_uc_create.go.md
-
-     * Input: file_path=engine/agent/router/handlers.go, num=007, review_type=monitoring
-       → Output: ai-docs/reviews/monitoring/007_engine_agent_router_handlers.go.md
+     * Action=security, file_path=engine/agent/uc/create.go, num=3
+       → Output: ai-docs/reviews/security/issues/003-agent-uc-create-security.md
 
      - Tool: write_file
      - Parameters: { "path": "[calculated path]", "content": "[markdown report]" }
@@ -82,19 +105,25 @@ instructions: |
   </workflow>
 
   <output_format>
-  Your markdown reports must use this structure:
+  Your markdown reports MUST use this exact structure for solve_issues.go compatibility:
 
-  # Code Review: [filename]
+  # Issue {num} - Review Thread Comment
 
-  **File Path:** `[full/path/to/file]`
-  **Review Type:** [Performance/Security/Monitoring/Architecture/Testing/Error Handling/Documentation]
-  **Review Date:** [Current Date]
-  **Severity:** [Critical/High/Medium/Low]
+  **File:** `{file_path}:1`
+  **Date:** {YYYY-MM-DD HH:MM:SS TZ}
+  **Status:** - [ ] UNRESOLVED
 
-  ## Summary
+  ## Body
+
+  ### Code Review: {filename} - {Review Type}
+
+  **Review Type:** {Performance/Security/Monitoring/Architecture/Testing/Error Handling}
+  **Severity:** {Critical/High/Medium/Low}
+
+  #### Summary
   Brief overview of the file and its purpose
 
-  ## Findings
+  #### Findings
 
   ### 🔴 Critical Issues
   [Issues that must be fixed immediately - security vulnerabilities, data loss risks, crashes]
@@ -162,38 +191,53 @@ instructions: |
     [improved code]
     ```
 
-  ## Rule References
+  #### Rule References
 
   - `.cursor/rules/go-coding-standards.mdc`: [Specific sections violated]
   - `.cursor/rules/architecture.mdc`: [Relevant patterns]
   - `.cursor/rules/[other-relevant-rules].mdc`: [Specific guidelines]
 
-  ## Impact Assessment
+  #### Impact Assessment
 
   - **Performance Impact**: [How this affects runtime performance]
   - **Maintainability Impact**: [How this affects code maintenance]
   - **Security Impact**: [Security implications if any]
   - **Reliability Impact**: [Impact on system reliability]
 
-  ## Recommendations
+  #### Recommendations
 
-  ### Immediate Actions (Critical/High Priority)
+  **Immediate Actions (Critical/High Priority)**
   1. [Most urgent fix with priority]
   2. [Second priority fix]
 
-  ### Short-term Improvements (Medium Priority)
+  **Short-term Improvements (Medium Priority)**
   1. [Important enhancement]
   2. [Another improvement]
 
-  ### Long-term Enhancements (Low Priority)
+  **Long-term Enhancements (Low Priority)**
   1. [Nice-to-have improvement]
   2. [Strategic enhancement]
 
-  ## Positive Aspects
+  #### Positive Aspects
 
   - [What the code does well]
   - [Good practices to maintain]
   - [Commendable patterns used]
+
+  ## Resolve
+
+  _Note: This issue was generated from code review analysis._
+
+  **Original analysis type:** {review_type}
+  **File analyzed:** `{file_path}`
+
+  To mark this issue as resolved:
+  1. Update this file's status line by changing `[ ]` to `[x]`
+  2. Update the grouped summary file
+  3. Update `_summary.md`
+
+  ---
+  *Generated from code review analysis*
   </output_format>
 
 actions:

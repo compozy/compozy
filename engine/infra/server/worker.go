@@ -132,19 +132,14 @@ func (s *Server) maybeStartWorker(
 
 func (s *Server) initializeScheduleManager(state *appstate.State, worker *worker.Worker, workflows []*workflow.Config) {
 	log := logger.FromContext(s.ctx)
-	var scheduleManager schedule.Manager
+	var opts []schedule.Option
 	if s.monitoring != nil && s.monitoring.IsInitialized() {
-		scheduleManager = schedule.NewManagerWithMetrics(
-			s.ctx,
-			worker.GetWorkerClient(),
-			state.ProjectConfig.Name,
-			s.monitoring.Meter(),
-		)
+		opts = append(opts, schedule.WithMetrics(s.ctx, s.monitoring.Meter()))
 		log.Debug("Schedule manager initialized with metrics")
 	} else {
-		scheduleManager = schedule.NewManager(worker.GetWorkerClient(), state.ProjectConfig.Name)
 		log.Debug("Schedule manager initialized without metrics")
 	}
+	scheduleManager := schedule.NewManager(worker.GetWorkerClient(), state.ProjectConfig.Name, opts...)
 	state.SetScheduleManager(scheduleManager)
 	go s.runReconciliationWithRetry(scheduleManager, workflows)
 }

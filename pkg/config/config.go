@@ -211,6 +211,7 @@ type ServerTimeouts struct {
 	HTTPRead                 time.Duration `koanf:"http_read"                      json:"http_read"                      yaml:"http_read"                      mapstructure:"http_read"`
 	HTTPWrite                time.Duration `koanf:"http_write"                     json:"http_write"                     yaml:"http_write"                     mapstructure:"http_write"`
 	HTTPIdle                 time.Duration `koanf:"http_idle"                      json:"http_idle"                      yaml:"http_idle"                      mapstructure:"http_idle"`
+	HTTPReadHeader           time.Duration `koanf:"http_read_header"               json:"http_read_header"               yaml:"http_read_header"               mapstructure:"http_read_header"`
 	ScheduleRetryMaxDuration time.Duration `koanf:"schedule_retry_max_duration"    json:"schedule_retry_max_duration"    yaml:"schedule_retry_max_duration"    mapstructure:"schedule_retry_max_duration"`
 	ScheduleRetryBaseDelay   time.Duration `koanf:"schedule_retry_base_delay"      json:"schedule_retry_base_delay"      yaml:"schedule_retry_base_delay"      mapstructure:"schedule_retry_base_delay"`
 	ScheduleRetryMaxDelay    time.Duration `koanf:"schedule_retry_max_delay"       json:"schedule_retry_max_delay"       yaml:"schedule_retry_max_delay"       mapstructure:"schedule_retry_max_delay"`
@@ -327,6 +328,26 @@ type DatabaseConfig struct {
 	//
 	// Default: 2m
 	MigrationTimeout time.Duration `koanf:"migration_timeout" json:"migration_timeout" yaml:"migration_timeout" mapstructure:"migration_timeout" env:"DB_MIGRATION_TIMEOUT"`
+
+	// MaxOpenConns caps total simultaneous PostgreSQL connections from this service.
+	//
+	// Default: `25`
+	MaxOpenConns int `koanf:"max_open_conns" json:"max_open_conns" yaml:"max_open_conns" mapstructure:"max_open_conns" env:"DB_MAX_OPEN_CONNS"`
+
+	// MaxIdleConns defines the number of connections kept idle in the pool.
+	//
+	// Default: `5`
+	MaxIdleConns int `koanf:"max_idle_conns" json:"max_idle_conns" yaml:"max_idle_conns" mapstructure:"max_idle_conns" env:"DB_MAX_IDLE_CONNS"`
+
+	// ConnMaxLifetime bounds how long a connection may be reused.
+	//
+	// Default: `5m`
+	ConnMaxLifetime time.Duration `koanf:"conn_max_lifetime" json:"conn_max_lifetime" yaml:"conn_max_lifetime" mapstructure:"conn_max_lifetime" env:"DB_CONN_MAX_LIFETIME"`
+
+	// ConnMaxIdleTime bounds how long an idle connection is retained before recycling.
+	//
+	// Default: `1m`
+	ConnMaxIdleTime time.Duration `koanf:"conn_max_idle_time" json:"conn_max_idle_time" yaml:"conn_max_idle_time" mapstructure:"conn_max_idle_time" env:"DB_CONN_MAX_IDLE_TIME"`
 }
 
 // TemporalConfig contains Temporal workflow engine configuration.
@@ -1250,6 +1271,46 @@ type WorkerConfig struct {
 	//
 	// **Default**: `5s`
 	StartWorkflowTimeout time.Duration `koanf:"start_workflow_timeout" json:"start_workflow_timeout" yaml:"start_workflow_timeout" mapstructure:"start_workflow_timeout" env:"WORKER_START_WORKFLOW_TIMEOUT"`
+
+	// MaxConcurrentActivityExecutionSize bounds the number of activities a worker executes concurrently.
+	//
+	// **Default**: `0` (auto = 2x CPUs)
+	MaxConcurrentActivityExecutionSize int `koanf:"max_concurrent_activity_execution_size" json:"max_concurrent_activity_execution_size" yaml:"max_concurrent_activity_execution_size" mapstructure:"max_concurrent_activity_execution_size" env:"WORKER_MAX_CONCURRENT_ACTIVITIES"`
+
+	// MaxConcurrentWorkflowExecutionSize bounds the number of workflow tasks executed concurrently.
+	//
+	// **Default**: `0` (auto = 1x CPUs)
+	MaxConcurrentWorkflowExecutionSize int `koanf:"max_concurrent_workflow_execution_size" json:"max_concurrent_workflow_execution_size" yaml:"max_concurrent_workflow_execution_size" mapstructure:"max_concurrent_workflow_execution_size" env:"WORKER_MAX_CONCURRENT_WORKFLOWS"`
+
+	// MaxConcurrentLocalActivityExecutionSize bounds concurrently executing local activities.
+	//
+	// **Default**: `0` (auto = 4x CPUs)
+	MaxConcurrentLocalActivityExecutionSize int `koanf:"max_concurrent_local_activity_execution_size" json:"max_concurrent_local_activity_execution_size" yaml:"max_concurrent_local_activity_execution_size" mapstructure:"max_concurrent_local_activity_execution_size" env:"WORKER_MAX_CONCURRENT_LOCAL_ACTIVITIES"`
+
+	// ActivityStartToCloseTimeout defines the default bounded execution time for retryable activities.
+	//
+	// **Default**: `5m`
+	ActivityStartToCloseTimeout time.Duration `koanf:"activity_start_to_close_timeout" json:"activity_start_to_close_timeout" yaml:"activity_start_to_close_timeout" mapstructure:"activity_start_to_close_timeout" env:"WORKER_ACTIVITY_START_TO_CLOSE_TIMEOUT"`
+
+	// ActivityHeartbeatTimeout defines the default heartbeat window for long-running activities.
+	//
+	// **Default**: `30s`
+	ActivityHeartbeatTimeout time.Duration `koanf:"activity_heartbeat_timeout" json:"activity_heartbeat_timeout" yaml:"activity_heartbeat_timeout" mapstructure:"activity_heartbeat_timeout" env:"WORKER_ACTIVITY_HEARTBEAT_TIMEOUT"`
+
+	// ActivityMaxRetries bounds retry attempts for default activity execution.
+	//
+	// **Default**: `3`
+	ActivityMaxRetries int `koanf:"activity_max_retries" json:"activity_max_retries" yaml:"activity_max_retries" mapstructure:"activity_max_retries" env:"WORKER_ACTIVITY_MAX_RETRIES"`
+
+	// ErrorHandlerTimeout bounds retries invoked during workflow failure handling logic.
+	//
+	// **Default**: `30s`
+	ErrorHandlerTimeout time.Duration `koanf:"error_handler_timeout" json:"error_handler_timeout" yaml:"error_handler_timeout" mapstructure:"error_handler_timeout" env:"WORKER_ERROR_HANDLER_TIMEOUT"`
+
+	// ErrorHandlerMaxRetries caps retry attempts for error handling activities.
+	//
+	// **Default**: `3`
+	ErrorHandlerMaxRetries int `koanf:"error_handler_max_retries" json:"error_handler_max_retries" yaml:"error_handler_max_retries" mapstructure:"error_handler_max_retries" env:"WORKER_ERROR_HANDLER_MAX_RETRIES"`
 
 	// Dispatcher defines heartbeat tracking for dispatcher leases.
 	Dispatcher WorkerDispatcherConfig `koanf:"dispatcher" json:"dispatcher" yaml:"dispatcher" mapstructure:"dispatcher"`

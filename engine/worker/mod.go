@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	stdruntime "runtime"
 	"strings"
 	"time"
 
@@ -250,6 +251,32 @@ func (o *Worker) registerMemoryActivities() {
 func buildWorkerOptions(ctx context.Context, monitoringService *monitoring.Service) *worker.Options {
 	log := logger.FromContext(ctx)
 	options := &worker.Options{}
+	if cfg := appconfig.FromContext(ctx); cfg != nil {
+		autoActivity := stdruntime.NumCPU() * 2
+		if autoActivity < 1 {
+			autoActivity = 1
+		}
+		autoWorkflow := stdruntime.NumCPU()
+		if autoWorkflow < 1 {
+			autoWorkflow = 1
+		}
+		autoLocal := stdruntime.NumCPU() * 4
+		if autoLocal < 1 {
+			autoLocal = 1
+		}
+		options.MaxConcurrentActivityExecutionSize = positiveOrDefault(
+			cfg.Worker.MaxConcurrentActivityExecutionSize,
+			autoActivity,
+		)
+		options.MaxConcurrentWorkflowTaskExecutionSize = positiveOrDefault(
+			cfg.Worker.MaxConcurrentWorkflowExecutionSize,
+			autoWorkflow,
+		)
+		options.MaxConcurrentLocalActivityExecutionSize = positiveOrDefault(
+			cfg.Worker.MaxConcurrentLocalActivityExecutionSize,
+			autoLocal,
+		)
+	}
 	if monitoringService != nil && monitoringService.IsInitialized() {
 		interceptor := monitoringService.TemporalInterceptor(ctx)
 		if interceptor != nil {
@@ -258,6 +285,13 @@ func buildWorkerOptions(ctx context.Context, monitoringService *monitoring.Servi
 		}
 	}
 	return options
+}
+
+func positiveOrDefault(value, fallback int) int {
+	if value > 0 {
+		return value
+	}
+	return fallback
 }
 
 func buildRuntimeManager(
@@ -1069,6 +1103,10 @@ func (o *Worker) TriggerWorkflow(
 		WorkflowExecID: workflowExecID,
 		Input:          mergedInput, // Use merged input with defaults
 		InitialTaskID:  initTaskID,
+	}
+	if cfg := appconfig.FromContext(ctx); cfg != nil {
+		workflowInput.ErrorHandlerTimeout = cfg.Worker.ErrorHandlerTimeout
+		workflowInput.ErrorHandlerMaxRetries = cfg.Worker.ErrorHandlerMaxRetries
 	}
 	// Pre-persist a Pending state BEFORE starting the Temporal workflow
 	// to avoid duplicate starts on retries when persistence fails after start.

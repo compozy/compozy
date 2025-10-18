@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -50,6 +52,11 @@ type LoadResult struct {
 type LoadError struct {
 	File  string
 	Error error
+}
+
+type fileProcessResult struct {
+	success bool
+	err     error
 }
 
 // ErrorSummary provides a categorized summary of all errors that occurred
@@ -140,21 +147,140 @@ func (al *AutoLoader) discoverFiles(ctx context.Context) ([]string, error) {
 
 // processFiles processes each discovered file and handles errors
 func (al *AutoLoader) processFiles(ctx context.Context, files []string, result *LoadResult) error {
-	for _, file := range files {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			// Continue processing
-		}
-		result.FilesProcessed++
-		if err := al.loadAndRegisterConfig(ctx, file); err != nil {
-			if err := al.handleLoadError(ctx, file, err, result, len(files)); err != nil {
+	if len(files) == 0 {
+		return nil
+	}
+	workers := workerConcurrencyLimit(len(files))
+	results, waitErr := al.runFileProcessors(ctx, files, workers)
+	return al.finalizeFileProcessing(ctx, files, results, waitErr, result)
+}
+
+func workerConcurrencyLimit(totalFiles int) int {
+	if totalFiles <= 0 {
+		return 0
+	}
+	limit := runtime.NumCPU() * 2
+	if limit < 1 {
+		limit = 1
+	}
+	if limit > totalFiles {
+		limit = totalFiles
+	}
+	if limit > 16 {
+		limit = 16
+	}
+	return limit
+}
+
+func (al *AutoLoader) runFileProcessors(ctx context.Context, files []string, workers int) ([]fileProcessResult, error) {
+	results := make([]fileProcessResult, len(files))
+	if workers <= 0 {
+		return results, nil
+	}
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(workers)
+	for i, file := range files {
+		i := i
+		file := file
+		g.Go(func() error {
+			if err := gctx.Err(); err != nil {
 				return err
 			}
-		} else {
-			result.ConfigsLoaded++
+			if err := al.loadAndRegisterConfig(gctx, file); err != nil {
+				results[i] = fileProcessResult{err: err}
+				if al.config.Strict {
+					return err
+				}
+				return nil
+			}
+			results[i] = fileProcessResult{success: true}
+			return nil
+		})
+	}
+	return results, g.Wait()
+}
+
+func (al *AutoLoader) finalizeFileProcessing(
+	ctx context.Context,
+	files []string,
+	results []fileProcessResult,
+	waitErr error,
+	result *LoadResult,
+) error {
+	if err := al.shortCircuitWaitErr(waitErr); err != nil {
+		return err
+	}
+	var firstErr error
+	total := len(files)
+	for idx, file := range files {
+		err := al.consumeFileResult(ctx, file, results[idx], waitErr, total, result)
+		if err == nil {
+			continue
 		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+		if firstErr == nil {
+			firstErr = err
+		}
+		if al.config.Strict {
+			break
+		}
+	}
+	if firstErr != nil {
+		return firstErr
+	}
+	return al.postProcessWaitErr(waitErr)
+}
+
+func (al *AutoLoader) shortCircuitWaitErr(waitErr error) error {
+	if waitErr == nil {
+		return nil
+	}
+	if al.config.Strict {
+		return nil
+	}
+	if errors.Is(waitErr, context.Canceled) || errors.Is(waitErr, context.DeadlineExceeded) {
+		return nil
+	}
+	return waitErr
+}
+
+func (al *AutoLoader) postProcessWaitErr(waitErr error) error {
+	if waitErr == nil {
+		return nil
+	}
+	if errors.Is(waitErr, context.Canceled) || errors.Is(waitErr, context.DeadlineExceeded) {
+		return waitErr
+	}
+	return nil
+}
+
+func (al *AutoLoader) consumeFileResult(
+	ctx context.Context,
+	file string,
+	result fileProcessResult,
+	waitErr error,
+	totalFiles int,
+	accumulated *LoadResult,
+) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	if !result.success && result.err == nil {
+		if waitErr != nil && (errors.Is(waitErr, context.Canceled) || errors.Is(waitErr, context.DeadlineExceeded)) {
+			return waitErr
+		}
+		return nil
+	}
+	accumulated.FilesProcessed++
+	if result.err != nil {
+		return al.handleLoadError(ctx, file, result.err, accumulated, totalFiles)
+	}
+	if result.success {
+		accumulated.ConfigsLoaded++
 	}
 	return nil
 }

@@ -306,6 +306,15 @@ func registerServerHTTPTimeouts(registry *Registry) {
 			Help:    "HTTP server idle timeout",
 		},
 	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.http_read_header",
+			Default: 10 * time.Second,
+			EnvVar:  "SERVER_HTTP_READ_HEADER_TIMEOUT",
+			Type:    durationType,
+			Help:    "HTTP server read header timeout to guard against Slowloris attacks",
+		},
+	)
 }
 
 func registerServerScheduleTimeouts(registry *Registry) {
@@ -387,6 +396,11 @@ func registerServerMiscTimeouts(registry *Registry) {
 }
 
 func registerDatabaseFields(registry *Registry) {
+	registerDatabaseConnectionFields(registry)
+	registerDatabaseOperationalFields(registry)
+}
+
+func registerDatabaseConnectionFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "database.host",
 		Default: "localhost",
@@ -449,7 +463,9 @@ func registerDatabaseFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Database connection string",
 	})
+}
 
+func registerDatabaseOperationalFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "database.auto_migrate",
 		Default: true,
@@ -466,6 +482,42 @@ func registerDatabaseFields(registry *Registry) {
 		EnvVar:  "DB_MIGRATION_TIMEOUT",
 		Type:    durationType,
 		Help:    "Maximum duration allowed for startup database migrations (must be >= 45s)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "database.max_open_conns",
+		Default: 25,
+		CLIFlag: "db-max-open-conns",
+		EnvVar:  "DB_MAX_OPEN_CONNS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum number of open PostgreSQL connections",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "database.max_idle_conns",
+		Default: 5,
+		CLIFlag: "db-max-idle-conns",
+		EnvVar:  "DB_MAX_IDLE_CONNS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum number of idle connections kept in the pool",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "database.conn_max_lifetime",
+		Default: 5 * time.Minute,
+		CLIFlag: "db-conn-max-lifetime",
+		EnvVar:  "DB_CONN_MAX_LIFETIME",
+		Type:    durationType,
+		Help:    "Maximum lifetime for a pooled connection",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "database.conn_max_idle_time",
+		Default: 1 * time.Minute,
+		CLIFlag: "db-conn-max-idle-time",
+		EnvVar:  "DB_CONN_MAX_IDLE_TIME",
+		Type:    durationType,
+		Help:    "Maximum idle time before a connection is recycled",
 	})
 }
 
@@ -1930,6 +1982,15 @@ func registerCacheCompressionFields(registry *Registry) {
 }
 
 func registerWorkerFields(registry *Registry) {
+	registerWorkerCacheLifecycleFields(registry)
+	registerWorkerDispatcherFields(registry)
+	registerWorkerTemporalFields(registry)
+	registerWorkerConcurrencyFields(registry)
+	registerWorkerActivityDefaults(registry)
+	registerWorkerErrorHandlerFields(registry)
+}
+
+func registerWorkerCacheLifecycleFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "worker.config_store_ttl",
 		Default: 24 * time.Hour,
@@ -1957,6 +2018,17 @@ func registerWorkerFields(registry *Registry) {
 		Help:    "Timeout for MCP server shutdown",
 	})
 
+	registry.Register(&FieldDef{
+		Path:    "worker.mcp_proxy_health_check_timeout",
+		Default: 10 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "WORKER_MCP_PROXY_HEALTH_CHECK_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for MCP proxy health checks",
+	})
+}
+
+func registerWorkerDispatcherFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "worker.dispatcher.heartbeat_ttl",
 		Default: 5 * time.Minute,
@@ -1992,16 +2064,9 @@ func registerWorkerFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum number of dispatcher startup retries",
 	})
+}
 
-	registry.Register(&FieldDef{
-		Path:    "worker.mcp_proxy_health_check_timeout",
-		Default: 10 * time.Second,
-		CLIFlag: "",
-		EnvVar:  "WORKER_MCP_PROXY_HEALTH_CHECK_TIMEOUT",
-		Type:    durationType,
-		Help:    "Timeout for MCP proxy health checks",
-	})
-
+func registerWorkerTemporalFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "worker.start_workflow_timeout",
 		Default: 5 * time.Second,
@@ -2009,6 +2074,84 @@ func registerWorkerFields(registry *Registry) {
 		EnvVar:  "WORKER_START_WORKFLOW_TIMEOUT",
 		Type:    durationType,
 		Help:    "Timeout for starting a workflow execution to avoid hanging requests",
+	})
+}
+
+func registerWorkerConcurrencyFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "worker.max_concurrent_activity_execution_size",
+		Default: 0,
+		CLIFlag: "",
+		EnvVar:  "WORKER_MAX_CONCURRENT_ACTIVITIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum concurrent activity executions (0 = auto based on CPU)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.max_concurrent_workflow_execution_size",
+		Default: 0,
+		CLIFlag: "",
+		EnvVar:  "WORKER_MAX_CONCURRENT_WORKFLOWS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum concurrent workflow task executions (0 = auto based on CPU)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.max_concurrent_local_activity_execution_size",
+		Default: 0,
+		CLIFlag: "",
+		EnvVar:  "WORKER_MAX_CONCURRENT_LOCAL_ACTIVITIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum concurrent local activity executions (0 = auto based on CPU)",
+	})
+}
+
+func registerWorkerActivityDefaults(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "worker.activity_start_to_close_timeout",
+		Default: 5 * time.Minute,
+		CLIFlag: "",
+		EnvVar:  "WORKER_ACTIVITY_START_TO_CLOSE_TIMEOUT",
+		Type:    durationType,
+		Help:    "Default activity start-to-close timeout",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.activity_heartbeat_timeout",
+		Default: 30 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "WORKER_ACTIVITY_HEARTBEAT_TIMEOUT",
+		Type:    durationType,
+		Help:    "Default activity heartbeat timeout",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.activity_max_retries",
+		Default: 3,
+		CLIFlag: "",
+		EnvVar:  "WORKER_ACTIVITY_MAX_RETRIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default maximum activity retry attempts",
+	})
+}
+
+func registerWorkerErrorHandlerFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "worker.error_handler_timeout",
+		Default: 30 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "WORKER_ERROR_HANDLER_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for workflow error handler activities",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.error_handler_max_retries",
+		Default: 3,
+		CLIFlag: "",
+		EnvVar:  "WORKER_ERROR_HANDLER_MAX_RETRIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Retry attempts for workflow error handler activities",
 	})
 }
 

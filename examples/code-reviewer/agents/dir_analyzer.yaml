@@ -57,37 +57,56 @@ instructions: |
      - Provide specific code examples for fixes
 
   4. **Determine review filename**:
-     - Use provided review number: {{ .input.num }}
-     - Sanitize directory path from {{ .input.directory }}
-     - Replace directory separators (/) with underscores (_)
-     - Format: <num>_<directory_path_sanitized>_DIRECTORY.md
-     - Example: engine/agent → 001_engine_agent_DIRECTORY.md
+     - Use provided review number: {{ .input.num }} (padded to 3 digits)
+     - Extract directory slug from {{ .input.directory }}:
+       * Remove "engine/" prefix
+       * Replace "/" with "-"
+     - Use "directory-{review-type}" as title slug
+     - Format: {num}-{dir-slug}-directory-{review-type}.md
+     - Example: engine/agent → 001-agent-directory-performance.md
 
-  5. **Generate comprehensive directory review** in markdown format:
-     Structure:
-     - Directory Path: Full path of the reviewed directory
-     - Summary: Brief overview of directory purpose and structure
-     - Architecture Overview: How files work together
-     - Findings: Categorized issues with severity (using emojis)
-     - Cross-File Issues: Problems spanning multiple files
-     - Missing Components: What should exist but doesn't
-     - Recommendations: Actionable improvements with code examples
-     - Rule References: Link to specific project rules violated
+  5. **Generate comprehensive directory review** in solve_issues.go compatible format:
+     Structure (MUST FOLLOW EXACTLY):
+     ```
+     # Issue {num} - Review Thread Comment
+
+     **File:** `{{ .input.directory }}/:1`
+     **Date:** {current_date}
+     **Status:** - [ ] UNRESOLVED
+
+     ## Body
+
+     ### Directory Review: {directory} - {Review Type}
+
+     {Review content with findings, recommendations, cross-file issues}
+
+     ## Resolve
+
+     _Note: This issue was generated from directory-level code review analysis._
+
+     **Original analysis type:** {review_type}
+
+     To mark this issue as resolved:
+     1. Update this file's status line by changing `[ ]` to `[x]`
+     2. Update the grouped summary file
+     3. Update `_summary.md`
+     ```
 
   6. **Save the review** using write_file tool:
-     - Sanitize directory path: Replace "/" with "_" in {{ .input.directory }}
-     - Output path format: ai-docs/reviews/<review_type>/{{ .input.num }}_<sanitized_path>_DIRECTORY.md
-     - Review type is based on the action being executed (performance, security, monitoring, etc.)
+     - Determine review_type from the action being executed (performance, security, monitoring, architecture, testing, error_handling)
+     - Build descriptive filename:
+       * Format number as 3 digits (e.g., 001, 002)
+       * Extract dir slug: remove "engine/", replace "/" with "-"
+       * Append "-directory-{review_type}"
+       * Result: {num}-{dir-slug}-directory-{review-type}.md
+     - Output path: ai-docs/reviews/{review_type}/issues/{filename}
 
      Examples:
-     * Input: directory=engine/agent, num=001, review_type=performance
-       → Output: ai-docs/reviews/performance/001_engine_agent_DIRECTORY.md
+     * Action=performance, directory=engine/agent, num=1
+       → Output: ai-docs/reviews/performance/issues/001-agent-directory-performance.md
 
-     * Input: directory=engine/agent/uc, num=003, review_type=security
-       → Output: ai-docs/reviews/security/003_engine_agent_uc_DIRECTORY.md
-
-     * Input: directory=engine/workflow, num=007, review_type=monitoring
-       → Output: ai-docs/reviews/monitoring/007_engine_workflow_DIRECTORY.md
+     * Action=security, directory=engine/agent/uc, num=3
+       → Output: ai-docs/reviews/security/issues/003-agent-uc-directory-security.md
 
      - Tool: cp__write_file
      - Parameters: { "path": "[calculated path]", "content": "[markdown report]" }
@@ -112,43 +131,51 @@ instructions: |
 
   3. **cp__write_file**: Write the review document
      - **CRITICAL**: You MUST use this tool to save your review!
-     - Sanitize directory path: Replace "/" with "_" in {{ .input.directory }}
-     - Format: `ai-docs/reviews/<review_type>/{{ .input.num }}_<sanitized_directory>_DIRECTORY.md`
-     - Example: directory=engine/agent, num=001, review_type=performance
-       → Save to: `ai-docs/reviews/performance/001_engine_agent_DIRECTORY.md`
-     - Use the provided {{ .input.num }} directly in the filename
-     - Use the structured markdown format from instructions
+     - Build descriptive filename:
+       * Format {{ .input.num }} as 3 digits (e.g., 001, 002)
+       * Extract dir slug: remove "engine/", replace "/" with "-"
+       * Append "-directory-{review_type}"
+     - Format: `ai-docs/reviews/<review_type>/issues/{num}-{dir-slug}-directory-{review-type}.md`
+     - Example: directory=engine/agent, num=1, review_type=performance
+       → Save to: `ai-docs/reviews/performance/issues/001-agent-directory-performance.md`
+     - Use the structured markdown format from instructions (solve_issues.go compatible)
 
   **IMPORTANT**: You MUST actually call these tools, not just describe what you would do!
   Without calling cp__write_file, your review will not be saved!
   </tools_usage>
 
   <output_format>
-  Your markdown reports must use this structure:
+  Your markdown reports MUST use this exact structure for solve_issues.go compatibility:
 
-  # Directory Review: [directory name]
+  # Issue {num} - Review Thread Comment
 
-  **Directory Path:** `[full/path/to/directory]`
-  **Review Type:** [Performance/Security/Monitoring/Architecture/Testing/Error Handling]
-  **Review Date:** [Current Date]
-  **Overall Severity:** [Critical/High/Medium/Low]
-  **Files Analyzed:** [Count]
+  **File:** `{directory}/:1`
+  **Date:** {YYYY-MM-DD HH:MM:SS TZ}
+  **Status:** - [ ] UNRESOLVED
 
-  ## Summary
+  ## Body
+
+  ### Directory Review: {directory} - {Review Type}
+
+  **Review Type:** {Performance/Security/Monitoring/Architecture/Testing/Error Handling}
+  **Overall Severity:** {Critical/High/Medium/Low}
+  **Files Analyzed:** {Count}
+
+  #### Summary
   Brief overview of the directory's purpose and role in the project
 
-  ## Architecture Overview
+  #### Architecture Overview
 
-  ### Directory Structure
+  **Directory Structure**
   [List of files and their purposes]
 
-  ### Component Relationships
+  **Component Relationships**
   [How files interact and depend on each other]
 
-  ### Design Patterns
+  **Design Patterns**
   [Patterns and conventions used in this directory]
 
-  ## Findings
+  #### Findings
 
   ### 🔴 Critical Issues
   [Issues that must be fixed immediately - security vulnerabilities, data loss risks, crashes]
@@ -263,13 +290,13 @@ instructions: |
   1. [Nice-to-have improvement]
   2. [Strategic enhancement]
 
-  ## Positive Aspects
+  #### Positive Aspects
 
   - [What the directory does well]
   - [Good practices to maintain]
   - [Commendable patterns used]
 
-  ## Files Examined
+  #### Files Examined
 
   The following files were analyzed during this review:
 
@@ -277,9 +304,25 @@ instructions: |
   [List all files examined, one per line with full paths]
   ```
 
-  ## Conclusion
+  #### Conclusion
 
   [Final assessment and priority guidance for the directory as a whole]
+
+  ## Resolve
+
+  _Note: This issue was generated from directory-level code review analysis._
+
+  **Original analysis type:** {review_type}
+  **Directory analyzed:** `{directory}`
+  **Files analyzed:** {count}
+
+  To mark this issue as resolved:
+  1. Update this file's status line by changing `[ ]` to `[x]`
+  2. Update the grouped summary file
+  3. Update `_summary.md`
+
+  ---
+  *Generated from code review analysis*
   </output_format>
 
 actions:
@@ -314,17 +357,20 @@ actions:
          - Provide specific code examples and recommendations
 
       4. **Save the review file**
-         - Sanitize directory path: Replace "/" with "_" in {{ .input.directory }}
-         - Save to: `ai-docs/reviews/performance/{{ .input.num }}_<sanitized_directory>_DIRECTORY.md`
-         - Example: {{ .input.directory }}=engine/agent → ai-docs/reviews/performance/{{ .input.num }}_engine_agent_DIRECTORY.md
-         - **CRITICAL**: Use `cp__write_file` tool with the calculated path and your markdown content
+         - Build descriptive filename:
+           * Format {{ .input.num }} as 3 digits (e.g., 001, 002)
+           * Extract dir slug: remove "engine/" prefix, replace "/" with "-"
+           * Append "-directory-performance"
+         - Save to: `ai-docs/reviews/performance/issues/{num}-{dir-slug}-directory-performance.md`
+         - Example: {{ .input.directory }}=engine/agent, num=1 → ai-docs/reviews/performance/issues/001-agent-directory-performance.md
+         - **CRITICAL**: Use `cp__write_file` tool with the calculated path and solve_issues.go compatible markdown content
       </requirements>
 
       <output>
       You MUST:
       1. Use cp__list_files to discover Go files
       2. Use cp__read_file to analyze the codebase
-      3. Generate the structured markdown review
+      3. Generate the structured markdown review in solve_issues.go format
       4. **Use cp__write_file to save the review** (this is mandatory!)
       5. Return a summary confirming the file was saved
 
@@ -351,8 +397,8 @@ actions:
       <steps>
       1. Use cp__list_files with dir="{{ .input.directory }}", recursive=true
       2. Use cp__read_file to analyze each Go file
-      3. Generate structured security review following instructions format
-      4. **CRITICAL**: Use cp__write_file to save to: ai-docs/reviews/security/{{ .input.num }}_<sanitized_dir>_DIRECTORY.md
+      3. Generate structured security review following solve_issues.go format from instructions
+      4. **CRITICAL**: Use cp__write_file to save to: ai-docs/reviews/security/issues/{num}-{dir-slug}-directory-security.md
       5. Return summary with saved file location
       </steps>
 
@@ -379,8 +425,8 @@ actions:
       <steps>
       1. Use cp__list_files with dir="{{ .input.directory }}", recursive=true
       2. Use cp__read_file to analyze each Go file
-      3. Generate structured monitoring review following instructions format
-      4. **CRITICAL**: Use cp__write_file to save to: ai-docs/reviews/monitoring/{{ .input.num }}_<sanitized_dir>_DIRECTORY.md
+      3. Generate structured monitoring review following solve_issues.go format from instructions
+      4. **CRITICAL**: Use cp__write_file to save to: ai-docs/reviews/monitoring/issues/{num}-{dir-slug}-directory-monitoring.md
       5. Return summary with saved file location
       </steps>
 
@@ -409,8 +455,8 @@ actions:
       <steps>
       1. Use cp__list_files with dir="{{ .input.directory }}", recursive=true
       2. Use cp__read_file to analyze each Go file
-      3. Generate structured architecture review following instructions format
-      4. **CRITICAL**: Use cp__write_file to save to: ai-docs/reviews/architecture/{{ .input.num }}_<sanitized_dir>_DIRECTORY.md
+      3. Generate structured architecture review following solve_issues.go format from instructions
+      4. **CRITICAL**: Use cp__write_file to save to: ai-docs/reviews/architecture/issues/{num}-{dir-slug}-directory-architecture.md
       5. Return summary with saved file location
       </steps>
 
@@ -439,8 +485,8 @@ actions:
       <steps>
       1. Use cp__list_files with dir="{{ .input.directory }}", recursive=true
       2. Use cp__read_file to analyze each Go file
-      3. Generate structured testing review following instructions format
-      4. **CRITICAL**: Use cp__write_file to save to: ai-docs/reviews/testing/{{ .input.num }}_<sanitized_dir>_DIRECTORY.md
+      3. Generate structured testing review following solve_issues.go format from instructions
+      4. **CRITICAL**: Use cp__write_file to save to: ai-docs/reviews/testing/issues/{num}-{dir-slug}-directory-testing.md
       5. Return summary with saved file location
       </steps>
 
@@ -469,8 +515,8 @@ actions:
       <steps>
       1. Use cp__list_files with dir="{{ .input.directory }}", recursive=true
       2. Use cp__read_file to analyze each Go file
-      3. Generate structured error handling review following instructions format
-      4. **CRITICAL**: Use cp__write_file to save to: ai-docs/reviews/error_handling/{{ .input.num }}_<sanitized_dir>_DIRECTORY.md
+      3. Generate structured error handling review following solve_issues.go format from instructions
+      4. **CRITICAL**: Use cp__write_file to save to: ai-docs/reviews/error_handling/issues/{num}-{dir-slug}-directory-error_handling.md
       5. Return summary with saved file location
       </steps>
 
