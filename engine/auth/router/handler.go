@@ -195,7 +195,7 @@ func (h *Handler) RevokeKey(c *gin.Context) {
 			c.JSON(
 				http.StatusNotFound,
 				gin.H{
-					"error":   uc.ErrAPIKeyNotFound.Error(),
+					"error":   "API key not found",
 					"details": "The specified API key does not exist",
 				},
 			)
@@ -271,6 +271,13 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	user, err := createUC.Execute(ctx)
 	if err != nil {
 		log.Error("Failed to create user", "error", err)
+		if errors.Is(err, uc.ErrEmailExists) {
+			c.JSON(
+				http.StatusConflict,
+				gin.H{"error": "Email already exists", "details": "A user with this email address already exists"},
+			)
+			return
+		}
 		// Handle specific error types
 		if coreErr, ok := err.(*core.Error); ok {
 			switch coreErr.Code {
@@ -379,7 +386,17 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		if errors.Is(err, uc.ErrUserNotFound) {
 			c.JSON(
 				http.StatusNotFound,
-				gin.H{"error": uc.ErrUserNotFound.Error(), "details": "The specified user does not exist"},
+				gin.H{"error": "User not found", "details": "The specified user does not exist"},
+			)
+			return
+		}
+		if errors.Is(err, uc.ErrEmailExists) {
+			c.JSON(
+				http.StatusConflict,
+				gin.H{
+					"error":   "Email already exists",
+					"details": "Another user with this email address already exists",
+				},
 			)
 			return
 		}
@@ -444,7 +461,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		if errors.Is(err, uc.ErrUserNotFound) {
 			c.JSON(
 				http.StatusNotFound,
-				gin.H{"error": uc.ErrUserNotFound.Error(), "details": "The specified user does not exist"},
+				gin.H{"error": "User not found", "details": "The specified user does not exist"},
 			)
 			return
 		}

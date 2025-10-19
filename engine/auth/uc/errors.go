@@ -7,6 +7,8 @@ var (
 	ErrUserNotFound = errors.New("auth: user not found")
 	// ErrAPIKeyNotFound indicates a requested API key does not exist.
 	ErrAPIKeyNotFound = errors.New("auth: api key not found")
+	// ErrEmailExists indicates the email is already in use by another user.
+	ErrEmailExists = errors.New("auth: email already exists")
 	// ErrInvalidCredentials indicates the provided authentication material is invalid.
 	ErrInvalidCredentials = errors.New("auth: invalid credentials")
 	// ErrTokenExpired indicates the token has expired and must be refreshed.

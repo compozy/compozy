@@ -192,7 +192,7 @@ func TestUpdateUser_Execute(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Nil(t, result)
-		assert.Equal(t, "email already in use", err.Error())
+		assert.ErrorIs(t, err, uc.ErrEmailExists)
 		// Verify error does not contain email address (PII)
 		assert.NotContains(t, err.Error(), newEmail)
 		mockRepo.AssertExpectations(t)
@@ -263,15 +263,15 @@ func TestUpdateUser_Execute(t *testing.T) {
 		input := &uc.UpdateUserInput{
 			Email: &newEmail,
 		}
-		// Mock GetUserByID returns error
-		mockRepo.On("GetUserByID", ctx, userID).Return(nil, errors.New("not found"))
+		// Mock GetUserByID returns sentinel error
+		mockRepo.On("GetUserByID", ctx, userID).Return(nil, uc.ErrUserNotFound)
 		// Act
 		updateUser := uc.NewUpdateUser(mockRepo, userID, input)
 		result, err := updateUser.Execute(ctx)
 		// Assert
 		require.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "user not found")
+		assert.ErrorIs(t, err, uc.ErrUserNotFound)
 		// Verify error does not contain user ID (potential PII)
 		assert.NotContains(t, err.Error(), userID.String())
 		mockRepo.AssertExpectations(t)

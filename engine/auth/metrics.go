@@ -190,9 +190,7 @@ func RecordRateLimitHit(ctx context.Context, userID string, ipAddress string) {
 	maskedIP := maskIPAddress(ipAddress)
 	attrs := []attribute.KeyValue{
 		attribute.String("ip_address", maskedIP),
-	}
-	if userID != "" {
-		attrs = append(attrs, attribute.String("user_id", userID))
+		attribute.Bool("has_user", userID != ""),
 	}
 
 	authRateLimitHits.Add(ctx, 1, metric.WithAttributes(attrs...))
@@ -220,6 +218,10 @@ func maskIPAddress(ip string) string {
 	} else if strings.HasPrefix(ip, "[") && strings.HasSuffix(ip, "]") {
 		// Handle plain bracketed IPv6 without port
 		ip = strings.Trim(ip, "[]")
+	}
+	// Remove IPv6 zone-id if present (e.g., fe80::1%eth0)
+	if i := strings.IndexByte(ip, '%'); i != -1 {
+		ip = ip[:i]
 	}
 
 	ip = strings.TrimSpace(ip)

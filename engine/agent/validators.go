@@ -30,6 +30,9 @@ func (v *ActionsValidator) Validate(ctx context.Context) error {
 		return nil
 	}
 	for _, action := range v.actions {
+		if action == nil {
+			continue
+		}
 		if err := action.Validate(ctx); err != nil {
 			return err
 		}

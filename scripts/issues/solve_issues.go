@@ -143,6 +143,8 @@ var (
 	useForm         bool
 )
 
+var _ = buildZenMCPGuidance
+
 func setupFlags() {
 	rootCmd.Flags().StringVar(&pr, "pr", "", "Pull request number")
 	rootCmd.Flags().StringVar(&issuesDir, "issues-dir", "", "Path to issues directory (ai-docs/reviews-pr-<PR>/issues)")
@@ -2499,11 +2501,10 @@ func buildBatchedIssuesPrompt(p buildBatchedIssuesParams) string {
 	issueGroups := buildIssueGroups(p.BatchGroups)
 	task := buildBatchTask(p.PR, codeFiles, p.Grouped)
 	testingReqs := buildTestingRequirements()
-	zenMCPGuidance := buildZenMCPGuidance()
 	checklist := buildBatchChecklist(p.PR, p.BatchGroups, p.Grouped)
 
 	composed := strings.Join([]string{helperCommands, header, critical, batchNotice,
-		issueGroups, task, testingReqs, zenMCPGuidance, checklist}, "\n\n")
+		issueGroups, task, testingReqs, checklist}, "\n\n")
 
 	return composed
 }

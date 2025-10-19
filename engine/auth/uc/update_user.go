@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/core"
@@ -43,10 +42,7 @@ func (uc *UpdateUser) Execute(ctx context.Context) (*model.User, error) {
 		if errors.Is(err, ErrUserNotFound) {
 			return nil, err
 		}
-		if strings.Contains(strings.ToLower(err.Error()), "not found") {
-			return nil, fmt.Errorf("%w: %w", ErrUserNotFound, err)
-		}
-		return nil, fmt.Errorf("failed to retrieve user %s: %w", uc.userID, err)
+		return nil, fmt.Errorf("failed to retrieve user: %w", err)
 	}
 	// Update fields
 	if uc.input.Email != nil {
@@ -59,8 +55,7 @@ func (uc *UpdateUser) Execute(ctx context.Context) (*model.User, error) {
 				return nil, fmt.Errorf("checking email uniqueness: %w", err)
 			}
 		} else if existingUser != nil && existingUser.ID != uc.userID {
-			// Email already in use by another user - remove PII from error
-			return nil, errors.New("email already in use")
+			return nil, ErrEmailExists
 		}
 		user.Email = *uc.input.Email
 	}
@@ -69,6 +64,9 @@ func (uc *UpdateUser) Execute(ctx context.Context) (*model.User, error) {
 	}
 	// Update in repository
 	if err := uc.repo.UpdateUser(ctx, user); err != nil {
+		if errors.Is(err, ErrEmailExists) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
 	log.Info("User updated successfully", "user_id", user.ID)
