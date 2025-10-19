@@ -2741,7 +2741,6 @@ func buildBatchChecklist(pr string, batchGroups map[string][]issueEntry, grouped
 		return allIssues[i].name < allIssues[j].name
 	})
 	var checklistPaths []string
-	checklistPaths = append(checklistPaths, fmt.Sprintf("ai-docs/reviews-pr-%s/issues/_summary.md", pr))
 	if grouped {
 		// Add grouped files in sequential order of first issue appearance
 		seenGrouped := make(map[string]bool)

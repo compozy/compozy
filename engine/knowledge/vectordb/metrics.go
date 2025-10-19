@@ -190,6 +190,15 @@ func trackVectorPool(poolID string, pool *pgxpool.Pool) {
 	vectorPools.Store(key, pool)
 }
 
+// untrackVectorPool removes a pool from observation (call on pool close).
+func untrackVectorPool(poolID string) {
+	key := strings.TrimSpace(poolID)
+	if key == "" {
+		key = labelUnknownValue
+	}
+	vectorPools.Delete(key)
+}
+
 func normalizeIndexType(indexType string) string {
 	trimmed := strings.TrimSpace(indexType)
 	if trimmed == "" {

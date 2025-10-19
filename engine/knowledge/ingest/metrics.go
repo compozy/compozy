@@ -34,7 +34,6 @@ const (
 
 var (
 	metricsOnce        sync.Once
-	metricsMu          sync.Mutex
 	metricsInitErr     error
 	pipelineLatency    metric.Float64Histogram
 	documentsCounter   metric.Int64Counter
@@ -193,21 +192,4 @@ func normalizeErrorType(errType string) string {
 	default:
 		return errorTypeInternal
 	}
-}
-
-// ResetMetricsForTesting clears metric state to allow deterministic test assertions.
-// WARNING: This function is intended for testing only. Do not call in production code.
-// Calling this function while metrics are being recorded may cause race conditions.
-// Note: Kept in production file (not moved to test-only file) due to cross-package
-// test usage and linter limitations with single-file analysis in this project.
-func ResetMetricsForTesting() {
-	metricsMu.Lock()
-	defer metricsMu.Unlock()
-	metricsOnce = sync.Once{}
-	metricsInitErr = nil
-	pipelineLatency = nil
-	documentsCounter = nil
-	chunksCounter = nil
-	batchSizeHistogram = nil
-	errorsCounter = nil
 }

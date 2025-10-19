@@ -282,12 +282,28 @@ func validatePGVectorOptions(opts *knowledge.PGVectorConfig) error {
 		}
 	}
 	if pool := opts.Pool; pool != nil {
-		if pool.MinConns < 0 {
-			return fmt.Errorf("pgvector pool.min_conns cannot be negative: %d", pool.MinConns)
+		if err := validatePGVectorPoolOptions(pool); err != nil {
+			return err
 		}
-		if pool.MaxConns < 0 {
-			return fmt.Errorf("pgvector pool.max_conns cannot be negative: %d", pool.MaxConns)
-		}
+	}
+	return nil
+}
+
+func validatePGVectorPoolOptions(pool *knowledge.PGVectorPoolConfig) error {
+	if pool.MinConns < 0 {
+		return fmt.Errorf("pgvector pool.min_conns cannot be negative: %d", pool.MinConns)
+	}
+	if pool.MaxConns < 0 {
+		return fmt.Errorf("pgvector pool.max_conns cannot be negative: %d", pool.MaxConns)
+	}
+	if pool.MaxConnLifetime < 0 {
+		return fmt.Errorf("pgvector pool.max_conn_lifetime cannot be negative: %s", pool.MaxConnLifetime)
+	}
+	if pool.MaxConnIdleTime < 0 {
+		return fmt.Errorf("pgvector pool.max_conn_idle_time cannot be negative: %s", pool.MaxConnIdleTime)
+	}
+	if pool.HealthCheckPeriod < 0 {
+		return fmt.Errorf("pgvector pool.health_check_period cannot be negative: %s", pool.HealthCheckPeriod)
 	}
 	return nil
 }

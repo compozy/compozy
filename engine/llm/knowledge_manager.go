@@ -350,7 +350,16 @@ func (m *knowledgeManager) getOrCreateEmbedder(
 	if err != nil {
 		return nil, err
 	}
-	if cacheCfg := cfg.Config.Cache; cacheCfg != nil && cacheCfg.Enabled {
+	var cacheCfg *knowledge.EmbedderCacheConfig
+	switch runtimeCfg := any(cfg.Config).(type) {
+	case *knowledge.EmbedderRuntimeConfig:
+		if runtimeCfg != nil {
+			cacheCfg = runtimeCfg.Cache
+		}
+	case knowledge.EmbedderRuntimeConfig:
+		cacheCfg = runtimeCfg.Cache
+	}
+	if cacheCfg != nil && cacheCfg.Enabled {
 		if err := created.EnableCache(cacheCfg.Size); err != nil {
 			return nil, err
 		}

@@ -1,6 +1,10 @@
 package metrics
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestMetricName(t *testing.T) {
 	t.Parallel()
@@ -21,9 +25,8 @@ func TestMetricName(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := MetricName(tt.input); got != tt.expected {
-				t.Fatalf("MetricName(%q) = %q, want %q", tt.input, got, tt.expected)
-			}
+			got := MetricName(tt.input)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }
@@ -65,9 +68,8 @@ func TestMetricNameWithSubsystem(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := MetricNameWithSubsystem(tt.subsystem, tt.metricName); got != tt.expected {
-				t.Fatalf("MetricNameWithSubsystem(%q, %q) = %q, want %q", tt.subsystem, tt.metricName, got, tt.expected)
-			}
+			got := MetricNameWithSubsystem(tt.subsystem, tt.metricName)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }

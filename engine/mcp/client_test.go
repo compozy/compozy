@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -373,16 +374,23 @@ func TestNewProxyClient(t *testing.T) {
 }
 
 func TestNewProxyClient_ConfiguresConnectionPool(t *testing.T) {
-	// TODO: This test will need updating once transport settings become configurable.
-	// When that happens, create a test config with explicit transport values, pass it
-	// via context to NewProxyClient, and verify the configured values are applied.
-	client := newTestClient(t, "http://localhost:7077", 5*time.Second)
+	mgr := appconfig.NewManager(t.Context(), appconfig.NewService())
+	cfg, err := mgr.Load(t.Context(), appconfig.NewDefaultProvider())
+	require.NoError(t, err)
+	cfg.MCPProxy.MaxIdleConns = 111
+	cfg.MCPProxy.MaxIdleConnsPerHost = 11
+	cfg.MCPProxy.IdleConnTimeout = 42 * time.Second
+	ctx := appconfig.ContextWithManager(t.Context(), mgr)
+
+	client := NewProxyClient(ctx, "http://localhost:7077", 5*time.Second)
+	t.Cleanup(func() { _ = client.Close() })
+
 	transport, ok := client.http.Transport.(*http.Transport)
 	require.True(t, ok, "expected transport to be *http.Transport")
-	assert.Equal(t, proxyDefaultMaxIdleConns, transport.MaxIdleConns)
-	assert.Equal(t, proxyDefaultMaxIdleConnsPerHost, transport.MaxIdleConnsPerHost)
-	assert.Equal(t, proxyDefaultMaxIdleConnsPerHost, transport.MaxConnsPerHost)
-	assert.Equal(t, proxyDefaultIdleConnTimeout, transport.IdleConnTimeout)
+	assert.Equal(t, 111, transport.MaxIdleConns)
+	assert.Equal(t, 11, transport.MaxIdleConnsPerHost)
+	assert.Equal(t, 11, transport.MaxConnsPerHost)
+	assert.Equal(t, 42*time.Second, transport.IdleConnTimeout)
 }
 
 func TestClient_CallTool(t *testing.T) {

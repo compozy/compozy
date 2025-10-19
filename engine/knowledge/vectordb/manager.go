@@ -96,11 +96,6 @@ func (m *Manager) AcquireShared(ctx context.Context, cfg *Config) (Store, func(c
 	return store, m.releaseFunc(id, signature), nil
 }
 
-// ResetShared clears all cached stores using the provided context. Intended for tests.
-func ResetShared(ctx context.Context) {
-	defaultManager.reset(ctx)
-}
-
 func (m *Manager) releaseFunc(id string, signature string) func(context.Context) error {
 	return func(ctx context.Context) error {
 		m.mu.Lock()
@@ -117,16 +112,8 @@ func (m *Manager) releaseFunc(id string, signature string) func(context.Context)
 		delete(m.stores, id)
 		store := entry.store
 		m.mu.Unlock()
+		untrackVectorPool(id)
 		return store.Close(ctx)
-	}
-}
-
-func (m *Manager) reset(ctx context.Context) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for id, entry := range m.stores {
-		_ = entry.store.Close(ctx)
-		delete(m.stores, id)
 	}
 }
 

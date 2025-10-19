@@ -30,6 +30,7 @@ cat .cursor/rules/{go-coding-standards,architecture,test-standards,backwards-com
   - **NEVER** create functions with more than 50 lines of code, always prefer to create smaller functions (PRIORITY HIGH)
   - **MUST** use `logger.FromContext(ctx)` - NEVER pass a logger as a parameter or via DI
   - **MUST** use `config.FromContext(ctx)` to read configuration in all code paths
+  - **NEVER** use `context.Background()` in tests, instead use `t.Context()`
   - **NEVER** use any global configuration singleton.
   - **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
   - **ALWAYS CHECK** the .cursor/rules/zen-mcp-tools.mdc if you are using Zen MCP tools
