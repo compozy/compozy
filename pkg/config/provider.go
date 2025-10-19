@@ -579,11 +579,15 @@ func createWorkerDefaults(defaultConfig *Config) map[string]any {
 // createMCPProxyDefaults creates MCP proxy configuration defaults
 func createMCPProxyDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
-		"mode":             defaultConfig.MCPProxy.Mode,
-		"host":             defaultConfig.MCPProxy.Host,
-		"port":             defaultConfig.MCPProxy.Port,
-		"base_url":         defaultConfig.MCPProxy.BaseURL,
-		"shutdown_timeout": defaultConfig.MCPProxy.ShutdownTimeout.String(),
+		"mode":                    defaultConfig.MCPProxy.Mode,
+		"host":                    defaultConfig.MCPProxy.Host,
+		"port":                    defaultConfig.MCPProxy.Port,
+		"base_url":                defaultConfig.MCPProxy.BaseURL,
+		"shutdown_timeout":        defaultConfig.MCPProxy.ShutdownTimeout.String(),
+		"max_idle_conns":          defaultConfig.MCPProxy.MaxIdleConns,
+		"max_idle_conns_per_host": defaultConfig.MCPProxy.MaxIdleConnsPerHost,
+		"max_conns_per_host":      defaultConfig.MCPProxy.MaxConnsPerHost,
+		"idle_conn_timeout":       defaultConfig.MCPProxy.IdleConnTimeout.String(),
 	}
 }
 

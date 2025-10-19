@@ -22,6 +22,7 @@ const (
 	labelBatchSize      = "batch_size"
 	labelErrorType      = "error_type"
 	modelOther          = "other"
+	providerOther       = "other"
 )
 
 var defaultLatencyBuckets = []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5}
@@ -69,6 +70,14 @@ func normalizeModelName(model string) string {
 	}
 }
 
+func normalizeProvider(provider string) string {
+	normalized := strings.ToLower(strings.TrimSpace(provider))
+	if normalized == "" {
+		return providerOther
+	}
+	return normalized
+}
+
 type instruments struct {
 	generationLatency metric.Float64Histogram
 	tokensTotal       metric.Int64Counter
@@ -89,16 +98,17 @@ func RecordGeneration(
 	if !ensureInstruments(ctx) {
 		return
 	}
+	normalizedProvider := normalizeProvider(provider)
 	normalizedModel := normalizeModelName(model)
 	attrs := []attribute.KeyValue{
-		attribute.String(labelProvider, provider),
+		attribute.String(labelProvider, normalizedProvider),
 		attribute.String(labelModel, normalizedModel),
 		attribute.Int(labelBatchSize, batchSize),
 	}
 	metricInstruments.generationLatency.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
 	if tokenCount > 0 {
 		metricInstruments.tokensTotal.Add(ctx, int64(tokenCount), metric.WithAttributes(
-			attribute.String(labelProvider, provider),
+			attribute.String(labelProvider, normalizedProvider),
 			attribute.String(labelModel, normalizedModel),
 		))
 	}
@@ -109,7 +119,8 @@ func RecordCacheHit(ctx context.Context, provider string) {
 	if !ensureInstruments(ctx) {
 		return
 	}
-	metricInstruments.cacheHitsTotal.Add(ctx, 1, metric.WithAttributes(attribute.String(labelProvider, provider)))
+	providerAttr := attribute.String(labelProvider, normalizeProvider(provider))
+	metricInstruments.cacheHitsTotal.Add(ctx, 1, metric.WithAttributes(providerAttr))
 }
 
 // RecordCacheMiss increments the counter for embedding cache misses.
@@ -117,7 +128,8 @@ func RecordCacheMiss(ctx context.Context, provider string) {
 	if !ensureInstruments(ctx) {
 		return
 	}
-	metricInstruments.cacheMissesTotal.Add(ctx, 1, metric.WithAttributes(attribute.String(labelProvider, provider)))
+	providerAttr := attribute.String(labelProvider, normalizeProvider(provider))
+	metricInstruments.cacheMissesTotal.Add(ctx, 1, metric.WithAttributes(providerAttr))
 }
 
 // RecordError increments the counter for embedding errors grouped by type.
@@ -126,7 +138,7 @@ func RecordError(ctx context.Context, provider string, model string, errorType E
 		return
 	}
 	metricInstruments.errorsTotal.Add(ctx, 1, metric.WithAttributes(
-		attribute.String(labelProvider, provider),
+		attribute.String(labelProvider, normalizeProvider(provider)),
 		attribute.String(labelModel, normalizeModelName(model)),
 		attribute.String(labelErrorType, string(errorType)),
 	))

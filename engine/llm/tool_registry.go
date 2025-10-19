@@ -83,9 +83,9 @@ type toolRegistry struct {
 type mcpNamed interface{ MCPName() string }
 
 // NewToolRegistry creates a new tool registry bound to the provided context.
-func NewToolRegistry(ctx context.Context, config ToolRegistryConfig) ToolRegistry {
+func NewToolRegistry(ctx context.Context, config ToolRegistryConfig) (ToolRegistry, error) {
 	if ctx == nil {
-		panic("context must not be nil")
+		return nil, fmt.Errorf("context must not be nil")
 	}
 	start := time.Now()
 	if config.CacheTTL == 0 {
@@ -103,7 +103,7 @@ func NewToolRegistry(ctx context.Context, config ToolRegistryConfig) ToolRegistr
 		now:           time.Now,
 	}
 	factorymetrics.RecordCreate(ctx, factorymetrics.TypeTool, "registry", time.Since(start))
-	return registry
+	return registry, nil
 }
 
 func copySchemaMap(s *schema.Schema) map[string]any {

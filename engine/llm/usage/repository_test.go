@@ -21,14 +21,14 @@ type logEvent struct {
 }
 
 type capturingLog struct {
-	mu      sync.Mutex
+	mu      *sync.Mutex
 	entries *[]logEvent
 	fields  map[string]any
 }
 
 func newCapturingLog() *capturingLog {
 	events := make([]logEvent, 0)
-	return &capturingLog{entries: &events, fields: map[string]any{}}
+	return &capturingLog{mu: &sync.Mutex{}, entries: &events, fields: map[string]any{}}
 }
 
 func (l *capturingLog) Debug(msg string, keyvals ...any) {
@@ -48,6 +48,9 @@ func (l *capturingLog) Error(msg string, keyvals ...any) {
 }
 
 func (l *capturingLog) With(args ...any) logger.Logger {
+	if l.mu == nil {
+		l.mu = &sync.Mutex{}
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	nextFields := core.CloneMap(l.fields)
@@ -62,10 +65,13 @@ func (l *capturingLog) With(args ...any) logger.Logger {
 		}
 		nextFields[key] = val
 	}
-	return &capturingLog{entries: l.entries, fields: nextFields}
+	return &capturingLog{mu: l.mu, entries: l.entries, fields: nextFields}
 }
 
 func (l *capturingLog) record(level, msg string, keyvals ...any) {
+	if l.mu == nil {
+		l.mu = &sync.Mutex{}
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.entries == nil {
@@ -87,6 +93,9 @@ func (l *capturingLog) record(level, msg string, keyvals ...any) {
 }
 
 func (l *capturingLog) snapshot() []logEvent {
+	if l.mu == nil {
+		return nil
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.entries == nil {
@@ -148,7 +157,12 @@ func TestRepositoryStopPreventsNewRequests(t *testing.T) {
 
 		repo.Stop()
 		require.ErrorIs(t, repo.Persist(t.Context(), &Finalized{
-			Summary: &Summary{Entries: []Entry{{Provider: "openai", Model: "gpt"}}},
+			Summary: &Summary{Entries: []Entry{
+				{
+					Provider: "openai",
+					Model:    "gpt",
+				},
+			}},
 		}), ErrRepositoryClosed)
 		require.NotPanics(t, repo.Stop)
 	})
@@ -160,6 +174,7 @@ func TestCategorizePersistenceError(t *testing.T) {
 		err  error
 		want string
 	}{
+		{name: "Should map nil to unknown", err: nil, want: repositoryErrorUnknown},
 		{name: "Should map deadline", err: context.DeadlineExceeded, want: repositoryErrorTimeout},
 		{name: "Should map canceled", err: context.Canceled, want: repositoryErrorTimeout},
 		{name: "Should map not found", err: errors.New("task not found"), want: repositoryErrorValidation},
@@ -179,16 +194,18 @@ func TestRepositoryPersistReturnsContextErrorWhenQueueFull(t *testing.T) {
 	t.Run("Should return context error when queue is blocked", func(t *testing.T) {
 		queue := make(chan *persistRequest, 1)
 		queue <- &persistRequest{}
-		repo := &Repository{
-			persist:   func(context.Context, *Finalized) error { return nil },
-			queue:     queue,
-			metrics:   &repositoryMetrics{},
-			queueSize: cap(queue),
-		}
+		repo := newRepositoryForTest(nil, queue)
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewLogger(logger.TestConfig()))
 		ctx, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
 		defer cancel()
-		err := repo.Persist(ctx, &Finalized{Summary: &Summary{Entries: []Entry{{Provider: "openai", Model: "gpt"}}}})
+		err := repo.Persist(ctx, &Finalized{
+			Summary: &Summary{Entries: []Entry{
+				{
+					Provider: "openai",
+					Model:    "gpt",
+				},
+			}},
+		})
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 		select {
 		case <-queue:
@@ -198,21 +215,25 @@ func TestRepositoryPersistReturnsContextErrorWhenQueueFull(t *testing.T) {
 }
 
 func TestRepositoryPersistRejectsNilContext(t *testing.T) {
-	repo, err := NewRepository(func(_ context.Context, _ *Finalized) error {
-		return nil
-	}, nil)
-	require.NoError(t, err)
-	t.Cleanup(repo.Stop)
+	t.Run("Should return error when ctx is nil", func(t *testing.T) {
+		repo, err := NewRepository(func(_ context.Context, _ *Finalized) error {
+			return nil
+		}, nil)
+		require.NoError(t, err)
+		t.Cleanup(repo.Stop)
 
-	var nilCtx context.Context
-	err = repo.Persist(nilCtx, &Finalized{
-		Summary: &Summary{Entries: []Entry{{
-			Provider: "openai",
-			Model:    "gpt-4o-mini",
-		}}},
+		var nilCtx context.Context
+		err = repo.Persist(nilCtx, &Finalized{
+			Summary: &Summary{Entries: []Entry{
+				{
+					Provider: "openai",
+					Model:    "gpt-4o-mini",
+				},
+			}},
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "nil context")
 	})
-	require.Error(t, err)
-	require.ErrorContains(t, err, "nil context")
 }
 
 func TestRepositoryRecoverFromPersistPanic(t *testing.T) {
@@ -232,7 +253,14 @@ func TestRepositoryRecoverFromPersistPanic(t *testing.T) {
 		t.Cleanup(repo.Stop)
 
 		log := newCapturingLog()
-		finalized := &Finalized{Summary: &Summary{Entries: []Entry{{Provider: "openai", Model: "gpt-4o-mini"}}}}
+		finalized := &Finalized{
+			Summary: &Summary{Entries: []Entry{
+				{
+					Provider: "openai",
+					Model:    "gpt-4o-mini",
+				},
+			}},
+		}
 		ctx := logger.ContextWithLogger(t.Context(), log)
 
 		require.NoError(t, repo.Persist(ctx, finalized))

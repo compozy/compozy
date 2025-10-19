@@ -26,6 +26,7 @@ const (
 	repositoryErrorLabel         = "error_type"
 	repositoryErrorValidation    = "validation"
 	repositoryErrorTimeout       = "timeout"
+	repositoryErrorUnknown       = "unknown"
 	repositoryErrorDatabase      = "db_error"
 	defaultRepositoryQueueSize   = 128
 	defaultRepositoryWorkerCount = 1
@@ -33,7 +34,9 @@ const (
 
 var (
 	defaultPersistLatencyBuckets = []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1}
-	errSendClosedChannel         = "send on closed channel"
+	// Note: Go represents send-on-closed-channel panics with this exact text. Update this value and
+	// associated tests if the runtime wording changes in future Go releases.
+	errSendClosedChannel = "send on closed channel"
 )
 
 // ErrRepositoryClosed indicates the repository no longer accepts new work.
@@ -362,7 +365,7 @@ func cloneBuckets(values []float64) []float64 {
 
 func categorizePersistenceError(err error) string {
 	if err == nil {
-		return repositoryErrorDatabase
+		return repositoryErrorUnknown
 	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return repositoryErrorTimeout

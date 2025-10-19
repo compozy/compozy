@@ -96,32 +96,12 @@ func (b *requestBuilder) Build(
 		"force_json", forceJSON,
 	)
 	stopWords := append([]string(nil), request.Agent.Model.Config.Params.StopWords...)
+	opts := b.buildCallOptions(&request, promptResult.Format, toolChoice, forceJSON, temperature, stopWords)
 	llmReq := llmadapter.LLMRequest{
 		SystemPrompt: b.enhanceSystemPromptWithBuiltins(ctx, request.Agent.Instructions),
 		Messages:     messages,
 		Tools:        toolDefs,
-		Options: llmadapter.CallOptions{
-			Temperature:       temperature,
-			TemperatureSet:    request.Agent.Model.Config.Params.IsSetTemperature(),
-			MaxTokens:         request.Agent.Model.Config.Params.MaxTokens,
-			StopWords:         stopWords,
-			ToolChoice:        toolChoice,
-			OutputFormat:      promptResult.Format,
-			ForceJSON:         forceJSON,
-			Provider:          request.Agent.Model.Config.Provider,
-			Model:             request.Agent.Model.Config.Model,
-			TopP:              request.Agent.Model.Config.Params.TopP,
-			TopK:              request.Agent.Model.Config.Params.TopK,
-			FrequencyPenalty:  request.Agent.Model.Config.Params.FrequencyPenalty,
-			PresencePenalty:   request.Agent.Model.Config.Params.PresencePenalty,
-			Seed:              request.Agent.Model.Config.Params.Seed,
-			N:                 request.Agent.Model.Config.Params.N,
-			CandidateCount:    request.Agent.Model.Config.Params.CandidateCount,
-			RepetitionPenalty: request.Agent.Model.Config.Params.RepetitionPenalty,
-			MaxLength:         request.Agent.Model.Config.Params.MaxLength,
-			MinLength:         request.Agent.Model.Config.Params.MinLength,
-			Metadata:          core.CloneMap(request.Agent.Model.Config.Params.Metadata),
-		},
+		Options:      opts,
 	}
 	return RequestBuildOutput{
 		Request:        llmReq,
@@ -168,6 +148,39 @@ func (b *requestBuilder) describeOutputFormat(format llmadapter.OutputFormat) st
 		return "json_schema"
 	}
 	return "default"
+}
+
+func (b *requestBuilder) buildCallOptions(
+	request *Request,
+	format llmadapter.OutputFormat,
+	toolChoice string,
+	forceJSON bool,
+	temperature float64,
+	stopWords []string,
+) llmadapter.CallOptions {
+	params := request.Agent.Model.Config.Params
+	return llmadapter.CallOptions{
+		Temperature:       temperature,
+		TemperatureSet:    params.IsSetTemperature(),
+		MaxTokens:         params.MaxTokens,
+		StopWords:         stopWords,
+		ToolChoice:        toolChoice,
+		OutputFormat:      format,
+		ForceJSON:         forceJSON,
+		Provider:          request.Agent.Model.Config.Provider,
+		Model:             request.Agent.Model.Config.Model,
+		TopP:              params.TopP,
+		TopK:              params.TopK,
+		FrequencyPenalty:  params.FrequencyPenalty,
+		PresencePenalty:   params.PresencePenalty,
+		Seed:              params.Seed,
+		N:                 params.N,
+		CandidateCount:    params.CandidateCount,
+		RepetitionPenalty: params.RepetitionPenalty,
+		MaxLength:         params.MaxLength,
+		MinLength:         params.MinLength,
+		Metadata:          core.CloneMap(params.Metadata),
+	}
 }
 
 //nolint:gocritic // Request copied to construct immutable message slices for the LLM conversation.

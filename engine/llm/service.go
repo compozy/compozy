@@ -322,13 +322,19 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		return nil, err
 	}
 	// Create tool registry
-	toolRegistry := NewToolRegistry(ctx, ToolRegistryConfig{
+	toolRegistry, err := NewToolRegistry(ctx, ToolRegistryConfig{
 		ProxyClient:     mcpClient,
 		CacheTTL:        config.CacheTTL,
 		AllowedMCPNames: config.AllowedMCPNames,
 		DeniedMCPNames:  config.DeniedMCPNames,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tool registry: %w", err)
+	}
 	if err := configureToolRegistry(ctx, toolRegistry, runtime, agent, config); err != nil {
+		if closeErr := toolRegistry.Close(); closeErr != nil {
+			log.Warn("Failed to close tool registry after configuration error", "error", core.RedactError(closeErr))
+		}
 		return nil, err
 	}
 	// Create components

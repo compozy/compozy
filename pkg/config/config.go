@@ -1391,6 +1391,10 @@ type MCPProxyConfig struct {
 	//
 	// **Default**: `128`
 	MaxIdleConnsPerHost int `koanf:"max_idle_conns_per_host" json:"max_idle_conns_per_host" yaml:"max_idle_conns_per_host" mapstructure:"max_idle_conns_per_host" env:"MCP_PROXY_MAX_IDLE_CONNS_PER_HOST"`
+	// MaxConnsPerHost caps the total number of simultaneous connections per host.
+	//
+	// **Default**: `128`
+	MaxConnsPerHost int `koanf:"max_conns_per_host"      json:"max_conns_per_host"      yaml:"max_conns_per_host"      mapstructure:"max_conns_per_host"      env:"MCP_PROXY_MAX_CONNS_PER_HOST"`
 	// IdleConnTimeout is the maximum amount of time an idle (keep-alive) connection will remain
 	// idle before closing itself.
 	//
@@ -2191,11 +2195,15 @@ func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
 		port = 6001
 	}
 	return MCPProxyConfig{
-		Mode:            mode,
-		Host:            getString(registry, "mcp_proxy.host"),
-		Port:            port,
-		BaseURL:         getString(registry, "mcp_proxy.base_url"),
-		ShutdownTimeout: getDuration(registry, "mcp_proxy.shutdown_timeout"),
+		Mode:                mode,
+		Host:                getString(registry, "mcp_proxy.host"),
+		Port:                port,
+		BaseURL:             getString(registry, "mcp_proxy.base_url"),
+		ShutdownTimeout:     getDuration(registry, "mcp_proxy.shutdown_timeout"),
+		MaxIdleConns:        getInt(registry, "mcp_proxy.max_idle_conns"),
+		MaxIdleConnsPerHost: getInt(registry, "mcp_proxy.max_idle_conns_per_host"),
+		MaxConnsPerHost:     getInt(registry, "mcp_proxy.max_conns_per_host"),
+		IdleConnTimeout:     getDuration(registry, "mcp_proxy.idle_conn_timeout"),
 	}
 }
 

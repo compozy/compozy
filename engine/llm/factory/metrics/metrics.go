@@ -24,6 +24,9 @@ const (
 )
 
 var (
+	// defaultCreateBuckets defines latency histogram buckets in seconds, spanning microseconds to seconds.
+	defaultCreateBuckets = []float64{0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 5}
+
 	initOnce        sync.Once
 	createHistogram metric.Float64Histogram
 )
@@ -39,7 +42,7 @@ func Init(ctx context.Context, meter metric.Meter) {
 			metrics.MetricNameWithSubsystem("factory", "create_seconds"),
 			metric.WithDescription("Factory instantiation time"),
 			metric.WithUnit(unitSeconds),
-			metric.WithExplicitBucketBoundaries(0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 5),
+			metric.WithExplicitBucketBoundaries(defaultCreateBuckets...),
 		)
 		if err != nil {
 			log.Error("Failed to create factory histogram", "error", err)

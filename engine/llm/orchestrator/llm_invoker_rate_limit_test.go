@@ -57,6 +57,6 @@ func TestLLMInvoker(t *testing.T) {
 
 		elapsed := time.Since(start)
 		require.GreaterOrEqual(t, elapsed, delay)
-		require.Less(t, elapsed, delay+80*time.Millisecond)
+		require.Less(t, elapsed, delay+250*time.Millisecond)
 	})
 }

@@ -2223,6 +2223,38 @@ func registerMCPProxyFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Maximum time to wait for graceful shutdown",
 	})
+	registry.Register(&FieldDef{
+		Path:    "mcp_proxy.max_idle_conns",
+		Default: 128,
+		CLIFlag: "",
+		EnvVar:  "MCP_PROXY_MAX_IDLE_CONNS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum number of idle connections kept globally",
+	})
+	registry.Register(&FieldDef{
+		Path:    "mcp_proxy.max_idle_conns_per_host",
+		Default: 128,
+		CLIFlag: "",
+		EnvVar:  "MCP_PROXY_MAX_IDLE_CONNS_PER_HOST",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum idle connections maintained per proxy host",
+	})
+	registry.Register(&FieldDef{
+		Path:    "mcp_proxy.max_conns_per_host",
+		Default: 128,
+		CLIFlag: "",
+		EnvVar:  "MCP_PROXY_MAX_CONNS_PER_HOST",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum total concurrent connections allowed per proxy host",
+	})
+	registry.Register(&FieldDef{
+		Path:    "mcp_proxy.idle_conn_timeout",
+		Default: 90 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "MCP_PROXY_IDLE_CONN_TIMEOUT",
+		Type:    durationType,
+		Help:    "Maximum time an idle connection is kept before closing",
+	})
 }
 
 func registerWebhooksFields(registry *Registry) {

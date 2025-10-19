@@ -15,6 +15,9 @@ type Price struct {
 	CompletionPer1K float64
 }
 
+// providerCatalog captures a snapshot of per-1K token pricing (USD) for supported providers.
+// Last verified against vendor pricing pages on October 18, 2025 (OpenAI, Anthropic, Google DeepMind).
+// Update the values and date whenever providers publish new pricing.
 var providerCatalog = map[string]map[string]Price{
 	string(core.ProviderOpenAI): {
 		"gpt-4o": {

@@ -379,6 +379,7 @@ func TestNewProxyClient_ConfiguresConnectionPool(t *testing.T) {
 	require.NoError(t, err)
 	cfg.MCPProxy.MaxIdleConns = 111
 	cfg.MCPProxy.MaxIdleConnsPerHost = 11
+	cfg.MCPProxy.MaxConnsPerHost = 13
 	cfg.MCPProxy.IdleConnTimeout = 42 * time.Second
 	ctx := appconfig.ContextWithManager(t.Context(), mgr)
 
@@ -389,7 +390,7 @@ func TestNewProxyClient_ConfiguresConnectionPool(t *testing.T) {
 	require.True(t, ok, "expected transport to be *http.Transport")
 	assert.Equal(t, 111, transport.MaxIdleConns)
 	assert.Equal(t, 11, transport.MaxIdleConnsPerHost)
-	assert.Equal(t, 11, transport.MaxConnsPerHost)
+	assert.Equal(t, 13, transport.MaxConnsPerHost)
 	assert.Equal(t, 42*time.Second, transport.IdleConnTimeout)
 }
 

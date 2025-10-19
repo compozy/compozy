@@ -26,6 +26,8 @@ const (
 	proxyDefaultMaxIdleConns = 128
 	// proxyDefaultMaxIdleConnsPerHost controls idle pooling per MCP proxy host.
 	proxyDefaultMaxIdleConnsPerHost = 128
+	// proxyDefaultMaxConnsPerHost controls the total parallel connections per MCP proxy host.
+	proxyDefaultMaxConnsPerHost = 128
 	// proxyDefaultIdleConnTimeout aligns with common reverse-proxy keep-alives to maximize reuse.
 	proxyDefaultIdleConnTimeout = 90 * time.Second
 )
@@ -127,6 +129,7 @@ func NewProxyClient(ctx context.Context, baseURL string, timeout time.Duration) 
 	}
 	maxIdleConns := proxyDefaultMaxIdleConns
 	maxIdleConnsPerHost := proxyDefaultMaxIdleConnsPerHost
+	maxConnsPerHost := proxyDefaultMaxConnsPerHost
 	idleConnTimeout := proxyDefaultIdleConnTimeout
 	if cfg := config.FromContext(ctx); cfg != nil {
 		if cfg.MCPProxy.MaxIdleConns > 0 {
@@ -134,6 +137,9 @@ func NewProxyClient(ctx context.Context, baseURL string, timeout time.Duration) 
 		}
 		if cfg.MCPProxy.MaxIdleConnsPerHost > 0 {
 			maxIdleConnsPerHost = cfg.MCPProxy.MaxIdleConnsPerHost
+		}
+		if cfg.MCPProxy.MaxConnsPerHost > 0 {
+			maxConnsPerHost = cfg.MCPProxy.MaxConnsPerHost
 		}
 		if cfg.MCPProxy.IdleConnTimeout > 0 {
 			idleConnTimeout = cfg.MCPProxy.IdleConnTimeout
@@ -146,7 +152,7 @@ func NewProxyClient(ctx context.Context, baseURL string, timeout time.Duration) 
 			Transport: &http.Transport{
 				MaxIdleConns:          maxIdleConns,
 				MaxIdleConnsPerHost:   maxIdleConnsPerHost,
-				MaxConnsPerHost:       maxIdleConnsPerHost,
+				MaxConnsPerHost:       maxConnsPerHost,
 				IdleConnTimeout:       idleConnTimeout,
 				DisableCompression:    false,
 				DisableKeepAlives:     false,

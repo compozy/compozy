@@ -97,6 +97,7 @@ var connectionErrorPhrases = []string{
 	"connection reset",
 	"broken pipe",
 	"network unreachable",
+	"no route to host",
 	"no such host",
 	"tls:",
 	"eof",
