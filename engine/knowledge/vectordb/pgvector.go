@@ -153,7 +153,7 @@ func applyPGVectorOptions(store *pgStore, opts *PGVectorOptions) {
 		return
 	}
 	if idx := opts.Index; (idx != PGVectorIndexOptions{}) {
-		if trimmed := strings.TrimSpace(idx.Type); trimmed != "" {
+		if trimmed := strings.TrimSpace(string(idx.Type)); trimmed != "" {
 			store.indexType = strings.ToLower(trimmed)
 		}
 		if idx.Lists > 0 {

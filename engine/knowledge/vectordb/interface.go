@@ -92,7 +92,7 @@ const (
 
 // PGVectorIndexOptions tunes index creation and runtime behavior.
 type PGVectorIndexOptions struct {
-	Type           string
+	Type           PGVectorIndexType
 	Lists          int
 	Probes         int
 	M              int
@@ -105,7 +105,7 @@ func (opts PGVectorIndexOptions) IsValidIndexType() bool {
 	if opts.Type == "" {
 		return true // empty is valid, will use default
 	}
-	return opts.Type == string(PGVectorIndexHNSW) || opts.Type == string(PGVectorIndexIVFFlat)
+	return opts.Type == PGVectorIndexHNSW || opts.Type == PGVectorIndexIVFFlat
 }
 
 // PGVectorPoolOptions customizes pgxpool behavior.

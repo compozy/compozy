@@ -225,8 +225,9 @@ func buildPGVectorOptions(
 	}
 	options := &vectordb.PGVectorOptions{}
 	if idx := cfg.Index; idx != nil {
+		trimmedType := vectordb.PGVectorIndexType(strings.TrimSpace(strings.ToLower(idx.Type)))
 		options.Index = vectordb.PGVectorIndexOptions{
-			Type:           strings.TrimSpace(strings.ToLower(idx.Type)),
+			Type:           trimmedType,
 			Lists:          idx.Lists,
 			Probes:         idx.Probes,
 			M:              idx.M,

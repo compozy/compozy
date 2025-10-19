@@ -146,7 +146,7 @@ func pgVectorSignature(opts *PGVectorOptions) []string {
 	pool := opts.Pool
 	search := opts.Search
 	return []string{
-		strings.TrimSpace(index.Type),
+		strings.TrimSpace(string(index.Type)),
 		fmt.Sprintf("%d", index.Lists),
 		fmt.Sprintf("%d", index.Probes),
 		fmt.Sprintf("%d", index.M),
