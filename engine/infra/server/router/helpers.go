@@ -159,13 +159,17 @@ func getExecIDParam(c *gin.Context, primary string, fallbacks ...string) string 
 
 // HasIncludeToken reports whether the request's include query parameter contains the provided token.
 func HasIncludeToken(c *gin.Context, token string) bool {
-	raw := c.Query("include")
-	if raw == "" {
-		return false
+	values := c.QueryArray("include")
+	if len(values) == 0 {
+		if raw := c.Query("include"); raw != "" {
+			values = []string{raw}
+		}
 	}
-	for _, entry := range strings.Split(raw, ",") {
-		if strings.EqualFold(strings.TrimSpace(entry), token) {
-			return true
+	for _, value := range values {
+		for _, entry := range strings.Split(value, ",") {
+			if strings.EqualFold(strings.TrimSpace(entry), token) {
+				return true
+			}
 		}
 	}
 	return false

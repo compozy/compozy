@@ -115,6 +115,10 @@ func ensureMetrics() error {
 		}
 		if err := initRetrievalMetrics(meter); err != nil {
 			metricsInitErr = err
+			return
+		}
+		if err := initRAGMetrics(meter); err != nil {
+			metricsInitErr = err
 		}
 	})
 	return metricsInitErr
@@ -182,6 +186,11 @@ func initRetrievalMetrics(meter metric.Meter) error {
 	if err != nil {
 		return err
 	}
+	return err
+}
+
+func initRAGMetrics(meter metric.Meter) error {
+	var err error
 	ragRetrievalLatencyHist, err = meter.Float64Histogram(
 		metrics.MetricNameWithSubsystem("rag", "retrieval_seconds"),
 		metric.WithDescription("Latency of RAG retrieval executions grouped by strategy"),
@@ -209,7 +218,7 @@ func initRetrievalMetrics(meter metric.Meter) error {
 	return err
 }
 
-func RecordRAGRetrievalLatency(ctx context.Context, strategy string, d time.Duration) {
+func RecordRAGRetrievalLatency(ctx context.Context, kbID string, strategy string, d time.Duration) {
 	if err := ensureMetrics(); err != nil || ragRetrievalLatencyHist == nil {
 		return
 	}
@@ -218,6 +227,7 @@ func RecordRAGRetrievalLatency(ctx context.Context, strategy string, d time.Dura
 		strategy = "unknown"
 	}
 	ragRetrievalLatencyHist.Record(ctx, d.Seconds(), metric.WithAttributes(
+		attribute.String("kb_id", kbID),
 		attribute.String("strategy", strategy),
 	))
 }

@@ -84,6 +84,7 @@ func newReconcilerMetrics(
 	bDur, err4 := meter.Float64Histogram(
 		monitoringmetrics.MetricNameWithSubsystem("reconciler", "batch_duration_seconds"),
 		metric.WithDescription("Batch processing duration seconds"),
+		metric.WithUnit("s"),
 	)
 	if err4 != nil {
 		logger.FromContext(ctx).Error("meter creation failed", "error", err4)

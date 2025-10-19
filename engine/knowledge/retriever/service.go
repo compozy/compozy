@@ -255,7 +255,7 @@ func (s *Service) finishRetrieve(
 	duration := time.Since(start)
 	strategy := strategyFromContext(ctx)
 	knowledge.RecordQueryLatency(ctx, binding.KnowledgeBase.ID, duration)
-	knowledge.RecordRAGRetrievalLatency(ctx, strategy, duration)
+	knowledge.RecordRAGRetrievalLatency(ctx, binding.KnowledgeBase.ID, strategy, duration)
 	log := logger.FromContext(ctx).With(
 		"kb_id", binding.KnowledgeBase.ID,
 		"binding_id", binding.ID,

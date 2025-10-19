@@ -155,7 +155,7 @@ func (a *Adapter) EmbedQuery(ctx context.Context, text string) ([]float32, error
 		}
 		memoryembeddings.RecordGeneration(ctx, string(a.provider), a.model, 1, time.Since(start), tokens)
 		cloned := cloneVector(result)
-		a.storeCache(cache, text, cloned)
+		a.storeCache(cache, text, result)
 		return cloned, nil
 	}
 	start := time.Now()
@@ -218,7 +218,7 @@ func (a *Adapter) cachedEmbedDocuments(
 		for _, idx := range missingIdxMap[text] {
 			results[idx] = cloned
 		}
-		a.storeCache(cache, text, cloned)
+		a.storeCache(cache, text, embedded[i])
 	}
 	return results, nil
 }
@@ -256,7 +256,7 @@ func (a *Adapter) storeCache(cache *lru.Cache[string, []float32], text string, v
 	key := cacheKey(text)
 	a.cacheMu.Lock()
 	if a.cache == cache && a.cache != nil {
-		a.cache.Add(key, vector)
+		a.cache.Add(key, cloneVector(vector))
 	}
 	a.cacheMu.Unlock()
 }
@@ -277,7 +277,7 @@ func categorizeError(err error) memoryembeddings.ErrorType {
 	lower := strings.ToLower(err.Error())
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return memoryembeddings.ErrorTypeRateLimit
+		return memoryembeddings.ErrorTypeServerError
 	case strings.Contains(lower, "rate limit"), strings.Contains(lower, "429"):
 		return memoryembeddings.ErrorTypeRateLimit
 	case strings.Contains(lower, "unauthorized"), strings.Contains(lower, "forbidden"), strings.Contains(lower, "auth"):

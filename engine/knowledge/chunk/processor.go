@@ -20,6 +20,19 @@ const (
 const (
 	minAdaptiveChunkSize = 64
 	maxAdaptiveChunkSize = 8192
+
+	shortTextThreshold    = 1500
+	longTextThreshold     = 10000
+	veryLongTextThreshold = 20000
+
+	headingCharsPerHeading = 400
+
+	overlapDenVeryLong       = 5
+	overlapDenLong           = 6
+	overlapDenPDF            = 5
+	overlapDenMarkdown       = 8
+	overlapDenTranscript     = 4
+	overlapDenHeadingDensity = 7
 )
 
 var (
@@ -122,13 +135,13 @@ func (p *Processor) effectiveChunkSettings(meta map[string]any, text string) (in
 	length := utf8.RuneCountInString(text)
 
 	switch {
-	case length > 20000:
+	case length > veryLongTextThreshold:
 		size = clampChunkSize(size * 2)
-		overlap = maxInt(overlap, size/5)
-	case length > 10000:
+		overlap = maxInt(overlap, size/overlapDenVeryLong)
+	case length > longTextThreshold:
 		size = clampChunkSize(size + size/2)
-		overlap = maxInt(overlap, size/6)
-	case length < 1500:
+		overlap = maxInt(overlap, size/overlapDenLong)
+	case length < shortTextThreshold:
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, size/2))
 	}
 
@@ -145,22 +158,22 @@ func (p *Processor) effectiveChunkSettings(meta map[string]any, text string) (in
 	switch {
 	case isPDF:
 		size = clampChunkSize(size * 2)
-		overlap = maxInt(overlap, size/5)
+		overlap = maxInt(overlap, size/overlapDenPDF)
 	case isMD:
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, (size*3)/4))
-		overlap = maxInt(overlap, size/8)
+		overlap = maxInt(overlap, size/overlapDenMarkdown)
 	case isData:
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, size/2))
 	}
 
 	if strings.Contains(sourceType, "transcript") || strings.Contains(sourceType, "meeting") {
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, size/2))
-		overlap = maxInt(overlap, size/4)
+		overlap = maxInt(overlap, size/overlapDenTranscript)
 	}
 
-	if n := len(headingPattern.FindAllStringIndex(text, -1)); n > 0 && length/n < 400 {
+	if n := len(headingPattern.FindAllStringIndex(text, -1)); n > 0 && length/n < headingCharsPerHeading {
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, (size*3)/4))
-		overlap = maxInt(overlap, size/7)
+		overlap = maxInt(overlap, size/overlapDenHeadingDensity)
 	}
 
 	return size, clampOverlap(overlap, size)

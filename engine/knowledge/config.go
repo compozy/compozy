@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/engine/knowledge/vectordb"
 	appconfig "github.com/compozy/compozy/pkg/config"
 )
 
@@ -590,13 +591,20 @@ func validatePGVectorIndex(_ context.Context, vectorID string, idx *PGVectorInde
 	}
 	errs := make([]error, 0, 6)
 	switch normalized := strings.TrimSpace(strings.ToLower(idx.Type)); normalized {
-	case "", "ivfflat", "hnsw":
+	case "":
+	case string(vectordb.PGVectorIndexIVFFlat):
+	case string(vectordb.PGVectorIndexHNSW):
 	default:
-		errs = append(errs, fmt.Errorf(
-			"knowledge: vector_db %q pgvector.index.type %q must be ivfflat or hnsw",
-			vectorID,
-			idx.Type,
-		))
+		errs = append(
+			errs,
+			fmt.Errorf(
+				"knowledge: vector_db %q pgvector.index.type %q must be %q or %q",
+				vectorID,
+				idx.Type,
+				vectordb.PGVectorIndexIVFFlat,
+				vectordb.PGVectorIndexHNSW,
+			),
+		)
 	}
 	if idx.Lists < 0 {
 		errs = append(errs, fmt.Errorf(

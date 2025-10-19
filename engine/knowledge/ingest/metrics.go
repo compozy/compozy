@@ -19,6 +19,7 @@ const (
 
 	OutcomeSuccess = "success"
 	OutcomeError   = "error"
+	OutcomeUnknown = "unknown"
 )
 
 const (
@@ -181,7 +182,7 @@ func normalizeOutcome(outcome string) string {
 	case OutcomeError:
 		return OutcomeError
 	default:
-		return OutcomeError
+		return OutcomeUnknown
 	}
 }
 

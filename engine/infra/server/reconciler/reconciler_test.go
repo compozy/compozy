@@ -40,7 +40,8 @@ func testCtx(t *testing.T) context.Context {
 	t.Helper()
 	base := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	m := pkgcfg.NewManager(t.Context(), pkgcfg.NewService())
-	_, _ = m.Load(base, pkgcfg.NewDefaultProvider(), pkgcfg.NewEnvProvider())
+	_, err := m.Load(base, pkgcfg.NewDefaultProvider(), pkgcfg.NewEnvProvider())
+	require.NoError(t, err, "failed to load test configuration")
 	// override to builder mode for tests
 	c := m.Get()
 	c.Server.SourceOfTruth = "builder"

@@ -186,7 +186,7 @@ func TestCategorizeError(t *testing.T) {
 		{
 			name:     "ContextDeadline",
 			err:      context.DeadlineExceeded,
-			expected: memoryembeddings.ErrorTypeRateLimit,
+			expected: memoryembeddings.ErrorTypeServerError,
 		},
 		{
 			name:     "RateLimitMessage",

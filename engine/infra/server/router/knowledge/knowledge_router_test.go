@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -238,8 +239,11 @@ func TestKnowledgeListPagination(t *testing.T) {
 		require.NotEmpty(t, nextCursor)
 		prevCursor, _ := page["prev_cursor"].(string)
 		require.Empty(t, prevCursor)
-		path := routes.Base() + "/knowledge-bases?limit=1&cursor=" + nextCursor
-		req2, err := http.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
+		query := url.Values{}
+		query.Set("limit", "1")
+		query.Set("cursor", nextCursor)
+		nextURL := routes.Base() + "/knowledge-bases?" + query.Encode()
+		req2, err := http.NewRequestWithContext(t.Context(), http.MethodGet, nextURL, http.NoBody)
 		require.NoError(t, err)
 		req2 = routertest.WithConfig(t, req2)
 		rec2 := httptest.NewRecorder()
