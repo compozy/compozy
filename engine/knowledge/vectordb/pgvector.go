@@ -44,6 +44,9 @@ const (
 	pgvectorDefaultHNSWM        = 16
 	pgvectorDefaultHNSWEFBuild  = 64
 	pgvectorDefaultHNSWEFSearch = 40
+
+	indexTypeIVFFlat = "ivfflat"
+	indexTypeHNSW    = "hnsw"
 )
 
 const (
@@ -91,7 +94,14 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 		ensureIdx: cfg.EnsureIndex,
 		maxTopK:   cfg.MaxTopK,
 	}
-	applyPGVectorOptions(store, cfg.PGVector)
+	if _, err := store.operatorClass(); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	if err := applyPGVectorOptions(store, cfg.PGVector); err != nil {
+		pool.Close()
+		return nil, err
+	}
 	if store.maxTopK == 0 {
 		store.maxTopK = pgvectorDefaultMaxTopK
 	}
@@ -136,25 +146,33 @@ func applyPoolOptions(poolConfig *pgxpool.Config, opts *PGVectorOptions) {
 		poolConfig.MaxConns = pool.MaxConns
 	}
 	if pool.MaxConnLifetime > 0 {
-		poolConfig.MaxConnLifetime = pool.MaxConnLifetime
+		poolConfig.MaxConnLifetime = pool.MaxConnLifetime.ToDuration()
 	}
 	if pool.MaxConnIdleTime > 0 {
-		poolConfig.MaxConnIdleTime = pool.MaxConnIdleTime
+		poolConfig.MaxConnIdleTime = pool.MaxConnIdleTime.ToDuration()
 	}
 	if pool.HealthCheckPeriod > 0 {
-		poolConfig.HealthCheckPeriod = pool.HealthCheckPeriod
+		poolConfig.HealthCheckPeriod = pool.HealthCheckPeriod.ToDuration()
 	}
 }
 
-func applyPGVectorOptions(store *pgStore, opts *PGVectorOptions) {
-	store.indexType = "ivfflat"
+func applyPGVectorOptions(store *pgStore, opts *PGVectorOptions) error {
+	store.indexType = indexTypeIVFFlat
 	store.searchProbes = pgvectorDefaultProbes
 	if opts == nil {
-		return
+		return nil
 	}
 	if idx := opts.Index; (idx != PGVectorIndexOptions{}) {
 		if trimmed := strings.TrimSpace(string(idx.Type)); trimmed != "" {
-			store.indexType = strings.ToLower(trimmed)
+			lowered := strings.ToLower(trimmed)
+			switch lowered {
+			case indexTypeHNSW:
+				store.indexType = lowered
+			case indexTypeIVFFlat:
+				store.indexType = lowered
+			default:
+				return fmt.Errorf("pgvector: unsupported index type %q", trimmed)
+			}
 		}
 		if idx.Lists > 0 {
 			store.ivfLists = idx.Lists
@@ -181,8 +199,9 @@ func applyPGVectorOptions(store *pgStore, opts *PGVectorOptions) {
 		}
 	}
 	if store.indexType == "" {
-		store.indexType = "ivfflat"
+		store.indexType = indexTypeIVFFlat
 	}
+	return nil
 }
 
 func resolvePGVectorDSN(ctx context.Context, cfg *Config) string {

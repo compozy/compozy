@@ -27,6 +27,7 @@ const (
 	StrategySimilarity = "similarity"
 	StrategyHybrid     = "hybrid"
 	StrategyKeyword    = "keyword"
+	StrategyUnknown    = "unknown"
 )
 
 type strategyContextKey struct{}
@@ -34,13 +35,8 @@ type strategyContextKey struct{}
 // ContextWithStrategy returns a context that carries the retrieval strategy label.
 func ContextWithStrategy(ctx context.Context, strategy string) context.Context {
 	normalized := strings.TrimSpace(strings.ToLower(strategy))
-	switch normalized {
-	case StrategySimilarity:
-		return context.WithValue(ctx, strategyContextKey{}, StrategySimilarity)
-	case StrategyHybrid:
-		return context.WithValue(ctx, strategyContextKey{}, StrategyHybrid)
-	case StrategyKeyword:
-		return context.WithValue(ctx, strategyContextKey{}, StrategyKeyword)
+	if normalized != "" {
+		return context.WithValue(ctx, strategyContextKey{}, normalized)
 	}
 	return ctx
 }
@@ -299,7 +295,7 @@ func strategyFromContext(ctx context.Context) string {
 	if value, ok := ctx.Value(strategyContextKey{}).(string); ok && value != "" {
 		return value
 	}
-	return StrategySimilarity
+	return StrategyUnknown
 }
 
 func aggregateContextStats(contexts []knowledge.RetrievedContext) (int, float64) {

@@ -23,55 +23,59 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func TestOllamaAdapter_GenerateContent_WithTools(t *testing.T) {
-	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
-	t.Run("Should call Ollama API with tools", func(t *testing.T) {
-		// Create mock Ollama server
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "/api/chat", r.URL.Path)
-			assert.Equal(t, "POST", r.Method)
-			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+func newMockOllamaServerWithTools(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/chat", r.URL.Path)
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
-			var req api.ChatRequest
-			err := json.NewDecoder(r.Body).Decode(&req)
-			require.NoError(t, err)
+		var req api.ChatRequest
+		err := json.NewDecoder(r.Body).Decode(&req)
+		require.NoError(t, err)
 
-			assert.Equal(t, "test-model", req.Model)
-			require.Len(t, req.Tools, 1)
-			assert.Equal(t, "function", req.Tools[0].Type)
-			assert.Equal(t, "get_weather", req.Tools[0].Function.Name)
-			require.NotNil(t, req.Stream)
-			assert.False(t, *req.Stream)
-			if len(req.Format) > 0 {
-				var format string
-				require.NoError(t, json.Unmarshal(req.Format, &format))
-				assert.Equal(t, "json", format)
-			}
+		assert.Equal(t, "test-model", req.Model)
+		require.Len(t, req.Tools, 1)
+		assert.Equal(t, "function", req.Tools[0].Type)
+		assert.Equal(t, "get_weather", req.Tools[0].Function.Name)
+		require.NotNil(t, req.Stream)
+		assert.False(t, *req.Stream)
+		if len(req.Format) > 0 {
+			var format string
+			require.NoError(t, json.Unmarshal(req.Format, &format))
+			assert.Equal(t, "json", format)
+		}
 
-			w.Header().Set("Content-Type", "application/x-ndjson")
-			response := api.ChatResponse{
-				Model: "test-model",
-				Message: api.Message{
-					Role:    RoleAssistant,
-					Content: "",
-					ToolCalls: []api.ToolCall{
-						{
-							Function: api.ToolCallFunction{
-								Name: "get_weather",
-								Arguments: api.ToolCallFunctionArguments{
-									"location": "Tokyo",
-									"format":   "celsius",
-								},
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		response := api.ChatResponse{
+			Model: "test-model",
+			Message: api.Message{
+				Role:    RoleAssistant,
+				Content: "",
+				ToolCalls: []api.ToolCall{
+					{
+						Function: api.ToolCallFunction{
+							Name: "get_weather",
+							Arguments: api.ToolCallFunctionArguments{
+								"location": "Tokyo",
+								"format":   "celsius",
 							},
 						},
 					},
 				},
-				Done: true,
-			}
-			payload, err := json.Marshal(response)
-			require.NoError(t, err)
-			fmt.Fprintf(w, "%s\n", payload)
-		}))
+			},
+			Done: true,
+		}
+		payload, err := json.Marshal(response)
+		require.NoError(t, err)
+		fmt.Fprintf(w, "%s\n", payload)
+	}))
+}
+
+func TestOllamaAdapter_GenerateContent_WithTools(t *testing.T) {
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+	t.Run("Should call Ollama API with tools", func(t *testing.T) {
+		server := newMockOllamaServerWithTools(t)
 		defer server.Close()
 		// Create adapter
 		baseAdapter := &LangChainAdapter{

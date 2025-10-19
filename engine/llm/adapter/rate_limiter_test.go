@@ -2,7 +2,6 @@ package llmadapter
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -235,12 +234,9 @@ func TestRateLimiterRegistry_BurstOverrides(t *testing.T) {
 	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
 	registry.Release(ctx, core.ProviderOpenAI, 0)
 
-	value, ok := registry.limiters.Load(strings.ToLower(string(core.ProviderOpenAI)))
+	limits, ok := registry.Limits(core.ProviderOpenAI)
 	require.True(t, ok)
-	limiter, ok := value.(*providerRateLimiter)
-	require.True(t, ok)
-	require.NotNil(t, limiter.rateLimiter)
-	require.Equal(t, 7, limiter.rateLimiter.Burst())
+	require.Equal(t, 7, limits.RequestBurst)
 
 	override := &core.ProviderRateLimitConfig{
 		RequestsPerMinute: 90,
@@ -249,12 +245,9 @@ func TestRateLimiterRegistry_BurstOverrides(t *testing.T) {
 	require.NoError(t, registry.Acquire(ctx, core.ProviderAnthropic, override))
 	registry.Release(ctx, core.ProviderAnthropic, 0)
 
-	value, ok = registry.limiters.Load(strings.ToLower(string(core.ProviderAnthropic)))
+	limits, ok = registry.Limits(core.ProviderAnthropic)
 	require.True(t, ok)
-	limiter, ok = value.(*providerRateLimiter)
-	require.True(t, ok)
-	require.NotNil(t, limiter.rateLimiter)
-	require.Equal(t, 5, limiter.rateLimiter.Burst())
+	require.Equal(t, 5, limits.RequestBurst)
 }
 
 func TestRateLimiterRegistry_RecordsDelay(t *testing.T) {

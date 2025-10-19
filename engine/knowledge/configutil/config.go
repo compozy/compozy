@@ -239,9 +239,9 @@ func buildPGVectorOptions(
 		options.Pool = vectordb.PGVectorPoolOptions{
 			MinConns:          pool.MinConns,
 			MaxConns:          pool.MaxConns,
-			MaxConnLifetime:   pool.MaxConnLifetime,
-			MaxConnIdleTime:   pool.MaxConnIdleTime,
-			HealthCheckPeriod: pool.HealthCheckPeriod,
+			MaxConnLifetime:   vectordb.Duration(pool.MaxConnLifetime),
+			MaxConnIdleTime:   vectordb.Duration(pool.MaxConnIdleTime),
+			HealthCheckPeriod: vectordb.Duration(pool.HealthCheckPeriod),
 		}
 	}
 	if search := cfg.Search; search != nil {

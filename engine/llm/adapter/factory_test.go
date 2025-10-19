@@ -12,7 +12,8 @@ import (
 
 func TestDefaultFactory_CreateClient(t *testing.T) {
 	registry := NewProviderRegistry()
-	factory := NewDefaultFactoryWithRegistry(t.Context(), registry)
+	factory, err := NewDefaultFactoryWithRegistry(t.Context(), registry)
+	require.NoError(t, err)
 
 	t.Run("Should return error when config is nil", func(t *testing.T) {
 		client, err := factory.CreateClient(t.Context(), nil)
@@ -31,7 +32,8 @@ func TestDefaultFactory_CreateClient(t *testing.T) {
 		reg := NewProviderRegistry()
 		client := &stubClient{}
 		require.NoError(t, reg.Register(&stubProvider{name: core.ProviderName("stub"), client: client}))
-		fac := NewDefaultFactoryWithRegistry(t.Context(), reg)
+		fac, err := NewDefaultFactoryWithRegistry(t.Context(), reg)
+		require.NoError(t, err)
 		cfg := &core.ProviderConfig{Provider: core.ProviderName("stub")}
 
 		got, err := fac.CreateClient(t.Context(), cfg)
@@ -46,7 +48,8 @@ func TestDefaultFactory_BuildRouteFallback(t *testing.T) {
 	require.NoError(t, reg.Register(&stubProvider{name: core.ProviderName("primary"), err: primaryErr}))
 	secondaryClient := &stubClient{}
 	require.NoError(t, reg.Register(&stubProvider{name: core.ProviderName("secondary"), client: secondaryClient}))
-	factory := NewDefaultFactoryWithRegistry(t.Context(), reg)
+	factory, err := NewDefaultFactoryWithRegistry(t.Context(), reg)
+	require.NoError(t, err)
 
 	route, err := factory.BuildRoute(
 		&core.ProviderConfig{Provider: core.ProviderName("primary")},
@@ -67,7 +70,8 @@ func TestDefaultFactory_Capabilities(t *testing.T) {
 		reg.Register(&stubProvider{name: core.ProviderName("cap"), capabilities: caps, client: &stubClient{}}),
 	)
 
-	factory := NewDefaultFactoryWithRegistry(t.Context(), reg)
+	factory, err := NewDefaultFactoryWithRegistry(t.Context(), reg)
+	require.NoError(t, err)
 	actual, err := factory.Capabilities(core.ProviderName("cap"))
 	require.NoError(t, err)
 	assert.Equal(t, caps, actual)

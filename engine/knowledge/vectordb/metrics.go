@@ -37,7 +37,7 @@ var (
 
 func ensureVectorMetrics() error {
 	vectorMetricsOnce.Do(func() {
-		meter := otel.GetMeterProvider().Meter("compozy.knowledge.vector")
+		meter := otel.GetMeterProvider().Meter("compozy")
 		if err := initVectorHistograms(meter); err != nil {
 			vectorMetricsErr = err
 			return

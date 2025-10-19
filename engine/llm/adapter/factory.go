@@ -31,9 +31,9 @@ func NewDefaultFactory(ctx context.Context) (Factory, error) {
 // If registry is nil, a new empty registry is created WITHOUT builtin providers.
 // Callers must explicitly register providers via RegisterProviders() after creation.
 // For a factory with builtin providers pre-registered, use NewDefaultFactory() instead.
-func NewDefaultFactoryWithRegistry(ctx context.Context, registry *Registry) Factory {
+func NewDefaultFactoryWithRegistry(ctx context.Context, registry *Registry) (Factory, error) {
 	if ctx == nil {
-		panic("context must not be nil")
+		return nil, fmt.Errorf("context must not be nil")
 	}
 	start := time.Now()
 	if registry == nil {
@@ -41,7 +41,7 @@ func NewDefaultFactoryWithRegistry(ctx context.Context, registry *Registry) Fact
 	}
 	factory := &DefaultFactory{registry: registry}
 	factorymetrics.RecordCreate(ctx, factorymetrics.TypeProvider, "custom_registry", time.Since(start))
-	return factory
+	return factory, nil
 }
 
 // CreateClient creates a new LLMClient for the given provider.

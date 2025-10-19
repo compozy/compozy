@@ -119,7 +119,8 @@ func startRedisTestInstance(ctx context.Context, t *testing.T) string {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(t.Context(), 10*time.Second)
+		baseCtx := context.WithoutCancel(t.Context())
+		cleanupCtx, cleanupCancel := context.WithTimeout(baseCtx, 10*time.Second)
 		defer cleanupCancel()
 		_ = container.Terminate(cleanupCtx)
 	})

@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	appconfig "github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 const rateLimitFloatEpsilon = 1e-9
@@ -35,6 +36,16 @@ type RateLimiterMetricsSnapshot struct {
 	QueuedRequests   int32
 	RejectedRequests int64
 	TotalRequests    int64
+}
+
+// RateLimiterLimitSnapshot provides a read-only view of configured rate limits.
+type RateLimiterLimitSnapshot struct {
+	Concurrency       int64
+	QueueSize         int64
+	RequestsPerMinute float64
+	TokensPerMinute   float64
+	RequestBurst      int
+	TokenBurst        int
 }
 
 type providerRateLimiter struct {
@@ -144,6 +155,30 @@ func (r *RateLimiterRegistry) Metrics(provider core.ProviderName) (RateLimiterMe
 		return limiter.metrics.snapshot(), true
 	}
 	return RateLimiterMetricsSnapshot{}, false
+}
+
+// Limits exposes the configured rate limits for a provider.
+func (r *RateLimiterRegistry) Limits(provider core.ProviderName) (RateLimiterLimitSnapshot, bool) {
+	if provider == "" {
+		return RateLimiterLimitSnapshot{}, false
+	}
+	key := strings.ToLower(string(provider))
+	value, ok := r.limiters.Load(key)
+	if !ok {
+		return RateLimiterLimitSnapshot{}, false
+	}
+	limiter, ok := value.(*providerRateLimiter)
+	if !ok || limiter == nil {
+		return RateLimiterLimitSnapshot{}, false
+	}
+	return RateLimiterLimitSnapshot{
+		Concurrency:       limiter.concurrency,
+		QueueSize:         limiter.queueSize,
+		RequestsPerMinute: limiter.requestsPerMinute,
+		TokensPerMinute:   limiter.tokensPerMinute,
+		RequestBurst:      limiter.requestBurst,
+		TokenBurst:        limiter.tokenBurst,
+	}, true
 }
 
 func (m *limiterMetrics) snapshot() RateLimiterMetricsSnapshot {
@@ -386,20 +421,36 @@ func (l *providerRateLimiter) acquire(ctx context.Context) error {
 	return nil
 }
 
+// release frees the concurrency slot and enforces token budgets after a request completes.
+// Token waits happen post-execution to keep slot ownership aligned with active calls while still
+// applying downstream back-pressure once the caller reports actual token usage.
 func (l *providerRateLimiter) release(ctx context.Context, tokens int) {
 	if l == nil || !l.enabled || l.sem == nil {
 		return
 	}
-	if l.tokenLimiter != nil && tokens > 0 {
-		if ctx != nil {
-			_ = l.tokenLimiter.WaitN( //nolint:errcheck // release is best-effort; limiter handles context cancellation
-				context.WithoutCancel(ctx),
-				tokens,
-			)
-		}
+	defer func() {
+		l.sem.Release(1)
+		l.metrics.activeRequests.Add(-1)
+	}()
+	if l.tokenLimiter == nil || tokens <= 0 {
+		return
 	}
-	l.sem.Release(1)
-	l.metrics.activeRequests.Add(-1)
+	if ctx == nil {
+		logger.FromContext(ctx).Warn(
+			"rate limiter release skipped token wait because context is nil",
+			"provider", l.provider,
+			"tokens", tokens,
+		)
+		return
+	}
+	if err := l.tokenLimiter.WaitN(ctx, tokens); err != nil {
+		logger.FromContext(ctx).Warn(
+			"rate limiter token wait canceled",
+			"provider", l.provider,
+			"tokens", tokens,
+			"error", err,
+		)
+	}
 }
 
 func newRateLimitError(provider core.ProviderName, message string, underlying error) error {
