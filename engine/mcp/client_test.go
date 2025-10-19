@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +14,7 @@ import (
 
 func newTestClient(t *testing.T, baseURL string, timeout time.Duration) *Client {
 	t.Helper()
-	c := NewProxyClient(context.Background(), baseURL, timeout)
+	c := NewProxyClient(t.Context(), baseURL, timeout)
 	t.Cleanup(func() { _ = c.Close() })
 	return c
 }
@@ -31,7 +30,7 @@ func TestClient_Health_Success(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		err := client.Health(context.Background())
+		err := client.Health(t.Context())
 		assert.NoError(t, err)
 	})
 }
@@ -47,7 +46,7 @@ func TestClient_Health_Failure(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		err := client.Health(context.Background())
+		err := client.Health(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "proxy service unhealthy")
 	})
@@ -72,7 +71,7 @@ func TestClient_Register_Success(t *testing.T) {
 			Transport: "sse",
 		}
 
-		err := client.Register(context.Background(), &def)
+		err := client.Register(t.Context(), &def)
 		assert.NoError(t, err)
 	})
 }
@@ -95,7 +94,7 @@ func TestClient_Register_AlreadyExists(t *testing.T) {
 		}
 
 		// Should treat conflict as success (idempotent)
-		err := client.Register(context.Background(), &def)
+		err := client.Register(t.Context(), &def)
 		assert.NoError(t, err)
 	})
 }
@@ -117,7 +116,7 @@ func TestClient_Register_Unauthorized(t *testing.T) {
 			Transport: "sse",
 		}
 
-		err := client.Register(context.Background(), &def)
+		err := client.Register(t.Context(), &def)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unauthorized")
 	})
@@ -135,7 +134,7 @@ func TestClient_Deregister_Success(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		err := client.Deregister(context.Background(), "test-mcp")
+		err := client.Deregister(t.Context(), "test-mcp")
 		assert.NoError(t, err)
 	})
 }
@@ -152,7 +151,7 @@ func TestClient_Deregister_NotFound(t *testing.T) {
 		client := newTestClient(t, server.URL, 5*time.Second)
 
 		// Should treat not found as success (idempotent)
-		err := client.Deregister(context.Background(), "nonexistent-mcp")
+		err := client.Deregister(t.Context(), "nonexistent-mcp")
 		assert.NoError(t, err)
 	})
 }
@@ -169,7 +168,7 @@ func TestClient_Deregister_NoContent(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		err := client.Deregister(context.Background(), "test-mcp")
+		err := client.Deregister(t.Context(), "test-mcp")
 		assert.NoError(t, err)
 	})
 }
@@ -200,7 +199,7 @@ func TestClient_ListMCPs_Success(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		mcps, err := client.ListMCPs(context.Background())
+		mcps, err := client.ListMCPs(t.Context())
 		require.NoError(t, err)
 		assert.Len(t, mcps, 2)
 		assert.Equal(t, "test-mcp-1", mcps[0].Name)
@@ -212,7 +211,7 @@ func TestClient_WithInvalidURL(t *testing.T) {
 	t.Run("Should return error when using invalid URL", func(t *testing.T) {
 		client := newTestClient(t, "invalid-url", 5*time.Second)
 
-		err := client.Health(context.Background())
+		err := client.Health(t.Context())
 		require.Error(t, err)
 		// The "invalid-url" gets treated as a hostname, so we get a DNS lookup error
 		assert.Contains(t, err.Error(), "invalid-url")
@@ -234,7 +233,7 @@ func TestClient_RetryLogic(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		err := client.Health(context.Background())
+		err := client.Health(t.Context())
 		assert.NoError(t, err)
 		assert.Equal(t, int32(2), atomic.LoadInt32(&callCount)) // Should have retried once
 	})
@@ -250,7 +249,7 @@ func TestClient_Timeout(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 50*time.Millisecond)
 
-		err := client.Health(context.Background())
+		err := client.Health(t.Context())
 		require.Error(t, err)
 	})
 }
@@ -292,7 +291,7 @@ func TestClient_ListTools_Success(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		tools, err := client.ListTools(context.Background())
+		tools, err := client.ListTools(t.Context())
 		require.NoError(t, err)
 		assert.Len(t, tools, 2)
 
@@ -318,7 +317,7 @@ func TestClient_ListTools_Failure(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		_, err := client.ListTools(context.Background())
+		_, err := client.ListTools(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "tools request failed")
 	})
@@ -332,7 +331,7 @@ func TestClient_ListTools_Failure(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		_, err := client.ListTools(context.Background())
+		_, err := client.ListTools(t.Context())
 		require.Error(t, err)
 	})
 }
@@ -416,7 +415,7 @@ func TestClient_CallTool(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		result, err := client.CallTool(context.Background(), "test-mcp", "test-tool", map[string]any{
+		result, err := client.CallTool(t.Context(), "test-mcp", "test-tool", map[string]any{
 			"query": "test query",
 		})
 
@@ -442,7 +441,7 @@ func TestClient_CallTool(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		_, err := client.CallTool(context.Background(), "test-mcp", "unknown-tool", nil)
+		_, err := client.CallTool(t.Context(), "test-mcp", "unknown-tool", nil)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Tool not found")
@@ -458,7 +457,7 @@ func TestClient_CallTool(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		_, err := client.CallTool(context.Background(), "unknown-mcp", "test-tool", nil)
+		_, err := client.CallTool(t.Context(), "unknown-mcp", "test-tool", nil)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "proxy request failed (status 404)")
@@ -473,7 +472,7 @@ func TestClient_CallTool(t *testing.T) {
 
 		client := newTestClient(t, server.URL, 5*time.Second)
 
-		_, err := client.CallTool(context.Background(), "test-mcp", "test-tool", map[string]any{"query": "x"})
+		_, err := client.CallTool(t.Context(), "test-mcp", "test-tool", map[string]any{"query": "x"})
 		require.Error(t, err)
 	})
 }

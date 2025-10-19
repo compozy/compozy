@@ -71,7 +71,7 @@ func TestToolExecutor_Execute(t *testing.T) {
 		})
 
 		exec := NewToolExecutor(registry, &settings{maxConcurrentTools: 1})
-		ctx := context.Background()
+		ctx := t.Context()
 		results, err := exec.Execute(ctx, []llmadapter.ToolCall{
 			{ID: "call-1", Name: "json-tool", Arguments: []byte(`{"arg":1}`)},
 		})
@@ -82,7 +82,7 @@ func TestToolExecutor_Execute(t *testing.T) {
 
 	t.Run("Should return structured error when tool missing", func(t *testing.T) {
 		exec := NewToolExecutor(newStubToolRegistry(), &settings{maxConcurrentTools: 1})
-		ctx := context.Background()
+		ctx := t.Context()
 		results, err := exec.Execute(ctx, []llmadapter.ToolCall{
 			{ID: "call-1", Name: "missing", Arguments: []byte(`{}`)},
 		})
@@ -111,7 +111,7 @@ func TestToolExecutor_Execute(t *testing.T) {
 		})
 
 		exec := NewToolExecutor(registry, &settings{maxConcurrentTools: 1})
-		ctx := context.Background()
+		ctx := t.Context()
 		results, err := exec.Execute(ctx, []llmadapter.ToolCall{
 			{ID: "call-1", Name: "validator", Arguments: []byte(`{}`)},
 		})
@@ -133,7 +133,7 @@ func TestToolExecutor_Execute(t *testing.T) {
 		})
 
 		exec := NewToolExecutor(registry, &settings{maxConcurrentTools: 1})
-		ctx := context.Background()
+		ctx := t.Context()
 		results, err := exec.Execute(ctx, []llmadapter.ToolCall{
 			{ID: "call-1", Name: "fail-tool", Arguments: []byte(`{}`)},
 		})
@@ -156,7 +156,7 @@ func TestToolExecutor_Execute(t *testing.T) {
 			},
 		})
 		exec := NewToolExecutor(registry, &settings{maxConcurrentTools: 1})
-		ctx := context.Background()
+		ctx := t.Context()
 		results, err := exec.Execute(ctx, []llmadapter.ToolCall{
 			{ID: "call-1", Name: "hint-tool", Arguments: []byte(`{}`)},
 		})
@@ -188,7 +188,7 @@ func TestToolExecutor_Execute(t *testing.T) {
 		recorder, err := telemetry.NewRecorder(&telemetry.Options{ProjectRoot: root})
 		require.NoError(t, err)
 
-		ctx, run, err := recorder.StartRun(context.Background(), telemetry.RunMetadata{})
+		ctx, run, err := recorder.StartRun(t.Context(), telemetry.RunMetadata{})
 		require.NoError(t, err)
 		defer func() {
 			_ = recorder.CloseRun(ctx, run, telemetry.RunResult{Success: true})
@@ -219,7 +219,7 @@ func TestToolExecutor_UpdateBudgets_ErrorBudgetExceeded(t *testing.T) {
 		exec := NewToolExecutor(newStubToolRegistry(), &settings{maxSequentialToolErrors: 2})
 		st := newLoopState(&settings{maxSequentialToolErrors: 2}, nil, nil)
 		results := []llmadapter.ToolResult{{Name: "t", Content: `{"error":"x"}`}, {Name: "t", Content: `{"error":"x"}`}}
-		err := exec.UpdateBudgets(context.Background(), results, st)
+		err := exec.UpdateBudgets(t.Context(), results, st)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrBudgetExceeded)
 		assert.ErrorContains(t, err, "tool error budget exceeded for t")
@@ -237,7 +237,7 @@ func TestToolExecutor_UpdateBudgets_ConsecutiveSuccessExceeded(t *testing.T) {
 			{Name: "t", JSONContent: []byte(`{"ok":true}`)},
 			{Name: "t", JSONContent: []byte(`{"ok":true}`)},
 		}
-		err := exec.UpdateBudgets(context.Background(), results, st)
+		err := exec.UpdateBudgets(t.Context(), results, st)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrBudgetExceeded)
 		assert.ErrorContains(t, err, "tool t called successfully 2 times without progress")
@@ -251,7 +251,7 @@ func TestToolExecutor_UpdateBudgets_ConsecutiveSuccessExceeded(t *testing.T) {
 			{Name: "t", JSONContent: []byte(`{"file":"b"}`)},
 			{Name: "t", JSONContent: []byte(`{"file":"c"}`)},
 		}
-		err := exec.UpdateBudgets(context.Background(), results, st)
+		err := exec.UpdateBudgets(t.Context(), results, st)
 		require.NoError(t, err)
 	})
 
@@ -262,7 +262,7 @@ func TestToolExecutor_UpdateBudgets_ConsecutiveSuccessExceeded(t *testing.T) {
 			{Name: "t", Content: "first"},
 			{Name: "t", Content: "first"},
 		}
-		err := exec.UpdateBudgets(context.Background(), results, st)
+		err := exec.UpdateBudgets(t.Context(), results, st)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrBudgetExceeded)
 		assert.ErrorContains(t, err, "tool t called successfully 2 times without progress")
@@ -274,8 +274,8 @@ func TestToolExecutor_UpdateBudgets_ToolCapExceeded(t *testing.T) {
 	exec := NewToolExecutor(newStubToolRegistry(), &settings{toolCaps: toolCaps})
 	st := newLoopState(&settings{toolCaps: toolCaps, finalizeOutputRetries: 1}, nil, nil)
 	results := []llmadapter.ToolResult{{Name: "search", JSONContent: []byte(`{"ok":true}`)}}
-	require.NoError(t, exec.UpdateBudgets(context.Background(), results, st))
-	err := exec.UpdateBudgets(context.Background(), results, st)
+	require.NoError(t, exec.UpdateBudgets(t.Context(), results, st))
+	err := exec.UpdateBudgets(t.Context(), results, st)
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrBudgetExceeded)
 	assert.ErrorContains(t, err, "invocation cap exceeded")

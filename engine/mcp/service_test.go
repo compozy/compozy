@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -34,14 +33,14 @@ func TestRegisterService_Ensure(t *testing.T) {
 			}
 		}))
 		defer server.Close()
-		client := NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		client := NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 		config := Config{
 			ID:        "test-mcp",
 			URL:       "http://example.com/mcp",
 			Transport: "sse",
 		}
-		err := service.Ensure(context.Background(), &config)
+		err := service.Ensure(t.Context(), &config)
 		assert.NoError(t, err)
 	})
 	t.Run("Should return error when proxy registration fails", func(t *testing.T) {
@@ -50,14 +49,14 @@ func TestRegisterService_Ensure(t *testing.T) {
 			w.Write([]byte("Internal server error"))
 		}))
 		defer server.Close()
-		client := NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		client := NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 		config := Config{
 			ID:        "test-mcp",
 			URL:       "http://example.com/mcp",
 			Transport: "sse",
 		}
-		err := service.Ensure(context.Background(), &config)
+		err := service.Ensure(t.Context(), &config)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to register MCP with proxy")
 	})
@@ -71,9 +70,9 @@ func TestRegisterService_Deregister(t *testing.T) {
 			}
 		}))
 		defer server.Close()
-		client := NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		client := NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		service := NewRegisterService(client)
-		err := service.Deregister(context.Background(), "test-mcp")
+		err := service.Deregister(t.Context(), "test-mcp")
 		assert.NoError(t, err)
 	})
 	t.Run("Should handle deregistration when MCP not registered", func(t *testing.T) {
@@ -81,9 +80,9 @@ func TestRegisterService_Deregister(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}))
 		defer server.Close()
-		client := NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		client := NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		service := NewRegisterService(client)
-		err := service.Deregister(context.Background(), "test-mcp")
+		err := service.Deregister(t.Context(), "test-mcp")
 		assert.NoError(t, err)
 	})
 }
@@ -96,13 +95,13 @@ func TestRegisterService_EnsureMultiple(t *testing.T) {
 			}
 		}))
 		defer server.Close()
-		client := NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		client := NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 		configs := []Config{
 			{ID: "mcp-1", URL: "http://example.com/mcp1", Transport: "sse"},
 			{ID: "mcp-2", URL: "http://example.com/mcp2", Transport: "streamable-http"},
 		}
-		err := service.EnsureMultiple(context.Background(), configs)
+		err := service.EnsureMultiple(t.Context(), configs)
 		assert.NoError(t, err)
 	})
 	t.Run("Should handle empty MCP list", func(t *testing.T) {
@@ -110,9 +109,9 @@ func TestRegisterService_EnsureMultiple(t *testing.T) {
 			t.Error("Should not make any HTTP calls for empty MCP list")
 		}))
 		defer server.Close()
-		client := NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		client := NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		service := NewRegisterService(client)
-		err := service.EnsureMultiple(context.Background(), []Config{})
+		err := service.EnsureMultiple(t.Context(), []Config{})
 		assert.NoError(t, err)
 	})
 }
@@ -143,9 +142,9 @@ func TestRegisterService_Shutdown(t *testing.T) {
 			}
 		}))
 		defer server.Close()
-		client := NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		client := NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		service := NewRegisterService(client)
-		err := service.Shutdown(context.Background())
+		err := service.Shutdown(t.Context())
 		assert.NoError(t, err)
 		// Verify both MCPs were deregistered
 		assert.Contains(t, deregisteredMCPs, "mcp-1")
@@ -166,11 +165,11 @@ func TestRegisterService_Shutdown(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		client := NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		st := &stubTransport{base: http.DefaultTransport}
 		client.http.Transport = st
 		service := NewRegisterService(client)
-		err := service.Shutdown(context.Background())
+		err := service.Shutdown(t.Context())
 		assert.NoError(t, err)
 		assert.True(t, st.called, "expected CloseIdleConnections to be called via client.Close()")
 	})
@@ -207,10 +206,10 @@ func TestRegisterService_HealthCheck(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		client := NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 
-		err := service.HealthCheck(context.Background())
+		err := service.HealthCheck(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -220,10 +219,10 @@ func TestRegisterService_HealthCheck(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		client := NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 
-		err := service.HealthCheck(context.Background())
+		err := service.HealthCheck(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "proxy health check failed")
 	})
@@ -231,7 +230,7 @@ func TestRegisterService_HealthCheck(t *testing.T) {
 
 func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	t.Run("Should convert valid remote MCP config to proxy definition", func(t *testing.T) {
-		client := NewProxyClient(context.Background(), "http://localhost:7077", 5*time.Second)
+		client := NewProxyClient(t.Context(), "http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{
@@ -251,7 +250,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	})
 
 	t.Run("Should convert valid stdio MCP config to proxy definition", func(t *testing.T) {
-		client := NewProxyClient(context.Background(), "http://localhost:7077", 5*time.Second)
+		client := NewProxyClient(t.Context(), "http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{
@@ -272,7 +271,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	})
 
 	t.Run("Should merge explicit args with parsed command args", func(t *testing.T) {
-		client := NewProxyClient(context.Background(), "http://localhost:7077", 5*time.Second)
+		client := NewProxyClient(t.Context(), "http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{
@@ -290,7 +289,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	})
 
 	t.Run("Should return error when neither URL nor Command is provided", func(t *testing.T) {
-		client := NewProxyClient(context.Background(), "http://localhost:7077", 5*time.Second)
+		client := NewProxyClient(t.Context(), "http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{
@@ -305,7 +304,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	})
 
 	t.Run("Should return error for missing required fields", func(t *testing.T) {
-		client := NewProxyClient(context.Background(), "http://localhost:7077", 5*time.Second)
+		client := NewProxyClient(t.Context(), "http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{
@@ -320,7 +319,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	})
 
 	t.Run("Should return error for URL-based MCP with invalid transport", func(t *testing.T) {
-		client := NewProxyClient(context.Background(), "http://localhost:7077", 5*time.Second)
+		client := NewProxyClient(t.Context(), "http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{
@@ -335,7 +334,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	})
 
 	t.Run("Should return error for command-based MCP with invalid transport", func(t *testing.T) {
-		client := NewProxyClient(context.Background(), "http://localhost:7077", 5*time.Second)
+		client := NewProxyClient(t.Context(), "http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{
@@ -350,7 +349,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	})
 
 	t.Run("Should accept valid transport combinations", func(t *testing.T) {
-		client := NewProxyClient(context.Background(), "http://localhost:7077", 5*time.Second)
+		client := NewProxyClient(t.Context(), "http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		// Test valid URL + SSE

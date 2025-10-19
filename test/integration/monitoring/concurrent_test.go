@@ -1,7 +1,6 @@
 package monitoring_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -43,7 +42,7 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 					}
 					path := paths[j%len(paths)]
 					req, err := http.NewRequestWithContext(
-						context.Background(),
+						t.Context(),
 						"GET",
 						env.httpServer.URL+path,
 						http.NoBody,
@@ -113,7 +112,7 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 				client := env.GetMetricsClient()
 				// Each reader makes multiple requests
 				for range 5 {
-					req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+					req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 					if err != nil {
 						continue
 					}
@@ -191,7 +190,7 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 					return
 				default:
 					req, _ := http.NewRequestWithContext(
-						context.Background(),
+						t.Context(),
 						"GET",
 						env.httpServer.URL+"/api/v1/health",
 						http.NoBody,

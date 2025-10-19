@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"strconv"
 	"testing"
 
@@ -21,7 +20,7 @@ func TestAgentMemoryResolver(t *testing.T) {
 		// Setup test environment with real Redis
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create a test agent with memory configuration
 		agentConfig := createTestAgentWithMemory(t, env)
@@ -69,7 +68,7 @@ func TestAgentMemoryResolver(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create agent with multiple memory configurations
 		agentConfig := createTestAgentWithMultipleMemories(t, env)
@@ -128,7 +127,7 @@ func TestAgentMemoryResolver(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create agent with invalid template
 		agentConfig := createTestAgentWithInvalidTemplate(t, env)
@@ -161,7 +160,7 @@ func TestAgentMemoryResolver(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create agent with read-only memory
 		agentConfig := createTestAgentWithReadOnlyMemory(t, env)
@@ -194,7 +193,7 @@ func TestMemoryResolverConcurrency(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create agents with different memory configurations
 		agentConfigs := []*agent.Config{
@@ -260,7 +259,7 @@ func TestMemoryResolverAdapter(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Get a real memory instance
 		memRef := core.MemoryReference{

@@ -22,7 +22,7 @@ func TestTokenCountingWithMemoryIntegration(t *testing.T) {
 	t.Run("Should track token counts accurately in memory operations", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create memory instance using the manager; token counting reconciles asynchronously, so we wait for stabilization
 		memRef := core.MemoryReference{
@@ -145,7 +145,7 @@ func TestTokenCountingConsistency(t *testing.T) {
 	t.Run("Should maintain consistent token counts across operations", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "customer-support",
 			Key: "token-consistency-{{.test.id}}",
@@ -192,7 +192,7 @@ func TestTokenCountingWithFlush(t *testing.T) {
 	t.Run("Should update token counts correctly during flush", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "flushable-memory",
 			Key: "token-flush-{{.test.id}}",
@@ -251,7 +251,7 @@ func TestTokenCountingEdgeCases(t *testing.T) {
 	t.Run("Should handle edge cases in token counting", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "customer-support",
 			Key: "edge-case-{{.test.id}}",
@@ -324,7 +324,7 @@ func TestTokenCountingConcurrency(t *testing.T) {
 	t.Run("Should handle concurrent token counting operations", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "shared-memory",
 			Key: "token-concurrent-{{.test.id}}",

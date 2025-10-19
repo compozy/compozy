@@ -41,10 +41,9 @@ type TestEnvironment struct {
 // NewTestEnvironment creates a new test environment with all required dependencies
 func NewTestEnvironment(t *testing.T) *TestEnvironment {
 	t.Helper()
-	ctx := context.Background()
 	log := logger.NewForTests()
 	env := &TestEnvironment{
-		ctx:     ctx,
+		ctx:     t.Context(),
 		logger:  log,
 		cleanup: []func(){},
 	}
@@ -73,7 +72,7 @@ func (env *TestEnvironment) setupRedis(t *testing.T) {
 		DB:   0,
 	})
 	// Test connection
-	ctx, cancel := context.WithTimeout(env.ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	err = env.redis.Ping(ctx).Err()
 	require.NoError(t, err, "Failed to connect to miniredis")

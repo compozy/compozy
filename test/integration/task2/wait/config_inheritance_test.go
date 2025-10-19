@@ -55,6 +55,7 @@ func TestWaitConfigInheritance(t *testing.T) {
 
 		// Create normalizer to test inheritance
 		normalizer := wait.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -67,7 +68,7 @@ func TestWaitConfigInheritance(t *testing.T) {
 		}
 
 		// Normalize the wait task
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err, "Wait normalization should succeed")
 
 		// Verify processor inherited CWD and FilePath
@@ -116,6 +117,7 @@ func TestWaitConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := wait.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -126,7 +128,7 @@ func TestWaitConfigInheritance(t *testing.T) {
 				"wait_timeout": "60s",
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify processor preserved its explicit values
@@ -169,6 +171,7 @@ func TestWaitConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := wait.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -179,7 +182,7 @@ func TestWaitConfigInheritance(t *testing.T) {
 				"max_wait_time": "120s",
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify inheritance and timeout configuration
@@ -213,6 +216,7 @@ func TestWaitConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := wait.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -223,7 +227,7 @@ func TestWaitConfigInheritance(t *testing.T) {
 				"signal_type": "simple",
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify wait task configuration is valid without processor

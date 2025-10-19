@@ -28,13 +28,13 @@ func TestMemoryManager_Inject(t *testing.T) {
 	mm := NewMemoryManager(nil, nil, nil)
 	base := []llmadapter.Message{{Role: "user", Content: "prompt"}}
 	t.Run("Should return base when no memory", func(t *testing.T) {
-		out := mm.Inject(context.Background(), base, nil)
+		out := mm.Inject(t.Context(), base, nil)
 		assert.Equal(t, base, out)
 	})
 	t.Run("Should inject memory messages before base", func(t *testing.T) {
 		mem := &readOnlyMemory{msgs: []contracts.Message{{Role: contracts.MessageRoleUser, Content: "m1"}}}
 		ctxData := &MemoryContext{memories: map[string]contracts.Memory{"mem": mem}}
-		out := mm.Inject(context.Background(), base, ctxData)
+		out := mm.Inject(t.Context(), base, ctxData)
 		assert.Equal(t, 2, len(out))
 		assert.Equal(t, "user", out[0].Role)
 		assert.Equal(t, "m1", out[0].Content)
@@ -136,7 +136,7 @@ func TestMemoryManager_StoreAsync(t *testing.T) {
 			},
 		}
 		req := Request{Agent: agentCfg, Action: &agent.ActionConfig{}}
-		ctx := context.Background()
+		ctx := t.Context()
 
 		memoryCtx := manager.Prepare(ctx, req)
 		require.NotNil(t, memoryCtx)
@@ -160,7 +160,7 @@ func TestMemoryManager_StoreAsync(t *testing.T) {
 }
 
 func TestMemoryManager_CompactSummarisesAndStores(t *testing.T) {
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	memory := newCapturingMemory("mem-1")
 	provider := &stubMemoryProvider{memory: memory}
 	manager := NewMemoryManager(provider, nil, nil)
@@ -211,7 +211,7 @@ func TestMemoryManager_CompactSummarisesAndStores(t *testing.T) {
 }
 
 func TestMemoryManager_CompactSkippedWhenNoConversationHistory(t *testing.T) {
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	memory := newCapturingMemory("mem-1")
 	provider := &stubMemoryProvider{memory: memory}
 	manager := NewMemoryManager(provider, nil, nil)
@@ -243,7 +243,7 @@ func TestMemoryManager_CompactSkippedWhenNoConversationHistory(t *testing.T) {
 }
 
 func TestMemoryManager_CompactWithoutMemoryContext(t *testing.T) {
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	manager := NewMemoryManager(nil, nil, nil)
 	loopCtx := &LoopContext{
 		LLMRequest: &llmadapter.LLMRequest{

@@ -50,7 +50,7 @@ func TestWithContext(t *testing.T) {
 func TestIsTimeoutError(t *testing.T) {
 	t.Run("Should detect timeout errors", func(t *testing.T) {
 		// Test context deadline exceeded
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Millisecond)
 		defer cancel()
 		<-ctx.Done()
 		assert.True(t, IsTimeoutError(ctx.Err()))
@@ -199,7 +199,7 @@ func TestTruncate(t *testing.T) {
 
 func TestLogOperation(t *testing.T) {
 	t.Run("Should log operation success", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		err := LogOperation(ctx, "test_operation", func() error {
 			return nil
@@ -209,7 +209,7 @@ func TestLogOperation(t *testing.T) {
 	})
 
 	t.Run("Should log operation failure", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		expectedErr := NewCliError("TEST_ERROR", "Test failure")
 
 		err := LogOperation(ctx, "test_operation", func() error {
@@ -222,7 +222,7 @@ func TestLogOperation(t *testing.T) {
 
 func TestWithTimeout(t *testing.T) {
 	t.Run("Should execute function within timeout", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		err := WithTimeout(ctx, 100*time.Millisecond, func(_ context.Context) error {
 			return nil
@@ -232,7 +232,7 @@ func TestWithTimeout(t *testing.T) {
 	})
 
 	t.Run("Should timeout long-running function", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		err := WithTimeout(ctx, 10*time.Millisecond, func(_ context.Context) error {
 			time.Sleep(50 * time.Millisecond)
@@ -244,7 +244,7 @@ func TestWithTimeout(t *testing.T) {
 	})
 
 	t.Run("Should not timeout with zero duration", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		err := WithTimeout(ctx, 0, func(_ context.Context) error {
 			return nil

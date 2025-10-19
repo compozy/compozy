@@ -1,7 +1,6 @@
 package runtime_test
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -13,7 +12,7 @@ import (
 func TestDefaultFactory_CreateRuntime(t *testing.T) {
 	t.Run("Should create runtime with nil config error", func(t *testing.T) {
 		factory := runtime.NewDefaultFactory("/test/project")
-		ctx := context.Background()
+		ctx := t.Context()
 
 		rt, err := factory.CreateRuntime(ctx, nil)
 
@@ -29,7 +28,7 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 		defer os.RemoveAll(tmpDir)
 
 		factory := runtime.NewDefaultFactory(tmpDir)
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{}
 
 		// This creates a BunManager instance for the default runtime type
@@ -46,7 +45,7 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 		defer os.RemoveAll(tmpDir)
 
 		factory := runtime.NewDefaultFactory(tmpDir)
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			RuntimeType: runtime.RuntimeTypeBun,
 		}
@@ -59,7 +58,7 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 
 	t.Run("Should return error for Node.js runtime (not yet implemented)", func(t *testing.T) {
 		factory := runtime.NewDefaultFactory("/test/project")
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			RuntimeType: runtime.RuntimeTypeNode,
 		}
@@ -73,7 +72,7 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 
 	t.Run("Should return error for unsupported runtime type", func(t *testing.T) {
 		factory := runtime.NewDefaultFactory("/test/project")
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			RuntimeType: "python",
 		}
@@ -88,7 +87,7 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 
 	t.Run("Should validate runtime type before processing", func(t *testing.T) {
 		factory := runtime.NewDefaultFactory("/test/project")
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Note: empty string defaults to Bun, so we skip it
 		invalidTypes := []string{"invalid", "PYTHON", "ruby", "java", "deno"}

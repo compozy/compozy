@@ -1,7 +1,6 @@
 package aggregate
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,7 +52,7 @@ func TestAggregateResponseHandler_HandleResponse_Validation(t *testing.T) {
 			WorkflowState:  &workflow.State{},  // Valid workflow state
 		}
 
-		result, err := handler.HandleResponse(context.Background(), input)
+		result, err := handler.HandleResponse(t.Context(), input)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -133,7 +132,7 @@ func TestAggregateResponseHandler_HandleAggregateCompletion(t *testing.T) {
 			"items": []string{"a", "b", "c"},
 		}
 
-		err := handler.HandleAggregateCompletion(context.Background(), state, aggregatedData)
+		err := handler.HandleAggregateCompletion(t.Context(), state, aggregatedData)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, state.Output)
@@ -161,7 +160,7 @@ func TestAggregateResponseHandler_HandleAggregateCompletion(t *testing.T) {
 			"count": 10, // This should overwrite existing
 		}
 
-		err := handler.HandleAggregateCompletion(context.Background(), state, aggregatedData)
+		err := handler.HandleAggregateCompletion(t.Context(), state, aggregatedData)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, state.Output)
@@ -182,7 +181,7 @@ func TestAggregateResponseHandler_HandleAggregateCompletion(t *testing.T) {
 
 		aggregatedData := map[string]any{}
 
-		err := handler.HandleAggregateCompletion(context.Background(), state, aggregatedData)
+		err := handler.HandleAggregateCompletion(t.Context(), state, aggregatedData)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, state.Output)

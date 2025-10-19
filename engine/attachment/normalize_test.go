@@ -1,7 +1,6 @@
 package attachment
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"sort"
@@ -25,7 +24,7 @@ func TestNormalizePhase1_GlobExpansionAndMetadata(t *testing.T) {
 			Source:         SourcePath,
 			Paths:          []string{"*.png"},
 		}
-		res, err := NormalizePhase1(context.Background(), eng, cwd, []Attachment{att}, map[string]any{})
+		res, err := NormalizePhase1(t.Context(), eng, cwd, []Attachment{att}, map[string]any{})
 		require.NoError(t, err)
 		require.Len(t, res, 2)
 		got := []string{}
@@ -51,7 +50,7 @@ func TestNormalize_TemplatesDeferralAndPhase2(t *testing.T) {
 			Source:         SourceURL,
 			URLs:           []string{"{{ .tasks.prev.output.url }}", "https://x/y.png"},
 		}
-		phase1, err := NormalizePhase1(context.Background(), eng, cwd, []Attachment{in}, map[string]any{})
+		phase1, err := NormalizePhase1(t.Context(), eng, cwd, []Attachment{in}, map[string]any{})
 		require.NoError(t, err)
 		require.Len(t, phase1, 2)
 		// One expanded child and one parent with deferred URLs
@@ -75,7 +74,7 @@ func TestNormalize_TemplatesDeferralAndPhase2(t *testing.T) {
 		ctx := map[string]any{
 			"tasks": map[string]any{"prev": map[string]any{"output": map[string]any{"url": "https://z/img.png"}}},
 		}
-		phase2, err := NormalizePhase2(context.Background(), eng, cwd, []Attachment{parent}, ctx)
+		phase2, err := NormalizePhase2(t.Context(), eng, cwd, []Attachment{parent}, ctx)
 		require.NoError(t, err)
 		require.Len(t, phase2, 1)
 		v, ok := phase2[0].(*ImageAttachment)
@@ -94,7 +93,7 @@ func TestNormalizePhase1_UnmatchedPattern_NoExpansion(t *testing.T) {
 			Source:         SourcePath,
 			Paths:          []string{"nomatch/*.png"},
 		}
-		res, err := NormalizePhase1(context.Background(), eng, cwd, []Attachment{in}, map[string]any{})
+		res, err := NormalizePhase1(t.Context(), eng, cwd, []Attachment{in}, map[string]any{})
 		require.NoError(t, err)
 		assert.Len(t, res, 0)
 	})
@@ -111,7 +110,7 @@ func TestNormalizePhase1_NestedGlob(t *testing.T) {
 		cwd := &core.PathCWD{Path: dir}
 		eng := tplengine.NewEngine(tplengine.FormatText)
 		in := &ImageAttachment{Source: SourcePath, Paths: []string{"a/**/*.png"}}
-		res, err := NormalizePhase1(context.Background(), eng, cwd, []Attachment{in}, map[string]any{})
+		res, err := NormalizePhase1(t.Context(), eng, cwd, []Attachment{in}, map[string]any{})
 		require.NoError(t, err)
 		got := []string{}
 		for _, a := range res {
@@ -132,7 +131,7 @@ func TestNormalizePhase1_PathTraversalPrevented(t *testing.T) {
 		cwd := &core.PathCWD{Path: sub}
 		eng := tplengine.NewEngine(tplengine.FormatText)
 		in := &ImageAttachment{Source: SourcePath, Paths: []string{"../*.png"}}
-		_, err := NormalizePhase1(context.Background(), eng, cwd, []Attachment{in}, map[string]any{})
+		_, err := NormalizePhase1(t.Context(), eng, cwd, []Attachment{in}, map[string]any{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "match outside CWD")
 	})
@@ -147,7 +146,7 @@ func TestNormalizePhase1_URLMetadataInheritance(t *testing.T) {
 			Source:         SourceURL,
 			URLs:           []string{"https://a/1.png", "https://a/2.png"},
 		}
-		res, err := NormalizePhase1(context.Background(), eng, cwd, []Attachment{in}, map[string]any{})
+		res, err := NormalizePhase1(t.Context(), eng, cwd, []Attachment{in}, map[string]any{})
 		require.NoError(t, err)
 		require.Len(t, res, 2)
 		for _, a := range res {
@@ -165,7 +164,7 @@ func TestNormalizePhase1_PathsDeferralAndPhase2(t *testing.T) {
 		cwd := &core.PathCWD{Path: dir}
 		eng := tplengine.NewEngine(tplengine.FormatText)
 		in := &ImageAttachment{Source: SourcePath, Paths: []string{"{{ .tasks.prev.output.pattern }}"}}
-		p1, err := NormalizePhase1(context.Background(), eng, cwd, []Attachment{in}, map[string]any{})
+		p1, err := NormalizePhase1(t.Context(), eng, cwd, []Attachment{in}, map[string]any{})
 		require.NoError(t, err)
 		// Expect a parent with deferred Paths
 		require.Len(t, p1, 1)
@@ -174,7 +173,7 @@ func TestNormalizePhase1_PathsDeferralAndPhase2(t *testing.T) {
 		ctx := map[string]any{
 			"tasks": map[string]any{"prev": map[string]any{"output": map[string]any{"pattern": "*.png"}}},
 		}
-		p2, err := NormalizePhase2(context.Background(), eng, cwd, []Attachment{parent}, ctx)
+		p2, err := NormalizePhase2(t.Context(), eng, cwd, []Attachment{parent}, ctx)
 		require.NoError(t, err)
 		require.Len(t, p2, 1)
 		child := p2[0].(*ImageAttachment)

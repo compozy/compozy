@@ -1,7 +1,6 @@
 package strategies
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -128,7 +127,7 @@ func TestLRUStrategy_PerformFlush(t *testing.T) {
 			MaxTokens: 1000,
 		}
 
-		result, err := strategy.PerformFlush(context.Background(), []llm.Message{}, config)
+		result, err := strategy.PerformFlush(t.Context(), []llm.Message{}, config)
 
 		require.NoError(t, err)
 		assert.True(t, result.Success)
@@ -155,7 +154,7 @@ func TestLRUStrategy_PerformFlush(t *testing.T) {
 			{Role: llm.MessageRoleAssistant, Content: "Eighth message"},
 		}
 
-		result, err := strategy.PerformFlush(context.Background(), messages, config)
+		result, err := strategy.PerformFlush(t.Context(), messages, config)
 
 		require.NoError(t, err)
 		assert.True(t, result.Success)
@@ -179,7 +178,7 @@ func TestLRUStrategy_PerformFlush(t *testing.T) {
 			}
 		}
 
-		result, err := strategy.PerformFlush(context.Background(), messages, config)
+		result, err := strategy.PerformFlush(t.Context(), messages, config)
 
 		require.NoError(t, err)
 		assert.True(t, result.Success)
@@ -204,7 +203,7 @@ func TestLRUStrategy_GetMinMaxToFlush(t *testing.T) {
 
 	t.Run("Should return appropriate min/max flush counts", func(t *testing.T) {
 		totalMsgs := 20
-		minFlush, maxFlush := strategy.GetMinMaxToFlush(context.Background(), totalMsgs, 1000, 2000)
+		minFlush, maxFlush := strategy.GetMinMaxToFlush(t.Context(), totalMsgs, 1000, 2000)
 
 		assert.Equal(t, 1, minFlush)
 		assert.Equal(t, 10, maxFlush) // Half of total messages
@@ -213,7 +212,7 @@ func TestLRUStrategy_GetMinMaxToFlush(t *testing.T) {
 
 	t.Run("Should handle edge case with very few messages", func(t *testing.T) {
 		totalMsgs := 2
-		minFlush, maxFlush := strategy.GetMinMaxToFlush(context.Background(), totalMsgs, 100, 200)
+		minFlush, maxFlush := strategy.GetMinMaxToFlush(t.Context(), totalMsgs, 100, 200)
 
 		assert.Equal(t, 1, minFlush)
 		assert.Equal(t, 1, maxFlush)
@@ -248,7 +247,7 @@ func TestLRUStrategy_ConcurrentAccess(t *testing.T) {
 		// Concurrent PerformFlush calls
 		go func() {
 			for range 5 {
-				strategy.PerformFlush(context.Background(), messages, config)
+				strategy.PerformFlush(t.Context(), messages, config)
 			}
 			done <- true
 		}()
@@ -292,7 +291,7 @@ func TestLRUStrategy_DuplicateMessageHandling(t *testing.T) {
 		}
 
 		// Simulate a flush that keeps some messages (including duplicates)
-		result, err := strategy.PerformFlush(context.Background(), messages, config)
+		result, err := strategy.PerformFlush(t.Context(), messages, config)
 
 		require.NoError(t, err)
 		assert.True(t, result.Success)
@@ -303,7 +302,7 @@ func TestLRUStrategy_DuplicateMessageHandling(t *testing.T) {
 		// Verify that the cache was properly rebuilt without key collisions
 		// This test would have failed before the fix due to duplicate content causing map key collisions
 		assert.NotPanics(t, func() {
-			strategy.PerformFlush(context.Background(), messages, config)
+			strategy.PerformFlush(t.Context(), messages, config)
 		})
 	})
 }

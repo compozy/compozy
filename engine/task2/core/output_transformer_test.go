@@ -22,7 +22,7 @@ func TestOutputTransformer_TransformOutput(t *testing.T) {
 		ctx := &shared.NormalizationContext{}
 		taskConfig := &task.Config{}
 		// Act
-		result, err := transformer.TransformOutput(output, nil, ctx, taskConfig)
+		result, err := transformer.TransformOutput(t.Context(), output, nil, ctx, taskConfig)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, output, result)
@@ -36,7 +36,7 @@ func TestOutputTransformer_TransformOutput(t *testing.T) {
 		ctx := &shared.NormalizationContext{}
 		taskConfig := &task.Config{}
 		// Act
-		result, err := transformer.TransformOutput(nil, outputsConfig, ctx, taskConfig)
+		result, err := transformer.TransformOutput(t.Context(), nil, outputsConfig, ctx, taskConfig)
 		// Assert
 		assert.NoError(t, err)
 		assert.Nil(t, result)
@@ -62,7 +62,7 @@ func TestOutputTransformer_TransformOutput(t *testing.T) {
 			},
 		}
 		// Act
-		result, err := transformer.TransformOutput(output, outputsConfig, ctx, taskConfig)
+		result, err := transformer.TransformOutput(t.Context(), output, outputsConfig, ctx, taskConfig)
 		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -90,7 +90,7 @@ func TestOutputTransformer_TransformOutput(t *testing.T) {
 			},
 		}
 		// Act
-		result, err := transformer.TransformOutput(output, outputsConfig, ctx, taskConfig)
+		result, err := transformer.TransformOutput(t.Context(), output, outputsConfig, ctx, taskConfig)
 		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -113,7 +113,7 @@ func TestOutputTransformer_TransformOutput(t *testing.T) {
 			},
 		}
 		// Act
-		result, err := transformer.TransformOutput(output, outputsConfig, ctx, taskConfig)
+		result, err := transformer.TransformOutput(t.Context(), output, outputsConfig, ctx, taskConfig)
 		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -141,7 +141,7 @@ func TestOutputTransformer_TransformOutput(t *testing.T) {
 			},
 		}
 		// Act
-		result, err := transformer.TransformOutput(output, outputsConfig, ctx, taskConfig)
+		result, err := transformer.TransformOutput(t.Context(), output, outputsConfig, ctx, taskConfig)
 		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -182,7 +182,7 @@ func TestOutputTransformer_TransformOutput(t *testing.T) {
 			},
 		}
 		// Act
-		result, err := transformer.TransformOutput(output, outputsConfig, ctx, taskConfig)
+		result, err := transformer.TransformOutput(t.Context(), output, outputsConfig, ctx, taskConfig)
 		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -258,7 +258,7 @@ func TestOutputTransformer_TemplateError(t *testing.T) {
 			BaseConfig: task.BaseConfig{Type: task.TaskTypeBasic},
 		}
 		// Act
-		result, err := transformer.TransformOutput(output, outputsConfig, ctx, taskConfig)
+		result, err := transformer.TransformOutput(t.Context(), output, outputsConfig, ctx, taskConfig)
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)

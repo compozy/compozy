@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/knowledge"
@@ -14,7 +13,7 @@ import (
 
 func TestProject_IndexToResourceStore(t *testing.T) {
 	t.Run("Should index core and knowledge resources", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store := resources.NewMemoryResourceStore()
 		p := &Config{
 			Name:    "demo",
@@ -78,7 +77,7 @@ func TestProject_IndexToResourceStore(t *testing.T) {
 
 func TestProject_IndexToResourceStore_WritesMeta(t *testing.T) {
 	t.Run("Should write YAML meta source", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store := resources.NewMemoryResourceStore()
 		p := &Config{Name: "demo", Tools: []tool.Config{{ID: "fmt"}}}
 		require.NoError(t, p.IndexToResourceStore(ctx, store))

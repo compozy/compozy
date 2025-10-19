@@ -54,7 +54,7 @@ type UnlockFunc func() error
 // EvictionPolicy defines the interface for message eviction strategies
 type EvictionPolicy interface {
 	// SelectMessagesToEvict selects which messages should be evicted
-	SelectMessagesToEvict(messages []llm.Message, targetCount int) []llm.Message
+	SelectMessagesToEvict(ctx context.Context, messages []llm.Message, targetCount int) []llm.Message
 	// GetType returns the policy type
 	GetType() string
 }

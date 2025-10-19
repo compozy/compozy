@@ -33,7 +33,7 @@ func TestDefinitionRegisters(t *testing.T) {
 }
 
 func TestHandlerRequiresExecutor(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := &stubEnvironment{}
 	handler := Definition(env).Handler
 	_, err := handler(ctx, map[string]any{
@@ -47,7 +47,7 @@ func TestHandlerRequiresExecutor(t *testing.T) {
 }
 
 func TestHandlerValidatesAgentID(t *testing.T) {
-	ctx := attachConfig(context.Background(), nil)
+	ctx := attachConfig(t, nil)
 	exec := &stubAgentExecutor{}
 	env := &stubEnvironment{executor: exec}
 	handler := Definition(env).Handler
@@ -61,7 +61,7 @@ func TestHandlerValidatesAgentID(t *testing.T) {
 }
 
 func TestHandlerRequiresActionOrPrompt(t *testing.T) {
-	ctx := attachConfig(context.Background(), nil)
+	ctx := attachConfig(t, nil)
 	exec := &stubAgentExecutor{}
 	env := &stubEnvironment{executor: exec}
 	handler := Definition(env).Handler
@@ -75,7 +75,7 @@ func TestHandlerRequiresActionOrPrompt(t *testing.T) {
 }
 
 func TestHandlerRejectsNegativeTimeout(t *testing.T) {
-	ctx := attachConfig(context.Background(), nil)
+	ctx := attachConfig(t, nil)
 	exec := &stubAgentExecutor{}
 	env := &stubEnvironment{executor: exec}
 	handler := Definition(env).Handler
@@ -91,7 +91,7 @@ func TestHandlerRejectsNegativeTimeout(t *testing.T) {
 }
 
 func TestHandlerExecutesAgentWithDefaults(t *testing.T) {
-	ctx := attachConfig(context.Background(), nil)
+	ctx := attachConfig(t, nil)
 	output := core.Output{"result": "ok"}
 	exec := &stubAgentExecutor{
 		result: &toolenv.AgentResult{
@@ -126,7 +126,7 @@ func TestHandlerExecutesAgentWithDefaults(t *testing.T) {
 func TestHandlerRespectsTimeoutOverride(t *testing.T) {
 	cfg := config.DefaultNativeToolsConfig()
 	cfg.CallAgent.DefaultTimeout = 10 * time.Second
-	ctx := attachConfig(context.Background(), &cfg)
+	ctx := attachConfig(t, &cfg)
 	exec := &stubAgentExecutor{
 		result: &toolenv.AgentResult{
 			ExecID: core.ID("exec-555"),
@@ -176,14 +176,15 @@ func (s *stubEnvironment) ResourceStore() resources.ResourceStore {
 	return nil
 }
 
-func attachConfig(ctx context.Context, cfgOverride *config.NativeToolsConfig) context.Context {
-	manager := config.NewManager(config.NewService())
-	cfg, err := manager.Load(context.Background(), config.NewDefaultProvider())
+func attachConfig(t *testing.T, cfgOverride *config.NativeToolsConfig) context.Context {
+	t.Helper()
+	manager := config.NewManager(t.Context(), config.NewService())
+	cfg, err := manager.Load(t.Context(), config.NewDefaultProvider())
 	if err != nil {
 		panic(err)
 	}
 	if cfgOverride != nil {
 		cfg.Runtime.NativeTools = *cfgOverride
 	}
-	return config.ContextWithManager(ctx, manager)
+	return config.ContextWithManager(t.Context(), manager)
 }

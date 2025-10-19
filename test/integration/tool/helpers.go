@@ -35,11 +35,11 @@ type TestEnvironment struct {
 func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 	t.Helper()
 	// Use a cancellable context with timeout to prevent hanging tests.
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTestTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), defaultTestTimeout)
 	// Ensure cancel is called even on test panic or early return.
 	t.Cleanup(cancel)
 	// Use shared container for better performance
-	pool, dbCleanup := helpers.GetSharedPostgresDB(ctx, t)
+	pool, dbCleanup := helpers.GetSharedPostgresDB(t)
 	// Ensure tables exist (shared container migrations)
 	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
 	env := &TestEnvironment{

@@ -1,7 +1,6 @@
 package tool
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,7 +55,7 @@ func TestToolInheritance_Runtime(t *testing.T) {
 		prjCfg := CreateTestProjectConfig(prjTools)
 
 		// Set up repositories and runtime similar to worker helpers
-		ctx := context.Background()
+		ctx := t.Context()
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		t.Cleanup(cleanup)
 

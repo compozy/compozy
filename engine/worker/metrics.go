@@ -427,13 +427,9 @@ func fetchTaskQueueDepth(ctx context.Context, client *Client, queue string) (int
 	return total, nil
 }
 
-func (w *Worker) startQueueDepthMonitor() {
+func (w *Worker) startQueueDepthMonitor(ctx context.Context) {
 	if w == nil || w.queueDepthCancel != nil {
 		return
-	}
-	ctx := w.lifecycleCtx
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	w.queueDepthCancel = startTaskQueueDepthSampler(ctx, w.client, w.taskQueue)
 }

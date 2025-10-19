@@ -86,7 +86,7 @@ func TestRequestBuilder_KnowledgePrompts(t *testing.T) {
 			Action:    &agent.ActionConfig{ID: "action"},
 			Knowledge: KnowledgePayload{Entries: []KnowledgeEntry{entry}},
 		}
-		output, err := rb.Build(context.Background(), req, &MemoryContext{})
+		output, err := rb.Build(t.Context(), req, &MemoryContext{})
 		require.NoError(t, err)
 		require.Len(t, output.Request.Messages, 2)
 		assert.Equal(t, "memory", output.Request.Messages[0].Content)
@@ -117,7 +117,7 @@ func TestRequestBuilder_KnowledgePrompts(t *testing.T) {
 				}},
 			},
 		}
-		output, err := rb.Build(context.Background(), req, &MemoryContext{})
+		output, err := rb.Build(t.Context(), req, &MemoryContext{})
 		require.NoError(t, err)
 		require.Len(t, output.Request.Messages, 2)
 		user := output.Request.Messages[1].Content

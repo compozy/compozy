@@ -1,7 +1,6 @@
 package pdftext
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -18,7 +17,7 @@ func TestExtractorProducesReadableText(t *testing.T) {
 		t.Cleanup(func() { extractor.Close() })
 
 		path := filepath.Join("..", "..", "test", "fixtures", "pdf", "indexing_optimization.pdf")
-		result, err := extractor.ExtractFile(context.Background(), path, 0)
+		result, err := extractor.ExtractFile(t.Context(), path, 0)
 		require.NoError(t, err)
 		require.True(t, result.Stats.IsReadable(), "expected readable text, issues: %v", result.Stats.Issues())
 		require.Contains(t, result.Text, "Indexing Optimization")

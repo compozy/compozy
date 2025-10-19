@@ -125,7 +125,7 @@ func TestRepositoryPersistInvokesCallback(t *testing.T) {
 			Summary: summary,
 		}
 
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewLogger(logger.TestConfig()))
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewLogger(logger.TestConfig()))
 		require.NoError(t, repo.Persist(ctx, finalized))
 
 		require.Eventually(t, func() bool { return received.Load() != nil }, time.Second, 10*time.Millisecond)
@@ -147,7 +147,7 @@ func TestRepositoryStopPreventsNewRequests(t *testing.T) {
 		require.NoError(t, err)
 
 		repo.Stop()
-		require.ErrorIs(t, repo.Persist(context.Background(), &Finalized{
+		require.ErrorIs(t, repo.Persist(t.Context(), &Finalized{
 			Summary: &Summary{Entries: []Entry{{Provider: "openai", Model: "gpt"}}},
 		}), ErrRepositoryClosed)
 		require.NotPanics(t, repo.Stop)
@@ -185,7 +185,7 @@ func TestRepositoryPersistReturnsContextErrorWhenQueueFull(t *testing.T) {
 			metrics:   &repositoryMetrics{},
 			queueSize: cap(queue),
 		}
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewLogger(logger.TestConfig()))
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewLogger(logger.TestConfig()))
 		ctx, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
 		defer cancel()
 		err := repo.Persist(ctx, &Finalized{Summary: &Summary{Entries: []Entry{{Provider: "openai", Model: "gpt"}}}})
@@ -233,7 +233,7 @@ func TestRepositoryRecoverFromPersistPanic(t *testing.T) {
 
 		log := newCapturingLog()
 		finalized := &Finalized{Summary: &Summary{Entries: []Entry{{Provider: "openai", Model: "gpt-4o-mini"}}}}
-		ctx := logger.ContextWithLogger(context.Background(), log)
+		ctx := logger.ContextWithLogger(t.Context(), log)
 
 		require.NoError(t, repo.Persist(ctx, finalized))
 		require.NoError(t, repo.Persist(ctx, finalized))

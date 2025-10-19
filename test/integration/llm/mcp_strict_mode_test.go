@@ -58,7 +58,7 @@ func TestStrictMode_MCPRegistration(t *testing.T) {
 		defer srv.Close()
 
 		// Use context with timeout to prevent test hangs
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 		defer cancel()
 		ag := &agent.Config{
 			ID:            "strict-agent",
@@ -86,7 +86,7 @@ func TestStrictMode_MCPRegistration(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 		defer cancel()
 		ag := &agent.Config{
 			ID:            "non-strict-agent",

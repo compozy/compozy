@@ -1,7 +1,6 @@
 package wfrouter
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,7 +21,7 @@ func TestWorkflowRouter_Export(t *testing.T) {
 	t.Run("Should export workflows to project root", func(t *testing.T) {
 		t.Parallel()
 		ginmode.EnsureGinTestMode()
-		ctx := context.Background()
+		ctx := t.Context()
 		projectID := "demo"
 		store := resources.NewMemoryResourceStore()
 		_, err := store.Put(

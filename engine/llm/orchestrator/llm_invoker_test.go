@@ -97,7 +97,7 @@ func TestLLMInvoker_Invoke(t *testing.T) {
 	t.Run("Should retry on retryable errors", func(t *testing.T) {
 		c := &flappyClient{}
 		resp, err := inv.Invoke(
-			context.Background(),
+			t.Context(),
 			c,
 			req,
 			Request{
@@ -115,7 +115,7 @@ func TestLLMInvoker_Invoke(t *testing.T) {
 	t.Run("Should not retry on non-retryable", func(t *testing.T) {
 		c := &flappyClient{finalErr: llmadapter.NewErrorWithCode(llmadapter.ErrCodeBadRequest, "b", "p", nil)}
 		_, err := inv.Invoke(
-			context.Background(),
+			t.Context(),
 			c,
 			req,
 			Request{
@@ -134,7 +134,7 @@ func TestLLMInvoker_RecordsProviderTelemetry(t *testing.T) {
 	tempDir := t.TempDir()
 	recorder, err := telemetry.NewRecorder(&telemetry.Options{ProjectRoot: tempDir})
 	require.NoError(t, err)
-	ctx, run, err := recorder.StartRun(context.Background(), telemetry.RunMetadata{})
+	ctx, run, err := recorder.StartRun(t.Context(), telemetry.RunMetadata{})
 	require.NoError(t, err)
 
 	inv := NewLLMInvoker(&settings{
@@ -199,7 +199,7 @@ func TestLLMInvoker_RecordsMetrics(t *testing.T) {
 		Action: &agent.ActionConfig{ID: "action", Prompt: "prompt"},
 	}
 	client := &staticClient{resp: response}
-	resp, err := inv.Invoke(context.Background(), client, req, request)
+	resp, err := inv.Invoke(t.Context(), client, req, request)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.Contains(t, metrics.outcomes, providerOutcomeSuccess)
@@ -226,7 +226,7 @@ func TestLLMInvoker_RecordsErrorMetrics(t *testing.T) {
 		},
 		Action: &agent.ActionConfig{ID: "action", Prompt: "prompt"},
 	}
-	_, err := inv.Invoke(context.Background(), client, &llmadapter.LLMRequest{}, request)
+	_, err := inv.Invoke(t.Context(), client, &llmadapter.LLMRequest{}, request)
 	require.Error(t, err)
 	require.Contains(t, metrics.outcomes, providerOutcomeError)
 	require.Contains(t, metrics.errorTypes, errorTypeInvalid)

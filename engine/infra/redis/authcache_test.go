@@ -85,7 +85,7 @@ func newCache(t *testing.T) (*CachedRepository, *mockRepo, *redis.Client, *minir
 
 func TestAuthCache_FPMappingAndSanitizedIDCache(t *testing.T) {
 	cache, repo, _, _ := newCache(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	key := &model.APIKey{
 		ID:          core.MustNewID(),
 		UserID:      core.MustNewID(),
@@ -109,7 +109,7 @@ func TestAuthCache_FPMappingAndSanitizedIDCache(t *testing.T) {
 
 func TestAuthCache_InvalidateOnUpdateDelete(t *testing.T) {
 	cache, repo, _, _ := newCache(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	key := &model.APIKey{
 		ID:          core.MustNewID(),
 		UserID:      core.MustNewID(),

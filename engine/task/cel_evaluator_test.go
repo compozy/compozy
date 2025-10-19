@@ -42,7 +42,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should evaluate simple boolean expression", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"signal": map[string]any{
 				"payload": map[string]any{
@@ -57,7 +57,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should evaluate complex expression with processor output", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"signal": map[string]any{
 				"payload": map[string]any{
@@ -79,7 +79,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should handle false conditions", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"signal": map[string]any{
 				"payload": map[string]any{
@@ -94,7 +94,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should handle missing fields gracefully", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"signal": map[string]any{
 				"payload": map[string]any{},
@@ -109,7 +109,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should respect context cancellation", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel() // Cancel immediately
 		data := map[string]any{
 			"signal": map[string]any{
@@ -127,7 +127,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should enforce type safety", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"signal": map[string]any{
 				"payload": map[string]any{
@@ -144,7 +144,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should handle compilation errors", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"signal": map[string]any{},
 		}
@@ -158,7 +158,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should require boolean result", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"signal": map[string]any{
 				"payload": map[string]any{
@@ -175,7 +175,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should handle has() function for optional fields", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"signal": map[string]any{
 				"payload": map[string]any{
@@ -197,7 +197,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should evaluate expressions with headers variable", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"headers": map[string]any{
 				"content-type": "application/json",
@@ -211,7 +211,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should evaluate expressions with query variable", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"query": map[string]any{
 				"status": "active",
@@ -225,7 +225,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should handle missing query key gracefully", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"query": map[string]any{
 				"status": "active",
@@ -240,7 +240,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should handle type mismatches in query variables", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"query": map[string]any{
 				"count": "not-a-number", // string instead of number
@@ -261,7 +261,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should evaluate expressions with payload, headers, and query together", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"payload": map[string]any{
 				"action": "create",
@@ -285,7 +285,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 	t.Run("Should handle empty headers and query maps", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"payload": map[string]any{
 				"status": "ok",
@@ -302,7 +302,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 		// Use small cache size to test eviction
 		evaluator, err := NewCELEvaluator(WithCacheSize(3))
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"signal": map[string]any{
 				"payload": map[string]any{
@@ -332,7 +332,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 		// Use very small cache to test eviction
 		evaluator, err := NewCELEvaluator(WithCacheSize(2))
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"signal": map[string]any{
 				"payload": map[string]any{
@@ -364,7 +364,7 @@ func TestCELEvaluator_EvaluateValue(t *testing.T) {
 	t.Run("Should return non-boolean results", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"workflow": map[string]any{
 				"input": map[string]any{
@@ -410,7 +410,7 @@ func TestCELEvaluator_CostLimit(t *testing.T) {
 	t.Run("Should handle expressions within cost limit", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		data := map[string]any{
 			"signal": map[string]any{
 				"payload": map[string]any{
@@ -426,7 +426,7 @@ func TestCELEvaluator_CostLimit(t *testing.T) {
 	t.Run("Should return error when expression exceeds cost limit", func(t *testing.T) {
 		evaluator, err := NewCELEvaluator(WithCostLimit(5)) // Very low cost limit
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		// Create a simple but high-cost expression
 		// String concatenation in a loop is expensive
 		data := map[string]any{
@@ -457,7 +457,7 @@ func TestCELEvaluator_ContextTimeout(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
 		// Create already-expired context
-		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 		defer cancel()
 		data := map[string]any{
 			"signal": map[string]any{

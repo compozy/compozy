@@ -1,7 +1,6 @@
 package attachment
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -29,7 +28,7 @@ func Test_ToContentPartsFromEffective_PDF_TextExtraction(t *testing.T) {
 		require.NoError(t, err)
 
 		items := []EffectiveItem{{Att: &PDFAttachment{Path: "hello.pdf"}, CWD: cwd}}
-		parts, cleanup, err := ToContentPartsFromEffective(context.Background(), items)
+		parts, cleanup, err := ToContentPartsFromEffective(t.Context(), items)
 		if cleanup != nil {
 			defer cleanup()
 		}

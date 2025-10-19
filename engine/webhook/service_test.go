@@ -2,7 +2,6 @@ package webhook
 
 import (
 	"bytes"
-	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -47,13 +46,13 @@ func newOrchestratorWithIdem(t *testing.T, disp services.SignalDispatcher, idem 
 func TestOrchestrator_Process(t *testing.T) {
 	t.Run("Should return 404 when slug not found", func(t *testing.T) {
 		o := newOrchestratorForTest(t, services.NewMockSignalDispatcher())
-		r := httptestRequest("{}")
+		r := httptestRequest(t, "{}")
 
 		// Setup mock expectations
 		reg := o.reg.(*MockLookup)
 		reg.On("Get", "missing").Return(RegistryEntry{}, false)
 
-		res, err := o.Process(context.Background(), "missing", r)
+		res, err := o.Process(t.Context(), "missing", r)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "not found")
 		assert.Equal(t, http.StatusNotFound, res.Status)
@@ -62,7 +61,7 @@ func TestOrchestrator_Process(t *testing.T) {
 
 	t.Run("Should return 400 for invalid JSON body", func(t *testing.T) {
 		o := newOrchestratorForTest(t, services.NewMockSignalDispatcher())
-		r := httptestRequest("{invalid}")
+		r := httptestRequest(t, "{invalid}")
 
 		// Setup mock expectations
 		reg := o.reg.(*MockLookup)
@@ -77,7 +76,7 @@ func TestOrchestrator_Process(t *testing.T) {
 		}
 		reg.On("Get", "test").Return(entry, true)
 
-		res, err := o.Process(context.Background(), "test", r)
+		res, err := o.Process(t.Context(), "test", r)
 		require.Error(t, err)
 		assert.Equal(t, http.StatusBadRequest, res.Status)
 		reg.AssertExpectations(t)
@@ -92,7 +91,7 @@ func TestOrchestrator_Process(t *testing.T) {
 		failingVerifier.On("Verify", mock.Anything, mock.Anything, mock.Anything).Return(assert.AnError)
 		o.verifierFactory = func(VerifyConfig) (Verifier, error) { return failingVerifier, nil }
 
-		r := httptestRequest("{\"id\":\"1\"}")
+		r := httptestRequest(t, "{\"id\":\"1\"}")
 
 		// Setup mock expectations
 		reg := o.reg.(*MockLookup)
@@ -108,7 +107,7 @@ func TestOrchestrator_Process(t *testing.T) {
 		}
 		reg.On("Get", "test").Return(entry, true)
 
-		res, err := o.Process(context.Background(), "test", r)
+		res, err := o.Process(t.Context(), "test", r)
 		require.Error(t, err)
 		assert.Equal(t, http.StatusUnauthorized, res.Status)
 		assert.Len(t, disp.Calls, 0)
@@ -121,9 +120,9 @@ func TestOrchestrator_Process(t *testing.T) {
 		mockIdemSvc := &MockRedisService{}
 		o := newOrchestratorWithIdem(t, disp, mockIdemSvc)
 
-		r1 := httptestRequest("{\"id\":\"1\"}")
+		r1 := httptestRequest(t, "{\"id\":\"1\"}")
 		r1.Header.Set(HeaderIdempotencyKey, "K")
-		r2 := httptestRequest("{\"id\":\"1\"}")
+		r2 := httptestRequest(t, "{\"id\":\"1\"}")
 		r2.Header.Set(HeaderIdempotencyKey, "K")
 
 		// Setup mock expectations
@@ -148,11 +147,11 @@ func TestOrchestrator_Process(t *testing.T) {
 			Return(ErrDuplicate).
 			Once()
 
-		res, err := o.Process(context.Background(), "dupe", r1)
+		res, err := o.Process(t.Context(), "dupe", r1)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusAccepted, res.Status)
 
-		res, err = o.Process(context.Background(), "dupe", r2)
+		res, err = o.Process(t.Context(), "dupe", r2)
 		require.Error(t, err)
 		assert.Equal(t, http.StatusConflict, res.Status)
 
@@ -163,7 +162,7 @@ func TestOrchestrator_Process(t *testing.T) {
 	t.Run("Should return 204 (router maps to 200) when no matching event", func(t *testing.T) {
 		disp := services.NewMockSignalDispatcher()
 		o := newOrchestratorForTest(t, disp)
-		r := httptestRequest("{\"id\":\"1\"}")
+		r := httptestRequest(t, "{\"id\":\"1\"}")
 
 		// Setup mock expectations
 		reg := o.reg.(*MockLookup)
@@ -178,7 +177,7 @@ func TestOrchestrator_Process(t *testing.T) {
 		}
 		reg.On("Get", "flt").Return(entry, true)
 
-		res, err := o.Process(context.Background(), "flt", r)
+		res, err := o.Process(t.Context(), "flt", r)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusNoContent, res.Status)
 		assert.Equal(t, map[string]any{"status": "no_matching_event"}, res.Payload)
@@ -188,7 +187,7 @@ func TestOrchestrator_Process(t *testing.T) {
 	t.Run("Should dispatch on success with correlation ID", func(t *testing.T) {
 		disp := services.NewMockSignalDispatcher()
 		o := newOrchestratorForTest(t, disp)
-		r := httptestRequest("{\"id\":\"evt_123\"}")
+		r := httptestRequest(t, "{\"id\":\"evt_123\"}")
 		r.Header.Set("X-Correlation-ID", "corr-1")
 
 		// Setup mock expectations
@@ -208,7 +207,7 @@ func TestOrchestrator_Process(t *testing.T) {
 		}
 		reg.On("Get", "ok").Return(entry, true)
 
-		res, err := o.Process(context.Background(), "ok", r)
+		res, err := o.Process(t.Context(), "ok", r)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusAccepted, res.Status)
 		require.Len(t, disp.Calls, 1)
@@ -219,9 +218,10 @@ func TestOrchestrator_Process(t *testing.T) {
 	})
 }
 
-func httptestRequest(body string) *http.Request {
+func httptestRequest(t *testing.T, body string) *http.Request {
+	t.Helper()
 	req, _ := http.NewRequestWithContext(
-		context.Background(),
+		t.Context(),
 		http.MethodPost,
 		"http://example.com",
 		bytes.NewBufferString(body),

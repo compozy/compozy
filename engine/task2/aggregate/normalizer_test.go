@@ -17,11 +17,11 @@ func TestAggregateNormalizer_NewNormalizer(t *testing.T) {
 	t.Run("Should create aggregate normalizer", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Act
-		normalizer := aggregate.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := aggregate.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -29,11 +29,11 @@ func TestAggregateNormalizer_NewNormalizer(t *testing.T) {
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Act
-		normalizer := aggregate.NewNormalizer(nil, contextBuilder)
+		normalizer := aggregate.NewNormalizer(t.Context(), nil, contextBuilder)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -44,7 +44,7 @@ func TestAggregateNormalizer_NewNormalizer(t *testing.T) {
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 
 		// Act
-		normalizer := aggregate.NewNormalizer(templateEngine, nil)
+		normalizer := aggregate.NewNormalizer(t.Context(), templateEngine, nil)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -52,7 +52,7 @@ func TestAggregateNormalizer_NewNormalizer(t *testing.T) {
 
 	t.Run("Should handle both nil parameters", func(t *testing.T) {
 		// Act
-		normalizer := aggregate.NewNormalizer(nil, nil)
+		normalizer := aggregate.NewNormalizer(t.Context(), nil, nil)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -63,9 +63,9 @@ func TestAggregateNormalizer_Type(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := aggregate.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := aggregate.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		// Act
 		taskType := normalizer.Type()
@@ -79,9 +79,9 @@ func TestAggregateNormalizer_Integration(t *testing.T) {
 	t.Run("Should be based on BaseNormalizer", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := aggregate.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := aggregate.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		// Assert
 		require.NotNil(t, normalizer)
@@ -94,15 +94,15 @@ func TestAggregateNormalizer_Integration(t *testing.T) {
 
 func TestAggregateNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := aggregate.NewNormalizer(templateEngine, contextBuilder)
+	normalizer := aggregate.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 	t.Run("Should handle nil config gracefully", func(t *testing.T) {
 		// Arrange
 		ctx := &shared.NormalizationContext{}
 		// Act - Aggregate normalizer handles nil config gracefully since it only uses BaseNormalizer
-		err := normalizer.Normalize(nil, ctx)
+		err := normalizer.Normalize(t.Context(), nil, ctx)
 		// Assert
 		assert.NoError(t, err)
 	})
@@ -117,7 +117,7 @@ func TestAggregateNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "aggregate normalizer cannot handle task type: basic")
@@ -137,7 +137,7 @@ func TestAggregateNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to normalize aggregate task config")
@@ -157,7 +157,7 @@ func TestAggregateNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to convert task config to map")
@@ -177,7 +177,7 @@ func TestAggregateNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "test-aggregate", taskConfig.ID)
@@ -187,12 +187,12 @@ func TestAggregateNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 func TestAggregateNormalizer_BoundaryConditions(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
-		normalizer := aggregate.NewNormalizer(nil, contextBuilder)
+		normalizer := aggregate.NewNormalizer(t.Context(), nil, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -201,7 +201,7 @@ func TestAggregateNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert - Should return error due to nil template engine
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "template engine is required for normalization")
@@ -209,7 +209,7 @@ func TestAggregateNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle nil context gracefully", func(t *testing.T) {
 		// Arrange
-		normalizer := aggregate.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := aggregate.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -217,7 +217,7 @@ func TestAggregateNormalizer_BoundaryConditions(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.Normalize(taskConfig, nil)
+		err = normalizer.Normalize(t.Context(), taskConfig, nil)
 
 		// Assert
 		assert.Error(t, err)
@@ -226,7 +226,7 @@ func TestAggregateNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle empty aggregate configuration", func(t *testing.T) {
 		// Arrange
-		normalizer := aggregate.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := aggregate.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "empty-aggregate",
@@ -235,7 +235,7 @@ func TestAggregateNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "empty-aggregate", taskConfig.ID)
@@ -244,7 +244,7 @@ func TestAggregateNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle template expressions in aggregate task ID", func(t *testing.T) {
 		// Arrange
-		normalizer := aggregate.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := aggregate.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "{{ .prefix }}-aggregate-{{ .suffix }}",
@@ -258,7 +258,7 @@ func TestAggregateNormalizer_BoundaryConditions(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "data-aggregate-processor", taskConfig.ID)
@@ -267,7 +267,7 @@ func TestAggregateNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should preserve aggregate task configuration", func(t *testing.T) {
 		// Arrange
-		normalizer := aggregate.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := aggregate.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		originalID := "original-aggregate"
 
 		taskConfig := &task.Config{
@@ -278,7 +278,7 @@ func TestAggregateNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, originalID, taskConfig.ID)

@@ -10,17 +10,17 @@ import (
 
 // SetupStoreTestWithSharedDB returns a ctx + shared pool prepared per autoMigrate flag.
 func SetupStoreTestWithSharedDB(t *testing.T, autoMigrate bool) (context.Context, *pgxpool.Pool, func()) {
-	ctx := context.Background()
+	t.Helper()
 	// Use shared container for better performance
-	pool, cleanup := GetSharedPostgresDB(ctx, t)
+	pool, cleanup := GetSharedPostgresDB(t)
 	// Clean existing schema if we need a fresh start
 	if !autoMigrate {
-		cleanupExistingSchema(ctx, pool)
+		cleanupExistingSchema(t.Context(), pool)
 	} else {
 		// Ensure tables exist for tests that expect migrated schema
 		require.NoError(t, ensureTablesExist(pool))
 	}
-	return ctx, pool, func() { cleanup() }
+	return t.Context(), pool, func() { cleanup() }
 }
 
 // cleanupExistingSchema removes existing tables and migration state for clean testing

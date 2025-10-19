@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -47,7 +46,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		}
 
 		// Call loadMemoryConfig
-		result, err := manager.loadMemoryConfig(context.Background(), "test-memory")
+		result, err := manager.loadMemoryConfig(t.Context(), "test-memory")
 
 		// Verify results
 		require.NoError(t, err)
@@ -68,7 +67,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		}
 
 		// Call loadMemoryConfig with non-existent resource
-		result, err := manager.loadMemoryConfig(context.Background(), "nonexistent-memory")
+		result, err := manager.loadMemoryConfig(t.Context(), "nonexistent-memory")
 
 		// Verify error
 		require.Error(t, err)
@@ -106,7 +105,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		}
 
 		// Call loadMemoryConfig
-		result, err := manager.loadMemoryConfig(context.Background(), "wrong-type")
+		result, err := manager.loadMemoryConfig(t.Context(), "wrong-type")
 
 		// Verify error
 		require.Error(t, err)
@@ -180,7 +179,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 				}
 
 				// Load config
-				result, err := manager.loadMemoryConfig(context.Background(), tc.config.ID)
+				result, err := manager.loadMemoryConfig(t.Context(), tc.config.ID)
 
 				// Verify success
 				require.NoError(t, err)
@@ -225,7 +224,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		}
 
 		for _, testID := range testCases {
-			result, err := manager.loadMemoryConfig(context.Background(), testID)
+			result, err := manager.loadMemoryConfig(t.Context(), testID)
 			require.NoError(t, err, "Failed for ID: %s", testID)
 			assert.Equal(t, testConfig.ID, result.ID)
 			assert.Equal(t, testConfig.Type, result.Type)
@@ -276,7 +275,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		}
 
 		// Load and verify complex config
-		result, err := manager.loadMemoryConfig(context.Background(), "complex-memory")
+		result, err := manager.loadMemoryConfig(t.Context(), "complex-memory")
 		require.NoError(t, err)
 
 		// Verify all fields are properly converted
@@ -328,12 +327,12 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 
 		// Call resolveMemoryKey
 		memRef := core.MemoryReference{Key: template}
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, workflowContext)
 
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotEmpty(t, validatedKey)
-		projectID := manager.getProjectID(context.Background(), workflowContext)
+		projectID := manager.getProjectID(t.Context(), workflowContext)
 		assert.Equal(t, "test-project-123", projectID)
 
 		// Verify the resolved template was processed (should contain the resolved key)
@@ -373,12 +372,12 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 
 		// Call resolveMemoryKey
 		memRef := core.MemoryReference{Key: template}
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, workflowContext)
 
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotEmpty(t, validatedKey)
-		projectID := manager.getProjectID(context.Background(), workflowContext)
+		projectID := manager.getProjectID(t.Context(), workflowContext)
 		assert.Equal(t, "complex-project", projectID)
 	})
 
@@ -402,12 +401,12 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 
 		// Call resolveMemoryKey
 		memRef := core.MemoryReference{Key: template}
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, workflowContext)
 
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotEmpty(t, validatedKey)
-		projectID := manager.getProjectID(context.Background(), workflowContext)
+		projectID := manager.getProjectID(t.Context(), workflowContext)
 		assert.Empty(t, projectID, "Project ID should be empty when not in context")
 	})
 
@@ -428,7 +427,7 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 
 		// Call resolveMemoryKey
 		memRef := core.MemoryReference{Key: invalidTemplate}
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, workflowContext)
 
 		// Verify results - should fail validation due to invalid characters
 		assert.Error(t, err, "Should fail validation due to template syntax in key")
@@ -454,7 +453,7 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 
 		// Call resolveMemoryKey
 		memRef := core.MemoryReference{Key: emptyTemplate}
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, workflowContext)
 
 		// Verify results - empty keys should be rejected
 		assert.Empty(t, validatedKey, "Should reject empty keys")
@@ -481,12 +480,12 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 
 		// Call resolveMemoryKey
 		memRef := core.MemoryReference{Key: template}
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, workflowContext)
 
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotEmpty(t, validatedKey)
-		projectID := manager.getProjectID(context.Background(), workflowContext)
+		projectID := manager.getProjectID(t.Context(), workflowContext)
 		assert.Empty(t, projectID)
 	})
 
@@ -507,12 +506,12 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 
 		// Call resolveMemoryKey
 		memRef := core.MemoryReference{Key: literalString}
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, workflowContext)
 
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotEmpty(t, validatedKey)
-		projectID := manager.getProjectID(context.Background(), workflowContext)
+		projectID := manager.getProjectID(t.Context(), workflowContext)
 		assert.Equal(t, "literal-project", projectID)
 
 		// Should be the literal string itself (now that we don't hash)
@@ -527,7 +526,7 @@ func TestProjectContextResolver(t *testing.T) {
 			"project.id": "test-project-id",
 		}
 
-		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
+		projectID := resolver.ResolveProjectID(t.Context(), workflowContext)
 		assert.Equal(t, "test-project-id", projectID)
 	})
 
@@ -539,7 +538,7 @@ func TestProjectContextResolver(t *testing.T) {
 			},
 		}
 
-		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
+		projectID := resolver.ResolveProjectID(t.Context(), workflowContext)
 		assert.Equal(t, "nested-project-id", projectID)
 	})
 
@@ -549,7 +548,7 @@ func TestProjectContextResolver(t *testing.T) {
 			"project.name": "Test Project",
 		}
 
-		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
+		projectID := resolver.ResolveProjectID(t.Context(), workflowContext)
 		assert.Equal(t, "fallback-id", projectID)
 	})
 
@@ -561,7 +560,7 @@ func TestProjectContextResolver(t *testing.T) {
 			},
 		}
 
-		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
+		projectID := resolver.ResolveProjectID(t.Context(), workflowContext)
 		assert.Equal(t, "fallback-id", projectID)
 	})
 
@@ -571,7 +570,7 @@ func TestProjectContextResolver(t *testing.T) {
 			"project.id": 123, // not a string
 		}
 
-		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
+		projectID := resolver.ResolveProjectID(t.Context(), workflowContext)
 		assert.Equal(t, "fallback-id", projectID)
 	})
 
@@ -579,13 +578,13 @@ func TestProjectContextResolver(t *testing.T) {
 		resolver := NewProjectContextResolver("fallback-id")
 		workflowContext := map[string]any{}
 
-		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
+		projectID := resolver.ResolveProjectID(t.Context(), workflowContext)
 		assert.Equal(t, "fallback-id", projectID)
 	})
 
 	t.Run("Should handle nil context", func(t *testing.T) {
 		resolver := NewProjectContextResolver("fallback-id")
-		projectID := resolver.ResolveProjectID(context.Background(), nil)
+		projectID := resolver.ResolveProjectID(t.Context(), nil)
 		assert.Equal(t, "fallback-id", projectID)
 	})
 }
@@ -612,7 +611,7 @@ func TestManager_configToResource(t *testing.T) {
 		}
 
 		builder := &ResourceBuilder{config: config}
-		result, err := builder.Build(context.Background())
+		result, err := builder.Build(t.Context())
 		require.NoError(t, err)
 
 		// Verify basic fields are mapped correctly
@@ -655,7 +654,7 @@ func TestManager_configToResource(t *testing.T) {
 		}
 
 		builder := &ResourceBuilder{config: config}
-		result, err := builder.Build(context.Background())
+		result, err := builder.Build(t.Context())
 		require.NoError(t, err)
 
 		// Verify TTL fields are empty when locking config is nil
@@ -685,7 +684,7 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 			},
 		}
 		builder := &ResourceBuilder{config: config}
-		resource, err := builder.Build(context.Background())
+		resource, err := builder.Build(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, resource)
 		require.NotNil(t, resource.PrivacyPolicy)
@@ -710,7 +709,7 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 			},
 		}
 		builder := &ResourceBuilder{config: config}
-		resource, err := builder.Build(context.Background())
+		resource, err := builder.Build(t.Context())
 		assert.Error(t, err, "Should return error for invalid patterns")
 		assert.Nil(t, resource)
 	})
@@ -728,7 +727,7 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 			},
 		}
 		builder := &ResourceBuilder{config: config}
-		resource, err := builder.Build(context.Background())
+		resource, err := builder.Build(t.Context())
 		assert.Error(t, err, "Should return error for dangerous patterns")
 		assert.Nil(t, resource)
 	})
@@ -748,7 +747,7 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 			},
 		}
 		builder := &ResourceBuilder{config: config}
-		resource, err := builder.Build(context.Background())
+		resource, err := builder.Build(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, resource)
 		require.NotNil(t, resource.PrivacyPolicy)
@@ -769,7 +768,7 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 			},
 		}
 		builder := &ResourceBuilder{config: config}
-		resource, err := builder.Build(context.Background())
+		resource, err := builder.Build(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, resource)
 		require.NotNil(t, resource.PrivacyPolicy)

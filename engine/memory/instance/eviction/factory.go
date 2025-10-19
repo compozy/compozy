@@ -1,6 +1,7 @@
 package eviction
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
@@ -16,12 +17,12 @@ type PolicyFactory struct {
 }
 
 // NewPolicyFactory creates a new eviction policy factory with built-in policies
-func NewPolicyFactory() (*PolicyFactory, error) {
+func NewPolicyFactory(ctx context.Context) (*PolicyFactory, error) {
 	factory := &PolicyFactory{
 		policies: make(map[string]func() instance.EvictionPolicy),
 	}
 	// Register built-in policies
-	if err := factory.registerBuiltInPolicies(); err != nil {
+	if err := factory.registerBuiltInPolicies(ctx); err != nil {
 		// This should never happen with built-in policies
 		return nil, fmt.Errorf("failed to register built-in eviction policies: %w", err)
 	}
@@ -29,22 +30,22 @@ func NewPolicyFactory() (*PolicyFactory, error) {
 }
 
 // registerBuiltInPolicies registers all default eviction policies
-func (f *PolicyFactory) registerBuiltInPolicies() error {
+func (f *PolicyFactory) registerBuiltInPolicies(ctx context.Context) error {
 	// FIFO policy
 	if err := f.Register("fifo", func() instance.EvictionPolicy {
-		return NewFIFOEvictionPolicy()
+		return NewFIFOEvictionPolicy(ctx)
 	}); err != nil {
 		return fmt.Errorf("failed to register FIFO policy: %w", err)
 	}
 	// LRU policy
 	if err := f.Register("lru", func() instance.EvictionPolicy {
-		return NewLRUEvictionPolicy()
+		return NewLRUEvictionPolicy(ctx)
 	}); err != nil {
 		return fmt.Errorf("failed to register LRU policy: %w", err)
 	}
 	// Priority-based policy
 	if err := f.Register("priority", func() instance.EvictionPolicy {
-		return NewPriorityEvictionPolicy()
+		return NewPriorityEvictionPolicy(ctx)
 	}); err != nil {
 		return fmt.Errorf("failed to register priority policy: %w", err)
 	}
@@ -77,11 +78,11 @@ func (f *PolicyFactory) Create(policyType string) (instance.EvictionPolicy, erro
 }
 
 // CreateOrDefault creates a policy or returns a default FIFO policy
-func (f *PolicyFactory) CreateOrDefault(policyType string) instance.EvictionPolicy {
+func (f *PolicyFactory) CreateOrDefault(ctx context.Context, policyType string) instance.EvictionPolicy {
 	policy, err := f.Create(policyType)
 	if err != nil {
 		// Return default FIFO policy
-		return NewFIFOEvictionPolicy()
+		return NewFIFOEvictionPolicy(ctx)
 	}
 	return policy
 }
@@ -114,10 +115,10 @@ func (f *PolicyFactory) Clear() {
 }
 
 // DefaultPolicyFactory is the global factory instance
-var DefaultPolicyFactory = mustNewPolicyFactory()
+var DefaultPolicyFactory = mustNewPolicyFactory(context.Background())
 
-func mustNewPolicyFactory() *PolicyFactory {
-	factory, err := NewPolicyFactory()
+func mustNewPolicyFactory(ctx context.Context) *PolicyFactory {
+	factory, err := NewPolicyFactory(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -135,24 +136,24 @@ func RegisterPolicy(name string, creator func() instance.EvictionPolicy) error {
 }
 
 // CreateOrDefault creates a policy using the default factory or returns FIFO if not found
-func CreateOrDefault(policyType string) instance.EvictionPolicy {
-	return DefaultPolicyFactory.CreateOrDefault(policyType)
+func CreateOrDefault(ctx context.Context, policyType string) instance.EvictionPolicy {
+	return DefaultPolicyFactory.CreateOrDefault(ctx, policyType)
 }
 
 // CreatePolicyWithConfig creates an eviction policy with proper eviction configuration
-func CreatePolicyWithConfig(config *memcore.EvictionPolicyConfig) instance.EvictionPolicy {
+func CreatePolicyWithConfig(ctx context.Context, config *memcore.EvictionPolicyConfig) instance.EvictionPolicy {
 	if config == nil {
-		return NewFIFOEvictionPolicy()
+		return NewFIFOEvictionPolicy(ctx)
 	}
 	switch config.Type {
 	case memcore.PriorityEviction:
-		return NewPriorityEvictionPolicyWithKeywords(config.PriorityKeywords)
+		return NewPriorityEvictionPolicyWithKeywords(ctx, config.PriorityKeywords)
 	case memcore.LRUEviction:
-		return NewLRUEvictionPolicy()
+		return NewLRUEvictionPolicy(ctx)
 	case memcore.FIFOEviction:
-		return NewFIFOEvictionPolicy()
+		return NewFIFOEvictionPolicy(ctx)
 	default:
 		// Default to FIFO if unknown policy type
-		return NewFIFOEvictionPolicy()
+		return NewFIFOEvictionPolicy(ctx)
 	}
 }

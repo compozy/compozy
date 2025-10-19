@@ -1,7 +1,6 @@
 package tool
 
 import (
-	"context"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -24,7 +23,7 @@ func setupTest(t *testing.T, toolFile string) (*core.PathCWD, string) {
 func Test_LoadTool(t *testing.T) {
 	t.Run("Should load basic tool configuration correctly", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_tool.yaml")
-		config, err := Load(context.Background(), cwd, dstPath)
+		config, err := Load(t.Context(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -71,7 +70,7 @@ func Test_LoadTool(t *testing.T) {
 
 	t.Run("Should return error for invalid tool configuration", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "invalid_tool.yaml")
-		config, err := Load(context.Background(), cwd, dstPath)
+		config, err := Load(t.Context(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -127,7 +126,7 @@ func Test_ToolConfigValidation(t *testing.T) {
 			},
 		}
 
-		err := config.ValidateInput(context.Background(), config.With)
+		err := config.ValidateInput(t.Context(), config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "Required property 'name' is missing")
 	})
@@ -258,7 +257,7 @@ func Test_Config_Load_EnvTemplate(t *testing.T) {
 		require.True(t, ok)
 		cwd, dst := fixtures.SetupConfigTest(t, filename)
 		path := filepath.Join(dst, "config_example.yaml")
-		cfg, err := Load(context.Background(), cwd, path)
+		cfg, err := Load(t.Context(), cwd, path)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "api-client", cfg.ID)
@@ -326,7 +325,7 @@ func Test_ToolConfigOutputValidation(t *testing.T) {
 			OutputSchema: &schema.Schema{"type": "object", "required": []string{"formatted_code"}},
 		}
 		out := core.Output{"formatted_code": "ok"}
-		err := cfg.ValidateOutput(context.Background(), &out)
+		err := cfg.ValidateOutput(t.Context(), &out)
 		require.NoError(t, err)
 	})
 	t.Run("Should return error when required output field is missing", func(t *testing.T) {
@@ -336,7 +335,7 @@ func Test_ToolConfigOutputValidation(t *testing.T) {
 			OutputSchema: &schema.Schema{"type": "object", "required": []string{"formatted_code"}},
 		}
 		out := core.Output{"other": true}
-		err := cfg.ValidateOutput(context.Background(), &out)
+		err := cfg.ValidateOutput(t.Context(), &out)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "formatted_code")
 	})
@@ -348,7 +347,7 @@ func Test_ToolConfigOutputValidation(t *testing.T) {
 			"required":   []string{"formatted_code"},
 		}}
 		out := core.Output{"formatted_code": 123}
-		err := cfg.ValidateOutput(context.Background(), &out)
+		err := cfg.ValidateOutput(t.Context(), &out)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "formatted_code")
 	})
@@ -359,25 +358,25 @@ func Test_ToolConfig_ValidateNilPaths(t *testing.T) {
 	t.Run("Should skip input validation when schema is nil", func(t *testing.T) {
 		t.Parallel()
 		cfg := &Config{ID: "fmt"}
-		err := cfg.ValidateInput(context.Background(), &core.Input{"x": 1})
+		err := cfg.ValidateInput(t.Context(), &core.Input{"x": 1})
 		require.NoError(t, err)
 	})
 	t.Run("Should skip input validation when input is nil", func(t *testing.T) {
 		t.Parallel()
 		cfg := &Config{ID: "fmt", InputSchema: &schema.Schema{"type": "object"}}
-		err := cfg.ValidateInput(context.Background(), nil)
+		err := cfg.ValidateInput(t.Context(), nil)
 		require.NoError(t, err)
 	})
 	t.Run("Should skip output validation when schema is nil", func(t *testing.T) {
 		t.Parallel()
 		cfg := &Config{ID: "fmt"}
-		err := cfg.ValidateOutput(context.Background(), &core.Output{"y": true})
+		err := cfg.ValidateOutput(t.Context(), &core.Output{"y": true})
 		require.NoError(t, err)
 	})
 	t.Run("Should skip output validation when output is nil", func(t *testing.T) {
 		t.Parallel()
 		cfg := &Config{ID: "fmt", OutputSchema: &schema.Schema{"type": "object"}}
-		err := cfg.ValidateOutput(context.Background(), nil)
+		err := cfg.ValidateOutput(t.Context(), nil)
 		require.NoError(t, err)
 	})
 }

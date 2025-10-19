@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -26,7 +27,11 @@ func (m *mockNormalizer) Type() task.Type {
 	return args.Get(0).(task.Type)
 }
 
-func (m *mockNormalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+func (m *mockNormalizer) Normalize(
+	_ context.Context,
+	config *task.Config,
+	ctx contracts.NormalizationContext,
+) error {
 	args := m.Called(config, ctx)
 	return args.Error(0)
 }
@@ -36,7 +41,10 @@ type mockNormalizerFactory struct {
 	mock.Mock
 }
 
-func (m *mockNormalizerFactory) CreateNormalizer(taskType task.Type) (contracts.TaskNormalizer, error) {
+func (m *mockNormalizerFactory) CreateNormalizer(
+	_ context.Context,
+	taskType task.Type,
+) (contracts.TaskNormalizer, error) {
 	args := m.Called(taskType)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -49,7 +57,7 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
 		envMerger := core.NewEnvMerger()
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		normalizer := core.NewConfigNormalizer(factory, envMerger, contextBuilder)
 		mockTaskNormalizer := &mockNormalizer{}
@@ -73,7 +81,7 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
+		err = normalizer.NormalizeTask(t.Context(), workflowState, workflowConfig, taskConfig)
 		// Assert
 		assert.NoError(t, err)
 		factory.AssertExpectations(t)
@@ -84,7 +92,7 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
 		envMerger := core.NewEnvMerger()
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		normalizer := core.NewConfigNormalizer(factory, envMerger, contextBuilder)
 		factory.On("CreateNormalizer", task.TaskTypeBasic).Return(nil, errors.New("unsupported type"))
@@ -97,7 +105,7 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
+		err = normalizer.NormalizeTask(t.Context(), workflowState, workflowConfig, taskConfig)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create normalizer for task test-task")
@@ -108,7 +116,7 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
 		envMerger := core.NewEnvMerger()
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		normalizer := core.NewConfigNormalizer(factory, envMerger, contextBuilder)
 		mockTaskNormalizer := &mockNormalizer{}
@@ -123,7 +131,7 @@ func TestConfigNormalizer_NormalizeTask(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.NormalizeTask(workflowState, workflowConfig, taskConfig)
+		err = normalizer.NormalizeTask(t.Context(), workflowState, workflowConfig, taskConfig)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to normalize task test-task")
@@ -137,7 +145,7 @@ func TestConfigNormalizer_NormalizeAllTasks(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
 		envMerger := core.NewEnvMerger()
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		normalizer := core.NewConfigNormalizer(factory, envMerger, contextBuilder)
 		mockTaskNormalizer := &mockNormalizer{}
@@ -166,7 +174,7 @@ func TestConfigNormalizer_NormalizeAllTasks(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.NormalizeAllTasks(workflowState, workflowConfig)
+		err = normalizer.NormalizeAllTasks(t.Context(), workflowState, workflowConfig)
 		// Assert
 		assert.NoError(t, err)
 		// Should normalize both tasks
@@ -179,7 +187,7 @@ func TestConfigNormalizer_NormalizeAllTasks(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
 		envMerger := core.NewEnvMerger()
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		normalizer := core.NewConfigNormalizer(factory, envMerger, contextBuilder)
 		mockTaskNormalizer := &mockNormalizer{}
@@ -208,7 +216,7 @@ func TestConfigNormalizer_NormalizeAllTasks(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.NormalizeAllTasks(workflowState, workflowConfig)
+		err = normalizer.NormalizeAllTasks(t.Context(), workflowState, workflowConfig)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "task-1 failed")
@@ -221,13 +229,13 @@ func TestConfigNormalizer_NormalizeAllTasks(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
 		envMerger := core.NewEnvMerger()
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		normalizer := core.NewConfigNormalizer(factory, envMerger, contextBuilder)
 		workflowState := &workflow.State{}
 		// Act & Assert - Should panic with nil workflow config
 		assert.Panics(t, func() {
-			_ = normalizer.NormalizeAllTasks(workflowState, nil)
+			_ = normalizer.NormalizeAllTasks(t.Context(), workflowState, nil)
 		})
 	})
 }
@@ -237,7 +245,7 @@ func TestConfigNormalizer_NormalizeSubTask(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
 		envMerger := core.NewEnvMerger()
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		normalizer := core.NewConfigNormalizer(factory, envMerger, contextBuilder)
 		mockTaskNormalizer := &mockNormalizer{}
@@ -276,7 +284,7 @@ func TestConfigNormalizer_NormalizeSubTask(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.NormalizeSubTask(parentContext, parentTask, subTask)
+		err = normalizer.NormalizeSubTask(t.Context(), parentContext, parentTask, subTask)
 		// Assert
 		assert.NoError(t, err)
 		factory.AssertExpectations(t)
@@ -293,7 +301,7 @@ func TestConfigNormalizer_NormalizeSubTask(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
 		envMerger := core.NewEnvMerger()
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		normalizer := core.NewConfigNormalizer(factory, envMerger, contextBuilder)
 		// Set up factory to return error
@@ -324,7 +332,7 @@ func TestConfigNormalizer_NormalizeSubTask(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.NormalizeSubTask(parentContext, parentTask, subTask)
+		err = normalizer.NormalizeSubTask(t.Context(), parentContext, parentTask, subTask)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create normalizer for sub-task sub-task")
@@ -335,7 +343,7 @@ func TestConfigNormalizer_NormalizeSubTask(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
 		envMerger := core.NewEnvMerger()
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		normalizer := core.NewConfigNormalizer(factory, envMerger, contextBuilder)
 		parentTask := &task.Config{
@@ -351,7 +359,7 @@ func TestConfigNormalizer_NormalizeSubTask(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.NormalizeSubTask(nil, parentTask, subTask)
+		err = normalizer.NormalizeSubTask(t.Context(), nil, parentTask, subTask)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "parent context is nil")
@@ -361,7 +369,7 @@ func TestConfigNormalizer_NormalizeSubTask(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
 		envMerger := core.NewEnvMerger()
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		normalizer := core.NewConfigNormalizer(factory, envMerger, contextBuilder)
 		parentContext := &shared.NormalizationContext{
@@ -377,7 +385,7 @@ func TestConfigNormalizer_NormalizeSubTask(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.NormalizeSubTask(parentContext, nil, subTask)
+		err = normalizer.NormalizeSubTask(t.Context(), parentContext, nil, subTask)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "parent task is nil")

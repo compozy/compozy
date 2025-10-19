@@ -1,6 +1,8 @@
 package memory
 
 import (
+	"context"
+
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/task2/shared"
@@ -13,7 +15,7 @@ type Normalizer struct {
 }
 
 // NewNormalizer creates a new memory task normalizer
-func NewNormalizer(templateEngine *tplengine.TemplateEngine) *Normalizer {
+func NewNormalizer(_ context.Context, templateEngine *tplengine.TemplateEngine) *Normalizer {
 	return &Normalizer{
 		BaseNormalizer: shared.NewBaseNormalizer(
 			templateEngine,
@@ -25,7 +27,11 @@ func NewNormalizer(templateEngine *tplengine.TemplateEngine) *Normalizer {
 }
 
 // Normalize applies normalization rules for memory tasks
-func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+func (n *Normalizer) Normalize(
+	ctx context.Context,
+	config *task.Config,
+	parentCtx contracts.NormalizationContext,
+) error {
 	// Handle nil config gracefully
 	if config == nil {
 		return nil
@@ -33,7 +39,7 @@ func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationC
 
 	// Apply base normalization
 	// Memory task constraints are already validated in task.TypeValidator.validateMemoryTask()
-	if err := n.BaseNormalizer.Normalize(config, ctx); err != nil {
+	if err := n.BaseNormalizer.Normalize(ctx, config, parentCtx); err != nil {
 		return err
 	}
 

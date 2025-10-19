@@ -111,7 +111,7 @@ func (e *directAgentExecutor) ExecuteAgent(
 		return nil, err
 	}
 	execCfg := buildTaskConfig(req.AgentID, agentConfig, req, timeout)
-	executor, err := directexec.NewDirectExecutor(e.state, e.taskRepo, e.workflowRepo)
+	executor, err := directexec.NewDirectExecutor(ctx, e.state, e.taskRepo, e.workflowRepo)
 	if err != nil {
 		return nil, fmt.Errorf("tool environment: resolve direct executor: %w", err)
 	}

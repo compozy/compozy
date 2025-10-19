@@ -17,7 +17,7 @@ import (
 )
 
 func TestLockManagerAdapter_Lock(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should successfully acquire and release distributed lock", func(t *testing.T) {
 		mockCacheLockManager := &MockCacheLockManager{}
@@ -146,7 +146,7 @@ func TestLockManagerAdapter_Lock(t *testing.T) {
 }
 
 func TestLockManagerAdapter_Concurrency(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should handle concurrent lock acquisition safely", func(t *testing.T) {
 		mockCacheLockManager := &MockCacheLockManager{}
@@ -334,7 +334,7 @@ func TestManager_createEvictionPolicy_Integration(t *testing.T) {
 		}
 
 		// Create eviction policy
-		policy := manager.createEvictionPolicy(resourceCfg)
+		policy := manager.createEvictionPolicy(t.Context(), resourceCfg)
 		require.NotNil(t, policy)
 		assert.Equal(t, "priority", policy.GetType())
 
@@ -365,7 +365,7 @@ func TestManager_createEvictionPolicy_Integration(t *testing.T) {
 			},
 		}
 
-		policy := manager.createEvictionPolicy(resourceCfg)
+		policy := manager.createEvictionPolicy(t.Context(), resourceCfg)
 		require.NotNil(t, policy)
 		assert.Equal(t, "fifo", policy.GetType())
 	})
@@ -384,7 +384,7 @@ func TestManager_createEvictionPolicy_Integration(t *testing.T) {
 			},
 		}
 
-		policy := manager.createEvictionPolicy(resourceCfg)
+		policy := manager.createEvictionPolicy(t.Context(), resourceCfg)
 		require.NotNil(t, policy)
 		assert.Equal(t, "lru", policy.GetType())
 	})
@@ -394,7 +394,6 @@ func TestManager_buildMemoryComponents_Integration(t *testing.T) {
 	t.Run("Should verify clean separation in configuration", func(t *testing.T) {
 		// Test verifies that resource configuration has proper separation
 		// between eviction policies and flush strategies
-
 		resourceCfg := &memcore.Resource{
 			ID:        "component-test",
 			Type:      memcore.TokenBasedMemory,
@@ -417,6 +416,9 @@ func TestManager_buildMemoryComponents_Integration(t *testing.T) {
 		assert.NotNil(t, resourceCfg.FlushingStrategy)
 		assert.Equal(t, memcore.PriorityEviction, resourceCfg.EvictionPolicyConfig.Type)
 		assert.Equal(t, memcore.LRUFlushing, resourceCfg.FlushingStrategy.Type)
+		assert.Equal(t, "component-test", resourceCfg.ID)
+		assert.Equal(t, memcore.TokenBasedMemory, resourceCfg.Type)
+		assert.Equal(t, 1000, resourceCfg.MaxTokens)
 
 		// Verify no coupling between configurations
 		assert.NotContains(t, string(resourceCfg.FlushingStrategy.Type), "priority") // No priority in flush strategy
@@ -456,8 +458,11 @@ func TestManager_buildMemoryComponents_Integration(t *testing.T) {
 
 		// Verify the architectural separation is enforced
 		manager := &Manager{}
-		policy := manager.createEvictionPolicy(resourceCfg)
+		policy := manager.createEvictionPolicy(t.Context(), resourceCfg)
 		assert.Equal(t, "priority", policy.GetType())
+		assert.Equal(t, "architectural-compliance-test", resourceCfg.ID)
+		assert.Equal(t, memcore.TokenBasedMemory, resourceCfg.Type)
+		assert.Equal(t, 2000, resourceCfg.MaxTokens)
 
 		// The clean architecture ensures that:
 		// 1. Eviction policies determine WHICH messages to evict

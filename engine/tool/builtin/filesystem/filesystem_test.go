@@ -14,9 +14,9 @@ import (
 
 func testContext(t *testing.T, root string, additional ...string) context.Context {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
-	manager := config.NewManager(config.NewService())
+	manager := config.NewManager(t.Context(), config.NewService())
 	_, err := manager.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
 	cfg := manager.Get()

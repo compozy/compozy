@@ -102,7 +102,7 @@ func (m *MockRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 }
 
 func TestUpdateUser_Execute(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should handle email uniqueness check when user not found", func(t *testing.T) {
 		// Arrange

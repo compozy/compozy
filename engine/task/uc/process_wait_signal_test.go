@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -25,7 +24,7 @@ func newTestCELEvaluator(t *testing.T) *task.CELEvaluator {
 func TestProcessWaitSignal_Execute(t *testing.T) {
 	t.Run("Should process signal successfully when condition is met", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
@@ -79,7 +78,7 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should return false when signal name doesn't match", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
@@ -127,7 +126,7 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should handle task not found error", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
@@ -153,7 +152,7 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should handle config retrieval error", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
@@ -187,7 +186,7 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should reject non-wait task", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
@@ -228,7 +227,7 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should reject task not in waiting state", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
@@ -272,7 +271,7 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should handle condition evaluation error", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
@@ -323,7 +322,7 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should return false when condition is not met", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
@@ -371,7 +370,7 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should include processor output when available", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)

@@ -1,7 +1,6 @@
 package monitoring_test
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -30,7 +29,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		// Give metrics time to be recorded
 		time.Sleep(100 * time.Millisecond)
 		// Get metrics response
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
@@ -69,7 +68,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		resp.Body.Close()
 		time.Sleep(100 * time.Millisecond)
 		// Get metrics response
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err = env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
@@ -106,7 +105,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Get metrics response
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
@@ -132,7 +131,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 			}
 		}
 		// Get metrics response
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
@@ -184,7 +183,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 			resp.Body.Close()
 		}
 		// Get metrics response
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)

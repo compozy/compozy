@@ -33,7 +33,7 @@ func TestHealthzEndpoint(t *testing.T) {
 		config := DefaultConfig()
 		server := newTestServer(config)
 
-		req, err := http.NewRequestWithContext(context.Background(), "GET", "/healthz", http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", "/healthz", http.NoBody)
 		require.NoError(t, err)
 
 		rr := httptest.NewRecorder()
@@ -54,7 +54,7 @@ func TestPingEndpoint(t *testing.T) {
 		config := DefaultConfig()
 		server := newTestServer(config)
 
-		req, err := http.NewRequestWithContext(context.Background(), "GET", "/api/v1/ping", http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", "/api/v1/ping", http.NoBody)
 		require.NoError(t, err)
 
 		rr := httptest.NewRecorder()
@@ -76,7 +76,7 @@ func TestServerShutdown(t *testing.T) {
 
 		server := newTestServer(config)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 
 		serverErr := make(chan error, 1)
 

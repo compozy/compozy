@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -22,7 +21,7 @@ func TestCompleteMemoryLifecycle(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		// Step 1: Create memory instance through manager
 		memRef := core.MemoryReference{
 			ID:  "customer-support",
@@ -88,7 +87,7 @@ func TestConcurrentAgentAccess(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "shared-memory",
 			Key: "concurrent-test-{{.session.id}}",
@@ -187,7 +186,7 @@ func TestFlushWorkflow(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		// Create memory instance with flush configuration
 		memRef := core.MemoryReference{
 			ID:  "flushable-memory",
@@ -245,7 +244,7 @@ func TestMemoryWithPrivacy(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "customer-support",
 			Key: "privacy-test-{{.test.id}}",
@@ -304,7 +303,7 @@ func TestMemoryExpiration(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		// This test uses a shorter TTL for testing
 		// Note: In a real test environment, we might need to configure
 		// a special memory resource with a very short TTL

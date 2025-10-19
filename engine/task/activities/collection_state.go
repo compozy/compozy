@@ -78,7 +78,7 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		return nil, err
 	}
 	// Use task2 CollectionExpander
-	expander := a.task2Factory.CreateCollectionExpander()
+	expander := a.task2Factory.CreateCollectionExpander(ctx)
 	expansionResult, err := expander.ExpandItems(ctx, input.TaskConfig, workflowState, workflowConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to expand collection items: %w", err)

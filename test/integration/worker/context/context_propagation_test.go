@@ -23,8 +23,8 @@ type sentinelKey struct{}
 
 func TestWorker_ContextPropagation_E2E(t *testing.T) {
 	t.Run("Should preserve context values across worker call chain", func(t *testing.T) {
-		base := context.WithValue(context.Background(), sentinelKey{}, "sentinel")
-		mgr := config.NewManager(nil)
+		base := context.WithValue(t.Context(), sentinelKey{}, "sentinel")
+		mgr := config.NewManager(t.Context(), nil)
 		_, err := mgr.Load(base, config.NewDefaultProvider())
 		require.NoError(t, err)
 		ctx := config.ContextWithManager(base, mgr)
@@ -77,8 +77,8 @@ func cfgPropagationWorkflow(ctx workflow.Context) (string, error) {
 func TestWorker_GlobalConfigConsistency_Temporal(t *testing.T) {
 	t.Run("Should preserve pkg/config value inside Temporal activity", func(t *testing.T) {
 		t.Setenv("RUNTIME_ENVIRONMENT", "staging")
-		base := context.Background()
-		mgr := config.NewManager(nil)
+		base := t.Context()
+		mgr := config.NewManager(t.Context(), nil)
 		_, err := mgr.Load(base, config.NewDefaultProvider(), config.NewEnvProvider())
 		require.NoError(t, err)
 		ctx := config.ContextWithManager(base, mgr)

@@ -34,8 +34,7 @@ func NewRedisHelper(t *testing.T) *RedisHelper {
 	})
 
 	// Verify connection
-	ctx := context.Background()
-	err = client.Ping(ctx).Err()
+	err = client.Ping(t.Context()).Err()
 	require.NoError(t, err, "Failed to ping Redis")
 
 	// Generate unique key prefix for test isolation
@@ -123,9 +122,9 @@ func (h *RedisHelper) FlushNamespace(ctx context.Context) error {
 
 // Cleanup cleans up Redis resources
 func (h *RedisHelper) Cleanup(t *testing.T) {
+	t.Helper()
 	// Clean up namespace
-	ctx := context.Background()
-	if err := h.FlushNamespace(ctx); err != nil {
+	if err := h.FlushNamespace(t.Context()); err != nil {
 		t.Logf("Failed to flush namespace: %v", err)
 	}
 

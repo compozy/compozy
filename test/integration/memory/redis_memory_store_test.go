@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -48,7 +47,7 @@ func TestRedisMemoryStore_AppendMessage(t *testing.T) {
 	defer cleanup()
 
 	store := store.NewRedisMemoryStore(client, "")
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should append single message successfully", func(t *testing.T) {
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: "Hello, world!"}
@@ -66,7 +65,7 @@ func TestRedisMemoryStore_AppendMessageWithTokenCount(t *testing.T) {
 	defer cleanup()
 
 	store := store.NewRedisMemoryStore(client, "")
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should append message and update token count atomically", func(t *testing.T) {
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: "Hello, world!"}
@@ -85,7 +84,7 @@ func TestRedisMemoryStore_ReadMessages_EmptyKey(t *testing.T) {
 	defer cleanup()
 
 	store := store.NewRedisMemoryStore(client, "")
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should return empty slice for non-existent key", func(t *testing.T) {
 		messages, err := store.ReadMessages(ctx, "non-existent-key")
@@ -99,7 +98,7 @@ func TestRedisMemoryStore_CountMessages(t *testing.T) {
 	defer cleanup()
 
 	store := store.NewRedisMemoryStore(client, "")
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should count messages correctly", func(t *testing.T) {
 		messages := []llm.Message{
@@ -118,7 +117,7 @@ func TestRedisMemoryStore_DeleteMessages(t *testing.T) {
 	defer cleanup()
 
 	store := store.NewRedisMemoryStore(client, "")
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should delete messages and metadata", func(t *testing.T) {
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: "Hello, world!"}
@@ -138,7 +137,7 @@ func TestRedisMemoryStore_SetExpiration(t *testing.T) {
 	defer cleanup()
 
 	store := store.NewRedisMemoryStore(client, "")
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should set TTL for key", func(t *testing.T) {
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: "Hello, world!"}
@@ -161,7 +160,7 @@ func TestRedisMemoryStore_FlushPending(t *testing.T) {
 	defer cleanup()
 
 	store := store.NewRedisMemoryStore(client, "")
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should handle flush pending flag correctly", func(t *testing.T) {
 		pending, err := store.IsFlushPending(ctx, "test-key")
@@ -183,7 +182,7 @@ func TestRedisMemoryStore_ReadPaginated(t *testing.T) {
 	defer cleanup()
 
 	store := store.NewRedisMemoryStore(client, "")
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should support pagination", func(t *testing.T) {
 		for i := range 10 {

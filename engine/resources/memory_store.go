@@ -99,7 +99,7 @@ func (s *MemoryResourceStore) Put(ctx context.Context, key ResourceKey, value an
 	if value == nil {
 		return "", fmt.Errorf("nil value is not allowed")
 	}
-	cp, copyErr := core.DeepCopy[any](value)
+	cp, copyErr := core.DeepCopy(value)
 	if copyErr != nil {
 		err = fmt.Errorf("deep copy failed: %w", copyErr)
 		return "", err
@@ -138,7 +138,7 @@ func (s *MemoryResourceStore) PutIfMatch(
 	if value == nil {
 		return "", fmt.Errorf("nil value is not allowed")
 	}
-	cp, copyErr := core.DeepCopy[any](value)
+	cp, copyErr := core.DeepCopy(value)
 	if copyErr != nil {
 		err = fmt.Errorf("deep copy failed: %w", copyErr)
 		return "", err
@@ -196,7 +196,7 @@ func (s *MemoryResourceStore) Get(ctx context.Context, key ResourceKey) (value a
 		err = ErrNotFound
 		return nil, "", err
 	}
-	value, err = core.DeepCopy[any](entry.value)
+	value, err = core.DeepCopy(entry.value)
 	if err != nil {
 		return nil, "", fmt.Errorf("deep copy failed: %w", err)
 	}
@@ -376,7 +376,7 @@ func (s *MemoryResourceStore) ListWithValues(
 	items = make([]StoredItem, 0)
 	for k, e := range s.items {
 		if k.Project == project && k.Type == typ {
-			cp, copyErr := core.DeepCopy[any](e.value)
+			cp, copyErr := core.DeepCopy(e.value)
 			if copyErr != nil {
 				s.mu.RUnlock()
 				err = fmt.Errorf("deep copy failed: %w", copyErr)
@@ -443,7 +443,7 @@ func (s *MemoryResourceStore) ListWithValuesPage(
 	}
 	items = make([]StoredItem, 0, end-offset)
 	for _, pair := range pairs[offset:end] {
-		cp, copyErr := core.DeepCopy[any](pair.entry.value)
+		cp, copyErr := core.DeepCopy(pair.entry.value)
 		if copyErr != nil {
 			return nil, 0, fmt.Errorf("deep copy failed: %w", copyErr)
 		}
@@ -451,5 +451,3 @@ func (s *MemoryResourceStore) ListWithValuesPage(
 	}
 	return items, total, nil
 }
-
-// removed: local deepCopy/ETag/writeStableJSON in favor of core.DeepCopy and core.ETagFromAny

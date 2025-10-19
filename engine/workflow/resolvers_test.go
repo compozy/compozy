@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,7 +18,7 @@ import (
 
 func TestResolveAgent(t *testing.T) {
 	t.Run("Should resolve selector when stored value is a map", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		agentMap := map[string]any{
 			"resource": "agent",
@@ -43,7 +42,7 @@ func TestResolveAgent(t *testing.T) {
 	})
 
 	t.Run("Should decode agent with string model reference from store", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		agentMap := map[string]any{
 			"resource":     "agent",
@@ -67,7 +66,7 @@ func TestResolveAgent(t *testing.T) {
 
 func TestResolveTool(t *testing.T) {
 	t.Run("Should resolve selector when stored value is a map", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		toolMap := map[string]any{
 			"resource":    "tool",
@@ -88,7 +87,7 @@ func TestResolveTool(t *testing.T) {
 	})
 
 	t.Run("Should surface type mismatch when stored value is incompatible", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		key := resources.ResourceKey{Project: "code-reviewer", Type: resources.ResourceTool, ID: "broken"}
 		_, err := store.Put(ctx, key, 123)
@@ -104,7 +103,7 @@ func TestResolveTool(t *testing.T) {
 
 func TestResolveMCPs(t *testing.T) {
 	t.Run("Should populate MCP defaults when resolving from map", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		mcpMap := map[string]any{
 			"id": "fs",
@@ -129,7 +128,7 @@ func TestResolveMCPs(t *testing.T) {
 	})
 
 	t.Run("Should surface type mismatch when MCP entry incompatible", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		key := resources.ResourceKey{Project: "code-reviewer", Type: resources.ResourceMCP, ID: "oops"}
 		_, err := store.Put(ctx, key, 123)
@@ -150,7 +149,7 @@ func TestResolveMCPs(t *testing.T) {
 
 func TestApplyAgentModelSelector(t *testing.T) {
 	t.Run("Should resolve provider config when stored value is a map", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		modelMap := map[string]any{
 			"provider": "openai",
@@ -167,7 +166,7 @@ func TestApplyAgentModelSelector(t *testing.T) {
 	})
 
 	t.Run("Should return type mismatch on incompatible stored provider config", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		key := resources.ResourceKey{Project: "code-reviewer", Type: resources.ResourceModel, ID: "broken"}
 		_, err := store.Put(ctx, key, 123)
@@ -219,7 +218,7 @@ func TestModelConfigFromStoreNormalizesAllShapes(t *testing.T) {
 }
 
 func TestFetchSchemaStoresMap(t *testing.T) {
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	store := resources.NewMemoryResourceStore()
 	schemaMap := map[string]any{
 		"id":   "list_files_input",

@@ -12,13 +12,13 @@ import (
 
 func TestNormalizer_Normalize(t *testing.T) {
 	templateEngine := &tplengine.TemplateEngine{}
-	normalizer := NewNormalizer(templateEngine)
+	normalizer := NewNormalizer(t.Context(), templateEngine)
 
 	t.Run("Should handle nil config gracefully", func(t *testing.T) {
 		ctx := &shared.NormalizationContext{
 			Variables: map[string]any{},
 		}
-		err := normalizer.Normalize(nil, ctx)
+		err := normalizer.Normalize(t.Context(), nil, ctx)
 		assert.NoError(t, err)
 	})
 
@@ -32,7 +32,7 @@ func TestNormalizer_Normalize(t *testing.T) {
 		ctx := &shared.NormalizationContext{
 			Variables: map[string]any{},
 		}
-		err := normalizer.Normalize(config, ctx)
+		err := normalizer.Normalize(t.Context(), config, ctx)
 		assert.NoError(t, err)
 	})
 
@@ -53,7 +53,7 @@ func TestNormalizer_Normalize(t *testing.T) {
 				"user_id": "123",
 			},
 		}
-		err := normalizer.Normalize(config, ctx)
+		err := normalizer.Normalize(t.Context(), config, ctx)
 		assert.NoError(t, err)
 	})
 
@@ -79,7 +79,7 @@ func TestNormalizer_Normalize(t *testing.T) {
 				"timestamp": "2024-01-01T00:00:00Z",
 			},
 		}
-		err := normalizer.Normalize(config, ctx)
+		err := normalizer.Normalize(t.Context(), config, ctx)
 		assert.NoError(t, err)
 	})
 
@@ -102,7 +102,7 @@ func TestNormalizer_Normalize(t *testing.T) {
 		ctx := &shared.NormalizationContext{
 			Variables: map[string]any{},
 		}
-		err := normalizer.Normalize(config, ctx)
+		err := normalizer.Normalize(t.Context(), config, ctx)
 		assert.NoError(t, err)
 	})
 
@@ -129,7 +129,7 @@ func TestNormalizer_Normalize(t *testing.T) {
 			},
 			MergedEnv: &envMap,
 		}
-		err := normalizer.Normalize(config, ctx)
+		err := normalizer.Normalize(t.Context(), config, ctx)
 		assert.NoError(t, err)
 	})
 
@@ -149,7 +149,7 @@ func TestNormalizer_Normalize(t *testing.T) {
 			},
 		}
 		ctx := &shared.NormalizationContext{} // No variables initialized
-		err := normalizer.Normalize(config, ctx)
+		err := normalizer.Normalize(t.Context(), config, ctx)
 		assert.NoError(t, err)
 	})
 }

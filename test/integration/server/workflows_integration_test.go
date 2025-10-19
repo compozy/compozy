@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -33,8 +32,8 @@ func setupWorkflowIntegrationServer(t *testing.T) (*gin.Engine, resources.Resour
 	require.NoError(t, err)
 	store := resources.NewMemoryResourceStore()
 	state.SetResourceStore(store)
-	cfgManager := config.NewManager(config.NewService())
-	_, err = cfgManager.Load(context.Background(), config.NewDefaultProvider())
+	cfgManager := config.NewManager(t.Context(), config.NewService())
+	_, err = cfgManager.Load(t.Context(), config.NewDefaultProvider())
 	require.NoError(t, err)
 	rlManager, err := ratelimit.NewManager(ratelimit.DefaultConfig(), nil)
 	require.NoError(t, err)

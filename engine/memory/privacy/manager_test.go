@@ -1,7 +1,6 @@
 package privacy_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/llm"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestPrivacyManager(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	t.Run("Should register and retrieve privacy policy", func(t *testing.T) {
 		pm := privacy.NewManager()
 		require.NotNil(t, pm)
@@ -68,7 +67,7 @@ func TestPrivacyManager(t *testing.T) {
 		metadata := core.PrivacyMetadata{}
 
 		redactedMsg, updatedMetadata, err := pm.ApplyPrivacyControls(
-			context.Background(),
+			t.Context(),
 			msg,
 			"test-resource",
 			metadata,

@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -13,8 +12,8 @@ import (
 func TestInitMemoryMetrics(t *testing.T) {
 	t.Run("Should initialize all metrics with valid meter", func(t *testing.T) {
 		// Reset metrics before test to ensure clean state
-		ResetMemoryMetricsForTesting(context.Background())
-		ctx := context.Background()
+		ResetMemoryMetricsForTesting(t.Context())
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 
 		// Initialize metrics
@@ -41,8 +40,8 @@ func TestInitMemoryMetrics(t *testing.T) {
 	})
 
 	t.Run("Should handle nil meter gracefully", func(t *testing.T) {
-		ResetMemoryMetricsForTesting(context.Background())
-		ctx := context.Background()
+		ResetMemoryMetricsForTesting(t.Context())
+		ctx := t.Context()
 
 		// Should not panic with nil meter
 		assert.NotPanics(t, func() {
@@ -51,8 +50,8 @@ func TestInitMemoryMetrics(t *testing.T) {
 	})
 
 	t.Run("Should only initialize once with sync.Once", func(t *testing.T) {
-		ResetMemoryMetricsForTesting(context.Background())
-		ctx := context.Background()
+		ResetMemoryMetricsForTesting(t.Context())
+		ctx := t.Context()
 		meter1 := noop.NewMeterProvider().Meter("test1")
 		meter2 := noop.NewMeterProvider().Meter("test2")
 
@@ -69,7 +68,7 @@ func TestInitMemoryMetrics(t *testing.T) {
 
 func TestRecordMemoryMessage(t *testing.T) {
 	t.Run("Should record memory message with valid parameters", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		InitMemoryMetrics(ctx, meter)
 
@@ -84,7 +83,7 @@ func TestRecordMemoryMessage(t *testing.T) {
 	})
 
 	t.Run("Should handle zero tokens gracefully", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		InitMemoryMetrics(ctx, meter)
 
@@ -95,9 +94,9 @@ func TestRecordMemoryMessage(t *testing.T) {
 	})
 
 	t.Run("Should handle nil metrics gracefully", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		// Reset to ensure nil state
-		ResetMemoryMetricsForTesting(context.Background())
+		ResetMemoryMetricsForTesting(t.Context())
 
 		// Should not panic when metrics are nil
 		assert.NotPanics(t, func() {
@@ -108,7 +107,7 @@ func TestRecordMemoryMessage(t *testing.T) {
 
 func TestRecordMemoryTrim(t *testing.T) {
 	t.Run("Should record memory trim with valid parameters", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		InitMemoryMetrics(ctx, meter)
 
@@ -123,7 +122,7 @@ func TestRecordMemoryTrim(t *testing.T) {
 	})
 
 	t.Run("Should handle different trim strategies", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		InitMemoryMetrics(ctx, meter)
 
@@ -136,7 +135,7 @@ func TestRecordMemoryTrim(t *testing.T) {
 	})
 
 	t.Run("Should handle zero tokens saved", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		InitMemoryMetrics(ctx, meter)
 
@@ -149,7 +148,7 @@ func TestRecordMemoryTrim(t *testing.T) {
 
 func TestRecordMemoryFlush(t *testing.T) {
 	t.Run("Should record memory flush with valid parameters", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		InitMemoryMetrics(ctx, meter)
 
@@ -167,7 +166,7 @@ func TestRecordMemoryFlush(t *testing.T) {
 
 func TestRecordMemoryLockOperations(t *testing.T) {
 	t.Run("Should record lock acquisition", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		InitMemoryMetrics(ctx, meter)
 
@@ -179,7 +178,7 @@ func TestRecordMemoryLockOperations(t *testing.T) {
 	})
 
 	t.Run("Should record lock contention", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		InitMemoryMetrics(ctx, meter)
 
@@ -193,7 +192,7 @@ func TestRecordMemoryLockOperations(t *testing.T) {
 
 func TestRecordMemoryOp(t *testing.T) {
 	t.Run("Should record memory operation with latency", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		InitMemoryMetrics(ctx, meter)
 
@@ -206,7 +205,7 @@ func TestRecordMemoryOp(t *testing.T) {
 	})
 
 	t.Run("Should handle operation errors", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		InitMemoryMetrics(ctx, meter)
 
@@ -277,7 +276,7 @@ func TestStateManagement(t *testing.T) {
 func TestResetMetrics(t *testing.T) {
 	t.Run("Should reset all metrics to nil", func(t *testing.T) {
 		// First initialize
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		InitMemoryMetrics(ctx, meter)
 
@@ -285,7 +284,7 @@ func TestResetMetrics(t *testing.T) {
 		assert.NotNil(t, memoryMessagesTotal)
 
 		// Reset
-		ResetMemoryMetricsForTesting(context.Background())
+		ResetMemoryMetricsForTesting(t.Context())
 
 		// Verify reset
 		assert.Nil(t, memoryMessagesTotal)

@@ -162,7 +162,7 @@ func (uc *ExecuteTask) buildNormalizationContext(
 		workflowConfig = input.WorkflowConfig
 		taskConfig = input.TaskConfig
 	}
-	normCtx := contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	normCtx := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
 
 	// Merge env following project standards (workflow -> task)
 	// For agent cases, the agent-level env is merged by AgentNormalizer already
@@ -312,7 +312,7 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	}
 
 	// Build full context with tasks data
-	fullCtx := contextBuilder.BuildContext(state, input.WorkflowConfig, input.TaskConfig)
+	fullCtx := contextBuilder.BuildContext(ctx, state, input.WorkflowConfig, input.TaskConfig)
 	normCtx.Variables = fullCtx.Variables
 
 	// Ensure task's current input (containing collection variables) is added to variables

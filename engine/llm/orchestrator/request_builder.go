@@ -558,9 +558,6 @@ func loadFallbackTemplate() (*template.Template, error) {
 }
 
 func composeSystemPromptFallback(ctx context.Context, instructions string) string {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	tpl, err := loadFallbackTemplate()
 	if err != nil {
 		logger.FromContext(ctx).Error(

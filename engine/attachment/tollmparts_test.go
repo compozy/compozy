@@ -1,7 +1,6 @@
 package attachment
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +17,7 @@ func Test_ToContentPartsFromEffective_ImageURLAndPath(t *testing.T) {
 			Source:         SourceURL,
 			URL:            "https://example.com/p.png",
 		}
-		parts, cleanup, err := ToContentPartsFromEffective(context.Background(), []EffectiveItem{{Att: att, CWD: nil}})
+		parts, cleanup, err := ToContentPartsFromEffective(t.Context(), []EffectiveItem{{Att: att, CWD: nil}})
 		require.NoError(t, err)
 		if cleanup != nil {
 			cleanup()
@@ -38,7 +37,7 @@ func Test_ToContentPartsFromEffective_ImageURLAndPath(t *testing.T) {
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
 		att := &ImageAttachment{Source: SourcePath, Path: "a.png"}
-		parts, cleanup, err := ToContentPartsFromEffective(context.Background(), []EffectiveItem{{Att: att, CWD: cwd}})
+		parts, cleanup, err := ToContentPartsFromEffective(t.Context(), []EffectiveItem{{Att: att, CWD: cwd}})
 		require.NoError(t, err)
 		if cleanup != nil {
 			cleanup()
@@ -55,7 +54,7 @@ func Test_ToContentPartsFromEffective_IgnoresNonImage(t *testing.T) {
 	t.Run("Should ignore non-image attachments in current phase", func(t *testing.T) {
 		a := &AudioAttachment{Source: SourceURL, URL: "https://example.com/a.mp3"}
 		v := &VideoAttachment{Source: SourceURL, URL: "https://example.com/v.mp4"}
-		parts, cleanup, err := ToContentPartsFromEffective(context.Background(), []EffectiveItem{{Att: a}, {Att: v}})
+		parts, cleanup, err := ToContentPartsFromEffective(t.Context(), []EffectiveItem{{Att: a}, {Att: v}})
 		require.NoError(t, err)
 		if cleanup != nil {
 			cleanup()
@@ -73,7 +72,7 @@ func Test_ToContentPartsFromEffective_TextFile(t *testing.T) {
 		cwd, err := core.CWDFromPath(tmpDir)
 		require.NoError(t, err)
 		items := []EffectiveItem{{Att: &FileAttachment{baseAttachment: baseAttachment{}, Path: "test.txt"}, CWD: cwd}}
-		parts, cleanup, err := ToContentPartsFromEffective(context.Background(), items)
+		parts, cleanup, err := ToContentPartsFromEffective(t.Context(), items)
 		if cleanup != nil {
 			cleanup()
 		}
@@ -95,7 +94,7 @@ func Test_ToContentPartsFromEffective_PDF_FallbackBinary(t *testing.T) {
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
 		items := []EffectiveItem{{Att: &PDFAttachment{baseAttachment: baseAttachment{}, Path: "a.pdf"}, CWD: cwd}}
-		parts, cleanup, err := ToContentPartsFromEffective(context.Background(), items)
+		parts, cleanup, err := ToContentPartsFromEffective(t.Context(), items)
 		if cleanup != nil {
 			cleanup()
 		}

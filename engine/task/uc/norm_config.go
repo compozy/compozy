@@ -27,10 +27,10 @@ type NormalizeConfig struct {
 	orchestrator *task2.ConfigOrchestrator
 }
 
-func NewNormalizeConfig() (*NormalizeConfig, error) {
+func NewNormalizeConfig(ctx context.Context) (*NormalizeConfig, error) {
 	tplEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	envMerger := core.NewEnvMerger()
-	factory, err := task2.NewFactory(&task2.FactoryConfig{
+	factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 		TemplateEngine: tplEngine,
 		EnvMerger:      envMerger,
 	})
@@ -39,7 +39,7 @@ func NewNormalizeConfig() (*NormalizeConfig, error) {
 	}
 
 	// Create orchestrator
-	orchestrator, err := task2.NewConfigOrchestrator(factory)
+	orchestrator, err := task2.NewConfigOrchestrator(ctx, factory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config orchestrator: %w", err)
 	}
@@ -49,10 +49,10 @@ func NewNormalizeConfig() (*NormalizeConfig, error) {
 	}, nil
 }
 
-func (uc *NormalizeConfig) Execute(_ context.Context, input *NormalizeConfigInput) error {
+func (uc *NormalizeConfig) Execute(ctx context.Context, input *NormalizeConfigInput) error {
 	taskConfigs := task2.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
 	taskConfig := input.TaskConfig
-	err := uc.orchestrator.NormalizeTask(
+	err := uc.orchestrator.NormalizeTask(ctx,
 		input.WorkflowState,
 		input.WorkflowConfig,
 		taskConfig,
@@ -61,10 +61,11 @@ func (uc *NormalizeConfig) Execute(_ context.Context, input *NormalizeConfigInpu
 		return fmt.Errorf("failed to normalize task %s for workflow %s: %w",
 			input.TaskConfig.ID, input.WorkflowConfig.ID, err)
 	}
-	return uc.normalizeComponent(input, taskConfigs)
+	return uc.normalizeComponent(ctx, input, taskConfigs)
 }
 
 func (uc *NormalizeConfig) normalizeComponent(
+	ctx context.Context,
 	input *NormalizeConfigInput,
 	taskConfigs map[string]*task.Config,
 ) error {
@@ -72,20 +73,22 @@ func (uc *NormalizeConfig) normalizeComponent(
 	toolConfig := input.TaskConfig.GetTool()
 	switch {
 	case agentConfig != nil:
-		return uc.normalizeAgent(input, agentConfig, taskConfigs)
+		return uc.normalizeAgent(ctx, input, agentConfig, taskConfigs)
 	case toolConfig != nil:
-		return uc.normalizeTool(input, toolConfig, taskConfigs)
+		return uc.normalizeTool(ctx, input, toolConfig, taskConfigs)
 	default:
 		return nil
 	}
 }
 
 func (uc *NormalizeConfig) normalizeAgent(
+	ctx context.Context,
 	input *NormalizeConfigInput,
 	agentConfig *agent.Config,
 	taskConfigs map[string]*task.Config,
 ) error {
 	err := uc.orchestrator.NormalizeAgentComponent(
+		ctx,
 		input.WorkflowState,
 		input.WorkflowConfig,
 		input.TaskConfig,
@@ -100,11 +103,13 @@ func (uc *NormalizeConfig) normalizeAgent(
 }
 
 func (uc *NormalizeConfig) normalizeTool(
+	ctx context.Context,
 	input *NormalizeConfigInput,
 	toolConfig *tool.Config,
 	taskConfigs map[string]*task.Config,
 ) error {
 	err := uc.orchestrator.NormalizeToolComponent(
+		ctx,
 		input.WorkflowState,
 		input.WorkflowConfig,
 		input.TaskConfig,

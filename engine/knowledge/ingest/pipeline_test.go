@@ -215,7 +215,7 @@ func TestPipeline_ShouldBatchByLimit(t *testing.T) {
 	binding := resolvedBinding(1)
 	pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	result, err := pipe.Run(ctx)
 	require.NoError(t, err)
@@ -237,7 +237,7 @@ func TestPipeline_ShouldPropagateProviderErrors(t *testing.T) {
 	binding := resolvedBinding(2)
 	pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	_, err = pipe.Run(ctx)
 	require.Error(t, err)
@@ -255,7 +255,7 @@ func TestPipeline_ShouldPersistInlinePayloadsAndReingestIdempotent(t *testing.T)
 	binding := resolvedBinding(3)
 	pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	result, err := pipe.Run(ctx)
 	require.NoError(t, err)
@@ -309,7 +309,7 @@ func TestPipeline_ShouldReplaceExistingRecords(t *testing.T) {
 		ingest.Options{CWD: cwd, Strategy: ingest.StrategyReplace},
 	)
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	_, err = pipe.Run(ctx)
 	require.NoError(t, err)
@@ -333,7 +333,7 @@ func TestPipeline_ShouldRejectLargeMarkdownFile(t *testing.T) {
 		embed := &recordingEmbedder{}
 		pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 		require.NoError(t, err)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		_, err = pipe.Run(ctx)
 		require.Error(t, err)
@@ -351,11 +351,11 @@ func TestPipeline_ShouldRejectLargeMarkdownFile(t *testing.T) {
 		embed := &recordingEmbedder{}
 		pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 		require.NoError(t, err)
-		manager := appconfig.NewManager(appconfig.NewService())
-		cfg, err := manager.Load(context.Background(), appconfig.NewDefaultProvider())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
+		cfg, err := manager.Load(t.Context(), appconfig.NewDefaultProvider())
 		require.NoError(t, err)
 		cfg.Knowledge.MaxMarkdownFileSizeBytes = limit
-		ctx := appconfig.ContextWithManager(context.Background(), manager)
+		ctx := appconfig.ContextWithManager(t.Context(), manager)
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		_, err = pipe.Run(ctx)
@@ -393,8 +393,8 @@ func runPipelineWithObservability(t *testing.T) observabilityArtifacts {
 	pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 	require.NoError(t, err)
 	log := newCapturingLogger()
-	ctx := logger.ContextWithLogger(context.Background(), log)
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	ctx := logger.ContextWithLogger(t.Context(), log)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	t.Cleanup(cancel)
 	result, err := pipe.Run(ctx)
 	require.NoError(t, err)
@@ -415,7 +415,9 @@ func setupMeterProvider(t *testing.T) *sdkmetric.ManualReader {
 	prev := otel.GetMeterProvider()
 	otel.SetMeterProvider(provider)
 	t.Cleanup(func() {
-		require.NoError(t, provider.Shutdown(context.Background()))
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, provider.Shutdown(shutdownCtx))
 		otel.SetMeterProvider(prev)
 	})
 	return reader
@@ -428,7 +430,9 @@ func setupTracerProvider(t *testing.T) *tracetest.SpanRecorder {
 	prev := otel.GetTracerProvider()
 	otel.SetTracerProvider(provider)
 	t.Cleanup(func() {
-		require.NoError(t, provider.Shutdown(context.Background()))
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, provider.Shutdown(shutdownCtx))
 		otel.SetTracerProvider(prev)
 	})
 	return recorder
@@ -442,7 +446,7 @@ func assertPipelineMetrics(
 ) {
 	t.Helper()
 	var rm metricdata.ResourceMetrics
-	require.NoError(t, reader.Collect(context.Background(), &rm))
+	require.NoError(t, reader.Collect(t.Context(), &rm))
 	durationName := monitoringmetrics.MetricNameWithSubsystem("knowledge", "ingest_duration_seconds")
 	chunkName := monitoringmetrics.MetricNameWithSubsystem("knowledge", "chunks_total")
 	foundDuration := false

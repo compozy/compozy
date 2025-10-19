@@ -1,7 +1,6 @@
 package agentcatalog
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -16,7 +15,7 @@ func TestListHandlerReturnsAgents(t *testing.T) {
 	seedAgentResource(t, store, "demo", "agent.researcher", "default")
 
 	env := toolenv.New(nil, nil, store)
-	ctx := core.WithProjectName(context.Background(), "demo")
+	ctx := core.WithProjectName(t.Context(), "demo")
 
 	output, err := listHandler(env)(ctx, map[string]any{})
 	require.NoError(t, err)
@@ -36,7 +35,7 @@ func TestListHandlerRequiresProject(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
 	env := toolenv.New(nil, nil, store)
 
-	_, err := listHandler(env)(context.Background(), map[string]any{})
+	_, err := listHandler(env)(t.Context(), map[string]any{})
 	require.Error(t, err)
 }
 
@@ -49,7 +48,7 @@ func seedAgentResource(t *testing.T, store resources.ResourceStore, project, id 
 		payload["actions"] = append(payload["actions"].([]any), map[string]any{"id": action})
 	}
 	_, err := store.Put(
-		context.Background(),
+		t.Context(),
 		resources.ResourceKey{Project: project, Type: resources.ResourceAgent, ID: id},
 		payload,
 	)

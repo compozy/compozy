@@ -2,7 +2,6 @@ package resources
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 
@@ -101,24 +100,24 @@ func (s *exampleStore) Watch(ctx context.Context, _ string, _ ResourceType) (<-c
 
 func (s *exampleStore) Close() error { return nil }
 
-func ExampleResourceStore_basic() {
-	ctx := context.Background()
-	st := newExampleStore()
-	key := ResourceKey{Project: "proj", Type: ResourceAgent, ID: "writer"}
-	_, _ = st.Put(ctx, key, map[string]any{"resource": "agent", "id": "writer"})
-	v, _, _ := st.Get(ctx, key)
-	m, ok := v.(map[string]any)
-	if !ok {
-		fmt.Println("value is not a map[string]any")
-		return
-	}
-	fmt.Println(m["id"])
-	// Output: writer
+func TestResourceStore_basic(t *testing.T) {
+	t.Run("Should demonstrate basic put and get operations", func(t *testing.T) {
+		ctx := testCtx(t)
+		st := newExampleStore()
+		key := ResourceKey{Project: "proj", Type: ResourceAgent, ID: "writer"}
+		_, err := st.Put(ctx, key, map[string]any{"resource": "agent", "id": "writer"})
+		require.NoError(t, err)
+		v, _, err := st.Get(ctx, key)
+		require.NoError(t, err)
+		m, ok := v.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "writer", m["id"])
+	})
 }
 
 func TestExampleStorePutGet(t *testing.T) {
 	t.Run("Should put and get a tool by key", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := testCtx(t)
 		st := newExampleStore()
 		key := ResourceKey{Project: "p", Type: ResourceTool, ID: "browser"}
 		_, err := st.Put(ctx, key, map[string]any{"resource": "tool", "id": "browser"})

@@ -1,7 +1,6 @@
 package monitoring
 
 import (
-	"context"
 	"runtime"
 	"strings"
 	"testing"
@@ -20,7 +19,7 @@ func TestSystemMetrics(t *testing.T) {
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
-		ctx := context.Background()
+		ctx := t.Context()
 		InitSystemMetrics(ctx, meter)
 		var rm metricdata.ResourceMetrics
 		err := reader.Collect(ctx, &rm)
@@ -58,7 +57,7 @@ func TestSystemMetrics(t *testing.T) {
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
-		ctx := context.Background()
+		ctx := t.Context()
 		InitSystemMetrics(ctx, meter)
 		// Wait a bit to ensure uptime is > 0
 		time.Sleep(100 * time.Millisecond)
@@ -88,7 +87,7 @@ func TestSystemMetrics(t *testing.T) {
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
-		ctx := context.Background()
+		ctx := t.Context()
 		InitSystemMetrics(ctx, meter)
 		// First reading
 		var rm1 metricdata.ResourceMetrics
@@ -152,7 +151,7 @@ func TestSystemMetricsIdempotency(t *testing.T) {
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
-		ctx := context.Background()
+		ctx := t.Context()
 		// Initialize multiple times
 		InitSystemMetrics(ctx, meter)
 		InitSystemMetrics(ctx, meter)
@@ -186,7 +185,7 @@ func TestLabelValidation(t *testing.T) {
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
-		ctx := context.Background()
+		ctx := t.Context()
 		InitSystemMetrics(ctx, meter)
 		var rm metricdata.ResourceMetrics
 		err := reader.Collect(ctx, &rm)
@@ -249,7 +248,7 @@ func TestSpecialCharactersInVersion(t *testing.T) {
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
-		ctx := context.Background()
+		ctx := t.Context()
 		// Reset metrics for clean test
 		resetSystemMetrics(t.Context())
 		InitSystemMetrics(ctx, meter)

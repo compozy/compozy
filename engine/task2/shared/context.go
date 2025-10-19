@@ -59,7 +59,7 @@ type ContextBuilder struct {
 // - a VariableBuilder, ChildrenIndexBuilder, TaskOutputBuilder and ConfigMerger.
 //
 // Returns an error if the internal cache cannot be created.
-func NewContextBuilder() (*ContextBuilder, error) {
+func NewContextBuilder(ctx context.Context) (*ContextBuilder, error) {
 	// Create Ristretto cache with proper configuration for memory management
 	// Using more conservative limits to prevent memory leaks in long-running workflows
 	cache, err := ristretto.NewCache(&ristretto.Config[string, map[string]any]{
@@ -78,7 +78,7 @@ func NewContextBuilder() (*ContextBuilder, error) {
 		parentContextCache:   cache,
 		VariableBuilder:      NewVariableBuilder(),
 		ChildrenIndexBuilder: NewChildrenIndexBuilder(),
-		TaskOutputBuilder:    NewTaskOutputBuilder(),
+		TaskOutputBuilder:    NewTaskOutputBuilder(ctx),
 		ConfigMerger:         NewConfigMerger(),
 	}, nil
 }
@@ -86,7 +86,7 @@ func NewContextBuilder() (*ContextBuilder, error) {
 // NewContextBuilderWithContext returns a ContextBuilder initialized with a
 // TaskOutputBuilder that respects limits from the provided context.
 func NewContextBuilderWithContext(ctx context.Context) (*ContextBuilder, error) {
-	b, err := NewContextBuilder()
+	b, err := NewContextBuilder(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +95,7 @@ func NewContextBuilderWithContext(ctx context.Context) (*ContextBuilder, error) 
 }
 
 func (cb *ContextBuilder) buildContextInternal(
+	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
@@ -121,7 +122,7 @@ func (cb *ContextBuilder) buildContextInternal(
 
 	// Add workflow output as tasks for backward compatibility in deterministic order
 	if workflowState != nil && workflowState.Tasks != nil {
-		tasksMap := cb.buildTasksMap(workflowState, taskConfig, parentExecID, nc)
+		tasksMap := cb.buildTasksMap(ctx, workflowState, taskConfig, parentExecID, nc)
 		cb.VariableBuilder.AddTasksToVariables(vars, workflowState, tasksMap)
 	}
 
@@ -137,6 +138,7 @@ func (cb *ContextBuilder) buildContextInternal(
 
 // buildTasksMap builds the tasks map for the context
 func (cb *ContextBuilder) buildTasksMap(
+	ctx context.Context,
 	workflowState *workflow.State,
 	taskConfig *task.Config,
 	parentExecID *core.ID,
@@ -154,10 +156,10 @@ func (cb *ContextBuilder) buildTasksMap(
 	tasksMap := make(map[string]any)
 
 	// Pass 1: include non-sibling tasks first
-	cb.addNonSiblingTasks(tasksMap, states, parentExecID, nc)
+	cb.addNonSiblingTasks(ctx, tasksMap, states, parentExecID, nc)
 
 	// Pass 2: overlay siblings so they shadow duplicates
-	cb.addSiblingTasks(tasksMap, states, parentExecID, nc)
+	cb.addSiblingTasks(ctx, tasksMap, states, parentExecID, nc)
 
 	return tasksMap
 }
@@ -193,6 +195,7 @@ func (cb *ContextBuilder) buildOrderedTaskStates(workflowState *workflow.State) 
 
 // addNonSiblingTasks adds non-sibling tasks to the tasks map
 func (cb *ContextBuilder) addNonSiblingTasks(
+	ctx context.Context,
 	tasksMap map[string]any,
 	states []stateWithKey,
 	parentExecID *core.ID,
@@ -203,12 +206,13 @@ func (cb *ContextBuilder) addNonSiblingTasks(
 			*sw.state.ParentStateID == *parentExecID {
 			continue
 		}
-		tasksMap[sw.key] = cb.buildSingleTaskContext(sw.state.TaskID, sw.state, nc)
+		tasksMap[sw.key] = cb.buildSingleTaskContext(ctx, sw.state.TaskID, sw.state, nc)
 	}
 }
 
 // addSiblingTasks adds sibling tasks to the tasks map
 func (cb *ContextBuilder) addSiblingTasks(
+	ctx context.Context,
 	tasksMap map[string]any,
 	states []stateWithKey,
 	parentExecID *core.ID,
@@ -219,35 +223,38 @@ func (cb *ContextBuilder) addSiblingTasks(
 	}
 	for _, sw := range states {
 		if sw.state.ParentStateID != nil && *sw.state.ParentStateID == *parentExecID {
-			tasksMap[sw.key] = cb.buildSingleTaskContext(sw.state.TaskID, sw.state, nc)
+			tasksMap[sw.key] = cb.buildSingleTaskContext(ctx, sw.state.TaskID, sw.state, nc)
 		}
 	}
 }
 
 // BuildContext creates a normalization context from workflow and task data
 func (cb *ContextBuilder) BuildContext(
+	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) *NormalizationContext {
-	return cb.buildContextInternal(workflowState, workflowConfig, taskConfig, nil)
+	return cb.buildContextInternal(ctx, workflowState, workflowConfig, taskConfig, nil)
 }
 
 // BuildContextForTaskInstance creates a normalization context with explicit parent execution ID
 func (cb *ContextBuilder) BuildContextForTaskInstance(
+	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 	parentExecID *core.ID,
 ) *NormalizationContext {
-	return cb.buildContextInternal(workflowState, workflowConfig, taskConfig, parentExecID)
+	return cb.buildContextInternal(ctx, workflowState, workflowConfig, taskConfig, parentExecID)
 }
 
 // buildSingleTaskContext builds context for a single task
 func (cb *ContextBuilder) buildSingleTaskContext(
+	ctx context.Context,
 	taskID string,
 	taskState *task.State,
-	ctx *NormalizationContext,
+	normCtx *NormalizationContext,
 ) map[string]any {
 	if taskState == nil {
 		return map[string]any{IDKey: taskID}
@@ -263,40 +270,42 @@ func (cb *ContextBuilder) buildSingleTaskContext(
 	}
 	taskContext[OutputKey] = cb.TaskOutputBuilder.BuildTaskOutput(
 		taskState,
-		ctx.WorkflowState.Tasks,
-		ctx.ChildrenIndex,
+		normCtx.WorkflowState.Tasks,
+		normCtx.ChildrenIndex,
 		0,
 	)
-	if taskState.CanHaveChildren() && ctx.ChildrenIndex != nil {
+	if taskState.CanHaveChildren() && normCtx.ChildrenIndex != nil {
 		taskContext[ChildrenKey] = cb.ChildrenIndexBuilder.BuildChildrenContext(
+			ctx,
 			taskState,
-			ctx.WorkflowState,
-			ctx.ChildrenIndex,
-			ctx.TaskConfigs,
+			normCtx.WorkflowState,
+			normCtx.ChildrenIndex,
+			normCtx.TaskConfigs,
 			cb.TaskOutputBuilder,
 			0,
 		)
 	}
-	cb.ConfigMerger.MergeTaskConfigIfExists(taskContext, taskID, ctx.TaskConfigs)
+	cb.ConfigMerger.MergeTaskConfigIfExists(taskContext, taskID, normCtx.TaskConfigs)
 	return taskContext
 }
 
 // BuildSubTaskContext creates a specialized context for sub-tasks within parent tasks
 func (cb *ContextBuilder) BuildSubTaskContext(
-	ctx *NormalizationContext,
+	ctx context.Context,
+	normCtx *NormalizationContext,
 	parentTask *task.Config,
 	parentState *task.State,
 ) (*NormalizationContext, error) {
 	// Clone the base context
 	nc := &NormalizationContext{
-		WorkflowState:  ctx.WorkflowState,
-		WorkflowConfig: ctx.WorkflowConfig,
+		WorkflowState:  normCtx.WorkflowState,
+		WorkflowConfig: normCtx.WorkflowConfig,
 		ParentTask:     parentTask,
 		Variables:      make(map[string]any),
-		TaskConfigs:    ctx.TaskConfigs,
+		TaskConfigs:    normCtx.TaskConfigs,
 	}
 	// Copy base variables using variable builder
-	vars, err := cb.VariableBuilder.CopyVariables(ctx.Variables)
+	vars, err := cb.VariableBuilder.CopyVariables(normCtx.Variables)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +313,7 @@ func (cb *ContextBuilder) BuildSubTaskContext(
 
 	// Use recursive parent building with caching
 	if parentTask != nil {
-		cb.VariableBuilder.AddParentToVariables(nc.Variables, cb.BuildParentContext(ctx, parentTask, 0))
+		cb.VariableBuilder.AddParentToVariables(nc.Variables, cb.BuildParentContext(ctx, normCtx, parentTask, 0))
 	}
 	// Add current task state if available
 	if parentState != nil {
@@ -325,6 +334,7 @@ func (cb *ContextBuilder) BuildSubTaskContext(
 // BuildNormalizationSubTaskContext creates a context for sub-tasks during normalization
 // This is used when we don't have runtime state yet
 func (cb *ContextBuilder) BuildNormalizationSubTaskContext(
+	ctx context.Context,
 	parentCtx *NormalizationContext,
 	parentTask *task.Config,
 	subTask *task.Config,
@@ -357,18 +367,19 @@ func (cb *ContextBuilder) BuildNormalizationSubTaskContext(
 	}
 	// Use recursive parent building with caching
 	if parentTask != nil {
-		cb.VariableBuilder.AddParentToVariables(nc.Variables, cb.BuildParentContext(parentCtx, parentTask, 0))
+		cb.VariableBuilder.AddParentToVariables(nc.Variables, cb.BuildParentContext(ctx, parentCtx, parentTask, 0))
 	}
 	return nc, nil
 }
 
 // BuildParentContext recursively builds parent context chain with caching and cycle detection
 func (cb *ContextBuilder) BuildParentContext(
-	ctx *NormalizationContext,
+	ctx context.Context,
+	normCtx *NormalizationContext,
 	taskConfig *task.Config,
 	depth int,
 ) map[string]any {
-	return cb.buildParentContextWithVisited(ctx, taskConfig, depth, make(map[string]bool))
+	return cb.buildParentContextWithVisited(ctx, normCtx, taskConfig, depth, make(map[string]bool))
 }
 
 // buildParentContextWithVisited builds parent context with cycle detection using a sophisticated recursive algorithm.
@@ -385,12 +396,13 @@ func (cb *ContextBuilder) BuildParentContext(
 // Performance: O(depth) time complexity with O(1) cache hits, O(n) space for visited tracking
 // Memory Safety: Automatic cleanup with defer and conservative cache limits
 func (cb *ContextBuilder) buildParentContextWithVisited(
-	ctx *NormalizationContext,
+	ctx context.Context,
+	normCtx *NormalizationContext,
 	taskConfig *task.Config,
 	depth int,
 	visited map[string]bool,
 ) map[string]any {
-	limits := GetGlobalConfigLimits()
+	limits := GetGlobalConfigLimits(ctx)
 	// STEP 1: Boundary condition checks to prevent infinite recursion and stack overflow
 	// MaxParentDepth typically set to 10-20 levels to handle reasonable nesting while preventing abuse
 	if taskConfig == nil || depth >= limits.MaxParentDepth {
@@ -418,7 +430,7 @@ func (cb *ContextBuilder) buildParentContextWithVisited(
 	// STEP 4: Cache optimization check using composite key for workflow isolation
 	// Cache key includes workflow execution ID to prevent cross-workflow contamination
 	// Only check cache after circular reference detection to ensure safety
-	cacheKey := cb.buildCacheKey(ctx, taskConfig)
+	cacheKey := cb.buildCacheKey(normCtx, taskConfig)
 	if cached, found := cb.parentContextCache.Get(cacheKey); found {
 		return cached // Cache hit - return previously computed result
 	}
@@ -444,8 +456,8 @@ func (cb *ContextBuilder) buildParentContextWithVisited(
 	// STEP 7: Augment with runtime state data when available
 	// Runtime state provides actual execution data (input, output, status, errors)
 	// This enables templates to access real execution results, not just configuration
-	if ctx.WorkflowState != nil && ctx.WorkflowState.Tasks != nil {
-		if state, exists := ctx.WorkflowState.Tasks[taskConfig.ID]; exists {
+	if normCtx.WorkflowState != nil && normCtx.WorkflowState.Tasks != nil {
+		if state, exists := normCtx.WorkflowState.Tasks[taskConfig.ID]; exists {
 			parentMap[InputKey] = state.Input   // Actual input passed at runtime
 			parentMap[OutputKey] = state.Output // Task execution output/result
 			parentMap[StatusKey] = state.Status // Current execution status
@@ -458,7 +470,7 @@ func (cb *ContextBuilder) buildParentContextWithVisited(
 	// STEP 8: Recursive parent chain traversal with multi-strategy lookup
 	// Uses findParentTask which tries: runtime state -> workflow config -> error context
 	// Error contexts provide debugging information when parent lookup fails
-	grandParentTask, errorContext := cb.findParentTask(ctx, taskConfig)
+	grandParentTask, errorContext := cb.findParentTask(normCtx, taskConfig)
 	if errorContext != nil {
 		// Parent lookup encountered issues - provide error context for debugging
 		parentMap[ParentKey] = errorContext
@@ -468,7 +480,7 @@ func (cb *ContextBuilder) buildParentContextWithVisited(
 		// Essential for handling complex task hierarchies with multiple paths
 		visitedCopy := core.CloneMap(visited)
 		// Recursive call to build grandparent context with incremented depth
-		parentMap[ParentKey] = cb.buildParentContextWithVisited(ctx, grandParentTask, depth+1, visitedCopy)
+		parentMap[ParentKey] = cb.buildParentContextWithVisited(ctx, normCtx, grandParentTask, depth+1, visitedCopy)
 	}
 	// If no grandparent found, ParentKey remains unset (nil), which is valid
 
@@ -480,10 +492,15 @@ func (cb *ContextBuilder) buildParentContextWithVisited(
 }
 
 // buildCacheKey creates a unique cache key for a task in a workflow execution
-func (cb *ContextBuilder) buildCacheKey(ctx *NormalizationContext, taskConfig *task.Config) string {
-	if ctx.WorkflowState != nil {
+func (cb *ContextBuilder) buildCacheKey(normCtx *NormalizationContext, taskConfig *task.Config) string {
+	if normCtx.WorkflowState != nil {
 		// Include workflow execution ID for better cache isolation between runs
-		return fmt.Sprintf("%s:%s:%s", ctx.WorkflowState.WorkflowID, ctx.WorkflowState.WorkflowExecID, taskConfig.ID)
+		return fmt.Sprintf(
+			"%s:%s:%s",
+			normCtx.WorkflowState.WorkflowID,
+			normCtx.WorkflowState.WorkflowExecID,
+			taskConfig.ID,
+		)
 	}
 	// Fallback to just task ID if no workflow state
 	return taskConfig.ID
@@ -500,20 +517,20 @@ func (cb *ContextBuilder) buildCacheKey(ctx *NormalizationContext, taskConfig *t
 // Returns: (*task.Config, map[string]any) where second parameter is error context if first is nil
 // Error contexts provide debugging information instead of silent failures
 func (cb *ContextBuilder) findParentTask(
-	ctx *NormalizationContext,
+	normCtx *NormalizationContext,
 	childTask *task.Config,
 ) (*task.Config, map[string]any) {
 	// STRATEGY 1: Runtime state lookup (highest priority)
 	// This approach uses actual execution relationships established during workflow runtime
 	// More reliable than static config because it reflects actual parent-child execution relationships
-	if ctx.WorkflowState != nil && ctx.WorkflowState.Tasks != nil {
-		if childState, exists := ctx.WorkflowState.Tasks[childTask.ID]; exists {
+	if normCtx.WorkflowState != nil && normCtx.WorkflowState.Tasks != nil {
+		if childState, exists := normCtx.WorkflowState.Tasks[childTask.ID]; exists {
 			if childState.ParentStateID != nil {
 				// STEP 1.1: Find parent task state using execution ID
 				// ParentStateID points to the TaskExecID of the parent task instance
 				// This handles cases where the same task config is executed multiple times
 				var parentState *task.State
-				for _, taskState := range ctx.WorkflowState.Tasks {
+				for _, taskState := range normCtx.WorkflowState.Tasks {
 					if taskState.TaskExecID == *childState.ParentStateID {
 						parentState = taskState
 						break
@@ -529,17 +546,17 @@ func (cb *ContextBuilder) findParentTask(
 				}
 				// STEP 1.2: Locate parent task configuration
 				// First try the TaskConfigs cache (most efficient)
-				if ctx.TaskConfigs != nil {
-					if parentConfig, ok := ctx.TaskConfigs[parentState.TaskID]; ok {
+				if normCtx.TaskConfigs != nil {
+					if parentConfig, ok := normCtx.TaskConfigs[parentState.TaskID]; ok {
 						return parentConfig, nil // Successfully found both state and config
 					}
 				}
 				// STEP 1.3: Fallback to workflow config search
 				// Search through workflow's task definitions for the parent config
-				if ctx.WorkflowConfig != nil {
-					for i := range ctx.WorkflowConfig.Tasks {
-						if ctx.WorkflowConfig.Tasks[i].ID == parentState.TaskID {
-							return &ctx.WorkflowConfig.Tasks[i], nil
+				if normCtx.WorkflowConfig != nil {
+					for i := range normCtx.WorkflowConfig.Tasks {
+						if normCtx.WorkflowConfig.Tasks[i].ID == parentState.TaskID {
+							return &normCtx.WorkflowConfig.Tasks[i], nil
 						}
 					}
 				}
@@ -559,8 +576,8 @@ func (cb *ContextBuilder) findParentTask(
 	// STRATEGY 2: Workflow configuration structure search (fallback)
 	// Used when runtime state is not available or doesn't contain parent relationships
 	// Searches through static task hierarchy defined in workflow configuration
-	if ctx.WorkflowConfig != nil {
-		if parent := cb.searchParentInWorkflow(ctx.WorkflowConfig, childTask.ID); parent != nil {
+	if normCtx.WorkflowConfig != nil {
+		if parent := cb.searchParentInWorkflow(normCtx.WorkflowConfig, childTask.ID); parent != nil {
 			return parent, nil
 		}
 	}
@@ -680,12 +697,12 @@ func (cb *ContextBuilder) GetCacheStats() *ristretto.Metrics {
 
 // AddTaskState adds runtime task state data to the context variables.
 // This includes execution IDs, status, output, and error information.
-func (cb *ContextBuilder) AddTaskState(ctx *NormalizationContext, taskState *task.State) {
+func (cb *ContextBuilder) AddTaskState(normCtx *NormalizationContext, taskState *task.State) {
 	if taskState == nil {
 		return
 	}
 
-	vars := ctx.GetVariables()
+	vars := normCtx.GetVariables()
 	vars["state"] = map[string]any{
 		IDKey:       taskState.TaskID,
 		"exec_id":   taskState.TaskExecID,
@@ -698,16 +715,16 @@ func (cb *ContextBuilder) AddTaskState(ctx *NormalizationContext, taskState *tas
 
 // AddCollectionData adds collection-specific iteration data to the context.
 // This is used when processing collection tasks to make the current item and index available.
-func (cb *ContextBuilder) AddCollectionData(ctx *NormalizationContext, item any, index int) {
-	vars := ctx.GetVariables()
+func (cb *ContextBuilder) AddCollectionData(normCtx *NormalizationContext, item any, index int) {
+	vars := normCtx.GetVariables()
 	vars[ItemKey] = item
 	vars[IndexKey] = index
 }
 
 // MergeVariables merges additional variables into the normalization context in deterministic order.
 // Existing variables with the same keys will be overwritten.
-func (cb *ContextBuilder) MergeVariables(ctx *NormalizationContext, additionalVars map[string]any) {
-	vars := ctx.GetVariables()
+func (cb *ContextBuilder) MergeVariables(normCtx *NormalizationContext, additionalVars map[string]any) {
+	vars := normCtx.GetVariables()
 	keys := SortedMapKeys(additionalVars)
 	for _, k := range keys {
 		vars[k] = additionalVars[k]
@@ -716,6 +733,7 @@ func (cb *ContextBuilder) MergeVariables(ctx *NormalizationContext, additionalVa
 
 // BuildCollectionContext builds context for collection tasks
 func (cb *ContextBuilder) BuildCollectionContext(
+	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
@@ -726,18 +744,18 @@ func (cb *ContextBuilder) BuildCollectionContext(
 	}
 
 	// Build full context using proper BuildContext method to populate Variables
-	ctx := cb.BuildContext(workflowState, workflowConfig, taskConfig)
+	normCtx := cb.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
 
 	// Add additional TaskConfigs from workflowConfig if available
 	if workflowConfig != nil && workflowConfig.Tasks != nil {
 		for i := range workflowConfig.Tasks {
 			tc := &workflowConfig.Tasks[i]
-			ctx.TaskConfigs[tc.ID] = tc
+			normCtx.TaskConfigs[tc.ID] = tc
 		}
 	}
 
 	// Use the proper template context from BuildContext which includes Variables
-	templateContext := ctx.BuildTemplateContext()
+	templateContext := normCtx.BuildTemplateContext()
 
 	// Add task-specific context from 'with' parameter
 	if taskConfig.With != nil {

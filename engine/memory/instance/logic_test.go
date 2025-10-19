@@ -33,7 +33,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 			debouncedFlush:   func() {}, // Mock debounced flush for tests
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		msg := llm.Message{Role: "user", Content: "Hello world"}
 
 		// Setup expectations for main flow
@@ -69,7 +69,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 			metrics: NewDefaultMetrics(),
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		expectedMessages := []llm.Message{
 			{Role: "user", Content: "message 1"},
 			{Role: "assistant", Content: "response 1"},
@@ -92,7 +92,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 			metrics: NewDefaultMetrics(),
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		expectedCount := 150
 
 		mockStore.On("GetTokenCount", ctx, "test-id").Return(expectedCount, nil)
@@ -112,7 +112,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 			metrics: NewDefaultMetrics(),
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		expectedCount := 10
 
 		mockStore.On("GetMessageCount", ctx, "test-id").Return(expectedCount, nil)
@@ -136,7 +136,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 			metrics:     NewDefaultMetrics(),
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		mockLockManager.On("AcquireClearLock", ctx, "test-id").Return(unlockFunc, nil)
 		mockStore.On("DeleteMessages", ctx, "test-id").Return(nil)
@@ -159,7 +159,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 			metrics:          NewDefaultMetrics(),
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		mockStore.On("GetMessageCount", ctx, "test-id").Return(5, nil)
 		mockStore.On("GetTokenCount", ctx, "test-id").Return(100, nil)
@@ -187,7 +187,7 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 			metrics:     NewDefaultMetrics(),
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		msg := llm.Message{Role: "user", Content: "test"}
 
 		mockLockManager.On("AcquireAppendLock", ctx, "test-id").Return(nil, assert.AnError)
@@ -213,7 +213,7 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 			metrics:      NewDefaultMetrics(),
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		msg := llm.Message{Role: "user", Content: "test"}
 
 		mockLockManager.On("AcquireAppendLock", ctx, "test-id").Return(unlockFunc, nil)
@@ -257,13 +257,13 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 				defer asyncComplete.Done()
 
 				// Get token count first
-				tokenCount, err := instance.GetTokenCount(context.Background())
+				tokenCount, err := instance.GetTokenCount(t.Context())
 				if err != nil {
 					return
 				}
 
 				// Get message count second
-				messageCount, err := instance.Len(context.Background())
+				messageCount, err := instance.Len(t.Context())
 				if err != nil {
 					return
 				}
@@ -273,7 +273,7 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 			}()
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		msg := llm.Message{Role: "user", Content: "test"}
 
 		mockLockManager.On("AcquireAppendLock", ctx, "test-id").Return(failingUnlockFunc, nil)
@@ -337,7 +337,7 @@ func TestMemoryInstance_Close(t *testing.T) {
 		mockStore.On("GetMessageCount", mock.Anything, "test-id").Return(5, nil).Maybe()
 		mockFlushStrategy.On("ShouldFlush", 100, 5, (*core.Resource)(nil)).Return(false).Maybe()
 
-		err := instance.Close(context.Background())
+		err := instance.Close(t.Context())
 
 		assert.NoError(t, err)
 		mockStore.AssertExpectations(t)
@@ -379,7 +379,7 @@ func TestMemoryInstance_Close(t *testing.T) {
 
 		// Close should wait for the operation to complete
 		startTime := time.Now()
-		err := instance.Close(context.Background())
+		err := instance.Close(t.Context())
 		duration := time.Since(startTime)
 
 		assert.NoError(t, err)
@@ -422,7 +422,7 @@ func TestMemoryInstance_Close(t *testing.T) {
 		mockFlushStrategy.On("ShouldFlush", 100, 5, (*core.Resource)(nil)).Return(false).Maybe()
 
 		// Should not panic when flushCancelFunc is nil
-		err := instance.Close(context.Background())
+		err := instance.Close(t.Context())
 
 		assert.NoError(t, err)
 		mockStore.AssertExpectations(t)
@@ -484,7 +484,7 @@ func TestMemoryInstance_Close(t *testing.T) {
 			Once()
 
 		// Use a context with timeout to prevent hanging
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		err := instance.Close(ctx)
@@ -541,7 +541,7 @@ func TestMemoryInstance_Close_RaceCondition(t *testing.T) {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
-				errs[idx] = instance.Close(context.Background())
+				errs[idx] = instance.Close(t.Context())
 			}(i)
 		}
 

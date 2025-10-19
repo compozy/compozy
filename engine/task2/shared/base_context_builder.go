@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
@@ -17,17 +18,18 @@ type BaseContextBuilder struct {
 }
 
 // NewBaseContextBuilder creates a new base context builder
-func NewBaseContextBuilder() *BaseContextBuilder {
+func NewBaseContextBuilder(ctx context.Context) *BaseContextBuilder {
 	return &BaseContextBuilder{
 		VariableBuilder:      NewVariableBuilder(),
 		ChildrenIndexBuilder: NewChildrenIndexBuilder(),
-		TaskOutputBuilder:    NewTaskOutputBuilder(),
+		TaskOutputBuilder:    NewTaskOutputBuilder(ctx),
 		ConfigMerger:         NewConfigMerger(),
 	}
 }
 
 // BuildContext creates a normalization context from workflow and task data
 func (b *BaseContextBuilder) BuildContext(
+	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
@@ -48,7 +50,7 @@ func (b *BaseContextBuilder) BuildContext(
 		keys := SortedMapKeys(workflowState.Tasks)
 		for _, taskID := range keys {
 			taskState := workflowState.Tasks[taskID]
-			tasksMap[taskID] = b.buildSingleTaskContext(taskID, taskState, nc)
+			tasksMap[taskID] = b.buildSingleTaskContext(ctx, taskID, taskState, nc)
 		}
 		b.VariableBuilder.AddTasksToVariables(vars, workflowState, tasksMap)
 	}
@@ -59,29 +61,29 @@ func (b *BaseContextBuilder) BuildContext(
 }
 
 // EnrichContext adds additional data to an existing context
-func (b *BaseContextBuilder) EnrichContext(ctx *NormalizationContext, taskState *task.State) error {
-	if ctx == nil {
+func (b *BaseContextBuilder) EnrichContext(normCtx *NormalizationContext, taskState *task.State) error {
+	if normCtx == nil {
 		return fmt.Errorf("context cannot be nil")
 	}
 	if taskState == nil {
 		return nil
 	}
 	// Add task state data to variables
-	if ctx.Variables == nil {
-		ctx.Variables = make(map[string]any)
+	if normCtx.Variables == nil {
+		normCtx.Variables = make(map[string]any)
 	}
 	// Add task output to variables if available
 	if taskState.Output != nil {
-		taskMap, ok := ctx.Variables["task"].(map[string]any)
+		taskMap, ok := normCtx.Variables["task"].(map[string]any)
 		if !ok {
-			return fmt.Errorf("task variable is not a map[string]any, got %T", ctx.Variables["task"])
+			return fmt.Errorf("task variable is not a map[string]any, got %T", normCtx.Variables["task"])
 		}
 		taskMap["output"] = taskState.Output
 	}
 	// Add task state status
-	taskMap, ok := ctx.Variables["task"].(map[string]any)
+	taskMap, ok := normCtx.Variables["task"].(map[string]any)
 	if !ok {
-		return fmt.Errorf("task variable is not a map[string]any, got %T", ctx.Variables["task"])
+		return fmt.Errorf("task variable is not a map[string]any, got %T", normCtx.Variables["task"])
 	}
 	taskMap["status"] = taskState.Status
 	taskMap["error"] = taskState.Error
@@ -89,17 +91,17 @@ func (b *BaseContextBuilder) EnrichContext(ctx *NormalizationContext, taskState 
 }
 
 // ValidateContext ensures the context has all required fields
-func (b *BaseContextBuilder) ValidateContext(ctx *NormalizationContext) error {
-	if ctx == nil {
+func (b *BaseContextBuilder) ValidateContext(normCtx *NormalizationContext) error {
+	if normCtx == nil {
 		return fmt.Errorf("context cannot be nil")
 	}
-	if ctx.WorkflowState == nil {
+	if normCtx.WorkflowState == nil {
 		return fmt.Errorf("workflow state is required")
 	}
-	if ctx.WorkflowConfig == nil {
+	if normCtx.WorkflowConfig == nil {
 		return fmt.Errorf("workflow config is required")
 	}
-	if ctx.Variables == nil {
+	if normCtx.Variables == nil {
 		return fmt.Errorf("variables map is required")
 	}
 	return nil
@@ -107,6 +109,7 @@ func (b *BaseContextBuilder) ValidateContext(ctx *NormalizationContext) error {
 
 // buildSingleTaskContext builds context for a single task
 func (b *BaseContextBuilder) buildSingleTaskContext(
+	ctx context.Context,
 	taskID string,
 	taskState *task.State,
 	nc *NormalizationContext,
@@ -135,6 +138,7 @@ func (b *BaseContextBuilder) buildSingleTaskContext(
 	// Add children if task can have children
 	if taskState.CanHaveChildren() && nc != nil && nc.ChildrenIndex != nil {
 		taskContext["children"] = b.ChildrenIndexBuilder.BuildChildrenContext(
+			ctx,
 			taskState,
 			nc.WorkflowState,
 			nc.ChildrenIndex,
@@ -147,22 +151,22 @@ func (b *BaseContextBuilder) buildSingleTaskContext(
 }
 
 // AddCurrentInput sets the current input in the context
-func (b *BaseContextBuilder) AddCurrentInput(ctx *NormalizationContext, input *core.Input) {
-	if ctx == nil || input == nil {
+func (b *BaseContextBuilder) AddCurrentInput(normCtx *NormalizationContext, input *core.Input) {
+	if normCtx == nil || input == nil {
 		return
 	}
-	ctx.CurrentInput = input
-	b.VariableBuilder.AddCurrentInputToVariables(ctx.Variables, input)
+	normCtx.CurrentInput = input
+	b.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, input)
 }
 
 // AddParentTask sets the parent task in the context
-func (b *BaseContextBuilder) AddParentTask(ctx *NormalizationContext, parentTask *task.Config) {
-	if ctx == nil || parentTask == nil {
+func (b *BaseContextBuilder) AddParentTask(normCtx *NormalizationContext, parentTask *task.Config) {
+	if normCtx == nil || parentTask == nil {
 		return
 	}
-	ctx.ParentTask = parentTask
+	normCtx.ParentTask = parentTask
 	// Add parent context to variables
 	if parentConfig, err := parentTask.AsMap(); err == nil {
-		b.VariableBuilder.AddParentToVariables(ctx.Variables, parentConfig)
+		b.VariableBuilder.AddParentToVariables(normCtx.Variables, parentConfig)
 	}
 }

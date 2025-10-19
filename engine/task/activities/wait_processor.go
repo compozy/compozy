@@ -67,7 +67,7 @@ func (a *NormalizeWaitProcessor) Run(ctx context.Context, input *NormalizeWaitPr
 	// Create task2 orchestrator for signal normalization
 	engine := tplengine.NewEngine(tplengine.FormatJSON)
 	envMerger := task2core.NewEnvMerger()
-	factory, err := task2.NewFactory(&task2.FactoryConfig{
+	factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 		TemplateEngine: engine,
 		EnvMerger:      envMerger,
 		WorkflowRepo:   a.workflowRepo,
@@ -77,13 +77,13 @@ func (a *NormalizeWaitProcessor) Run(ctx context.Context, input *NormalizeWaitPr
 		return nil, fmt.Errorf("failed to create normalizer factory: %w", err)
 	}
 
-	orchestrator, err := task2.NewConfigOrchestrator(factory)
+	orchestrator, err := task2.NewConfigOrchestrator(ctx, factory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config orchestrator: %w", err)
 	}
 
 	// Normalize the processor config with signal context using task2
-	err = orchestrator.NormalizeTaskWithSignal(normalizedConfig, workflowState, workflowConfig, input.Signal)
+	err = orchestrator.NormalizeTaskWithSignal(ctx, normalizedConfig, workflowState, workflowConfig, input.Signal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to normalize processor config with signal context: %w", err)
 	}

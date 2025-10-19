@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -27,7 +26,7 @@ func TestAPIKeyResolver_ResolveAPIKey(t *testing.T) {
 			APIKeyEnv: "TEST_API_KEY",
 			APIKey:    "direct-key", // Should be ignored
 		}
-		key := resolver.ResolveAPIKey(context.Background(), config)
+		key := resolver.ResolveAPIKey(t.Context(), config)
 		assert.Equal(t, "test-key-from-env", key)
 	})
 	t.Run("Should resolve from inline env var reference", func(t *testing.T) {
@@ -36,7 +35,7 @@ func TestAPIKeyResolver_ResolveAPIKey(t *testing.T) {
 			Model:    "gpt-4",
 			APIKey:   "${OPENAI_API_KEY}",
 		}
-		key := resolver.ResolveAPIKey(context.Background(), config)
+		key := resolver.ResolveAPIKey(t.Context(), config)
 		assert.Equal(t, "openai-test-key", key)
 	})
 	t.Run("Should use direct value when no env var", func(t *testing.T) {
@@ -45,7 +44,7 @@ func TestAPIKeyResolver_ResolveAPIKey(t *testing.T) {
 			Model:    "test-model",
 			APIKey:   "direct-api-key",
 		}
-		key := resolver.ResolveAPIKey(context.Background(), config)
+		key := resolver.ResolveAPIKey(t.Context(), config)
 		assert.Equal(t, "direct-api-key", key)
 	})
 	t.Run("Should return empty string when env var not set", func(t *testing.T) {
@@ -54,7 +53,7 @@ func TestAPIKeyResolver_ResolveAPIKey(t *testing.T) {
 			Model:     "test-model",
 			APIKeyEnv: "NONEXISTENT_KEY",
 		}
-		key := resolver.ResolveAPIKey(context.Background(), config)
+		key := resolver.ResolveAPIKey(t.Context(), config)
 		assert.Equal(t, "", key)
 	})
 }
@@ -74,7 +73,7 @@ func TestAPIKeyResolver_ResolveProviderConfig(t *testing.T) {
 				"encoding": "claude",
 			},
 		}
-		resolved := resolver.ResolveProviderConfig(context.Background(), config)
+		resolved := resolver.ResolveProviderConfig(t.Context(), config)
 		assert.Equal(t, "Anthropic", resolved.Provider)
 		assert.Equal(t, "claude-3", resolved.Model)
 		assert.Equal(t, "anthropic-test-key", resolved.APIKey)

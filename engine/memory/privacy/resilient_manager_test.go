@@ -59,7 +59,7 @@ func TestResilientManager_ApplyPrivacyControls(t *testing.T) {
 			RetryWaitBase:               10 * time.Millisecond,
 		}
 		rm := NewResilientManager(nil, config)
-		ctx := context.Background()
+		ctx := t.Context()
 		msg := llm.Message{
 			Role:    llm.MessageRoleUser,
 			Content: "test message",
@@ -84,7 +84,7 @@ func TestResilientManager_ApplyPrivacyControls(t *testing.T) {
 		rm := NewResilientManager(nil, config)
 		// Override the base manager with a slow implementation
 		rm.ManagerInterface = &slowPrivacyManager{ManagerInterface: NewManager(), delay: 200 * time.Millisecond}
-		ctx := context.Background()
+		ctx := t.Context()
 		msg := llm.Message{
 			Role:    llm.MessageRoleUser,
 			Content: "test message",
@@ -109,7 +109,7 @@ func TestResilientManager_ApplyPrivacyControls(t *testing.T) {
 		// Override with a failing manager that succeeds after 2 attempts
 		failingManager := &failingPrivacyManager{ManagerInterface: NewManager(), failuresBeforeSuccess: 2}
 		rm.ManagerInterface = failingManager
-		ctx := context.Background()
+		ctx := t.Context()
 		msg := llm.Message{
 			Role:    llm.MessageRoleUser,
 			Content: "test message",
@@ -133,7 +133,7 @@ func TestResilientManager_ApplyPrivacyControls(t *testing.T) {
 		rm := NewResilientManager(nil, config)
 		// Override with always failing manager
 		rm.ManagerInterface = &alwaysFailingPrivacyManager{ManagerInterface: NewManager()}
-		ctx := context.Background()
+		ctx := t.Context()
 		msg := llm.Message{
 			Role:    llm.MessageRoleUser,
 			Content: "test message",
@@ -144,7 +144,7 @@ func TestResilientManager_ApplyPrivacyControls(t *testing.T) {
 			_, _, _ = rm.ApplyPrivacyControls(ctx, msg, "resource-1", metadata)
 		}
 		// Circuit should be open now
-		isOpen, _, _ := rm.GetCircuitBreakerStatus()
+		isOpen, _, _ := rm.GetCircuitBreakerStatus(t.Context())
 		assert.True(t, isOpen)
 	})
 }
@@ -156,7 +156,7 @@ func TestResilientManager_RedactContent(t *testing.T) {
 		rm := NewResilientManager(nil, config)
 		content := "My SSN is 123-45-6789 and email is test@example.com"
 		patterns := []string{`\d{3}-\d{2}-\d{4}`, `\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`}
-		result, err := rm.RedactContent(context.Background(), content, patterns, "[REDACTED]")
+		result, err := rm.RedactContent(t.Context(), content, patterns, "[REDACTED]")
 		require.NoError(t, err)
 		assert.Equal(t, "My SSN is [REDACTED] and email is [REDACTED]", result)
 	})
@@ -174,7 +174,7 @@ func TestResilientManager_RedactContent(t *testing.T) {
 		rm.ManagerInterface = &slowPrivacyManager{ManagerInterface: NewManager(), delay: 100 * time.Millisecond}
 		content := "My SSN is 123-45-6789"
 		patterns := []string{`\d{3}-\d{2}-\d{4}`}
-		result, err := rm.RedactContent(context.Background(), content, patterns, "[REDACTED]")
+		result, err := rm.RedactContent(t.Context(), content, patterns, "[REDACTED]")
 		require.Error(t, err)
 		assert.Equal(t, "[REDACTED]", result) // Should return safe fallback on timeout
 		assert.Contains(t, err.Error(), "redaction failed")
@@ -337,7 +337,7 @@ func TestResilientManager_ConcurrentRequests(t *testing.T) {
 			RetryWaitBase:               10 * time.Millisecond,
 		}
 		rm := NewResilientManager(nil, config)
-		ctx := context.Background()
+		ctx := t.Context()
 		concurrency := 10
 		var wg sync.WaitGroup
 		wg.Add(concurrency)
@@ -442,7 +442,7 @@ func TestResilientManager_CircuitBreakerIntegration(t *testing.T) {
 		rm := NewResilientManager(nil, config)
 		// Override with failing manager
 		rm.ManagerInterface = &alwaysFailingPrivacyManager{ManagerInterface: NewManager()}
-		ctx := context.Background()
+		ctx := t.Context()
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: "test"}
 		metadata := memcore.PrivacyMetadata{}
 		// Make requests to trip the circuit
@@ -451,7 +451,7 @@ func TestResilientManager_CircuitBreakerIntegration(t *testing.T) {
 			time.Sleep(10 * time.Millisecond) // Small delay between requests
 		}
 		// Circuit should be open
-		isOpen, _, _ := rm.GetCircuitBreakerStatus()
+		isOpen, _, _ := rm.GetCircuitBreakerStatus(t.Context())
 		assert.True(t, isOpen)
 		// Next request should fail immediately without calling the underlying manager
 		start := time.Now()
@@ -463,7 +463,7 @@ func TestResilientManager_CircuitBreakerIntegration(t *testing.T) {
 		// Wait for circuit to close
 		time.Sleep(250 * time.Millisecond)
 		// Circuit should be closed now
-		isOpen, _, _ = rm.GetCircuitBreakerStatus()
+		isOpen, _, _ = rm.GetCircuitBreakerStatus(t.Context())
 		assert.False(t, isOpen)
 	})
 }
@@ -474,7 +474,7 @@ func TestResilientManager_EdgeCases(t *testing.T) {
 		config := DefaultResilienceConfig()
 		rm := NewResilientManager(nil, config)
 		// Create a canceled context
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: "test"}
 		metadata := memcore.PrivacyMetadata{}
@@ -489,7 +489,7 @@ func TestResilientManager_PerformanceBaseline(t *testing.T) {
 	t.Run("Should have minimal overhead for successful operations", func(t *testing.T) {
 		config := DefaultResilienceConfig()
 		rm := NewResilientManager(nil, config)
-		ctx := context.Background()
+		ctx := t.Context()
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: strings.Repeat("test ", 100)}
 		metadata := memcore.PrivacyMetadata{}
 		// Warm up

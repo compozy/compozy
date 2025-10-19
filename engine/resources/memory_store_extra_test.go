@@ -11,7 +11,7 @@ import (
 
 func TestMemoryStore_ListWithValues_AndPage(t *testing.T) {
 	t.Run("Should return deep-copied values and paginate", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		st := NewMemoryResourceStore()
 		for i := range 10 {
 			id := "id" + string(rune('a'+i))
@@ -39,13 +39,13 @@ func TestMemoryStore_ListWithValues_AndPage(t *testing.T) {
 func TestMemoryStore_ContextAndCloseErrors(t *testing.T) {
 	t.Run("Should error on context canceled", func(t *testing.T) {
 		st := NewMemoryResourceStore()
-		cctx, cancel := context.WithCancel(context.Background())
+		cctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		_, err := st.List(cctx, "p", ResourceTool)
 		require.Error(t, err)
 	})
 	t.Run("Should error after store Close", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		st := NewMemoryResourceStore()
 		require.NoError(t, st.Close())
 		_, err := st.Put(ctx, ResourceKey{Project: "p", Type: ResourceAgent, ID: "a"}, map[string]any{"id": "a"})
@@ -61,7 +61,7 @@ func TestMemoryStore_ContextAndCloseErrors(t *testing.T) {
 		require.Error(t, werr)
 	})
 	t.Run("Should close watcher on cancel even when busy", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		st := NewMemoryResourceStore()
 		wctx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
 		defer cancel()
@@ -75,7 +75,7 @@ func TestMemoryStore_ContextAndCloseErrors(t *testing.T) {
 
 func TestMemoryStore_Watch_PrimeDropOnFullBuffer(t *testing.T) {
 	t.Run("Should drop prime events when buffer full without blocking", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		st := NewMemoryResourceStore()
 		for i := range 100 {
 			_, _ = st.Put(

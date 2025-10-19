@@ -64,7 +64,7 @@ func TestRouterConfigInheritance(t *testing.T) {
 		shared.InheritTaskConfig(taskConfig, parentConfig)
 
 		// Create normalizer to test normalization with inherited context
-		normalizer := router.NewNormalizer(
+		normalizer := router.NewNormalizer(t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -77,7 +77,7 @@ func TestRouterConfigInheritance(t *testing.T) {
 		}
 
 		// Normalize the router task
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err, "Router normalization should succeed")
 
 		// Verify router task inherited context
@@ -154,7 +154,7 @@ func TestRouterConfigInheritance(t *testing.T) {
 		shared.InheritTaskConfig(taskConfig, parentConfig)
 
 		// Create normalizer
-		normalizer := router.NewNormalizer(
+		normalizer := router.NewNormalizer(t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -167,7 +167,7 @@ func TestRouterConfigInheritance(t *testing.T) {
 		}
 
 		// Normalize the router task
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err, "Router normalization should succeed")
 
 		// Verify explicit values are preserved
@@ -232,6 +232,7 @@ func TestRouterConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := router.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -244,7 +245,7 @@ func TestRouterConfigInheritance(t *testing.T) {
 		}
 
 		// Normalize the grandchild router task
-		err := normalizer.Normalize(grandchildConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), grandchildConfig, normCtx)
 		require.NoError(t, err, "Router normalization should succeed")
 
 		// Verify inheritance propagated through the chain

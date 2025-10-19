@@ -16,7 +16,7 @@ import (
 func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 	t.Run("Should handle parent access with missing parent state", func(t *testing.T) {
 		// Arrange - Child task references non-existent parent
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		nonExistentParentID := core.MustNewID()
@@ -49,7 +49,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 		}
 
 		// Act - Try to build parent context with missing parent
-		result := builder.BuildParentContext(ctx, taskConfig, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, taskConfig, 0)
 
 		// Assert - Should handle gracefully (nil or empty result)
 		// This should not panic or cause issues
@@ -61,7 +61,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 	t.Run("Should handle children access with orphaned children", func(t *testing.T) {
 		// Arrange - Children reference missing parent
 		builder := shared.NewChildrenIndexBuilder()
-		outputBuilder := shared.NewTaskOutputBuilder()
+		outputBuilder := shared.NewTaskOutputBuilder(t.Context())
 
 		parentExecID := core.MustNewID()
 		childExecID := core.MustNewID()
@@ -85,6 +85,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 
 		// Act - Build children context with missing parent state
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			&task.State{
 				TaskID:     "missing-parent",
 				TaskExecID: parentExecID,
@@ -107,7 +108,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 
 	t.Run("Should handle deeply nested parent-child chains", func(t *testing.T) {
 		// Arrange - Create a deep parent-child chain (but within limits)
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		const chainDepth = 8 // Less than DefaultMaxParentDepth (10)
@@ -157,7 +158,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 
 		// Act - Build parent context for the deepest child
 		deepestChild := taskConfigs["task-7"]
-		result := builder.BuildParentContext(ctx, deepestChild, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, deepestChild, 0)
 
 		// Assert - Should traverse the entire chain successfully
 		require.NotNil(t, result)
@@ -179,7 +180,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 	t.Run("Should handle children with mixed status and complex outputs", func(t *testing.T) {
 		// Arrange - Parent with children in different states
 		builder := shared.NewChildrenIndexBuilder()
-		outputBuilder := shared.NewTaskOutputBuilder()
+		outputBuilder := shared.NewTaskOutputBuilder(t.Context())
 
 		parentExecID := core.MustNewID()
 		child1ExecID := core.MustNewID()
@@ -230,6 +231,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 
 		// Act - Build children context
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			parentState,
 			workflowState,
 			childrenIndex,
@@ -267,7 +269,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 
 	t.Run("Should handle parent access with corrupted task configuration", func(t *testing.T) {
 		// Arrange - Task with corrupted/missing config data
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		workflowState := &workflow.State{
@@ -300,7 +302,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 		}
 
 		// Act - Try to build parent context with corrupted config
-		result := builder.BuildParentContext(ctx, corruptedConfig, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, corruptedConfig, 0)
 
 		// Assert - Should handle gracefully without panicking
 		if result != nil {
@@ -311,7 +313,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 
 	t.Run("Should handle context building with nil workflow state", func(t *testing.T) {
 		// Arrange - Nil workflow state
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		taskConfig := &task.Config{
@@ -330,7 +332,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 		}
 
 		// Act - Try to build context with nil workflow state
-		result := builder.BuildParentContext(ctx, taskConfig, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, taskConfig, 0)
 
 		// Assert - Should handle gracefully
 		// Result should be nil or contain basic task info
@@ -342,7 +344,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 	t.Run("Should handle children building with empty children index", func(t *testing.T) {
 		// Arrange - Parent with no children in index
 		builder := shared.NewChildrenIndexBuilder()
-		outputBuilder := shared.NewTaskOutputBuilder()
+		outputBuilder := shared.NewTaskOutputBuilder(t.Context())
 
 		parentState := &task.State{
 			TaskID:     "lonely-parent",
@@ -361,6 +363,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 
 		// Act - Build children context with empty index
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			parentState,
 			workflowState,
 			emptyChildrenIndex,

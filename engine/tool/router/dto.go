@@ -45,7 +45,7 @@ func ConvertToolConfigToDTO(cfg *tool.Config) (ToolDTO, error) {
 	if cfg == nil {
 		return ToolDTO{}, fmt.Errorf("tool config is nil")
 	}
-	clone, err := core.DeepCopy[*tool.Config](cfg)
+	clone, err := core.DeepCopy(cfg)
 	if err != nil {
 		return ToolDTO{}, fmt.Errorf("deep copy tool config: %w", err)
 	}

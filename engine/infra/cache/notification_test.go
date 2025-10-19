@@ -70,7 +70,7 @@ func TestRedisNotificationSystem_Publish(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	channel := "test-channel"
 
 	t.Run("Should successfully publish message", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestRedisNotificationSystem_Subscribe(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	channel := "test-channel"
 
 	t.Run("Should successfully subscribe and receive messages", func(t *testing.T) {
@@ -152,7 +152,7 @@ func TestRedisNotificationSystem_SubscribePattern(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	pattern := "test:*"
 
 	t.Run("Should subscribe to pattern and receive matching messages", func(t *testing.T) {
@@ -209,7 +209,7 @@ func TestRedisNotificationSystem_WorkflowEvents(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	workflowID := "workflow-123"
 
 	t.Run("Should publish and receive workflow events", func(t *testing.T) {
@@ -249,7 +249,7 @@ func TestRedisNotificationSystem_TaskEvents(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	taskID := "task-456"
 	workflowID := "workflow-123"
 
@@ -307,7 +307,7 @@ func TestRedisNotificationSystem_PatternSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should receive all workflow events via pattern subscription", func(t *testing.T) {
 		// Subscribe to all workflows
@@ -393,7 +393,7 @@ func TestRedisNotificationSystem_ConcurrentOperations(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	channel := "concurrent-test"
 
 	t.Run("Should handle concurrent publishers and subscribers", func(t *testing.T) {
@@ -497,7 +497,7 @@ func TestRedisNotificationSystem_Metrics(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	channel := "metrics-test"
 
 	t.Run("Should track metrics correctly", func(t *testing.T) {

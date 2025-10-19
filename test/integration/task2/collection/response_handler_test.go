@@ -1,7 +1,6 @@
 package collection
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -145,7 +144,7 @@ func TestCollectionResponseHandler_Integration(t *testing.T) {
 		}
 
 		// Act
-		response, err := handler.HandleSubtaskResponse(context.Background(), parentState, childState, childConfig)
+		response, err := handler.HandleSubtaskResponse(t.Context(), parentState, childState, childConfig)
 
 		// Assert
 		require.NoError(t, err)

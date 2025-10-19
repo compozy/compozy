@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -16,7 +15,7 @@ import (
 
 func TestDeleteAgent_ConflictsWhenReferenced(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	body := map[string]any{
 		"id":           "assistant",
@@ -54,7 +53,7 @@ func TestDeleteAgent_ConflictsWhenReferenced(t *testing.T) {
 
 func TestListAgents_FilterByWorkflow(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	fetch := func(id string) map[string]any {
 		return map[string]any{

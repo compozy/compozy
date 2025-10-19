@@ -2,7 +2,6 @@ package wfrouter
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,8 +28,8 @@ func setupWorkflowTestRouter(t *testing.T) *gin.Engine {
 	state, err := appstate.NewState(appstate.NewBaseDeps(proj, nil, nil, nil), nil)
 	require.NoError(t, err)
 	state.SetResourceStore(resources.NewMemoryResourceStore())
-	cfgManager := config.NewManager(config.NewService())
-	_, err = cfgManager.Load(context.Background(), config.NewDefaultProvider())
+	cfgManager := config.NewManager(t.Context(), config.NewService())
+	_, err = cfgManager.Load(t.Context(), config.NewDefaultProvider())
 	require.NoError(t, err)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

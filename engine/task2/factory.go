@@ -41,14 +41,14 @@ type FactoryConfig struct {
 }
 
 // NewFactoryWithConfig creates a new factory with full dependency injection
-func NewFactory(config *FactoryConfig) (Factory, error) {
+func NewFactory(ctx context.Context, config *FactoryConfig) (Factory, error) {
 	if config.TemplateEngine == nil {
 		return nil, fmt.Errorf("template engine is required")
 	}
 	if config.EnvMerger == nil {
 		return nil, fmt.Errorf("env merger is required")
 	}
-	builder, err := shared.NewContextBuilder()
+	builder, err := shared.NewContextBuilder(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
@@ -62,26 +62,29 @@ func NewFactory(config *FactoryConfig) (Factory, error) {
 }
 
 // CreateNormalizer creates a normalizer for the given task type
-func (f *DefaultNormalizerFactory) CreateNormalizer(taskType task.Type) (contracts.TaskNormalizer, error) {
+func (f *DefaultNormalizerFactory) CreateNormalizer(
+	ctx context.Context,
+	taskType task.Type,
+) (contracts.TaskNormalizer, error) {
 	switch taskType {
 	case task.TaskTypeBasic, "": // Empty type defaults to basic
-		return basic.NewNormalizer(f.templateEngine), nil
+		return basic.NewNormalizer(ctx, f.templateEngine), nil
 	case task.TaskTypeParallel:
-		return parallel.NewNormalizer(f.templateEngine, f.contextBuilder, f), nil
+		return parallel.NewNormalizer(ctx, f.templateEngine, f.contextBuilder, f), nil
 	case task.TaskTypeCollection:
-		return collection.NewNormalizer(f.templateEngine, f.contextBuilder), nil
+		return collection.NewNormalizer(ctx, f.templateEngine, f.contextBuilder), nil
 	case task.TaskTypeRouter:
-		return router.NewNormalizer(f.templateEngine, f.contextBuilder), nil
+		return router.NewNormalizer(ctx, f.templateEngine, f.contextBuilder), nil
 	case task.TaskTypeWait:
-		return wait.NewNormalizer(f.templateEngine, f.contextBuilder), nil
+		return wait.NewNormalizer(ctx, f.templateEngine, f.contextBuilder), nil
 	case task.TaskTypeAggregate:
-		return aggregate.NewNormalizer(f.templateEngine, f.contextBuilder), nil
+		return aggregate.NewNormalizer(ctx, f.templateEngine, f.contextBuilder), nil
 	case task.TaskTypeComposite:
-		return composite.NewNormalizer(f.templateEngine, f.contextBuilder, f), nil
+		return composite.NewNormalizer(ctx, f.templateEngine, f.contextBuilder, f), nil
 	case task.TaskTypeSignal:
-		return signal.NewNormalizer(f.templateEngine, f.contextBuilder), nil
+		return signal.NewNormalizer(ctx, f.templateEngine, f.contextBuilder), nil
 	case task.TaskTypeMemory:
-		return memory.NewNormalizer(f.templateEngine), nil
+		return memory.NewNormalizer(ctx, f.templateEngine), nil
 	default:
 		return nil, fmt.Errorf("unsupported task type: %s", taskType)
 	}
@@ -163,8 +166,8 @@ func (f *DefaultNormalizerFactory) CreateResponseHandler(
 }
 
 // CreateCollectionExpander creates a collection expander service
-func (f *DefaultNormalizerFactory) CreateCollectionExpander() shared.CollectionExpander {
-	normalizer := collection.NewNormalizer(f.templateEngine, f.contextBuilder)
+func (f *DefaultNormalizerFactory) CreateCollectionExpander(ctx context.Context) shared.CollectionExpander {
+	normalizer := collection.NewNormalizer(ctx, f.templateEngine, f.contextBuilder)
 	configBuilder := collection.NewConfigBuilder(f.templateEngine)
 	return collection.NewExpander(normalizer, f.contextBuilder, configBuilder)
 }
@@ -235,9 +238,10 @@ func (a *outputTransformerAdapter) TransformOutput(
 		return nil, fmt.Errorf("failed to get workflow state for output transformation: %w", err)
 	}
 	// Build normalization context for transformation
-	normCtx := a.contextBuilder.BuildContext(workflowState, workflowConfig, config)
+	normCtx := a.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, config)
 	// Apply output transformation
 	transformedOutput, err := a.transformer.TransformOutput(
+		ctx,
 		state.Output,
 		config.GetOutputs(),
 		normCtx,

@@ -68,7 +68,7 @@ func TestNewBaseResponseHandler(t *testing.T) {
 func TestProcessMainTaskResponse(t *testing.T) {
 	t.Run("Should process successful task response", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 		contextBuilder := &ContextBuilder{}
 		parentStatusManager := &MockParentStatusManager{}
@@ -144,7 +144,7 @@ func TestProcessMainTaskResponse(t *testing.T) {
 
 	t.Run("Should handle task execution error", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 		contextBuilder := &ContextBuilder{}
 		parentStatusManager := &MockParentStatusManager{}
@@ -218,7 +218,7 @@ func TestProcessMainTaskResponse(t *testing.T) {
 
 	t.Run("Should handle context cancellation", func(t *testing.T) {
 		// Arrange
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 
 		taskRepo := &store.MockTaskRepo{}
 
@@ -284,7 +284,7 @@ func TestShouldDeferOutputTransformation(t *testing.T) {
 func TestApplyDeferredOutputTransformation(t *testing.T) {
 	t.Run("Should apply deferred transformation successfully", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 		contextBuilder := &ContextBuilder{}
 		parentStatusManager := &MockParentStatusManager{}
@@ -366,7 +366,7 @@ func TestApplyDeferredOutputTransformation(t *testing.T) {
 
 	t.Run("Should handle transformation failure", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 		contextBuilder := &ContextBuilder{}
 		parentStatusManager := &MockParentStatusManager{}
@@ -439,7 +439,7 @@ func TestApplyDeferredOutputTransformation(t *testing.T) {
 
 	t.Run("Should handle verification read failure gracefully", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 		contextBuilder := &ContextBuilder{}
 		parentStatusManager := &MockParentStatusManager{}
@@ -587,7 +587,7 @@ func TestValidateInput(t *testing.T) {
 func TestProcessTransitions(t *testing.T) {
 	t.Run("Should process success transitions", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 		contextBuilder := &ContextBuilder{}
 		handler := &BaseResponseHandler{
@@ -623,7 +623,7 @@ func TestProcessTransitions(t *testing.T) {
 
 	t.Run("Should process error transitions", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 		contextBuilder := &ContextBuilder{}
 		handler := &BaseResponseHandler{
@@ -663,7 +663,7 @@ func TestProcessTransitions(t *testing.T) {
 func TestUpdateParentStatusIfNeeded(t *testing.T) {
 	t.Run("Should skip update for non-child tasks", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		parentStatusManager := &MockParentStatusManager{}
 		handler := &BaseResponseHandler{
 			parentStatusManager: parentStatusManager,
@@ -684,7 +684,7 @@ func TestUpdateParentStatusIfNeeded(t *testing.T) {
 
 	t.Run("Should update parent status for child tasks", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		parentStatusManager := &MockParentStatusManager{}
 		taskRepo := &store.MockTaskRepo{}
 		handler := &BaseResponseHandler{

@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"context"
 	"testing"
 
 	"github.com/pashagolub/pgxmock/v4"
@@ -15,7 +14,7 @@ func TestScanHelpers(t *testing.T) {
 		t.Fatalf("mock: %v", err)
 	}
 	defer mock.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// scanOne
 	mock.ExpectQuery("SELECT 1").WillReturnRows(

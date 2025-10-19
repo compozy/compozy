@@ -1,7 +1,6 @@
 package activities
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -17,7 +16,7 @@ import (
 func TestNormalizeWaitProcessor_Run(t *testing.T) {
 	t.Run("Should inherit CWD from parent wait task", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Setup real repositories with testcontainers
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -96,7 +95,7 @@ func TestNormalizeWaitProcessor_Run(t *testing.T) {
 
 	t.Run("Should inherit FilePath from parent wait task", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Setup real repositories with testcontainers
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -174,7 +173,7 @@ func TestNormalizeWaitProcessor_Run(t *testing.T) {
 
 	t.Run("Should not override explicit processor settings", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Setup real repositories with testcontainers
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -259,7 +258,7 @@ func TestNormalizeWaitProcessor_Run(t *testing.T) {
 
 	t.Run("Should handle nil parent config gracefully", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Setup real repositories with testcontainers
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -329,7 +328,7 @@ func TestNormalizeWaitProcessor_Run(t *testing.T) {
 
 	t.Run("Should inherit both CWD and FilePath when both are missing from processor", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Setup real repositories with testcontainers
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -411,7 +410,7 @@ func TestNormalizeWaitProcessor_Run(t *testing.T) {
 
 	t.Run("Should normalize processor with signal context", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Setup real repositories with testcontainers
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)

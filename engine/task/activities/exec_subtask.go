@@ -157,7 +157,7 @@ func (a *ExecuteSubtask) normalizeTask(
 	parentStateID *core.ID,
 ) error {
 	// Use task2 normalizer for subtask
-	normalizer, err := a.task2Factory.CreateNormalizer(taskConfig.Type)
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, taskConfig.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create subtask normalizer: %w", err)
 	}
@@ -168,13 +168,14 @@ func (a *ExecuteSubtask) normalizeTask(
 	}
 	// Build proper normalization context with all template variables
 	normContext := contextBuilder.BuildContextForTaskInstance(
+		ctx,
 		workflowState,
 		workflowConfig,
 		taskConfig,
 		parentStateID,
 	)
 	// Normalize the task configuration
-	if err := normalizer.Normalize(taskConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, taskConfig, normContext); err != nil {
 		return fmt.Errorf("failed to normalize subtask: %w", err)
 	}
 	return nil

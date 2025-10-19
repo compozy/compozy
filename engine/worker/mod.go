@@ -751,7 +751,7 @@ func (o *Worker) Setup(ctx context.Context) error {
 		return err
 	}
 	if o.config != nil && o.config.MonitoringService != nil && o.config.MonitoringService.IsInitialized() {
-		o.startQueueDepthMonitor()
+		o.startQueueDepthMonitor(ctx)
 	}
 	// Track running worker for monitoring
 	interceptor.IncrementRunningWorkers(ctx)

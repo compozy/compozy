@@ -1,7 +1,6 @@
 package vectordb
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -103,16 +102,16 @@ func TestFileStorePersistence(t *testing.T) {
 		store, err := newFileStore(cfg)
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, store.Close(context.Background()))
+			require.NoError(t, store.Close(t.Context()))
 		})
 		records := []Record{
 			{ID: "chunk-1", Text: "hello world", Embedding: []float32{1, 0}, Metadata: map[string]any{"kb": "demo"}},
 		}
-		require.NoError(t, store.Upsert(context.Background(), records))
+		require.NoError(t, store.Upsert(t.Context(), records))
 		reloaded, err := newFileStore(cfg)
 		require.NoError(t, err)
-		defer reloaded.Close(context.Background())
-		matches, err := reloaded.Search(context.Background(), []float32{1, 0}, SearchOptions{TopK: 1})
+		defer reloaded.Close(t.Context())
+		matches, err := reloaded.Search(t.Context(), []float32{1, 0}, SearchOptions{TopK: 1})
 		require.NoError(t, err)
 		require.Len(t, matches, 1)
 		assert.Equal(t, "chunk-1", matches[0].ID)

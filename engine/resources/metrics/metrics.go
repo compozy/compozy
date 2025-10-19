@@ -233,9 +233,6 @@ func observeStoreSize(_ context.Context, observer metric.Observer) error {
 }
 
 func metricsContext(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
 	return context.WithoutCancel(ctx)
 }
 

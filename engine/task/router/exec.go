@@ -479,7 +479,7 @@ func prepareTaskExecution(c *gin.Context, setup *syncTaskExecutionSetup) (*syncT
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, false
 	}
-	executor, err := ResolveDirectExecutor(setup.state, repo)
+	executor, err := ResolveDirectExecutor(c.Request.Context(), setup.state, repo)
 	if err != nil {
 		setup.recordError(http.StatusInternalServerError)
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to initialize executor", err)
@@ -580,7 +580,7 @@ func executeTaskAsync(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	executor, err := ResolveDirectExecutor(state, repo)
+	executor, err := ResolveDirectExecutor(c.Request.Context(), state, repo)
 	if err != nil {
 		recordError(http.StatusInternalServerError)
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to initialize executor", err)

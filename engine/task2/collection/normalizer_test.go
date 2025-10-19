@@ -1,7 +1,6 @@
 package collection_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,16 +16,16 @@ import (
 
 func TestCollectionNormalizer_Type(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	normalizer := collection.NewNormalizer(templateEngine, nil)
+	normalizer := collection.NewNormalizer(t.Context(), templateEngine, nil)
 	assert.Equal(t, task.TaskTypeCollection, normalizer.Type())
 }
 
 func TestCollectionNormalizer_Normalize(t *testing.T) {
 	// Setup
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := collection.NewNormalizer(templateEngine, contextBuilder)
+	normalizer := collection.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 	t.Run("Should normalize non-collection fields while preserving collection-specific fields", func(t *testing.T) {
 		// Arrange
@@ -65,7 +64,7 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -95,7 +94,7 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 		ctx := &shared.NormalizationContext{}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.Error(t, err)
@@ -107,7 +106,7 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 		ctx := &shared.NormalizationContext{}
 
 		// Act
-		err := normalizer.Normalize(nil, ctx)
+		err := normalizer.Normalize(t.Context(), nil, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -126,7 +125,7 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, nil)
+		err := normalizer.Normalize(t.Context(), taskConfig, nil)
 
 		// Assert
 		assert.Error(t, err)
@@ -151,7 +150,7 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.Error(t, err)
@@ -176,7 +175,7 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.Error(t, err)
@@ -198,7 +197,7 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 
 		// Act - Normal scenario should work
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert - Should succeed in normal case
 		assert.NoError(t, err)
@@ -233,7 +232,7 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -248,7 +247,7 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
-		normalizerWithNilEngine := collection.NewNormalizer(nil, contextBuilder)
+		normalizerWithNilEngine := collection.NewNormalizer(t.Context(), nil, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "collection-task",
@@ -258,7 +257,7 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 
 		// Act
-		err := normalizerWithNilEngine.Normalize(taskConfig, ctx)
+		err := normalizerWithNilEngine.Normalize(t.Context(), taskConfig, ctx)
 		// Assert - Should return error due to nil template engine
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "template engine is required for normalization")
@@ -276,7 +275,7 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert - Should succeed even with empty collection config
 		assert.NoError(t, err)
@@ -286,10 +285,10 @@ func TestCollectionNormalizer_Normalize(t *testing.T) {
 func TestCollectionNormalizer_ExpandCollectionItems(t *testing.T) {
 	// Setup
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := collection.NewNormalizer(templateEngine, contextBuilder)
-	ctx := context.Background()
+	normalizer := collection.NewNormalizer(t.Context(), templateEngine, contextBuilder)
+	ctx := t.Context()
 
 	t.Run("Should expand template expression to array", func(t *testing.T) {
 		// Arrange
@@ -474,10 +473,10 @@ func TestCollectionNormalizer_ExpandCollectionItems(t *testing.T) {
 func TestCollectionNormalizer_FilterCollectionItems(t *testing.T) {
 	// Setup
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := collection.NewNormalizer(templateEngine, contextBuilder)
-	ctx := context.Background()
+	normalizer := collection.NewNormalizer(t.Context(), templateEngine, contextBuilder)
+	ctx := t.Context()
 
 	t.Run("Should filter items based on condition", func(t *testing.T) {
 		// Arrange
@@ -669,9 +668,9 @@ func TestCollectionNormalizer_FilterCollectionItems(t *testing.T) {
 func TestCollectionNormalizer_CreateItemContext(t *testing.T) {
 	// Setup
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := collection.NewNormalizer(templateEngine, contextBuilder)
+	normalizer := collection.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 	t.Run("Should create item context with default variables", func(t *testing.T) {
 		// Arrange
@@ -721,9 +720,9 @@ func TestCollectionNormalizer_CreateItemContext(t *testing.T) {
 func TestCollectionNormalizer_BuildCollectionContext(t *testing.T) {
 	// Setup
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := collection.NewNormalizer(templateEngine, contextBuilder)
+	normalizer := collection.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 	t.Run("Should build collection context with workflow and task data", func(t *testing.T) {
 		// Arrange
@@ -750,7 +749,7 @@ func TestCollectionNormalizer_BuildCollectionContext(t *testing.T) {
 		}
 
 		// Act
-		result := normalizer.BuildCollectionContext(workflowState, workflowConfig, taskConfig)
+		result := normalizer.BuildCollectionContext(t.Context(), workflowState, workflowConfig, taskConfig)
 
 		// Assert
 		assert.NotNil(t, result)

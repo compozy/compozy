@@ -29,7 +29,7 @@ func (s *conflictStore) PutIfMatch(
 
 func TestStoreKnowledgeBase_ConcurrentCreate(t *testing.T) {
 	t.Run("Should return ErrAlreadyExists when resource appears between get and put", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store := &conflictStore{
 			ResourceStore:   resources.NewMemoryResourceStore(),
 			triggerConflict: true,
@@ -46,7 +46,7 @@ func TestStoreKnowledgeBase_ConcurrentCreate(t *testing.T) {
 	})
 
 	t.Run("Should create knowledge base when store is empty", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store := resources.NewMemoryResourceStore()
 		uc := &Upsert{store: store}
 		key := resources.ResourceKey{Project: "proj", Type: resources.ResourceKnowledgeBase, ID: "support"}

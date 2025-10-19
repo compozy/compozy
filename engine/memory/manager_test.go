@@ -109,7 +109,7 @@ func TestManager_createEvictionPolicy(t *testing.T) {
 			},
 		}
 
-		policy := manager.createEvictionPolicy(resourceCfg)
+		policy := manager.createEvictionPolicy(t.Context(), resourceCfg)
 		require.NotNil(t, policy)
 		assert.Equal(t, "priority", policy.GetType())
 
@@ -126,7 +126,7 @@ func TestManager_createEvictionPolicy(t *testing.T) {
 		}
 
 		// Keep only 2 messages - should evict normal ones and keep security-related
-		evicted := priorityPolicy.SelectMessagesToEvict(messages, 2)
+		evicted := priorityPolicy.SelectMessagesToEvict(t.Context(), messages, 2)
 		require.Len(t, evicted, 2)
 
 		evictedContents := []string{evicted[0].Content, evicted[1].Content}
@@ -151,7 +151,7 @@ func TestManager_createEvictionPolicy(t *testing.T) {
 			},
 		}
 
-		policy := manager.createEvictionPolicy(resourceCfg)
+		policy := manager.createEvictionPolicy(t.Context(), resourceCfg)
 		require.NotNil(t, policy)
 		assert.Equal(t, "priority", policy.GetType())
 
@@ -167,7 +167,7 @@ func TestManager_createEvictionPolicy(t *testing.T) {
 			{Role: llm.MessageRoleUser, Content: "Important warning"},
 		}
 
-		evicted := priorityPolicy.SelectMessagesToEvict(messages, 2)
+		evicted := priorityPolicy.SelectMessagesToEvict(t.Context(), messages, 2)
 		require.Len(t, evicted, 2)
 
 		// Should use default keywords (critical, error, important, warning)
@@ -193,7 +193,7 @@ func TestManager_createEvictionPolicy(t *testing.T) {
 			},
 		}
 
-		policy := manager.createEvictionPolicy(resourceCfg)
+		policy := manager.createEvictionPolicy(t.Context(), resourceCfg)
 		require.NotNil(t, policy)
 		assert.Equal(t, "priority", policy.GetType())
 
@@ -206,7 +206,7 @@ func TestManager_createEvictionPolicy(t *testing.T) {
 			{Role: llm.MessageRoleUser, Content: "Error occurred"},
 		}
 
-		evicted := priorityPolicy.SelectMessagesToEvict(messages, 1)
+		evicted := priorityPolicy.SelectMessagesToEvict(t.Context(), messages, 1)
 		require.Len(t, evicted, 1)
 		assert.Equal(t, "Normal message", evicted[0].Content)
 	})
@@ -225,7 +225,7 @@ func TestManager_createEvictionPolicy(t *testing.T) {
 			},
 		}
 
-		policy := manager.createEvictionPolicy(resourceCfg)
+		policy := manager.createEvictionPolicy(t.Context(), resourceCfg)
 		require.NotNil(t, policy)
 		assert.Equal(t, "lru", policy.GetType())
 	})
@@ -242,7 +242,7 @@ func TestManager_createEvictionPolicy(t *testing.T) {
 			},
 		}
 
-		policy := manager.createEvictionPolicy(resourceCfg)
+		policy := manager.createEvictionPolicy(t.Context(), resourceCfg)
 		require.NotNil(t, policy)
 		assert.Equal(t, "fifo", policy.GetType())
 	})
@@ -261,7 +261,7 @@ func TestManager_createEvictionPolicy(t *testing.T) {
 			},
 		}
 
-		policy := manager.createEvictionPolicy(resourceCfg)
+		policy := manager.createEvictionPolicy(t.Context(), resourceCfg)
 		require.NotNil(t, policy)
 		assert.Equal(t, "fifo", policy.GetType())
 	})

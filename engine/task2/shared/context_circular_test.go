@@ -17,7 +17,7 @@ import (
 func TestContextBuilder_CircularReferenceDetection(t *testing.T) {
 	t.Run("Should detect circular reference in parent chain", func(t *testing.T) {
 		// Arrange - Create a circular reference scenario
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Task A -> Task B -> Task A (circular)
@@ -75,7 +75,7 @@ func TestContextBuilder_CircularReferenceDetection(t *testing.T) {
 		}
 
 		// Act - Try to build parent context (should detect circular reference)
-		result := builder.BuildParentContext(ctx, taskA, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, taskA, 0)
 
 		// Assert - Should detect circular reference (may be in nested parent chain)
 		require.NotNil(t, result)
@@ -103,7 +103,7 @@ func TestContextBuilder_CircularReferenceDetection(t *testing.T) {
 
 	t.Run("Should handle normal parent chain without false positives", func(t *testing.T) {
 		// Arrange - Create a normal parent chain: A -> B -> C
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		taskA := &task.Config{
@@ -169,7 +169,7 @@ func TestContextBuilder_CircularReferenceDetection(t *testing.T) {
 		}
 
 		// Act - Build parent context for task A
-		result := builder.BuildParentContext(ctx, taskA, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, taskA, 0)
 
 		// Assert - Should work normally without circular reference error
 		require.NotNil(t, result)
@@ -188,7 +188,7 @@ func TestContextBuilder_CircularReferenceDetection(t *testing.T) {
 
 	t.Run("Should respect maximum depth limits", func(t *testing.T) {
 		// Arrange - Create a very deep parent chain
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Create a chain of 15 tasks (deeper than default max of 10)
@@ -240,7 +240,7 @@ func TestContextBuilder_CircularReferenceDetection(t *testing.T) {
 		}
 
 		// Act - Build parent context for first task
-		result := builder.BuildParentContext(ctx, tasks[0], 0)
+		result := builder.BuildParentContext(t.Context(), ctx, tasks[0], 0)
 
 		// Assert - Should be limited by max depth, not process all 15 levels
 		require.NotNil(t, result)
@@ -262,7 +262,7 @@ func TestContextBuilder_CircularReferenceDetection(t *testing.T) {
 		}
 
 		// Should be limited by max depth configuration
-		limits := shared.GetGlobalConfigLimits()
+		limits := shared.GetGlobalConfigLimits(t.Context())
 		assert.LessOrEqual(t, depth, limits.MaxParentDepth)
 	})
 }
@@ -271,7 +271,7 @@ func TestChildrenIndexBuilder_CircularReferenceDetection(t *testing.T) {
 	t.Run("Should detect circular reference in children chain", func(t *testing.T) {
 		// Arrange - Create circular children reference
 		builder := shared.NewChildrenIndexBuilder()
-		taskOutputBuilder := shared.NewTaskOutputBuilder()
+		taskOutputBuilder := shared.NewTaskOutputBuilder(t.Context())
 
 		// Create parent and child with circular reference
 		parentExecID := core.MustNewID()
@@ -304,6 +304,7 @@ func TestChildrenIndexBuilder_CircularReferenceDetection(t *testing.T) {
 
 		// Act - Build children context (should detect circular reference)
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			parentState,
 			workflowState,
 			childrenIndex,
@@ -328,7 +329,7 @@ func TestChildrenIndexBuilder_CircularReferenceDetection(t *testing.T) {
 	t.Run("Should handle normal children hierarchy", func(t *testing.T) {
 		// Arrange - Create normal parent-child hierarchy
 		builder := shared.NewChildrenIndexBuilder()
-		taskOutputBuilder := shared.NewTaskOutputBuilder()
+		taskOutputBuilder := shared.NewTaskOutputBuilder(t.Context())
 
 		parentExecID := core.MustNewID()
 		child1ExecID := core.MustNewID()
@@ -366,6 +367,7 @@ func TestChildrenIndexBuilder_CircularReferenceDetection(t *testing.T) {
 
 		// Act - Build children context
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			parentState,
 			workflowState,
 			childrenIndex,

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,13 +8,13 @@ import (
 
 func Test_TestContextExpectedOutputs(t *testing.T) {
 	t.Run("Should store and retrieve expected outputs in context", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		m := map[string]Output{"t1": {"k": "v"}}
 		ctx = WithExpectedOutputs(ctx, m)
 		got := ExpectedOutputsFromContext(ctx)
 		assert.Equal(t, m, got)
 	})
 	t.Run("Should return nil when not present", func(t *testing.T) {
-		assert.Nil(t, ExpectedOutputsFromContext(context.Background()))
+		assert.Nil(t, ExpectedOutputsFromContext(t.Context()))
 	})
 }

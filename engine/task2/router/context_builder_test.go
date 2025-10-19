@@ -15,7 +15,7 @@ import (
 func TestRouterContextBuilder_NewContextBuilder(t *testing.T) {
 	t.Run("Should create router context builder", func(t *testing.T) {
 		// Act
-		builder := router.NewContextBuilder()
+		builder := router.NewContextBuilder(t.Context())
 
 		// Assert
 		assert.NotNil(t, builder)
@@ -25,7 +25,7 @@ func TestRouterContextBuilder_NewContextBuilder(t *testing.T) {
 func TestRouterContextBuilder_TaskType(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
-		builder := router.NewContextBuilder()
+		builder := router.NewContextBuilder(t.Context())
 
 		// Act
 		taskType := builder.TaskType()
@@ -37,7 +37,7 @@ func TestRouterContextBuilder_TaskType(t *testing.T) {
 
 func TestRouterContextBuilder_BuildContext(t *testing.T) {
 	// Setup
-	builder := router.NewContextBuilder()
+	builder := router.NewContextBuilder(t.Context())
 
 	t.Run("Should build context for router task", func(t *testing.T) {
 		// Arrange
@@ -64,7 +64,7 @@ func TestRouterContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, workflowConfig, taskConfig)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -89,7 +89,7 @@ func TestRouterContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(nil, workflowConfig, taskConfig)
+		context := builder.BuildContext(t.Context(), nil, workflowConfig, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -114,7 +114,7 @@ func TestRouterContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, nil, taskConfig)
+		context := builder.BuildContext(t.Context(), workflowState, nil, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -136,7 +136,7 @@ func TestRouterContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, workflowConfig, nil)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, nil)
 
 		// Assert
 		require.NotNil(t, context)
@@ -147,7 +147,7 @@ func TestRouterContextBuilder_BuildContext(t *testing.T) {
 
 	t.Run("Should handle all nil parameters", func(t *testing.T) {
 		// Act
-		context := builder.BuildContext(nil, nil, nil)
+		context := builder.BuildContext(t.Context(), nil, nil, nil)
 
 		// Assert
 		require.NotNil(t, context)

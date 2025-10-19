@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -18,7 +17,7 @@ func TestDeleteSchema_ConflictsWhenReferenced(t *testing.T) {
 	t.Run("Should return conflict when workflow references schema", func(t *testing.T) {
 		t.Parallel()
 		store := resources.NewMemoryResourceStore()
-		ctx := context.Background()
+		ctx := t.Context()
 		project := "demo"
 		_, err := NewUpsert(
 			store,
@@ -48,7 +47,7 @@ func TestDeleteSchema_RemovesWhenUnreferenced(t *testing.T) {
 	t.Run("Should remove schema when unreferenced", func(t *testing.T) {
 		t.Parallel()
 		store := resources.NewMemoryResourceStore()
-		ctx := context.Background()
+		ctx := t.Context()
 		project := "demo"
 		_, err := NewUpsert(
 			store,

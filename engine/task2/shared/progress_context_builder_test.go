@@ -1,7 +1,6 @@
 package shared
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -30,7 +29,7 @@ func TestBuildProgressContext(t *testing.T) {
 			LastUpdateTime: time.Now(),
 		}
 
-		result := BuildProgressContext(context.Background(), progressState)
+		result := BuildProgressContext(t.Context(), progressState)
 
 		assert.Equal(t, 10, result["total"])
 		assert.Equal(t, 6, result["completed"])
@@ -63,7 +62,7 @@ func TestBuildProgressContext(t *testing.T) {
 			LastUpdateTime: startTime,
 		}
 
-		result := BuildProgressContext(context.Background(), progressState)
+		result := BuildProgressContext(t.Context(), progressState)
 
 		assert.Equal(t, 0, result["total"])
 		assert.Equal(t, 0, result["completed"])
@@ -93,7 +92,7 @@ func TestBuildProgressContext(t *testing.T) {
 			LastUpdateTime: time.Now(),
 		}
 
-		result := BuildProgressContext(context.Background(), progressState)
+		result := BuildProgressContext(t.Context(), progressState)
 
 		assert.Equal(t, 5, result["total"])
 		assert.Equal(t, 5, result["completed"])
@@ -115,7 +114,7 @@ func TestBuildProgressContext(t *testing.T) {
 			LastUpdateTime: time.Now(),
 		}
 
-		result := BuildProgressContext(context.Background(), progressState)
+		result := BuildProgressContext(t.Context(), progressState)
 
 		assert.Equal(t, 3, result["total"])
 		assert.Equal(t, 0, result["completed"])
@@ -126,7 +125,7 @@ func TestBuildProgressContext(t *testing.T) {
 	})
 
 	t.Run("Should handle nil progress state gracefully", func(t *testing.T) {
-		result := BuildProgressContext(context.Background(), nil)
+		result := BuildProgressContext(t.Context(), nil)
 
 		// Should return valid map with zero values
 		assert.NotNil(t, result)

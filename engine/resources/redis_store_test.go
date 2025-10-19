@@ -16,7 +16,7 @@ const rshort = 500 * time.Millisecond
 
 func newTestRedisClient(t *testing.T) (cache.RedisInterface, *miniredis.Miniredis) {
 	mr := miniredis.RunT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg := &cache.Config{RedisConfig: &appcfg.RedisConfig{URL: "redis://" + mr.Addr(), PingTimeout: time.Second}}
 	r, err := cache.NewRedis(ctx, cfg)
 	require.NoError(t, err)
@@ -29,7 +29,7 @@ func newTestRedisClient(t *testing.T) (cache.RedisInterface, *miniredis.Miniredi
 
 func TestRedisStore_PutGetDeepCopy(t *testing.T) {
 	t.Run("Should store and return deep copies with deterministic ETags", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		c, mr := newTestRedisClient(t)
 		defer mr.Close()
 		st := NewRedisResourceStore(c, WithReconcileInterval(50*time.Millisecond))
@@ -55,7 +55,7 @@ func TestRedisStore_PutGetDeepCopy(t *testing.T) {
 
 func TestRedisStore_ListAndDelete(t *testing.T) {
 	t.Run("Should list by project/type and delete idempotently", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		c, mr := newTestRedisClient(t)
 		defer mr.Close()
 		st := NewRedisResourceStore(c)
@@ -116,7 +116,7 @@ func TestRedisStore_Watch_PrimeAndEvents(t *testing.T) {
 
 func TestRedisStore_Watch_StopOnCancel(t *testing.T) {
 	t.Run("Should close channel on context cancel", func(t *testing.T) {
-		base := context.Background()
+		base := t.Context()
 		c, mr := newTestRedisClient(t)
 		defer mr.Close()
 		st := NewRedisResourceStore(c)
@@ -135,7 +135,7 @@ func TestRedisStore_Watch_StopOnCancel(t *testing.T) {
 
 func TestRedisStore_ListWithValues_AndPage(t *testing.T) {
 	t.Run("Should return items with ETags and paginate", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		c, mr := newTestRedisClient(t)
 		defer mr.Close()
 		st := NewRedisResourceStore(c)

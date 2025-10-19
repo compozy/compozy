@@ -154,7 +154,7 @@ func SetupGlobalConfig(cmd *cobra.Command) error {
 	}
 
 	// Build a manager and attach it to context
-	mgr := config.NewManager(nil)
+	mgr := config.NewManager(ctx, nil)
 	if _, err := mgr.Load(ctx, sources...); err != nil {
 		return fmt.Errorf("failed to initialize configuration: %w", err)
 	}

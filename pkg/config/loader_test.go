@@ -12,7 +12,7 @@ import (
 func TestLoader_Load(t *testing.T) {
 	t.Run("Should load default configuration when no sources provided", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		loader := NewService()
 
 		// Act
@@ -30,7 +30,7 @@ func TestLoader_Load(t *testing.T) {
 
 	t.Run("Should apply sources in precedence order", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		loader := NewService()
 
 		// Create mock sources with different values
@@ -70,7 +70,7 @@ func TestLoader_Load(t *testing.T) {
 
 	t.Run("Should validate configuration after loading", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		loader := NewService()
 
 		// Create source with invalid port
@@ -94,7 +94,7 @@ func TestLoader_Load(t *testing.T) {
 
 	t.Run("Should handle nil sources gracefully", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		loader := NewService()
 
 		validSource := &mockSource{
@@ -117,7 +117,7 @@ func TestLoader_Load(t *testing.T) {
 
 	t.Run("Should handle source loading errors", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		loader := NewService()
 
 		source := &mockSource{
@@ -193,7 +193,7 @@ func TestLoader_Validate(t *testing.T) {
 func TestLoader_GetSource(t *testing.T) {
 	t.Run("Should return SourceDefault for backward compatibility", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		loader := NewService()
 
 		source := &mockSource{
@@ -220,7 +220,7 @@ func TestLoader_GetSource(t *testing.T) {
 func TestLoader_Watch(t *testing.T) {
 	t.Run("Should accept watch callbacks", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		loader := NewService()
 		called := false
 		callback := func(*Config) {
@@ -238,7 +238,7 @@ func TestLoader_Watch(t *testing.T) {
 
 	t.Run("Should reject nil callback", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		loader := NewService()
 
 		// Act

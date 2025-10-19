@@ -34,6 +34,7 @@ type tokenCountResult struct {
 
 // NewAsyncTokenCounter creates a new async token counter
 func NewAsyncTokenCounter(
+	ctx context.Context,
 	counter memcore.TokenCounter,
 	workers int,
 	bufferSize int,
@@ -49,7 +50,7 @@ func NewAsyncTokenCounter(
 		queue:       make(chan *tokenCountRequest, bufferSize),
 		workers:     workers,
 		metrics:     NewTokenMetrics(),
-		baseCtx:     context.Background(),
+		baseCtx:     context.WithoutCancel(ctx),
 	}
 	atc.start()
 	return atc

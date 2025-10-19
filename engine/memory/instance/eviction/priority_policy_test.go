@@ -11,21 +11,21 @@ import (
 
 func TestPriorityEvictionPolicy_NewPriorityEvictionPolicy(t *testing.T) {
 	t.Run("Should create priority eviction policy", func(t *testing.T) {
-		policy := NewPriorityEvictionPolicy()
+		policy := NewPriorityEvictionPolicy(t.Context())
 		require.NotNil(t, policy)
 		assert.Equal(t, "priority", policy.GetType())
 	})
 }
 
 func TestPriorityEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
-	policy := NewPriorityEvictionPolicy()
+	policy := NewPriorityEvictionPolicy(t.Context())
 
 	t.Run("Should return nil when no eviction needed", func(t *testing.T) {
 		messages := []llm.Message{
 			{Role: llm.MessageRoleUser, Content: "Message 1"},
 			{Role: llm.MessageRoleAssistant, Content: "Message 2"},
 		}
-		evicted := policy.SelectMessagesToEvict(messages, 5)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 5)
 		assert.Nil(t, evicted)
 	})
 
@@ -37,7 +37,7 @@ func TestPriorityEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 			{Role: llm.MessageRoleTool, Content: "Tool output"},
 		}
 		// Keep only 1 message
-		evicted := policy.SelectMessagesToEvict(messages, 1)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 1)
 		require.Len(t, evicted, 3)
 		// System message should not be in evicted list
 		for _, msg := range evicted {
@@ -56,7 +56,7 @@ func TestPriorityEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 			{Role: llm.MessageRoleTool, Content: "Tool 2"},
 		}
 		// Keep only 2 messages
-		evicted := policy.SelectMessagesToEvict(messages, 2)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 2)
 		require.Len(t, evicted, 3)
 		// Should evict in order: unknown role, tool messages
 		assert.Equal(t, llm.MessageRole("unknown"), evicted[0].Role)
@@ -72,7 +72,7 @@ func TestPriorityEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 			{Role: llm.MessageRoleUser, Content: "Error occurred here"},
 		}
 		// Keep only 2 messages
-		evicted := policy.SelectMessagesToEvict(messages, 2)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 2)
 		require.Len(t, evicted, 2)
 		// Should evict normal messages, keep important ones
 		assert.Equal(t, "Normal message", evicted[0].Content)
@@ -87,7 +87,7 @@ func TestPriorityEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 			{Role: llm.MessageRoleUser, Content: "Fourth user message"},
 		}
 		// Keep only 2 messages
-		evicted := policy.SelectMessagesToEvict(messages, 2)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 2)
 		require.Len(t, evicted, 2)
 		// Should evict oldest messages first within same priority
 		assert.Equal(t, "First user message", evicted[0].Content)
@@ -104,7 +104,7 @@ func TestPriorityEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 			{Role: llm.MessageRoleTool, Content: "Tool output 2"},
 		}
 		// Keep only 3 messages
-		evicted := policy.SelectMessagesToEvict(messages, 3)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 3)
 		require.Len(t, evicted, 3)
 		// Should evict tool messages first, then lower priority messages
 		evictedRoles := make(map[string]int)
@@ -117,7 +117,7 @@ func TestPriorityEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 	})
 
 	t.Run("Should handle empty message list", func(t *testing.T) {
-		evicted := policy.SelectMessagesToEvict([]llm.Message{}, 0)
+		evicted := policy.SelectMessagesToEvict(t.Context(), []llm.Message{}, 0)
 		assert.Nil(t, evicted)
 	})
 
@@ -125,7 +125,7 @@ func TestPriorityEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 		messages := []llm.Message{
 			{Role: llm.MessageRoleUser, Content: "Message 1"},
 		}
-		evicted := policy.SelectMessagesToEvict(messages, -1)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, -1)
 		assert.Nil(t, evicted)
 	})
 
@@ -136,14 +136,14 @@ func TestPriorityEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 			{Role: llm.MessageRoleSystem, Content: "System 3"},
 		}
 		// Try to keep only 1 message
-		evicted := policy.SelectMessagesToEvict(messages, 1)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 1)
 		// Should not evict any system messages
 		assert.Empty(t, evicted)
 	})
 }
 
 func TestPriorityEvictionPolicy_extractPriority(t *testing.T) {
-	policy := NewPriorityEvictionPolicy()
+	policy := NewPriorityEvictionPolicy(t.Context())
 
 	testCases := []struct {
 		name     string
@@ -196,7 +196,7 @@ func TestPriorityEvictionPolicy_extractPriority(t *testing.T) {
 }
 
 func TestPriorityEvictionPolicy_containsImportantKeywords(t *testing.T) {
-	policy := NewPriorityEvictionPolicy()
+	policy := NewPriorityEvictionPolicy(t.Context())
 
 	testCases := []struct {
 		content  string
@@ -230,7 +230,7 @@ func TestPriorityEvictionPolicy_containsImportantKeywords(t *testing.T) {
 
 func TestPriorityEvictionPolicy_GetType(t *testing.T) {
 	t.Run("Should return correct policy type", func(t *testing.T) {
-		policy := NewPriorityEvictionPolicy()
+		policy := NewPriorityEvictionPolicy(t.Context())
 		assert.Equal(t, "priority", policy.GetType())
 	})
 }
@@ -238,20 +238,20 @@ func TestPriorityEvictionPolicy_GetType(t *testing.T) {
 func TestPriorityEvictionPolicy_NewPriorityEvictionPolicyWithKeywords(t *testing.T) {
 	t.Run("Should create policy with custom keywords", func(t *testing.T) {
 		customKeywords := []string{"bug", "fix", "deadline"}
-		policy := NewPriorityEvictionPolicyWithKeywords(customKeywords)
+		policy := NewPriorityEvictionPolicyWithKeywords(t.Context(), customKeywords)
 		require.NotNil(t, policy)
 		assert.Equal(t, "priority", policy.GetType())
 		assert.Equal(t, customKeywords, policy.importantKeywords)
 	})
 
 	t.Run("Should use default keywords when empty list provided", func(t *testing.T) {
-		policy := NewPriorityEvictionPolicyWithKeywords([]string{})
+		policy := NewPriorityEvictionPolicyWithKeywords(t.Context(), []string{})
 		require.NotNil(t, policy)
 		assert.Equal(t, getDefaultPriorityKeywords(), policy.importantKeywords)
 	})
 
 	t.Run("Should use default keywords when nil provided", func(t *testing.T) {
-		policy := NewPriorityEvictionPolicyWithKeywords(nil)
+		policy := NewPriorityEvictionPolicyWithKeywords(t.Context(), nil)
 		require.NotNil(t, policy)
 		assert.Equal(t, getDefaultPriorityKeywords(), policy.importantKeywords)
 	})
@@ -260,7 +260,7 @@ func TestPriorityEvictionPolicy_NewPriorityEvictionPolicyWithKeywords(t *testing
 func TestPriorityEvictionPolicy_customKeywords(t *testing.T) {
 	t.Run("Should use custom keywords for priority detection", func(t *testing.T) {
 		customKeywords := []string{"security", "vulnerability", "breach"}
-		policy := NewPriorityEvictionPolicyWithKeywords(customKeywords)
+		policy := NewPriorityEvictionPolicyWithKeywords(t.Context(), customKeywords)
 
 		testCases := []struct {
 			name     string
@@ -285,7 +285,7 @@ func TestPriorityEvictionPolicy_customKeywords(t *testing.T) {
 
 	t.Run("Should respect case insensitivity", func(t *testing.T) {
 		customKeywords := []string{"bug", "fix", "urgent"}
-		policy := NewPriorityEvictionPolicyWithKeywords(customKeywords)
+		policy := NewPriorityEvictionPolicyWithKeywords(t.Context(), customKeywords)
 
 		testCases := []struct {
 			content  string
@@ -311,7 +311,7 @@ func TestPriorityEvictionPolicy_customKeywords(t *testing.T) {
 func TestPriorityEvictionPolicy_customKeywordsPriority(t *testing.T) {
 	t.Run("Should prioritize messages with custom keywords during eviction", func(t *testing.T) {
 		customKeywords := []string{"bug", "deadline"}
-		policy := NewPriorityEvictionPolicyWithKeywords(customKeywords)
+		policy := NewPriorityEvictionPolicyWithKeywords(t.Context(), customKeywords)
 
 		messages := []llm.Message{
 			{Role: llm.MessageRoleUser, Content: "Normal user message"},
@@ -321,7 +321,7 @@ func TestPriorityEvictionPolicy_customKeywordsPriority(t *testing.T) {
 		}
 
 		// Keep only 2 messages
-		evicted := policy.SelectMessagesToEvict(messages, 2)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 2)
 		require.Len(t, evicted, 2)
 
 		// Should evict normal messages, keep ones with custom keywords
@@ -337,12 +337,12 @@ func TestPriorityEvictionPolicy_customKeywordsPriority(t *testing.T) {
 
 func TestPriorityEvictionPolicy_TokenEstimation(t *testing.T) {
 	t.Run("Should use default token estimator", func(t *testing.T) {
-		policy := NewPriorityEvictionPolicy()
+		policy := NewPriorityEvictionPolicy(t.Context())
 		msg := llm.Message{
 			Role:    llm.MessageRoleUser,
 			Content: "This is a test message", // 22 chars / 4 = 5 tokens + role overhead
 		}
-		tokens := policy.estimateTokens(msg)
+		tokens := policy.estimateTokens(t.Context(), msg)
 		// 5 tokens for content + 6 for role "user" and overhead
 		assert.Greater(t, tokens, 0)
 		assert.LessOrEqual(t, tokens, 15) // Reasonable upper bound
@@ -352,20 +352,20 @@ func TestPriorityEvictionPolicy_TokenEstimation(t *testing.T) {
 		// Create a mock token estimator that returns a fixed value
 		mockEstimator := &mockTokenEstimator{fixedTokens: 100}
 
-		policy := NewPriorityEvictionPolicy()
+		policy := NewPriorityEvictionPolicy(t.Context())
 		policy = policy.WithTokenEstimator(mockEstimator)
 
 		msg := llm.Message{
 			Role:    llm.MessageRoleAssistant,
 			Content: "Any content",
 		}
-		tokens := policy.estimateTokens(msg)
+		tokens := policy.estimateTokens(t.Context(), msg)
 		// 100 tokens from mock + role overhead
 		assert.Equal(t, 111, tokens) // 100 + 11 (len("assistant") + 2)
 	})
 
 	t.Run("Should not override with nil estimator", func(t *testing.T) {
-		policy := NewPriorityEvictionPolicy()
+		policy := NewPriorityEvictionPolicy(t.Context())
 		originalEstimator := policy.tokenEstimator
 
 		policy = policy.WithTokenEstimator(nil)

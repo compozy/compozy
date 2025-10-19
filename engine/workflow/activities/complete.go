@@ -32,10 +32,10 @@ type NormalizationContextAdapter struct {
 	workflowConfig *wf.Config
 }
 
-func (nca *NormalizationContextAdapter) BuildTemplateContext() map[string]any {
+func (nca *NormalizationContextAdapter) BuildTemplateContext(ctx context.Context) map[string]any {
 	// Use the shared context builder to build a proper context with children support
-	contextBuilder := shared.NewBaseContextBuilder()
-	normContext := contextBuilder.BuildContext(nca.workflowState, nca.workflowConfig, nil)
+	contextBuilder := shared.NewBaseContextBuilder(ctx)
+	normContext := contextBuilder.BuildContext(ctx, nca.workflowState, nca.workflowConfig, nil)
 	// Get the variables which contain the properly built context
 	if normContext.Variables != nil {
 		// The variables already contain workflow, tasks with children, env, etc.
@@ -182,7 +182,7 @@ func (a *CompleteWorkflow) createOutputTransformer(
 			workflowState:  state,
 			workflowConfig: config,
 		}
-		output, err := a.outputTransformer.TransformWorkflowOutput(state, config.GetOutputs(), normCtx)
+		output, err := a.outputTransformer.TransformWorkflowOutput(ctx, state, config.GetOutputs(), normCtx)
 		if err != nil {
 			logger.FromContext(ctx).Error("Output transformation failed",
 				"workflow_id", state.WorkflowID,

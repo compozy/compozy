@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,7 +18,7 @@ func TestStrategySelectionE2E(t *testing.T) {
 	t.Run("Should use requested strategy when provided for dynamic memory", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Register test memory config without hyphens
 		err := env.RegisterMemoryConfig(ctx, &memory.Config{
@@ -91,7 +90,7 @@ func TestStrategySelectionE2E(t *testing.T) {
 	t.Run("Should fall back to configured strategy when no strategy specified", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Register test memory config
 		err := env.RegisterMemoryConfig(ctx, &memory.Config{
@@ -160,7 +159,7 @@ func TestStrategySelectionE2E(t *testing.T) {
 	t.Run("Should handle invalid strategy gracefully", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Register test memory config
 		err := env.RegisterMemoryConfig(ctx, &memory.Config{
@@ -237,7 +236,7 @@ func TestStrategySelectionE2E(t *testing.T) {
 	t.Run("Should maintain backward compatibility with FlushStrategy field", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Register test memory config
 		err := env.RegisterMemoryConfig(ctx, &memory.Config{

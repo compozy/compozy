@@ -54,6 +54,7 @@ func TestBasicConfigInheritance(t *testing.T) {
 
 		// Create normalizer to test normalization with inherited context
 		normalizer := basic.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 		)
 
@@ -68,7 +69,7 @@ func TestBasicConfigInheritance(t *testing.T) {
 		}
 
 		// Normalize the basic task
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err, "Basic normalization should succeed")
 
 		// Verify basic task inherited context
@@ -128,6 +129,7 @@ func TestBasicConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := basic.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 		)
 
@@ -139,7 +141,7 @@ func TestBasicConfigInheritance(t *testing.T) {
 		}
 
 		// Normalize the basic task
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err, "Basic normalization should succeed")
 
 		// Verify explicit values are preserved
@@ -202,6 +204,7 @@ func TestBasicConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := basic.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 		)
 
@@ -216,7 +219,7 @@ func TestBasicConfigInheritance(t *testing.T) {
 		}
 
 		// Normalize the grandchild basic task
-		err := normalizer.Normalize(grandchildConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), grandchildConfig, normCtx)
 		require.NoError(t, err, "Basic normalization should succeed")
 
 		// Verify inheritance propagated through the chain
@@ -273,6 +276,7 @@ func TestBasicConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := basic.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 		)
 
@@ -292,7 +296,7 @@ func TestBasicConfigInheritance(t *testing.T) {
 		}
 
 		// Normalize the basic task
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err, "Basic normalization should succeed")
 
 		// Verify inheritance

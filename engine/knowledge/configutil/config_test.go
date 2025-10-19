@@ -1,7 +1,6 @@
 package configutil
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -21,7 +20,7 @@ func TestToVectorStoreConfig_DefaultFilesystemPath(t *testing.T) {
 				Dimension: 1536,
 			},
 		}
-		storeCfg, err := ToVectorStoreConfig(context.Background(), "demo", cfg)
+		storeCfg, err := ToVectorStoreConfig(t.Context(), "demo", cfg)
 		require.NoError(t, err)
 		expected := filepath.Join(".compozy", "cache", "filesystem_demo.store")
 		assert.Equal(t, expected, storeCfg.Path)
@@ -30,10 +29,10 @@ func TestToVectorStoreConfig_DefaultFilesystemPath(t *testing.T) {
 	t.Run("resolves with cli cwd", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		t.Setenv("COMPOZY_CWD", tmpDir)
-		manager := appconfig.NewManager(appconfig.NewService())
-		_, err := manager.Load(context.Background(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
+		_, err := manager.Load(t.Context(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
 		require.NoError(t, err)
-		ctx := appconfig.ContextWithManager(context.Background(), manager)
+		ctx := appconfig.ContextWithManager(t.Context(), manager)
 
 		cfg := &knowledge.VectorDBConfig{
 			ID:   "filesystem_demo",
@@ -58,7 +57,7 @@ func TestToVectorStoreConfig_RejectsInvalidDimension(t *testing.T) {
 			Dimension: 0,
 		},
 	}
-	_, err := ToVectorStoreConfig(context.Background(), "demo-project", cfg)
+	_, err := ToVectorStoreConfig(t.Context(), "demo-project", cfg)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "config.dimension must be greater than zero")
 }

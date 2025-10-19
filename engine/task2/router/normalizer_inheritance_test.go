@@ -17,9 +17,9 @@ func TestRouterNormalizer_InlineTaskInheritance(t *testing.T) {
 	t.Run("Should inherit CWD to inline task configurations in routes", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		routerTask := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -46,7 +46,7 @@ func TestRouterNormalizer_InlineTaskInheritance(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(routerTask, ctx)
+		err = normalizer.Normalize(t.Context(), routerTask, ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -72,9 +72,9 @@ func TestRouterNormalizer_InlineTaskInheritance(t *testing.T) {
 	t.Run("Should not override existing CWD in inline task", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		routerTask := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -103,7 +103,7 @@ func TestRouterNormalizer_InlineTaskInheritance(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(routerTask, ctx)
+		err = normalizer.Normalize(t.Context(), routerTask, ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -123,9 +123,9 @@ func TestRouterNormalizer_InlineTaskInheritance(t *testing.T) {
 	t.Run("Should handle mixed route types", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		routerTask := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -157,7 +157,7 @@ func TestRouterNormalizer_InlineTaskInheritance(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(routerTask, ctx)
+		err = normalizer.Normalize(t.Context(), routerTask, ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -188,9 +188,9 @@ func TestRouterNormalizer_InlineTaskValidation(t *testing.T) {
 	t.Run("Should return error for malformed inline task config with type field", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		routerTask := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -215,7 +215,7 @@ func TestRouterNormalizer_InlineTaskValidation(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(routerTask, ctx)
+		err = normalizer.Normalize(t.Context(), routerTask, ctx)
 
 		// Assert
 		require.Error(t, err, "Should return error for invalid inline task config")
@@ -226,9 +226,9 @@ func TestRouterNormalizer_InlineTaskValidation(t *testing.T) {
 	t.Run("Should process regular map without type field correctly", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		routerTask := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -253,7 +253,7 @@ func TestRouterNormalizer_InlineTaskValidation(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(routerTask, ctx)
+		err = normalizer.Normalize(t.Context(), routerTask, ctx)
 
 		// Assert
 		require.NoError(t, err, "Should process regular map without error")

@@ -47,7 +47,7 @@ func (h *ResponseHandler) HandleResponse(
 		}
 	}
 	// Apply collection context variables before processing
-	h.applyCollectionContext(input)
+	h.applyCollectionContext(ctx, input)
 
 	// Capture after validation to avoid nil deref
 	originalExecID := input.TaskState.TaskExecID
@@ -79,14 +79,14 @@ func (h *ResponseHandler) Type() task.Type {
 }
 
 // applyCollectionContext applies collection-specific context variables to the normalization context
-func (h *ResponseHandler) applyCollectionContext(input *shared.ResponseInput) {
+func (h *ResponseHandler) applyCollectionContext(ctx context.Context, input *shared.ResponseInput) {
 	taskInput := input.TaskConfig.With
 	if taskInput == nil {
 		return
 	}
 
 	// Build normalization context for variable access
-	normCtx := h.contextBuilder.BuildContext(input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
+	normCtx := h.contextBuilder.BuildContext(ctx, input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
 
 	// Apply standard item variable
 	if item, exists := (*taskInput)[shared.FieldCollectionItem]; exists {

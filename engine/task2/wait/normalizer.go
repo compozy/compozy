@@ -1,6 +1,7 @@
 package wait
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
@@ -17,6 +18,7 @@ type Normalizer struct {
 
 // NewNormalizer creates a new wait task normalizer
 func NewNormalizer(
+	_ context.Context,
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 ) *Normalizer {
@@ -34,9 +36,9 @@ func NewNormalizer(
 }
 
 // Normalize applies wait task-specific normalization rules
-func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+func (n *Normalizer) Normalize(ctx context.Context, config *task.Config, normCtx contracts.NormalizationContext) error {
 	// Call base normalization first
-	if err := n.BaseNormalizer.Normalize(config, ctx); err != nil {
+	if err := n.BaseNormalizer.Normalize(ctx, config, normCtx); err != nil {
 		return err
 	}
 	// Apply inheritance to processor if present
@@ -51,15 +53,16 @@ func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationC
 // NormalizeWithSignal normalizes a wait task config with signal context
 // This is specifically for wait task processors that need signal data during normalization
 func (n *Normalizer) NormalizeWithSignal(
+	_ context.Context,
 	config *task.Config,
-	ctx *shared.NormalizationContext,
+	normCtx *shared.NormalizationContext,
 	signal any,
 ) error {
 	if config == nil {
 		return nil
 	}
 	// Build the full normalization context
-	context := ctx.BuildTemplateContext()
+	context := normCtx.BuildTemplateContext()
 	// Add signal data to the context (convert to map for template engine)
 	if signal != nil {
 		signalMap, err := core.AsMapDefault(signal)

@@ -49,7 +49,7 @@ func TestProviderRateLimiter_ConcurrencyLimit(t *testing.T) {
 		DefaultQueueSize:   0,
 	}, providermetrics.Nop())
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
 
 	err := registry.Acquire(ctx, core.ProviderOpenAI, nil)
@@ -72,7 +72,7 @@ func TestProviderRateLimiter_QueueWaitsForSlot(t *testing.T) {
 		DefaultQueueSize:   1,
 	}, providermetrics.Nop())
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
 
 	errCh := make(chan error, 1)
@@ -111,7 +111,7 @@ func TestProviderRateLimiter_QueueOverflow(t *testing.T) {
 		DefaultQueueSize:   1,
 	}, providermetrics.Nop())
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
 
 	waitErr := make(chan error, 1)
@@ -148,7 +148,7 @@ func TestRateLimiterRegistry_Overrides(t *testing.T) {
 	}, providermetrics.Nop())
 
 	override := &core.ProviderRateLimitConfig{Concurrency: 1}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Override should clamp concurrency to 1.
 	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, override))
@@ -179,7 +179,7 @@ func TestProviderRateLimiter_RequestRateLimit(t *testing.T) {
 		RequestsPerMinute: 60, // roughly one request per second
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, registry.Acquire(ctx, core.ProviderAnthropic, override))
 	registry.Release(ctx, core.ProviderAnthropic, 0)
 	start := time.Now()
@@ -207,7 +207,7 @@ func TestProviderRateLimiter_TokenRateLimit(t *testing.T) {
 		TokensPerMinute: 120, // roughly two tokens per second
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, registry.Acquire(ctx, core.ProviderAnthropic, override))
 	registry.Release(ctx, core.ProviderAnthropic, 2)
 	start := time.Now()
@@ -231,7 +231,7 @@ func TestRateLimiterRegistry_BurstOverrides(t *testing.T) {
 		DefaultRequestBurst:      7,
 	}, providermetrics.Nop())
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
 	registry.Release(ctx, core.ProviderOpenAI, 0)
 
@@ -267,7 +267,7 @@ func TestRateLimiterRegistry_RecordsDelay(t *testing.T) {
 		DefaultQueueSize:   1,
 	}, metrics)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
 
 	ready := make(chan struct{})

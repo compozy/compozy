@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/project"
@@ -13,7 +12,7 @@ import (
 
 func TestCompileFromStore_WithMemoryStore(t *testing.T) {
 	t.Run("Should compile workflows from store", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store := resources.NewMemoryResourceStore()
 		svc := &service{envFilePath: "", store: store}
 		proj := &project.Config{Name: "demo"}
@@ -29,7 +28,7 @@ func TestCompileFromStore_WithMemoryStore(t *testing.T) {
 
 func TestCompileFromStore_WebhookSlugValidation(t *testing.T) {
 	t.Run("Should fail on duplicate webhook slugs", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store := resources.NewMemoryResourceStore()
 		svc := &service{envFilePath: "", store: store}
 		proj := &project.Config{Name: "demo"}

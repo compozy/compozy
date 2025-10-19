@@ -1,7 +1,6 @@
 package monitoring_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -22,7 +21,7 @@ func TestTemporalMetricsIntegration(t *testing.T) {
 		monitoringinterceptor.SetConfiguredWorkerCount(5)
 		defer monitoringinterceptor.SetConfiguredWorkerCount(0) // Reset to default
 		// Simulate workers starting and stopping
-		ctx := context.Background()
+		ctx := t.Context()
 		monitoringinterceptor.IncrementRunningWorkers(ctx)
 		monitoringinterceptor.IncrementRunningWorkers(ctx)
 		monitoringinterceptor.IncrementRunningWorkers(ctx)

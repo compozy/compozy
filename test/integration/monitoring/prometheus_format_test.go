@@ -1,7 +1,6 @@
 package monitoring_test
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -23,7 +22,7 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 			resp.Body.Close()
 		}
 		// Get metrics
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
@@ -92,7 +91,7 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Get metrics without generating any
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)

@@ -60,7 +60,7 @@ func (a *ExecuteSignal) Run(ctx context.Context, input *ExecuteSignalInput) (*ta
 		return nil, err
 	}
 	// Use task2 normalizer for signal tasks
-	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeSignal)
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeSignal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create signal normalizer: %w", err)
 	}
@@ -70,10 +70,10 @@ func (a *ExecuteSignal) Run(ctx context.Context, input *ExecuteSignalInput) (*ta
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
 	// Build proper normalization context with all template variables
-	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	normContext := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, input.TaskConfig)
 	// Normalize the task configuration
 	normalizedConfig := input.TaskConfig
-	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
 		return nil, fmt.Errorf("failed to normalize signal task: %w", err)
 	}
 	// Validate task

@@ -17,11 +17,11 @@ func TestWaitNormalizer_NewNormalizer(t *testing.T) {
 	t.Run("Should create wait normalizer", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Act
-		normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -29,11 +29,11 @@ func TestWaitNormalizer_NewNormalizer(t *testing.T) {
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Act
-		normalizer := wait.NewNormalizer(nil, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), nil, contextBuilder)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -44,7 +44,7 @@ func TestWaitNormalizer_NewNormalizer(t *testing.T) {
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 
 		// Act
-		normalizer := wait.NewNormalizer(templateEngine, nil)
+		normalizer := wait.NewNormalizer(t.Context(), templateEngine, nil)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -52,7 +52,7 @@ func TestWaitNormalizer_NewNormalizer(t *testing.T) {
 
 	t.Run("Should handle both nil parameters", func(t *testing.T) {
 		// Act
-		normalizer := wait.NewNormalizer(nil, nil)
+		normalizer := wait.NewNormalizer(t.Context(), nil, nil)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -62,9 +62,9 @@ func TestWaitNormalizer_NewNormalizer(t *testing.T) {
 func TestWaitNormalizer_NormalizeWithSignal(t *testing.T) {
 	// Setup
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+	normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 	t.Run("Should normalize wait task config with signal", func(t *testing.T) {
 		// Arrange
@@ -88,7 +88,7 @@ func TestWaitNormalizer_NormalizeWithSignal(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.NormalizeWithSignal(taskConfig, ctx, signal)
+		err := normalizer.NormalizeWithSignal(t.Context(), taskConfig, ctx, signal)
 
 		// Assert
 		assert.NoError(t, err)
@@ -114,7 +114,7 @@ func TestWaitNormalizer_NormalizeWithSignal(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.NormalizeWithSignal(taskConfig, ctx, nil)
+		err := normalizer.NormalizeWithSignal(t.Context(), taskConfig, ctx, nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -132,7 +132,7 @@ func TestWaitNormalizer_NormalizeWithSignal(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.NormalizeWithSignal(nil, ctx, signal)
+		err := normalizer.NormalizeWithSignal(t.Context(), nil, ctx, signal)
 
 		// Assert
 		assert.NoError(t, err)
@@ -165,7 +165,7 @@ func TestWaitNormalizer_NormalizeWithSignal(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.NormalizeWithSignal(taskConfig, ctx, signal)
+		err := normalizer.NormalizeWithSignal(t.Context(), taskConfig, ctx, signal)
 
 		// Assert
 		assert.NoError(t, err)
@@ -202,7 +202,7 @@ func TestWaitNormalizer_NormalizeWithSignal(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.NormalizeWithSignal(taskConfig, ctx, signal)
+		err := normalizer.NormalizeWithSignal(t.Context(), taskConfig, ctx, signal)
 
 		// Assert
 		assert.NoError(t, err)
@@ -226,7 +226,7 @@ func TestWaitNormalizer_NormalizeWithSignal(t *testing.T) {
 		signal := make(chan int)
 
 		// Act
-		err := normalizer.NormalizeWithSignal(taskConfig, ctx, signal)
+		err := normalizer.NormalizeWithSignal(t.Context(), taskConfig, ctx, signal)
 
 		// Assert
 		assert.Error(t, err)
@@ -249,7 +249,7 @@ func TestWaitNormalizer_NormalizeWithSignal(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.NormalizeWithSignal(taskConfig, ctx, signal)
+		err := normalizer.NormalizeWithSignal(t.Context(), taskConfig, ctx, signal)
 
 		// Assert
 		assert.Error(t, err)
@@ -280,7 +280,7 @@ func TestWaitNormalizer_NormalizeWithSignal(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.NormalizeWithSignal(taskConfig, ctx, signal)
+		err := normalizer.NormalizeWithSignal(t.Context(), taskConfig, ctx, signal)
 
 		// Assert
 		assert.NoError(t, err)
@@ -293,9 +293,9 @@ func TestWaitNormalizer_Type(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		// Act
 		taskType := normalizer.Type()
 		// Assert
@@ -305,15 +305,15 @@ func TestWaitNormalizer_Type(t *testing.T) {
 
 func TestWaitNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+	normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 	t.Run("Should handle nil config gracefully", func(t *testing.T) {
 		// Arrange
 		ctx := &shared.NormalizationContext{}
 		// Act
-		err := normalizer.Normalize(nil, ctx)
+		err := normalizer.Normalize(t.Context(), nil, ctx)
 		// Assert
 		assert.NoError(t, err)
 	})
@@ -328,7 +328,7 @@ func TestWaitNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "wait normalizer cannot handle task type: basic")
@@ -348,7 +348,7 @@ func TestWaitNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to normalize wait task config")
@@ -368,7 +368,7 @@ func TestWaitNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to convert task config to map")
@@ -394,7 +394,7 @@ func TestWaitNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "test-wait", taskConfig.ID)
@@ -405,12 +405,12 @@ func TestWaitNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
-		normalizer := wait.NewNormalizer(nil, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), nil, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -419,7 +419,7 @@ func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert - Should return error due to nil template engine
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "template engine is required for normalization")
@@ -427,7 +427,7 @@ func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle nil context gracefully", func(t *testing.T) {
 		// Arrange
-		normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -435,7 +435,7 @@ func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.Normalize(taskConfig, nil)
+		err = normalizer.Normalize(t.Context(), taskConfig, nil)
 
 		// Assert
 		assert.Error(t, err)
@@ -444,7 +444,7 @@ func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle empty wait configuration", func(t *testing.T) {
 		// Arrange
-		normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "empty-wait",
@@ -454,7 +454,7 @@ func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "", taskConfig.WaitFor)
@@ -463,7 +463,7 @@ func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle different wait event formats", func(t *testing.T) {
 		// Arrange
-		normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		testCases := []struct {
 			name      string
 			waitFor   string
@@ -490,7 +490,7 @@ func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 				}
 				ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 				// Act
-				err := normalizer.Normalize(taskConfig, ctx)
+				err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 				// Assert
 				assert.NoError(t, err)
 				assert.Equal(t, tc.waitFor, taskConfig.WaitFor)
@@ -501,7 +501,7 @@ func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should preserve wait task configuration", func(t *testing.T) {
 		// Arrange
-		normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		originalWaitFor := "original-event"
 		originalOnTimeout := "original-action"
 
@@ -517,7 +517,7 @@ func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, originalWaitFor, taskConfig.WaitFor)
@@ -527,7 +527,7 @@ func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle complex wait expressions", func(t *testing.T) {
 		// Arrange
-		normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "complex-wait",
@@ -545,7 +545,7 @@ func TestWaitNormalizer_BoundaryConditions(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "urgent-event", taskConfig.WaitFor)

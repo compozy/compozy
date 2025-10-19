@@ -440,7 +440,7 @@ func CreateTestActivities(
 	var memoryManager *memory.Manager
 
 	ctx := t.Context()
-	mgr := config.NewManager(config.NewService())
+	mgr := config.NewManager(ctx, config.NewService())
 	_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
 	require.NoError(t, err)
 	log := logger.NewForTests()
@@ -598,7 +598,7 @@ func ExecuteWorkflowAndGetState(
 	projectName string,
 	agentConfig *agent.Config,
 ) *workflow.State {
-	ctx := context.Background()
+	ctx := t.Context()
 	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 	defer cleanup()
 

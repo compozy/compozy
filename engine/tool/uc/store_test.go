@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -16,7 +15,7 @@ import (
 
 func TestDeleteTool_ConflictsWhenReferenced(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	body := map[string]any{
 		"id":     "http",
@@ -42,7 +41,7 @@ func TestDeleteTool_ConflictsWhenReferenced(t *testing.T) {
 
 func TestListTools_FilterByWorkflow(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	doc := func(id string) map[string]any {
 		return map[string]any{

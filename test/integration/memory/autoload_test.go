@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/autoload"
@@ -26,7 +25,7 @@ func TestAutoload_MemoryResources(t *testing.T) {
 		autoloader := autoload.New(cwd.Path, config, registry)
 
 		// Act
-		err = autoloader.Load(context.Background())
+		err = autoloader.Load(t.Context())
 
 		// Assert
 		assert.NoError(t, err)

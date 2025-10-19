@@ -2,7 +2,6 @@ package schemarouter
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -71,7 +70,7 @@ func TestSchemaRouter_DeleteConflict(t *testing.T) {
 	ref := schema.Schema(map[string]any{"__schema_ref__": "user"})
 	wf := &workflow.Config{ID: "wf1", Opts: workflow.Opts{InputSchema: &ref}}
 	_, err = store.Put(
-		context.Background(),
+		t.Context(),
 		resources.ResourceKey{Project: "demo", Type: resources.ResourceWorkflow, ID: "wf1"},
 		wf,
 	)

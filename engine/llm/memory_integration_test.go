@@ -39,7 +39,7 @@ func (m *mockMemory) GetID() string {
 }
 
 func TestPrepareMemoryContext(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should handle empty memories", func(t *testing.T) {
 		messages := []llmadapter.Message{
@@ -114,7 +114,7 @@ func TestPrepareMemoryContext(t *testing.T) {
 }
 
 func TestStoreResponseInMemory(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should handle empty memories", func(t *testing.T) {
 		msg := llmadapter.Message{}
@@ -217,7 +217,7 @@ func TestStoreResponseInMemory(t *testing.T) {
 }
 
 func TestStoreResponseInMemory_AtomicStorage(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should use AppendMany for atomic storage", func(t *testing.T) {
 		mockMemory := new(mockMemory)

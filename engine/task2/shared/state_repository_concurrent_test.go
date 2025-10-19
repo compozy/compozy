@@ -154,7 +154,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 		mockRepo.On("GetState", mock.Anything, mock.Anything).Return((*task.State)(nil), nil)
 		repo := NewStateRepository(mockRepo)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		parentID, _ := core.NewID()
 		parentState := &task.State{
 			TaskExecID: parentID,
@@ -188,7 +188,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 		mockRepo.On("GetState", mock.Anything, mock.Anything).Return((*task.State)(nil), nil)
 		repo := NewStateRepository(mockRepo).(*DefaultStateRepository)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		numWriters := 10
 		var wg sync.WaitGroup
 		wg.Add(numWriters)
@@ -222,7 +222,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 		mockRepo.On("GetState", mock.Anything, mock.Anything).Return((*task.State)(nil), nil)
 		repo := NewStateRepository(mockRepo).(*DefaultStateRepository)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		sharedID, _ := core.NewID()
 		sharedState := &task.State{
 			TaskExecID: sharedID,
@@ -254,7 +254,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 		mockRepo.On("GetState", mock.Anything, mock.Anything).Return((*task.State)(nil), nil)
 		repo := NewStateRepository(mockRepo).(*DefaultStateRepository)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		var wg sync.WaitGroup
 		numValidations := 10
 
@@ -277,7 +277,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 		mockRepo.On("GetState", mock.Anything, mock.Anything).Return((*task.State)(nil), nil)
 		repo := NewStateRepository(mockRepo).(*DefaultStateRepository)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		numStates := 5
 		states := make([]*task.State, numStates)
 

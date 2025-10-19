@@ -210,7 +210,7 @@ func TestDependencyInjection(t *testing.T) {
 		require.NoError(t, err)
 
 		// Execute
-		ctx := context.Background()
+		ctx := t.Context()
 		result, err := flushUC.Execute(ctx)
 
 		// Verify

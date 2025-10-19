@@ -166,7 +166,7 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 	if err != nil {
 		return fmt.Errorf("failed to create context builder: %w", err)
 	}
-	normCtx := contextBuilder.BuildContext(workflowState, input.WorkflowConfig, input.TaskConfig)
+	normCtx := contextBuilder.BuildContext(ctx, workflowState, input.WorkflowConfig, input.TaskConfig)
 	normCtx.TaskConfigs = taskConfigs
 	normCtx.CurrentInput = input.TaskConfig.With
 	normCtx.MergedEnv = input.TaskConfig.Env
@@ -189,6 +189,7 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 	}
 
 	output, err := uc.outputTransformer.TransformOutput(
+		ctx,
 		input.TaskState.Output,
 		input.TaskConfig.GetOutputs(),
 		normCtx,
@@ -229,7 +230,7 @@ func (uc *HandleResponse) normalizeTransitions(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
-	normCtx := contextBuilder.BuildContext(workflowState, input.WorkflowConfig, input.TaskConfig)
+	normCtx := contextBuilder.BuildContext(ctx, workflowState, input.WorkflowConfig, input.TaskConfig)
 	normCtx.CurrentInput = input.TaskState.Input
 
 	// Normalize success transition

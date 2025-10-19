@@ -41,7 +41,7 @@ func TestClientManager_CreateAndClose(t *testing.T) {
 	ag := &agent.Config{Model: agent.Model{Config: enginecore.ProviderConfig{Provider: "openai", Model: "gpt-4o"}}}
 	act := &agent.ActionConfig{ID: "a", Prompt: "p"}
 	t.Run("Should wrap factory error", func(t *testing.T) {
-		_, err := cm.Create(context.Background(), Request{Agent: ag, Action: act}, errFactory{err: assert.AnError})
+		_, err := cm.Create(t.Context(), Request{Agent: ag, Action: act}, errFactory{err: assert.AnError})
 		require.Error(t, err)
 		assert.ErrorIs(t, err, assert.AnError)
 		var coreErr *enginecore.Error
@@ -51,7 +51,7 @@ func TestClientManager_CreateAndClose(t *testing.T) {
 		assert.Equal(t, "gpt-4o", fmt.Sprint(coreErr.Details["model"]))
 	})
 	t.Run("Should fail when agent configuration missing", func(t *testing.T) {
-		_, err := cm.Create(context.Background(), Request{Action: act}, errFactory{err: assert.AnError})
+		_, err := cm.Create(t.Context(), Request{Action: act}, errFactory{err: assert.AnError})
 		require.Error(t, err)
 		var coreErr *enginecore.Error
 		require.ErrorAs(t, err, &coreErr)
@@ -59,6 +59,6 @@ func TestClientManager_CreateAndClose(t *testing.T) {
 		assert.Equal(t, "nil agent config", coreErr.Details["reason"])
 	})
 	t.Run("Should log and ignore client close error", func(t *testing.T) {
-		assert.NotPanics(t, func() { cm.Close(context.Background(), &errClient{}) })
+		assert.NotPanics(t, func() { cm.Close(t.Context(), &errClient{}) })
 	})
 }

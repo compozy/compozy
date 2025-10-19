@@ -24,7 +24,7 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestOllamaAdapter_GenerateContent_WithTools(t *testing.T) {
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	t.Run("Should call Ollama API with tools", func(t *testing.T) {
 		// Create mock Ollama server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +148,7 @@ func TestOllamaAdapter_GenerateContent_WithTools(t *testing.T) {
 }
 
 func TestOllamaAdapter_ConvertToOllamaRequest(t *testing.T) {
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	adapter := newOllamaAdapter(&LangChainAdapter{
 		provider: core.ProviderConfig{
 			Provider: core.ProviderOllama,

@@ -43,9 +43,9 @@ func registerBuiltinsInto(ctx context.Context, t *testing.T, registry llm.ToolRe
 // newConfigContext builds a context carrying logger and app config with native tools setup.
 func newConfigContext(t *testing.T, enabled bool, root string) context.Context {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
-	mgr := appconfig.NewManager(appconfig.NewService())
+	mgr := appconfig.NewManager(ctx, appconfig.NewService())
 	_, err := mgr.Load(ctx, appconfig.NewDefaultProvider())
 	require.NoError(t, err)
 	cfg := mgr.Get()
@@ -104,7 +104,7 @@ func TestCpBuiltin_Integration(t *testing.T) {
 		require.NoError(t, os.WriteFile(fileAbs, []byte("hello world"), 0o644))
 
 		ctx := newConfigContext(t, true, root)
-		registry := llm.NewToolRegistry(context.Background(), llm.ToolRegistryConfig{})
+		registry := llm.NewToolRegistry(t.Context(), llm.ToolRegistryConfig{})
 		t.Cleanup(func() { _ = registry.Close() })
 		res := registerBuiltinsInto(ctx, t, registry)
 		require.NotEmpty(t, res.RegisteredIDs)
@@ -145,7 +145,7 @@ func TestCpBuiltin_Integration(t *testing.T) {
 	t.Run("Should return not-found when disabled via kill switch", func(t *testing.T) {
 		t.Parallel()
 		ctx := newConfigContext(t, false, t.TempDir())
-		registry := llm.NewToolRegistry(context.Background(), llm.ToolRegistryConfig{})
+		registry := llm.NewToolRegistry(t.Context(), llm.ToolRegistryConfig{})
 		t.Cleanup(func() { _ = registry.Close() })
 		res := registerBuiltinsInto(ctx, t, registry)
 		assert.Empty(t, res.RegisteredIDs)
@@ -167,7 +167,7 @@ func TestCpBuiltin_Integration(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		ctx := newConfigContext(t, true, root)
-		registry := llm.NewToolRegistry(context.Background(), llm.ToolRegistryConfig{})
+		registry := llm.NewToolRegistry(t.Context(), llm.ToolRegistryConfig{})
 		t.Cleanup(func() { _ = registry.Close() })
 		_ = registerBuiltinsInto(ctx, t, registry)
 
@@ -189,7 +189,7 @@ func TestCpBuiltin_Integration(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		ctx := newConfigContext(t, true, root)
-		registry := llm.NewToolRegistry(context.Background(), llm.ToolRegistryConfig{})
+		registry := llm.NewToolRegistry(t.Context(), llm.ToolRegistryConfig{})
 		t.Cleanup(func() { _ = registry.Close() })
 		_ = registerBuiltinsInto(ctx, t, registry)
 
@@ -210,7 +210,7 @@ func TestCpBuiltin_Integration(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		ctx := newConfigContext(t, true, root)
-		registry := llm.NewToolRegistry(context.Background(), llm.ToolRegistryConfig{})
+		registry := llm.NewToolRegistry(t.Context(), llm.ToolRegistryConfig{})
 		t.Cleanup(func() { _ = registry.Close() })
 		res := registerBuiltinsInto(ctx, t, registry)
 		require.NotEmpty(t, res.RegisteredIDs)

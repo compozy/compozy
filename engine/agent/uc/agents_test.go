@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -16,7 +15,7 @@ func TestGetAgent_Execute(t *testing.T) {
 		wf1 := &workflow.Config{Agents: []agent.Config{{ID: "a1"}}}
 		wf2 := &workflow.Config{Agents: []agent.Config{{ID: "a2"}}}
 		usecase := NewGetAgent([]*workflow.Config{wf1, wf2}, "a2")
-		got, err := usecase.Execute(context.Background())
+		got, err := usecase.Execute(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, "a2", got.ID)
@@ -25,7 +24,7 @@ func TestGetAgent_Execute(t *testing.T) {
 	t.Run("Should return error when agent is not found", func(t *testing.T) {
 		wf := &workflow.Config{Agents: []agent.Config{{ID: "a1"}}}
 		usecase := NewGetAgent([]*workflow.Config{wf}, "missing")
-		got, err := usecase.Execute(context.Background())
+		got, err := usecase.Execute(t.Context())
 		assert.Nil(t, got)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "agent not found")
@@ -38,7 +37,7 @@ func TestListAgents_Execute(t *testing.T) {
 		wf1 := &workflow.Config{Agents: []agent.Config{{ID: "a1"}, {ID: "a2"}}}
 		wf2 := &workflow.Config{Agents: []agent.Config{{ID: "a2"}, {ID: "a3"}}}
 		usecase := NewListAgents([]*workflow.Config{wf1, wf2})
-		got, err := usecase.Execute(context.Background())
+		got, err := usecase.Execute(t.Context())
 		require.NoError(t, err)
 		require.Len(t, got, 3)
 		ids := map[string]bool{}

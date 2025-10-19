@@ -1,7 +1,6 @@
 package monitoring_test
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"math"
@@ -198,7 +197,7 @@ func TestHTTPMetricsIntegration(t *testing.T) {
 		})
 
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			env.httpServer.URL+requestPath,
 			strings.NewReader(reqPayload),

@@ -1,7 +1,6 @@
 package monitoring_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -35,7 +34,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		server := httptest.NewServer(router)
 		defer server.Close()
 		// Make request - should work even with degraded monitoring
-		req, err := http.NewRequestWithContext(context.Background(), "GET", server.URL+"/test", http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", server.URL+"/test", http.NoBody)
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
@@ -58,7 +57,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		server := httptest.NewServer(router)
 		defer server.Close()
 		// Request metrics endpoint
-		req, err := http.NewRequestWithContext(context.Background(), "GET", server.URL+"/metrics", http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", server.URL+"/metrics", http.NoBody)
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
@@ -91,7 +90,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		server := httptest.NewServer(router)
 		defer server.Close()
 		// Make request - should work even with disabled monitoring
-		req, err := http.NewRequestWithContext(context.Background(), "GET", server.URL+"/test", http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", server.URL+"/test", http.NoBody)
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
@@ -102,7 +101,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		metricsRouter.GET("/metrics", gin.WrapH(monitoringService.ExporterHandler()))
 		metricsServer := httptest.NewServer(metricsRouter)
 		defer metricsServer.Close()
-		req, err = http.NewRequestWithContext(context.Background(), "GET", metricsServer.URL+"/metrics", http.NoBody)
+		req, err = http.NewRequestWithContext(t.Context(), "GET", metricsServer.URL+"/metrics", http.NoBody)
 		require.NoError(t, err)
 		resp, err = http.DefaultClient.Do(req)
 		require.NoError(t, err)
@@ -125,7 +124,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		router.GET("/metrics", gin.WrapH(monitoringService.ExporterHandler()))
 		server := httptest.NewServer(router)
 		defer server.Close()
-		req, err := http.NewRequestWithContext(context.Background(), "GET", server.URL+"/metrics", http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", server.URL+"/metrics", http.NoBody)
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
@@ -162,7 +161,7 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		degradedService, err := monitoring.NewMonitoringService(t.Context(), config)
 		require.NoError(t, err)
 		// Shutdown should not panic or error
-		ctx := context.Background()
+		ctx := t.Context()
 		shutdownErr := degradedService.Shutdown(ctx)
 		assert.NoError(t, shutdownErr)
 	})

@@ -14,7 +14,7 @@ import (
 )
 
 func TestRedisStore_UpsertSearchAndDelete(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	t.Cleanup(cancel)
 
 	dsn := startRedisTestInstance(ctx, t)
@@ -119,7 +119,7 @@ func startRedisTestInstance(ctx context.Context, t *testing.T) string {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		cleanupCtx, cleanupCancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cleanupCancel()
 		_ = container.Terminate(cleanupCtx)
 	})

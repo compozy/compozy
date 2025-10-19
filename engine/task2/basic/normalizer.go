@@ -1,6 +1,7 @@
 package basic
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -19,7 +20,7 @@ type Normalizer struct {
 }
 
 // created environment merger.
-func NewNormalizer(templateEngine *tplengine.TemplateEngine) *Normalizer {
+func NewNormalizer(_ context.Context, templateEngine *tplengine.TemplateEngine) *Normalizer {
 	envMerger := core.NewEnvMerger()
 	return &Normalizer{
 		BaseNormalizer: shared.NewBaseNormalizer(
@@ -33,21 +34,25 @@ func NewNormalizer(templateEngine *tplengine.TemplateEngine) *Normalizer {
 }
 
 // Normalize applies normalization rules for basic tasks
-func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+func (n *Normalizer) Normalize(
+	ctx context.Context,
+	config *task.Config,
+	parentCtx contracts.NormalizationContext,
+) error {
 	// Handle nil config gracefully
 	if config == nil {
 		return nil
 	}
 
 	// Always apply base normalization - it will handle selective processing
-	if err := n.normalizeWithSelectiveProcessing(config, ctx); err != nil {
+	if err := n.normalizeWithSelectiveProcessing(ctx, config, parentCtx); err != nil {
 		return err
 	}
 
 	// Type assert to get the concrete type
-	normCtx, ok := ctx.(*shared.NormalizationContext)
+	normCtx, ok := parentCtx.(*shared.NormalizationContext)
 	if !ok {
-		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", ctx)
+		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", parentCtx)
 	}
 
 	// Normalize agent configuration if present
@@ -62,11 +67,15 @@ func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationC
 }
 
 // normalizeWithSelectiveProcessing applies normalization but preserves runtime references
-func (n *Normalizer) normalizeWithSelectiveProcessing(config *task.Config, ctx contracts.NormalizationContext) error {
+func (n *Normalizer) normalizeWithSelectiveProcessing(
+	ctx context.Context,
+	config *task.Config,
+	parentCtx contracts.NormalizationContext,
+) error {
 	// Type assert to get the concrete type
-	normCtx, ok := ctx.(*shared.NormalizationContext)
+	normCtx, ok := parentCtx.(*shared.NormalizationContext)
 	if !ok {
-		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", ctx)
+		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", parentCtx)
 	}
 
 	// Detect if runtime already has the .tasks map with completed task outputs
@@ -82,7 +91,7 @@ func (n *Normalizer) normalizeWithSelectiveProcessing(config *task.Config, ctx c
 	}
 
 	// Apply base normalization which will process all templates
-	if err := n.BaseNormalizer.Normalize(config, normCtx); err != nil {
+	if err := n.BaseNormalizer.Normalize(ctx, config, normCtx); err != nil {
 		return err
 	}
 

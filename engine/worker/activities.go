@@ -88,7 +88,7 @@ func NewActivities(
 	memoryActivities := memacts.NewMemoryActivities(memoryManager)
 	// Create task2 factory
 	envMerger := core.NewEnvMerger()
-	task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+	task2Factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 		TemplateEngine: templateEngine,
 		EnvMerger:      envMerger,
 		WorkflowRepo:   workflowRepo,

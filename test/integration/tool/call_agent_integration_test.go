@@ -24,10 +24,10 @@ import (
 
 func TestCallAgentIntegration(t *testing.T) {
 	t.Run("Should execute cp__call_agent via llm service", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		project := "demo"
 		ctx = core.WithProjectName(ctx, project)
-		manager := config.NewManager(config.NewService())
+		manager := config.NewManager(t.Context(), config.NewService())
 		_, err := manager.Load(ctx, config.NewDefaultProvider())
 		require.NoError(t, err)
 		cfg := manager.Get()
@@ -234,7 +234,7 @@ func (e *staticEnvironment) ResourceStore() resources.ResourceStore {
 }
 
 func seedAgent(t *testing.T, store resources.ResourceStore, project string, value map[string]any) {
-	_, err := store.Put(context.Background(), resources.ResourceKey{
+	_, err := store.Put(t.Context(), resources.ResourceKey{
 		Project: project,
 		Type:    resources.ResourceAgent,
 		ID:      "agent.summary",

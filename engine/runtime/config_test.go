@@ -1,7 +1,6 @@
 package runtime_test
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -34,7 +33,7 @@ export async function config_tool(input: any, config?: any) {
 		err = os.WriteFile(tmpDir+"/tools.ts", []byte(entrypointContent), 0644)
 		require.NoError(t, err)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
@@ -76,7 +75,7 @@ export async function optional_config_tool(input: any, config?: any) {
 		err = os.WriteFile(tmpDir+"/tools.ts", []byte(entrypointContent), 0644)
 		require.NoError(t, err)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
@@ -115,7 +114,7 @@ export async function optional_config_tool(input: any, config?: any) {
 		err = os.WriteFile(tmpDir+"/tools.ts", []byte(entrypointContent), 0644)
 		require.NoError(t, err)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}

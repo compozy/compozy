@@ -47,7 +47,7 @@ func TestLLMInvoker(t *testing.T) {
 			maxConcurrentTools: 0,
 		})
 
-		ctx := context.Background()
+		ctx := t.Context()
 		start := time.Now()
 		resp, err := invoker.Invoke(ctx, client, &llmadapter.LLMRequest{}, Request{})
 		require.NoError(t, err)

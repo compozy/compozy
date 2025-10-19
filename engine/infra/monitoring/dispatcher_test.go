@@ -1,7 +1,6 @@
 package monitoring
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -10,7 +9,7 @@ import (
 )
 
 func TestDispatcherHealthMonitoring(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	// Reset metrics for clean test state
 	ResetDispatcherHealthMetricsForTesting(ctx)
 	t.Run("Should register and track dispatcher health", func(t *testing.T) {

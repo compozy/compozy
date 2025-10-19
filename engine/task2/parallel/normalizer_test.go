@@ -1,6 +1,7 @@
 package parallel_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -21,7 +22,10 @@ type mockNormalizerFactory struct {
 	mock.Mock
 }
 
-func (m *mockNormalizerFactory) CreateNormalizer(taskType task.Type) (contracts.TaskNormalizer, error) {
+func (m *mockNormalizerFactory) CreateNormalizer(
+	_ context.Context,
+	taskType task.Type,
+) (contracts.TaskNormalizer, error) {
 	args := m.Called(taskType)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -39,7 +43,11 @@ func (m *mockTaskNormalizer) Type() task.Type {
 	return task.Type(args.String(0))
 }
 
-func (m *mockTaskNormalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+func (m *mockTaskNormalizer) Normalize(
+	_ context.Context,
+	config *task.Config,
+	ctx contracts.NormalizationContext,
+) error {
 	args := m.Called(config, ctx)
 	return args.Error(0)
 }
@@ -48,12 +56,12 @@ func TestParallelNormalizer_NewNormalizer(t *testing.T) {
 	t.Run("Should create parallel normalizer", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		factory := &mockNormalizerFactory{}
 
 		// Act
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -61,12 +69,12 @@ func TestParallelNormalizer_NewNormalizer(t *testing.T) {
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		factory := &mockNormalizerFactory{}
 
 		// Act
-		normalizer := parallel.NewNormalizer(nil, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), nil, contextBuilder, factory)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -78,7 +86,7 @@ func TestParallelNormalizer_NewNormalizer(t *testing.T) {
 		factory := &mockNormalizerFactory{}
 
 		// Act
-		normalizer := parallel.NewNormalizer(templateEngine, nil, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, nil, factory)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -87,11 +95,11 @@ func TestParallelNormalizer_NewNormalizer(t *testing.T) {
 	t.Run("Should handle nil normalizer factory", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Act
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, nil)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, nil)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -99,7 +107,7 @@ func TestParallelNormalizer_NewNormalizer(t *testing.T) {
 
 	t.Run("Should handle all nil parameters", func(t *testing.T) {
 		// Act
-		normalizer := parallel.NewNormalizer(nil, nil, nil)
+		normalizer := parallel.NewNormalizer(t.Context(), nil, nil, nil)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -110,10 +118,10 @@ func TestParallelNormalizer_Type(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 
 		// Act
 		taskType := normalizer.Type()
@@ -127,12 +135,12 @@ func TestParallelNormalizer_Integration(t *testing.T) {
 	t.Run("Should be based on BaseSubTaskNormalizer", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		factory := &mockNormalizerFactory{}
 
 		// Act
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -145,10 +153,10 @@ func TestParallelNormalizer_Integration(t *testing.T) {
 	t.Run("Should support parallel task strategy and workers", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 
 		// Simple task config without sub-tasks to avoid nil pointer issues
 		taskConfig := &task.Config{
@@ -183,10 +191,10 @@ func TestParallelNormalizer_Integration(t *testing.T) {
 			t.Run(string(strategy), func(t *testing.T) {
 				// Arrange
 				templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-				contextBuilder, err := shared.NewContextBuilder()
+				contextBuilder, err := shared.NewContextBuilder(t.Context())
 				require.NoError(t, err)
 				factory := &mockNormalizerFactory{}
-				normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+				normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 
 				taskConfig := &task.Config{
 					BaseConfig: task.BaseConfig{
@@ -210,10 +218,10 @@ func TestParallelNormalizer_Integration(t *testing.T) {
 	t.Run("Should handle template expressions in parallel configuration", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -235,16 +243,16 @@ func TestParallelNormalizer_Integration(t *testing.T) {
 
 func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should handle nil config gracefully", func(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 		ctx := &shared.NormalizationContext{}
 		// Act
-		err := normalizer.Normalize(nil, ctx)
+		err := normalizer.Normalize(t.Context(), nil, ctx)
 		// Assert
 		assert.NoError(t, err)
 	})
@@ -252,7 +260,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	t.Run("Should return error for wrong task type", func(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -261,7 +269,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "parallel normalizer cannot handle task type: basic")
@@ -270,7 +278,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	t.Run("Should handle template parsing errors", func(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "{{ .invalid.deeply.nested.nonexistent.field }}",
@@ -283,7 +291,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to normalize parallel task config")
@@ -292,7 +300,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	t.Run("Should handle config serialization errors", func(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -305,7 +313,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to convert task config to map")
@@ -319,7 +327,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).
 			Return(errors.New("sub-task normalization failed"))
 
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, mockFactory)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "parallel-task",
@@ -336,7 +344,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to normalize parallel sub-tasks")
@@ -349,7 +357,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		mockFactory := &mockNormalizerFactory{}
 		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(nil, errors.New("normalizer creation failed"))
 
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, mockFactory)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "parallel-task",
@@ -366,7 +374,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create normalizer for task type basic")
@@ -380,7 +388,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
 		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
 
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, mockFactory)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "{{ .name }}-parallel",
@@ -405,7 +413,7 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "test-parallel", taskConfig.ID)
@@ -417,13 +425,13 @@ func TestParallelNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(nil, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), nil, contextBuilder, factory)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -432,7 +440,7 @@ func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert - Should return error due to nil template engine
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "template engine is required for normalization")
@@ -441,7 +449,7 @@ func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 	t.Run("Should handle nil context builder gracefully", func(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(templateEngine, nil, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, nil, factory)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -450,14 +458,14 @@ func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert - Should succeed since BaseSubTaskNormalizer handles nil context builder
 		assert.NoError(t, err)
 	})
 
 	t.Run("Should handle nil normalizer factory", func(t *testing.T) {
 		// Arrange
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, nil)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, nil)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -475,14 +483,14 @@ func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act & Assert
 		assert.Panics(t, func() {
-			normalizer.Normalize(taskConfig, ctx)
+			normalizer.Normalize(t.Context(), taskConfig, ctx)
 		})
 	})
 
 	t.Run("Should handle empty sub-tasks array", func(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -492,7 +500,7 @@ func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 	})
@@ -510,7 +518,7 @@ func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 			t.Run(string(strategy), func(t *testing.T) {
 				// Arrange
 				factory := &mockNormalizerFactory{}
-				normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+				normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 				taskConfig := &task.Config{
 					BaseConfig: task.BaseConfig{
 						ID:   "strategy-test",
@@ -523,7 +531,7 @@ func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 				}
 				ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 				// Act
-				err := normalizer.Normalize(taskConfig, ctx)
+				err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 				// Assert
 				assert.NoError(t, err)
 				assert.Equal(t, strategy, taskConfig.Strategy)
@@ -534,7 +542,7 @@ func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 	t.Run("Should handle zero max workers", func(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "zero-workers-task",
@@ -546,7 +554,7 @@ func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, 0, taskConfig.MaxWorkers)
@@ -555,7 +563,7 @@ func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 	t.Run("Should preserve parallel task configuration", func(t *testing.T) {
 		// Arrange
 		factory := &mockNormalizerFactory{}
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, factory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, factory)
 		originalStrategy := task.StrategyBestEffort
 		originalMaxWorkers := 10
 		taskConfig := &task.Config{
@@ -570,7 +578,7 @@ func TestParallelNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, originalStrategy, taskConfig.Strategy)

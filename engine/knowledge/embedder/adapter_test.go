@@ -15,13 +15,13 @@ import (
 )
 
 func newTestContext(t *testing.T) context.Context {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
-	manager := config.NewManager(config.NewService())
+	manager := config.NewManager(t.Context(), config.NewService())
 	_, err := manager.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, manager.Close(context.Background()))
+		require.NoError(t, manager.Close(t.Context()))
 	})
 	ctx = config.ContextWithManager(ctx, manager)
 	return ctx

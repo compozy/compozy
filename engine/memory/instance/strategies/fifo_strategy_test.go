@@ -1,7 +1,6 @@
 package strategies
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -90,7 +89,7 @@ func TestFIFOStrategy_ShouldFlush(t *testing.T) {
 
 func TestFIFOStrategy_PerformFlush(t *testing.T) {
 	strategy := NewFIFOStrategy(0.8)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should handle empty message list", func(t *testing.T) {
 		config := &core.Resource{

@@ -22,8 +22,8 @@ import (
 // setupTestWithSharedContainer creates a test database using the shared container pattern
 // This is 70-90% faster than creating individual containers
 func setupTestWithSharedContainer(t *testing.T) (context.Context, *pgxpool.Pool, func()) {
-	ctx := context.Background()
-	pool, cleanup := helpers.GetSharedPostgresDB(ctx, t)
+	ctx := t.Context()
+	pool, cleanup := helpers.GetSharedPostgresDB(t)
 	// ensure tables exist
 	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
 	return ctx, pool, func() { cleanup() }
@@ -321,7 +321,7 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	// Cleanup shared container
-	helpers.CleanupSharedContainer()
+	helpers.CleanupSharedContainer(context.Background())
 
 	os.Exit(code)
 }

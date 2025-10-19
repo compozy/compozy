@@ -13,7 +13,7 @@ import (
 // Factory provides unified creation methods for all task2 components
 type Factory interface {
 	// Task normalizer creation
-	CreateNormalizer(taskType task.Type) (contracts.TaskNormalizer, error)
+	CreateNormalizer(ctx context.Context, taskType task.Type) (contracts.TaskNormalizer, error)
 
 	// Component normalizers
 	CreateAgentNormalizer() *task2core.AgentNormalizer
@@ -26,7 +26,7 @@ type Factory interface {
 	CreateResponseHandler(ctx context.Context, taskType task.Type) (shared.TaskResponseHandler, error)
 
 	// Domain service creation
-	CreateCollectionExpander() shared.CollectionExpander
+	CreateCollectionExpander(ctx context.Context) shared.CollectionExpander
 
 	// Infrastructure service creation
 	CreateTaskConfigRepository(

@@ -1,7 +1,6 @@
 package orchestrator
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -11,7 +10,7 @@ import (
 )
 
 func TestValidateRequest_NegativeCases(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	t.Run("Should error when agent is nil", func(t *testing.T) {
 		err := validateRequest(ctx, Request{Agent: nil, Action: &agent.ActionConfig{ID: "a", Prompt: "p"}})
 		require.Error(t, err)

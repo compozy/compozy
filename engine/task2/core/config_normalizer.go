@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/task"
@@ -31,24 +32,25 @@ func NewConfigNormalizer(
 
 // NormalizeTask normalizes a task configuration with workflow context
 func (cn *ConfigNormalizer) NormalizeTask(
+	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) error {
 	// Build normalization context
-	ctx := cn.contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	normCtx := cn.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
 
 	// Merge environments
-	ctx.MergedEnv = cn.envMerger.MergeWorkflowToTask(workflowConfig, taskConfig)
+	normCtx.MergedEnv = cn.envMerger.MergeWorkflowToTask(workflowConfig, taskConfig)
 
 	// Create appropriate normalizer based on task type
-	normalizer, err := cn.factory.CreateNormalizer(taskConfig.Type)
+	normalizer, err := cn.factory.CreateNormalizer(ctx, taskConfig.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create normalizer for task %s: %w", taskConfig.ID, err)
 	}
 
 	// Apply normalization
-	if err := normalizer.Normalize(taskConfig, ctx); err != nil {
+	if err := normalizer.Normalize(ctx, taskConfig, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize task %s: %w", taskConfig.ID, err)
 	}
 
@@ -57,6 +59,7 @@ func (cn *ConfigNormalizer) NormalizeTask(
 
 // NormalizeAllTasks normalizes all tasks in a workflow
 func (cn *ConfigNormalizer) NormalizeAllTasks(
+	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 ) error {
@@ -71,18 +74,18 @@ func (cn *ConfigNormalizer) NormalizeAllTasks(
 		taskConfig := &workflowConfig.Tasks[i]
 
 		// Build normalization context with task configs
-		ctx := cn.contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
-		ctx.TaskConfigs = taskConfigs
-		ctx.MergedEnv = cn.envMerger.MergeWorkflowToTask(workflowConfig, taskConfig)
+		normCtx := cn.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
+		normCtx.TaskConfigs = taskConfigs
+		normCtx.MergedEnv = cn.envMerger.MergeWorkflowToTask(workflowConfig, taskConfig)
 
 		// Create appropriate normalizer
-		normalizer, err := cn.factory.CreateNormalizer(taskConfig.Type)
+		normalizer, err := cn.factory.CreateNormalizer(ctx, taskConfig.Type)
 		if err != nil {
 			return fmt.Errorf("failed to create normalizer for task %s: %w", taskConfig.ID, err)
 		}
 
 		// Apply normalization
-		if err := normalizer.Normalize(taskConfig, ctx); err != nil {
+		if err := normalizer.Normalize(ctx, taskConfig, normCtx); err != nil {
 			return fmt.Errorf("failed to normalize task %s: %w", taskConfig.ID, err)
 		}
 	}
@@ -92,6 +95,7 @@ func (cn *ConfigNormalizer) NormalizeAllTasks(
 
 // NormalizeSubTask normalizes a sub-task within a parent task context
 func (cn *ConfigNormalizer) NormalizeSubTask(
+	ctx context.Context,
 	parentCtx *shared.NormalizationContext,
 	parentTask *task.Config,
 	subTask *task.Config,
@@ -108,26 +112,26 @@ func (cn *ConfigNormalizer) NormalizeSubTask(
 	}
 
 	// Build sub-task context
-	ctx, err := cn.contextBuilder.BuildNormalizationSubTaskContext(parentCtx, parentTask, subTask)
+	normCtx, err := cn.contextBuilder.BuildNormalizationSubTaskContext(ctx, parentCtx, parentTask, subTask)
 	if err != nil {
 		return fmt.Errorf("failed to build sub-task context: %w", err)
 	}
 
 	// Merge environments for sub-task
-	ctx.MergedEnv = cn.envMerger.MergeThreeLevels(
+	normCtx.MergedEnv = cn.envMerger.MergeThreeLevels(
 		parentCtx.WorkflowConfig,
 		subTask,
 		nil,
 	)
 
 	// Create appropriate normalizer
-	normalizer, err := cn.factory.CreateNormalizer(subTask.Type)
+	normalizer, err := cn.factory.CreateNormalizer(ctx, subTask.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create normalizer for sub-task %s: %w", subTask.ID, err)
 	}
 
 	// Apply normalization
-	if err := normalizer.Normalize(subTask, ctx); err != nil {
+	if err := normalizer.Normalize(ctx, subTask, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize sub-task %s: %w", subTask.ID, err)
 	}
 

@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,7 +34,7 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 		require.NotNil(t, unifiedCounter)
 
 		// Test token counting (should use fallback since no API key)
-		ctx := context.Background()
+		ctx := t.Context()
 		text := "Hello, this is a test message for token counting."
 		count, err := unifiedCounter.CountTokens(ctx, text)
 		require.NoError(t, err)
@@ -49,7 +48,7 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 	t.Run("Should integrate UnifiedTokenCounter in memory system", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create a standard memory configuration
 		testConfig := &memory.Config{
@@ -120,7 +119,7 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 	t.Run("Should fallback to tiktoken when no TokenProvider configured", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Use existing customer-support config (no TokenProvider)
 		memRef := coreTypes.MemoryReference{
@@ -152,7 +151,7 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 	})
 
 	t.Run("Should handle different providers in UnifiedTokenCounter", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		providers := []struct {
 			name     string
@@ -198,7 +197,7 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 	})
 
 	t.Run("Should use API key from environment when configured", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Set test API key in environment
 		t.Setenv("TEST_OPENAI_API_KEY", "test-key-12345")

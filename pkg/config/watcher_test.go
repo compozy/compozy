@@ -59,7 +59,7 @@ func TestWatcher_Watch(t *testing.T) {
 		})
 
 		// Start watching with cancellable context
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 
 		err = watcher.Watch(ctx, tmpFile.Name())
 		require.NoError(t, err)

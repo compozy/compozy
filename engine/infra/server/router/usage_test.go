@@ -66,7 +66,7 @@ func TestNewUsageSummary(t *testing.T) {
 func TestResolveTaskUsageSummary(t *testing.T) {
 	t.Parallel()
 	taskID := core.MustNewID()
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 
 	t.Run("nil repo returns nil", func(t *testing.T) {
 		t.Parallel()
@@ -110,7 +110,7 @@ func TestResolveTaskUsageSummary(t *testing.T) {
 func TestResolveWorkflowUsageSummary(t *testing.T) {
 	t.Parallel()
 	execID := core.MustNewID()
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 
 	t.Run("nil repo returns nil", func(t *testing.T) {
 		t.Parallel()

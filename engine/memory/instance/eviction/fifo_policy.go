@@ -1,6 +1,8 @@
 package eviction
 
 import (
+	"context"
+
 	"github.com/compozy/compozy/engine/llm"
 )
 
@@ -10,7 +12,7 @@ type FIFOEvictionPolicy struct {
 }
 
 // NewFIFOEvictionPolicy creates a new FIFO eviction policy
-func NewFIFOEvictionPolicy() *FIFOEvictionPolicy {
+func NewFIFOEvictionPolicy(_ context.Context) *FIFOEvictionPolicy {
 	return &FIFOEvictionPolicy{
 		name: "fifo",
 	}
@@ -18,6 +20,7 @@ func NewFIFOEvictionPolicy() *FIFOEvictionPolicy {
 
 // SelectMessagesToEvict selects the oldest messages for eviction
 func (p *FIFOEvictionPolicy) SelectMessagesToEvict(
+	_ context.Context,
 	messages []llm.Message,
 	targetCount int,
 ) []llm.Message {

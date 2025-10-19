@@ -4,6 +4,8 @@
 package contracts
 
 import (
+	"context"
+
 	"github.com/compozy/compozy/engine/task"
 )
 
@@ -14,7 +16,7 @@ type TaskNormalizer interface {
 	// Normalize applies task-specific normalization rules to the given configuration.
 	// The context parameter must implement NormalizationContext interface.
 	// In practice, this will be *shared.NormalizationContext.
-	Normalize(config *task.Config, ctx NormalizationContext) error
+	Normalize(ctx context.Context, config *task.Config, normCtx NormalizationContext) error
 	// Type returns the task type this normalizer handles
 	Type() task.Type
 }

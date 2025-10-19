@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -11,18 +12,28 @@ import (
 
 type testNormCtx struct{ base map[string]any }
 
-func (t *testNormCtx) BuildTemplateContext() map[string]any { return t.base }
+func (t *testNormCtx) BuildTemplateContext(_ context.Context) map[string]any { return t.base }
 
 func TestOutputNormalizer_TransformWorkflowOutput(t *testing.T) {
 	t.Run("Should return nil when no outputs configured", func(t *testing.T) {
 		eng := tplengine.NewEngine(tplengine.FormatJSON)
 		normalizer := NewOutputNormalizer(eng)
 		st := &State{WorkflowID: "wf", WorkflowExecID: core.MustNewID(), Status: core.StatusSuccess}
-		out, err := normalizer.TransformWorkflowOutput(st, nil, &testNormCtx{base: map[string]any{"name": "Ada"}})
+		out, err := normalizer.TransformWorkflowOutput(
+			t.Context(),
+			st,
+			nil,
+			&testNormCtx{base: map[string]any{"name": "Ada"}},
+		)
 		require.NoError(t, err)
 		assert.Nil(t, out)
 		empty := core.Output{}
-		out, err = normalizer.TransformWorkflowOutput(st, &empty, &testNormCtx{base: map[string]any{"name": "Ada"}})
+		out, err = normalizer.TransformWorkflowOutput(
+			t.Context(),
+			st,
+			&empty,
+			&testNormCtx{base: map[string]any{"name": "Ada"}},
+		)
 		require.NoError(t, err)
 		assert.Nil(t, out)
 	})
@@ -39,7 +50,7 @@ func TestOutputNormalizer_TransformWorkflowOutput(t *testing.T) {
 			"nested":      map[string]any{"greet": "Hi {{ .name }}"},
 		}
 		ctx := &testNormCtx{base: map[string]any{"name": "Grace"}}
-		got, err := normalizer.TransformWorkflowOutput(st, &outputs, ctx)
+		got, err := normalizer.TransformWorkflowOutput(t.Context(), st, &outputs, ctx)
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, "Hello, Grace", (*got)["msg"])
@@ -55,7 +66,12 @@ func TestOutputNormalizer_TransformWorkflowOutput(t *testing.T) {
 		normalizer := NewOutputNormalizer(eng)
 		st := &State{WorkflowID: "wf", WorkflowExecID: core.MustNewID(), Status: core.StatusSuccess}
 		outputs := core.Output{"bad": "{{ .does_not_exist }}"}
-		_, err := normalizer.TransformWorkflowOutput(st, &outputs, &testNormCtx{base: map[string]any{"ok": true}})
+		_, err := normalizer.TransformWorkflowOutput(
+			t.Context(),
+			st,
+			&outputs,
+			&testNormCtx{base: map[string]any{"ok": true}},
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to transform workflow output field bad")
 	})

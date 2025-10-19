@@ -1,6 +1,7 @@
 package parallel
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,10 @@ type MockNormalizerFactory struct {
 	mock.Mock
 }
 
-func (m *MockNormalizerFactory) CreateNormalizer(taskType task.Type) (contracts.TaskNormalizer, error) {
+func (m *MockNormalizerFactory) CreateNormalizer(
+	_ context.Context,
+	taskType task.Type,
+) (contracts.TaskNormalizer, error) {
 	args := m.Called(taskType)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -38,7 +42,11 @@ func (m *MockTaskNormalizer) Type() task.Type {
 	return task.Type(args.String(0))
 }
 
-func (m *MockTaskNormalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+func (m *MockTaskNormalizer) Normalize(
+	_ context.Context,
+	config *task.Config,
+	ctx contracts.NormalizationContext,
+) error {
 	args := m.Called(config, ctx)
 	return args.Error(0)
 }
@@ -53,7 +61,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		mockFactory := &MockNormalizerFactory{}
@@ -62,7 +70,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil).Times(2)
 
 		// Create parallel normalizer
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, mockFactory)
 
 		// Setup parent task with CWD and FilePath
 		parentCWD := &core.PathCWD{Path: "/parallel/working/directory"}
@@ -96,7 +104,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(config, ctx)
+		err = normalizer.Normalize(t.Context(), config, ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -116,7 +124,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		mockFactory := &MockNormalizerFactory{}
@@ -124,7 +132,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
 		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
 
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, mockFactory)
 
 		// Setup with both parent and child having different CWD/FilePath
 		parentCWD := &core.PathCWD{Path: "/parallel/working/directory"}
@@ -156,7 +164,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(config, ctx)
+		err = normalizer.Normalize(t.Context(), config, ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -181,7 +189,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		mockFactory := &MockNormalizerFactory{}
@@ -191,7 +199,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 		mockFactory.On("CreateNormalizer", task.TaskTypeParallel).Return(mockSubNormalizer, nil)
 		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
 
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, mockFactory)
 
 		// Setup nested parallel tasks
 		parentCWD := &core.PathCWD{Path: "/root/parallel/directory"}
@@ -227,7 +235,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(config, ctx)
+		err = normalizer.Normalize(t.Context(), config, ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -245,7 +253,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		mockFactory := &MockNormalizerFactory{}
@@ -253,7 +261,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 		mockFactory.On("CreateNormalizer", task.TaskTypeBasic).Return(mockSubNormalizer, nil)
 		mockSubNormalizer.On("Normalize", mock.Anything, mock.Anything).Return(nil)
 
-		normalizer := parallel.NewNormalizer(templateEngine, contextBuilder, mockFactory)
+		normalizer := parallel.NewNormalizer(t.Context(), templateEngine, contextBuilder, mockFactory)
 
 		// Setup with Task reference
 		parentCWD := &core.PathCWD{Path: "/parallel/working/directory"}
@@ -279,7 +287,7 @@ func TestParallelNormalizer_ConfigInheritance(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(config, ctx)
+		err = normalizer.Normalize(t.Context(), config, ctx)
 
 		// Assert
 		require.NoError(t, err)

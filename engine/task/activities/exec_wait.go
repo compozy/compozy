@@ -62,7 +62,7 @@ func (a *ExecuteWait) Run(ctx context.Context, input *ExecuteWaitInput) (*task.M
 		return nil, err
 	}
 	// Use task2 normalizer for wait tasks
-	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeWait)
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeWait)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create wait normalizer: %w", err)
 	}
@@ -72,10 +72,10 @@ func (a *ExecuteWait) Run(ctx context.Context, input *ExecuteWaitInput) (*task.M
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
 	// Build proper normalization context with all template variables
-	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	normContext := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, input.TaskConfig)
 	// Normalize the task configuration
 	normalizedConfig := input.TaskConfig
-	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
 		return nil, fmt.Errorf("failed to normalize wait task: %w", err)
 	}
 	// Validate task type

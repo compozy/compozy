@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/autoload"
@@ -58,7 +57,7 @@ func TestMemoryManager_ResourceRegistryIntegration(t *testing.T) {
 		autoloader := autoload.New(cwd.Path, config, registry)
 
 		// Act - Load memory configurations
-		err = autoloader.Load(context.Background())
+		err = autoloader.Load(t.Context())
 		require.NoError(t, err)
 
 		// Assert - Verify configurations are available

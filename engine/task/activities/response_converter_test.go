@@ -1,7 +1,6 @@
 package activities
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,7 +77,7 @@ func TestResponseConverter_ConvertToMainTaskResponse(t *testing.T) {
 
 func TestResponseConverter_ConvertToCollectionResponse(t *testing.T) {
 	converter := NewResponseConverter()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should convert with collection metadata from output", func(t *testing.T) {
 		// Arrange

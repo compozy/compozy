@@ -77,13 +77,14 @@ func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 
 // Cleanup closes all test resources
 func (env *TestEnvironment) Cleanup() {
+	env.t.Helper()
 	if env.httpServer != nil {
 		env.httpServer.Close()
 	}
 	if env.monitoringServer != nil {
 		env.monitoringServer.Close()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(env.t.Context(), 5*time.Second)
 	defer cancel()
 	_ = env.monitoring.Shutdown(ctx)
 }
@@ -100,7 +101,8 @@ func (env *TestEnvironment) GetMetricsClient() *http.Client {
 
 // MakeRequest makes a request to the test HTTP server
 func (env *TestEnvironment) MakeRequest(method, path string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(context.Background(), method, env.httpServer.URL+path, http.NoBody)
+	env.t.Helper()
+	req, err := http.NewRequestWithContext(env.t.Context(), method, env.httpServer.URL+path, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +111,8 @@ func (env *TestEnvironment) MakeRequest(method, path string) (*http.Response, er
 
 // GetMetrics fetches the current metrics from the metrics endpoint
 func (env *TestEnvironment) GetMetrics() (string, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+	env.t.Helper()
+	req, err := http.NewRequestWithContext(env.t.Context(), "GET", env.metricsURL, http.NoBody)
 	if err != nil {
 		return "", err
 	}
@@ -191,7 +194,7 @@ type PollingCondition func() (bool, error)
 // WaitForCondition polls a condition until it becomes true or timeout
 func WaitForCondition(t *testing.T, condition PollingCondition, timeout time.Duration, message string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	defer cancel()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()

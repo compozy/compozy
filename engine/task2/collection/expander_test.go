@@ -29,9 +29,9 @@ func TestExpander_ImplementsInterface(t *testing.T) {
 	t.Run("Should implement CollectionExpander interface", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := NewNormalizer(templateEngine, contextBuilder)
+		normalizer := NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		configBuilder := NewConfigBuilder(templateEngine)
 
 		expander := NewExpander(normalizer, contextBuilder, configBuilder)
@@ -46,9 +46,9 @@ func TestNewExpander(t *testing.T) {
 	t.Run("Should create expander with all dependencies", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := NewNormalizer(templateEngine, contextBuilder)
+		normalizer := NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		configBuilder := NewConfigBuilder(templateEngine)
 
 		// Act

@@ -29,11 +29,11 @@ type Manager struct {
 }
 
 // NewManager creates a new configuration manager.
-func NewManager(service Service) *Manager {
+func NewManager(ctx context.Context, service Service) *Manager {
 	if service == nil {
 		service = NewService()
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	return &Manager{
 		Service:     service,
 		callbacks:   make([]func(*Config), 0),

@@ -54,9 +54,6 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 
 	// Mark path as being watched with its context
 	w.mu.Lock()
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	w.watched[absPath] = ctx
 	w.mu.Unlock()
 

@@ -52,7 +52,7 @@ func (stubMemory) AppendWithPrivacy(context.Context, llm.Message, memcore.Privac
 
 func TestMemoryActivities_getMemoryInstance(t *testing.T) {
 	t.Run("Should wrap config error as non-retryable memory config problem", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		manager := &MockMemoryManager{}
 		activities := &MemoryActivities{MemoryManager: manager}
 		configErr := memcore.NewConfigError("bad config", errors.New("boom"))
@@ -70,7 +70,7 @@ func TestMemoryActivities_getMemoryInstance(t *testing.T) {
 	})
 
 	t.Run("Should wrap generic manager error as retryable instance creation failure", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		manager := &MockMemoryManager{}
 		activities := &MemoryActivities{MemoryManager: manager}
 		manager.

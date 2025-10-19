@@ -18,7 +18,7 @@ func TestCELEvaluator_ConcurrentAccess(t *testing.T) {
 	evaluator, err := NewCELEvaluator(WithCacheSize(100))
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	numGoroutines := 50
 	evaluationsPerGoroutine := 100
 
@@ -83,7 +83,7 @@ func TestCELEvaluator_StressTest(t *testing.T) {
 	evaluator, err := NewCELEvaluator(WithCacheSize(1000), WithCostLimit(10000))
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	// Complex expressions to stress test the evaluator
@@ -159,7 +159,7 @@ func TestWaitTask_ExpressionComplexity(t *testing.T) {
 	evaluator, err := NewCELEvaluator(WithCostLimit(50000)) // Higher limit for complex expressions
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test increasingly complex expressions
 	complexityTests := []struct {

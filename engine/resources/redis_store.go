@@ -257,12 +257,14 @@ func (s *RedisResourceStore) Get(ctx context.Context, key ResourceKey) (any, ETa
 		return nil, ETag(""), fmt.Errorf("unmarshal failed: %w", err)
 	}
 	var etag ETag
-	if et, err := s.r.Get(ctx, s.etagKey(key)).Result(); err == nil {
+	et, err := s.r.Get(ctx, s.etagKey(key)).Result()
+	switch err {
+	case nil:
 		etag = ETag(et)
-	} else if err == redis.Nil {
+	case redis.Nil:
 		sum := sha256.Sum256(bs)
 		etag = ETag(hex.EncodeToString(sum[:]))
-	} else if err != nil {
+	default:
 		return nil, ETag(""), fmt.Errorf("redis GET etag: %w", err)
 	}
 	return v, etag, nil

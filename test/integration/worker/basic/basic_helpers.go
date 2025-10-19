@@ -59,7 +59,7 @@ func executeWorkflowAndGetState(
 	fixture *helpers.TestFixture,
 	_ *helpers.DatabaseHelper,
 ) *workflow.State {
-	ctx := context.Background()
+	ctx := t.Context()
 	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 	defer cleanup()
 
@@ -124,7 +124,7 @@ func createTestActivities(
 	workflowRepo workflow.Repository,
 	fixture *helpers.TestFixture,
 ) *worker.Activities {
-	ctx := context.Background()
+	ctx := t.Context()
 	// For testing, we need to create a minimal project config and workflow configs
 	// These would normally come from the real system setup
 	projectConfig := createTestProjectConfig(t)

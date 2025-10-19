@@ -61,20 +61,20 @@ func (vc *ValidationConfig) ValidateConfig(config *task.Config) error {
 	return nil
 }
 
-func (vc *ValidationConfig) ValidateNormalizationContext(ctx *NormalizationContext) error {
-	if ctx == nil {
+func (vc *ValidationConfig) ValidateNormalizationContext(normCtx *NormalizationContext) error {
+	if normCtx == nil {
 		return fmt.Errorf("normalization context cannot be nil")
 	}
-	if ctx.WorkflowState == nil {
+	if normCtx.WorkflowState == nil {
 		return fmt.Errorf("workflow state is required in normalization context")
 	}
-	if ctx.WorkflowConfig == nil {
+	if normCtx.WorkflowConfig == nil {
 		return fmt.Errorf("workflow config is required in normalization context")
 	}
-	if ctx.TaskConfig == nil {
+	if normCtx.TaskConfig == nil {
 		return fmt.Errorf("task config is required in normalization context")
 	}
-	return vc.ValidateConfig(ctx.TaskConfig)
+	return vc.ValidateConfig(normCtx.TaskConfig)
 }
 
 var validTaskTypes = map[task.Type]bool{
@@ -100,11 +100,10 @@ type InputSanitizer struct {
 }
 
 // NewInputSanitizer creates a new input sanitizer with configurable string length limit
-func NewInputSanitizer() *InputSanitizer {
+func NewInputSanitizer(ctx context.Context) *InputSanitizer {
 	maxStringLength := 10485760 // 10MB default
 	// Load configuration from environment
 	service := config.NewService()
-	ctx := context.Background()
 	appConfig, err := service.Load(ctx)
 	if err == nil && appConfig.Limits.MaxStringLength > 0 {
 		maxStringLength = appConfig.Limits.MaxStringLength
@@ -127,12 +126,12 @@ func (s *InputSanitizer) GetMaxStringLength() int {
 
 // SanitizeTemplateInput sanitizes template input by truncating long strings and removing empty keys.
 // Empty keys are logged as warnings since they may indicate bugs in caller code.
-func (s *InputSanitizer) SanitizeTemplateInput(input map[string]any) map[string]any {
+func (s *InputSanitizer) SanitizeTemplateInput(ctx context.Context, input map[string]any) map[string]any {
 	if input == nil {
 		return make(map[string]any)
 	}
 	sanitized := make(map[string]any)
-	log := logger.FromContext(context.Background())
+	log := logger.FromContext(ctx)
 	keys := SortedMapKeys(input)
 	for _, key := range keys {
 		value := input[key]
@@ -149,7 +148,7 @@ func (s *InputSanitizer) SanitizeTemplateInput(input map[string]any) map[string]
 				sanitized[key] = v
 			}
 		case map[string]any:
-			sanitized[key] = s.SanitizeTemplateInput(v)
+			sanitized[key] = s.SanitizeTemplateInput(ctx, v)
 		default:
 			sanitized[key] = value
 		}

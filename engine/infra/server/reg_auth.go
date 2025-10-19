@@ -49,7 +49,6 @@ func setupAuthSystem(
 		apiBase.Use(authManager.Middleware())
 		apiBase.Use(authManager.RequireAuth())
 	}
-	// Always pass runtime context; avoid context.Background() wrappers
 	if server != nil && server.monitoring != nil && server.monitoring.IsInitialized() {
 		authrouter.RegisterRoutesWithMetrics(ctx, apiBase, authFactory, cfg, server.monitoring.Meter())
 	} else {

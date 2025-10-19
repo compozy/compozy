@@ -36,14 +36,14 @@ func TestBuildDispatcherWorkflowID(t *testing.T) {
 func TestWorkerEnsureDispatcherRunning(t *testing.T) {
 	createContext := func(t *testing.T) context.Context {
 		t.Helper()
-		manager := appconfig.NewManager(appconfig.NewService())
-		_, err := manager.Load(context.Background(), appconfig.NewDefaultProvider())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
+		_, err := manager.Load(t.Context(), appconfig.NewDefaultProvider())
 		require.NoError(t, err)
 		cfg := manager.Get()
 		cfg.Worker.DispatcherRetryDelay = 1 * time.Millisecond
 		cfg.Worker.StartWorkflowTimeout = 50 * time.Millisecond
 		cfg.Worker.DispatcherMaxRetries = 2
-		ctx := appconfig.ContextWithManager(context.Background(), manager)
+		ctx := appconfig.ContextWithManager(t.Context(), manager)
 		log := logger.NewForTests()
 		return logger.ContextWithLogger(ctx, log)
 	}

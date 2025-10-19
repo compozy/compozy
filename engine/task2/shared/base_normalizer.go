@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
@@ -45,11 +46,15 @@ func (n *BaseNormalizer) Type() task.Type {
 }
 
 // Normalize applies common normalization rules across all task types
-func (n *BaseNormalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+func (n *BaseNormalizer) Normalize(
+	_ context.Context,
+	config *task.Config,
+	parentCtx contracts.NormalizationContext,
+) error {
 	// Type assert to get the concrete type
-	normCtx, ok := ctx.(*NormalizationContext)
+	normCtx, ok := parentCtx.(*NormalizationContext)
 	if !ok {
-		return fmt.Errorf("invalid context type: expected *NormalizationContext, got %T", ctx)
+		return fmt.Errorf("invalid context type: expected *NormalizationContext, got %T", parentCtx)
 	}
 	if config == nil {
 		return nil

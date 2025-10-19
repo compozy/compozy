@@ -25,8 +25,8 @@ type DefaultTaskOutputBuilder struct {
 }
 
 // NewTaskOutputBuilder creates a new task output builder
-func NewTaskOutputBuilder() TaskOutputBuilder {
-	maxDepth := getMaxContextDepthFromConfig()
+func NewTaskOutputBuilder(ctx context.Context) TaskOutputBuilder {
+	maxDepth := getMaxContextDepthFromConfig(ctx)
 	return &DefaultTaskOutputBuilder{
 		maxDepth: maxDepth,
 	}
@@ -37,23 +37,22 @@ func NewTaskOutputBuilder() TaskOutputBuilder {
 // configuration loading when values are absent.
 func NewTaskOutputBuilderWithContext(ctx context.Context) TaskOutputBuilder {
 	if ctx == nil {
-		return NewTaskOutputBuilder()
+		return NewTaskOutputBuilder(ctx)
 	}
 	// Prefer values already attached to the context
 	if cfg := config.FromContext(ctx); cfg != nil && cfg.Limits.MaxTaskContextDepth > 0 {
 		return &DefaultTaskOutputBuilder{maxDepth: cfg.Limits.MaxTaskContextDepth}
 	}
 	// As a fallback, reuse the existing logic
-	return NewTaskOutputBuilder()
+	return NewTaskOutputBuilder(ctx)
 }
 
 // getMaxContextDepthFromConfig gets the max context depth from config
 // with a default fallback of 10
-func getMaxContextDepthFromConfig() int {
+func getMaxContextDepthFromConfig(ctx context.Context) int {
 	const defaultMaxDepth = 10
 	// Load configuration from environment
 	service := config.NewService()
-	ctx := context.Background()
 	appConfig, err := service.Load(ctx)
 	if err == nil && appConfig.Limits.MaxTaskContextDepth > 0 {
 		return appConfig.Limits.MaxTaskContextDepth

@@ -50,7 +50,7 @@ func getDefaultPriorityKeywords() []string {
 }
 
 // NewPriorityEvictionPolicy creates a new priority-based eviction policy
-func NewPriorityEvictionPolicy() *PriorityEvictionPolicy {
+func NewPriorityEvictionPolicy(_ context.Context) *PriorityEvictionPolicy {
 	return &PriorityEvictionPolicy{
 		name:              "priority",
 		importantKeywords: getDefaultPriorityKeywords(),
@@ -59,7 +59,7 @@ func NewPriorityEvictionPolicy() *PriorityEvictionPolicy {
 }
 
 // NewPriorityEvictionPolicyWithKeywords creates a new priority-based eviction policy with custom keywords
-func NewPriorityEvictionPolicyWithKeywords(keywords []string) *PriorityEvictionPolicy {
+func NewPriorityEvictionPolicyWithKeywords(_ context.Context, keywords []string) *PriorityEvictionPolicy {
 	if len(keywords) == 0 {
 		keywords = getDefaultPriorityKeywords()
 	}
@@ -72,6 +72,7 @@ func NewPriorityEvictionPolicyWithKeywords(keywords []string) *PriorityEvictionP
 
 // SelectMessagesToEvict selects messages for eviction based on priority
 func (p *PriorityEvictionPolicy) SelectMessagesToEvict(
+	ctx context.Context,
 	messages []llm.Message,
 	targetCount int,
 ) []llm.Message {
@@ -85,7 +86,7 @@ func (p *PriorityEvictionPolicy) SelectMessagesToEvict(
 		priorityMessages[i] = messageWithPriority{
 			message:       msg,
 			priority:      priority,
-			tokenEstimate: p.estimateTokens(msg),
+			tokenEstimate: p.estimateTokens(ctx, msg),
 			index:         i,
 		}
 	}
@@ -149,9 +150,9 @@ func (p *PriorityEvictionPolicy) containsImportantKeywords(content string) bool 
 }
 
 // estimateTokens provides a token count estimate using the project's token estimator
-func (p *PriorityEvictionPolicy) estimateTokens(msg llm.Message) int {
+func (p *PriorityEvictionPolicy) estimateTokens(ctx context.Context, msg llm.Message) int {
 	// Use the token estimator for content
-	contentTokens := p.tokenEstimator.EstimateTokens(context.Background(), msg.Content)
+	contentTokens := p.tokenEstimator.EstimateTokens(ctx, msg.Content)
 	// Add role overhead based on role length
 	roleOverhead := len(string(msg.Role)) + 2 // Role plus formatting overhead
 	return contentTokens + roleOverhead

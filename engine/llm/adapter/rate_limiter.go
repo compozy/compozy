@@ -391,11 +391,12 @@ func (l *providerRateLimiter) release(ctx context.Context, tokens int) {
 		return
 	}
 	if l.tokenLimiter != nil && tokens > 0 {
-		waitCtx := context.Background()
 		if ctx != nil {
-			waitCtx = context.WithoutCancel(ctx)
+			_ = l.tokenLimiter.WaitN( //nolint:errcheck // release is best-effort; limiter handles context cancellation
+				context.WithoutCancel(ctx),
+				tokens,
+			)
 		}
-		_ = l.tokenLimiter.WaitN(waitCtx, tokens) //nolint:errcheck // throttle until token budget is available
 	}
 	l.sem.Release(1)
 	l.metrics.activeRequests.Add(-1)

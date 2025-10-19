@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"context"
 	"os"
 	"testing"
 	"text/template"
@@ -190,7 +189,7 @@ func TestConfig_MCPValidation(t *testing.T) {
 
 		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		config, err := Load(ctx, CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 
@@ -224,7 +223,7 @@ func TestConfig_ValidateInput(t *testing.T) {
 			"name": "test",
 		}
 
-		err := config.ValidateInput(context.Background(), input)
+		err := config.ValidateInput(t.Context(), input)
 		assert.NoError(t, err)
 	})
 
@@ -248,7 +247,7 @@ func TestConfig_ValidateInput(t *testing.T) {
 			"age": 30, // missing required "name"
 		}
 
-		err := config.ValidateInput(context.Background(), input)
+		err := config.ValidateInput(t.Context(), input)
 		assert.Error(t, err)
 	})
 
@@ -262,7 +261,7 @@ func TestConfig_ValidateInput(t *testing.T) {
 			"anything": "goes",
 		}
 
-		err := config.ValidateInput(context.Background(), input)
+		err := config.ValidateInput(t.Context(), input)
 		assert.NoError(t, err)
 	})
 }
@@ -552,7 +551,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			Schedule: nil,
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should validate schedule configuration", func(t *testing.T) {
@@ -571,7 +570,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should fail with invalid cron expression", func(t *testing.T) {
@@ -585,7 +584,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "schedule validation error")
 		assert.Contains(t, err.Error(), "invalid cron expression")
@@ -621,7 +620,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should fail when schedule input violates workflow input schema", func(t *testing.T) {
@@ -652,7 +651,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "schedule input validation error")
 	})
@@ -680,7 +679,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "schedule input validation error")
 	})
@@ -709,7 +708,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should be integrated into workflow validation", func(t *testing.T) {

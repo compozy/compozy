@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,7 +34,7 @@ func writeFile(t *testing.T, dir, rel, content string) string {
 
 func TestImporter_StrategiesAndRoundTrip(t *testing.T) {
 	t.Run("Should honor seed_only and overwrite_conflicts and preserve round-trip", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
 		proxyURL := getTestMCPProxyURL()
@@ -147,7 +146,7 @@ func TestImportTypeFromDir(t *testing.T) {
 	t.Parallel()
 	t.Run("Should import tasks directory", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
+		ctx := t.Context()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
 		repo := t.TempDir()
@@ -169,7 +168,7 @@ func TestImportTypeFromDir(t *testing.T) {
 	})
 	t.Run("Should return zero counts when directory missing", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
+		ctx := t.Context()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
 		repo := t.TempDir()
@@ -179,7 +178,7 @@ func TestImportTypeFromDir(t *testing.T) {
 	})
 	t.Run("Should skip then overwrite existing tools based on strategy", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
+		ctx := t.Context()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
 		repo := t.TempDir()
@@ -211,7 +210,7 @@ func TestImportTypeFromDir(t *testing.T) {
 	})
 	t.Run("Should error when YAML file is missing id", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
+		ctx := t.Context()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
 		repo := t.TempDir()
@@ -222,7 +221,7 @@ func TestImportTypeFromDir(t *testing.T) {
 	})
 	t.Run("Should error when duplicate ids exist in directory", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
+		ctx := t.Context()
 		project := "proj"
 		store := resources.NewMemoryResourceStore()
 		repo := t.TempDir()

@@ -320,14 +320,14 @@ func (h *BaseResponseHandler) setErrorState(state *task.State, executionErr erro
 
 // normalizeTransitions normalizes task transitions for processing
 func (h *BaseResponseHandler) normalizeTransitions(
-	_ context.Context,
+	ctx context.Context,
 	input *ResponseInput,
 ) (*core.SuccessTransition, *core.ErrorTransition, error) {
 	if input.TaskConfig == nil {
 		return nil, nil, fmt.Errorf("task config cannot be nil for transition normalization")
 	}
 	// Build contexts
-	normCtx, templateContext := h.buildNormalizationContexts(input)
+	normCtx, templateContext := h.buildNormalizationContexts(ctx, input)
 	// Normalize both transitions
 	normalizedSuccess, err := h.normalizeSuccessTransition(input.TaskConfig.OnSuccess, normCtx, templateContext)
 	if err != nil {
@@ -342,9 +342,10 @@ func (h *BaseResponseHandler) normalizeTransitions(
 
 // buildNormalizationContexts builds contexts for transition normalization
 func (h *BaseResponseHandler) buildNormalizationContexts(
+	ctx context.Context,
 	input *ResponseInput,
 ) (*NormalizationContext, map[string]any) {
-	normCtx := h.contextBuilder.BuildContext(input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
+	normCtx := h.contextBuilder.BuildContext(ctx, input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
 	normCtx.CurrentInput = input.TaskState.Input
 	templateContext := normCtx.BuildTemplateContext()
 	return normCtx, templateContext

@@ -1,7 +1,6 @@
 package instance
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/llm"
@@ -71,7 +70,7 @@ func TestDynamicFlushableMemory(t *testing.T) {
 		mockFlushStrategy := &mockFlushStrategy{}
 		factory := strategies.NewStrategyFactory()
 		unlockFunc := func() error { return nil }
-		ctx := context.Background()
+		ctx := t.Context()
 		messages := []llm.Message{
 			{Role: "user", Content: "test message"},
 		}
@@ -107,7 +106,7 @@ func TestDynamicFlushableMemory(t *testing.T) {
 		instance := &memoryInstance{
 			strategyFactory: factory,
 		}
-		ctx := context.Background()
+		ctx := t.Context()
 		// Test invalid strategy type
 		result, err := instance.PerformFlushWithStrategy(ctx, core.FlushingStrategyType("invalid_strategy"))
 		assert.Error(t, err)
@@ -131,7 +130,7 @@ func TestDynamicFlushableMemory(t *testing.T) {
 		mockFlushStrategy := &mockFlushStrategy{}
 		factory := strategies.NewStrategyFactory()
 		unlockFunc := func() error { return nil }
-		ctx := context.Background()
+		ctx := t.Context()
 		messages := []llm.Message{
 			{Role: "user", Content: "test message"},
 		}
@@ -172,7 +171,7 @@ func TestFlushHandlerDynamicStrategy(t *testing.T) {
 		mockTokenCounter := &mockTokenCounter{}
 		factory := strategies.NewStrategyFactoryWithTokenCounter(mockTokenCounter)
 		unlockFunc := func() error { return nil }
-		ctx := context.Background()
+		ctx := t.Context()
 		messages := []llm.Message{
 			{Role: "user", Content: "message 1"},
 			{Role: "assistant", Content: "response 1"},
@@ -218,7 +217,7 @@ func TestFlushHandlerDynamicStrategy(t *testing.T) {
 		mockFlushStrategy := &mockFlushStrategy{}
 		factory := strategies.NewStrategyFactory()
 		unlockFunc := func() error { return nil }
-		ctx := context.Background()
+		ctx := t.Context()
 		messages := []llm.Message{
 			{Role: "user", Content: "test message"},
 		}

@@ -69,6 +69,7 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 		return nil, err
 	}
 	normalizedConfig, childConfigs, err := a.normalizeCompositeConfig(
+		ctx,
 		workflowState,
 		workflowConfig,
 		input.TaskConfig,
@@ -122,11 +123,12 @@ func (a *CreateCompositeState) loadCompositeContext(
 }
 
 func (a *CreateCompositeState) normalizeCompositeConfig(
+	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) (*task.Config, []*task.Config, error) {
-	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeComposite)
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeComposite)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create composite normalizer: %w", err)
 	}
@@ -141,7 +143,7 @@ func (a *CreateCompositeState) normalizeCompositeConfig(
 		Variables:      vars,
 	}
 	normalizedConfig := taskConfig
-	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
 		return nil, nil, fmt.Errorf("failed to normalize composite task: %w", err)
 	}
 	childConfigs := make([]*task.Config, len(normalizedConfig.Tasks))

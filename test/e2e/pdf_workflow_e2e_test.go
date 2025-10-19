@@ -70,7 +70,7 @@ func TestPDFKnowledgeWorkflowEndToEnd(t *testing.T) {
 		t.Skip("skipping e2e knowledge test: OPENAI_API_KEY not set")
 	}
 
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	tempDir := t.TempDir()
 
 	cwd, err := core.CWDFromPath(tempDir)

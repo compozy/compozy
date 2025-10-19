@@ -1,7 +1,6 @@
 package tool
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -135,7 +134,7 @@ func TestToolInheritance_DeterministicOrdering(t *testing.T) {
 func TestToolInheritance_LLMServiceIntegration(t *testing.T) {
 	t.Run("Should create LLM service with resolved tools", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		projectConfig := CreateTestProjectConfig([]tool.Config{
 			CreateTestTool("project-tool", "Project level tool"),
 		})
@@ -158,7 +157,7 @@ func TestToolInheritance_LLMServiceIntegration(t *testing.T) {
 
 	t.Run("Should maintain backward compatibility with direct agent tools", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		agentConfig := CreateTestAgentConfig([]tool.Config{
 			CreateTestTool("direct-tool", "Directly configured tool"),
 		})

@@ -1,7 +1,6 @@
 package collection_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ import (
 func TestCollectionContextBuilder_NewContextBuilder(t *testing.T) {
 	t.Run("Should create collection context builder", func(t *testing.T) {
 		// Act
-		builder := collection.NewContextBuilder()
+		builder := collection.NewContextBuilder(t.Context())
 
 		// Assert
 		assert.NotNil(t, builder)
@@ -27,7 +26,7 @@ func TestCollectionContextBuilder_NewContextBuilder(t *testing.T) {
 func TestCollectionContextBuilder_TaskType(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
-		builder := collection.NewContextBuilder()
+		builder := collection.NewContextBuilder(t.Context())
 
 		// Act
 		taskType := builder.TaskType()
@@ -39,7 +38,7 @@ func TestCollectionContextBuilder_TaskType(t *testing.T) {
 
 func TestCollectionContextBuilder_BuildContext(t *testing.T) {
 	// Setup
-	builder := collection.NewContextBuilder()
+	builder := collection.NewContextBuilder(t.Context())
 
 	t.Run("Should build context for collection task", func(t *testing.T) {
 		// Arrange
@@ -63,7 +62,7 @@ func TestCollectionContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, workflowConfig, taskConfig)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -88,7 +87,7 @@ func TestCollectionContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(nil, workflowConfig, taskConfig)
+		context := builder.BuildContext(t.Context(), nil, workflowConfig, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -113,7 +112,7 @@ func TestCollectionContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, nil, taskConfig)
+		context := builder.BuildContext(t.Context(), workflowState, nil, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -135,7 +134,7 @@ func TestCollectionContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, workflowConfig, nil)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, nil)
 
 		// Assert
 		require.NotNil(t, context)
@@ -146,7 +145,7 @@ func TestCollectionContextBuilder_BuildContext(t *testing.T) {
 
 	t.Run("Should handle all nil parameters", func(t *testing.T) {
 		// Act
-		context := builder.BuildContext(nil, nil, nil)
+		context := builder.BuildContext(t.Context(), nil, nil, nil)
 
 		// Assert
 		require.NotNil(t, context)
@@ -161,7 +160,7 @@ func TestCollectionContextBuilder_BuildContext(t *testing.T) {
 
 func TestCollectionContextBuilder_BuildIterationContext(t *testing.T) {
 	// Setup
-	builder := collection.NewContextBuilder()
+	builder := collection.NewContextBuilder(t.Context())
 
 	t.Run("Should build iteration context with item and index", func(t *testing.T) {
 		// Arrange
@@ -290,7 +289,7 @@ func TestCollectionContextBuilder_BuildIterationContext(t *testing.T) {
 
 func TestCollectionContextBuilder_TasksMapIsolation(t *testing.T) {
 	t.Run("Should isolate tasks map between collection iterations", func(t *testing.T) {
-		builder := collection.NewContextBuilder()
+		builder := collection.NewContextBuilder(t.Context())
 
 		// Create base context with tasks map containing Output pointers
 		weatherOutput := core.Output(map[string]any{
@@ -347,7 +346,7 @@ func TestCollectionContextBuilder_TasksMapIsolation(t *testing.T) {
 
 func TestCollectionContextBuilder_BuildIterationContextWithProgress(t *testing.T) {
 	// Setup
-	builder := collection.NewContextBuilder()
+	builder := collection.NewContextBuilder(t.Context())
 
 	t.Run("Should build iteration context with progress state", func(t *testing.T) {
 		// Arrange
@@ -369,7 +368,7 @@ func TestCollectionContextBuilder_BuildIterationContextWithProgress(t *testing.T
 
 		// Act
 		result, err := builder.BuildIterationContextWithProgress(
-			context.Background(),
+			t.Context(),
 			baseContext,
 			item,
 			index,
@@ -399,7 +398,7 @@ func TestCollectionContextBuilder_BuildIterationContextWithProgress(t *testing.T
 		index := 1
 
 		// Act
-		result, err := builder.BuildIterationContextWithProgress(context.Background(), baseContext, item, index, nil)
+		result, err := builder.BuildIterationContextWithProgress(t.Context(), baseContext, item, index, nil)
 
 		// Assert
 		assert.NoError(t, err)
@@ -432,7 +431,7 @@ func TestCollectionContextBuilder_BuildIterationContextWithProgress(t *testing.T
 
 		// Act
 		result, err := builder.BuildIterationContextWithProgress(
-			context.Background(),
+			t.Context(),
 			baseContext,
 			item,
 			index,
@@ -449,7 +448,7 @@ func TestCollectionContextBuilder_BuildIterationContextWithProgress(t *testing.T
 
 func TestCollectionContextBuilder_EnrichContext(t *testing.T) {
 	// Setup
-	builder := collection.NewContextBuilder()
+	builder := collection.NewContextBuilder(t.Context())
 
 	t.Run("Should enrich context with base enrichment", func(t *testing.T) {
 		// Arrange
@@ -505,7 +504,7 @@ func TestCollectionContextBuilder_EnrichContext(t *testing.T) {
 
 func TestCollectionContextBuilder_ValidateContext(t *testing.T) {
 	// Setup
-	builder := collection.NewContextBuilder()
+	builder := collection.NewContextBuilder(t.Context())
 
 	t.Run("Should validate collection task with items field", func(t *testing.T) {
 		// Arrange

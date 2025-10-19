@@ -1,6 +1,8 @@
 package shared
 
 import (
+	"context"
+
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 )
@@ -34,6 +36,7 @@ func (cib *ChildrenIndexBuilder) BuildChildrenIndex(workflowState *workflow.Stat
 // It recursively builds context for each child task, including their status, output, and nested children if any.
 // The depth parameter and cycle detection prevent unbounded recursion.
 func (cib *ChildrenIndexBuilder) BuildChildrenContext(
+	ctx context.Context,
 	parentState *task.State,
 	workflowState *workflow.State,
 	childrenIndex map[string][]string,
@@ -42,6 +45,7 @@ func (cib *ChildrenIndexBuilder) BuildChildrenContext(
 	depth int,
 ) map[string]any {
 	return cib.buildChildrenContextWithVisited(
+		ctx,
 		parentState, workflowState, childrenIndex, taskConfigs,
 		taskOutputBuilder, depth, make(map[string]bool),
 	)
@@ -49,6 +53,7 @@ func (cib *ChildrenIndexBuilder) BuildChildrenContext(
 
 // buildChildrenContextWithVisited builds children context with cycle detection
 func (cib *ChildrenIndexBuilder) buildChildrenContextWithVisited(
+	ctx context.Context,
 	parentState *task.State,
 	workflowState *workflow.State,
 	childrenIndex map[string][]string,
@@ -57,7 +62,7 @@ func (cib *ChildrenIndexBuilder) buildChildrenContextWithVisited(
 	depth int,
 	visited map[string]bool,
 ) map[string]any {
-	limits := GetGlobalConfigLimits()
+	limits := GetGlobalConfigLimits(context.WithoutCancel(ctx))
 	if depth >= limits.MaxChildrenDepth || parentState == nil {
 		return make(map[string]any)
 	}
@@ -82,6 +87,7 @@ func (cib *ChildrenIndexBuilder) buildChildrenContextWithVisited(
 			if childState, exists := workflowState.Tasks[childTaskID]; exists {
 				// Pass the original visited map directly since defer cleanup handles it
 				children[childTaskID] = cib.buildChildContextWithoutParentVisited(
+					ctx,
 					childTaskID,
 					childState,
 					workflowState,
@@ -99,6 +105,7 @@ func (cib *ChildrenIndexBuilder) buildChildrenContextWithVisited(
 
 // buildChildContextWithoutParentVisited builds child context without parent reference with cycle detection
 func (cib *ChildrenIndexBuilder) buildChildContextWithoutParentVisited(
+	ctx context.Context,
 	taskID string,
 	taskState *task.State,
 	workflowState *workflow.State,
@@ -124,6 +131,7 @@ func (cib *ChildrenIndexBuilder) buildChildContextWithoutParentVisited(
 	}
 	if taskState.CanHaveChildren() && childrenIndex != nil {
 		taskContext["children"] = cib.buildChildrenContextWithVisited(
+			ctx,
 			taskState,
 			workflowState,
 			childrenIndex,

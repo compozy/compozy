@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
@@ -42,8 +43,12 @@ func (n *BaseSubTaskNormalizer) Type() task.Type {
 }
 
 // Normalize applies common sub-task normalization rules
-func (n *BaseSubTaskNormalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
-	normCtx, err := n.validateAndPrepareContext(config, ctx)
+func (n *BaseSubTaskNormalizer) Normalize(
+	ctx context.Context,
+	config *task.Config,
+	parentCtx contracts.NormalizationContext,
+) error {
+	normCtx, err := n.validateAndPrepareContext(config, parentCtx)
 	if err != nil {
 		return err
 	}
@@ -55,7 +60,7 @@ func (n *BaseSubTaskNormalizer) Normalize(config *task.Config, ctx contracts.Nor
 		return err
 	}
 	// Normalize all sub-tasks with parent context
-	if err := n.normalizeSubTasks(config, normCtx); err != nil {
+	if err := n.normalizeSubTasks(ctx, config, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize %s sub-tasks: %w", n.taskTypeName, err)
 	}
 	return nil
@@ -64,11 +69,11 @@ func (n *BaseSubTaskNormalizer) Normalize(config *task.Config, ctx contracts.Nor
 // validateAndPrepareContext validates the context and configuration
 func (n *BaseSubTaskNormalizer) validateAndPrepareContext(
 	config *task.Config,
-	ctx contracts.NormalizationContext,
+	parentCtx contracts.NormalizationContext,
 ) (*NormalizationContext, error) {
-	normCtx, ok := ctx.(*NormalizationContext)
+	normCtx, ok := parentCtx.(*NormalizationContext)
 	if !ok {
-		return nil, fmt.Errorf("invalid context type: expected *NormalizationContext, got %T", ctx)
+		return nil, fmt.Errorf("invalid context type: expected *NormalizationContext, got %T", parentCtx)
 	}
 	if config != nil && config.Type != n.taskType {
 		return nil, fmt.Errorf("%s normalizer cannot handle task type: %s", n.taskTypeName, config.Type)
@@ -102,11 +107,15 @@ func (n *BaseSubTaskNormalizer) shouldSkipField(k string) bool {
 }
 
 // normalizeSubTasks normalizes sub-tasks within a parent task with proper parent context
-func (n *BaseSubTaskNormalizer) normalizeSubTasks(parentConfig *task.Config, ctx *NormalizationContext) error {
+func (n *BaseSubTaskNormalizer) normalizeSubTasks(
+	ctx context.Context,
+	parentConfig *task.Config,
+	normCtx *NormalizationContext,
+) error {
 	// Normalize each sub-task in the Tasks array
 	for i := range parentConfig.Tasks {
 		subTask := &parentConfig.Tasks[i]
-		if err := n.normalizeSingleSubTask(subTask, parentConfig, ctx); err != nil {
+		if err := n.normalizeSingleSubTask(ctx, subTask, parentConfig, normCtx); err != nil {
 			return fmt.Errorf("failed to normalize sub-task %s: %w", subTask.ID, err)
 		}
 		parentConfig.Tasks[i] = *subTask
@@ -114,7 +123,7 @@ func (n *BaseSubTaskNormalizer) normalizeSubTasks(parentConfig *task.Config, ctx
 
 	// Also normalize the task reference if present
 	if parentConfig.Task != nil {
-		if err := n.normalizeSingleSubTask(parentConfig.Task, parentConfig, ctx); err != nil {
+		if err := n.normalizeSingleSubTask(ctx, parentConfig.Task, parentConfig, normCtx); err != nil {
 			return fmt.Errorf("failed to normalize task reference: %w", err)
 		}
 	}
@@ -152,9 +161,10 @@ func InheritTaskConfig(child, parent *task.Config) error {
 
 // normalizeSingleSubTask normalizes a single sub-task with proper context setup
 func (n *BaseSubTaskNormalizer) normalizeSingleSubTask(
+	ctx context.Context,
 	subTask *task.Config,
 	parentConfig *task.Config,
-	ctx *NormalizationContext,
+	normCtx *NormalizationContext,
 ) error {
 	// Apply config inheritance before template processing
 	if err := InheritTaskConfig(subTask, parentConfig); err != nil {
@@ -162,28 +172,29 @@ func (n *BaseSubTaskNormalizer) normalizeSingleSubTask(
 	}
 
 	// Prepare sub-task context
-	subTaskCtx, err := n.prepareSubTaskContext(subTask, parentConfig, ctx)
+	subTaskCtx, err := n.prepareSubTaskContext(ctx, subTask, parentConfig, normCtx)
 	if err != nil {
 		return err
 	}
 
 	// Get normalizer for sub-task type
-	subNormalizer, err := n.normalizerFactory.CreateNormalizer(subTask.Type)
+	subNormalizer, err := n.normalizerFactory.CreateNormalizer(ctx, subTask.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create normalizer for task type %s: %w", subTask.Type, err)
 	}
 
 	// Recursively normalize the sub-task (this handles nested tasks too)
-	return subNormalizer.Normalize(subTask, subTaskCtx)
+	return subNormalizer.Normalize(ctx, subTask, subTaskCtx)
 }
 
 // prepareSubTaskContext prepares the normalization context for a sub-task
 func (n *BaseSubTaskNormalizer) prepareSubTaskContext(
+	ctx context.Context,
 	subTask *task.Config,
 	parentConfig *task.Config,
-	ctx *NormalizationContext,
+	normCtx *NormalizationContext,
 ) (*NormalizationContext, error) {
-	subTaskCtx, err := n.contextBuilder.BuildNormalizationSubTaskContext(ctx, parentConfig, subTask)
+	subTaskCtx, err := n.contextBuilder.BuildNormalizationSubTaskContext(ctx, normCtx, parentConfig, subTask)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build sub-task context: %w", err)
 	}
@@ -199,8 +210,8 @@ func (n *BaseSubTaskNormalizer) prepareSubTaskContext(
 			subTaskCtx.CurrentInput = subTask.With
 		}
 	}
-	if ctx.MergedEnv != nil {
-		subTaskCtx.MergedEnv = ctx.MergedEnv
+	if normCtx.MergedEnv != nil {
+		subTaskCtx.MergedEnv = normCtx.MergedEnv
 	}
 	return subTaskCtx, nil
 }

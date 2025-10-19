@@ -54,6 +54,7 @@ func TestAggregateConfigInheritance(t *testing.T) {
 
 		// Create normalizer to test normalization with inherited context
 		normalizer := aggregate.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -70,7 +71,7 @@ func TestAggregateConfigInheritance(t *testing.T) {
 		}
 
 		// Normalize the aggregate task
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err, "Aggregate normalization should succeed")
 
 		// Verify aggregate task inherited context
@@ -121,6 +122,7 @@ func TestAggregateConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := aggregate.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -131,7 +133,7 @@ func TestAggregateConfigInheritance(t *testing.T) {
 				"data_set": "test_data",
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify aggregate task preserved its explicit values
@@ -185,6 +187,7 @@ func TestAggregateConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := aggregate.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -201,7 +204,7 @@ func TestAggregateConfigInheritance(t *testing.T) {
 				"current_time":       "2023-07-04T10:00:00Z",
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify inheritance and template processing
@@ -270,6 +273,7 @@ func TestAggregateConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := aggregate.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -285,7 +289,7 @@ func TestAggregateConfigInheritance(t *testing.T) {
 				"timestamp": "2023-07-04T10:30:00Z",
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify inheritance and output configuration
@@ -337,6 +341,7 @@ func TestAggregateConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := aggregate.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -347,7 +352,7 @@ func TestAggregateConfigInheritance(t *testing.T) {
 				"context": "minimal",
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify inheritance works with minimal configuration

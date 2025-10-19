@@ -41,7 +41,7 @@ func (e *Expander) ExpandItems(
 		return nil, err
 	}
 	// Build template context for collection processing
-	templateContext := e.contextBuilder.BuildCollectionContext(workflowState, workflowConfig, config)
+	templateContext := e.contextBuilder.BuildCollectionContext(ctx, workflowState, workflowConfig, config)
 	// Process collection items through expansion and filtering pipeline
 	filteredItems, skippedCount, err := e.processCollectionItems(ctx, config, templateContext)
 	if err != nil {

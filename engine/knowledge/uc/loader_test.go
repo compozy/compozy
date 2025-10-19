@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/knowledge"
@@ -45,7 +44,7 @@ func TestNormalizeKnowledgeTripleResolvesTemplates(t *testing.T) {
 			},
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		kb, emb, vec, err := normalizeKnowledgeTriple(ctx, triple)
 		require.NoError(t, err)
 

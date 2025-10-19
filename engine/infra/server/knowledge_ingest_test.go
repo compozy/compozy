@@ -44,11 +44,11 @@ func TestIngestKnowledgeBasesOnStart_TriggersOnStartBases(t *testing.T) {
 			rec.store = store
 			return rec
 		}
-		manager := appconfig.NewManager(appconfig.NewService())
-		_, err := manager.Load(context.Background(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
+		_, err := manager.Load(t.Context(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
 		require.NoError(t, err)
 		ctx := logger.ContextWithLogger(
-			appconfig.ContextWithManager(context.Background(), manager),
+			appconfig.ContextWithManager(t.Context(), manager),
 			logger.NewForTests(),
 		)
 		state := &appstate.State{}
@@ -93,11 +93,11 @@ func TestIngestKnowledgeBasesOnStart_PropagatesErrors(t *testing.T) {
 			rec.store = store
 			return rec
 		}
-		manager := appconfig.NewManager(appconfig.NewService())
-		_, err := manager.Load(context.Background(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
+		_, err := manager.Load(t.Context(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
 		require.NoError(t, err)
 		ctx := logger.ContextWithLogger(
-			appconfig.ContextWithManager(context.Background(), manager),
+			appconfig.ContextWithManager(t.Context(), manager),
 			logger.NewForTests(),
 		)
 		state := &appstate.State{}
@@ -129,11 +129,11 @@ func TestIngestKnowledgeBasesOnStart_AppliesKnowledgeTimeout(t *testing.T) {
 			rec.store = store
 			return rec
 		}
-		manager := appconfig.NewManager(appconfig.NewService())
-		_, err := manager.Load(context.Background(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
+		_, err := manager.Load(t.Context(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
 		require.NoError(t, err)
 		ctx := logger.ContextWithLogger(
-			appconfig.ContextWithManager(context.Background(), manager),
+			appconfig.ContextWithManager(t.Context(), manager),
 			logger.NewForTests(),
 		)
 		state := &appstate.State{}
@@ -168,11 +168,11 @@ func TestIngestKnowledgeBasesOnStart_IncludesWorkflowBases(t *testing.T) {
 			rec.store = store
 			return rec
 		}
-		manager := appconfig.NewManager(appconfig.NewService())
-		_, err := manager.Load(context.Background(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
+		_, err := manager.Load(t.Context(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
 		require.NoError(t, err)
 		ctx := logger.ContextWithLogger(
-			appconfig.ContextWithManager(context.Background(), manager),
+			appconfig.ContextWithManager(t.Context(), manager),
 			logger.NewForTests(),
 		)
 		state := &appstate.State{}
@@ -200,11 +200,11 @@ func TestIngestKnowledgeBasesOnStart_IncludesWorkflowBases(t *testing.T) {
 
 func TestIngestKnowledgeBasesOnStart_DetectsDuplicateIDs(t *testing.T) {
 	t.Run("Should reject duplicate startup knowledge base IDs", func(t *testing.T) {
-		manager := appconfig.NewManager(appconfig.NewService())
-		_, err := manager.Load(context.Background(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
+		_, err := manager.Load(t.Context(), appconfig.NewDefaultProvider(), appconfig.NewEnvProvider())
 		require.NoError(t, err)
 		ctx := logger.ContextWithLogger(
-			appconfig.ContextWithManager(context.Background(), manager),
+			appconfig.ContextWithManager(t.Context(), manager),
 			logger.NewForTests(),
 		)
 		state := &appstate.State{}

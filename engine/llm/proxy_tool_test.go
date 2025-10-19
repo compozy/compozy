@@ -1,7 +1,6 @@
 package llm
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -32,7 +31,7 @@ func TestNewProxyTool(t *testing.T) {
 			MCPName: "test-mcp",
 		}
 
-		proxyClient := mcp.NewProxyClient(context.Background(), "http://localhost:7077", testTimeout)
+		proxyClient := mcp.NewProxyClient(t.Context(), "http://localhost:7077", testTimeout)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
@@ -74,13 +73,13 @@ func TestProxyTool_Call(t *testing.T) {
 			MCPName:     "search-mcp",
 		}
 
-		proxyClient := mcp.NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		proxyClient := mcp.NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
 
 		input := `{"query": "test search", "limit": 10}`
-		result, err := tool.Call(context.Background(), input)
+		result, err := tool.Call(t.Context(), input)
 
 		require.NoError(t, err)
 
@@ -100,13 +99,13 @@ func TestProxyTool_Call(t *testing.T) {
 			MCPName: "test-mcp",
 		}
 
-		proxyClient := mcp.NewProxyClient(context.Background(), "http://localhost:7077", testTimeout)
+		proxyClient := mcp.NewProxyClient(t.Context(), "http://localhost:7077", testTimeout)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
 
 		invalidInput := `{invalid json`
-		_, err := tool.Call(context.Background(), invalidInput)
+		_, err := tool.Call(t.Context(), invalidInput)
 
 		assert.ErrorContains(t, err, "failed to parse tool arguments")
 	})
@@ -137,13 +136,13 @@ func TestProxyTool_Call(t *testing.T) {
 			},
 		}
 
-		proxyClient := mcp.NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		proxyClient := mcp.NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
 
 		validInput := `{"query": "test", "limit": 10}`
-		_, err := tool.Call(context.Background(), validInput)
+		_, err := tool.Call(t.Context(), validInput)
 
 		assert.NoError(t, err)
 	})
@@ -163,13 +162,13 @@ func TestProxyTool_Call(t *testing.T) {
 			},
 		}
 
-		proxyClient := mcp.NewProxyClient(context.Background(), "http://localhost:7077", testTimeout)
+		proxyClient := mcp.NewProxyClient(t.Context(), "http://localhost:7077", testTimeout)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
 
 		invalidInput := `{"limit": 10}`
-		_, err := tool.Call(context.Background(), invalidInput)
+		_, err := tool.Call(t.Context(), invalidInput)
 
 		assert.ErrorContains(t, err, "invalid tool arguments")
 		assert.ErrorContains(t, err, "validation error for tool:validation-tool")
@@ -190,13 +189,13 @@ func TestProxyTool_Call(t *testing.T) {
 			},
 		}
 
-		proxyClient := mcp.NewProxyClient(context.Background(), "http://localhost:7077", testTimeout)
+		proxyClient := mcp.NewProxyClient(t.Context(), "http://localhost:7077", testTimeout)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
 
 		invalidInput := `{"limit": "not a number"}`
-		_, err := tool.Call(context.Background(), invalidInput)
+		_, err := tool.Call(t.Context(), invalidInput)
 
 		assert.ErrorContains(t, err, "invalid tool arguments")
 		assert.ErrorContains(t, err, "validation error for tool:validation-tool")
@@ -218,14 +217,14 @@ func TestProxyTool_Call(t *testing.T) {
 			InputSchema: nil, // No schema defined
 		}
 
-		proxyClient := mcp.NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		proxyClient := mcp.NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
 
 		// Should accept any valid JSON
 		anyInput := `{"anything": "goes", "number": 42, "bool": true}`
-		_, err := tool.Call(context.Background(), anyInput)
+		_, err := tool.Call(t.Context(), anyInput)
 
 		assert.NoError(t, err)
 	})
@@ -245,14 +244,14 @@ func TestProxyTool_Call(t *testing.T) {
 			InputSchema: map[string]any{}, // Empty schema
 		}
 
-		proxyClient := mcp.NewProxyClient(context.Background(), server.URL, 5*time.Second)
+		proxyClient := mcp.NewProxyClient(t.Context(), server.URL, 5*time.Second)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
 
 		// Should accept any valid JSON
 		anyInput := `{"anything": "goes"}`
-		_, err := tool.Call(context.Background(), anyInput)
+		_, err := tool.Call(t.Context(), anyInput)
 
 		assert.NoError(t, err)
 	})
@@ -275,7 +274,7 @@ func TestProxyTool_ArgsType(t *testing.T) {
 			MCPName:     "test-mcp",
 		}
 
-		proxyClient := mcp.NewProxyClient(context.Background(), "http://localhost:7077", testTimeout)
+		proxyClient := mcp.NewProxyClient(t.Context(), "http://localhost:7077", testTimeout)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)

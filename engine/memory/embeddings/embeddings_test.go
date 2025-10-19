@@ -13,7 +13,7 @@ import (
 
 func TestRecordFunctionsDoNotPanic(t *testing.T) {
 	t.Run("Should record metrics without panicking", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		resetMetrics()
@@ -35,7 +35,7 @@ func TestRecordFunctionsDoNotPanic(t *testing.T) {
 
 func TestEstimateTokens(t *testing.T) {
 	t.Run("Should count tokens and reuse cached counter", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		resetTokenCounters()
 		tokens, err := EstimateTokens(
@@ -54,7 +54,7 @@ func TestEstimateTokens(t *testing.T) {
 	})
 
 	t.Run("Should fall back to default encoding", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		resetTokenCounters()
 		tokens, err := EstimateTokens(ctx, "openai", "", []string{"test"})

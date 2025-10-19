@@ -105,7 +105,7 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 		return nil, err
 	}
 	// Use task2 normalizer for basic tasks
-	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeBasic)
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeBasic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create basic normalizer: %w", err)
 	}
@@ -115,13 +115,13 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
 	// Build proper normalization context with all template variables
-	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	normContext := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, input.TaskConfig)
 	// Don't inject raw TaskConfig.With before normalization - this causes circular dependency
 	// The workflow-level .input should be preserved for template processing
 
 	// Normalize the task configuration
 	normalizedConfig := input.TaskConfig
-	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
 		return nil, fmt.Errorf("failed to normalize basic task: %w", err)
 	}
 	// AFTER normalization - add rendered with: as .input for downstream use

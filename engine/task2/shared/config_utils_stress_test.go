@@ -11,7 +11,7 @@ import (
 func TestGetGlobalConfigLimits_ExtremeLoad(t *testing.T) {
 	t.Run("Should handle extreme concurrent access without race conditions", func(t *testing.T) {
 		// Reset global state
-		RefreshGlobalConfigLimits()
+		RefreshGlobalConfigLimits(t.Context())
 		// Number of concurrent goroutines
 		const numGoroutines = 1000
 		const numIterations = 100
@@ -25,7 +25,7 @@ func TestGetGlobalConfigLimits_ExtremeLoad(t *testing.T) {
 			go func(_ int) {
 				defer wg.Done()
 				for range numIterations {
-					limits := GetGlobalConfigLimits()
+					limits := GetGlobalConfigLimits(t.Context())
 					// Verify the limits are valid
 					if limits == nil {
 						errChan <- assert.AnError
@@ -53,7 +53,7 @@ func TestGetGlobalConfigLimits_ExtremeLoad(t *testing.T) {
 		}
 		require.Empty(t, errors, "Expected no errors during concurrent access")
 		// Verify global state is still valid
-		finalLimits := GetGlobalConfigLimits()
+		finalLimits := GetGlobalConfigLimits(t.Context())
 		assert.NotNil(t, finalLimits)
 		assert.Equal(t, 20, finalLimits.MaxNestingDepth)       // Provider default
 		assert.Equal(t, 10485760, finalLimits.MaxStringLength) // Provider default
@@ -74,7 +74,7 @@ func TestGetGlobalConfigLimits_ExtremeLoad(t *testing.T) {
 		for range numOperations {
 			go func() {
 				defer wg.Done()
-				limits := GetGlobalConfigLimits()
+				limits := GetGlobalConfigLimits(t.Context())
 				if limits != nil {
 					successChan <- true
 				}
@@ -84,7 +84,7 @@ func TestGetGlobalConfigLimits_ExtremeLoad(t *testing.T) {
 		for range numOperations {
 			go func() {
 				defer wg.Done()
-				RefreshGlobalConfigLimits()
+				RefreshGlobalConfigLimits(t.Context())
 				successChan <- true
 			}()
 		}
@@ -104,19 +104,19 @@ func TestGetGlobalConfigLimits_ExtremeLoad(t *testing.T) {
 func TestGetGlobalConfigLimits_MemoryPressure(t *testing.T) {
 	t.Run("Should not leak memory under repeated access", func(t *testing.T) {
 		// Reset global state
-		RefreshGlobalConfigLimits()
+		RefreshGlobalConfigLimits(t.Context())
 		// Perform many sequential accesses
 		const numAccesses = 10000
 		for i := range numAccesses {
-			limits := GetGlobalConfigLimits()
+			limits := GetGlobalConfigLimits(t.Context())
 			require.NotNil(t, limits)
 			// Occasionally refresh config to simulate real-world updates
 			if i%1000 == 0 {
-				RefreshGlobalConfigLimits()
+				RefreshGlobalConfigLimits(t.Context())
 			}
 		}
 		// Verify final state
-		finalLimits := GetGlobalConfigLimits()
+		finalLimits := GetGlobalConfigLimits(t.Context())
 		require.NotNil(t, finalLimits)
 		assert.Equal(t, 20, finalLimits.MaxNestingDepth)       // Provider default
 		assert.Equal(t, 10485760, finalLimits.MaxStringLength) // Provider default
@@ -152,7 +152,7 @@ func TestGetGlobalConfigLimits_RaceConditionProtection(t *testing.T) {
 					callCountMutex.Unlock()
 				}
 				// Get the config
-				limits := GetGlobalConfigLimits()
+				limits := GetGlobalConfigLimits(t.Context())
 				assert.NotNil(t, limits)
 			}()
 		}

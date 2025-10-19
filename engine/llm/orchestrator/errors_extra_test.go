@@ -1,7 +1,6 @@
 package orchestrator
 
 import (
-	"context"
 	"errors"
 	"net"
 	"testing"
@@ -64,7 +63,7 @@ func TestErrorHelpers_Wrappers(t *testing.T) {
 }
 
 func TestIsRetryableErrorWithContext(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	t.Run("Should be retryable for adapter timeout", func(t *testing.T) {
 		err := llmadapter.NewErrorWithCode(llmadapter.ErrCodeTimeout, "t", "prov", nil)
 		assert.True(t, isRetryableErrorWithContext(ctx, err))

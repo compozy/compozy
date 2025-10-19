@@ -22,7 +22,7 @@ func TestBuilder_Integration(t *testing.T) {
 		// which is the typical integration pattern
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		// Use the manager to get a memory instance, which internally uses the builder
 		memRef := coreTypes.MemoryReference{
 			ID:  "customer-support", // This references a pre-configured memory resource
@@ -55,7 +55,7 @@ func TestBuilder_Integration(t *testing.T) {
 	t.Run("Should successfully build instance with direct builder", func(t *testing.T) {
 		// This test verifies the builder can be used directly with minimal components
 		// Note: Full integration with all components is tested via the manager
-		ctx := context.Background()
+		ctx := t.Context()
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		// Create a simple memory resource configuration
@@ -120,7 +120,7 @@ func TestBuilder_Integration(t *testing.T) {
 	t.Run("Should work with mock temporal client", func(t *testing.T) {
 		// This test specifically verifies that the builder works with
 		// the standard temporal mock client used in integration tests
-		ctx := context.Background()
+		ctx := t.Context()
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		// Create minimal configuration
@@ -195,7 +195,11 @@ func (fs *minimalFlushStrategy) GetType() memcore.FlushingStrategyType {
 
 type minimalEvictionPolicy struct{}
 
-func (ep *minimalEvictionPolicy) SelectMessagesToEvict(messages []llm.Message, targetCount int) []llm.Message {
+func (ep *minimalEvictionPolicy) SelectMessagesToEvict(
+	_ context.Context,
+	messages []llm.Message,
+	targetCount int,
+) []llm.Message {
 	if len(messages) <= targetCount {
 		return messages
 	}

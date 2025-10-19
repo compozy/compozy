@@ -1,7 +1,6 @@
 package schedule
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -72,7 +71,7 @@ func TestScheduleIDGeneration(t *testing.T) {
 
 func TestReconcileSchedules(t *testing.T) {
 	t.Run("Should create new schedules", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -112,7 +111,7 @@ func TestReconcileSchedules(t *testing.T) {
 		mockHandle.AssertExpectations(t)
 	})
 	t.Run("Should update existing schedules", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -170,7 +169,7 @@ func TestReconcileSchedules(t *testing.T) {
 		mockHandle.AssertExpectations(t)
 	})
 	t.Run("Should delete removed schedules", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -203,7 +202,7 @@ func TestReconcileSchedules(t *testing.T) {
 		mockHandle.AssertExpectations(t)
 	})
 	t.Run("Should handle partial failures gracefully", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -246,7 +245,7 @@ func TestReconcileSchedules(t *testing.T) {
 
 func TestUpdateSchedule(t *testing.T) {
 	t.Run("Should update schedule and track override", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -293,7 +292,7 @@ func TestUpdateSchedule(t *testing.T) {
 		mockHandle.AssertExpectations(t)
 	})
 	t.Run("Should remove override on update failure", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -338,7 +337,7 @@ func TestUpdateSchedule(t *testing.T) {
 		mockHandle.AssertExpectations(t)
 	})
 	t.Run("Should update schedule with cron override", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -389,7 +388,7 @@ func TestUpdateSchedule(t *testing.T) {
 	})
 
 	t.Run("Should reject invalid cron expression", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -437,7 +436,7 @@ func TestUpdateSchedule(t *testing.T) {
 
 func TestDeleteSchedule(t *testing.T) {
 	t.Run("Should delete schedule and remove override", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -499,7 +498,7 @@ func TestSlugify(t *testing.T) {
 
 func TestListSchedules(t *testing.T) {
 	t.Run("Should list all schedules with workflow info", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -544,7 +543,7 @@ func TestListSchedules(t *testing.T) {
 		mockHandle.AssertExpectations(t)
 	})
 	t.Run("Should handle list error", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -567,7 +566,7 @@ func TestListSchedules(t *testing.T) {
 
 func TestGetSchedule(t *testing.T) {
 	t.Run("Should get schedule info for workflow", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -606,7 +605,7 @@ func TestGetSchedule(t *testing.T) {
 		mockHandle.AssertExpectations(t)
 	})
 	t.Run("Should handle schedule not found", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -633,7 +632,7 @@ func TestGetSchedule(t *testing.T) {
 
 func TestManager_OverrideTracking(t *testing.T) {
 	t.Run("Should track API overrides and skip reconciliation", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -690,7 +689,7 @@ func TestManager_OverrideTracking(t *testing.T) {
 	})
 
 	t.Run("Should respect override logic during reconciliation", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -736,7 +735,7 @@ func TestManager_OverrideTracking(t *testing.T) {
 
 func TestManager_ConfigurationReload(t *testing.T) {
 	t.Run("Should trigger reconciliation on configuration reload", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -782,7 +781,7 @@ func TestManager_ConfigurationReload(t *testing.T) {
 
 func TestManager_PeriodicReconciliationValidation(t *testing.T) {
 	t.Run("Should validate positive interval", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		m := &manager{
 			config:        DefaultConfig(),
 			overrideCache: NewOverrideCache(),
@@ -821,7 +820,7 @@ func TestManager_PeriodicReconciliation(t *testing.T) {
 			periodicCancel: nil,
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		getWorkflows := func() []*workflow.Config {
 			return []*workflow.Config{}
 		}

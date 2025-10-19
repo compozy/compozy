@@ -42,12 +42,13 @@ func (v *DatabaseStateVerifier) VerifyWorkflowState(
 	expectedStatus core.StatusType,
 	timeoutDuration ...time.Duration,
 ) {
+	v.t.Helper()
 	timeout := DefaultTestTimeout
 	if len(timeoutDuration) > 0 {
 		timeout = timeoutDuration[0]
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(v.t.Context(), timeout)
 	defer cancel()
 
 	// Poll for the expected status with backoff
@@ -59,7 +60,7 @@ func (v *DatabaseStateVerifier) VerifyWorkflowState(
 		case <-ctx.Done():
 			v.t.Fatalf("Timeout waiting for workflow %s to reach status %s", workflowExecID, expectedStatus)
 		case <-ticker.C:
-			state, err := v.workflowRepo.GetState(context.Background(), workflowExecID)
+			state, err := v.workflowRepo.GetState(v.t.Context(), workflowExecID)
 			if err != nil {
 				v.t.Logf("Warning: could not get workflow state: %v", err)
 				continue
@@ -80,10 +81,11 @@ func (v *DatabaseStateVerifier) VerifyWorkflowStateEventually(
 	expectedStatus core.StatusType,
 	maxWait time.Duration,
 ) {
+	v.t.Helper()
 	require.Eventually(
 		v.t,
 		func() bool {
-			state, err := v.workflowRepo.GetState(context.Background(), workflowExecID)
+			state, err := v.workflowRepo.GetState(v.t.Context(), workflowExecID)
 			if err != nil {
 				v.t.Logf("Could not get workflow state: %v", err)
 				return false
@@ -107,12 +109,13 @@ func (v *DatabaseStateVerifier) VerifyTaskState(
 	expectedStatus core.StatusType,
 	timeoutDuration ...time.Duration,
 ) {
+	v.t.Helper()
 	timeout := DefaultTestTimeout
 	if len(timeoutDuration) > 0 {
 		timeout = timeoutDuration[0]
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(v.t.Context(), timeout)
 	defer cancel()
 
 	ticker := time.NewTicker(DefaultPollInterval)
@@ -128,7 +131,7 @@ func (v *DatabaseStateVerifier) VerifyTaskState(
 				expectedStatus,
 			)
 		case <-ticker.C:
-			tasks, err := v.taskRepo.ListTasksInWorkflow(context.Background(), workflowExecID)
+			tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 			if err != nil {
 				v.t.Logf("Warning: could not get tasks for workflow: %v", err)
 				continue
@@ -153,8 +156,9 @@ func (v *DatabaseStateVerifier) VerifyTaskStateEventually(
 	expectedStatus core.StatusType,
 	maxWait time.Duration,
 ) {
+	v.t.Helper()
 	require.Eventually(v.t, func() bool {
-		tasks, err := v.taskRepo.ListTasksInWorkflow(context.Background(), workflowExecID)
+		tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 		if err != nil {
 			v.t.Logf("Could not get tasks for workflow: %v", err)
 			return false
@@ -172,7 +176,8 @@ func (v *DatabaseStateVerifier) VerifyTaskStateEventually(
 
 // VerifyWorkflowExists checks that a workflow state exists in the database
 func (v *DatabaseStateVerifier) VerifyWorkflowExists(workflowExecID core.ID) {
-	state, err := v.workflowRepo.GetState(context.Background(), workflowExecID)
+	v.t.Helper()
+	state, err := v.workflowRepo.GetState(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err, "Workflow state should exist in database")
 	assert.NotNil(v.t, state, "Workflow state should not be nil")
 	assert.Equal(v.t, workflowExecID, state.WorkflowExecID, "Workflow execution ID should match")
@@ -180,7 +185,8 @@ func (v *DatabaseStateVerifier) VerifyWorkflowExists(workflowExecID core.ID) {
 
 // VerifyTaskExists checks that a task state exists in the database
 func (v *DatabaseStateVerifier) VerifyTaskExists(workflowExecID core.ID, taskID string) {
-	tasks, err := v.taskRepo.ListTasksInWorkflow(context.Background(), workflowExecID)
+	v.t.Helper()
+	tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err, "Should be able to list tasks in workflow")
 
 	found := false
@@ -200,10 +206,11 @@ func (v *DatabaseStateVerifier) VerifyWorkflowCompletesWithStatus(
 	expectedStatus core.StatusType,
 	maxWait time.Duration,
 ) {
+	v.t.Helper()
 	v.VerifyWorkflowStateEventually(workflowExecID, expectedStatus, maxWait)
 
 	// Also verify the workflow state contains expected fields
-	state, err := v.workflowRepo.GetState(context.Background(), workflowExecID)
+	state, err := v.workflowRepo.GetState(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err)
 
 	assert.Equal(v.t, expectedStatus, state.Status)
@@ -233,6 +240,7 @@ type StatusTransition struct {
 
 // VerifyStatusTransitionSequence verifies that status transitions happen in the expected order
 func (v *DatabaseStateVerifier) VerifyStatusTransitionSequence(workflowExecID core.ID, transitions []StatusTransition) {
+	v.t.Helper()
 	for i, transition := range transitions {
 		v.t.Logf("Verifying transition %d: %s -> %s", i+1, transition.Component, transition.Status)
 
@@ -247,14 +255,16 @@ func (v *DatabaseStateVerifier) VerifyStatusTransitionSequence(workflowExecID co
 
 // GetWorkflowState returns the current workflow state from database
 func (v *DatabaseStateVerifier) GetWorkflowState(workflowExecID core.ID) *workflow.State {
-	state, err := v.workflowRepo.GetState(context.Background(), workflowExecID)
+	v.t.Helper()
+	state, err := v.workflowRepo.GetState(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err)
 	return state
 }
 
 // GetTaskState returns the current task state from database
 func (v *DatabaseStateVerifier) GetTaskState(workflowExecID core.ID, taskID string) *task.State {
-	tasks, err := v.taskRepo.ListTasksInWorkflow(context.Background(), workflowExecID)
+	v.t.Helper()
+	tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err)
 
 	for _, taskState := range tasks {
@@ -268,19 +278,21 @@ func (v *DatabaseStateVerifier) GetTaskState(workflowExecID core.ID, taskID stri
 
 // VerifyTaskCount verifies the expected number of tasks exist for a workflow
 func (v *DatabaseStateVerifier) VerifyTaskCount(workflowExecID core.ID, expectedCount int) {
-	tasks, err := v.taskRepo.ListTasksInWorkflow(context.Background(), workflowExecID)
+	v.t.Helper()
+	tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err)
 	assert.Len(v.t, tasks, expectedCount, "Expected %d tasks in workflow %s", expectedCount, workflowExecID)
 }
 
 // VerifyNoErrors verifies that workflow and tasks have no error states
 func (v *DatabaseStateVerifier) VerifyNoErrors(workflowExecID core.ID) {
+	v.t.Helper()
 	// Check workflow for errors
 	workflowState := v.GetWorkflowState(workflowExecID)
 	assert.Nil(v.t, workflowState.Error, "Workflow should not have errors")
 
 	// Check all tasks for errors
-	tasks, err := v.taskRepo.ListTasksInWorkflow(context.Background(), workflowExecID)
+	tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err)
 
 	for _, taskState := range tasks {
@@ -295,9 +307,10 @@ func (v *DatabaseStateVerifier) VerifyTaskStatusCascade(
 	expectedTaskStatuses map[string]core.StatusType,
 	maxWait time.Duration,
 ) {
+	v.t.Helper()
 	require.Eventually(v.t, func() bool {
 		// Check workflow status
-		workflowState, err := v.workflowRepo.GetState(context.Background(), workflowExecID)
+		workflowState, err := v.workflowRepo.GetState(v.t.Context(), workflowExecID)
 		if err != nil {
 			v.t.Logf("Failed to get workflow state: %v", err)
 			return false
@@ -309,7 +322,7 @@ func (v *DatabaseStateVerifier) VerifyTaskStatusCascade(
 		}
 
 		// Check task statuses
-		tasks, err := v.taskRepo.ListTasksInWorkflow(context.Background(), workflowExecID)
+		tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 		if err != nil {
 			v.t.Logf("Failed to get tasks: %v", err)
 			return false
@@ -336,10 +349,11 @@ func (v *DatabaseStateVerifier) VerifyTaskStatusCascade(
 
 // VerifyTaskStateConsistency verifies that all task states are consistent with workflow state
 func (v *DatabaseStateVerifier) VerifyTaskStateConsistency(workflowExecID core.ID) {
-	workflowState, err := v.workflowRepo.GetState(context.Background(), workflowExecID)
+	v.t.Helper()
+	workflowState, err := v.workflowRepo.GetState(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err, "Failed to get workflow state")
 
-	tasks, err := v.taskRepo.ListTasksInWorkflow(context.Background(), workflowExecID)
+	tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err, "Failed to get tasks")
 
 	for taskID, taskState := range tasks {

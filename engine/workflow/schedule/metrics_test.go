@@ -1,7 +1,6 @@
 package schedule
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -14,7 +13,7 @@ import (
 func TestNewMetrics(t *testing.T) {
 	t.Run("Should create metrics with valid meter", func(t *testing.T) {
 		// Arrange
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		meter := noop.NewMeterProvider().Meter("test")
 
 		// Act
@@ -27,7 +26,7 @@ func TestNewMetrics(t *testing.T) {
 
 	t.Run("Should handle nil meter gracefully", func(t *testing.T) {
 		// Arrange
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 
 		// Act
 		metrics := NewMetrics(ctx, nil)
@@ -41,7 +40,7 @@ func TestNewMetrics(t *testing.T) {
 func TestScheduleMetrics_RecordOperation(t *testing.T) {
 	t.Run("Should record operation with valid meter", func(_ *testing.T) {
 		// Arrange
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		meter := noop.NewMeterProvider().Meter("test")
 		metrics := NewMetrics(ctx, meter)
 
@@ -51,7 +50,7 @@ func TestScheduleMetrics_RecordOperation(t *testing.T) {
 
 	t.Run("Should handle nil instruments gracefully", func(_ *testing.T) {
 		// Arrange
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		metrics := NewMetrics(ctx, nil)
 
 		// Act & Assert - Should not panic
@@ -62,7 +61,7 @@ func TestScheduleMetrics_RecordOperation(t *testing.T) {
 func TestScheduleMetrics_UpdateWorkflowCount(t *testing.T) {
 	t.Run("Should update workflow count", func(_ *testing.T) {
 		// Arrange
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		meter := noop.NewMeterProvider().Meter("test")
 		metrics := NewMetrics(ctx, meter)
 
@@ -75,7 +74,7 @@ func TestScheduleMetrics_UpdateWorkflowCount(t *testing.T) {
 func TestScheduleMetrics_RecordReconcileDuration(t *testing.T) {
 	t.Run("Should record reconciliation duration", func(_ *testing.T) {
 		// Arrange
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		meter := noop.NewMeterProvider().Meter("test")
 		metrics := NewMetrics(ctx, meter)
 		duration := 2 * time.Second
@@ -88,7 +87,7 @@ func TestScheduleMetrics_RecordReconcileDuration(t *testing.T) {
 func TestScheduleMetrics_StartEndReconciliation(t *testing.T) {
 	t.Run("Should track reconciliation lifecycle", func(_ *testing.T) {
 		// Arrange
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		meter := noop.NewMeterProvider().Meter("test")
 		metrics := NewMetrics(ctx, meter)
 
@@ -101,7 +100,7 @@ func TestScheduleMetrics_StartEndReconciliation(t *testing.T) {
 func TestReconciliationTracker(t *testing.T) {
 	t.Run("Should track reconciliation lifecycle", func(t *testing.T) {
 		// Arrange
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		meter := noop.NewMeterProvider().Meter("test")
 		metrics := NewMetrics(ctx, meter)
 
@@ -123,7 +122,7 @@ func TestReconciliationTracker(t *testing.T) {
 
 	t.Run("Should handle tracker with nil meter", func(_ *testing.T) {
 		// Arrange
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		metrics := NewMetrics(ctx, nil)
 
 		// Act
@@ -137,7 +136,7 @@ func TestReconciliationTracker(t *testing.T) {
 func TestMetricsInstanceIsolation(t *testing.T) {
 	t.Run("Should allow multiple metric instances with different meters", func(t *testing.T) {
 		// Arrange
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		meter1 := noop.NewMeterProvider().Meter("test1")
 		meter2 := noop.NewMeterProvider().Meter("test2")
 

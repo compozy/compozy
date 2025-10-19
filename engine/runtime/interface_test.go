@@ -1,7 +1,6 @@
 package runtime_test
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -18,7 +17,7 @@ func TestRuntimeInterface(t *testing.T) {
 		defer os.RemoveAll(tmpDir)
 
 		// This test verifies compile-time check in interface.go
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create a Runtime instance using factory
 		config := runtime.TestConfig()

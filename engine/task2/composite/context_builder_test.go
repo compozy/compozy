@@ -16,7 +16,7 @@ import (
 func TestCompositeContextBuilder_NewContextBuilder(t *testing.T) {
 	t.Run("Should create composite context builder", func(t *testing.T) {
 		// Act
-		builder := composite.NewContextBuilder()
+		builder := composite.NewContextBuilder(t.Context())
 
 		// Assert
 		assert.NotNil(t, builder)
@@ -26,7 +26,7 @@ func TestCompositeContextBuilder_NewContextBuilder(t *testing.T) {
 func TestCompositeContextBuilder_TaskType(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
-		builder := composite.NewContextBuilder()
+		builder := composite.NewContextBuilder(t.Context())
 
 		// Act
 		taskType := builder.TaskType()
@@ -38,7 +38,7 @@ func TestCompositeContextBuilder_TaskType(t *testing.T) {
 
 func TestCompositeContextBuilder_BuildContext(t *testing.T) {
 	// Setup
-	builder := composite.NewContextBuilder()
+	builder := composite.NewContextBuilder(t.Context())
 
 	t.Run("Should build context for composite task", func(t *testing.T) {
 		// Arrange
@@ -59,7 +59,7 @@ func TestCompositeContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, workflowConfig, taskConfig)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -84,7 +84,7 @@ func TestCompositeContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(nil, workflowConfig, taskConfig)
+		context := builder.BuildContext(t.Context(), nil, workflowConfig, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -109,7 +109,7 @@ func TestCompositeContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, nil, taskConfig)
+		context := builder.BuildContext(t.Context(), workflowState, nil, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -131,7 +131,7 @@ func TestCompositeContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, workflowConfig, nil)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, nil)
 
 		// Assert
 		require.NotNil(t, context)
@@ -142,7 +142,7 @@ func TestCompositeContextBuilder_BuildContext(t *testing.T) {
 
 	t.Run("Should handle all nil parameters", func(t *testing.T) {
 		// Act
-		context := builder.BuildContext(nil, nil, nil)
+		context := builder.BuildContext(t.Context(), nil, nil, nil)
 
 		// Assert
 		require.NotNil(t, context)
@@ -157,7 +157,7 @@ func TestCompositeContextBuilder_BuildContext(t *testing.T) {
 
 func TestCompositeContextBuilder_EnrichContext(t *testing.T) {
 	// Setup
-	builder := composite.NewContextBuilder()
+	builder := composite.NewContextBuilder(t.Context())
 
 	t.Run("Should enrich context with base enrichment", func(t *testing.T) {
 		// Arrange
@@ -211,7 +211,7 @@ func TestCompositeContextBuilder_EnrichContext(t *testing.T) {
 
 func TestCompositeContextBuilder_ValidateContext(t *testing.T) {
 	// Setup
-	builder := composite.NewContextBuilder()
+	builder := composite.NewContextBuilder(t.Context())
 
 	t.Run("Should validate composite task context", func(t *testing.T) {
 		// Arrange

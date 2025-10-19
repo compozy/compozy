@@ -17,11 +17,11 @@ func TestSignalNormalizer_NewNormalizer(t *testing.T) {
 	t.Run("Should create signal normalizer", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Act
-		normalizer := signal.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := signal.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -29,11 +29,11 @@ func TestSignalNormalizer_NewNormalizer(t *testing.T) {
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Act
-		normalizer := signal.NewNormalizer(nil, contextBuilder)
+		normalizer := signal.NewNormalizer(t.Context(), nil, contextBuilder)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -44,7 +44,7 @@ func TestSignalNormalizer_NewNormalizer(t *testing.T) {
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 
 		// Act
-		normalizer := signal.NewNormalizer(templateEngine, nil)
+		normalizer := signal.NewNormalizer(t.Context(), templateEngine, nil)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -52,7 +52,7 @@ func TestSignalNormalizer_NewNormalizer(t *testing.T) {
 
 	t.Run("Should handle both nil parameters", func(t *testing.T) {
 		// Act
-		normalizer := signal.NewNormalizer(nil, nil)
+		normalizer := signal.NewNormalizer(t.Context(), nil, nil)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -63,9 +63,9 @@ func TestSignalNormalizer_Type(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := signal.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := signal.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		// Act
 		taskType := normalizer.Type()
@@ -78,9 +78,9 @@ func TestSignalNormalizer_Type(t *testing.T) {
 func TestSignalNormalizer_Normalize(t *testing.T) {
 	// Setup
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := signal.NewNormalizer(templateEngine, contextBuilder)
+	normalizer := signal.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 	t.Run("Should normalize signal task config", func(t *testing.T) {
 		// Arrange
@@ -103,7 +103,7 @@ func TestSignalNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -124,7 +124,7 @@ func TestSignalNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -155,7 +155,7 @@ func TestSignalNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -170,9 +170,9 @@ func TestSignalNormalizer_Integration(t *testing.T) {
 	t.Run("Should be based on BaseNormalizer", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := signal.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := signal.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		// Assert
 		require.NotNil(t, normalizer)
@@ -185,15 +185,15 @@ func TestSignalNormalizer_Integration(t *testing.T) {
 
 func TestSignalNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := signal.NewNormalizer(templateEngine, contextBuilder)
+	normalizer := signal.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 	t.Run("Should handle nil config gracefully", func(t *testing.T) {
 		// Arrange
 		ctx := &shared.NormalizationContext{}
 		// Act
-		err := normalizer.Normalize(nil, ctx)
+		err := normalizer.Normalize(t.Context(), nil, ctx)
 		// Assert - Signal normalizer should return error for nil config
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "task config cannot be nil")
@@ -209,7 +209,7 @@ func TestSignalNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "signal normalizer cannot handle task type: basic")
@@ -229,7 +229,7 @@ func TestSignalNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to normalize signal task config")
@@ -249,7 +249,7 @@ func TestSignalNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to convert task config to map")
@@ -277,7 +277,7 @@ func TestSignalNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to normalize signal task config")
@@ -309,7 +309,7 @@ func TestSignalNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "test-signal", taskConfig.ID)
@@ -320,12 +320,12 @@ func TestSignalNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
-		normalizer := signal.NewNormalizer(nil, contextBuilder)
+		normalizer := signal.NewNormalizer(t.Context(), nil, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -334,7 +334,7 @@ func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert - Should return error due to nil template engine
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "template engine is required for normalization")
@@ -342,7 +342,7 @@ func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle nil context gracefully", func(t *testing.T) {
 		// Arrange
-		normalizer := signal.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := signal.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -350,7 +350,7 @@ func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.Normalize(taskConfig, nil)
+		err = normalizer.Normalize(t.Context(), taskConfig, nil)
 
 		// Assert
 		assert.Error(t, err)
@@ -359,7 +359,7 @@ func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle empty signal configuration", func(t *testing.T) {
 		// Arrange
-		normalizer := signal.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := signal.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "empty-signal",
@@ -371,7 +371,7 @@ func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		require.NotNil(t, taskConfig.Signal)
@@ -381,7 +381,7 @@ func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle complex signal payload structures", func(t *testing.T) {
 		// Arrange
-		normalizer := signal.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := signal.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		complexPayload := map[string]any{
 			"metadata": map[string]any{
 				"timestamp": "{{ .timestamp }}",
@@ -422,7 +422,7 @@ func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		require.NotNil(t, taskConfig.Signal)
@@ -432,7 +432,7 @@ func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should preserve signal configuration structure", func(t *testing.T) {
 		// Arrange
-		normalizer := signal.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := signal.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		originalPayload := map[string]any{
 			"type":     "notification",
 			"priority": "high",
@@ -456,7 +456,7 @@ func TestSignalNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		require.NotNil(t, taskConfig.Signal)

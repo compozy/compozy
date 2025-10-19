@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -17,7 +16,7 @@ func TestGetTool_Execute(t *testing.T) {
 		t.Parallel()
 		wf := &workflow.Config{Tools: []tool.Config{{ID: "fmt", Description: "Formatter"}}}
 		uc := NewGetTool([]*workflow.Config{wf}, "fmt")
-		got, err := uc.Execute(context.Background())
+		got, err := uc.Execute(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, "fmt", got.ID)
@@ -27,7 +26,7 @@ func TestGetTool_Execute(t *testing.T) {
 		t.Parallel()
 		wf := &workflow.Config{Tools: []tool.Config{{ID: "fmt"}}}
 		uc := NewGetTool([]*workflow.Config{wf}, "lint")
-		got, err := uc.Execute(context.Background())
+		got, err := uc.Execute(t.Context())
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, ErrToolNotFound))
 		assert.Nil(t, got)
@@ -37,7 +36,7 @@ func TestGetTool_Execute(t *testing.T) {
 		wf1 := &workflow.Config{Tools: []tool.Config{{ID: "dup", Description: "from wf1"}}}
 		wf2 := &workflow.Config{Tools: []tool.Config{{ID: "dup", Description: "from wf2"}}}
 		uc := NewGetTool([]*workflow.Config{wf1, wf2}, "dup")
-		got, err := uc.Execute(context.Background())
+		got, err := uc.Execute(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, "from wf1", got.Description)
@@ -51,7 +50,7 @@ func TestListTools_Execute(t *testing.T) {
 		wf1 := &workflow.Config{Tools: []tool.Config{{ID: "a"}, {ID: "b", Description: "from wf1"}}}
 		wf2 := &workflow.Config{Tools: []tool.Config{{ID: "b", Description: "from wf2"}, {ID: "c"}}}
 		uc := NewListTools([]*workflow.Config{wf1, wf2})
-		tools, err := uc.Execute(context.Background())
+		tools, err := uc.Execute(t.Context())
 		require.NoError(t, err)
 		assert.Len(t, tools, 3)
 		ids := map[string]tool.Config{}
@@ -66,7 +65,7 @@ func TestListTools_Execute(t *testing.T) {
 	t.Run("Should return empty slice when no workflows provided", func(t *testing.T) {
 		t.Parallel()
 		uc := NewListTools(nil)
-		tools, err := uc.Execute(context.Background())
+		tools, err := uc.Execute(t.Context())
 		require.NoError(t, err)
 		assert.Empty(t, tools)
 	})

@@ -181,7 +181,7 @@ func (m *mockTaskRepository) MergeUsage(ctx context.Context, taskExecID core.ID,
 func TestProcessParentTask(t *testing.T) {
 	// Create a logger and add it to context
 	log := logger.NewForTests()
-	ctx := logger.ContextWithLogger(context.Background(), log)
+	ctx := logger.ContextWithLogger(t.Context(), log)
 
 	t.Run("Should process parallel task successfully with all children succeeded", func(t *testing.T) {
 		// Arrange
@@ -463,7 +463,7 @@ func TestProcessParentTask(t *testing.T) {
 
 func TestAggregateChildOutputs(t *testing.T) {
 	log := logger.NewForTests()
-	ctx := logger.ContextWithLogger(context.Background(), log)
+	ctx := logger.ContextWithLogger(t.Context(), log)
 
 	t.Run("Should aggregate all child outputs successfully", func(t *testing.T) {
 		// Arrange

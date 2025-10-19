@@ -31,10 +31,6 @@ func NewWorkflowsValidator(cwd *core.PathCWD, workflows []*WorkflowSourceConfig)
 
 // Validate ensures workflow sources exist, are files, and do not duplicate entries.
 func (v *WorkflowsValidator) Validate(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
 	if len(v.workflows) == 0 {
 		return nil
 	}
@@ -130,10 +126,6 @@ func NewWebhookSlugsValidator(slugs []string) *WebhookSlugsValidator {
 
 // Validate reports an error if any webhook slug repeats across workflows.
 func (v *WebhookSlugsValidator) Validate(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
 	seen := make(map[string]struct{}, len(v.slugs))
 	for _, slug := range v.slugs {
 		if err := ctx.Err(); err != nil {

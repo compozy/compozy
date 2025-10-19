@@ -15,14 +15,14 @@ func TestEnsurePortAvailable(t *testing.T) {
 		listener, port := occupyPort(t)
 		require.NoError(t, listener.Close())
 		waitForPortRelease(t, port)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		require.NoError(t, EnsurePortAvailable(ctx, "127.0.0.1", port))
 	})
 	t.Run("Should return error when port is already bound", func(t *testing.T) {
 		listener, port := occupyPort(t)
 		defer listener.Close()
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		err := EnsurePortAvailable(ctx, "127.0.0.1", port)
 		require.Error(t, err)
@@ -31,7 +31,7 @@ func TestEnsurePortAvailable(t *testing.T) {
 }
 
 func occupyPort(t *testing.T) (net.Listener, int) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	lc := net.ListenConfig{}
 	listener, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
@@ -52,7 +52,7 @@ func TestFormatAddress(t *testing.T) {
 
 func waitForPortRelease(t *testing.T, port int) {
 	require.Eventually(t, func() bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 		defer cancel()
 		return EnsurePortAvailable(ctx, "127.0.0.1", port) == nil
 	}, 500*time.Millisecond, 25*time.Millisecond, "port %d did not become available in time", port)

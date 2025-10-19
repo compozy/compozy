@@ -22,7 +22,7 @@ import (
 func withCtx(t *testing.T) context.Context {
 	t.Helper()
 	// Attach test logger to context to satisfy logging requirements
-	return logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	return logger.ContextWithLogger(t.Context(), logger.NewForTests())
 }
 
 func TestCompile_ResolveAgentSelector(t *testing.T) {

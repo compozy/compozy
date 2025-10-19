@@ -2,7 +2,6 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ func TestRedisLockManager_Acquire(t *testing.T) {
 	manager, err := NewRedisLockManager(client)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	resource := "test-resource"
 	ttl := time.Second * 10
 
@@ -71,7 +70,7 @@ func TestRedisLock_Release(t *testing.T) {
 	manager, err := NewRedisLockManager(client)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	resource := "test-resource"
 	ttl := time.Second * 10
 
@@ -117,7 +116,7 @@ func TestRedisLock_Refresh(t *testing.T) {
 	manager, err := NewRedisLockManager(client)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	resource := "test-resource"
 	ttl := time.Second * 2
 
@@ -169,7 +168,7 @@ func TestRedisLock_AutoRenewal(t *testing.T) {
 	manager, err := NewRedisLockManager(client)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	resource := "test-resource"
 	ttl := time.Millisecond * 300 // Short TTL to test auto-renewal
 
@@ -209,7 +208,7 @@ func TestRedisLockManager_ConcurrentAccess(t *testing.T) {
 	manager, err := NewRedisLockManager(client)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	resource := "concurrent-test"
 	ttl := time.Second * 2
 
@@ -258,7 +257,7 @@ func TestRedisLockManager_Metrics(t *testing.T) {
 	manager, err := NewRedisLockManager(client)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	resource := "metrics-test"
 	ttl := time.Second * 2
 
@@ -300,7 +299,7 @@ func TestRedisLock_EdgeCases(t *testing.T) {
 	manager, err := NewRedisLockManager(client)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	resource := "edge-case-test"
 	ttl := time.Second * 2
 
@@ -330,45 +329,5 @@ func TestRedisLock_EdgeCases(t *testing.T) {
 		defer lock.Release(ctx)
 
 		assert.Equal(t, "", lock.Resource())
-	})
-}
-
-func BenchmarkRedisLockManager_Acquire(b *testing.B) {
-	s := miniredis.RunT(b)
-	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	manager, err := NewRedisLockManager(client)
-	require.NoError(b, err)
-
-	ctx := context.Background()
-	ttl := time.Second * 10
-
-	for i := 0; b.Loop(); i++ {
-		resource := fmt.Sprintf("bench-resource-%d", i)
-		lock, err := manager.Acquire(ctx, resource, ttl)
-		if err != nil {
-			b.Fatal(err)
-		}
-		lock.Release(ctx)
-	}
-}
-
-func BenchmarkRedisLockManager_ConcurrentAcquire(b *testing.B) {
-	s := miniredis.RunT(b)
-	client := redis.NewClient(&redis.Options{Addr: s.Addr()})
-	manager, err := NewRedisLockManager(client)
-	require.NoError(b, err)
-
-	ctx := context.Background()
-	resource := "concurrent-bench"
-	ttl := time.Millisecond * 100
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			lock, err := manager.Acquire(ctx, resource, ttl)
-			if err == nil {
-				lock.Release(ctx)
-			}
-		}
 	})
 }

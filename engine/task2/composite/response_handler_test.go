@@ -1,7 +1,6 @@
 package composite
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,7 +50,7 @@ func TestCompositeResponseHandler_HandleResponse_Validation(t *testing.T) {
 			WorkflowState:  &workflow.State{},  // Valid workflow state
 		}
 
-		result, err := handler.HandleResponse(context.Background(), input)
+		result, err := handler.HandleResponse(t.Context(), input)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -85,7 +84,7 @@ func TestCompositeResponseHandler_HandleSubtaskResponse(t *testing.T) {
 		}
 
 		result, err := handler.HandleSubtaskResponse(
-			context.Background(),
+			t.Context(),
 			parentState,
 			childState,
 			childConfig,
@@ -116,7 +115,7 @@ func TestCompositeResponseHandler_HandleSubtaskResponse(t *testing.T) {
 		}
 
 		result, err := handler.HandleSubtaskResponse(
-			context.Background(),
+			t.Context(),
 			nil,
 			childState,
 			childConfig,
@@ -146,7 +145,7 @@ func TestCompositeResponseHandler_HandleSubtaskResponse(t *testing.T) {
 		}
 
 		result, err := handler.HandleSubtaskResponse(
-			context.Background(),
+			t.Context(),
 			nil,
 			childState,
 			childConfig,

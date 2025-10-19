@@ -59,7 +59,7 @@ func (m *MockOutputTransformer) TransformOutput(
 
 func TestResponseHandler_NewResponseHandler(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatYAML)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
 	baseHandler := &shared.BaseResponseHandler{}
 
@@ -99,7 +99,7 @@ func TestResponseHandler_NewResponseHandler(t *testing.T) {
 func TestResponseHandler_Type(t *testing.T) {
 	t.Run("Should return TaskTypeMemory", func(t *testing.T) {
 		templateEngine := tplengine.NewEngine(tplengine.FormatYAML)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		baseHandler := &shared.BaseResponseHandler{}
 		handler, err := NewResponseHandler(templateEngine, contextBuilder, baseHandler)
@@ -110,9 +110,9 @@ func TestResponseHandler_Type(t *testing.T) {
 
 func TestResponseHandler_HandleResponse(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatYAML)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should process valid memory task response", func(t *testing.T) {
 		// Set up real repositories

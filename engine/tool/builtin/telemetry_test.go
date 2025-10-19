@@ -1,7 +1,6 @@
 package builtin
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -24,14 +23,14 @@ func TestInitMetrics_StepInstruments(t *testing.T) {
 func TestRecordStep(t *testing.T) {
 	t.Run("ShouldRecordWithoutPanicWhenUninitialized", func(t *testing.T) {
 		ResetMetricsForTesting()
-		ctx := context.Background()
+		ctx := t.Context()
 		assert.NotPanics(t, func() {
 			RecordStep(ctx, "cp__test", "agent", "success", 5*time.Millisecond)
 		})
 	})
 	t.Run("ShouldRecordWithoutPanicWhenInitialized", func(t *testing.T) {
 		ResetMetricsForTesting()
-		ctx := context.Background()
+		ctx := t.Context()
 		meter := noop.NewMeterProvider().Meter("test")
 		err := InitMetrics(meter)
 		require.NoError(t, err)

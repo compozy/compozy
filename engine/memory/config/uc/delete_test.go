@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -24,7 +23,7 @@ func createMemoryBody(id string) map[string]any {
 
 func TestDeleteMemory_ConfigConflictsWhenAgentReferences(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	memBody := createMemoryBody("session")
 	_, err := NewUpsert(store).Execute(ctx, &UpsertInput{Project: project, ID: "session", Body: memBody})
@@ -42,7 +41,7 @@ func TestDeleteMemory_ConfigConflictsWhenAgentReferences(t *testing.T) {
 
 func TestDeleteMemory_ConfigRemovesWhenUnused(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	_, err := NewUpsert(
 		store,

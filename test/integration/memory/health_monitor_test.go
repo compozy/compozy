@@ -19,7 +19,7 @@ func TestHealthMonitorBasic(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		monitor := NewHealthMonitor(env)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 		// Wait for initial health check to complete with retries
 		var status map[string]HealthStatus
@@ -54,7 +54,7 @@ func TestHealthMonitorContinuous(t *testing.T) {
 		defer env.Cleanup()
 		monitor := NewHealthMonitor(env)
 		monitor.checkInterval = 100 * time.Millisecond // Faster for testing
-		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 		defer cancel()
 		// Start monitoring
 		monitor.Start(ctx)
@@ -100,7 +100,7 @@ func TestHealthMonitorAlerts(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		monitor := NewHealthMonitor(env)
-		ctx := context.Background()
+		ctx := t.Context()
 		// Close Redis to trigger failure
 		env.GetRedis().Close()
 		// Perform health check
@@ -143,7 +143,7 @@ func TestHealthMonitorHelper(t *testing.T) {
 		operationCount := 0
 		// Monitor a test
 		helper.MonitorTest(t, func() {
-			ctx := context.Background()
+			ctx := t.Context()
 			// Perform some operations
 			memRef := core.MemoryReference{
 				ID:  "customer-support",
@@ -185,7 +185,7 @@ func TestHealthMonitorReport(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		monitor := NewHealthMonitor(env)
-		ctx := context.Background()
+		ctx := t.Context()
 		// Perform some operations
 		monitor.RecordOperation("Redis", true, 15*time.Millisecond)
 		monitor.RecordOperation("Memory", true, 25*time.Millisecond)
@@ -211,7 +211,7 @@ func TestHealthMonitorUnderLoad(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		monitor := NewHealthMonitor(env)
-		ctx := context.Background()
+		ctx := t.Context()
 		// Start monitoring
 		monitor.Start(ctx)
 		defer monitor.Stop()

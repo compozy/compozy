@@ -1,7 +1,6 @@
 package llmadapter
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -61,12 +60,12 @@ func TestRegistry(t *testing.T) {
 		client := &stubClient{}
 		require.NoError(t, registry.Register(&stubProvider{name: core.ProviderName("cap"), client: client}))
 		created, err := registry.NewClient(
-			context.Background(),
+			t.Context(),
 			&core.ProviderConfig{Provider: core.ProviderName("cap")},
 		)
 		require.NoError(t, err)
 		assert.Equal(t, client, created)
-		_, err = registry.NewClient(context.Background(), &core.ProviderConfig{Provider: core.ProviderName("missing")})
+		_, err = registry.NewClient(t.Context(), &core.ProviderConfig{Provider: core.ProviderName("missing")})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not registered")
 	})

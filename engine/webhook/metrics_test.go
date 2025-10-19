@@ -1,7 +1,6 @@
 package webhook
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -10,11 +9,11 @@ import (
 
 func TestMetrics_Init(t *testing.T) {
 	t.Run("Should init without panic", func(_ *testing.T) {
-		m, err := NewMetrics(context.Background(), noop.NewMeterProvider().Meter("test"))
+		m, err := NewMetrics(t.Context(), noop.NewMeterProvider().Meter("test"))
 		if err != nil {
 			t.Fatalf("NewMetrics failed: %v", err)
 		}
-		ctx := context.Background()
+		ctx := t.Context()
 		m.OnReceived(ctx, "slug", "wf")
 		m.ObserveOverall(ctx, "slug", "wf", time.Millisecond)
 		m.RecordPayloadSize(ctx, "event.created", "slug", 512)

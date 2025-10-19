@@ -37,7 +37,7 @@ tasks:
 		require.NoError(t, err)
 		err = os.WriteFile(workflowPath, []byte(workflowContent), 0644)
 		require.NoError(t, err)
-		err = loader.Load(context.Background())
+		err = loader.Load(t.Context())
 		assert.NoError(t, err)
 		assert.Equal(t, 1, registry.Count())
 		// Verify the configuration was registered correctly
@@ -65,7 +65,7 @@ description: Test workflow without resource field
 		require.NoError(t, err)
 		err = os.WriteFile(workflowPath, []byte(invalidContent), 0644)
 		require.NoError(t, err)
-		err = loader.Load(context.Background())
+		err = loader.Load(t.Context())
 		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
@@ -105,7 +105,7 @@ description: Invalid workflow without resource field
 		require.NoError(t, err)
 		err = os.WriteFile(invalidPath, []byte(invalidContent), 0644)
 		require.NoError(t, err)
-		err = loader.Load(context.Background())
+		err = loader.Load(t.Context())
 		assert.NoError(t, err)
 		assert.Equal(t, 1, registry.Count())
 		// Verify only the valid configuration was registered
@@ -133,7 +133,7 @@ description: Test workflow without ID field
 		require.NoError(t, err)
 		err = os.WriteFile(workflowPath, []byte(invalidContent), 0644)
 		require.NoError(t, err)
-		err = loader.Load(context.Background())
+		err = loader.Load(t.Context())
 		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
@@ -162,7 +162,7 @@ version: "1.0"
 		err = os.WriteFile(workflowPath, []byte(workflowContent), 0644)
 		require.NoError(t, err)
 		// Cancel the context immediately
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		err = loader.Load(ctx)
 		require.Error(t, err)
@@ -177,7 +177,7 @@ version: "1.0"
 			Include: []string{"workflows/*.yaml"},
 		}
 		loader := New(tempDir, config, registry)
-		err := loader.Load(context.Background())
+		err := loader.Load(t.Context())
 		assert.NoError(t, err)
 		assert.Equal(t, 0, registry.Count())
 	})
@@ -191,7 +191,7 @@ version: "1.0"
 			Include: []string{"nonexistent/*.yaml"},
 		}
 		loader := New(tempDir, config, registry)
-		err := loader.Load(context.Background())
+		err := loader.Load(t.Context())
 		assert.NoError(t, err)
 		assert.Equal(t, 0, registry.Count())
 	})
@@ -211,7 +211,7 @@ func TestAutoLoader_Discover(t *testing.T) {
 		require.NoError(t, err)
 		err = os.WriteFile(workflowPath, []byte("test"), 0644)
 		require.NoError(t, err)
-		files, err := loader.Discover(context.Background())
+		files, err := loader.Discover(t.Context())
 		assert.NoError(t, err)
 		assert.Len(t, files, 1)
 		assert.Contains(t, files[0], "workflows/test.yaml")
@@ -246,7 +246,7 @@ description: Second workflow
 		require.NoError(t, err)
 		err = os.WriteFile(filepath.Join(workflowsDir, "workflow2.yaml"), []byte(workflowContent2), 0644)
 		require.NoError(t, err)
-		result, err := loader.LoadWithResult(context.Background())
+		result, err := loader.LoadWithResult(t.Context())
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, 2, result.FilesProcessed)
@@ -280,7 +280,7 @@ version: "1.0"
 		require.NoError(t, err)
 		err = os.WriteFile(filepath.Join(tempDir, "invalid2.yaml"), []byte(invalidContent2), 0644)
 		require.NoError(t, err)
-		result, err := loader.LoadWithResult(context.Background())
+		result, err := loader.LoadWithResult(t.Context())
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, 3, result.FilesProcessed)
@@ -309,7 +309,7 @@ version: "1.0"
 `
 		err := os.WriteFile(filepath.Join(tempDir, "invalid.yaml"), []byte(invalidContent), 0644)
 		require.NoError(t, err)
-		result, err := loader.LoadWithResult(context.Background())
+		result, err := loader.LoadWithResult(t.Context())
 		require.Error(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, 1, result.FilesProcessed)
@@ -336,7 +336,7 @@ version: "1.0"
 		require.NoError(t, err)
 		err = os.WriteFile(filepath.Join(tempDir, "invalid2.yaml"), []byte(invalidContent2), 0644)
 		require.NoError(t, err)
-		result, err := loader.LoadWithResult(context.Background())
+		result, err := loader.LoadWithResult(t.Context())
 		require.Error(t, err)
 		assert.NotNil(t, result)
 		// In strict mode, it fails fast on first error, so FilesProcessed will be 1
@@ -399,7 +399,7 @@ version: "1.0"
 		// Original registry should be empty
 		assert.Equal(t, 0, registry.Count())
 		// Run validation
-		result, err := loader.Validate(context.Background())
+		result, err := loader.Validate(t.Context())
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, 2, result.FilesProcessed)

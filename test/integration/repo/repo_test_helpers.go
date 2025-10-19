@@ -26,18 +26,17 @@ type repoTestEnv struct {
 
 func newRepoTestEnv(t *testing.T) repoTestEnv {
 	t.Helper()
-
-	baseCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	baseCtx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	t.Cleanup(cancel)
 
 	ctx := logger.ContextWithLogger(baseCtx, logger.NewForTests())
 
-	manager := config.NewManager(config.NewService())
+	manager := config.NewManager(ctx, config.NewService())
 	_, err := manager.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
 	ctx = config.ContextWithManager(ctx, manager)
 
-	pool, cleanup := helpers.GetSharedPostgresDB(ctx, t)
+	pool, cleanup := helpers.GetSharedPostgresDB(t)
 	t.Cleanup(cleanup)
 
 	require.NoError(t, helpers.EnsureTablesExistForTest(pool))

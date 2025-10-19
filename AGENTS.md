@@ -54,12 +54,6 @@ cat .cursor/rules/{go-coding-standards,architecture,test-standards,backwards-com
   - **Linting:** `golangci-lint run --fix --allow-parallel-runners <scope>` (e.g., `./engine/agent/...`)
   - **IF YOUR SCOPE** is `.../.` then you need to run `make test` and `make lint`
 
-### For complex/big tasks
-
-- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, refactor, analyze or tracer (depends of the task and what the user prompt says to do) complex flow **BEFORE INITIATE A TASK**
-- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) codereview tool **AFTER FINISH A TASK**
-- **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
-
 **Enforcement:** Violating these standards results in immediate task rejection.
 </critical>
 

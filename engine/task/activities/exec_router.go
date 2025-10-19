@@ -77,7 +77,7 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 		return nil, err
 	}
 	// Use task2 normalizer for router tasks
-	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeRouter)
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeRouter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create router normalizer: %w", err)
 	}
@@ -87,10 +87,10 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
 	// Build proper normalization context with all template variables
-	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	normContext := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, input.TaskConfig)
 	// Normalize the task configuration
 	normalizedConfig := input.TaskConfig
-	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
 		return nil, fmt.Errorf("failed to normalize router task: %w", err)
 	}
 	// Create task state

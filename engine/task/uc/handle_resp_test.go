@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -82,7 +81,7 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 			ParentStateID: nil,
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		err := handleResponse.updateParentStatusIfNeeded(ctx, childState)
 
 		require.NoError(t, err)
@@ -111,7 +110,7 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 		mockTaskRepo.On("GetState", mock.Anything, parentID).Return(parentState, nil)
 
 		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
-		ctx := context.Background()
+		ctx := t.Context()
 		err := handleResponse.updateParentStatusIfNeeded(ctx, childState)
 
 		require.NoError(t, err)
@@ -167,7 +166,7 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 		})).Return(nil)
 
 		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
-		ctx := context.Background()
+		ctx := t.Context()
 		err := handleResponse.updateParentStatusIfNeeded(ctx, childState)
 
 		require.NoError(t, err)
@@ -223,7 +222,7 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 		})).Return(nil)
 
 		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
-		ctx := context.Background()
+		ctx := t.Context()
 		err := handleResponse.updateParentStatusIfNeeded(ctx, childState)
 
 		require.NoError(t, err)
@@ -311,7 +310,7 @@ func TestHandleResponse_OutputTransformationWithCollectionContext(t *testing.T) 
 		})).Return(nil)
 
 		handleResponse := NewHandleResponse(mockWorkflowRepo, mockTaskRepo)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		input := &HandleResponseInput{
 			WorkflowConfig:   workflowConfig,

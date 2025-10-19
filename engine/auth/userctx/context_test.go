@@ -1,7 +1,6 @@
 package userctx
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/auth/model"
@@ -12,7 +11,7 @@ import (
 
 func TestWithUser(t *testing.T) {
 	t.Run("Should add user to context", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		userID, _ := core.NewID()
 		user := &model.User{
 			ID:    userID,
@@ -40,7 +39,7 @@ func TestUserFromContext(t *testing.T) {
 			Email: "test@example.com",
 			Role:  model.RoleAdmin,
 		}
-		ctx := WithUser(context.Background(), user)
+		ctx := WithUser(t.Context(), user)
 
 		retrievedUser, ok := UserFromContext(ctx)
 
@@ -51,7 +50,7 @@ func TestUserFromContext(t *testing.T) {
 	})
 
 	t.Run("Should return false when user not present", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		user, ok := UserFromContext(ctx)
 
@@ -68,7 +67,7 @@ func TestMustUserFromContext(t *testing.T) {
 			Email: "test@example.com",
 			Role:  model.RoleUser,
 		}
-		ctx := WithUser(context.Background(), user)
+		ctx := WithUser(t.Context(), user)
 
 		retrievedUser, err := MustUserFromContext(ctx)
 		assert.NoError(t, err)
@@ -77,7 +76,7 @@ func TestMustUserFromContext(t *testing.T) {
 	})
 
 	t.Run("Should panic when user not present", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		_, err := MustUserFromContext(ctx)
 		assert.Error(t, err)
@@ -85,7 +84,7 @@ func TestMustUserFromContext(t *testing.T) {
 	})
 
 	t.Run("Should panic with correct message", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		require.NotPanics(t, func() {
 			_, err := MustUserFromContext(ctx)
 			require.Error(t, err)

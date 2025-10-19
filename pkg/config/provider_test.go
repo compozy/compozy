@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,7 +35,7 @@ func TestEnvProvider_Type(t *testing.T) {
 func TestEnvProvider_Watch(t *testing.T) {
 	t.Run("Should return nil for Watch", func(t *testing.T) {
 		provider := NewEnvProvider()
-		err := provider.Watch(context.Background(), func() {})
+		err := provider.Watch(t.Context(), func() {})
 		assert.NoError(t, err)
 	})
 }
@@ -121,7 +120,7 @@ func TestCLIProvider_Type(t *testing.T) {
 func TestCLIProvider_Watch(t *testing.T) {
 	t.Run("Should return nil for Watch", func(t *testing.T) {
 		provider := NewCLIProvider(nil)
-		err := provider.Watch(context.Background(), func() {})
+		err := provider.Watch(t.Context(), func() {})
 		assert.NoError(t, err)
 	})
 }
@@ -368,7 +367,7 @@ func TestDefaultProvider(t *testing.T) {
 
 	t.Run("Should not support watching", func(t *testing.T) {
 		provider := NewDefaultProvider()
-		err := provider.Watch(context.Background(), func() {})
+		err := provider.Watch(t.Context(), func() {})
 		assert.NoError(t, err)
 	})
 }

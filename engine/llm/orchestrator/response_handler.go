@@ -85,12 +85,11 @@ func (h *responseHandler) retryFinalize(
 		"remaining_retries", remaining,
 	)
 	if llmReq != nil {
-		if state != nil && state.runtime.finalizeFeedbackBase < 0 {
+		if state.runtime.finalizeFeedbackBase < 0 {
 			state.runtime.finalizeFeedbackBase = len(llmReq.Messages)
 		}
 		base := len(llmReq.Messages)
-		if state != nil &&
-			state.runtime.finalizeFeedbackBase >= 0 &&
+		if state.runtime.finalizeFeedbackBase >= 0 &&
 			state.runtime.finalizeFeedbackBase <= len(llmReq.Messages) {
 			base = state.runtime.finalizeFeedbackBase
 		}

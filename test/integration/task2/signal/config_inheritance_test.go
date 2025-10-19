@@ -56,6 +56,7 @@ func TestSignalConfigInheritance(t *testing.T) {
 
 		// Create normalizer to test normalization with inherited context
 		normalizer := signal.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -70,7 +71,7 @@ func TestSignalConfigInheritance(t *testing.T) {
 		}
 
 		// Normalize the signal task
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err, "Signal normalization should succeed")
 
 		// Verify signal task inherited context
@@ -125,6 +126,7 @@ func TestSignalConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := signal.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -135,7 +137,7 @@ func TestSignalConfigInheritance(t *testing.T) {
 				"context": "test",
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify signal task preserved its explicit values
@@ -183,6 +185,7 @@ func TestSignalConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := signal.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -197,7 +200,7 @@ func TestSignalConfigInheritance(t *testing.T) {
 				"task_priority": "high",
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify inheritance and template processing
@@ -251,6 +254,7 @@ func TestSignalConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := signal.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -261,7 +265,7 @@ func TestSignalConfigInheritance(t *testing.T) {
 				"context": "minimal",
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify inheritance works with minimal configuration

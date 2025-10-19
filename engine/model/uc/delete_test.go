@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -14,7 +13,7 @@ import (
 
 func TestDeleteModel_ConflictsWhenAgentReferences(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	modelBody := map[string]any{"provider": "openai", "model": "gpt-4o-mini"}
 	_, err := NewUpsert(store).Execute(ctx, &UpsertInput{Project: project, ID: "openai:gpt-4o-mini", Body: modelBody})
@@ -32,7 +31,7 @@ func TestDeleteModel_ConflictsWhenAgentReferences(t *testing.T) {
 
 func TestDeleteModel_RemovesWhenUnused(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	_, err := NewUpsert(
 		store,

@@ -72,7 +72,7 @@ func (s *stubDirectExecutor) ExecuteAsync(
 }
 
 func installTaskExecutor(state *appstate.State, exec DirectExecutor) func() {
-	SetDirectExecutorFactory(state, func(*appstate.State, task.Repository) (DirectExecutor, error) {
+	SetDirectExecutorFactory(state, func(context.Context, *appstate.State, task.Repository) (DirectExecutor, error) {
 		return exec, nil
 	})
 	return func() { SetDirectExecutorFactory(state, nil) }
@@ -171,7 +171,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		m, err := taskCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-one"},
 			m,
 		)
@@ -206,7 +206,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		m, err := taskCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-limit"},
 			m,
 		)
@@ -241,7 +241,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		m, err := taskCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-three"},
 			m,
 		)
@@ -311,7 +311,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		m, err := taskCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{
 				Project: state.ProjectConfig.Name,
 				Type:    resources.ResourceTask,
@@ -356,7 +356,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		m, err := taskCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{
 				Project: state.ProjectConfig.Name,
 				Type:    resources.ResourceTask,
@@ -401,7 +401,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		m, err := taskCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-max"},
 			m,
 		)
@@ -443,7 +443,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		m, err := taskCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{
 				Project: state.ProjectConfig.Name,
 				Type:    resources.ResourceTask,
@@ -485,7 +485,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		m, err := taskCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-state"},
 			m,
 		)
@@ -539,7 +539,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		m, err := taskCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-four"},
 			m,
 		)
@@ -589,7 +589,7 @@ func TestTaskExecutionRoutes(t *testing.T) {
 		m, err := taskCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceTask, ID: "task-five"},
 			m,
 		)

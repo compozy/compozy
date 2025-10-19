@@ -68,10 +68,8 @@ func (d *DebugTools) createCaptureFile(t *testing.T, label string) *os.File {
 
 // buildRedisState builds the complete Redis state structure
 func (d *DebugTools) buildRedisState(t *testing.T, label string) map[string]any {
-	ctx := context.Background()
 	redis := d.env.GetRedis()
-
-	keys, err := redis.Keys(ctx, "*").Result()
+	keys, err := redis.Keys(t.Context(), "*").Result()
 	if err != nil {
 		t.Logf("Failed to get Redis keys: %v", err)
 		return d.createEmptyState(label)
@@ -81,7 +79,7 @@ func (d *DebugTools) buildRedisState(t *testing.T, label string) map[string]any 
 		"timestamp": time.Now().Format(time.RFC3339),
 		"label":     label,
 		"key_count": len(keys),
-		"keys":      d.captureKeyDetails(ctx, redis, keys),
+		"keys":      d.captureKeyDetails(t.Context(), redis, keys),
 	}
 	return state
 }
@@ -179,7 +177,6 @@ func (d *DebugTools) CaptureMemoryState(t *testing.T, instance memcore.Memory, l
 		return
 	}
 	t.Helper()
-	ctx := context.Background()
 	// Create output directory
 	err := os.MkdirAll(d.outputDir, 0755)
 	require.NoError(t, err)
@@ -196,7 +193,7 @@ func (d *DebugTools) CaptureMemoryState(t *testing.T, instance memcore.Memory, l
 		"instance_id": instance.GetID(),
 	}
 	// Get messages
-	messages, err := instance.Read(ctx)
+	messages, err := instance.Read(t.Context())
 	if err != nil {
 		state["read_error"] = err.Error()
 	} else {
@@ -204,14 +201,14 @@ func (d *DebugTools) CaptureMemoryState(t *testing.T, instance memcore.Memory, l
 		state["messages"] = messages
 	}
 	// Get health
-	health, err := instance.GetMemoryHealth(ctx)
+	health, err := instance.GetMemoryHealth(t.Context())
 	if err != nil {
 		state["health_error"] = err.Error()
 	} else {
 		state["health"] = health
 	}
 	// Get token count
-	tokenCount, err := instance.GetTokenCount(ctx)
+	tokenCount, err := instance.GetTokenCount(t.Context())
 	if err != nil {
 		state["token_error"] = err.Error()
 	} else {
@@ -280,7 +277,7 @@ func (d *DebugTools) DumpTestFailure(t *testing.T, err error) {
 	// Capture Redis state
 	d.CaptureRedisState(t, "failure")
 	// Add Redis info
-	ctx := context.Background()
+	ctx := t.Context()
 	redis := d.env.GetRedis()
 	info, infoErr := redis.Info(ctx).Result()
 	if infoErr == nil {
@@ -301,10 +298,20 @@ func NewMaintenanceTools(env *TestEnvironment) *MaintenanceTools {
 	return &MaintenanceTools{env: env}
 }
 
+// maintenanceTestWithContext describes the testing helpers required by maintenance tools.
+type maintenanceTestWithContext interface {
+	Helper()
+	Context() context.Context
+	Logf(string, ...any)
+	Errorf(string, ...any)
+	FailNow()
+	Failed() bool
+}
+
 // CleanupStaleData removes stale test data from Redis
 func (m *MaintenanceTools) CleanupStaleData(t *testing.T, olderThan time.Duration) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	redis := m.env.GetRedis()
 	// Get all keys with test prefix
 	keys, err := redis.Keys(ctx, "compozy:test-project:*").Result()
@@ -336,7 +343,7 @@ func (m *MaintenanceTools) CleanupStaleData(t *testing.T, olderThan time.Duratio
 // CleanupSpecificInstance removes a specific memory instance for testing
 func (m *MaintenanceTools) CleanupSpecificInstance(t *testing.T, instanceID string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	redis := m.env.GetRedis()
 
 	// Clean up specific instance keys
@@ -359,9 +366,9 @@ func (m *MaintenanceTools) CleanupSpecificInstance(t *testing.T, instanceID stri
 }
 
 // VerifyNoLeaks verifies no test data leaks between tests
-func (m *MaintenanceTools) VerifyNoLeaks(t *testing.T, allowedPrefixes []string) {
+func (m *MaintenanceTools) VerifyNoLeaks(t maintenanceTestWithContext, allowedPrefixes []string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	redis := m.env.GetRedis()
 	// Get all keys
 	keys, err := redis.Keys(ctx, "*").Result()
@@ -529,7 +536,7 @@ func (d *InteractiveDebugger) Debug(t *testing.T, instance memcore.Memory) {
 	fmt.Printf("Instance ID: %s\n", instance.GetID())
 	fmt.Println("Commands: messages, health, tokens, redis, continue")
 	fmt.Print("==============================\n\n")
-	ctx := context.Background()
+	ctx := t.Context()
 	for {
 		fmt.Print("> ")
 		if !d.scanner.Scan() {

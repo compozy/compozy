@@ -1,7 +1,6 @@
 package llm
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -14,7 +13,7 @@ import (
 
 func TestPromptBuilder_NativeStructuredOutput(t *testing.T) {
 	builder := NewPromptBuilder()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	action := &agent.ActionConfig{
 		ID:           "summarize",
@@ -33,7 +32,7 @@ func TestPromptBuilder_NativeStructuredOutput(t *testing.T) {
 
 func TestPromptBuilder_StructuredOutputFallback(t *testing.T) {
 	builder := NewPromptBuilder()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	action := &agent.ActionConfig{
 		Prompt:       "Summarize the findings into JSON.",
@@ -51,7 +50,7 @@ func TestPromptBuilder_StructuredOutputFallback(t *testing.T) {
 
 func TestPromptBuilder_ToolGuidance(t *testing.T) {
 	builder := NewPromptBuilder()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	action := &agent.ActionConfig{
 		Prompt: "Respond to the user.",
@@ -68,7 +67,7 @@ func TestPromptBuilder_ToolGuidance(t *testing.T) {
 
 func TestPromptBuilder_DynamicFailureGuidance(t *testing.T) {
 	builder := NewPromptBuilder()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	action := &agent.ActionConfig{
 		Prompt: "Provide an answer.",

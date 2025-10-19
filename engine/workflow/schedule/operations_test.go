@@ -1,7 +1,6 @@
 package schedule
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -15,7 +14,7 @@ import (
 
 func TestListSchedulesByPrefix(t *testing.T) {
 	t.Run("Should list schedules with pagination", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -55,7 +54,7 @@ func TestListSchedulesByPrefix(t *testing.T) {
 
 func TestGetScheduleInfo(t *testing.T) {
 	t.Run("Should extract schedule information correctly", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -105,7 +104,7 @@ func TestGetScheduleInfo(t *testing.T) {
 		mockHandle.AssertExpectations(t)
 	})
 	t.Run("Should detect overrides", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		enabled := false
 		m := &manager{
@@ -143,7 +142,7 @@ func TestGetScheduleInfo(t *testing.T) {
 
 func TestCreateSchedule(t *testing.T) {
 	t.Run("Should create schedule with correct configuration", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -213,7 +212,7 @@ func TestCreateSchedule(t *testing.T) {
 		mockHandle.AssertExpectations(t)
 	})
 	t.Run("Should handle disabled schedule", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -254,7 +253,7 @@ func TestCreateSchedule(t *testing.T) {
 
 func TestUpdateScheduleOperation(t *testing.T) {
 	t.Run("Should skip update if no changes needed", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),
@@ -298,7 +297,7 @@ func TestUpdateScheduleOperation(t *testing.T) {
 		mockHandle.AssertExpectations(t)
 	})
 	t.Run("Should update when changes detected", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		mockClient := NewMockClient()
 		m := &manager{
 			client:        mockClient.AsWorkerClient(),

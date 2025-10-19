@@ -1,7 +1,6 @@
 package runtime_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -93,7 +92,7 @@ func TestToolIDValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test via ExecuteTool to exercise validateToolID
 			tmpDir := t.TempDir()
-			ctx := context.Background()
+			ctx := t.Context()
 
 			if !runtime.IsBunAvailable() {
 				t.Skip("Bun not available")
@@ -211,7 +210,7 @@ func TestEnvironmentVariableValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test via ExecuteTool to exercise validateAndAddEnvironmentVars
 			tmpDir := t.TempDir()
-			ctx := context.Background()
+			ctx := t.Context()
 
 			if !runtime.IsBunAvailable() {
 				t.Skip("Bun not available")

@@ -23,7 +23,7 @@ import (
 func TestContext(t *testing.T) context.Context {
 	t.Helper()
 	log := logger.NewForTests()
-	return logger.ContextWithLogger(context.Background(), log)
+	return logger.ContextWithLogger(t.Context(), log)
 }
 
 // TestCommand creates a test cobra command with common flags

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -14,7 +13,7 @@ import (
 
 func TestParentStatusUpdater_UpdateParentStatus(t *testing.T) {
 	t.Run("Should return running status for WaitAll strategy with running children", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := testutil.NewInMemoryRepo()
 		svc := NewParentStatusUpdater(repo)
 		parent := testutil.BuildParent(task.StrategyWaitAll)
@@ -51,7 +50,7 @@ func TestParentStatusUpdater_UpdateParentStatus(t *testing.T) {
 	})
 
 	t.Run("Should return success status for WaitAll strategy with all successful children", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := testutil.NewInMemoryRepo()
 		svc := NewParentStatusUpdater(repo)
 		parent := testutil.BuildParent(task.StrategyWaitAll)
@@ -88,7 +87,7 @@ func TestParentStatusUpdater_UpdateParentStatus(t *testing.T) {
 	})
 
 	t.Run("Should return failed status for FailFast strategy with failed child", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := testutil.NewInMemoryRepo()
 		svc := NewParentStatusUpdater(repo)
 		parent := testutil.BuildParent(task.StrategyFailFast)
@@ -125,7 +124,7 @@ func TestParentStatusUpdater_UpdateParentStatus(t *testing.T) {
 	})
 
 	t.Run("Should return success status for Race strategy with early completion", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := testutil.NewInMemoryRepo()
 		svc := NewParentStatusUpdater(repo)
 		parent := testutil.BuildParent(task.StrategyRace)
@@ -162,7 +161,7 @@ func TestParentStatusUpdater_UpdateParentStatus(t *testing.T) {
 	})
 
 	t.Run("Should return pending status for WaitAll strategy with no children", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := testutil.NewInMemoryRepo()
 		svc := NewParentStatusUpdater(repo)
 		parent := testutil.BuildParent(task.StrategyWaitAll)
@@ -189,7 +188,7 @@ func TestParentStatusUpdater_UpdateParentStatus(t *testing.T) {
 
 func TestParentStatusUpdater_RecursiveUpdate(t *testing.T) {
 	t.Run("Should update parent and grandparent recursively when enabled", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := testutil.NewInMemoryRepo()
 		svc := NewParentStatusUpdater(repo)
 		grandparent := testutil.BuildParent(task.StrategyWaitAll)
@@ -216,7 +215,7 @@ func TestParentStatusUpdater_RecursiveUpdate(t *testing.T) {
 
 func TestParentStatusUpdater_CycleDetection(t *testing.T) {
 	t.Run("Should return error when cycle is detected to prevent infinite loop", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := testutil.NewInMemoryRepo()
 		svc := NewParentStatusUpdater(repo)
 		parent := testutil.BuildParent(task.StrategyWaitAll)
@@ -235,7 +234,7 @@ func TestParentStatusUpdater_CycleDetection(t *testing.T) {
 
 func TestParentStatusUpdater_MaxDepthExceeded(t *testing.T) {
 	t.Run("Should return error when maximum recursion depth is exceeded", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := testutil.NewInMemoryRepo()
 		svc := NewParentStatusUpdater(repo)
 		parent := testutil.BuildParent(task.StrategyWaitAll)
@@ -303,7 +302,7 @@ func TestParentStatusUpdater_ShouldUpdateParentStatus(t *testing.T) {
 
 func TestParentStatusUpdater_ErrorHandling(t *testing.T) {
 	t.Run("Should return error when parent state is not found", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		repo := testutil.NewInMemoryRepo()
 		svc := NewParentStatusUpdater(repo)
 		nonExistentID, _ := core.NewID()

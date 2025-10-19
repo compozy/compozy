@@ -71,7 +71,7 @@ func TestUnifiedTokenCounter_CountTokens(t *testing.T) {
 		}
 		counter, err := NewUnifiedTokenCounter(nil, fallback)
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		count, err := counter.CountTokens(ctx, "test text")
 		require.NoError(t, err)
 		assert.Equal(t, 42, count)
@@ -89,7 +89,7 @@ func TestUnifiedTokenCounter_CountTokens(t *testing.T) {
 		}
 		counter, err := NewUnifiedTokenCounter(config, fallback)
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		count, err := counter.CountTokens(ctx, "test text")
 		require.NoError(t, err)
 		assert.Equal(t, 84, count)
@@ -107,7 +107,7 @@ func TestUnifiedTokenCounter_CountTokens(t *testing.T) {
 		}
 		counter, err := NewUnifiedTokenCounter(config, fallback)
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 		count, err := counter.CountTokens(ctx, "test text")
 		require.NoError(t, err)
 		assert.Equal(t, 126, count) // Should fallback
@@ -126,7 +126,7 @@ func TestUnifiedTokenCounter_CountTokens(t *testing.T) {
 		counter, err := NewUnifiedTokenCounter(config, fallback)
 		require.NoError(t, err)
 		// Create a context that's already canceled to simulate timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 1*time.Millisecond)
 		defer cancel()
 		time.Sleep(2 * time.Millisecond) // Ensure timeout
 		count, err := counter.CountTokens(ctx, "test text")
@@ -230,7 +230,7 @@ func TestUnifiedTokenCounter_ThreadSafety(t *testing.T) {
 		counter, err := NewUnifiedTokenCounter(nil, fallback)
 		require.NoError(t, err)
 		// Run multiple goroutines concurrently
-		ctx := context.Background()
+		ctx := t.Context()
 		done := make(chan bool, 10)
 		for i := range 10 {
 			go func(i int) {

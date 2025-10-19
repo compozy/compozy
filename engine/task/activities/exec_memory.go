@@ -74,7 +74,7 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 		return nil, fmt.Errorf("failed to load workflow: %w", err)
 	}
 	// Use task2 normalizer for memory tasks
-	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeMemory)
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeMemory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memory normalizer: %w", err)
 	}
@@ -84,14 +84,14 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
 	// Build proper normalization context with all template variables
-	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	normContext := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, input.TaskConfig)
 	// Add project information for memory operations
 	if a.projectConfig != nil {
 		contextBuilder.VariableBuilder.AddProjectToVariables(normContext.Variables, a.projectConfig.Name)
 	}
 	// Normalize the task configuration
 	normalizedConfig := input.TaskConfig
-	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
 		return nil, fmt.Errorf("failed to normalize memory task: %w", err)
 	}
 	// Create state

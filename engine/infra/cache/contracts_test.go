@@ -333,7 +333,7 @@ func (a *memAtomic) AppendAndTrimWithMetadata(
 
 func TestCacheContracts_KV(t *testing.T) {
 	t.Run("Should set, get, expire and delete keys with neutral errors", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		kv := newMemKV()
 		err := kv.Set(ctx, "a", "1", 0)
 		require.NoError(t, err)
@@ -357,7 +357,7 @@ func TestCacheContracts_KV(t *testing.T) {
 
 func TestCacheContracts_Lists(t *testing.T) {
 	t.Run("Should push, range, trim and report length", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		ls := newMemLists()
 		n, err := ls.RPush(ctx, "L", "a", "b", "c", "d")
 		require.NoError(t, err)
@@ -378,7 +378,7 @@ func TestCacheContracts_Lists(t *testing.T) {
 
 func TestCacheContracts_Hashes(t *testing.T) {
 	t.Run("Should set, get, incr and delete hash fields", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		h := newMemHashes()
 		n, err := h.HSet(ctx, "H", "f1", "v1", "f2", "v2")
 		require.NoError(t, err)
@@ -403,7 +403,7 @@ func TestCacheContracts_Hashes(t *testing.T) {
 
 func TestCacheContracts_KeysIteration(t *testing.T) {
 	t.Run("Should iterate keys by pattern using iterator", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		kv := newMemKV()
 		_ = kv.Set(ctx, "workflow:1", "a", 0)
 		_ = kv.Set(ctx, "workflow:2", "b", 0)
@@ -423,7 +423,7 @@ func TestCacheContracts_KeysIteration(t *testing.T) {
 
 func TestCacheContracts_AtomicListWithMetadata(t *testing.T) {
 	t.Run("Should atomically append, trim and update token metadata", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		kv := newMemKV()
 		ls := newMemLists()
 		at := &memAtomic{lists: ls, kv: kv}
