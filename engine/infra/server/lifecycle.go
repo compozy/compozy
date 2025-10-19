@@ -14,6 +14,9 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+// defaultMaxHeaderBytes defines the maximum allowed HTTP header size (1 MB).
+const defaultMaxHeaderBytes = 1 << 20
+
 func (s *Server) Run() error {
 	state, cleanupFuncs, err := s.setupDependencies()
 	if err != nil {
@@ -63,7 +66,7 @@ func (s *Server) createHTTPServer() *http.Server {
 		WriteTimeout:      cfg.Server.Timeouts.HTTPWrite,
 		IdleTimeout:       cfg.Server.Timeouts.HTTPIdle,
 		ReadHeaderTimeout: cfg.Server.Timeouts.HTTPReadHeader,
-		MaxHeaderBytes:    1 << 20,
+		MaxHeaderBytes:    defaultMaxHeaderBytes,
 	}
 }
 

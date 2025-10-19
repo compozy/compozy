@@ -246,13 +246,8 @@ func waitForWorkflowCompletion(
 	}()
 	execIDStr := execID.String()
 	var lastState *workflow.State
-	timer := time.NewTimer(time.Hour)
-	if !timer.Stop() {
-		select {
-		case <-timer.C:
-		default:
-		}
-	}
+	timer := time.NewTimer(0)
+	<-timer.C
 	defer timer.Stop()
 	for {
 		if pollCtx.Err() != nil {
@@ -369,41 +364,53 @@ func applyWorkflowJitter(base time.Duration, execID string, attempt int) time.Du
 	if rangeSize <= 0 {
 		rangeSize = 1
 	}
-	hashVal := int64(5381)
-	for i := 0; i < len(execID); i++ {
-		hashVal = ((hashVal << 5) + hashVal + int64(execID[i])) % rangeSize
-	}
-	if attempt < 0 {
-		hashVal = ((hashVal << 5) + hashVal + int64('-')) % rangeSize
-	} else {
-		hashVal = ((hashVal << 5) + hashVal + int64('+')) % rangeSize
-	}
-	var digits [20]byte
-	idx := 0
-	value := attempt
-	if value < 0 {
-		value = -value
-	}
-	if value == 0 {
-		digits[idx] = '0'
-		idx++
-	} else {
-		for value > 0 && idx < len(digits) {
-			digits[idx] = byte('0' + value%10)
-			value /= 10
-			idx++
-		}
-	}
-	for idx > 0 {
-		idx--
-		hashVal = ((hashVal << 5) + hashVal + int64(digits[idx])) % rangeSize
-	}
-	offset := (hashVal % rangeSize) - spanNanos
+	hashVal := computeJitterHash(execID, attempt, rangeSize)
+	offset := hashVal - spanNanos
 	result := base + time.Duration(offset)
 	if result < time.Millisecond {
 		return time.Millisecond
 	}
 	return result
+}
+
+func computeJitterHash(execID string, attempt int, rangeSize int64) int64 {
+	hashVal := int64(5381)
+	for i := 0; i < len(execID); i++ {
+		hashVal = djb2Step(hashVal, int64(execID[i]), rangeSize)
+	}
+	if attempt < 0 {
+		hashVal = djb2Step(hashVal, int64('-'), rangeSize)
+	} else {
+		hashVal = djb2Step(hashVal, int64('+'), rangeSize)
+	}
+	digits := formatAttemptDigits(attempt)
+	for _, d := range digits {
+		hashVal = djb2Step(hashVal, int64(d), rangeSize)
+	}
+	return hashVal % rangeSize
+}
+
+func djb2Step(hash, value, mod int64) int64 {
+	return ((hash << 5) + hash + value) % mod
+}
+
+func formatAttemptDigits(attempt int) []byte {
+	value := attempt
+	if value < 0 {
+		value = -value
+	}
+	if value == 0 {
+		return []byte{'0'}
+	}
+	digits := make([]byte, 0, 20)
+	for value > 0 {
+		digits = append(digits, byte('0'+value%10))
+		value /= 10
+	}
+	for i, j := 0, len(digits)-1; i < j; i, j = i+1, j-1 {
+		digits[i], digits[j] = digits[j], digits[i]
+	}
+	return digits
 }
 
 func respondWorkflowTimeout(

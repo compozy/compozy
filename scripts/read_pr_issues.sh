@@ -87,7 +87,7 @@ parse_args() {
 validate_args() {
   [[ -n "$pr_number" ]] || die "Provide --pr"
   [[ -n "$issue_type" ]] || die "Provide --type"
-  
+
   # Validate issue type
   case "$issue_type" in
     issue|duplicated|outside|nitpick) ;;
@@ -131,7 +131,7 @@ print_separator() {
 display_file() {
   local file="$1"
   local title="$2"
-  
+
   print_separator
   echo "📄 $title"
   print_separator
@@ -147,7 +147,7 @@ main() {
   local dir_name
   dir_name=$(get_directory_name "$issue_type")
   local target_dir="$pr_dir/$dir_name"
-  
+
   [[ -d "$pr_dir" ]] || die "PR directory not found: $pr_dir"
   [[ -d "$target_dir" ]] || die "Target directory not found: $target_dir"
 
@@ -159,52 +159,49 @@ main() {
     local first=true
     for file in "$target_dir"/*.md; do
       [[ -f "$file" ]] || continue
-      
+
       if $first; then
         first=false
       else
         print_separator
       fi
-      
+
       local basename
       basename=$(basename "$file" .md)
       display_file "$file" "$basename"
     done
   else
     # Read specific range
+    # Files are named: NNN-<file_path>.md (e.g., 001-engine_project_validators.go.md)
     local first=true
     for (( num=10#$from_issue; num<=10#$to_issue; num++ )); do
       local padded
       padded=$(zero_pad "$num")
-      
-      local file=""
-      case "$issue_type" in
-        issue|duplicated)
-          file="$target_dir/issue_${padded}.md"
-          ;;
-        outside)
-          file="$target_dir/outside_${padded}.md"
-          ;;
-        nitpick)
-          file="$target_dir/nitpick_${padded}.md"
-          ;;
-      esac
-      
-      if [[ ! -f "$file" ]]; then
-        echo "⚠️  File not found: $file"
+
+      # Find file matching the number prefix
+      local files
+      files=("$target_dir/${padded}"-*.md)
+
+      if [[ ! -f "${files[0]}" ]]; then
+        echo "⚠️  No file found with prefix: ${padded}- in $target_dir"
         continue
       fi
-      
+
+      # Use the first matching file (should only be one)
+      local file="${files[0]}"
+
       if $first; then
         first=false
       else
         print_separator
       fi
-      
-      display_file "$file" "Issue $num"
+
+      local basename
+      basename=$(basename "$file" .md)
+      display_file "$file" "$basename (Issue $num)"
     done
   fi
-  
+
   print_separator
   echo "✅ Reading completed."
 }

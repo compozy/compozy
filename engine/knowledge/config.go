@@ -209,11 +209,12 @@ type EmbedderConfig struct {
 
 // EmbedderRuntimeConfig captures runtime tuning options for an embedder client.
 type EmbedderRuntimeConfig struct {
-	Dimension     int                  `json:"dimension"                yaml:"dimension"                mapstructure:"dimension"`
-	BatchSize     int                  `json:"batch_size,omitempty"     yaml:"batch_size,omitempty"     mapstructure:"batch_size,omitempty"`
-	StripNewLines *bool                `json:"strip_newlines,omitempty" yaml:"strip_newlines,omitempty" mapstructure:"strip_newlines,omitempty"`
-	Retry         map[string]any       `json:"retry,omitempty"          yaml:"retry,omitempty"          mapstructure:"retry,omitempty"`
-	Cache         *EmbedderCacheConfig `json:"cache,omitempty"          yaml:"cache,omitempty"          mapstructure:"cache,omitempty"`
+	Dimension            int                  `json:"dimension"                        yaml:"dimension"                        mapstructure:"dimension"`
+	BatchSize            int                  `json:"batch_size,omitempty"             yaml:"batch_size,omitempty"             mapstructure:"batch_size,omitempty"`
+	MaxConcurrentWorkers int                  `json:"max_concurrent_workers,omitempty" yaml:"max_concurrent_workers,omitempty" mapstructure:"max_concurrent_workers,omitempty"`
+	StripNewLines        *bool                `json:"strip_newlines,omitempty"         yaml:"strip_newlines,omitempty"         mapstructure:"strip_newlines,omitempty"`
+	Retry                map[string]any       `json:"retry,omitempty"                  yaml:"retry,omitempty"                  mapstructure:"retry,omitempty"`
+	Cache                *EmbedderCacheConfig `json:"cache,omitempty"                  yaml:"cache,omitempty"                  mapstructure:"cache,omitempty"`
 }
 
 // EmbedderCacheConfig toggles client-side embedding caches.
@@ -892,7 +893,7 @@ func validateSource(_ context.Context, kbID string, source *SourceConfig) error 
 	switch source.Type {
 	case SourceTypeURL:
 		if strings.TrimSpace(source.Path) == "" && len(source.URLs) == 0 {
-			return fmt.Errorf("knowledge: knowledge_base %q url source requires url or urls", kbID)
+			return fmt.Errorf("knowledge: knowledge_base %q url source requires path or urls", kbID)
 		}
 		if len(source.Paths) > 0 {
 			return fmt.Errorf("knowledge: knowledge_base %q url source does not support paths", kbID)

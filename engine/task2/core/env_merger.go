@@ -17,15 +17,15 @@ func NewEnvMerger() *EnvMerger {
 // mergeEnvMaps is a helper that merges multiple environment maps
 // Later maps override earlier ones
 func (em *EnvMerger) mergeEnvMaps(envMaps ...*core.EnvMap) *core.EnvMap {
-	merged := make(core.EnvMap)
+	toMerge := make([]map[string]string, 0, len(envMaps))
 	for _, envMap := range envMaps {
 		if envMap != nil {
-			for k, v := range *envMap {
-				merged[k] = v
-			}
+			toMerge = append(toMerge, *envMap)
 		}
 	}
-	return &merged
+	merged := core.CopyMaps(toMerge...)
+	result := core.EnvMap(merged)
+	return &result
 }
 
 // MergeWorkflowToTask merges workflow environment variables into task config

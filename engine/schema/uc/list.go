@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
@@ -59,6 +60,9 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 		sc, err := decodeStoredSchema(ctx, window[i].Value, window[i].Key.ID)
 		if err != nil {
 			return nil, err
+		}
+		if sc == nil {
+			return nil, fmt.Errorf("decoded schema is nil for id %s", window[i].Key.ID)
 		}
 		entry := core.CloneMap(*sc)
 		entry["_etag"] = string(window[i].ETag)

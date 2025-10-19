@@ -1,6 +1,7 @@
 package router
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -190,6 +191,16 @@ func (h *Handler) RevokeKey(c *gin.Context) {
 	err = revokeUC.Execute(ctx)
 	if err != nil {
 		log.Error("Failed to revoke API key", "error", err, "key_id", keyID)
+		if errors.Is(err, uc.ErrAPIKeyNotFound) {
+			c.JSON(
+				http.StatusNotFound,
+				gin.H{
+					"error":   uc.ErrAPIKeyNotFound.Error(),
+					"details": "The specified API key does not exist",
+				},
+			)
+			return
+		}
 		// Handle specific error types
 		if coreErr, ok := err.(*core.Error); ok {
 			switch coreErr.Code {
@@ -365,6 +376,13 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	user, err := updateUC.Execute(ctx)
 	if err != nil {
 		log.Error("Failed to update user", "error", err, "user_id", userID)
+		if errors.Is(err, uc.ErrUserNotFound) {
+			c.JSON(
+				http.StatusNotFound,
+				gin.H{"error": uc.ErrUserNotFound.Error(), "details": "The specified user does not exist"},
+			)
+			return
+		}
 		// Handle specific error types
 		if coreErr, ok := err.(*core.Error); ok {
 			switch coreErr.Code {
@@ -423,6 +441,13 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 	err = deleteUC.Execute(ctx)
 	if err != nil {
 		log.Error("Failed to delete user", "error", err, "user_id", userID)
+		if errors.Is(err, uc.ErrUserNotFound) {
+			c.JSON(
+				http.StatusNotFound,
+				gin.H{"error": uc.ErrUserNotFound.Error(), "details": "The specified user does not exist"},
+			)
+			return
+		}
 		// Handle specific error types
 		if coreErr, ok := err.(*core.Error); ok {
 			if coreErr.Code == auth.ErrCodeNotFound {

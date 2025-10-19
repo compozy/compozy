@@ -91,6 +91,10 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, 24*time.Hour, cfg.Memory.TTL)
 		assert.Equal(t, 10000, cfg.Memory.MaxEntries)
 
+		// LLM usage metrics defaults
+		expectedBuckets := []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1}
+		assert.Equal(t, expectedBuckets, cfg.LLM.UsageMetrics.PersistBuckets)
+
 		// MCP proxy defaults preserve classic external port
 		assert.Equal(t, mcpProxyModeStandalone, cfg.MCPProxy.Mode)
 		assert.Equal(t, "127.0.0.1", cfg.MCPProxy.Host)

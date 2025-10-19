@@ -2,7 +2,9 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
@@ -29,7 +31,13 @@ func (uc *DeleteUser) Execute(ctx context.Context) error {
 	// Check if user exists
 	_, err := uc.repo.GetUserByID(ctx, uc.userID)
 	if err != nil {
-		return fmt.Errorf("user not found %s: %w", uc.userID, err)
+		if errors.Is(err, ErrUserNotFound) {
+			return err
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return fmt.Errorf("%w: %w", ErrUserNotFound, err)
+		}
+		return fmt.Errorf("failed to retrieve user %s: %w", uc.userID, err)
 	}
 	// Delete the user
 	if err := uc.repo.DeleteUser(ctx, uc.userID); err != nil {

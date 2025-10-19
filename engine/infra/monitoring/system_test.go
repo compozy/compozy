@@ -29,7 +29,7 @@ func TestSystemMetrics(t *testing.T) {
 		buildInfoFound := false
 		for _, sm := range rm.ScopeMetrics {
 			for _, m := range sm.Metrics {
-				if m.Name == "compozy_build_info" {
+				if m.Name == "compozy_system_build_info" {
 					buildInfoFound = true
 					gauge, ok := m.Data.(metricdata.Gauge[float64])
 					require.True(t, ok, "build_info should be a float64 gauge")
@@ -51,7 +51,7 @@ func TestSystemMetrics(t *testing.T) {
 				}
 			}
 		}
-		assert.True(t, buildInfoFound, "compozy_build_info metric not found")
+		assert.True(t, buildInfoFound, "compozy_system_build_info metric not found")
 	})
 	t.Run("Should initialize uptime gauge", func(t *testing.T) {
 		resetSystemMetrics(t.Context())
@@ -69,7 +69,7 @@ func TestSystemMetrics(t *testing.T) {
 		uptimeFound := false
 		for _, sm := range rm.ScopeMetrics {
 			for _, m := range sm.Metrics {
-				if m.Name == "compozy_uptime_seconds" {
+				if m.Name == "compozy_system_uptime_seconds" {
 					uptimeFound = true
 					gauge, ok := m.Data.(metricdata.Gauge[float64])
 					require.True(t, ok, "uptime should be a float64 gauge")
@@ -81,7 +81,7 @@ func TestSystemMetrics(t *testing.T) {
 				}
 			}
 		}
-		assert.True(t, uptimeFound, "compozy_uptime_seconds metric not found")
+		assert.True(t, uptimeFound, "compozy_system_uptime_seconds metric not found")
 	})
 	t.Run("Should have monotonic uptime", func(t *testing.T) {
 		resetSystemMetrics(t.Context())
@@ -166,10 +166,10 @@ func TestSystemMetricsIdempotency(t *testing.T) {
 		uptimeCount := 0
 		for _, sm := range rm.ScopeMetrics {
 			for _, m := range sm.Metrics {
-				if m.Name == "compozy_build_info" {
+				if m.Name == "compozy_system_build_info" {
 					buildInfoCount++
 				}
-				if m.Name == "compozy_uptime_seconds" {
+				if m.Name == "compozy_system_uptime_seconds" {
 					uptimeCount++
 				}
 			}
@@ -205,7 +205,7 @@ func TestLabelValidation(t *testing.T) {
 				gauge, ok := m.Data.(metricdata.Gauge[float64])
 				require.True(t, ok, "metric %s should be a gauge", m.Name)
 				switch m.Name {
-				case "compozy_build_info":
+				case "compozy_system_build_info":
 					require.Len(t, gauge.DataPoints, 1)
 					attrs := gauge.DataPoints[0].Attributes.ToSlice()
 					assert.Equal(
@@ -223,7 +223,7 @@ func TestLabelValidation(t *testing.T) {
 							string(attr.Key),
 						)
 					}
-				case "compozy_uptime_seconds":
+				case "compozy_system_uptime_seconds":
 					require.Len(t, gauge.DataPoints, 1)
 					assert.Zero(t, gauge.DataPoints[0].Attributes.Len(), "uptime metric should not have any labels")
 				}
@@ -259,7 +259,7 @@ func TestSpecialCharactersInVersion(t *testing.T) {
 		// Find and verify version label
 		for _, sm := range rm.ScopeMetrics {
 			for _, m := range sm.Metrics {
-				if m.Name == "compozy_build_info" {
+				if m.Name == "compozy_system_build_info" {
 					gauge, ok := m.Data.(metricdata.Gauge[float64])
 					require.True(t, ok)
 					attrs := gauge.DataPoints[0].Attributes.ToSlice()
@@ -278,7 +278,7 @@ func TestSpecialCharactersInVersion(t *testing.T) {
 func getUptimeValue(t *testing.T, rm *metricdata.ResourceMetrics) float64 {
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
-			if m.Name == "compozy_uptime_seconds" {
+			if m.Name == "compozy_system_uptime_seconds" {
 				gauge, ok := m.Data.(metricdata.Gauge[float64])
 				require.True(t, ok)
 				require.Len(t, gauge.DataPoints, 1)

@@ -19,6 +19,18 @@
   "additionalProperties": false,
   "description": "WorkerConfig contains Temporal worker configuration.",
   "properties": {
+    "activity_heartbeat_timeout": {
+      "description": "ActivityHeartbeatTimeout defines the default heartbeat window for long-running activities.\n\n**Default**: `30s`",
+      "type": "integer"
+    },
+    "activity_max_retries": {
+      "description": "ActivityMaxRetries bounds retry attempts for default activity execution.\n\n**Default**: `3`",
+      "type": "integer"
+    },
+    "activity_start_to_close_timeout": {
+      "description": "ActivityStartToCloseTimeout defines the default bounded execution time for retryable activities.\n\n**Default**: `5m`",
+      "type": "integer"
+    },
     "config_store_ttl": {
       "description": "ConfigStoreTTL sets how long worker configurations are cached.\n\n**Default**: `24h`",
       "type": "integer"
@@ -35,8 +47,28 @@
       "description": "DispatcherRetryDelay sets delay between dispatcher retry attempts.\n\n**Default**: `50ms`",
       "type": "integer"
     },
+    "error_handler_max_retries": {
+      "description": "ErrorHandlerMaxRetries caps retry attempts for error handling activities.\n\n**Default**: `3`",
+      "type": "integer"
+    },
+    "error_handler_timeout": {
+      "description": "ErrorHandlerTimeout bounds retries invoked during workflow failure handling logic.\n\n**Default**: `30s`",
+      "type": "integer"
+    },
     "heartbeat_cleanup_timeout": {
       "description": "HeartbeatCleanupTimeout sets timeout for heartbeat cleanup operations.\n\n**Default**: `5s`",
+      "type": "integer"
+    },
+    "max_concurrent_activity_execution_size": {
+      "description": "MaxConcurrentActivityExecutionSize bounds the number of activities a worker executes concurrently.\n\n**Default**: `0` (auto = 2x CPUs)",
+      "type": "integer"
+    },
+    "max_concurrent_local_activity_execution_size": {
+      "description": "MaxConcurrentLocalActivityExecutionSize bounds concurrently executing local activities.\n\n**Default**: `0` (auto = 4x CPUs)",
+      "type": "integer"
+    },
+    "max_concurrent_workflow_execution_size": {
+      "description": "MaxConcurrentWorkflowExecutionSize bounds the number of workflow tasks executed concurrently.\n\n**Default**: `0` (auto = 1x CPUs)",
       "type": "integer"
     },
     "mcp_proxy_health_check_timeout": {

@@ -81,6 +81,7 @@ type Config struct {
 	RetryBackoffBase               time.Duration
 	RetryBackoffMax                time.Duration
 	RetryJitter                    bool
+	RetryJitterMax                 time.Duration
 	MaxConsecutiveSuccesses        int
 	EnableProgressTracking         bool
 	NoProgressThreshold            int

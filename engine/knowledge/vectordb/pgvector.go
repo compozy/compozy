@@ -64,6 +64,9 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 	if cfg == nil {
 		return nil, errors.New("vector_db config is required")
 	}
+	if cfg.Dimension <= 0 {
+		return nil, fmt.Errorf("vector_db %q: dimension must be > 0", cfg.ID)
+	}
 	if cfg.MaxTopK < 0 {
 		return nil, fmt.Errorf("vector_db %q: max_top_k must be non-negative", cfg.ID)
 	}
@@ -110,6 +113,9 @@ func setupPGPool(ctx context.Context, cfg *Config) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("vector_db %q: parse pool config: %w", cfg.ID, err)
 	}
 	applyPoolOptions(poolConfig, cfg.PGVector)
+	if poolConfig.ConnConfig.RuntimeParams == nil {
+		poolConfig.ConnConfig.RuntimeParams = make(map[string]string)
+	}
 	poolConfig.ConnConfig.RuntimeParams["application_name"] = "compozy_knowledge_pgvector"
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
@@ -485,27 +491,38 @@ func (p *pgStore) executeSearch(ctx context.Context, query []float32, opts Searc
 	sql, args := buildSearchQuery(p.tableIdent, p.metric, opts.Filters, opts.MinScore)
 	args[0] = pgvector.NewVector(query)
 	args = append(args, topK)
-	conn, err := p.pool.Acquire(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("pgvector: acquire connection: %w", err)
-	}
-	defer conn.Release()
 
-	resetStmt, tuneErr := p.applySearchParameters(ctx, conn)
-	if tuneErr != nil {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("pgvector: begin transaction: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(ctx); rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) {
+			logger.FromContext(ctx).Warn("pgvector: rollback search transaction", "error", rbErr)
+		}
+	}()
+
+	if tuneErr := p.applySearchParametersLocal(ctx, tx); tuneErr != nil {
 		return nil, tuneErr
 	}
-	defer p.resetSearchParameters(ctx, conn, resetStmt)
 
-	rows, err := conn.Query(ctx, sql, args...)
+	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("pgvector: search: %w", err)
 	}
 	defer rows.Close()
-	return scanSearchResults(rows, topK)
+	results, err := scanSearchResults(rows, topK)
+	if err != nil {
+		return nil, err
+	}
+
+	if commitErr := tx.Commit(ctx); commitErr != nil {
+		return nil, fmt.Errorf("pgvector: commit search transaction: %w", commitErr)
+	}
+	return results, nil
 }
 
-func (p *pgStore) applySearchParameters(ctx context.Context, conn *pgxpool.Conn) (string, error) {
+func (p *pgStore) applySearchParametersLocal(ctx context.Context, tx pgx.Tx) error {
 	switch strings.ToLower(p.indexType) {
 	case "hnsw":
 		target := p.searchEFSearch
@@ -515,11 +532,11 @@ func (p *pgStore) applySearchParameters(ctx context.Context, conn *pgxpool.Conn)
 		if target <= 0 {
 			target = pgvectorDefaultHNSWEFSearch
 		}
-		setCmd := fmt.Sprintf("SET hnsw.ef_search = %d", target)
-		if _, err := conn.Exec(ctx, setCmd); err != nil {
-			return "", fmt.Errorf("pgvector: set hnsw.ef_search: %w", err)
+		setCmd := fmt.Sprintf("SET LOCAL hnsw.ef_search = %d", target)
+		if _, err := tx.Exec(ctx, setCmd); err != nil {
+			return fmt.Errorf("pgvector: set local hnsw.ef_search: %w", err)
 		}
-		return "RESET hnsw.ef_search", nil
+		return nil
 	default:
 		target := p.searchProbes
 		if target <= 0 {
@@ -528,26 +545,11 @@ func (p *pgStore) applySearchParameters(ctx context.Context, conn *pgxpool.Conn)
 		if target < 1 {
 			target = 1
 		}
-		setCmd := fmt.Sprintf("SET ivfflat.probes = %d", target)
-		if _, err := conn.Exec(ctx, setCmd); err != nil {
-			return "", fmt.Errorf("pgvector: set ivfflat.probes: %w", err)
+		setCmd := fmt.Sprintf("SET LOCAL ivfflat.probes = %d", target)
+		if _, err := tx.Exec(ctx, setCmd); err != nil {
+			return fmt.Errorf("pgvector: set local ivfflat.probes: %w", err)
 		}
-		return "RESET ivfflat.probes", nil
-	}
-}
-
-func (p *pgStore) resetSearchParameters(ctx context.Context, conn *pgxpool.Conn, resetStmt string) {
-	if resetStmt == "" {
-		return
-	}
-	resetCtx := context.WithoutCancel(ctx)
-	if _, err := conn.Exec(resetCtx, resetStmt); err != nil {
-		logger.FromContext(resetCtx).Warn(
-			"pgvector: failed to reset search parameter",
-			"parameter", resetStmt,
-			"error", err,
-		)
-		recordVectorError(resetCtx, "search", "query")
+		return nil
 	}
 }
 

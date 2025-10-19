@@ -68,12 +68,12 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 				helpText:   "Currently active HTTP requests",
 			},
 			{
-				name:       "compozy_build_info",
+				name:       buildInfoMetricName,
 				metricType: "gauge",
 				helpText:   "Build information",
 			},
 			{
-				name:       "compozy_uptime_seconds",
+				name:       uptimeMetricName,
 				metricType: "gauge",
 				helpText:   "Service uptime in seconds",
 			},
@@ -104,8 +104,8 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, metrics)
 		// Should at least have build info and uptime
-		assert.Contains(t, metrics, "compozy_build_info")
-		assert.Contains(t, metrics, "compozy_uptime_seconds")
+		assert.Contains(t, metrics, buildInfoMetricName)
+		assert.Contains(t, metrics, uptimeMetricName)
 	})
 	t.Run("Should properly format histogram metrics", func(t *testing.T) {
 		env := SetupTestEnvironment(t)

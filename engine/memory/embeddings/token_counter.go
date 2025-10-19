@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/pkoukk/tiktoken-go"
+	"golang.org/x/sync/singleflight"
 )
 
 type counterKey struct {
@@ -20,7 +21,10 @@ type tokenCounter interface {
 
 const defaultEncoding = "cl100k_base"
 
-var tokenCounters sync.Map
+var (
+	tokenCounters   sync.Map
+	tokenizerBuilds singleflight.Group
+)
 
 // EstimateTokens counts tokens for the provided texts using a cached tokenizer per model.
 func EstimateTokens(ctx context.Context, provider string, model string, texts []string) (int, error) {
@@ -52,19 +56,21 @@ func counterForModel(provider string, model string) (tokenCounter, error) {
 			return counter, nil
 		}
 	}
-	counter, err := newTokenizer(key.model)
+	v, err, _ := tokenizerBuilds.Do(key.provider+"|"+key.model, func() (any, error) {
+		return newTokenizer(key.model)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("create tokenizer for provider %s model %s: %w", provider, model, err)
 	}
-	actual, loaded := tokenCounters.LoadOrStore(key, counter)
-	if loaded {
-		if existing, ok := actual.(tokenCounter); ok {
-			return existing, nil
-		}
+	counter, ok := v.(tokenCounter)
+	if !ok {
+		return nil, fmt.Errorf("unexpected tokenizer type %T", v)
 	}
+	tokenCounters.Store(key, counter)
 	return counter, nil
 }
 
+// resetTokenCounters clears the tokenizer cache; intended for tests only.
 func resetTokenCounters() {
 	tokenCounters = sync.Map{}
 }
@@ -95,6 +101,8 @@ func resolveEncoder(model string) (*tiktoken.Tiktoken, error) {
 	return enc, nil
 }
 
+// CountTokens returns the number of tokens in the text using the configured encoder.
+// The context parameter is unused as tokenization is CPU-only and non-cancellable.
 func (c *tiktokenCounter) CountTokens(ctx context.Context, text string) (int, error) {
 	_ = ctx
 	if c.encoder == nil {

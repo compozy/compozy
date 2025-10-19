@@ -13,7 +13,8 @@ import (
 
 func categorizeToolError(err error) mcpmetrics.ErrorKind {
 	if err == nil {
-		return mcpmetrics.ErrorKindExecution
+		// No error should be classified; let callers skip recording.
+		return ""
 	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return mcpmetrics.ErrorKindTimeout
@@ -96,6 +97,9 @@ var connectionErrorPhrases = []string{
 	"connection reset",
 	"broken pipe",
 	"network unreachable",
+	"no such host",
+	"tls:",
+	"eof",
 }
 
 func containsConnectionPhrase(msg string) bool {

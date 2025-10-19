@@ -429,3 +429,105 @@ func TestConfig_Validate_HeadersAndOrder(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid transport type")
 	})
 }
+func TestConfig_validateLimits(t *testing.T) {
+	t.Run("Should accept negative MaxSessions", func(t *testing.T) {
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
+		config := &Config{
+			ID:          "test-mcp",
+			URL:         "http://localhost:3000",
+			Transport:   mcpproxy.TransportSSE,
+			MaxSessions: -1,
+		}
+		err := config.Validate(t.Context())
+		assert.NoError(t, err, "Negative MaxSessions should pass validation (unlimited)")
+	})
+
+	t.Run("Should accept zero MaxSessions", func(t *testing.T) {
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
+		config := &Config{
+			ID:          "test-mcp",
+			URL:         "http://localhost:3000",
+			Transport:   mcpproxy.TransportSSE,
+			MaxSessions: 0,
+		}
+		err := config.Validate(t.Context())
+		assert.NoError(t, err, "Zero MaxSessions should pass validation (unlimited)")
+	})
+
+	t.Run("Should reject negative StartTimeout", func(t *testing.T) {
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
+		config := &Config{
+			ID:           "test-mcp",
+			Command:      "test-command",
+			Transport:    mcpproxy.TransportStdio,
+			StartTimeout: -1 * time.Second,
+		}
+		err := config.Validate(t.Context())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "start_timeout cannot be negative")
+	})
+
+	t.Run("Should accept positive StartTimeout", func(t *testing.T) {
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
+		config := &Config{
+			ID:           "test-mcp",
+			Command:      "test-command",
+			Transport:    mcpproxy.TransportStdio,
+			StartTimeout: 30 * time.Second,
+		}
+		err := config.Validate(t.Context())
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should accept zero StartTimeout", func(t *testing.T) {
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
+		config := &Config{
+			ID:           "test-mcp",
+			Command:      "test-command",
+			Transport:    mcpproxy.TransportStdio,
+			StartTimeout: 0,
+		}
+		err := config.Validate(t.Context())
+		assert.NoError(t, err, "Zero StartTimeout should pass validation (no timeout)")
+	})
+}

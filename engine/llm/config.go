@@ -387,9 +387,16 @@ func WithProviderMetrics(recorder providermetrics.Recorder) Option {
 	return func(c *Config) {
 		if recorder == nil {
 			c.ProviderMetrics = providermetrics.Nop()
+			// If a registry exists, ensure it also uses NOP.
+			if c.RateLimiter != nil {
+				c.RateLimiter.SetRecorder(c.ProviderMetrics)
+			}
 			return
 		}
 		c.ProviderMetrics = recorder
+		if c.RateLimiter != nil {
+			c.RateLimiter.SetRecorder(recorder)
+		}
 	}
 }
 
@@ -804,7 +811,7 @@ func (c *Config) applyDefaultLimits() {
 }
 
 // CreateMCPClient creates an MCP client from the configuration
-func (c *Config) CreateMCPClient() (*mcp.Client, error) {
+func (c *Config) CreateMCPClient(ctx context.Context) (*mcp.Client, error) {
 	if c.ProxyURL == "" {
 		return nil, fmt.Errorf("proxy URL is required for MCP client creation")
 	}
@@ -816,7 +823,7 @@ func (c *Config) CreateMCPClient() (*mcp.Client, error) {
 	if _, err := url.ParseRequestURI(u); err != nil {
 		return nil, fmt.Errorf("invalid proxy URL: %w", err)
 	}
-	client := mcp.NewProxyClient(u, c.Timeout)
+	client := mcp.NewProxyClient(ctx, u, c.Timeout)
 	if client == nil {
 		return nil, fmt.Errorf("failed to create MCP proxy client")
 	}

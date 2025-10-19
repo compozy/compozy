@@ -141,6 +141,7 @@ type logEntry struct {
 }
 
 type capturingLogger struct {
+	mu      sync.Mutex
 	entries *[]logEntry
 	fields  map[string]any
 }
@@ -169,10 +170,9 @@ func (l *capturingLogger) Error(msg string, keyvals ...any) {
 }
 
 func (l *capturingLogger) With(args ...any) logger.Logger {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	nextFields := core.CloneMap(l.fields)
-	if nextFields == nil {
-		nextFields = make(map[string]any, len(args)/2)
-	}
 	for i := 0; i < len(args); i += 2 {
 		key := fmt.Sprint(args[i])
 		var val any
@@ -188,13 +188,12 @@ func (l *capturingLogger) With(args ...any) logger.Logger {
 }
 
 func (l *capturingLogger) record(level, msg string, keyvals ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	if l.entries == nil {
 		return
 	}
 	fields := core.CloneMap(l.fields)
-	if fields == nil {
-		fields = make(map[string]any, len(keyvals)/2)
-	}
 	for i := 0; i < len(keyvals); i += 2 {
 		key := fmt.Sprint(keyvals[i])
 		var val any

@@ -9,7 +9,7 @@
 - Error handling: Use unified strategy with `fmt.Errorf` internally and `core.NewError` at boundaries; handle explicitly and return early.
 - Documentation: Add doc comments for methods, structs, interfaces (2-4 lines max); avoid change explanations in code.
 - Formatting & limits: Adhere to Go style guide, `.golangci.yml`; max 50 lines for business logic functions, 120 chars per line, cyclomatic complexity <10.
-- Map operations: ALWAYS use `core.CopyMap`, `core.CloneMap`, `core.Merge`, or `core.DeepCopy` from `engine/core/copy.go`; never manually iterate or use `maps.Copy` directly.
+- Map operations: ALWAYS use `core.CopyMaps`, `core.CloneMap`, `core.Merge`, or `core.DeepCopy` from `engine/core/copy.go`; never manually iterate or use `maps.Copy` directly.
 - Libraries: Use established core libraries as specified in project rules.
 
 ## Project Structure and Organization

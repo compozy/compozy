@@ -26,6 +26,9 @@
         "dimension": {
           "type": "integer"
         },
+        "max_concurrent_workers": {
+          "type": "integer"
+        },
         "retry": {
           "type": "object"
         },

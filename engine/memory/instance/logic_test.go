@@ -312,8 +312,6 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 	})
 }
 
-// TODO: Implement TestFlushHandler_ErrorLogging when flush handler is integrated
-
 // Test Close method functionality
 func TestMemoryInstance_Close(t *testing.T) {
 	t.Run("Should gracefully close with no pending operations", func(t *testing.T) {

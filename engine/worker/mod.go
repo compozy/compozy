@@ -255,17 +255,8 @@ func buildWorkerOptions(ctx context.Context, monitoringService *monitoring.Servi
 	options := &worker.Options{}
 	if cfg := appconfig.FromContext(ctx); cfg != nil {
 		autoActivity := stdruntime.NumCPU() * 2
-		if autoActivity < 1 {
-			autoActivity = 1
-		}
 		autoWorkflow := stdruntime.NumCPU()
-		if autoWorkflow < 1 {
-			autoWorkflow = 1
-		}
 		autoLocal := stdruntime.NumCPU() * 4
-		if autoLocal < 1 {
-			autoLocal = 1
-		}
 		options.MaxConcurrentActivityExecutionSize = positiveOrDefault(
 			cfg.Worker.MaxConcurrentActivityExecutionSize,
 			autoActivity,
@@ -1095,7 +1086,7 @@ func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
 	if cfg.LLM.ProxyURL == "" {
 		return nil // No proxy configured
 	}
-	client := mcp.NewProxyClient(cfg.LLM.ProxyURL, cfg.Worker.MCPProxyHealthCheckTimeout)
+	client := mcp.NewProxyClient(ctx, cfg.LLM.ProxyURL, cfg.Worker.MCPProxyHealthCheckTimeout)
 	defer client.Close()
 	return client.Health(ctx)
 }

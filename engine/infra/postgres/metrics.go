@@ -43,12 +43,12 @@ type poolMetrics struct {
 }
 
 // configurePostgresMetrics prepares instrumentation hooks for the pgx pool configuration.
-func configurePostgresMetrics(cfg *Config, poolCfg *pgxpool.Config) *poolMetrics {
+func configurePostgresMetrics(cfg *Config, poolCfg *pgxpool.Config) (*poolMetrics, error) {
 	if cfg == nil || poolCfg == nil {
-		return nil
+		return nil, nil
 	}
 	if err := ensurePostgresMetrics(); err != nil {
-		panic(fmt.Errorf("postgres: init metrics: %w", err))
+		return nil, fmt.Errorf("postgres: init metrics: %w", err)
 	}
 	metrics := &poolMetrics{label: computePoolLabel(cfg)}
 	prevPrepare := poolCfg.PrepareConn
@@ -62,7 +62,7 @@ func configurePostgresMetrics(cfg *Config, poolCfg *pgxpool.Config) *poolMetrics
 		metrics.recordWait(ctx)
 		return true, nil
 	}
-	return metrics
+	return metrics, nil
 }
 
 func ensurePostgresMetrics() error {
@@ -217,23 +217,24 @@ func computePoolLabel(cfg *Config) string {
 	if cfg == nil {
 		return defaultPoolLabel
 	}
-	parts := []string{
-		sanitizeLabelComponent(cfg.Host),
-		sanitizeLabelComponent(cfg.Port),
-		sanitizeLabelComponent(cfg.DBName),
+	raw := []string{cfg.Host, cfg.Port, cfg.DBName}
+	parts := make([]string, 0, len(raw))
+	for _, c := range raw {
+		if s := sanitizeLabelComponent(c); s != "" {
+			parts = append(parts, s)
+		}
 	}
-	joined := strings.Join(parts, "-")
-	trimmed := strings.Trim(strings.Trim(joined, "-"), "_")
-	if trimmed == "" {
+	if len(parts) == 0 {
 		return defaultPoolLabel
 	}
-	return trimmed
+	joined := strings.Join(parts, "-")
+	return strings.Trim(strings.Trim(joined, "-"), "_")
 }
 
 func sanitizeLabelComponent(component string) string {
 	trimmed := strings.TrimSpace(component)
 	if trimmed == "" {
-		return defaultPoolLabel
+		return ""
 	}
 	lower := strings.ToLower(trimmed)
 	var builder strings.Builder
@@ -244,11 +245,7 @@ func sanitizeLabelComponent(component string) string {
 		}
 		builder.WriteRune('_')
 	}
-	result := strings.Trim(builder.String(), "_")
-	if result == "" {
-		return defaultPoolLabel
-	}
-	return result
+	return strings.Trim(builder.String(), "_")
 }
 
 func isLabelRune(r rune) bool {

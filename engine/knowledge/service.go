@@ -7,6 +7,9 @@ import (
 	"github.com/compozy/compozy/engine/core"
 )
 
+// Resolver resolves knowledge base bindings by merging project-level, workflow-level,
+// and inline configurations. It maintains indices of embedders, vector databases,
+// and knowledge bases for efficient lookup during resolution.
 type Resolver struct {
 	defaults      Defaults
 	defs          Definitions
@@ -15,6 +18,8 @@ type Resolver struct {
 	projectKBs    map[string]BaseConfig
 }
 
+// ResolveInput contains all the binding configurations from different scopes
+// that need to be merged to produce a final resolved binding.
 type ResolveInput struct {
 	WorkflowKnowledgeBases []BaseConfig
 	ProjectBinding         []core.KnowledgeBinding
@@ -22,6 +27,9 @@ type ResolveInput struct {
 	InlineBinding          []core.KnowledgeBinding
 }
 
+// ResolvedBinding represents a fully resolved knowledge base configuration
+// with all components (knowledge base, embedder, vector database, and retrieval settings)
+// determined after merging bindings from all scopes.
 type ResolvedBinding struct {
 	ID            string
 	KnowledgeBase BaseConfig
@@ -30,6 +38,9 @@ type ResolvedBinding struct {
 	Retrieval     RetrievalConfig
 }
 
+// NewResolver creates a new Resolver with validated definitions and defaults.
+// It builds internal indices for efficient lookup of embedders, vector databases,
+// and knowledge bases during binding resolution.
 func NewResolver(ctx context.Context, defs Definitions, defaults Defaults) (*Resolver, error) {
 	defaults = sanitizeDefaults(defaults)
 	defs.NormalizeWithDefaults(defaults)
@@ -58,6 +69,10 @@ func NewResolver(ctx context.Context, defs Definitions, defaults Defaults) (*Res
 	return r, nil
 }
 
+// Resolve merges bindings from project, workflow, and inline scopes to produce
+// a fully resolved knowledge base configuration. It validates workflow definitions,
+// resolves the knowledge base reference, and applies binding overrides to retrieval settings.
+// Returns nil if no bindings are provided.
 func (r *Resolver) Resolve(ctx context.Context, input *ResolveInput) (*ResolvedBinding, error) {
 	if input == nil {
 		return nil, nil

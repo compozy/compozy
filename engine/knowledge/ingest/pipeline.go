@@ -320,7 +320,7 @@ func (p *Pipeline) backoffDuration(attempt int) time.Duration {
 	if maxDelay > 0 && delay > maxDelay {
 		return maxDelay
 	}
-	for range attempt {
+	for i := 0; i < attempt; i++ {
 		if maxDelay > 0 && delay >= maxDelay {
 			return maxDelay
 		}
@@ -417,7 +417,10 @@ func (p *Pipeline) partitionChunks(chunks []chunk.Chunk) [][]chunk.Chunk {
 }
 
 func (p *Pipeline) embeddingWorkerCount(batchCount int) int {
-	const maxWorkers = 4
+	maxWorkers := p.binding.Embedder.Config.MaxConcurrentWorkers
+	if maxWorkers <= 0 {
+		maxWorkers = 4
+	}
 	if batchCount <= 0 {
 		return 0
 	}

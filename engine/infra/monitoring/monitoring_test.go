@@ -121,11 +121,14 @@ func TestMonitoringService_GinMiddleware(t *testing.T) {
 }
 
 func TestMonitoringService_LLMProviderMetrics(t *testing.T) {
-	cfg := &Config{Enabled: true, Path: "/metrics"}
-	service, err := NewMonitoringService(t.Context(), cfg)
-	require.NoError(t, err)
-	recorder := service.LLMProviderMetrics()
-	assert.NotNil(t, recorder)
+	t.Run("Should return non-nil recorder when enabled", func(t *testing.T) {
+		cfg := &Config{Enabled: true, Path: "/metrics"}
+		service, err := NewMonitoringService(t.Context(), cfg)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
+		recorder := service.LLMProviderMetrics()
+		assert.NotNil(t, recorder)
+	})
 }
 
 func TestMonitoringService_ExporterHandler(t *testing.T) {

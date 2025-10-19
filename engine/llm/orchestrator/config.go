@@ -13,6 +13,7 @@ const (
 	defaultRetryAttempts           = 3
 	defaultRetryBackoffBase        = 100 * time.Millisecond
 	defaultRetryBackoffMax         = 10 * time.Second
+	defaultRetryJitterMax          = 50 * time.Millisecond
 	defaultStructuredOutputRetries = 2
 	defaultMaxToolIterations       = 10
 	defaultMaxSequentialToolErrors = 8
@@ -34,6 +35,7 @@ type settings struct {
 	retryBackoffBase               time.Duration
 	retryBackoffMax                time.Duration
 	retryJitter                    bool
+	retryJitterMax                 time.Duration
 	maxConsecutiveSuccesses        int
 	enableProgressTracking         bool
 	noProgressThreshold            int
@@ -72,6 +74,7 @@ func buildSettings(cfg *Config) settings {
 		retryBackoffBase:               cfg.RetryBackoffBase,
 		retryBackoffMax:                cfg.RetryBackoffMax,
 		retryJitter:                    cfg.RetryJitter,
+		retryJitterMax:                 cfg.RetryJitterMax,
 		maxConsecutiveSuccesses:        cfg.MaxConsecutiveSuccesses,
 		enableProgressTracking:         cfg.EnableProgressTracking,
 		noProgressThreshold:            cfg.NoProgressThreshold,
@@ -106,6 +109,7 @@ func normalizeNumericDefaults(cfg *Config, s *settings) {
 	s.retryAttempts = defaultInt(s.retryAttempts, defaultRetryAttempts)
 	s.retryBackoffBase = defaultDuration(s.retryBackoffBase, defaultRetryBackoffBase)
 	s.retryBackoffMax = defaultDuration(s.retryBackoffMax, defaultRetryBackoffMax)
+	s.retryJitterMax = defaultDuration(s.retryJitterMax, defaultRetryJitterMax)
 	s.maxConsecutiveSuccesses = defaultInt(s.maxConsecutiveSuccesses, defaultMaxConsecutiveSuccesses)
 	s.noProgressThreshold = defaultInt(s.noProgressThreshold, defaultNoProgressThreshold)
 	s.restartAfterStall = defaultInt(s.restartAfterStall, defaultRestartAfterStall)

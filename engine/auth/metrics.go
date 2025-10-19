@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -65,6 +66,13 @@ const (
 	AuthMethodUnknown AuthMethod = "unknown"
 )
 
+const maskedIPUnknownValue = "unknown"
+
+var (
+	authLatencyBuckets  = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+	authTokenAgeBuckets = []float64{60, 300, 900, 1800, 3600, 7200, 14400, 28800, 86400}
+)
+
 // InitMetrics initializes auth metrics.
 func InitMetrics(meter metric.Meter) error {
 	if meter == nil {
@@ -79,6 +87,7 @@ func InitMetrics(meter metric.Meter) error {
 		authAttemptsTotal, initErr = meter.Int64Counter(
 			metrics.MetricNameWithSubsystem("auth", "attempts_total"),
 			metric.WithDescription("Total authentication attempts categorized by outcome and reason"),
+			metric.WithUnit("1"),
 		)
 		if initErr != nil {
 			return
@@ -88,7 +97,7 @@ func InitMetrics(meter metric.Meter) error {
 			metrics.MetricNameWithSubsystem("auth", "latency_seconds"),
 			metric.WithDescription("Authentication latency by method and outcome"),
 			metric.WithUnit("s"),
-			metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
+			metric.WithExplicitBucketBoundaries(authLatencyBuckets...),
 		)
 		if initErr != nil {
 			return
@@ -98,7 +107,7 @@ func InitMetrics(meter metric.Meter) error {
 			metrics.MetricNameWithSubsystem("auth", "token_age_seconds"),
 			metric.WithDescription("Age of tokens used for authentication"),
 			metric.WithUnit("s"),
-			metric.WithExplicitBucketBoundaries(60, 300, 900, 1800, 3600, 7200, 14400, 28800, 86400),
+			metric.WithExplicitBucketBoundaries(authTokenAgeBuckets...),
 		)
 		if initErr != nil {
 			return
@@ -107,6 +116,7 @@ func InitMetrics(meter metric.Meter) error {
 		authRateLimitHits, initErr = meter.Int64Counter(
 			metrics.MetricNameWithSubsystem("auth", "rate_limit_hits_total"),
 			metric.WithDescription("Number of times authentication rate limiting was triggered"),
+			metric.WithUnit("1"),
 		)
 	})
 
@@ -196,14 +206,30 @@ func normalizeMethod(method AuthMethod) AuthMethod {
 }
 
 // maskIPAddress masks the last octet for IPv4 and applies a /64 mask for IPv6 addresses.
+// It handles host:port and bracketed IPv6 inputs by normalizing them before masking.
 func maskIPAddress(ip string) string {
+	ip = strings.TrimSpace(ip)
 	if ip == "" {
-		return "unknown"
+		return maskedIPUnknownValue
+	}
+
+	// Handle host:port and bracketed IPv6 forms.
+	// Try parsing with SplitHostPort first (handles both "ip:port" and "[ipv6]:port")
+	if h, _, err := net.SplitHostPort(ip); err == nil {
+		ip = h
+	} else if strings.HasPrefix(ip, "[") && strings.HasSuffix(ip, "]") {
+		// Handle plain bracketed IPv6 without port
+		ip = strings.Trim(ip, "[]")
+	}
+
+	ip = strings.TrimSpace(ip)
+	if ip == "" {
+		return maskedIPUnknownValue
 	}
 
 	parsed := net.ParseIP(ip)
 	if parsed == nil {
-		return "unknown"
+		return maskedIPUnknownValue
 	}
 
 	if v4 := parsed.To4(); v4 != nil {

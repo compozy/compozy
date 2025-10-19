@@ -15,7 +15,7 @@ import (
 
 func newTestClient(t *testing.T, baseURL string, timeout time.Duration) *Client {
 	t.Helper()
-	c := NewProxyClient(baseURL, timeout)
+	c := NewProxyClient(context.Background(), baseURL, timeout)
 	t.Cleanup(func() { _ = c.Close() })
 	return c
 }
@@ -374,6 +374,9 @@ func TestNewProxyClient(t *testing.T) {
 }
 
 func TestNewProxyClient_ConfiguresConnectionPool(t *testing.T) {
+	// TODO: This test will need updating once transport settings become configurable.
+	// When that happens, create a test config with explicit transport values, pass it
+	// via context to NewProxyClient, and verify the configured values are applied.
 	client := newTestClient(t, "http://localhost:7077", 5*time.Second)
 	transport, ok := client.http.Transport.(*http.Transport)
 	require.True(t, ok, "expected transport to be *http.Transport")

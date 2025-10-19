@@ -67,6 +67,9 @@
         "http_read": {
           "type": "integer"
         },
+        "http_read_header": {
+          "type": "integer"
+        },
         "http_write": {
           "type": "integer"
         },

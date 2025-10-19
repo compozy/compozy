@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"sync"
 	"time"
 
@@ -18,6 +20,7 @@ const (
 	labelError    = "error_kind"
 	labelHit      = "hit"
 	labelMiss     = "miss"
+	hashLength    = 12
 )
 
 var (
@@ -42,11 +45,29 @@ func Init(ctx context.Context, meter metric.Meter) {
 	})
 }
 
+// hashLabel creates a deterministic, fixed-length hash of a label value
+// to prevent time-series cardinality explosion from high-cardinality values.
+func hashLabel(value string) string {
+	h := sha256.Sum256([]byte(value))
+	encoded := hex.EncodeToString(h[:])
+	if len(encoded) > hashLength {
+		return encoded[:hashLength]
+	}
+	return encoded
+}
+
 func createInstruments(ctx context.Context, meter metric.Meter) {
 	log := logger.FromContext(ctx)
-	var err error
+	// Build into locals to avoid partial global state.
+	var (
+		eh  metric.Float64Histogram
+		ec  metric.Int64Counter
+		ac  metric.Int64UpDownCounter
+		rh  metric.Float64Histogram
+		err error
+	)
 
-	executionHistogram, err = meter.Float64Histogram(
+	eh, err = meter.Float64Histogram(
 		monitoringmetrics.MetricNameWithSubsystem("mcp", "tool_execute_seconds"),
 		metric.WithDescription("MCP tool execution latency"),
 		metric.WithUnit("s"),
@@ -57,7 +78,7 @@ func createInstruments(ctx context.Context, meter metric.Meter) {
 		return
 	}
 
-	errorCounter, err = meter.Int64Counter(
+	ec, err = meter.Int64Counter(
 		monitoringmetrics.MetricNameWithSubsystem("mcp", "tool_errors_total"),
 		metric.WithDescription("MCP tool errors by category"),
 	)
@@ -66,7 +87,7 @@ func createInstruments(ctx context.Context, meter metric.Meter) {
 		return
 	}
 
-	activeConnections, err = meter.Int64UpDownCounter(
+	ac, err = meter.Int64UpDownCounter(
 		monitoringmetrics.MetricNameWithSubsystem("mcp", "server_connections_active"),
 		metric.WithDescription("Active MCP server connections"),
 	)
@@ -75,7 +96,7 @@ func createInstruments(ctx context.Context, meter metric.Meter) {
 		return
 	}
 
-	registryHistogram, err = meter.Float64Histogram(
+	rh, err = meter.Float64Histogram(
 		monitoringmetrics.MetricNameWithSubsystem("mcp", "tool_registry_lookup_seconds"),
 		metric.WithDescription("Tool registry lookup latency"),
 		metric.WithUnit("s"),
@@ -85,6 +106,11 @@ func createInstruments(ctx context.Context, meter metric.Meter) {
 		log.Error("Failed to create MCP registry histogram", "error", err)
 		return
 	}
+	// Publish only after all succeed.
+	executionHistogram = eh
+	errorCounter = ec
+	activeConnections = ac
+	registryHistogram = rh
 	log.Info("Initialized MCP metrics instruments")
 }
 
@@ -127,12 +153,18 @@ func RecordToolExecution(
 	if outcome == "" {
 		outcome = OutcomeSuccess
 	}
+	// Hash high-cardinality labels to prevent time-series explosion.
 	attrs := []attribute.KeyValue{
-		attribute.String(labelServerID, serverID),
-		attribute.String(labelToolName, toolName),
+		attribute.String(labelServerID, hashLabel(serverID)),
+		attribute.String(labelToolName, hashLabel(toolName)),
 		attribute.String(labelOutcome, string(outcome)),
 	}
-	executionHistogram.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
+	// Clamp negative durations to zero to protect against clock skew/bugs.
+	d := duration.Seconds()
+	if d < 0 {
+		d = 0
+	}
+	executionHistogram.Record(ctx, d, metric.WithAttributes(attrs...))
 }
 
 // RecordToolError increments the error counter for the provided category.
@@ -143,9 +175,10 @@ func RecordToolError(ctx context.Context, serverID, toolName string, kind ErrorK
 	if kind == "" {
 		kind = ErrorKindExecution
 	}
+	// Hash high-cardinality labels to prevent time-series explosion.
 	errorCounter.Add(ctx, 1, metric.WithAttributes(
-		attribute.String(labelServerID, serverID),
-		attribute.String(labelToolName, toolName),
+		attribute.String(labelServerID, hashLabel(serverID)),
+		attribute.String(labelToolName, hashLabel(toolName)),
 		attribute.String(labelError, string(kind)),
 	))
 }
@@ -164,20 +197,32 @@ func updateConnectionState(ctx context.Context, serverID string, connected bool)
 	if activeConnections == nil || serverID == "" {
 		return
 	}
-	prev, loaded := connectionStates.Load(serverID)
-	prevBool, ok := prev.(bool)
-	if loaded && ok && prevBool == connected {
-		return
-	}
+	// Atomically swap and compute delta from previous state to prevent race conditions.
+	prev, loaded := connectionStates.Swap(serverID, connected)
 	var delta int64
-	if connected {
-		delta = 1
-		connectionStates.Store(serverID, true)
+	if loaded {
+		if p, ok := prev.(bool); ok {
+			if p == connected {
+				return // no change
+			}
+			if connected {
+				delta = 1
+			} else {
+				delta = -1
+			}
+		} else {
+			// Unknown previous type; reset to known state without delta.
+			return
+		}
 	} else {
-		delta = -1
-		connectionStates.Store(serverID, false)
+		// First observation: count +1 only when transitioning to connected.
+		if !connected {
+			return
+		}
+		delta = 1
 	}
-	activeConnections.Add(ctx, delta, metric.WithAttributes(attribute.String(labelServerID, serverID)))
+	// Hash high-cardinality server_id label.
+	activeConnections.Add(ctx, delta, metric.WithAttributes(attribute.String(labelServerID, hashLabel(serverID))))
 }
 
 // RecordRegistryLookup captures latency and hit/miss data for registry lookups.
@@ -189,8 +234,10 @@ func RecordRegistryLookup(ctx context.Context, duration time.Duration, hit bool)
 	if hit {
 		outcome = labelHit
 	}
+	// Include both string outcome for compatibility and boolean hit for simpler queries.
 	registryHistogram.Record(ctx, duration.Seconds(), metric.WithAttributes(
 		attribute.String(labelOutcome, outcome),
+		attribute.Bool("hit", hit),
 	))
 }
 

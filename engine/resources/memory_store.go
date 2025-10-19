@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -412,27 +413,41 @@ func (s *MemoryResourceStore) ListWithValuesPage(
 		s.mu.RUnlock()
 		return nil, 0, fmt.Errorf("store is closed")
 	}
-	end := offset + limit
-	items = make([]StoredItem, 0)
+	type entryPair struct {
+		key   ResourceKey
+		entry storedEntry
+	}
+	pairs := make([]entryPair, 0)
 	for k, e := range s.items {
-		if k.Project != project || k.Type != typ {
-			continue
+		if k.Project == project && k.Type == typ {
+			pairs = append(pairs, entryPair{key: k, entry: e})
 		}
-		if total >= offset && total < end {
-			cp, copyErr := core.DeepCopy[any](e.value)
-			if copyErr != nil {
-				s.mu.RUnlock()
-				err = fmt.Errorf("deep copy failed: %w", copyErr)
-				return nil, 0, err
-			}
-			items = append(items, StoredItem{Key: k, Value: cp, ETag: e.etag})
-		}
-		total++
 	}
 	s.mu.RUnlock()
+
+	sort.Slice(pairs, func(i, j int) bool {
+		if pairs[i].key.ID == pairs[j].key.ID {
+			return pairs[i].key.Version < pairs[j].key.Version
+		}
+		return pairs[i].key.ID < pairs[j].key.ID
+	})
+
+	total = len(pairs)
 	resmetrics.SetStoreSize(string(typ), int64(total))
-	if offset > total {
+	if offset >= total {
 		return []StoredItem{}, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	items = make([]StoredItem, 0, end-offset)
+	for _, pair := range pairs[offset:end] {
+		cp, copyErr := core.DeepCopy[any](pair.entry.value)
+		if copyErr != nil {
+			return nil, 0, fmt.Errorf("deep copy failed: %w", copyErr)
+		}
+		items = append(items, StoredItem{Key: pair.key, Value: cp, ETag: pair.entry.etag})
 	}
 	return items, total, nil
 }

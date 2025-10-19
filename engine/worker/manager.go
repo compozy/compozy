@@ -12,6 +12,11 @@ import (
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
 
+const (
+	defaultErrorHandlerTimeout     = 30 * time.Second
+	defaultErrorHandlerMaxAttempts = int32(3)
+)
+
 // -----------------------------------------------------------------------------
 // Workflow Orchestrator
 // -----------------------------------------------------------------------------
@@ -36,8 +41,8 @@ func NewManager(contextBuilder *ContextBuilder) *Manager {
 	)
 	workflowExecutor := executors.NewWorkflowExecutor(executorContextBuilder)
 	taskExecutor := executors.NewTaskExecutor(executorContextBuilder)
-	timeout := 30 * time.Second
-	maxAttempts := int32(3)
+	timeout := defaultErrorHandlerTimeout
+	maxAttempts := defaultErrorHandlerMaxAttempts
 	if contextBuilder.WorkflowInput != nil {
 		if contextBuilder.ErrorHandlerTimeout > 0 {
 			timeout = contextBuilder.ErrorHandlerTimeout
@@ -59,11 +64,11 @@ func NewManager(contextBuilder *ContextBuilder) *Manager {
 func (m *Manager) BuildErrHandler(ctx workflow.Context) func(err error) error {
 	timeout := m.errorHandlerTimeout
 	if timeout <= 0 {
-		timeout = 30 * time.Second
+		timeout = defaultErrorHandlerTimeout
 	}
 	attempts := m.errorHandlerMaxAttempts
 	if attempts <= 0 {
-		attempts = 3
+		attempts = defaultErrorHandlerMaxAttempts
 	}
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: timeout,
@@ -113,7 +118,7 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 	cleanupCtx, _ := workflow.NewDisconnectedContext(ctx)
 	timeout := m.errorHandlerTimeout
 	if timeout <= 0 {
-		timeout = 30 * time.Second
+		timeout = defaultErrorHandlerTimeout
 	}
 	cleanupCtx = workflow.WithActivityOptions(cleanupCtx, workflow.ActivityOptions{
 		StartToCloseTimeout: timeout,

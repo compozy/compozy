@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -30,8 +32,8 @@ const (
 )
 
 var (
-	persistLatencyBuckets = []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1}
-	errSendClosedChannel  = "send on closed channel"
+	defaultPersistLatencyBuckets = []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1}
+	errSendClosedChannel         = "send on closed channel"
 )
 
 // ErrRepositoryClosed indicates the repository no longer accepts new work.
@@ -92,7 +94,7 @@ func NewRepository(persist PersistFunc, opts *RepositoryOptions) (*Repository, e
 // Persist enqueues the finalized usage payload for asynchronous persistence.
 func (r *Repository) Persist(ctx context.Context, finalized *Finalized) (err error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return fmt.Errorf("nil context provided")
 	}
 	if finalized == nil || finalized.Summary == nil || len(finalized.Summary.Entries) == 0 {
 		return nil
@@ -151,7 +153,7 @@ func (r *Repository) runWorker() {
 
 func (r *Repository) handleRequest(req *persistRequest) {
 	start := time.Now()
-	err := r.persist(req.ctx, req.finalized)
+	err := r.safePersist(req)
 	duration := time.Since(start)
 	r.metrics.RecordPersist(req.ctx, duration, err)
 	if err == nil {
@@ -172,6 +174,21 @@ func (r *Repository) handleRequest(req *persistRequest) {
 	}
 	fields = append(fields, "error", err)
 	log.Warn("Failed to persist usage summary", fields...)
+}
+
+// safePersist executes the persistence callback while recovering panics.
+func (r *Repository) safePersist(req *persistRequest) (err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			stack := string(debug.Stack())
+			if recErr := classifyRecover(rec); recErr != nil {
+				err = fmt.Errorf("persist panic: %w; stack=%s", recErr, stack)
+				return
+			}
+			err = fmt.Errorf("persist panic: %v; stack=%s", rec, stack)
+		}
+	}()
+	return r.persist(req.ctx, req.finalized)
 }
 
 func cloneRequest(ctx context.Context, finalized *Finalized) *persistRequest {
@@ -227,15 +244,18 @@ type repositoryMetrics struct {
 }
 
 func (m *repositoryMetrics) AddQueueDelta(ctx context.Context, delta int64) {
-	m.ensureInstruments()
-	if m.queue == nil || delta == 0 {
+	m.ensureInstruments(ctx)
+	if ctx == nil || m.queue == nil || delta == 0 {
 		return
 	}
 	m.queue.Add(ctx, delta)
 }
 
 func (m *repositoryMetrics) RecordPersist(ctx context.Context, duration time.Duration, err error) {
-	m.ensureInstruments()
+	m.ensureInstruments(ctx)
+	if ctx == nil {
+		return
+	}
 	if m.latency != nil {
 		outcome := repositoryOutcomeSuccess
 		if err != nil {
@@ -252,19 +272,30 @@ func (m *repositoryMetrics) RecordPersist(ctx context.Context, duration time.Dur
 	}
 }
 
-func (m *repositoryMetrics) ensureInstruments() {
+// ensureInstruments lazily initializes OpenTelemetry instruments using the first
+// context provided. Configuration such as histogram buckets is captured from that
+// initial context and remains fixed for the lifetime of this repository instance.
+func (m *repositoryMetrics) ensureInstruments(ctx context.Context) {
+	if ctx == nil {
+		return
+	}
 	m.once.Do(func() {
+		log := logger.FromContext(ctx)
+		buckets, bucketErr := resolvePersistBuckets(ctx)
+		if bucketErr != nil {
+			log.Warn("Invalid persist latency buckets provided, falling back to defaults", "error", bucketErr)
+		}
 		meter := otel.GetMeterProvider().Meter(repositoryMeterName)
 		latency, err := meter.Float64Histogram(
 			monitoringmetrics.MetricNameWithSubsystem("llm_usage", "persist_seconds"),
 			metric.WithDescription("Usage persistence latency"),
 			metric.WithUnit("s"),
-			metric.WithExplicitBucketBoundaries(persistLatencyBuckets...),
+			metric.WithExplicitBucketBoundaries(buckets...),
 		)
 		if err == nil {
 			m.latency = latency
 		} else {
-			logger.FromContext(context.Background()).Error("Failed to create usage persist latency histogram", "error", err)
+			log.Error("Failed to create usage persist latency histogram", "error", err)
 		}
 		errorsCounter, err := meter.Int64Counter(
 			monitoringmetrics.MetricNameWithSubsystem("llm_usage", "persist_errors_total"),
@@ -273,7 +304,7 @@ func (m *repositoryMetrics) ensureInstruments() {
 		if err == nil {
 			m.errors = errorsCounter
 		} else {
-			logger.FromContext(context.Background()).Error("Failed to create usage persist error counter", "error", err)
+			log.Error("Failed to create usage persist error counter", "error", err)
 		}
 		queueGauge, err := meter.Int64UpDownCounter(
 			monitoringmetrics.MetricNameWithSubsystem("llm_usage", "persist_queue_size"),
@@ -282,9 +313,51 @@ func (m *repositoryMetrics) ensureInstruments() {
 		if err == nil {
 			m.queue = queueGauge
 		} else {
-			logger.FromContext(context.Background()).Error("Failed to create usage persist queue gauge", "error", err)
+			log.Error("Failed to create usage persist queue gauge", "error", err)
 		}
 	})
+}
+
+func resolvePersistBuckets(ctx context.Context) ([]float64, error) {
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return cloneBuckets(defaultPersistLatencyBuckets), nil
+	}
+	candidate := cfg.LLM.UsageMetrics.PersistBuckets
+	if len(candidate) == 0 {
+		return cloneBuckets(defaultPersistLatencyBuckets), nil
+	}
+	sanitized, err := sanitizePersistBuckets(candidate)
+	if err != nil {
+		return cloneBuckets(defaultPersistLatencyBuckets), err
+	}
+	return sanitized, nil
+}
+
+func sanitizePersistBuckets(candidate []float64) ([]float64, error) {
+	if len(candidate) == 0 {
+		return nil, fmt.Errorf("no histogram buckets configured")
+	}
+	out := make([]float64, len(candidate))
+	copy(out, candidate)
+	for i, value := range out {
+		if value < 0 {
+			return nil, fmt.Errorf("bucket[%d]=%f must be non-negative", i, value)
+		}
+		if i > 0 && value <= out[i-1] {
+			return nil, fmt.Errorf("bucket[%d]=%f must be greater than bucket[%d]=%f", i, value, i-1, out[i-1])
+		}
+	}
+	return out, nil
+}
+
+func cloneBuckets(values []float64) []float64 {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]float64, len(values))
+	copy(out, values)
+	return out
 }
 
 func categorizePersistenceError(err error) string {

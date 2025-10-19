@@ -65,6 +65,36 @@ func newDisabledService(cfg *Config, initErr error) *Service {
 	}
 }
 
+type otelComponents struct {
+	registry *prom.Registry
+	exporter *prometheus.Exporter
+	provider *sdkmetric.MeterProvider
+	meter    metric.Meter
+}
+
+func initOTEL(ctx context.Context) (*otelComponents, error) {
+	log := logger.FromContext(ctx)
+	registryStart := time.Now()
+	registry := prom.NewRegistry()
+	log.Debug("Created Prometheus registry", "duration", time.Since(registryStart))
+	exporterStart := time.Now()
+	exporter, err := prometheus.New(prometheus.WithRegisterer(registry))
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Prometheus exporter: %w", err)
+	}
+	log.Debug("Created Prometheus exporter", "duration", time.Since(exporterStart))
+	providerStart := time.Now()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
+	meter := provider.Meter("compozy")
+	log.Debug("Created meter provider", "duration", time.Since(providerStart))
+	return &otelComponents{
+		registry: registry,
+		exporter: exporter,
+		provider: provider,
+		meter:    meter,
+	}, nil
+}
+
 func buildMonitoringMetrics(meter metric.Meter) (*ExecutionMetrics, usage.Metrics, providermetrics.Recorder, error) {
 	execMetrics, err := newExecutionMetrics(meter)
 	if err != nil {
@@ -81,9 +111,42 @@ func buildMonitoringMetrics(meter metric.Meter) (*ExecutionMetrics, usage.Metric
 	return execMetrics, llmMetrics, providerMetrics, nil
 }
 
+func initServiceMetrics(service *Service) error {
+	execMetrics, llmMetrics, providerMetrics, err := buildMonitoringMetrics(service.meter)
+	if err != nil {
+		return err
+	}
+	service.executionMetrics = execMetrics
+	service.llmUsageMetrics = llmMetrics
+	service.llmProviderMetrics = providerMetrics
+	return nil
+}
+
+func initSubsystemMetrics(ctx context.Context, meter metric.Meter, log logger.Logger) {
+	systemMetricsStart := time.Now()
+	InitSystemMetrics(ctx, meter)
+	log.Debug("Initialized system metrics", "duration", time.Since(systemMetricsStart))
+	dispatcherMetricsStart := time.Now()
+	InitDispatcherHealthMetrics(ctx, meter)
+	log.Debug("Initialized dispatcher health metrics", "duration", time.Since(dispatcherMetricsStart))
+	factoryMetricsStart := time.Now()
+	factorymetrics.Init(ctx, meter)
+	log.Debug("Initialized factory metrics", "duration", time.Since(factoryMetricsStart))
+	mcpMetricsStart := time.Now()
+	mcpmetrics.Init(ctx, meter)
+	log.Debug("Initialized MCP metrics", "duration", time.Since(mcpMetricsStart))
+	memoryMetricsStart := time.Now()
+	InitializeMemoryMonitoring(ctx, meter)
+	log.Debug("Initialized memory metrics", "duration", time.Since(memoryMetricsStart))
+	toolsMetricsStart := time.Now()
+	if err := builtin.InitMetrics(meter); err != nil {
+		log.Error("Failed to initialize cp__ tool metrics", "error", err)
+	} else {
+		log.Debug("Initialized cp__ tool metrics", "duration", time.Since(toolsMetricsStart))
+	}
+}
+
 // NewMonitoringService creates a new monitoring service with Prometheus exporter.
-//
-//nolint:funlen // initialization requires sequential setup and structured cleanup
 func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 	log := logger.FromContext(ctx)
 	startTime := time.Now()
@@ -103,74 +166,34 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 		return nil, ctx.Err()
 	default:
 	}
-	registryStart := time.Now()
-	registry := prom.NewRegistry()
-	log.Debug("Created Prometheus registry", "duration", time.Since(registryStart))
-	exporterStart := time.Now()
-	exporter, err := prometheus.New(prometheus.WithRegisterer(registry))
-	if err != nil {
-		// Return error to let caller decide how to handle monitoring failure
-		return nil, fmt.Errorf("failed to initialize Prometheus exporter: %w", err)
-	}
-	log.Debug("Created Prometheus exporter", "duration", time.Since(exporterStart))
-	providerStart := time.Now()
-	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
-	meter := provider.Meter("compozy")
-	log.Debug("Created meter provider", "duration", time.Since(providerStart))
-	service := &Service{
-		meter:       meter,
-		exporter:    exporter,
-		provider:    provider,
-		registry:    registry,
-		config:      cfg,
-		initialized: true,
-	}
-	execMetrics, llmMetrics, providerMetrics, err := buildMonitoringMetrics(meter)
+	otel, err := initOTEL(ctx)
 	if err != nil {
 		return nil, err
 	}
-	service.executionMetrics = execMetrics
-	service.llmUsageMetrics = llmMetrics
-	service.llmProviderMetrics = providerMetrics
+	service := &Service{
+		meter:       otel.meter,
+		exporter:    otel.exporter,
+		provider:    otel.provider,
+		registry:    otel.registry,
+		config:      cfg,
+		initialized: true,
+	}
+	if err := initServiceMetrics(service); err != nil {
+		return nil, err
+	}
 	// Check for context cancellation before system metrics
 	select {
 	case <-ctx.Done():
 		// Clean up if context was canceled
 		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 		defer cancel()
-		if shutdownErr := provider.Shutdown(shutdownCtx); shutdownErr != nil {
+		if shutdownErr := otel.provider.Shutdown(shutdownCtx); shutdownErr != nil {
 			log.Debug("Failed to shutdown provider during cancellation", "error", shutdownErr)
 		}
 		return nil, ctx.Err()
 	default:
 	}
-	// Initialize system health metrics synchronously but quickly
-	systemMetricsStart := time.Now()
-	InitSystemMetrics(ctx, meter)
-	log.Debug("Initialized system metrics", "duration", time.Since(systemMetricsStart))
-	// Initialize dispatcher health metrics
-	dispatcherMetricsStart := time.Now()
-	InitDispatcherHealthMetrics(ctx, meter)
-	log.Debug("Initialized dispatcher health metrics", "duration", time.Since(dispatcherMetricsStart))
-	// Initialize factory metrics
-	factoryMetricsStart := time.Now()
-	factorymetrics.Init(ctx, meter)
-	log.Debug("Initialized factory metrics", "duration", time.Since(factoryMetricsStart))
-	// Initialize MCP client metrics
-	mcpMetricsStart := time.Now()
-	mcpmetrics.Init(ctx, meter)
-	log.Debug("Initialized MCP metrics", "duration", time.Since(mcpMetricsStart))
-	// Initialize memory monitoring metrics
-	memoryMetricsStart := time.Now()
-	InitializeMemoryMonitoring(ctx, meter)
-	log.Debug("Initialized memory metrics", "duration", time.Since(memoryMetricsStart))
-	// Initialize builtin tools metrics
-	toolsMetricsStart := time.Now()
-	if err := builtin.InitMetrics(meter); err != nil {
-		log.Error("Failed to initialize cp__ tool metrics", "error", err)
-	} else {
-		log.Debug("Initialized cp__ tool metrics", "duration", time.Since(toolsMetricsStart))
-	}
+	initSubsystemMetrics(ctx, otel.meter, log)
 	log.Info("Monitoring service initialized successfully", "total_duration", time.Since(startTime))
 	return service, nil
 }

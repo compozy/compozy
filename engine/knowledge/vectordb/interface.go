@@ -80,6 +80,16 @@ type PGVectorOptions struct {
 	Search PGVectorSearchOptions
 }
 
+// PGVectorIndexType represents supported index types for pgvector.
+type PGVectorIndexType string
+
+const (
+	// PGVectorIndexHNSW uses Hierarchical Navigable Small World index.
+	PGVectorIndexHNSW PGVectorIndexType = "hnsw"
+	// PGVectorIndexIVFFlat uses Inverted File with Flat Quantizer index.
+	PGVectorIndexIVFFlat PGVectorIndexType = "ivfflat"
+)
+
 // PGVectorIndexOptions tunes index creation and runtime behavior.
 type PGVectorIndexOptions struct {
 	Type           string
@@ -88,6 +98,14 @@ type PGVectorIndexOptions struct {
 	M              int
 	EFConstruction int
 	EFSearch       int
+}
+
+// IsValidIndexType checks if the Type field contains a known index type value.
+func (opts PGVectorIndexOptions) IsValidIndexType() bool {
+	if opts.Type == "" {
+		return true // empty is valid, will use default
+	}
+	return opts.Type == string(PGVectorIndexHNSW) || opts.Type == string(PGVectorIndexIVFFlat)
 }
 
 // PGVectorPoolOptions customizes pgxpool behavior.

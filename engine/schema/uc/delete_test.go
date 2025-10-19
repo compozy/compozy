@@ -35,7 +35,7 @@ func TestDeleteSchema_ConflictsWhenReferenced(t *testing.T) {
 		err = NewDelete(store).Execute(ctx, &DeleteInput{Project: project, ID: "user"})
 		require.Error(t, err)
 		var conflict resourceutil.ConflictError
-		assert.True(t, errors.As(err, &conflict))
+		assert.ErrorAs(t, err, &conflict)
 		assert.NotEmpty(t, conflict.Details)
 		assert.Equal(t, "workflows", conflict.Details[0].Resource)
 		_, getErr := NewGet(store).Execute(ctx, &GetInput{Project: project, ID: "user"})

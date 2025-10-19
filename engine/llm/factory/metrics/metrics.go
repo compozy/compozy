@@ -39,14 +39,14 @@ func Init(ctx context.Context, meter metric.Meter) {
 			metrics.MetricNameWithSubsystem("factory", "create_seconds"),
 			metric.WithDescription("Factory instantiation time"),
 			metric.WithUnit(unitSeconds),
-			metric.WithExplicitBucketBoundaries(0.00001, 0.0001, 0.001, 0.01),
+			metric.WithExplicitBucketBoundaries(0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 5),
 		)
 		if err != nil {
 			log.Error("Failed to create factory histogram", "error", err)
 			return
 		}
 		createHistogram = histogram
-		log.Info("Initialized factory metrics instruments")
+		log.Debug("Initialized factory metrics instruments")
 	})
 }
 

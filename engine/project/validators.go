@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 )
 
+// WorkflowsValidator validates workflow source configuration entries relative to the current working directory.
 type WorkflowsValidator struct {
 	cwd       *core.PathCWD
 	workflows []*WorkflowSourceConfig
@@ -19,6 +20,7 @@ type WorkflowsValidator struct {
 	statCache map[string]fs.FileInfo
 }
 
+// NewWorkflowsValidator constructs a WorkflowsValidator for the provided workflows.
 func NewWorkflowsValidator(cwd *core.PathCWD, workflows []*WorkflowSourceConfig) *WorkflowsValidator {
 	return &WorkflowsValidator{
 		cwd:       cwd,
@@ -27,7 +29,12 @@ func NewWorkflowsValidator(cwd *core.PathCWD, workflows []*WorkflowSourceConfig)
 	}
 }
 
-func (v *WorkflowsValidator) Validate(_ context.Context) error {
+// Validate ensures workflow sources exist, are files, and do not duplicate entries.
+func (v *WorkflowsValidator) Validate(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if len(v.workflows) == 0 {
 		return nil
 	}
@@ -37,6 +44,10 @@ func (v *WorkflowsValidator) Validate(_ context.Context) error {
 	v.statCache = make(map[string]fs.FileInfo, len(v.workflows))
 	seen := make(map[string]int, len(v.workflows))
 	for idx, wf := range v.workflows {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("workflow validation canceled: %w", err)
+		}
+
 		if wf == nil {
 			return fmt.Errorf("workflow[%d] configuration is nil", idx)
 		}
@@ -107,21 +118,27 @@ func (v *WorkflowsValidator) statPath(path string) (fs.FileInfo, error) {
 	return info, nil
 }
 
-// -----------------------------------------------------------------------------
-// WebhookSlugsValidator - Validates uniqueness of webhook slugs across workflows
-// -----------------------------------------------------------------------------
-
+// WebhookSlugsValidator validates uniqueness of webhook slugs across workflows.
 type WebhookSlugsValidator struct {
 	slugs []string
 }
 
+// NewWebhookSlugsValidator constructs a WebhookSlugsValidator.
 func NewWebhookSlugsValidator(slugs []string) *WebhookSlugsValidator {
 	return &WebhookSlugsValidator{slugs: slugs}
 }
 
-func (v *WebhookSlugsValidator) Validate(_ context.Context) error {
+// Validate reports an error if any webhook slug repeats across workflows.
+func (v *WebhookSlugsValidator) Validate(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	seen := make(map[string]struct{}, len(v.slugs))
 	for _, slug := range v.slugs {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("webhook slug validation canceled: %w", err)
+		}
 		if slug == "" {
 			continue
 		}

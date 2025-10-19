@@ -241,6 +241,14 @@
           "description": "AutoMigrate enables automatic database migrations on startup.\n\nWhen enabled, the system will automatically apply any pending database\nmigrations when establishing a database connection. This eliminates\nthe need for manual migration commands.\n\nDefault: true",
           "type": "boolean"
         },
+        "conn_max_idle_time": {
+          "description": "ConnMaxIdleTime bounds how long an idle connection is retained before recycling.\n\nDefault: `1m`",
+          "type": "integer"
+        },
+        "conn_max_lifetime": {
+          "description": "ConnMaxLifetime bounds how long a connection may be reused.\n\nDefault: `5m`",
+          "type": "integer"
+        },
         "conn_string": {
           "description": "ConnString provides a complete PostgreSQL connection URL.\n\nFormat: `postgres://user:password@host:port/database?sslmode=mode`\nTakes precedence over individual connection parameters.",
           "type": "string"
@@ -248,6 +256,14 @@
         "host": {
           "description": "Host specifies the database server hostname or IP address.\n\nDefault: \"localhost\"",
           "type": "string"
+        },
+        "max_idle_conns": {
+          "description": "MaxIdleConns defines the number of connections kept idle in the pool.\n\nDefault: `5`",
+          "type": "integer"
+        },
+        "max_open_conns": {
+          "description": "MaxOpenConns caps total simultaneous PostgreSQL connections from this service.\n\nDefault: `25`",
+          "type": "integer"
         },
         "migration_timeout": {
           "description": "MigrationTimeout sets the maximum allowed time for applying database\nmigrations during startup. It must be equal to or greater than the\nadvisory lock acquisition window used by ApplyMigrationsWithLock (45s).\n\nDefault: 2m",
@@ -474,6 +490,10 @@
         "tool_call_caps": {
           "$ref": "#/$defs/ToolCallCapsConfig",
           "description": "ToolCallCaps configures per-tool invocation caps enforced during orchestration."
+        },
+        "usage_metrics": {
+          "$ref": "#/$defs/LLMUsageMetricsConfig",
+          "description": "UsageMetrics configures observability knobs for usage persistence.\n\nAllows operators to tune histogram buckets collected by the usage repository."
         }
       },
       "type": "object"
@@ -515,6 +535,19 @@
           },
           "description": "PerProviderLimits customizes concurrency and queue depth for specific providers.\nKeys should match provider names (e.g., \"openai\", \"groq\").",
           "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "LLMUsageMetricsConfig": {
+      "additionalProperties": false,
+      "description": "LLMUsageMetricsConfig exposes tuning knobs for usage repository telemetry.",
+      "properties": {
+        "persist_buckets": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
         }
       },
       "type": "object"
@@ -569,6 +602,18 @@
         "host": {
           "description": "Host specifies the network interface to bind the MCP proxy server to.\n\n**Default**: `\"0.0.0.0\"`",
           "type": "string"
+        },
+        "idle_conn_timeout": {
+          "description": "IdleConnTimeout is the maximum amount of time an idle (keep-alive) connection will remain\nidle before closing itself.\n\n**Default**: `90s`",
+          "type": "integer"
+        },
+        "max_idle_conns": {
+          "description": "MaxIdleConns controls the maximum number of idle (keep-alive) connections across all hosts.\n\n**Default**: `128`",
+          "type": "integer"
+        },
+        "max_idle_conns_per_host": {
+          "description": "MaxIdleConnsPerHost controls the maximum idle (keep-alive) connections to keep per-host.\n\n**Default**: `128`",
+          "type": "integer"
         },
         "mode": {
           "description": "Mode controls how the MCP proxy runs within Compozy.\n\nValues:\n  - \"standalone\": embed MCP proxy inside the server\n  - \"\": external MCP proxy (default)\n\nWhen embedded, the server manages lifecycle and health of the proxy\nand will set LLM.ProxyURL if empty.",
@@ -1027,6 +1072,9 @@
         "http_read": {
           "type": "integer"
         },
+        "http_read_header": {
+          "type": "integer"
+        },
         "http_write": {
           "type": "integer"
         },
@@ -1134,6 +1182,18 @@
       "additionalProperties": false,
       "description": "WorkerConfig contains Temporal worker configuration.",
       "properties": {
+        "activity_heartbeat_timeout": {
+          "description": "ActivityHeartbeatTimeout defines the default heartbeat window for long-running activities.\n\n**Default**: `30s`",
+          "type": "integer"
+        },
+        "activity_max_retries": {
+          "description": "ActivityMaxRetries bounds retry attempts for default activity execution.\n\n**Default**: `3`",
+          "type": "integer"
+        },
+        "activity_start_to_close_timeout": {
+          "description": "ActivityStartToCloseTimeout defines the default bounded execution time for retryable activities.\n\n**Default**: `5m`",
+          "type": "integer"
+        },
         "config_store_ttl": {
           "description": "ConfigStoreTTL sets how long worker configurations are cached.\n\n**Default**: `24h`",
           "type": "integer"
@@ -1150,8 +1210,28 @@
           "description": "DispatcherRetryDelay sets delay between dispatcher retry attempts.\n\n**Default**: `50ms`",
           "type": "integer"
         },
+        "error_handler_max_retries": {
+          "description": "ErrorHandlerMaxRetries caps retry attempts for error handling activities.\n\n**Default**: `3`",
+          "type": "integer"
+        },
+        "error_handler_timeout": {
+          "description": "ErrorHandlerTimeout bounds retries invoked during workflow failure handling logic.\n\n**Default**: `30s`",
+          "type": "integer"
+        },
         "heartbeat_cleanup_timeout": {
           "description": "HeartbeatCleanupTimeout sets timeout for heartbeat cleanup operations.\n\n**Default**: `5s`",
+          "type": "integer"
+        },
+        "max_concurrent_activity_execution_size": {
+          "description": "MaxConcurrentActivityExecutionSize bounds the number of activities a worker executes concurrently.\n\n**Default**: `0` (auto = 2x CPUs)",
+          "type": "integer"
+        },
+        "max_concurrent_local_activity_execution_size": {
+          "description": "MaxConcurrentLocalActivityExecutionSize bounds concurrently executing local activities.\n\n**Default**: `0` (auto = 4x CPUs)",
+          "type": "integer"
+        },
+        "max_concurrent_workflow_execution_size": {
+          "description": "MaxConcurrentWorkflowExecutionSize bounds the number of workflow tasks executed concurrently.\n\n**Default**: `0` (auto = 1x CPUs)",
           "type": "integer"
         },
         "mcp_proxy_health_check_timeout": {

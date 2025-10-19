@@ -124,7 +124,7 @@ func LoadWithEnv(ctx context.Context, yamlConfig *Config) (*Config, error) {
 	}
 	// Environment variable takes precedence for Path
 	if envPath := os.Getenv("MONITORING_PATH"); envPath != "" {
-		config.Path = envPath
+		config.Path = strings.TrimSpace(envPath)
 	}
 	// Validate configuration before returning
 	if err := config.Validate(ctx); err != nil {

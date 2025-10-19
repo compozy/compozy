@@ -179,8 +179,7 @@ func (a *Adapter) cachedEmbedDocuments(
 	texts []string,
 ) ([][]float32, error) {
 	results := make([][]float32, len(texts))
-	missing := make([]string, 0)
-	missingIdx := make([]int, 0)
+	missingIdxMap := make(map[string][]int)
 	for i := range texts {
 		text := texts[i]
 		if vector, ok := a.lookupCache(cache, text); ok {
@@ -189,32 +188,37 @@ func (a *Adapter) cachedEmbedDocuments(
 			continue
 		}
 		memoryembeddings.RecordCacheMiss(ctx, string(a.provider))
-		missing = append(missing, text)
-		missingIdx = append(missingIdx, i)
+		missingIdxMap[text] = append(missingIdxMap[text], i)
 	}
-	if len(missing) == 0 {
+	if len(missingIdxMap) == 0 {
 		return results, nil
 	}
-	tokens, tokenErr := memoryembeddings.EstimateTokens(ctx, string(a.provider), a.model, missing)
+	uniqueMissing := make([]string, 0, len(missingIdxMap))
+	for text := range missingIdxMap {
+		uniqueMissing = append(uniqueMissing, text)
+	}
+	tokens, tokenErr := memoryembeddings.EstimateTokens(ctx, string(a.provider), a.model, uniqueMissing)
 	if tokenErr != nil {
 		logger.FromContext(ctx).
 			Warn("failed to estimate embedding tokens", "provider", a.provider, "model", a.model, "error", tokenErr)
 	}
 	start := time.Now()
-	embedded, err := a.impl.EmbedDocuments(ctx, missing)
+	embedded, err := a.impl.EmbedDocuments(ctx, uniqueMissing)
 	if err != nil {
 		memoryembeddings.RecordError(ctx, string(a.provider), a.model, categorizeError(err))
 		return nil, a.withContext(err)
 	}
-	if len(embedded) != len(missing) {
-		return nil, a.withContext(fmt.Errorf("received %d embeddings for %d texts", len(embedded), len(missing)))
+	if len(embedded) != len(uniqueMissing) {
+		return nil, a.withContext(fmt.Errorf("received %d embeddings for %d texts", len(embedded), len(uniqueMissing)))
 	}
-	memoryembeddings.RecordGeneration(ctx, string(a.provider), a.model, len(missing), time.Since(start), tokens)
+	memoryembeddings.RecordGeneration(ctx, string(a.provider), a.model, len(uniqueMissing), time.Since(start), tokens)
 	for i := range embedded {
-		idx := missingIdx[i]
+		text := uniqueMissing[i]
 		cloned := cloneVector(embedded[i])
-		results[idx] = cloned
-		a.storeCache(cache, missing[i], cloned)
+		for _, idx := range missingIdxMap[text] {
+			results[idx] = cloned
+		}
+		a.storeCache(cache, text, cloned)
 	}
 	return results, nil
 }
@@ -250,10 +254,9 @@ func (a *Adapter) storeCache(cache *lru.Cache[string, []float32], text string, v
 		return
 	}
 	key := cacheKey(text)
-	cloned := cloneVector(vector)
 	a.cacheMu.Lock()
 	if a.cache == cache && a.cache != nil {
-		a.cache.Add(key, cloned)
+		a.cache.Add(key, vector)
 	}
 	a.cacheMu.Unlock()
 }

@@ -129,7 +129,8 @@ func (cb *ConfigBuilder) processTaskWith(
 	if err != nil {
 		return fmt.Errorf("failed to process with field: %w", err)
 	}
-	for k, v := range processed {
+	merged := core.CopyMaps(mergedInput, processed)
+	for k, v := range merged {
 		mergedInput[k] = v
 	}
 	return nil

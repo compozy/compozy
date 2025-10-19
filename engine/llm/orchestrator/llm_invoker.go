@@ -71,7 +71,11 @@ func (i *llmInvoker) buildBackoff(maxRetries uint64) retry.Backoff {
 	exponential := retry.NewExponential(i.cfg.retryBackoffBase)
 	exponential = retry.WithMaxDuration(i.cfg.retryBackoffMax, exponential)
 	if i.cfg.retryJitter {
-		return retry.WithMaxRetries(maxRetries, retry.WithJitter(defaultRetryJitter, exponential))
+		jitterMax := i.cfg.retryJitterMax
+		if jitterMax <= 0 {
+			jitterMax = defaultRetryJitter
+		}
+		return retry.WithMaxRetries(maxRetries, retry.WithJitter(jitterMax, exponential))
 	}
 	return retry.WithMaxRetries(maxRetries, exponential)
 }

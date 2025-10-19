@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/core"
@@ -39,7 +40,13 @@ func (uc *UpdateUser) Execute(ctx context.Context) (*model.User, error) {
 	// Get existing user
 	user, err := uc.repo.GetUserByID(ctx, uc.userID)
 	if err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
+		if errors.Is(err, ErrUserNotFound) {
+			return nil, err
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return nil, fmt.Errorf("%w: %w", ErrUserNotFound, err)
+		}
+		return nil, fmt.Errorf("failed to retrieve user %s: %w", uc.userID, err)
 	}
 	// Update fields
 	if uc.input.Email != nil {

@@ -8278,10 +8278,11 @@ paths:
           in: query
           name: project
           type: string
-        - description: Strong ETag for optimistic concurrency
+        - description: Strong ETag for optimistic concurrency (required for updates)
           example: '"\"abc123\""'
           in: header
           name: If-Match
+          required: true
           type: string
         - description: Project configuration payload
           in: body

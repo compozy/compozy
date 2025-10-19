@@ -592,9 +592,7 @@ func (c *Config) validateLimits(_ context.Context) error {
 	if c.StartTimeout < 0 {
 		return errors.New("start_timeout cannot be negative")
 	}
-	if c.MaxSessions < 0 {
-		return errors.New("max_sessions cannot be negative")
-	}
+	// Negative or zero => unlimited sessions (allowed per documentation lines 320-329)
 	return nil
 }
 

@@ -28,6 +28,9 @@ func NewDefaultFactory(ctx context.Context) (Factory, error) {
 }
 
 // NewDefaultFactoryWithRegistry creates a factory bound to the provided registry.
+// If registry is nil, a new empty registry is created WITHOUT builtin providers.
+// Callers must explicitly register providers via RegisterProviders() after creation.
+// For a factory with builtin providers pre-registered, use NewDefaultFactory() instead.
 func NewDefaultFactoryWithRegistry(ctx context.Context, registry *Registry) Factory {
 	if ctx == nil {
 		panic("context must not be nil")

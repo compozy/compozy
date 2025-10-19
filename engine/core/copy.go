@@ -14,7 +14,7 @@ func Merge[D, S ~map[string]any](dst D, src S, kind string) (D, error) {
 	var zero D
 	dstClone := CloneMap(dst)
 	srcClone := CloneMap(src)
-	if srcClone != nil {
+	if len(srcClone) > 0 {
 		if err := mergo.Merge(&dstClone, srcClone, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
 			return zero, fmt.Errorf("failed to merge %s: %w", kind, err)
 		}

@@ -48,11 +48,11 @@ func getProject(c *gin.Context) {
 	}
 	dto, err := toProjectDTO(out.Config)
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map project", err)
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	router.RespondOK(c, "project retrieved", dto)
+	router.RespondOK(c, "Success", dto)
 }
 
 // upsertProject handles PUT /project.
@@ -63,7 +63,7 @@ func getProject(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param project query string false "Project override" example("demo")
-// @Param If-Match header string false "Strong ETag for optimistic concurrency" example("\"abc123\"")
+// @Param If-Match header string true "Strong ETag for optimistic concurrency (required for updates)" example("\"abc123\"")
 // @Param payload body map[string]any true "Project configuration payload"
 // @Success 200 {object} router.Response{data=projectrouter.ProjectDTO} "Project updated"
 // @Success 201 {object} router.Response{data=projectrouter.ProjectDTO} "Project created"
@@ -107,16 +107,16 @@ func upsertProject(c *gin.Context) {
 	}
 	dto, err := toProjectDTO(out.Config)
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to map project", err)
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
 	if out.Created {
 		c.Header("Location", routes.Project())
-		router.RespondCreated(c, "project created", dto)
+		router.RespondCreated(c, "Success", dto)
 		return
 	}
-	router.RespondOK(c, "project updated", dto)
+	router.RespondOK(c, "Success", dto)
 }
 
 // deleteProject handles DELETE /project.
@@ -144,6 +144,8 @@ func respondProjectError(c *gin.Context, err error) {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, projectuc.ErrETagMismatch), errors.Is(err, projectuc.ErrStaleIfMatch):
 		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+	case errors.Is(err, projectuc.ErrIfMatchRequired):
+		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionRequired, Detail: err.Error()})
 	default:
 		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}

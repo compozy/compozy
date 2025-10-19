@@ -1,6 +1,7 @@
 package projectrouter
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -29,7 +30,8 @@ type ProjectDTO struct {
 
 // toProjectDTO transforms a project.Config into a ProjectDTO using JSON marshaling.
 // It avoids reflection-heavy mapstructure conversions used by AsMap() while keeping
-// the existing transport shape intact.
+// the existing transport shape intact. Uses json.Decoder with UseNumber to preserve
+// numeric fidelity in nested maps (preventing float64 coercion of large integers).
 func toProjectDTO(cfg *project.Config) (ProjectDTO, error) {
 	if cfg == nil {
 		return ProjectDTO{}, nil
@@ -39,7 +41,9 @@ func toProjectDTO(cfg *project.Config) (ProjectDTO, error) {
 		return ProjectDTO{}, fmt.Errorf("failed to marshal project config: %w", err)
 	}
 	var dto ProjectDTO
-	if err := json.Unmarshal(encoded, &dto); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(encoded))
+	dec.UseNumber()
+	if err := dec.Decode(&dto); err != nil {
 		return ProjectDTO{}, fmt.Errorf("failed to map project config to DTO: %w", err)
 	}
 	return dto, nil

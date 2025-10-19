@@ -341,6 +341,14 @@ func (r *toolRegistry) getMCPTools(ctx context.Context) ([]tools.Tool, bool, err
 func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error) {
 	log := logger.FromContext(ctx)
 	if r.config.ProxyClient == nil {
+		r.mcpMu.Lock()
+		r.mcpTools = nil
+		r.mcpToolIndex = make(map[string]tools.Tool)
+		r.mcpTotalCount = 0
+		r.mcpCacheTs = r.now()
+		r.mcpCachedEmpty = true
+		r.mcpMu.Unlock()
+		log.Debug("Refreshed MCP tools cache (proxy disabled/absent)")
 		return []tools.Tool{}, nil
 	}
 
@@ -365,7 +373,18 @@ func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error
 		if canonical == "" {
 			continue
 		}
-		if _, exists := index[canonical]; exists {
+		if existing, exists := index[canonical]; exists {
+			var existingMCPName, newMCPName string
+			if named, ok := any(existing).(mcpNamed); ok {
+				existingMCPName = named.MCPName()
+			}
+			if named, ok := any(proxyTool).(mcpNamed); ok {
+				newMCPName = named.MCPName()
+			}
+			logger.FromContext(ctx).Debug("duplicate MCP tool canonical name; keeping first (deterministic)",
+				"canonical", canonical,
+				"kept_mcp", existingMCPName,
+				"skipped_mcp", newMCPName)
 			continue
 		}
 		if !r.mcpToolAllowed(proxyTool) {

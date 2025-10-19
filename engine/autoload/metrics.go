@@ -2,12 +2,12 @@ package autoload
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
+	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -20,8 +20,14 @@ const (
 )
 
 var (
+	// autoloadDurationBuckets defines histogram bucket boundaries in seconds.
+	// Chosen to capture typical autoload latencies: 100ms (fast), 500ms-1s (normal),
+	// 2-5s (slow), 10-30s (very slow or large configs). Adjust via config if needed.
 	autoloadDurationBuckets = []float64{0.1, 0.5, 1, 2, 5, 10, 30}
 
+	// supportedConfigMetricTypes defines which resource types emit metrics.
+	// Limited to high-cardinality types to avoid metric explosion.
+	// Expand via config if additional types need tracking.
 	supportedConfigMetricTypes = map[string]struct{}{
 		"workflow": {},
 		"agent":    {},
@@ -57,7 +63,7 @@ type autoloadMetrics struct {
 
 var metricsContainer autoloadMetrics
 
-func autoloadMetricsRecorder() *autoloadMetrics {
+func autoloadMetricsRecorder(ctx context.Context) *autoloadMetrics {
 	metricsContainer.initOnce.Do(func() {
 		meter := otel.GetMeterProvider().Meter("compozy.autoload")
 		var err error
@@ -69,7 +75,7 @@ func autoloadMetricsRecorder() *autoloadMetrics {
 			metric.WithExplicitBucketBoundaries(autoloadDurationBuckets...),
 		)
 		if err != nil {
-			panic(fmt.Errorf("autoload metrics: duration histogram: %w", err))
+			logger.FromContext(ctx).Warn("autoload metrics: failed to create duration histogram", "error", err)
 		}
 
 		metricsContainer.filesProcessed, err = meter.Int64Counter(
@@ -78,7 +84,7 @@ func autoloadMetricsRecorder() *autoloadMetrics {
 			metric.WithUnit("1"),
 		)
 		if err != nil {
-			panic(fmt.Errorf("autoload metrics: files processed counter: %w", err))
+			logger.FromContext(ctx).Warn("autoload metrics: failed to create files processed counter", "error", err)
 		}
 
 		metricsContainer.configsLoaded, err = meter.Int64Counter(
@@ -87,7 +93,7 @@ func autoloadMetricsRecorder() *autoloadMetrics {
 			metric.WithUnit("1"),
 		)
 		if err != nil {
-			panic(fmt.Errorf("autoload metrics: configs loaded counter: %w", err))
+			logger.FromContext(ctx).Warn("autoload metrics: failed to create configs loaded counter", "error", err)
 		}
 
 		metricsContainer.errorsTotal, err = meter.Int64Counter(
@@ -96,14 +102,14 @@ func autoloadMetricsRecorder() *autoloadMetrics {
 			metric.WithUnit("1"),
 		)
 		if err != nil {
-			panic(fmt.Errorf("autoload metrics: errors counter: %w", err))
+			logger.FromContext(ctx).Warn("autoload metrics: failed to create errors counter", "error", err)
 		}
 	})
 	return &metricsContainer
 }
 
 func recordAutoloadDuration(ctx context.Context, project string, duration time.Duration) {
-	recorder := autoloadMetricsRecorder()
+	recorder := autoloadMetricsRecorder(ctx)
 	if recorder.durationHistogram == nil {
 		return
 	}
@@ -113,7 +119,7 @@ func recordAutoloadDuration(ctx context.Context, project string, duration time.D
 }
 
 func recordAutoloadFileOutcome(ctx context.Context, project string, outcome autoloadFileOutcome) {
-	recorder := autoloadMetricsRecorder()
+	recorder := autoloadMetricsRecorder(ctx)
 	if recorder.filesProcessed == nil {
 		return
 	}
@@ -132,7 +138,7 @@ func recordAutoloadConfigLoaded(ctx context.Context, project string, normalizedR
 	if _, ok := supportedConfigMetricTypes[normalizedResourceType]; !ok {
 		return
 	}
-	recorder := autoloadMetricsRecorder()
+	recorder := autoloadMetricsRecorder(ctx)
 	if recorder.configsLoaded == nil {
 		return
 	}
@@ -145,7 +151,7 @@ func recordAutoloadConfigLoaded(ctx context.Context, project string, normalizedR
 }
 
 func recordAutoloadError(ctx context.Context, project string, label autoloadErrorLabel) {
-	recorder := autoloadMetricsRecorder()
+	recorder := autoloadMetricsRecorder(ctx)
 	if recorder.errorsTotal == nil {
 		return
 	}

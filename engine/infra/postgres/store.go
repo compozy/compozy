@@ -10,6 +10,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	defaultMaxConns           = 20
+	defaultMinConns           = 2
+	defaultHealthCheckPeriod  = 30 * time.Second
+	defaultConnectTimeout     = 5 * time.Second
+	defaultPingTimeout        = 3 * time.Second
+	defaultHealthCheckTimeout = 1 * time.Second
+)
+
 // Store is the concrete PostgreSQL driver backed by pgxpool.Pool.
 // It intentionally does not leak pgx types through its public API.
 type Store struct {
@@ -28,8 +37,11 @@ func NewStore(ctx context.Context, cfg *Config) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("postgres: parse config: %w", err)
 	}
-	metricsTracker := configurePostgresMetrics(cfg, poolCfg)
-	maxConns := int32(20)
+	metricsTracker, mErr := configurePostgresMetrics(cfg, poolCfg)
+	if mErr != nil {
+		log.With("err", mErr).Warn("Postgres metrics not initialized; continuing without metrics")
+	}
+	maxConns := int32(defaultMaxConns)
 	if cfg.MaxOpenConns > 0 {
 		if cfg.MaxOpenConns > int(math.MaxInt32) {
 			maxConns = math.MaxInt32
@@ -37,17 +49,20 @@ func NewStore(ctx context.Context, cfg *Config) (*Store, error) {
 			maxConns = int32(cfg.MaxOpenConns)
 		}
 	}
-	minConns := int32(2)
+	minConns := int32(defaultMinConns)
 	if cfg.MaxIdleConns > 0 {
 		candidate := clampIntToInt32WithLimit(cfg.MaxIdleConns, maxConns)
 		if candidate > 0 {
 			minConns = candidate
 		}
 	}
+	if minConns > maxConns {
+		minConns = maxConns
+	}
 	poolCfg.MaxConns = maxConns
 	poolCfg.MinConns = minConns
-	poolCfg.HealthCheckPeriod = 30 * time.Second
-	poolCfg.ConnConfig.ConnectTimeout = 5 * time.Second
+	poolCfg.HealthCheckPeriod = defaultHealthCheckPeriod
+	poolCfg.ConnConfig.ConnectTimeout = defaultConnectTimeout
 	if cfg.ConnMaxLifetime > 0 {
 		poolCfg.MaxConnLifetime = cfg.ConnMaxLifetime
 	}
@@ -61,7 +76,7 @@ func NewStore(ctx context.Context, cfg *Config) (*Store, error) {
 	if metricsTracker != nil {
 		metricsTracker.attach(pool)
 	}
-	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, defaultPingTimeout)
 	defer cancel()
 	if err := pool.Ping(pingCtx); err != nil {
 		pool.Close()
@@ -96,7 +111,7 @@ func (s *Store) Pool() *pgxpool.Pool { return s.pool }
 
 // HealthCheck verifies the connection is alive.
 func (s *Store) HealthCheck(ctx context.Context) error {
-	hctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	hctx, cancel := context.WithTimeout(ctx, defaultHealthCheckTimeout)
 	defer cancel()
 	if err := s.pool.Ping(hctx); err != nil {
 		return fmt.Errorf("postgres: health check failed: %w", err)
@@ -104,15 +119,20 @@ func (s *Store) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// clampIntToInt32WithLimit clamps value to [0, limit] and int32 bounds.
+// Non-positive values return 0, and value is clamped to the provided limit and to MaxInt32.
 func clampIntToInt32WithLimit(value int, limit int32) int32 {
-	if value <= 0 {
+	if value <= 0 || limit <= 0 {
 		return 0
+	}
+	if value > int(math.MaxInt32) {
+		if limit < math.MaxInt32 {
+			return limit
+		}
+		return math.MaxInt32
 	}
 	if value >= int(limit) {
 		return limit
-	}
-	if value > int(math.MaxInt32) {
-		return math.MaxInt32
 	}
 	return int32(value)
 }

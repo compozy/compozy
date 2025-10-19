@@ -3,6 +3,7 @@ package llmadapter
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 )
 
 type stubProviderMetrics struct {
+	mu     sync.Mutex
 	delays []time.Duration
 }
 
@@ -24,8 +26,18 @@ func (s *stubProviderMetrics) RecordCost(context.Context, core.ProviderName, str
 func (s *stubProviderMetrics) RecordError(context.Context, core.ProviderName, string, string)       {}
 func (s *stubProviderMetrics) RecordRateLimitDelay(_ context.Context, _ core.ProviderName, delay time.Duration) {
 	if delay > 0 {
+		s.mu.Lock()
 		s.delays = append(s.delays, delay)
+		s.mu.Unlock()
 	}
+}
+
+func (s *stubProviderMetrics) Delays() []time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]time.Duration, len(s.delays))
+	copy(out, s.delays)
+	return out
 }
 
 func TestProviderRateLimiter_ConcurrencyLimit(t *testing.T) {
@@ -77,12 +89,15 @@ func TestProviderRateLimiter_QueueWaitsForSlot(t *testing.T) {
 
 	registry.Release(ctx, core.ProviderOpenAI, 0)
 
-	select {
-	case err := <-errCh:
-		require.NoError(t, err)
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("expected queued acquire to complete")
-	}
+	require.Eventually(t, func() bool {
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
 
 	registry.Release(ctx, core.ProviderOpenAI, 0)
 }
@@ -275,7 +290,7 @@ func TestRateLimiterRegistry_RecordsDelay(t *testing.T) {
 		t.Fatal("queued acquire did not complete")
 	}
 
-	require.NotEmpty(t, metrics.delays)
-	require.Greater(t, metrics.delays[0], time.Duration(0))
+	require.NotEmpty(t, metrics.Delays())
+	require.Greater(t, metrics.Delays()[0], time.Duration(0))
 	registry.Release(ctx, core.ProviderOpenAI, 0)
 }

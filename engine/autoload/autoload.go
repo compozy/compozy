@@ -14,6 +14,13 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+const (
+	// workerCPUMultiplier determines how many workers to spawn per CPU core for concurrent file processing
+	workerCPUMultiplier = 2
+	// workerMaxCap limits the maximum number of concurrent workers regardless of CPU count
+	workerMaxCap = 16
+)
+
 // AutoLoader is the main orchestrator for auto-loading configurations
 type AutoLoader struct {
 	projectRoot string
@@ -164,8 +171,6 @@ func (al *AutoLoader) LoadWithResult(ctx context.Context) (*LoadResult, error) {
 	if err := al.processFiles(ctx, files, result); err != nil {
 		return result, err
 	}
-	// 3. Install lazy resolver for resource:: scope
-	// TODO: Implement in resource resolution task
 	al.logCompletionStats(ctx, startTime, result)
 	return result, nil
 }
@@ -208,15 +213,15 @@ func workerConcurrencyLimit(totalFiles int) int {
 	if totalFiles <= 0 {
 		return 0
 	}
-	limit := runtime.NumCPU() * 2
+	limit := runtime.NumCPU() * workerCPUMultiplier
 	if limit < 1 {
 		limit = 1
 	}
 	if limit > totalFiles {
 		limit = totalFiles
 	}
-	if limit > 16 {
-		limit = 16
+	if limit > workerMaxCap {
+		limit = workerMaxCap
 	}
 	return limit
 }
@@ -462,8 +467,11 @@ func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string
 
 // validateFilePath ensures the file path doesn't escape the project root
 func (al *AutoLoader) validateFilePath(filePath string) error {
-	// Convert both paths to absolute and resolve symlinks for comparison
-	absFile, err := filepath.EvalSymlinks(filePath)
+	// Canonicalize both paths: absolute then resolve symlinks
+	absFile, err := filepath.Abs(filePath)
+	if err == nil {
+		absFile, err = filepath.EvalSymlinks(absFile)
+	}
 	if err != nil {
 		return core.NewError(
 			err,
@@ -474,7 +482,10 @@ func (al *AutoLoader) validateFilePath(filePath string) error {
 			},
 		)
 	}
-	absProject, err := filepath.EvalSymlinks(al.projectRoot)
+	absProject, err := filepath.Abs(al.projectRoot)
+	if err == nil {
+		absProject, err = filepath.EvalSymlinks(absProject)
+	}
 	if err != nil {
 		return core.NewError(
 			err,

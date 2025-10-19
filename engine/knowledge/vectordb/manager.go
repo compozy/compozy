@@ -131,6 +131,7 @@ func (m *Manager) reset(ctx context.Context) {
 }
 
 func signatureKey(cfg *Config) string {
+	const sigSep = "\x1f" // ASCII Unit Separator (non-printable, collision-safe)
 	fields := []string{
 		string(cfg.Provider),
 		strings.TrimSpace(cfg.DSN),
@@ -147,7 +148,7 @@ func signatureKey(cfg *Config) string {
 		hashOptionsMap(cfg.Options),
 	}
 	fields = append(fields, pgVectorSignature(cfg.PGVector)...)
-	return strings.Join(fields, "|")
+	return strings.Join(fields, sigSep)
 }
 
 func pgVectorSignature(opts *PGVectorOptions) []string {

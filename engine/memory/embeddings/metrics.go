@@ -3,6 +3,7 @@ package embeddings
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,7 +21,10 @@ const (
 	labelModel          = "model"
 	labelBatchSize      = "batch_size"
 	labelErrorType      = "error_type"
+	modelOther          = "other"
 )
+
+var defaultLatencyBuckets = []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5}
 
 var (
 	metricsOnce       sync.Once
@@ -43,6 +47,28 @@ const (
 	ErrorTypeServerError ErrorType = "server_error"
 )
 
+// normalizeModelName reduces model cardinality by mapping known model patterns to stable names.
+func normalizeModelName(model string) string {
+	normalized := strings.ToLower(strings.TrimSpace(model))
+	if normalized == "" {
+		return modelOther
+	}
+	// Map known prefixes to stable names to prevent cardinality explosion
+	// TODO: Expand this whitelist as new stable models are identified
+	switch {
+	case strings.HasPrefix(normalized, "text-embedding-ada"):
+		return "text-embedding-ada"
+	case strings.HasPrefix(normalized, "text-embedding-3"):
+		return "text-embedding-3"
+	case strings.HasPrefix(normalized, "embed-"):
+		return "embed-generic"
+	case strings.HasPrefix(normalized, "voyage-"):
+		return "voyage-generic"
+	default:
+		return modelOther
+	}
+}
+
 type instruments struct {
 	generationLatency metric.Float64Histogram
 	tokensTotal       metric.Int64Counter
@@ -63,16 +89,17 @@ func RecordGeneration(
 	if !ensureInstruments(ctx) {
 		return
 	}
+	normalizedModel := normalizeModelName(model)
 	attrs := []attribute.KeyValue{
 		attribute.String(labelProvider, provider),
-		attribute.String(labelModel, model),
+		attribute.String(labelModel, normalizedModel),
 		attribute.Int(labelBatchSize, batchSize),
 	}
 	metricInstruments.generationLatency.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
 	if tokenCount > 0 {
 		metricInstruments.tokensTotal.Add(ctx, int64(tokenCount), metric.WithAttributes(
 			attribute.String(labelProvider, provider),
-			attribute.String(labelModel, model),
+			attribute.String(labelModel, normalizedModel),
 		))
 	}
 }
@@ -100,67 +127,71 @@ func RecordError(ctx context.Context, provider string, model string, errorType E
 	}
 	metricInstruments.errorsTotal.Add(ctx, 1, metric.WithAttributes(
 		attribute.String(labelProvider, provider),
-		attribute.String(labelModel, model),
+		attribute.String(labelModel, normalizeModelName(model)),
 		attribute.String(labelErrorType, string(errorType)),
 	))
+}
+
+func newInstruments(meter metric.Meter) (instruments, error) {
+	latency, err := meter.Float64Histogram(
+		monitoringmetrics.MetricNameWithSubsystem(subsystemEmbeddings, "generate_seconds"),
+		metric.WithDescription("Embedding generation latency"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(defaultLatencyBuckets...),
+	)
+	if err != nil {
+		return instruments{}, fmt.Errorf("create embeddings latency histogram: %w", err)
+	}
+	tokens, err := meter.Int64Counter(
+		monitoringmetrics.MetricNameWithSubsystem(subsystemEmbeddings, "tokens_total"),
+		metric.WithDescription("Total tokens processed for embeddings"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return instruments{}, fmt.Errorf("create embeddings tokens counter: %w", err)
+	}
+	hits, err := meter.Int64Counter(
+		monitoringmetrics.MetricNameWithSubsystem(subsystemEmbeddings, "cache_hits_total"),
+		metric.WithDescription("Embedding cache hits"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return instruments{}, fmt.Errorf("create embeddings cache hits counter: %w", err)
+	}
+	misses, err := meter.Int64Counter(
+		monitoringmetrics.MetricNameWithSubsystem(subsystemEmbeddings, "cache_misses_total"),
+		metric.WithDescription("Embedding cache misses"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return instruments{}, fmt.Errorf("create embeddings cache misses counter: %w", err)
+	}
+	errorsCounter, err := meter.Int64Counter(
+		monitoringmetrics.MetricNameWithSubsystem(subsystemEmbeddings, "errors_total"),
+		metric.WithDescription("Embedding generation errors"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return instruments{}, fmt.Errorf("create embeddings errors counter: %w", err)
+	}
+	return instruments{
+		generationLatency: latency,
+		tokensTotal:       tokens,
+		cacheHitsTotal:    hits,
+		cacheMissesTotal:  misses,
+		errorsTotal:       errorsCounter,
+	}, nil
 }
 
 func ensureInstruments(ctx context.Context) bool {
 	metricsOnce.Do(func() {
 		meter := otel.GetMeterProvider().Meter(meterName)
-		latency, err := meter.Float64Histogram(
-			monitoringmetrics.MetricNameWithSubsystem(subsystemEmbeddings, "generate_seconds"),
-			metric.WithDescription("Embedding generation latency"),
-			metric.WithUnit("s"),
-			metric.WithExplicitBucketBoundaries(0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5),
-		)
+		ins, err := newInstruments(meter)
 		if err != nil {
-			metricsInitErr = fmt.Errorf("create embeddings latency histogram: %w", err)
+			metricsInitErr = err
 			return
 		}
-		tokens, err := meter.Int64Counter(
-			monitoringmetrics.MetricNameWithSubsystem(subsystemEmbeddings, "tokens_total"),
-			metric.WithDescription("Total tokens processed for embeddings"),
-			metric.WithUnit("1"),
-		)
-		if err != nil {
-			metricsInitErr = fmt.Errorf("create embeddings tokens counter: %w", err)
-			return
-		}
-		hits, err := meter.Int64Counter(
-			monitoringmetrics.MetricNameWithSubsystem(subsystemEmbeddings, "cache_hits_total"),
-			metric.WithDescription("Embedding cache hits"),
-			metric.WithUnit("1"),
-		)
-		if err != nil {
-			metricsInitErr = fmt.Errorf("create embeddings cache hits counter: %w", err)
-			return
-		}
-		misses, err := meter.Int64Counter(
-			monitoringmetrics.MetricNameWithSubsystem(subsystemEmbeddings, "cache_misses_total"),
-			metric.WithDescription("Embedding cache misses"),
-			metric.WithUnit("1"),
-		)
-		if err != nil {
-			metricsInitErr = fmt.Errorf("create embeddings cache misses counter: %w", err)
-			return
-		}
-		errorsCounter, err := meter.Int64Counter(
-			monitoringmetrics.MetricNameWithSubsystem(subsystemEmbeddings, "errors_total"),
-			metric.WithDescription("Embedding generation errors"),
-			metric.WithUnit("1"),
-		)
-		if err != nil {
-			metricsInitErr = fmt.Errorf("create embeddings errors counter: %w", err)
-			return
-		}
-		metricInstruments = instruments{
-			generationLatency: latency,
-			tokensTotal:       tokens,
-			cacheHitsTotal:    hits,
-			cacheMissesTotal:  misses,
-			errorsTotal:       errorsCounter,
-		}
+		metricInstruments = ins
 	})
 	if metricsInitErr != nil {
 		errorLogOnce.Do(func() {
@@ -172,6 +203,8 @@ func ensureInstruments(ctx context.Context) bool {
 }
 
 // resetMetrics is intended for tests.
+//
+
 func resetMetrics() {
 	metricsOnce = sync.Once{}
 	errorLogOnce = sync.Once{}

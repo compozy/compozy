@@ -41,6 +41,19 @@
       },
       "type": "object"
     },
+    "LLMUsageMetricsConfig": {
+      "additionalProperties": false,
+      "description": "LLMUsageMetricsConfig exposes tuning knobs for usage repository telemetry.",
+      "properties": {
+        "persist_buckets": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "ProviderRateLimitConfig": {
       "additionalProperties": false,
       "description": "ProviderRateLimitConfig describes concurrency limits for a single provider.",
@@ -251,6 +264,10 @@
     "tool_call_caps": {
       "$ref": "#/$defs/ToolCallCapsConfig",
       "description": "ToolCallCaps configures per-tool invocation caps enforced during orchestration."
+    },
+    "usage_metrics": {
+      "$ref": "#/$defs/LLMUsageMetricsConfig",
+      "description": "UsageMetrics configures observability knobs for usage persistence.\n\nAllows operators to tune histogram buckets collected by the usage repository."
     }
   },
   "title": "LLM Configuration",

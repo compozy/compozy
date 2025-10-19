@@ -332,53 +332,26 @@ func buildTaskSyncPayload(
 	output *core.Output,
 ) gin.H {
 	ctx := c.Request.Context()
-	payload := gin.H{"exec_id": execID.String()}
-	if output != nil {
-		payload["output"] = output
-	}
-	includeState := includesStateDetails(c)
-	snapshotCtx := context.WithoutCancel(ctx)
-	embeddedUsage := false
-	if includeState {
-		stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
-		if stateErr == nil && stateSnapshot != nil {
-			dto := newTaskExecutionStatusDTO(stateSnapshot)
-			dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
-			if dto.Usage != nil {
-				embeddedUsage = true
-			}
-			payload["state"] = dto
-			if stateSnapshot.Output != nil {
-				payload["output"] = stateSnapshot.Output
-			}
-		} else if stateErr != nil {
+	return router.BuildSyncPayload(router.SyncPayloadOptions{
+		Context:      c,
+		Repo:         repo,
+		ExecID:       execID,
+		Output:       output,
+		IncludeState: router.HasIncludeToken(c, "state"),
+		OnState: func(state *task.State) (any, bool) {
+			dto := newTaskExecutionStatusDTO(state)
+			dto.Usage = router.NewUsageSummary(state.Usage)
+			return dto, dto.Usage != nil
+		},
+		OnStateError: func(stateErr error) {
 			logger.FromContext(ctx).Warn(
 				"Failed to load task execution state after completion",
 				"task_id", taskID,
 				"exec_id", execID.String(),
 				"error", stateErr,
 			)
-		}
-	}
-	if !embeddedUsage {
-		if summary := router.ResolveTaskUsageSummary(snapshotCtx, repo, execID); summary != nil {
-			payload["usage"] = summary
-		}
-	}
-	return payload
-}
-
-func includesStateDetails(c *gin.Context) bool {
-	raw := c.Query("include")
-	if raw == "" {
-		return false
-	}
-	for _, token := range strings.Split(raw, ",") {
-		if strings.EqualFold(strings.TrimSpace(token), "state") {
-			return true
-		}
-	}
-	return false
+		},
+	})
 }
 
 type TaskExecutionStatusDTO struct {

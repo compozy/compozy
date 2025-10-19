@@ -85,6 +85,14 @@ func NewRateLimiterRegistry(cfg appconfig.LLMRateLimitConfig, recorder providerm
 	}
 }
 
+// SetRecorder replaces the metrics recorder used by the registry and its children.
+func (r *RateLimiterRegistry) SetRecorder(rec providermetrics.Recorder) {
+	if rec == nil {
+		rec = providermetrics.Nop()
+	}
+	r.metrics = rec
+}
+
 // Acquire reserves a concurrency slot for the requested provider.
 // When rate limiting is disabled or resolves to zero concurrency, Acquire is a no-op.
 func (r *RateLimiterRegistry) Acquire(
@@ -332,16 +340,18 @@ func (l *providerRateLimiter) acquire(ctx context.Context) error {
 	if l == nil || !l.enabled || l.sem == nil {
 		return nil
 	}
-	if l.rateLimiter != nil {
-		if err := l.rateLimiter.Wait(ctx); err != nil {
-			l.metrics.rejectedRequests.Add(1)
-			return newRateLimitError(l.provider, "provider request rate wait canceled", err)
-		}
-	}
 	l.metrics.totalRequests.Add(1)
 
 	if l.sem.TryAcquire(1) {
 		l.metrics.activeRequests.Add(1)
+		if l.rateLimiter != nil {
+			if err := l.rateLimiter.Wait(ctx); err != nil {
+				l.metrics.rejectedRequests.Add(1)
+				l.sem.Release(1)
+				l.metrics.activeRequests.Add(-1)
+				return newRateLimitError(l.provider, "provider request rate wait canceled", err)
+			}
+		}
 		return nil
 	}
 
@@ -365,6 +375,14 @@ func (l *providerRateLimiter) acquire(ctx context.Context) error {
 		return newRateLimitError(l.provider, "provider rate limit wait canceled", err)
 	}
 	l.metrics.activeRequests.Add(1)
+	if l.rateLimiter != nil {
+		if err := l.rateLimiter.Wait(ctx); err != nil {
+			l.metrics.rejectedRequests.Add(1)
+			l.sem.Release(1)
+			l.metrics.activeRequests.Add(-1)
+			return newRateLimitError(l.provider, "provider request rate wait canceled", err)
+		}
+	}
 	return nil
 }
 

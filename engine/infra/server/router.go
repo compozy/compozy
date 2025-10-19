@@ -68,8 +68,10 @@ func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 			"/readyz",                // k8s readiness probe
 			"/mcp-proxy/health",      // MCP readiness probe
 			"/metrics",               // Prometheus
-			"/docs",                  // Docs UI (OpenAPI v3)
-			"/docs/index.html",       // Docs UI entry
+			"/swagger",               // Swagger UI (OpenAPI v3)
+			"/swagger/index.html",    // Swagger UI entry
+			"/docs",                  // Docs UI (OpenAPI v3) - legacy
+			"/docs/index.html",       // Docs UI entry - legacy
 			"/openapi.json",          // OpenAPI 3 spec
 		},
 	}
@@ -152,7 +154,7 @@ func (s *Server) logStartupBanner() {
 	fh := friendlyHost(host)
 	httpURL := fmt.Sprintf("http://%s:%d", fh, port)
 	apiURL := fmt.Sprintf("%s%s", httpURL, routes.Base())
-	docsURL := fmt.Sprintf("%s/docs/index.html", httpURL)
+	docsURL := fmt.Sprintf("%s/swagger/index.html", httpURL)
 	openapiJSON := fmt.Sprintf("%s/openapi.json", httpURL)
 	hooksURL := fmt.Sprintf("%s%s", httpURL, routes.Hooks())
 	mcp := s.mcpBaseURL

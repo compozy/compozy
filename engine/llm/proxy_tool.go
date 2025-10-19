@@ -12,13 +12,18 @@ import (
 	"github.com/tmc/langchaingo/tools"
 )
 
+// mcpExecutor is the minimal contract needed by ProxyTool.
+type mcpExecutor interface {
+	Execute(ctx context.Context, mcpName, toolName string, args map[string]any) (any, error)
+}
+
 // ProxyTool implements a langchain tool that executes via the MCP proxy
 type ProxyTool struct {
 	name        string
 	description string
 	inputSchema map[string]any
 	mcpName     string
-	executor    *mcptools.Executor
+	executor    mcpExecutor
 }
 
 // NewProxyTool creates a new proxy tool from a tool definition

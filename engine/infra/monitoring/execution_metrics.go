@@ -234,7 +234,9 @@ func (m *ExecutionMetrics) RecordAsyncStarted(ctx context.Context, kind string) 
 }
 
 // RecordWorkflowPolls records the total poll attempts for a sync workflow execution with outcome labels.
-func (m *ExecutionMetrics) RecordWorkflowPolls(ctx context.Context, workflowID string, attempts int, outcome string) {
+// Note: workflow_id is intentionally omitted from labels to avoid high cardinality.
+// Use logs or traces to track individual workflow execution details.
+func (m *ExecutionMetrics) RecordWorkflowPolls(ctx context.Context, _ string, attempts int, outcome string) {
 	if m == nil || m.workflowPollCounter == nil {
 		return
 	}
@@ -245,14 +247,15 @@ func (m *ExecutionMetrics) RecordWorkflowPolls(ctx context.Context, workflowID s
 		ctx,
 		int64(attempts),
 		metric.WithAttributes(
-			attribute.String("workflow_id", workflowID),
 			attribute.String("outcome", outcome),
 		),
 	)
 }
 
 // RecordWorkflowPollDuration records the total time spent polling a sync workflow execution.
-func (m *ExecutionMetrics) RecordWorkflowPollDuration(ctx context.Context, workflowID string, duration time.Duration) {
+// Note: workflow_id is intentionally omitted from labels to avoid high cardinality.
+// Use logs or traces to track individual workflow execution details.
+func (m *ExecutionMetrics) RecordWorkflowPollDuration(ctx context.Context, _ string, duration time.Duration) {
 	if m == nil || m.workflowPollTimer == nil {
 		return
 	}
@@ -260,9 +263,5 @@ func (m *ExecutionMetrics) RecordWorkflowPollDuration(ctx context.Context, workf
 	if seconds < 0 {
 		seconds = 0
 	}
-	m.workflowPollTimer.Record(
-		ctx,
-		seconds,
-		metric.WithAttributes(attribute.String("workflow_id", workflowID)),
-	)
+	m.workflowPollTimer.Record(ctx, seconds)
 }

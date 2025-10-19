@@ -11,19 +11,19 @@ import (
 )
 
 func TestWorkflowsValidator(t *testing.T) {
-	t.Run("no workflows", func(t *testing.T) {
+	t.Run("Should pass when no workflows provided", func(t *testing.T) {
 		validator := NewWorkflowsValidator(nil, nil)
 		err := validator.Validate(t.Context())
 		require.NoError(t, err)
 	})
 
-	t.Run("empty source", func(t *testing.T) {
+	t.Run("Should fail when source is empty", func(t *testing.T) {
 		validator := NewWorkflowsValidator(nil, []*WorkflowSourceConfig{{Source: ""}})
 		err := validator.Validate(t.Context())
 		require.ErrorContains(t, err, "source is empty")
 	})
 
-	t.Run("missing file", func(t *testing.T) {
+	t.Run("Should fail when workflow file is missing", func(t *testing.T) {
 		cwd, err := core.CWDFromPath(t.TempDir())
 		require.NoError(t, err)
 		validator := NewWorkflowsValidator(cwd, []*WorkflowSourceConfig{{Source: "missing.yaml"}})
@@ -31,7 +31,7 @@ func TestWorkflowsValidator(t *testing.T) {
 		require.ErrorContains(t, err, "not found")
 	})
 
-	t.Run("directory source", func(t *testing.T) {
+	t.Run("Should fail when source points to a directory", func(t *testing.T) {
 		dir := t.TempDir()
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestWorkflowsValidator(t *testing.T) {
 		require.ErrorContains(t, err, "points to a directory")
 	})
 
-	t.Run("valid workflows", func(t *testing.T) {
+	t.Run("Should pass with valid workflow files", func(t *testing.T) {
 		dir := t.TempDir()
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestWorkflowsValidator(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("stat cache used within validation", func(t *testing.T) {
+	t.Run("Should use stat cache within validation", func(t *testing.T) {
 		dir := t.TempDir()
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)

@@ -50,7 +50,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		validator := NewMemoryValidator(refs /*, mockRegistry */)
 		err := validator.Validate(t.Context())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "memory reference at index 0 has an empty ID")
+		assert.ErrorContains(t, err, "memory reference at index 0 has an empty ID")
 	})
 
 	t.Run("Should allow missing Key (fallback to default_key_template)", func(t *testing.T) {
@@ -69,7 +69,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		validator := NewMemoryValidator(refs /*, mockRegistry */)
 		err := validator.Validate(t.Context())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "memory reference for ID 'mem1' (index 0) has invalid mode 'write-only'")
+		assert.ErrorContains(t, err, "memory reference for ID 'mem1' (index 0) has invalid mode 'write-only'")
 	})
 
 	t.Run("Should revalidate mode string strictly even if defaulted", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		validator := NewMemoryValidator(refs)
 		err := validator.Validate(t.Context())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid mode 'bad-mode'")
+		assert.ErrorContains(t, err, "invalid mode 'bad-mode'")
 	})
 	// TODO: Enable registry existence validation when the registry integration is available
 }
@@ -107,7 +107,7 @@ func TestActionsValidator_Validate(t *testing.T) {
 		v := NewActionsValidator([]*ActionConfig{valid, invalid})
 		err := v.Validate(t.Context())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "current working directory is required")
+		assert.ErrorContains(t, err, "current working directory is required")
 	})
 
 	t.Run("Should pass when all actions are valid", func(t *testing.T) {

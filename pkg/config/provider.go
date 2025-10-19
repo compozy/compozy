@@ -340,8 +340,10 @@ func createServerDefaults(defaultConfig *Config) map[string]any {
 			"max_age":           defaultConfig.Server.CORS.MaxAge,
 		},
 		"auth": map[string]any{
-			"enabled":             defaultConfig.Server.Auth.Enabled,
-			"workflow_exceptions": defaultConfig.Server.Auth.WorkflowExceptions,
+			"enabled":                           defaultConfig.Server.Auth.Enabled,
+			"workflow_exceptions":               defaultConfig.Server.Auth.WorkflowExceptions,
+			"api_key_last_used_max_concurrency": defaultConfig.Server.Auth.APIKeyLastUsedMaxConcurrency,
+			"api_key_last_used_timeout":         defaultConfig.Server.Auth.APIKeyLastUsedTimeout.String(),
 		},
 		"timeouts": map[string]any{
 			"monitoring_init":                defaultConfig.Server.Timeouts.MonitoringInit.String(),
@@ -486,6 +488,9 @@ func createLLMDefaults(defaultConfig *Config) map[string]any {
 		"mcp_client_timeout":             defaultConfig.LLM.MCPClientTimeout.String(),
 		"retry_jitter_percent":           defaultConfig.LLM.RetryJitterPercent,
 		"context_warning_thresholds":     defaultConfig.LLM.ContextWarningThresholds,
+		"usage_metrics": map[string]any{
+			"persist_buckets": defaultConfig.LLM.UsageMetrics.PersistBuckets,
+		},
 	}
 }
 

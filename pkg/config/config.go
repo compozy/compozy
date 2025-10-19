@@ -248,6 +248,16 @@ type AuthConfig struct {
 	Enabled            bool            `koanf:"enabled"             json:"enabled"             yaml:"enabled"             mapstructure:"enabled"             env:"SERVER_AUTH_ENABLED"`
 	WorkflowExceptions []string        `koanf:"workflow_exceptions" json:"workflow_exceptions" yaml:"workflow_exceptions" mapstructure:"workflow_exceptions" env:"SERVER_AUTH_WORKFLOW_EXCEPTIONS" validate:"dive,workflow_id"`
 	AdminKey           SensitiveString `koanf:"admin_key"           json:"admin_key"           yaml:"admin_key"           mapstructure:"admin_key"           env:"SERVER_AUTH_ADMIN_KEY"           validate:"omitempty,min=16" sensitive:"true"`
+
+	// APIKeyLastUsedMaxConcurrency bounds background workers that stamp API key last-used timestamps.
+	//
+	// Default: 10. Set to 0 to disable asynchronous updates.
+	APIKeyLastUsedMaxConcurrency int `koanf:"api_key_last_used_max_concurrency" json:"api_key_last_used_max_concurrency" yaml:"api_key_last_used_max_concurrency" mapstructure:"api_key_last_used_max_concurrency" env:"SERVER_AUTH_API_KEY_LAST_USED_MAX_CONCURRENCY" validate:"min=0"`
+
+	// APIKeyLastUsedTimeout limits how long asynchronous last-used updates may run before timing out.
+	//
+	// Default: 2s.
+	APIKeyLastUsedTimeout time.Duration `koanf:"api_key_last_used_timeout" json:"api_key_last_used_timeout" yaml:"api_key_last_used_timeout" mapstructure:"api_key_last_used_timeout" env:"SERVER_AUTH_API_KEY_LAST_USED_TIMEOUT"`
 }
 
 // DatabaseConfig contains database connection configuration.
@@ -798,6 +808,10 @@ type LLMConfig struct {
 
 	// ContextWarningThresholds defines usage ratios (0-1) that trigger telemetry warnings.
 	ContextWarningThresholds []float64 `koanf:"context_warning_thresholds" env:"LLM_CONTEXT_WARNING_THRESHOLDS" json:"context_warning_thresholds" yaml:"context_warning_thresholds" mapstructure:"context_warning_thresholds"`
+	// UsageMetrics configures observability knobs for usage persistence.
+	//
+	// Allows operators to tune histogram buckets collected by the usage repository.
+	UsageMetrics LLMUsageMetricsConfig `koanf:"usage_metrics"                                                   json:"usage_metrics"              yaml:"usage_metrics"              mapstructure:"usage_metrics"`
 
 	// DefaultTopP sets the default nucleus sampling threshold for all LLM requests.
 	// Value of 0 means use the provider's default. Range: 0.0 to 1.0.
@@ -824,6 +838,13 @@ type LLMConfig struct {
 type ToolCallCapsConfig struct {
 	Default   int            `koanf:"default"   json:"default"   yaml:"default"   mapstructure:"default"`
 	Overrides map[string]int `koanf:"overrides" json:"overrides" yaml:"overrides" mapstructure:"overrides"`
+}
+
+// LLMUsageMetricsConfig exposes tuning knobs for usage repository telemetry.
+//
+// PersistBuckets defines histogram bucket boundaries (seconds) for persistence latency.
+type LLMUsageMetricsConfig struct {
+	PersistBuckets []float64 `koanf:"persist_buckets" json:"persist_buckets" yaml:"persist_buckets" mapstructure:"persist_buckets"`
 }
 
 // LLMRateLimitConfig defines shared throttling settings for provider calls.
@@ -1361,7 +1382,20 @@ type MCPProxyConfig struct {
 	// ShutdownTimeout sets timeout for graceful shutdown.
 	//
 	// **Default**: `30s`
-	ShutdownTimeout time.Duration `koanf:"shutdown_timeout" json:"shutdown_timeout" yaml:"shutdown_timeout" mapstructure:"shutdown_timeout" env:"MCP_PROXY_SHUTDOWN_TIMEOUT"`
+	ShutdownTimeout time.Duration `koanf:"shutdown_timeout"        json:"shutdown_timeout"        yaml:"shutdown_timeout"        mapstructure:"shutdown_timeout"        env:"MCP_PROXY_SHUTDOWN_TIMEOUT"`
+	// MaxIdleConns controls the maximum number of idle (keep-alive) connections across all hosts.
+	//
+	// **Default**: `128`
+	MaxIdleConns int `koanf:"max_idle_conns"          json:"max_idle_conns"          yaml:"max_idle_conns"          mapstructure:"max_idle_conns"          env:"MCP_PROXY_MAX_IDLE_CONNS"`
+	// MaxIdleConnsPerHost controls the maximum idle (keep-alive) connections to keep per-host.
+	//
+	// **Default**: `128`
+	MaxIdleConnsPerHost int `koanf:"max_idle_conns_per_host" json:"max_idle_conns_per_host" yaml:"max_idle_conns_per_host" mapstructure:"max_idle_conns_per_host" env:"MCP_PROXY_MAX_IDLE_CONNS_PER_HOST"`
+	// IdleConnTimeout is the maximum amount of time an idle (keep-alive) connection will remain
+	// idle before closing itself.
+	//
+	// **Default**: `90s`
+	IdleConnTimeout time.Duration `koanf:"idle_conn_timeout"       json:"idle_conn_timeout"       yaml:"idle_conn_timeout"       mapstructure:"idle_conn_timeout"       env:"MCP_PROXY_IDLE_CONN_TIMEOUT"`
 }
 
 // CLIConfig contains CLI-specific configuration.
@@ -1794,9 +1828,11 @@ func buildServerConfig(registry *definition.Registry) ServerConfig {
 		},
 		Timeout: getDuration(registry, "server.timeout"),
 		Auth: AuthConfig{
-			Enabled:            getBool(registry, "server.auth.enabled"),
-			WorkflowExceptions: getStringSlice(registry, "server.auth.workflow_exceptions"),
-			AdminKey:           SensitiveString(getString(registry, "server.auth.admin_key")),
+			Enabled:                      getBool(registry, "server.auth.enabled"),
+			WorkflowExceptions:           getStringSlice(registry, "server.auth.workflow_exceptions"),
+			AdminKey:                     SensitiveString(getString(registry, "server.auth.admin_key")),
+			APIKeyLastUsedMaxConcurrency: getInt(registry, "server.auth.api_key_last_used_max_concurrency"),
+			APIKeyLastUsedTimeout:        getDuration(registry, "server.auth.api_key_last_used_timeout"),
 		},
 		SourceOfTruth:       getString(registry, "server.source_of_truth"),
 		SeedFromRepoOnEmpty: getBool(registry, "server.seed_from_repo_on_empty"),
@@ -1980,11 +2016,14 @@ func buildLLMConfig(registry *definition.Registry) LLMConfig {
 		MCPClientTimeout:              getDuration(registry, "llm.mcp_client_timeout"),
 		RetryJitterPercent:            getInt(registry, "llm.retry_jitter_percent"),
 		ContextWarningThresholds:      getFloat64Slice(registry, "llm.context_warning_thresholds"),
-		RateLimiting:                  buildLLMRateLimitConfig(registry),
-		DefaultTopP:                   getFloat64(registry, "llm.default_top_p"),
-		DefaultFrequencyPenalty:       getFloat64(registry, "llm.default_frequency_penalty"),
-		DefaultPresencePenalty:        getFloat64(registry, "llm.default_presence_penalty"),
-		DefaultSeed:                   getInt(registry, "llm.default_seed"),
+		UsageMetrics: LLMUsageMetricsConfig{
+			PersistBuckets: getFloat64Slice(registry, "llm.usage_metrics.persist_buckets"),
+		},
+		RateLimiting:            buildLLMRateLimitConfig(registry),
+		DefaultTopP:             getFloat64(registry, "llm.default_top_p"),
+		DefaultFrequencyPenalty: getFloat64(registry, "llm.default_frequency_penalty"),
+		DefaultPresencePenalty:  getFloat64(registry, "llm.default_presence_penalty"),
+		DefaultSeed:             getInt(registry, "llm.default_seed"),
 	}
 }
 

@@ -163,7 +163,7 @@ func normalizeKnowledgeDefinitions(
 	}
 	defs.NormalizeWithDefaults(knowledge.DefaultsFromContext(ctx))
 	if err := defs.Validate(ctx); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrValidationFail, err)
+		return nil, errors.Join(ErrValidationFail, err)
 	}
 	normalized := defs.KnowledgeBases[0]
 	return &normalized, nil

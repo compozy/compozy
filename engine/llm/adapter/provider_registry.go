@@ -209,6 +209,10 @@ func clonePromptParams(params *core.PromptParams) core.PromptParams {
 	if len(params.StopWords) > 0 {
 		clone.StopWords = append([]string(nil), params.StopWords...)
 	}
+	// Avoid map aliasing
+	if clone.Metadata != nil {
+		clone.Metadata = core.CloneMap(clone.Metadata)
+	}
 	return clone
 }
 

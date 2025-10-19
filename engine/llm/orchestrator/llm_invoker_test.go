@@ -89,8 +89,8 @@ func (c *capturingMetrics) RecordRateLimitDelay(context.Context, enginecore.Prov
 func TestLLMInvoker_Invoke(t *testing.T) {
 	inv := NewLLMInvoker(&settings{
 		retryAttempts:    3,
-		retryBackoffBase: 1,
-		retryBackoffMax:  1000000,
+		retryBackoffBase: time.Nanosecond,
+		retryBackoffMax:  time.Millisecond,
 		providerMetrics:  providermetrics.Nop(),
 	})
 	req := &llmadapter.LLMRequest{}

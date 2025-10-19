@@ -18,7 +18,7 @@ var (
 	dispatcherHealthCallback      metric.Registration
 	dispatcherHealthInitOnce      sync.Once
 	dispatcherHealthMutex         sync.RWMutex
-	dispatcherHealthStore         sync.Map // map[string]DispatcherHealth
+	dispatcherHealthStore         sync.Map // map[string]*DispatcherHealth
 	dispatcherHealthResetMutex    sync.Mutex
 )
 
@@ -155,10 +155,12 @@ func InitDispatcherHealthMetrics(ctx context.Context, meter metric.Meter) {
 	initDispatcherHealthMetrics(ctx, meter)
 }
 
+const DefaultDispatcherStaleThreshold = 2 * time.Minute
+
 // RegisterDispatcher registers a new dispatcher for health monitoring
 func RegisterDispatcher(ctx context.Context, dispatcherID string, staleThreshold time.Duration) {
 	if staleThreshold == 0 {
-		staleThreshold = 2 * time.Minute // Default stale threshold
+		staleThreshold = DefaultDispatcherStaleThreshold
 	}
 	health := &DispatcherHealth{
 		DispatcherID:        dispatcherID,
@@ -293,6 +295,8 @@ func resetDispatcherHealthMetrics(ctx context.Context) {
 		dispatcherHealthCallback = nil
 	}
 	dispatcherHealthGauge = nil
+	dispatcherHeartbeatAgeSeconds = nil
+	dispatcherFailureCount = nil
 	dispatcherHealthStore = sync.Map{}
 	dispatcherHealthInitOnce = sync.Once{}
 }

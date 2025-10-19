@@ -21,6 +21,8 @@ import (
 	"github.com/sethvargo/go-retry"
 )
 
+const maxScheduleRetryAttemptsCap = 1_000_000
+
 func setupWorker(
 	ctx context.Context,
 	deps appstate.BaseDeps,
@@ -162,7 +164,7 @@ func (s *Server) runReconciliationWithRetry(
 	backoff = retry.WithCappedDuration(cfg.Server.Timeouts.ScheduleRetryMaxDelay, backoff)
 	var policy = retry.WithMaxDuration(cfg.Server.Timeouts.ScheduleRetryMaxDuration, backoff)
 	if cfg.Server.Timeouts.ScheduleRetryMaxAttempts >= 1 {
-		attempts := min(cfg.Server.Timeouts.ScheduleRetryMaxAttempts, 1000000)
+		attempts := min(cfg.Server.Timeouts.ScheduleRetryMaxAttempts, maxScheduleRetryAttemptsCap)
 		policy = retry.WithMaxRetries(nonNegativeUint64(attempts), policy)
 	}
 	err := retry.Do(

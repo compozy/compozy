@@ -15,6 +15,7 @@ import (
 	"time"
 
 	mcpmetrics "github.com/compozy/compozy/engine/mcp/metrics"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	"github.com/sethvargo/go-retry"
@@ -118,20 +119,35 @@ func (c *Client) ConfigureRetry(maxRetries uint64, base, maxDelay time.Duration,
 	c.jitterPct = jitterPercent
 }
 
-// NewProxyClient creates a new proxy client with the specified configuration
-func NewProxyClient(baseURL string, timeout time.Duration) *Client {
+// NewProxyClient creates a new proxy client with the specified configuration.
+// ctx is required for config/logging access.
+func NewProxyClient(ctx context.Context, baseURL string, timeout time.Duration) *Client {
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		baseURL = "http://" + baseURL
+	}
+	maxIdleConns := proxyDefaultMaxIdleConns
+	maxIdleConnsPerHost := proxyDefaultMaxIdleConnsPerHost
+	idleConnTimeout := proxyDefaultIdleConnTimeout
+	if cfg := config.FromContext(ctx); cfg != nil {
+		if cfg.MCPProxy.MaxIdleConns > 0 {
+			maxIdleConns = cfg.MCPProxy.MaxIdleConns
+		}
+		if cfg.MCPProxy.MaxIdleConnsPerHost > 0 {
+			maxIdleConnsPerHost = cfg.MCPProxy.MaxIdleConnsPerHost
+		}
+		if cfg.MCPProxy.IdleConnTimeout > 0 {
+			idleConnTimeout = cfg.MCPProxy.IdleConnTimeout
+		}
 	}
 	return &Client{
 		baseURL: strings.TrimSuffix(baseURL, "/"),
 		http: &http.Client{
 			Timeout: timeout,
 			Transport: &http.Transport{
-				MaxIdleConns:          proxyDefaultMaxIdleConns,
-				MaxIdleConnsPerHost:   proxyDefaultMaxIdleConnsPerHost,
-				MaxConnsPerHost:       proxyDefaultMaxIdleConnsPerHost,
-				IdleConnTimeout:       proxyDefaultIdleConnTimeout,
+				MaxIdleConns:          maxIdleConns,
+				MaxIdleConnsPerHost:   maxIdleConnsPerHost,
+				MaxConnsPerHost:       maxIdleConnsPerHost,
+				IdleConnTimeout:       idleConnTimeout,
 				DisableCompression:    false,
 				DisableKeepAlives:     false,
 				TLSHandshakeTimeout:   10 * time.Second,

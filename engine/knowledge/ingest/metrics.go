@@ -110,19 +110,6 @@ func RecordError(ctx context.Context, stage string, errorType string) {
 	)
 }
 
-// ResetMetricsForTesting clears metric state to allow deterministic test assertions.
-func ResetMetricsForTesting() {
-	metricsMu.Lock()
-	metricsOnce = sync.Once{}
-	metricsInitErr = nil
-	pipelineLatency = nil
-	documentsCounter = nil
-	chunksCounter = nil
-	batchSizeHistogram = nil
-	errorsCounter = nil
-	metricsMu.Unlock()
-}
-
 func ensureMetrics() error {
 	metricsOnce.Do(func() {
 		meter := otel.GetMeterProvider().Meter("compozy.knowledge.ingest")
@@ -200,9 +187,27 @@ func normalizeOutcome(outcome string) string {
 }
 
 func normalizeErrorType(errType string) string {
-	clean := strings.TrimSpace(errType)
-	if clean == "" {
+	switch strings.ToLower(strings.TrimSpace(errType)) {
+	case errorTypeInternal, errorTypeRateLimit, errorTypeAuth, errorTypeInvalid, errorTypeTimeout, errorTypeCanceled:
+		return strings.ToLower(strings.TrimSpace(errType))
+	default:
 		return errorTypeInternal
 	}
-	return clean
+}
+
+// ResetMetricsForTesting clears metric state to allow deterministic test assertions.
+// WARNING: This function is intended for testing only. Do not call in production code.
+// Calling this function while metrics are being recorded may cause race conditions.
+// Note: Kept in production file (not moved to test-only file) due to cross-package
+// test usage and linter limitations with single-file analysis in this project.
+func ResetMetricsForTesting() {
+	metricsMu.Lock()
+	defer metricsMu.Unlock()
+	metricsOnce = sync.Once{}
+	metricsInitErr = nil
+	pipelineLatency = nil
+	documentsCounter = nil
+	chunksCounter = nil
+	batchSizeHistogram = nil
+	errorsCounter = nil
 }

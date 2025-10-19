@@ -93,7 +93,7 @@ func ToVectorStoreConfig(ctx context.Context, project string, cfg *knowledge.Vec
 		Collection:  strings.TrimSpace(cfg.Config.Collection),
 		Index:       strings.TrimSpace(cfg.Config.Index),
 		EnsureIndex: cfg.Config.EnsureIndex,
-		Metric:      strings.TrimSpace(cfg.Config.Metric),
+		Metric:      strings.ToLower(strings.TrimSpace(cfg.Config.Metric)),
 		Dimension:   cfg.Config.Dimension,
 		Consistency: strings.TrimSpace(cfg.Config.Consistency),
 		MaxTopK:     cfg.Config.MaxTopK,
@@ -102,31 +102,9 @@ func ToVectorStoreConfig(ctx context.Context, project string, cfg *knowledge.Vec
 		storeCfg.Auth = core.CloneMap(cfg.Config.Auth)
 	}
 	if cfg.Config.PGVector != nil {
-		options := &vectordb.PGVectorOptions{}
-		if idx := cfg.Config.PGVector.Index; idx != nil {
-			options.Index = vectordb.PGVectorIndexOptions{
-				Type:           strings.TrimSpace(strings.ToLower(idx.Type)),
-				Lists:          idx.Lists,
-				Probes:         idx.Probes,
-				M:              idx.M,
-				EFConstruction: idx.EFConstruction,
-				EFSearch:       idx.EFSearch,
-			}
-		}
-		if pool := cfg.Config.PGVector.Pool; pool != nil {
-			options.Pool = vectordb.PGVectorPoolOptions{
-				MinConns:          pool.MinConns,
-				MaxConns:          pool.MaxConns,
-				MaxConnLifetime:   pool.MaxConnLifetime,
-				MaxConnIdleTime:   pool.MaxConnIdleTime,
-				HealthCheckPeriod: pool.HealthCheckPeriod,
-			}
-		}
-		if search := cfg.Config.PGVector.Search; search != nil {
-			options.Search = vectordb.PGVectorSearchOptions{
-				Probes:   search.Probes,
-				EFSearch: search.EFSearch,
-			}
+		options, err := buildPGVectorOptions(project, cfg.ID, cfg.Config.PGVector)
+		if err != nil {
+			return nil, err
 		}
 		storeCfg.PGVector = options
 	}
@@ -236,4 +214,80 @@ func buildRedisDSN(cfg *config.RedisConfig) string {
 		u.User = url.UserPassword("", pwd)
 	}
 	return u.String()
+}
+
+func buildPGVectorOptions(
+	project, vectorDBID string,
+	cfg *knowledge.PGVectorConfig,
+) (*vectordb.PGVectorOptions, error) {
+	if err := validatePGVectorOptions(cfg); err != nil {
+		return nil, fmt.Errorf("project %s vector_db %q: %w", project, vectorDBID, err)
+	}
+	options := &vectordb.PGVectorOptions{}
+	if idx := cfg.Index; idx != nil {
+		options.Index = vectordb.PGVectorIndexOptions{
+			Type:           strings.TrimSpace(strings.ToLower(idx.Type)),
+			Lists:          idx.Lists,
+			Probes:         idx.Probes,
+			M:              idx.M,
+			EFConstruction: idx.EFConstruction,
+			EFSearch:       idx.EFSearch,
+		}
+	}
+	if pool := cfg.Pool; pool != nil {
+		options.Pool = vectordb.PGVectorPoolOptions{
+			MinConns:          pool.MinConns,
+			MaxConns:          pool.MaxConns,
+			MaxConnLifetime:   pool.MaxConnLifetime,
+			MaxConnIdleTime:   pool.MaxConnIdleTime,
+			HealthCheckPeriod: pool.HealthCheckPeriod,
+		}
+	}
+	if search := cfg.Search; search != nil {
+		options.Search = vectordb.PGVectorSearchOptions{
+			Probes:   search.Probes,
+			EFSearch: search.EFSearch,
+		}
+	}
+	return options, nil
+}
+
+func validatePGVectorOptions(opts *knowledge.PGVectorConfig) error {
+	if opts == nil {
+		return nil
+	}
+	if idx := opts.Index; idx != nil {
+		if idx.Lists < 0 {
+			return fmt.Errorf("pgvector index.lists cannot be negative: %d", idx.Lists)
+		}
+		if idx.Probes < 0 {
+			return fmt.Errorf("pgvector index.probes cannot be negative: %d", idx.Probes)
+		}
+		if idx.M < 0 {
+			return fmt.Errorf("pgvector index.m cannot be negative: %d", idx.M)
+		}
+		if idx.EFConstruction < 0 {
+			return fmt.Errorf("pgvector index.ef_construction cannot be negative: %d", idx.EFConstruction)
+		}
+		if idx.EFSearch < 0 {
+			return fmt.Errorf("pgvector index.ef_search cannot be negative: %d", idx.EFSearch)
+		}
+	}
+	if search := opts.Search; search != nil {
+		if search.Probes < 0 {
+			return fmt.Errorf("pgvector search.probes cannot be negative: %d", search.Probes)
+		}
+		if search.EFSearch < 0 {
+			return fmt.Errorf("pgvector search.ef_search cannot be negative: %d", search.EFSearch)
+		}
+	}
+	if pool := opts.Pool; pool != nil {
+		if pool.MinConns < 0 {
+			return fmt.Errorf("pgvector pool.min_conns cannot be negative: %d", pool.MinConns)
+		}
+		if pool.MaxConns < 0 {
+			return fmt.Errorf("pgvector pool.max_conns cannot be negative: %d", pool.MaxConns)
+		}
+	}
+	return nil
 }

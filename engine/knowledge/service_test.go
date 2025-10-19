@@ -25,7 +25,7 @@ func TestResolver_WorkflowPrecedence(t *testing.T) {
 					Model:    "text-embedding-3-small",
 					APIKey:   "{{ .env.OPENAI_API_KEY }}",
 					Config: knowledge.EmbedderRuntimeConfig{
-						Dimension: defaults.ChunkSize,
+						Dimension: 1536,
 						BatchSize: defaults.EmbedderBatchSize,
 					},
 				},
@@ -36,7 +36,7 @@ func TestResolver_WorkflowPrecedence(t *testing.T) {
 					Type: knowledge.VectorDBTypePGVector,
 					Config: knowledge.VectorDBConnConfig{
 						DSN:       "{{ .secrets.PGVECTOR_DSN }}",
-						Dimension: defaults.ChunkSize,
+						Dimension: 1536,
 					},
 				},
 			},
@@ -151,7 +151,6 @@ func TestResolver_InlineOverride(t *testing.T) {
 
 func TestResolver_AppliesCustomDefaults(t *testing.T) {
 	t.Run("ShouldApplyDefaultsToResolvedBinding", func(t *testing.T) {
-		defaults := knowledge.DefaultDefaults()
 		defs := knowledge.Definitions{
 			Embedders: []knowledge.EmbedderConfig{
 				{
@@ -160,7 +159,7 @@ func TestResolver_AppliesCustomDefaults(t *testing.T) {
 					Model:    "text-embedding-3-small",
 					APIKey:   "{{ .env.OPENAI_API_KEY }}",
 					Config: knowledge.EmbedderRuntimeConfig{
-						Dimension: defaults.ChunkSize,
+						Dimension: 1536,
 					},
 				},
 			},
@@ -170,7 +169,7 @@ func TestResolver_AppliesCustomDefaults(t *testing.T) {
 					Type: knowledge.VectorDBTypePGVector,
 					Config: knowledge.VectorDBConnConfig{
 						DSN:       "{{ .secrets.PGVECTOR_DSN }}",
-						Dimension: defaults.ChunkSize,
+						Dimension: 1536,
 					},
 				},
 			},
@@ -218,7 +217,7 @@ func TestResolver_EmptyFilterOverrideClearsBase(t *testing.T) {
 					Model:    "text-embedding-3-small",
 					APIKey:   "{{ .env.OPENAI_API_KEY }}",
 					Config: knowledge.EmbedderRuntimeConfig{
-						Dimension: defaults.ChunkSize,
+						Dimension: 1536,
 						BatchSize: defaults.EmbedderBatchSize,
 					},
 				},
@@ -229,7 +228,7 @@ func TestResolver_EmptyFilterOverrideClearsBase(t *testing.T) {
 					Type: knowledge.VectorDBTypePGVector,
 					Config: knowledge.VectorDBConnConfig{
 						DSN:       "{{ .secrets.PGVECTOR_DSN }}",
-						Dimension: defaults.ChunkSize,
+						Dimension: 1536,
 					},
 				},
 			},

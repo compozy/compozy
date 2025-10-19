@@ -120,6 +120,8 @@ func assertTransition(
 	require.Equal(t, expectedState, machine.Current())
 }
 
+// stripANSI removes ANSI escape sequences from the input string.
+// It handles standard SGR (color) codes used by the logger.
 func stripANSI(input string) string {
 	var b strings.Builder
 	b.Grow(len(input))

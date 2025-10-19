@@ -42,8 +42,8 @@ func NewRegisterService(proxyClient *Client) *RegisterService {
 }
 
 // NewWithTimeout creates a service with a configured proxy client using default timeout
-func NewWithTimeout(proxyURL string, timeout time.Duration) *RegisterService {
-	proxyClient := NewProxyClient(proxyURL, timeout)
+func NewWithTimeout(ctx context.Context, proxyURL string, timeout time.Duration) *RegisterService {
+	proxyClient := NewProxyClient(ctx, proxyURL, timeout)
 	return NewRegisterService(proxyClient)
 }
 
@@ -692,7 +692,7 @@ func setupRegisterServiceFromApp(ctx context.Context) *RegisterService {
 	} else {
 		clientTimeout = 30 * time.Second
 	}
-	service := NewWithTimeout(proxyURL, clientTimeout)
+	service := NewWithTimeout(ctx, proxyURL, clientTimeout)
 	// Avoid logging full proxy URL which may contain credentials
 	log.Info("Initialized MCP register with proxy", "proxy_configured", true)
 	return service

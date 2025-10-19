@@ -157,6 +157,20 @@ func getExecIDParam(c *gin.Context, primary string, fallbacks ...string) string 
 	return GetURLParam(c, primary)
 }
 
+// HasIncludeToken reports whether the request's include query parameter contains the provided token.
+func HasIncludeToken(c *gin.Context, token string) bool {
+	raw := c.Query("include")
+	if raw == "" {
+		return false
+	}
+	for _, entry := range strings.Split(raw, ",") {
+		if strings.EqualFold(strings.TrimSpace(entry), token) {
+			return true
+		}
+	}
+	return false
+}
+
 func GetWorkflowID(c *gin.Context) string {
 	return GetURLParam(c, "workflow_id")
 }

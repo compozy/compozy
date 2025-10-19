@@ -6598,9 +6598,10 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "example": "\"\\\"abc123\\\"\"",
-                        "description": "Strong ETag for optimistic concurrency",
+                        "description": "Strong ETag for optimistic concurrency (required for updates)",
                         "name": "If-Match",
-                        "in": "header"
+                        "in": "header",
+                        "required": true
                     },
                     {
                         "description": "Project configuration payload",

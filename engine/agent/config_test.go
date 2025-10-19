@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"context"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -26,7 +25,7 @@ func setupTest(t *testing.T, agentFile string) (*core.PathCWD, string) {
 func Test_LoadAgent(t *testing.T) {
 	t.Run("Should load basic agent configuration correctly", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_agent.yaml")
-		config, err := Load(context.Background(), cwd, dstPath)
+		config, err := Load(t.Context(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -84,7 +83,7 @@ func Test_LoadAgent(t *testing.T) {
 func Test_AgentMCPs_Decode_YAML_And_FromMap(t *testing.T) {
 	t.Run("Should decode mcps from YAML with scalar and object forms", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "agent_mcps_dual.yaml")
-		cfg, err := Load(context.Background(), cwd, dstPath)
+		cfg, err := Load(t.Context(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		require.Len(t, cfg.MCPs, 2)
@@ -174,7 +173,7 @@ func Test_AgentActionConfigValidation(t *testing.T) {
 				"age": 42,
 			},
 		}
-		err := config.ValidateInput(context.Background(), config.With)
+		err := config.ValidateInput(t.Context(), config.With)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "Required property 'name' is missing")
 	})
@@ -518,7 +517,7 @@ func Test_Config_Merge_Clone_AsMap_FromMap(t *testing.T) {
 func Test_Load_Basic_WithNoEvaluator(t *testing.T) {
 	t.Run("Should load agent without evaluator", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_agent.yaml")
-		cfg, err := Load(context.Background(), cwd, dstPath)
+		cfg, err := Load(t.Context(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "code-assistant", cfg.ID)
@@ -539,7 +538,7 @@ func Test_Config_Validate_MCPErrorAggregation(t *testing.T) {
 func Test_Config_Validate_Noops(t *testing.T) {
 	t.Run("Should return nil for ValidateInput and ValidateOutput", func(t *testing.T) {
 		var cfg Config
-		assert.NoError(t, cfg.ValidateInput(context.Background(), &core.Input{}))
-		assert.NoError(t, cfg.ValidateOutput(context.Background(), &core.Output{}))
+		assert.NoError(t, cfg.ValidateInput(t.Context(), &core.Input{}))
+		assert.NoError(t, cfg.ValidateOutput(t.Context(), &core.Output{}))
 	})
 }

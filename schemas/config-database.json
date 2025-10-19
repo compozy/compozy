@@ -8,6 +8,14 @@
       "description": "AutoMigrate enables automatic database migrations on startup.\n\nWhen enabled, the system will automatically apply any pending database\nmigrations when establishing a database connection. This eliminates\nthe need for manual migration commands.\n\nDefault: true",
       "type": "boolean"
     },
+    "conn_max_idle_time": {
+      "description": "ConnMaxIdleTime bounds how long an idle connection is retained before recycling.\n\nDefault: `1m`",
+      "type": "integer"
+    },
+    "conn_max_lifetime": {
+      "description": "ConnMaxLifetime bounds how long a connection may be reused.\n\nDefault: `5m`",
+      "type": "integer"
+    },
     "conn_string": {
       "description": "ConnString provides a complete PostgreSQL connection URL.\n\nFormat: `postgres://user:password@host:port/database?sslmode=mode`\nTakes precedence over individual connection parameters.",
       "type": "string"
@@ -15,6 +23,14 @@
     "host": {
       "description": "Host specifies the database server hostname or IP address.\n\nDefault: \"localhost\"",
       "type": "string"
+    },
+    "max_idle_conns": {
+      "description": "MaxIdleConns defines the number of connections kept idle in the pool.\n\nDefault: `5`",
+      "type": "integer"
+    },
+    "max_open_conns": {
+      "description": "MaxOpenConns caps total simultaneous PostgreSQL connections from this service.\n\nDefault: `25`",
+      "type": "integer"
     },
     "migration_timeout": {
       "description": "MigrationTimeout sets the maximum allowed time for applying database\nmigrations during startup. It must be equal to or greater than the\nadvisory lock acquisition window used by ApplyMigrationsWithLock (45s).\n\nDefault: 2m",

@@ -87,9 +87,6 @@ func (uc *Delete) cleanupVectors(
 	}
 	log := logger.FromContext(ctx)
 	defer func() {
-		if release == nil {
-			return
-		}
 		releaseCtx := context.WithoutCancel(ctx)
 		if cerr := release(releaseCtx); cerr != nil {
 			log.Warn("failed to close vector store", "kb_id", kbID, "error", cerr)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,15 +27,20 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"github.com/tidwall/pretty"
 )
 
 const (
-	unknownFileName   = "unknown"
-	ideCodex          = "codex"
-	ideClaude         = "claude"
-	ideDroid          = "droid"
-	defaultCodexModel = "gpt-5-codex"
-	defaultAutoLabel  = "auto"
+	unknownFileName            = "unknown"
+	ideCodex                   = "codex"
+	ideClaude                  = "claude"
+	ideDroid                   = "droid"
+	defaultCodexModel          = "gpt-5-codex"
+	defaultClaudeModel         = "sonnet[1m]"
+	thinkPromptMedium          = "Think hard through problems carefully before acting. Balance speed with thoroughness."
+	thinkPromptLow             = "Think concisely and act quickly. Prefer direct solutions."
+	thinkPromptHighDescription = "Ultrathink deeply and comprehensively before taking action. " +
+		"Consider edge cases, alternatives, and long-term implications. Show your reasoning process."
 )
 
 // Port of scripts/solve-pr-issues.ts with concurrency and non-streamed logging.
@@ -54,7 +60,8 @@ const (
 // - By default, only writes process output to log files; does not stream to current stdout/stderr.
 // - Supports parallel execution with --concurrent N (default 1).
 // - Configure log tail lines shown in UI with --tail-lines (default: 5).
-// - Configure reasoning effort for codex/droid with --reasoning-effort (default: medium, options: low/medium/high).
+// - Configure reasoning effort for codex/claude/droid with --reasoning-effort
+//   (default: medium, options: low/medium/high).
 
 type cliArgs struct {
 	pr              string
@@ -117,7 +124,8 @@ Behavior:
 - By default, only writes process output to log files; does not stream to current stdout/stderr.
 - Supports parallel execution with --concurrent N (default 1).
 - Configure log tail lines shown in UI with --tail-lines (default: 5).
-- Configure reasoning effort for codex/droid with --reasoning-effort (default: medium, options: low/medium/high).`,
+- Configure reasoning effort for codex/claude/droid with --reasoning-effort
+  (default: medium, options: low/medium/high).`,
 	RunE: runSolveIssues,
 }
 
@@ -147,15 +155,15 @@ func setupFlags() {
 		&model,
 		"model",
 		"",
-		"Model to use (default: gpt-5-codex for codex/droid, auto for claude)",
+		"Model to use (default: gpt-5-codex for codex/droid, sonnet for claude)",
 	)
 	rootCmd.Flags().BoolVar(&grouped, "grouped", false, "Generate grouped issue summaries in issues/grouped/ directory")
-	rootCmd.Flags().IntVar(&tailLines, "tail-lines", 5, "Number of log lines to show in UI for each job")
+	rootCmd.Flags().IntVar(&tailLines, "tail-lines", 30, "Number of log lines to show in UI for each job")
 	rootCmd.Flags().StringVar(
 		&reasoningEffort,
 		"reasoning-effort",
 		"medium",
-		"Reasoning effort for codex (low, medium, high)",
+		"Reasoning effort for codex/claude/droid (low, medium, high)",
 	)
 	rootCmd.Flags().BoolVar(&useForm, "form", false, "Use interactive form to collect parameters")
 
@@ -312,7 +320,7 @@ func (fb *formBuilder) addModelField(target *string) {
 		return huh.NewInput().
 			Title("Model (optional)").
 			Placeholder("auto").
-			Description("Specific model to use (default: gpt-5-codex for codex)").
+			Description("Specific model to use (default: gpt-5-codex for codex/droid, sonnet for claude)").
 			Value(target)
 	})
 }
@@ -334,8 +342,8 @@ func (fb *formBuilder) addTailLinesField(target *string) {
 func (fb *formBuilder) addReasoningEffortField(target *string) {
 	fb.addField("reasoning-effort", func() huh.Field {
 		return huh.NewSelect[string]().
-			Title("Reasoning Effort (for Codex/Droid)").
-			Description("Model reasoning effort level").
+			Title("Reasoning Effort").
+			Description("Model reasoning effort level (applies to Codex, Claude, and Droid)").
 			Options(
 				huh.NewOption("Low", "low"),
 				huh.NewOption("Medium (recommended)", "medium"),
@@ -615,19 +623,6 @@ func initPromptRoot(pr string) (string, error) {
 	return promptRoot, nil
 }
 
-func minIssueName(entries []issueEntry) string {
-	if len(entries) == 0 {
-		return ""
-	}
-	minName := entries[0].name
-	for _, e := range entries[1:] {
-		if e.name < minName {
-			minName = e.name
-		}
-	}
-	return minName
-}
-
 func prepareJobs(
 	pr string,
 	groups map[string][]issueEntry,
@@ -635,38 +630,17 @@ func prepareJobs(
 	batchSize int,
 	grouped bool,
 ) ([]job, error) {
-	// Sort code files by minimum issue number for deterministic batching that follows issue order
-	codeFiles := make([]string, 0, len(groups))
-	for codeFile := range groups {
-		codeFiles = append(codeFiles, codeFile)
-	}
-	sort.Slice(codeFiles, func(i, j int) bool {
-		return minIssueName(groups[codeFiles[i]]) < minIssueName(groups[codeFiles[j]])
-	})
-
-	// Create batches
-	batches := make([][]string, 0)
+	// Flatten all issues into a single list and sort by issue number
+	allIssues := flattenAndSortIssues(groups)
 	if batchSize <= 0 {
 		batchSize = 1
 	}
-
-	for i := 0; i < len(codeFiles); i += batchSize {
-		end := i + batchSize
-		if end > len(codeFiles) {
-			end = len(codeFiles)
-		}
-		batches = append(batches, codeFiles[i:end])
-	}
-
+	// Create batches of consecutive issues
+	issueBatches := createIssueBatches(allIssues, batchSize)
 	// Create jobs for each batch
-	jobs := make([]job, 0, len(batches))
-	for batchIdx, batchFiles := range batches {
-		batchGroups := make(map[string][]issueEntry)
-		for _, codeFile := range batchFiles {
-			batchGroups[codeFile] = groups[codeFile]
-		}
-
-		// Create a safe name for this batch
+	jobs := make([]job, 0, len(issueBatches))
+	for batchIdx, batchIssues := range issueBatches {
+		batchGroups, batchFiles := groupIssuesByCodeFile(batchIssues)
 		safeName := fmt.Sprintf("batch_%03d", batchIdx+1)
 		if len(batchFiles) == 1 {
 			// Single file batch - use file-based name for backward compatibility
@@ -677,22 +651,18 @@ func prepareJobs(
 				return batchFiles[0]
 			}())
 		}
-
 		// Build the batch prompt
 		promptStr := buildBatchedIssuesPrompt(buildBatchedIssuesParams{
 			PR:          pr,
 			BatchGroups: batchGroups,
 			Grouped:     grouped,
 		})
-
 		outPromptPath := filepath.Join(promptRoot, fmt.Sprintf("%s.prompt.md", safeName))
 		if err := os.WriteFile(outPromptPath, []byte(promptStr), 0o600); err != nil {
 			return nil, fmt.Errorf("write prompt: %w", err)
 		}
-
 		outLog := filepath.Join(promptRoot, fmt.Sprintf("%s.out.log", safeName))
 		errLog := filepath.Join(promptRoot, fmt.Sprintf("%s.err.log", safeName))
-
 		jobs = append(jobs, job{
 			codeFiles:     batchFiles,
 			groups:        batchGroups,
@@ -703,8 +673,43 @@ func prepareJobs(
 			errLog:        errLog,
 		})
 	}
-
 	return jobs, nil
+}
+
+func flattenAndSortIssues(groups map[string][]issueEntry) []issueEntry {
+	allIssues := make([]issueEntry, 0)
+	for _, items := range groups {
+		allIssues = append(allIssues, items...)
+	}
+	sort.Slice(allIssues, func(i, j int) bool {
+		return allIssues[i].name < allIssues[j].name
+	})
+	return allIssues
+}
+
+func createIssueBatches(allIssues []issueEntry, batchSize int) [][]issueEntry {
+	batches := make([][]issueEntry, 0)
+	for i := 0; i < len(allIssues); i += batchSize {
+		end := i + batchSize
+		if end > len(allIssues) {
+			end = len(allIssues)
+		}
+		batches = append(batches, allIssues[i:end])
+	}
+	return batches
+}
+
+func groupIssuesByCodeFile(issues []issueEntry) (map[string][]issueEntry, []string) {
+	batchGroups := make(map[string][]issueEntry)
+	for _, issue := range issues {
+		batchGroups[issue.codeFile] = append(batchGroups[issue.codeFile], issue)
+	}
+	batchFiles := make([]string, 0, len(batchGroups))
+	for codeFile := range batchGroups {
+		batchFiles = append(batchFiles, codeFile)
+	}
+	sort.Strings(batchFiles)
+	return batchGroups, batchFiles
 }
 
 // executeJobsWithGracefulShutdown executes jobs with proper graceful shutdown handling
@@ -722,8 +727,12 @@ func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, args *cliA
 		return 0, []failInfo{{err: fmt.Errorf("failed to get current working directory: %w", err)}}, total, nil
 	}
 
+	// Create aggregate token usage tracker (shared across all jobs)
+	var aggregateUsage TokenUsage
+	var aggregateMu sync.Mutex
+
 	// Setup UI if enabled
-	uiCh, uiProg := setupUI(ctx, jobs, args, !args.dryRun)
+	uiCh, uiProg := setupUI(ctx, jobs, args, !args.dryRun, &aggregateUsage, &aggregateMu)
 	defer func() {
 		if uiProg != nil {
 			close(uiCh)
@@ -746,7 +755,7 @@ func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, args *cliA
 				wg.Done()
 				atomic.AddInt32(&completed, 1)
 			}()
-			runOneJob(jobCtx, args, index, j, cwd, uiCh, &failed, &failuresMu, &failures)
+			runOneJob(jobCtx, args, index, j, cwd, uiCh, &failed, &failuresMu, &failures, &aggregateUsage, &aggregateMu)
 		}(idx, jb)
 	}
 
@@ -760,7 +769,12 @@ func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, args *cliA
 	// Wait for either completion or shutdown signal
 	select {
 	case <-done:
-		// All jobs completed normally
+		// All jobs completed normally - show aggregate token usage if applicable
+		if args.ide == ideClaude {
+			aggregateMu.Lock()
+			printAggregateTokenUsage(&aggregateUsage)
+			aggregateMu.Unlock()
+		}
 		return failed, failures, total, nil
 	case <-ctx.Done():
 		// Shutdown signal received, cancel all jobs
@@ -785,7 +799,14 @@ func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, args *cliA
 	}
 }
 
-func setupUI(ctx context.Context, jobs []job, _ *cliArgs, enabled bool) (chan uiMsg, *tea.Program) {
+func setupUI(
+	ctx context.Context,
+	jobs []job,
+	_ *cliArgs,
+	enabled bool,
+	_ *TokenUsage,
+	_ *sync.Mutex,
+) (chan uiMsg, *tea.Program) {
 	if !enabled {
 		return nil, nil
 	}
@@ -836,6 +857,8 @@ func runOneJob(
 	failed *int32,
 	failuresMu *sync.Mutex,
 	failures *[]failInfo,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
 ) {
 	useUI := uiCh != nil
 	if ctx.Err() != nil {
@@ -854,7 +877,7 @@ func runOneJob(
 		return
 	}
 
-	cmd, outF, errF := setupCommandExecution(ctx, args, j, cwd, useUI, uiCh, index)
+	cmd, outF, errF := setupCommandExecution(ctx, args, j, cwd, useUI, uiCh, index, aggregateUsage, aggregateMu)
 	if cmd == nil {
 		return
 	}
@@ -865,56 +888,106 @@ func runOneJob(
 func notifyJobStart(useUI bool, uiCh chan uiMsg, index int, j *job, ide string, model string, reasoningEffort string) {
 	if useUI {
 		uiCh <- jobStartedMsg{Index: index}
-	} else {
-		var shellCmdStr string
-		var ideName string
-		switch ide {
-		case ideCodex:
-			if model != "" && model != defaultCodexModel {
-				shellCmdStr = fmt.Sprintf("codex --full-auto -m %s -c model_reasoning_effort=%s exec -", model, reasoningEffort)
-			} else {
-				shellCmdStr = fmt.Sprintf(
-					"codex --full-auto -m %s -c model_reasoning_effort=%s exec -",
-					defaultCodexModel,
-					reasoningEffort,
-				)
-			}
-			ideName = "Codex"
-		case ideClaude:
-			if model != "" {
-				shellCmdStr = fmt.Sprintf("claude --headless -m %s", model)
-			} else {
-				shellCmdStr = "claude --headless"
-			}
-			ideName = "Claude"
-		case ideDroid:
-			base := fmt.Sprintf("droid exec --auto medium --reasoning-effort %s", reasoningEffort)
-			switch {
-			case model != "" && model != defaultCodexModel:
-				shellCmdStr = fmt.Sprintf("%s --model %s --file -", base, model)
-			case model == defaultCodexModel:
-				shellCmdStr = fmt.Sprintf("%s --model %s --file -", base, defaultCodexModel)
-			default:
-				shellCmdStr = fmt.Sprintf("%s --file -", base)
-			}
-			ideName = "Droid"
-		}
-		totalIssues := 0
-		for _, items := range j.groups {
-			totalIssues += len(items)
-		}
-		codeFileLabel := strings.Join(j.codeFiles, ", ")
-		if len(j.codeFiles) > 1 {
-			codeFileLabel = fmt.Sprintf("%d files: %s", len(j.codeFiles), codeFileLabel)
-		}
-		fmt.Printf(
-			"\n=== Running %s (headless) for batch: %s (%d issues)\n$ %s\n",
-			ideName,
-			codeFileLabel,
-			totalIssues,
-			shellCmdStr,
-		)
+		return
 	}
+	shellCmdStr := buildShellCommandString(ide, model, reasoningEffort)
+	ideName := getIDEName(ide)
+	totalIssues := countTotalIssues(j)
+	codeFileLabel := formatCodeFileLabel(j.codeFiles)
+	fmt.Printf(
+		"\n=== Running %s (non-interactive) for batch: %s (%d issues)\n$ %s\n",
+		ideName,
+		codeFileLabel,
+		totalIssues,
+		shellCmdStr,
+	)
+}
+
+func buildShellCommandString(ide string, model string, reasoningEffort string) string {
+	switch ide {
+	case ideCodex:
+		return buildCodexCommand(model, reasoningEffort)
+	case ideClaude:
+		return buildClaudeCommand(model, reasoningEffort)
+	case ideDroid:
+		return buildDroidCommand(model, reasoningEffort)
+	default:
+		return ""
+	}
+}
+
+func buildCodexCommand(model string, reasoningEffort string) string {
+	modelToUse := defaultCodexModel
+	if model != "" && model != defaultCodexModel {
+		modelToUse = model
+	}
+	return fmt.Sprintf("codex --full-auto -m %s -c model_reasoning_effort=%s exec -", modelToUse, reasoningEffort)
+}
+
+func buildClaudeCommand(model string, reasoningEffort string) string {
+	thinkPrompt := getThinkPrompt(reasoningEffort)
+	modelToUse := defaultClaudeModel
+	if model != "" && model != defaultClaudeModel {
+		modelToUse = model
+	}
+	return fmt.Sprintf(
+		"claude --print --output-format stream-json --verbose --model %s "+
+			"--dangerously-skip-permissions --permission-mode bypassPermissions "+
+			"--append-system-prompt %q",
+		modelToUse,
+		thinkPrompt,
+	)
+}
+
+func buildDroidCommand(model string, reasoningEffort string) string {
+	base := fmt.Sprintf("droid exec --auto medium --reasoning-effort %s", reasoningEffort)
+	if model != "" && model != defaultCodexModel {
+		return fmt.Sprintf("%s --model %s --file -", base, model)
+	}
+	if model == defaultCodexModel {
+		return fmt.Sprintf("%s --model %s --file -", base, defaultCodexModel)
+	}
+	return fmt.Sprintf("%s --file -", base)
+}
+
+func getThinkPrompt(reasoningEffort string) string {
+	switch reasoningEffort {
+	case "low":
+		return thinkPromptLow
+	case "high":
+		return thinkPromptHighDescription
+	default:
+		return thinkPromptMedium
+	}
+}
+
+func getIDEName(ide string) string {
+	switch ide {
+	case ideCodex:
+		return "Codex"
+	case ideClaude:
+		return "Claude"
+	case ideDroid:
+		return "Droid"
+	default:
+		return ""
+	}
+}
+
+func countTotalIssues(j *job) int {
+	total := 0
+	for _, items := range j.groups {
+		total += len(items)
+	}
+	return total
+}
+
+func formatCodeFileLabel(codeFiles []string) string {
+	label := strings.Join(codeFiles, ", ")
+	if len(codeFiles) > 1 {
+		return fmt.Sprintf("%d files: %s", len(codeFiles), label)
+	}
+	return label
 }
 
 func createIDECommand(ctx context.Context, args *cliArgs) *exec.Cmd {
@@ -925,7 +998,7 @@ func createIDECommand(ctx context.Context, args *cliArgs) *exec.Cmd {
 		case ideCodex:
 			model = defaultCodexModel
 		case ideClaude:
-			model = "" // Claude doesn't need explicit model parameter
+			model = defaultClaudeModel
 		case ideDroid:
 			model = defaultCodexModel
 		}
@@ -953,18 +1026,28 @@ func createIDECommand(ctx context.Context, args *cliArgs) *exec.Cmd {
 			"exec", "-",
 		)
 	case ideClaude:
-		if model != "" {
-			return exec.CommandContext(
-				ctx,
-				ideClaude,
-				"--headless",
-				"-m", model,
-			)
+		// Build system prompt based on reasoning effort
+		var thinkPrompt string
+		switch args.reasoningEffort {
+		case "low":
+			thinkPrompt = thinkPromptLow
+		case "medium":
+			thinkPrompt = thinkPromptMedium
+		case "high":
+			thinkPrompt = thinkPromptHighDescription
+		default:
+			thinkPrompt = thinkPromptMedium
 		}
 		return exec.CommandContext(
 			ctx,
 			ideClaude,
-			"--headless",
+			"--print",
+			"--output-format", "stream-json",
+			"--verbose",
+			"--model", model,
+			"--permission-mode", "bypassPermissions",
+			"--dangerously-skip-permissions",
+			"--append-system-prompt", thinkPrompt,
 		)
 	case ideDroid:
 		droidArgs := []string{
@@ -994,43 +1077,68 @@ func setupCommandIO(
 	uiCh chan uiMsg,
 	index int,
 	tailLines int,
+	ideType string,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
 ) (*os.File, *os.File, error) {
 	cmd.Dir = cwd
 	cmd.Stdin = bytes.NewReader(j.prompt)
-
-	// CRITICAL: Preserve ANSI colors in output
 	cmd.Env = append(os.Environ(),
 		"FORCE_COLOR=1",
 		"CLICOLOR_FORCE=1",
 		"TERM=xterm-256color",
 	)
-
 	outF, err := createLogFile(j.outLog, "out")
 	if err != nil {
 		return nil, nil, fmt.Errorf("create out log: %w", err)
 	}
-
 	errF, err := createLogFile(j.errLog, "err")
 	if err != nil {
 		outF.Close()
 		return nil, nil, fmt.Errorf("create err log: %w", err)
 	}
-
 	outRing := newLineRing(tailLines)
 	errRing := newLineRing(tailLines)
 	var outTap, errTap io.Writer
 	if useUI {
-		// UI mode: write to file + UI tap (for live viewport updates)
-		outTap = io.MultiWriter(outF, newUILogTap(index, false, outRing, errRing, uiCh))
+		uiTap := newUILogTap(index, false, outRing, errRing, uiCh)
+		if ideType == ideClaude {
+			// Create callback to report token usage to both UI and aggregate tracker
+			usageCallback := func(usage TokenUsage) {
+				// Update UI
+				if uiCh != nil {
+					uiCh <- tokenUsageUpdateMsg{Index: index, Usage: usage}
+				}
+				// Update aggregate usage (thread-safe)
+				if aggregateUsage != nil && aggregateMu != nil {
+					aggregateMu.Lock()
+					aggregateUsage.Add(usage)
+					aggregateMu.Unlock()
+				}
+			}
+			outTap = io.MultiWriter(outF, newJSONFormatterWithCallback(uiTap, usageCallback))
+		} else {
+			outTap = io.MultiWriter(outF, uiTap)
+		}
 		errTap = io.MultiWriter(errF, newUILogTap(index, true, outRing, errRing, uiCh))
 	} else {
-		// Headless mode: write to file + stdout/stderr (for live terminal output)
-		outTap = io.MultiWriter(outF, os.Stdout)
+		if ideType == ideClaude {
+			// Non-UI mode: format JSON and track aggregate usage
+			usageCallback := func(usage TokenUsage) {
+				if aggregateUsage != nil && aggregateMu != nil {
+					aggregateMu.Lock()
+					aggregateUsage.Add(usage)
+					aggregateMu.Unlock()
+				}
+			}
+			outTap = io.MultiWriter(outF, newJSONFormatterWithCallback(os.Stdout, usageCallback))
+		} else {
+			outTap = io.MultiWriter(outF, os.Stdout)
+		}
 		errTap = io.MultiWriter(errF, os.Stderr)
 	}
 	cmd.Stdout = outTap
 	cmd.Stderr = errTap
-
 	return outF, errF, nil
 }
 
@@ -1042,18 +1150,29 @@ func setupCommandExecution(
 	useUI bool,
 	uiCh chan uiMsg,
 	index int,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
 ) (*exec.Cmd, *os.File, *os.File) {
 	cmd := createIDECommand(ctx, args)
 	if cmd == nil {
 		return nil, nil, nil
 	}
-
-	outF, errF, err := setupCommandIO(cmd, j, cwd, useUI, uiCh, index, args.tailLines)
+	outF, errF, err := setupCommandIO(
+		cmd,
+		j,
+		cwd,
+		useUI,
+		uiCh,
+		index,
+		args.tailLines,
+		args.ide,
+		aggregateUsage,
+		aggregateMu,
+	)
 	if err != nil {
 		recordFailureWithContext(nil, j, nil, err, -1)
 		return nil, nil, nil
 	}
-
 	return cmd, outF, errF
 }
 
@@ -1202,6 +1321,26 @@ func recordFailure(mu *sync.Mutex, list *[]failInfo, f failInfo) {
 	mu.Unlock()
 }
 
+func printAggregateTokenUsage(usage *TokenUsage) {
+	if usage == nil || usage.Total() == 0 {
+		return // No token usage to report
+	}
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	fmt.Println("Claude API Token Usage (Aggregate across all jobs)")
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Printf("  Input Tokens:          %s\n", formatNumber(usage.InputTokens))
+	if usage.CacheReadTokens > 0 {
+		fmt.Printf("  Cache Read Tokens:     %s\n", formatNumber(usage.CacheReadTokens))
+	}
+	if usage.CacheCreationTokens > 0 {
+		fmt.Printf("  Cache Creation Tokens: %s\n", formatNumber(usage.CacheCreationTokens))
+	}
+	fmt.Printf("  Output Tokens:         %s\n", formatNumber(usage.OutputTokens))
+	fmt.Println(strings.Repeat("-", 60))
+	fmt.Printf("  Total Tokens:          %s\n", formatNumber(usage.Total()))
+	fmt.Println(strings.Repeat("=", 60))
+}
+
 func summarizeResults(failed int32, failures []failInfo, total int) {
 	fmt.Printf(
 		"\nExecution Summary:\n- Total Groups: %d\n- Success: %d\n- Failed: %d\n",
@@ -1265,6 +1404,7 @@ type uiJob struct {
 	startedAt   time.Time
 	completedAt time.Time
 	duration    time.Duration
+	tokenUsage  *TokenUsage // Claude API token usage (nil for non-Claude IDEs)
 }
 
 type tickMsg struct{}
@@ -1290,6 +1430,58 @@ type jobLogUpdateMsg struct {
 	Err   []string
 }
 type drainMsg struct{}
+type tokenUsageUpdateMsg struct {
+	Index int
+	Usage TokenUsage
+}
+
+// TokenUsage tracks Claude API token consumption
+type TokenUsage struct {
+	InputTokens         int
+	CacheCreationTokens int
+	CacheReadTokens     int
+	OutputTokens        int
+	Ephemeral5mTokens   int
+	Ephemeral1hTokens   int
+}
+
+// Add accumulates usage from another TokenUsage
+func (u *TokenUsage) Add(other TokenUsage) {
+	u.InputTokens += other.InputTokens
+	u.CacheCreationTokens += other.CacheCreationTokens
+	u.CacheReadTokens += other.CacheReadTokens
+	u.OutputTokens += other.OutputTokens
+	u.Ephemeral5mTokens += other.Ephemeral5mTokens
+	u.Ephemeral1hTokens += other.Ephemeral1hTokens
+}
+
+// Total returns total tokens used (input + output, excluding cache metrics)
+func (u *TokenUsage) Total() int {
+	return u.InputTokens + u.OutputTokens
+}
+
+// ClaudeMessage represents a parsed Claude stream-json message
+type ClaudeMessage struct {
+	Type    string `json:"type"`
+	Message struct {
+		Role    string `json:"role"`
+		Content []struct {
+			Type    string `json:"type"`
+			Text    string `json:"text"`
+			Content string `json:"content"`
+		} `json:"content"`
+		Usage struct {
+			InputTokens         int `json:"input_tokens"`
+			CacheCreationTokens int `json:"cache_creation_input_tokens"`
+			CacheReadTokens     int `json:"cache_read_input_tokens"`
+			OutputTokens        int `json:"output_tokens"`
+			CacheCreation       struct {
+				Ephemeral5mTokens int `json:"ephemeral_5m_input_tokens"`
+				Ephemeral1hTokens int `json:"ephemeral_1h_input_tokens"`
+			} `json:"cache_creation"`
+		} `json:"usage"`
+	} `json:"message"`
+}
 
 type uiModel struct {
 	jobs            []uiJob
@@ -1388,6 +1580,9 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case jobLogUpdateMsg:
 		cmd := m.handleJobLogUpdate(v)
+		return m, cmd
+	case tokenUsageUpdateMsg:
+		cmd := m.handleTokenUsageUpdate(v)
 		return m, cmd
 	case drainMsg:
 		return m, nil
@@ -1518,6 +1713,24 @@ func (m *uiModel) refreshViewportContent() {
 	m.updateViewportForJob(&m.jobs[m.selectedJob])
 }
 
+func (m *uiModel) selectNextRunningJob() {
+	// First, try to find any running job
+	for i := range m.jobs {
+		if m.jobs[i].state == jobRunning {
+			m.selectedJob = i
+			return
+		}
+	}
+	// If no running jobs, try to find the next pending job
+	for i := range m.jobs {
+		if m.jobs[i].state == jobPending {
+			m.selectedJob = i
+			return
+		}
+	}
+	// If no running or pending jobs, keep current selection
+}
+
 func (m *uiModel) handleTick() tea.Cmd {
 	m.frame++
 	if m.completed+m.failed < m.total {
@@ -1552,6 +1765,8 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 			job.startedAt = time.Now()
 			job.duration = 0
 		}
+		// Auto-select the currently running job
+		m.selectedJob = v.Index
 	}
 	m.refreshViewportContent()
 	return m.waitEvent()
@@ -1572,12 +1787,12 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 			job.completedAt = time.Now()
 			job.duration = job.completedAt.Sub(job.startedAt)
 		}
+		// Auto-select the next running job after this one finishes
+		m.selectNextRunningJob()
 	}
 	m.refreshViewportContent()
-	if m.completed+m.failed < m.total {
-		return m.waitEvent()
-	}
-	return tea.Quit
+	// Keep UI open after all jobs finish so user can review results
+	return m.waitEvent()
 }
 
 func (m *uiModel) handleJobLogUpdate(v jobLogUpdateMsg) tea.Cmd {
@@ -1589,19 +1804,49 @@ func (m *uiModel) handleJobLogUpdate(v jobLogUpdateMsg) tea.Cmd {
 	return m.waitEvent()
 }
 
+func (m *uiModel) handleTokenUsageUpdate(v tokenUsageUpdateMsg) tea.Cmd {
+	if v.Index < len(m.jobs) {
+		if m.jobs[v.Index].tokenUsage == nil {
+			m.jobs[v.Index].tokenUsage = &TokenUsage{}
+		}
+		m.jobs[v.Index].tokenUsage.Add(v.Usage)
+	}
+	m.refreshViewportContent()
+	return m.waitEvent()
+}
+
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 func (m *uiModel) View() string {
 	// Header with padding
+	allJobsComplete := m.completed+m.failed >= m.total
 	sHeader := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("62")).
 		MarginTop(1).
 		MarginBottom(1)
-	header := fmt.Sprintf("Processing Jobs: %d/%d completed, %d failed", m.completed, m.total, m.failed)
+
+	var header string
+	if allJobsComplete {
+		if m.failed > 0 {
+			header = fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded, %d failed", m.completed, m.total, m.failed)
+		} else {
+			header = fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded!", m.completed, m.total)
+		}
+		// Change color for completion
+		sHeader = sHeader.Foreground(lipgloss.Color("42")) // Green for success
+		if m.failed > 0 {
+			sHeader = sHeader.Foreground(lipgloss.Color("220")) // Yellow/orange if some failed
+		}
+	} else {
+		header = fmt.Sprintf("Processing Jobs: %d/%d completed, %d failed", m.completed, m.total, m.failed)
+	}
 
 	// Help text with spacing
 	helpText := "↑↓/jk navigate • pgup/pgdn scroll logs • q quit"
+	if allJobsComplete {
+		helpText = "↑↓/jk navigate • pgup/pgdn scroll logs • Press 'q' to exit"
+	}
 	sHelp := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("245")).
 		MarginBottom(1)
@@ -1734,12 +1979,16 @@ func (m *uiModel) renderMainContent() string {
 	fileListRendered := m.renderMainFileList(job)
 	status := m.renderMainStatus(job)
 	runtime := m.renderRuntime(job)
+	tokenUsage := m.renderTokenUsage(job)
 	logPaths := m.renderLogPaths(job)
 	metaSections := []string{header}
 	if strings.TrimSpace(fileListRendered) != "" {
 		metaSections = append(metaSections, fileListRendered)
 	}
 	metaSections = append(metaSections, status, runtime)
+	if strings.TrimSpace(tokenUsage) != "" {
+		metaSections = append(metaSections, tokenUsage)
+	}
 	if strings.TrimSpace(logPaths) != "" {
 		metaSections = append(metaSections, logPaths)
 	}
@@ -1892,6 +2141,31 @@ func (m *uiModel) renderLogPaths(job *uiJob) string {
 		Render("Log Files:\n" + strings.Join(lines, "\n"))
 }
 
+func (m *uiModel) renderTokenUsage(job *uiJob) string {
+	if job.tokenUsage == nil {
+		return "" // No token usage data (not using Claude or no data yet)
+	}
+	usage := job.tokenUsage
+	var lines []string
+	lines = append(lines,
+		"Token Usage (Claude API):",
+		fmt.Sprintf("  Input:          %s tokens", formatNumber(usage.InputTokens)))
+	if usage.CacheReadTokens > 0 {
+		lines = append(lines, fmt.Sprintf("  Cache Reads:    %s tokens", formatNumber(usage.CacheReadTokens)))
+	}
+	if usage.CacheCreationTokens > 0 {
+		lines = append(lines, fmt.Sprintf("  Cache Creation: %s tokens", formatNumber(usage.CacheCreationTokens)))
+	}
+	lines = append(lines,
+		fmt.Sprintf("  Output:         %s tokens", formatNumber(usage.OutputTokens)),
+		fmt.Sprintf("  Total:          %s tokens", formatNumber(usage.Total())))
+
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("141")).
+		MarginBottom(1).
+		Render(strings.Join(lines, "\n"))
+}
+
 func formatDuration(d time.Duration) string {
 	if d < 0 {
 		d = 0
@@ -1904,6 +2178,29 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 	}
 	return fmt.Sprintf("%02d:%02d", minutes, seconds)
+}
+
+// formatNumber formats an integer with comma separators for thousands
+func formatNumber(n int) string {
+	if n < 1000 {
+		return fmt.Sprintf("%d", n)
+	}
+	s := fmt.Sprintf("%d", n)
+	var result strings.Builder
+	mod := len(s) % 3
+	if mod > 0 {
+		result.WriteString(s[:mod])
+		if len(s) > mod {
+			result.WriteString(",")
+		}
+	}
+	for i := mod; i < len(s); i += 3 {
+		if i > mod {
+			result.WriteString(",")
+		}
+		result.WriteString(s[i : i+3])
+	}
+	return result.String()
 }
 
 func (m *uiModel) updateViewportForJob(job *uiJob) {
@@ -2199,12 +2496,14 @@ func buildBatchedIssuesPrompt(p buildBatchedIssuesParams) string {
 	header := buildBatchHeader(p.PR, codeFiles, p.BatchGroups)
 	critical := buildBatchCritical(p.PR, codeFiles, p.Grouped)
 	batchNotice := buildBatchNotice(codeFiles)
-	issueGroups := buildIssueGroups(codeFiles, p.BatchGroups)
+	issueGroups := buildIssueGroups(p.BatchGroups)
 	task := buildBatchTask(p.PR, codeFiles, p.Grouped)
-	checklist := buildBatchChecklist(p.PR, codeFiles, p.BatchGroups, p.Grouped)
+	testingReqs := buildTestingRequirements()
+	zenMCPGuidance := buildZenMCPGuidance()
+	checklist := buildBatchChecklist(p.PR, p.BatchGroups, p.Grouped)
 
 	composed := strings.Join([]string{helperCommands, header, critical, batchNotice,
-		issueGroups, task, checklist}, "\n\n")
+		issueGroups, task, testingReqs, zenMCPGuidance, checklist}, "\n\n")
 
 	return composed
 }
@@ -2249,7 +2548,7 @@ scripts/read_pr_issues.sh --pr %s --type issue --all
 - This should be fixed in THE BEST WAY possible, not using workarounds
 - **YOU MUST** follow project standards and rules from .cursor/rules, and ensure all parameters are addressed
 - If, in the end, you don't have all issues addressed, your work will be **INVALIDATED**
-- After making all the changes, you need to update the progress in the _summary.md file and all the related issue files
+- After making all the changes, you need to update the progress in all related issue files
 - **MUST DO:** After resolving every issue run `+"`scripts/resolve_pr_issues.sh --pr-dir ai-docs/reviews-pr-%s --from %d --to %d`"+` so the script calls `+"`gh`"+` to close the review threads and refreshes the summary
 </critical>`, minIssue, maxIssue, pr, minIssue, maxIssue, pr, pr, pr, minIssue, maxIssue)
 }
@@ -2278,8 +2577,7 @@ func buildBatchHeader(pr string, codeFiles []string, batchGroups map[string][]is
 
 func buildBatchCritical(pr string, codeFiles []string, grouped bool) string {
 	codeFileList := strings.Join(codeFiles, "\n  - ")
-	progressFiles := fmt.Sprintf(`  - ai-docs/reviews-pr-%s/issues/_summary.md
-  - Each included issue file under ai-docs/reviews-pr-%s/issues/`, pr, pr)
+	progressFiles := fmt.Sprintf(`- Each included issue file under ai-docs/reviews-pr-%s/issues/`, pr)
 	if grouped {
 		progressFiles += fmt.Sprintf(`
   - The grouped files for each file in ai-docs/reviews-pr-%s/issues/grouped/`, pr)
@@ -2307,18 +2605,38 @@ This batch contains issues from %d different files. You should:
 - Address ALL issues across ALL files in this batch cohesively
 - Consider interdependencies between files (e.g., shared types, utilities)
 - Ensure changes are consistent across the codebase
-- Run bun run lint && bun run typecheck && bun run test before concluding
 
 Files in this batch: %s
 </important_batch_processing>`, len(codeFiles), strings.Join(codeFiles, ", "))
 }
 
-func buildIssueGroups(codeFiles []string, batchGroups map[string][]issueEntry) string {
+func buildIssueGroups(batchGroups map[string][]issueEntry) string {
+	// Flatten all issues and sort by issue number to maintain sequential order
+	allIssues := make([]issueEntry, 0)
+	for _, items := range batchGroups {
+		allIssues = append(allIssues, items...)
+	}
+	sort.Slice(allIssues, func(i, j int) bool {
+		return allIssues[i].name < allIssues[j].name
+	})
+	// Group issues by code file while maintaining sequential order
+	issuesByFile := make(map[string][]issueEntry)
+	fileOrder := make([]string, 0)
+	seenFiles := make(map[string]bool)
+	for _, issue := range allIssues {
+		if !seenFiles[issue.codeFile] {
+			fileOrder = append(fileOrder, issue.codeFile)
+			seenFiles[issue.codeFile] = true
+		}
+		issuesByFile[issue.codeFile] = append(issuesByFile[issue.codeFile], issue)
+	}
 	var issueGroupsBuilder strings.Builder
 	issueGroupsBuilder.WriteString("\n<issues>\n")
-	issueGroupsBuilder.WriteString("Read and address ALL issues from the following files:\n\n")
-	for _, codeFile := range codeFiles {
-		items := batchGroups[codeFile]
+	issueGroupsBuilder.WriteString(
+		"Read and address ALL issues from the following files (in sequential issue order):\n\n",
+	)
+	for _, codeFile := range fileOrder {
+		items := issuesByFile[codeFile]
 		issueGroupsBuilder.WriteString(fmt.Sprintf("**%s** (%d issue%s):\n",
 			codeFile, len(items), func() string {
 				if len(items) == 1 {
@@ -2340,9 +2658,8 @@ func buildBatchTask(pr string, codeFiles []string, grouped bool) string {
 	taskText := fmt.Sprintf(`
 <task>
 - Resolve ALL issues above across ALL %d files in a cohesive set of changes.
-- Update ai-docs/reviews-pr-%s/issues/_summary.md to reflect resolution status for each included issue.
 - In each included issue file under ai-docs/reviews-pr-%s/issues,
-  update the status section/checkbox to RESOLVED ✓ when addressed.`, len(codeFiles), pr, pr)
+  update the status section/checkbox to RESOLVED ✓ when addressed.`, len(codeFiles), pr)
 
 	if grouped {
 		groupedFiles := make([]string, len(codeFiles))
@@ -2354,36 +2671,92 @@ func buildBatchTask(pr string, codeFiles []string, grouped bool) string {
   %s`, strings.Join(groupedFiles, "\n  "))
 	}
 
-	taskText += `
+	taskText += fmt.Sprintf(`
 - If a GitHub review thread ID is present in any issue,
   resolve it using gh as per the command snippet included in that issue.
-- Run bun run lint && bun run typecheck && bun run test before concluding this batched task.
 - If documentation updates are required, include them.
 - For any included issue that is already solved (no code change required),
   you MUST still apply the progress updates above:
-  - update _summary.md,
   - mark the specific issue file as RESOLVED ✓,
   - resolve its GitHub review thread via gh if a Thread ID is present.
-</task>`
+</task>
+
+<after_finish>
+- **MUST COMMIT:** After fixing ALL issues in this batch and ensuring make lint && make test pass,
+  commit the changes with a descriptive message that references the PR and fixed issues.
+  Example: `+"`git commit -am \"fix: resolve PR #%s issues [batch]\"`"+`
+  Note: Commit locally only - do NOT push. Multiple batches will be committed separately.
+</after_finish>`, pr)
 
 	return taskText
 }
 
-func buildBatchChecklist(pr string, codeFiles []string, batchGroups map[string][]issueEntry, grouped bool) string {
+func buildTestingRequirements() string {
+	return `
+<testing_and_linting_requirements>
+### For tests and linting
+
+- **MUST** run ` + "`make lint`" + ` and ` + "`make test`" + ` before completing ANY subtask
+- **YOU CAN ONLY** finish a task if ` + "`make lint`" + ` and ` + "`make test`" + ` are passing, your task should not finish before this
+- **TIP:** Since our project is big, **YOU SHOULD** run ` + "`make test`" + ` and ` + "`make lint`" + ` just at the end before finishing the task; during development, use scoped commands:
+  - **Tests:** ` + "`gotestsum --format pkgname -- -race -parallel=4 <scope>`" + ` (e.g., ` + "`./engine/agent`" + `)
+  - **Linting:** ` + "`golangci-lint run --fix --allow-parallel-runners <scope>`" + ` (e.g., ` + "`./engine/agent/...`" + `)
+  - **IF YOUR SCOPE** is ` + "`.../.`" + ` then you need to run ` + "`make test`" + ` and ` + "`make lint`" + `
+</testing_and_linting_requirements>`
+}
+
+func buildZenMCPGuidance() string {
+	return `
+<critical>
+### For complex/big tasks
+
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, refactor, analyze or tracer
+  (depends on the task and what the user prompt says to do) complex flow **BEFORE INITIATE A TASK**
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) codereview tool **AFTER FINISH A TASK**
+- **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review,
+  does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them
+
+### For small/simple issues
+
+- **DO NOT** use Zen MCP tools for small, straightforward fixes
+  (e.g., typos, simple refactors, adding comments)
+- **USE YOUR JUDGMENT:** If the issue is clear and the fix is obvious,
+  proceed directly without Zen MCP overhead
+- Reserve Zen MCP for:
+  - Complex logic changes requiring deep analysis
+  - Multi-file refactorings with interdependencies
+  - Performance optimization requiring tracing
+  - Security-sensitive code requiring thorough review
+  - Architecture decisions
+</critical>`
+}
+
+func buildBatchChecklist(pr string, batchGroups map[string][]issueEntry, grouped bool) string {
+	// Flatten all issues and sort by issue number to maintain sequential order
+	allIssues := make([]issueEntry, 0)
+	for _, items := range batchGroups {
+		allIssues = append(allIssues, items...)
+	}
+	sort.Slice(allIssues, func(i, j int) bool {
+		return allIssues[i].name < allIssues[j].name
+	})
 	var checklistPaths []string
 	checklistPaths = append(checklistPaths, fmt.Sprintf("ai-docs/reviews-pr-%s/issues/_summary.md", pr))
-	for _, codeFile := range codeFiles {
-		if grouped {
-			checklistPaths = append(
-				checklistPaths,
-				fmt.Sprintf("ai-docs/reviews-pr-%s/issues/grouped/%s.md", pr, safeFileName(codeFile)),
-			)
-		}
-		for _, item := range batchGroups[codeFile] {
-			checklistPaths = append(checklistPaths, normalizeForPrompt(item.absPath))
+	if grouped {
+		// Add grouped files in sequential order of first issue appearance
+		seenGrouped := make(map[string]bool)
+		for _, issue := range allIssues {
+			groupedPath := fmt.Sprintf("ai-docs/reviews-pr-%s/issues/grouped/%s.md", pr, safeFileName(issue.codeFile))
+			if !seenGrouped[groupedPath] {
+				checklistPaths = append(checklistPaths, groupedPath)
+				seenGrouped[groupedPath] = true
+			}
 		}
 	}
-
+	// Add individual issue files in sequential order
+	for _, item := range allIssues {
+		checklistPaths = append(checklistPaths, normalizeForPrompt(item.absPath))
+	}
 	var chk strings.Builder
 	chk.WriteString("\n<checklist>\n  <title>Progress Files to Update</title>\n")
 	for _, path := range checklistPaths {
@@ -2487,4 +2860,113 @@ func (t *uiLogTap) Write(p []byte) (int, error) {
 		// If channel is full, skip; UI will refresh on next tick
 	}
 	return len(p), nil
+}
+
+// jsonFormatter wraps an io.Writer and formats JSON lines with pretty printing and colors.
+// Non-JSON lines are passed through unchanged.
+// For Claude messages, it can optionally parse and report token usage via callback.
+type jsonFormatter struct {
+	w             io.Writer
+	buf           []byte
+	usageCallback func(TokenUsage) // Called when Claude usage data is parsed
+}
+
+func newJSONFormatterWithCallback(w io.Writer, callback func(TokenUsage)) *jsonFormatter {
+	return &jsonFormatter{w: w, buf: make([]byte, 0, 4096), usageCallback: callback}
+}
+
+func (f *jsonFormatter) Write(p []byte) (int, error) {
+	f.buf = append(f.buf, p...)
+	for {
+		i := bytes.IndexByte(f.buf, '\n')
+		if i < 0 {
+			break
+		}
+		line := bytes.TrimRight(f.buf[:i], "\r\n")
+		f.buf = f.buf[i+1:]
+		formatted := f.formatLine(line)
+		if _, err := f.w.Write(append(formatted, '\n')); err != nil {
+			return 0, err
+		}
+	}
+	return len(p), nil
+}
+
+func (f *jsonFormatter) formatLine(line []byte) []byte {
+	line = bytes.TrimSpace(line)
+	if len(line) == 0 {
+		return line
+	}
+	if !json.Valid(line) {
+		return line
+	}
+
+	// Try to parse as Claude message
+	var msg ClaudeMessage
+	if err := json.Unmarshal(line, &msg); err == nil {
+		// Extract usage if callback is set
+		if f.usageCallback != nil {
+			f.tryParseUsage(&msg)
+		}
+
+		// Format and return message content instead of raw JSON
+		if formatted := f.formatClaudeMessage(&msg); formatted != nil {
+			return formatted
+		}
+	}
+
+	// Fallback: pretty-print raw JSON if not a Claude message
+	formatted := pretty.Color(pretty.Pretty(line), nil)
+	return formatted
+}
+
+// formatClaudeMessage extracts and formats the readable content from a Claude message
+func (f *jsonFormatter) formatClaudeMessage(msg *ClaudeMessage) []byte {
+	// Handle different message types
+	switch msg.Type {
+	case "user", "assistant":
+		// Extract text content from message
+		if len(msg.Message.Content) > 0 {
+			var contentParts []string
+			for _, content := range msg.Message.Content {
+				if content.Type == "text" && content.Text != "" {
+					contentParts = append(contentParts, content.Text)
+				} else if content.Type == "tool_result" && content.Content != "" {
+					contentParts = append(contentParts, content.Content)
+				}
+			}
+			if len(contentParts) > 0 {
+				return []byte(strings.Join(contentParts, "\n"))
+			}
+		}
+	case "system":
+		// Show system messages as-is (usually initialization)
+		return []byte(fmt.Sprintf("[System: %s]", msg.Type))
+	}
+	return nil // Return nil to trigger fallback to raw JSON
+}
+
+// tryParseUsage attempts to extract token usage from a Claude message
+func (f *jsonFormatter) tryParseUsage(msg *ClaudeMessage) {
+	// Only process assistant messages with usage data
+	if msg.Type != "assistant" {
+		return
+	}
+
+	// Check if usage data exists
+	usage := msg.Message.Usage
+	if usage.InputTokens == 0 && usage.OutputTokens == 0 {
+		return // No meaningful usage data
+	}
+
+	// Report usage via callback
+	tokenUsage := TokenUsage{
+		InputTokens:         usage.InputTokens,
+		CacheCreationTokens: usage.CacheCreationTokens,
+		CacheReadTokens:     usage.CacheReadTokens,
+		OutputTokens:        usage.OutputTokens,
+		Ephemeral5mTokens:   usage.CacheCreation.Ephemeral5mTokens,
+		Ephemeral1hTokens:   usage.CacheCreation.Ephemeral1hTokens,
+	}
+	f.usageCallback(tokenUsage)
 }

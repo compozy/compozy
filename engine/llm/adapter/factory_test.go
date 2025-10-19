@@ -12,17 +12,17 @@ import (
 
 func TestDefaultFactory_CreateClient(t *testing.T) {
 	registry := NewProviderRegistry()
-	factory := NewDefaultFactoryWithRegistry(context.Background(), registry)
+	factory := NewDefaultFactoryWithRegistry(t.Context(), registry)
 
 	t.Run("Should return error when config is nil", func(t *testing.T) {
-		client, err := factory.CreateClient(context.Background(), nil)
+		client, err := factory.CreateClient(t.Context(), nil)
 		assert.Nil(t, client)
 		assert.ErrorContains(t, err, "provider config must not be nil")
 	})
 
 	t.Run("Should return error for unregistered provider", func(t *testing.T) {
 		config := &core.ProviderConfig{Provider: core.ProviderName("unsupported")}
-		client, err := factory.CreateClient(context.Background(), config)
+		client, err := factory.CreateClient(t.Context(), config)
 		assert.Nil(t, client)
 		assert.ErrorContains(t, err, "provider unsupported is not registered")
 	})
@@ -31,10 +31,10 @@ func TestDefaultFactory_CreateClient(t *testing.T) {
 		reg := NewProviderRegistry()
 		client := &stubClient{}
 		require.NoError(t, reg.Register(&stubProvider{name: core.ProviderName("stub"), client: client}))
-		fac := NewDefaultFactoryWithRegistry(context.Background(), reg)
+		fac := NewDefaultFactoryWithRegistry(t.Context(), reg)
 		cfg := &core.ProviderConfig{Provider: core.ProviderName("stub")}
 
-		got, err := fac.CreateClient(context.Background(), cfg)
+		got, err := fac.CreateClient(t.Context(), cfg)
 		require.NoError(t, err)
 		assert.Equal(t, client, got)
 	})
@@ -46,7 +46,7 @@ func TestDefaultFactory_BuildRouteFallback(t *testing.T) {
 	require.NoError(t, reg.Register(&stubProvider{name: core.ProviderName("primary"), err: primaryErr}))
 	secondaryClient := &stubClient{}
 	require.NoError(t, reg.Register(&stubProvider{name: core.ProviderName("secondary"), client: secondaryClient}))
-	factory := NewDefaultFactoryWithRegistry(context.Background(), reg)
+	factory := NewDefaultFactoryWithRegistry(t.Context(), reg)
 
 	route, err := factory.BuildRoute(
 		&core.ProviderConfig{Provider: core.ProviderName("primary")},
@@ -54,7 +54,7 @@ func TestDefaultFactory_BuildRouteFallback(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	client, err := route.Next(context.Background())
+	client, err := route.Next(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, secondaryClient, client)
 }
@@ -67,7 +67,7 @@ func TestDefaultFactory_Capabilities(t *testing.T) {
 		reg.Register(&stubProvider{name: core.ProviderName("cap"), capabilities: caps, client: &stubClient{}}),
 	)
 
-	factory := NewDefaultFactoryWithRegistry(context.Background(), reg)
+	factory := NewDefaultFactoryWithRegistry(t.Context(), reg)
 	actual, err := factory.Capabilities(core.ProviderName("cap"))
 	require.NoError(t, err)
 	assert.Equal(t, caps, actual)

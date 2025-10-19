@@ -40,7 +40,10 @@ func normalizeMCPConfig(ctx context.Context, cfg *mcp.Config, pathID string) (*m
 	return cfg, nil
 }
 
-func decodeStoredMCP(value any, id string) (*mcp.Config, error) {
+// decodeStoredMCP accepts context for API consistency with Go best practices,
+// even though it doesn't currently use it. This enables future context usage
+// (timeouts, cancellation, logging) without breaking callers.
+func decodeStoredMCP(_ context.Context, value any, id string) (*mcp.Config, error) {
 	switch v := value.(type) {
 	case *mcp.Config:
 		if strings.TrimSpace(v.ID) == "" {

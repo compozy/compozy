@@ -2,7 +2,9 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
@@ -31,11 +33,17 @@ func (uc *RevokeAPIKey) Execute(ctx context.Context) error {
 	// Get the API key first
 	apiKey, err := uc.repo.GetAPIKeyByID(ctx, uc.keyID)
 	if err != nil {
-		return fmt.Errorf("API key not found %s: %w", uc.keyID, err)
+		if errors.Is(err, ErrAPIKeyNotFound) {
+			return err
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return fmt.Errorf("%w: %w", ErrAPIKeyNotFound, err)
+		}
+		return fmt.Errorf("failed to retrieve API key %s: %w", uc.keyID, err)
 	}
 	// Check if the key belongs to the requesting user
 	if apiKey.UserID != uc.userID {
-		return fmt.Errorf("access denied: API key %s does not belong to user %s", uc.keyID, uc.userID)
+		return fmt.Errorf("access denied to API key %s", uc.keyID)
 	}
 	// Delete the key
 	if err := uc.repo.DeleteAPIKey(ctx, uc.keyID); err != nil {

@@ -37,11 +37,11 @@ var providerCatalog = map[string]map[string]Price{
 		},
 	},
 	string(core.ProviderGoogle): {
-		"gemini-1.5-pro": {
+		"gemini-1-5-pro": {
 			PromptPer1K:     0.0035, // $3.50 per million input tokens
 			CompletionPer1K: 0.0105, // $10.50 per million output tokens
 		},
-		"gemini-1.5-flash": {
+		"gemini-1-5-flash": {
 			PromptPer1K:     0.00035, // $0.35 per million input tokens
 			CompletionPer1K: 0.00053,
 		},

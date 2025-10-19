@@ -35,8 +35,9 @@ type knowledgeManager struct {
 	runtimeWorkflowKBs    map[string]*knowledge.BaseConfig
 	projectID             string
 
-	cacheMu          sync.RWMutex
+	embedderMu       sync.RWMutex
 	embedderCache    map[string]*embedder.Adapter
+	vectorStoreMu    sync.RWMutex
 	vectorStoreCache map[string]*cachedVectorStore
 }
 
@@ -271,20 +272,20 @@ func buildRetrievalStages(query string) []retrievalStage {
 		seen[trimmed] = struct{}{}
 		stages = append(stages, retrievalStage{name: name, query: trimmed})
 	}
-	addStage("initial", query)
-	addStage("keywords", keywordQuery(query))
-	addStage("focus", focusQuery(query))
+	addStage(stageInitial, query)
+	addStage(stageKeywords, keywordQuery(query))
+	addStage(stageFocus, focusQuery(query))
 	if len(stages) == 0 {
-		addStage("fallback", query)
+		addStage(stageFallback, query)
 	}
 	return stages
 }
 
 func strategyForStage(stage string) string {
 	switch stage {
-	case "keywords":
+	case stageKeywords:
 		return retriever.StrategyKeyword
-	case "focus":
+	case stageFocus:
 		return retriever.StrategyHybrid
 	default:
 		return retriever.StrategySimilarity
@@ -328,9 +329,9 @@ func (m *knowledgeManager) getOrCreateEmbedder(
 	if err != nil {
 		return nil, err
 	}
-	m.cacheMu.RLock()
+	m.embedderMu.RLock()
 	adapter, ok := m.embedderCache[id]
-	m.cacheMu.RUnlock()
+	m.embedderMu.RUnlock()
 	if ok {
 		return adapter, nil
 	}
@@ -340,8 +341,8 @@ func (m *knowledgeManager) getOrCreateEmbedder(
 	if err != nil {
 		return nil, err
 	}
-	m.cacheMu.Lock()
-	defer m.cacheMu.Unlock()
+	m.embedderMu.Lock()
+	defer m.embedderMu.Unlock()
 	if adapter, ok := m.embedderCache[id]; ok {
 		return adapter, nil
 	}
@@ -369,9 +370,9 @@ func (m *knowledgeManager) getOrCreateVectorStore(
 	if err != nil {
 		return nil, err
 	}
-	m.cacheMu.RLock()
+	m.vectorStoreMu.RLock()
 	cached, ok := m.vectorStoreCache[id]
-	m.cacheMu.RUnlock()
+	m.vectorStoreMu.RUnlock()
 	if ok {
 		return cached.store, nil
 	}
@@ -385,9 +386,9 @@ func (m *knowledgeManager) getOrCreateVectorStore(
 	if err != nil {
 		return nil, err
 	}
-	m.cacheMu.Lock()
+	m.vectorStoreMu.Lock()
 	if existing, ok := m.vectorStoreCache[id]; ok {
-		m.cacheMu.Unlock()
+		m.vectorStoreMu.Unlock()
 		if release != nil {
 			if err := release(ctx); err != nil {
 				logger.FromContext(ctx).Warn(
@@ -400,7 +401,7 @@ func (m *knowledgeManager) getOrCreateVectorStore(
 		return existing.store, nil
 	}
 	m.vectorStoreCache[id] = &cachedVectorStore{store: store, release: release}
-	m.cacheMu.Unlock()
+	m.vectorStoreMu.Unlock()
 	return store, nil
 }
 
@@ -408,8 +409,8 @@ func (m *knowledgeManager) drainVectorStores() []*cachedVectorStore {
 	if m == nil {
 		return nil
 	}
-	m.cacheMu.Lock()
-	defer m.cacheMu.Unlock()
+	m.vectorStoreMu.Lock()
+	defer m.vectorStoreMu.Unlock()
 	entries := make([]*cachedVectorStore, 0, len(m.vectorStoreCache))
 	for key, entry := range m.vectorStoreCache {
 		entries = append(entries, entry)
@@ -430,6 +431,13 @@ const (
 	knowledgeQueryMaxPartRunes = 2048
 	retrievalKeywordLimit      = 32
 	retrievalFocusMaxRunes     = 512
+)
+
+const (
+	stageInitial  = "initial"
+	stageKeywords = "keywords"
+	stageFocus    = "focus"
+	stageFallback = "fallback"
 )
 
 func keywordQuery(query string) string {

@@ -153,7 +153,7 @@ func (e *toolExecutor) Execute(ctx context.Context, toolCalls []llmadapter.ToolC
 	results := make([]llmadapter.ToolResult, len(toolCalls))
 	workers := e.workerCount(len(toolCalls))
 	g, workerCtx := errgroup.WithContext(ctx)
-	jobs := make(chan toolJob)
+	jobs := make(chan toolJob, workers)
 
 	e.startToolWorkers(workerCtx, g, jobs, results, workers)
 	e.dispatchToolJobs(workerCtx, g, jobs, toolCalls)
@@ -517,6 +517,9 @@ func (e *toolExecutor) UpdateBudgets(ctx context.Context, results []llmadapter.T
 	budget := e.errorBudget()
 	maxSucc := e.successThreshold()
 	for _, result := range results {
+		if result.Name == "" {
+			continue
+		}
 		if err := e.enforceInvocationCap(ctx, state, result.Name); err != nil {
 			return err
 		}

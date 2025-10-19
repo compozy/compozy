@@ -470,7 +470,9 @@ func (bm *BunManager) readStderrInBackground(
 	}
 	stderrBuf.Grow(prealloc)
 	var stderrWg sync.WaitGroup
-	stderrWg.Go(func() {
+	stderrWg.Add(1)
+	go func() {
+		defer stderrWg.Done()
 		log := logger.FromContext(ctx)
 		bufferSize := 64 * 1024
 		if maxCapture > bufferSize {
@@ -511,7 +513,7 @@ func (bm *BunManager) readStderrInBackground(
 			log.Warn("stderr read error", "error", err)
 			recordToolError(ctx, toolID, errorKindStderr)
 		}
-	})
+	}()
 	return &stderrBuf, &stderrWg
 }
 
@@ -751,7 +753,7 @@ func (bm *BunManager) compileBunWorker() error {
 		}
 		importPath = "./" + defaultEntrypointFileName
 	} else {
-		importPath = toWorkerRelativeImport(importPath)
+		importPath = toWorkerRelativeImport(compozyDir, importPath)
 	}
 
 	workerContent := strings.ReplaceAll(bunWorkerTemplate, "{{.EntrypointPath}}", importPath)
@@ -766,20 +768,47 @@ func (bm *BunManager) compileBunWorker() error {
 
 func (bm *BunManager) ensureDefaultEntrypoint(storeDir string) error {
 	fallbackPath := filepath.Join(storeDir, defaultEntrypointFileName)
+	if _, err := os.Stat(fallbackPath); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to stat default entrypoint: %w", err)
+	}
 	if err := os.WriteFile(fallbackPath, []byte(defaultEntrypointStub), bm.config.WorkerFilePerm); err != nil {
 		return fmt.Errorf("failed to write default entrypoint: %w", err)
 	}
 	return nil
 }
 
-func toWorkerRelativeImport(entrypointPath string) string {
-	if strings.HasPrefix(entrypointPath, "./") {
-		return "../" + entrypointPath[2:]
+func toWorkerRelativeImport(baseDir, entrypointPath string) string {
+	p := strings.TrimSpace(entrypointPath)
+	if p == "" {
+		return ""
 	}
-	if strings.HasPrefix(entrypointPath, "/") || strings.HasPrefix(entrypointPath, "../") {
-		return entrypointPath
+	// Keep bare module specifiers (no separator and not starting with '.')
+	if !strings.HasPrefix(p, ".") && !strings.ContainsAny(p, `/\`) {
+		return p
 	}
-	return "../" + entrypointPath
+	// Absolute: compute path relative to the worker dir
+	if filepath.IsAbs(p) {
+		if rel, err := filepath.Rel(baseDir, p); err == nil {
+			p = rel
+		} else {
+			return filepath.ToSlash(p)
+		}
+	}
+	// Project-root relative forms → make worker-relative
+	if strings.HasPrefix(p, "./") {
+		p = "../" + strings.TrimPrefix(p, "./")
+	} else if !strings.HasPrefix(p, "../") && strings.ContainsAny(p, `/\`) {
+		// e.g. "src/index.ts"
+		p = "../" + p
+	}
+	posix := filepath.ToSlash(p)
+	// Ensure file imports are explicit relative (not bare)
+	if !strings.HasPrefix(posix, "./") && !strings.HasPrefix(posix, "../") {
+		posix = "./" + posix
+	}
+	return posix
 }
 
 // IsBunAvailable checks if Bun executable is available in PATH

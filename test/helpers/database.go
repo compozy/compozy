@@ -18,6 +18,10 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+const (
+	postgresStartupTimeout = 3 * time.Minute
+)
+
 var (
 	gooseDialectOnce sync.Once
 	// Shared container infrastructure for optimized testing
@@ -71,9 +75,9 @@ func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, 
 			wait.ForAll(
 				wait.ForLog("database system is ready to accept connections").
 					WithOccurrence(2).
-					WithStartupTimeout(30*time.Second),
+					WithStartupTimeout(postgresStartupTimeout),
 				wait.ForListeningPort("5432/tcp").
-					WithStartupTimeout(30*time.Second),
+					WithStartupTimeout(postgresStartupTimeout),
 			),
 		),
 	)

@@ -537,50 +537,29 @@ func (p *Config) Validate(ctx context.Context) error {
 	if err := validator.Validate(ctx); err != nil {
 		return err
 	}
-	// Validate models configuration (including default model)
 	if err := p.validateModels(ctx); err != nil {
 		return err
 	}
-	// Validate runtime configuration
 	if err := p.validateRuntimeConfig(ctx); err != nil {
 		return fmt.Errorf("runtime configuration validation failed: %w", err)
 	}
-	// Validate project-level tools
 	if err := p.validateTools(ctx); err != nil {
 		return fmt.Errorf("project tools validation failed: %w", err)
 	}
 	if err := p.validateKnowledge(ctx); err != nil {
 		return err
 	}
-	// Validate project-level memories
 	if err := p.validateMemories(ctx); err != nil {
 		return fmt.Errorf("project memories validation failed: %w", err)
 	}
-	// Validate monitoring configuration if present
-	if p.MonitoringConfig != nil {
-		if err := p.MonitoringConfig.Validate(ctx); err != nil {
-			return fmt.Errorf("monitoring configuration validation failed: %w", err)
-		}
+	if err := p.validateMonitoring(ctx); err != nil {
+		return err
 	}
-	// Validate autoload configuration if present (with caching)
-	if p.AutoLoad != nil {
-		if !p.autoloadValidated {
-			p.autoloadValidError = p.AutoLoad.Validate(ctx)
-			p.autoloadValidated = true
-		}
-		if p.autoloadValidError != nil {
-			return fmt.Errorf("autoload configuration validation failed: %w", p.autoloadValidError)
-		}
+	if err := p.validateAutoload(ctx); err != nil {
+		return err
 	}
-	if p.Opts.SourceOfTruth != "" {
-		m := strings.ToLower(strings.TrimSpace(p.Opts.SourceOfTruth))
-		if m != "repo" && m != "builder" {
-			return fmt.Errorf(
-				"project configuration error: opts.source_of_truth must be 'repo' or 'builder', got '%s'",
-				p.Opts.SourceOfTruth,
-			)
-		}
-		p.Opts.SourceOfTruth = m
+	if err := p.validateSourceOfTruth(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -591,6 +570,45 @@ func (p *Config) ValidateInput(_ context.Context, _ *core.Input) error {
 
 func (p *Config) ValidateOutput(_ context.Context, _ *core.Output) error {
 	// Does not make sense the project having a schema
+	return nil
+}
+
+// validateMonitoring validates the monitoring configuration if present.
+func (p *Config) validateMonitoring(ctx context.Context) error {
+	if p.MonitoringConfig != nil {
+		if err := p.MonitoringConfig.Validate(ctx); err != nil {
+			return fmt.Errorf("monitoring configuration validation failed: %w", err)
+		}
+	}
+	return nil
+}
+
+// validateAutoload validates the autoload configuration with caching.
+func (p *Config) validateAutoload(ctx context.Context) error {
+	if p.AutoLoad != nil {
+		if !p.autoloadValidated {
+			p.autoloadValidError = p.AutoLoad.Validate(ctx)
+			p.autoloadValidated = true
+		}
+		if p.autoloadValidError != nil {
+			return fmt.Errorf("autoload configuration validation failed: %w", p.autoloadValidError)
+		}
+	}
+	return nil
+}
+
+// validateSourceOfTruth validates and normalizes the source of truth setting.
+func (p *Config) validateSourceOfTruth() error {
+	if p.Opts.SourceOfTruth != "" {
+		m := strings.ToLower(strings.TrimSpace(p.Opts.SourceOfTruth))
+		if m != "repo" && m != "builder" {
+			return fmt.Errorf(
+				"project configuration error: opts.source_of_truth must be 'repo' or 'builder', got '%s'",
+				p.Opts.SourceOfTruth,
+			)
+		}
+		p.Opts.SourceOfTruth = m
+	}
 	return nil
 }
 

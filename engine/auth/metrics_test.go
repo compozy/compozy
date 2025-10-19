@@ -111,5 +111,7 @@ func TestRecordRateLimitHit(t *testing.T) {
 		assert.Equal(t, "unknown", maskIPAddress("not-an-ip"))
 		assert.Equal(t, "192.168.1.0", maskIPAddress("192.168.1.42"))
 		assert.Equal(t, "2001:db8:85a3::", maskIPAddress("2001:db8:85a3::8a2e:370:7334"))
+		assert.Equal(t, "127.0.0.0", maskIPAddress("127.0.0.1:8080"))
+		assert.Equal(t, "2001:db8::", maskIPAddress("[2001:db8::1]:443"))
 	})
 }

@@ -221,6 +221,24 @@ func registerServerAuthFields(registry *Registry) {
 		Type:    reflect.TypeOf([]string{}),
 		Help:    "List of workflow IDs that are exempt from authentication (comma-separated)",
 	})
+
+	registry.Register(&FieldDef{
+		Path:    "server.auth.api_key_last_used_max_concurrency",
+		Default: 10,
+		CLIFlag: "auth-api-key-last-used-max-concurrency",
+		EnvVar:  "SERVER_AUTH_API_KEY_LAST_USED_MAX_CONCURRENCY",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum concurrent API key last-used updates (0 disables async updates)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "server.auth.api_key_last_used_timeout",
+		Default: 2 * time.Second,
+		CLIFlag: "auth-api-key-last-used-timeout",
+		EnvVar:  "SERVER_AUTH_API_KEY_LAST_USED_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout applied to asynchronous API key last-used updates",
+	})
 }
 
 func registerServerTimeoutFields(registry *Registry) {
@@ -1476,6 +1494,12 @@ func registerLLMTelemetryControls(registry *Registry) {
 		EnvVar:  "LLM_CONTEXT_WARNING_THRESHOLDS",
 		Type:    reflect.TypeOf([]float64{}),
 		Help:    "Comma-separated context usage ratios (0-1) that trigger telemetry warnings",
+	})
+	registry.Register(&FieldDef{
+		Path:    "llm.usage_metrics.persist_buckets",
+		Default: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1},
+		Type:    reflect.TypeOf([]float64{}),
+		Help:    "Histogram bucket boundaries (seconds) for usage persistence latency metrics",
 	})
 }
 

@@ -277,12 +277,11 @@ func newServiceInstance(
 }
 
 func deriveCloseContext(ctx context.Context) context.Context {
-	base := context.Background()
+	base := context.WithoutCancel(ctx)
 	if mgr := appconfig.ManagerFromContext(ctx); mgr != nil {
 		base = appconfig.ContextWithManager(base, mgr)
 	}
-	log := logger.FromContext(ctx)
-	if log != nil {
+	if log := logger.FromContext(ctx); log != nil {
 		base = logger.ContextWithLogger(base, log)
 	}
 	return base
@@ -684,7 +683,7 @@ func setupMCPClient(ctx context.Context, cfg *Config, agent *agent.Config) (*mcp
 	if cfg == nil || cfg.ProxyURL == "" {
 		return nil, nil
 	}
-	client, err := cfg.CreateMCPClient()
+	client, err := cfg.CreateMCPClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MCP client: %w", err)
 	}
