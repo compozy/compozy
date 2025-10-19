@@ -18,6 +18,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	defaultMaxConcurrentMCPRegistrations = 5
+	defaultMCPClientTimeout              = 30 * time.Second
+	defaultMCPReadinessTimeout           = 60 * time.Second
+	defaultMCPReadinessPollInterval      = 200 * time.Millisecond
+)
+
 // WorkflowConfig represents the minimal interface needed from workflow configs
 type WorkflowConfig interface {
 	GetMCPs() []Config
@@ -160,6 +167,7 @@ func (s *RegisterService) deregisterIDs(ctx context.Context, ids []string) {
 	log := logger.FromContext(ctx)
 	g, gCtx := errgroup.WithContext(ctx)
 	for _, id := range ids {
+		id := id
 		g.Go(func() error {
 			if err := s.proxy.Deregister(gCtx, id); err != nil {
 				log.Warn("Failed to deregister MCP during shutdown", "mcp_id", id, "error", err)
@@ -507,7 +515,7 @@ func (s *RegisterService) validateEnsureMultipleInput(ctx context.Context, confi
 
 // getConcurrencyLimit retrieves the maximum concurrent registrations from config with fallback
 func (s *RegisterService) getConcurrencyLimit(ctx context.Context) int {
-	maxConcurrent := 5 // fallback to previous default
+	maxConcurrent := defaultMaxConcurrentMCPRegistrations
 	if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.LLM.MaxConcurrentTools > 0 {
 		maxConcurrent = cfg.LLM.MaxConcurrentTools
 	}
@@ -654,13 +662,13 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 	if cfg != nil && cfg.LLM.MCPReadinessTimeout > 0 {
 		readinessTimeout = cfg.LLM.MCPReadinessTimeout
 	} else {
-		readinessTimeout = 60 * time.Second
+		readinessTimeout = defaultMCPReadinessTimeout
 	}
 	var pollInterval time.Duration
 	if cfg != nil && cfg.LLM.MCPReadinessPollInterval > 0 {
 		pollInterval = cfg.LLM.MCPReadinessPollInterval
 	} else {
-		pollInterval = 200 * time.Millisecond
+		pollInterval = defaultMCPReadinessPollInterval
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, readinessTimeout)
 	defer cancel()
@@ -690,7 +698,7 @@ func setupRegisterServiceFromApp(ctx context.Context) *RegisterService {
 	if cfg != nil && cfg.LLM.MCPClientTimeout > 0 {
 		clientTimeout = cfg.LLM.MCPClientTimeout
 	} else {
-		clientTimeout = 30 * time.Second
+		clientTimeout = defaultMCPClientTimeout
 	}
 	service := NewWithTimeout(ctx, proxyURL, clientTimeout)
 	// Avoid logging full proxy URL which may contain credentials

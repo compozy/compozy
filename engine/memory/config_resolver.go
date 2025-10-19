@@ -415,7 +415,16 @@ func (mm *Manager) createTiktokenCounter(model string) (memcore.TokenCounter, er
 func (mm *Manager) createConfigFromMap(ctx context.Context, resourceID string, configMap any) (*Config, error) {
 	// Handle the case where the registry already returns a typed config
 	if cfg, ok := configMap.(*Config); ok {
-		return cfg, nil
+		cloned := cloneConfigForValidation(cfg)
+		if err := cloned.Validate(ctx); err != nil {
+			return nil, &Error{
+				Type:       ErrorTypeConfig,
+				Operation:  "validate",
+				ResourceID: resourceID,
+				Cause:      err,
+			}
+		}
+		return cloned, nil
 	}
 	// For maps, we still need to use YAML conversion due to complex nested structures
 	// In a greenfield project, we would enforce typed configs throughout
@@ -448,4 +457,51 @@ func (mm *Manager) createConfigFromMap(ctx context.Context, resourceID string, c
 		}
 	}
 	return config, nil
+}
+
+func cloneConfigForValidation(cfg *Config) *Config {
+	cloned := *cfg
+	if cfg.TokenAllocation != nil {
+		allocationCopy := *cfg.TokenAllocation
+		if len(cfg.TokenAllocation.UserDefined) > 0 {
+			allocationCopy.UserDefined = core.CloneMap(cfg.TokenAllocation.UserDefined)
+		}
+		cloned.TokenAllocation = &allocationCopy
+	}
+	if cfg.Flushing != nil {
+		flushingCopy := *cfg.Flushing
+		cloned.Flushing = &flushingCopy
+	}
+	if cfg.PrivacyPolicy != nil {
+		policyCopy := *cfg.PrivacyPolicy
+		if len(cfg.PrivacyPolicy.RedactPatterns) > 0 {
+			policyCopy.RedactPatterns = append([]string(nil), cfg.PrivacyPolicy.RedactPatterns...)
+		}
+		if len(cfg.PrivacyPolicy.NonPersistableMessageTypes) > 0 {
+			policyCopy.NonPersistableMessageTypes = append(
+				[]string(nil),
+				cfg.PrivacyPolicy.NonPersistableMessageTypes...)
+		}
+		cloned.PrivacyPolicy = &policyCopy
+	}
+	if cfg.Locking != nil {
+		lockingCopy := *cfg.Locking
+		cloned.Locking = &lockingCopy
+	}
+	if cfg.TokenProvider != nil {
+		providerCopy := *cfg.TokenProvider
+		if len(cfg.TokenProvider.Settings) > 0 {
+			providerCopy.Settings = core.CloneMap(cfg.TokenProvider.Settings)
+		}
+		cloned.TokenProvider = &providerCopy
+	}
+	if cfg.CWD != nil {
+		cwdCopy := *cfg.CWD
+		cloned.CWD = &cwdCopy
+	}
+	if cfg.ttlManager != nil {
+		ttlManagerCopy := *cfg.ttlManager
+		cloned.ttlManager = &ttlManagerCopy
+	}
+	return &cloned
 }

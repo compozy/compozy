@@ -310,7 +310,7 @@ func (c *Config) validateResource(_ context.Context) error {
 
 func (c *Config) validatePersistence(_ context.Context) error {
 	if c.Persistence.TTL != "" {
-		parsedTTL, err := time.ParseDuration(c.Persistence.TTL)
+		parsedTTL, err := core.ParseHumanDuration(c.Persistence.TTL)
 		if err != nil {
 			return fmt.Errorf(
 				"memory config ID '%s': invalid persistence.ttl duration format '%s': %w",
@@ -381,7 +381,7 @@ func (c *Config) validateLocking(_ context.Context) error {
 		return nil
 	}
 	if c.Locking.AppendTTL != "" {
-		d, err := time.ParseDuration(c.Locking.AppendTTL)
+		d, err := core.ParseHumanDuration(c.Locking.AppendTTL)
 		if err != nil {
 			return fmt.Errorf(
 				"memory config ID '%s': invalid locking.append_ttl duration format '%s': %w",
@@ -393,7 +393,7 @@ func (c *Config) validateLocking(_ context.Context) error {
 		c.Locking.ParsedAppendTTL = d
 	}
 	if c.Locking.ClearTTL != "" {
-		d, err := time.ParseDuration(c.Locking.ClearTTL)
+		d, err := core.ParseHumanDuration(c.Locking.ClearTTL)
 		if err != nil {
 			return fmt.Errorf(
 				"memory config ID '%s': invalid locking.clear_ttl duration format '%s': %w",
@@ -405,7 +405,7 @@ func (c *Config) validateLocking(_ context.Context) error {
 		c.Locking.ParsedClearTTL = d
 	}
 	if c.Locking.FlushTTL != "" {
-		d, err := time.ParseDuration(c.Locking.FlushTTL)
+		d, err := core.ParseHumanDuration(c.Locking.FlushTTL)
 		if err != nil {
 			return fmt.Errorf(
 				"memory config ID '%s': invalid locking.flush_ttl duration format '%s': %w",
@@ -477,21 +477,21 @@ func NewTTLManager(lockConfig *memcore.LockConfig) *TTLManager {
 	if lockConfig.ParsedAppendTTL > 0 {
 		tm.appendTTL = lockConfig.ParsedAppendTTL
 	} else if lockConfig.AppendTTL != "" {
-		if d, err := time.ParseDuration(lockConfig.AppendTTL); err == nil && d > 0 {
+		if d, err := core.ParseHumanDuration(lockConfig.AppendTTL); err == nil && d > 0 {
 			tm.appendTTL = d
 		}
 	}
 	if lockConfig.ParsedClearTTL > 0 {
 		tm.clearTTL = lockConfig.ParsedClearTTL
 	} else if lockConfig.ClearTTL != "" {
-		if d, err := time.ParseDuration(lockConfig.ClearTTL); err == nil && d > 0 {
+		if d, err := core.ParseHumanDuration(lockConfig.ClearTTL); err == nil && d > 0 {
 			tm.clearTTL = d
 		}
 	}
 	if lockConfig.ParsedFlushTTL > 0 {
 		tm.flushTTL = lockConfig.ParsedFlushTTL
 	} else if lockConfig.FlushTTL != "" {
-		if d, err := time.ParseDuration(lockConfig.FlushTTL); err == nil && d > 0 {
+		if d, err := core.ParseHumanDuration(lockConfig.FlushTTL); err == nil && d > 0 {
 			tm.flushTTL = d
 		}
 	}

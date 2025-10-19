@@ -26,14 +26,19 @@ type ProxyTool struct {
 	executor    mcpExecutor
 }
 
-// NewProxyTool creates a new proxy tool from a tool definition
+// NewProxyTool creates a new proxy tool from a tool definition.
 func NewProxyTool(toolDef mcp.ToolDefinition, proxyClient *mcp.Client) tools.Tool {
+	return NewProxyToolWithExecutor(toolDef, mcptools.NewExecutor(proxyClient))
+}
+
+// NewProxyToolWithExecutor constructs a proxy tool with a custom executor.
+func NewProxyToolWithExecutor(toolDef mcp.ToolDefinition, executor mcpExecutor) tools.Tool {
 	return &ProxyTool{
 		name:        toolDef.Name,
 		description: toolDef.Description,
 		inputSchema: toolDef.InputSchema,
 		mcpName:     toolDef.MCPName,
-		executor:    mcptools.NewExecutor(proxyClient),
+		executor:    executor,
 	}
 }
 

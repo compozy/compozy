@@ -243,6 +243,11 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 			MaxTokens:       4000,
 			MaxMessages:     100,
 			MaxContextRatio: 0.8,
+			TokenProvider: &memcore.TokenProviderConfig{
+				Provider: "openai",
+				Model:    "gpt-4o-mini",
+				Fallback: "tiktoken",
+			},
 			TokenAllocation: &memcore.TokenAllocation{
 				ShortTerm: 0.6,
 				LongTerm:  0.3,
