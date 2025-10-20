@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/semaphore"
-	"golang.org/x/time/rate"
 
 	"github.com/compozy/compozy/engine/core"
 	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
@@ -228,46 +226,41 @@ func TestProviderRateLimiter_TokenRateLimit(t *testing.T) {
 		require.GreaterOrEqual(t, elapsed, 800*time.Millisecond, "should enforce ~1s spacing")
 	})
 
-	// This test directly accesses internal implementation to verify the precise
-	// sequencing of releaseSlotBeforeTokenWait behavior (slot release happens before
-	// token wait blocks). Testing this behavior through the public API alone would
-	// require complex timing assumptions and be unreliable.
+	// Ensure releaseSlotBeforeTokenWait frees concurrency slots before enforcing token waits.
 	t.Run("Should release slot before token wait when enabled", func(t *testing.T) {
-		limiter := &providerRateLimiter{
-			provider:                   core.ProviderOpenAI,
-			enabled:                    true,
-			concurrency:                1,
-			sem:                        semaphore.NewWeighted(1),
-			tokenLimiter:               rate.NewLimiter(rate.Every(100*time.Millisecond), 1),
-			releaseSlotBeforeTokenWait: true,
-		}
-		require.True(t, limiter.sem.TryAcquire(1))
-		limiter.metrics.activeRequests.Add(1)
-		ctx, cancel := context.WithCancel(t.Context())
-		done := make(chan struct{})
+		ctx := t.Context()
+		const tokensPerMinute = 60
+		registry := NewRateLimiterRegistry(appconfig.LLMRateLimitConfig{
+			Enabled:                           true,
+			DefaultConcurrency:                1,
+			DefaultQueueSize:                  0,
+			DefaultTokensPerMinute:            tokensPerMinute,
+			DefaultReleaseSlotBeforeTokenWait: true,
+		}, providermetrics.Nop())
+
+		require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
+		releaseDone := make(chan struct{})
 		go func() {
-			limiter.release(ctx, 2)
-			close(done)
+			registry.Release(ctx, core.ProviderOpenAI, tokensPerMinute)
+			close(releaseDone)
 		}()
-		require.Eventually(t, func() bool {
-			if limiter.metrics.activeRequests.Load() != 0 {
-				return false
-			}
-			if !limiter.sem.TryAcquire(1) {
-				return false
-			}
-			limiter.sem.Release(1)
-			return true
-		}, 50*time.Millisecond, 5*time.Millisecond)
-		cancel()
+
+		time.Sleep(20 * time.Millisecond)
+		start := time.Now()
+		require.NoError(t, registry.Acquire(ctx, core.ProviderOpenAI, nil))
+		elapsed := time.Since(start)
+		require.Less(t, elapsed, 200*time.Millisecond,
+			"acquire should not block on token wait when releaseSlotBeforeTokenWait is enabled")
+
+		registry.Release(ctx, core.ProviderOpenAI, 0)
 		require.Eventually(t, func() bool {
 			select {
-			case <-done:
+			case <-releaseDone:
 				return true
 			default:
 				return false
 			}
-		}, time.Second, 10*time.Millisecond)
+		}, 2*time.Second, 20*time.Millisecond)
 	})
 }
 

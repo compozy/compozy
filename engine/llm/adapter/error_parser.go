@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // ErrorParser handles the extraction and classification of errors from various LLM providers
@@ -22,9 +23,11 @@ var (
 	rateLimitPatterns = []string{
 		"rate limit", "rate-limit", "ratelimit", "too many requests",
 		"throttled", "throttling",
-		"requests per minute", "requests per second", "rpm", "rps",
+		"requests per minute", "requests per second",
 	}
-	unavailablePatterns = []string{
+	// Short tokens checked with a boundary-aware matcher to reduce false positives.
+	rateLimitShortTokens = []string{"rpm", "rps"}
+	unavailablePatterns  = []string{
 		"service unavailable", "service_unavailable", "temporarily unavailable",
 		"overloaded", "capacity", "busy", "try again later",
 	}
@@ -37,7 +40,9 @@ var (
 		"invalid credentials",
 	}
 	invalidModelPatterns  = []string{"invalid model", "model not found"}
-	contentPolicyPatterns = []string{"content policy", "safety"}
+	contentPolicyPatterns = []string{
+		"content policy", "safety policy", "safety system", "safety filter", "blocked by safety",
+	}
 )
 
 // NewErrorParser creates a new error parser for the given provider
@@ -125,7 +130,7 @@ func (p *ErrorParser) matchProviderPatterns(errMsgLower, errMsg string, original
 	if containsAny(errMsgLower, []string{"quota exceeded", "quota_exceeded"}) {
 		return NewErrorWithCode(ErrCodeQuotaExceeded, errMsg, p.provider, originalErr)
 	}
-	if containsAny(errMsgLower, rateLimitPatterns) {
+	if containsAnyBounded(errMsgLower, rateLimitShortTokens) || containsAny(errMsgLower, rateLimitPatterns) {
 		return NewError(http.StatusTooManyRequests, errMsg, p.provider, originalErr)
 	}
 	if containsAny(errMsgLower, unavailablePatterns) {
@@ -209,6 +214,32 @@ func containsAny(haystack string, patterns []string) bool {
 	for _, pattern := range patterns {
 		if strings.Contains(haystack, pattern) {
 			return true
+		}
+	}
+	return false
+}
+
+func containsAnyBounded(haystack string, tokens []string) bool {
+	for _, token := range tokens {
+		idx := strings.Index(haystack, token)
+		for idx != -1 {
+			leftBoundary := idx == 0 ||
+				(!unicode.IsLetter(rune(haystack[idx-1])) && !unicode.IsDigit(rune(haystack[idx-1])))
+			r := idx + len(token)
+			rightBoundary := r == len(haystack) ||
+				(!unicode.IsLetter(rune(haystack[r])) && !unicode.IsDigit(rune(haystack[r])))
+			if leftBoundary && rightBoundary {
+				return true
+			}
+			nextStart := idx + 1
+			if nextStart >= len(haystack) {
+				break
+			}
+			next := strings.Index(haystack[nextStart:], token)
+			if next == -1 {
+				break
+			}
+			idx = nextStart + next
 		}
 	}
 	return false

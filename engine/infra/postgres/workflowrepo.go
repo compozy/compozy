@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -21,7 +22,10 @@ const selectWorkflowStateByExecID = "SELECT " +
 	"workflow_exec_id, workflow_id, status, usage, input, output, error " +
 	"FROM workflow_states WHERE workflow_exec_id = $1"
 
-const taskStatesByExecQuery = "SELECT * FROM task_states WHERE workflow_exec_id = ANY($1::text[])"
+const (
+	taskStatesByExecQueryUUID = "SELECT * FROM task_states WHERE workflow_exec_id = ANY($1::uuid[])"
+	taskStatesByExecQueryText = "SELECT * FROM task_states WHERE workflow_exec_id = ANY($1::text[])"
+)
 
 // WorkflowRepo implements the workflow.Repository interface.
 type WorkflowRepo struct {
@@ -186,11 +190,25 @@ func (r *WorkflowRepo) fetchTaskStatesForExec(
 	}
 	var taskStatesDB []*task.StateDB
 	stringIDs := make([]string, len(execIDs))
+	uuidIDs := make([]uuid.UUID, len(execIDs))
+	allUUID := true
 	for i := range execIDs {
 		stringIDs[i] = execIDs[i].String()
+		u, err := uuid.Parse(stringIDs[i])
+		if err != nil {
+			allUUID = false
+			continue
+		}
+		uuidIDs[i] = u
 	}
-	if err := pgxscan.Select(ctx, r.db, &taskStatesDB, taskStatesByExecQuery, stringIDs); err != nil {
-		return nil, fmt.Errorf("scanning task states: %w", err)
+	var selectErr error
+	if allUUID {
+		selectErr = pgxscan.Select(ctx, r.db, &taskStatesDB, taskStatesByExecQueryUUID, uuidIDs)
+	} else {
+		selectErr = pgxscan.Select(ctx, r.db, &taskStatesDB, taskStatesByExecQueryText, stringIDs)
+	}
+	if selectErr != nil {
+		return nil, fmt.Errorf("scanning task states: %w", selectErr)
 	}
 	result := make(map[string]map[string]*task.State, len(stringIDs))
 	for _, id := range stringIDs {

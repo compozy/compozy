@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/compozy/compozy/docs"
 	"github.com/compozy/compozy/pkg/logger"
@@ -34,12 +35,22 @@ func configureSwaggerInfo(prefixURL string) {
 
 // registerDocsUI attaches the Swagger UI route pointing to the OpenAPI document.
 func registerDocsUI(router *gin.Engine) {
-	router.GET("/docs/*any", ginSwagger.WrapHandler(
+	swaggerHandler := ginSwagger.WrapHandler(
 		swaggerFiles.Handler,
-		ginSwagger.URL("/openapi.json"),
+		// Relative URL so the UI stays functional when served under a path prefix.
+		ginSwagger.URL("openapi.json"),
 		ginSwagger.InstanceName(docs.SwaggerInfo.InstanceName()),
 		ginSwagger.DefaultModelsExpandDepth(swaggerModelsExpandDepthCollapsed),
-	))
+	)
+	openAPI := openAPIHandler()
+	router.GET("/docs/*any", func(c *gin.Context) {
+		path := strings.TrimPrefix(c.Param("any"), "/")
+		if path == "openapi.json" {
+			openAPI(c)
+			return
+		}
+		swaggerHandler(c)
+	})
 }
 
 // registerSwaggerRedirect keeps backward compatibility for the legacy swagger path.
@@ -63,7 +74,11 @@ func openAPIHandler() gin.HandlerFunc {
 			respondWithError(c, errResp)
 			return
 		}
-		payload, errResp := convertSwaggerToOpenAPI(ctx, raw, c.Request.Host)
+		host := c.Request.Host
+		if forwarded := c.GetHeader("X-Forwarded-Host"); forwarded != "" {
+			host = forwarded
+		}
+		payload, errResp := convertSwaggerToOpenAPI(ctx, raw, host)
 		if errResp != nil {
 			respondWithError(c, errResp)
 			return
