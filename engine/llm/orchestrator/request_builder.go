@@ -26,17 +26,16 @@ var (
 	fallbackTemplateErr  error
 )
 
-const maxToolSuggestions = 3
-
 type RequestBuilder interface {
 	Build(ctx context.Context, request Request, memoryCtx *MemoryContext) (RequestBuildOutput, error)
 }
 
 type requestBuilder struct {
-	prompts       PromptBuilder
-	systemPrompts SystemPromptRenderer
-	tools         ToolRegistry
-	memory        MemoryManager
+	prompts             PromptBuilder
+	systemPrompts       SystemPromptRenderer
+	tools               ToolRegistry
+	memory              MemoryManager
+	toolSuggestionLimit int
 }
 
 func NewRequestBuilder(
@@ -44,8 +43,15 @@ func NewRequestBuilder(
 	systemPrompts SystemPromptRenderer,
 	tools ToolRegistry,
 	memory MemoryManager,
+	toolSuggestionLimit int,
 ) RequestBuilder {
-	return &requestBuilder{prompts: prompts, systemPrompts: systemPrompts, tools: tools, memory: memory}
+	return &requestBuilder{
+		prompts:             prompts,
+		systemPrompts:       systemPrompts,
+		tools:               tools,
+		memory:              memory,
+		toolSuggestionLimit: normalizeToolSuggestionLimit(toolSuggestionLimit),
+	}
 }
 
 //nolint:gocritic // Request copied to detach builder-side mutations from caller state.
@@ -485,7 +491,21 @@ func (b *requestBuilder) suggestToolNames(ctx context.Context, missing string) [
 		seen[key] = struct{}{}
 		names = append(names, raw)
 	}
-	return nearestToolNames(missing, names, maxToolSuggestions)
+	return nearestToolNames(missing, names, b.suggestionLimit())
+}
+
+func (b *requestBuilder) suggestionLimit() int {
+	if b == nil || b.toolSuggestionLimit <= 0 {
+		return defaultToolSuggestionLimit
+	}
+	return b.toolSuggestionLimit
+}
+
+func normalizeToolSuggestionLimit(limit int) int {
+	if limit <= 0 {
+		return defaultToolSuggestionLimit
+	}
+	return limit
 }
 
 func nearestToolNames(target string, names []string, limit int) []string {

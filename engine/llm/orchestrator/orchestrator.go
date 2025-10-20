@@ -34,6 +34,7 @@ func New(cfg Config) (Orchestrator, error) {
 		cfgCopy.SystemPromptRenderer,
 		cfgCopy.ToolRegistry,
 		memoryManager,
+		settings.toolSuggestionLimit,
 	)
 	toolExec := NewToolExecutor(cfgCopy.ToolRegistry, &settings)
 	responseHandler := NewResponseHandler(&settings)

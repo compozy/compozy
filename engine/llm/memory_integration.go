@@ -62,18 +62,17 @@ func StoreResponseInMemory(
 	if len(memories) == 0 {
 		return nil
 	}
-	log := logger.FromContext(ctx)
 	batch := buildMemoryBatch(assistantResponse, userMessage)
 	var errs []error
 	for _, ref := range memoryRefs {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("StoreResponseInMemory canceled: %w", err)
 		}
-		memory, ok := resolveWritableMemory(log, memories, ref)
+		memory, ok := resolveWritableMemory(ctx, memories, ref)
 		if !ok {
 			continue
 		}
-		appendMemoryBatch(ctx, memory, ref.ID, batch, log, &errs)
+		appendMemoryBatch(ctx, memory, ref.ID, batch, &errs)
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("memory storage errors: %w", errors.Join(errs...))
@@ -105,10 +104,11 @@ func buildMemoryBatch(assistantResponse, userMessage *llmadapter.Message) []Mess
 }
 
 func resolveWritableMemory(
-	log logger.Logger,
+	ctx context.Context,
 	memories map[string]Memory,
 	ref core.MemoryReference,
 ) (Memory, bool) {
+	log := logger.FromContext(ctx)
 	memory, exists := memories[ref.ID]
 	if !exists {
 		log.Debug("Memory reference not found; skipping", "memory_id", ref.ID)
@@ -126,9 +126,9 @@ func appendMemoryBatch(
 	memory Memory,
 	memoryID string,
 	batch []Message,
-	log logger.Logger,
 	errs *[]error,
 ) {
+	log := logger.FromContext(ctx)
 	if err := memory.AppendMany(ctx, batch); err != nil {
 		log.Error(
 			"Failed to append messages to memory atomically",

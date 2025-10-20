@@ -94,6 +94,7 @@ type Config struct {
 	EnableAgentCallCompletionHints bool
 	EnableDynamicPromptState       bool
 	ToolCallCaps                   ToolCallCaps
+	ToolSuggestionLimit            int
 	Middlewares                    []Middleware
 	FinalizeOutputRetryAttempts    int
 	ProjectRoot                    string

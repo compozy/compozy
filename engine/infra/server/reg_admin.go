@@ -76,7 +76,7 @@ func setupAdminRoutes(
 //	@Tags         admin
 //	@Accept       json
 //	@Produce      json
-//	@Param        source  query  string  false  "Reload source (repo|builder). Aliases: yaml->repo, store->builder. Defaults to 'repo'."  Enums(repo,builder)
+//	@Param source query string false "Reload source. yaml->repo, store->builder. Default repo." Enums(repo,builder)
 //	@Success      200  {object}  router.Response{data=map[string]any}  "Reload completed"
 //	@Failure      400  {object}  router.Response{error=router.ErrorInfo} "Invalid parameters"
 //	@Failure      401  {object}  router.Response{error=router.ErrorInfo} "Unauthorized"
@@ -125,18 +125,39 @@ func adminReloadHandler(c *gin.Context, server *Server) {
 	router.RespondOK(c, "reload completed", payload)
 }
 
+type reloadQuery struct {
+	Source string `form:"source" binding:"omitempty,oneof=repo builder yaml store"`
+}
+
 // parseReloadSource resolves the desired reload mode and handles validation errors.
 func parseReloadSource(c *gin.Context) (string, bool) {
-	desiredMode := resolveSourceMode(strings.TrimSpace(strings.ToLower(c.Query("source"))))
-	if desiredMode != "" {
-		return desiredMode, true
+	var q reloadQuery
+	if err := c.ShouldBindQuery(&q); err != nil {
+		router.RespondWithError(
+			c,
+			http.StatusBadRequest,
+			router.NewRequestError(
+				http.StatusBadRequest,
+				"invalid source parameter (allowed values: repo, builder)",
+				fmt.Errorf("validation failed: %w", err),
+			),
+		)
+		return "", false
 	}
-	router.RespondWithError(
-		c,
-		http.StatusBadRequest,
-		router.NewRequestError(http.StatusBadRequest, "invalid source parameter", nil),
-	)
-	return "", false
+	desiredMode := resolveSourceMode(strings.TrimSpace(strings.ToLower(q.Source)))
+	if desiredMode == "" {
+		router.RespondWithError(
+			c,
+			http.StatusBadRequest,
+			router.NewRequestError(
+				http.StatusBadRequest,
+				"invalid source parameter (allowed values: repo, builder)",
+				nil,
+			),
+		)
+		return "", false
+	}
+	return desiredMode, true
 }
 
 // respondReloadServerError sends a standardized server error response for admin reload failures.

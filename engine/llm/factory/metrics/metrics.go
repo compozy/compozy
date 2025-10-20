@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	labelFactoryType = "factory_type"
-	labelName        = "name"
-	unitSeconds      = "s"
+	labelFactoryType   = "factory_type"
+	labelName          = "name"
+	unitSeconds        = "s"
+	defaultNameUnknown = "unknown"
 
 	// TypeProvider tracks provider factory creation latency.
 	TypeProvider = "provider"
@@ -68,7 +69,7 @@ func RecordCreate(ctx context.Context, factoryType, name string, duration time.D
 	}
 	finalName := strings.TrimSpace(name)
 	if finalName == "" {
-		finalName = "unknown"
+		finalName = defaultNameUnknown
 	}
 	holder.h.Record(ctx, duration.Seconds(), metric.WithAttributes(
 		attribute.String(labelFactoryType, finalType),

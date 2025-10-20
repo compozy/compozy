@@ -301,7 +301,7 @@ func (l *conversationLoop) injectCompletionHint(ctx context.Context, loopCtx *Lo
 	telemetry.Logger(ctx).Debug("Injecting agent call completion hint", "hint", hint)
 	loopCtx.LLMRequest.Messages = append(
 		loopCtx.LLMRequest.Messages,
-		llmadapter.Message{Role: "user", Content: hint},
+		llmadapter.Message{Role: roleUser, Content: hint},
 	)
 }
 
