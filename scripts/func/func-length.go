@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -16,6 +17,8 @@ const (
 	excludedDirs     = "vendor,node_modules,.git,bin,docs/node_modules"
 )
 
+var errFuncLengthViolations = errors.New("function length violations detected")
+
 type FunctionInfo struct {
 	File     string
 	Name     string
@@ -23,19 +26,18 @@ type FunctionInfo struct {
 	StartPos int
 }
 
-func main() {
-	root := "."
-	if len(os.Args) > 1 {
-		root = os.Args[1]
-	}
-
+func runFuncLengthCheck(root string) error {
 	functions, err := analyzeFunctionLengths(root)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	reportResults(functions)
+	violations := reportResults(functions)
+	if violations > 0 {
+		return fmt.Errorf("%w: %d functions exceed %d lines", errFuncLengthViolations, violations, maxFunctionLines)
+	}
+
+	return nil
 }
 
 func analyzeFunctionLengths(root string) ([]FunctionInfo, error) {
@@ -69,15 +71,6 @@ func analyzeFunctionLengths(root string) ([]FunctionInfo, error) {
 	})
 
 	return functions, err
-}
-
-func shouldSkipDir(name string, excluded []string) bool {
-	for _, dir := range excluded {
-		if name == dir {
-			return true
-		}
-	}
-	return false
 }
 
 func analyzeFile(filename string) ([]FunctionInfo, error) {
@@ -136,10 +129,10 @@ func extractReceiverType(expr ast.Expr) string {
 	}
 }
 
-func reportResults(functions []FunctionInfo) {
+func reportResults(functions []FunctionInfo) int {
 	if len(functions) == 0 {
-		fmt.Println("✅ All functions are within the 30-line limit!")
-		return
+		fmt.Printf("✅ All functions are within the %d-line limit!\n", maxFunctionLines)
+		return 0
 	}
 
 	sort.Slice(functions, func(i, j int) bool {
@@ -158,5 +151,5 @@ func reportResults(functions []FunctionInfo) {
 	}
 
 	fmt.Printf("Total violations: %d\n", len(functions))
-	os.Exit(1)
+	return len(functions)
 }

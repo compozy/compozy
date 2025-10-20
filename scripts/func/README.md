@@ -1,70 +1,47 @@
-# Function Length Checker
+# Function Utilities CLI
 
-This script analyzes the entire Go codebase to identify functions that exceed the 50-line limit as defined in the project's coding standards.
+The `scripts/func` package bundles several AST-powered utilities that enforce Compozy's Go function guidelines. All tools are exposed through a Cobra CLI.
 
-## Usage
+## Quick Start
 
-### Check entire codebase from project root:
-
-```bash
-go run scripts/func/check-function-length.go
-```
-
-### Check specific directory:
+Run a tool from the repository root:
 
 ```bash
-go run scripts/func/check-function-length.go ./engine/agent
+go run scripts/func/main.go < command > [path]
 ```
 
-## Features
+If no path is provided, the current directory (`.`) is used.
 
-- ✅ Parses Go source files using Go's standard `go/parser` and `go/ast` packages
-- ✅ Counts function lines including both regular functions and methods
-- ✅ Excludes test files (`*_test.go`)
-- ✅ Skips vendor, node_modules, and build directories
-- ✅ Reports functions sorted by line count (highest first)
-- ✅ Shows file path, function name, line count, and how much it exceeds the limit
+## Available Commands
 
-## Output Example
+### `length`
 
-```
-Found 5 functions with more than 50 lines:
+Report functions whose bodies exceed the configured line limit (30 lines).
 
-📄 engine/agent/service.go:42
-   Function: (*Service).Execute
-   Lines: 78 (exceeds limit by 28)
-
-📄 engine/workflow/executor.go:120
-   Function: executeTask
-   Lines: 65 (exceeds limit by 15)
-
-Total violations: 5
+```bash
+go run scripts/func/main.go length ./engine/agent
 ```
 
-## Exit Codes
+### `spacing`
 
-- `0`: No violations found (all functions are within limit)
-- `1`: Violations found or error occurred
+Detect or remove blank lines between statements inside function bodies.
 
-## Integration with CI/CD
-
-Add to your Makefile or CI pipeline:
-
-```makefile
-check-func-length:
-	@go run scripts/func/check-function-length.go
+```bash
+go run scripts/func/main.go spacing --fix ./engine/agent
 ```
 
-## Technical Details
+### `comments`
 
-The script uses:
+Detect or remove comments that appear inside function bodies (excluding `// TODO` notes).
 
-- `go/parser`: Parses Go source code into an Abstract Syntax Tree (AST)
-- `go/ast`: Provides AST node inspection and traversal
-- `token.FileSet`: Tracks position information for calculating line counts
+```bash
+go run scripts/func/main.go comments --fix ./engine/agent
+```
 
-Line counting methodology:
+## Shared Features
 
-- Counts from function declaration start to function body end
-- Includes function signature, body, comments within the function
-- Excludes comments before the function declaration
+- ✅ Walks Go source files using the Go parser and AST packages
+- ✅ Skips tests and common vendor/build directories
+- ✅ Returns non-zero exit codes when violations are found
+- ✅ Supports targeted execution by directory
+- ✅ Provides optional `--fix` flags where automated cleanup is available

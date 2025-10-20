@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"flag"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -11,10 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-)
-
-const (
-	excludedDirs = "vendor,node_modules,.git,bin,docs/node_modules"
 )
 
 type SpacingIssue struct {
@@ -33,25 +29,22 @@ type FunctionIssues struct {
 	BlankLines  int
 }
 
-var fixMode bool
+var errFuncSpacingViolations = errors.New("function spacing violations detected")
 
-func main() {
-	flag.BoolVar(&fixMode, "fix", false, "Automatically fix spacing issues by removing blank lines")
-	flag.Parse()
-	root := "."
-	if flag.NArg() > 0 {
-		root = flag.Arg(0)
-	}
+func runFuncSpacingCheck(root string, fix bool) error {
 	issues, err := analyzeFunctionSpacing(root)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
-	if fixMode {
+	if fix {
 		fixSpacingIssues(issues)
-	} else {
-		reportSpacingResults(issues)
+		return nil
 	}
+	violations := reportSpacingResults(issues)
+	if violations > 0 {
+		return fmt.Errorf("%w: %d blank-line issues detected", errFuncSpacingViolations, violations)
+	}
+	return nil
 }
 
 func analyzeFunctionSpacing(root string) ([]SpacingIssue, error) {
@@ -177,25 +170,10 @@ func countBlankLines(lines []string, startLine, endLine int) (int, int) {
 	return blankLines, firstBlankLine
 }
 
-func extractReceiverType(expr ast.Expr) string {
-	switch t := expr.(type) {
-	case *ast.StarExpr:
-		return "*" + extractReceiverType(t.X)
-	case *ast.Ident:
-		return t.Name
-	case *ast.IndexExpr:
-		return extractReceiverType(t.X)
-	case *ast.IndexListExpr:
-		return extractReceiverType(t.X)
-	default:
-		return "?"
-	}
-}
-
-func reportSpacingResults(issues []SpacingIssue) {
+func reportSpacingResults(issues []SpacingIssue) int {
 	if len(issues) == 0 {
 		fmt.Println("✅ All functions have proper spacing!")
-		return
+		return 0
 	}
 	groupedIssues := groupIssuesByFunction(issues)
 	sort.Slice(groupedIssues, func(i, j int) bool {
@@ -234,8 +212,12 @@ func reportSpacingResults(issues []SpacingIssue) {
 		)
 		fmt.Println()
 	}
-	fmt.Printf("Total spacing violations: %d blank lines in %d functions\n", totalViolations, len(groupedIssues))
-	os.Exit(1)
+	fmt.Printf(
+		"Total spacing violations: %d blank lines in %d functions\n",
+		totalViolations,
+		len(groupedIssues),
+	)
+	return totalViolations
 }
 
 func groupIssuesByFunction(issues []SpacingIssue) []FunctionIssues {
