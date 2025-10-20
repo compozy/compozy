@@ -54,6 +54,8 @@ type Redis struct {
 	ctx    context.Context
 }
 
+const fallbackRedisPingTimeout = 10 * time.Second
+
 // NewRedis creates a new Redis client with the provided configuration.
 func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 	log := logger.FromContext(ctx).With("component", "infra_redis")
@@ -65,7 +67,11 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := pingRedis(ctx, client, cfg.PingTimeout); err != nil {
+	timeout := cfg.PingTimeout
+	if timeout <= 0 {
+		timeout = fallbackRedisPingTimeout
+	}
+	if err := pingRedis(ctx, client, timeout); err != nil {
 		client.Close()
 		return nil, err
 	}

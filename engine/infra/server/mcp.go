@@ -25,8 +25,8 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 	}
 	cmCfg := clientManagerConfigFromApp(cfg)
 	total := mcpProbeTimeout(cfg)
-	client := &http.Client{Timeout: cmCfg.DefaultRequestTimeout}
 	poll, reqTimeout := readinessTimings(cfg, 500*time.Millisecond, cmCfg.DefaultRequestTimeout)
+	client := &http.Client{Timeout: reqTimeout}
 	if !s.awaitMCPProxyReady(ctx, client, baseURL, total, reqTimeout, poll) {
 		if stopErr := s.shutdownMCPServer(ctx, cfg, server); stopErr != nil {
 			logger.FromContext(ctx).Warn("Failed to stop embedded MCP proxy after readiness failure", "error", stopErr)
@@ -52,19 +52,28 @@ func (s *Server) awaitMCPProxyReady(
 	requestTimeout time.Duration,
 	pollInterval time.Duration,
 ) bool {
+	if total <= 0 {
+		return probeMCPProxy(ctx, client, baseURL, requestTimeout)
+	}
 	deadline := time.Now().Add(total)
-	for time.Now().Before(deadline) {
+	if probeMCPProxy(ctx, client, baseURL, requestTimeout) {
+		return true
+	}
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+	for {
 		select {
 		case <-ctx.Done():
 			return false
-		default:
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return false
+			}
+			if probeMCPProxy(ctx, client, baseURL, requestTimeout) {
+				return true
+			}
 		}
-		if probeMCPProxy(ctx, client, baseURL, requestTimeout) {
-			return true
-		}
-		time.Sleep(pollInterval)
 	}
-	return false
 }
 
 // readinessTimings determines poll and request timeouts for readiness probing.

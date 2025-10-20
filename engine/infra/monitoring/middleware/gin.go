@@ -16,7 +16,10 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.22.0"
 )
 
+// Predefined histogram buckets for HTTP metrics.
 var (
+	httpDurationBuckets  = []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+	httpSizeBuckets      = []float64{100, 1000, 10000, 100000, 1000000, 10000000, 100000000}
 	httpRequestsTotal    metric.Int64Counter
 	httpRequestDuration  metric.Float64Histogram
 	httpRequestSize      metric.Int64Histogram
@@ -52,7 +55,7 @@ func initializeHTTPMetrics(ctx context.Context, meter metric.Meter) {
 	httpRequestDuration, err = meter.Float64Histogram(
 		metrics.MetricNameWithSubsystem("http", "request_duration_seconds"),
 		metric.WithDescription("HTTP request latency"),
-		metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
+		metric.WithExplicitBucketBoundaries(httpDurationBuckets...),
 	)
 	if err != nil {
 		log.Error("Failed to create http request duration histogram", "error", err)
@@ -61,7 +64,7 @@ func initializeHTTPMetrics(ctx context.Context, meter metric.Meter) {
 		metrics.MetricNameWithSubsystem("http", "request_size_bytes"),
 		metric.WithDescription("Size distribution of HTTP request bodies"),
 		metric.WithUnit("bytes"),
-		metric.WithExplicitBucketBoundaries(100, 1000, 10000, 100000, 1000000, 10000000, 100000000),
+		metric.WithExplicitBucketBoundaries(httpSizeBuckets...),
 	)
 	if err != nil {
 		log.Error("Failed to create http request size histogram", "error", err)
@@ -70,7 +73,7 @@ func initializeHTTPMetrics(ctx context.Context, meter metric.Meter) {
 		metrics.MetricNameWithSubsystem("http", "response_size_bytes"),
 		metric.WithDescription("Size distribution of HTTP response bodies"),
 		metric.WithUnit("bytes"),
-		metric.WithExplicitBucketBoundaries(100, 1000, 10000, 100000, 1000000, 10000000, 100000000),
+		metric.WithExplicitBucketBoundaries(httpSizeBuckets...),
 	)
 	if err != nil {
 		log.Error("Failed to create http response size histogram", "error", err)

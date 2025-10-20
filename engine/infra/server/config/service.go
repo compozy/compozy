@@ -82,7 +82,7 @@ func (s *service) loadProjectArtifacts(
 	file string,
 ) (*project.Config, *autoload.ConfigRegistry, error) {
 	log := logger.FromContext(ctx)
-	log.Info("Starting compozy server")
+	log.Info("Loading project configuration")
 	log.Debug("Loading config file", "config_file", file)
 	projectConfig, err := project.Load(ctx, cwd, file, s.envFilePath)
 	if err != nil {

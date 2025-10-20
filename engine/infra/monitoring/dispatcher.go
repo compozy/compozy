@@ -78,19 +78,19 @@ func initDispatcherHealthMetrics(ctx context.Context, meter metric.Meter) {
 	if meter == nil {
 		return
 	}
-	log := logger.FromContext(ctx)
 	dispatcherHealthMutex.Lock()
 	defer dispatcherHealthMutex.Unlock()
 	dispatcherHealthInitOnce.Do(func() {
-		if !createDispatcherHealthInstruments(meter, log) {
+		if !createDispatcherHealthInstruments(ctx, meter) {
 			return
 		}
-		registerDispatcherHealthCallback(meter, log)
+		registerDispatcherHealthCallback(ctx, meter)
 	})
 }
 
 // createDispatcherHealthInstruments sets up gauges required for dispatcher health monitoring.
-func createDispatcherHealthInstruments(meter metric.Meter, log logger.Logger) bool {
+func createDispatcherHealthInstruments(ctx context.Context, meter metric.Meter) bool {
+	log := logger.FromContext(ctx)
 	var err error
 	dispatcherHealthGauge, err = meter.Int64ObservableGauge(
 		metrics.MetricNameWithSubsystem("dispatcher", "health_status"),
@@ -120,7 +120,8 @@ func createDispatcherHealthInstruments(meter metric.Meter, log logger.Logger) bo
 }
 
 // registerDispatcherHealthCallback registers the observation callback for dispatcher health metrics.
-func registerDispatcherHealthCallback(meter metric.Meter, log logger.Logger) {
+func registerDispatcherHealthCallback(ctx context.Context, meter metric.Meter) {
+	log := logger.FromContext(ctx)
 	callback, err := meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
 		observeDispatcherHealth(o)
 		return nil

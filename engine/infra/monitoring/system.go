@@ -46,6 +46,8 @@ func initSystemMetrics(ctx context.Context, meter metric.Meter) {
 	if meter == nil {
 		return
 	}
+	systemResetMutex.Lock()
+	defer systemResetMutex.Unlock()
 	systemInitOnce.Do(func() {
 		initializeSystemInstruments(ctx, meter)
 	})

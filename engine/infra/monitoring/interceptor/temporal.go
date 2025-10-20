@@ -174,8 +174,7 @@ func initWorkerMetrics(ctx context.Context, meter metric.Meter) error {
 
 // initDispatcherMetrics initializes dispatcher-related metrics
 func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
-	log := logger.FromContext(ctx)
-	if err := createDispatcherCoreMetrics(meter, log); err != nil {
+	if err := createDispatcherCoreMetrics(ctx, meter); err != nil {
 		return err
 	}
 	if err := initDispatcherTakeoverMetrics(ctx, meter); err != nil {
@@ -184,14 +183,15 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 	if err := initDispatcherScanMetrics(ctx, meter); err != nil {
 		return err
 	}
-	if err := setupDispatcherUptimeGauge(meter, log); err != nil {
+	if err := setupDispatcherUptimeGauge(ctx, meter); err != nil {
 		return err
 	}
-	return registerDispatcherUptime(meter, log)
+	return registerDispatcherUptime(ctx, meter)
 }
 
 // createDispatcherCoreMetrics defines primary dispatcher metric instruments.
-func createDispatcherCoreMetrics(meter metric.Meter, log logger.Logger) error {
+func createDispatcherCoreMetrics(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	var err error
 	dispatcherActive, err = meter.Int64UpDownCounter(
 		metrics.MetricNameWithSubsystem("dispatcher", "active_total"),
@@ -221,7 +221,8 @@ func createDispatcherCoreMetrics(meter metric.Meter, log logger.Logger) error {
 }
 
 // setupDispatcherUptimeGauge creates the observable gauge for dispatcher uptime.
-func setupDispatcherUptimeGauge(meter metric.Meter, log logger.Logger) error {
+func setupDispatcherUptimeGauge(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	var err error
 	dispatcherUptimeSeconds, err = meter.Float64ObservableGauge(
 		metrics.MetricNameWithSubsystem("dispatcher", "uptime_seconds"),
@@ -235,7 +236,8 @@ func setupDispatcherUptimeGauge(meter metric.Meter, log logger.Logger) error {
 }
 
 // registerDispatcherUptime registers the callback responsible for uptime observations.
-func registerDispatcherUptime(meter metric.Meter, log logger.Logger) error {
+func registerDispatcherUptime(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	callback, err := meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
 		reportDispatcherUptime(o)
 		return nil

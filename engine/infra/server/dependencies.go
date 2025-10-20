@@ -148,7 +148,7 @@ func (s *Server) applyStoreMigrations(pgCfg *postgres.Config, cfg *config.Config
 // storeCleanupFunc returns a cleanup function that gracefully closes the store.
 func (s *Server) storeCleanupFunc(cfg *config.Config, drv *postgres.Store) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(s.ctx, cfg.Server.Timeouts.DBShutdown)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), cfg.Server.Timeouts.DBShutdown)
 		defer cancel()
 		if err := drv.Close(ctx); err != nil {
 			logger.FromContext(s.ctx).Warn("Failed to close store", "error", err)

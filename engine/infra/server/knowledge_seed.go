@@ -31,7 +31,7 @@ func seedKnowledgeDefinitions(
 	return upsertKnowledgeBases(ctx, store, projectConfig.Name, refs)
 }
 
-// collectKnowledgeProviders returns workflows that offer knowledge providers.
+// collectKnowledgeProviders collects non-nil workflows as knowledge providers.
 func collectKnowledgeProviders(workflows []*workflow.Config) []project.KnowledgeBaseProvider {
 	providers := make([]project.KnowledgeBaseProvider, 0, len(workflows))
 	for _, wf := range workflows {

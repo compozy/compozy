@@ -21,7 +21,7 @@ const selectWorkflowStateByExecID = "SELECT " +
 	"workflow_exec_id, workflow_id, status, usage, input, output, error " +
 	"FROM workflow_states WHERE workflow_exec_id = $1"
 
-const taskStatesByExecQuery = "SELECT * FROM task_states WHERE workflow_exec_id = ANY($1)"
+const taskStatesByExecQuery = "SELECT * FROM task_states WHERE workflow_exec_id = ANY($1::text[])"
 
 // WorkflowRepo implements the workflow.Repository interface.
 type WorkflowRepo struct {
@@ -192,7 +192,10 @@ func (r *WorkflowRepo) fetchTaskStatesForExec(
 	if err := pgxscan.Select(ctx, r.db, &taskStatesDB, taskStatesByExecQuery, stringIDs); err != nil {
 		return nil, fmt.Errorf("scanning task states: %w", err)
 	}
-	result := make(map[string]map[string]*task.State)
+	result := make(map[string]map[string]*task.State, len(stringIDs))
+	for _, id := range stringIDs {
+		result[id] = make(map[string]*task.State)
+	}
 	for _, tsdb := range taskStatesDB {
 		st, err := tsdb.ToState()
 		if err != nil {
