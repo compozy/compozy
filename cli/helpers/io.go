@@ -314,7 +314,7 @@ func watchFileWithTicker(ctx context.Context, path string, callback func([]byte)
 	lastModTime, err := fileModTime(path)
 	if err != nil {
 		if errors.Is(err, errFileMissing) {
-			logger.FromContext(ctx).Debug("file not found; waiting for creation", "file", path)
+			logger.FromContext(ctx).Debug("file not found; will wait for creation", "file", path)
 			lastModTime = time.Time{}
 		} else {
 			return err

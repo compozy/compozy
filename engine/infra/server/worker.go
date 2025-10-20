@@ -186,7 +186,7 @@ func (s *Server) runReconciliationWithRetry(
 			return retry.RetryableError(err)
 		},
 	)
-	s.handleScheduleReconciliationFailure(err, startTime, cfg)
+	s.handleScheduleReconciliationFailure(err, startTime)
 }
 
 // buildScheduleRetryPolicy constructs the retry policy for schedule reconciliation.
@@ -218,18 +218,24 @@ func scheduleRetryBaseDelay(cfg *config.Config) time.Duration {
 func (s *Server) handleScheduleReconciliationFailure(
 	err error,
 	start time.Time,
-	cfg *config.Config,
 ) {
 	if err == nil {
 		return
 	}
 	log := logger.FromContext(s.ctx)
+	cfg := config.FromContext(s.ctx)
 	if s.ctx.Err() == context.Canceled {
 		log.Info("Schedule reconciliation canceled during server shutdown")
 		return
 	}
 	finalErr := fmt.Errorf("schedule reconciliation failed after maximum retries: %w", err)
 	s.reconciliationState.setError(finalErr)
+	if cfg == nil {
+		log.Error("Schedule reconciliation exhausted retries",
+			"error", err,
+			"duration", time.Since(start))
+		return
+	}
 	log.Error("Schedule reconciliation exhausted retries",
 		"error", err,
 		"duration", time.Since(start),

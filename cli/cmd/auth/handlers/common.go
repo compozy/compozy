@@ -38,10 +38,8 @@ func outputJSONError(message string) error {
 
 // outputJSONResponse outputs the response as JSON
 func outputJSONResponse(response map[string]any) error {
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(response); err != nil {
-		return outputJSONError(fmt.Sprintf("failed to encode JSON response: %v", err))
+	if err := writeJSONResponse(response); err != nil {
+		return outputJSONError(err.Error())
 	}
 	return nil
 }

@@ -82,11 +82,11 @@ func loadEmbedderConfig(
 	embVal, _, err := store.Get(ctx, embKey)
 	if err != nil {
 		if errors.Is(err, resources.ErrNotFound) {
-			return nil, errors.Join(ErrNotFound, fmt.Errorf("load embedder %q: %w", embedderID, err))
+			return nil, errors.Join(ErrNotFound, fmt.Errorf("load embedder %q: %w", id, err))
 		}
-		return nil, fmt.Errorf("load embedder %q: %w", embedderID, err)
+		return nil, fmt.Errorf("load embedder %q: %w", id, err)
 	}
-	return decodeStoredEmbedder(embVal, embedderID)
+	return decodeStoredEmbedder(embVal, id)
 }
 
 // loadVectorDBConfig retrieves and decodes the vector DB referenced by the knowledge base.
@@ -108,11 +108,11 @@ func loadVectorDBConfig(
 	vecVal, _, err := store.Get(ctx, vecKey)
 	if err != nil {
 		if errors.Is(err, resources.ErrNotFound) {
-			return nil, errors.Join(ErrNotFound, fmt.Errorf("load vector_db %q: %w", vectorID, err))
+			return nil, errors.Join(ErrNotFound, fmt.Errorf("load vector_db %q: %w", id, err))
 		}
-		return nil, fmt.Errorf("load vector_db %q: %w", vectorID, err)
+		return nil, fmt.Errorf("load vector_db %q: %w", id, err)
 	}
-	return decodeStoredVectorDB(vecVal, vectorID)
+	return decodeStoredVectorDB(vecVal, id)
 }
 
 func normalizeKnowledgeTriple(

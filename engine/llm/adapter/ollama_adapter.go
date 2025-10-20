@@ -603,6 +603,12 @@ func applyOllamaSamplingOptions(options map[string]any, opts *CallOptions) {
 	if opts.TopK > 0 {
 		options["top_k"] = opts.TopK
 	}
+	if opts.FrequencyPenalty > 0 {
+		options["frequency_penalty"] = opts.FrequencyPenalty
+	}
+	if opts.PresencePenalty > 0 {
+		options["presence_penalty"] = opts.PresencePenalty
+	}
 	if opts.Seed != 0 {
 		options["seed"] = opts.Seed
 	}
@@ -610,12 +616,6 @@ func applyOllamaSamplingOptions(options map[string]any, opts *CallOptions) {
 		options["num_predict"] = opts.MaxTokens
 	}
 	if opts.RepetitionPenalty > 0 {
-		if opts.FrequencyPenalty > 0 {
-			options["frequency_penalty"] = opts.FrequencyPenalty
-		}
-		if opts.PresencePenalty > 0 {
-			options["presence_penalty"] = opts.PresencePenalty
-		}
 		options["repeat_penalty"] = opts.RepetitionPenalty
 	}
 	if len(opts.StopWords) > 0 {

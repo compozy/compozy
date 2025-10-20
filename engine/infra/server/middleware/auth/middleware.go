@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/auth/userctx"
+	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -261,7 +264,9 @@ func (m *Manager) RequireAuth() gin.HandlerFunc {
 			return
 		}
 		if _, ok := userctx.UserFromContext(c.Request.Context()); !ok {
-			c.JSON(401, gin.H{"error": "Authentication required", "details": "This endpoint requires a valid API key"})
+			router.RespondWithError(c, http.StatusUnauthorized,
+				router.NewRequestError(http.StatusUnauthorized, "Authentication required",
+					fmt.Errorf("this endpoint requires a valid API key")))
 			c.Abort()
 			return
 		}
@@ -283,7 +288,9 @@ func (m *Manager) RequireAdmin() gin.HandlerFunc {
 		}
 		user, ok := userctx.UserFromContext(c.Request.Context())
 		if !ok || user.Role != model.RoleAdmin {
-			c.JSON(403, gin.H{"error": "Admin access required", "details": "This endpoint requires admin privileges"})
+			router.RespondWithError(c, http.StatusForbidden,
+				router.NewRequestError(http.StatusForbidden, "Admin access required",
+					fmt.Errorf("this endpoint requires admin privileges")))
 			c.Abort()
 			return
 		}

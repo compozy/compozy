@@ -188,6 +188,9 @@ func installBunIfNeeded(ctx context.Context, opts *Options) error {
 	if !opts.InstallBun || runtime.IsBunAvailable() {
 		return nil
 	}
+	if _, err := exec.LookPath("bash"); err != nil {
+		return fmt.Errorf("bash is required for Bun installation. Please install Bun manually from https://bun.sh")
+	}
 	if err := installBun(ctx); err != nil {
 		return fmt.Errorf("failed to install Bun: %w", err)
 	}
