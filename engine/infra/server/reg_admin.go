@@ -129,6 +129,8 @@ type reloadQuery struct {
 	Source string `form:"source" binding:"omitempty,oneof=repo builder yaml store"`
 }
 
+const reloadSourceAllowedDetails = "allowed values: repo,builder; aliases: yaml->repo, store->builder"
+
 // parseReloadSource resolves the desired reload mode and handles validation errors.
 func parseReloadSource(c *gin.Context) (string, bool) {
 	var q reloadQuery
@@ -138,21 +140,22 @@ func parseReloadSource(c *gin.Context) (string, bool) {
 			http.StatusBadRequest,
 			router.NewRequestError(
 				http.StatusBadRequest,
-				"invalid source parameter (allowed values: repo, builder)",
-				fmt.Errorf("validation failed: %w", err),
+				"invalid source parameter",
+				fmt.Errorf("%s: %w", reloadSourceAllowedDetails, err),
 			),
 		)
 		return "", false
 	}
-	desiredMode := resolveSourceMode(strings.TrimSpace(strings.ToLower(q.Source)))
-	if desiredMode == "" {
+	requested := strings.TrimSpace(strings.ToLower(q.Source))
+	desiredMode := resolveSourceMode(requested)
+	if desiredMode == "" && requested != "" {
 		router.RespondWithError(
 			c,
 			http.StatusBadRequest,
 			router.NewRequestError(
 				http.StatusBadRequest,
-				"invalid source parameter (allowed values: repo, builder)",
-				nil,
+				"invalid source parameter",
+				errors.New(reloadSourceAllowedDetails),
 			),
 		)
 		return "", false
