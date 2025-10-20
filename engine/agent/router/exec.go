@@ -146,43 +146,33 @@ func respondAgentTimeout(
 }
 
 func buildAgentSyncPayload(
-	ctx context.Context,
+	c *gin.Context,
 	repo task.Repository,
 	agentID string,
 	execID core.ID,
 	output *core.Output,
 ) gin.H {
-	payload := gin.H{"exec_id": execID.String()}
-	if output != nil {
-		payload["output"] = output
-	}
-	snapshotCtx := context.WithoutCancel(ctx)
-	stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
-	embeddedUsage := false
-	if stateErr == nil && stateSnapshot != nil {
-		dto := newExecutionStatusDTO(stateSnapshot)
-		dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
-		if dto.Usage != nil {
-			embeddedUsage = true
-		}
-		payload["state"] = dto
-		if stateSnapshot.Output != nil {
-			payload["output"] = stateSnapshot.Output
-		}
-	} else if stateErr != nil {
-		logger.FromContext(ctx).Warn(
-			"Failed to load agent execution state after completion",
-			"agent_id", agentID,
-			"exec_id", execID.String(),
-			"error", stateErr,
-		)
-	}
-	if !embeddedUsage {
-		if summary := router.ResolveTaskUsageSummary(snapshotCtx, repo, execID); summary != nil {
-			payload["usage"] = summary
-		}
-	}
-	return payload
+	ctx := c.Request.Context()
+	return router.BuildSyncPayload(router.SyncPayloadOptions{
+		Context:      c,
+		Repo:         repo,
+		ExecID:       execID,
+		Output:       output,
+		IncludeState: router.HasIncludeToken(c, "state"),
+		OnState: func(state *task.State) (any, bool) {
+			dto := newExecutionStatusDTO(state)
+			dto.Usage = router.NewUsageSummary(state.Usage)
+			return dto, dto.Usage != nil
+		},
+		OnStateError: func(stateErr error) {
+			logger.FromContext(ctx).Warn(
+				"Failed to load agent execution state after completion",
+				"agent_id", agentID,
+				"exec_id", execID.String(),
+				"error", stateErr,
+			)
+		},
+	})
 }
 
 type ExecutionStatusDTO struct {
@@ -378,7 +368,7 @@ func executeAgentSync(c *gin.Context) {
 	router.RespondOK(
 		c,
 		"agent executed",
-		buildAgentSyncPayload(c.Request.Context(), repo, syncReq.agentID, result.execID, result.output),
+		buildAgentSyncPayload(c, repo, syncReq.agentID, result.execID, result.output),
 	)
 }
 
@@ -478,6 +468,9 @@ func executeAgentAsync(c *gin.Context) {
 		router.RespondWithServerError(c, router.ErrInternalCode, "agent execution failed", err)
 		recordError(http.StatusInternalServerError)
 		return
+	}
+	if asyncCtx.metrics != nil {
+		asyncCtx.metrics.RecordAsyncStarted(ctx, monitoring.ExecutionKindAgent)
 	}
 	execURL := fmt.Sprintf("%s/agents/%s", routes.Executions(), execID.String())
 	c.Header("Location", execURL)

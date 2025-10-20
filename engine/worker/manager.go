@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"math"
 	"time"
 
 	"go.temporal.io/sdk/temporal"
@@ -11,6 +12,11 @@ import (
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 )
 
+const (
+	defaultErrorHandlerTimeout     = 30 * time.Second
+	defaultErrorHandlerMaxAttempts = int32(3)
+)
+
 // -----------------------------------------------------------------------------
 // Workflow Orchestrator
 // -----------------------------------------------------------------------------
@@ -19,10 +25,14 @@ type Manager struct {
 	*ContextBuilder
 	*executors.WorkflowExecutor
 	*executors.TaskExecutor
+	errorHandlerTimeout     time.Duration
+	errorHandlerMaxAttempts int32
 }
 
 func NewManager(contextBuilder *ContextBuilder) *Manager {
-	// Convert to executors.ContextBuilder
+	if contextBuilder == nil {
+		contextBuilder = &ContextBuilder{}
+	}
 	executorContextBuilder := executors.NewContextBuilder(
 		contextBuilder.Workflows,
 		contextBuilder.ProjectConfig,
@@ -31,18 +41,39 @@ func NewManager(contextBuilder *ContextBuilder) *Manager {
 	)
 	workflowExecutor := executors.NewWorkflowExecutor(executorContextBuilder)
 	taskExecutor := executors.NewTaskExecutor(executorContextBuilder)
+	timeout := defaultErrorHandlerTimeout
+	maxAttempts := defaultErrorHandlerMaxAttempts
+	if contextBuilder.WorkflowInput != nil {
+		if contextBuilder.ErrorHandlerTimeout > 0 {
+			timeout = contextBuilder.ErrorHandlerTimeout
+		}
+		if contextBuilder.ErrorHandlerMaxRetries > 0 {
+			retries := contextBuilder.ErrorHandlerMaxRetries
+			maxAttempts = clampIntToInt32(retries)
+		}
+	}
 	return &Manager{
-		ContextBuilder:   contextBuilder,
-		WorkflowExecutor: workflowExecutor,
-		TaskExecutor:     taskExecutor,
+		ContextBuilder:          contextBuilder,
+		WorkflowExecutor:        workflowExecutor,
+		TaskExecutor:            taskExecutor,
+		errorHandlerTimeout:     timeout,
+		errorHandlerMaxAttempts: maxAttempts,
 	}
 }
 
 func (m *Manager) BuildErrHandler(ctx workflow.Context) func(err error) error {
+	timeout := m.errorHandlerTimeout
+	if timeout <= 0 {
+		timeout = defaultErrorHandlerTimeout
+	}
+	attempts := m.errorHandlerMaxAttempts
+	if attempts <= 0 {
+		attempts = defaultErrorHandlerMaxAttempts
+	}
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 30 * time.Second,
+		StartToCloseTimeout: timeout,
 		RetryPolicy: &temporal.RetryPolicy{
-			MaximumAttempts: 3,
+			MaximumAttempts: attempts,
 		},
 	})
 	return func(err error) error {
@@ -85,8 +116,12 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 	log := workflow.GetLogger(ctx)
 	log.Info("Workflow canceled, performing cleanup...")
 	cleanupCtx, _ := workflow.NewDisconnectedContext(ctx)
+	timeout := m.errorHandlerTimeout
+	if timeout <= 0 {
+		timeout = defaultErrorHandlerTimeout
+	}
 	cleanupCtx = workflow.WithActivityOptions(cleanupCtx, workflow.ActivityOptions{
-		StartToCloseTimeout: 30 * time.Second,
+		StartToCloseTimeout: timeout,
 	})
 
 	// Update workflow status to canceled
@@ -104,6 +139,16 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 	} else {
 		log.Debug("Successfully updated workflow status to Canceled")
 	}
+}
+
+func clampIntToInt32(value int) int32 {
+	if value <= 0 {
+		return 0
+	}
+	if value > int(math.MaxInt32) {
+		return math.MaxInt32
+	}
+	return int32(value)
 }
 
 // -----------------------------------------------------------------------------

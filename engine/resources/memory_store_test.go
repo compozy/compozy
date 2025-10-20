@@ -13,13 +13,14 @@ import (
 
 const shortWait = 500 * time.Millisecond
 
-func ctxWithLogger() context.Context {
-	return logger.ContextWithLogger(context.Background(), logger.NewForTests())
+func ctxWithLogger(t *testing.T) context.Context {
+	t.Helper()
+	return logger.ContextWithLogger(t.Context(), logger.NewForTests())
 }
 
 func TestMemoryStore_PutGetDeepCopy(t *testing.T) {
 	t.Run("Should store deep copy and preserve original on Get", func(t *testing.T) {
-		ctx := ctxWithLogger()
+		ctx := ctxWithLogger(t)
 		st := NewMemoryResourceStore()
 		key := ResourceKey{Project: "p1", Type: ResourceAgent, ID: "writer"}
 		orig := map[string]any{"id": "writer", "cfg": map[string]any{"a": 1.0}}
@@ -43,7 +44,7 @@ func TestMemoryStore_PutGetDeepCopy(t *testing.T) {
 
 func TestMemoryStore_ListAndDelete(t *testing.T) {
 	t.Run("Should list by project/type and delete idempotently", func(t *testing.T) {
-		ctx := ctxWithLogger()
+		ctx := ctxWithLogger(t)
 		st := NewMemoryResourceStore()
 		a := ResourceKey{Project: "p1", Type: ResourceTool, ID: "browser"}
 		b := ResourceKey{Project: "p1", Type: ResourceTool, ID: "search"}
@@ -61,7 +62,7 @@ func TestMemoryStore_ListAndDelete(t *testing.T) {
 
 func TestMemoryStore_Watch_PrimeAndEvents(t *testing.T) {
 	t.Run("Should prime and receive put/delete events", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(ctxWithLogger())
+		ctx, cancel := context.WithCancel(ctxWithLogger(t))
 		defer cancel()
 		st := NewMemoryResourceStore()
 		key := ResourceKey{Project: "p1", Type: ResourceModel, ID: "gpt"}
@@ -98,7 +99,7 @@ func TestMemoryStore_Watch_PrimeAndEvents(t *testing.T) {
 func TestMemoryStore_Watch_StopOnCancel(t *testing.T) {
 	t.Run("Should close channel on context cancel", func(t *testing.T) {
 		st := NewMemoryResourceStore()
-		ctx, cancel := context.WithCancel(ctxWithLogger())
+		ctx, cancel := context.WithCancel(ctxWithLogger(t))
 		ch, err := st.Watch(ctx, "p1", ResourceSchema)
 		require.NoError(t, err)
 		cancel()
@@ -113,7 +114,7 @@ func TestMemoryStore_Watch_StopOnCancel(t *testing.T) {
 
 func TestMemoryStore_ConcurrentAccess(t *testing.T) {
 	t.Run("Should support concurrent put/get/delete with events", func(t *testing.T) {
-		ctx := ctxWithLogger()
+		ctx := ctxWithLogger(t)
 		st := NewMemoryResourceStore()
 		project := "p1"
 		typ := ResourceTask

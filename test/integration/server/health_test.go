@@ -22,8 +22,9 @@ type healthTestFixture struct {
 }
 
 // setupHealthTestFixture creates a reusable test fixture
-func setupHealthTestFixture(_ *testing.T) *healthTestFixture {
-	ctx := context.Background()
+func setupHealthTestFixture(t *testing.T) *healthTestFixture {
+	t.Helper()
+	ctx := t.Context()
 	ginmode.EnsureGinTestMode()
 	router := gin.New()
 	memory.ResetGlobalHealthServiceForTesting()

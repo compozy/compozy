@@ -5,18 +5,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
 var (
-	dispatcherHealthGauge      metric.Int64ObservableGauge
-	dispatcherHealthCallback   metric.Registration
-	dispatcherHealthInitOnce   sync.Once
-	dispatcherHealthMutex      sync.RWMutex
-	dispatcherHealthStore      sync.Map // map[string]DispatcherHealth
-	dispatcherHealthResetMutex sync.Mutex
+	dispatcherHealthGauge         metric.Int64ObservableGauge
+	dispatcherHeartbeatAgeSeconds metric.Float64ObservableGauge
+	dispatcherFailureCount        metric.Int64ObservableGauge
+	dispatcherHealthCallback      metric.Registration
+	dispatcherHealthInitOnce      sync.Once
+	dispatcherHealthMutex         sync.RWMutex
+	dispatcherHealthStore         sync.Map // map[string]*DispatcherHealth
+	dispatcherHealthResetMutex    sync.Mutex
 )
 
 // DispatcherHealth represents the health status of a dispatcher
@@ -85,11 +88,27 @@ func initDispatcherHealthMetrics(ctx context.Context, meter metric.Meter) {
 	dispatcherHealthInitOnce.Do(func() {
 		var err error
 		dispatcherHealthGauge, err = meter.Int64ObservableGauge(
-			"compozy_dispatcher_health_status",
+			metrics.MetricNameWithSubsystem("dispatcher", "health_status"),
 			metric.WithDescription("Dispatcher health status (1=healthy, 0=unhealthy)"),
 		)
 		if err != nil {
 			log.Error("Failed to create dispatcher health gauge", "error", err, "component", "dispatcher_health")
+			return
+		}
+		dispatcherHeartbeatAgeSeconds, err = meter.Float64ObservableGauge(
+			metrics.MetricNameWithSubsystem("dispatcher", "heartbeat_age_seconds"),
+			metric.WithDescription("Seconds since the last dispatcher heartbeat was observed"),
+		)
+		if err != nil {
+			log.Error("Failed to create dispatcher heartbeat age gauge", "error", err, "component", "dispatcher_health")
+			return
+		}
+		dispatcherFailureCount, err = meter.Int64ObservableGauge(
+			metrics.MetricNameWithSubsystem("dispatcher", "consecutive_failures"),
+			metric.WithDescription("Number of consecutive dispatcher health check failures"),
+		)
+		if err != nil {
+			log.Error("Failed to create dispatcher failure count gauge", "error", err, "component", "dispatcher_health")
 			return
 		}
 		// Register callback for health status reporting
@@ -112,13 +131,19 @@ func initDispatcherHealthMetrics(ctx context.Context, meter metric.Meter) {
 					metric.WithAttributes(
 						attribute.String("dispatcher_id", dispatcherID),
 						attribute.Bool("is_stale", isStale),
-						attribute.Float64("time_since_heartbeat", timeSinceHeartbeat),
-						attribute.Int64("consecutive_failures", int64(failures)),
+					))
+				o.ObserveFloat64(dispatcherHeartbeatAgeSeconds, timeSinceHeartbeat,
+					metric.WithAttributes(
+						attribute.String("dispatcher_id", dispatcherID),
+					))
+				o.ObserveInt64(dispatcherFailureCount, int64(failures),
+					metric.WithAttributes(
+						attribute.String("dispatcher_id", dispatcherID),
 					))
 				return true
 			})
 			return nil
-		}, dispatcherHealthGauge)
+		}, dispatcherHealthGauge, dispatcherHeartbeatAgeSeconds, dispatcherFailureCount)
 		if err != nil {
 			log.Error("Failed to register dispatcher health callback", "error", err, "component", "dispatcher_health")
 		}
@@ -130,10 +155,12 @@ func InitDispatcherHealthMetrics(ctx context.Context, meter metric.Meter) {
 	initDispatcherHealthMetrics(ctx, meter)
 }
 
+const DefaultDispatcherStaleThreshold = 2 * time.Minute
+
 // RegisterDispatcher registers a new dispatcher for health monitoring
 func RegisterDispatcher(ctx context.Context, dispatcherID string, staleThreshold time.Duration) {
 	if staleThreshold == 0 {
-		staleThreshold = 2 * time.Minute // Default stale threshold
+		staleThreshold = DefaultDispatcherStaleThreshold
 	}
 	health := &DispatcherHealth{
 		DispatcherID:        dispatcherID,
@@ -268,6 +295,8 @@ func resetDispatcherHealthMetrics(ctx context.Context) {
 		dispatcherHealthCallback = nil
 	}
 	dispatcherHealthGauge = nil
+	dispatcherHeartbeatAgeSeconds = nil
+	dispatcherFailureCount = nil
 	dispatcherHealthStore = sync.Map{}
 	dispatcherHealthInitOnce = sync.Once{}
 }

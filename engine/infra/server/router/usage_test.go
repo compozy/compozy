@@ -66,7 +66,7 @@ func TestNewUsageSummary(t *testing.T) {
 func TestResolveTaskUsageSummary(t *testing.T) {
 	t.Parallel()
 	taskID := core.MustNewID()
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 
 	t.Run("nil repo returns nil", func(t *testing.T) {
 		t.Parallel()
@@ -110,7 +110,7 @@ func TestResolveTaskUsageSummary(t *testing.T) {
 func TestResolveWorkflowUsageSummary(t *testing.T) {
 	t.Parallel()
 	execID := core.MustNewID()
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 
 	t.Run("nil repo returns nil", func(t *testing.T) {
 		t.Parallel()
@@ -166,6 +166,19 @@ func (s *stubTaskRepo) UpsertState(context.Context, *task.State) error {
 
 func (s *stubTaskRepo) GetState(context.Context, core.ID) (*task.State, error) {
 	return s.state, s.err
+}
+
+func (s *stubTaskRepo) GetUsageSummary(_ context.Context, taskExecID core.ID) (*usage.Summary, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.state == nil || s.state.TaskExecID != taskExecID {
+		return nil, nil
+	}
+	if s.state.Usage == nil {
+		return nil, nil
+	}
+	return s.state.Usage.Clone(), nil
 }
 
 func (s *stubTaskRepo) WithTransaction(context.Context, func(task.Repository) error) error {

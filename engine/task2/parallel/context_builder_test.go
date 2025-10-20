@@ -15,7 +15,7 @@ import (
 func TestParallelContextBuilder_NewContextBuilder(t *testing.T) {
 	t.Run("Should create parallel context builder", func(t *testing.T) {
 		// Act
-		builder := parallel.NewContextBuilder()
+		builder := parallel.NewContextBuilder(t.Context())
 
 		// Assert
 		assert.NotNil(t, builder)
@@ -25,7 +25,7 @@ func TestParallelContextBuilder_NewContextBuilder(t *testing.T) {
 func TestParallelContextBuilder_TaskType(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
-		builder := parallel.NewContextBuilder()
+		builder := parallel.NewContextBuilder(t.Context())
 
 		// Act
 		taskType := builder.TaskType()
@@ -37,7 +37,7 @@ func TestParallelContextBuilder_TaskType(t *testing.T) {
 
 func TestParallelContextBuilder_BuildContext(t *testing.T) {
 	// Setup
-	builder := parallel.NewContextBuilder()
+	builder := parallel.NewContextBuilder(t.Context())
 
 	t.Run("Should build context for parallel task", func(t *testing.T) {
 		// Arrange
@@ -62,7 +62,7 @@ func TestParallelContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, workflowConfig, taskConfig)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -87,7 +87,7 @@ func TestParallelContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(nil, workflowConfig, taskConfig)
+		context := builder.BuildContext(t.Context(), nil, workflowConfig, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -112,7 +112,7 @@ func TestParallelContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, nil, taskConfig)
+		context := builder.BuildContext(t.Context(), workflowState, nil, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -134,7 +134,7 @@ func TestParallelContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, workflowConfig, nil)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, nil)
 
 		// Assert
 		require.NotNil(t, context)
@@ -145,7 +145,7 @@ func TestParallelContextBuilder_BuildContext(t *testing.T) {
 
 	t.Run("Should handle all nil parameters", func(t *testing.T) {
 		// Act
-		context := builder.BuildContext(nil, nil, nil)
+		context := builder.BuildContext(t.Context(), nil, nil, nil)
 
 		// Assert
 		require.NotNil(t, context)
@@ -160,7 +160,7 @@ func TestParallelContextBuilder_BuildContext(t *testing.T) {
 
 func TestParallelContextBuilder_EnrichContext(t *testing.T) {
 	// Setup
-	builder := parallel.NewContextBuilder()
+	builder := parallel.NewContextBuilder(t.Context())
 
 	t.Run("Should enrich context with task state", func(t *testing.T) {
 		// Arrange
@@ -170,7 +170,7 @@ func TestParallelContextBuilder_EnrichContext(t *testing.T) {
 				Type: task.TaskTypeParallel,
 			},
 		}
-		context := builder.BuildContext(nil, nil, taskConfig)
+		context := builder.BuildContext(t.Context(), nil, nil, taskConfig)
 		taskState := &task.State{
 			Status: core.StatusRunning,
 		}
@@ -201,7 +201,7 @@ func TestParallelContextBuilder_EnrichContext(t *testing.T) {
 
 	t.Run("Should handle nil task state", func(t *testing.T) {
 		// Arrange
-		context := builder.BuildContext(nil, nil, nil)
+		context := builder.BuildContext(t.Context(), nil, nil, nil)
 
 		// Act
 		err := builder.EnrichContext(context, nil)
@@ -213,7 +213,7 @@ func TestParallelContextBuilder_EnrichContext(t *testing.T) {
 
 func TestParallelContextBuilder_ValidateContext(t *testing.T) {
 	// Setup
-	builder := parallel.NewContextBuilder()
+	builder := parallel.NewContextBuilder(t.Context())
 
 	t.Run("Should validate complete context", func(t *testing.T) {
 		// Arrange
@@ -232,7 +232,7 @@ func TestParallelContextBuilder_ValidateContext(t *testing.T) {
 				Type: task.TaskTypeParallel,
 			},
 		}
-		context := builder.BuildContext(workflowState, workflowConfig, taskConfig)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, taskConfig)
 
 		// Act
 		err := builder.ValidateContext(context)
@@ -261,7 +261,7 @@ func TestParallelContextBuilder_ValidateContext(t *testing.T) {
 		workflowConfig := &workflow.Config{
 			ID: "test-workflow",
 		}
-		context := builder.BuildContext(workflowState, workflowConfig, nil)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, nil)
 
 		// Act
 		err := builder.ValidateContext(context)

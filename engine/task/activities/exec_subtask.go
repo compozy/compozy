@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -62,6 +63,7 @@ func NewExecuteSubtask(
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
 	usageMetrics usage.Metrics,
+	providerMetrics providermetrics.Recorder,
 	toolEnvironment toolenv.Environment,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
@@ -72,6 +74,7 @@ func NewExecuteSubtask(
 			nil,            // Subtasks don't need memory manager
 			templateEngine, // Ensure templating is available to subtasks
 			nil,
+			providerMetrics,
 			toolEnvironment,
 		),
 		task2Factory:   task2Factory,
@@ -154,7 +157,7 @@ func (a *ExecuteSubtask) normalizeTask(
 	parentStateID *core.ID,
 ) error {
 	// Use task2 normalizer for subtask
-	normalizer, err := a.task2Factory.CreateNormalizer(taskConfig.Type)
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, taskConfig.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create subtask normalizer: %w", err)
 	}
@@ -165,13 +168,14 @@ func (a *ExecuteSubtask) normalizeTask(
 	}
 	// Build proper normalization context with all template variables
 	normContext := contextBuilder.BuildContextForTaskInstance(
+		ctx,
 		workflowState,
 		workflowConfig,
 		taskConfig,
 		parentStateID,
 	)
 	// Normalize the task configuration
-	if err := normalizer.Normalize(taskConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, taskConfig, normContext); err != nil {
 		return fmt.Errorf("failed to normalize subtask: %w", err)
 	}
 	return nil

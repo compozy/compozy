@@ -1,13 +1,12 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/resources"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +15,7 @@ import (
 
 func TestDeleteAgent_ConflictsWhenReferenced(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	body := map[string]any{
 		"id":           "assistant",
@@ -54,7 +53,7 @@ func TestDeleteAgent_ConflictsWhenReferenced(t *testing.T) {
 
 func TestListAgents_FilterByWorkflow(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	fetch := func(id string) map[string]any {
 		return map[string]any{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -36,7 +37,7 @@ func (m *Metrics) initMetrics() {
 
 	// Schedule operations counter
 	m.scheduleOperationsTotal, err = m.meter.Int64Counter(
-		"compozy_schedule_operations_total",
+		monitoringmetrics.MetricNameWithSubsystem("schedule", "operations_total"),
 		metric.WithDescription("Total schedule operations"),
 	)
 	if err != nil {
@@ -45,7 +46,7 @@ func (m *Metrics) initMetrics() {
 
 	// Scheduled workflows gauge
 	m.scheduledWorkflowsTotal, err = m.meter.Int64UpDownCounter(
-		"compozy_scheduled_workflows_total",
+		monitoringmetrics.MetricNameWithSubsystem("scheduled", "workflows_total"),
 		metric.WithDescription("Number of scheduled workflows"),
 	)
 	if err != nil {
@@ -54,7 +55,7 @@ func (m *Metrics) initMetrics() {
 
 	// Reconciliation duration histogram
 	m.reconcileDurationHistogram, err = m.meter.Float64Histogram(
-		"compozy_schedule_reconcile_duration_seconds",
+		monitoringmetrics.MetricNameWithSubsystem("schedule", "reconcile_duration_seconds"),
 		metric.WithDescription("Schedule reconciliation duration"),
 		metric.WithExplicitBucketBoundaries(.1, .25, .5, 1, 2.5, 5, 10, 30, 60),
 	)
@@ -64,7 +65,7 @@ func (m *Metrics) initMetrics() {
 
 	// Reconciliation in-flight gauge
 	m.reconcileInflightGauge, err = m.meter.Int64UpDownCounter(
-		"compozy_schedule_reconcile_inflight",
+		monitoringmetrics.MetricNameWithSubsystem("schedule", "reconcile_inflight"),
 		metric.WithDescription("Number of in-flight reconciliation operations"),
 	)
 	if err != nil {

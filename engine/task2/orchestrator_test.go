@@ -18,12 +18,12 @@ func setupOrchestrator(ctx context.Context, t *testing.T) *task2.ConfigOrchestra
 	t.Helper()
 	factory, cleanup := setupTestFactory(ctx, t)
 	t.Cleanup(cleanup)
-	orchestrator, err := task2.NewConfigOrchestrator(factory)
+	orchestrator, err := task2.NewConfigOrchestrator(ctx, factory)
 	require.NoError(t, err)
 	return orchestrator
 }
 func TestConfigOrchestrator_NormalizeTask(t *testing.T) {
-	orchestrator := setupOrchestrator(context.Background(), t)
+	orchestrator := setupOrchestrator(t.Context(), t)
 	t.Run("Should normalize basic task with template expressions", func(t *testing.T) {
 		// Setup workflow state
 		workflowState := &workflow.State{
@@ -55,7 +55,7 @@ func TestConfigOrchestrator_NormalizeTask(t *testing.T) {
 		// Get task config
 		taskConfig := &workflowConfig.Tasks[0]
 		// Normalize the task
-		err := orchestrator.NormalizeTask(workflowState, workflowConfig, taskConfig)
+		err := orchestrator.NormalizeTask(t.Context(), workflowState, workflowConfig, taskConfig)
 		require.NoError(t, err)
 		// Check normalized values
 		assert.Equal(t, "Hello TestUser", taskConfig.Action)
@@ -109,7 +109,7 @@ func TestConfigOrchestrator_NormalizeTask(t *testing.T) {
 		// Get task config
 		taskConfig := &workflowConfig.Tasks[0]
 		// Normalize the task
-		err := orchestrator.NormalizeTask(workflowState, workflowConfig, taskConfig)
+		err := orchestrator.NormalizeTask(t.Context(), workflowState, workflowConfig, taskConfig)
 		require.NoError(t, err)
 		// Check sub-tasks were normalized
 		require.Len(t, taskConfig.Tasks, 2)
@@ -152,14 +152,14 @@ func TestConfigOrchestrator_NormalizeTask(t *testing.T) {
 		// Get task config
 		taskConfig := &workflowConfig.Tasks[0]
 		// Normalize the task
-		err := orchestrator.NormalizeTask(workflowState, workflowConfig, taskConfig)
+		err := orchestrator.NormalizeTask(t.Context(), workflowState, workflowConfig, taskConfig)
 		require.NoError(t, err)
 		// Check collection config was normalized
 		assert.Equal(t, "{{ .workflow.input.items }}", taskConfig.Items)
 	})
 }
 func TestConfigOrchestrator_NormalizeAgentComponent(t *testing.T) {
-	orchestrator := setupOrchestrator(context.Background(), t)
+	orchestrator := setupOrchestrator(t.Context(), t)
 	t.Run("Should normalize agent with template expressions", func(t *testing.T) {
 		// Setup workflow state
 		workflowState := &workflow.State{
@@ -198,6 +198,7 @@ func TestConfigOrchestrator_NormalizeAgentComponent(t *testing.T) {
 		}
 		// Normalize the agent
 		err := orchestrator.NormalizeAgentComponent(
+			t.Context(),
 			workflowState,
 			workflowConfig,
 			taskConfig,
@@ -213,7 +214,7 @@ func TestConfigOrchestrator_NormalizeAgentComponent(t *testing.T) {
 	})
 }
 func TestConfigOrchestrator_NormalizeToolComponent(t *testing.T) {
-	orchestrator := setupOrchestrator(context.Background(), t)
+	orchestrator := setupOrchestrator(t.Context(), t)
 	t.Run("Should normalize tool with template expressions", func(t *testing.T) {
 		// Setup workflow state
 		workflowState := &workflow.State{
@@ -253,6 +254,7 @@ func TestConfigOrchestrator_NormalizeToolComponent(t *testing.T) {
 		}
 		// Normalize the tool
 		err := orchestrator.NormalizeToolComponent(
+			t.Context(),
 			workflowState,
 			workflowConfig,
 			taskConfig,
@@ -269,7 +271,7 @@ func TestConfigOrchestrator_NormalizeToolComponent(t *testing.T) {
 	})
 }
 func TestConfigOrchestrator_NormalizeTransitions(t *testing.T) {
-	orchestrator := setupOrchestrator(context.Background(), t)
+	orchestrator := setupOrchestrator(t.Context(), t)
 	t.Run("Should normalize success transition", func(t *testing.T) {
 		// Setup workflow state
 		workflowState := &workflow.State{
@@ -295,6 +297,7 @@ func TestConfigOrchestrator_NormalizeTransitions(t *testing.T) {
 		allTaskConfigs := map[string]*task.Config{}
 		// Normalize the transition
 		err := orchestrator.NormalizeSuccessTransition(
+			t.Context(),
 			transition,
 			workflowState,
 			workflowConfig,
@@ -330,6 +333,7 @@ func TestConfigOrchestrator_NormalizeTransitions(t *testing.T) {
 		allTaskConfigs := map[string]*task.Config{}
 		// Normalize the transition
 		err := orchestrator.NormalizeErrorTransition(
+			t.Context(),
 			transition,
 			workflowState,
 			workflowConfig,
@@ -342,7 +346,7 @@ func TestConfigOrchestrator_NormalizeTransitions(t *testing.T) {
 	})
 }
 func TestConfigOrchestrator_NormalizeOutputs(t *testing.T) {
-	orchestrator := setupOrchestrator(context.Background(), t)
+	orchestrator := setupOrchestrator(t.Context(), t)
 	t.Run("Should transform task output", func(t *testing.T) {
 		// Setup workflow state
 		workflowState := &workflow.State{
@@ -380,6 +384,7 @@ func TestConfigOrchestrator_NormalizeOutputs(t *testing.T) {
 		}
 		// Transform the output
 		transformedOutput, err := orchestrator.NormalizeTaskOutput(
+			t.Context(),
 			taskOutput,
 			outputsConfig,
 			workflowState,

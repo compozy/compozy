@@ -94,10 +94,15 @@ func (uc *Upsert) storeProject(
 		}
 		return etag, false, nil
 	}
+	// Check if resource exists; if it does, If-Match is required for updates.
 	_, _, err := uc.store.Get(ctx, key)
 	created := errors.Is(err, resources.ErrNotFound)
 	if err != nil && !created {
 		return "", false, fmt.Errorf("inspect project: %w", err)
+	}
+	// Enforce If-Match requirement for updates (when resource exists).
+	if !created {
+		return "", false, ErrIfMatchRequired
 	}
 	etag, putErr := uc.store.Put(ctx, key, cfg)
 	if putErr != nil {

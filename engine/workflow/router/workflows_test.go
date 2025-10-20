@@ -2,13 +2,12 @@ package wfrouter
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/compozy/compozy/engine/core"
 	appstate "github.com/compozy/compozy/engine/infra/server/appstate"
 	routerpkg "github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/project"
@@ -29,8 +28,8 @@ func setupWorkflowTestRouter(t *testing.T) *gin.Engine {
 	state, err := appstate.NewState(appstate.NewBaseDeps(proj, nil, nil, nil), nil)
 	require.NoError(t, err)
 	state.SetResourceStore(resources.NewMemoryResourceStore())
-	cfgManager := config.NewManager(config.NewService())
-	_, err = cfgManager.Load(context.Background(), config.NewDefaultProvider())
+	cfgManager := config.NewManager(t.Context(), config.NewService())
+	_, err = cfgManager.Load(t.Context(), config.NewDefaultProvider())
 	require.NoError(t, err)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -52,8 +51,8 @@ func workflowBody(overrides map[string]any) []byte {
 		"config": map[string]any{},
 		"tasks":  []map[string]any{},
 	}
-	maps.Copy(base, overrides)
-	payload, _ := json.Marshal(base)
+	merged := core.CopyMaps(base, overrides)
+	payload, _ := json.Marshal(merged)
 	return payload
 }
 
@@ -64,7 +63,7 @@ func TestUpsertWorkflow_InvalidJSON(t *testing.T) {
 	res := httptest.NewRecorder()
 	r.ServeHTTP(res, req)
 	assert.Equal(t, http.StatusBadRequest, res.Code)
-	assert.Contains(t, res.Body.String(), "invalid request body")
+	assert.Contains(t, res.Body.String(), "invalid input")
 	assert.Contains(t, res.Body.String(), "Bad Request")
 }
 

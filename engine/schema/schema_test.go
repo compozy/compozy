@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,7 +43,7 @@ func TestSchema_Validate(t *testing.T) {
 			},
 		}
 
-		result, err := schema.Validate(context.Background(), value)
+		result, err := schema.Validate(t.Context(), value)
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.True(t, result.Valid)
@@ -63,7 +62,7 @@ func TestSchema_Validate(t *testing.T) {
 			"name": "test-workflow", // Missing required "version" field
 		}
 
-		result, err := schema.Validate(context.Background(), value)
+		result, err := schema.Validate(t.Context(), value)
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.ErrorContains(t, err, "schema validation failed")
@@ -88,7 +87,7 @@ func TestSchema_Validate(t *testing.T) {
 			"retries": -1,        // Should be >= 0
 		}
 
-		result, err := schema.Validate(context.Background(), value)
+		result, err := schema.Validate(t.Context(), value)
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.ErrorContains(t, err, "schema validation failed")
@@ -98,7 +97,7 @@ func TestSchema_Validate(t *testing.T) {
 		var schema *Schema
 		value := map[string]any{"any": "data"}
 
-		result, err := schema.Validate(context.Background(), value)
+		result, err := schema.Validate(t.Context(), value)
 		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
@@ -111,7 +110,7 @@ func TestSchema_Validate(t *testing.T) {
 		}
 		value := "this is a very long string that exceeds the limit"
 
-		result, err := schema.Validate(context.Background(), value)
+		result, err := schema.Validate(t.Context(), value)
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.ErrorContains(t, err, "schema validation failed")
@@ -250,7 +249,7 @@ func TestSchema_Compile(t *testing.T) {
 			"required": []string{"workflow"},
 		}
 
-		compiledSchema, err := schema.Compile()
+		compiledSchema, err := schema.Compile(t.Context())
 		require.NoError(t, err)
 		assert.NotNil(t, compiledSchema)
 	})
@@ -260,7 +259,7 @@ func TestSchema_Compile(t *testing.T) {
 		schema := &Schema{}
 		(*schema)["self"] = schema // Create circular reference in the map itself
 
-		compiledSchema, err := schema.Compile()
+		compiledSchema, err := schema.Compile(t.Context())
 		require.Error(t, err)
 		assert.Nil(t, compiledSchema)
 		assert.ErrorContains(t, err, "failed to compile schema")
@@ -269,7 +268,7 @@ func TestSchema_Compile(t *testing.T) {
 	t.Run("Should return nil for nil schema without error", func(t *testing.T) {
 		var schema *Schema
 
-		compiledSchema, err := schema.Compile()
+		compiledSchema, err := schema.Compile(t.Context())
 		assert.NoError(t, err)
 		assert.Nil(t, compiledSchema)
 	})

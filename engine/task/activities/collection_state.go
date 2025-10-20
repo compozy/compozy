@@ -78,13 +78,13 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		return nil, err
 	}
 	// Use task2 CollectionExpander
-	expander := a.task2Factory.CreateCollectionExpander()
+	expander := a.task2Factory.CreateCollectionExpander(ctx)
 	expansionResult, err := expander.ExpandItems(ctx, input.TaskConfig, workflowState, workflowConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to expand collection items: %w", err)
 	}
 	// Validate expansion result
-	if err := expander.ValidateExpansion(expansionResult); err != nil {
+	if err := expander.ValidateExpansion(ctx, expansionResult); err != nil {
 		return nil, fmt.Errorf("expansion validation failed: %w", err)
 	}
 	var createdState *task.State
@@ -106,6 +106,10 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		collectionMetadata := &task2core.CollectionTaskMetadata{
 			ParentStateID: state.TaskExecID,
 			ChildConfigs:  expansionResult.ChildConfigs,
+			Strategy:      string(input.TaskConfig.GetStrategy()),
+			MaxWorkers:    input.TaskConfig.GetMaxWorkers(),
+			Mode:          string(input.TaskConfig.GetMode()),
+			BatchSize:     input.TaskConfig.Batch,
 			ItemCount:     expansionResult.ItemCount,
 			SkippedCount:  expansionResult.SkippedCount,
 		}

@@ -77,7 +77,7 @@ func TestIsValidTaskType(t *testing.T) {
 func TestNewInputSanitizer(t *testing.T) {
 	t.Run("Should create input sanitizer with default settings", func(t *testing.T) {
 		// Act
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		// Assert
 		assert.NotNil(t, sanitizer)
 		assert.Equal(t, 10485760, sanitizer.GetMaxStringLength()) // 10MB default
@@ -88,7 +88,7 @@ func TestNewInputSanitizer(t *testing.T) {
 func TestInputSanitizer_WithMaxStringLength(t *testing.T) {
 	t.Run("Should set max string length", func(t *testing.T) {
 		// Arrange
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		// Act
 		result := sanitizer.WithMaxStringLength(1024)
 		// Assert
@@ -100,7 +100,7 @@ func TestInputSanitizer_WithMaxStringLength(t *testing.T) {
 func TestInputSanitizer_GetMaxStringLength(t *testing.T) {
 	t.Run("Should return current max string length", func(t *testing.T) {
 		// Arrange
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		sanitizer.WithMaxStringLength(2048)
 		// Act
 		length := sanitizer.GetMaxStringLength()
@@ -113,9 +113,9 @@ func TestInputSanitizer_GetMaxStringLength(t *testing.T) {
 func TestInputSanitizer_SanitizeTemplateInput(t *testing.T) {
 	t.Run("Should handle nil input", func(t *testing.T) {
 		// Arrange
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		// Act
-		result := sanitizer.SanitizeTemplateInput(nil)
+		result := sanitizer.SanitizeTemplateInput(t.Context(), nil)
 		// Assert
 		assert.NotNil(t, result)
 		assert.Len(t, result, 0)
@@ -123,14 +123,14 @@ func TestInputSanitizer_SanitizeTemplateInput(t *testing.T) {
 
 	t.Run("Should sanitize normal input", func(t *testing.T) {
 		// Arrange
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		input := map[string]any{
 			"key1": "value1",
 			"key2": 123,
 			"key3": true,
 		}
 		// Act
-		result := sanitizer.SanitizeTemplateInput(input)
+		result := sanitizer.SanitizeTemplateInput(t.Context(), input)
 		// Assert
 		assert.NotNil(t, result)
 		assert.Equal(t, "value1", result["key1"])
@@ -140,13 +140,13 @@ func TestInputSanitizer_SanitizeTemplateInput(t *testing.T) {
 
 	t.Run("Should filter out empty keys", func(t *testing.T) {
 		// Arrange
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		input := map[string]any{
 			"":     "empty_key_value",
 			"key1": "value1",
 		}
 		// Act
-		result := sanitizer.SanitizeTemplateInput(input)
+		result := sanitizer.SanitizeTemplateInput(t.Context(), input)
 		// Assert
 		assert.NotNil(t, result)
 		assert.NotContains(t, result, "")
@@ -313,7 +313,7 @@ func TestValidationConfig_ValidateConfig(t *testing.T) {
 func TestInputSanitizer_SanitizeConfigMap(t *testing.T) {
 	t.Run("Should handle nil config map", func(t *testing.T) {
 		// Arrange
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		// Act
 		err := sanitizer.SanitizeConfigMap(nil)
 		// Assert
@@ -322,7 +322,7 @@ func TestInputSanitizer_SanitizeConfigMap(t *testing.T) {
 
 	t.Run("Should validate simple config map", func(t *testing.T) {
 		// Arrange
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		configMap := map[string]any{
 			"key1": "value1",
 			"key2": 123,
@@ -335,7 +335,7 @@ func TestInputSanitizer_SanitizeConfigMap(t *testing.T) {
 
 	t.Run("Should validate nested config map", func(t *testing.T) {
 		// Arrange
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		configMap := map[string]any{
 			"level1": map[string]any{
 				"level2": map[string]any{
@@ -351,7 +351,7 @@ func TestInputSanitizer_SanitizeConfigMap(t *testing.T) {
 
 	t.Run("Should validate config map with arrays", func(t *testing.T) {
 		// Arrange
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		configMap := map[string]any{
 			"array": []any{
 				"item1",
@@ -367,7 +367,7 @@ func TestInputSanitizer_SanitizeConfigMap(t *testing.T) {
 
 	t.Run("Should reject config map exceeding max depth", func(t *testing.T) {
 		// Arrange
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		// Create deeply nested structure (11 levels deep)
 		configMap := map[string]any{
 			"l1": map[string]any{
@@ -401,7 +401,7 @@ func TestInputSanitizer_SanitizeConfigMap(t *testing.T) {
 
 	t.Run("Should reject array exceeding max depth", func(t *testing.T) {
 		// Arrange
-		sanitizer := NewInputSanitizer()
+		sanitizer := NewInputSanitizer(t.Context())
 		// Create deeply nested array structure
 		configMap := map[string]any{
 			"array": []any{

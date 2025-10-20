@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -213,13 +212,13 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 	})
 
 	t.Run("Should handle metrics and headers correctly", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		monitoringService, err := monitoring.NewMonitoringService(ctx, &monitoring.Config{
 			Enabled: true,
 			Path:    "/metrics",
 		})
 		require.NoError(t, err)
-		defer monitoringService.Shutdown(context.Background())
+		defer monitoringService.Shutdown(t.Context())
 		config := &ratelimit.Config{
 			GlobalRate: ratelimit.RateConfig{Limit: 100, Period: 1 * time.Minute},
 			APIKeyRate: ratelimit.RateConfig{Limit: 100, Period: 1 * time.Minute},

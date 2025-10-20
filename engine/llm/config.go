@@ -1,8 +1,8 @@
 package llm
 
 import (
+	"context"
 	"fmt"
-	"maps"
 	"net/url"
 	"strings"
 	"time"
@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	orchestratorpkg "github.com/compozy/compozy/engine/llm/orchestrator"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/tool"
@@ -88,6 +89,11 @@ type Config struct {
 	ProjectRoot            string
 	// LLM factory for creating clients
 	LLMFactory llmadapter.Factory
+	// ProviderMetrics enables observability for LLM provider calls.
+	ProviderMetrics providermetrics.Recorder
+	// RateLimiter coordinates provider concurrency throttles shared across orchestrations.
+	// When nil, requests execute without centralized throttling.
+	RateLimiter *llmadapter.RateLimiterRegistry
 	// Memory provider for agent memory support
 	MemoryProvider MemoryProvider
 	// Knowledge contains resolved knowledge context for retrieval during orchestration.
@@ -150,6 +156,7 @@ func DefaultConfig() *Config {
 		EnableStructuredOutput:            true,
 		EnableToolCaching:                 true,
 		FailOnMCPRegistrationError:        false,
+		ProviderMetrics:                   providermetrics.Nop(),
 	}
 }
 
@@ -217,10 +224,7 @@ func WithToolCallCaps(caps orchestratorpkg.ToolCallCaps) Option {
 	return func(cCfg *Config) {
 		var overrides map[string]int
 		if len(caps.Overrides) > 0 {
-			overrides = make(map[string]int, len(caps.Overrides))
-			for name, limit := range caps.Overrides {
-				overrides[name] = limit
-			}
+			overrides = core.CloneMap(caps.Overrides)
 		}
 		cCfg.ToolCallCaps = orchestratorpkg.ToolCallCaps{
 			Default:   caps.Default,
@@ -361,12 +365,10 @@ func WithRegisterMCPs(mcps []mcp.Config) Option {
 		for i := range mcps {
 			dst := mcps[i]
 			if mcps[i].Headers != nil {
-				dst.Headers = make(map[string]string, len(mcps[i].Headers))
-				maps.Copy(dst.Headers, mcps[i].Headers)
+				dst.Headers = core.CloneMap(mcps[i].Headers)
 			}
 			if mcps[i].Env != nil {
-				dst.Env = make(map[string]string, len(mcps[i].Env))
-				maps.Copy(dst.Env, mcps[i].Env)
+				dst.Env = core.CloneMap(mcps[i].Env)
 			}
 			c.RegisterMCPs = append(c.RegisterMCPs, dst)
 		}
@@ -377,6 +379,24 @@ func WithRegisterMCPs(mcps []mcp.Config) Option {
 func WithLLMFactory(factory llmadapter.Factory) Option {
 	return func(c *Config) {
 		c.LLMFactory = factory
+	}
+}
+
+// WithProviderMetrics injects the provider-call metrics recorder.
+func WithProviderMetrics(recorder providermetrics.Recorder) Option {
+	return func(c *Config) {
+		if recorder == nil {
+			c.ProviderMetrics = providermetrics.Nop()
+			// If a registry exists, ensure it also uses NOP.
+			if c.RateLimiter != nil {
+				c.RateLimiter.SetRecorder(c.ProviderMetrics)
+			}
+			return
+		}
+		c.ProviderMetrics = recorder
+		if c.RateLimiter != nil {
+			c.RateLimiter.SetRecorder(recorder)
+		}
 	}
 }
 
@@ -457,19 +477,20 @@ func cloneEmbedderOverrides(src map[string]*knowledge.EmbedderConfig) map[string
 	if len(src) == 0 {
 		return nil
 	}
+	if out, err := core.DeepCopy(src); err == nil {
+		return out
+	}
 	out := make(map[string]*knowledge.EmbedderConfig, len(src))
 	for key, cfg := range src {
 		if cfg == nil {
 			out[key] = nil
 			continue
 		}
-		if cloned, err := core.DeepCopy(*cfg); err == nil {
-			copyCfg := cloned
+		if copyCfg, err := core.DeepCopy(*cfg); err == nil {
 			out[key] = &copyCfg
 			continue
 		}
-		copyCfg := *cfg
-		out[key] = &copyCfg
+		out[key] = cfg
 	}
 	return out
 }
@@ -478,19 +499,20 @@ func cloneVectorOverrides(src map[string]*knowledge.VectorDBConfig) map[string]*
 	if len(src) == 0 {
 		return nil
 	}
+	if out, err := core.DeepCopy(src); err == nil {
+		return out
+	}
 	out := make(map[string]*knowledge.VectorDBConfig, len(src))
 	for key, cfg := range src {
 		if cfg == nil {
 			out[key] = nil
 			continue
 		}
-		if cloned, err := core.DeepCopy(*cfg); err == nil {
-			copyCfg := cloned
+		if copyCfg, err := core.DeepCopy(*cfg); err == nil {
 			out[key] = &copyCfg
 			continue
 		}
-		copyCfg := *cfg
-		out[key] = &copyCfg
+		out[key] = cfg
 	}
 	return out
 }
@@ -499,19 +521,20 @@ func cloneKnowledgeOverrides(src map[string]*knowledge.BaseConfig) map[string]*k
 	if len(src) == 0 {
 		return nil
 	}
+	if out, err := core.DeepCopy(src); err == nil {
+		return out
+	}
 	out := make(map[string]*knowledge.BaseConfig, len(src))
 	for key, cfg := range src {
 		if cfg == nil {
 			out[key] = nil
 			continue
 		}
-		if cloned, err := core.DeepCopy(*cfg); err == nil {
-			copyCfg := cloned
+		if copyCfg, err := core.DeepCopy(*cfg); err == nil {
 			out[key] = &copyCfg
 			continue
 		}
-		copyCfg := *cfg
-		out[key] = &copyCfg
+		out[key] = cfg
 	}
 	return out
 }
@@ -545,20 +568,21 @@ func WithRetryJitter(enabled bool) Option {
 }
 
 // WithAppConfig sets configuration values from the application config
-func WithAppConfig(appConfig *config.Config) Option {
+func WithAppConfig(ctx context.Context, appConfig *config.Config) Option {
 	return func(c *Config) {
 		if appConfig == nil {
 			return
 		}
-		applyLLMCoreEndpoints(c, &appConfig.LLM)
-		applyLLMRetryConfig(c, &appConfig.LLM)
-		applyLLMToolLimits(c, &appConfig.LLM)
-		applyLLMTelemetryConfig(c, &appConfig.LLM)
-		applyLLMMCPOptions(c, &appConfig.LLM)
+		applyLLMCoreEndpoints(ctx, c, &appConfig.LLM)
+		applyLLMRetryConfig(ctx, c, &appConfig.LLM)
+		applyLLMToolLimits(ctx, c, &appConfig.LLM)
+		applyLLMTelemetryConfig(ctx, c, &appConfig.LLM)
+		applyLLMMCPOptions(ctx, c, &appConfig.LLM)
+		applyLLMRateLimiter(ctx, c, &appConfig.LLM)
 	}
 }
 
-func applyLLMCoreEndpoints(c *Config, llm *config.LLMConfig) {
+func applyLLMCoreEndpoints(_ context.Context, c *Config, llm *config.LLMConfig) {
 	if llm.ProxyURL != "" {
 		c.ProxyURL = llm.ProxyURL
 	}
@@ -569,7 +593,7 @@ func applyLLMCoreEndpoints(c *Config, llm *config.LLMConfig) {
 	}
 }
 
-func applyLLMRetryConfig(c *Config, llm *config.LLMConfig) {
+func applyLLMRetryConfig(_ context.Context, c *Config, llm *config.LLMConfig) {
 	if llm.RetryAttempts > 0 {
 		c.RetryAttempts = llm.RetryAttempts
 	}
@@ -585,7 +609,7 @@ func applyLLMRetryConfig(c *Config, llm *config.LLMConfig) {
 	}
 }
 
-func applyLLMToolLimits(c *Config, llm *config.LLMConfig) {
+func applyLLMToolLimits(_ context.Context, c *Config, llm *config.LLMConfig) {
 	if llm.MaxConcurrentTools > 0 {
 		c.MaxConcurrentTools = llm.MaxConcurrentTools
 	}
@@ -631,7 +655,7 @@ func applyLLMToolLimits(c *Config, llm *config.LLMConfig) {
 	}
 }
 
-func applyLLMTelemetryConfig(c *Config, llm *config.LLMConfig) {
+func applyLLMTelemetryConfig(_ context.Context, c *Config, llm *config.LLMConfig) {
 	if len(llm.ContextWarningThresholds) > 0 {
 		c.TelemetryContextWarningThresholds = append([]float64(nil), llm.ContextWarningThresholds...)
 	}
@@ -641,14 +665,10 @@ func cloneToolCapOverrides(src map[string]int) map[string]int {
 	if len(src) == 0 {
 		return nil
 	}
-	out := make(map[string]int, len(src))
-	for key, value := range src {
-		out[key] = value
-	}
-	return out
+	return core.CloneMap(src)
 }
 
-func applyLLMMCPOptions(c *Config, llm *config.LLMConfig) {
+func applyLLMMCPOptions(ctx context.Context, c *Config, llm *config.LLMConfig) {
 	if len(llm.AllowedMCPNames) > 0 {
 		WithAllowedMCPNames(llm.AllowedMCPNames)(c)
 	}
@@ -657,29 +677,40 @@ func applyLLMMCPOptions(c *Config, llm *config.LLMConfig) {
 	}
 	c.FailOnMCPRegistrationError = llm.FailOnMCPRegistrationError
 	if len(llm.RegisterMCPs) > 0 {
-		converted := mcp.ConvertRegisterMCPsFromMaps(llm.RegisterMCPs)
+		converted := mcp.ConvertRegisterMCPsFromMaps(ctx, llm.RegisterMCPs)
 		if len(converted) > 0 {
 			c.RegisterMCPs = converted
 		}
 	}
 }
 
+func applyLLMRateLimiter(_ context.Context, c *Config, llm *config.LLMConfig) {
+	if llm == nil {
+		return
+	}
+	if llm.RateLimiting.Enabled {
+		c.RateLimiter = llmadapter.NewRateLimiterRegistry(llm.RateLimiting, c.ProviderMetrics)
+		return
+	}
+	c.RateLimiter = nil
+}
+
 // Validate validates the configuration
-func (c *Config) Validate() error {
-	if err := c.validateBasics(); err != nil {
+func (c *Config) Validate(ctx context.Context) error {
+	if err := c.validateBasics(ctx); err != nil {
 		return err
 	}
-	if err := c.validateResolvedTools(); err != nil {
+	if err := c.validateResolvedTools(ctx); err != nil {
 		return err
 	}
-	if err := c.validateToolCaps(); err != nil {
+	if err := c.validateToolCaps(ctx); err != nil {
 		return err
 	}
 	c.applyDefaultLimits()
 	return nil
 }
 
-func (c *Config) validateBasics() error {
+func (c *Config) validateBasics(_ context.Context) error {
 	if strings.TrimSpace(c.ProxyURL) == "" {
 		return fmt.Errorf("proxy URL cannot be empty")
 	}
@@ -695,7 +726,7 @@ func (c *Config) validateBasics() error {
 	return nil
 }
 
-func (c *Config) validateResolvedTools() error {
+func (c *Config) validateResolvedTools(ctx context.Context) error {
 	if len(c.ResolvedTools) == 0 {
 		return nil
 	}
@@ -712,14 +743,14 @@ func (c *Config) validateResolvedTools() error {
 	}
 	for i := range c.ResolvedTools {
 		t := &c.ResolvedTools[i]
-		if err := t.Validate(); err != nil {
+		if err := t.Validate(ctx); err != nil {
 			return fmt.Errorf("resolved tool '%s' validation failed: %w", t.ID, err)
 		}
 	}
 	return nil
 }
 
-func (c *Config) validateToolCaps() error {
+func (c *Config) validateToolCaps(_ context.Context) error {
 	if c.FinalizeOutputRetryAttempts < 0 {
 		return fmt.Errorf("finalize output retry attempts cannot be negative")
 	}
@@ -780,7 +811,7 @@ func (c *Config) applyDefaultLimits() {
 }
 
 // CreateMCPClient creates an MCP client from the configuration
-func (c *Config) CreateMCPClient() (*mcp.Client, error) {
+func (c *Config) CreateMCPClient(ctx context.Context) (*mcp.Client, error) {
 	if c.ProxyURL == "" {
 		return nil, fmt.Errorf("proxy URL is required for MCP client creation")
 	}
@@ -792,7 +823,7 @@ func (c *Config) CreateMCPClient() (*mcp.Client, error) {
 	if _, err := url.ParseRequestURI(u); err != nil {
 		return nil, fmt.Errorf("invalid proxy URL: %w", err)
 	}
-	client := mcp.NewProxyClient(u, c.Timeout)
+	client := mcp.NewProxyClient(ctx, u, c.Timeout)
 	if client == nil {
 		return nil, fmt.Errorf("failed to create MCP proxy client")
 	}

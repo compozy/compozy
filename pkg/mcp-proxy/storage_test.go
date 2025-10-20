@@ -1,7 +1,6 @@
 package mcpproxy
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -26,7 +25,7 @@ func setupTestRedis(t *testing.T) (*RedisStorage, func()) {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	storage, err := NewRedisStorage(context.Background(), config)
+	storage, err := NewRedisStorage(t.Context(), config)
 	require.NoError(t, err)
 
 	cleanup := func() {
@@ -60,7 +59,7 @@ func TestNewRedisStorage(t *testing.T) {
 			WriteTimeout: 3 * time.Second,
 		}
 
-		storage, err := NewRedisStorage(context.Background(), config)
+		storage, err := NewRedisStorage(t.Context(), config)
 		require.NoError(t, err)
 		assert.NotNil(t, storage)
 		assert.Equal(t, "mcp_proxy", storage.prefix)
@@ -96,7 +95,7 @@ func TestRedisStorage_Ping(t *testing.T) {
 		storage, cleanup := setupTestRedis(t)
 		defer cleanup()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		err := storage.Ping(ctx)
 		assert.NoError(t, err)
 	})
@@ -133,7 +132,7 @@ func TestRedisStorage_Health(t *testing.T) {
 		storage, cleanup := setupTestRedis(t)
 		defer cleanup()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		err := storage.Health(ctx)
 		assert.NoError(t, err)

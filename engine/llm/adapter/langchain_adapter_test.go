@@ -27,7 +27,7 @@ func TestLangChainAdapter_ConvertMessages(t *testing.T) {
 			},
 		}
 
-		messages, err := adapter.convertMessages(context.Background(), &req)
+		messages, err := adapter.convertMessages(t.Context(), &req)
 		require.NoError(t, err)
 
 		assert.Len(t, messages, 3)
@@ -49,7 +49,7 @@ func TestLangChainAdapter_ConvertMessages(t *testing.T) {
 			},
 		}
 
-		messages, err := adapter.convertMessages(context.Background(), &req)
+		messages, err := adapter.convertMessages(t.Context(), &req)
 		require.NoError(t, err)
 
 		assert.Len(t, messages, 1)
@@ -72,7 +72,7 @@ func TestLangChainAdapter_ConvertMessages_WithImageParts(t *testing.T) {
 		},
 	}
 
-	msgs, err := adapter.convertMessages(context.Background(), &req)
+	msgs, err := adapter.convertMessages(t.Context(), &req)
 	require.NoError(t, err)
 	require.Len(t, msgs, 1)
 	parts := msgs[0].Parts
@@ -112,7 +112,7 @@ func TestLangChainAdapter_BuildContentParts_AudioVideo_ByProvider(t *testing.T) 
 	t.Run("Google should forward audio/video as binary parts", func(t *testing.T) {
 		adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: core.ProviderGoogle}}
 		req := LLMRequest{Messages: []Message{mkMsg()}}
-		msgs, err := adapter.convertMessages(context.Background(), &req)
+		msgs, err := adapter.convertMessages(t.Context(), &req)
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
 		// Expect first part is TextContent and two BinaryContent parts for media
@@ -135,12 +135,11 @@ func TestLangChainAdapter_BuildContentParts_AudioVideo_ByProvider(t *testing.T) 
 		core.ProviderAnthropic,
 	}
 	for _, p := range providers {
-		p := p
 		t.Run("Provider "+string(p)+" should skip audio/video", func(t *testing.T) {
 			t.Parallel()
 			adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: p}}
 			req := LLMRequest{Messages: []Message{mkMsg()}}
-			msgs, err := adapter.convertMessages(context.Background(), &req)
+			msgs, err := adapter.convertMessages(t.Context(), &req)
 			require.NoError(t, err)
 			require.Len(t, msgs, 1)
 			for _, part := range msgs[0].Parts {
@@ -165,7 +164,7 @@ func TestLangChainAdapter_OpenAI_AudioSupport(t *testing.T) {
 			Parts:   []ContentPart{BinaryPart{MIMEType: "audio/wav", Data: audioData}},
 		}
 		req := LLMRequest{Messages: []Message{msg}}
-		msgs, err := adapter.convertMessages(context.Background(), &req)
+		msgs, err := adapter.convertMessages(t.Context(), &req)
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
 		assert.Equal(t, llms.TextContent{Text: "Analyze this audio"}, msgs[0].Parts[0])
@@ -183,7 +182,7 @@ func TestLangChainAdapter_OpenAI_AudioSupport(t *testing.T) {
 			Parts:   []ContentPart{BinaryPart{MIMEType: "audio/wav", Data: audioData}},
 		}
 		req := LLMRequest{Messages: []Message{msg}}
-		_, err := adapter.convertMessages(context.Background(), &req)
+		_, err := adapter.convertMessages(t.Context(), &req)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "OpenAI audio input not supported")
 	})
@@ -196,7 +195,7 @@ func TestLangChainAdapter_OpenAI_SkipGenericBinary(t *testing.T) {
 			BinaryPart{MIMEType: "application/octet-stream", Data: []byte{0xAA, 0xBB}},
 		}}
 		req := LLMRequest{Messages: []Message{msg}}
-		msgs, err := adapter.convertMessages(context.Background(), &req)
+		msgs, err := adapter.convertMessages(t.Context(), &req)
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
 		for _, p := range msgs[0].Parts {
@@ -285,7 +284,7 @@ func TestLangChainAdapter_HandleBinary_ImageLimit(t *testing.T) {
 		}
 		data := make([]byte, maxInlineImageBytes+1)
 		out, err := adapter.handleBinary(
-			context.Background(),
+			t.Context(),
 			BinaryPart{MIMEType: "image/png", Data: data},
 			nil,
 		)
@@ -313,7 +312,7 @@ func TestLangChainAdapter_ForceJSONUnsupportedProvider(t *testing.T) {
 	}
 
 	resp, err := adapter.GenerateContent(
-		context.Background(),
+		t.Context(),
 		&LLMRequest{Options: CallOptions{ForceJSON: true}},
 	)
 	require.NoError(t, err)
@@ -438,7 +437,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 	adapter := &LangChainAdapter{}
 
 	t.Run("Should convert simple text response", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{
 			Choices: []*llms.ContentChoice{
 				{
@@ -455,7 +454,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 	})
 
 	t.Run("Should convert response with tool calls", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{
 			Choices: []*llms.ContentChoice{
 				{
@@ -484,7 +483,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 	})
 
 	t.Run("Should attach usage metadata when generation info present", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{
 			Choices: []*llms.ContentChoice{
 				{
@@ -517,7 +516,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 	})
 
 	t.Run("Should compute total when missing but prompt and completion present", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{
 			Choices: []*llms.ContentChoice{
 				{
@@ -537,7 +536,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 	})
 
 	t.Run("Should parse usage metadata from provider key variants", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{
 			Choices: []*llms.ContentChoice{
 				{
@@ -562,7 +561,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 	})
 
 	t.Run("Should clamp negative usage values to zero", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{
 			Choices: []*llms.ContentChoice{
 				{
@@ -585,7 +584,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 	})
 
 	t.Run("Should leave usage nil when metadata missing", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{
 			Choices: []*llms.ContentChoice{
 				{
@@ -601,7 +600,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 	})
 
 	t.Run("Should return error for empty response", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		langchainResp := &llms.ContentResponse{
 			Choices: []*llms.ContentChoice{},
 		}
@@ -613,7 +612,7 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 	})
 
 	t.Run("Should return error for nil response", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		resp, err := adapter.convertResponse(ctx, nil)
 
 		assert.ErrorContains(t, err, "empty response")
@@ -641,7 +640,7 @@ func TestNewLangChainAdapter(t *testing.T) {
 		}
 
 		caps := ProviderCapabilities{StructuredOutput: true}
-		adapter, err := NewLangChainAdapter(context.Background(), &config, builder, caps)
+		adapter, err := NewLangChainAdapter(t.Context(), &config, builder, caps)
 
 		require.NoError(t, err)
 		assert.NotNil(t, adapter)
@@ -671,7 +670,7 @@ func TestLangChainAdapter_StructuredOutputCapability(t *testing.T) {
 	}
 
 	adapter, err := NewLangChainAdapter(
-		context.Background(),
+		t.Context(),
 		&config,
 		builder,
 		ProviderCapabilities{StructuredOutput: true},
@@ -679,19 +678,19 @@ func TestLangChainAdapter_StructuredOutputCapability(t *testing.T) {
 	require.NoError(t, err)
 
 	format := NewJSONSchemaOutputFormat("result", &schema.Schema{"type": "object"}, true)
-	_, err = adapter.ensureModel(context.Background(), format)
+	_, err = adapter.ensureModel(t.Context(), format)
 	require.NoError(t, err)
 	require.Len(t, formats, 1)
 	assert.Equal(t, "json_schema", formats[0].Type)
 
 	adapterNoJSON, err := NewLangChainAdapter(
-		context.Background(),
+		t.Context(),
 		&config,
 		builder,
 		ProviderCapabilities{},
 	)
 	require.NoError(t, err)
-	_, err = adapterNoJSON.ensureModel(context.Background(), format)
+	_, err = adapterNoJSON.ensureModel(t.Context(), format)
 	require.NoError(t, err)
 	assert.Len(t, formats, 1)
 }
@@ -712,7 +711,7 @@ func TestTestAdapter(t *testing.T) {
 			},
 		}
 
-		resp, err := adapter.GenerateContent(context.Background(), &req)
+		resp, err := adapter.GenerateContent(t.Context(), &req)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Test content", resp.Content)
@@ -730,7 +729,7 @@ func TestTestAdapter(t *testing.T) {
 		adapter := NewTestAdapter()
 		adapter.SetError(assert.AnError)
 
-		resp, err := adapter.GenerateContent(context.Background(), &LLMRequest{})
+		resp, err := adapter.GenerateContent(t.Context(), &LLMRequest{})
 
 		require.Error(t, err)
 		assert.Nil(t, resp)
@@ -740,7 +739,7 @@ func TestTestAdapter(t *testing.T) {
 	t.Run("Should reset state", func(t *testing.T) {
 		adapter := NewTestAdapter()
 		adapter.SetResponse("Test")
-		adapter.GenerateContent(context.Background(), &LLMRequest{})
+		adapter.GenerateContent(t.Context(), &LLMRequest{})
 
 		adapter.Reset()
 
@@ -761,7 +760,7 @@ func TestMockToolAdapter(t *testing.T) {
 			},
 		}
 
-		resp, err := adapter.GenerateContent(context.Background(), &req)
+		resp, err := adapter.GenerateContent(t.Context(), &req)
 
 		require.NoError(t, err)
 		assert.Empty(t, resp.Content)
@@ -779,7 +778,7 @@ func TestMockToolAdapter(t *testing.T) {
 			},
 		}
 
-		resp, err := adapter.GenerateContent(context.Background(), &req)
+		resp, err := adapter.GenerateContent(t.Context(), &req)
 
 		require.NoError(t, err)
 		assert.Equal(t, "Mock response", resp.Content)
@@ -801,4 +800,25 @@ func (stubModel) GenerateContent(
 
 func (stubModel) Call(context.Context, string, ...llms.CallOption) (string, error) {
 	return "", nil
+}
+func TestBuildBasicOptionsTemperature(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include temperature when explicitly set to zero", func(t *testing.T) {
+		req := &LLMRequest{Options: CallOptions{Temperature: 0, TemperatureSet: true}}
+		opts := buildBasicOptions(req)
+		require.NotEmpty(t, opts)
+	})
+
+	t.Run("Should omit temperature when not set and zero", func(t *testing.T) {
+		req := &LLMRequest{Options: CallOptions{Temperature: 0, TemperatureSet: false}}
+		opts := buildBasicOptions(req)
+		require.Empty(t, opts)
+	})
+
+	t.Run("Should include temperature when positive even without flag", func(t *testing.T) {
+		req := &LLMRequest{Options: CallOptions{Temperature: 0.5}}
+		opts := buildBasicOptions(req)
+		require.NotEmpty(t, opts)
+	})
 }

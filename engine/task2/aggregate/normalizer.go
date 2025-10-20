@@ -1,6 +1,8 @@
 package aggregate
 
 import (
+	"context"
+
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -13,6 +15,7 @@ type Normalizer struct {
 
 // NewNormalizer creates a new aggregate task normalizer
 func NewNormalizer(
+	_ context.Context,
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 ) *Normalizer {

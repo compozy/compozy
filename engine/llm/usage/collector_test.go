@@ -69,7 +69,7 @@ func TestCollector_FinalizeAggregatesSummary(t *testing.T) {
 	collector := usage.NewCollector(metrics, meta)
 	require.NotNil(t, collector)
 
-	ctx := usage.ContextWithCollector(context.Background(), collector)
+	ctx := usage.ContextWithCollector(t.Context(), collector)
 
 	firstReasoning := 7
 	secondReasoning := 3
@@ -142,7 +142,7 @@ func TestCollector_FinalizeWithoutSnapshotsReturnsNil(t *testing.T) {
 	})
 	require.NotNil(t, collector)
 
-	finalized, err := collector.Finalize(context.Background(), core.StatusSuccess)
+	finalized, err := collector.Finalize(t.Context(), core.StatusSuccess)
 	require.NoError(t, err)
 	assert.Nil(t, finalized)
 }
@@ -156,14 +156,14 @@ func TestCollector_FinalizeRecordsFailureMetricForNonSuccessStatus(t *testing.T)
 	})
 	require.NotNil(t, collector)
 
-	collector.Record(context.Background(), &usage.Snapshot{
+	collector.Record(t.Context(), &usage.Snapshot{
 		Provider:         "anthropic",
 		Model:            "claude-3",
 		PromptTokens:     5,
 		CompletionTokens: 2,
 	})
 
-	finalized, err := collector.Finalize(context.Background(), core.StatusFailed)
+	finalized, err := collector.Finalize(t.Context(), core.StatusFailed)
 	require.NoError(t, err)
 	require.NotNil(t, finalized)
 	assert.Equal(t, 0, metrics.successes)

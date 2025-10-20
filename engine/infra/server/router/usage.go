@@ -43,7 +43,7 @@ func ResolveTaskUsageSummary(ctx context.Context, repo task.Repository, taskExec
 	if repo == nil || taskExecID.IsZero() {
 		return nil
 	}
-	state, err := repo.GetState(ctx, taskExecID)
+	summary, err := repo.GetUsageSummary(ctx, taskExecID)
 	if err != nil {
 		if errors.Is(err, store.ErrTaskNotFound) {
 			return nil
@@ -55,7 +55,7 @@ func ResolveTaskUsageSummary(ctx context.Context, repo task.Repository, taskExec
 		)
 		return nil
 	}
-	return NewUsageSummary(state.Usage)
+	return NewUsageSummary(summary)
 }
 
 // ResolveWorkflowUsageSummary loads aggregated usage for a workflow execution.

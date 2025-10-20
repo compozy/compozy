@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
@@ -24,12 +25,15 @@ func NewActionsValidator(actions []*ActionConfig) *ActionsValidator {
 }
 
 // Validate ensures all actions have valid configurations.
-func (v *ActionsValidator) Validate() error {
+func (v *ActionsValidator) Validate(ctx context.Context) error {
 	if v.actions == nil {
 		return nil
 	}
 	for _, action := range v.actions {
-		if err := action.Validate(); err != nil {
+		if action == nil {
+			continue
+		}
+		if err := action.Validate(ctx); err != nil {
 			return err
 		}
 	}
@@ -49,7 +53,7 @@ func NewMemoryValidator(refs []core.MemoryReference /*, reg *autoload.Registry *
 }
 
 // Validate ensures memory references have valid IDs, keys, and access modes.
-func (v *MemoryValidator) Validate() error {
+func (v *MemoryValidator) Validate(_ context.Context) error {
 	if v.references == nil {
 		// This means no memory configuration was found or explicitly set to none, which is valid.
 		return nil

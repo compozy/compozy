@@ -1,11 +1,15 @@
 package knowledge
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
 )
 
+// Resolver resolves knowledge base bindings by merging project-level, workflow-level,
+// and inline configurations. It maintains indices of embedders, vector databases,
+// and knowledge bases for efficient lookup during resolution.
 type Resolver struct {
 	defaults      Defaults
 	defs          Definitions
@@ -14,6 +18,8 @@ type Resolver struct {
 	projectKBs    map[string]BaseConfig
 }
 
+// ResolveInput contains all the binding configurations from different scopes
+// that need to be merged to produce a final resolved binding.
 type ResolveInput struct {
 	WorkflowKnowledgeBases []BaseConfig
 	ProjectBinding         []core.KnowledgeBinding
@@ -21,6 +27,9 @@ type ResolveInput struct {
 	InlineBinding          []core.KnowledgeBinding
 }
 
+// ResolvedBinding represents a fully resolved knowledge base configuration
+// with all components (knowledge base, embedder, vector database, and retrieval settings)
+// determined after merging bindings from all scopes.
 type ResolvedBinding struct {
 	ID            string
 	KnowledgeBase BaseConfig
@@ -29,10 +38,13 @@ type ResolvedBinding struct {
 	Retrieval     RetrievalConfig
 }
 
-func NewResolver(defs Definitions, defaults Defaults) (*Resolver, error) {
+// NewResolver creates a new Resolver with validated definitions and defaults.
+// It builds internal indices for efficient lookup of embedders, vector databases,
+// and knowledge bases during binding resolution.
+func NewResolver(ctx context.Context, defs Definitions, defaults Defaults) (*Resolver, error) {
 	defaults = sanitizeDefaults(defaults)
 	defs.NormalizeWithDefaults(defaults)
-	if err := defs.Validate(); err != nil {
+	if err := defs.Validate(ctx); err != nil {
 		return nil, fmt.Errorf("knowledge: invalid project definitions: %w", err)
 	}
 	r := &Resolver{
@@ -57,11 +69,15 @@ func NewResolver(defs Definitions, defaults Defaults) (*Resolver, error) {
 	return r, nil
 }
 
-func (r *Resolver) Resolve(input *ResolveInput) (*ResolvedBinding, error) {
+// Resolve merges bindings from project, workflow, and inline scopes to produce
+// a fully resolved knowledge base configuration. It validates workflow definitions,
+// resolves the knowledge base reference, and applies binding overrides to retrieval settings.
+// Returns nil if no bindings are provided.
+func (r *Resolver) Resolve(ctx context.Context, input *ResolveInput) (*ResolvedBinding, error) {
 	if input == nil {
 		return nil, nil
 	}
-	if err := r.validateWorkflowDefinitions(input.WorkflowKnowledgeBases); err != nil {
+	if err := r.validateWorkflowDefinitions(ctx, input.WorkflowKnowledgeBases); err != nil {
 		return nil, err
 	}
 	projectBinding, err := singleBinding("project", input.ProjectBinding)
@@ -106,7 +122,7 @@ func (r *Resolver) Resolve(input *ResolveInput) (*ResolvedBinding, error) {
 	return result, nil
 }
 
-func (r *Resolver) validateWorkflowDefinitions(kbs []BaseConfig) error {
+func (r *Resolver) validateWorkflowDefinitions(ctx context.Context, kbs []BaseConfig) error {
 	if len(kbs) == 0 {
 		return nil
 	}
@@ -116,7 +132,7 @@ func (r *Resolver) validateWorkflowDefinitions(kbs []BaseConfig) error {
 		KnowledgeBases: append([]BaseConfig(nil), kbs...),
 	}
 	defs.NormalizeWithDefaults(r.defaults)
-	if err := defs.Validate(); err != nil {
+	if err := defs.Validate(ctx); err != nil {
 		return fmt.Errorf("knowledge: workflow knowledge base validation failed: %w", err)
 	}
 	return nil
@@ -212,7 +228,7 @@ func bindingFromRetrieval(cfg *RetrievalConfig) core.KnowledgeBinding {
 	result.MaxTokens = &maxTokens
 	result.InjectAs = cfg.InjectAs
 	result.Fallback = cfg.Fallback
-	result.Filters = core.CopyMap(cfg.Filters)
+	result.Filters = core.CloneMap(cfg.Filters)
 	return result
 }
 
@@ -241,9 +257,9 @@ func retrievalFromBinding(base *RetrievalConfig, binding *core.KnowledgeBinding)
 	}
 	switch {
 	case binding.Filters != nil:
-		result.Filters = core.CopyMap(binding.Filters)
+		result.Filters = core.CloneMap(binding.Filters)
 	case base != nil && len(base.Filters) > 0:
-		result.Filters = core.CopyMap(base.Filters)
+		result.Filters = core.CloneMap(base.Filters)
 	default:
 		result.Filters = nil
 	}

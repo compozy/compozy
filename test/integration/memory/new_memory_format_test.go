@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ func TestNewMemoryFormatIntegration(t *testing.T) {
 		// Setup test environment with real Redis
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create a test agent with new memory format
 		agentConfig := createTestAgentWithNewMemoryFormat(t, env)
@@ -68,7 +67,7 @@ func TestNewMemoryFormatIntegration(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create agent with multiple memory references
 		agentConfig := createTestAgentWithMultipleNewMemoryFormat(t, env)
@@ -127,7 +126,7 @@ func TestNewMemoryFormatIntegration(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create agent with read-only memory
 		agentConfig := createTestAgentWithReadOnlyNewMemoryFormat(t, env)
@@ -186,7 +185,7 @@ func createTestAgentWithNewMemoryFormat(t *testing.T, _ *TestEnvironment) *agent
 	require.NoError(t, err)
 
 	// Validate the configuration to process memory settings
-	err = agentConfig.Validate()
+	err = agentConfig.Validate(t.Context())
 	require.NoError(t, err, "Agent config should be valid")
 
 	return agentConfig
@@ -223,7 +222,7 @@ func createTestAgentWithMultipleNewMemoryFormat(t *testing.T, _ *TestEnvironment
 	require.NoError(t, err)
 
 	// Validate the configuration to process memory settings
-	err = agentConfig.Validate()
+	err = agentConfig.Validate(t.Context())
 	require.NoError(t, err, "Agent config should be valid")
 
 	return agentConfig
@@ -259,7 +258,7 @@ func createTestAgentWithReadOnlyNewMemoryFormat(t *testing.T, _ *TestEnvironment
 	require.NoError(t, err)
 
 	// Validate the configuration to process memory settings
-	err = agentConfig.Validate()
+	err = agentConfig.Validate(t.Context())
 	require.NoError(t, err, "Agent config should be valid")
 
 	return agentConfig

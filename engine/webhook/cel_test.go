@@ -1,7 +1,6 @@
 package webhook
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"testing"
@@ -17,7 +16,7 @@ func TestCELAdapter_Allow(t *testing.T) {
 	eval, err := task.NewCELEvaluator()
 	require.NoError(t, err)
 	a := NewCELAdapter(eval)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should allow when expression is true", func(t *testing.T) {
 		t.Parallel()
@@ -87,7 +86,7 @@ func TestBuildContext(t *testing.T) {
 		payload := map[string]any{"action": "create"}
 		query := url.Values{}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		data := BuildContext(payload, headers, query)
 
 		// Test that different casings all map to the same normalized lowercase key

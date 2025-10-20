@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/compozy/compozy/engine/knowledge/vectordb"
 	appconfig "github.com/compozy/compozy/pkg/config"
 )
 
@@ -208,10 +210,18 @@ type EmbedderConfig struct {
 
 // EmbedderRuntimeConfig captures runtime tuning options for an embedder client.
 type EmbedderRuntimeConfig struct {
-	Dimension     int            `json:"dimension"                yaml:"dimension"                mapstructure:"dimension"`
-	BatchSize     int            `json:"batch_size,omitempty"     yaml:"batch_size,omitempty"     mapstructure:"batch_size,omitempty"`
-	StripNewLines *bool          `json:"strip_newlines,omitempty" yaml:"strip_newlines,omitempty" mapstructure:"strip_newlines,omitempty"`
-	Retry         map[string]any `json:"retry,omitempty"          yaml:"retry,omitempty"          mapstructure:"retry,omitempty"`
+	Dimension            int                  `json:"dimension"                        yaml:"dimension"                        mapstructure:"dimension"`
+	BatchSize            int                  `json:"batch_size,omitempty"             yaml:"batch_size,omitempty"             mapstructure:"batch_size,omitempty"`
+	MaxConcurrentWorkers int                  `json:"max_concurrent_workers,omitempty" yaml:"max_concurrent_workers,omitempty" mapstructure:"max_concurrent_workers,omitempty"`
+	StripNewLines        *bool                `json:"strip_newlines,omitempty"         yaml:"strip_newlines,omitempty"         mapstructure:"strip_newlines,omitempty"`
+	Retry                map[string]any       `json:"retry,omitempty"                  yaml:"retry,omitempty"                  mapstructure:"retry,omitempty"`
+	Cache                *EmbedderCacheConfig `json:"cache,omitempty"                  yaml:"cache,omitempty"                  mapstructure:"cache,omitempty"`
+}
+
+// EmbedderCacheConfig toggles client-side embedding caches.
+type EmbedderCacheConfig struct {
+	Enabled bool `json:"enabled"        yaml:"enabled"        mapstructure:"enabled"`
+	Size    int  `json:"size,omitempty" yaml:"size,omitempty" mapstructure:"size,omitempty"`
 }
 
 // VectorDBConfig configures a vector database target for knowledge storage.
@@ -234,6 +244,39 @@ type VectorDBConnConfig struct {
 	Consistency string            `json:"consistency,omitempty"  yaml:"consistency,omitempty"  mapstructure:"consistency,omitempty"`
 	Auth        map[string]string `json:"auth,omitempty"         yaml:"auth,omitempty"         mapstructure:"auth,omitempty"`
 	MaxTopK     int               `json:"max_top_k,omitempty"    yaml:"max_top_k,omitempty"    mapstructure:"max_top_k,omitempty"`
+	PGVector    *PGVectorConfig   `json:"pgvector,omitempty"     yaml:"pgvector,omitempty"     mapstructure:"pgvector,omitempty"`
+}
+
+// PGVectorConfig exposes advanced tuning knobs for the pgvector provider.
+type PGVectorConfig struct {
+	Index  *PGVectorIndexConfig  `json:"index,omitempty"  yaml:"index,omitempty"  mapstructure:"index,omitempty"`
+	Pool   *PGVectorPoolConfig   `json:"pool,omitempty"   yaml:"pool,omitempty"   mapstructure:"pool,omitempty"`
+	Search *PGVectorSearchConfig `json:"search,omitempty" yaml:"search,omitempty" mapstructure:"search,omitempty"`
+}
+
+// PGVectorIndexConfig tunes index creation for pgvector-backed stores.
+type PGVectorIndexConfig struct {
+	Type           string `json:"type,omitempty"            yaml:"type,omitempty"            mapstructure:"type,omitempty"`
+	Lists          int    `json:"lists,omitempty"           yaml:"lists,omitempty"           mapstructure:"lists,omitempty"`
+	Probes         int    `json:"probes,omitempty"          yaml:"probes,omitempty"          mapstructure:"probes,omitempty"`
+	M              int    `json:"m,omitempty"               yaml:"m,omitempty"               mapstructure:"m,omitempty"`
+	EFConstruction int    `json:"ef_construction,omitempty" yaml:"ef_construction,omitempty" mapstructure:"ef_construction,omitempty"`
+	EFSearch       int    `json:"ef_search,omitempty"       yaml:"ef_search,omitempty"       mapstructure:"ef_search,omitempty"`
+}
+
+// PGVectorPoolConfig customizes pgxpool behavior for pgvector stores.
+type PGVectorPoolConfig struct {
+	MinConns          int32         `json:"min_conns,omitempty"           yaml:"min_conns,omitempty"           mapstructure:"min_conns,omitempty"`
+	MaxConns          int32         `json:"max_conns,omitempty"           yaml:"max_conns,omitempty"           mapstructure:"max_conns,omitempty"`
+	MaxConnLifetime   time.Duration `json:"max_conn_lifetime,omitempty"   yaml:"max_conn_lifetime,omitempty"   mapstructure:"max_conn_lifetime,omitempty"`
+	MaxConnIdleTime   time.Duration `json:"max_conn_idle_time,omitempty"  yaml:"max_conn_idle_time,omitempty"  mapstructure:"max_conn_idle_time,omitempty"`
+	HealthCheckPeriod time.Duration `json:"health_check_period,omitempty" yaml:"health_check_period,omitempty" mapstructure:"health_check_period,omitempty"`
+}
+
+// PGVectorSearchConfig adjusts runtime search parameters for pgvector queries.
+type PGVectorSearchConfig struct {
+	Probes   int `json:"probes,omitempty"    yaml:"probes,omitempty"    mapstructure:"probes,omitempty"`
+	EFSearch int `json:"ef_search,omitempty" yaml:"ef_search,omitempty" mapstructure:"ef_search,omitempty"`
 }
 
 // BaseConfig declares a knowledge base and governs how it is ingested and retrieved.
@@ -413,10 +456,10 @@ func (c *RetrievalConfig) normalize(defaults Defaults) {
 }
 
 // Validate checks definitions for consistency and aggregates any validation errors.
-func (d *Definitions) Validate() error {
-	embedderIndex, embedderErrs := validateEmbedders(d.Embedders)
-	vectorIndex, vectorErrs := validateVectorDBs(d.VectorDBs)
-	kbErrs := validateKnowledgeBases(d.KnowledgeBases, embedderIndex, vectorIndex)
+func (d *Definitions) Validate(ctx context.Context) error {
+	embedderIndex, embedderErrs := validateEmbedders(ctx, d.Embedders)
+	vectorIndex, vectorErrs := validateVectorDBs(ctx, d.VectorDBs)
+	kbErrs := validateKnowledgeBases(ctx, d.KnowledgeBases, embedderIndex, vectorIndex)
 
 	totalErrs := len(embedderErrs) + len(vectorErrs) + len(kbErrs)
 	errs := make([]error, 0, totalErrs)
@@ -429,7 +472,7 @@ func (d *Definitions) Validate() error {
 	return NewValidationErrors(errs...)
 }
 
-func validateEmbedders(list []EmbedderConfig) (map[string]*EmbedderConfig, []error) {
+func validateEmbedders(_ context.Context, list []EmbedderConfig) (map[string]*EmbedderConfig, []error) {
 	index := make(map[string]*EmbedderConfig, len(list))
 	var errs []error
 	for i := range list {
@@ -466,12 +509,20 @@ func validateEmbedders(list []EmbedderConfig) (map[string]*EmbedderConfig, []err
 				fmt.Errorf("knowledge: embedder %q config.batch_size must be greater than zero", embedder.ID),
 			)
 		}
+		if embedder.Config.Cache != nil && embedder.Config.Cache.Enabled {
+			if embedder.Config.Cache.Size <= 0 {
+				errs = append(
+					errs,
+					fmt.Errorf("knowledge: embedder %q config.cache.size must be greater than zero", embedder.ID),
+				)
+			}
+		}
 		index[embedder.ID] = embedder
 	}
 	return index, errs
 }
 
-func validateVectorDBs(list []VectorDBConfig) (map[string]*VectorDBConfig, []error) {
+func validateVectorDBs(ctx context.Context, list []VectorDBConfig) (map[string]*VectorDBConfig, []error) {
 	index := make(map[string]*VectorDBConfig, len(list))
 	var errs []error
 	for i := range list {
@@ -484,31 +535,31 @@ func validateVectorDBs(list []VectorDBConfig) (map[string]*VectorDBConfig, []err
 			errs = append(errs, fmt.Errorf("knowledge: vector_db %q defined more than once", vector.ID))
 			continue
 		}
-		errs = append(errs, validateVectorProvider(vector)...)
+		errs = append(errs, validateVectorProvider(ctx, vector)...)
 		index[vector.ID] = vector
 	}
 	return index, errs
 }
 
-func validateVectorProvider(vector *VectorDBConfig) []error {
+func validateVectorProvider(ctx context.Context, vector *VectorDBConfig) []error {
 	if vector == nil {
 		return []error{fmt.Errorf("knowledge: vector_db config cannot be nil")}
 	}
 	switch vector.Type {
 	case VectorDBTypePGVector:
-		return validatePGVectorConfig(vector)
+		return validatePGVectorConfig(ctx, vector)
 	case VectorDBTypeQdrant:
-		return validateQdrantConfig(vector)
+		return validateQdrantConfig(ctx, vector)
 	case VectorDBTypeRedis:
-		return validateRedisConfig(vector)
+		return validateRedisConfig(ctx, vector)
 	case VectorDBTypeFilesystem:
-		return validateFilesystemConfig(vector)
+		return validateFilesystemConfig(ctx, vector)
 	default:
 		return []error{fmt.Errorf("knowledge: vector_db %q type %q is not supported", vector.ID, vector.Type)}
 	}
 }
 
-func validatePGVectorConfig(vector *VectorDBConfig) []error {
+func validatePGVectorConfig(ctx context.Context, vector *VectorDBConfig) []error {
 	dsn := strings.TrimSpace(vector.Config.DSN)
 	if dsn != vector.Config.DSN {
 		vector.Config.DSN = dsn
@@ -526,10 +577,133 @@ func validatePGVectorConfig(vector *VectorDBConfig) []error {
 			fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
 		)
 	}
+	if cfg := vector.Config.PGVector; cfg != nil {
+		errs = append(errs, validatePGVectorIndex(ctx, vector.ID, cfg.Index)...)
+		errs = append(errs, validatePGVectorPool(ctx, vector.ID, cfg.Pool)...)
+		errs = append(errs, validatePGVectorSearch(ctx, vector.ID, cfg.Search)...)
+	}
 	return errs
 }
 
-func validateQdrantConfig(vector *VectorDBConfig) []error {
+func validatePGVectorIndex(_ context.Context, vectorID string, idx *PGVectorIndexConfig) []error {
+	if idx == nil {
+		return nil
+	}
+	errs := make([]error, 0, 6)
+	switch normalized := strings.TrimSpace(strings.ToLower(idx.Type)); normalized {
+	case "":
+	case string(vectordb.PGVectorIndexIVFFlat):
+	case string(vectordb.PGVectorIndexHNSW):
+	default:
+		errs = append(
+			errs,
+			fmt.Errorf(
+				"knowledge: vector_db %q pgvector.index.type %q must be %q or %q",
+				vectorID,
+				idx.Type,
+				vectordb.PGVectorIndexIVFFlat,
+				vectordb.PGVectorIndexHNSW,
+			),
+		)
+	}
+	if idx.Lists < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.lists must be >= 0",
+			vectorID,
+		))
+	}
+	if idx.Probes < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.probes must be >= 0",
+			vectorID,
+		))
+	}
+	if idx.M < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.m must be >= 0",
+			vectorID,
+		))
+	}
+	if idx.EFConstruction < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.ef_construction must be >= 0",
+			vectorID,
+		))
+	}
+	if idx.EFSearch < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.ef_search must be >= 0",
+			vectorID,
+		))
+	}
+	return errs
+}
+
+func validatePGVectorPool(_ context.Context, vectorID string, pool *PGVectorPoolConfig) []error {
+	if pool == nil {
+		return nil
+	}
+	errs := make([]error, 0, 6)
+	if pool.MinConns < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.min_conns must be >= 0",
+			vectorID,
+		))
+	}
+	if pool.MaxConns < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.max_conns must be >= 0",
+			vectorID,
+		))
+	}
+	if pool.MaxConns > 0 && pool.MinConns > pool.MaxConns {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.min_conns cannot exceed max_conns",
+			vectorID,
+		))
+	}
+	if pool.MaxConnLifetime < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.max_conn_lifetime must be >= 0",
+			vectorID,
+		))
+	}
+	if pool.MaxConnIdleTime < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.max_conn_idle_time must be >= 0",
+			vectorID,
+		))
+	}
+	if pool.HealthCheckPeriod < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.pool.health_check_period must be >= 0",
+			vectorID,
+		))
+	}
+	return errs
+}
+
+func validatePGVectorSearch(_ context.Context, vectorID string, search *PGVectorSearchConfig) []error {
+	if search == nil {
+		return nil
+	}
+	errs := make([]error, 0, 2)
+	if search.Probes < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.search.probes must be >= 0",
+			vectorID,
+		))
+	}
+	if search.EFSearch < 0 {
+		errs = append(errs, fmt.Errorf(
+			"knowledge: vector_db %q pgvector.search.ef_search must be >= 0",
+			vectorID,
+		))
+	}
+	return errs
+}
+
+func validateQdrantConfig(_ context.Context, vector *VectorDBConfig) []error {
 	dsn := strings.TrimSpace(vector.Config.DSN)
 	if dsn != vector.Config.DSN {
 		vector.Config.DSN = dsn
@@ -549,7 +723,7 @@ func validateQdrantConfig(vector *VectorDBConfig) []error {
 	return errs
 }
 
-func validateRedisConfig(vector *VectorDBConfig) []error {
+func validateRedisConfig(_ context.Context, vector *VectorDBConfig) []error {
 	dsn := strings.TrimSpace(vector.Config.DSN)
 	if dsn != vector.Config.DSN {
 		vector.Config.DSN = dsn
@@ -567,7 +741,7 @@ func validateRedisConfig(vector *VectorDBConfig) []error {
 	return errs
 }
 
-func validateFilesystemConfig(vector *VectorDBConfig) []error {
+func validateFilesystemConfig(_ context.Context, vector *VectorDBConfig) []error {
 	if vector.Config.Dimension <= 0 {
 		return []error{
 			fmt.Errorf("knowledge: vector_db %q config.dimension must be greater than zero", vector.ID),
@@ -577,6 +751,7 @@ func validateFilesystemConfig(vector *VectorDBConfig) []error {
 }
 
 func validateKnowledgeBases(
+	ctx context.Context,
 	list []BaseConfig,
 	embedderIndex map[string]*EmbedderConfig,
 	vectorIndex map[string]*VectorDBConfig,
@@ -596,26 +771,27 @@ func validateKnowledgeBases(
 		seen[kb.ID] = struct{}{}
 		embedder := embedderIndex[kb.Embedder]
 		vector := vectorIndex[kb.VectorDB]
-		out = append(out, validateKnowledgeBase(kb, embedder, vector)...)
+		out = append(out, validateKnowledgeBase(ctx, kb, embedder, vector)...)
 	}
 	return out
 }
 
 func validateKnowledgeBase(
+	ctx context.Context,
 	kb *BaseConfig,
 	embedder *EmbedderConfig,
 	vector *VectorDBConfig,
 ) []error {
 	errs := make([]error, 0, 10)
-	errs = append(errs, validateKnowledgeBaseIngest(kb)...)
-	errs = append(errs, validateKnowledgeBaseReferences(kb, embedder, vector)...)
-	errs = append(errs, validateKnowledgeBaseSources(kb)...)
-	errs = append(errs, validateKnowledgeBaseChunking(kb)...)
-	errs = append(errs, validateKnowledgeBaseRetrieval(kb)...)
+	errs = append(errs, validateKnowledgeBaseIngest(ctx, kb)...)
+	errs = append(errs, validateKnowledgeBaseReferences(ctx, kb, embedder, vector)...)
+	errs = append(errs, validateKnowledgeBaseSources(ctx, kb)...)
+	errs = append(errs, validateKnowledgeBaseChunking(ctx, kb)...)
+	errs = append(errs, validateKnowledgeBaseRetrieval(ctx, kb)...)
 	return errs
 }
 
-func validateKnowledgeBaseIngest(kb *BaseConfig) []error {
+func validateKnowledgeBaseIngest(_ context.Context, kb *BaseConfig) []error {
 	switch kb.Ingest {
 	case IngestManual, IngestOnStart:
 		return nil
@@ -630,6 +806,7 @@ func validateKnowledgeBaseIngest(kb *BaseConfig) []error {
 }
 
 func validateKnowledgeBaseReferences(
+	_ context.Context,
 	kb *BaseConfig,
 	embedder *EmbedderConfig,
 	vector *VectorDBConfig,
@@ -664,20 +841,20 @@ func validateKnowledgeBaseReferences(
 	return errs
 }
 
-func validateKnowledgeBaseSources(kb *BaseConfig) []error {
+func validateKnowledgeBaseSources(ctx context.Context, kb *BaseConfig) []error {
 	if len(kb.Sources) == 0 {
 		return []error{fmt.Errorf("knowledge: knowledge_base %q must define at least one source", kb.ID)}
 	}
 	errs := make([]error, 0, len(kb.Sources))
 	for j := range kb.Sources {
-		if err := validateSource(kb.ID, &kb.Sources[j]); err != nil {
+		if err := validateSource(ctx, kb.ID, &kb.Sources[j]); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	return errs
 }
 
-func validateKnowledgeBaseChunking(kb *BaseConfig) []error {
+func validateKnowledgeBaseChunking(_ context.Context, kb *BaseConfig) []error {
 	errs := make([]error, 0, 2)
 	if kb.Chunking.Size < MinChunkSize || kb.Chunking.Size > MaxChunkSize {
 		errs = append(errs, fmt.Errorf(
@@ -696,7 +873,7 @@ func validateKnowledgeBaseChunking(kb *BaseConfig) []error {
 	return errs
 }
 
-func validateKnowledgeBaseRetrieval(kb *BaseConfig) []error {
+func validateKnowledgeBaseRetrieval(_ context.Context, kb *BaseConfig) []error {
 	errs := make([]error, 0, 3)
 	if kb.Retrieval.TopK < 1 || kb.Retrieval.TopK > maxRetrievalTopK {
 		errs = append(errs, fmt.Errorf(
@@ -720,11 +897,11 @@ func validateKnowledgeBaseRetrieval(kb *BaseConfig) []error {
 	return errs
 }
 
-func validateSource(kbID string, source *SourceConfig) error {
+func validateSource(_ context.Context, kbID string, source *SourceConfig) error {
 	switch source.Type {
 	case SourceTypeURL:
 		if strings.TrimSpace(source.Path) == "" && len(source.URLs) == 0 {
-			return fmt.Errorf("knowledge: knowledge_base %q url source requires url or urls", kbID)
+			return fmt.Errorf("knowledge: knowledge_base %q url source requires path or urls", kbID)
 		}
 		if len(source.Paths) > 0 {
 			return fmt.Errorf("knowledge: knowledge_base %q url source does not support paths", kbID)

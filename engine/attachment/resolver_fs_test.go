@@ -1,7 +1,6 @@
 package attachment
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -24,7 +23,7 @@ func Test_resolveLocalFile(t *testing.T) {
 		require.NoError(t, writePNG(f))
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
-		res, err := resolveLocalFile(context.Background(), cwd, "a.png", TypeImage)
+		res, err := resolveLocalFile(t.Context(), cwd, "a.png", TypeImage)
 		require.NoError(t, err)
 		defer res.Cleanup()
 		p, ok := res.AsFilePath()
@@ -42,7 +41,7 @@ func Test_resolveLocalFile(t *testing.T) {
 		dir := t.TempDir()
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
-		_, err = resolveLocalFile(context.Background(), cwd, ".", TypeImage)
+		_, err = resolveLocalFile(t.Context(), cwd, ".", TypeImage)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not a regular file")
 	})
@@ -52,7 +51,7 @@ func Test_resolveLocalFile(t *testing.T) {
 		require.NoError(t, os.WriteFile(f, []byte("hello"), 0o644))
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
-		_, err = resolveLocalFile(context.Background(), cwd, "not_image.txt", TypeImage)
+		_, err = resolveLocalFile(t.Context(), cwd, "not_image.txt", TypeImage)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not allowed")
 	})
@@ -64,7 +63,7 @@ func Test_resolveLocalFile(t *testing.T) {
 		t.Cleanup(func() { _ = os.Remove(f) })
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
-		_, err = resolveLocalFile(context.Background(), cwd, "../x.png", TypeImage)
+		_, err = resolveLocalFile(t.Context(), cwd, "../x.png", TypeImage)
 		require.Error(t, err)
 	})
 	t.Run("Should reject absolute path outside CWD (absolute)", func(t *testing.T) {
@@ -75,7 +74,7 @@ func Test_resolveLocalFile(t *testing.T) {
 		t.Cleanup(func() { _ = os.Remove(f) })
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
-		_, err = resolveLocalFile(context.Background(), cwd, f, TypeImage)
+		_, err = resolveLocalFile(t.Context(), cwd, f, TypeImage)
 		require.Error(t, err)
 	})
 	t.Run("Should reject symlink pointing outside CWD", func(t *testing.T) {
@@ -97,7 +96,7 @@ func Test_resolveLocalFile(t *testing.T) {
 		cwd, err := core.CWDFromPath(subDir)
 		require.NoError(t, err)
 		// Should reject symlink pointing outside CWD
-		_, err = resolveLocalFile(context.Background(), cwd, "evil_link.png", TypeImage)
+		_, err = resolveLocalFile(t.Context(), cwd, "evil_link.png", TypeImage)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "path outside CWD")
 	})
@@ -116,7 +115,7 @@ func Test_resolveLocalFile(t *testing.T) {
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
 		// Should allow symlink pointing inside CWD
-		res, err := resolveLocalFile(context.Background(), cwd, "valid_link.png", TypeImage)
+		res, err := resolveLocalFile(t.Context(), cwd, "valid_link.png", TypeImage)
 		require.NoError(t, err)
 		defer res.Cleanup()
 		// The resolved path should point to the real file (may be resolved through symlinks)
@@ -138,7 +137,7 @@ func Test_resolveLocalFile(t *testing.T) {
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
 		// Should reject broken symlink (EvalSymlinks fails)
-		_, err = resolveLocalFile(context.Background(), cwd, "broken_link.png", TypeImage)
+		_, err = resolveLocalFile(t.Context(), cwd, "broken_link.png", TypeImage)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "resolve path symlinks")
 	})

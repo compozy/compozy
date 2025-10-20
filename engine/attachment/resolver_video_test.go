@@ -1,7 +1,6 @@
 package attachment
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,7 +19,7 @@ func Test_Resolver_URL_MIME_Denied_Video(t *testing.T) {
 		defer srv.Close()
 		before := SnapshotTempFiles(t)
 		a := &VideoAttachment{Source: SourceURL, URL: srv.URL}
-		_, err := resolveVideo(context.Background(), a, nil)
+		_, err := resolveVideo(t.Context(), a, nil)
 		require.Error(t, err)
 		after := SnapshotTempFiles(t)
 		require.Equal(t, before, after)

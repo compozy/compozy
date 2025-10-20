@@ -1,5 +1,18 @@
 {
   "$defs": {
+    "EmbedderCacheConfig": {
+      "additionalProperties": false,
+      "description": "EmbedderCacheConfig toggles client-side embedding caches.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "size": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "EmbedderRuntimeConfig": {
       "additionalProperties": false,
       "description": "EmbedderRuntimeConfig captures runtime tuning options for an embedder client.",
@@ -7,7 +20,13 @@
         "batch_size": {
           "type": "integer"
         },
+        "cache": {
+          "$ref": "#/$defs/EmbedderCacheConfig"
+        },
         "dimension": {
+          "type": "integer"
+        },
+        "max_concurrent_workers": {
           "type": "integer"
         },
         "retry": {

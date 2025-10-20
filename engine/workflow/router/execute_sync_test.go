@@ -178,8 +178,8 @@ func setupWorkflowSyncRouter(
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		ctx := logger.ContextWithLogger(c.Request.Context(), logger.NewForTests())
-		manager := config.NewManager(config.NewService())
-		_, loadErr := manager.Load(context.Background(), config.NewDefaultProvider())
+		manager := config.NewManager(t.Context(), config.NewService())
+		_, loadErr := manager.Load(t.Context(), config.NewDefaultProvider())
 		require.NoError(t, loadErr)
 		ctx = config.ContextWithManager(ctx, manager)
 		c.Request = c.Request.WithContext(ctx)
@@ -207,7 +207,7 @@ func putWorkflowConfig(t *testing.T, store resources.ResourceStore, project stri
 	data, err := cfg.AsMap()
 	require.NoError(t, err)
 	_, err = store.Put(
-		context.Background(),
+		t.Context(),
 		resources.ResourceKey{Project: project, Type: resources.ResourceWorkflow, ID: workflowID},
 		data,
 	)

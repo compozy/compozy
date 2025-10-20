@@ -58,6 +58,7 @@ func TestCollectionConfigInheritance(t *testing.T) {
 
 		// Create normalizer to test inheritance
 		normalizer := collection.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -70,7 +71,7 @@ func TestCollectionConfigInheritance(t *testing.T) {
 		}
 
 		// Normalize the collection task
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err, "Collection normalization should succeed")
 
 		// Verify task template inherited CWD and FilePath
@@ -119,6 +120,7 @@ func TestCollectionConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := collection.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -129,7 +131,7 @@ func TestCollectionConfigInheritance(t *testing.T) {
 				"test_items": []string{"a", "b"},
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify template preserved its explicit values
@@ -174,6 +176,7 @@ func TestCollectionConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := collection.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -184,7 +187,7 @@ func TestCollectionConfigInheritance(t *testing.T) {
 				"dynamic_items": []string{"x", "y", "z"},
 			},
 		}
-		err := normalizer.Normalize(taskConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), taskConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify inheritance and custom variable
@@ -242,6 +245,7 @@ func TestCollectionConfigInheritance(t *testing.T) {
 
 		// Create normalizer
 		normalizer := collection.NewNormalizer(
+			t.Context(),
 			ts.TemplateEngine,
 			ts.ContextBuilder,
 		)
@@ -250,7 +254,7 @@ func TestCollectionConfigInheritance(t *testing.T) {
 		normCtx := &shared.NormalizationContext{
 			Variables: map[string]any{},
 		}
-		err := normalizer.Normalize(outerConfig, normCtx)
+		err := normalizer.Normalize(t.Context(), outerConfig, normCtx)
 		require.NoError(t, err)
 
 		// Verify outer template (inner collection) inherited

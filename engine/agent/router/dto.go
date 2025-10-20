@@ -106,7 +106,7 @@ func ConvertAgentConfigToDTO(cfg *agent.Config) (AgentDTO, error) {
 	if cfg == nil {
 		return AgentDTO{}, fmt.Errorf("agent config is nil")
 	}
-	clone, err := core.DeepCopy[*agent.Config](cfg)
+	clone, err := core.DeepCopy(cfg)
 	if err != nil {
 		return AgentDTO{}, fmt.Errorf("deep copy agent config: %w", err)
 	}

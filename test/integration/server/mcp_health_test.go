@@ -15,7 +15,7 @@ import (
 func TestMCPHealth_EndpointExposed(t *testing.T) {
 	t.Setenv("MCP_PROXY_MODE", "standalone")
 	ginmode.EnsureGinTestMode()
-	m := config.NewManager(config.NewService())
+	m := config.NewManager(t.Context(), config.NewService())
 	if _, err := m.Load(t.Context(), config.NewDefaultProvider(), config.NewEnvProvider()); err != nil {
 		t.Fatalf("load config: %v", err)
 	}

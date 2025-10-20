@@ -65,7 +65,7 @@ tasks:
     type: basic
     agent: file_manager
     prompt: "Read the contents of: {{ .workflow.input.filename }}"
-    condition: "{{ .workflow.input.filename }}"
+    condition: 'workflow.input.filename'
 
   - id: create_summary
     type: basic
@@ -148,13 +148,13 @@ mcps:
     transport: stdio
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "./"]
-    condition: '{{ eq .workflow.input.environment "local" }}'
+    condition: 'workflow.input.environment == "local"'
 
   - id: database_server
     transport: stdio
     command: python
     args: ["mcp_server_database.py", "--connection-string", "{{ .env.DATABASE_URL }}"]
-    condition: '{{ eq .workflow.input.operation_type "database" }}'
+    condition: 'workflow.input.operation_type == "database"'
 
 agents:
   - id: adaptive_assistant

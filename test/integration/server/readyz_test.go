@@ -16,7 +16,7 @@ import (
 // newIntegrationServer creates a new server instance with default config manager
 func newIntegrationServer(t *testing.T) *engserver.Server {
 	t.Helper()
-	m := config.NewManager(config.NewService())
+	m := config.NewManager(t.Context(), config.NewService())
 	if _, err := m.Load(t.Context(), config.NewDefaultProvider(), config.NewEnvProvider()); err != nil {
 		t.Fatalf("load config: %v", err)
 	}

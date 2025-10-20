@@ -66,7 +66,7 @@ func (a *ExecuteAggregate) Run(ctx context.Context, input *ExecuteAggregateInput
 		return nil, err
 	}
 	// Use task2 normalizer for aggregate tasks
-	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeAggregate)
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeAggregate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create aggregate normalizer: %w", err)
 	}
@@ -76,10 +76,10 @@ func (a *ExecuteAggregate) Run(ctx context.Context, input *ExecuteAggregateInput
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
 	// Build proper normalization context with all template variables
-	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	normContext := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, input.TaskConfig)
 	// Normalize the task configuration
 	normalizedConfig := input.TaskConfig
-	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
 		return nil, fmt.Errorf("failed to normalize aggregate task: %w", err)
 	}
 	// Create task state
@@ -178,12 +178,13 @@ func (a *ExecuteAggregate) executeAggregate(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
-	normCtx := contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	normCtx := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
 	normCtx.TaskConfigs = taskConfigs
 	normCtx.CurrentInput = taskConfig.With
 	normCtx.MergedEnv = taskConfig.Env
 
 	processedOutput, err := outputTransformer.TransformOutput(
+		ctx,
 		emptyOutput,
 		taskConfig.Outputs,
 		normCtx,

@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -20,7 +19,7 @@ func TestFlushWorkflowComplete(t *testing.T) {
 	t.Run("Should execute complete flush workflow with summarization", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		// Use flushable memory with aggressive threshold
 		memRef := core.MemoryReference{
 			ID:  "flushable-memory",
@@ -96,7 +95,7 @@ func TestFlushWithMultipleStrategies(t *testing.T) {
 	t.Run("Should handle different flush strategies correctly", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		// Test data for different scenarios
 		testCases := []struct {
 			name             string
@@ -161,7 +160,7 @@ func TestCleanupWorkflow(t *testing.T) {
 	t.Run("Should execute cleanup workflow for expired memories", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		// Create multiple memory instances with different TTLs
 		memories := []struct {
 			key      string
@@ -236,7 +235,7 @@ func TestFlushAndCleanupInteraction(t *testing.T) {
 	t.Run("Should handle flush and cleanup operations together", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "flushable-memory",
 			Key: "flush-cleanup-interaction-{{.test.id}}",
@@ -296,7 +295,7 @@ func TestConcurrentFlushAndCleanup(t *testing.T) {
 	t.Run("Should handle concurrent flush and cleanup safely", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		// Create multiple memory instances
 		const numInstances = 5
 		instances := make([]memcore.Memory, numInstances)

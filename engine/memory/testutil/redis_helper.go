@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"context"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -47,51 +46,47 @@ func (s *TestRedisSetup) Cleanup() {
 	}
 }
 
-// SetupTestRedis creates a complete Redis test environment with miniredis
-func SetupTestRedis(t *testing.T) *TestRedisSetup {
-	// Start miniredis server
+// setupRedisClient creates and starts a miniredis server with a test client
+func setupRedisClient(t *testing.T) (*miniredis.Miniredis, *RedisTestClient) {
 	server, err := miniredis.Run()
 	require.NoError(t, err)
 
-	// Create Redis client
 	client := redis.NewClient(&redis.Options{
 		Addr: server.Addr(),
 	})
 
-	// Create test client wrapper
-	testClient := &RedisTestClient{Client: client}
+	return server, &RedisTestClient{Client: client}
+}
 
-	// Create Redis store
-	redisStore := store.NewRedisMemoryStore(testClient, "test")
-
-	// Create lock manager
+// setupManagerDependencies creates all dependencies needed for memory manager
+func setupManagerDependencies(
+	t *testing.T,
+	testClient *RedisTestClient,
+) (*memory.ManagerOptions, *autoload.ConfigRegistry) {
 	lockManager, err := cache.NewRedisLockManager(testClient)
 	require.NoError(t, err)
 
-	// Create template engine
-	tplEngine := tplengine.NewEngine(tplengine.FormatText)
-
-	// Create config registry
 	configRegistry := autoload.NewConfigRegistry()
 
-	// Create privacy manager
-	privacyManager := privacy.NewManager()
-
-	// Create mock temporal client
-	mockClient := &mocks.Client{}
-
-	// Create memory manager options
 	opts := &memory.ManagerOptions{
 		ResourceRegistry:  configRegistry,
-		TplEngine:         tplEngine,
+		TplEngine:         tplengine.NewEngine(tplengine.FormatText),
 		BaseLockManager:   lockManager,
 		BaseRedisClient:   testClient,
-		TemporalClient:    mockClient,
+		TemporalClient:    &mocks.Client{},
 		TemporalTaskQueue: "test-memory-queue",
-		PrivacyManager:    privacyManager,
+		PrivacyManager:    privacy.NewManager(),
 	}
 
-	// Create memory manager
+	return opts, configRegistry
+}
+
+// SetupTestRedis creates a complete Redis test environment with miniredis
+func SetupTestRedis(t *testing.T) *TestRedisSetup {
+	server, testClient := setupRedisClient(t)
+	redisStore := store.NewRedisMemoryStore(testClient, "test")
+
+	opts, configRegistry := setupManagerDependencies(t, testClient)
 	manager, err := memory.NewManager(opts)
 	require.NoError(t, err)
 
@@ -121,7 +116,7 @@ func (s *TestRedisSetup) CreateTestMemoryInstance(t *testing.T, instanceID strin
 	}
 
 	// Validate config to set ParsedTTL
-	err := testConfig.Validate()
+	err := testConfig.Validate(t.Context())
 	require.NoError(t, err)
 
 	// Register the config
@@ -137,7 +132,7 @@ func (s *TestRedisSetup) CreateTestMemoryInstance(t *testing.T, instanceID strin
 	}
 
 	// Get instance from manager
-	memInstance, err := s.Manager.GetInstance(context.Background(), memRef, map[string]any{})
+	memInstance, err := s.Manager.GetInstance(t.Context(), memRef, map[string]any{})
 	require.NoError(t, err)
 
 	return memInstance

@@ -11,21 +11,21 @@ import (
 
 func TestLRUEvictionPolicy_NewLRUEvictionPolicy(t *testing.T) {
 	t.Run("Should create LRU eviction policy", func(t *testing.T) {
-		policy := NewLRUEvictionPolicy()
+		policy := NewLRUEvictionPolicy(t.Context())
 		require.NotNil(t, policy)
 		assert.Equal(t, "lru", policy.GetType())
 	})
 }
 
 func TestLRUEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
-	policy := NewLRUEvictionPolicy()
+	policy := NewLRUEvictionPolicy(t.Context())
 
 	t.Run("Should return nil when no eviction needed", func(t *testing.T) {
 		messages := []llm.Message{
 			{Role: llm.MessageRoleUser, Content: "Message 1"},
 			{Role: llm.MessageRoleAssistant, Content: "Message 2"},
 		}
-		evicted := policy.SelectMessagesToEvict(messages, 5)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 5)
 		assert.Nil(t, evicted)
 	})
 
@@ -38,7 +38,7 @@ func TestLRUEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 		// Update access for middle message only
 		policy.UpdateAccess(messages[1])
 		// Keep only 1 message
-		evicted := policy.SelectMessagesToEvict(messages, 1)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 1)
 		require.Len(t, evicted, 2)
 		// Should evict the never-accessed messages
 		assert.Equal(t, "Never accessed 1", evicted[0].Content)
@@ -61,7 +61,7 @@ func TestLRUEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 		policy.UpdateAccess(messages[3])
 		// Keep only 2 messages
-		evicted := policy.SelectMessagesToEvict(messages, 2)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 2)
 		require.Len(t, evicted, 2)
 		// Should evict oldest and middle access
 		assert.Equal(t, "Oldest access", evicted[0].Content)
@@ -77,7 +77,7 @@ func TestLRUEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 		// Update first two messages in batch
 		policy.UpdateAccessBatch(messages[:2])
 		// Keep only 1 message
-		evicted := policy.SelectMessagesToEvict(messages, 1)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 1)
 		require.Len(t, evicted, 2)
 		// Message 3 should be evicted first (never accessed)
 		assert.Equal(t, "Message 3", evicted[0].Content)
@@ -94,7 +94,7 @@ func TestLRUEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 		}
 		// Don't update any access times
 		// Keep only 2 messages
-		evicted := policy.SelectMessagesToEvict(messages, 2)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 2)
 		require.Len(t, evicted, 2)
 		// Should evict in FIFO order when no access times
 		assert.Equal(t, "First", evicted[0].Content)
@@ -111,14 +111,14 @@ func TestLRUEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 		// Clear history
 		policy.ClearAccessHistory()
 		// Both messages should now be treated as never accessed
-		evicted := policy.SelectMessagesToEvict(messages, 1)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 1)
 		require.Len(t, evicted, 1)
 		// Should evict first message (FIFO for never accessed)
 		assert.Equal(t, "Message 1", evicted[0].Content)
 	})
 
 	t.Run("Should handle empty message list", func(t *testing.T) {
-		evicted := policy.SelectMessagesToEvict([]llm.Message{}, 0)
+		evicted := policy.SelectMessagesToEvict(t.Context(), []llm.Message{}, 0)
 		assert.Nil(t, evicted)
 	})
 
@@ -126,14 +126,14 @@ func TestLRUEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 		messages := []llm.Message{
 			{Role: llm.MessageRoleUser, Content: "Message 1"},
 		}
-		evicted := policy.SelectMessagesToEvict(messages, -1)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, -1)
 		assert.Nil(t, evicted)
 	})
 }
 
 func TestLRUEvictionPolicy_UpdateAccess(t *testing.T) {
 	t.Run("Should update access time for message", func(t *testing.T) {
-		policy := NewLRUEvictionPolicy()
+		policy := NewLRUEvictionPolicy(t.Context())
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: "Test message"}
 		// Update access
 		policy.UpdateAccess(msg)
@@ -142,7 +142,7 @@ func TestLRUEvictionPolicy_UpdateAccess(t *testing.T) {
 			msg,
 			{Role: llm.MessageRoleAssistant, Content: "Never accessed"},
 		}
-		evicted := policy.SelectMessagesToEvict(messages, 1)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 1)
 		require.Len(t, evicted, 1)
 		assert.Equal(t, "Never accessed", evicted[0].Content)
 	})
@@ -150,14 +150,14 @@ func TestLRUEvictionPolicy_UpdateAccess(t *testing.T) {
 
 func TestLRUEvictionPolicy_GetType(t *testing.T) {
 	t.Run("Should return correct policy type", func(t *testing.T) {
-		policy := NewLRUEvictionPolicy()
+		policy := NewLRUEvictionPolicy(t.Context())
 		assert.Equal(t, "lru", policy.GetType())
 	})
 }
 
 func TestLRUEvictionPolicy_ConcurrentAccess(t *testing.T) {
 	t.Run("Should handle concurrent access updates safely", func(t *testing.T) {
-		policy := NewLRUEvictionPolicy()
+		policy := NewLRUEvictionPolicy(t.Context())
 		messages := make([]llm.Message, 100)
 		for i := range 100 {
 			messages[i] = llm.Message{
@@ -184,7 +184,7 @@ func TestLRUEvictionPolicy_ConcurrentAccess(t *testing.T) {
 		// Goroutine 3: Perform evictions
 		go func() {
 			for range 10 {
-				policy.SelectMessagesToEvict(messages, 50)
+				policy.SelectMessagesToEvict(t.Context(), messages, 50)
 			}
 			done <- true
 		}()

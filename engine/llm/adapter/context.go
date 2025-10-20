@@ -1,6 +1,10 @@
 package llmadapter
 
-import "context"
+import (
+	"context"
+
+	"github.com/compozy/compozy/engine/core"
+)
 
 type clientCtxKey string
 type optionsCtxKey string
@@ -57,6 +61,9 @@ func cloneCallOptions(opts *CallOptions) CallOptions {
 	out := *opts
 	if len(out.StopWords) > 0 {
 		out.StopWords = append([]string{}, out.StopWords...)
+	}
+	if len(out.Metadata) > 0 {
+		out.Metadata = core.CloneMap(opts.Metadata)
 	}
 	return out
 }

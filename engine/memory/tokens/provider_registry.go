@@ -2,8 +2,9 @@ package tokens
 
 import (
 	"fmt"
-	"maps"
 	"sync"
+
+	"github.com/compozy/compozy/engine/core"
 )
 
 // ProviderRegistry manages provider configurations for token counting
@@ -84,8 +85,7 @@ func (r *ProviderRegistry) Clone(name string) (*ProviderConfig, error) {
 		Model:    config.Model,
 		APIKey:   config.APIKey,
 		Endpoint: config.Endpoint,
-		Settings: make(map[string]string),
+		Settings: core.CloneMap(config.Settings),
 	}
-	maps.Copy(cloned.Settings, config.Settings)
 	return cloned, nil
 }

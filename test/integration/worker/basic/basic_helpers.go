@@ -16,6 +16,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
@@ -58,7 +59,7 @@ func executeWorkflowAndGetState(
 	fixture *helpers.TestFixture,
 	_ *helpers.DatabaseHelper,
 ) *workflow.State {
-	ctx := context.Background()
+	ctx := t.Context()
 	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 	defer cleanup()
 
@@ -123,7 +124,7 @@ func createTestActivities(
 	workflowRepo workflow.Repository,
 	fixture *helpers.TestFixture,
 ) *worker.Activities {
-	ctx := context.Background()
+	ctx := t.Context()
 	// For testing, we need to create a minimal project config and workflow configs
 	// These would normally come from the real system setup
 	projectConfig := createTestProjectConfig(t)
@@ -156,7 +157,8 @@ func createTestActivities(
 		workflows,
 		workflowRepo,
 		taskRepo,
-		nil,
+		&helpers.NoopUsageMetrics{},
+		providermetrics.Nop(),
 		mockRuntime,
 		configStore,
 		nil, // signalDispatcher - not needed for basic test

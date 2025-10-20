@@ -17,11 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func ctxWithBG() context.Context { return context.Background() }
-
 func TestWorkflow_IndexToResourceStore_AndCompile(t *testing.T) {
 	t.Run("Should index workflow-scoped resources and resolve selectors on compile", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(ctxWithBG(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		proj := &project.Config{Name: "demo"}
 		wf := &Config{
@@ -46,30 +44,30 @@ func TestWorkflow_IndexToResourceStore_ErrorsAndSchemas(t *testing.T) {
 	t.Run("Should fail on missing prerequisites", func(t *testing.T) {
 		var nilWF *Config
 		err := nilWF.IndexToResourceStore(
-			logger.ContextWithLogger(ctxWithBG(), logger.NewForTests()),
+			logger.ContextWithLogger(t.Context(), logger.NewForTests()),
 			"proj",
 			resources.NewMemoryResourceStore(),
 		)
 		require.Error(t, err)
 		wf := &Config{ID: ""}
 		err = wf.IndexToResourceStore(
-			logger.ContextWithLogger(ctxWithBG(), logger.NewForTests()),
+			logger.ContextWithLogger(t.Context(), logger.NewForTests()),
 			"",
 			resources.NewMemoryResourceStore(),
 		)
 		require.Error(t, err)
-		err = wf.IndexToResourceStore(logger.ContextWithLogger(ctxWithBG(), logger.NewForTests()), "proj", nil)
+		err = wf.IndexToResourceStore(logger.ContextWithLogger(t.Context(), logger.NewForTests()), "proj", nil)
 		require.Error(t, err)
 		wf.ID = "ok"
 		err = wf.IndexToResourceStore(
-			logger.ContextWithLogger(ctxWithBG(), logger.NewForTests()),
+			logger.ContextWithLogger(t.Context(), logger.NewForTests()),
 			"",
 			resources.NewMemoryResourceStore(),
 		)
 		require.Error(t, err)
 	})
 	t.Run("Should index agents/tools/mcps and only schemas with id", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(ctxWithBG(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		wf := &Config{
 			ID:   "wf-x",
@@ -89,7 +87,7 @@ func TestWorkflow_IndexToResourceStore_ErrorsAndSchemas(t *testing.T) {
 		assert.Error(t, err)
 	})
 	t.Run("Should propagate error when context is canceled", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(logger.ContextWithLogger(ctxWithBG(), logger.NewForTests()))
+		ctx, cancel := context.WithCancel(logger.ContextWithLogger(t.Context(), logger.NewForTests()))
 		cancel()
 		store := resources.NewMemoryResourceStore()
 		wf := &Config{ID: "wf-y"}
@@ -110,7 +108,7 @@ func TestSchemaID_Helper(t *testing.T) {
 }
 
 func TestWorkflow_IndexToResourceStore_KnowledgeBases(t *testing.T) {
-	ctx := logger.ContextWithLogger(ctxWithBG(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	store := resources.NewMemoryResourceStore()
 	wf := &Config{
 		ID: "wf-kb",

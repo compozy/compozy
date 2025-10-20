@@ -12,37 +12,38 @@ import (
 // Slice values are appended rather than replaced.
 func Merge[D, S ~map[string]any](dst D, src S, kind string) (D, error) {
 	var zero D
-	result := CloneMap(map[string]any(dst))
-	if result == nil {
-		result = make(map[string]any)
-	}
-	if src != nil {
-		if err := mergo.Merge(&result, map[string]any(src), mergo.WithOverride, mergo.WithAppendSlice); err != nil {
+	dstClone := CloneMap(dst)
+	srcClone := CloneMap(src)
+	if len(srcClone) > 0 {
+		if err := mergo.Merge(&dstClone, srcClone, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
 			return zero, fmt.Errorf("failed to merge %s: %w", kind, err)
 		}
 	}
-	return D(result), nil
+	return dstClone, nil
 }
 
-// CloneMap creates a shallow copy of the provided map so callers can mutate the
-// result without affecting the original map. Returns nil when src is nil.
-func CloneMap(src map[string]any) map[string]any {
-	if src == nil {
-		return nil
-	}
-	dst := make(map[string]any, len(src))
-	maps.Copy(dst, src)
-	return dst
-}
-
-// CopyMap creates a shallow copy of any map type with comparable keys.
+// CloneMap creates a shallow copy of any map type with comparable keys.
 // This is useful for copying configuration maps, metadata, and other map structures
 // where you need to modify the copy without affecting the original.
-func CopyMap[K comparable, V any](src map[K]V) map[K]V {
+// Returns an empty initialized map when src is nil to prevent nil map panics.
+func CloneMap[K comparable, V any](src map[K]V) map[K]V {
 	if src == nil {
-		return nil
+		return make(map[K]V)
 	}
 	return maps.Clone(src)
+}
+
+// CopyMaps safely merges multiple maps into a new map, with later maps
+// overriding earlier ones. Handles nil maps gracefully by skipping them.
+// Returns an empty initialized map if all inputs are nil.
+func CopyMaps[K comparable, V any](srcs ...map[K]V) map[K]V {
+	result := make(map[K]V)
+	for _, src := range srcs {
+		if src != nil {
+			maps.Copy(result, src)
+		}
+	}
+	return result
 }
 
 // deepCopyMap returns a deep copy of the provided map[string]any.

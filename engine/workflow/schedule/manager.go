@@ -274,54 +274,52 @@ func (m *manager) getYAMLModTime(ctx context.Context, wf *workflow.Config) time.
 	return modTime
 }
 
-// NewManager creates a new schedule manager
-func NewManager(client *worker.Client, projectID string) Manager {
-	return NewManagerWithConfig(client, projectID, DefaultConfig())
+// Option is a functional option for configuring a Manager
+type Option func(*manager)
+
+// WithConfig sets a custom configuration for the manager
+func WithConfig(cfg *Config) Option {
+	return func(m *manager) {
+		if cfg != nil {
+			m.config = cfg
+		}
+	}
 }
 
-// NewManagerWithConfig creates a new schedule manager with custom configuration
-func NewManagerWithConfig(client *worker.Client, projectID string, config *Config) Manager {
-	if config == nil {
-		config = DefaultConfig()
+// WithMetrics enables metrics collection for the manager
+func WithMetrics(ctx context.Context, meter metric.Meter) Option {
+	return func(m *manager) {
+		if meter != nil {
+			m.metrics = NewMetrics(ctx, meter)
+		}
 	}
-	return &manager{
+}
+
+// WithPageSize sets the page size for listing schedules
+func WithPageSize(size int) Option {
+	return func(m *manager) {
+		if size > 0 {
+			m.config.PageSize = size
+		}
+	}
+}
+
+// NewManager creates a new schedule manager with optional configuration
+func NewManager(client *worker.Client, projectID string, opts ...Option) Manager {
+	m := &manager{
 		client:             client,
 		projectID:          projectID,
 		taskQueue:          slugify(projectID),
-		config:             config,
+		config:             DefaultConfig(),
 		overrideCache:      NewOverrideCache(),
 		lastKnownModTimes:  make(map[string]time.Time),
-		metrics:            nil, // Will be set by SetMetrics if monitoring is enabled
+		metrics:            nil,
 		lastScheduleCounts: make(map[string]int),
 	}
-}
-
-// NewManagerWithMetrics creates a new schedule manager with metrics
-func NewManagerWithMetrics(ctx context.Context, client *worker.Client, projectID string, meter metric.Meter) Manager {
-	return NewManagerWithMetricsAndConfig(ctx, client, projectID, meter, DefaultConfig())
-}
-
-// NewManagerWithMetricsAndConfig creates a new schedule manager with metrics and custom configuration
-func NewManagerWithMetricsAndConfig(
-	ctx context.Context,
-	client *worker.Client,
-	projectID string,
-	meter metric.Meter,
-	config *Config,
-) Manager {
-	if config == nil {
-		config = DefaultConfig()
+	for _, opt := range opts {
+		opt(m)
 	}
-	return &manager{
-		client:             client,
-		projectID:          projectID,
-		taskQueue:          slugify(projectID),
-		config:             config,
-		overrideCache:      NewOverrideCache(),
-		lastKnownModTimes:  make(map[string]time.Time),
-		metrics:            NewMetrics(ctx, meter),
-		lastScheduleCounts: make(map[string]int),
-	}
+	return m
 }
 
 // ReconcileSchedules performs stateless reconciliation between workflows and Temporal schedules
@@ -1012,9 +1010,7 @@ func (m *manager) StartPeriodicReconciliation(
 	m.periodicCancel = cancel
 	m.mu.Unlock()
 	// Start periodic reconciliation goroutine
-	m.periodicWG.Add(1)
-	go func() {
-		defer m.periodicWG.Done()
+	m.periodicWG.Go(func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		log.Info("Started periodic schedule reconciliation", "interval", interval, "project_id", m.projectID)
@@ -1030,7 +1026,7 @@ func (m *manager) StartPeriodicReconciliation(
 				}
 			}
 		}
-	}()
+	})
 	return nil
 }
 

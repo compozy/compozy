@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -16,7 +15,7 @@ import (
 
 func TestRedisResourceStore_Integration_PutGetWatch(t *testing.T) {
 	t.Run("Should Put/Get and receive Watch events against miniredis", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		mr := miniredis.RunT(t)
 		cfg := &cache.Config{RedisConfig: &appcfg.RedisConfig{URL: "redis://" + mr.Addr(), PingTimeout: time.Second}}
 		client, err := cache.NewRedis(ctx, cfg)

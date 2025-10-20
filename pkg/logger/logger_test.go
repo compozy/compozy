@@ -15,7 +15,7 @@ import (
 func TestFromContext(t *testing.T) {
 	t.Run("Should return logger from context when present", func(t *testing.T) {
 		expectedLogger := NewLogger(TestConfig())
-		ctx := ContextWithLogger(context.Background(), expectedLogger)
+		ctx := ContextWithLogger(t.Context(), expectedLogger)
 
 		actualLogger := FromContext(ctx)
 
@@ -24,7 +24,7 @@ func TestFromContext(t *testing.T) {
 	})
 
 	t.Run("Should return default logger when no logger in context", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		logger := FromContext(ctx)
 
@@ -33,7 +33,7 @@ func TestFromContext(t *testing.T) {
 	})
 
 	t.Run("Should return default logger when wrong type in context", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), LoggerCtxKey, "not a logger")
+		ctx := context.WithValue(t.Context(), LoggerCtxKey, "not a logger")
 
 		logger := FromContext(ctx)
 
@@ -42,7 +42,7 @@ func TestFromContext(t *testing.T) {
 	})
 
 	t.Run("Should return default logger when nil logger in context", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), LoggerCtxKey, (Logger)(nil))
+		ctx := context.WithValue(t.Context(), LoggerCtxKey, (Logger)(nil))
 
 		logger := FromContext(ctx)
 

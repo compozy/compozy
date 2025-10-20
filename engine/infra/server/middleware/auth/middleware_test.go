@@ -107,7 +107,7 @@ func TestManager_Middleware(t *testing.T) {
 		req.Header.Set("Authorization", "InvalidFormat")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.JSONEq(
 			t,
 			`{"error":"Authentication failed", "details":"Invalid authorization header format"}`,
@@ -128,7 +128,7 @@ func TestManager_Middleware(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer ")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.JSONEq(
 			t,
 			`{"error":"Authentication failed", "details":"Invalid authorization header format"}`,

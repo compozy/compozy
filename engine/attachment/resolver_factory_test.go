@@ -1,7 +1,6 @@
 package attachment
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,7 +12,7 @@ import (
 func Test_Resolve_Factory_Routing(t *testing.T) {
 	t.Run("Should resolve an image URL without fetching", func(t *testing.T) {
 		a := &ImageAttachment{URL: "https://example.com/x.png", Source: SourceURL}
-		res, err := Resolve(context.Background(), a, nil)
+		res, err := Resolve(t.Context(), a, nil)
 		require.NoError(t, err)
 		defer res.Cleanup()
 		u, ok := res.AsURL()
@@ -32,7 +31,7 @@ func Test_Resolve_Factory_Routing(t *testing.T) {
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
 		a := &PDFAttachment{Path: "a.pdf", Source: SourcePath}
-		res, err := Resolve(context.Background(), a, cwd)
+		res, err := Resolve(t.Context(), a, cwd)
 		require.NoError(t, err)
 		defer res.Cleanup()
 		fp, ok := res.AsFilePath()

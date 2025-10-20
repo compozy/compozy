@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	factorymetrics "github.com/compozy/compozy/engine/llm/factory/metrics"
 	"github.com/compozy/compozy/engine/mcp"
+	mcpmetrics "github.com/compozy/compozy/engine/mcp/metrics"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
@@ -64,6 +66,8 @@ type toolRegistry struct {
 	localMu    sync.RWMutex
 	// MCP tools cache
 	mcpTools       []tools.Tool
+	mcpToolIndex   map[string]tools.Tool
+	mcpTotalCount  int
 	mcpCacheTs     time.Time
 	mcpCachedEmpty bool
 	mcpMu          sync.RWMutex
@@ -78,8 +82,12 @@ type toolRegistry struct {
 // mcpNamed is implemented by MCP-backed tools to expose their MCP server ID
 type mcpNamed interface{ MCPName() string }
 
-// NewToolRegistry creates a new tool registry
-func NewToolRegistry(config ToolRegistryConfig) ToolRegistry {
+// NewToolRegistry creates a new tool registry bound to the provided context.
+func NewToolRegistry(ctx context.Context, config ToolRegistryConfig) (ToolRegistry, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context must not be nil")
+	}
+	start := time.Now()
 	if config.CacheTTL == 0 {
 		config.CacheTTL = 5 * time.Minute
 	}
@@ -87,13 +95,15 @@ func NewToolRegistry(config ToolRegistryConfig) ToolRegistry {
 		config.EmptyCacheTTL = 30 * time.Second
 	}
 
-	return &toolRegistry{
+	registry := &toolRegistry{
 		config:        config,
 		localTools:    make(map[string]Tool),
 		allowedMCPSet: buildAllowedMCPSet(config.AllowedMCPNames),
 		deniedMCPSet:  buildDeniedMCPSet(config.DeniedMCPNames),
 		now:           time.Now,
 	}
+	factorymetrics.RecordCreate(ctx, factorymetrics.TypeTool, "registry", time.Since(start))
+	return registry, nil
 }
 
 func copySchemaMap(s *schema.Schema) map[string]any {
@@ -103,11 +113,7 @@ func copySchemaMap(s *schema.Schema) map[string]any {
 	cloned, err := core.DeepCopy(map[string]any(*s))
 	if err != nil {
 		// fall back to a shallow copy to avoid mutating original schema
-		m := make(map[string]any, len(*s))
-		for k, v := range *s {
-			m[k] = v
-		}
-		return m
+		return core.CloneMap(*s)
 	}
 	return cloned
 }
@@ -193,28 +199,34 @@ func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 	r.localMu.RUnlock()
 
 	// Check MCP tools
-	mcpTools, stale, err := r.getMCPTools(ctx)
+	_, stale, err := r.getMCPTools(ctx)
 	if err != nil {
 		log.Warn("Failed to get MCP tools", "error", err)
 		return nil, false
 	}
 
-	if tool, ok := r.findMCPTool(canonical, mcpTools); ok {
+	lookupStart := time.Now()
+	if tool, ok := r.findMCPTool(canonical); ok {
+		mcpmetrics.RecordRegistryLookup(ctx, time.Since(lookupStart), true)
 		if stale {
 			r.triggerBackgroundRefresh(ctx)
 		}
 		return tool, true
 	}
+	mcpmetrics.RecordRegistryLookup(ctx, time.Since(lookupStart), false)
 
 	if stale {
-		freshTools, refreshErr := r.fetchFreshMCPTools(ctx)
+		_, refreshErr := r.fetchFreshMCPTools(ctx)
 		if refreshErr != nil {
 			log.Warn("Failed to refresh MCP tools after stale cache miss", "error", refreshErr)
 			return nil, false
 		}
-		if tool, ok := r.findMCPTool(canonical, freshTools); ok {
+		refreshStart := time.Now()
+		if tool, ok := r.findMCPTool(canonical); ok {
+			mcpmetrics.RecordRegistryLookup(ctx, time.Since(refreshStart), true)
 			return tool, true
 		}
+		mcpmetrics.RecordRegistryLookup(ctx, time.Since(refreshStart), false)
 	}
 
 	return nil, false
@@ -242,8 +254,15 @@ func (r *toolRegistry) ListAll(ctx context.Context) ([]Tool, error) {
 		r.triggerBackgroundRefresh(ctx)
 	}
 
+	r.mcpMu.RLock()
+	totalCount := r.mcpTotalCount
+	r.mcpMu.RUnlock()
+
 	allowedCount := 0
-	filteredCount := 0
+	filteredCount := totalCount - len(mcpTools)
+	if filteredCount < 0 {
+		filteredCount = 0
+	}
 	for _, mcpTool := range mcpTools {
 		canonical := r.canonicalize(mcpTool.Name())
 
@@ -256,17 +275,13 @@ func (r *toolRegistry) ListAll(ctx context.Context) ([]Tool, error) {
 			continue
 		}
 
-		// Honor allowlist when present
-		if !r.mcpToolAllowed(mcpTool) {
-			filteredCount++
-			continue
-		}
 		allowedCount++
 
 		allTools = append(allTools, &mcpToolAdapter{mcpTool})
 	}
 	logger.FromContext(ctx).Debug("MCP allowlist filtering",
-		"total", len(mcpTools),
+		"total", totalCount,
+		"cached_allowed", len(mcpTools),
 		"allowed", allowedCount,
 		"filtered", filteredCount,
 		"allowlist_size", len(r.allowedMCPSet),
@@ -285,6 +300,7 @@ func (r *toolRegistry) InvalidateCache(ctx context.Context) {
 	defer r.mcpMu.Unlock()
 
 	r.mcpTools = nil
+	r.mcpToolIndex = nil
 	r.mcpCacheTs = time.Time{}
 	r.mcpCachedEmpty = false
 	log.Debug("Invalidated MCP tools cache")
@@ -325,6 +341,14 @@ func (r *toolRegistry) getMCPTools(ctx context.Context) ([]tools.Tool, bool, err
 func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error) {
 	log := logger.FromContext(ctx)
 	if r.config.ProxyClient == nil {
+		r.mcpMu.Lock()
+		r.mcpTools = nil
+		r.mcpToolIndex = make(map[string]tools.Tool)
+		r.mcpTotalCount = 0
+		r.mcpCacheTs = r.now()
+		r.mcpCachedEmpty = true
+		r.mcpMu.Unlock()
+		log.Debug("Refreshed MCP tools cache (proxy disabled/absent)")
 		return []tools.Tool{}, nil
 	}
 
@@ -335,24 +359,55 @@ func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error
 		})
 	}
 
-	// Convert ToolDefinitions to tools.Tool
-	var mcpTools []tools.Tool
+	// Convert ToolDefinitions to tools.Tool and build canonical lookup index.
+	var (
+		filteredTools []tools.Tool
+		index         = make(map[string]tools.Tool)
+		total         int
+	)
 	for _, toolDef := range toolDefs {
-		mcpTools = append(mcpTools, NewProxyTool(toolDef, r.config.ProxyClient))
+		proxyTool := NewProxyTool(toolDef, r.config.ProxyClient)
+		total++
+
+		canonical := r.canonicalize(proxyTool.Name())
+		if canonical == "" {
+			continue
+		}
+		if existing, exists := index[canonical]; exists {
+			var existingMCPName, newMCPName string
+			if named, ok := any(existing).(mcpNamed); ok {
+				existingMCPName = named.MCPName()
+			}
+			if named, ok := any(proxyTool).(mcpNamed); ok {
+				newMCPName = named.MCPName()
+			}
+			logger.FromContext(ctx).Debug("duplicate MCP tool canonical name; keeping first (deterministic)",
+				"canonical", canonical,
+				"kept_mcp", existingMCPName,
+				"skipped_mcp", newMCPName)
+			continue
+		}
+		if !r.mcpToolAllowed(proxyTool) {
+			continue
+		}
+		index[canonical] = proxyTool
+		filteredTools = append(filteredTools, proxyTool)
 	}
 
 	// Cache results, including empty, to avoid repeated proxy hits.
 	r.mcpMu.Lock()
-	r.mcpTools = mcpTools
+	r.mcpTools = filteredTools
+	r.mcpToolIndex = index
+	r.mcpTotalCount = total
 	r.mcpCacheTs = r.now()
-	r.mcpCachedEmpty = len(mcpTools) == 0
+	r.mcpCachedEmpty = len(filteredTools) == 0
 	r.mcpMu.Unlock()
 	if r.mcpCachedEmpty {
 		log.Debug("Refreshed MCP tools cache (empty)")
 	} else {
-		log.Debug("Refreshed MCP tools cache", "count", len(mcpTools))
+		log.Debug("Refreshed MCP tools cache", "count", len(filteredTools), "filtered_total", total-len(filteredTools))
 	}
-	return mcpTools, nil
+	return filteredTools, nil
 }
 
 // canonicalize normalizes tool names to prevent conflicts
@@ -396,11 +451,7 @@ func (a *mcpToolAdapter) ParameterSchema() map[string]any {
 			}
 			copied, err := core.DeepCopy(v)
 			if err != nil {
-				fallback := make(map[string]any, len(v))
-				for key, val := range v {
-					fallback[key] = val
-				}
-				return fallback
+				return core.CloneMap(v)
 			}
 			return copied
 		}
@@ -493,11 +544,7 @@ func (a *localToolAdapter) ParameterSchema() map[string]any {
 	source := map[string]any(*a.config.InputSchema)
 	copied, err := core.DeepCopy(source)
 	if err != nil {
-		fallback := make(map[string]any, len(source))
-		for key, val := range source {
-			fallback[key] = val
-		}
-		return fallback
+		return core.CloneMap(source)
 	}
 	return copied
 }
@@ -552,9 +599,10 @@ func (r *toolRegistry) triggerBackgroundRefresh(ctx context.Context) {
 	if r.config.ProxyClient == nil {
 		return
 	}
-	log := logger.FromContext(ctx)
+	bgCtx := context.WithoutCancel(ctx)
+	log := logger.FromContext(bgCtx)
 	ch := r.sfGroup.DoChan("refresh-mcp-tools", func() (any, error) {
-		return r.refreshMCPTools(ctx)
+		return r.refreshMCPTools(bgCtx)
 	})
 	go func() {
 		res := <-ch
@@ -568,16 +616,13 @@ func (r *toolRegistry) triggerBackgroundRefresh(ctx context.Context) {
 	}()
 }
 
-// findMCPTool searches for a tool by canonical name within the provided list.
-func (r *toolRegistry) findMCPTool(canonical string, mcpTools []tools.Tool) (Tool, bool) {
-	for _, mcpTool := range mcpTools {
-		if r.canonicalize(mcpTool.Name()) != canonical {
-			continue
-		}
-		if !r.mcpToolAllowed(mcpTool) {
-			continue
-		}
-		return &mcpToolAdapter{mcpTool}, true
+// findMCPTool performs an indexed lookup for the canonical tool name.
+func (r *toolRegistry) findMCPTool(canonical string) (Tool, bool) {
+	r.mcpMu.RLock()
+	mcpTool, ok := r.mcpToolIndex[canonical]
+	r.mcpMu.RUnlock()
+	if !ok {
+		return nil, false
 	}
-	return nil, false
+	return &mcpToolAdapter{mcpTool}, true
 }

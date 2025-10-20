@@ -3,10 +3,9 @@ package core_test
 import (
 	"testing"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/compozy/compozy/engine/core"
 )
 
 func TestID_String(t *testing.T) {
@@ -81,19 +80,17 @@ func TestParseID(t *testing.T) {
 	})
 	t.Run("Should return error for empty string", func(t *testing.T) {
 		id, err := core.ParseID("")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "empty ID")
+		assert.ErrorContains(t, err, "empty ID")
 		assert.True(t, id.IsZero())
 	})
 	t.Run("Should return error for invalid format", func(t *testing.T) {
 		id, err := core.ParseID("not-a-valid-ksuid")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID format")
+		assert.ErrorContains(t, err, "invalid ID format")
 		assert.True(t, id.IsZero())
 	})
 	t.Run("Should return error for invalid characters", func(t *testing.T) {
 		id, err := core.ParseID("!@#$%^&*()")
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "invalid ID format")
 		assert.True(t, id.IsZero())
 	})
 }

@@ -37,7 +37,7 @@ func TestAsyncTokenCounter_ProcessAsync(t *testing.T) {
 	t.Run("Should process token counting asynchronously", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100)
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, 2, 100)
 		defer asyncCounter.Shutdown()
 		text := "Test message content"
 		ref := "test_memory"
@@ -46,7 +46,7 @@ func TestAsyncTokenCounter_ProcessAsync(t *testing.T) {
 			After(50 * time.Millisecond) // Simulate processing time
 		// Act
 		start := time.Now()
-		asyncCounter.ProcessAsync(context.Background(), ref, text)
+		asyncCounter.ProcessAsync(t.Context(), ref, text)
 		duration := time.Since(start)
 		// Assert
 		assert.Less(t, duration, 10*time.Millisecond,
@@ -70,7 +70,7 @@ func TestAsyncTokenCounter_ProcessAsync(t *testing.T) {
 		// Fill the queue
 		asyncCounter.queue <- &tokenCountRequest{}
 		// Act - should not block
-		asyncCounter.ProcessAsync(context.Background(), ref, text)
+		asyncCounter.ProcessAsync(t.Context(), ref, text)
 		// Assert
 		stats := asyncCounter.metrics.GetStats()
 		assert.Equal(t, uint64(1), stats["dropped_count"])
@@ -80,14 +80,14 @@ func TestAsyncTokenCounter_ProcessAsync(t *testing.T) {
 	t.Run("Should handle counter errors gracefully", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 1, 100)
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, 1, 100)
 		defer asyncCounter.Shutdown()
 		text := "Test message"
 		ref := "test_memory"
 		mockCounter.On("CountTokens", mock.Anything, text).
 			Return(0, errors.New("counter error"))
 		// Act
-		asyncCounter.ProcessAsync(context.Background(), ref, text)
+		asyncCounter.ProcessAsync(t.Context(), ref, text)
 		// Wait for processing
 		time.Sleep(50 * time.Millisecond)
 		// Assert
@@ -101,14 +101,14 @@ func TestAsyncTokenCounter_ProcessWithResult(t *testing.T) {
 	t.Run("Should return token count result", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100)
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, 2, 100)
 		defer asyncCounter.Shutdown()
 		text := "Test message"
 		ref := "test"
 		mockCounter.On("CountTokens", mock.Anything, text).Return(15, nil)
 		// Act
 		count, err := asyncCounter.ProcessWithResult(
-			context.Background(), ref, text)
+			t.Context(), ref, text)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, 15, count)
@@ -128,13 +128,13 @@ func TestAsyncTokenCounter_ProcessWithResult(t *testing.T) {
 		ref := "test"
 		// Fill queue to prevent our request from being processed
 		asyncCounter.queue <- &tokenCountRequest{
-			ctx:       context.Background(),
+			ctx:       t.Context(),
 			memoryRef: "blocking",
 			text:      "blocking request",
 		}
 		// Act
 		_, err := asyncCounter.ProcessWithResult(
-			context.Background(), ref, text)
+			t.Context(), ref, text)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "queue full")
@@ -144,11 +144,11 @@ func TestAsyncTokenCounter_ProcessWithResult(t *testing.T) {
 	t.Run("Should handle context cancellation", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 1, 100)
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, 1, 100)
 		defer asyncCounter.Shutdown()
 		text := "Test message"
 		ref := "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		mockCounter.On("CountTokens", mock.Anything, text).
 			Return(15, nil).
 			After(100 * time.Millisecond)
@@ -168,16 +168,16 @@ func TestAsyncTokenCounter_Metrics(t *testing.T) {
 	t.Run("Should track metrics correctly", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100)
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, 2, 100)
 		defer asyncCounter.Shutdown()
 		// Set up mock expectations
 		mockCounter.On("CountTokens", mock.Anything, "success1").Return(10, nil)
 		mockCounter.On("CountTokens", mock.Anything, "success2").Return(20, nil)
 		mockCounter.On("CountTokens", mock.Anything, "error").Return(0, errors.New("error"))
 		// Act
-		asyncCounter.ProcessAsync(context.Background(), "ref1", "success1")
-		asyncCounter.ProcessAsync(context.Background(), "ref2", "success2")
-		asyncCounter.ProcessAsync(context.Background(), "ref3", "error")
+		asyncCounter.ProcessAsync(t.Context(), "ref1", "success1")
+		asyncCounter.ProcessAsync(t.Context(), "ref2", "success2")
+		asyncCounter.ProcessAsync(t.Context(), "ref3", "error")
 		// Wait for processing
 		time.Sleep(100 * time.Millisecond)
 		// Assert
@@ -193,7 +193,7 @@ func TestAsyncTokenCounter_WorkerPool(t *testing.T) {
 	t.Run("Should process requests concurrently", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 3, 100) // 3 workers
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, 3, 100) // 3 workers
 		defer asyncCounter.Shutdown()
 		// Track concurrent executions with atomic operations
 		var concurrentCount atomic.Int32
@@ -217,7 +217,7 @@ func TestAsyncTokenCounter_WorkerPool(t *testing.T) {
 			Return(10, nil)
 		// Act - send multiple requests
 		for range 6 {
-			asyncCounter.ProcessAsync(context.Background(), "ref", "text")
+			asyncCounter.ProcessAsync(t.Context(), "ref", "text")
 		}
 		// Wait for processing
 		time.Sleep(200 * time.Millisecond)
@@ -231,12 +231,12 @@ func TestAsyncTokenCounter_Shutdown(t *testing.T) {
 	t.Run("Should shutdown gracefully", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100)
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, 2, 100)
 		// Queue some requests
 		mockCounter.On("CountTokens", mock.Anything, mock.Anything).
 			Return(10, nil).Maybe()
 		for range 5 {
-			asyncCounter.ProcessAsync(context.Background(), "ref", "text")
+			asyncCounter.ProcessAsync(t.Context(), "ref", "text")
 		}
 		// Act
 		asyncCounter.Shutdown()
@@ -253,7 +253,7 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 0, 100)
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, 0, 100)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, 10, asyncCounter.workers) // Default is 10
@@ -262,7 +262,7 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, -5, 100)
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, -5, 100)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, 10, asyncCounter.workers) // Default is 10
@@ -271,7 +271,7 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 0)
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, 2, 0)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, 1000, cap(asyncCounter.queue)) // Default is 1000
@@ -280,7 +280,7 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, -10)
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, 2, -10)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, 1000, cap(asyncCounter.queue)) // Default is 1000
@@ -290,7 +290,7 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 		mockCounter := new(mockTokenCounterAsync)
 		customBufferSize := 500
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, customBufferSize)
+		asyncCounter := NewAsyncTokenCounter(t.Context(), mockCounter, 2, customBufferSize)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, customBufferSize, cap(asyncCounter.queue))
@@ -301,7 +301,7 @@ func TestNewAsyncTokenCounterWithContext(t *testing.T) {
 	t.Run("Should create counter with provided context", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = context.WithValue(ctx, testKey, "test_value")
 
 		// Act
@@ -311,7 +311,7 @@ func TestNewAsyncTokenCounterWithContext(t *testing.T) {
 		// Assert
 		// The baseCtx should be set to the provided context (without cancel)
 		assert.NotNil(t, asyncCounter.baseCtx)
-		assert.NotEqual(t, context.Background(), asyncCounter.baseCtx)
+		assert.NotEqual(t, t.Context(), asyncCounter.baseCtx)
 
 		// Check that the context value is preserved
 		val := asyncCounter.baseCtx.Value(testKey)
@@ -321,7 +321,7 @@ func TestNewAsyncTokenCounterWithContext(t *testing.T) {
 	t.Run("Should use default values when zero provided", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Act
 		asyncCounter := NewAsyncTokenCounterWithContext(ctx, mockCounter, 0, 0)

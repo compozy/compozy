@@ -276,27 +276,27 @@ func (c *Config) GetCWD() *core.PathCWD {
 
 // Validate performs validation on the memory resource configuration.
 // This will be called by the autoload registry after loading.
-func (c *Config) Validate() error {
+func (c *Config) Validate(ctx context.Context) error {
 	// Manual validation is the single source of truth for memory.Config
-	if err := c.validateResource(); err != nil {
+	if err := c.validateResource(ctx); err != nil {
 		return err
 	}
-	if err := c.validatePersistence(); err != nil {
+	if err := c.validatePersistence(ctx); err != nil {
 		return err
 	}
-	if err := c.validateTokenAllocation(); err != nil {
+	if err := c.validateTokenAllocation(ctx); err != nil {
 		return err
 	}
-	if err := c.validateFlushing(); err != nil {
+	if err := c.validateFlushing(ctx); err != nil {
 		return err
 	}
-	if err := c.validateLocking(); err != nil {
+	if err := c.validateLocking(ctx); err != nil {
 		return err
 	}
-	return c.validateTokenBased()
+	return c.validateTokenBased(ctx)
 }
 
-func (c *Config) validateResource() error {
+func (c *Config) validateResource(_ context.Context) error {
 	if c.Resource != string(core.ConfigMemory) {
 		return fmt.Errorf(
 			"memory config ID '%s': resource field must be '%s', got '%s'",
@@ -308,9 +308,9 @@ func (c *Config) validateResource() error {
 	return nil
 }
 
-func (c *Config) validatePersistence() error {
+func (c *Config) validatePersistence(_ context.Context) error {
 	if c.Persistence.TTL != "" {
-		parsedTTL, err := time.ParseDuration(c.Persistence.TTL)
+		parsedTTL, err := core.ParseHumanDuration(c.Persistence.TTL)
 		if err != nil {
 			return fmt.Errorf(
 				"memory config ID '%s': invalid persistence.ttl duration format '%s': %w",
@@ -337,7 +337,7 @@ func (c *Config) validatePersistence() error {
 	return nil
 }
 
-func (c *Config) validateTokenAllocation() error {
+func (c *Config) validateTokenAllocation(_ context.Context) error {
 	if c.TokenAllocation == nil {
 		return nil
 	}
@@ -355,7 +355,7 @@ func (c *Config) validateTokenAllocation() error {
 	return nil
 }
 
-func (c *Config) validateFlushing() error {
+func (c *Config) validateFlushing(_ context.Context) error {
 	if c.Flushing == nil || c.Flushing.Type != memcore.HybridSummaryFlushing {
 		return nil
 	}
@@ -376,12 +376,12 @@ func (c *Config) validateFlushing() error {
 	return nil
 }
 
-func (c *Config) validateLocking() error {
+func (c *Config) validateLocking(_ context.Context) error {
 	if c.Locking == nil {
 		return nil
 	}
 	if c.Locking.AppendTTL != "" {
-		d, err := time.ParseDuration(c.Locking.AppendTTL)
+		d, err := core.ParseHumanDuration(c.Locking.AppendTTL)
 		if err != nil {
 			return fmt.Errorf(
 				"memory config ID '%s': invalid locking.append_ttl duration format '%s': %w",
@@ -393,7 +393,7 @@ func (c *Config) validateLocking() error {
 		c.Locking.ParsedAppendTTL = d
 	}
 	if c.Locking.ClearTTL != "" {
-		d, err := time.ParseDuration(c.Locking.ClearTTL)
+		d, err := core.ParseHumanDuration(c.Locking.ClearTTL)
 		if err != nil {
 			return fmt.Errorf(
 				"memory config ID '%s': invalid locking.clear_ttl duration format '%s': %w",
@@ -405,7 +405,7 @@ func (c *Config) validateLocking() error {
 		c.Locking.ParsedClearTTL = d
 	}
 	if c.Locking.FlushTTL != "" {
-		d, err := time.ParseDuration(c.Locking.FlushTTL)
+		d, err := core.ParseHumanDuration(c.Locking.FlushTTL)
 		if err != nil {
 			return fmt.Errorf(
 				"memory config ID '%s': invalid locking.flush_ttl duration format '%s': %w",
@@ -419,7 +419,7 @@ func (c *Config) validateLocking() error {
 	return nil
 }
 
-func (c *Config) validateTokenBased() error {
+func (c *Config) validateTokenBased(_ context.Context) error {
 	if c.Type == memcore.TokenBasedMemory {
 		if c.MaxTokens <= 0 && c.MaxContextRatio <= 0 && c.MaxMessages <= 0 {
 			return fmt.Errorf(
@@ -477,21 +477,21 @@ func NewTTLManager(lockConfig *memcore.LockConfig) *TTLManager {
 	if lockConfig.ParsedAppendTTL > 0 {
 		tm.appendTTL = lockConfig.ParsedAppendTTL
 	} else if lockConfig.AppendTTL != "" {
-		if d, err := time.ParseDuration(lockConfig.AppendTTL); err == nil && d > 0 {
+		if d, err := core.ParseHumanDuration(lockConfig.AppendTTL); err == nil && d > 0 {
 			tm.appendTTL = d
 		}
 	}
 	if lockConfig.ParsedClearTTL > 0 {
 		tm.clearTTL = lockConfig.ParsedClearTTL
 	} else if lockConfig.ClearTTL != "" {
-		if d, err := time.ParseDuration(lockConfig.ClearTTL); err == nil && d > 0 {
+		if d, err := core.ParseHumanDuration(lockConfig.ClearTTL); err == nil && d > 0 {
 			tm.clearTTL = d
 		}
 	}
 	if lockConfig.ParsedFlushTTL > 0 {
 		tm.flushTTL = lockConfig.ParsedFlushTTL
 	} else if lockConfig.FlushTTL != "" {
-		if d, err := time.ParseDuration(lockConfig.FlushTTL); err == nil && d > 0 {
+		if d, err := core.ParseHumanDuration(lockConfig.FlushTTL); err == nil && d > 0 {
 			tm.flushTTL = d
 		}
 	}

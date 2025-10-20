@@ -1,12 +1,11 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
 	"github.com/compozy/compozy/engine/resources"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
@@ -16,7 +15,7 @@ import (
 
 func TestDeleteTool_ConflictsWhenReferenced(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	body := map[string]any{
 		"id":     "http",
@@ -42,7 +41,7 @@ func TestDeleteTool_ConflictsWhenReferenced(t *testing.T) {
 
 func TestListTools_FilterByWorkflow(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	doc := func(id string) map[string]any {
 		return map[string]any{

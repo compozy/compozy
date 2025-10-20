@@ -84,7 +84,7 @@ func Test_LoadWorkflow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
-		err = config.Validate()
+		err = config.Validate(ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "condition is required for router tasks")
 	})
@@ -182,7 +182,7 @@ func TestLoadMCPWorkflow(t *testing.T) {
 		config, err := Load(ctx, CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 
-		err = config.Validate()
+		err = config.Validate(ctx)
 		assert.NoError(t, err)
 	})
 }

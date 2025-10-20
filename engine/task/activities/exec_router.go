@@ -3,6 +3,7 @@ package activities
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
@@ -24,10 +25,11 @@ type ExecuteRouterInput struct {
 }
 
 type ExecuteRouter struct {
-	loadWorkflowUC *uc.LoadWorkflow
-	createStateUC  *uc.CreateState
-	task2Factory   task2.Factory
-	templateEngine *tplengine.TemplateEngine
+	loadWorkflowUC     *uc.LoadWorkflow
+	createStateUC      *uc.CreateState
+	task2Factory       task2.Factory
+	templateEngine     *tplengine.TemplateEngine
+	conditionEvaluator *task.CELEvaluator
 }
 
 // NewExecuteRouter creates a new ExecuteRouter activity
@@ -39,16 +41,24 @@ func NewExecuteRouter(
 	_ *core.PathCWD,
 	task2Factory task2.Factory,
 	templateEngine *tplengine.TemplateEngine,
+	evaluator *task.CELEvaluator,
 ) (*ExecuteRouter, error) {
+	if evaluator == nil {
+		return nil, fmt.Errorf("condition evaluator is required")
+	}
 	return &ExecuteRouter{
-		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
-		createStateUC:  uc.NewCreateState(taskRepo, configStore),
-		task2Factory:   task2Factory,
-		templateEngine: templateEngine,
+		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
+		createStateUC:      uc.NewCreateState(taskRepo, configStore),
+		task2Factory:       task2Factory,
+		templateEngine:     templateEngine,
+		conditionEvaluator: evaluator,
 	}, nil
 }
 
 func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*task.MainTaskResponse, error) {
+	if input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
 	// Validate task type early
 	taskConfig := input.TaskConfig
 	if taskConfig == nil {
@@ -67,7 +77,7 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 		return nil, err
 	}
 	// Use task2 normalizer for router tasks
-	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeRouter)
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeRouter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create router normalizer: %w", err)
 	}
@@ -77,10 +87,10 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
 	// Build proper normalization context with all template variables
-	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	normContext := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, input.TaskConfig)
 	// Normalize the task configuration
 	normalizedConfig := input.TaskConfig
-	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
 		return nil, fmt.Errorf("failed to normalize router task: %w", err)
 	}
 	// Create task state
@@ -92,7 +102,14 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 	if err != nil {
 		return nil, err
 	}
-	output, routeResult, executionError := a.evaluateRouter(normalizedConfig, workflowConfig)
+	output, routeResult, executionError := a.evaluateRouter(
+		ctx,
+		normalizedConfig,
+		workflowState,
+		workflowConfig,
+		normContext,
+		taskState,
+	)
 	if executionError == nil {
 		taskState.Output = output
 	}
@@ -122,34 +139,51 @@ func (a *ExecuteRouter) Run(ctx context.Context, input *ExecuteRouterInput) (*ta
 }
 
 func (a *ExecuteRouter) evaluateRouter(
+	ctx context.Context,
 	taskConfig *task.Config,
+	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
+	normCtx *shared.NormalizationContext,
+	taskState *task.State,
 ) (*core.Output, *task.Config, error) {
 	if taskConfig.Type != task.TaskTypeRouter {
 		return nil, nil, fmt.Errorf("task is not a router task")
 	}
 
-	condition := taskConfig.Condition
-	routes := taskConfig.Routes
-	if condition == "" {
+	expression := strings.TrimSpace(taskConfig.Condition)
+	if expression == "" {
 		return nil, nil, fmt.Errorf("condition is required for router task")
 	}
-	if len(routes) == 0 {
+	if len(taskConfig.Routes) == 0 {
 		return nil, nil, fmt.Errorf("routes are required for router task")
 	}
-	// After normalization, the condition contains the evaluated result
-	// Use it directly as a route key
-	conditionResult := strings.TrimSpace(condition)
+
+	if err := a.conditionEvaluator.ValidateExpression(expression); err != nil {
+		return nil, nil, fmt.Errorf("invalid condition expression: %w", err)
+	}
+
+	evalContext, err := a.buildEvaluationData(normCtx, workflowState, taskState)
+	if err != nil {
+		return nil, nil, err
+	}
+	value, err := a.conditionEvaluator.EvaluateValue(ctx, expression, evalContext)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to evaluate condition: %w", err)
+	}
+	if value == nil {
+		return nil, nil, fmt.Errorf("router condition evaluated to nil")
+	}
+	conditionResult := strings.TrimSpace(fmt.Sprint(value))
 	if conditionResult == "" {
 		return nil, nil, fmt.Errorf("condition evaluated to empty value")
 	}
-	// Look up the route using the condition result as the key
-	routeValue, exists := routes[conditionResult]
+
+	routeValue, exists := taskConfig.Routes[conditionResult]
 	if !exists {
 		return nil, nil, fmt.Errorf(
 			"no route found for condition result '%s'. Available routes: %v",
 			conditionResult,
-			getRouteKeys(routes),
+			getRouteKeys(taskConfig.Routes),
 		)
 	}
 	nextTask, err := a.resolveRoute(routeValue, workflowConfig)
@@ -164,12 +198,83 @@ func (a *ExecuteRouter) evaluateRouter(
 	return output, nextTask, nil
 }
 
+func (a *ExecuteRouter) buildEvaluationData(
+	normCtx *shared.NormalizationContext,
+	workflowState *workflow.State,
+	taskState *task.State,
+) (map[string]any, error) {
+	var base map[string]any
+	if normCtx != nil {
+		templateContext := normCtx.BuildTemplateContext()
+		if templateContext != nil {
+			copied, err := core.DeepCopy[map[string]any](templateContext)
+			if err != nil {
+				return nil, fmt.Errorf("failed to copy template context: %w", err)
+			}
+			base = copied
+		}
+	}
+	if base == nil {
+		base = make(map[string]any)
+	}
+	a.enrichWorkflowContext(base, workflowState)
+	a.enrichTaskContext(base, taskState)
+	return base, nil
+}
+
+func (a *ExecuteRouter) enrichWorkflowContext(base map[string]any, workflowState *workflow.State) {
+	if workflowState == nil {
+		return
+	}
+	wf, ok := base["workflow"].(map[string]any)
+	if !ok || wf == nil {
+		wf = make(map[string]any)
+		base["workflow"] = wf
+	}
+	wf["id"] = workflowState.WorkflowID
+	wf["status"] = workflowState.Status
+	wf["exec_id"] = workflowState.WorkflowExecID.String()
+	if workflowState.Input != nil {
+		wf["input"] = *workflowState.Input
+	}
+	if workflowState.Output != nil {
+		wf["output"] = *workflowState.Output
+	}
+	if workflowState.Error != nil {
+		wf["error"] = workflowState.Error
+	}
+}
+
+func (a *ExecuteRouter) enrichTaskContext(base map[string]any, taskState *task.State) {
+	if taskState == nil {
+		return
+	}
+	taskMap, ok := base["task"].(map[string]any)
+	if !ok || taskMap == nil {
+		taskMap = make(map[string]any)
+		base["task"] = taskMap
+	}
+	taskMap["id"] = taskState.TaskID
+	taskMap["status"] = taskState.Status
+	taskMap["component"] = taskState.Component
+	if taskState.Input != nil {
+		taskMap["input"] = taskState.Input
+	}
+	if taskState.Output != nil {
+		taskMap["output"] = taskState.Output
+	}
+	if taskState.Error != nil {
+		taskMap["error"] = taskState.Error
+	}
+}
+
 // getRouteKeys returns a slice of available route keys for error messages
 func getRouteKeys(routes map[string]any) []string {
 	keys := make([]string, 0, len(routes))
 	for key := range routes {
 		keys = append(keys, key)
 	}
+	sort.Strings(keys)
 	return keys
 }
 

@@ -140,7 +140,7 @@ func (t *testMetrics) RecordMessageCount(_ context.Context, _ int)              
 func TestOperations_calculateTokensFromMessages(t *testing.T) {
 	t.Run("Should cache content tokens using sync.Map", func(t *testing.T) {
 		// Setup
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create test messages with duplicate content to verify caching
 		messages := []llm.Message{
@@ -184,7 +184,7 @@ func TestOperations_calculateTokensFromMessages(t *testing.T) {
 
 	t.Run("Should handle empty message list", func(t *testing.T) {
 		// Setup
-		ctx := context.Background()
+		ctx := t.Context()
 
 		store := &testStore{messages: []llm.Message{}} // Empty messages
 		tokenCounter := &testTokenCounter{returnValue: 5}
@@ -210,7 +210,7 @@ func TestOperations_calculateTokensFromMessages(t *testing.T) {
 
 	t.Run("Should handle token counter errors gracefully", func(t *testing.T) {
 		// Setup
-		ctx := context.Background()
+		ctx := t.Context()
 
 		messages := []llm.Message{
 			{Role: llm.MessageRoleUser, Content: "Test content"}, // 12 chars / 4 = 3 tokens estimated
@@ -244,7 +244,7 @@ func TestOperations_calculateTokensFromMessages(t *testing.T) {
 
 	t.Run("Should handle concurrent access to cache safely", func(t *testing.T) {
 		// This test ensures the sync.Map implementation is thread-safe
-		ctx := context.Background()
+		ctx := t.Context()
 
 		messages := []llm.Message{
 			{Role: llm.MessageRoleUser, Content: "Concurrent test"},
@@ -326,7 +326,7 @@ func TestOperations_CachePerformance(t *testing.T) {
 		// This test verifies that caching actually improves performance by reducing
 		// the number of calls to the token counter
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create many messages with repeated content to test caching
 		messages := make([]llm.Message, 100)

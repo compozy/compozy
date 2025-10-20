@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	stdruntime "runtime"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/monitoring/interceptor"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/memory"
@@ -67,18 +69,19 @@ type Config struct {
 }
 
 type Worker struct {
-	client        *Client
-	config        *Config
-	activities    *Activities
-	worker        worker.Worker
-	projectConfig *project.Config
-	workflows     []*wf.Config
-	taskQueue     string
-	configStore   services.ConfigStore
-	redisCache    *cache.Cache
-	mcpRegister   *mcp.RegisterService
-	dispatcherID  string // Track dispatcher ID for cleanup
-	serverID      string // Server ID for this worker instance
+	client           *Client
+	config           *Config
+	activities       *Activities
+	worker           worker.Worker
+	queueDepthCancel context.CancelFunc
+	projectConfig    *project.Config
+	workflows        []*wf.Config
+	taskQueue        string
+	configStore      services.ConfigStore
+	redisCache       *cache.Cache
+	mcpRegister      *mcp.RegisterService
+	dispatcherID     string // Track dispatcher ID for cleanup
+	serverID         string // Server ID for this worker instance
 
 	// Memory management
 	memoryManager  *memory.Manager
@@ -250,6 +253,27 @@ func (o *Worker) registerMemoryActivities() {
 func buildWorkerOptions(ctx context.Context, monitoringService *monitoring.Service) *worker.Options {
 	log := logger.FromContext(ctx)
 	options := &worker.Options{}
+	if cfg := appconfig.FromContext(ctx); cfg != nil {
+		autoActivity := stdruntime.NumCPU() * 2
+		autoWorkflow := stdruntime.NumCPU()
+		autoLocal := stdruntime.NumCPU() * 4
+		options.MaxConcurrentActivityExecutionSize = positiveOrDefault(
+			cfg.Worker.MaxConcurrentActivityExecutionSize,
+			autoActivity,
+		)
+		options.MaxConcurrentWorkflowTaskExecutionSize = positiveOrDefault(
+			cfg.Worker.MaxConcurrentWorkflowExecutionSize,
+			autoWorkflow,
+		)
+		options.MaxConcurrentLocalActivityExecutionSize = positiveOrDefault(
+			cfg.Worker.MaxConcurrentLocalActivityExecutionSize,
+			autoLocal,
+		)
+	}
+	setWorkerConcurrencyLimits(
+		options.MaxConcurrentActivityExecutionSize,
+		options.MaxConcurrentWorkflowTaskExecutionSize,
+	)
 	if monitoringService != nil && monitoringService.IsInitialized() {
 		interceptor := monitoringService.TemporalInterceptor(ctx)
 		if interceptor != nil {
@@ -257,7 +281,15 @@ func buildWorkerOptions(ctx context.Context, monitoringService *monitoring.Servi
 			log.Info("Added Temporal monitoring interceptor to worker")
 		}
 	}
+	options.Interceptors = append(options.Interceptors, newWorkerMetricsInterceptor(ctx))
 	return options
+}
+
+func positiveOrDefault(value, fallback int) int {
+	if value > 0 {
+		return value
+	}
+	return fallback
 }
 
 func buildRuntimeManager(
@@ -345,21 +377,13 @@ func NewWorker(
 		projectName = projectConfig.Name
 	}
 	dispatcher := createDispatcher(workerCore.taskQueue, projectName, client)
-	var usageMetrics usage.Metrics
-	if config.MonitoringService != nil && config.MonitoringService.IsInitialized() {
-		usageMetrics = config.MonitoringService.LLMUsageMetrics()
-	}
-	activities, err := NewActivities(
+	activities, err := prepareWorkerActivities(
 		ctx,
+		config,
 		projectConfig,
 		workflows,
-		config.WorkflowRepo(),
-		config.TaskRepo(),
-		usageMetrics,
-		workerCore.rtManager,
-		workerCore.configStore,
-		dispatcher.signalDispatcher,
-		workerCore.redisCache,
+		workerCore,
+		dispatcher,
 		memoryManager,
 		templateEngine,
 		toolEnv,
@@ -685,11 +709,49 @@ func createDispatcher(taskQueue string, projectName string, client *Client) *dis
 	}
 }
 
+func prepareWorkerActivities(
+	ctx context.Context,
+	config *Config,
+	projectConfig *project.Config,
+	workflows []*wf.Config,
+	workerCore *workerCoreComponents,
+	dispatcher *dispatcherComponents,
+	memoryManager *memory.Manager,
+	templateEngine *tplengine.TemplateEngine,
+	toolEnv toolenv.Environment,
+) (*Activities, error) {
+	var usageMetrics usage.Metrics
+	providerMetrics := providermetrics.Nop()
+	if config.MonitoringService != nil && config.MonitoringService.IsInitialized() {
+		usageMetrics = config.MonitoringService.LLMUsageMetrics()
+		providerMetrics = config.MonitoringService.LLMProviderMetrics()
+	}
+	return NewActivities(
+		ctx,
+		projectConfig,
+		workflows,
+		config.WorkflowRepo(),
+		config.TaskRepo(),
+		usageMetrics,
+		providerMetrics,
+		workerCore.rtManager,
+		workerCore.configStore,
+		dispatcher.signalDispatcher,
+		workerCore.redisCache,
+		memoryManager,
+		templateEngine,
+		toolEnv,
+	)
+}
+
 func (o *Worker) Setup(ctx context.Context) error {
 	o.registerActivities()
 	err := o.worker.Start()
 	if err != nil {
 		return err
+	}
+	if o.config != nil && o.config.MonitoringService != nil && o.config.MonitoringService.IsInitialized() {
+		o.startQueueDepthMonitor(ctx)
 	}
 	// Track running worker for monitoring
 	interceptor.IncrementRunningWorkers(ctx)
@@ -709,6 +771,7 @@ func (o *Worker) Setup(ctx context.Context) error {
 }
 
 func (o *Worker) Stop(ctx context.Context) {
+	o.stopQueueDepthMonitor()
 	// Track worker stopping for monitoring
 	interceptor.DecrementRunningWorkers(ctx)
 	// Record dispatcher stop event for monitoring
@@ -1023,7 +1086,7 @@ func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
 	if cfg.LLM.ProxyURL == "" {
 		return nil // No proxy configured
 	}
-	client := mcp.NewProxyClient(cfg.LLM.ProxyURL, cfg.Worker.MCPProxyHealthCheckTimeout)
+	client := mcp.NewProxyClient(ctx, cfg.LLM.ProxyURL, cfg.Worker.MCPProxyHealthCheckTimeout)
 	defer client.Close()
 	return client.Health(ctx)
 }
@@ -1069,6 +1132,10 @@ func (o *Worker) TriggerWorkflow(
 		WorkflowExecID: workflowExecID,
 		Input:          mergedInput, // Use merged input with defaults
 		InitialTaskID:  initTaskID,
+	}
+	if cfg := appconfig.FromContext(ctx); cfg != nil {
+		workflowInput.ErrorHandlerTimeout = cfg.Worker.ErrorHandlerTimeout
+		workflowInput.ErrorHandlerMaxRetries = cfg.Worker.ErrorHandlerMaxRetries
 	}
 	// Pre-persist a Pending state BEFORE starting the Temporal workflow
 	// to avoid duplicate starts on retries when persistence fails after start.

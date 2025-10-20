@@ -1,7 +1,6 @@
 package activities
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ import (
 func TestExecuteWait_Run(t *testing.T) {
 	t.Run("Should create wait task state successfully", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Setup real repositories with testcontainers
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -73,7 +72,7 @@ func TestExecuteWait_Run(t *testing.T) {
 
 		// Create task2 factory
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 			TemplateEngine: templateEngine,
 			EnvMerger:      task2core.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
@@ -125,7 +124,7 @@ func TestExecuteWait_Run(t *testing.T) {
 	})
 	t.Run("Should handle nil task config", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Setup real repositories with testcontainers
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -140,7 +139,7 @@ func TestExecuteWait_Run(t *testing.T) {
 
 		// Create task2 factory
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 			TemplateEngine: templateEngine,
 			EnvMerger:      task2core.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
@@ -176,7 +175,7 @@ func TestExecuteWait_Run(t *testing.T) {
 	})
 	t.Run("Should handle workflow not found", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Setup real repositories with testcontainers
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -201,7 +200,7 @@ func TestExecuteWait_Run(t *testing.T) {
 
 		// Create task2 factory
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 			TemplateEngine: templateEngine,
 			EnvMerger:      task2core.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
@@ -237,7 +236,7 @@ func TestExecuteWait_Run(t *testing.T) {
 	})
 	t.Run("Should handle wrong task type", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Setup real repositories with testcontainers
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -282,7 +281,7 @@ func TestExecuteWait_Run(t *testing.T) {
 
 		// Create task2 factory
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 			TemplateEngine: templateEngine,
 			EnvMerger:      task2core.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
@@ -318,7 +317,7 @@ func TestExecuteWait_Run(t *testing.T) {
 	})
 	t.Run("Should include processor metadata when processor is configured", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Setup real repositories with testcontainers
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -383,7 +382,7 @@ func TestExecuteWait_Run(t *testing.T) {
 
 		// Create task2 factory
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 			TemplateEngine: templateEngine,
 			EnvMerger:      task2core.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,

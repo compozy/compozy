@@ -1,12 +1,11 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
 	"github.com/compozy/compozy/engine/resources"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +14,7 @@ import (
 
 func TestDeleteTask_ConflictsWhenWorkflowReferences(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	body := map[string]any{
 		"id":           "approve",
@@ -37,7 +36,7 @@ func TestDeleteTask_ConflictsWhenWorkflowReferences(t *testing.T) {
 
 func TestListTasks_FilterByWorkflow(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	build := func(id string) map[string]any {
 		return map[string]any{

@@ -13,19 +13,18 @@ import (
 	"github.com/klippa-app/go-pdfium/responses"
 )
 
-func (e *Extractor) extractStructured(
+const estimatedLineOutputsPerPage = 16
+
+func (e *Extractor) processPages(
 	ctx context.Context,
 	instance pdfium.Pdfium,
 	doc *responses.OpenDocument,
-	runeLimit int64,
 	pageCount int,
-) (string, Stats, error) {
-	limiter := newTextLimiter(runeLimit)
-	allOutputs := make([]*lineOutput, 0, pageCount*16)
-
-	for page := 0; page < pageCount; page++ {
+) ([]*lineOutput, error) {
+	allOutputs := make([]*lineOutput, 0, pageCount*estimatedLineOutputsPerPage)
+	for page := range pageCount {
 		if err := ctx.Err(); err != nil {
-			return "", Stats{}, err
+			return nil, err
 		}
 		resp, err := instance.GetPageTextStructured(&requests.GetPageTextStructured{
 			Page: requests.Page{
@@ -37,7 +36,7 @@ func (e *Extractor) extractStructured(
 			Mode: requests.GetPageTextStructuredModeRects,
 		})
 		if err != nil {
-			return "", Stats{}, err
+			return nil, err
 		}
 		segments := collectSegments(resp.Rects)
 		if len(segments) == 0 {
@@ -54,6 +53,21 @@ func (e *Extractor) extractStructured(
 		if page < pageCount-1 {
 			allOutputs = append(allOutputs, &lineOutput{separatorHint: "\n\n"})
 		}
+	}
+	return allOutputs, nil
+}
+
+func (e *Extractor) extractStructured(
+	ctx context.Context,
+	instance pdfium.Pdfium,
+	doc *responses.OpenDocument,
+	runeLimit int64,
+	pageCount int,
+) (string, Stats, error) {
+	limiter := newTextLimiter(runeLimit)
+	allOutputs, err := e.processPages(ctx, instance, doc, pageCount)
+	if err != nil {
+		return "", Stats{}, err
 	}
 
 	finalLines := finalizeLineOutputs(allOutputs)

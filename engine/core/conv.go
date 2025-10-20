@@ -2,7 +2,6 @@ package core
 
 import (
 	"encoding/json"
-	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -18,9 +17,7 @@ func ToStringMap(v any) map[string]string {
 	out := map[string]string{}
 	switch m := v.(type) {
 	case map[string]string:
-		cp := make(map[string]string, len(m))
-		maps.Copy(cp, m)
-		return cp
+		return CloneMap(m)
 	case map[string]any:
 		for k, vv := range m {
 			if s, ok := vv.(string); ok {

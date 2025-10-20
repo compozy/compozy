@@ -105,9 +105,12 @@ func (s *stubDirectExecutor) ExecuteAsync(
 
 // installDirectExecutorStub sets a temporary DirectExecutor factory and returns a cleanup function.
 func installDirectExecutorStub(state *appstate.State, exec tkrouter.DirectExecutor) func() {
-	tkrouter.SetDirectExecutorFactory(state, func(*appstate.State, task.Repository) (tkrouter.DirectExecutor, error) {
-		return exec, nil
-	})
+	tkrouter.SetDirectExecutorFactory(
+		state,
+		func(context.Context, *appstate.State, task.Repository) (tkrouter.DirectExecutor, error) {
+			return exec, nil
+		},
+	)
 	return func() { tkrouter.SetDirectExecutorFactory(state, nil) }
 }
 
@@ -192,7 +195,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		m, err := agentCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceAgent, ID: "agent-one"},
 			m,
 		)
@@ -223,7 +226,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		m, err := cfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{
 				Project: state.ProjectConfig.Name,
 				Type:    resources.ResourceAgent,
@@ -264,7 +267,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		m, err := cfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceAgent, ID: "agent-three"},
 			m,
 		)
@@ -323,7 +326,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		m, err := agentCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceAgent, ID: "agent-action"},
 			m,
 		)
@@ -384,7 +387,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		m, err := agentCfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceAgent, ID: "agent-state"},
 			m,
 		)
@@ -406,7 +409,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		Register(api)
 		req := httptest.NewRequest(
 			http.MethodPost,
-			"/api/v0/agents/agent-state/executions/sync",
+			"/api/v0/agents/agent-state/executions/sync?include=state",
 			strings.NewReader(`{"prompt":"should use state"}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
@@ -438,7 +441,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		m, err := cfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceAgent, ID: "agent-four"},
 			m,
 		)
@@ -488,7 +491,7 @@ func TestAgentExecutionRoutes(t *testing.T) {
 		m, err := cfg.AsMap()
 		require.NoError(t, err)
 		_, err = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: state.ProjectConfig.Name, Type: resources.ResourceAgent, ID: "agent-five"},
 			m,
 		)

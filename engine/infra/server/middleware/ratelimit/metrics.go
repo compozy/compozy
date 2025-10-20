@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -19,7 +20,7 @@ func InitMetrics(meter metric.Meter) error {
 	var err error
 	metricsOnce.Do(func() {
 		rateLimitBlocksTotal, err = meter.Int64Counter(
-			"rate_limit_blocks_total",
+			monitoringmetrics.MetricNameWithSubsystem("rate_limit", "blocks_total"),
 			metric.WithDescription("Total number of requests blocked by rate limiting"),
 			metric.WithUnit("1"),
 		)

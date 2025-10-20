@@ -17,7 +17,7 @@ type Config interface {
 	GetCWD() *PathCWD
 	GetEnv() EnvMap
 	GetInput() *Input
-	Validate() error
+	Validate(ctx context.Context) error
 	ValidateInput(ctx context.Context, input *Input) error
 	ValidateOutput(ctx context.Context, output *Output) error
 	HasSchema() bool

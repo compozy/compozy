@@ -93,7 +93,7 @@ func TestPipelinePDFSourceProducesReadableChunks(t *testing.T) {
 
 		pipe, err := NewPipeline(binding, embed, store, Options{})
 		require.NoError(t, err)
-		_, err = pipe.Run(context.Background())
+		_, err = pipe.Run(t.Context())
 		require.NoError(t, err)
 		require.NotEmpty(t, store.records)
 

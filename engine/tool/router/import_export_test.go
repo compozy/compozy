@@ -1,7 +1,6 @@
 package toolrouter
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -24,7 +23,7 @@ func TestToolRouter_Import(t *testing.T) {
 	t.Run("Should import tools and echo strategy", func(t *testing.T) {
 		t.Parallel()
 		ginmode.EnsureGinTestMode()
-		ctx := context.Background()
+		ctx := t.Context()
 		projectID := "demo"
 		store := resources.NewMemoryResourceStore()
 		root := t.TempDir()

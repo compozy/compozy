@@ -15,7 +15,7 @@ import (
 func TestBuildParentContext_EdgeCases(t *testing.T) {
 	t.Run("Should handle task with no parent (root task)", func(t *testing.T) {
 		// Arrange
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		rootTask := &task.Config{
@@ -50,7 +50,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 		}
 
 		// Act
-		result := builder.BuildParentContext(ctx, rootTask, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, rootTask, 0)
 
 		// Assert
 		require.NotNil(t, result)
@@ -65,7 +65,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 
 	t.Run("Should handle missing parent task state gracefully", func(t *testing.T) {
 		// Arrange
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		parentID := core.MustNewID()
@@ -99,7 +99,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 		}
 
 		// Act
-		result := builder.BuildParentContext(ctx, childTask, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, childTask, 0)
 
 		// Assert
 		require.NotNil(t, result)
@@ -114,7 +114,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 
 	t.Run("Should handle missing parent task config gracefully", func(t *testing.T) {
 		// Arrange
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		parentID := core.MustNewID()
@@ -155,7 +155,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 		}
 
 		// Act
-		result := builder.BuildParentContext(ctx, childTask, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, childTask, 0)
 
 		// Assert
 		require.NotNil(t, result)
@@ -169,7 +169,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 
 	t.Run("Should handle maximum depth correctly", func(t *testing.T) {
 		// Arrange
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Create a deep hierarchy (20 levels)
@@ -215,7 +215,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 
 		// Act - Get context for the deepest task
 		deepestTask := taskConfigs["T-task"]
-		result := builder.BuildParentContext(ctx, deepestTask, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, deepestTask, 0)
 
 		// Assert
 		require.NotNil(t, result)
@@ -233,13 +233,13 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 		}
 
 		// Should respect max depth limit (10 by default)
-		limits := shared.GetGlobalConfigLimits()
+		limits := shared.GetGlobalConfigLimits(t.Context())
 		assert.LessOrEqual(t, depth, limits.MaxParentDepth+1, "Should not exceed max parent depth")
 	})
 
 	t.Run("Should merge runtime state with config data correctly", func(t *testing.T) {
 		// Arrange
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		taskConfig := &task.Config{
@@ -282,7 +282,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 		}
 
 		// Act
-		result := builder.BuildParentContext(ctx, taskConfig, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, taskConfig, 0)
 
 		// Assert
 		require.NotNil(t, result)
@@ -311,7 +311,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 
 	t.Run("Should handle collection task with item context", func(t *testing.T) {
 		// Arrange
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		collectionExecID := core.MustNewID()
@@ -373,7 +373,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 		}
 
 		// Act - Get context for child of collection
-		result := builder.BuildParentContext(ctx, childTask, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, childTask, 0)
 
 		// Assert
 		require.NotNil(t, result)
@@ -395,7 +395,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 
 	t.Run("Should handle nil normalization context", func(t *testing.T) {
 		// Arrange
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		taskConfig := &task.Config{
@@ -407,13 +407,13 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 
 		// Act & Assert
 		assert.Panics(t, func() {
-			_ = builder.BuildParentContext(nil, taskConfig, 0)
+			_ = builder.BuildParentContext(t.Context(), nil, taskConfig, 0)
 		})
 	})
 
 	t.Run("Should handle nil task config", func(t *testing.T) {
 		// Arrange
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		ctx := &shared.NormalizationContext{
@@ -423,7 +423,7 @@ func TestBuildParentContext_EdgeCases(t *testing.T) {
 		}
 
 		// Act
-		result := builder.BuildParentContext(ctx, nil, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, nil, 0)
 
 		// Assert
 		assert.Nil(t, result)

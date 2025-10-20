@@ -60,13 +60,7 @@ func buildCompactionPlan(loopCtx *LoopContext) (compactionPlan, error) {
 		return compactionPlan{}, ErrCompactionUnavailable
 	}
 	messages := loopCtx.LLMRequest.Messages
-	base := loopCtx.baseMessageCount
-	if base < 0 {
-		base = 0
-	}
-	if base > len(messages) {
-		base = len(messages)
-	}
+	base := min(max(loopCtx.baseMessageCount, 0), len(messages))
 	target, err := llmadapter.CloneMessages(messages[base:])
 	if err != nil {
 		return compactionPlan{}, fmt.Errorf("clone messages for compaction: %w", err)
@@ -222,12 +216,6 @@ func compactionRoleLabel(role string) string {
 func applyCompactionSummary(req *llmadapter.LLMRequest, base int, summary string) {
 	if req == nil {
 		return
-	}
-	if base < 0 {
-		base = 0
-	}
-	if base > len(req.Messages) {
-		base = len(req.Messages)
 	}
 	compacted := make([]llmadapter.Message, base, base+1)
 	copy(compacted, req.Messages[:base])

@@ -58,8 +58,8 @@ func NewTestAppState(t *testing.T) *appstate.State {
 // WithConfig injects a configuration manager into the request context.
 func WithConfig(t *testing.T, req *http.Request) *http.Request {
 	t.Helper()
-	manager := config.NewManager(config.NewService())
-	_, err := manager.Load(context.Background(), config.NewDefaultProvider())
+	manager := config.NewManager(t.Context(), config.NewService())
+	_, err := manager.Load(t.Context(), config.NewDefaultProvider())
 	requireNoError(t, err)
 	ctx := config.ContextWithManager(req.Context(), manager)
 	return req.WithContext(ctx)

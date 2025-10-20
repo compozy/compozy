@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -31,7 +30,7 @@ func createTestRedisStore(t *testing.T) ConfigStore {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	redis, err := cache.NewRedis(ctx, config)
 	require.NoError(t, err, "Failed to connect to Redis for testing")
 
@@ -61,7 +60,7 @@ func TestRedisConfigStore_SaveAndGet(t *testing.T) {
 		}
 		config.With = with
 
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := "test-exec-123"
 
 		// Save config
@@ -84,7 +83,7 @@ func TestRedisConfigStore_SaveAndGet(t *testing.T) {
 		store := createTestRedisStore(t)
 		defer store.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		nonExistentID := "non-existent-123"
 
 		// Try to get non-existent config
@@ -98,7 +97,7 @@ func TestRedisConfigStore_SaveAndGet(t *testing.T) {
 		store := createTestRedisStore(t)
 		defer store.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &task.Config{}
 		config.ID = "test"
 
@@ -126,7 +125,7 @@ func TestRedisConfigStore_Delete(t *testing.T) {
 
 		config := &task.Config{}
 		config.ID = "test-task"
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := "test-exec-123"
 
 		// Save config
@@ -151,7 +150,7 @@ func TestRedisConfigStore_Delete(t *testing.T) {
 		store := createTestRedisStore(t)
 		defer store.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		nonExistentID := "non-existent-123"
 
 		// Delete non-existent config should not error
@@ -163,7 +162,7 @@ func TestRedisConfigStore_Delete(t *testing.T) {
 		store := createTestRedisStore(t)
 		defer store.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Test empty taskExecID
 		err := store.Delete(ctx, "")
@@ -189,7 +188,7 @@ func TestRedisConfigStore_TTL(t *testing.T) {
 			},
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		redis, err := cache.NewRedis(ctx, config)
 		require.NoError(t, err)
 		defer redis.Close()
@@ -228,11 +227,11 @@ func TestRedisConfigStore_MetadataOperations(t *testing.T) {
 		data := []byte(`{"test": "data", "count": 42}`)
 
 		// Act - Save metadata
-		err := store.SaveMetadata(context.Background(), key, data)
+		err := store.SaveMetadata(t.Context(), key, data)
 		require.NoError(t, err)
 
 		// Act - Retrieve metadata
-		retrievedData, err := store.GetMetadata(context.Background(), key)
+		retrievedData, err := store.GetMetadata(t.Context(), key)
 		require.NoError(t, err)
 
 		// Assert
@@ -244,7 +243,7 @@ func TestRedisConfigStore_MetadataOperations(t *testing.T) {
 		defer store.Close()
 
 		// Act
-		_, err := store.GetMetadata(context.Background(), "non-existent-key")
+		_, err := store.GetMetadata(t.Context(), "non-existent-key")
 
 		// Assert
 		assert.Error(t, err)
@@ -259,15 +258,15 @@ func TestRedisConfigStore_MetadataOperations(t *testing.T) {
 		data := []byte(`{"test": "data"}`)
 
 		// Save metadata first
-		err := store.SaveMetadata(context.Background(), key, data)
+		err := store.SaveMetadata(t.Context(), key, data)
 		require.NoError(t, err)
 
 		// Act - Delete metadata
-		err = store.DeleteMetadata(context.Background(), key)
+		err = store.DeleteMetadata(t.Context(), key)
 		require.NoError(t, err)
 
 		// Assert - Metadata should no longer exist
-		_, err = store.GetMetadata(context.Background(), key)
+		_, err = store.GetMetadata(t.Context(), key)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "metadata not found")
 	})
@@ -285,18 +284,18 @@ func TestRedisConfigStore_MetadataOperations(t *testing.T) {
 		metadata := []byte(`{"type": "metadata"}`)
 
 		// Act - Store both task config and metadata with similar keys
-		err := store.Save(context.Background(), "test-key", taskConfig)
+		err := store.Save(t.Context(), "test-key", taskConfig)
 		require.NoError(t, err)
 
-		err = store.SaveMetadata(context.Background(), "test-key", metadata)
+		err = store.SaveMetadata(t.Context(), "test-key", metadata)
 		require.NoError(t, err)
 
 		// Assert - Both should be retrievable independently
-		retrievedConfig, err := store.Get(context.Background(), "test-key")
+		retrievedConfig, err := store.Get(t.Context(), "test-key")
 		require.NoError(t, err)
 		assert.Equal(t, "test-task", retrievedConfig.ID)
 
-		retrievedMetadata, err := store.GetMetadata(context.Background(), "test-key")
+		retrievedMetadata, err := store.GetMetadata(t.Context(), "test-key")
 		require.NoError(t, err)
 		assert.Equal(t, metadata, retrievedMetadata)
 	})
@@ -308,22 +307,22 @@ func TestRedisConfigStore_MetadataOperations(t *testing.T) {
 		data := []byte(`{"test": "data"}`)
 
 		// Act & Assert - Empty key
-		err := store.SaveMetadata(context.Background(), "", data)
+		err := store.SaveMetadata(t.Context(), "", data)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "key cannot be empty")
 
 		// Act & Assert - Nil data
-		err = store.SaveMetadata(context.Background(), "test-key", nil)
+		err = store.SaveMetadata(t.Context(), "test-key", nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "data cannot be nil")
 
 		// Act & Assert - Empty key for get
-		_, err = store.GetMetadata(context.Background(), "")
+		_, err = store.GetMetadata(t.Context(), "")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "key cannot be empty")
 
 		// Act & Assert - Empty key for delete
-		err = store.DeleteMetadata(context.Background(), "")
+		err = store.DeleteMetadata(t.Context(), "")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "key cannot be empty")
 	})
@@ -335,7 +334,7 @@ func TestRedisConfigStore_HealthCheck(t *testing.T) {
 		defer store.Close()
 
 		// Health check should pass for a working Redis connection
-		err := store.(*redisConfigStore).HealthCheck(context.Background())
+		err := store.(*redisConfigStore).HealthCheck(t.Context())
 		assert.NoError(t, err)
 	})
 }
@@ -348,7 +347,7 @@ func TestRedisConfigStore_ExtendTTL(t *testing.T) {
 		taskConfig := &task.Config{}
 		taskConfig.ID = "test-task"
 		taskExecID := "test-exec-extend-ttl"
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Save config with default TTL
 		err := store.Save(ctx, taskExecID, taskConfig)
@@ -370,7 +369,7 @@ func TestRedisConfigStore_ExtendTTL(t *testing.T) {
 		defer store.Close()
 
 		redisStore := store.(*redisConfigStore)
-		err := redisStore.ExtendTTL(context.Background(), "", time.Hour)
+		err := redisStore.ExtendTTL(t.Context(), "", time.Hour)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "taskExecID cannot be empty")
 	})
@@ -382,7 +381,7 @@ func TestRedisConfigStore_GetKeys(t *testing.T) {
 		defer store.Close()
 
 		redisStore := store.(*redisConfigStore)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Save multiple configs
 		configs := []string{"config-1", "config-2", "config-3"}
@@ -410,7 +409,7 @@ func TestRedisConfigStore_GetKeys(t *testing.T) {
 		defer store.Close()
 
 		redisStore := store.(*redisConfigStore)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Save multiple metadata entries
 		metadataKeys := []string{"meta-1", "meta-2", "meta-3"}
@@ -449,7 +448,7 @@ func TestRedisConfigStore_GetExtendsTTL(t *testing.T) {
 			},
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		redis, err := cache.NewRedis(ctx, config)
 		require.NoError(t, err, "Failed to connect to Redis for testing")
 
@@ -469,17 +468,17 @@ func TestRedisConfigStore_GetExtendsTTL(t *testing.T) {
 		taskConfig.Action = "test_action"
 
 		// Save config with 2-second TTL
-		err = store.Save(context.Background(), taskExecID, taskConfig)
+		err = store.Save(t.Context(), taskExecID, taskConfig)
 		assert.NoError(t, err)
 
 		// Wait 1 second, then retrieve (should extend TTL)
 		time.Sleep(1 * time.Second)
-		retrievedConfig, err := store.Get(context.Background(), taskExecID)
+		retrievedConfig, err := store.Get(t.Context(), taskExecID)
 		assert.NoError(t, err)
 		assert.Equal(t, taskConfig.ID, retrievedConfig.ID)
 
 		// Check that TTL was extended - should be close to 2 seconds again
-		ttl, err := redisStore.GetTTL(context.Background(), taskExecID)
+		ttl, err := redisStore.GetTTL(t.Context(), taskExecID)
 		assert.NoError(t, err)
 		assert.Greater(t, ttl, 1*time.Second, "TTL should have been extended")
 	})
@@ -499,7 +498,7 @@ func TestRedisConfigStore_GetExtendsTTL(t *testing.T) {
 			},
 		}
 
-		ctx := context.Background()
+		ctx := t.Context()
 		redis, err := cache.NewRedis(ctx, config)
 		require.NoError(t, err, "Failed to connect to Redis for testing")
 
@@ -514,18 +513,18 @@ func TestRedisConfigStore_GetExtendsTTL(t *testing.T) {
 		data := []byte("test data")
 
 		// Save metadata with 2-second TTL
-		err = redisStore.SaveMetadata(context.Background(), key, data)
+		err = redisStore.SaveMetadata(t.Context(), key, data)
 		assert.NoError(t, err)
 
 		// Wait 1 second, then retrieve (should extend TTL)
 		time.Sleep(1 * time.Second)
-		retrievedData, err := redisStore.GetMetadata(context.Background(), key)
+		retrievedData, err := redisStore.GetMetadata(t.Context(), key)
 		assert.NoError(t, err)
 		assert.Equal(t, data, retrievedData)
 
 		// Check that TTL was extended for metadata
 		prefixedKey := "metadata:" + key
-		ttl, err := redisStore.redis.TTL(context.Background(), prefixedKey).Result()
+		ttl, err := redisStore.redis.TTL(t.Context(), prefixedKey).Result()
 		assert.NoError(t, err)
 		assert.Greater(t, ttl, 1*time.Second, "Metadata TTL should have been extended")
 	})

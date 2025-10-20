@@ -102,12 +102,12 @@ func (s *stubWorkflowRepo) MergeUsage(_ context.Context, execID core.ID, summary
 }
 
 func TestPrepareExecutionPlanNormalizesAgentInput(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	state := routertest.NewTestAppState(t)
 	toolenvstate.Store(state, toolenv.New(nil, nil, nil))
 	taskRepo := testutil.NewInMemoryRepo()
 	workflowRepo := newStubWorkflowRepo()
-	executor, err := NewDirectExecutor(state, taskRepo, workflowRepo)
+	executor, err := NewDirectExecutor(ctx, state, taskRepo, workflowRepo)
 	require.NoError(t, err)
 	impl, ok := executor.(*directExecutor)
 	require.True(t, ok)

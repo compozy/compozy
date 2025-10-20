@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -107,7 +106,14 @@ func executeWorkflowSync(c *gin.Context) {
 	log := logger.FromContext(c.Request.Context())
 	log.Info("Workflow execution started", "workflow_id", workflowID, "exec_id", execID.String())
 	deadline := time.Duration(req.Timeout) * workflowTimeoutUnit
-	stateResult, timedOut, pollErr := waitForWorkflowCompletion(c.Request.Context(), repo, execID, deadline)
+	stateResult, timedOut, pollErr := waitForWorkflowCompletion(
+		c.Request.Context(),
+		repo,
+		execID,
+		deadline,
+		workflowID,
+		metrics,
+	)
 	if pollErr != nil {
 		recordError(http.StatusInternalServerError)
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to monitor workflow execution", pollErr)
@@ -222,33 +228,53 @@ func waitForWorkflowCompletion(
 	repo workflow.Repository,
 	execID core.ID,
 	timeout time.Duration,
+	workflowID string,
+	metrics *monitoring.ExecutionMetrics,
 ) (*workflow.State, bool, error) {
 	pollCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	interval := workflowPollInitialBackoff
-	attempt := 0
+	pollCount := 0
+	pollOutcome := monitoring.WorkflowPollOutcomeError
+	start := time.Now()
+	defer func() {
+		if metrics == nil {
+			return
+		}
+		metrics.RecordWorkflowPollDuration(ctx, workflowID, time.Since(start))
+		metrics.RecordWorkflowPolls(ctx, workflowID, pollCount, pollOutcome)
+	}()
+	execIDStr := execID.String()
 	var lastState *workflow.State
+	timer := time.NewTimer(0)
+	<-timer.C
+	defer timer.Stop()
 	for {
 		if pollCtx.Err() != nil {
 			state, err := finalWorkflowState(ctx, repo, execID, lastState)
+			pollOutcome = monitoring.WorkflowPollOutcomeTimeout
 			return state, true, err
 		}
 		state, err := repo.GetState(pollCtx, execID)
+		pollCount++
 		if err != nil {
 			if !isIgnorablePollError(err) {
+				pollOutcome = monitoring.WorkflowPollOutcomeError
 				return lastState, false, err
 			}
 		} else if state != nil {
 			lastState = state
 			if isWorkflowTerminal(state.Status) {
+				pollOutcome = monitoring.WorkflowPollOutcomeCompleted
 				return state, false, nil
 			}
 		}
-		wait := applyWorkflowJitter(interval, execID, attempt)
+		attemptIndex := pollCount - 1
+		wait := applyWorkflowJitter(interval, execIDStr, attemptIndex)
 		interval = nextWorkflowBackoff(interval)
-		attempt++
-		if !waitForNextWorkflowPoll(pollCtx, wait) {
+		if !waitForNextWorkflowPoll(pollCtx, timer, wait) {
 			state, finalErr := finalWorkflowState(ctx, repo, execID, lastState)
+			pollOutcome = monitoring.WorkflowPollOutcomeTimeout
 			return state, true, finalErr
 		}
 	}
@@ -272,8 +298,17 @@ func nextWorkflowBackoff(current time.Duration) time.Duration {
 	return next
 }
 
-func waitForNextWorkflowPoll(ctx context.Context, delay time.Duration) bool {
-	timer := time.NewTimer(delay)
+func waitForNextWorkflowPoll(ctx context.Context, timer *time.Timer, delay time.Duration) bool {
+	if delay <= 0 {
+		delay = time.Millisecond
+	}
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+	timer.Reset(delay)
 	select {
 	case <-ctx.Done():
 		if !timer.Stop() {
@@ -316,7 +351,7 @@ func isWorkflowTerminal(status core.StatusType) bool {
 	}
 }
 
-func applyWorkflowJitter(base time.Duration, execID core.ID, attempt int) time.Duration {
+func applyWorkflowJitter(base time.Duration, execID string, attempt int) time.Duration {
 	if base <= 0 {
 		return base
 	}
@@ -324,23 +359,58 @@ func applyWorkflowJitter(base time.Duration, execID core.ID, attempt int) time.D
 	if span <= 0 {
 		span = time.Millisecond
 	}
-	id := execID.String() + strconv.Itoa(attempt)
 	spanNanos := int64(span)
 	rangeSize := spanNanos*2 + 1
 	if rangeSize <= 0 {
 		rangeSize = 1
 	}
-	hashVal := int64(0)
-	for i := 0; i < len(id); i++ {
-		hashVal = (hashVal*33 + int64(id[i])) % rangeSize
-	}
-	rawHash := hashVal
-	offset := (rawHash % rangeSize) - spanNanos
+	hashVal := computeJitterHash(execID, attempt, rangeSize)
+	offset := hashVal - spanNanos
 	result := base + time.Duration(offset)
 	if result < time.Millisecond {
 		return time.Millisecond
 	}
 	return result
+}
+
+func computeJitterHash(execID string, attempt int, rangeSize int64) int64 {
+	hashVal := int64(5381)
+	for i := 0; i < len(execID); i++ {
+		hashVal = djb2Step(hashVal, int64(execID[i]), rangeSize)
+	}
+	if attempt < 0 {
+		hashVal = djb2Step(hashVal, int64('-'), rangeSize)
+	} else {
+		hashVal = djb2Step(hashVal, int64('+'), rangeSize)
+	}
+	digits := formatAttemptDigits(attempt)
+	for _, d := range digits {
+		hashVal = djb2Step(hashVal, int64(d), rangeSize)
+	}
+	return hashVal % rangeSize
+}
+
+func djb2Step(hash, value, mod int64) int64 {
+	return ((hash << 5) + hash + value) % mod
+}
+
+func formatAttemptDigits(attempt int) []byte {
+	value := attempt
+	if value < 0 {
+		value = -value
+	}
+	if value == 0 {
+		return []byte{'0'}
+	}
+	digits := make([]byte, 0, 20)
+	for value > 0 {
+		digits = append(digits, byte('0'+value%10))
+		value /= 10
+	}
+	for i, j := 0, len(digits)-1; i < j; i, j = i+1, j-1 {
+		digits[i], digits[j] = digits[j], digits[i]
+	}
+	return digits
 }
 
 func respondWorkflowTimeout(

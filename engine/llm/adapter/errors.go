@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 // ErrCode represents specific error codes for LLM operations
@@ -43,6 +44,7 @@ type Error struct {
 	Provider   string
 	Retryable  bool
 	Err        error // Original underlying error
+	RetryAfter *time.Duration
 }
 
 // Error implements the error interface
@@ -61,6 +63,34 @@ func (e *Error) Unwrap() error {
 // IsRetryable returns whether this error should trigger a retry
 func (e *Error) IsRetryable() bool {
 	return e.Retryable
+}
+
+// SuggestedRetryDelay returns the recommended delay before retrying, or 0 when unavailable.
+func (e *Error) SuggestedRetryDelay() time.Duration {
+	if e == nil {
+		return 0
+	}
+	if e.RetryAfter == nil {
+		return 0
+	}
+	if delay := *e.RetryAfter; delay > 0 {
+		return delay
+	}
+	return 0
+}
+
+// WithRetryAfter annotates the error with a provider-suggested retry delay.
+func (e *Error) WithRetryAfter(delay time.Duration) *Error {
+	if e == nil {
+		return nil
+	}
+	if delay <= 0 {
+		e.RetryAfter = nil
+		return e
+	}
+	e.RetryAfter = new(time.Duration)
+	*e.RetryAfter = delay
+	return e
 }
 
 // NewError creates a new LLM error with appropriate classification

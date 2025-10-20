@@ -65,7 +65,7 @@ func TestRouterResponseHandler_Integration(t *testing.T) {
 
 	t.Run("Should process router task response with routing decision", func(t *testing.T) {
 		// Setup test infrastructure
-		ctx := context.Background()
+		ctx := t.Context()
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		t.Cleanup(cleanup)
 
@@ -154,7 +154,7 @@ func TestRouterResponseHandler_Integration(t *testing.T) {
 
 	t.Run("Should validate routing decision output", func(t *testing.T) {
 		// Setup test infrastructure
-		ctx := context.Background()
+		ctx := t.Context()
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		t.Cleanup(cleanup)
 

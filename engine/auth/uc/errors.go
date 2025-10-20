@@ -2,8 +2,17 @@ package uc
 
 import "errors"
 
-// ErrUserNotFound is returned when a user is not found in the repository
-var ErrUserNotFound = errors.New("user not found")
-
-// ErrAPIKeyNotFound is returned when an API key is not found in the repository
-var ErrAPIKeyNotFound = errors.New("API key not found")
+var (
+	// ErrUserNotFound indicates a requested user does not exist.
+	ErrUserNotFound = errors.New("auth: user not found")
+	// ErrAPIKeyNotFound indicates a requested API key does not exist.
+	ErrAPIKeyNotFound = errors.New("auth: api key not found")
+	// ErrEmailExists indicates the email is already in use by another user.
+	ErrEmailExists = errors.New("auth: email already exists")
+	// ErrInvalidCredentials indicates the provided authentication material is invalid.
+	ErrInvalidCredentials = errors.New("auth: invalid credentials")
+	// ErrTokenExpired indicates the token has expired and must be refreshed.
+	ErrTokenExpired = errors.New("auth: token expired")
+	// ErrRateLimited indicates the authentication request is rate limited.
+	ErrRateLimited = errors.New("auth: rate limited")
+)

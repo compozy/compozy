@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -31,7 +30,7 @@ func TestServerAfterMCPReady(t *testing.T) {
 		cfg.MCPProxy.Mode = modeStandalone
 		cfg.LLM.ProxyURL = "http://localhost:6001"
 		srv := &Server{}
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		srv.ctx = ctx
 		baseURL := "http://127.0.0.1:6123"
 		srv.afterMCPReady(ctx, cfg, baseURL, "memory")

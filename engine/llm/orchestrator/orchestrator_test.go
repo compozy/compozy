@@ -137,7 +137,7 @@ func TestOrchestrator_Execute(t *testing.T) {
 		}
 		action := &agent.ActionConfig{ID: "action-1", Prompt: "Say hi"}
 
-		result, err := orc.Execute(context.Background(), Request{Agent: ag, Action: action})
+		result, err := orc.Execute(t.Context(), Request{Agent: ag, Action: action})
 		require.NoError(t, err)
 
 		assert.Equal(t, "hello", (*result)["response"])
@@ -179,7 +179,7 @@ func (systemNoop) Render(ctx context.Context, instructions string) (string, erro
 
 func TestOrchestrator_Close_ErrorPropagation(t *testing.T) {
 	t.Run("Should propagate error from registry Close", func(t *testing.T) {
-		factory, err := llmadapter.NewDefaultFactory(context.Background())
+		factory, err := llmadapter.NewDefaultFactory(t.Context())
 		require.NoError(t, err)
 		orc, err := New(Config{
 			ToolRegistry:         closableRegistry{closeErr: errors.New("bye")},
@@ -194,7 +194,7 @@ func TestOrchestrator_Close_ErrorPropagation(t *testing.T) {
 
 func TestOrchestrator_Close_NoRegistry(t *testing.T) {
 	t.Run("Should return nil when registry Close succeeds", func(t *testing.T) {
-		factory, err := llmadapter.NewDefaultFactory(context.Background())
+		factory, err := llmadapter.NewDefaultFactory(t.Context())
 		require.NoError(t, err)
 		orc, err := New(Config{
 			ToolRegistry:         closableRegistry{closeErr: nil},

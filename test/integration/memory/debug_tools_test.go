@@ -15,6 +15,43 @@ import (
 	"github.com/compozy/compozy/engine/llm"
 )
 
+// leakTestStub captures failure state without relying on testing internals.
+type leakTestStub struct {
+	ctx    context.Context
+	failed bool
+}
+
+// newLeakTestStub builds a leakTestStub bound to the provided context.
+func newLeakTestStub(ctx context.Context) *leakTestStub {
+	return &leakTestStub{ctx: ctx}
+}
+
+// Helper marks helper boundaries for compatibility.
+func (l *leakTestStub) Helper() {}
+
+// Context returns the context associated with the stub.
+func (l *leakTestStub) Context() context.Context {
+	return l.ctx
+}
+
+// Logf discards log output emitted during verification.
+func (l *leakTestStub) Logf(string, ...any) {}
+
+// Errorf records formatted failures from the code under test.
+func (l *leakTestStub) Errorf(string, ...any) {
+	l.failed = true
+}
+
+// FailNow marks the stub as failed to satisfy require.TestingT.
+func (l *leakTestStub) FailNow() {
+	l.failed = true
+}
+
+// Failed reports whether the stub observed a failure.
+func (l *leakTestStub) Failed() bool {
+	return l.failed
+}
+
 // TestDebugToolsCapture tests debug capture functionality
 func TestDebugToolsCapture(t *testing.T) {
 	// Only run if debug mode is enabled
@@ -25,7 +62,7 @@ func TestDebugToolsCapture(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		debug := NewDebugTools(env)
-		ctx := context.Background()
+		ctx := t.Context()
 		// Enable tracing
 		cleanup := debug.EnableTracing(t)
 		defer cleanup()
@@ -71,7 +108,7 @@ func TestMaintenanceToolsCleanup(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		maintenance := NewMaintenanceTools(env)
-		ctx := context.Background()
+		ctx := t.Context()
 		// Create some old test data with unique keys
 		oldTimestamp := time.Now().Add(-2 * time.Hour).Unix()
 		oldMemRef := core.MemoryReference{
@@ -131,7 +168,7 @@ func TestMaintenanceToolsLeakDetection(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		maintenance := NewMaintenanceTools(env)
-		ctx := context.Background()
+		ctx := t.Context()
 		redis := env.GetRedis()
 		// Add some allowed keys
 		err := redis.Set(ctx, "compozy:test-project:allowed", "value", 0).Err()
@@ -141,17 +178,17 @@ func TestMaintenanceToolsLeakDetection(t *testing.T) {
 		require.NoError(t, err)
 		// Verify with allowed prefixes - use a mock test to check behavior
 		allowedPrefixes := []string{"compozy:test-project:"}
-		mockT := &testing.T{}
-		maintenance.VerifyNoLeaks(mockT, allowedPrefixes)
+		leakProbe := newLeakTestStub(ctx)
+		maintenance.VerifyNoLeaks(leakProbe, allowedPrefixes)
 		// Check that the mock test failed
-		assert.True(t, mockT.Failed(), "Should have detected leaked keys")
+		assert.True(t, leakProbe.Failed(), "Should have detected leaked keys")
 		// Clean up the leaked key
 		err = redis.Del(ctx, "leaked:key").Err()
 		require.NoError(t, err)
 		// Now it should pass
-		mockT2 := &testing.T{}
-		maintenance.VerifyNoLeaks(mockT2, allowedPrefixes)
-		assert.False(t, mockT2.Failed(), "Should not detect any leaks after cleanup")
+		cleanProbe := newLeakTestStub(ctx)
+		maintenance.VerifyNoLeaks(cleanProbe, allowedPrefixes)
+		assert.False(t, cleanProbe.Failed(), "Should not detect any leaks after cleanup")
 	})
 }
 
@@ -206,7 +243,7 @@ func TestInteractiveDebugger(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		debugger := NewInteractiveDebugger(env)
-		ctx := context.Background()
+		ctx := t.Context()
 		// Create a test instance
 		memRef := core.MemoryReference{
 			ID:  "customer-support",

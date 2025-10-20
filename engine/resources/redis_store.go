@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -256,12 +257,14 @@ func (s *RedisResourceStore) Get(ctx context.Context, key ResourceKey) (any, ETa
 		return nil, ETag(""), fmt.Errorf("unmarshal failed: %w", err)
 	}
 	var etag ETag
-	if et, err := s.r.Get(ctx, s.etagKey(key)).Result(); err == nil {
+	et, err := s.r.Get(ctx, s.etagKey(key)).Result()
+	switch err {
+	case nil:
 		etag = ETag(et)
-	} else if err == redis.Nil {
+	case redis.Nil:
 		sum := sha256.Sum256(bs)
 		etag = ETag(hex.EncodeToString(sum[:]))
-	} else if err != nil {
+	default:
 		return nil, ETag(""), fmt.Errorf("redis GET etag: %w", err)
 	}
 	return v, etag, nil
@@ -366,16 +369,26 @@ func (s *RedisResourceStore) ListWithValues(
 	if len(redisKeys) == 0 {
 		return []StoredItem{}, nil
 	}
-	// Batch fetch values
-	vals, err := s.r.MGet(ctx, redisKeys...).Result()
-	if err != nil {
-		return nil, fmt.Errorf("redis MGET values: %w", err)
+	var (
+		valsCmd *redis.SliceCmd
+		etagCmd *redis.SliceCmd
+	)
+	_, execErr := s.r.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		valsCmd = pipe.MGet(ctx, redisKeys...)
+		etagCmd = pipe.MGet(ctx, etagKeys...)
+		return nil
+	})
+	vals, valsErr := valsCmd.Result()
+	if valsErr != nil {
+		return nil, fmt.Errorf("redis MGET values: %w", valsErr)
 	}
-	// Batch fetch etags (best-effort; fall back to hashing on miss)
-	etVals, etErr := s.r.MGet(ctx, etagKeys...).Result()
+	etVals, etErr := etagCmd.Result()
 	if etErr != nil {
 		log.Warn("mget etags failed; falling back to hashing", "error", etErr)
 		etVals = make([]any, len(redisKeys))
+	}
+	if execErr != nil && (etErr == nil || !errors.Is(execErr, etErr)) {
+		return nil, fmt.Errorf("redis pipeline exec: %w", execErr)
 	}
 	return s.buildStoredItems(ctx, vals, etVals, resKeys), nil
 }

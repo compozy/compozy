@@ -1,0 +1,199 @@
+id: review_per_file
+version: 2.2.0
+description: Review Go code file-by-file with specialized analysis types (performance, security, monitoring,
+  architecture, testing, error_handling, doc_comment)
+
+triggers:
+  - type: signal
+    name: review-directory
+
+schemas:
+  - id: review_input
+    type: object
+    properties:
+      directory:
+        type: string
+        description: The directory to review
+      review_type:
+        type: string
+        enum:
+          - "performance"
+          - "security"
+          - "monitoring"
+          - "architecture"
+          - "testing"
+          - "error_handling"
+          - "doc_comment"
+          - "readme"
+          - "all"
+        default: "all"
+        description: "Type of review to perform: performance, security, monitoring, architecture, testing,\
+          \ error_handling, doc_comment, readme, or all"
+    required:
+      - directory
+
+config:
+  input: review_input
+
+tasks:
+  - id: list_files
+    type: basic
+    tool: cp__list_files
+    with:
+      dir: "{{ .workflow.input.directory }}"
+      exclude:
+        - "*.md"
+        - "*.yaml"
+        - "*.yml"
+        - "*.json"
+        - "*.txt"
+        - "*.toml"
+      recursive: true
+    on_success:
+      next: route_review_type
+
+  - id: route_review_type
+    type: router
+    condition: "workflow.input.review_type"
+    routes:
+      performance: "review_single"
+      security: "review_single"
+      monitoring: "review_single"
+      architecture: "review_single"
+      testing: "review_single"
+      error_handling: "review_single"
+      doc_comment: "review_doc_comment"
+      readme: "review_readme"
+      all: "review_all"
+      default: "review_all"
+
+  # README documentation review
+  - id: review_readme
+    type: basic
+    agent: readme_reviewer
+    action: review_readme
+    final: true
+    with:
+      directory: "{{ .workflow.input.directory }}"
+      num: "000"
+
+  # Doc comment review - adds doc comments to files
+  - id: review_doc_comment
+    type: collection
+    mode: parallel
+    items: "{{ .tasks.list_files.output.files }}"
+    item_var: file
+    batch: 3
+    final: true
+    task:
+      id: "doc-{{ .index }}"
+      type: basic
+      agent: doc_comment
+      action: add_docs
+      with:
+        file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+
+  # Single review type using dynamic action
+  - id: review_single
+    type: collection
+    mode: parallel
+    items: "{{ .tasks.list_files.output.files }}"
+    item_var: file
+    batch: 3
+    final: true
+    task:
+      id: "review-{{ .index }}"
+      type: basic
+      agent: file_analyzer
+      action: "{{ .workflow.input.review_type }}"
+      with:
+        file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+        num: '{{ printf "%03d" .index }}'
+
+  # All reviews (runs README review + doc comments + all code review types in parallel)
+  - id: review_all
+    type: parallel
+    strategy: wait_all
+    final: true
+    tasks:
+      # README documentation review (once per directory)
+      - id: readme_doc_review
+        type: basic
+        agent: readme_reviewer
+        action: review_readme
+        with:
+          directory: "{{ .workflow.input.directory }}"
+          num: "000"
+
+      # Doc comment additions (adds doc comments to all files)
+      - id: doc_comment_additions
+        type: collection
+        mode: parallel
+        items: "{{ .tasks.list_files.output.files }}"
+        item_var: file
+        batch: 3
+        task:
+          id: "doc-{{ .index }}"
+          type: basic
+          agent: doc_comment
+          action: add_docs
+          with:
+            file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+
+      # Code reviews (all types for each file)
+      - id: code_reviews
+        type: collection
+        mode: parallel
+        items: "{{ .tasks.list_files.output.files }}"
+        item_var: file
+        task:
+          id: "all-{{ .index }}"
+          type: parallel
+          tasks:
+            - id: perf
+              type: basic
+              agent: file_analyzer
+              action: performance
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'
+
+            - id: sec
+              type: basic
+              agent: file_analyzer
+              action: security
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'
+
+            - id: mon
+              type: basic
+              agent: file_analyzer
+              action: monitoring
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'
+
+            - id: arch
+              type: basic
+              agent: file_analyzer
+              action: architecture
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'
+
+            - id: test
+              type: basic
+              agent: file_analyzer
+              action: testing
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'
+
+            - id: err
+              type: basic
+              agent: file_analyzer
+              action: error_handling
+              with:
+                file_path: "{{ .workflow.input.directory }}/{{ .file }}"
+                num: '{{ printf "%03d" .index }}'

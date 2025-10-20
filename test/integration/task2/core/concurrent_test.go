@@ -212,7 +212,7 @@ func TestValidationConfig_ConcurrentAccess(t *testing.T) {
 }
 
 func TestInputSanitizer_ConcurrentAccess(t *testing.T) {
-	sanitizer := shared.NewInputSanitizer()
+	sanitizer := shared.NewInputSanitizer(t.Context())
 
 	t.Run("Should handle concurrent template input sanitization safely", func(t *testing.T) {
 		numGoroutines := 15
@@ -231,7 +231,7 @@ func TestInputSanitizer_ConcurrentAccess(t *testing.T) {
 		// Launch concurrent sanitizations
 		for range numGoroutines {
 			wg.Go(func() {
-				result := sanitizer.SanitizeTemplateInput(testInput)
+				result := sanitizer.SanitizeTemplateInput(t.Context(), testInput)
 				assert.NotNil(t, result)
 				atomic.AddInt64(&sanitizationCount, 1)
 			})

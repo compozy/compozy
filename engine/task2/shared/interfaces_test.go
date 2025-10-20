@@ -154,7 +154,7 @@ func TestTaskResponseHandler_Interface(t *testing.T) {
 		}
 
 		// Act
-		output, err := handler.HandleResponse(context.Background(), input)
+		output, err := handler.HandleResponse(t.Context(), input)
 
 		// Assert
 		require.NoError(t, err)
@@ -203,7 +203,7 @@ func TestParentStatusManager_Interface(t *testing.T) {
 		manager.On("UpdateParentStatus", mock.Anything, parentID, strategy).Return(nil)
 
 		// Act
-		err := manager.UpdateParentStatus(context.Background(), parentID, strategy)
+		err := manager.UpdateParentStatus(t.Context(), parentID, strategy)
 
 		// Assert
 		require.NoError(t, err)
@@ -229,7 +229,7 @@ func (m *MockCollectionExpander) ExpandItems(
 	return &ExpansionResult{}, nil
 }
 
-func (m *MockCollectionExpander) ValidateExpansion(result *ExpansionResult) error {
+func (m *MockCollectionExpander) ValidateExpansion(_ context.Context, result *ExpansionResult) error {
 	if m.validateExpansionFunc != nil {
 		return m.validateExpansionFunc(result)
 	}
@@ -265,7 +265,7 @@ func TestCollectionExpander_Interface(t *testing.T) {
 		}
 
 		// Act
-		result, err := expander.ExpandItems(context.Background(), &task.Config{}, &workflow.State{}, &workflow.Config{})
+		result, err := expander.ExpandItems(t.Context(), &task.Config{}, &workflow.State{}, &workflow.Config{})
 
 		// Assert
 		require.NoError(t, err)

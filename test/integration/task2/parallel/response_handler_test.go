@@ -1,7 +1,6 @@
 package parallel
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -140,7 +139,7 @@ func TestParallelResponseHandler_Integration(t *testing.T) {
 
 		// Act
 		response, err := handler.HandleSubtaskResponse(
-			context.Background(),
+			t.Context(),
 			parentState,
 			childState,
 			childConfig,

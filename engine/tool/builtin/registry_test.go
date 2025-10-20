@@ -13,9 +13,9 @@ import (
 
 func TestRegisterBuiltins(t *testing.T) {
 	t.Run("Should register provided builtin definitions", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
-		manager := config.NewManager(config.NewService())
+		manager := config.NewManager(t.Context(), config.NewService())
 		_, err := manager.Load(ctx, config.NewDefaultProvider())
 		require.NoError(t, err)
 		ctx = config.ContextWithManager(ctx, manager)
@@ -48,9 +48,9 @@ func TestRegisterBuiltins(t *testing.T) {
 	})
 
 	t.Run("Should skip registration when disabled", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
-		manager := config.NewManager(config.NewService())
+		manager := config.NewManager(t.Context(), config.NewService())
 		_, err := manager.Load(ctx, config.NewDefaultProvider())
 		require.NoError(t, err)
 		cfg := manager.Get()
@@ -66,9 +66,9 @@ func TestRegisterBuiltins(t *testing.T) {
 	})
 
 	t.Run("Should override enable flag via options", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
-		manager := config.NewManager(config.NewService())
+		manager := config.NewManager(t.Context(), config.NewService())
 		_, err := manager.Load(ctx, config.NewDefaultProvider())
 		require.NoError(t, err)
 		cfg := manager.Get()
@@ -96,7 +96,7 @@ func TestRegisterBuiltins(t *testing.T) {
 	})
 
 	t.Run("Should error for non cp prefix", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
 		result, err := RegisterBuiltins(ctx, func(_ context.Context, _ Tool) error { return nil }, Options{
 			Definitions: []BuiltinDefinition{{
@@ -109,7 +109,7 @@ func TestRegisterBuiltins(t *testing.T) {
 	})
 
 	t.Run("Should error on duplicate ids", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
 		definition := BuiltinDefinition{
 			ID:      "cp__dup",

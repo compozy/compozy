@@ -2459,13 +2459,13 @@ func (t *Config) GetGlobalOpts() *core.GlobalOpts {
 
 // Validate performs comprehensive validation of the task configuration.
 // Checks task type validity, cycles in parallel tasks, and type-specific requirements.
-func (t *Config) Validate() error {
+func (t *Config) Validate(ctx context.Context) error {
 	// First run basic validation
 	v := schema.NewCompositeValidator(
 		schema.NewCWDValidator(t.CWD, t.ID),
 		NewTaskTypeValidator(t),
 	)
-	if err := v.Validate(); err != nil {
+	if err := v.Validate(ctx); err != nil {
 		return err
 	}
 	if len(t.Knowledge) > 1 {
@@ -2483,16 +2483,16 @@ func (t *Config) Validate() error {
 	}
 	// Validate wait task specific fields
 	if t.Type == TaskTypeWait {
-		if err := t.validateWaitTask(); err != nil {
+		if err := t.validateWaitTask(ctx); err != nil {
 			return fmt.Errorf("invalid wait task '%s': %w", t.ID, err)
 		}
 	}
-	if err := t.validateBasicSelectorRules(); err != nil {
+	if err := t.validateBasicSelectorRules(ctx); err != nil {
 		return err
 	}
 	// Validate memory task specific fields
 	if t.Type == TaskTypeMemory {
-		if err := t.validateMemoryTask(); err != nil {
+		if err := t.validateMemoryTask(ctx); err != nil {
 			return fmt.Errorf("invalid memory task '%s': %w", t.ID, err)
 		}
 	}
@@ -2501,7 +2501,7 @@ func (t *Config) Validate() error {
 
 // validateBasicSelectorRules enforces mutual exclusivity and presence rules
 // for basic task selectors across inline and explicit ref fields.
-func (t *Config) validateBasicSelectorRules() error {
+func (t *Config) validateBasicSelectorRules(_ context.Context) error {
 	if t.Type != TaskTypeBasic {
 		return nil
 	}
@@ -2516,7 +2516,7 @@ func (t *Config) validateBasicSelectorRules() error {
 
 // validateWaitTask performs comprehensive validation for wait task configuration.
 // Ensures required fields are present and expressions are valid.
-func (t *Config) validateWaitTask() error {
+func (t *Config) validateWaitTask(ctx context.Context) error {
 	// Required field validation
 	if t.WaitFor == "" {
 		return fmt.Errorf("wait_for field is required")
@@ -2525,16 +2525,16 @@ func (t *Config) validateWaitTask() error {
 		return fmt.Errorf("condition field is required")
 	}
 	// CEL expression syntax validation
-	if err := t.validateWaitCondition(); err != nil {
+	if err := t.validateWaitCondition(ctx); err != nil {
 		return fmt.Errorf("invalid condition: %w", err)
 	}
 	// Timeout validation
-	if err := t.validateWaitTimeout(); err != nil {
+	if err := t.validateWaitTimeout(ctx); err != nil {
 		return fmt.Errorf("invalid timeout: %w", err)
 	}
 	// Processor configuration validation
 	if t.Processor != nil {
-		if err := t.validateWaitProcessor(); err != nil {
+		if err := t.validateWaitProcessor(ctx); err != nil {
 			return fmt.Errorf("invalid processor configuration: %w", err)
 		}
 	}
@@ -2542,7 +2542,7 @@ func (t *Config) validateWaitTask() error {
 }
 
 // validateWaitCondition validates the CEL expression syntax
-func (t *Config) validateWaitCondition() error {
+func (t *Config) validateWaitCondition(_ context.Context) error {
 	evaluator, err := NewCELEvaluator()
 	if err != nil {
 		return fmt.Errorf("failed to create CEL evaluator: %w", err)
@@ -2551,7 +2551,7 @@ func (t *Config) validateWaitCondition() error {
 }
 
 // validateWaitTimeout validates the timeout value if specified
-func (t *Config) validateWaitTimeout() error {
+func (t *Config) validateWaitTimeout(_ context.Context) error {
 	if t.Timeout == "" {
 		return nil // Timeout is optional
 	}
@@ -2566,7 +2566,7 @@ func (t *Config) validateWaitTimeout() error {
 }
 
 // validateWaitProcessor validates the processor configuration
-func (t *Config) validateWaitProcessor() error {
+func (t *Config) validateWaitProcessor(ctx context.Context) error {
 	if t.Processor.ID == "" {
 		return fmt.Errorf("processor ID is required")
 	}
@@ -2574,7 +2574,7 @@ func (t *Config) validateWaitProcessor() error {
 		return fmt.Errorf("processor type is required")
 	}
 	// Recursively validate the processor configuration
-	if err := t.Processor.Validate(); err != nil {
+	if err := t.Processor.Validate(ctx); err != nil {
 		return fmt.Errorf("processor validation failed: %w", err)
 	}
 	return nil
@@ -2582,24 +2582,24 @@ func (t *Config) validateWaitProcessor() error {
 
 // validateMemoryTask performs comprehensive validation for memory task configuration.
 // Validates operation type, required fields, and operation-specific constraints.
-func (t *Config) validateMemoryTask() error {
+func (t *Config) validateMemoryTask(ctx context.Context) error {
 	// Required field validation
-	if err := t.validateMemoryRequiredFields(); err != nil {
+	if err := t.validateMemoryRequiredFields(ctx); err != nil {
 		return err
 	}
 	// Validate operation type
-	if err := t.validateMemoryOperation(); err != nil {
+	if err := t.validateMemoryOperation(ctx); err != nil {
 		return err
 	}
 	// Validate performance limits
-	if err := t.validateMemoryLimits(); err != nil {
+	if err := t.validateMemoryLimits(ctx); err != nil {
 		return err
 	}
 	// Operation-specific validation
-	return t.validateMemoryOperationSpecific()
+	return t.validateMemoryOperationSpecific(ctx)
 }
 
-func (t *Config) validateMemoryRequiredFields() error {
+func (t *Config) validateMemoryRequiredFields(_ context.Context) error {
 	if t.Operation == "" {
 		return fmt.Errorf("operation field is required")
 	}
@@ -2612,7 +2612,7 @@ func (t *Config) validateMemoryRequiredFields() error {
 	return nil
 }
 
-func (t *Config) validateMemoryOperation() error {
+func (t *Config) validateMemoryOperation(_ context.Context) error {
 	switch t.Operation {
 	case MemoryOpRead, MemoryOpWrite, MemoryOpAppend, MemoryOpDelete,
 		MemoryOpFlush, MemoryOpHealth, MemoryOpClear, MemoryOpStats:
@@ -2625,7 +2625,7 @@ func (t *Config) validateMemoryOperation() error {
 	}
 }
 
-func (t *Config) validateMemoryLimits() error {
+func (t *Config) validateMemoryLimits(_ context.Context) error {
 	if t.MaxKeys < 0 {
 		return fmt.Errorf("max_keys cannot be negative")
 	}
@@ -2641,7 +2641,7 @@ func (t *Config) validateMemoryLimits() error {
 	return nil
 }
 
-func (t *Config) validateMemoryOperationSpecific() error {
+func (t *Config) validateMemoryOperationSpecific(_ context.Context) error {
 	switch t.Operation {
 	case MemoryOpWrite, MemoryOpAppend:
 		if t.Payload == nil {

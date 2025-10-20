@@ -1,7 +1,6 @@
 package helpers
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -19,8 +18,7 @@ type DatabaseHelper struct {
 
 // NewDatabaseHelper creates a new database helper using the shared container pattern.
 func NewDatabaseHelper(t *testing.T) *DatabaseHelper {
-	ctx := context.Background()
-	pool, cleanup := helpers.GetSharedPostgresDB(ctx, t)
+	pool, cleanup := helpers.GetSharedPostgresDB(t)
 	return &DatabaseHelper{
 		pool:    pool,
 		cleanup: cleanup,
@@ -40,18 +38,16 @@ func (h *DatabaseHelper) Cleanup(t *testing.T) {
 
 // TruncateTables truncates all tables for test cleanup
 func (h *DatabaseHelper) TruncateTables(t *testing.T, tables ...string) {
-	ctx := context.Background()
 	for _, table := range tables {
 		query := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", pgx.Identifier{table}.Sanitize())
-		_, err := h.pool.Exec(ctx, query)
+		_, err := h.pool.Exec(t.Context(), query)
 		require.NoError(t, err, "Failed to truncate table %s", table)
 	}
 }
 
 // BeginTx starts a new transaction for test isolation
 func (h *DatabaseHelper) BeginTx(t *testing.T) pgx.Tx {
-	ctx := context.Background()
-	tx, err := h.pool.Begin(ctx)
+	tx, err := h.pool.Begin(t.Context())
 	require.NoError(t, err, "Failed to begin transaction")
 	return tx
 }

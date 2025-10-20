@@ -1,7 +1,6 @@
 package shared
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -19,8 +18,8 @@ func TestDefaultParentStatusManager_UpdateParentStatus(t *testing.T) {
 	t.Run("Should update parent status based on all children success", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(context.Background(), mockRepo)
-		ctx := context.Background()
+		manager := NewParentStatusManager(t.Context(), mockRepo)
+		ctx := t.Context()
 		parentID := core.MustNewID()
 
 		// Parent state
@@ -54,8 +53,8 @@ func TestDefaultParentStatusManager_UpdateParentStatus(t *testing.T) {
 	t.Run("Should handle fail-fast strategy", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(context.Background(), mockRepo)
-		ctx := context.Background()
+		manager := NewParentStatusManager(t.Context(), mockRepo)
+		ctx := t.Context()
 		parentID := core.MustNewID()
 
 		parentState := &task.State{
@@ -89,8 +88,8 @@ func TestDefaultParentStatusManager_UpdateParentStatus(t *testing.T) {
 	t.Run("Should skip update when no children exist", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(context.Background(), mockRepo)
-		ctx := context.Background()
+		manager := NewParentStatusManager(t.Context(), mockRepo)
+		ctx := t.Context()
 		parentID := core.MustNewID()
 
 		parentState := &task.State{
@@ -117,8 +116,8 @@ func TestDefaultParentStatusManager_UpdateParentStatus(t *testing.T) {
 	t.Run("Should handle repository errors", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(context.Background(), mockRepo)
-		ctx := context.Background()
+		manager := NewParentStatusManager(t.Context(), mockRepo)
+		ctx := t.Context()
 		parentID := core.MustNewID()
 
 		// GetState fails
@@ -139,8 +138,8 @@ func TestDefaultParentStatusManager_GetAggregatedStatus(t *testing.T) {
 	t.Run("Should return success when no children exist", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(context.Background(), mockRepo)
-		ctx := context.Background()
+		manager := NewParentStatusManager(t.Context(), mockRepo)
+		ctx := t.Context()
 		parentID := core.MustNewID()
 
 		mockRepo.On("ListChildren", ctx, parentID).Return([]*task.State{}, nil)
@@ -157,8 +156,8 @@ func TestDefaultParentStatusManager_GetAggregatedStatus(t *testing.T) {
 	t.Run("Should aggregate status with wait-all strategy", func(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
-		manager := NewParentStatusManager(context.Background(), mockRepo)
-		ctx := context.Background()
+		manager := NewParentStatusManager(t.Context(), mockRepo)
+		ctx := t.Context()
 		parentID := core.MustNewID()
 
 		children := []*task.State{
@@ -179,7 +178,7 @@ func TestDefaultParentStatusManager_GetAggregatedStatus(t *testing.T) {
 
 func TestDefaultParentStatusManager_StrategyCalculations(t *testing.T) {
 	mockRepo := &store.MockTaskRepo{}
-	manager := NewParentStatusManager(context.Background(), mockRepo).(*DefaultParentStatusManager)
+	manager := NewParentStatusManager(t.Context(), mockRepo).(*DefaultParentStatusManager)
 
 	t.Run("Should calculate wait-all status correctly", func(t *testing.T) {
 		testCases := []struct {
@@ -300,7 +299,7 @@ func TestDefaultParentStatusManager_BatchProcessing(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
 		manager := NewParentStatusManagerWithConfig(mockRepo, 10, true) // batch size 10
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create 5 updates (less than batch size)
 		updates := []ParentUpdate{
@@ -347,7 +346,7 @@ func TestDefaultParentStatusManager_BatchProcessing(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
 		manager := NewParentStatusManagerWithConfig(mockRepo, 3, true) // batch size 3
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create 7 updates (will require 3 batches: 3, 3, 1)
 		updates := make([]ParentUpdate, 7)
@@ -384,7 +383,7 @@ func TestDefaultParentStatusManager_BatchProcessing(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
 		manager := NewParentStatusManagerWithConfig(mockRepo, 10, true)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		parentID := core.MustNewID()
 		// Create updates with duplicate parent IDs
@@ -428,7 +427,7 @@ func TestDefaultParentStatusManager_BatchProcessing(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
 		manager := NewParentStatusManagerWithConfig(mockRepo, 2, true)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create 3 updates
 		updates := make([]ParentUpdate, 3)
@@ -462,7 +461,7 @@ func TestDefaultParentStatusManager_BatchProcessing(t *testing.T) {
 		// Arrange
 		mockRepo := &store.MockTaskRepo{}
 		manager := NewParentStatusManagerWithConfig(mockRepo, 2, true)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		updates := []ParentUpdate{
 			{ParentID: core.MustNewID(), Strategy: task.StrategyWaitAll},

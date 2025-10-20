@@ -50,78 +50,16 @@ func (p *langChainProvider) NewClient(ctx context.Context, cfg *core.ProviderCon
 // package. A fresh slice with provider instances is returned on each call.
 func BuiltinProviders() []Provider {
 	return []Provider{
-		newLangChainProvider(
-			core.ProviderOpenAI,
-			ProviderCapabilities{
-				StructuredOutput:    true,
-				Streaming:           true,
-				Vision:              true,
-				ContextWindowTokens: 128000,
-			},
-			createOpenAILLM,
-		),
-		newLangChainProvider(
-			core.ProviderAnthropic,
-			ProviderCapabilities{
-				Streaming:           true,
-				ContextWindowTokens: 200000,
-			},
-			createAnthropicLLM,
-		),
-		newWrappedLangChainProvider(
-			core.ProviderGroq,
-			ProviderCapabilities{
-				Streaming:           true,
-				ContextWindowTokens: 32768,
-			},
-			createGroqLLM,
-			func(adapter *LangChainAdapter) LLMClient {
-				return &groqAdapter{LangChainAdapter: adapter}
-			},
-		),
-		newLangChainProvider(
-			core.ProviderMock,
-			ProviderCapabilities{
-				StructuredOutput:    true,
-				ContextWindowTokens: 4096,
-			},
-			createMockLLM,
-		),
-		newLangChainProvider(
-			core.ProviderOllama,
-			ProviderCapabilities{
-				Streaming:           true,
-				ContextWindowTokens: 32768,
-			},
-			createOllamaLLM,
-		),
-		newLangChainProvider(
-			core.ProviderGoogle,
-			ProviderCapabilities{
-				Streaming:           true,
-				Vision:              true,
-				ContextWindowTokens: 1000000,
-			},
-			createGoogleLLM,
-		),
-		newLangChainProvider(
-			core.ProviderDeepSeek,
-			ProviderCapabilities{
-				StructuredOutput:    true,
-				Streaming:           true,
-				ContextWindowTokens: 128000,
-			},
-			createDeepSeekLLM,
-		),
-		newLangChainProvider(
-			core.ProviderXAI,
-			ProviderCapabilities{
-				StructuredOutput:    true,
-				Streaming:           true,
-				ContextWindowTokens: 131072,
-			},
-			createXAILLM,
-		),
+		newOpenAIProvider(),
+		newAnthropicProvider(),
+		newGroqProvider(),
+		newMockProvider(),
+		newOllamaProvider(),
+		newGoogleProvider(),
+		newDeepSeekProvider(),
+		newXAIProvider(),
+		newCerebrasProvider(),
+		newOpenRouterProvider(),
 	}
 }
 
@@ -172,6 +110,109 @@ func newWrappedLangChainProvider(
 		capabilities: capabilities,
 		wrap:         wrap,
 	}
+}
+
+func newOpenAIProvider() Provider {
+	return newLangChainProvider(
+		core.ProviderOpenAI,
+		ProviderCapabilities{
+			StructuredOutput:    true,
+			Streaming:           true,
+			Vision:              true,
+			ContextWindowTokens: 128000,
+		},
+		createOpenAILLM,
+	)
+}
+
+func newAnthropicProvider() Provider {
+	return newLangChainProvider(
+		core.ProviderAnthropic,
+		ProviderCapabilities{
+			Streaming:           true,
+			ContextWindowTokens: 200000,
+		},
+		createAnthropicLLM,
+	)
+}
+
+func newGroqProvider() Provider {
+	return newWrappedLangChainProvider(
+		core.ProviderGroq,
+		ProviderCapabilities{
+			Streaming:           true,
+			ContextWindowTokens: 32768,
+		},
+		createGroqLLM,
+		func(adapter *LangChainAdapter) LLMClient {
+			return &groqAdapter{LangChainAdapter: adapter}
+		},
+	)
+}
+
+func newMockProvider() Provider {
+	return newLangChainProvider(
+		core.ProviderMock,
+		ProviderCapabilities{
+			StructuredOutput:    true,
+			ContextWindowTokens: 4096,
+		},
+		createMockLLM,
+	)
+}
+
+func newOllamaProvider() Provider {
+	return newWrappedLangChainProvider(
+		core.ProviderOllama,
+		ProviderCapabilities{
+			Streaming:           true,
+			ContextWindowTokens: 32768,
+		},
+		createOllamaLLM,
+		func(adapter *LangChainAdapter) LLMClient {
+			apiURL := "http://localhost:11434"
+			if adapter.provider.APIURL != "" {
+				apiURL = adapter.provider.APIURL
+			}
+			return newOllamaAdapter(adapter, apiURL)
+		},
+	)
+}
+
+func newGoogleProvider() Provider {
+	return newLangChainProvider(
+		core.ProviderGoogle,
+		ProviderCapabilities{
+			Streaming:           true,
+			Vision:              true,
+			ContextWindowTokens: 1000000,
+		},
+		createGoogleLLM,
+	)
+}
+
+func newDeepSeekProvider() Provider {
+	return newLangChainProvider(
+		core.ProviderDeepSeek,
+		ProviderCapabilities{
+			StructuredOutput:    true,
+			Streaming:           true,
+			ContextWindowTokens: 128000,
+		},
+		createDeepSeekLLM,
+	)
+}
+
+func newXAIProvider() Provider {
+	return newLangChainProvider(
+		core.ProviderXAI,
+		ProviderCapabilities{
+			StructuredOutput:    true,
+			Streaming:           true,
+			ContextWindowTokens: 131072,
+		},
+		createXAILLM,
+	)
 }
 
 // createOpenAILLM creates an OpenAI LLM instance.
@@ -332,6 +373,83 @@ func createXAILLM(
 	responseFormat *openai.ResponseFormat,
 ) (llms.Model, error) {
 	baseURL := "https://api.x.ai/v1"
+	if p.APIURL != "" {
+		baseURL = p.APIURL
+	}
+	opts := []openai.Option{
+		openai.WithModel(p.Model),
+		openai.WithBaseURL(baseURL),
+	}
+	if p.APIKey != "" {
+		opts = append(opts, openai.WithToken(p.APIKey))
+	}
+	if p.Organization != "" {
+		opts = append(opts, openai.WithOrganization(p.Organization))
+	}
+	if responseFormat != nil {
+		opts = append(opts, openai.WithResponseFormat(responseFormat))
+	}
+	return openai.New(opts...)
+}
+
+func newCerebrasProvider() Provider {
+	return newLangChainProvider(
+		core.ProviderCerebras,
+		ProviderCapabilities{
+			StructuredOutput:    true,
+			Streaming:           true,
+			ContextWindowTokens: 128000,
+		},
+		createCerebrasLLM,
+	)
+}
+
+// createCerebrasLLM creates a Cerebras LLM instance.
+func createCerebrasLLM(
+	_ context.Context,
+	p *core.ProviderConfig,
+	responseFormat *openai.ResponseFormat,
+) (llms.Model, error) {
+	baseURL := "https://api.cerebras.ai/v1"
+	if p.APIURL != "" {
+		baseURL = p.APIURL
+	}
+	opts := []openai.Option{
+		openai.WithModel(p.Model),
+		openai.WithBaseURL(baseURL),
+	}
+	if p.APIKey != "" {
+		opts = append(opts, openai.WithToken(p.APIKey))
+	}
+	if p.Organization != "" {
+		opts = append(opts, openai.WithOrganization(p.Organization))
+	}
+	if responseFormat != nil {
+		opts = append(opts, openai.WithResponseFormat(responseFormat))
+	}
+	return openai.New(opts...)
+}
+
+func newOpenRouterProvider() Provider {
+	return newLangChainProvider(
+		core.ProviderOpenRouter,
+		ProviderCapabilities{
+			StructuredOutput:    true,
+			Streaming:           true,
+			Vision:              true,
+			ContextWindowTokens: 128000,
+		},
+		createOpenRouterLLM,
+	)
+}
+
+// createOpenRouterLLM creates an OpenRouter LLM instance.
+func createOpenRouterLLM(
+	_ context.Context,
+	p *core.ProviderConfig,
+	responseFormat *openai.ResponseFormat,
+) (llms.Model, error) {
+	baseURL := "https://openrouter.ai/api/v1"
 	if p.APIURL != "" {
 		baseURL = p.APIURL
 	}

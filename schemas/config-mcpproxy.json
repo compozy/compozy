@@ -12,6 +12,18 @@
       "description": "Host specifies the network interface to bind the MCP proxy server to.\n\n**Default**: `\"0.0.0.0\"`",
       "type": "string"
     },
+    "idle_conn_timeout": {
+      "description": "IdleConnTimeout is the maximum amount of time an idle (keep-alive) connection will remain\nidle before closing itself.\n\n**Default**: `90s`",
+      "type": "integer"
+    },
+    "max_idle_conns": {
+      "description": "MaxIdleConns controls the maximum number of idle (keep-alive) connections across all hosts.\n\n**Default**: `128`",
+      "type": "integer"
+    },
+    "max_idle_conns_per_host": {
+      "description": "MaxIdleConnsPerHost controls the maximum idle (keep-alive) connections to keep per-host.\n\n**Default**: `128`",
+      "type": "integer"
+    },
     "mode": {
       "description": "Mode controls how the MCP proxy runs within Compozy.\n\nValues:\n  - \"standalone\": embed MCP proxy inside the server\n  - \"\": external MCP proxy (default)\n\nWhen embedded, the server manages lifecycle and health of the proxy\nand will set LLM.ProxyURL if empty.",
       "type": "string"

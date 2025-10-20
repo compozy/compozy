@@ -18,7 +18,7 @@ import (
 
 func TestNewHealthService(t *testing.T) {
 	t.Run("Should create health service", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		manager := &Manager{}
 		service := NewHealthService(ctx, manager)
 		assert.NotNil(t, service)
@@ -76,7 +76,7 @@ func TestSystemHealth(t *testing.T) {
 
 func TestHealthService_GetOverallHealth(t *testing.T) {
 	t.Run("Should return system health", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		manager := &Manager{}
 		service := NewHealthService(ctx, manager)
 		health := service.GetOverallHealth(ctx)
@@ -88,7 +88,7 @@ func TestHealthService_GetOverallHealth(t *testing.T) {
 
 func TestHealthService_ConcurrentAccess(t *testing.T) {
 	t.Run("Should handle concurrent GetOverallHealth calls", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		manager := &Manager{}
 		service := NewHealthService(ctx, manager)
 
@@ -116,7 +116,7 @@ func TestHealthService_ConcurrentAccess(t *testing.T) {
 	})
 
 	t.Run("Should handle concurrent health checks with Start/Stop", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		manager := &Manager{}
 		service := NewHealthService(ctx, manager)
 
@@ -143,7 +143,7 @@ func TestHealthService_ConcurrentAccess(t *testing.T) {
 
 func TestHealthService_ErrorScenarios(t *testing.T) {
 	t.Run("Should handle manager with nil components gracefully", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		manager := &Manager{
 			baseRedisClient: nil,
 			baseLockManager: nil,
@@ -157,7 +157,7 @@ func TestHealthService_ErrorScenarios(t *testing.T) {
 	})
 
 	t.Run("Should handle context cancellation", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		manager := &Manager{}
 		service := NewHealthService(ctx, manager)
 
@@ -209,7 +209,7 @@ func (m *MockLockManager) Acquire(ctx context.Context, key string, ttl time.Dura
 
 func TestHealthService_performOperationalChecks(t *testing.T) {
 	t.Run("Should perform comprehensive health checks with Redis and Lock", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		// Setup miniredis
 		s := miniredis.RunT(t)
 		client := redis.NewClient(&redis.Options{Addr: s.Addr()})
@@ -234,7 +234,7 @@ func TestHealthService_performOperationalChecks(t *testing.T) {
 		lockMock.AssertExpectations(t)
 	})
 	t.Run("Should fail when Redis connectivity fails", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		// Create a manager with no Redis client to simulate connection failure
 		manager := &Manager{
 			baseRedisClient: nil,
@@ -246,7 +246,7 @@ func TestHealthService_performOperationalChecks(t *testing.T) {
 		assert.True(t, healthy)
 	})
 	t.Run("Should fail when lock acquisition fails", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		// Setup miniredis
 		s := miniredis.RunT(t)
 		client := redis.NewClient(&redis.Options{Addr: s.Addr()})
@@ -266,7 +266,7 @@ func TestHealthService_performOperationalChecks(t *testing.T) {
 		lockManager.AssertExpectations(t)
 	})
 	t.Run("Should pass when only Redis is available (no lock manager)", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		// Setup miniredis
 		s := miniredis.RunT(t)
 		client := redis.NewClient(&redis.Options{Addr: s.Addr()})
@@ -284,7 +284,7 @@ func TestHealthService_performOperationalChecks(t *testing.T) {
 
 func TestHealthService_checkInstanceHealth(t *testing.T) {
 	t.Run("Should check instance health with operational checks", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		// Setup miniredis
 		s := miniredis.RunT(t)
 		client := redis.NewClient(&redis.Options{Addr: s.Addr()})
@@ -306,7 +306,7 @@ func TestHealthService_checkInstanceHealth(t *testing.T) {
 
 func TestHealthService_Start_Stop(t *testing.T) {
 	t.Run("Should start and stop health service", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		manager := &Manager{}
 		service := NewHealthService(ctx, manager)
 		// Start the service

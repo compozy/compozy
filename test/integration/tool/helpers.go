@@ -35,11 +35,11 @@ type TestEnvironment struct {
 func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 	t.Helper()
 	// Use a cancellable context with timeout to prevent hanging tests.
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTestTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), defaultTestTimeout)
 	// Ensure cancel is called even on test panic or early return.
 	t.Cleanup(cancel)
 	// Use shared container for better performance
-	pool, dbCleanup := helpers.GetSharedPostgresDB(ctx, t)
+	pool, dbCleanup := helpers.GetSharedPostgresDB(t)
 	// Ensure tables exist (shared container migrations)
 	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
 	env := &TestEnvironment{
@@ -173,12 +173,13 @@ func AssertDeterministicOrder(t *testing.T, tools []tool.Config) {
 
 // ResolveToolsWithHierarchy resolves tools using the hierarchical resolver
 func ResolveToolsWithHierarchy(
+	ctx context.Context,
 	projectConfig *project.Config,
 	workflowConfig *workflow.Config,
 	agentConfig *agent.Config,
 ) ([]tool.Config, error) {
 	r := resolver.NewHierarchicalResolver()
-	return r.ResolveTools(projectConfig, workflowConfig, agentConfig)
+	return r.ResolveTools(ctx, projectConfig, workflowConfig, agentConfig)
 }
 
 // CreateLLMServiceWithResolvedTools creates an LLM service with resolved tools

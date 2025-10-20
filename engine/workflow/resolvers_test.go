@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,7 +18,7 @@ import (
 
 func TestResolveAgent(t *testing.T) {
 	t.Run("Should resolve selector when stored value is a map", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		agentMap := map[string]any{
 			"resource": "agent",
@@ -41,11 +40,33 @@ func TestResolveAgent(t *testing.T) {
 		assert.Equal(t, "analyzer", resolved.ID)
 		assert.Equal(t, "agent", resolved.Resource)
 	})
+
+	t.Run("Should decode agent with string model reference from store", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+		store := resources.NewMemoryResourceStore()
+		agentMap := map[string]any{
+			"resource":     "agent",
+			"id":           "doc_comment",
+			"model":        "groq:openai/gpt-oss-120b",
+			"instructions": "Add documentation",
+		}
+		key := resources.ResourceKey{Project: "code-reviewer", Type: resources.ResourceAgent, ID: "doc_comment"}
+		_, err := store.Put(ctx, key, agentMap)
+		require.NoError(t, err)
+		proj := &project.Config{Name: "code-reviewer"}
+		selector := &agent.Config{ID: "doc_comment"}
+		resolved, err := resolveAgent(ctx, proj, store, selector)
+		require.NoError(t, err)
+		require.NotNil(t, resolved)
+		assert.Equal(t, "doc_comment", resolved.ID)
+		assert.True(t, resolved.Model.HasRef(), "model should be a reference")
+		assert.Equal(t, "groq:openai/gpt-oss-120b", resolved.Model.Ref)
+	})
 }
 
 func TestResolveTool(t *testing.T) {
 	t.Run("Should resolve selector when stored value is a map", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		toolMap := map[string]any{
 			"resource":    "tool",
@@ -66,7 +87,7 @@ func TestResolveTool(t *testing.T) {
 	})
 
 	t.Run("Should surface type mismatch when stored value is incompatible", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		key := resources.ResourceKey{Project: "code-reviewer", Type: resources.ResourceTool, ID: "broken"}
 		_, err := store.Put(ctx, key, 123)
@@ -82,7 +103,7 @@ func TestResolveTool(t *testing.T) {
 
 func TestResolveMCPs(t *testing.T) {
 	t.Run("Should populate MCP defaults when resolving from map", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		mcpMap := map[string]any{
 			"id": "fs",
@@ -107,7 +128,7 @@ func TestResolveMCPs(t *testing.T) {
 	})
 
 	t.Run("Should surface type mismatch when MCP entry incompatible", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		key := resources.ResourceKey{Project: "code-reviewer", Type: resources.ResourceMCP, ID: "oops"}
 		_, err := store.Put(ctx, key, 123)
@@ -128,7 +149,7 @@ func TestResolveMCPs(t *testing.T) {
 
 func TestApplyAgentModelSelector(t *testing.T) {
 	t.Run("Should resolve provider config when stored value is a map", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		modelMap := map[string]any{
 			"provider": "openai",
@@ -145,7 +166,7 @@ func TestApplyAgentModelSelector(t *testing.T) {
 	})
 
 	t.Run("Should return type mismatch on incompatible stored provider config", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		store := resources.NewMemoryResourceStore()
 		key := resources.ResourceKey{Project: "code-reviewer", Type: resources.ResourceModel, ID: "broken"}
 		_, err := store.Put(ctx, key, 123)
@@ -158,8 +179,46 @@ func TestApplyAgentModelSelector(t *testing.T) {
 	})
 }
 
+func TestModelConfigFromStoreNormalizesAllShapes(t *testing.T) {
+	t.Run("Should normalize pointer inputs", func(t *testing.T) {
+		original := &core.ProviderConfig{
+			Provider:     core.ProviderName(" openai "),
+			Model:        " gpt-4o ",
+			APIKey:       " sk-123 ",
+			APIURL:       " https://api.openai.com/v1 ",
+			Organization: " org-123 ",
+		}
+		got, err := modelConfigFromStore(original)
+		require.NoError(t, err)
+		require.Same(t, original, got)
+		assert.Equal(t, core.ProviderOpenAI, got.Provider)
+		assert.Equal(t, "gpt-4o", got.Model)
+		assert.Equal(t, "sk-123", got.APIKey)
+		assert.Equal(t, "https://api.openai.com/v1", got.APIURL)
+		assert.Equal(t, "org-123", got.Organization)
+	})
+
+	t.Run("Should normalize value inputs", func(t *testing.T) {
+		value := core.ProviderConfig{
+			Provider:     core.ProviderName(" openrouter "),
+			Model:        " claude-3 ",
+			APIKey:       " key ",
+			APIURL:       " https://proxy ",
+			Organization: " team ",
+		}
+		got, err := modelConfigFromStore(value)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, core.ProviderName("openrouter"), got.Provider)
+		assert.Equal(t, "claude-3", got.Model)
+		assert.Equal(t, "key", got.APIKey)
+		assert.Equal(t, "https://proxy", got.APIURL)
+		assert.Equal(t, "team", got.Organization)
+	})
+}
+
 func TestFetchSchemaStoresMap(t *testing.T) {
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	store := resources.NewMemoryResourceStore()
 	schemaMap := map[string]any{
 		"id":   "list_files_input",

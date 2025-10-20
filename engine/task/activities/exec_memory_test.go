@@ -32,14 +32,14 @@ func TestExecuteMemory_Factory(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 		envMerger := task2core.NewEnvMerger()
-		factory, err := task2.NewFactory(&task2.FactoryConfig{
+		factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 			TemplateEngine: templateEngine,
 			EnvMerger:      envMerger,
 		})
 		require.NoError(t, err)
 
 		// Act
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeMemory)
+		normalizer, err := factory.CreateNormalizer(t.Context(), task.TaskTypeMemory)
 
 		// Assert
 		assert.NoError(t, err)
@@ -50,14 +50,14 @@ func TestExecuteMemory_Factory(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 		envMerger := task2core.NewEnvMerger()
-		factory, err := task2.NewFactory(&task2.FactoryConfig{
+		factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 			TemplateEngine: templateEngine,
 			EnvMerger:      envMerger,
 		})
 		require.NoError(t, err)
 
 		// Act
-		handler, err := factory.CreateResponseHandler(context.Background(), task.TaskTypeMemory)
+		handler, err := factory.CreateResponseHandler(t.Context(), task.TaskTypeMemory)
 
 		// Assert
 		assert.NoError(t, err)
@@ -69,7 +69,7 @@ func TestExecuteMemory_Factory(t *testing.T) {
 func TestExecuteMemory_BasicOperations(t *testing.T) {
 	t.Run("Should execute memory write operation", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow"
 		input := &ExecuteMemoryInput{
@@ -109,7 +109,7 @@ func TestExecuteMemory_BasicOperations(t *testing.T) {
 
 	t.Run("Should execute memory read operation", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow-read"
 		workflowExecID := workflowExecIDs[workflowID]
@@ -239,7 +239,7 @@ func TestExecuteMemory_AllOperations(t *testing.T) {
 			}
 
 			// Act
-			response, err := activity.Run(context.Background(), input)
+			response, err := activity.Run(t.Context(), input)
 
 			// Assert
 			assert.NoError(t, err)
@@ -252,7 +252,7 @@ func TestExecuteMemory_AllOperations(t *testing.T) {
 func TestExecuteMemory_StatefulOperations(t *testing.T) {
 	t.Run("Should execute append operation and verify data was added", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow-append"
 		workflowExecID := workflowExecIDs[workflowID]
@@ -324,7 +324,7 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 
 	t.Run("Should execute delete operation and remove data", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow-delete"
 		workflowExecID := workflowExecIDs[workflowID]
@@ -395,7 +395,7 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 
 	t.Run("Should execute clear operation and remove all data", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow-clear"
 		workflowExecID := workflowExecIDs[workflowID]
@@ -470,7 +470,7 @@ func TestExecuteMemory_StatefulOperations(t *testing.T) {
 
 	t.Run("Should execute stats operation and return meaningful statistics", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow-stats"
 		workflowExecID := workflowExecIDs[workflowID]
@@ -552,7 +552,7 @@ func TestExecuteMemory_ErrorHandling(t *testing.T) {
 		}
 
 		// Act
-		_, err := activity.Run(context.Background(), input)
+		_, err := activity.Run(t.Context(), input)
 
 		// Assert
 		require.Error(t, err)
@@ -582,7 +582,7 @@ func TestExecuteMemory_ErrorHandling(t *testing.T) {
 		}
 
 		// Act
-		_, err := activity.Run(context.Background(), input)
+		_, err := activity.Run(t.Context(), input)
 
 		// Assert
 		require.Error(t, err)
@@ -612,7 +612,7 @@ func TestExecuteMemory_ErrorHandling(t *testing.T) {
 		}
 
 		// Act
-		_, err := activity.Run(context.Background(), input)
+		_, err := activity.Run(t.Context(), input)
 
 		// Assert
 		require.Error(t, err)
@@ -632,7 +632,7 @@ func TestExecuteMemory_ErrorHandling(t *testing.T) {
 		}
 
 		// Act
-		_, err := activity.Run(context.Background(), input)
+		_, err := activity.Run(t.Context(), input)
 
 		// Assert
 		require.Error(t, err)
@@ -721,7 +721,7 @@ func setupTestRedis(t *testing.T) *redis.Client {
 	t.Cleanup(func() { _ = redisClient.Close() })
 
 	// Test Redis connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	err = redisClient.Ping(ctx).Err()
 	require.NoError(t, err)
@@ -763,7 +763,7 @@ func setupTestConfigRegistry(t *testing.T) *autoload.ConfigRegistry {
 		},
 	}
 
-	err := testMemoryConfig.Validate()
+	err := testMemoryConfig.Validate(t.Context())
 	require.NoError(t, err)
 
 	err = configRegistry.Register(testMemoryConfig, "test")
@@ -805,7 +805,7 @@ func setupTask2Factory(t *testing.T, workflowRepo workflow.Repository, taskRepo 
 	templateEngine := tplengine.NewEngine(tplengine.FormatText)
 	envMerger := task2core.NewEnvMerger()
 
-	task2Factory, err := task2.NewFactory(&task2.FactoryConfig{
+	task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 		TemplateEngine: templateEngine,
 		EnvMerger:      envMerger,
 		WorkflowRepo:   workflowRepo,
@@ -860,7 +860,7 @@ func setupWorkflowStates(
 // createTestMemoryActivity creates a test ExecuteMemory activity with all required dependencies
 func createTestMemoryActivity(t *testing.T) (*ExecuteMemory, map[string]core.ID) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Setup Redis
 	redisClient := setupTestRedis(t)

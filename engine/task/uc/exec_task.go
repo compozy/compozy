@@ -3,7 +3,6 @@ package uc
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/llm"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -43,6 +43,7 @@ type ExecuteTask struct {
 	templateEngine  *tplengine.TemplateEngine
 	toolResolver    resolver.ToolResolver
 	toolEnvironment toolenv.Environment
+	providerMetrics providermetrics.Recorder
 }
 
 // NewExecuteTask creates a new ExecuteTask configured with the provided runtime, workflow
@@ -54,8 +55,12 @@ func NewExecuteTask(
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	toolResolver resolver.ToolResolver,
+	providerMetrics providermetrics.Recorder,
 	toolEnvironment toolenv.Environment,
 ) *ExecuteTask {
+	if providerMetrics == nil {
+		providerMetrics = providermetrics.Nop()
+	}
 	return &ExecuteTask{
 		runtime:        runtime,
 		workflowRepo:   workflowRepo,
@@ -68,6 +73,7 @@ func NewExecuteTask(
 			return resolver.NewHierarchicalResolver()
 		}(),
 		toolEnvironment: toolEnvironment,
+		providerMetrics: providerMetrics,
 	}
 }
 
@@ -156,7 +162,7 @@ func (uc *ExecuteTask) buildNormalizationContext(
 		workflowConfig = input.WorkflowConfig
 		taskConfig = input.TaskConfig
 	}
-	normCtx := contextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	normCtx := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
 
 	// Merge env following project standards (workflow -> task)
 	// For agent cases, the agent-level env is merged by AgentNormalizer already
@@ -165,12 +171,12 @@ func (uc *ExecuteTask) buildNormalizationContext(
 	if input != nil && input.ProjectConfig != nil {
 		projectEnv := input.ProjectConfig.GetEnv()
 		if len(projectEnv) > 0 {
-			mergedCopy := core.EnvMap{}
-			maps.Copy(mergedCopy, projectEnv)
+			var mergedEnv core.EnvMap
 			if merged != nil {
-				maps.Copy(mergedCopy, *merged)
+				mergedEnv = core.CopyMaps(projectEnv, *merged)
+			} else {
+				mergedEnv = core.CloneMap(projectEnv)
 			}
-			mergedEnv := mergedCopy
 			merged = &mergedEnv
 			if input.TaskConfig != nil {
 				input.TaskConfig.Env = merged
@@ -306,7 +312,7 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	}
 
 	// Build full context with tasks data
-	fullCtx := contextBuilder.BuildContext(state, input.WorkflowConfig, input.TaskConfig)
+	fullCtx := contextBuilder.BuildContext(ctx, state, input.WorkflowConfig, input.TaskConfig)
 	normCtx.Variables = fullCtx.Variables
 
 	// Ensure task's current input (containing collection variables) is added to variables
@@ -593,7 +599,7 @@ func (uc *ExecuteTask) createLLMService(
 			"has_workflow_context", input.WorkflowState != nil)
 	}
 	// Resolve tools using hierarchical inheritance
-	resolvedTools, err := uc.toolResolver.ResolveTools(input.ProjectConfig, input.WorkflowConfig, agentConfig)
+	resolvedTools, err := uc.toolResolver.ResolveTools(ctx, input.ProjectConfig, input.WorkflowConfig, agentConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve tools: %w", err)
 	}
@@ -617,6 +623,7 @@ func (uc *ExecuteTask) createLLMService(
 			llmOpts = append(llmOpts, llm.WithProjectRoot(cwd.PathStr()))
 		}
 	}
+	llmOpts = append(llmOpts, llm.WithProviderMetrics(uc.providerMetrics))
 
 	// Build MCP allowlist from agent/workflow declarations (IDs)
 	if ids := uc.allowedMCPIDs(agentConfig, input); len(ids) > 0 {

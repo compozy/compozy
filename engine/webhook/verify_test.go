@@ -1,7 +1,6 @@
 package webhook
 
 import (
-	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -18,7 +17,7 @@ import (
 func TestNoneVerifier_ShouldAcceptAll(t *testing.T) {
 	v, err := NewVerifier(VerifyConfig{Strategy: "none"})
 	require.NoError(t, err)
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 	err = v.Verify(req.Context(), req, []byte("body"))
 	require.NoError(t, err)
 }
@@ -32,7 +31,7 @@ func TestHMACVerifier_ShouldValidateSignature(t *testing.T) {
 		sig := hex.EncodeToString(mac.Sum(nil))
 		v, err := NewVerifier(VerifyConfig{Strategy: "hmac", Secret: secret, Header: "X-Sig"})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("X-Sig", sig)
 		err = v.Verify(req.Context(), req, body)
 		require.NoError(t, err)
@@ -40,7 +39,7 @@ func TestHMACVerifier_ShouldValidateSignature(t *testing.T) {
 	t.Run("Should fail on missing header", func(t *testing.T) {
 		v, err := NewVerifier(VerifyConfig{Strategy: "hmac", Secret: "s", Header: "X-Sig"})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		err = v.Verify(req.Context(), req, []byte("abc"))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "missing signature header")
@@ -48,7 +47,7 @@ func TestHMACVerifier_ShouldValidateSignature(t *testing.T) {
 	t.Run("Should fail on invalid hex", func(t *testing.T) {
 		v, err := NewVerifier(VerifyConfig{Strategy: "hmac", Secret: "s", Header: "X-Sig"})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("X-Sig", "not-hex")
 		err = v.Verify(req.Context(), req, []byte("abc"))
 		require.Error(t, err)
@@ -61,7 +60,7 @@ func TestHMACVerifier_ShouldValidateSignature(t *testing.T) {
 		sig := hex.EncodeToString(mac.Sum(nil))
 		v, err := NewVerifier(VerifyConfig{Strategy: "hmac", Secret: "topsecret", Header: "X-Sig"})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("X-Sig", sig)
 		err = v.Verify(req.Context(), req, body)
 		require.Error(t, err)
@@ -75,7 +74,7 @@ func TestHMACVerifier_ShouldValidateSignature(t *testing.T) {
 		mac := hmac.New(sha256.New, []byte("abc"))
 		_, _ = mac.Write([]byte("x"))
 		sig := hex.EncodeToString(mac.Sum(nil))
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("X-Sig", sig)
 		err = v.Verify(req.Context(), req, []byte("x"))
 		require.NoError(t, err)
@@ -95,7 +94,7 @@ func TestStripeVerifier_ShouldValidateHeaderAndTimestamp(t *testing.T) {
 		header := "t=" + strconv.FormatInt(ts, 10) + ", v1=" + v1
 		v, err := NewVerifier(VerifyConfig{Strategy: "stripe", Secret: secret})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("Stripe-Signature", header)
 		err = v.Verify(req.Context(), req, body)
 		require.NoError(t, err)
@@ -112,7 +111,7 @@ func TestStripeVerifier_ShouldValidateHeaderAndTimestamp(t *testing.T) {
 		header := "t=" + strconv.FormatInt(ts, 10) + ", v1=" + v1
 		v, err := NewVerifier(VerifyConfig{Strategy: "stripe", Secret: secret})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("Stripe-Signature", header)
 		err = v.Verify(req.Context(), req, body)
 		require.Error(t, err)
@@ -121,7 +120,7 @@ func TestStripeVerifier_ShouldValidateHeaderAndTimestamp(t *testing.T) {
 	t.Run("Should fail on missing parts", func(t *testing.T) {
 		v, err := NewVerifier(VerifyConfig{Strategy: "stripe", Secret: "s"})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("Stripe-Signature", "t=123")
 		err = v.Verify(req.Context(), req, []byte("x"))
 		require.Error(t, err)
@@ -140,7 +139,7 @@ func TestStripeVerifier_ShouldValidateHeaderAndTimestamp(t *testing.T) {
 		header := "t=" + strconv.FormatInt(ts, 10) + ", v1=" + bad + ", v1=" + good
 		v, err := NewVerifier(VerifyConfig{Strategy: "stripe", Secret: secret})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("Stripe-Signature", header)
 		err = v.Verify(req.Context(), req, body)
 		require.NoError(t, err)
@@ -153,7 +152,7 @@ func TestStripeVerifier_ShouldValidateHeaderAndTimestamp(t *testing.T) {
 		header := "t=" + strconv.FormatInt(ts, 10) + ", v1=" + wrong
 		v, err := NewVerifier(VerifyConfig{Strategy: "stripe", Secret: secret})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("Stripe-Signature", header)
 		err = v.Verify(req.Context(), req, body)
 		require.Error(t, err)
@@ -170,7 +169,7 @@ func TestGitHubVerifier_ShouldValidateHeader(t *testing.T) {
 		sig := hex.EncodeToString(mac.Sum(nil))
 		v, err := NewVerifier(VerifyConfig{Strategy: "github", Secret: secret})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("X-Hub-Signature-256", "sha256="+sig)
 		err = v.Verify(req.Context(), req, body)
 		require.NoError(t, err)
@@ -178,7 +177,7 @@ func TestGitHubVerifier_ShouldValidateHeader(t *testing.T) {
 	t.Run("Should fail on malformed header", func(t *testing.T) {
 		v, err := NewVerifier(VerifyConfig{Strategy: "github", Secret: "s"})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("X-Hub-Signature-256", "badprefix=")
 		err = v.Verify(req.Context(), req, []byte("x"))
 		require.Error(t, err)
@@ -187,7 +186,7 @@ func TestGitHubVerifier_ShouldValidateHeader(t *testing.T) {
 	t.Run("Should fail on empty signature value", func(t *testing.T) {
 		v, err := NewVerifier(VerifyConfig{Strategy: "github", Secret: "s"})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("X-Hub-Signature-256", "sha256=")
 		err = v.Verify(req.Context(), req, []byte("x"))
 		require.Error(t, err)
@@ -196,7 +195,7 @@ func TestGitHubVerifier_ShouldValidateHeader(t *testing.T) {
 	t.Run("Should fail on invalid hex", func(t *testing.T) {
 		v, err := NewVerifier(VerifyConfig{Strategy: "github", Secret: "s"})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("X-Hub-Signature-256", "sha256=nothex")
 		err = v.Verify(req.Context(), req, []byte("x"))
 		require.Error(t, err)
@@ -210,7 +209,7 @@ func TestGitHubVerifier_ShouldValidateHeader(t *testing.T) {
 		sig := hex.EncodeToString(mac.Sum(nil))
 		v, err := NewVerifier(VerifyConfig{Strategy: "github", Secret: secret})
 		require.NoError(t, err)
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/", http.NoBody)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", http.NoBody)
 		req.Header.Set("X-Hub-Signature-256", "sha256="+sig)
 		err = v.Verify(req.Context(), req, body)
 		require.Error(t, err)

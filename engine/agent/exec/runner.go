@@ -171,7 +171,7 @@ func (r *Runner) Prepare(ctx context.Context, req ExecuteRequest) (*PreparedExec
 		return nil, err
 	}
 	taskCfg := buildTaskConfig(req.AgentID, agentConfig, req, timeout)
-	executor, err := tkrouter.ResolveDirectExecutor(r.state, r.repo)
+	executor, err := tkrouter.ResolveDirectExecutor(ctx, r.state, r.repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize executor: %w", err)
 	}

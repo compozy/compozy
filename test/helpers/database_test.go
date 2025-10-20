@@ -1,7 +1,6 @@
 package helpers
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,10 +10,10 @@ import (
 // TestTransactionIsolation demonstrates the new transaction-based test isolation
 func TestTransactionIsolation(t *testing.T) {
 	t.Run("Should rollback inserted data via transaction cleanup", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Start a test transaction
-		tx, cleanup := GetSharedPostgresTx(ctx, t)
+		tx, cleanup := GetSharedPostgresTx(t)
 		t.Cleanup(cleanup)
 
 		// Insert a test record (only visible within this transaction)

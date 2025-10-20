@@ -1,7 +1,6 @@
 package mcpproxy
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -42,7 +41,7 @@ func TestNewStorage(t *testing.T) {
 			},
 		}
 
-		storage, err := NewStorage(context.Background(), config)
+		storage, err := NewStorage(t.Context(), config)
 		require.NoError(t, err)
 		assert.IsType(t, &RedisStorage{}, storage)
 		defer storage.Close()
@@ -53,14 +52,14 @@ func TestNewStorage(t *testing.T) {
 			Type: StorageTypeMemory,
 		}
 
-		storage, err := NewStorage(context.Background(), config)
+		storage, err := NewStorage(t.Context(), config)
 		require.NoError(t, err)
 		assert.IsType(t, &MemoryStorage{}, storage)
 		defer storage.Close()
 	})
 
 	t.Run("Should reject nil config with connection error", func(t *testing.T) {
-		storage, err := NewStorage(context.Background(), nil)
+		storage, err := NewStorage(t.Context(), nil)
 		assert.ErrorContains(t, err, "failed to connect to Redis")
 		assert.Nil(t, storage)
 	})
@@ -70,7 +69,7 @@ func TestNewStorage(t *testing.T) {
 			Type: StorageType("unsupported"),
 		}
 
-		storage, err := NewStorage(context.Background(), config)
+		storage, err := NewStorage(t.Context(), config)
 		assert.ErrorContains(t, err, "unsupported storage type")
 		assert.Nil(t, storage)
 	})
@@ -78,7 +77,7 @@ func TestNewStorage(t *testing.T) {
 
 func TestMemoryStorage_SaveMCP(t *testing.T) {
 	storage := NewMemoryStorage()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should save valid MCP definition successfully", func(t *testing.T) {
 		def := createTestDefinition("test-server")
@@ -105,7 +104,7 @@ func TestMemoryStorage_SaveMCP(t *testing.T) {
 
 func TestMemoryStorage_LoadMCP(t *testing.T) {
 	storage := NewMemoryStorage()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should load existing definition with all fields intact", func(t *testing.T) {
 		original := createTestDefinition("test-server")
@@ -137,7 +136,7 @@ func TestMemoryStorage_LoadMCP(t *testing.T) {
 
 func TestMemoryStorage_DeleteMCP(t *testing.T) {
 	storage := NewMemoryStorage()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should delete existing definition and associated status", func(t *testing.T) {
 		def := createTestDefinition("test-server")
@@ -173,7 +172,7 @@ func TestMemoryStorage_DeleteMCP(t *testing.T) {
 
 func TestMemoryStorage_ListMCPs(t *testing.T) {
 	storage := NewMemoryStorage()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should return empty list when no definitions exist", func(t *testing.T) {
 		definitions, err := storage.ListMCPs(ctx)
@@ -212,7 +211,7 @@ func TestMemoryStorage_ListMCPs(t *testing.T) {
 
 func TestMemoryStorage_SaveStatus(t *testing.T) {
 	storage := NewMemoryStorage()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should save valid status successfully", func(t *testing.T) {
 		status := NewMCPStatus("test-server")
@@ -237,7 +236,7 @@ func TestMemoryStorage_SaveStatus(t *testing.T) {
 
 func TestMemoryStorage_LoadStatus(t *testing.T) {
 	storage := NewMemoryStorage()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should load existing status with all fields intact", func(t *testing.T) {
 		original := NewMCPStatus("test-server")
@@ -282,7 +281,7 @@ func TestMemoryStorage_Close(t *testing.T) {
 
 func TestMemoryStorage_Integration(t *testing.T) {
 	storage := NewMemoryStorage()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should handle complete CRUD workflow correctly", func(t *testing.T) {
 		// Create definition

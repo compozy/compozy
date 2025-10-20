@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
@@ -439,7 +440,7 @@ func CreateTestActivities(
 	var memoryManager *memory.Manager
 
 	ctx := t.Context()
-	mgr := config.NewManager(config.NewService())
+	mgr := config.NewManager(ctx, config.NewService())
 	_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
 	require.NoError(t, err)
 	log := logger.NewForTests()
@@ -459,6 +460,7 @@ func CreateTestActivities(
 		workflowRepo,
 		taskRepo,
 		&NoopUsageMetrics{},
+		providermetrics.Nop(),
 		runtime,
 		configStore,
 		nil, // signalDispatcher - not needed for test
@@ -596,7 +598,7 @@ func ExecuteWorkflowAndGetState(
 	projectName string,
 	agentConfig *agent.Config,
 ) *workflow.State {
-	ctx := context.Background()
+	ctx := t.Context()
 	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 	defer cleanup()
 

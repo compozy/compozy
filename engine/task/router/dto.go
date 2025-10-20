@@ -113,7 +113,7 @@ func ConvertTaskConfigToResponse(cfg *task.Config) (TaskResponse, error) {
 	if cfg == nil {
 		return TaskResponse{}, fmt.Errorf("task config is nil")
 	}
-	clone, err := core.DeepCopy[*task.Config](cfg)
+	clone, err := core.DeepCopy(cfg)
 	if err != nil {
 		return TaskResponse{}, fmt.Errorf("deep copy task config: %w", err)
 	}

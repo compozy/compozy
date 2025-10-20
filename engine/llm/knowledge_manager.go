@@ -35,8 +35,9 @@ type knowledgeManager struct {
 	runtimeWorkflowKBs    map[string]*knowledge.BaseConfig
 	projectID             string
 
-	cacheMu          sync.RWMutex
+	embedderMu       sync.RWMutex
 	embedderCache    map[string]*embedder.Adapter
+	vectorStoreMu    sync.RWMutex
 	vectorStoreCache map[string]*cachedVectorStore
 }
 
@@ -72,7 +73,7 @@ func (m *knowledgeManager) resolveKnowledge(
 	if query == "" {
 		return nil, nil
 	}
-	binding, err := m.resolveKnowledgeBinding(agentConfig)
+	binding, err := m.resolveKnowledgeBinding(ctx, agentConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +91,10 @@ func (m *knowledgeManager) resolveKnowledge(
 	return []orchestratorpkg.KnowledgeEntry{*entry}, nil
 }
 
-func (m *knowledgeManager) resolveKnowledgeBinding(agentConfig *agent.Config) (*knowledge.ResolvedBinding, error) {
+func (m *knowledgeManager) resolveKnowledgeBinding(
+	ctx context.Context,
+	agentConfig *agent.Config,
+) (*knowledge.ResolvedBinding, error) {
 	if m == nil || m.resolver == nil {
 		return nil, nil
 	}
@@ -101,7 +105,7 @@ func (m *knowledgeManager) resolveKnowledgeBinding(agentConfig *agent.Config) (*
 		WorkflowBinding:        m.workflowBinding,
 		InlineBinding:          inline,
 	}
-	return m.resolver.Resolve(&input)
+	return m.resolver.Resolve(ctx, &input)
 }
 
 func (m *knowledgeManager) buildInlineBinding(agentConfig *agent.Config) []core.KnowledgeBinding {
@@ -193,15 +197,16 @@ func (m *knowledgeManager) runRetrievalStages(
 	minResults := binding.Retrieval.MinResultsValue()
 	for i := range stages {
 		stage := stages[i]
-		knowledge.RecordRetrievalAttempt(ctx, binding.ID, stage.name)
-		contexts, err := svc.Retrieve(ctx, binding, stage.query)
+		knowledge.RecordRetrievalAttempt(ctx, binding.KnowledgeBase.ID, stage.name)
+		stageCtx := retriever.ContextWithStrategy(ctx, strategyForStage(stage.name))
+		contexts, err := svc.Retrieve(stageCtx, binding, stage.query)
 		if err != nil {
 			return nil, "", err
 		}
 		if len(contexts) >= minResults {
 			return contexts, stage.name, nil
 		}
-		knowledge.RecordRetrievalEmpty(ctx, binding.ID, stage.name)
+		knowledge.RecordRetrievalEmpty(ctx, binding.KnowledgeBase.ID, stage.name)
 	}
 	return nil, "", nil
 }
@@ -225,13 +230,13 @@ func summarizeRetrieval(
 		switch retrieval.ToolFallback {
 		case knowledge.ToolFallbackEscalate, knowledge.ToolFallbackAuto:
 			status = knowledge.RetrievalStatusEscalated
-			knowledge.RecordToolEscalation(ctx, binding.ID)
+			knowledge.RecordToolEscalation(ctx, binding.KnowledgeBase.ID)
 		default:
 			status = knowledge.RetrievalStatusFallback
 		}
 		contexts = nil
 	}
-	knowledge.RecordRouterDecision(ctx, binding.ID, string(status))
+	knowledge.RecordRouterDecision(ctx, binding.KnowledgeBase.ID, string(status))
 	logger.FromContext(ctx).Debug(
 		"Knowledge retrieval completed",
 		"binding_id", binding.ID,
@@ -267,13 +272,24 @@ func buildRetrievalStages(query string) []retrievalStage {
 		seen[trimmed] = struct{}{}
 		stages = append(stages, retrievalStage{name: name, query: trimmed})
 	}
-	addStage("initial", query)
-	addStage("keywords", keywordQuery(query))
-	addStage("focus", focusQuery(query))
+	addStage(stageInitial, query)
+	addStage(stageKeywords, keywordQuery(query))
+	addStage(stageFocus, focusQuery(query))
 	if len(stages) == 0 {
-		addStage("fallback", query)
+		addStage(stageFallback, query)
 	}
 	return stages
+}
+
+func strategyForStage(stage string) string {
+	switch stage {
+	case stageKeywords:
+		return retriever.StrategyKeyword
+	case stageFocus:
+		return retriever.StrategyHybrid
+	default:
+		return retriever.StrategySimilarity
+	}
 }
 
 func sanitizeIdentifier(raw string, field string) (string, error) {
@@ -313,9 +329,9 @@ func (m *knowledgeManager) getOrCreateEmbedder(
 	if err != nil {
 		return nil, err
 	}
-	m.cacheMu.RLock()
+	m.embedderMu.RLock()
 	adapter, ok := m.embedderCache[id]
-	m.cacheMu.RUnlock()
+	m.embedderMu.RUnlock()
 	if ok {
 		return adapter, nil
 	}
@@ -325,14 +341,28 @@ func (m *knowledgeManager) getOrCreateEmbedder(
 	if err != nil {
 		return nil, err
 	}
-	m.cacheMu.Lock()
-	defer m.cacheMu.Unlock()
+	m.embedderMu.Lock()
+	defer m.embedderMu.Unlock()
 	if adapter, ok := m.embedderCache[id]; ok {
 		return adapter, nil
 	}
 	created, err := embedder.New(ctx, adapterCfg)
 	if err != nil {
 		return nil, err
+	}
+	var cacheCfg *knowledge.EmbedderCacheConfig
+	switch runtimeCfg := any(cfg.Config).(type) {
+	case *knowledge.EmbedderRuntimeConfig:
+		if runtimeCfg != nil {
+			cacheCfg = runtimeCfg.Cache
+		}
+	case knowledge.EmbedderRuntimeConfig:
+		cacheCfg = runtimeCfg.Cache
+	}
+	if cacheCfg != nil && cacheCfg.Enabled {
+		if err := created.EnableCache(cacheCfg.Size); err != nil {
+			return nil, err
+		}
 	}
 	m.embedderCache[id] = created
 	return created, nil
@@ -349,9 +379,9 @@ func (m *knowledgeManager) getOrCreateVectorStore(
 	if err != nil {
 		return nil, err
 	}
-	m.cacheMu.RLock()
+	m.vectorStoreMu.RLock()
 	cached, ok := m.vectorStoreCache[id]
-	m.cacheMu.RUnlock()
+	m.vectorStoreMu.RUnlock()
 	if ok {
 		return cached.store, nil
 	}
@@ -365,9 +395,9 @@ func (m *knowledgeManager) getOrCreateVectorStore(
 	if err != nil {
 		return nil, err
 	}
-	m.cacheMu.Lock()
+	m.vectorStoreMu.Lock()
 	if existing, ok := m.vectorStoreCache[id]; ok {
-		m.cacheMu.Unlock()
+		m.vectorStoreMu.Unlock()
 		if release != nil {
 			if err := release(ctx); err != nil {
 				logger.FromContext(ctx).Warn(
@@ -380,7 +410,7 @@ func (m *knowledgeManager) getOrCreateVectorStore(
 		return existing.store, nil
 	}
 	m.vectorStoreCache[id] = &cachedVectorStore{store: store, release: release}
-	m.cacheMu.Unlock()
+	m.vectorStoreMu.Unlock()
 	return store, nil
 }
 
@@ -388,8 +418,8 @@ func (m *knowledgeManager) drainVectorStores() []*cachedVectorStore {
 	if m == nil {
 		return nil
 	}
-	m.cacheMu.Lock()
-	defer m.cacheMu.Unlock()
+	m.vectorStoreMu.Lock()
+	defer m.vectorStoreMu.Unlock()
 	entries := make([]*cachedVectorStore, 0, len(m.vectorStoreCache))
 	for key, entry := range m.vectorStoreCache {
 		entries = append(entries, entry)
@@ -410,6 +440,13 @@ const (
 	knowledgeQueryMaxPartRunes = 2048
 	retrievalKeywordLimit      = 32
 	retrievalFocusMaxRunes     = 512
+)
+
+const (
+	stageInitial  = "initial"
+	stageKeywords = "keywords"
+	stageFocus    = "focus"
+	stageFallback = "fallback"
 )
 
 func keywordQuery(query string) string {

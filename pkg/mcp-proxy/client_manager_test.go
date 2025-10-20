@@ -12,16 +12,17 @@ import (
 )
 
 // setupTestManager creates a new client manager for testing
-func setupTestManager() (*MCPClientManager, *MemoryStorage, *ClientManagerConfig) {
+func setupTestManager(t *testing.T) (*MCPClientManager, *MemoryStorage, *ClientManagerConfig) {
+	t.Helper()
 	storage := NewMemoryStorage()
 	config := DefaultClientManagerConfig()
-	manager := NewMCPClientManager(context.Background(), storage, config)
+	manager := NewMCPClientManager(t.Context(), storage, config)
 	return manager, storage, config
 }
 
 func TestMCPClientManager_New(t *testing.T) {
 	t.Run("Should initialize client manager with proper dependencies and state", func(t *testing.T) {
-		manager, storage, config := setupTestManager()
+		manager, storage, config := setupTestManager(t)
 
 		assert.NotNil(t, manager)
 		assert.Equal(t, storage, manager.storage)
@@ -35,9 +36,9 @@ func TestMCPClientManager_New(t *testing.T) {
 
 func TestMCPClientManager_StartStop(t *testing.T) {
 	t.Run("Should start and stop manager without errors", func(t *testing.T) {
-		manager, _, _ := setupTestManager()
+		manager, _, _ := setupTestManager(t)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		err := manager.Start(ctx)
@@ -50,9 +51,9 @@ func TestMCPClientManager_StartStop(t *testing.T) {
 
 func TestMCPClientManager_AddClient(t *testing.T) {
 	t.Run("Should add client successfully and make it available for retrieval", func(t *testing.T) {
-		manager, _, _ := setupTestManager()
+		manager, _, _ := setupTestManager(t)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		err := manager.Start(ctx)
@@ -71,9 +72,9 @@ func TestMCPClientManager_AddClient(t *testing.T) {
 	})
 
 	t.Run("Should reject duplicate client with specific error", func(t *testing.T) {
-		manager, _, _ := setupTestManager()
+		manager, _, _ := setupTestManager(t)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		err := manager.Start(ctx)
@@ -90,10 +91,10 @@ func TestMCPClientManager_AddClient(t *testing.T) {
 	})
 
 	t.Run("Should enforce connection limits and reject excess clients", func(t *testing.T) {
-		manager, _, config := setupTestManager()
+		manager, _, config := setupTestManager(t)
 		config.MaxConcurrentConnections = 1
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		err := manager.Start(ctx)
@@ -110,9 +111,9 @@ func TestMCPClientManager_AddClient(t *testing.T) {
 	})
 
 	t.Run("Should reject invalid client definition with validation error", func(t *testing.T) {
-		manager, _, _ := setupTestManager()
+		manager, _, _ := setupTestManager(t)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		err := manager.Start(ctx)
@@ -130,9 +131,9 @@ func TestMCPClientManager_AddClient(t *testing.T) {
 
 func TestMCPClientManager_RemoveClient(t *testing.T) {
 	t.Run("Should remove client and make it unavailable for retrieval", func(t *testing.T) {
-		manager, _, _ := setupTestManager()
+		manager, _, _ := setupTestManager(t)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		err := manager.Start(ctx)
@@ -157,9 +158,9 @@ func TestMCPClientManager_RemoveClient(t *testing.T) {
 
 func TestMCPClientManager_GetClientStatus(t *testing.T) {
 	t.Run("Should return client status with correct name and state", func(t *testing.T) {
-		manager, _, _ := setupTestManager()
+		manager, _, _ := setupTestManager(t)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		err := manager.Start(ctx)
@@ -180,9 +181,9 @@ func TestMCPClientManager_GetClientStatus(t *testing.T) {
 
 func TestMCPClientManager_ListClientStatuses(t *testing.T) {
 	t.Run("Should return all client statuses with correct names", func(t *testing.T) {
-		manager, _, _ := setupTestManager()
+		manager, _, _ := setupTestManager(t)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		err := manager.Start(ctx)
@@ -206,9 +207,9 @@ func TestMCPClientManager_ListClientStatuses(t *testing.T) {
 
 func TestMCPClientManager_GetMetrics(t *testing.T) {
 	t.Run("Should track client count metrics accurately", func(t *testing.T) {
-		manager, _, _ := setupTestManager()
+		manager, _, _ := setupTestManager(t)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		err := manager.Start(ctx)
@@ -230,19 +231,10 @@ func TestMCPClientManager_GetMetrics(t *testing.T) {
 
 func TestMCPClientManager_ReconnectionPrevention(t *testing.T) {
 	t.Run("Should prevent concurrent reconnection attempts for same client", func(t *testing.T) {
-		storage := NewMemoryStorage()
-		config := DefaultClientManagerConfig()
-		manager := NewMCPClientManager(context.Background(), storage, config)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		err := manager.Start(ctx)
-		require.NoError(t, err)
-		defer manager.Stop(ctx)
+		manager, _, _ := setupTestManager(t)
 
 		def := createTestMCPDefinition("test-client")
-		err = manager.AddClient(ctx, def)
+		err := manager.AddClient(t.Context(), def)
 		require.NoError(t, err)
 
 		_, err = manager.GetClient("test-client")
@@ -287,9 +279,9 @@ func TestMCPClientManager_ConcurrentOperations(t *testing.T) {
 		storage := NewMemoryStorage()
 		config := DefaultClientManagerConfig()
 		config.MaxConcurrentConnections = 10
-		manager := NewMCPClientManager(context.Background(), storage, config)
+		manager := NewMCPClientManager(t.Context(), storage, config)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 
 		err := manager.Start(ctx)

@@ -1,7 +1,6 @@
 package signal
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -271,7 +270,7 @@ func TestSignalResponseHandler_HandleResponse(t *testing.T) {
 		baseHandler := &shared.BaseResponseHandler{}
 		handler := NewResponseHandler(templateEngine, contextBuilder, baseHandler)
 		// Act
-		result, err := handler.HandleResponse(context.Background(), nil)
+		result, err := handler.HandleResponse(t.Context(), nil)
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -293,7 +292,7 @@ func TestSignalResponseHandler_HandleResponse(t *testing.T) {
 			WorkflowState:  &workflow.State{},
 		}
 		// Act
-		result, err := handler.HandleResponse(context.Background(), input)
+		result, err := handler.HandleResponse(t.Context(), input)
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -318,7 +317,7 @@ func TestSignalResponseHandler_HandleResponse(t *testing.T) {
 			WorkflowState:  &workflow.State{},
 		}
 		// Act
-		result, err := handler.HandleResponse(context.Background(), input)
+		result, err := handler.HandleResponse(t.Context(), input)
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)

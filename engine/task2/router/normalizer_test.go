@@ -18,11 +18,11 @@ func TestRouterNormalizer_NewNormalizer(t *testing.T) {
 	t.Run("Should create router normalizer", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Act
-		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -30,11 +30,11 @@ func TestRouterNormalizer_NewNormalizer(t *testing.T) {
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Act
-		normalizer := router.NewNormalizer(nil, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), nil, contextBuilder)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -45,7 +45,7 @@ func TestRouterNormalizer_NewNormalizer(t *testing.T) {
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 
 		// Act
-		normalizer := router.NewNormalizer(templateEngine, nil)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, nil)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -53,7 +53,7 @@ func TestRouterNormalizer_NewNormalizer(t *testing.T) {
 
 	t.Run("Should handle both nil parameters", func(t *testing.T) {
 		// Act
-		normalizer := router.NewNormalizer(nil, nil)
+		normalizer := router.NewNormalizer(t.Context(), nil, nil)
 
 		// Assert
 		assert.NotNil(t, normalizer)
@@ -64,9 +64,9 @@ func TestRouterNormalizer_Type(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		// Act
 		taskType := normalizer.Type()
@@ -79,9 +79,9 @@ func TestRouterNormalizer_Type(t *testing.T) {
 func TestRouterNormalizer_Normalize(t *testing.T) {
 	// Setup
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+	normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 	t.Run("Should normalize router task with simple string routes", func(t *testing.T) {
 		// Arrange
@@ -105,7 +105,7 @@ func TestRouterNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -141,7 +141,7 @@ func TestRouterNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -177,7 +177,7 @@ func TestRouterNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -206,7 +206,7 @@ func TestRouterNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -230,7 +230,7 @@ func TestRouterNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -259,7 +259,7 @@ func TestRouterNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -291,7 +291,7 @@ func TestRouterNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.ErrorContains(t, err, "failed to normalize router task config")
@@ -317,7 +317,7 @@ func TestRouterNormalizer_Normalize(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.ErrorContains(t, err, "failed to normalize router task config")
@@ -326,16 +326,16 @@ func TestRouterNormalizer_Normalize(t *testing.T) {
 
 func TestRouterNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
-	normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+	normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 	t.Run("Should handle nil config gracefully", func(t *testing.T) {
 		// Arrange
 		ctx := &shared.NormalizationContext{}
 		// Act & Assert - Router normalizer should panic on nil config like the implementation shows
 		assert.Panics(t, func() {
-			normalizer.Normalize(nil, ctx)
+			normalizer.Normalize(t.Context(), nil, ctx)
 		})
 	})
 
@@ -349,7 +349,7 @@ func TestRouterNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.ErrorContains(t, err, "router normalizer cannot handle task type: basic")
 	})
@@ -368,7 +368,7 @@ func TestRouterNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.ErrorContains(t, err, "failed to normalize router task config")
 	})
@@ -387,7 +387,7 @@ func TestRouterNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.ErrorContains(t, err, "failed to convert task config to map")
 	})
@@ -415,7 +415,7 @@ func TestRouterNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.ErrorContains(t, err, "failed to normalize router task config")
 	})
@@ -446,7 +446,7 @@ func TestRouterNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "test-router", taskConfig.ID)
@@ -459,12 +459,12 @@ func TestRouterNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
-		normalizer := router.NewNormalizer(nil, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), nil, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -473,14 +473,14 @@ func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert - Should return error due to nil template engine
 		assert.ErrorContains(t, err, "template engine is required for normalization")
 	})
 
 	t.Run("Should handle nil context gracefully", func(t *testing.T) {
 		// Arrange
-		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -488,7 +488,7 @@ func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 			},
 		}
 		// Act
-		err = normalizer.Normalize(taskConfig, nil)
+		err = normalizer.Normalize(t.Context(), taskConfig, nil)
 
 		// Assert
 		assert.ErrorContains(t, err, "invalid context type")
@@ -496,7 +496,7 @@ func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle very large route maps", func(t *testing.T) {
 		// Arrange
-		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		routes := make(map[string]any)
 		for i := range 1000 {
 			routes[fmt.Sprintf("route_%d", i)] = fmt.Sprintf("task_%d", i)
@@ -512,7 +512,7 @@ func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Len(t, taskConfig.Routes, 1000)
@@ -520,7 +520,7 @@ func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle routes with special characters in keys", func(t *testing.T) {
 		// Arrange
-		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "special-router",
@@ -539,7 +539,7 @@ func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "dot-task", taskConfig.Routes["route.with.dots"])
@@ -552,7 +552,7 @@ func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should preserve route structure and types", func(t *testing.T) {
 		// Arrange
-		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := router.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		originalRoutes := map[string]any{
 			"string_route": "string-task",
 			"complex_route": map[string]any{
@@ -575,7 +575,7 @@ func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "string-task", taskConfig.Routes["string_route"])

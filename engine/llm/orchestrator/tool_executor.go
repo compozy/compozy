@@ -27,6 +27,115 @@ type toolExecutor struct {
 
 const toolExecutionErrorPayload = `{"success":false,"error":{"code":"TOOL_EXECUTION_ERROR","message":"Tool execution failed"}}`
 
+type toolJob struct {
+	index int
+	call  llmadapter.ToolCall
+}
+
+func (e *toolExecutor) workerCount(callCount int) int {
+	limit := e.cfg.maxConcurrentTools
+	if limit <= 0 {
+		limit = defaultMaxConcurrentTools
+	}
+	workers := limit
+	if callCount < workers {
+		workers = callCount
+	}
+	if workers == 0 {
+		return 1
+	}
+	return workers
+}
+
+func (e *toolExecutor) startToolWorkers(
+	ctx context.Context,
+	g *errgroup.Group,
+	jobs <-chan toolJob,
+	results []llmadapter.ToolResult,
+	workers int,
+) {
+	for i := 0; i < workers; i++ {
+		g.Go(func() error {
+			for job := range jobs {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
+				results[job.index] = e.executeSingle(ctx, job.call)
+			}
+			return nil
+		})
+	}
+}
+
+func (e *toolExecutor) dispatchToolJobs(
+	ctx context.Context,
+	g *errgroup.Group,
+	jobs chan<- toolJob,
+	toolCalls []llmadapter.ToolCall,
+) {
+	g.Go(func() error {
+		defer close(jobs)
+		for i, call := range toolCalls {
+			select {
+			case jobs <- toolJob{index: i, call: call}:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		return nil
+	})
+}
+
+func (e *toolExecutor) initToolLogEntry(
+	ctx context.Context,
+	call llmadapter.ToolCall,
+) (*telemetry.ToolLogEntry, bool, func()) {
+	capture := telemetry.CaptureContentEnabled(ctx)
+	entry := &telemetry.ToolLogEntry{
+		ToolCallID: call.ID,
+		ToolName:   call.Name,
+		Status:     telemetry.ToolStatusSuccess,
+	}
+	if capture {
+		entry.Input = string(call.Arguments)
+	} else if len(call.Arguments) > 0 {
+		entry.Input = telemetry.RedactedValue
+		entry.Redacted = true
+	}
+	start := time.Now()
+	return entry, capture, func() {
+		entry.Duration = time.Since(start)
+		telemetry.RecordTool(ctx, entry)
+	}
+}
+
+func (e *toolExecutor) ensureTool(
+	ctx context.Context,
+	call llmadapter.ToolCall,
+	capture bool,
+	entry *telemetry.ToolLogEntry,
+) (RegistryTool, bool, llmadapter.ToolResult) {
+	tool, found := e.registry.Find(ctx, call.Name)
+	if !found || tool == nil {
+		return nil, false, e.toolNotFoundResult(ctx, call, capture, entry)
+	}
+	telemetry.Logger(ctx).Info("Executing tool", "tool_name", call.Name, "tool_call_id", call.ID)
+	if err := e.validateToolArguments(ctx, tool, call); err != nil {
+		entry.Status = telemetry.ToolStatusError
+		entry.Error = core.RedactError(err)
+		telemetry.Logger(ctx).Warn(
+			"Tool arguments failed validation",
+			"tool_name", call.Name,
+			"tool_call_id", call.ID,
+			"error", core.RedactError(err),
+		)
+		return nil, false, e.toolInvalidInputResult(call, err, capture, entry)
+	}
+	return tool, true, llmadapter.ToolResult{}
+}
+
 func NewToolExecutor(registry ToolRegistry, cfg *settings) ToolExecutor {
 	if cfg == nil {
 		cfg = &settings{}
@@ -41,49 +150,13 @@ func (e *toolExecutor) Execute(ctx context.Context, toolCalls []llmadapter.ToolC
 	log := telemetry.Logger(ctx)
 	log.Info("Executing tool calls", "tool_calls_count", len(toolCalls), "tools", extractToolNames(toolCalls))
 
-	limit := e.cfg.maxConcurrentTools
-	if limit <= 0 {
-		limit = defaultMaxConcurrentTools
-	}
 	results := make([]llmadapter.ToolResult, len(toolCalls))
-	workerCount := min(limit, len(toolCalls))
-	if workerCount == 0 {
-		workerCount = 1
-	}
+	workers := e.workerCount(len(toolCalls))
 	g, workerCtx := errgroup.WithContext(ctx)
-	jobs := make(chan struct {
-		index int
-		call  llmadapter.ToolCall
-	})
+	jobs := make(chan toolJob, workers)
 
-	for w := 0; w < workerCount; w++ {
-		g.Go(func() error {
-			for job := range jobs {
-				select {
-				case <-workerCtx.Done():
-					return workerCtx.Err()
-				default:
-				}
-				results[job.index] = e.executeSingle(workerCtx, job.call)
-			}
-			return nil
-		})
-	}
-
-	g.Go(func() error {
-		defer close(jobs)
-		for i, call := range toolCalls {
-			select {
-			case jobs <- struct {
-				index int
-				call  llmadapter.ToolCall
-			}{index: i, call: call}:
-			case <-workerCtx.Done():
-				return workerCtx.Err()
-			}
-		}
-		return nil
-	})
+	e.startToolWorkers(workerCtx, g, jobs, results, workers)
+	e.dispatchToolJobs(workerCtx, g, jobs, toolCalls)
 
 	if err := g.Wait(); err != nil {
 		return nil, err
@@ -100,50 +173,22 @@ func (e *toolExecutor) Execute(ctx context.Context, toolCalls []llmadapter.ToolC
 func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCall) llmadapter.ToolResult {
 	log := telemetry.Logger(ctx)
 	log.Info("Processing tool call", "tool_name", call.Name, "tool_call_id", call.ID)
-	start := time.Now()
-	capture := telemetry.CaptureContentEnabled(ctx)
-	entry := telemetry.ToolLogEntry{
-		ToolCallID: call.ID,
-		ToolName:   call.Name,
-		Status:     telemetry.ToolStatusSuccess,
-	}
-	if capture {
-		entry.Input = string(call.Arguments)
-	} else if len(call.Arguments) > 0 {
-		entry.Input = telemetry.RedactedValue
-		entry.Redacted = true
-	}
-	defer func() {
-		entry.Duration = time.Since(start)
-		telemetry.RecordTool(ctx, &entry)
-	}()
+	entry, capture, finish := e.initToolLogEntry(ctx, call)
+	defer finish()
 
-	t, found := e.registry.Find(ctx, call.Name)
-	if !found || t == nil {
-		return e.toolNotFoundResult(ctx, call, capture, &entry)
-	}
-
-	log.Info("Executing tool", "tool_name", call.Name, "tool_call_id", call.ID)
-	if err := e.validateToolArguments(ctx, t, call); err != nil {
-		entry.Status = telemetry.ToolStatusError
-		entry.Error = core.RedactError(err)
-		result := e.toolInvalidInputResult(call, err, capture, &entry)
-		log.Warn(
-			"Tool arguments failed validation",
-			"tool_name", call.Name,
-			"tool_call_id", call.ID,
-			"error", core.RedactError(err),
-		)
+	tool, ok, result := e.ensureTool(ctx, call, capture, entry)
+	if !ok {
 		return result
 	}
+
 	if _, err := core.GetRequestID(ctx); err != nil {
 		ctx = core.WithRequestID(ctx, call.ID)
 	}
-	raw, err := t.Call(ctx, string(call.Arguments))
+	raw, err := tool.Call(ctx, string(call.Arguments))
 	if err != nil {
 		entry.Status = telemetry.ToolStatusError
 		entry.Error = core.RedactError(err)
-		result := e.toolExecutionErrorResult(call, err, capture, &entry)
+		result := e.toolExecutionErrorResult(call, err, capture, entry)
 		log.Error(
 			"Tool execution failed",
 			"tool_name", call.Name,
@@ -154,7 +199,7 @@ func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCa
 	}
 
 	log.Info("Tool execution succeeded", "tool_name", call.Name, "tool_call_id", call.ID)
-	return e.buildSuccessResult(call, raw, capture, &entry)
+	return e.buildSuccessResult(call, raw, capture, entry)
 }
 
 func (e *toolExecutor) validateToolArguments(
@@ -191,7 +236,7 @@ func (e *toolExecutor) toolNotFoundResult(
 	log.Warn("Tool not found", "tool_name", call.Name, "tool_call_id", call.ID)
 	payload, errMarshal := json.Marshal(map[string]any{"error": errText})
 	if errMarshal != nil {
-		payload = []byte(fmt.Sprintf(`{"error":%q}`, errText))
+		payload = fmt.Appendf(nil, `{"error":%q}`, errText)
 	}
 	jsonContent := json.RawMessage(payload)
 	if capture {
@@ -277,34 +322,35 @@ func (e *toolExecutor) buildSuccessResult(
 	}
 }
 
+func toolErrorFrom(execErr error) *ToolError {
+	var coreErr *core.Error
+	if errors.As(execErr, &coreErr) && coreErr != nil {
+		msg := coreErr.Message
+		if msg == "" {
+			msg = "Tool execution failed"
+		}
+		return &ToolError{
+			Code:            coreErr.Code,
+			Message:         msg,
+			Details:         core.RedactError(execErr),
+			RemediationHint: remediationHintFromDetails(coreErr.Details),
+		}
+	}
+	return &ToolError{
+		Code:            ErrCodeToolExecution,
+		Message:         "Tool execution failed",
+		Details:         core.RedactError(execErr),
+		RemediationHint: "",
+	}
+}
+
 func (e *toolExecutor) toolExecutionErrorResult(
 	call llmadapter.ToolCall,
 	execErr error,
 	capture bool,
 	entry *telemetry.ToolLogEntry,
 ) llmadapter.ToolResult {
-	var coreErr *core.Error
-	result := ToolExecutionResult{Success: false}
-	if errors.As(execErr, &coreErr) && coreErr != nil {
-		code := coreErr.Code
-		msg := coreErr.Message
-		if msg == "" {
-			msg = "Tool execution failed"
-		}
-		result.Error = &ToolError{
-			Code:            code,
-			Message:         msg,
-			Details:         core.RedactError(execErr),
-			RemediationHint: remediationHintFromDetails(coreErr.Details),
-		}
-	} else {
-		result.Error = &ToolError{
-			Code:            ErrCodeToolExecution,
-			Message:         "Tool execution failed",
-			Details:         core.RedactError(execErr),
-			RemediationHint: "",
-		}
-	}
+	result := ToolExecutionResult{Success: false, Error: toolErrorFrom(execErr)}
 	payload, marshalErr := json.Marshal(result)
 	entry.Status = telemetry.ToolStatusError
 	entry.Error = core.RedactError(execErr)
@@ -374,82 +420,123 @@ func flattenHintValue(value any) string {
 	return ""
 }
 
-func (e *toolExecutor) UpdateBudgets(ctx context.Context, results []llmadapter.ToolResult, state *loopState) error {
-	log := telemetry.Logger(ctx)
-	budget := e.cfg.maxSequentialToolErrors
-	if budget <= 0 {
-		budget = defaultMaxSequentialToolErrors
+func (e *toolExecutor) errorBudget() int {
+	if e.cfg.maxSequentialToolErrors > 0 {
+		return e.cfg.maxSequentialToolErrors
 	}
-	maxSucc := e.cfg.maxConsecutiveSuccesses
-	if maxSucc <= 0 {
-		maxSucc = defaultMaxConsecutiveSuccesses
-	}
+	return defaultMaxSequentialToolErrors
+}
 
+func (e *toolExecutor) successThreshold() int {
+	if e.cfg.maxConsecutiveSuccesses > 0 {
+		return e.cfg.maxConsecutiveSuccesses
+	}
+	return defaultMaxConsecutiveSuccesses
+}
+
+func (e *toolExecutor) enforceInvocationCap(ctx context.Context, state *loopState, name string) error {
+	if state == nil {
+		return nil
+	}
+	count := state.incrementUsage(name)
+	if limit := state.limitFor(name); limit > 0 && count > limit {
+		telemetry.Logger(ctx).Warn(
+			"Tool invocation cap exceeded",
+			"tool", name,
+			"invocations", count,
+			"cap", limit,
+		)
+		return fmt.Errorf("%w: tool invocation cap exceeded for %s", ErrBudgetExceeded, name)
+	}
+	return nil
+}
+
+func (e *toolExecutor) recordSuccess(
+	ctx context.Context,
+	state *loopState,
+	result llmadapter.ToolResult,
+	maxSucc int,
+) (bool, error) {
+	if state == nil || !isToolResultSuccess(result) {
+		return false, nil
+	}
+	name := result.Name
+	fingerprint := toolResultFingerprint(result)
+	if last, ok := state.Budgets.LastToolResults[name]; ok && last == fingerprint {
+		state.Budgets.ToolSuccess[name]++
+	} else {
+		state.Budgets.ToolSuccess[name] = 1
+		state.Budgets.LastToolResults[name] = fingerprint
+	}
+	if state.Budgets.ToolSuccess[name] >= maxSucc {
+		telemetry.Logger(ctx).Warn(
+			"Tool called successfully too many times without progress",
+			"tool", name,
+			"consecutive_successes", state.Budgets.ToolSuccess[name],
+		)
+		return true, fmt.Errorf(
+			"%w: tool %s called successfully %d times without progress",
+			ErrBudgetExceeded,
+			name,
+			state.Budgets.ToolSuccess[name],
+		)
+	}
+	if state.Budgets.ToolErrors[name] > 0 {
+		state.Budgets.ToolErrors[name]--
+	}
+	return true, nil
+}
+
+func (e *toolExecutor) recordError(
+	ctx context.Context,
+	state *loopState,
+	result llmadapter.ToolResult,
+	budget int,
+) error {
+	if state == nil {
+		return nil
+	}
+	name := result.Name
+	state.Budgets.ToolSuccess[name] = 0
+	delete(state.Budgets.LastToolResults, name)
+	state.Budgets.ToolErrors[name]++
+	telemetry.Logger(ctx).Warn(
+		"Tool error recorded",
+		"tool", name,
+		"consecutive_errors", state.Budgets.ToolErrors[name],
+		"max", budget,
+	)
+	if state.Budgets.ToolErrors[name] >= budget {
+		telemetry.Logger(ctx).Warn("Error budget exceeded - tool", "tool", name, "max", budget)
+		return fmt.Errorf("%w: tool error budget exceeded for %s", ErrBudgetExceeded, name)
+	}
+	return nil
+}
+
+func (e *toolExecutor) UpdateBudgets(ctx context.Context, results []llmadapter.ToolResult, state *loopState) error {
+	budget := e.errorBudget()
+	maxSucc := e.successThreshold()
 	for _, result := range results {
-		name := result.Name
-		if state != nil {
-			count := state.incrementUsage(name)
-			if limit := state.limitFor(name); limit > 0 && count > limit {
-				log.Warn(
-					"Tool invocation cap exceeded",
-					"tool", name,
-					"invocations", count,
-					"cap", limit,
-				)
-				return fmt.Errorf("%w: tool invocation cap exceeded for %s", ErrBudgetExceeded, name)
-			}
+		if result.Name == "" {
+			continue
+		}
+		if err := e.enforceInvocationCap(ctx, state, result.Name); err != nil {
+			return err
 		}
 		if state == nil {
 			continue
 		}
-		if isToolResultSuccess(result) {
-			fingerprint := toolResultFingerprint(result)
-			if last, ok := state.Budgets.LastToolResults[name]; ok && last == fingerprint {
-				state.Budgets.ToolSuccess[name]++
-			} else {
-				state.Budgets.ToolSuccess[name] = 1
-				state.Budgets.LastToolResults[name] = fingerprint
-			}
-
-			if state.Budgets.ToolSuccess[name] >= maxSucc {
-				log.Warn(
-					"Tool called successfully too many times without progress",
-					"tool",
-					name,
-					"consecutive_successes",
-					state.Budgets.ToolSuccess[name],
-				)
-				return fmt.Errorf(
-					"%w: tool %s called successfully %d times without progress",
-					ErrBudgetExceeded,
-					name,
-					state.Budgets.ToolSuccess[name],
-				)
-			}
-			if state.Budgets.ToolErrors[name] > 0 {
-				state.Budgets.ToolErrors[name]--
-			}
+		handled, err := e.recordSuccess(ctx, state, result, maxSucc)
+		if err != nil {
+			return err
+		}
+		if handled {
 			continue
 		}
-
-		state.Budgets.ToolSuccess[name] = 0
-		delete(state.Budgets.LastToolResults, name)
-		state.Budgets.ToolErrors[name]++
-		log.Warn(
-			"Tool error recorded",
-			"tool",
-			name,
-			"consecutive_errors",
-			state.Budgets.ToolErrors[name],
-			"max",
-			budget,
-		)
-		if state.Budgets.ToolErrors[name] >= budget {
-			log.Warn("Error budget exceeded - tool", "tool", name, "max", budget)
-			return fmt.Errorf("%w: tool error budget exceeded for %s", ErrBudgetExceeded, name)
+		if err := e.recordError(ctx, state, result, budget); err != nil {
+			return err
 		}
 	}
-
 	return nil
 }
 

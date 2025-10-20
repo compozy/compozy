@@ -1,7 +1,6 @@
 package attachment
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,7 +19,7 @@ func Test_Resolver_URL_MIME_Denied_PDF(t *testing.T) {
 		defer srv.Close()
 		before := SnapshotTempFiles(t)
 		a := &PDFAttachment{Source: SourceURL, URL: srv.URL}
-		_, err := resolvePDF(context.Background(), a, nil)
+		_, err := resolvePDF(t.Context(), a, nil)
 		require.Error(t, err)
 		after := SnapshotTempFiles(t)
 		require.Equal(t, before, after, "no leftover temp files expected")
@@ -38,7 +37,7 @@ func Test_Resolver_URL_MIME_Denied_Audio(t *testing.T) {
 		defer srv.Close()
 		before := SnapshotTempFiles(t)
 		a := &AudioAttachment{Source: SourceURL, URL: srv.URL}
-		_, err := resolveAudio(context.Background(), a, nil)
+		_, err := resolveAudio(t.Context(), a, nil)
 		require.Error(t, err)
 		after := SnapshotTempFiles(t)
 		require.Equal(t, before, after, "no leftover temp files expected")

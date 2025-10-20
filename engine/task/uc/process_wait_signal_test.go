@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -15,28 +14,22 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 )
 
-type MockConditionEvaluator struct {
-	mock.Mock
-}
-
-func (m *MockConditionEvaluator) Evaluate(
-	ctx context.Context,
-	condition string,
-	evalContext map[string]any,
-) (bool, error) {
-	args := m.Called(ctx, condition, evalContext)
-	return args.Bool(0), args.Error(1)
+func newTestCELEvaluator(t *testing.T) *task.CELEvaluator {
+	t.Helper()
+	evaluator, err := task.NewCELEvaluator()
+	require.NoError(t, err)
+	return evaluator
 }
 
 func TestProcessWaitSignal_Execute(t *testing.T) {
 	t.Run("Should process signal successfully when condition is met", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
-		evaluator := new(MockConditionEvaluator)
+		evaluator := newTestCELEvaluator(t)
 		taskState := &task.State{
 			TaskID:         "wait-task",
 			TaskExecID:     taskExecID,
@@ -71,8 +64,6 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		taskRepo.On("GetState", ctx, taskExecID).Return(taskState, nil)
 		err := configStore.Save(ctx, taskExecID.String(), taskConfig)
 		require.NoError(t, err)
-		evaluator.On("Evaluate", ctx, taskConfig.Condition, mock.AnythingOfType("map[string]interface {}")).
-			Return(true, nil)
 		// Create use case
 		uc := NewProcessWaitSignal(taskRepo, configStore, evaluator)
 		// Act
@@ -84,16 +75,15 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		assert.Empty(t, output.Error)
 		// Verify mocks
 		taskRepo.AssertExpectations(t)
-		evaluator.AssertExpectations(t)
 	})
 	t.Run("Should return false when signal name doesn't match", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
-		evaluator := new(MockConditionEvaluator)
+		evaluator := newTestCELEvaluator(t)
 		taskState := &task.State{
 			TaskID:         "wait-task",
 			TaskExecID:     taskExecID,
@@ -133,16 +123,15 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		assert.Empty(t, output.Error)
 		// Verify mocks
 		taskRepo.AssertExpectations(t)
-		evaluator.AssertExpectations(t)
 	})
 	t.Run("Should handle task not found error", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
-		evaluator := new(MockConditionEvaluator)
+		evaluator := newTestCELEvaluator(t)
 		input := &ProcessWaitSignalInput{
 			TaskExecID: taskExecID,
 			SignalName: "test_signal",
@@ -163,12 +152,12 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should handle config retrieval error", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
-		evaluator := new(MockConditionEvaluator)
+		evaluator := newTestCELEvaluator(t)
 		taskState := &task.State{
 			TaskID:         "wait-task",
 			TaskExecID:     taskExecID,
@@ -197,12 +186,12 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should reject non-wait task", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
-		evaluator := new(MockConditionEvaluator)
+		evaluator := newTestCELEvaluator(t)
 		taskState := &task.State{
 			TaskID:         "basic-task",
 			TaskExecID:     taskExecID,
@@ -238,12 +227,12 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should reject task not in waiting state", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
-		evaluator := new(MockConditionEvaluator)
+		evaluator := newTestCELEvaluator(t)
 		taskState := &task.State{
 			TaskID:         "wait-task",
 			TaskExecID:     taskExecID,
@@ -282,12 +271,12 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 	})
 	t.Run("Should handle condition evaluation error", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
-		evaluator := new(MockConditionEvaluator)
+		evaluator := newTestCELEvaluator(t)
 		taskState := &task.State{
 			TaskID:         "wait-task",
 			TaskExecID:     taskExecID,
@@ -308,16 +297,12 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		input := &ProcessWaitSignalInput{
 			TaskExecID: taskExecID,
 			SignalName: "approval_signal",
-			Payload: map[string]any{
-				"approved": true,
-			},
+			Payload:    map[string]any{},
 		}
 		// Set up mocks
 		taskRepo.On("GetState", ctx, taskExecID).Return(taskState, nil)
 		err := configStore.Save(ctx, taskExecID.String(), taskConfig)
 		require.NoError(t, err)
-		evaluator.On("Evaluate", ctx, taskConfig.Condition, mock.AnythingOfType("map[string]interface {}")).
-			Return(false, errors.New("CEL evaluation error"))
 		// Expect task state to be updated to FAILED
 		taskRepo.On("UpsertState", ctx, mock.MatchedBy(func(state *task.State) bool {
 			return state.Status == core.StatusFailed &&
@@ -334,16 +319,15 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		assert.Equal(t, "condition evaluation failed", err.Error())
 		// Verify mocks
 		taskRepo.AssertExpectations(t)
-		evaluator.AssertExpectations(t)
 	})
 	t.Run("Should return false when condition is not met", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
-		evaluator := new(MockConditionEvaluator)
+		evaluator := newTestCELEvaluator(t)
 		taskState := &task.State{
 			TaskID:         "wait-task",
 			TaskExecID:     taskExecID,
@@ -372,8 +356,6 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		taskRepo.On("GetState", ctx, taskExecID).Return(taskState, nil)
 		err := configStore.Save(ctx, taskExecID.String(), taskConfig)
 		require.NoError(t, err)
-		evaluator.On("Evaluate", ctx, taskConfig.Condition, mock.AnythingOfType("map[string]interface {}")).
-			Return(false, nil)
 		// Create use case
 		uc := NewProcessWaitSignal(taskRepo, configStore, evaluator)
 		// Act
@@ -385,16 +367,15 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		assert.Empty(t, output.Error)
 		// Verify mocks
 		taskRepo.AssertExpectations(t)
-		evaluator.AssertExpectations(t)
 	})
 	t.Run("Should include processor output when available", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		taskExecID := core.MustNewID()
 		taskRepo := new(store.MockTaskRepo)
 		configStore := services.NewTestConfigStore(t)
 		defer configStore.Close()
-		evaluator := new(MockConditionEvaluator)
+		evaluator := newTestCELEvaluator(t)
 		processorOutput := &core.Output{
 			"validated": true,
 			"score":     95,
@@ -436,8 +417,6 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		taskRepo.On("GetState", ctx, taskExecID).Return(taskState, nil)
 		err := configStore.Save(ctx, taskExecID.String(), taskConfig)
 		require.NoError(t, err)
-		evaluator.On("Evaluate", ctx, taskConfig.Condition, mock.AnythingOfType("map[string]interface {}")).
-			Return(true, nil)
 		// Create use case
 		uc := NewProcessWaitSignal(taskRepo, configStore, evaluator)
 		// Act
@@ -450,6 +429,5 @@ func TestProcessWaitSignal_Execute(t *testing.T) {
 		assert.Equal(t, processorOutput, output.ProcessorOutput)
 		// Verify mocks
 		taskRepo.AssertExpectations(t)
-		evaluator.AssertExpectations(t)
 	})
 }

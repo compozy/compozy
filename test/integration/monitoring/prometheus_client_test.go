@@ -1,7 +1,6 @@
 package monitoring_test
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -30,7 +29,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		// Give metrics time to be recorded
 		time.Sleep(100 * time.Millisecond)
 		// Get metrics response
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
@@ -42,8 +41,8 @@ func TestPrometheusClientScraping(t *testing.T) {
 		require.NotEmpty(t, metricFamilies, "Should parse at least one metric family")
 		// Verify expected metric families exist (system metrics always present)
 		systemMetrics := []string{
-			"compozy_build_info",
-			"compozy_uptime_seconds",
+			buildInfoMetricName,
+			uptimeMetricName,
 		}
 		for _, expected := range systemMetrics {
 			_, exists := metricFamilies[expected]
@@ -69,7 +68,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		resp.Body.Close()
 		time.Sleep(100 * time.Millisecond)
 		// Get metrics response
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err = env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
@@ -84,8 +83,8 @@ func TestPrometheusClientScraping(t *testing.T) {
 			"compozy_http_requests_total":           dto.MetricType_COUNTER,
 			"compozy_http_request_duration_seconds": dto.MetricType_HISTOGRAM,
 			"compozy_http_requests_in_flight":       dto.MetricType_GAUGE,
-			"compozy_build_info":                    dto.MetricType_GAUGE,
-			"compozy_uptime_seconds":                dto.MetricType_GAUGE,
+			buildInfoMetricName:                     dto.MetricType_GAUGE,
+			uptimeMetricName:                        dto.MetricType_GAUGE,
 		}
 		for name, expectedType := range expectedTypes {
 			family, exists := metricFamilies[name]
@@ -106,7 +105,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Get metrics response
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
@@ -132,7 +131,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 			}
 		}
 		// Get metrics response
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
@@ -184,7 +183,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 			resp.Body.Close()
 		}
 		// Get metrics response
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)

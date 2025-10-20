@@ -1,14 +1,20 @@
 package vectordb
 
-import "math"
+import (
+	"math"
+	"slices"
+)
 
 const defaultTopK = 5
 
 func cosineSimilarity(vecA, vecB []float32) float64 {
+	if len(vecA) == 0 || len(vecA) != len(vecB) {
+		return 0
+	}
 	var dot float64
 	var magA float64
 	var magB float64
-	for i := 0; i < len(vecA); i++ {
+	for i := range vecA {
 		av := float64(vecA[i])
 		bv := float64(vecB[i])
 		dot += av * bv
@@ -52,12 +58,7 @@ func metadataMatches(meta map[string]any, filters map[string]string) bool {
 }
 
 func containsString(values []string, expected string) bool {
-	for i := range values {
-		if values[i] == expected {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, expected)
 }
 
 func containsAnyString(values []any, expected string) bool {

@@ -24,6 +24,7 @@ type Normalizer struct {
 
 // NewNormalizer creates a new collection task normalizer
 func NewNormalizer(
+	_ context.Context,
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 ) *Normalizer {
@@ -50,18 +51,22 @@ func (n *Normalizer) Type() task.Type {
 }
 
 // Normalize applies collection task-specific normalization rules
-func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+func (n *Normalizer) Normalize(
+	_ context.Context,
+	config *task.Config,
+	parentCtx contracts.NormalizationContext,
+) error {
 	// Validate inputs
-	if err := n.validateInputs(config, ctx); err != nil {
+	if err := n.validateInputs(config, parentCtx); err != nil {
 		return err
 	}
 	if config == nil {
 		return nil
 	}
 	// Type assert to get the concrete type
-	normCtx, ok := ctx.(*shared.NormalizationContext)
+	normCtx, ok := parentCtx.(*shared.NormalizationContext)
 	if !ok {
-		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", ctx)
+		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", parentCtx)
 	}
 	// Normalize the config
 	return n.normalizeConfig(config, normCtx)
@@ -224,12 +229,14 @@ func (n *Normalizer) createItemContext(
 
 // BuildCollectionContext builds context specifically for collection tasks
 func (n *Normalizer) BuildCollectionContext(
+	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) map[string]any {
 	// Use the context builder's collection context method
 	return n.contextBuilder.BuildCollectionContext(
+		ctx,
 		workflowState,
 		workflowConfig,
 		taskConfig,

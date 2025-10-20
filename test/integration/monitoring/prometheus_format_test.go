@@ -1,7 +1,6 @@
 package monitoring_test
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -23,7 +22,7 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 			resp.Body.Close()
 		}
 		// Get metrics
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
@@ -68,12 +67,12 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 				helpText:   "Currently active HTTP requests",
 			},
 			{
-				name:       "compozy_build_info",
+				name:       buildInfoMetricName,
 				metricType: "gauge",
 				helpText:   "Build information",
 			},
 			{
-				name:       "compozy_uptime_seconds",
+				name:       uptimeMetricName,
 				metricType: "gauge",
 				helpText:   "Service uptime in seconds",
 			},
@@ -92,7 +91,7 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Get metrics without generating any
-		req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", env.metricsURL, http.NoBody)
 		require.NoError(t, err)
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
@@ -104,8 +103,8 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, metrics)
 		// Should at least have build info and uptime
-		assert.Contains(t, metrics, "compozy_build_info")
-		assert.Contains(t, metrics, "compozy_uptime_seconds")
+		assert.Contains(t, metrics, buildInfoMetricName)
+		assert.Contains(t, metrics, uptimeMetricName)
 	})
 	t.Run("Should properly format histogram metrics", func(t *testing.T) {
 		env := SetupTestEnvironment(t)

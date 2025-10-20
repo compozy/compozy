@@ -28,10 +28,7 @@ func (r *regToolWithArgs) ParameterSchema() map[string]any {
 	if r.params == nil {
 		return nil
 	}
-	copied := make(map[string]any, len(r.params))
-	for key, val := range r.params {
-		copied[key] = val
-	}
+	copied := core.CloneMap(r.params)
 	return copied
 }
 
@@ -48,12 +45,7 @@ func (s *schemaTool) ParameterSchema() map[string]any {
 	if s.schema == nil {
 		return nil
 	}
-	source := map[string]any(*s.schema)
-	copied := make(map[string]any, len(source))
-	for key, val := range source {
-		copied[key] = val
-	}
-	return copied
+	return core.CloneMap(map[string]any(*s.schema))
 }
 
 type listableRegistry struct {
@@ -87,7 +79,7 @@ func TestRequestBuilder_NormalizeCloneAndType(t *testing.T) {
 	})
 	t.Run("Should clone maps without aliasing", func(t *testing.T) {
 		src := map[string]any{"a": 1}
-		c := cloneMap(src)
+		c := core.CloneMap(src)
 		src["a"] = 2
 		assert.Equal(t, 1, c["a"])
 	})
@@ -107,7 +99,7 @@ func TestRequestBuilder_CollectAndAppendDefs(t *testing.T) {
 				&regToolWithArgs{name: "cp__list_dir"},
 			},
 		}
-		_, _, err := rb.collectConfiguredToolDefs(context.Background(), []tool.Config{{ID: "cp__read_fil"}})
+		_, _, err := rb.collectConfiguredToolDefs(t.Context(), []tool.Config{{ID: "cp__read_fil"}})
 		require.Error(t, err)
 		var coreErr *core.Error
 		require.ErrorAs(t, err, &coreErr)
@@ -137,7 +129,7 @@ func TestRequestBuilder_CollectAndAppendDefs(t *testing.T) {
 			},
 		}
 		rb.tools = reg
-		out := rb.appendRegistryToolDefs(context.Background(), defs, included)
+		out := rb.appendRegistryToolDefs(t.Context(), defs, included)
 		require.Len(t, out, 2)
 		assert.Equal(t, "new", out[1].Name)
 		assert.Contains(t, out[1].Parameters, "properties")
@@ -155,7 +147,7 @@ func TestRequestBuilder_CollectAndAppendDefs(t *testing.T) {
 			tools: []RegistryTool{&schemaTool{name: "cp__list_files", schema: s}},
 		}
 		rb.tools = reg
-		out := rb.appendRegistryToolDefs(context.Background(), nil, map[string]struct{}{})
+		out := rb.appendRegistryToolDefs(t.Context(), nil, map[string]struct{}{})
 		require.Len(t, out, 1)
 		params := out[0].Parameters
 		require.Contains(t, params, "properties")
@@ -167,7 +159,7 @@ func TestRequestBuilder_CollectAndAppendDefs(t *testing.T) {
 	})
 	t.Run("Should ignore registry list errors", func(t *testing.T) {
 		rb.tools = &listableRegistry{err: errors.New("x")}
-		out := rb.appendRegistryToolDefs(context.Background(), nil, map[string]struct{}{})
+		out := rb.appendRegistryToolDefs(t.Context(), nil, map[string]struct{}{})
 		assert.Nil(t, out)
 	})
 }
@@ -268,7 +260,7 @@ func TestRequestBuilderDisablesToolChoiceWhenToolsRemoved(t *testing.T) {
 			}},
 		},
 	}
-	output, err := rb.Build(context.Background(), request, &MemoryContext{})
+	output, err := rb.Build(t.Context(), request, &MemoryContext{})
 	require.NoError(t, err)
 	assert.Empty(t, output.Request.Tools)
 	assert.Equal(t, "", output.Request.Options.ToolChoice)

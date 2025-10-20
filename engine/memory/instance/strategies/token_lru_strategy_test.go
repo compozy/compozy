@@ -1,7 +1,6 @@
 package strategies
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/llm"
@@ -123,7 +122,7 @@ func TestTokenAwareLRUStrategy_PerformFlush(t *testing.T) {
 			MaxTokens: 2000,
 		}
 
-		result, err := strategy.PerformFlush(context.Background(), []llm.Message{}, config)
+		result, err := strategy.PerformFlush(t.Context(), []llm.Message{}, config)
 
 		require.NoError(t, err)
 		assert.True(t, result.Success)
@@ -155,7 +154,7 @@ func TestTokenAwareLRUStrategy_PerformFlush(t *testing.T) {
 			}, // Low token count (~6)
 		}
 
-		result, err := strategy.PerformFlush(context.Background(), messages, config)
+		result, err := strategy.PerformFlush(t.Context(), messages, config)
 
 		require.NoError(t, err)
 		assert.True(t, result.Success)
@@ -182,7 +181,7 @@ func TestTokenAwareLRUStrategy_PerformFlush(t *testing.T) {
 		// Target is 50% of 100 = 50 tokens
 		// Should evict messages to get close to 50 tokens
 
-		result, err := strategy.PerformFlush(context.Background(), messages, config)
+		result, err := strategy.PerformFlush(t.Context(), messages, config)
 
 		require.NoError(t, err)
 		assert.True(t, result.Success)
@@ -207,7 +206,7 @@ func TestTokenAwareLRUStrategy_PerformFlush(t *testing.T) {
 			}
 		}
 
-		result, err := strategy.PerformFlush(context.Background(), messages, config)
+		result, err := strategy.PerformFlush(t.Context(), messages, config)
 
 		require.NoError(t, err)
 		assert.True(t, result.Success)
@@ -235,7 +234,7 @@ func TestTokenAwareLRUStrategy_GetMinMaxToFlush(t *testing.T) {
 		currentTokens := 3000
 		maxTokens := 4000
 
-		minFlush, maxFlush := strategy.GetMinMaxToFlush(context.Background(), totalMsgs, currentTokens, maxTokens)
+		minFlush, maxFlush := strategy.GetMinMaxToFlush(t.Context(), totalMsgs, currentTokens, maxTokens)
 
 		assert.Equal(t, 1, minFlush)
 		assert.Greater(t, maxFlush, minFlush)
@@ -247,7 +246,7 @@ func TestTokenAwareLRUStrategy_GetMinMaxToFlush(t *testing.T) {
 		currentTokens := 3800 // Very high token usage
 		maxTokens := 4000
 
-		minFlush, maxFlush := strategy.GetMinMaxToFlush(context.Background(), totalMsgs, currentTokens, maxTokens)
+		minFlush, maxFlush := strategy.GetMinMaxToFlush(t.Context(), totalMsgs, currentTokens, maxTokens)
 
 		assert.Equal(t, 1, minFlush)
 		// Should be more aggressive when token pressure is high
@@ -256,7 +255,7 @@ func TestTokenAwareLRUStrategy_GetMinMaxToFlush(t *testing.T) {
 
 	t.Run("Should handle edge case with few messages", func(t *testing.T) {
 		totalMsgs := 3
-		minFlush, maxFlush := strategy.GetMinMaxToFlush(context.Background(), totalMsgs, 1000, 2000)
+		minFlush, maxFlush := strategy.GetMinMaxToFlush(t.Context(), totalMsgs, 1000, 2000)
 
 		assert.Equal(t, 1, minFlush)
 		assert.GreaterOrEqual(t, maxFlush, minFlush)
@@ -276,7 +275,7 @@ func TestTokenAwareLRUStrategy_TokenCalculation(t *testing.T) {
 
 		// Convert to MessageWithTokens
 		msgWithTokens := make([]MessageWithTokens, len(messages))
-		ctx := context.Background()
+		ctx := t.Context()
 		for i, msg := range messages {
 			tokenCount, _ := strategy.tokenCounter.CountTokens(ctx, msg.Content)
 			msgWithTokens[i] = MessageWithTokens{
@@ -324,7 +323,7 @@ func TestTokenAwareLRUStrategy_ConcurrentAccess(t *testing.T) {
 		// Concurrent PerformFlush calls
 		go func() {
 			for range 5 {
-				strategy.PerformFlush(context.Background(), messages, config)
+				strategy.PerformFlush(t.Context(), messages, config)
 			}
 			done <- true
 		}()

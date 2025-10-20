@@ -74,7 +74,7 @@ func (a *CreateParallelState) Run(ctx context.Context, input *CreateParallelStat
 		return nil, err
 	}
 	// Use task2 normalizer to prepare parallel task configs
-	normalizer, err := a.task2Factory.CreateNormalizer(task.TaskTypeParallel)
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeParallel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create parallel normalizer: %w", err)
 	}
@@ -85,7 +85,7 @@ func (a *CreateParallelState) Run(ctx context.Context, input *CreateParallelStat
 	}
 	// Normalize the parallel task configuration
 	normalizedConfig := input.TaskConfig
-	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
 		return nil, fmt.Errorf("failed to normalize parallel task: %w", err)
 	}
 	// Get child configs from normalized parallel config

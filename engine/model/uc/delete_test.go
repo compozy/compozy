@@ -1,20 +1,19 @@
 package uc
 
 import (
-	"context"
 	"errors"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/resources"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDeleteModel_ConflictsWhenAgentReferences(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	modelBody := map[string]any{"provider": "openai", "model": "gpt-4o-mini"}
 	_, err := NewUpsert(store).Execute(ctx, &UpsertInput{Project: project, ID: "openai:gpt-4o-mini", Body: modelBody})
@@ -32,7 +31,7 @@ func TestDeleteModel_ConflictsWhenAgentReferences(t *testing.T) {
 
 func TestDeleteModel_RemovesWhenUnused(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	ctx := context.Background()
+	ctx := t.Context()
 	project := "demo"
 	_, err := NewUpsert(
 		store,

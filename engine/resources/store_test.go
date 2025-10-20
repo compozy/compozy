@@ -2,8 +2,6 @@ package resources
 
 import (
 	"context"
-	"fmt"
-	"maps"
 	"sync"
 	"testing"
 
@@ -25,9 +23,7 @@ func (s *exampleStore) Put(_ context.Context, key ResourceKey, value any) (ETag,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if m, ok := value.(map[string]any); ok {
-		c := make(map[string]any, len(m))
-		maps.Copy(c, m)
-		s.m[key] = c
+		s.m[key] = core.CloneMap(m)
 	} else {
 		s.m[key] = value
 	}
@@ -42,8 +38,7 @@ func (s *exampleStore) Get(_ context.Context, key ResourceKey) (any, ETag, error
 		return nil, ETag(""), ErrNotFound
 	}
 	if m, ok := v.(map[string]any); ok {
-		c := make(map[string]any, len(m))
-		maps.Copy(c, m)
+		c := core.CloneMap(m)
 		return c, ETag(core.ETagFromAny(c)), nil
 	}
 	return v, ETag(core.ETagFromAny(v)), nil
@@ -58,8 +53,7 @@ func (s *exampleStore) PutIfMatch(_ context.Context, key ResourceKey, value any,
 			return ETag(""), ErrNotFound
 		}
 		if m, ok := value.(map[string]any); ok {
-			c := make(map[string]any, len(m))
-			maps.Copy(c, m)
+			c := core.CloneMap(m)
 			s.m[key] = c
 		} else {
 			s.m[key] = value
@@ -70,8 +64,7 @@ func (s *exampleStore) PutIfMatch(_ context.Context, key ResourceKey, value any,
 		return ETag(""), ErrETagMismatch
 	}
 	if m, ok := value.(map[string]any); ok {
-		c := make(map[string]any, len(m))
-		maps.Copy(c, m)
+		c := core.CloneMap(m)
 		s.m[key] = c
 	} else {
 		s.m[key] = value
@@ -107,24 +100,24 @@ func (s *exampleStore) Watch(ctx context.Context, _ string, _ ResourceType) (<-c
 
 func (s *exampleStore) Close() error { return nil }
 
-func ExampleResourceStore_basic() {
-	ctx := context.Background()
-	st := newExampleStore()
-	key := ResourceKey{Project: "proj", Type: ResourceAgent, ID: "writer"}
-	_, _ = st.Put(ctx, key, map[string]any{"resource": "agent", "id": "writer"})
-	v, _, _ := st.Get(ctx, key)
-	m, ok := v.(map[string]any)
-	if !ok {
-		fmt.Println("value is not a map[string]any")
-		return
-	}
-	fmt.Println(m["id"])
-	// Output: writer
+func TestResourceStore_basic(t *testing.T) {
+	t.Run("Should demonstrate basic put and get operations", func(t *testing.T) {
+		ctx := testCtx(t)
+		st := newExampleStore()
+		key := ResourceKey{Project: "proj", Type: ResourceAgent, ID: "writer"}
+		_, err := st.Put(ctx, key, map[string]any{"resource": "agent", "id": "writer"})
+		require.NoError(t, err)
+		v, _, err := st.Get(ctx, key)
+		require.NoError(t, err)
+		m, ok := v.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "writer", m["id"])
+	})
 }
 
 func TestExampleStorePutGet(t *testing.T) {
 	t.Run("Should put and get a tool by key", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := testCtx(t)
 		st := newExampleStore()
 		key := ResourceKey{Project: "p", Type: ResourceTool, ID: "browser"}
 		_, err := st.Put(ctx, key, map[string]any{"resource": "tool", "id": "browser"})

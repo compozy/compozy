@@ -1,0 +1,53 @@
+---
+description: Prevent converting workflow.Context to context.Context in Temporal Go workflows
+globs: ["*.go"]
+---
+
+# Do not convert `workflow.Context` to `context.Context`
+
+## Context
+In Temporal Go SDK, you cannot reliably convert a `workflow.Context` (used inside workflows) into a standard Go `context.Context`, nor vice versa.
+This limitation exists because Temporal ensures **deterministic workflow replay**, while Go’s `context.Context` is non-deterministic.
+
+## Requirements
+- 🚫 Never assign a `workflow.Context` value into a variable of type `context.Context`.
+- ✅ Workflow code must remain orchestration-only: all I/O or non-deterministic work (HTTP, DB, gRPC, etc.) must be moved to Activities, which receive a `context.Context`.
+- ✅ For quick access to a real `context.Context` **within a workflow**, you may use a `workflow.ExecuteLocalActivity` that returns it — since local activities run in the same process and can safely use `context.Context`.
+- ⚠️ For cleanup tasks that must ignore workflow cancellation, use `workflow.NewDisconnectedContext()` (still a `workflow.Context`, not `context.Context`).
+- ✅ To propagate metadata (user IDs, tokens, etc.) between workflow and activity, use a **Context Propagator** instead of manual conversion.
+
+## Example
+
+```go
+// ✅ Correct approach:
+func ExampleWorkflow(ctx workflow.Context) error {
+  ao := workflow.ActivityOptions{
+    StartToCloseTimeout: 10 * time.Second,
+  }
+  ctx = workflow.WithActivityOptions(ctx, ao)
+
+  // Run an activity that uses context.Context
+  var result string
+  err := workflow.ExecuteActivity(ctx, YourActivity, "param").Get(ctx, &result)
+  return err
+}
+
+// ✅ Alternative: use a Local Activity if you just need a real context.Context
+func ExampleWorkflowWithLocal(ctx workflow.Context) error {
+  lao := workflow.LocalActivityOptions{
+    StartToCloseTimeout: 1 * time.Second,
+  }
+  ctx = workflow.WithLocalActivityOptions(ctx, lao)
+
+  var contextVal string
+  _ = workflow.ExecuteLocalActivity(ctx, RetrieveContextActivity).Get(ctx, &contextVal)
+  return nil
+}
+
+func RetrieveContextActivity(ctx context.Context) (string, error) {
+  // Safe place to use standard context.Context
+  return fmt.Sprintf("context: %v", ctx), nil
+}
+
+// ❌ Incorrect:
+var stdCtx context.Context = workflowCtx  // do not do this

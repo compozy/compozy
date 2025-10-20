@@ -65,13 +65,14 @@ func TestContextInheritanceIntegration(t *testing.T) {
 		}
 
 		// Create real factory for true integration testing
-		factory, err := task2.NewFactory(&task2.FactoryConfig{
+		factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 			TemplateEngine: setup.TemplateEngine,
 			EnvMerger:      task2core.NewEnvMerger(),
 		})
 		require.NoError(t, err, "Factory creation should succeed")
 
 		parallelNormalizer := parallel.NewNormalizer(
+			t.Context(),
 			setup.TemplateEngine,
 			setup.ContextBuilder,
 			factory,
@@ -83,7 +84,7 @@ func TestContextInheritanceIntegration(t *testing.T) {
 		}
 
 		// Execute parallel task normalization
-		err = parallelNormalizer.Normalize(parallelConfig, normCtx)
+		err = parallelNormalizer.Normalize(t.Context(), parallelConfig, normCtx)
 		require.NoError(t, err, "Parallel normalization should succeed")
 
 		// Verify context inheritance for all child tasks
@@ -156,13 +157,14 @@ func TestContextInheritanceIntegration(t *testing.T) {
 		}
 
 		// Create factory with real normalizers for proper inheritance
-		factory, err := task2.NewFactory(&task2.FactoryConfig{
+		factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 			TemplateEngine: setup.TemplateEngine,
 			EnvMerger:      task2core.NewEnvMerger(),
 		})
 		require.NoError(t, err, "Factory creation should succeed")
 
 		compositeNormalizer := composite.NewNormalizer(
+			t.Context(),
 			setup.TemplateEngine,
 			setup.ContextBuilder,
 			factory,
@@ -174,7 +176,7 @@ func TestContextInheritanceIntegration(t *testing.T) {
 		}
 
 		// Execute composite normalization
-		err = compositeNormalizer.Normalize(compositeConfig, normCtx)
+		err = compositeNormalizer.Normalize(t.Context(), compositeConfig, normCtx)
 		require.NoError(t, err, "Composite normalization should succeed")
 
 		// Verify first-level inheritance
@@ -239,6 +241,7 @@ func TestContextInheritanceIntegration(t *testing.T) {
 
 		// Create collection normalizer (doesn't use factory)
 		collectionNormalizer := collection.NewNormalizer(
+			t.Context(),
 			setup.TemplateEngine,
 			setup.ContextBuilder,
 		)
@@ -251,7 +254,7 @@ func TestContextInheritanceIntegration(t *testing.T) {
 		}
 
 		// Execute collection normalization
-		err := collectionNormalizer.Normalize(collectionConfig, normCtx)
+		err := collectionNormalizer.Normalize(t.Context(), collectionConfig, normCtx)
 		require.NoError(t, err, "Collection normalization should succeed")
 
 		// Verify collection template inheritance
@@ -314,13 +317,14 @@ func TestContextInheritanceIntegration(t *testing.T) {
 		}
 
 		// Create real factory for true integration testing
-		factory, err := task2.NewFactory(&task2.FactoryConfig{
+		factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 			TemplateEngine: setup.TemplateEngine,
 			EnvMerger:      task2core.NewEnvMerger(),
 		})
 		require.NoError(t, err, "Factory creation should succeed")
 
 		parallelNormalizer := parallel.NewNormalizer(
+			t.Context(),
 			setup.TemplateEngine,
 			setup.ContextBuilder,
 			factory,
@@ -332,7 +336,7 @@ func TestContextInheritanceIntegration(t *testing.T) {
 		}
 
 		// Execute normalization
-		err = parallelNormalizer.Normalize(parallelConfig, normCtx)
+		err = parallelNormalizer.Normalize(t.Context(), parallelConfig, normCtx)
 		require.NoError(t, err, "Parallel normalization should succeed")
 
 		// Verify explicit child preserves its settings

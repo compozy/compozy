@@ -1,7 +1,6 @@
 package instance
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -80,7 +79,7 @@ func setupMiniredisMemoryInstance(t *testing.T, instanceID string) (core.Memory,
 		WithTokenCounter(mockTokenCounter).
 		WithFlushingStrategy(mockFlushStrategy).
 		WithTemporalClient(mockClient).
-		Build(context.Background())
+		Build(t.Context())
 	require.NoError(t, err)
 
 	cleanup := func() {
@@ -93,7 +92,7 @@ func setupMiniredisMemoryInstance(t *testing.T, instanceID string) (core.Memory,
 
 // TestMemoryInstance_WithRealRedis tests memory instances with real Redis behavior
 func TestMemoryInstance_WithRealRedis(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should append and read messages with real Redis store", func(t *testing.T) {
 		// Setup real Redis environment

@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,10 +18,10 @@ func TestStrategySelectionE2E(t *testing.T) {
 	t.Run("Should use requested strategy when provided for dynamic memory", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Register test memory config without hyphens
-		err := env.RegisterMemoryConfig(&memory.Config{
+		err := env.RegisterMemoryConfig(ctx, &memory.Config{
 			Resource:    "memory",
 			ID:          "customersupport",
 			Type:        memcore.TokenBasedMemory,
@@ -91,10 +90,10 @@ func TestStrategySelectionE2E(t *testing.T) {
 	t.Run("Should fall back to configured strategy when no strategy specified", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Register test memory config
-		err := env.RegisterMemoryConfig(&memory.Config{
+		err := env.RegisterMemoryConfig(ctx, &memory.Config{
 			Resource:    "memory",
 			ID:          "sharedmemory",
 			Type:        memcore.MessageCountBasedMemory,
@@ -160,10 +159,10 @@ func TestStrategySelectionE2E(t *testing.T) {
 	t.Run("Should handle invalid strategy gracefully", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Register test memory config
-		err := env.RegisterMemoryConfig(&memory.Config{
+		err := env.RegisterMemoryConfig(ctx, &memory.Config{
 			Resource:    "memory",
 			ID:          "flushablememory",
 			Type:        memcore.TokenBasedMemory,
@@ -237,10 +236,10 @@ func TestStrategySelectionE2E(t *testing.T) {
 	t.Run("Should maintain backward compatibility with FlushStrategy field", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Register test memory config
-		err := env.RegisterMemoryConfig(&memory.Config{
+		err := env.RegisterMemoryConfig(ctx, &memory.Config{
 			Resource:    "memory",
 			ID:          "compatmemory",
 			Type:        memcore.TokenBasedMemory,

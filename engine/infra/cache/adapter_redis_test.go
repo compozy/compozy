@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ func newTestAdapter(t testing.TB) *RedisAdapter {
 }
 
 func TestRedisAdapter_KV(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	a := newTestAdapter(t)
 
 	t.Run("Should set, get and delete keys with neutral errors", func(t *testing.T) {
@@ -46,7 +45,7 @@ func TestRedisAdapter_KV(t *testing.T) {
 }
 
 func TestRedisAdapter_Lists(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	a := newTestAdapter(t)
 
 	t.Run("Should push, range, trim and report length", func(t *testing.T) {
@@ -72,7 +71,7 @@ func TestRedisAdapter_Lists(t *testing.T) {
 }
 
 func TestRedisAdapter_Hashes(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	a := newTestAdapter(t)
 
 	t.Run("Should set, get, incr and delete hash fields", func(t *testing.T) {
@@ -103,7 +102,7 @@ func TestRedisAdapter_Hashes(t *testing.T) {
 }
 
 func TestRedisAdapter_KeysIteration(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	a := newTestAdapter(t)
 
 	_ = a.Set(ctx, "workflow:1", "a", 0)
@@ -125,7 +124,7 @@ func TestRedisAdapter_KeysIteration(t *testing.T) {
 }
 
 func TestRedisAdapter_AtomicListWithMetadata(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	a := newTestAdapter(t)
 
 	t.Run("Should atomically append, trim and update token metadata", func(t *testing.T) {

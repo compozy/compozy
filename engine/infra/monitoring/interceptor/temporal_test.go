@@ -1,7 +1,6 @@
 package interceptor
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -53,7 +52,7 @@ func TestWorkerMetrics(t *testing.T) {
 		initMetrics(t.Context(), meter)
 		SetConfiguredWorkerCount(5)
 		var rm metricdata.ResourceMetrics
-		err := reader.Collect(context.Background(), &rm)
+		err := reader.Collect(t.Context(), &rm)
 		assert.NoError(t, err)
 		configuredCount := getGaugeValue(t, &rm, "compozy_temporal_workers_configured_total")
 		assert.Equal(t, int64(5), configuredCount)
@@ -64,10 +63,10 @@ func TestWorkerMetrics(t *testing.T) {
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
 		initMetrics(t.Context(), meter)
-		IncrementRunningWorkers(context.Background())
-		IncrementRunningWorkers(context.Background())
+		IncrementRunningWorkers(t.Context())
+		IncrementRunningWorkers(t.Context())
 		var rm metricdata.ResourceMetrics
-		err := reader.Collect(context.Background(), &rm)
+		err := reader.Collect(t.Context(), &rm)
 		assert.NoError(t, err)
 		runningCount := getUpDownCounterValue(t, &rm, "compozy_temporal_workers_running_total")
 		assert.Equal(t, int64(2), runningCount)
@@ -78,11 +77,11 @@ func TestWorkerMetrics(t *testing.T) {
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")
 		initMetrics(t.Context(), meter)
-		IncrementRunningWorkers(context.Background())
-		IncrementRunningWorkers(context.Background())
-		DecrementRunningWorkers(context.Background())
+		IncrementRunningWorkers(t.Context())
+		IncrementRunningWorkers(t.Context())
+		DecrementRunningWorkers(t.Context())
 		var rm metricdata.ResourceMetrics
-		err := reader.Collect(context.Background(), &rm)
+		err := reader.Collect(t.Context(), &rm)
 		assert.NoError(t, err)
 		runningCount := getUpDownCounterValue(t, &rm, "compozy_temporal_workers_running_total")
 		assert.Equal(t, int64(1), runningCount)
@@ -91,8 +90,8 @@ func TestWorkerMetrics(t *testing.T) {
 		workersRunning = nil
 		workersConfigured = nil
 		assert.NotPanics(t, func() {
-			IncrementRunningWorkers(context.Background())
-			DecrementRunningWorkers(context.Background())
+			IncrementRunningWorkers(t.Context())
+			DecrementRunningWorkers(t.Context())
 		})
 	})
 }

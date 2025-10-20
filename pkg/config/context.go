@@ -34,7 +34,7 @@ func ManagerFromContext(ctx context.Context) *Manager {
 			return m
 		}
 	}
-	return getDefaultManager()
+	return getDefaultManager(ctx)
 }
 
 // FromContext returns the active configuration (*Config) for the provided context.
@@ -50,11 +50,11 @@ func FromContext(ctx context.Context) *Config {
 // built-in defaults and environment overrides. YAML/CLI sources are not
 // applied here; callers that need them must construct a Manager and attach
 // it to the context explicitly.
-func getDefaultManager() *Manager {
+func getDefaultManager(ctx context.Context) *Manager {
 	defaultManagerOnce.Do(func() {
-		m := NewManager(NewService())
-		if _, err := m.Load(context.Background(), NewDefaultProvider(), NewEnvProvider()); err != nil {
-			log := logger.FromContext(context.Background())
+		m := NewManager(ctx, NewService())
+		if _, err := m.Load(ctx, NewDefaultProvider(), NewEnvProvider()); err != nil {
+			log := logger.FromContext(ctx)
 			log.Warn("failed to load default configuration, using fallback defaults", "error", err)
 		}
 		defaultManager = m

@@ -58,7 +58,7 @@ func TestNewService(t *testing.T) {
 		agentConfig := createTestAgentConfig()
 		customTimeout := 45 * time.Second
 
-		service, err := NewService(context.Background(), runtimeMgr, agentConfig, WithTimeout(customTimeout))
+		service, err := NewService(t.Context(), runtimeMgr, agentConfig, WithTimeout(customTimeout))
 
 		require.NoError(t, err)
 		assert.Equal(t, customTimeout, service.config.Timeout)
@@ -68,9 +68,9 @@ func TestNewService(t *testing.T) {
 	t.Run("Should register builtin tools when native tools enabled", func(t *testing.T) {
 		runtimeMgr := &mockRuntime{}
 		agentConfig := createTestAgentConfig()
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
-		manager := appconfig.NewManager(appconfig.NewService())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
 		_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
 		require.NoError(t, err)
 		ctx = appconfig.ContextWithManager(ctx, manager)
@@ -88,9 +88,9 @@ func TestNewService(t *testing.T) {
 	t.Run("Should skip builtin registration when disabled", func(t *testing.T) {
 		runtimeMgr := &mockRuntime{}
 		agentConfig := createTestAgentConfig()
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
-		manager := appconfig.NewManager(appconfig.NewService())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
 		_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
 		require.NoError(t, err)
 		cfg := manager.Get()
@@ -107,9 +107,9 @@ func TestNewService(t *testing.T) {
 		runtimeMgr := &mockRuntime{}
 		agentConfig := createTestAgentConfig()
 		agentConfig.Tools = append(agentConfig.Tools, tool.Config{ID: "cp__custom"})
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
-		manager := appconfig.NewManager(appconfig.NewService())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
 		_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
 		require.NoError(t, err)
 		ctx = appconfig.ContextWithManager(ctx, manager)
@@ -179,7 +179,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		ta := llmadapter.NewTestAdapter()
 		ta.SetResponse("Test response from direct prompt")
 		service, err := NewService(
-			context.Background(),
+			t.Context(),
 			runtimeMgr,
 			agentConfig,
 			WithLLMFactory(testFactory{client: testClient{ta}}),
@@ -188,7 +188,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		t.Cleanup(func() { _ = service.Close() })
 
 		out, err := service.GenerateContent(
-			context.Background(),
+			t.Context(),
 			agentConfig,
 			&core.Input{},
 			"",
@@ -207,7 +207,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		agentConfig.Instructions = "Test agent"
 
 		service, err := NewService(
-			context.Background(),
+			t.Context(),
 			runtimeMgr,
 			agentConfig,
 			WithLLMFactory(testFactory{client: testClient{llmadapter.NewTestAdapter()}}),
@@ -216,7 +216,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		t.Cleanup(func() { _ = service.Close() })
 
 		_, err = service.GenerateContent(
-			context.Background(),
+			t.Context(),
 			agentConfig,
 			&core.Input{},
 			"",
@@ -248,7 +248,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		ta := llmadapter.NewTestAdapter()
 		ta.SetResponse(`{"ok":true}`)
 		service, err := NewService(
-			context.Background(),
+			t.Context(),
 			runtimeMgr,
 			agentConfig,
 			WithLLMFactory(testFactory{client: testClient{ta}}),
@@ -258,7 +258,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 
 		with := core.Input{"text": "hello"}
 		out, err := service.GenerateContent(
-			context.Background(),
+			t.Context(),
 			agentConfig,
 			&with,
 			"analyze",
@@ -292,7 +292,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		ta := llmadapter.NewTestAdapter()
 		ta.SetResponse(`{"enhanced":true, "focused":true}`)
 		service, err := NewService(
-			context.Background(),
+			t.Context(),
 			runtimeMgr,
 			agentConfig,
 			WithLLMFactory(testFactory{client: testClient{ta}}),
@@ -303,7 +303,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		with := core.Input{"data": "test data"}
 		// Provide both action and prompt for enhanced context
 		out, err := service.GenerateContent(
-			context.Background(),
+			t.Context(),
 			agentConfig,
 			&with,
 			"analyze",
@@ -321,9 +321,9 @@ func TestService_applyKnowledgeOverrides(t *testing.T) {
 	t.Run("Should apply runtime overrides to resolved knowledge bindings", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
-		manager := appconfig.NewManager(appconfig.NewService())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
 		_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
 		require.NoError(t, err)
 		ctx = appconfig.ContextWithManager(ctx, manager)
@@ -443,9 +443,9 @@ func TestBuildKnowledgeQuery(t *testing.T) {
 }
 
 func TestServiceSummarizeRetrieval(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
-	manager := appconfig.NewManager(appconfig.NewService())
+	manager := appconfig.NewManager(t.Context(), appconfig.NewService())
 	_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
 	require.NoError(t, err)
 	ctx = appconfig.ContextWithManager(ctx, manager)

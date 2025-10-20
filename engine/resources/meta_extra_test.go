@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testCtx() context.Context {
-	return logger.ContextWithLogger(context.Background(), logger.NewForTests())
+func testCtx(t *testing.T) context.Context {
+	return logger.ContextWithLogger(t.Context(), logger.NewForTests())
 }
 
 func TestWriteMetaAndGetMetaSource(t *testing.T) {
-	ctx := testCtx()
+	ctx := testCtx(t)
 	st := NewMemoryResourceStore()
 	require.NoError(t, WriteMeta(ctx, st, "p", ResourceAgent, "a", "api", "tester"))
 	src := GetMetaSource(ctx, st, "p", ResourceAgent, "a")
@@ -22,7 +22,7 @@ func TestWriteMetaAndGetMetaSource(t *testing.T) {
 }
 
 func TestWriteMetaForAutoload(t *testing.T) {
-	ctx := testCtx()
+	ctx := testCtx(t)
 	st := NewMemoryResourceStore()
 	require.NoError(t, WriteMetaForAutoload(ctx, st, "p", ResourceTool, "t"))
 	v, _, err := st.Get(ctx, ResourceKey{Project: "p", Type: ResourceMeta, ID: "p:tool:t"})
@@ -33,7 +33,7 @@ func TestWriteMetaForAutoload(t *testing.T) {
 
 func TestIndexPutWithMeta_ConflictAndErrors(t *testing.T) {
 	t.Run("Should log conflict when prior source differs and update meta", func(t *testing.T) {
-		ctx := testCtx()
+		ctx := testCtx(t)
 		st := NewMemoryResourceStore()
 		require.NoError(t, WriteMeta(ctx, st, "p", ResourceSchema, "s", "yaml", "y"))
 		err := IndexPutWithMeta(ctx, st, "p", ResourceSchema, "s", map[string]any{"id": "s"}, "autoload", "a")
@@ -44,13 +44,13 @@ func TestIndexPutWithMeta_ConflictAndErrors(t *testing.T) {
 		require.Equal(t, "autoload", m["source"].(string))
 	})
 	t.Run("Should return error when value put fails", func(t *testing.T) {
-		ctx := testCtx()
+		ctx := testCtx(t)
 		st := &failingPutStore{err: errors.New("put-fail")}
 		err := IndexPutWithMeta(ctx, st, "p", ResourceAgent, "a", map[string]any{"id": "a"}, "api", "u")
 		require.Error(t, err)
 	})
 	t.Run("Should return error when meta write fails", func(t *testing.T) {
-		ctx := testCtx()
+		ctx := testCtx(t)
 		st := &failingMetaOnlyStore{inner: NewMemoryResourceStore()}
 		err := IndexPutWithMeta(ctx, st, "p", ResourceAgent, "a", map[string]any{"id": "a"}, "api", "u")
 		require.Error(t, err)

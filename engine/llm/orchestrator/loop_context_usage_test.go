@@ -1,7 +1,6 @@
 package orchestrator
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -143,7 +142,7 @@ func TestRecordLLMResponse_WarnsWhenContextLimitUnknown(t *testing.T) {
 				CompletionTokens: 5,
 			},
 		}
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		respCtx := telemetry.ContextWithRecorder(ctx, telemetry.NopRecorder())
 		require.False(t, loopCtx.contextLimitWarned)
 		loop.recordLLMResponse(respCtx, loopCtx, resp)

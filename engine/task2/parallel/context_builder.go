@@ -1,6 +1,8 @@
 package parallel
 
 import (
+	"context"
+
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
@@ -12,9 +14,9 @@ type ContextBuilder struct {
 }
 
 // NewContextBuilder creates a new parallel task context builder
-func NewContextBuilder() *ContextBuilder {
+func NewContextBuilder(ctx context.Context) *ContextBuilder {
 	return &ContextBuilder{
-		BaseContextBuilder: shared.NewBaseContextBuilder(),
+		BaseContextBuilder: shared.NewBaseContextBuilder(ctx),
 	}
 }
 
@@ -25,15 +27,16 @@ func (b *ContextBuilder) TaskType() task.Type {
 
 // BuildContext creates a normalization context for parallel tasks
 func (b *ContextBuilder) BuildContext(
+	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) *shared.NormalizationContext {
 	// Start with base context
-	ctx := b.BaseContextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	normCtx := b.BaseContextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
 	// Parallel tasks don't need special context modifications
 	// Each sub-task will get its own context when normalized
-	return ctx
+	return normCtx
 }
 
 // EnrichContext adds parallel-specific data to an existing context

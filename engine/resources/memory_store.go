@@ -3,10 +3,12 @@ package resources
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	resmetrics "github.com/compozy/compozy/engine/resources/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -25,11 +27,61 @@ type storedEntry struct {
 }
 
 type watcher struct {
+	mu     sync.Mutex
 	ch     chan Event
 	closed bool
 }
 
 const defaultWatchBuffer = 256
+
+func (w *watcher) trySend(evt *Event) (bool, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closed {
+		return false, false
+	}
+	select {
+	case w.ch <- *evt:
+		return true, false
+	default:
+		return false, true
+	}
+}
+
+func (w *watcher) closeChannel() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closed {
+		return
+	}
+	w.closed = true
+	close(w.ch)
+}
+
+func cloneWatchers(list []*watcher) []*watcher {
+	if len(list) == 0 {
+		return nil
+	}
+	cloned := make([]*watcher, len(list))
+	copy(cloned, list)
+	return cloned
+}
+
+func notifyWatchers(log logger.Logger, watchers []*watcher, evt *Event) {
+	for _, w := range watchers {
+		if w == nil {
+			continue
+		}
+		if _, dropped := w.trySend(evt); dropped {
+			log.Warn(
+				"watch channel full; dropping event",
+				"project", evt.Key.Project,
+				"type", string(evt.Key.Type),
+				"id", evt.Key.ID,
+			)
+		}
+	}
+}
 
 // NewMemoryResourceStore constructs a new MemoryResourceStore.
 func NewMemoryResourceStore() *MemoryResourceStore {
@@ -37,44 +89,36 @@ func NewMemoryResourceStore() *MemoryResourceStore {
 }
 
 // Put inserts or replaces a resource value at the given key and broadcasts an event.
-func (s *MemoryResourceStore) Put(ctx context.Context, key ResourceKey, value any) (ETag, error) {
-	if err := ctx.Err(); err != nil {
-		return ETag(""), fmt.Errorf("context canceled: %w", err)
+func (s *MemoryResourceStore) Put(ctx context.Context, key ResourceKey, value any) (etag ETag, err error) {
+	start := time.Now()
+	defer func() { recordStoreOperation(ctx, start, "put", key.Type, err) }()
+	if err = ctx.Err(); err != nil {
+		return "", fmt.Errorf("context canceled: %w", err)
 	}
 	log := logger.FromContext(ctx)
 	if value == nil {
-		return ETag(""), fmt.Errorf("nil value is not allowed")
+		return "", fmt.Errorf("nil value is not allowed")
 	}
-	cp, err := core.DeepCopy[any](value)
-	if err != nil {
-		return ETag(""), fmt.Errorf("deep copy failed: %w", err)
+	cp, copyErr := core.DeepCopy(value)
+	if copyErr != nil {
+		err = fmt.Errorf("deep copy failed: %w", copyErr)
+		return "", err
 	}
-	etag := ETag(core.ETagFromAny(cp))
+	etag = ETag(core.ETagFromAny(cp))
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return ETag(""), fmt.Errorf("store is closed")
+		return "", fmt.Errorf("store is closed")
 	}
+	_, existed := s.items[key]
 	s.items[key] = storedEntry{value: cp, etag: etag}
-	// Broadcast while holding the lock to prevent concurrent channel close.
 	evt := Event{Type: EventPut, Key: key, ETag: etag, At: time.Now().UTC()}
-	keyspace := watcherKeyspace(key.Project, key.Type)
-	for _, w := range s.watchers[keyspace] {
-		if w.closed {
-			continue
-		}
-		select {
-		case w.ch <- evt:
-		default:
-			log.Warn(
-				"watch channel full; dropping event",
-				"project", key.Project,
-				"type", string(key.Type),
-				"id", key.ID,
-			)
-		}
-	}
+	watchers := cloneWatchers(s.watchers[watcherKeyspace(key.Project, key.Type)])
 	s.mu.Unlock()
+	if !existed {
+		resmetrics.AdjustStoreSize(string(key.Type), 1)
+	}
+	notifyWatchers(log, watchers, &evt)
 	return etag, nil
 }
 
@@ -84,89 +128,93 @@ func (s *MemoryResourceStore) PutIfMatch(
 	key ResourceKey,
 	value any,
 	expectedETag ETag,
-) (ETag, error) {
-	if err := ctx.Err(); err != nil {
-		return ETag(""), fmt.Errorf("context canceled: %w", err)
+) (etag ETag, err error) {
+	start := time.Now()
+	defer func() { recordStoreOperation(ctx, start, "put", key.Type, err) }()
+	if err = ctx.Err(); err != nil {
+		return "", fmt.Errorf("context canceled: %w", err)
 	}
 	log := logger.FromContext(ctx)
 	if value == nil {
-		return ETag(""), fmt.Errorf("nil value is not allowed")
+		return "", fmt.Errorf("nil value is not allowed")
 	}
-	cp, err := core.DeepCopy[any](value)
-	if err != nil {
-		return ETag(""), fmt.Errorf("deep copy failed: %w", err)
+	cp, copyErr := core.DeepCopy(value)
+	if copyErr != nil {
+		err = fmt.Errorf("deep copy failed: %w", copyErr)
+		return "", err
 	}
-	etag := ETag(core.ETagFromAny(cp))
+	etag = ETag(core.ETagFromAny(cp))
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return ETag(""), fmt.Errorf("store is closed")
+		return "", fmt.Errorf("store is closed")
 	}
 	entry, ok := s.items[key]
+	created := false
 	if !ok {
 		if expectedETag != "" {
 			s.mu.Unlock()
-			return ETag(""), ErrNotFound
+			err = ErrNotFound
+			return "", err
 		}
 		s.items[key] = storedEntry{value: cp, etag: etag}
+		created = true
 	} else {
 		if entry.etag != expectedETag {
 			s.mu.Unlock()
-			return ETag(""), ErrETagMismatch
+			resmetrics.RecordETagMismatch(ctx, string(key.Type))
+			err = ErrETagMismatch
+			return "", err
 		}
 		s.items[key] = storedEntry{value: cp, etag: etag}
 	}
 	evt := Event{Type: EventPut, Key: key, ETag: etag, At: time.Now().UTC()}
-	keyspace := watcherKeyspace(key.Project, key.Type)
-	for _, w := range s.watchers[keyspace] {
-		if w.closed {
-			continue
-		}
-		select {
-		case w.ch <- evt:
-		default:
-			log.Warn(
-				"watch channel full; dropping event",
-				"project", key.Project,
-				"type", string(key.Type),
-				"id", key.ID,
-			)
-		}
-	}
+	watchers := cloneWatchers(s.watchers[watcherKeyspace(key.Project, key.Type)])
 	s.mu.Unlock()
+	if created {
+		resmetrics.AdjustStoreSize(string(key.Type), 1)
+	}
+	notifyWatchers(log, watchers, &evt)
 	return etag, nil
 }
 
 // Get retrieves a resource value by key, returning a deep copy.
-func (s *MemoryResourceStore) Get(ctx context.Context, key ResourceKey) (any, ETag, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, ETag(""), fmt.Errorf("context canceled: %w", err)
+func (s *MemoryResourceStore) Get(ctx context.Context, key ResourceKey) (value any, etag ETag, err error) {
+	start := time.Now()
+	defer func() { recordStoreOperation(ctx, start, "get", key.Type, err) }()
+	if err = ctx.Err(); err != nil {
+		return nil, "", fmt.Errorf("context canceled: %w", err)
 	}
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return nil, ETag(""), fmt.Errorf("store is closed")
+		return nil, "", fmt.Errorf("store is closed")
 	}
 	entry, ok := s.items[key]
 	s.mu.RUnlock()
 	if !ok {
-		return nil, ETag(""), ErrNotFound
+		err = ErrNotFound
+		return nil, "", err
 	}
-	cp, err := core.DeepCopy[any](entry.value)
+	value, err = core.DeepCopy(entry.value)
 	if err != nil {
-		return nil, ETag(""), fmt.Errorf("deep copy failed: %w", err)
+		return nil, "", fmt.Errorf("deep copy failed: %w", err)
 	}
-	return cp, entry.etag, nil
+	return value, entry.etag, nil
 }
 
 // Delete removes a resource by key and broadcasts an event if existed.
-func (s *MemoryResourceStore) Delete(ctx context.Context, key ResourceKey) error {
-	if err := ctx.Err(); err != nil {
+func (s *MemoryResourceStore) Delete(ctx context.Context, key ResourceKey) (err error) {
+	start := time.Now()
+	defer func() { recordStoreOperation(ctx, start, "delete", key.Type, err) }()
+	if err = ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled: %w", err)
 	}
 	log := logger.FromContext(ctx)
 	existed := false
 	var etag ETag
+	var watchers []*watcher
+	var evt Event
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -176,34 +224,26 @@ func (s *MemoryResourceStore) Delete(ctx context.Context, key ResourceKey) error
 		existed = true
 		etag = entry.etag
 		delete(s.items, key)
-	}
-	// Broadcast while holding the lock to prevent concurrent channel close.
-	if existed {
-		evt := Event{Type: EventDelete, Key: key, ETag: etag, At: time.Now().UTC()}
-		keyspace := watcherKeyspace(key.Project, key.Type)
-		for _, w := range s.watchers[keyspace] {
-			if w.closed {
-				continue
-			}
-			select {
-			case w.ch <- evt:
-			default:
-				log.Warn(
-					"watch channel full; dropping event",
-					"project", key.Project,
-					"type", string(key.Type),
-					"id", key.ID,
-				)
-			}
-		}
+		watchers = cloneWatchers(s.watchers[watcherKeyspace(key.Project, key.Type)])
+		evt = Event{Type: EventDelete, Key: key, ETag: etag, At: time.Now().UTC()}
 	}
 	s.mu.Unlock()
+	if existed {
+		resmetrics.AdjustStoreSize(string(key.Type), -1)
+		notifyWatchers(log, watchers, &evt)
+	}
 	return nil
 }
 
 // List returns keys for a project and type.
-func (s *MemoryResourceStore) List(ctx context.Context, project string, typ ResourceType) ([]ResourceKey, error) {
-	if err := ctx.Err(); err != nil {
+func (s *MemoryResourceStore) List(
+	ctx context.Context,
+	project string,
+	typ ResourceType,
+) (keys []ResourceKey, err error) {
+	start := time.Now()
+	defer func() { recordStoreOperation(ctx, start, "list", typ, err) }()
+	if err = ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
 	s.mu.RLock()
@@ -211,13 +251,14 @@ func (s *MemoryResourceStore) List(ctx context.Context, project string, typ Reso
 		s.mu.RUnlock()
 		return nil, fmt.Errorf("store is closed")
 	}
-	keys := make([]ResourceKey, 0, len(s.items))
+	keys = make([]ResourceKey, 0, len(s.items))
 	for k := range s.items {
 		if k.Project == project && k.Type == typ {
 			keys = append(keys, k)
 		}
 	}
 	s.mu.RUnlock()
+	resmetrics.SetStoreSize(string(typ), int64(len(keys)))
 	return keys, nil
 }
 
@@ -269,10 +310,7 @@ func (s *MemoryResourceStore) Close() error {
 	s.closed = true
 	for _, list := range s.watchers {
 		for _, w := range list {
-			if !w.closed {
-				close(w.ch)
-				w.closed = true
-			}
+			w.closeChannel()
 		}
 	}
 	s.watchers = make(map[string][]*watcher)
@@ -293,22 +331,29 @@ func (s *MemoryResourceStore) removeWatcher(project string, typ ResourceType, ta
 		}
 	}
 	if idx >= 0 {
-		tail := append([]*watcher(nil), list[:idx]...)
-		tail = append(tail, list[idx+1:]...)
-		if len(tail) == 0 {
+		lastIdx := len(list) - 1
+		list[idx] = list[lastIdx]
+		list[lastIdx] = nil
+		list = list[:lastIdx]
+		if len(list) == 0 {
 			delete(s.watchers, keyspace)
 		} else {
-			s.watchers[keyspace] = tail
+			s.watchers[keyspace] = list
 		}
 	}
-	if !target.closed {
-		close(target.ch)
-		target.closed = true
-	}
+	target.closeChannel()
 	s.mu.Unlock()
 }
 
-// copyWatchersLocked was removed; broadcasting now occurs while the store lock is held
+// copyWatchersLocked remains unnecessary; broadcasting now happens after releasing the store lock
+
+func recordStoreOperation(ctx context.Context, start time.Time, operation string, typ ResourceType, err error) {
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	resmetrics.RecordOperation(ctx, operation, string(typ), outcome, time.Since(start))
+}
 
 func watcherKeyspace(project string, typ ResourceType) string { return project + "|" + string(typ) }
 
@@ -317,8 +362,10 @@ func (s *MemoryResourceStore) ListWithValues(
 	ctx context.Context,
 	project string,
 	typ ResourceType,
-) ([]StoredItem, error) {
-	if err := ctx.Err(); err != nil {
+) (items []StoredItem, err error) {
+	start := time.Now()
+	defer func() { recordStoreOperation(ctx, start, "list", typ, err) }()
+	if err = ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
 	s.mu.RLock()
@@ -326,19 +373,21 @@ func (s *MemoryResourceStore) ListWithValues(
 		s.mu.RUnlock()
 		return nil, fmt.Errorf("store is closed")
 	}
-	out := make([]StoredItem, 0)
+	items = make([]StoredItem, 0)
 	for k, e := range s.items {
 		if k.Project == project && k.Type == typ {
-			cp, err := core.DeepCopy[any](e.value)
-			if err != nil {
+			cp, copyErr := core.DeepCopy(e.value)
+			if copyErr != nil {
 				s.mu.RUnlock()
-				return nil, fmt.Errorf("deep copy failed: %w", err)
+				err = fmt.Errorf("deep copy failed: %w", copyErr)
+				return nil, err
 			}
-			out = append(out, StoredItem{Key: k, Value: cp, ETag: e.etag})
+			items = append(items, StoredItem{Key: k, Value: cp, ETag: e.etag})
 		}
 	}
 	s.mu.RUnlock()
-	return out, nil
+	resmetrics.SetStoreSize(string(typ), int64(len(items)))
+	return items, nil
 }
 
 // ListWithValuesPage returns a page of items and the total count.
@@ -347,15 +396,16 @@ func (s *MemoryResourceStore) ListWithValuesPage(
 	project string,
 	typ ResourceType,
 	offset, limit int,
-) ([]StoredItem, int, error) {
-	if err := ctx.Err(); err != nil {
+) (items []StoredItem, total int, err error) {
+	start := time.Now()
+	defer func() { recordStoreOperation(ctx, start, "list", typ, err) }()
+	if err = ctx.Err(); err != nil {
 		return nil, 0, fmt.Errorf("context canceled: %w", err)
 	}
 	if offset < 0 {
 		offset = 0
 	}
 	if limit <= 0 {
-		// max int portable expression
 		limit = int(^uint(0) >> 1)
 	}
 	s.mu.RLock()
@@ -363,28 +413,41 @@ func (s *MemoryResourceStore) ListWithValuesPage(
 		s.mu.RUnlock()
 		return nil, 0, fmt.Errorf("store is closed")
 	}
-	total := 0
-	end := offset + limit
-	out := make([]StoredItem, 0)
+	type entryPair struct {
+		key   ResourceKey
+		entry storedEntry
+	}
+	pairs := make([]entryPair, 0)
 	for k, e := range s.items {
-		if k.Project != project || k.Type != typ {
-			continue
+		if k.Project == project && k.Type == typ {
+			pairs = append(pairs, entryPair{key: k, entry: e})
 		}
-		if total >= offset && total < end {
-			cp, err := core.DeepCopy[any](e.value)
-			if err != nil {
-				s.mu.RUnlock()
-				return nil, 0, fmt.Errorf("deep copy failed: %w", err)
-			}
-			out = append(out, StoredItem{Key: k, Value: cp, ETag: e.etag})
-		}
-		total++
 	}
 	s.mu.RUnlock()
-	if offset > total {
+
+	sort.Slice(pairs, func(i, j int) bool {
+		if pairs[i].key.ID == pairs[j].key.ID {
+			return pairs[i].key.Version < pairs[j].key.Version
+		}
+		return pairs[i].key.ID < pairs[j].key.ID
+	})
+
+	total = len(pairs)
+	resmetrics.SetStoreSize(string(typ), int64(total))
+	if offset >= total {
 		return []StoredItem{}, total, nil
 	}
-	return out, total, nil
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	items = make([]StoredItem, 0, end-offset)
+	for _, pair := range pairs[offset:end] {
+		cp, copyErr := core.DeepCopy(pair.entry.value)
+		if copyErr != nil {
+			return nil, 0, fmt.Errorf("deep copy failed: %w", copyErr)
+		}
+		items = append(items, StoredItem{Key: pair.key, Value: cp, ETag: pair.entry.etag})
+	}
+	return items, total, nil
 }
-
-// removed: local deepCopy/ETag/writeStableJSON in favor of core.DeepCopy and core.ETagFromAny

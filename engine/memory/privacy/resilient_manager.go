@@ -204,10 +204,12 @@ func (rm *ResilientManager) handleResilienceFailure(
 
 // GetCircuitBreakerState returns the current state of the circuit breaker
 // This method provides compatibility with the existing interface
-func (rm *ResilientManager) GetCircuitBreakerStatus() (isOpen bool, consecutiveErrors int, maxErrors int) {
+func (rm *ResilientManager) GetCircuitBreakerStatus(
+	ctx context.Context,
+) (isOpen bool, consecutiveErrors int, maxErrors int) {
 	// Since goresilience doesn't expose internal state directly,
 	// we return a simplified view based on whether the circuit is allowing requests
-	testCtx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	testCtx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
 	defer cancel()
 	err := rm.runner.Run(testCtx, func(_ context.Context) error {
 		return nil

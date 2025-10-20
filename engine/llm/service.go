@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/knowledge"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	orchestratorpkg "github.com/compozy/compozy/engine/llm/orchestrator"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/telemetry"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
@@ -196,6 +197,8 @@ func assembleOrchestratorConfig(
 		SystemPromptRenderer:           systemPromptRenderer,
 		RuntimeManager:                 runtime,
 		LLMFactory:                     config.LLMFactory,
+		ProviderMetrics:                config.ProviderMetrics,
+		RateLimiter:                    config.RateLimiter,
 		MemoryProvider:                 config.MemoryProvider,
 		MemorySync:                     NewMemorySync(),
 		Timeout:                        config.Timeout,
@@ -274,12 +277,11 @@ func newServiceInstance(
 }
 
 func deriveCloseContext(ctx context.Context) context.Context {
-	base := context.Background()
+	base := context.WithoutCancel(ctx)
 	if mgr := appconfig.ManagerFromContext(ctx); mgr != nil {
 		base = appconfig.ContextWithManager(base, mgr)
 	}
-	log := logger.FromContext(ctx)
-	if log != nil {
+	if log := logger.FromContext(ctx); log != nil {
 		base = logger.ContextWithLogger(base, log)
 	}
 	return base
@@ -292,13 +294,16 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	config := DefaultConfig()
 	// Context-first: merge application config when available
 	if ac := appconfig.FromContext(ctx); ac != nil {
-		WithAppConfig(ac)(config)
+		WithAppConfig(ctx, ac)(config)
 	}
 	for _, opt := range opts {
 		opt(config)
 	}
+	if config.ProviderMetrics == nil {
+		config.ProviderMetrics = providermetrics.Nop()
+	}
 	// Validate configuration
-	if err := config.Validate(); err != nil {
+	if err := config.Validate(ctx); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 	knowledgeState, err := newKnowledgeRuntimeState(ctx, config.Knowledge)
@@ -317,13 +322,19 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		return nil, err
 	}
 	// Create tool registry
-	toolRegistry := NewToolRegistry(ToolRegistryConfig{
+	toolRegistry, err := NewToolRegistry(ctx, ToolRegistryConfig{
 		ProxyClient:     mcpClient,
 		CacheTTL:        config.CacheTTL,
 		AllowedMCPNames: config.AllowedMCPNames,
 		DeniedMCPNames:  config.DeniedMCPNames,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tool registry: %w", err)
+	}
 	if err := configureToolRegistry(ctx, toolRegistry, runtime, agent, config); err != nil {
+		if closeErr := toolRegistry.Close(); closeErr != nil {
+			log.Warn("Failed to close tool registry after configuration error", "error", core.RedactError(closeErr))
+		}
 		return nil, err
 	}
 	// Create components
@@ -655,7 +666,7 @@ func initKnowledgeRuntime(
 	if err != nil {
 		defsCopy = cfg.Definitions
 	}
-	resolver, err := knowledge.NewResolver(defsCopy, knowledge.DefaultsFromContext(ctx))
+	resolver, err := knowledge.NewResolver(ctx, defsCopy, knowledge.DefaultsFromContext(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -678,7 +689,7 @@ func setupMCPClient(ctx context.Context, cfg *Config, agent *agent.Config) (*mcp
 	if cfg == nil || cfg.ProxyURL == "" {
 		return nil, nil
 	}
-	client, err := cfg.CreateMCPClient()
+	client, err := cfg.CreateMCPClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MCP client: %w", err)
 	}

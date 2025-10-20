@@ -21,9 +21,9 @@ const integrationTimeout = 5 * time.Second
 
 func integrationContext(t *testing.T) (context.Context, context.CancelFunc) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), integrationTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), integrationTimeout)
 	ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
-	ctx = config.ContextWithManager(ctx, config.NewManager(config.NewService()))
+	ctx = config.ContextWithManager(ctx, config.NewManager(t.Context(), config.NewService()))
 	return ctx, cancel
 }
 

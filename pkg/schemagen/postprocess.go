@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"maps"
 	"sync"
 
 	"github.com/compozy/compozy/engine/attachment"
@@ -303,10 +302,14 @@ func ensureAttachmentsSchema(schema map[string]any, props map[string]any) bool {
 		}
 		delete(attProp, k)
 	}
-	maps.Copy(attProp, data.arrayDefinition)
+	for k, v := range data.arrayDefinition {
+		attProp[k] = v
+	}
 	defs := ensureDefsMap(schema)
 	delete(defs, "Attachments")
-	maps.Copy(defs, data.variantDefinitions)
+	for k, v := range data.variantDefinitions {
+		defs[k] = v
+	}
 	return true
 }
 

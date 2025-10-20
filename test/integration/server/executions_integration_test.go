@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -55,7 +54,7 @@ func (i *workflowRunnerInjector) Middleware(c *gin.Context) {
 func newServerHarnessWithMiddleware(t *testing.T, extra ...gin.HandlerFunc) *serverhelpers.ServerHarness {
 	t.Helper()
 	ctx := ctxhelpers.TestContext(t)
-	manager := config.NewManager(config.NewService())
+	manager := config.NewManager(ctx, config.NewService())
 	_, err := manager.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
 	ctx = config.ContextWithManager(ctx, manager)
@@ -83,7 +82,7 @@ func newServerHarnessWithMiddleware(t *testing.T, extra ...gin.HandlerFunc) *ser
 	proj := &project.Config{Name: projectName, Version: "1.0.0"}
 	require.NoError(t, proj.SetCWD(tempDir))
 	proj.SetFilePath(projFile)
-	pool, cleanup := helpers.GetSharedPostgresDB(ctx, t)
+	pool, cleanup := helpers.GetSharedPostgresDB(t)
 	t.Cleanup(cleanup)
 	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
 	cfg.Database.ConnString = pool.Config().ConnString()
@@ -491,8 +490,8 @@ func (s *workflowRunnerStub) complete(
 	}
 	state.Status = core.StatusSuccess
 	if len(output) > 0 {
-		copyOutput := make(core.Output)
-		maps.Copy(copyOutput, output)
+		cloned := core.CloneMap(output)
+		copyOutput := core.Output(cloned)
 		state.Output = &copyOutput
 	}
 	if err := s.repo.UpsertState(context.WithoutCancel(ctx), state); err != nil {
@@ -574,8 +573,8 @@ func (s *directExecutorStub) ExecuteSync(
 		state.Input = cfg.With
 	}
 	if len(s.cfg.syncOutput) > 0 {
-		copyOutput := make(core.Output)
-		maps.Copy(copyOutput, s.cfg.syncOutput)
+		cloned := core.CloneMap(s.cfg.syncOutput)
+		copyOutput := core.Output(cloned)
 		state.Output = &copyOutput
 	}
 	s.ensureWorkflowState(ctx, meta.WorkflowID, execID)
@@ -588,8 +587,8 @@ func (s *directExecutorStub) ExecuteSync(
 	s.mu.Unlock()
 	s.finishWorkflowState(ctx, execID, s.cfg.syncOutput)
 	if len(s.cfg.syncOutput) > 0 {
-		outCopy := make(core.Output)
-		maps.Copy(outCopy, s.cfg.syncOutput)
+		cloned := core.CloneMap(s.cfg.syncOutput)
+		outCopy := core.Output(cloned)
 		return &outCopy, execID, nil
 	}
 	return nil, execID, nil
@@ -646,8 +645,8 @@ func (s *directExecutorStub) completeAsync(
 	}
 	state.Status = core.StatusSuccess
 	if len(output) > 0 {
-		copyOutput := make(core.Output)
-		maps.Copy(copyOutput, output)
+		cloned := core.CloneMap(output)
+		copyOutput := core.Output(cloned)
 		state.Output = &copyOutput
 	}
 	state.UpdatedAt = now
@@ -679,8 +678,8 @@ func (s *directExecutorStub) finishWorkflowState(ctx context.Context, execID cor
 	}
 	state.Status = core.StatusSuccess
 	if len(output) > 0 {
-		copyOutput := make(core.Output)
-		maps.Copy(copyOutput, output)
+		cloned := core.CloneMap(output)
+		copyOutput := core.Output(cloned)
 		state.Output = &copyOutput
 	}
 	_ = s.workflowRepo.UpsertState(context.WithoutCancel(ctx), state)
@@ -696,7 +695,7 @@ func installDirectExecutorStub(t *testing.T, state *appstate.State, stub *direct
 	t.Helper()
 	tkrouter.SetDirectExecutorFactory(
 		state,
-		func(*appstate.State, taskdomain.Repository) (tkrouter.DirectExecutor, error) {
+		func(context.Context, *appstate.State, taskdomain.Repository) (tkrouter.DirectExecutor, error) {
 			return stub, nil
 		},
 	)

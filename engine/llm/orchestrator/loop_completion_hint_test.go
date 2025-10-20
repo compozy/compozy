@@ -11,7 +11,7 @@ import (
 
 func TestOnEnterUpdateBudgets_InjectsCompletionHintForAgentCalls(t *testing.T) {
 	t.Run("ShouldInjectCompletionHintAfterSuccessfulAgentCall", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		settings := &settings{
 			enableAgentCallCompletionHints: true,
 			maxSequentialToolErrors:        5,
@@ -41,7 +41,7 @@ func TestOnEnterUpdateBudgets_InjectsCompletionHintForAgentCalls(t *testing.T) {
 		require.Contains(t, loopCtx.LLMRequest.Messages[1].Content, "final answer")
 	})
 	t.Run("ShouldNotInjectHintWhenFeatureDisabled", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		settings := &settings{
 			enableAgentCallCompletionHints: false,
 			maxSequentialToolErrors:        5,
@@ -67,7 +67,7 @@ func TestOnEnterUpdateBudgets_InjectsCompletionHintForAgentCalls(t *testing.T) {
 		require.Equal(t, roleTool, loopCtx.LLMRequest.Messages[0].Role)
 	})
 	t.Run("ShouldNotInjectHintForNonAgentTools", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		settings := &settings{
 			enableAgentCallCompletionHints: true,
 			maxSequentialToolErrors:        5,
@@ -93,7 +93,7 @@ func TestOnEnterUpdateBudgets_InjectsCompletionHintForAgentCalls(t *testing.T) {
 		require.Equal(t, roleTool, loopCtx.LLMRequest.Messages[0].Role)
 	})
 	t.Run("ShouldNotInjectHintForFailedAgentCall", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		settings := &settings{
 			enableAgentCallCompletionHints: true,
 			maxSequentialToolErrors:        5,

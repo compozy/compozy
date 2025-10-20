@@ -99,6 +99,43 @@ func (e *CollectionTaskExecutor) GetCollectionResponse(
 	return response, nil
 }
 
+func (e *CollectionTaskExecutor) loadCollectionChildren(
+	ctx workflow.Context,
+	parentState *task.State,
+) ([]*task.State, map[string]*task.Config, int32, error) {
+	childStates, err := e.ListChildStates(ctx, parentState.TaskExecID)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("failed to list child states: %w", err)
+	}
+	if len(childStates) > math.MaxInt32 {
+		return nil, nil, 0, fmt.Errorf(
+			"too many child states: %d exceeds maximum of %d",
+			len(childStates),
+			math.MaxInt32,
+		)
+	}
+	if len(childStates) == 0 {
+		return childStates, nil, 0, nil
+	}
+	childIDs := make([]string, len(childStates))
+	for i, st := range childStates {
+		childIDs[i] = st.TaskID
+	}
+	var childCfgs map[string]*task.Config
+	if err := workflow.ExecuteActivity(
+		ctx,
+		tkacts.LoadCollectionConfigsLabel,
+		&tkacts.LoadCollectionConfigsInput{
+			ParentTaskExecID: parentState.TaskExecID,
+			TaskIDs:          childIDs,
+		},
+	).Get(ctx, &childCfgs); err != nil {
+		return nil, nil, 0, fmt.Errorf("failed to load child configs: %w", err)
+	}
+	childCount := int32(len(childStates)) // #nosec G115: len bounded by check above
+	return childStates, childCfgs, childCount, nil
+}
+
 // HandleCollectionTask handles the main collection task execution logic
 func (e *CollectionTaskExecutor) HandleCollectionTask(
 	ctx workflow.Context,
@@ -106,54 +143,64 @@ func (e *CollectionTaskExecutor) HandleCollectionTask(
 	taskConfig *task.Config,
 	depth int,
 ) error {
-	// Get child states that were created by CreateCollectionState
-	childStates, err := e.ListChildStates(ctx, cState.TaskExecID)
+	childStates, childCfgs, childCount, err := e.loadCollectionChildren(ctx, cState)
 	if err != nil {
-		return fmt.Errorf("failed to list child states: %w", err)
+		return err
 	}
-	// Load child configs from collection metadata
-	var childCfgs map[string]*task.Config
-	if len(childStates) > 0 {
-		childIDs := make([]string, len(childStates))
-		for i, st := range childStates {
-			childIDs[i] = st.TaskID
-		}
-		// Use LoadCollectionConfigs activity for collection tasks
-		err = workflow.ExecuteActivity(ctx, tkacts.LoadCollectionConfigsLabel, &tkacts.LoadCollectionConfigsInput{
-			ParentTaskExecID: cState.TaskExecID,
-			TaskIDs:          childIDs,
-		}).Get(ctx, &childCfgs)
-		if err != nil {
-			return fmt.Errorf("failed to load child configs: %w", err)
-		}
-	}
-	// Check for overflow before converting
-	childStatesLen := len(childStates)
-	if childStatesLen > math.MaxInt32 {
-		return fmt.Errorf("too many child states: %d exceeds maximum of %d", childStatesLen, math.MaxInt32)
-	}
-	childCount := int32(childStatesLen)
-	// Use the same atomic counters approach as parallel tasks
 	var completed, failed int32
 	log := workflow.GetLogger(ctx)
-	// Empty collections are valid - they complete successfully with no child tasks
-	if len(childStates) == 0 {
+	if childCount == 0 {
 		log.Debug("Collection task has no items, completing successfully",
 			"task_id", taskConfig.ID,
 			"parent_state_id", cState.TaskExecID)
-		// Collection completes successfully even with no items
 		return nil
+	}
+	rawConcurrency := collectionConcurrencyLimit(taskConfig)
+	effectiveConcurrency := rawConcurrency
+	// Default to max concurrency when no explicit limit is set
+	if effectiveConcurrency <= 0 {
+		effectiveConcurrency = MaxConcurrentChildTasks
+	} else if effectiveConcurrency > MaxConcurrentChildTasks {
+		// Clamp to system maximum
+		effectiveConcurrency = MaxConcurrentChildTasks
 	}
 	log.Debug("Executing collection child tasks",
 		"task_id", taskConfig.ID,
 		"child_count", len(childStates),
 		"expected_count", childCount,
-		"mode", taskConfig.GetMode())
-	// Branch based on collection mode
-	mode := taskConfig.GetMode()
-	switch mode {
+		"mode", taskConfig.GetMode(),
+		"max_workers", taskConfig.GetMaxWorkers(),
+		"batch_limit", taskConfig.Batch,
+		"effective_concurrency", effectiveConcurrency)
+	return e.executeCollectionByMode(
+		ctx,
+		cState,
+		taskConfig,
+		childStates,
+		childCfgs,
+		&completed,
+		&failed,
+		childCount,
+		depth,
+		rawConcurrency,
+	)
+}
+
+// executeCollectionByMode routes collection execution based on the configured mode.
+func (e *CollectionTaskExecutor) executeCollectionByMode(
+	ctx workflow.Context,
+	cState *task.State,
+	taskConfig *task.Config,
+	childStates []*task.State,
+	childCfgs map[string]*task.Config,
+	completed, failed *int32,
+	childCount int32,
+	depth int,
+	rawConcurrency int,
+) error {
+	switch taskConfig.GetMode() {
 	case task.CollectionModeSequential:
-		return e.handleCollectionSequential(ctx, cState, taskConfig, childStates, childCfgs, &completed, &failed, depth)
+		return e.handleCollectionSequential(ctx, cState, taskConfig, childStates, childCfgs, completed, failed, depth)
 	case task.CollectionModeParallel:
 		return e.handleCollectionParallel(
 			ctx,
@@ -161,23 +208,24 @@ func (e *CollectionTaskExecutor) HandleCollectionTask(
 			taskConfig,
 			childStates,
 			childCfgs,
-			&completed,
-			&failed,
+			completed,
+			failed,
 			childCount,
 			depth,
+			rawConcurrency,
 		)
 	default:
-		// Default to parallel for backward compatibility
 		return e.handleCollectionParallel(
 			ctx,
 			cState,
 			taskConfig,
 			childStates,
 			childCfgs,
-			&completed,
-			&failed,
+			completed,
+			failed,
 			childCount,
 			depth,
+			rawConcurrency,
 		)
 	}
 }
@@ -192,12 +240,13 @@ func (e *CollectionTaskExecutor) handleCollectionParallel(
 	completed, failed *int32,
 	childCount int32,
 	depth int,
+	maxConcurrency int,
 ) error {
 	log := workflow.GetLogger(ctx)
 	// Use the loaded child configs instead of the template
 	e.executeChildrenInParallel(ctx, cState, childStates, func(cs *task.State) *task.Config {
 		return childCfgs[cs.TaskID]
-	}, taskConfig, depth, completed, failed)
+	}, taskConfig, depth, completed, failed, maxConcurrency)
 	// Wait for tasks to complete based on strategy
 	err := e.awaitStrategyCompletion(ctx, taskConfig.GetStrategy(), completed, failed, childCount)
 	if err != nil {
@@ -239,4 +288,18 @@ func (e *CollectionTaskExecutor) handleCollectionSequential(
 		"failed", failedCount,
 		"total", len(childStates))
 	return nil
+}
+
+func collectionConcurrencyLimit(cfg *task.Config) int {
+	if cfg == nil {
+		return 0
+	}
+	limit := cfg.GetMaxWorkers()
+	if cfg.Batch > 0 && (limit == 0 || cfg.Batch < limit) {
+		limit = cfg.Batch
+	}
+	if limit < 0 {
+		return 0
+	}
+	return limit
 }

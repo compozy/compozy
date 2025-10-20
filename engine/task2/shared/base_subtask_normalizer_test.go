@@ -1,6 +1,7 @@
 package shared_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -20,7 +21,10 @@ type mockNormalizerFactory struct {
 	mock.Mock
 }
 
-func (m *mockNormalizerFactory) CreateNormalizer(taskType task.Type) (contracts.TaskNormalizer, error) {
+func (m *mockNormalizerFactory) CreateNormalizer(
+	_ context.Context,
+	taskType task.Type,
+) (contracts.TaskNormalizer, error) {
 	args := m.Called(taskType)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -38,7 +42,11 @@ func (m *mockTaskNormalizer) Type() task.Type {
 	return task.Type(args.String(0))
 }
 
-func (m *mockTaskNormalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+func (m *mockTaskNormalizer) Normalize(
+	_ context.Context,
+	config *task.Config,
+	ctx contracts.NormalizationContext,
+) error {
 	args := m.Called(config, ctx)
 	return args.Error(0)
 }
@@ -47,7 +55,7 @@ func TestBaseSubTaskNormalizer_Type(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 		factory := &mockNormalizerFactory{}
 		normalizer := shared.NewBaseSubTaskNormalizer(
@@ -66,7 +74,7 @@ func TestBaseSubTaskNormalizer_Type(t *testing.T) {
 
 func TestBaseSubTaskNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should handle nil config gracefully", func(t *testing.T) {
@@ -81,7 +89,7 @@ func TestBaseSubTaskNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		)
 		ctx := &shared.NormalizationContext{}
 		// Act
-		err := normalizer.Normalize(nil, ctx)
+		err := normalizer.Normalize(t.Context(), nil, ctx)
 		// Assert
 		assert.NoError(t, err)
 	})
@@ -104,7 +112,7 @@ func TestBaseSubTaskNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "parallel normalizer cannot handle task type: basic")
@@ -132,7 +140,7 @@ func TestBaseSubTaskNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to normalize parallel task config")
@@ -160,7 +168,7 @@ func TestBaseSubTaskNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to convert task config to map")
@@ -197,7 +205,7 @@ func TestBaseSubTaskNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to normalize parallel sub-tasks")
@@ -234,7 +242,7 @@ func TestBaseSubTaskNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create normalizer for task type basic")
@@ -243,7 +251,7 @@ func TestBaseSubTaskNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 	t.Run("Should handle deeply nested context structures", func(t *testing.T) {
 		// Arrange - Use a context builder with deeply nested data
-		contextBuilder, _ := shared.NewContextBuilder()
+		contextBuilder, _ := shared.NewContextBuilder(t.Context())
 		// We'll test with deeply nested but non-circular context data
 
 		mockFactory := &mockNormalizerFactory{}
@@ -287,7 +295,7 @@ func TestBaseSubTaskNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert - Should succeed with deeply nested but non-circular data
 		assert.NoError(t, err)
 		mockFactory.AssertExpectations(t)
@@ -297,7 +305,7 @@ func TestBaseSubTaskNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
@@ -318,7 +326,7 @@ func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert - Should return error due to nil template engine
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "template engine is required for normalization")
@@ -342,7 +350,7 @@ func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert - Should succeed since BaseSubTaskNormalizer handles nil gracefully
 		assert.NoError(t, err)
 	})
@@ -374,7 +382,7 @@ func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 		// Act & Assert
 		// Should panic due to nil factory when trying to normalize sub-tasks
 		assert.Panics(t, func() {
-			normalizer.Normalize(taskConfig, ctx)
+			normalizer.Normalize(t.Context(), taskConfig, ctx)
 		})
 	})
 
@@ -397,7 +405,7 @@ func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 	})
@@ -430,7 +438,7 @@ func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		mockFactory.AssertExpectations(t)
@@ -480,7 +488,7 @@ func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		mockFactory.AssertExpectations(t)
@@ -531,7 +539,7 @@ func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		mockFactory.AssertExpectations(t)
@@ -573,7 +581,7 @@ func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, originalSubTaskID, taskConfig.Tasks[0].ID)
@@ -585,7 +593,7 @@ func TestBaseSubTaskNormalizer_BoundaryConditions(t *testing.T) {
 
 func TestBaseSubTaskNormalizer_ConfigInheritance(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilder(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should inherit CWD from parent to child task", func(t *testing.T) {
@@ -621,7 +629,7 @@ func TestBaseSubTaskNormalizer_ConfigInheritance(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, parentCWD, taskConfig.Tasks[0].CWD, "child task should inherit parent CWD")
@@ -662,7 +670,7 @@ func TestBaseSubTaskNormalizer_ConfigInheritance(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, parentFilePath, taskConfig.Tasks[0].FilePath, "child task should inherit parent FilePath")
@@ -705,7 +713,7 @@ func TestBaseSubTaskNormalizer_ConfigInheritance(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, parentCWD, taskConfig.Tasks[0].CWD, "child task should inherit parent CWD")
@@ -749,7 +757,7 @@ func TestBaseSubTaskNormalizer_ConfigInheritance(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, childCWD, taskConfig.Tasks[0].CWD, "child task should keep its own CWD")
@@ -793,7 +801,7 @@ func TestBaseSubTaskNormalizer_ConfigInheritance(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, childFilePath, taskConfig.Tasks[0].FilePath, "child task should keep its own FilePath")
@@ -840,7 +848,7 @@ func TestBaseSubTaskNormalizer_ConfigInheritance(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, parentCWD, taskConfig.Task.CWD, "Task reference should inherit parent CWD")
@@ -896,7 +904,7 @@ func TestBaseSubTaskNormalizer_ConfigInheritance(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		for i := range taskConfig.Tasks {

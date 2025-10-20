@@ -1,0 +1,223 @@
+### Per-Directory Code Review API Tests
+### Analyzes entire directories as cohesive units - Best for architectural patterns and cross-file issues
+### Make sure Compozy is running on localhost:5001 before executing these requests
+
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = review_per_dir
+
+### -----------------------------------------------------------------------------
+### Execute ALL directory-level reviews (performance + security + monitoring + architecture + testing + error_handling)
+### -----------------------------------------------------------------------------
+# @name reviewDirAll
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/schema",
+    "review_type": "all"
+  }
+}
+
+### Get execution ID
+@execIdAll = {{reviewDirAll.response.body.data.exec_id}}
+
+### Check execution status
+GET {{baseUrl}}/executions/workflows/{{execIdAll}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute PERFORMANCE directory review only
+### -----------------------------------------------------------------------------
+# @name reviewDirPerf
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/agent",
+    "review_type": "performance"
+  }
+}
+
+### Get execution ID
+@execIdPerf = {{reviewDirPerf.response.body.data.exec_id}}
+
+### Check performance review status
+GET {{baseUrl}}/executions/workflows/{{execIdPerf}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute SECURITY directory review only
+### -----------------------------------------------------------------------------
+# @name reviewDirSec
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/auth",
+    "review_type": "security"
+  }
+}
+
+### Get execution ID
+@execIdSec = {{reviewDirSec.response.body.data.exec_id}}
+
+### Check security review status
+GET {{baseUrl}}/executions/workflows/{{execIdSec}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute MONITORING directory review only
+### -----------------------------------------------------------------------------
+# @name reviewDirMon
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/workflow",
+    "review_type": "monitoring"
+  }
+}
+
+### Get execution ID
+@execIdMon = {{reviewDirMon.response.body.data.exec_id}}
+
+### Check monitoring review status
+GET {{baseUrl}}/executions/workflows/{{execIdMon}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute ARCHITECTURE directory review only (RECOMMENDED for per-directory)
+### -----------------------------------------------------------------------------
+# @name reviewDirArch
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/core",
+    "review_type": "architecture"
+  }
+}
+
+### Get execution ID
+@execIdArch = {{reviewDirArch.response.body.data.exec_id}}
+
+### Check architecture review status
+GET {{baseUrl}}/executions/workflows/{{execIdArch}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute TESTING directory review only
+### -----------------------------------------------------------------------------
+# @name reviewDirTest
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/task2",
+    "review_type": "testing"
+  }
+}
+
+### Get execution ID
+@execIdTest = {{reviewDirTest.response.body.data.exec_id}}
+
+### Check testing review status
+GET {{baseUrl}}/executions/workflows/{{execIdTest}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute ERROR_HANDLING directory review only
+### -----------------------------------------------------------------------------
+# @name reviewDirErr
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/llm",
+    "review_type": "error_handling"
+  }
+}
+
+### Get execution ID
+@execIdErr = {{reviewDirErr.response.body.data.exec_id}}
+
+### Check error handling review status
+GET {{baseUrl}}/executions/workflows/{{execIdErr}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### COMPLEX DIRECTORY REVIEWS (Best use cases for per-directory analysis)
+### -----------------------------------------------------------------------------
+
+### Review complex domain package (agent)
+# @name reviewAgentDomain
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/agent",
+    "review_type": "architecture"
+  }
+}
+
+### Review infrastructure layer
+# @name reviewInfraDomain
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/infra",
+    "review_type": "all"
+  }
+}
+
+### Review workflow orchestration
+# @name reviewWorkflowDomain
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "directory": "engine/workflow",
+    "review_type": "all"
+  }
+}
+
+### -----------------------------------------------------------------------------
+### WORKFLOW MANAGEMENT
+### -----------------------------------------------------------------------------
+
+### List all per-directory review workflow executions
+GET {{baseUrl}}/workflows/{{workflowId}}/executions?limit=10
+Accept: application/json
+
+### List running per-directory reviews
+GET {{baseUrl}}/workflows/{{workflowId}}/executions?status=running&limit=10
+Accept: application/json
+
+### List completed per-directory reviews
+GET {{baseUrl}}/workflows/{{workflowId}}/executions?status=completed&limit=10
+Accept: application/json
+
+### List failed per-directory reviews
+GET {{baseUrl}}/workflows/{{workflowId}}/executions?status=failed&limit=10
+Accept: application/json

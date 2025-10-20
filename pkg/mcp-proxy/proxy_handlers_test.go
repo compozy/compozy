@@ -1,7 +1,6 @@
 package mcpproxy
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,7 +25,7 @@ func TestProxyHandlers_SSEProxy(t *testing.T) {
 	router.Any("/mcp-proxy/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
 
 	t.Run("Should return 404 for non-existent MCP server", func(t *testing.T) {
-		req, err := http.NewRequestWithContext(context.Background(), "GET", "/mcp-proxy/nonexistent/sse", http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", "/mcp-proxy/nonexistent/sse", http.NoBody)
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
@@ -36,7 +35,7 @@ func TestProxyHandlers_SSEProxy(t *testing.T) {
 
 		// Cover wildcard SSE route path as well
 		req2, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			"GET",
 			"/mcp-proxy/nonexistent/sse/anything",
 			http.NoBody,
@@ -63,7 +62,7 @@ func TestProxyHandlers_StreamableHTTPProxy(t *testing.T) {
 
 	t.Run("Should return 404 for non-existent MCP server in stream endpoint", func(t *testing.T) {
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			"POST",
 			"/mcp-proxy/nonexistent/stream",
 			http.NoBody,
@@ -99,10 +98,10 @@ func TestProxyHandlers_ProxyRegistration(t *testing.T) {
 			Args:        []string{"hello"},
 		}
 
-		err := storage.SaveMCP(context.Background(), &mcpDef)
+		err := storage.SaveMCP(t.Context(), &mcpDef)
 		require.NoError(t, err)
 
-		req, err := http.NewRequestWithContext(context.Background(), "GET", "/mcp-proxy/test-mcp/sse", http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), "GET", "/mcp-proxy/test-mcp/sse", http.NoBody)
 		require.NoError(t, err)
 
 		w := httptest.NewRecorder()
@@ -145,7 +144,7 @@ func TestProxyHandlers_ProxyRegistration(t *testing.T) {
 
 		// Test SSE endpoint access
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			"GET",
 			"/mcp-proxy/registered-mcp/sse",
 			http.NoBody,

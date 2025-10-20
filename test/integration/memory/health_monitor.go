@@ -3,7 +3,6 @@ package memory
 import (
 	"context"
 	"fmt"
-	"maps"
 	"runtime"
 	"strings"
 	"sync"
@@ -282,9 +281,7 @@ func (h *HealthMonitor) recordAlert(component, severity, message string, details
 func (h *HealthMonitor) GetHealthStatus() map[string]HealthStatus {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	result := make(map[string]HealthStatus)
-	maps.Copy(result, h.healthStatus)
-	return result
+	return core.CloneMap(h.healthStatus)
 }
 
 // GetAlerts returns recent alerts
@@ -406,8 +403,7 @@ func NewHealthCheckHelper(env *TestEnvironment) *HealthCheckHelper {
 // RequireHealthy requires all components to be healthy
 func (h *HealthCheckHelper) RequireHealthy(t *testing.T) {
 	t.Helper()
-	ctx := context.Background()
-	h.monitor.performHealthChecks(ctx)
+	h.monitor.performHealthChecks(t.Context())
 	status := h.monitor.GetHealthStatus()
 	for component, health := range status {
 		if health.Status != statusHealthy {
@@ -420,7 +416,7 @@ func (h *HealthCheckHelper) RequireHealthy(t *testing.T) {
 // WaitForHealthy waits for all components to become healthy
 func (h *HealthCheckHelper) WaitForHealthy(t *testing.T, timeout time.Duration) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	defer cancel()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -449,7 +445,7 @@ func (h *HealthCheckHelper) WaitForHealthy(t *testing.T, timeout time.Duration) 
 // MonitorTest monitors a test execution
 func (h *HealthCheckHelper) MonitorTest(t *testing.T, testFunc func()) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	h.monitor.Start(ctx)
 	defer h.monitor.Stop()
 	defer h.monitor.PrintHealthReport(t)

@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
@@ -26,13 +27,10 @@ func NewDeleteUser(repo Repository, userID core.ID) *DeleteUser {
 func (uc *DeleteUser) Execute(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Debug("Deleting user", "user_id", uc.userID)
-	// Check if user exists
-	_, err := uc.repo.GetUserByID(ctx, uc.userID)
-	if err != nil {
-		return fmt.Errorf("user not found %s: %w", uc.userID, err)
-	}
-	// Delete the user
 	if err := uc.repo.DeleteUser(ctx, uc.userID); err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return err
+		}
 		return fmt.Errorf("failed to delete user %s: %w", uc.userID, err)
 	}
 	log.Info("User deleted successfully", "user_id", uc.userID)

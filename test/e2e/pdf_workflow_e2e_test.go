@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/ingest"
 	knowledgeuc "github.com/compozy/compozy/engine/knowledge/uc"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/runtime"
@@ -69,7 +70,7 @@ func TestPDFKnowledgeWorkflowEndToEnd(t *testing.T) {
 		t.Skip("skipping e2e knowledge test: OPENAI_API_KEY not set")
 	}
 
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	tempDir := t.TempDir()
 
 	cwd, err := core.CWDFromPath(tempDir)
@@ -208,7 +209,15 @@ func TestPDFKnowledgeWorkflowEndToEnd(t *testing.T) {
 		Tasks: []task.Config{*taskCfg},
 	}
 
-	exec := uc.NewExecuteTask(noopRuntime{}, nil, nil, tplengine.NewEngine(tplengine.FormatYAML), nil, nil)
+	exec := uc.NewExecuteTask(
+		noopRuntime{},
+		nil,
+		nil,
+		tplengine.NewEngine(tplengine.FormatYAML),
+		nil,
+		providermetrics.Nop(),
+		nil,
+	)
 	input := &uc.ExecuteTaskInput{
 		TaskConfig:     taskCfg,
 		WorkflowConfig: workflowCfg,

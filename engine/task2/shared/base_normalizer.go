@@ -1,8 +1,8 @@
 package shared
 
 import (
+	"context"
 	"fmt"
-	"maps"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -46,11 +46,15 @@ func (n *BaseNormalizer) Type() task.Type {
 }
 
 // Normalize applies common normalization rules across all task types
-func (n *BaseNormalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+func (n *BaseNormalizer) Normalize(
+	_ context.Context,
+	config *task.Config,
+	parentCtx contracts.NormalizationContext,
+) error {
 	// Type assert to get the concrete type
-	normCtx, ok := ctx.(*NormalizationContext)
+	normCtx, ok := parentCtx.(*NormalizationContext)
 	if !ok {
-		return fmt.Errorf("invalid context type: expected *NormalizationContext, got %T", ctx)
+		return fmt.Errorf("invalid context type: expected *NormalizationContext, got %T", parentCtx)
 	}
 	if config == nil {
 		return nil
@@ -86,9 +90,8 @@ func (n *BaseNormalizer) Normalize(config *task.Config, ctx contracts.Normalizat
 	}
 	// Merge existing With values back into the normalized config
 	if existingWith != nil && config.With != nil {
-		mergedWith := make(core.Input)
-		maps.Copy(mergedWith, *existingWith)
-		maps.Copy(mergedWith, *config.With)
+		merged := core.CopyMaps(*existingWith, *config.With)
+		mergedWith := core.Input(merged)
 		config.With = &mergedWith
 	} else if existingWith != nil {
 		config.With = existingWith

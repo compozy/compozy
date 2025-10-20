@@ -37,7 +37,7 @@ func NewTestSetup(t *testing.T) *TestSetup {
 	}
 
 	// Use shared database helper to avoid container creation overhead
-	ctx := context.Background()
+	ctx := t.Context()
 	taskRepo, workflowRepo, cleanup := getSharedTestRepos(ctx, t)
 	t.Cleanup(cleanup)
 

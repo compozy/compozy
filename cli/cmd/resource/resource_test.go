@@ -20,8 +20,8 @@ const requestPathTimeout = 2 * time.Second
 
 func newCLIContext(t *testing.T, baseURL string) context.Context {
 	t.Helper()
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
-	manager := config.NewManager(config.NewService())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+	manager := config.NewManager(t.Context(), config.NewService())
 	_, err := manager.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
 	cfg := manager.Get()

@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -34,7 +33,7 @@ func TestResolvedKeyForRESTAPI(t *testing.T) {
 		workflowContext := map[string]any{}
 
 		// Call resolveMemoryKey
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, workflowContext)
 
 		// Verify the explicit key was used directly (after validation)
 		assert.NoError(t, err)
@@ -64,7 +63,7 @@ func TestResolvedKeyForRESTAPI(t *testing.T) {
 		}
 
 		// Call resolveMemoryKey
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, workflowContext)
 
 		// Verify the template was resolved
 		assert.NoError(t, err)
@@ -97,7 +96,7 @@ func TestResolvedKeyForRESTAPI(t *testing.T) {
 			}
 
 			// Call resolveMemoryKey
-			validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, map[string]any{})
+			validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, map[string]any{})
 
 			// Verify each valid key format is preserved as-is
 			assert.NoError(t, err)
@@ -121,7 +120,7 @@ func TestKeyValidationEdgeCases(t *testing.T) {
 			ResolvedKey: longKey,
 		}
 
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, map[string]any{})
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, map[string]any{})
 		assert.Error(t, err, "Should return error for keys longer than 256 characters")
 		assert.Empty(t, validatedKey, "Should reject keys longer than 256 characters")
 	})
@@ -133,7 +132,7 @@ func TestKeyValidationEdgeCases(t *testing.T) {
 			ResolvedKey: maxKey,
 		}
 
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, map[string]any{})
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, map[string]any{})
 		assert.NoError(t, err, "Should accept keys exactly at 256 character limit")
 		assert.Equal(t, maxKey, validatedKey, "Should accept keys exactly at 256 character limit")
 	})
@@ -158,7 +157,7 @@ func TestKeyValidationEdgeCases(t *testing.T) {
 				ResolvedKey: invalidKey,
 			}
 
-			validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, map[string]any{})
+			validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, map[string]any{})
 			assert.Error(t, err, "Should return error for key with invalid character: %s", invalidKey)
 			assert.Empty(t, validatedKey, "Should reject key with invalid character: %s", invalidKey)
 		}
@@ -177,7 +176,7 @@ func TestKeyValidationEdgeCases(t *testing.T) {
 				ResolvedKey: invalidKey,
 			}
 
-			validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, map[string]any{})
+			validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, map[string]any{})
 			assert.Error(t, err, "Should return error for key with double underscores: %s", invalidKey)
 			assert.Empty(t, validatedKey, "Should reject key with double underscores: %s", invalidKey)
 		}
@@ -193,7 +192,7 @@ func TestKeyValidationEdgeCases(t *testing.T) {
 			"user_id": "test123",
 		}
 
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, workflowContext)
 		// Should reject invalid template due to curly braces not being valid characters
 		assert.Error(t, err, "Should return error for templates with invalid characters after failed resolution")
 		assert.Empty(t, validatedKey, "Should reject templates with invalid characters after failed resolution")
@@ -206,7 +205,7 @@ func TestKeyValidationEdgeCases(t *testing.T) {
 			Key:         "",
 		}
 
-		validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, map[string]any{})
+		validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, map[string]any{})
 		assert.Error(t, err, "Should return error for empty keys")
 		assert.Empty(t, validatedKey, "Should reject empty keys")
 	})
@@ -234,7 +233,7 @@ func TestConcurrentKeyResolution(t *testing.T) {
 					"user_id": "concurrent_test_user",
 				}
 
-				validatedKey, err := manager.resolveMemoryKey(context.Background(), memRef, workflowContext)
+				validatedKey, err := manager.resolveMemoryKey(t.Context(), memRef, workflowContext)
 				if err != nil {
 					results <- "ERROR"
 				} else {

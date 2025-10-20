@@ -15,9 +15,10 @@ import (
 )
 
 // setupBasicNormalizer creates a new basic normalizer with a template engine for testing
-func setupBasicNormalizer() *basic.Normalizer {
+func setupBasicNormalizer(t *testing.T) *basic.Normalizer {
+	t.Helper()
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	return basic.NewNormalizer(templateEngine)
+	return basic.NewNormalizer(t.Context(), templateEngine)
 }
 
 // setupNormalizationContext creates a normalization context with the given variables
@@ -30,7 +31,7 @@ func setupNormalizationContext(variables map[string]any) *shared.NormalizationCo
 func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 	t.Run("Should normalize agent config with API key template", func(t *testing.T) {
 		// Arrange
-		normalizer := setupBasicNormalizer()
+		normalizer := setupBasicNormalizer(t)
 
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -58,7 +59,7 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 		})
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -75,7 +76,7 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 
 	t.Run("Should handle agent config with multiple template fields", func(t *testing.T) {
 		// Arrange
-		normalizer := setupBasicNormalizer()
+		normalizer := setupBasicNormalizer(t)
 
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -109,7 +110,7 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 		})
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -121,7 +122,7 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 
 	t.Run("Should handle missing agent config gracefully", func(t *testing.T) {
 		// Arrange
-		normalizer := setupBasicNormalizer()
+		normalizer := setupBasicNormalizer(t)
 
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -137,7 +138,7 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 		ctx := setupNormalizationContext(map[string]any{})
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		assert.NoError(t, err)
@@ -146,7 +147,7 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 
 	t.Run("Should preserve agent ID when using $use directive", func(t *testing.T) {
 		// Arrange
-		normalizer := setupBasicNormalizer()
+		normalizer := setupBasicNormalizer(t)
 
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -174,7 +175,7 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 		})
 
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 
 		// Assert
 		require.NoError(t, err)

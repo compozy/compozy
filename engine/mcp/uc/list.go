@@ -7,7 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 )
 
 type ListInput struct {
@@ -57,7 +57,7 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 	)
 	payload := make([]map[string]any, 0, len(window))
 	for i := range window {
-		cfg, err := decodeStoredMCP(window[i].Value, window[i].Key.ID)
+		cfg, err := decodeStoredMCP(ctx, window[i].Value, window[i].Key.ID)
 		if err != nil {
 			return nil, fmt.Errorf("decode mcp %q: %w", window[i].Key.ID, err)
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/compozy/compozy/engine/core"
@@ -39,13 +40,13 @@ type Provider interface {
 // Registry stores provider registrations used by the default factory.
 type Registry struct {
 	mu        sync.RWMutex
-	providers map[core.ProviderName]Provider
+	providers map[string]Provider
 }
 
 // NewProviderRegistry creates an empty provider registry.
 func NewProviderRegistry() *Registry {
 	return &Registry{
-		providers: make(map[core.ProviderName]Provider),
+		providers: make(map[string]Provider),
 	}
 }
 
@@ -54,14 +55,18 @@ func (r *Registry) Register(provider Provider) error {
 	if provider == nil {
 		return ErrProviderNil
 	}
-	key := provider.Name()
+	name := provider.Name()
+	if name == "" {
+		return ErrProviderNameEmpty
+	}
+	key := canonicalProviderName(name)
 	if key == "" {
 		return ErrProviderNameEmpty
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, exists := r.providers[key]; exists {
-		return fmt.Errorf("%w: %s", ErrProviderAlreadyRegistered, key)
+		return fmt.Errorf("%w: %s", ErrProviderAlreadyRegistered, name)
 	}
 	r.providers[key] = provider
 	return nil
@@ -71,7 +76,7 @@ func (r *Registry) Register(provider Provider) error {
 func (r *Registry) Resolve(name core.ProviderName) (Provider, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	provider, ok := r.providers[name]
+	provider, ok := r.providers[canonicalProviderName(name)]
 	if !ok {
 		return nil, fmt.Errorf("provider %s is not registered", name)
 	}
@@ -204,5 +209,13 @@ func clonePromptParams(params *core.PromptParams) core.PromptParams {
 	if len(params.StopWords) > 0 {
 		clone.StopWords = append([]string(nil), params.StopWords...)
 	}
+	// Avoid map aliasing
+	if clone.Metadata != nil {
+		clone.Metadata = core.CloneMap(clone.Metadata)
+	}
 	return clone
+}
+
+func canonicalProviderName(name core.ProviderName) string {
+	return strings.ToLower(strings.TrimSpace(string(name)))
 }

@@ -54,7 +54,7 @@ func (mm *Manager) buildMemoryComponents(
 	if err != nil {
 		return nil, err
 	}
-	evictionPolicy := mm.createEvictionPolicy(resourceCfg)
+	evictionPolicy := mm.createEvictionPolicy(ctx, resourceCfg)
 	return &memoryComponents{
 		store:            redisStore,
 		lockManager:      lockManager,
@@ -399,10 +399,10 @@ func (mm *Manager) createStrategyOptions(resourceCfg *memcore.Resource) *strateg
 }
 
 // createEvictionPolicy creates an eviction policy for the given resource configuration
-func (mm *Manager) createEvictionPolicy(resourceCfg *memcore.Resource) instance.EvictionPolicy {
+func (mm *Manager) createEvictionPolicy(ctx context.Context, resourceCfg *memcore.Resource) instance.EvictionPolicy {
 	// Use configured eviction policy or get default
 	evictionConfig := resourceCfg.GetEffectiveEvictionPolicy()
-	return eviction.CreatePolicyWithConfig(evictionConfig)
+	return eviction.CreatePolicyWithConfig(ctx, evictionConfig)
 }
 
 // createMemoryInstance creates the final memory instance with all components

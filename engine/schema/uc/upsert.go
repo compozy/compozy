@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/engine/auth/userctx"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/logger"
@@ -47,7 +47,7 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 	if schemaID == "" {
 		return nil, ErrIDMissing
 	}
-	sc, err := decodeSchemaBody(in.Body, schemaID)
+	sc, err := decodeSchemaBody(ctx, in.Body, schemaID)
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +72,7 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 		log.Error("failed to write schema meta", "error", err, "schema", schemaID)
 		return nil, fmt.Errorf("write schema meta: %w", err)
 	}
-	entry := make(map[string]any)
-	maps.Copy(entry, *sc)
+	entry := core.CloneMap(*sc)
 	return &UpsertOutput{Schema: entry, ETag: etag, Created: created}, nil
 }
 

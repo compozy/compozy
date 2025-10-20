@@ -20,6 +20,7 @@ type TestConfigStore struct {
 	client    *redis.Client
 	miniredis *miniredis.Miniredis
 	ttl       time.Duration
+	baseCtx   context.Context
 }
 
 // NewTestConfigStore creates a new test config store using miniredis
@@ -29,13 +30,14 @@ func NewTestConfigStore(t *testing.T) *TestConfigStore {
 		Addr: mr.Addr(),
 		DB:   0,
 	})
-	ctx := context.Background()
+	ctx := t.Context()
 	err := client.Ping(ctx).Err()
 	require.NoError(t, err, "Failed to ping miniredis")
 	return &TestConfigStore{
 		client:    client,
 		miniredis: mr,
 		ttl:       10 * time.Minute,
+		baseCtx:   context.WithoutCancel(ctx),
 	}
 }
 
@@ -173,5 +175,5 @@ func (s *TestConfigStore) FastForward(duration time.Duration) {
 
 // Flush clears all data in the test store
 func (s *TestConfigStore) Flush() error {
-	return s.client.FlushDB(context.Background()).Err()
+	return s.client.FlushDB(s.baseCtx).Err()
 }

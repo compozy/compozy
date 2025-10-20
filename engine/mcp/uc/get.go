@@ -48,7 +48,7 @@ func (uc *Get) Execute(ctx context.Context, in *GetInput) (*GetOutput, error) {
 		}
 		return nil, fmt.Errorf("get mcp %q in project %q: %w", mcpID, projectID, err)
 	}
-	cfg, err := decodeStoredMCP(value, mcpID)
+	cfg, err := decodeStoredMCP(ctx, value, mcpID)
 	if err != nil {
 		return nil, fmt.Errorf("decode stored mcp %q: %w", mcpID, err)
 	}

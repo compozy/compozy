@@ -340,11 +340,11 @@ func (t *Config) HasSchema() bool {
 // Validate ensures the tool configuration is valid and complete.
 // Performs comprehensive validation of all configuration fields including working directory
 // and timeout format. Should be called before using the tool in production workflows.
-func (t *Config) Validate() error {
+func (t *Config) Validate(ctx context.Context) error {
 	v := schema.NewCompositeValidator(
 		schema.NewCWDValidator(t.CWD, t.ID),
 	)
-	if err := v.Validate(); err != nil {
+	if err := v.Validate(ctx); err != nil {
 		return err
 	}
 	if t.Timeout != "" {

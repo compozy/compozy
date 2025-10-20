@@ -1,7 +1,6 @@
 package shared
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -20,7 +19,7 @@ func TestTransactionService_SaveStateWithLocking(t *testing.T) {
 		// Arrange
 		mockTaskRepo := &store.MockTaskRepo{}
 		service := NewTransactionService(mockTaskRepo)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Act
 		err := service.SaveStateWithLocking(ctx, nil)
@@ -35,7 +34,7 @@ func TestTransactionService_SaveStateWithLocking(t *testing.T) {
 		// Arrange
 		mockTaskRepo := &store.MockTaskRepo{}
 		service := NewTransactionService(mockTaskRepo)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		state := &task.State{
 			TaskExecID: core.MustNewID(),
@@ -66,7 +65,7 @@ func TestTransactionService_SaveStateWithLocking(t *testing.T) {
 		// Arrange
 		mockTaskRepo := &store.MockTaskRepo{}
 		service := NewTransactionService(mockTaskRepo)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		state := &task.State{
 			TaskExecID: core.MustNewID(),
@@ -93,7 +92,7 @@ func TestTransactionService_ApplyTransformation(t *testing.T) {
 		// Arrange
 		mockTaskRepo := &store.MockTaskRepo{}
 		service := NewTransactionService(mockTaskRepo)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		taskExecID := core.MustNewID()
 		state := &task.State{
@@ -131,7 +130,7 @@ func TestTransactionService_ApplyTransformation(t *testing.T) {
 		// Arrange
 		mockTaskRepo := &store.MockTaskRepo{}
 		service := NewTransactionService(mockTaskRepo)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		taskExecID := core.MustNewID()
 		state := &task.State{
@@ -171,7 +170,7 @@ func TestTransactionService_ApplyTransformation(t *testing.T) {
 		// Arrange
 		mockTaskRepo := &store.MockTaskRepo{}
 		service := NewTransactionService(mockTaskRepo)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		taskExecID := core.MustNewID()
 

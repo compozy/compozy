@@ -1,6 +1,8 @@
 package schema
 
 import (
+	"context"
+
 	"github.com/go-playground/validator/v10"
 )
 
@@ -9,7 +11,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type Validator interface {
-	Validate() error
+	Validate(ctx context.Context) error
 }
 
 // -----------------------------------------------------------------------------
@@ -31,9 +33,9 @@ func (v *CompositeValidator) AddValidator(validator Validator) {
 	v.validators = append(v.validators, validator)
 }
 
-func (v *CompositeValidator) Validate() error {
+func (v *CompositeValidator) Validate(ctx context.Context) error {
 	for _, validator := range v.validators {
-		if err := validator.Validate(); err != nil {
+		if err := validator.Validate(ctx); err != nil {
 			return err
 		}
 	}
@@ -56,7 +58,7 @@ func NewStructValidator(value any) *StructValidator {
 	}
 }
 
-func (v *StructValidator) Validate() error {
+func (v *StructValidator) Validate(_ context.Context) error {
 	return v.validate.Struct(v.value)
 }
 

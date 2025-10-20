@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -11,19 +10,19 @@ import (
 
 func TestInitMetrics(t *testing.T) {
 	t.Run("Should initialize auth metrics successfully", func(t *testing.T) {
-		// Reset metrics state
 		ResetMetricsForTesting()
 
 		meter := noop.NewMeterProvider().Meter("test")
 		err := InitMetrics(meter)
 
 		assert.NoError(t, err)
-		assert.NotNil(t, authRequestsTotal)
-		assert.NotNil(t, authLatency)
+		assert.NotNil(t, authAttemptsTotal)
+		assert.NotNil(t, authLatencySeconds)
+		assert.NotNil(t, authTokenAgeSeconds)
+		assert.NotNil(t, authRateLimitHits)
 	})
 
 	t.Run("Should handle nil meter gracefully", func(t *testing.T) {
-		// Reset metrics state
 		ResetMetricsForTesting()
 
 		err := InitMetrics(nil)
@@ -32,74 +31,86 @@ func TestInitMetrics(t *testing.T) {
 	})
 
 	t.Run("Should initialize metrics only once", func(t *testing.T) {
-		// Reset metrics state
 		ResetMetricsForTesting()
 
 		meter := noop.NewMeterProvider().Meter("test")
 
-		// Call multiple times
 		err1 := InitMetrics(meter)
 		err2 := InitMetrics(meter)
 
 		assert.NoError(t, err1)
 		assert.NoError(t, err2)
-		assert.NotNil(t, authRequestsTotal)
-		assert.NotNil(t, authLatency)
+		assert.NotNil(t, authAttemptsTotal)
+		assert.NotNil(t, authLatencySeconds)
+		assert.NotNil(t, authTokenAgeSeconds)
+		assert.NotNil(t, authRateLimitHits)
 	})
 }
 
 func TestRecordAuthAttempt(t *testing.T) {
 	t.Run("Should handle metrics recording with initialized counters", func(t *testing.T) {
-		// Reset and initialize metrics
 		ResetMetricsForTesting()
 
 		meter := noop.NewMeterProvider().Meter("test")
 		err := InitMetrics(meter)
 		assert.NoError(t, err)
-		assert.NotNil(t, authRequestsTotal, "Auth requests counter should be initialized")
-		assert.NotNil(t, authLatency, "Auth latency histogram should be initialized")
 
-		ctx := context.Background()
+		ctx := t.Context()
 		duration := 5 * time.Millisecond
 
-		// Verify that metrics recording doesn't fail - business logic validation
-		RecordAuthAttempt(ctx, "success", duration)
-		RecordAuthAttempt(ctx, "fail", duration)
+		RecordAuthAttempt(ctx, AuthOutcomeSuccess, ReasonNone, AuthMethodAPIKey, duration)
+		RecordAuthAttempt(ctx, AuthOutcomeFailure, ReasonInvalidCredentials, AuthMethodAPIKey, duration)
 	})
 
 	t.Run("Should handle metrics recording when counters are nil", func(t *testing.T) {
-		// Ensure metrics are nil - testing resilience to uninitialized state
 		ResetMetricsForTesting()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		duration := 1 * time.Millisecond
 
-		// Business logic: system should be resilient to uninitialized metrics
-		// This validates graceful degradation behavior
 		defer func() {
 			if r := recover(); r != nil {
 				t.Errorf("RecordAuthAttempt should not panic when metrics are nil, got panic: %v", r)
 			}
 		}()
-		RecordAuthAttempt(ctx, "success", duration)
+		RecordAuthAttempt(ctx, AuthOutcomeFailure, ReasonUnknown, AuthMethodUnknown, duration)
+	})
+}
+
+func TestRecordTokenAge(t *testing.T) {
+	t.Run("Should record token age when initialized", func(t *testing.T) {
+		ResetMetricsForTesting()
+		meter := noop.NewMeterProvider().Meter("test")
+		assert.NoError(t, InitMetrics(meter))
+
+		ctx := t.Context()
+		RecordTokenAge(ctx, time.Now().Add(-30*time.Minute), AuthMethodJWT)
 	})
 
-	t.Run("Should process various authentication status types", func(t *testing.T) {
-		// Reset and initialize metrics
+	t.Run("Should ignore future or zero timestamps", func(_ *testing.T) {
 		ResetMetricsForTesting()
+		ctx := t.Context()
+		RecordTokenAge(ctx, time.Time{}, AuthMethodJWT)
+		RecordTokenAge(ctx, time.Now().Add(5*time.Minute), AuthMethodJWT)
+	})
+}
 
+func TestRecordRateLimitHit(t *testing.T) {
+	t.Run("Should record rate limit hits with user metadata", func(t *testing.T) {
+		ResetMetricsForTesting()
 		meter := noop.NewMeterProvider().Meter("test")
-		err := InitMetrics(meter)
-		assert.NoError(t, err)
+		assert.NoError(t, InitMetrics(meter))
 
-		ctx := context.Background()
-		duration := 2 * time.Millisecond
+		ctx := t.Context()
+		RecordRateLimitHit(ctx, "user-123", "192.168.1.42")
+	})
 
-		// Business logic: system should handle all authentication outcome types
-		statuses := []string{"success", "fail", "timeout", "error", "invalid_token", "expired"}
-		for _, status := range statuses {
-			RecordAuthAttempt(ctx, status, duration)
-		}
-		// Validates that metrics system can handle diverse auth scenarios
+	t.Run("Should mask invalid or empty IP addresses", func(t *testing.T) {
+		assert.Equal(t, "unknown", maskIPAddress(""))
+		assert.Equal(t, "unknown", maskIPAddress("not-an-ip"))
+		assert.Equal(t, "192.168.1.0", maskIPAddress("192.168.1.42"))
+		assert.Equal(t, "2001:db8:85a3::", maskIPAddress("2001:db8:85a3::8a2e:370:7334"))
+		assert.Equal(t, "127.0.0.0", maskIPAddress("127.0.0.1:8080"))
+		assert.Equal(t, "2001:db8::", maskIPAddress("[2001:db8::1]:443"))
 	})
 }

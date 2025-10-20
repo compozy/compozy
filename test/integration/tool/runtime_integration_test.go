@@ -1,13 +1,13 @@
 package tool
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/testsuite"
 
 	"github.com/compozy/compozy/engine/core"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
@@ -55,7 +55,7 @@ func TestToolInheritance_Runtime(t *testing.T) {
 		prjCfg := CreateTestProjectConfig(prjTools)
 
 		// Set up repositories and runtime similar to worker helpers
-		ctx := context.Background()
+		ctx := t.Context()
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		t.Cleanup(cleanup)
 
@@ -82,6 +82,7 @@ func TestToolInheritance_Runtime(t *testing.T) {
 			workflowRepo,
 			taskRepo,
 			helpers.NoopUsageMetrics{},
+			providermetrics.Nop(),
 			rt,
 			cfgStore,
 			nil, // signal dispatcher

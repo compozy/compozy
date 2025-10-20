@@ -7,9 +7,15 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
+	mcptools "github.com/compozy/compozy/engine/mcp/tools"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/tmc/langchaingo/tools"
 )
+
+// mcpExecutor is the minimal contract needed by ProxyTool.
+type mcpExecutor interface {
+	Execute(ctx context.Context, mcpName, toolName string, args map[string]any) (any, error)
+}
 
 // ProxyTool implements a langchain tool that executes via the MCP proxy
 type ProxyTool struct {
@@ -17,17 +23,22 @@ type ProxyTool struct {
 	description string
 	inputSchema map[string]any
 	mcpName     string
-	proxyClient *mcp.Client
+	executor    mcpExecutor
 }
 
-// NewProxyTool creates a new proxy tool from a tool definition
+// NewProxyTool creates a new proxy tool from a tool definition.
 func NewProxyTool(toolDef mcp.ToolDefinition, proxyClient *mcp.Client) tools.Tool {
+	return NewProxyToolWithExecutor(toolDef, mcptools.NewExecutor(proxyClient))
+}
+
+// NewProxyToolWithExecutor constructs a proxy tool with a custom executor.
+func NewProxyToolWithExecutor(toolDef mcp.ToolDefinition, executor mcpExecutor) tools.Tool {
 	return &ProxyTool{
 		name:        toolDef.Name,
 		description: toolDef.Description,
 		inputSchema: toolDef.InputSchema,
 		mcpName:     toolDef.MCPName,
-		proxyClient: proxyClient,
+		executor:    executor,
 	}
 }
 
@@ -58,7 +69,7 @@ func (t *ProxyTool) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	// Execute the tool via proxy
-	result, err := t.proxyClient.CallTool(ctx, t.mcpName, t.name, args)
+	result, err := t.executor.Execute(ctx, t.mcpName, t.name, args)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute tool '%s' from MCP '%s': %w", t.name, t.mcpName, err)
 	}
@@ -93,11 +104,7 @@ func (t *ProxyTool) ParameterSchema() map[string]any {
 	}
 	copied, err := core.DeepCopy(t.inputSchema)
 	if err != nil {
-		fallback := make(map[string]any, len(t.inputSchema))
-		for key, val := range t.inputSchema {
-			fallback[key] = val
-		}
-		return fallback
+		return core.CloneMap(t.inputSchema)
 	}
 	return copied
 }

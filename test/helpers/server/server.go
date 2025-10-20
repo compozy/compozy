@@ -60,7 +60,7 @@ func NewServerHarness(t *testing.T, opts ...Option) *ServerHarness {
 	if options.ProjectName == "" {
 		options.ProjectName = sanitizeProjectName(t.Name())
 	}
-	manager := config.NewManager(config.NewService())
+	manager := config.NewManager(ctx, config.NewService())
 	_, err := manager.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
 	ctx = config.ContextWithManager(ctx, manager)
@@ -80,7 +80,7 @@ func NewServerHarness(t *testing.T, opts ...Option) *ServerHarness {
 	proj := &project.Config{Name: options.ProjectName, Version: "1.0.0"}
 	require.NoError(t, proj.SetCWD(tempDir))
 	proj.SetFilePath(projFile)
-	pool, cleanup := helpers.GetSharedPostgresDB(ctx, t)
+	pool, cleanup := helpers.GetSharedPostgresDB(t)
 	t.Cleanup(cleanup)
 	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
 	cfg.Database.ConnString = pool.Config().ConnString()

@@ -2,10 +2,10 @@ package knowledgerouter_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,7 +69,7 @@ func seedKnowledge(t *testing.T, store resources.ResourceStore, project string, 
 			Dimension:   1536,
 		},
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	key := resources.ResourceKey{Project: project, Type: resources.ResourceEmbedder, ID: embedder.ID}
 	_, err := store.Put(ctx, key, &embedder)
 	require.NoError(t, err)
@@ -105,7 +105,7 @@ func TestKnowledgeGetConditional(t *testing.T) {
 		project := state.ProjectConfig.Name
 		seedKnowledge(t, store, project, "support")
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			routes.Base()+"/knowledge-bases/support",
 			http.NoBody,
@@ -125,7 +125,7 @@ func TestKnowledgeGetConditional(t *testing.T) {
 		etag := rec.Header().Get("ETag")
 		require.NotEmpty(t, etag)
 		req2, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			routes.Base()+"/knowledge-bases/support",
 			http.NoBody,
@@ -155,7 +155,7 @@ func TestKnowledgeUpsertETagPrecondition(t *testing.T) {
 		payload, err := json.Marshal(initial)
 		require.NoError(t, err)
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPut,
 			routes.Base()+"/knowledge-bases/support",
 			bytes.NewReader(payload),
@@ -178,7 +178,7 @@ func TestKnowledgeUpsertETagPrecondition(t *testing.T) {
 		body, err := json.Marshal(update)
 		require.NoError(t, err)
 		req2, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPut,
 			routes.Base()+"/knowledge-bases/support",
 			bytes.NewReader(body),
@@ -194,7 +194,7 @@ func TestKnowledgeUpsertETagPrecondition(t *testing.T) {
 		require.NotEmpty(t, newETag)
 		require.NotEqual(t, etag, newETag)
 		req3, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPut,
 			routes.Base()+"/knowledge-bases/support",
 			bytes.NewReader(body),
@@ -216,7 +216,7 @@ func TestKnowledgeListPagination(t *testing.T) {
 		project := state.ProjectConfig.Name
 		seedKnowledge(t, store, project, "alpha", "beta", "gamma")
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodGet,
 			routes.Base()+"/knowledge-bases?limit=1",
 			http.NoBody,
@@ -239,8 +239,11 @@ func TestKnowledgeListPagination(t *testing.T) {
 		require.NotEmpty(t, nextCursor)
 		prevCursor, _ := page["prev_cursor"].(string)
 		require.Empty(t, prevCursor)
-		path := routes.Base() + "/knowledge-bases?limit=1&cursor=" + nextCursor
-		req2, err := http.NewRequestWithContext(context.Background(), http.MethodGet, path, http.NoBody)
+		query := url.Values{}
+		query.Set("limit", "1")
+		query.Set("cursor", nextCursor)
+		nextURL := routes.Base() + "/knowledge-bases?" + query.Encode()
+		req2, err := http.NewRequestWithContext(t.Context(), http.MethodGet, nextURL, http.NoBody)
 		require.NoError(t, err)
 		req2 = routertest.WithConfig(t, req2)
 		rec2 := httptest.NewRecorder()
@@ -266,7 +269,7 @@ func TestKnowledgeQueryValidation(t *testing.T) {
 		payload, err := json.Marshal(reqBody)
 		require.NoError(t, err)
 		req, err := http.NewRequestWithContext(
-			context.Background(),
+			t.Context(),
 			http.MethodPost,
 			routes.Base()+"/knowledge-bases/support/query",
 			bytes.NewReader(payload),

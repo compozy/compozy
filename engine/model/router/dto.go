@@ -86,14 +86,14 @@ func convertProviderConfigToDTO(cfg *core.ProviderConfig, fallbackID string) (Mo
 	if cfg == nil {
 		return ModelCoreDTO{}, fmt.Errorf("provider config is nil")
 	}
-	clone, err := core.DeepCopy[*core.ProviderConfig](cfg)
+	clone, err := core.DeepCopy(cfg)
 	if err != nil {
 		return ModelCoreDTO{}, fmt.Errorf("deep copy provider config: %w", err)
 	}
 	provider := string(clone.Provider)
 	model := clone.Model
 	id := buildModelID(provider, model, fallbackID)
-	paramsCopy, err := core.DeepCopy[core.PromptParams](clone.Params)
+	paramsCopy, err := core.DeepCopy(clone.Params)
 	if err != nil {
 		return ModelCoreDTO{}, fmt.Errorf("deep copy provider params: %w", err)
 	}

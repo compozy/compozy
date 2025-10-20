@@ -30,7 +30,7 @@ import (
 
 func TestExecuteMemoryIntegration(t *testing.T) {
 	t.Run("Should execute memory write operation", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow"
 		input := &activities.ExecuteMemoryInput{
@@ -54,7 +54,7 @@ func TestExecuteMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("Should execute memory read operation", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		activity, workflowExecIDs := createTestMemoryActivity(t)
 		workflowID := "test-workflow-read"
 		workflowExecID := workflowExecIDs[workflowID]
@@ -98,7 +98,7 @@ func TestExecuteMemoryIntegration(t *testing.T) {
 
 func createTestMemoryActivity(t *testing.T) (*activities.ExecuteMemory, map[string]core.ID) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	redisClient := setupRedisClient(t)
 	lockManager := setupLockManager(t, redisClient)
 	configRegistry := setupTestConfigRegistry(t)
@@ -133,7 +133,7 @@ func setupRedisClient(t *testing.T) *redis.Client {
 	t.Cleanup(func() { mr.Close() })
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr(), DB: 0})
 	t.Cleanup(func() { _ = client.Close() })
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	require.NoError(t, client.Ping(ctx).Err())
 	return client
@@ -159,7 +159,7 @@ func setupTestConfigRegistry(t *testing.T) *autoload.ConfigRegistry {
 		Persistence: memcore.PersistenceConfig{Type: memcore.RedisPersistence, TTL: "24h"},
 		Flushing:    &memcore.FlushingStrategyConfig{Type: memcore.SimpleFIFOFlushing, SummarizeThreshold: 0.8},
 	}
-	require.NoError(t, testMemoryConfig.Validate())
+	require.NoError(t, testMemoryConfig.Validate(t.Context()))
 	require.NoError(t, configRegistry.Register(testMemoryConfig, "test"))
 	return configRegistry
 }
@@ -190,7 +190,7 @@ func setupTask2Factory(t *testing.T, workflowRepo workflow.Repository, taskRepo 
 	t.Helper()
 	templateEngine := tplengine.NewEngine(tplengine.FormatText)
 	envMerger := task2core.NewEnvMerger()
-	factory, err := task2.NewFactory(&task2.FactoryConfig{
+	factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
 		TemplateEngine: templateEngine,
 		EnvMerger:      envMerger,
 		WorkflowRepo:   workflowRepo,

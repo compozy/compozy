@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,7 +40,7 @@ func TestTiktokenCounter_NewTiktokenCounter(t *testing.T) {
 func TestTiktokenCounter_CountTokens(t *testing.T) {
 	counter, err := NewTiktokenCounter("gpt-4")
 	require.NoError(t, err)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should count tokens for simple text", func(t *testing.T) {
 		count, err := counter.CountTokens(ctx, "Hello, world!")
@@ -96,7 +95,7 @@ func TestDefaultTokenCounter(t *testing.T) {
 		assert.NotNil(t, counter)
 
 		// Test that it can count tokens
-		ctx := context.Background()
+		ctx := t.Context()
 		count, err := counter.CountTokens(ctx, "Test message")
 		require.NoError(t, err)
 		assert.Greater(t, count, 0)
@@ -127,7 +126,7 @@ func TestGetEncodingNameForModel(t *testing.T) {
 func TestTiktokenCounter_ConcurrentAccess(t *testing.T) {
 	counter, err := NewTiktokenCounter("gpt-4")
 	require.NoError(t, err)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should handle concurrent token counting", func(t *testing.T) {
 		const numGoroutines = 10

@@ -116,9 +116,6 @@ func mapQdrantResults(results []qdrantSearchResult, minScore float64) []Match {
 		}
 		id := fmt.Sprint(res.ID)
 		payload := core.CloneMap(res.Payload)
-		if payload == nil {
-			payload = make(map[string]any)
-		}
 		text := ""
 		if raw, ok := payload["text"].(string); ok {
 			text = raw
@@ -145,9 +142,6 @@ func (q *qdrantStore) Upsert(ctx context.Context, records []Record) error {
 			return fmt.Errorf("qdrant: record %q dimension mismatch", rec.ID)
 		}
 		payload := core.CloneMap(rec.Metadata)
-		if payload == nil {
-			payload = make(map[string]any)
-		}
 		payload["text"] = rec.Text
 		points = append(points, map[string]any{
 			"id":      rec.ID,

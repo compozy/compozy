@@ -54,6 +54,7 @@
 package mcp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/textproto"
@@ -435,56 +436,56 @@ func (c *Config) SetDefaults() {
 //	}
 //
 // ```
-func (c *Config) Validate() error {
+func (c *Config) Validate(ctx context.Context) error {
 	// Ensure defaults are set before validation
 	c.SetDefaults()
-	if err := c.validateID(); err != nil {
+	if err := c.validateID(ctx); err != nil {
 		return err
 	}
-	if err := c.validateResource(); err != nil {
+	if err := c.validateResource(ctx); err != nil {
 		return err
 	}
-	if err := c.validateTransport(); err != nil {
+	if err := c.validateTransport(ctx); err != nil {
 		return err
 	}
-	if err := c.validateURL(); err != nil {
+	if err := c.validateURL(ctx); err != nil {
 		return err
 	}
-	if err := c.validateTransportArgs(); err != nil {
+	if err := c.validateTransportArgs(ctx); err != nil {
 		return err
 	}
 	if (c.Transport == mcpproxy.TransportSSE || c.Transport == mcpproxy.TransportStreamableHTTP) && len(c.Headers) > 0 {
-		if err := c.validateHeaders(); err != nil {
+		if err := c.validateHeaders(ctx); err != nil {
 			return err
 		}
 	}
-	if err := c.validateProxy(); err != nil {
+	if err := c.validateProxy(ctx); err != nil {
 		return err
 	}
-	if err := c.validateProto(); err != nil {
+	if err := c.validateProto(ctx); err != nil {
 		return err
 	}
-	if err := c.validateLimits(); err != nil {
+	if err := c.validateLimits(ctx); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Config) validateResource() error {
+func (c *Config) validateResource(_ context.Context) error {
 	if c.Resource == "" {
 		return errors.New("mcp resource is required")
 	}
 	return nil
 }
 
-func (c *Config) validateID() error {
+func (c *Config) validateID(_ context.Context) error {
 	if c.ID == "" {
 		return errors.New("mcp id is required")
 	}
 	return nil
 }
 
-func (c *Config) validateURL() error {
+func (c *Config) validateURL(_ context.Context) error {
 	// Only HTTP-based transports require URL
 	if c.Transport == mcpproxy.TransportSSE || c.Transport == mcpproxy.TransportStreamableHTTP {
 		if c.URL == "" {
@@ -496,7 +497,7 @@ func (c *Config) validateURL() error {
 	return nil
 }
 
-func (c *Config) validateTransportArgs() error {
+func (c *Config) validateTransportArgs(_ context.Context) error {
 	if c.Transport == mcpproxy.TransportSSE || c.Transport == mcpproxy.TransportStreamableHTTP {
 		if len(c.Args) > 0 {
 			return errors.New("args are only supported for stdio transports; remove args when using url-based MCPs")
@@ -516,7 +517,7 @@ func (c *Config) validateTransportArgs() error {
 	return nil
 }
 
-func (c *Config) validateProxy() error {
+func (c *Config) validateProxy(_ context.Context) error {
 	proxyURL := os.Getenv("MCP_PROXY_URL")
 	if proxyURL == "" {
 		return errors.New("MCP_PROXY_URL environment variable is required for MCP server configuration")
@@ -573,32 +574,30 @@ func validateURLFormat(urlStr, context string) error {
 	return nil
 }
 
-func (c *Config) validateProto() error {
+func (c *Config) validateProto(_ context.Context) error {
 	if !isValidProtoVersion(c.Proto) {
 		return fmt.Errorf("invalid protocol version: %s", c.Proto)
 	}
 	return nil
 }
 
-func (c *Config) validateTransport() error {
+func (c *Config) validateTransport(_ context.Context) error {
 	if !isValidTransport(c.Transport) {
 		return fmt.Errorf("invalid transport type: %s (must be 'sse', 'streamable-http' or 'stdio')", c.Transport)
 	}
 	return nil
 }
 
-func (c *Config) validateLimits() error {
+func (c *Config) validateLimits(_ context.Context) error {
 	if c.StartTimeout < 0 {
 		return errors.New("start_timeout cannot be negative")
 	}
-	if c.MaxSessions < 0 {
-		return errors.New("max_sessions cannot be negative")
-	}
+	// Negative or zero => unlimited sessions (allowed per documentation lines 320-329)
 	return nil
 }
 
 // validateHeaders validates and canonicalizes custom HTTP headers.
-func (c *Config) validateHeaders() error {
+func (c *Config) validateHeaders(_ context.Context) error {
 	if len(c.Headers) == 0 {
 		return nil
 	}

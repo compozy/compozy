@@ -2,11 +2,12 @@ package uc
 
 import (
 	"context"
-	"maps"
+	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 )
 
 type ListInput struct {
@@ -56,12 +57,14 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 	)
 	payload := make([]map[string]any, 0, len(window))
 	for i := range window {
-		sc, err := decodeStoredSchema(window[i].Value, window[i].Key.ID)
+		sc, err := decodeStoredSchema(ctx, window[i].Value, window[i].Key.ID)
 		if err != nil {
 			return nil, err
 		}
-		entry := make(map[string]any, len(*sc)+1) // +1 for _etag
-		maps.Copy(entry, *sc)
+		if sc == nil {
+			return nil, fmt.Errorf("decoded schema is nil for id %s", window[i].Key.ID)
+		}
+		entry := core.CloneMap(*sc)
 		entry["_etag"] = string(window[i].ETag)
 		payload = append(payload, entry)
 	}

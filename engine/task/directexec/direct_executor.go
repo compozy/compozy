@@ -3,12 +3,12 @@ package directexec
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
@@ -50,6 +50,7 @@ type directExecutor struct {
 	toolEnvironment    toolenv.Environment
 	appState           *appstate.State
 	usageMetrics       usage.Metrics
+	providerMetrics    providermetrics.Recorder
 	resourceStore      resources.ResourceStore
 	projectConfig      *project.Config
 	memoryManager      memcore.ManagerInterface
@@ -76,7 +77,7 @@ func cloneTaskInput(input *core.Input) (*core.Input, error) {
 	if input == nil {
 		return nil, nil
 	}
-	cloned, err := core.DeepCopy[*core.Input](input)
+	cloned, err := core.DeepCopy(input)
 	if err != nil {
 		return nil, err
 	}
@@ -91,21 +92,25 @@ func restoreDirectInput(cfg *task.Config, original *core.Input) {
 		cfg.With = original
 		return
 	}
-	maps.Copy((*cfg.With), *original)
+	mergedMap := core.CopyMaps(*original, *cfg.With)
+	merged := core.Input(mergedMap)
+	cfg.With = &merged
 }
 
 func (d *directExecutor) normalizeTaskConfig(
+	ctx context.Context,
 	wfState *workflow.State,
 	wfConfig *workflow.Config,
 	cfg *task.Config,
 ) error {
-	if err := d.configOrchestrator.NormalizeTask(wfState, wfConfig, cfg); err != nil {
+	if err := d.configOrchestrator.NormalizeTask(ctx, wfState, wfConfig, cfg); err != nil {
 		return fmt.Errorf("failed to normalize task %s: %w", cfg.ID, err)
 	}
 	return nil
 }
 
 func (d *directExecutor) normalizeAgentComponent(
+	ctx context.Context,
 	wfState *workflow.State,
 	wfConfig *workflow.Config,
 	cfg *task.Config,
@@ -115,6 +120,7 @@ func (d *directExecutor) normalizeAgentComponent(
 		return nil
 	}
 	if err := d.configOrchestrator.NormalizeAgentComponent(
+		ctx,
 		wfState,
 		wfConfig,
 		cfg,
@@ -127,6 +133,7 @@ func (d *directExecutor) normalizeAgentComponent(
 }
 
 func (d *directExecutor) normalizeToolComponent(
+	ctx context.Context,
 	wfState *workflow.State,
 	wfConfig *workflow.Config,
 	cfg *task.Config,
@@ -136,6 +143,7 @@ func (d *directExecutor) normalizeToolComponent(
 		return nil
 	}
 	if err := d.configOrchestrator.NormalizeToolComponent(
+		ctx,
 		wfState,
 		wfConfig,
 		cfg,
@@ -164,28 +172,29 @@ func (d *directExecutor) initializeWorkflowState(
 }
 
 func (d *directExecutor) normalizeComponents(
+	ctx context.Context,
 	wfState *workflow.State,
 	wfConfig *workflow.Config,
 	preparedCfg *task.Config,
 	directInputCopy *core.Input,
 ) error {
-	if err := d.normalizeTaskConfig(wfState, wfConfig, preparedCfg); err != nil {
+	if err := d.normalizeTaskConfig(ctx, wfState, wfConfig, preparedCfg); err != nil {
 		return err
 	}
 	restoreDirectInput(preparedCfg, directInputCopy)
 	taskConfigs := task2.BuildTaskConfigsMap(wfConfig.Tasks)
 	taskConfigs[preparedCfg.ID] = preparedCfg
-	if err := d.normalizeAgentComponent(wfState, wfConfig, preparedCfg, taskConfigs); err != nil {
+	if err := d.normalizeAgentComponent(ctx, wfState, wfConfig, preparedCfg, taskConfigs); err != nil {
 		return err
 	}
-	if err := d.normalizeToolComponent(wfState, wfConfig, preparedCfg, taskConfigs); err != nil {
+	if err := d.normalizeToolComponent(ctx, wfState, wfConfig, preparedCfg, taskConfigs); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (d *directExecutor) prepareExecutionPlan(
-	_ context.Context,
+	ctx context.Context,
 	cfg *task.Config,
 	meta *ExecMetadata,
 	execID core.ID,
@@ -209,7 +218,7 @@ func (d *directExecutor) prepareExecutionPlan(
 		return nil, fmt.Errorf("failed to clone task input: %w", cloneErr)
 	}
 	wfConfig, wfState := d.initializeWorkflowState(execID, preparedCfg, meta)
-	if err := d.normalizeComponents(wfState, wfConfig, preparedCfg, directInputCopy); err != nil {
+	if err := d.normalizeComponents(ctx, wfState, wfConfig, preparedCfg, directInputCopy); err != nil {
 		return nil, err
 	}
 	wfConfig.Tasks = []task.Config{*preparedCfg}
@@ -222,12 +231,13 @@ func (d *directExecutor) prepareExecutionPlan(
 }
 
 func setupConfigOrchestrator(
+	ctx context.Context,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 ) (*task2.ConfigOrchestrator, *tplengine.TemplateEngine, error) {
 	tplEng := tplengine.NewEngine(tplengine.FormatJSON)
 	envMerger := task2core.NewEnvMerger()
-	factory, err := task2.NewFactory(&task2.FactoryConfig{
+	factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 		TemplateEngine: tplEng,
 		EnvMerger:      envMerger,
 		WorkflowRepo:   workflowRepo,
@@ -236,7 +246,7 @@ func setupConfigOrchestrator(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create task normalizer factory: %w", err)
 	}
-	orchestrator, err := task2.NewConfigOrchestrator(factory)
+	orchestrator, err := task2.NewConfigOrchestrator(ctx, factory)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create task config orchestrator: %w", err)
 	}
@@ -244,6 +254,7 @@ func setupConfigOrchestrator(
 }
 
 func NewDirectExecutor(
+	ctx context.Context,
 	state *appstate.State,
 	taskRepo task.Repository,
 	workflowRepo workflow.Repository,
@@ -262,10 +273,12 @@ func NewDirectExecutor(
 		workflowRepo = state.Store.NewWorkflowRepo()
 	}
 	var usageMetrics usage.Metrics
+	providerMetrics := providermetrics.Nop()
 	if svc, ok := state.MonitoringService(); ok && svc != nil && svc.IsInitialized() {
 		usageMetrics = svc.LLMUsageMetrics()
+		providerMetrics = svc.LLMProviderMetrics()
 	}
-	orchestrator, tplEng, err := setupConfigOrchestrator(workflowRepo, taskRepo)
+	orchestrator, tplEng, err := setupConfigOrchestrator(ctx, workflowRepo, taskRepo)
 	if err != nil {
 		return nil, err
 	}
@@ -290,6 +303,7 @@ func NewDirectExecutor(
 		toolEnvironment:    toolEnvironment,
 		appState:           state,
 		usageMetrics:       usageMetrics,
+		providerMetrics:    providerMetrics,
 		resourceStore:      resourceStore,
 		projectConfig:      projCfg,
 		memoryManager:      memManager,
@@ -507,7 +521,15 @@ func (d *directExecutor) executeOnce(
 	if err != nil {
 		return nil, err
 	}
-	ucExec := uc.NewExecuteTask(rt, d.workflowRepo, d.memoryManager, d.templateEngine, nil, d.toolEnvironment)
+	ucExec := uc.NewExecuteTask(
+		rt,
+		d.workflowRepo,
+		d.memoryManager,
+		d.templateEngine,
+		nil,
+		d.providerMetrics,
+		d.toolEnvironment,
+	)
 	wfState := d.buildWorkflowState(plan.meta, state.WorkflowExecID, plan.config)
 	input := &uc.ExecuteTaskInput{
 		TaskConfig:     plan.config,

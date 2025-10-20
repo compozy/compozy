@@ -2,7 +2,6 @@ package collection
 
 import (
 	"fmt"
-	"maps"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -100,7 +99,7 @@ func (cb *ConfigBuilder) buildMergedInput(
 		if err != nil {
 			return nil, fmt.Errorf("failed to process parent with field: %w", err)
 		}
-		maps.Copy(mergedInput, processed)
+		mergedInput = core.CopyMaps(mergedInput, processed)
 	}
 	// Process and add task template with
 	if err := cb.processTaskWith(taskConfig, itemContext, mergedInput); err != nil {
@@ -130,7 +129,10 @@ func (cb *ConfigBuilder) processTaskWith(
 	if err != nil {
 		return fmt.Errorf("failed to process with field: %w", err)
 	}
-	maps.Copy(mergedInput, processed)
+	merged := core.CopyMaps(mergedInput, processed)
+	for k, v := range merged {
+		mergedInput[k] = v
+	}
 	return nil
 }
 

@@ -26,7 +26,7 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 		for range numGoroutines {
 			go func() {
 				defer wg.Done()
-				limits := GetGlobalConfigLimits()
+				limits := GetGlobalConfigLimits(t.Context())
 				results <- limits
 			}()
 		}
@@ -71,7 +71,7 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 		for range numOperations {
 			go func() {
 				defer wg.Done()
-				limits := GetGlobalConfigLimits()
+				limits := GetGlobalConfigLimits(t.Context())
 				assert.NotNil(t, limits)
 				// Values should be either default or updated
 				assert.True(t,
@@ -85,7 +85,7 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 		for range numOperations {
 			go func() {
 				defer wg.Done()
-				RefreshGlobalConfigLimits()
+				RefreshGlobalConfigLimits(t.Context())
 			}()
 		}
 
@@ -93,7 +93,7 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 		wg.Wait()
 
 		// Final state should have the updated values
-		finalLimits := GetGlobalConfigLimits()
+		finalLimits := GetGlobalConfigLimits(t.Context())
 		assert.Equal(t, 20, finalLimits.MaxNestingDepth)
 		assert.Equal(t, 2048, finalLimits.MaxStringLength)
 	})
@@ -102,7 +102,7 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 		resetGlobalConfigLimits()
 
 		// First access should initialize
-		limits := GetGlobalConfigLimits()
+		limits := GetGlobalConfigLimits(t.Context())
 		require.NotNil(t, limits)
 
 		// Verify initialization values from provider defaults
@@ -122,7 +122,7 @@ func TestRefreshGlobalConfigLimits(t *testing.T) {
 		resetGlobalConfigLimits()
 
 		// Get initial config
-		initial := GetGlobalConfigLimits()
+		initial := GetGlobalConfigLimits(t.Context())
 		assert.Equal(t, 20, initial.MaxNestingDepth) // Provider default is 20
 
 		// Update environment
@@ -130,10 +130,10 @@ func TestRefreshGlobalConfigLimits(t *testing.T) {
 		defer os.Unsetenv("LIMITS_MAX_NESTING_DEPTH")
 
 		// Refresh
-		RefreshGlobalConfigLimits()
+		RefreshGlobalConfigLimits(t.Context())
 
 		// Get updated config
-		updated := GetGlobalConfigLimits()
+		updated := GetGlobalConfigLimits(t.Context())
 		assert.Equal(t, 30, updated.MaxNestingDepth)
 		assert.NotSame(t, initial, updated, "Should be a new instance after refresh")
 	})
@@ -151,7 +151,7 @@ func TestRefreshGlobalConfigLimits(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				os.Setenv("LIMITS_MAX_NESTING_DEPTH", value)
-				RefreshGlobalConfigLimits()
+				RefreshGlobalConfigLimits(t.Context())
 				os.Unsetenv("LIMITS_MAX_NESTING_DEPTH")
 			}()
 		}
@@ -159,7 +159,7 @@ func TestRefreshGlobalConfigLimits(t *testing.T) {
 		wg.Wait()
 
 		// Final state should be consistent (not corrupted)
-		final := GetGlobalConfigLimits()
+		final := GetGlobalConfigLimits(t.Context())
 		assert.NotNil(t, final)
 		// Value should be one of the test values or provider default
 		validValues := []int{20, 15, 25, 35, 45} // 20 is provider default
@@ -177,7 +177,7 @@ func TestGetConfigLimits(t *testing.T) {
 		os.Unsetenv("LIMITS_MAX_STRING_LENGTH")
 		os.Unsetenv("LIMITS_MAX_TASK_CONTEXT_DEPTH")
 
-		limits := GetConfigLimits()
+		limits := GetConfigLimits(t.Context())
 
 		// The new config system has different defaults from the provider
 		assert.Equal(t, 20, limits.MaxNestingDepth)       // Provider default is 20
@@ -206,7 +206,7 @@ func TestGetConfigLimits(t *testing.T) {
 			os.Unsetenv("LIMITS_MAX_TASK_CONTEXT_DEPTH")
 		}()
 
-		limits := GetConfigLimits()
+		limits := GetConfigLimits(t.Context())
 
 		// Debug output
 		t.Logf("Environment vars: LIMITS_MAX_NESTING_DEPTH=%s", os.Getenv("LIMITS_MAX_NESTING_DEPTH"))
@@ -236,31 +236,10 @@ func TestGetConfigLimits(t *testing.T) {
 			os.Unsetenv("LIMITS_MAX_STRING_LENGTH")
 		}()
 
-		limits := GetConfigLimits()
+		limits := GetConfigLimits(t.Context())
 
 		// Should fall back to provider defaults for invalid values
 		assert.Equal(t, 20, limits.MaxNestingDepth)       // Provider default is 20
 		assert.Equal(t, 10485760, limits.MaxStringLength) // Provider default is 10MB
-	})
-}
-
-// BenchmarkGetGlobalConfigLimits tests performance under concurrent load
-func BenchmarkGetGlobalConfigLimits(b *testing.B) {
-	// Reset state
-	resetGlobalConfigLimits()
-
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			_ = GetGlobalConfigLimits()
-		}
-	})
-}
-
-// BenchmarkRefreshGlobalConfigLimits tests refresh performance
-func BenchmarkRefreshGlobalConfigLimits(b *testing.B) {
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			RefreshGlobalConfigLimits()
-		}
 	})
 }

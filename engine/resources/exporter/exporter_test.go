@@ -1,7 +1,6 @@
 package exporter
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,7 +11,7 @@ import (
 
 func TestExportToDir_Deterministic(t *testing.T) {
 	t.Run("Should export stable YAML with sorted keys", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store := resources.NewMemoryResourceStore()
 		project := "testproj"
 		// Seed store with a couple of resources (unordered maps)
@@ -58,7 +57,7 @@ func TestExportToDir_Deterministic(t *testing.T) {
 
 func TestExportTypeToDir_Filtering(t *testing.T) {
 	t.Run("Should export only requested type", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store := resources.NewMemoryResourceStore()
 		project := "proj"
 		_, err := store.Put(
@@ -95,7 +94,7 @@ func TestExportTypeToDir_Filtering(t *testing.T) {
 		require.True(t, os.IsNotExist(err))
 	})
 	t.Run("Should export project resources to project directory", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store := resources.NewMemoryResourceStore()
 		project := "proj"
 		_, err := store.Put(

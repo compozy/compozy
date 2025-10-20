@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/workflow"
@@ -69,7 +70,7 @@ func (s *service) LoadProject(
 		return nil, nil, nil, err
 	}
 
-	if err := projectConfig.Validate(); err != nil {
+	if err := projectConfig.Validate(ctx); err != nil {
 		log.Error("Invalid project config", "error", err)
 		return nil, nil, nil, err
 	}
@@ -208,7 +209,7 @@ func (s *service) compileFromStore(
 	}
 	// Validate webhook slugs parity with repo mode
 	slugs := workflow.SlugsFromList(decoded)
-	if err := project.NewWebhookSlugsValidator(slugs).Validate(); err != nil {
+	if err := project.NewWebhookSlugsValidator(slugs).Validate(ctx); err != nil {
 		return nil, fmt.Errorf("webhook configuration invalid: %w", err)
 	}
 	// Now compile
@@ -295,7 +296,7 @@ func (s *service) resolveMode(ctx context.Context, projectConfig *project.Config
 	log.Info("Resolved source of truth mode", "mode", mode)
 	if meter := otel.GetMeterProvider().Meter("compozy"); meter != nil {
 		sel, err := meter.Int64Counter(
-			"compozy_mode_selected_total",
+			monitoringmetrics.MetricNameWithSubsystem("mode", "selected_total"),
 			metric.WithDescription("Count of server mode selections at startup"),
 		)
 		if err == nil {
@@ -345,7 +346,7 @@ func (s *service) loadFromRepo(
 		return nil, err
 	}
 	slugs := workflow.SlugsFromList(workflows)
-	if err := project.NewWebhookSlugsValidator(slugs).Validate(); err != nil {
+	if err := project.NewWebhookSlugsValidator(slugs).Validate(ctx); err != nil {
 		log.Error("Invalid webhook configuration", "error", err)
 		return nil, fmt.Errorf("webhook configuration invalid: %w", err)
 	}

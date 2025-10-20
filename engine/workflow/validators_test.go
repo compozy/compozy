@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"context"
 	"os"
 	"testing"
 	"text/template"
@@ -25,7 +24,7 @@ func TestConfig_Validation(t *testing.T) {
 			CWD:  cwd,
 		}
 
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 	})
 
@@ -47,7 +46,7 @@ func TestConfig_Validation(t *testing.T) {
 			ID: "test-workflow",
 		}
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "current working directory is required for test-workflow")
 	})
@@ -67,7 +66,7 @@ func TestConfig_TriggerValidation(t *testing.T) {
 				},
 			},
 		}
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 	})
 
@@ -84,7 +83,7 @@ func TestConfig_TriggerValidation(t *testing.T) {
 				},
 			},
 		}
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported trigger type: unsupported")
 	})
@@ -102,7 +101,7 @@ func TestConfig_TriggerValidation(t *testing.T) {
 				},
 			},
 		}
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "trigger name is required")
 	})
@@ -124,7 +123,7 @@ func TestConfig_TriggerValidation(t *testing.T) {
 				},
 			},
 		}
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "workflow 'test-workflow' trigger[1] 'order.created': duplicate trigger name")
 	})
@@ -152,7 +151,7 @@ func TestConfig_TriggerValidation(t *testing.T) {
 				},
 			},
 		}
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.NoError(t, err)
 	})
 
@@ -174,7 +173,7 @@ func TestConfig_TriggerValidation(t *testing.T) {
 				},
 			},
 		}
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "workflow 'test-workflow' trigger[0] 'order.created': invalid trigger schema")
 	})
@@ -190,14 +189,14 @@ func TestConfig_MCPValidation(t *testing.T) {
 
 		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
-		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		config, err := Load(ctx, CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 
 		// Test that MCP configs are validated
 		for i := range config.MCPs {
 			config.MCPs[i].SetDefaults()
-			err := config.MCPs[i].Validate()
+			err := config.MCPs[i].Validate(t.Context())
 			assert.NoError(t, err)
 		}
 	})
@@ -224,7 +223,7 @@ func TestConfig_ValidateInput(t *testing.T) {
 			"name": "test",
 		}
 
-		err := config.ValidateInput(context.Background(), input)
+		err := config.ValidateInput(t.Context(), input)
 		assert.NoError(t, err)
 	})
 
@@ -248,7 +247,7 @@ func TestConfig_ValidateInput(t *testing.T) {
 			"age": 30, // missing required "name"
 		}
 
-		err := config.ValidateInput(context.Background(), input)
+		err := config.ValidateInput(t.Context(), input)
 		assert.Error(t, err)
 	})
 
@@ -262,7 +261,7 @@ func TestConfig_ValidateInput(t *testing.T) {
 			"anything": "goes",
 		}
 
-		err := config.ValidateInput(context.Background(), input)
+		err := config.ValidateInput(t.Context(), input)
 		assert.NoError(t, err)
 	})
 }
@@ -277,7 +276,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -289,7 +288,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid template in outputs.summary")
 	})
@@ -308,7 +307,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -324,7 +323,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid template in outputs.results.data.bad")
 	})
@@ -339,7 +338,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -348,7 +347,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			ID: "test-workflow",
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -358,7 +357,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			Outputs: &core.Output{},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "outputs cannot be empty when defined")
 	})
@@ -374,7 +373,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 		}
 		config.SetCWD(cwd.PathStr())
 
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "template")
 	})
@@ -391,7 +390,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -406,7 +405,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid template in outputs.results[1]")
 	})
@@ -428,7 +427,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -444,7 +443,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid template in outputs.items[0].name")
 	})
@@ -460,7 +459,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 
@@ -474,7 +473,7 @@ func TestOutputsValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewOutputsValidator(config)
-		err := validator.Validate()
+		err := validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid template in outputs.matrix[0][1]")
 	})
@@ -552,7 +551,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			Schedule: nil,
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should validate schedule configuration", func(t *testing.T) {
@@ -571,7 +570,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should fail with invalid cron expression", func(t *testing.T) {
@@ -585,7 +584,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "schedule validation error")
 		assert.Contains(t, err.Error(), "invalid cron expression")
@@ -621,7 +620,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should fail when schedule input violates workflow input schema", func(t *testing.T) {
@@ -652,7 +651,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "schedule input validation error")
 	})
@@ -680,7 +679,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "schedule input validation error")
 	})
@@ -709,7 +708,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate(context.Background())
+		err = validator.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should be integrated into workflow validation", func(t *testing.T) {
@@ -723,7 +722,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		// Test through the main workflow validator
-		err = config.Validate()
+		err = config.Validate(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "schedule validation error")
 	})

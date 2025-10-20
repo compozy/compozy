@@ -150,7 +150,7 @@ func TestConfig_Validate(t *testing.T) {
 			Enabled: true,
 			Path:    "/metrics",
 		}
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should accept custom path", func(t *testing.T) {
@@ -158,7 +158,7 @@ func TestConfig_Validate(t *testing.T) {
 			Enabled: false,
 			Path:    "/custom/metrics",
 		}
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should reject empty path", func(t *testing.T) {
@@ -166,7 +166,7 @@ func TestConfig_Validate(t *testing.T) {
 			Enabled: true,
 			Path:    "",
 		}
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		assert.ErrorContains(t, err, "monitoring path cannot be empty")
 	})
 	t.Run("Should reject path not starting with slash", func(t *testing.T) {
@@ -174,7 +174,7 @@ func TestConfig_Validate(t *testing.T) {
 			Enabled: true,
 			Path:    "metrics",
 		}
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		assert.ErrorContains(t, err, "monitoring path must start with '/'")
 	})
 	t.Run("Should reject path under /api/", func(t *testing.T) {
@@ -182,7 +182,7 @@ func TestConfig_Validate(t *testing.T) {
 			Enabled: true,
 			Path:    "/api/metrics",
 		}
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		assert.ErrorContains(t, err, "monitoring path cannot be under /api/")
 	})
 	t.Run("Should reject path with query parameters", func(t *testing.T) {
@@ -190,7 +190,7 @@ func TestConfig_Validate(t *testing.T) {
 			Enabled: true,
 			Path:    "/metrics?format=json",
 		}
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 		assert.ErrorContains(t, err, "monitoring path cannot contain query parameters")
 	})
 	t.Run("Should accept various valid paths", func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestConfig_Validate(t *testing.T) {
 					Enabled: true,
 					Path:    path,
 				}
-				err := cfg.Validate()
+				err := cfg.Validate(t.Context())
 				assert.NoError(t, err)
 			})
 		}

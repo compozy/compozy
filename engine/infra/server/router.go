@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	rediscache "github.com/compozy/compozy/engine/infra/redis"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
-	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
 	corsmiddleware "github.com/compozy/compozy/engine/infra/server/middleware/cors"
 	lgmiddleware "github.com/compozy/compozy/engine/infra/server/middleware/logger"
 	"github.com/compozy/compozy/engine/infra/server/middleware/ratelimit"
@@ -69,8 +68,10 @@ func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 			"/readyz",                // k8s readiness probe
 			"/mcp-proxy/health",      // MCP readiness probe
 			"/metrics",               // Prometheus
-			"/docs",                  // Docs UI (OpenAPI v3)
-			"/docs/index.html",       // Docs UI entry
+			"/swagger",               // Swagger UI (OpenAPI v3)
+			"/swagger/index.html",    // Swagger UI entry
+			"/docs",                  // Docs UI (OpenAPI v3) - legacy
+			"/docs/index.html",       // Docs UI entry - legacy
 			"/openapi.json",          // OpenAPI 3 spec
 		},
 	}
@@ -78,7 +79,7 @@ func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 
 func (s *Server) buildAuthRepo(cfg *config.Config, base authuc.Repository) (authuc.Repository, string) {
 	repo := base
-	driver := "none"
+	driver := driverNone
 	const cacheDriverRedis = "redis"
 	ttl := cfg.Cache.TTL
 	if ttl <= 0 {
@@ -96,19 +97,6 @@ func (s *Server) buildRouter(state *appstate.State) error {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	cfg := config.FromContext(s.ctx)
-	baseAuth := state.Store.NewAuthRepo()
-	authRepoDriver := "postgres"
-	authRepo, authCacheDriver := s.buildAuthRepo(cfg, baseAuth)
-	s.authRepoDriverLabel = authRepoDriver
-	s.authCacheDriverLabel = authCacheDriver
-	logger.FromContext(s.ctx).Info(
-		"auth repository configured",
-		"auth_repo_driver", authRepoDriver,
-		"auth_cache_driver", authCacheDriver,
-	)
-	authFactory := authuc.NewFactory(authRepo)
-	authManager := authmw.NewManager(authFactory, cfg)
-	r.Use(authManager.Middleware())
 	if cfg.RateLimit.GlobalRate.Limit > 0 {
 		log := logger.FromContext(s.ctx)
 		rateLimitConfig := convertRateLimitConfig(cfg)
@@ -166,7 +154,7 @@ func (s *Server) logStartupBanner() {
 	fh := friendlyHost(host)
 	httpURL := fmt.Sprintf("http://%s:%d", fh, port)
 	apiURL := fmt.Sprintf("%s%s", httpURL, routes.Base())
-	docsURL := fmt.Sprintf("%s/docs/index.html", httpURL)
+	docsURL := fmt.Sprintf("%s/swagger/index.html", httpURL)
 	openapiJSON := fmt.Sprintf("%s/openapi.json", httpURL)
 	hooksURL := fmt.Sprintf("%s%s", httpURL, routes.Hooks())
 	mcp := s.mcpBaseURL

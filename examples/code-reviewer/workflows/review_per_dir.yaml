@@ -1,0 +1,112 @@
+id: review_per_dir
+version: 1.0.0
+description: Review Go code by directory (analyzes entire directories as cohesive units) with specialized
+  analysis types (performance, security, monitoring, architecture, testing, error_handling)
+
+triggers:
+  - type: signal
+    name: review-directory-holistic
+
+schemas:
+  - id: review_dir_input
+    type: object
+    properties:
+      directory:
+        type: string
+        description: The directory to review as a cohesive unit
+      review_type:
+        type: string
+        enum:
+          - "performance"
+          - "security"
+          - "monitoring"
+          - "architecture"
+          - "testing"
+          - "error_handling"
+          - "all"
+        default: "all"
+        description: "Type of review to perform: performance, security, monitoring, architecture, testing,\
+          \ error_handling, or all"
+    required:
+      - directory
+
+config:
+  input: review_dir_input
+
+tasks:
+  - id: route_review_type
+    type: router
+    condition: "workflow.input.review_type"
+    routes:
+      performance: "review_single"
+      security: "review_single"
+      monitoring: "review_single"
+      architecture: "review_single"
+      testing: "review_single"
+      error_handling: "review_single"
+      all: "review_all"
+      default: "review_all"
+
+  # Single review type using dynamic action - analyzes entire directory
+  - id: review_single
+    type: basic
+    agent: dir_analyzer
+    action: "{{ .workflow.input.review_type }}"
+    final: true
+    with:
+      directory: "{{ .workflow.input.directory }}"
+      num: "001"
+
+  # All reviews (runs all code review types in parallel for the entire directory)
+  - id: review_all
+    type: parallel
+    strategy: wait_all
+    final: true
+    tasks:
+      - id: perf
+        type: basic
+        agent: dir_analyzer
+        action: performance
+        with:
+          directory: "{{ .workflow.input.directory }}"
+          num: "001"
+
+      - id: sec
+        type: basic
+        agent: dir_analyzer
+        action: security
+        with:
+          directory: "{{ .workflow.input.directory }}"
+          num: "002"
+
+      - id: mon
+        type: basic
+        agent: dir_analyzer
+        action: monitoring
+        with:
+          directory: "{{ .workflow.input.directory }}"
+          num: "003"
+
+      - id: arch
+        type: basic
+        agent: dir_analyzer
+        action: architecture
+        with:
+          directory: "{{ .workflow.input.directory }}"
+          num: "004"
+
+      - id: test
+        type: basic
+        agent: dir_analyzer
+        action: testing
+        with:
+          directory: "{{ .workflow.input.directory }}"
+          num: "005"
+
+      - id: err
+        type: basic
+        agent: dir_analyzer
+        action: error_handling
+        with:
+          directory: "{{ .workflow.input.directory }}"
+          num: "006"

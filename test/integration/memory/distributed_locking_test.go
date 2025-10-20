@@ -26,7 +26,7 @@ func TestDistributedLockingAppend(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		// Use shared-memory which has locking configuration
 		memRef := core.MemoryReference{
 			ID:  "shared-memory",
@@ -149,7 +149,7 @@ func TestDistributedLockingClear(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "shared-memory",
 			Key: "locking-clear-test-{{.test.id}}",
@@ -257,7 +257,7 @@ func TestDistributedLockingFlush(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "flushable-memory",
 			Key: "locking-flush-test-{{.test.id}}",
@@ -371,7 +371,7 @@ func TestDistributedLockingMixedOperations(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		// Create multiple memory instances to test lock isolation
 		memoryConfigs := []struct {
 			memRef          core.MemoryReference
@@ -527,7 +527,7 @@ func TestDistributedLockingTimeout(t *testing.T) {
 		// Setup test environment
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "shared-memory",
 			Key: "lock-timeout-test-{{.test.id}}",

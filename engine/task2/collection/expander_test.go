@@ -29,9 +29,9 @@ func TestExpander_ImplementsInterface(t *testing.T) {
 	t.Run("Should implement CollectionExpander interface", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := NewNormalizer(templateEngine, contextBuilder)
+		normalizer := NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		configBuilder := NewConfigBuilder(templateEngine)
 
 		expander := NewExpander(normalizer, contextBuilder, configBuilder)
@@ -46,9 +46,9 @@ func TestNewExpander(t *testing.T) {
 	t.Run("Should create expander with all dependencies", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := NewNormalizer(templateEngine, contextBuilder)
+		normalizer := NewNormalizer(t.Context(), templateEngine, contextBuilder)
 		configBuilder := NewConfigBuilder(templateEngine)
 
 		// Act
@@ -164,7 +164,7 @@ func TestExpander_ValidateExpansion(t *testing.T) {
 		}
 
 		// Act
-		err := expander.ValidateExpansion(result)
+		err := expander.ValidateExpansion(t.Context(), result)
 
 		// Assert
 		require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestExpander_ValidateExpansion(t *testing.T) {
 		expander := &Expander{}
 
 		// Act
-		err := expander.ValidateExpansion(nil)
+		err := expander.ValidateExpansion(t.Context(), nil)
 
 		// Assert
 		require.Error(t, err)
@@ -192,7 +192,7 @@ func TestExpander_ValidateExpansion(t *testing.T) {
 		}
 
 		// Act
-		err := expander.ValidateExpansion(result)
+		err := expander.ValidateExpansion(t.Context(), result)
 
 		// Assert
 		require.Error(t, err)
@@ -209,7 +209,7 @@ func TestExpander_ValidateExpansion(t *testing.T) {
 		}
 
 		// Act
-		err := expander.ValidateExpansion(result)
+		err := expander.ValidateExpansion(t.Context(), result)
 
 		// Assert
 		require.Error(t, err)
@@ -227,7 +227,7 @@ func TestExpander_ValidateExpansion(t *testing.T) {
 		}
 
 		// Act
-		err := expander.ValidateExpansion(result)
+		err := expander.ValidateExpansion(t.Context(), result)
 
 		// Assert
 		require.Error(t, err)
@@ -244,7 +244,7 @@ func TestExpander_ValidateExpansion(t *testing.T) {
 		}
 
 		// Act
-		err := expander.ValidateExpansion(result)
+		err := expander.ValidateExpansion(t.Context(), result)
 
 		// Assert
 		require.Error(t, err)
@@ -409,7 +409,7 @@ func TestExpander_ValidateChildConfigs(t *testing.T) {
 		childConfigs := []*task.Config{config1, config2}
 
 		// Act
-		err := expander.validateChildConfigs(childConfigs)
+		err := expander.validateChildConfigs(t.Context(), childConfigs)
 
 		// Assert
 		require.NoError(t, err)
@@ -422,7 +422,7 @@ func TestExpander_ValidateChildConfigs(t *testing.T) {
 		childConfigs := []*task.Config{config1}
 
 		// Act
-		err := expander.validateChildConfigs(childConfigs)
+		err := expander.validateChildConfigs(t.Context(), childConfigs)
 
 		// Assert
 		require.Error(t, err)
@@ -435,7 +435,7 @@ func TestExpander_ValidateChildConfigs(t *testing.T) {
 		childConfigs := []*task.Config{}
 
 		// Act
-		err := expander.validateChildConfigs(childConfigs)
+		err := expander.validateChildConfigs(t.Context(), childConfigs)
 
 		// Assert
 		require.NoError(t, err)

@@ -44,8 +44,7 @@ func (uc *CreateUser) Execute(ctx context.Context) (*model.User, error) {
 			return nil, fmt.Errorf("checking existing user: %w", err)
 		}
 	} else if existingUser != nil {
-		// User exists - remove PII from error message
-		return nil, fmt.Errorf("user already exists")
+		return nil, ErrEmailExists
 	}
 	// Generate user ID
 	userID, err := core.NewID()
@@ -60,6 +59,9 @@ func (uc *CreateUser) Execute(ctx context.Context) (*model.User, error) {
 		CreatedAt: time.Now().UTC(),
 	}
 	if err := uc.repo.CreateUser(ctx, user); err != nil {
+		if errors.Is(err, ErrEmailExists) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 	log.Info("User created successfully", "user_id", user.ID, "email", user.Email, "role", user.Role)

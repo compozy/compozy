@@ -1,7 +1,6 @@
 package agentcatalog
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -13,7 +12,7 @@ import (
 func TestDescribeHandlerReturnsAgentDetails(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
 	_, err := store.Put(
-		context.Background(),
+		t.Context(),
 		resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: "agent.writer"},
 		map[string]any{
 			"actions": []any{
@@ -24,7 +23,7 @@ func TestDescribeHandlerReturnsAgentDetails(t *testing.T) {
 	require.NoError(t, err)
 
 	env := toolenv.New(nil, nil, store)
-	ctx := core.WithProjectName(context.Background(), "demo")
+	ctx := core.WithProjectName(t.Context(), "demo")
 
 	output, err := describeHandler(env)(ctx, map[string]any{"agent_id": "agent.writer"})
 	require.NoError(t, err)
@@ -40,7 +39,7 @@ func TestDescribeHandlerReturnsAgentDetails(t *testing.T) {
 func TestDescribeHandlerValidatesInput(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
 	env := toolenv.New(nil, nil, store)
-	ctx := core.WithProjectName(context.Background(), "demo")
+	ctx := core.WithProjectName(t.Context(), "demo")
 
 	_, err := describeHandler(env)(ctx, map[string]any{})
 	require.Error(t, err)
@@ -49,7 +48,7 @@ func TestDescribeHandlerValidatesInput(t *testing.T) {
 func TestDescribeHandlerRequiresExistingAgent(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
 	env := toolenv.New(nil, nil, store)
-	ctx := core.WithProjectName(context.Background(), "demo")
+	ctx := core.WithProjectName(t.Context(), "demo")
 
 	_, err := describeHandler(env)(ctx, map[string]any{"agent_id": "missing"})
 	require.Error(t, err)

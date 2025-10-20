@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/retriever"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
@@ -105,10 +108,7 @@ func (l *capturingLogger) Error(msg string, keyvals ...any) {
 }
 
 func (l *capturingLogger) With(args ...any) logger.Logger {
-	nextFields := make(map[string]any, len(l.fields)+len(args)/2)
-	for k, v := range l.fields {
-		nextFields[k] = v
-	}
+	nextFields := core.CloneMap(l.fields)
 	for i := 0; i < len(args); i += 2 {
 		key := fmt.Sprint(args[i])
 		var val any
@@ -127,10 +127,7 @@ func (l *capturingLogger) record(level, msg string, keyvals ...any) {
 	if l.entries == nil {
 		return
 	}
-	fields := make(map[string]any, len(l.fields)+len(keyvals)/2)
-	for k, v := range l.fields {
-		fields[k] = v
-	}
+	fields := core.CloneMap(l.fields)
 	for i := 0; i < len(keyvals); i += 2 {
 		key := fmt.Sprint(keyvals[i])
 		var val any
@@ -178,7 +175,7 @@ func TestService_ShouldRespectTopKMinScoreAndOrdering(t *testing.T) {
 				MinScore: &minScore,
 			},
 		}
-		ctx := context.Background()
+		ctx := t.Context()
 		results, err := service.Retrieve(ctx, binding, "query")
 		require.NoError(t, err)
 		require.Len(t, results, 3)
@@ -217,7 +214,7 @@ func TestService_ShouldTrimByMaxTokens(t *testing.T) {
 				MaxTokens: 220,
 			},
 		}
-		ctx := context.Background()
+		ctx := t.Context()
 		results, err := service.Retrieve(ctx, binding, "query")
 		require.NoError(t, err)
 		require.Len(t, results, 2)
@@ -235,7 +232,9 @@ func TestService_ShouldEmitObservabilitySignals(t *testing.T) {
 	prevMeter := otel.GetMeterProvider()
 	otel.SetMeterProvider(meterProvider)
 	t.Cleanup(func() {
-		require.NoError(t, meterProvider.Shutdown(context.Background()))
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, meterProvider.Shutdown(shutdownCtx))
 		otel.SetMeterProvider(prevMeter)
 	})
 	spanRecorder := tracetest.NewSpanRecorder()
@@ -243,7 +242,9 @@ func TestService_ShouldEmitObservabilitySignals(t *testing.T) {
 	prevTracer := otel.GetTracerProvider()
 	otel.SetTracerProvider(tracerProvider)
 	t.Cleanup(func() {
-		require.NoError(t, tracerProvider.Shutdown(context.Background()))
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, tracerProvider.Shutdown(shutdownCtx))
 		otel.SetTracerProvider(prevTracer)
 	})
 	store := &stubStore{
@@ -275,17 +276,18 @@ func TestService_ShouldEmitObservabilitySignals(t *testing.T) {
 		},
 	}
 	log := newCapturingLogger()
-	ctx := logger.ContextWithLogger(context.Background(), log)
+	ctx := logger.ContextWithLogger(t.Context(), log)
 	contexts, err := service.Retrieve(ctx, binding, "observability query text")
 	require.NoError(t, err)
 	require.Len(t, contexts, 2)
 	var rm metricdata.ResourceMetrics
-	err = reader.Collect(context.Background(), &rm)
+	err = reader.Collect(t.Context(), &rm)
 	require.NoError(t, err)
+	latencyName := monitoringmetrics.MetricNameWithSubsystem("knowledge", "query_latency_seconds")
 	foundLatency := false
 	for _, scope := range rm.ScopeMetrics {
 		for _, metric := range scope.Metrics {
-			if metric.Name != "knowledge_query_latency_seconds" {
+			if metric.Name != latencyName {
 				continue
 			}
 			hist, ok := metric.Data.(metricdata.Histogram[float64])
@@ -298,7 +300,7 @@ func TestService_ShouldEmitObservabilitySignals(t *testing.T) {
 			foundLatency = true
 		}
 	}
-	assert.True(t, foundLatency, "expected knowledge_query_latency_seconds metric")
+	assert.True(t, foundLatency, "expected %s metric", latencyName)
 	spans := spanRecorder.Ended()
 	require.NotEmpty(t, spans)
 	retrieveSpan := findSpan(t, spans, "compozy.knowledge.retriever.retrieve")

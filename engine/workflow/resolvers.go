@@ -118,42 +118,60 @@ func finishAgentSetup(
 }
 
 func agentConfigFromStore(value any) (*agent.Config, error) {
-	return configFromStore[agent.Config](value, ensureAgentDefaults)
+	switch tv := value.(type) {
+	case map[string]any:
+		cfg := &agent.Config{}
+		if err := cfg.FromMap(tv); err != nil {
+			return nil, err
+		}
+		ensureAgentDefaults(cfg)
+		return cfg, nil
+	default:
+		return configFromStore(value, ensureAgentDefaults)
+	}
 }
 
 func toolConfigFromStore(value any) (*tool.Config, error) {
-	return configFromStore[tool.Config](value, ensureToolDefaults)
+	return configFromStore(value, ensureToolDefaults)
 }
 
 func mcpConfigFromStore(value any) (*mcp.Config, error) {
-	return configFromStore[mcp.Config](value, func(cfg *mcp.Config) {
+	return configFromStore(value, func(cfg *mcp.Config) {
 		cfg.SetDefaults()
 	})
 }
 
 func modelConfigFromStore(value any) (*core.ProviderConfig, error) {
-	return configFromStore[core.ProviderConfig](value, ensureProviderDefaults)
+	return configFromStore(value, ensureProviderDefaults)
 }
 
 func configFromStore[T any](value any, mapNormalizer func(*T)) (*T, error) {
+	if value == nil {
+		return nil, nil
+	}
+	var cfg *T
 	switch tv := value.(type) {
 	case *T:
-		return tv, nil
+		cfg = tv
 	case map[string]any:
-		cfg, err := core.FromMapDefault[*T](tv)
+		decoded, err := core.FromMapDefault[*T](tv)
 		if err != nil {
 			return nil, err
 		}
-		if mapNormalizer != nil {
-			mapNormalizer(cfg)
-		}
-		return cfg, nil
+		cfg = decoded
 	case T:
 		tmp := tv
-		return &tmp, nil
+		cfg = &tmp
 	default:
 		return nil, nil
 	}
+	if cfg == nil {
+		return nil, nil
+	}
+	if mapNormalizer != nil {
+		mapNormalizer(cfg)
+	}
+	return cfg, nil
 }
 
 func ensureAgentDefaults(cfg *agent.Config) {

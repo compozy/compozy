@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -13,8 +12,8 @@ func TestLLM_MCP_Durations_ParseFromEnv(t *testing.T) {
 	t.Run("Should parse readiness durations from env", func(t *testing.T) {
 		t.Setenv("MCP_READINESS_TIMEOUT", "2s")
 		t.Setenv("MCP_READINESS_POLL_INTERVAL", "150ms")
-		ctx := context.Background()
-		m := NewManager(NewService())
+		ctx := t.Context()
+		m := NewManager(ctx, NewService())
 		_, err := m.Load(ctx, NewDefaultProvider(), NewEnvProvider())
 		require.NoError(t, err)
 		cfg := m.Get()
@@ -91,6 +90,10 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, 24*time.Hour, cfg.Memory.TTL)
 		assert.Equal(t, 10000, cfg.Memory.MaxEntries)
 
+		// LLM usage metrics defaults
+		expectedBuckets := []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1}
+		assert.Equal(t, expectedBuckets, cfg.LLM.UsageMetrics.PersistBuckets)
+
 		// MCP proxy defaults preserve classic external port
 		assert.Equal(t, mcpProxyModeStandalone, cfg.MCPProxy.Mode)
 		assert.Equal(t, "127.0.0.1", cfg.MCPProxy.Host)
@@ -103,8 +106,8 @@ func TestConfig_Default(t *testing.T) {
 
 func TestLLMConfig_StructuredOutputRetryPrecedence(t *testing.T) {
 	t.Setenv("LLM_STRUCTURED_OUTPUT_RETRIES", "3")
-	ctx := context.Background()
-	manager := NewManager(NewService())
+	ctx := t.Context()
+	manager := NewManager(ctx, NewService())
 	cliOverrides := map[string]any{
 		"llm-structured-output-retries": 5,
 	}

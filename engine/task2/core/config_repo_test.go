@@ -129,7 +129,7 @@ func TestTaskConfigRepository_StoreParallelMetadata(t *testing.T) {
 			MaxWorkers:    4,
 		}
 
-		err := repo.StoreParallelMetadata(context.Background(), parentStateID, metadata)
+		err := repo.StoreParallelMetadata(t.Context(), parentStateID, metadata)
 
 		assert.NoError(t, err)
 	})
@@ -142,7 +142,7 @@ func TestTaskConfigRepository_StoreParallelMetadata(t *testing.T) {
 
 		metadata := &ParallelTaskMetadata{}
 
-		err := repo.StoreParallelMetadata(context.Background(), "", metadata)
+		err := repo.StoreParallelMetadata(t.Context(), "", metadata)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "parent state ID cannot be empty")
@@ -156,7 +156,7 @@ func TestTaskConfigRepository_StoreParallelMetadata(t *testing.T) {
 
 		parentStateID := core.MustNewID()
 
-		err := repo.StoreParallelMetadata(context.Background(), parentStateID, nil)
+		err := repo.StoreParallelMetadata(t.Context(), parentStateID, nil)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "parallel metadata cannot be nil")
@@ -179,11 +179,11 @@ func TestTaskConfigRepository_LoadParallelMetadata(t *testing.T) {
 		}
 
 		// Store the metadata first
-		err := repo.StoreParallelMetadata(context.Background(), parentStateID, originalMetadata)
+		err := repo.StoreParallelMetadata(t.Context(), parentStateID, originalMetadata)
 		require.NoError(t, err)
 
 		// Load it back
-		result, err := repo.LoadParallelMetadata(context.Background(), parentStateID)
+		result, err := repo.LoadParallelMetadata(t.Context(), parentStateID)
 
 		assert.NoError(t, err)
 
@@ -201,7 +201,7 @@ func TestTaskConfigRepository_LoadParallelMetadata(t *testing.T) {
 		cwd, _ := core.CWDFromPath(".")
 		repo := NewTaskConfigRepository(testStore, cwd)
 
-		result, err := repo.LoadParallelMetadata(context.Background(), "")
+		result, err := repo.LoadParallelMetadata(t.Context(), "")
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -216,7 +216,7 @@ func TestTaskConfigRepository_LoadParallelMetadata(t *testing.T) {
 
 		parentStateID := core.MustNewID()
 
-		result, err := repo.LoadParallelMetadata(context.Background(), parentStateID)
+		result, err := repo.LoadParallelMetadata(t.Context(), parentStateID)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -243,7 +243,7 @@ func TestTaskConfigRepository_StoreCollectionMetadata(t *testing.T) {
 			BatchSize:     2,
 		}
 
-		err := repo.StoreCollectionMetadata(context.Background(), parentStateID, metadata)
+		err := repo.StoreCollectionMetadata(t.Context(), parentStateID, metadata)
 
 		assert.NoError(t, err)
 	})
@@ -256,7 +256,7 @@ func TestTaskConfigRepository_StoreCollectionMetadata(t *testing.T) {
 
 		metadata := &CollectionTaskMetadata{}
 
-		err := repo.StoreCollectionMetadata(context.Background(), "", metadata)
+		err := repo.StoreCollectionMetadata(t.Context(), "", metadata)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "parent state ID cannot be empty")
@@ -270,7 +270,7 @@ func TestTaskConfigRepository_StoreCollectionMetadata(t *testing.T) {
 
 		parentStateID := core.MustNewID()
 
-		err := repo.StoreCollectionMetadata(context.Background(), parentStateID, nil)
+		err := repo.StoreCollectionMetadata(t.Context(), parentStateID, nil)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "collection metadata cannot be nil")
@@ -297,11 +297,11 @@ func TestTaskConfigRepository_LoadCollectionMetadata(t *testing.T) {
 		}
 
 		// Store the metadata first
-		err := repo.StoreCollectionMetadata(context.Background(), parentStateID, originalMetadata)
+		err := repo.StoreCollectionMetadata(t.Context(), parentStateID, originalMetadata)
 		require.NoError(t, err)
 
 		// Load it back
-		result, err := repo.LoadCollectionMetadata(context.Background(), parentStateID)
+		result, err := repo.LoadCollectionMetadata(t.Context(), parentStateID)
 
 		assert.NoError(t, err)
 
@@ -322,7 +322,7 @@ func TestTaskConfigRepository_LoadCollectionMetadata(t *testing.T) {
 		cwd, _ := core.CWDFromPath(".")
 		repo := NewTaskConfigRepository(testStore, cwd)
 
-		result, err := repo.LoadCollectionMetadata(context.Background(), "")
+		result, err := repo.LoadCollectionMetadata(t.Context(), "")
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -337,7 +337,7 @@ func TestTaskConfigRepository_LoadCollectionMetadata(t *testing.T) {
 
 		parentStateID := core.MustNewID()
 
-		result, err := repo.LoadCollectionMetadata(context.Background(), parentStateID)
+		result, err := repo.LoadCollectionMetadata(t.Context(), parentStateID)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -360,7 +360,7 @@ func TestTaskConfigRepository_StoreCompositeMetadata(t *testing.T) {
 			MaxWorkers:    1,
 		}
 
-		err := repo.StoreCompositeMetadata(context.Background(), parentStateID, metadata)
+		err := repo.StoreCompositeMetadata(t.Context(), parentStateID, metadata)
 
 		assert.NoError(t, err)
 	})
@@ -373,7 +373,7 @@ func TestTaskConfigRepository_StoreCompositeMetadata(t *testing.T) {
 
 		metadata := &CompositeTaskMetadata{}
 
-		err := repo.StoreCompositeMetadata(context.Background(), "", metadata)
+		err := repo.StoreCompositeMetadata(t.Context(), "", metadata)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "parent state ID cannot be empty")
@@ -387,7 +387,7 @@ func TestTaskConfigRepository_StoreCompositeMetadata(t *testing.T) {
 
 		parentStateID := core.MustNewID()
 
-		err := repo.StoreCompositeMetadata(context.Background(), parentStateID, nil)
+		err := repo.StoreCompositeMetadata(t.Context(), parentStateID, nil)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "composite metadata cannot be nil")
@@ -410,11 +410,11 @@ func TestTaskConfigRepository_LoadCompositeMetadata(t *testing.T) {
 		}
 
 		// Store the metadata first
-		err := repo.StoreCompositeMetadata(context.Background(), parentStateID, originalMetadata)
+		err := repo.StoreCompositeMetadata(t.Context(), parentStateID, originalMetadata)
 		require.NoError(t, err)
 
 		// Load it back
-		result, err := repo.LoadCompositeMetadata(context.Background(), parentStateID)
+		result, err := repo.LoadCompositeMetadata(t.Context(), parentStateID)
 
 		assert.NoError(t, err)
 
@@ -432,7 +432,7 @@ func TestTaskConfigRepository_LoadCompositeMetadata(t *testing.T) {
 		cwd, _ := core.CWDFromPath(".")
 		repo := NewTaskConfigRepository(testStore, cwd)
 
-		result, err := repo.LoadCompositeMetadata(context.Background(), "")
+		result, err := repo.LoadCompositeMetadata(t.Context(), "")
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -447,7 +447,7 @@ func TestTaskConfigRepository_LoadCompositeMetadata(t *testing.T) {
 
 		parentStateID := core.MustNewID()
 
-		result, err := repo.LoadCompositeMetadata(context.Background(), parentStateID)
+		result, err := repo.LoadCompositeMetadata(t.Context(), parentStateID)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -465,7 +465,7 @@ func TestTaskConfigRepository_SaveTaskConfig(t *testing.T) {
 		taskExecID := "task_exec_123"
 		config := createValidTaskConfig("task1", task.TaskTypeBasic)
 
-		err := repo.SaveTaskConfig(context.Background(), taskExecID, config)
+		err := repo.SaveTaskConfig(t.Context(), taskExecID, config)
 
 		assert.NoError(t, err)
 	})
@@ -478,7 +478,7 @@ func TestTaskConfigRepository_SaveTaskConfig(t *testing.T) {
 
 		config := createValidTaskConfig("task1", task.TaskTypeBasic)
 
-		err := repo.SaveTaskConfig(context.Background(), "", config)
+		err := repo.SaveTaskConfig(t.Context(), "", config)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "task execution ID cannot be empty")
@@ -490,7 +490,7 @@ func TestTaskConfigRepository_SaveTaskConfig(t *testing.T) {
 		cwd, _ := core.CWDFromPath(".")
 		repo := NewTaskConfigRepository(testStore, cwd)
 
-		err := repo.SaveTaskConfig(context.Background(), "task_exec_123", nil)
+		err := repo.SaveTaskConfig(t.Context(), "task_exec_123", nil)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "task config cannot be nil")
@@ -508,11 +508,11 @@ func TestTaskConfigRepository_GetTaskConfig(t *testing.T) {
 		originalConfig := createValidTaskConfig("task1", task.TaskTypeBasic)
 
 		// Save the config first
-		err := repo.SaveTaskConfig(context.Background(), taskExecID, originalConfig)
+		err := repo.SaveTaskConfig(t.Context(), taskExecID, originalConfig)
 		require.NoError(t, err)
 
 		// Get it back
-		result, err := repo.GetTaskConfig(context.Background(), taskExecID)
+		result, err := repo.GetTaskConfig(t.Context(), taskExecID)
 
 		assert.NoError(t, err)
 		assert.Equal(t, originalConfig.ID, result.ID)
@@ -525,7 +525,7 @@ func TestTaskConfigRepository_GetTaskConfig(t *testing.T) {
 		cwd, _ := core.CWDFromPath(".")
 		repo := NewTaskConfigRepository(testStore, cwd)
 
-		result, err := repo.GetTaskConfig(context.Background(), "")
+		result, err := repo.GetTaskConfig(t.Context(), "")
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -540,7 +540,7 @@ func TestTaskConfigRepository_GetTaskConfig(t *testing.T) {
 
 		taskExecID := "non_existent_task"
 
-		result, err := repo.GetTaskConfig(context.Background(), taskExecID)
+		result, err := repo.GetTaskConfig(t.Context(), taskExecID)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -558,16 +558,16 @@ func TestTaskConfigRepository_DeleteTaskConfig(t *testing.T) {
 		config := createValidTaskConfig("task1", task.TaskTypeBasic)
 
 		// Save the config first
-		err := repo.SaveTaskConfig(context.Background(), taskExecID, config)
+		err := repo.SaveTaskConfig(t.Context(), taskExecID, config)
 		require.NoError(t, err)
 
 		// Delete it
-		err = repo.DeleteTaskConfig(context.Background(), taskExecID)
+		err = repo.DeleteTaskConfig(t.Context(), taskExecID)
 
 		assert.NoError(t, err)
 
 		// Verify it's gone
-		result, err := repo.GetTaskConfig(context.Background(), taskExecID)
+		result, err := repo.GetTaskConfig(t.Context(), taskExecID)
 		assert.Error(t, err)
 		assert.Nil(t, result)
 	})
@@ -578,7 +578,7 @@ func TestTaskConfigRepository_DeleteTaskConfig(t *testing.T) {
 		cwd, _ := core.CWDFromPath(".")
 		repo := NewTaskConfigRepository(testStore, cwd)
 
-		err := repo.DeleteTaskConfig(context.Background(), "")
+		err := repo.DeleteTaskConfig(t.Context(), "")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "task execution ID cannot be empty")
@@ -601,7 +601,7 @@ func TestTaskConfigRepository_ExtractParallelStrategy(t *testing.T) {
 
 		parentState := &task.State{Input: &input}
 
-		strategy, err := repo.ExtractParallelStrategy(context.Background(), parentState)
+		strategy, err := repo.ExtractParallelStrategy(t.Context(), parentState)
 
 		assert.NoError(t, err)
 		assert.Equal(t, task.StrategyFailFast, strategy)
@@ -619,7 +619,7 @@ func TestTaskConfigRepository_ExtractParallelStrategy(t *testing.T) {
 
 		parentState := &task.State{Input: &input}
 
-		strategy, err := repo.ExtractParallelStrategy(context.Background(), parentState)
+		strategy, err := repo.ExtractParallelStrategy(t.Context(), parentState)
 
 		assert.NoError(t, err)
 		assert.Equal(t, task.StrategyBestEffort, strategy)
@@ -631,7 +631,7 @@ func TestTaskConfigRepository_ExtractParallelStrategy(t *testing.T) {
 		cwd, _ := core.CWDFromPath(".")
 		repo := NewTaskConfigRepository(testStore, cwd)
 
-		strategy, err := repo.ExtractParallelStrategy(context.Background(), nil)
+		strategy, err := repo.ExtractParallelStrategy(t.Context(), nil)
 
 		assert.NoError(t, err)
 		assert.Equal(t, task.StrategyWaitAll, strategy)
@@ -645,7 +645,7 @@ func TestTaskConfigRepository_ExtractParallelStrategy(t *testing.T) {
 
 		parentState := &task.State{Input: nil}
 
-		strategy, err := repo.ExtractParallelStrategy(context.Background(), parentState)
+		strategy, err := repo.ExtractParallelStrategy(t.Context(), parentState)
 
 		assert.NoError(t, err)
 		assert.Equal(t, task.StrategyWaitAll, strategy)
@@ -665,7 +665,7 @@ func TestTaskConfigRepository_ExtractParallelStrategy(t *testing.T) {
 
 		parentState := &task.State{Input: &input}
 
-		strategy, err := repo.ExtractParallelStrategy(context.Background(), parentState)
+		strategy, err := repo.ExtractParallelStrategy(t.Context(), parentState)
 
 		assert.NoError(t, err)
 		assert.Equal(t, task.StrategyWaitAll, strategy)
@@ -844,11 +844,11 @@ func TestTaskConfigRepository_IntegrationTests(t *testing.T) {
 		}
 
 		// Store phase
-		err := repo.StoreParallelMetadata(context.Background(), parentStateID, originalMetadata)
+		err := repo.StoreParallelMetadata(t.Context(), parentStateID, originalMetadata)
 		require.NoError(t, err)
 
 		// Load phase
-		loadedMetadata, err := repo.LoadParallelMetadata(context.Background(), parentStateID)
+		loadedMetadata, err := repo.LoadParallelMetadata(t.Context(), parentStateID)
 		require.NoError(t, err)
 
 		// Verify data integrity - type assert first
@@ -870,21 +870,21 @@ func TestTaskConfigRepository_IntegrationTests(t *testing.T) {
 		originalConfig := createValidTaskConfig("integration_task", task.TaskTypeBasic)
 
 		// Save phase
-		err := repo.SaveTaskConfig(context.Background(), taskExecID, originalConfig)
+		err := repo.SaveTaskConfig(t.Context(), taskExecID, originalConfig)
 		require.NoError(t, err)
 
 		// Get phase
-		loadedConfig, err := repo.GetTaskConfig(context.Background(), taskExecID)
+		loadedConfig, err := repo.GetTaskConfig(t.Context(), taskExecID)
 		require.NoError(t, err)
 		assert.Equal(t, originalConfig.ID, loadedConfig.ID)
 		assert.Equal(t, originalConfig.Type, loadedConfig.Type)
 
 		// Delete phase
-		err = repo.DeleteTaskConfig(context.Background(), taskExecID)
+		err = repo.DeleteTaskConfig(t.Context(), taskExecID)
 		require.NoError(t, err)
 
 		// Verify deletion
-		result, err := repo.GetTaskConfig(context.Background(), taskExecID)
+		result, err := repo.GetTaskConfig(t.Context(), taskExecID)
 		assert.Error(t, err)
 		assert.Nil(t, result)
 	})
@@ -908,10 +908,10 @@ func TestTaskConfigRepository_IntegrationTests(t *testing.T) {
 		}
 
 		// Store and load
-		err := repo.StoreCollectionMetadata(context.Background(), parentStateID, originalMetadata)
+		err := repo.StoreCollectionMetadata(t.Context(), parentStateID, originalMetadata)
 		require.NoError(t, err)
 
-		loadedMetadata, err := repo.LoadCollectionMetadata(context.Background(), parentStateID)
+		loadedMetadata, err := repo.LoadCollectionMetadata(t.Context(), parentStateID)
 		require.NoError(t, err)
 
 		// Verify data integrity
@@ -940,10 +940,10 @@ func TestTaskConfigRepository_IntegrationTests(t *testing.T) {
 		}
 
 		// Store and load
-		err := repo.StoreCompositeMetadata(context.Background(), parentStateID, originalMetadata)
+		err := repo.StoreCompositeMetadata(t.Context(), parentStateID, originalMetadata)
 		require.NoError(t, err)
 
-		loadedMetadata, err := repo.LoadCompositeMetadata(context.Background(), parentStateID)
+		loadedMetadata, err := repo.LoadCompositeMetadata(t.Context(), parentStateID)
 		require.NoError(t, err)
 
 		// Verify data integrity

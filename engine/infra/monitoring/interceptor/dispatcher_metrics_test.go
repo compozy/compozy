@@ -1,7 +1,6 @@
 package interceptor
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -9,7 +8,7 @@ import (
 )
 
 func TestDispatcherMetrics(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	// Reset metrics for clean test state
 	ResetMetricsForTesting(ctx)
 	t.Run("Should track dispatcher lifecycle without panics", func(t *testing.T) {

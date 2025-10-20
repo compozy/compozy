@@ -20,7 +20,7 @@ import (
 
 func setupTestFactory(ctx context.Context, t *testing.T) (task2.Factory, func()) {
 	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
-	factory, err := task2.NewFactory(&task2.FactoryConfig{
+	factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 		TemplateEngine: &tplengine.TemplateEngine{},
 		EnvMerger:      task2core.NewEnvMerger(),
 		WorkflowRepo:   workflowRepo,
@@ -33,10 +33,10 @@ func setupTestFactory(ctx context.Context, t *testing.T) (task2.Factory, func())
 func TestTaskNormalizer_Type(t *testing.T) {
 	t.Run("Should return normalizer type as string", func(t *testing.T) {
 		// Arrange
-		factory, cleanup := setupTestFactory(context.Background(), t)
+		factory, cleanup := setupTestFactory(t.Context(), t)
 		defer cleanup()
 
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeBasic)
+		normalizer, err := factory.CreateNormalizer(t.Context(), task.TaskTypeBasic)
 		assert.NoError(t, err)
 
 		// Act
@@ -49,7 +49,7 @@ func TestTaskNormalizer_Type(t *testing.T) {
 
 func TestDefaultNormalizerFactory_CreateNormalizer_AllTypes(t *testing.T) {
 	// Arrange
-	ctx := context.Background()
+	ctx := t.Context()
 	factory, cleanup := setupTestFactory(ctx, t)
 	defer cleanup()
 
@@ -72,7 +72,7 @@ func TestDefaultNormalizerFactory_CreateNormalizer_AllTypes(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			normalizer, err := factory.CreateNormalizer(tc.taskType)
+			normalizer, err := factory.CreateNormalizer(t.Context(), tc.taskType)
 
 			// Assert
 			assert.NoError(t, err)
@@ -84,11 +84,11 @@ func TestDefaultNormalizerFactory_CreateNormalizer_AllTypes(t *testing.T) {
 func TestDefaultNormalizerFactory_CreateNormalizer_UnsupportedType(t *testing.T) {
 	t.Run("Should return error for unsupported task type", func(t *testing.T) {
 		// Arrange
-		factory, cleanup := setupTestFactory(context.Background(), t)
+		factory, cleanup := setupTestFactory(t.Context(), t)
 		defer cleanup()
 
 		// Act
-		normalizer, err := factory.CreateNormalizer("unsupported_type")
+		normalizer, err := factory.CreateNormalizer(t.Context(), "unsupported_type")
 
 		// Assert
 		assert.Error(t, err)
@@ -108,7 +108,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 			EnvMerger: task2core.NewEnvMerger(),
 		}
 		// Act
-		factory, err := task2.NewFactory(config)
+		factory, err := task2.NewFactory(t.Context(), config)
 		// Assert
 		assert.Nil(t, factory)
 		assert.ErrorContains(t, err, "template engine is required")
@@ -120,7 +120,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 			TemplateEngine: &tplengine.TemplateEngine{},
 		}
 		// Act
-		factory, err := task2.NewFactory(config)
+		factory, err := task2.NewFactory(t.Context(), config)
 		// Assert
 		assert.Nil(t, factory)
 		assert.ErrorContains(t, err, "env merger is required")
@@ -129,7 +129,7 @@ func TestNewFactoryWithConfig(t *testing.T) {
 
 func TestExtendedFactory_CreateResponseHandler(t *testing.T) {
 	// Setup
-	factory, cleanup := setupTestFactory(context.Background(), t)
+	factory, cleanup := setupTestFactory(t.Context(), t)
 	defer cleanup()
 
 	testCases := []struct {
@@ -150,7 +150,7 @@ func TestExtendedFactory_CreateResponseHandler(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Act
-			handler, err := factory.CreateResponseHandler(context.Background(), tc.taskType)
+			handler, err := factory.CreateResponseHandler(t.Context(), tc.taskType)
 
 			// Assert
 			require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestExtendedFactory_CreateResponseHandler(t *testing.T) {
 
 	t.Run("Should return error for unsupported task type", func(t *testing.T) {
 		// Act
-		handler, err := factory.CreateResponseHandler(context.Background(), "unsupported_type")
+		handler, err := factory.CreateResponseHandler(t.Context(), "unsupported_type")
 
 		// Assert
 		assert.Error(t, err)
@@ -173,11 +173,11 @@ func TestExtendedFactory_CreateResponseHandler(t *testing.T) {
 func TestExtendedFactory_CreateCollectionExpander(t *testing.T) {
 	t.Run("Should create collection expander", func(t *testing.T) {
 		// Arrange
-		factory, cleanup := setupTestFactory(context.Background(), t)
+		factory, cleanup := setupTestFactory(t.Context(), t)
 		defer cleanup()
 
 		// Act
-		expander := factory.CreateCollectionExpander()
+		expander := factory.CreateCollectionExpander(t.Context())
 
 		// Assert
 		assert.NotNil(t, expander)
@@ -188,7 +188,7 @@ func TestExtendedFactory_CreateCollectionExpander(t *testing.T) {
 func TestExtendedFactory_CreateTaskConfigRepository(t *testing.T) {
 	t.Run("Should create task config repository", func(t *testing.T) {
 		// Arrange
-		factory, cleanup := setupTestFactory(context.Background(), t)
+		factory, cleanup := setupTestFactory(t.Context(), t)
 		defer cleanup()
 
 		// Act
@@ -207,10 +207,10 @@ func TestExtendedFactory_CreateTaskConfigRepository(t *testing.T) {
 func TestExtendedFactory_BackwardCompatibility(t *testing.T) {
 	t.Run("Should maintain backward compatibility with existing normalizer creation", func(t *testing.T) {
 		// Arrange
-		factory, cleanup := setupTestFactory(context.Background(), t)
+		factory, cleanup := setupTestFactory(t.Context(), t)
 		defer cleanup()
 		// Act - existing normalizer creation should still work
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeBasic)
+		normalizer, err := factory.CreateNormalizer(t.Context(), task.TaskTypeBasic)
 		// Assert
 		require.NoError(t, err)
 		assert.NotNil(t, normalizer)
@@ -221,10 +221,10 @@ func TestExtendedFactory_BackwardCompatibility(t *testing.T) {
 func TestExtendedFactory_CreateResponseHandler_WithoutRepositories(t *testing.T) {
 	t.Run("Should create response handler even without repositories", func(t *testing.T) {
 		// Arrange - factory without repositories
-		factory, cleanup := setupTestFactory(context.Background(), t)
+		factory, cleanup := setupTestFactory(t.Context(), t)
 		defer cleanup()
 		// Act
-		handler, err := factory.CreateResponseHandler(context.Background(), task.TaskTypeBasic)
+		handler, err := factory.CreateResponseHandler(t.Context(), task.TaskTypeBasic)
 		// Assert
 		require.NoError(t, err)
 		assert.NotNil(t, handler)
@@ -235,11 +235,11 @@ func TestExtendedFactory_CreateResponseHandler_WithoutRepositories(t *testing.T)
 func TestCreateNormalizer_Memory(t *testing.T) {
 	t.Run("Should create normalizer for memory task type", func(t *testing.T) {
 		// Arrange
-		factory, cleanup := setupTestFactory(context.Background(), t)
+		factory, cleanup := setupTestFactory(t.Context(), t)
 		defer cleanup()
 
 		// Act
-		normalizer, err := factory.CreateNormalizer(task.TaskTypeMemory)
+		normalizer, err := factory.CreateNormalizer(t.Context(), task.TaskTypeMemory)
 
 		// Assert
 		assert.NoError(t, err)
@@ -249,9 +249,9 @@ func TestCreateNormalizer_Memory(t *testing.T) {
 
 	t.Run("Should return correct task type for memory normalizer", func(t *testing.T) {
 		// Arrange
-		factory, cleanup := setupTestFactory(context.Background(), t)
+		factory, cleanup := setupTestFactory(t.Context(), t)
 		defer cleanup()
-		normalizer, _ := factory.CreateNormalizer(task.TaskTypeMemory)
+		normalizer, _ := factory.CreateNormalizer(t.Context(), task.TaskTypeMemory)
 
 		// Act
 		taskType := normalizer.Type()
@@ -264,11 +264,11 @@ func TestCreateNormalizer_Memory(t *testing.T) {
 func TestCreateResponseHandler_Memory(t *testing.T) {
 	t.Run("Should create response handler for memory task type", func(t *testing.T) {
 		// Arrange
-		factory, cleanup := setupTestFactory(context.Background(), t)
+		factory, cleanup := setupTestFactory(t.Context(), t)
 		defer cleanup()
 
 		// Act
-		handler, err := factory.CreateResponseHandler(context.Background(), task.TaskTypeMemory)
+		handler, err := factory.CreateResponseHandler(t.Context(), task.TaskTypeMemory)
 
 		// Assert
 		assert.NoError(t, err)
@@ -278,9 +278,9 @@ func TestCreateResponseHandler_Memory(t *testing.T) {
 
 	t.Run("Should validate input type for memory task response", func(t *testing.T) {
 		// Arrange
-		factory, cleanup := setupTestFactory(context.Background(), t)
+		factory, cleanup := setupTestFactory(t.Context(), t)
 		defer cleanup()
-		handler, _ := factory.CreateResponseHandler(context.Background(), task.TaskTypeMemory)
+		handler, _ := factory.CreateResponseHandler(t.Context(), task.TaskTypeMemory)
 
 		input := &shared.ResponseInput{
 			TaskConfig: &task.Config{
@@ -298,7 +298,7 @@ func TestCreateResponseHandler_Memory(t *testing.T) {
 		}
 
 		// Act
-		_, err := handler.HandleResponse(context.Background(), input)
+		_, err := handler.HandleResponse(t.Context(), input)
 
 		// Assert - Since basic handler validates type, this should not error with basic type
 		// The fact that we can call it without panic is the important validation
@@ -316,7 +316,7 @@ func TestOutputTransformerAdapter_IndirectTesting(t *testing.T) {
 	// The adapter is created by the factory's createOutputTransformer helper method and
 	// its TransformOutput logic is exercised through response handler processing.
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should create factory with output transformer functionality", func(t *testing.T) {
 		// Arrange & Act
@@ -360,7 +360,7 @@ func TestOutputTransformerAdapter_IndirectTesting(t *testing.T) {
 	t.Run("Should handle output transformer creation without repositories", func(t *testing.T) {
 		// This tests the factory's createOutputTransformer method when workflowRepo is nil
 		// Arrange
-		factory, err := task2.NewFactory(&task2.FactoryConfig{
+		factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 			TemplateEngine: &tplengine.TemplateEngine{},
 			EnvMerger:      task2core.NewEnvMerger(),
 			// No repositories provided - tests nil handling in outputTransformerAdapter
@@ -415,14 +415,14 @@ func TestOutputTransformerAdapter_IndirectTesting(t *testing.T) {
 // TestOutputTransformerAdapter_TransformOutput tests the outputTransformerAdapter.TransformOutput
 // method through realistic scenarios that trigger the actual transformation logic
 func TestOutputTransformerAdapter_TransformOutput(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should transform output with valid configuration and state", func(t *testing.T) {
 		// Arrange
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		defer cleanup()
 
-		factory, err := task2.NewFactory(&task2.FactoryConfig{
+		factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 			TemplateEngine: &tplengine.TemplateEngine{},
 			EnvMerger:      task2core.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
@@ -495,7 +495,7 @@ func TestOutputTransformerAdapter_TransformOutput(t *testing.T) {
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		defer cleanup()
 
-		factory, err := task2.NewFactory(&task2.FactoryConfig{
+		factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 			TemplateEngine: &tplengine.TemplateEngine{},
 			EnvMerger:      task2core.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
@@ -559,7 +559,7 @@ func TestOutputTransformerAdapter_TransformOutput(t *testing.T) {
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		defer cleanup()
 
-		factory, err := task2.NewFactory(&task2.FactoryConfig{
+		factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 			TemplateEngine: &tplengine.TemplateEngine{},
 			EnvMerger:      task2core.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
@@ -621,7 +621,7 @@ func TestOutputTransformerAdapter_TransformOutput(t *testing.T) {
 
 	t.Run("Should handle workflow repository error during transformation", func(t *testing.T) {
 		// Arrange - Create factory without workflow repository to simulate error
-		factory, err := task2.NewFactory(&task2.FactoryConfig{
+		factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 			TemplateEngine: &tplengine.TemplateEngine{},
 			EnvMerger:      task2core.NewEnvMerger(),
 			// No WorkflowRepo - this will cause an error when TransformOutput tries to fetch workflow state
@@ -677,7 +677,7 @@ func TestOutputTransformerAdapter_TransformOutput(t *testing.T) {
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		defer cleanup()
 
-		factory, err := task2.NewFactory(&task2.FactoryConfig{
+		factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 			TemplateEngine: &tplengine.TemplateEngine{},
 			EnvMerger:      task2core.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,

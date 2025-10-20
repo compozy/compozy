@@ -2,7 +2,6 @@ package executors
 
 import (
 	"fmt"
-	"maps"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -318,7 +317,7 @@ func (e *TaskWaitExecutor) runProcessor(
 ) (*task.ProcessorOutput, error) {
 	processorInput := core.Input{"signal": signal}
 	if processorConfig.With != nil {
-		maps.Copy(processorInput, *processorConfig.With)
+		processorInput = core.CopyMaps(processorInput, *processorConfig.With)
 	}
 	processorInput["signal"] = signal
 	processorConfig.With = &processorInput

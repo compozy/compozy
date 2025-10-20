@@ -9,7 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/knowledge/configutil"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
 	"github.com/compozy/compozy/engine/resources"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -81,13 +81,14 @@ func (uc *Delete) cleanupVectors(
 	if err != nil {
 		return err
 	}
-	vectorStore, err := vectordb.New(ctx, storeCfg)
+	vectorStore, release, err := vectordb.AcquireShared(ctx, storeCfg)
 	if err != nil {
 		return fmt.Errorf("init vector store: %w", err)
 	}
 	log := logger.FromContext(ctx)
 	defer func() {
-		if cerr := vectorStore.Close(ctx); cerr != nil {
+		releaseCtx := context.WithoutCancel(ctx)
+		if cerr := release(releaseCtx); cerr != nil {
 			log.Warn("failed to close vector store", "kb_id", kbID, "error", cerr)
 		}
 	}()

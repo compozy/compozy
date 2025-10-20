@@ -33,7 +33,7 @@ func TestExecuteSignal_dispatchSignal(t *testing.T) {
 				},
 			},
 		}
-		ctx := context.WithValue(context.Background(), core.ProjectNameKey{}, "test-project")
+		ctx := context.WithValue(t.Context(), core.ProjectNameKey{}, "test-project")
 		err := activity.dispatchSignal(ctx, taskConfig, "correlation-123", "test-project")
 		assert.NoError(t, err)
 		assert.Len(t, mockDispatcher.Calls, 1)
@@ -54,7 +54,7 @@ func TestExecuteSignal_dispatchSignal(t *testing.T) {
 				},
 			},
 		}
-		ctx := context.WithValue(context.Background(), core.ProjectNameKey{}, "test-project")
+		ctx := context.WithValue(t.Context(), core.ProjectNameKey{}, "test-project")
 		err := activity.dispatchSignal(ctx, taskConfig, "correlation-123", "test-project")
 		assert.NoError(t, err)
 		assert.Len(t, mockDispatcher.Calls, 1)
@@ -75,7 +75,7 @@ func TestExecuteSignal_dispatchSignal(t *testing.T) {
 				},
 			},
 		}
-		ctx := context.WithValue(context.Background(), core.ProjectNameKey{}, "test-project")
+		ctx := context.WithValue(t.Context(), core.ProjectNameKey{}, "test-project")
 		err := activity.dispatchSignal(ctx, taskConfig, "correlation-123", "test-project")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "signal.id is required")

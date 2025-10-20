@@ -1,6 +1,6 @@
 id: document-classifier
 type: router
-condition: "{{ .tasks.analyze.output.type }}"
+condition: tasks.analyze.output.type
 
 routes:
   invoice: process-invoice

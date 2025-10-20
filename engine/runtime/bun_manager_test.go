@@ -1,7 +1,6 @@
 package runtime_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -98,7 +97,7 @@ func TestNewBunManager(t *testing.T) {
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		bm, err := runtime.NewBunManager(ctx, tmpDir, nil)
 
 		require.NoError(t, err)
@@ -114,7 +113,7 @@ func TestNewBunManager(t *testing.T) {
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		bm, err := runtime.NewBunManager(ctx, tmpDir, nil)
 
 		assert.Nil(t, bm)
@@ -131,7 +130,7 @@ func TestNewBunManager(t *testing.T) {
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err = runtime.NewBunManager(ctx, tmpDir, nil)
 		require.NoError(t, err)
 
@@ -151,7 +150,7 @@ func TestNewBunManager(t *testing.T) {
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			RuntimeType:          runtime.RuntimeTypeBun,
 			EntrypointPath:       "./custom-tools.ts",
@@ -180,7 +179,7 @@ func TestBunManager_ExecuteTool(t *testing.T) {
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		bm, err := runtime.NewBunManager(ctx, tmpDir, nil)
 		require.NoError(t, err)
 
@@ -217,7 +216,7 @@ export async function slow_tool(input: any) {
 		err = os.WriteFile(tmpDir+"/tools.ts", []byte(entrypointContent), 0644)
 		require.NoError(t, err)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
@@ -254,7 +253,7 @@ export async function test_tool(input: any) {
 		err = os.WriteFile(tmpDir+"/tools.ts", []byte(entrypointContent), 0644)
 		require.NoError(t, err)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
@@ -286,7 +285,7 @@ export function dummy() {}
 		err = os.WriteFile(tmpDir+"/tools.ts", []byte(entrypointContent), 0644)
 		require.NoError(t, err)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
@@ -317,7 +316,7 @@ export async function env_tool(input: any) {
 		err = os.WriteFile(tmpDir+"/tools.ts", []byte(entrypointContent), 0644)
 		require.NoError(t, err)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
@@ -344,7 +343,7 @@ func TestBunManager_GetGlobalTimeout(t *testing.T) {
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		timeout := 45 * time.Second
 		config := &runtime.Config{
 			ToolExecutionTimeout: timeout,
@@ -367,7 +366,7 @@ func TestBunManager_WorkerFileGeneration(t *testing.T) {
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		config := &runtime.Config{
 			EntrypointPath: "./custom-entrypoint.ts",
 		}
@@ -395,7 +394,7 @@ func TestBunManager_WorkerFileGeneration(t *testing.T) {
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err = runtime.NewBunManager(ctx, tmpDir, nil)
 		require.NoError(t, err)
 
@@ -405,8 +404,13 @@ func TestBunManager_WorkerFileGeneration(t *testing.T) {
 		content, err := os.ReadFile(workerPath)
 		require.NoError(t, err)
 
-		// Verify the default entrypoint path is used and made relative to worker location
-		assert.Contains(t, string(content), `import * as allExports from "../tools.ts"`)
+		// Verify the fallback entrypoint located inside the store is used when none is configured
+		assert.Contains(t, string(content), `import * as allExports from "./default_entrypoint.ts"`)
+
+		fallbackPath := filepath.Join(storeDir, "default_entrypoint.ts")
+		fallbackContent, err := os.ReadFile(fallbackPath)
+		require.NoError(t, err)
+		assert.Equal(t, "export default {}\n", string(fallbackContent))
 	})
 }
 

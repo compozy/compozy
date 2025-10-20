@@ -20,11 +20,11 @@ func TestSystemHealthMetrics(t *testing.T) {
 		metrics, err := env.GetMetrics()
 		require.NoError(t, err)
 		// Verify build info gauge exists
-		assert.Contains(t, metrics, "compozy_build_info")
+		assert.Contains(t, metrics, buildInfoMetricName)
 		// Parse build info line to verify labels
 		lines := strings.SplitSeq(metrics, "\n")
 		for line := range lines {
-			if strings.HasPrefix(line, "compozy_build_info{") {
+			if strings.HasPrefix(line, buildInfoMetricName+"{") {
 				// Should have version, commit_hash, and go_version labels
 				assert.Contains(t, line, `version=`)
 				assert.Contains(t, line, `commit_hash=`)
@@ -54,7 +54,7 @@ func TestSystemHealthMetrics(t *testing.T) {
 		var uptime1 float64
 		lines := strings.Split(metrics1, "\n")
 		for _, line := range lines {
-			if strings.HasPrefix(line, "compozy_uptime_seconds{") {
+			if strings.HasPrefix(line, uptimeMetricName+"{") {
 				// Parse value after the labels
 				parts := strings.Split(line, "} ")
 				if len(parts) >= 2 {
@@ -72,7 +72,7 @@ func TestSystemHealthMetrics(t *testing.T) {
 		var uptime2 float64
 		lines = strings.Split(metrics2, "\n")
 		for _, line := range lines {
-			if strings.HasPrefix(line, "compozy_uptime_seconds{") {
+			if strings.HasPrefix(line, uptimeMetricName+"{") {
 				// Parse value after the labels
 				parts := strings.Split(line, "} ")
 				if len(parts) >= 2 {
@@ -101,18 +101,18 @@ func TestSystemHealthMetrics(t *testing.T) {
 		var foundBuildInfoHelp, foundUptimeHelp bool
 		for _, line := range lines {
 			// Check TYPE lines
-			if line == "# TYPE compozy_build_info gauge" {
+			if line == "# TYPE "+buildInfoMetricName+" gauge" {
 				foundBuildInfoType = true
 			}
-			if line == "# TYPE compozy_uptime_seconds gauge" {
+			if line == "# TYPE "+uptimeMetricName+" gauge" {
 				foundUptimeType = true
 			}
 			// Check HELP lines
-			if strings.HasPrefix(line, "# HELP compozy_build_info") {
+			if strings.HasPrefix(line, "# HELP "+buildInfoMetricName) {
 				foundBuildInfoHelp = true
 				assert.Contains(t, line, "Build information")
 			}
-			if strings.HasPrefix(line, "# HELP compozy_uptime_seconds") {
+			if strings.HasPrefix(line, "# HELP "+uptimeMetricName) {
 				foundUptimeHelp = true
 				assert.Contains(t, line, "uptime")
 			}
@@ -133,7 +133,7 @@ func TestSystemHealthMetrics(t *testing.T) {
 		// Verify that special characters in version strings are properly escaped
 		lines := strings.SplitSeq(metrics, "\n")
 		for line := range lines {
-			if strings.HasPrefix(line, "compozy_build_info{") {
+			if strings.HasPrefix(line, buildInfoMetricName+"{") {
 				// Labels should be properly quoted
 				assert.Contains(t, line, `version="`)
 				assert.Contains(t, line, `commit_hash="`)

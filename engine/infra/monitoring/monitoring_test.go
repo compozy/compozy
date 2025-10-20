@@ -1,7 +1,6 @@
 package monitoring
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -120,6 +119,17 @@ func TestMonitoringService_GinMiddleware(t *testing.T) {
 	})
 }
 
+func TestMonitoringService_LLMProviderMetrics(t *testing.T) {
+	t.Run("Should return non-nil recorder when enabled", func(t *testing.T) {
+		cfg := &Config{Enabled: true, Path: "/metrics"}
+		service, err := NewMonitoringService(t.Context(), cfg)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = service.Shutdown(t.Context()) })
+		recorder := service.LLMProviderMetrics()
+		assert.NotNil(t, recorder)
+	})
+}
+
 func TestMonitoringService_ExporterHandler(t *testing.T) {
 	t.Run("Should return 503 when not initialized", func(t *testing.T) {
 		cfg := &Config{Enabled: false, Path: "/metrics"}
@@ -153,14 +163,14 @@ func TestMonitoringService_Shutdown(t *testing.T) {
 		cfg := &Config{Enabled: true, Path: "/metrics"}
 		service, err := NewMonitoringService(t.Context(), cfg)
 		require.NoError(t, err)
-		err = service.Shutdown(context.Background())
+		err = service.Shutdown(t.Context())
 		assert.NoError(t, err)
 	})
 	t.Run("Should handle shutdown when not initialized", func(t *testing.T) {
 		cfg := &Config{Enabled: false, Path: "/metrics"}
 		service, err := NewMonitoringService(t.Context(), cfg)
 		require.NoError(t, err)
-		err = service.Shutdown(context.Background())
+		err = service.Shutdown(t.Context())
 		assert.NoError(t, err)
 	})
 }

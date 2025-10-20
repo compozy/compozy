@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -40,20 +39,20 @@ func TestAdminMetaEndpoints(t *testing.T) {
 	api := r.Group(routes.Base())
 	factory := authuc.NewFactory(dummyRepo{})
 	// build context with config manager
-	cfgMgr := config.NewManager(config.NewService())
+	cfgMgr := config.NewManager(t.Context(), config.NewService())
 	t.Setenv("SERVER_AUTH_ADMIN_KEY", "0123456789abcdef")
 	_, err = cfgMgr.Load(
-		context.Background(),
+		t.Context(),
 		config.NewDefaultProvider(),
 		config.NewCLIProvider(map[string]any{"auth-enabled": true}),
 	)
 	require.NoError(t, err)
-	ctx := config.ContextWithManager(context.Background(), cfgMgr)
+	ctx := config.ContextWithManager(t.Context(), cfgMgr)
 	admin := CreateAdminGroup(ctx, api, factory)
 	registerMetaRoutes(admin)
 	// seed a meta entry
 	_, _ = store.Put(
-		context.Background(),
+		t.Context(),
 		resources.ResourceKey{Project: "p", Type: resources.ResourceMeta, ID: "p:agent:a"},
 		map[string]any{"source": "api", "updated_at": "2024-01-01T00:00:00Z", "updated_by": "u"},
 	)
@@ -66,7 +65,7 @@ func TestAdminMetaEndpoints(t *testing.T) {
 	for i := range 5 {
 		id := fmt.Sprintf("p:agent:a%d", i)
 		_, _ = store.Put(
-			context.Background(),
+			t.Context(),
 			resources.ResourceKey{Project: "p", Type: resources.ResourceMeta, ID: id},
 			map[string]any{
 				"project": "p", "type": "agent", "id": fmt.Sprintf("a%d", i), "source": "api", "updated_at": "2024-01-01T00:00:00Z", "updated_by": "u",

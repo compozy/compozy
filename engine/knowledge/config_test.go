@@ -34,7 +34,7 @@ func TestDefinitions_Validate(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		err := defs.Validate()
+		err := defs.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, `knowledge_base "support_docs" references unknown embedder "missing_embedder"`)
 	})
@@ -60,7 +60,7 @@ func TestDefinitions_Validate(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		err := defs.Validate()
+		err := defs.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "chunking.size must be in [")
 		assert.ErrorContains(t, err, "chunking.overlap must be < chunking.size")
@@ -92,7 +92,7 @@ func TestDefinitions_Validate(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		require.NoError(t, defs.Validate())
+		require.NoError(t, defs.Validate(t.Context()))
 		embedder := defs.Embedders[0]
 		require.NotNil(t, embedder.Config.StripNewLines)
 		assert.True(t, *embedder.Config.StripNewLines)
@@ -122,7 +122,7 @@ func TestDefinitions_Validate(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		err := defs.Validate()
+		err := defs.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "source type \"unsupported\" is not supported")
 	})
@@ -163,7 +163,7 @@ func TestDefinitions_Validate(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		err := defs.Validate()
+		err := defs.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "api_key must use env or secret interpolation")
 		assert.ErrorContains(t, err, "dsn must use env or secret interpolation")
@@ -237,7 +237,7 @@ func TestDefinitionsNormalizeWithDefaults(t *testing.T) {
 		},
 	}
 	defs.NormalizeWithDefaults(custom)
-	require.NoError(t, defs.Validate())
+	require.NoError(t, defs.Validate(t.Context()))
 	assert.Equal(t, 2048, defs.Embedders[0].Config.BatchSize)
 	assert.Equal(t, 512, defs.KnowledgeBases[0].Chunking.Size)
 	assert.Equal(t, 48, defs.KnowledgeBases[0].Chunking.OverlapValue())
@@ -262,7 +262,7 @@ func TestKnowledgeBaseIngestMode(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		require.NoError(t, defs.Validate())
+		require.NoError(t, defs.Validate(t.Context()))
 		assert.Equal(t, knowledge.IngestManual, defs.KnowledgeBases[0].Ingest)
 	})
 	t.Run("Should accept on_start ingest mode", func(t *testing.T) {
@@ -282,7 +282,7 @@ func TestKnowledgeBaseIngestMode(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		require.NoError(t, defs.Validate())
+		require.NoError(t, defs.Validate(t.Context()))
 		assert.Equal(t, knowledge.IngestOnStart, defs.KnowledgeBases[0].Ingest)
 	})
 	t.Run("Should reject unsupported ingest mode", func(t *testing.T) {
@@ -302,7 +302,7 @@ func TestKnowledgeBaseIngestMode(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		err := defs.Validate()
+		err := defs.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "ingest must be one of")
 	})
@@ -361,7 +361,7 @@ func TestPgvectorDSNValidation(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		require.NoError(t, defs.Validate())
+		require.NoError(t, defs.Validate(t.Context()))
 	})
 
 	t.Run("Should require DSN for qdrant", func(t *testing.T) {
@@ -389,7 +389,7 @@ func TestPgvectorDSNValidation(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		err := defs.Validate()
+		err := defs.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "requires config.dsn")
 	})
@@ -418,7 +418,7 @@ func TestPgvectorDSNValidation(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		require.NoError(t, defs.Validate())
+		require.NoError(t, defs.Validate(t.Context()))
 	})
 
 	t.Run("Should allow redis with templated DSN", func(t *testing.T) {
@@ -446,7 +446,7 @@ func TestPgvectorDSNValidation(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		err := defs.Validate()
+		err := defs.Validate(t.Context())
 		require.NoError(t, err)
 	})
 
@@ -475,7 +475,7 @@ func TestPgvectorDSNValidation(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		err := defs.Validate()
+		err := defs.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "dsn must use env or secret interpolation")
 	})
@@ -506,7 +506,7 @@ func TestPgvectorDSNValidation(t *testing.T) {
 			},
 		}
 		defs.Normalize()
-		err := defs.Validate()
+		err := defs.Validate(t.Context())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "dsn must use env or secret interpolation")
 	})

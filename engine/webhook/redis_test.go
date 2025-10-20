@@ -35,7 +35,7 @@ func TestService_CheckAndSet(t *testing.T) {
 		client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 		defer client.Close()
 		svc := NewRedisService(&goRedisAdapter{c: client})
-		ctx := context.Background()
+		ctx := t.Context()
 		err := svc.CheckAndSet(ctx, "k1", time.Minute)
 		require.NoError(t, err)
 		err = svc.CheckAndSet(ctx, "k1", time.Minute)
@@ -47,7 +47,7 @@ func TestService_CheckAndSet(t *testing.T) {
 		client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 		defer client.Close()
 		svc := NewRedisService(&goRedisAdapter{c: client})
-		ctx := context.Background()
+		ctx := t.Context()
 		err := svc.CheckAndSet(ctx, "k2", time.Second)
 		require.NoError(t, err)
 		mr.FastForward(2 * time.Second)
@@ -57,7 +57,7 @@ func TestService_CheckAndSet(t *testing.T) {
 
 	t.Run("Should propagate client errors", func(t *testing.T) {
 		svc := NewRedisService(badClient{})
-		err := svc.CheckAndSet(context.Background(), "k3", time.Minute)
+		err := svc.CheckAndSet(t.Context(), "k3", time.Minute)
 		assert.ErrorIs(t, err, errBoom)
 	})
 }

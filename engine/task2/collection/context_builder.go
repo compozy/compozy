@@ -16,9 +16,9 @@ type ContextBuilder struct {
 }
 
 // NewContextBuilder creates a new collection task context builder
-func NewContextBuilder() *ContextBuilder {
+func NewContextBuilder(ctx context.Context) *ContextBuilder {
 	return &ContextBuilder{
-		BaseContextBuilder: shared.NewBaseContextBuilder(),
+		BaseContextBuilder: shared.NewBaseContextBuilder(ctx),
 	}
 }
 
@@ -29,15 +29,16 @@ func (b *ContextBuilder) TaskType() task.Type {
 
 // BuildContext creates a normalization context for collection tasks
 func (b *ContextBuilder) BuildContext(
+	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) *shared.NormalizationContext {
 	// Start with base context
-	ctx := b.BaseContextBuilder.BuildContext(workflowState, workflowConfig, taskConfig)
+	normCtx := b.BaseContextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
 	// Collection tasks will have item and index added during iteration
 	// This is just the base context for the collection itself
-	return ctx
+	return normCtx
 }
 
 // BuildIterationContext creates a context for a specific iteration in a collection

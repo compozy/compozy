@@ -66,7 +66,7 @@ func TestBaseResponseHandler_TransactionSafety(t *testing.T) {
 		t.Parallel()
 
 		// Setup test infrastructure
-		ctx := context.Background()
+		ctx := t.Context()
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		t.Cleanup(cleanup)
 
@@ -158,7 +158,7 @@ func TestBaseResponseHandler_DeferredOutputTransformation(t *testing.T) {
 		t.Parallel()
 
 		// Setup test infrastructure
-		ctx := context.Background()
+		ctx := t.Context()
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		t.Cleanup(cleanup)
 
@@ -245,7 +245,7 @@ func TestBaseResponseHandler_TransformationFailure(t *testing.T) {
 		t.Parallel()
 
 		// Setup test infrastructure
-		ctx := context.Background()
+		ctx := t.Context()
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		t.Cleanup(cleanup)
 
@@ -340,7 +340,7 @@ func TestBaseResponseHandler_ConcurrentSafety(t *testing.T) {
 		t.Parallel()
 
 		// Setup test infrastructure
-		ctx := context.Background()
+		ctx := t.Context()
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 		t.Cleanup(cleanup)
 

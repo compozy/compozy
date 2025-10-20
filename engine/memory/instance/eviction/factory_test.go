@@ -1,6 +1,7 @@
 package eviction
 
 import (
+	"context"
 	"sort"
 	"testing"
 
@@ -13,7 +14,7 @@ import (
 
 func TestPolicyFactory_NewPolicyFactory(t *testing.T) {
 	t.Run("Should create factory with built-in policies", func(t *testing.T) {
-		factory, err := NewPolicyFactory()
+		factory, err := NewPolicyFactory(t.Context())
 		require.NoError(t, err)
 		require.NotNil(t, factory)
 		require.NotNil(t, factory.policies)
@@ -27,7 +28,7 @@ func TestPolicyFactory_NewPolicyFactory(t *testing.T) {
 
 func TestPolicyFactory_Register(t *testing.T) {
 	t.Run("Should register new policy", func(t *testing.T) {
-		factory, err := NewPolicyFactory()
+		factory, err := NewPolicyFactory(t.Context())
 		require.NoError(t, err)
 		// Create a custom policy
 		err = factory.Register("custom", func() instance.EvictionPolicy {
@@ -40,7 +41,7 @@ func TestPolicyFactory_Register(t *testing.T) {
 	})
 
 	t.Run("Should reject empty policy name", func(t *testing.T) {
-		factory, err := NewPolicyFactory()
+		factory, err := NewPolicyFactory(t.Context())
 		require.NoError(t, err)
 		err = factory.Register("", func() instance.EvictionPolicy {
 			return &mockEvictionPolicy{}
@@ -50,7 +51,7 @@ func TestPolicyFactory_Register(t *testing.T) {
 	})
 
 	t.Run("Should reject nil creator", func(t *testing.T) {
-		factory, err := NewPolicyFactory()
+		factory, err := NewPolicyFactory(t.Context())
 		require.NoError(t, err)
 		err = factory.Register("test", nil)
 		assert.Error(t, err)
@@ -58,7 +59,7 @@ func TestPolicyFactory_Register(t *testing.T) {
 	})
 
 	t.Run("Should allow overwriting existing policy", func(t *testing.T) {
-		factory, err := NewPolicyFactory()
+		factory, err := NewPolicyFactory(t.Context())
 		require.NoError(t, err)
 		// Register initial policy
 		err = factory.Register("test", func() instance.EvictionPolicy {
@@ -78,7 +79,7 @@ func TestPolicyFactory_Register(t *testing.T) {
 }
 
 func TestPolicyFactory_Create(t *testing.T) {
-	factory, err := NewPolicyFactory()
+	factory, err := NewPolicyFactory(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should create FIFO policy", func(t *testing.T) {
@@ -120,17 +121,17 @@ func TestPolicyFactory_Create(t *testing.T) {
 }
 
 func TestPolicyFactory_CreateOrDefault(t *testing.T) {
-	factory, err := NewPolicyFactory()
+	factory, err := NewPolicyFactory(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should create requested policy if exists", func(t *testing.T) {
-		policy := factory.CreateOrDefault("lru")
+		policy := factory.CreateOrDefault(t.Context(), "lru")
 		require.NotNil(t, policy)
 		assert.Equal(t, "lru", policy.GetType())
 	})
 
 	t.Run("Should return FIFO policy for unknown type", func(t *testing.T) {
-		policy := factory.CreateOrDefault("unknown")
+		policy := factory.CreateOrDefault(t.Context(), "unknown")
 		require.NotNil(t, policy)
 		assert.Equal(t, "fifo", policy.GetType())
 		// Should be FIFO type
@@ -141,7 +142,7 @@ func TestPolicyFactory_CreateOrDefault(t *testing.T) {
 
 func TestPolicyFactory_ListAvailable(t *testing.T) {
 	t.Run("Should list all available policies sorted", func(t *testing.T) {
-		factory, err := NewPolicyFactory()
+		factory, err := NewPolicyFactory(t.Context())
 		require.NoError(t, err)
 		available := factory.ListAvailable()
 		// Should have at least the built-in policies
@@ -154,7 +155,7 @@ func TestPolicyFactory_ListAvailable(t *testing.T) {
 	})
 
 	t.Run("Should include custom registered policies", func(t *testing.T) {
-		factory, err := NewPolicyFactory()
+		factory, err := NewPolicyFactory(t.Context())
 		require.NoError(t, err)
 		factory.Register("custom1", func() instance.EvictionPolicy {
 			return &mockEvictionPolicy{name: "custom1"}
@@ -169,7 +170,7 @@ func TestPolicyFactory_ListAvailable(t *testing.T) {
 }
 
 func TestPolicyFactory_IsSupported(t *testing.T) {
-	factory, err := NewPolicyFactory()
+	factory, err := NewPolicyFactory(t.Context())
 	require.NoError(t, err)
 
 	t.Run("Should return true for built-in policies", func(t *testing.T) {
@@ -193,7 +194,7 @@ func TestPolicyFactory_IsSupported(t *testing.T) {
 
 func TestPolicyFactory_Clear(t *testing.T) {
 	t.Run("Should clear all registered policies", func(t *testing.T) {
-		factory, err := NewPolicyFactory()
+		factory, err := NewPolicyFactory(t.Context())
 		require.NoError(t, err)
 		// Should have built-in policies initially
 		assert.True(t, len(factory.ListAvailable()) > 0)
@@ -247,7 +248,7 @@ func TestPolicyFactory_GlobalFunctions(t *testing.T) {
 
 func TestPolicyFactory_ConcurrentAccess(t *testing.T) {
 	t.Run("Should handle concurrent operations safely", func(t *testing.T) {
-		factory, err := NewPolicyFactory()
+		factory, err := NewPolicyFactory(t.Context())
 		require.NoError(t, err)
 		done := make(chan bool, 4)
 		// Goroutine 1: Register policies
@@ -300,7 +301,11 @@ type mockEvictionPolicy struct {
 	name string
 }
 
-func (m *mockEvictionPolicy) SelectMessagesToEvict(messages []llm.Message, targetCount int) []llm.Message {
+func (m *mockEvictionPolicy) SelectMessagesToEvict(
+	_ context.Context,
+	messages []llm.Message,
+	targetCount int,
+) []llm.Message {
 	if len(messages) <= targetCount {
 		return nil
 	}
@@ -318,7 +323,7 @@ func TestCreatePolicyWithConfig(t *testing.T) {
 			PriorityKeywords: []string{"security", "vulnerability", "breach"},
 		}
 
-		policy := CreatePolicyWithConfig(config)
+		policy := CreatePolicyWithConfig(t.Context(), config)
 		require.NotNil(t, policy)
 		assert.Equal(t, "priority", policy.GetType())
 
@@ -329,7 +334,7 @@ func TestCreatePolicyWithConfig(t *testing.T) {
 	})
 
 	t.Run("Should create priority policy with default keywords when config is nil", func(t *testing.T) {
-		policy := CreatePolicyWithConfig(nil)
+		policy := CreatePolicyWithConfig(t.Context(), nil)
 		require.NotNil(t, policy)
 		assert.Equal(t, "fifo", policy.GetType()) // Default to FIFO when config is nil
 	})
@@ -340,7 +345,7 @@ func TestCreatePolicyWithConfig(t *testing.T) {
 			PriorityKeywords: []string{},
 		}
 
-		policy := CreatePolicyWithConfig(config)
+		policy := CreatePolicyWithConfig(t.Context(), config)
 		require.NotNil(t, policy)
 
 		priorityPolicy, ok := policy.(*PriorityEvictionPolicy)
@@ -350,21 +355,21 @@ func TestCreatePolicyWithConfig(t *testing.T) {
 
 	t.Run("Should create LRU policy", func(t *testing.T) {
 		config := &memcore.EvictionPolicyConfig{Type: memcore.LRUEviction}
-		policy := CreatePolicyWithConfig(config)
+		policy := CreatePolicyWithConfig(t.Context(), config)
 		require.NotNil(t, policy)
 		assert.Equal(t, "lru", policy.GetType())
 	})
 
 	t.Run("Should create FIFO policy", func(t *testing.T) {
 		config := &memcore.EvictionPolicyConfig{Type: memcore.FIFOEviction}
-		policy := CreatePolicyWithConfig(config)
+		policy := CreatePolicyWithConfig(t.Context(), config)
 		require.NotNil(t, policy)
 		assert.Equal(t, "fifo", policy.GetType())
 	})
 
 	t.Run("Should default to FIFO for unknown policy type", func(t *testing.T) {
 		config := &memcore.EvictionPolicyConfig{Type: "unknown"}
-		policy := CreatePolicyWithConfig(config)
+		policy := CreatePolicyWithConfig(t.Context(), config)
 		require.NotNil(t, policy)
 		assert.Equal(t, "fifo", policy.GetType())
 	})
@@ -375,7 +380,7 @@ func TestCreatePolicyWithConfig(t *testing.T) {
 			PriorityKeywords: []string{"bug", "deadline"},
 		}
 
-		policy := CreatePolicyWithConfig(config)
+		policy := CreatePolicyWithConfig(t.Context(), config)
 
 		messages := []llm.Message{
 			{Role: llm.MessageRoleUser, Content: "Normal message"},
@@ -385,7 +390,7 @@ func TestCreatePolicyWithConfig(t *testing.T) {
 		}
 
 		// Keep only 2 messages
-		evicted := policy.SelectMessagesToEvict(messages, 2)
+		evicted := policy.SelectMessagesToEvict(t.Context(), messages, 2)
 		require.Len(t, evicted, 2)
 
 		// Should evict normal messages, keep important ones

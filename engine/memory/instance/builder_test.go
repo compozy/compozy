@@ -1,7 +1,6 @@
 package instance
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/memory/core"
@@ -10,7 +9,7 @@ import (
 
 func TestBuilder_Validation(t *testing.T) {
 	t.Run("Should fail when instance ID is missing", func(t *testing.T) {
-		_, err := NewBuilder().Build(context.Background())
+		_, err := NewBuilder().Build(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "instance ID cannot be empty")
 	})
@@ -18,7 +17,7 @@ func TestBuilder_Validation(t *testing.T) {
 	t.Run("Should fail when resource config is missing", func(t *testing.T) {
 		_, err := NewBuilder().
 			WithInstanceID("test-instance").
-			Build(context.Background())
+			Build(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "resource config cannot be nil")
 	})
@@ -28,7 +27,7 @@ func TestBuilder_Validation(t *testing.T) {
 		_, err := NewBuilder().
 			WithInstanceID("test-instance").
 			WithResourceConfig(resource).
-			Build(context.Background())
+			Build(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "memory store cannot be nil")
 	})
@@ -40,7 +39,7 @@ func TestBuilder_Validation(t *testing.T) {
 			WithInstanceID("test-instance").
 			WithResourceConfig(resource).
 			WithStore(mockStore).
-			Build(context.Background())
+			Build(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "lock manager cannot be nil")
 	})
@@ -54,7 +53,7 @@ func TestBuilder_Validation(t *testing.T) {
 			WithResourceConfig(resource).
 			WithStore(mockStore).
 			WithLockManager(mockLockManager).
-			Build(context.Background())
+			Build(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "token counter cannot be nil")
 	})
@@ -70,7 +69,7 @@ func TestBuilder_Validation(t *testing.T) {
 			WithStore(mockStore).
 			WithLockManager(mockLockManager).
 			WithTokenCounter(mockTokenCounter).
-			Build(context.Background())
+			Build(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "flushing strategy cannot be nil")
 	})
@@ -88,7 +87,7 @@ func TestBuilder_Validation(t *testing.T) {
 			WithLockManager(mockLockManager).
 			WithTokenCounter(mockTokenCounter).
 			WithFlushingStrategy(mockFlushStrategy).
-			Build(context.Background())
+			Build(t.Context())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "temporal client cannot be nil")
 	})
@@ -167,7 +166,7 @@ func TestBuilder_Validation(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				b := NewBuilder()
 				tc.setupBuilder(b)
-				err := b.Validate(context.Background())
+				err := b.Validate(t.Context())
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedError)
 			})
@@ -193,7 +192,7 @@ func TestBuilder_Validation(t *testing.T) {
 			WithTokenCounter(mockTokenCounter).
 			WithFlushingStrategy(mockFlushStrategy)
 
-		err := b.Validate(context.Background())
+		err := b.Validate(t.Context())
 		assert.Error(t, err) // Still fails due to missing temporal client
 		assert.Contains(t, err.Error(), "temporal client cannot be nil")
 	})

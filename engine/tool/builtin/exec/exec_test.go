@@ -58,7 +58,7 @@ func buildTestBinary(t *testing.T) string {
 	if runtime.GOOS == "windows" {
 		binaryPath += ".exe"
 	}
-	cmd := exec.CommandContext(context.Background(), "go", "build", "-o", binaryPath, sourcePath)
+	cmd := exec.CommandContext(t.Context(), "go", "build", "-o", binaryPath, sourcePath)
 	cmd.Env = os.Environ()
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -73,9 +73,9 @@ func newTestContext(
 	configure func(*config.Config),
 ) context.Context {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = logger.ContextWithLogger(ctx, logger.NewLogger(logger.TestConfig()))
-	manager := config.NewManager(config.NewService())
+	manager := config.NewManager(t.Context(), config.NewService())
 	_, err := manager.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
 	cfg := manager.Get()

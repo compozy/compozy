@@ -1,6 +1,7 @@
 package eviction
 
 import (
+	"context"
 	"fmt"
 	"hash/fnv"
 	"sort"
@@ -25,7 +26,7 @@ type messageWithAccess struct {
 }
 
 // NewLRUEvictionPolicy creates a new LRU eviction policy
-func NewLRUEvictionPolicy() *LRUEvictionPolicy {
+func NewLRUEvictionPolicy(_ context.Context) *LRUEvictionPolicy {
 	return &LRUEvictionPolicy{
 		name: "lru",
 	}
@@ -33,6 +34,7 @@ func NewLRUEvictionPolicy() *LRUEvictionPolicy {
 
 // SelectMessagesToEvict selects the least recently used messages for eviction
 func (p *LRUEvictionPolicy) SelectMessagesToEvict(
+	_ context.Context,
 	messages []llm.Message,
 	targetCount int,
 ) []llm.Message {

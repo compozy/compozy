@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -65,7 +64,7 @@ func TestNormalizeProviderConfigWithEnv(t *testing.T) {
 		projCfg := &project.Config{Name: "sync"}
 		projCfg.SetEnv(core.EnvMap{"GROQ_API_KEY": "test-secret"})
 		input := &ExecuteTaskInput{TaskConfig: taskCfg, ProjectConfig: projCfg}
-		require.NoError(t, exec.normalizeProviderConfigWithEnv(context.Background(), &providerCfg, input))
+		require.NoError(t, exec.normalizeProviderConfigWithEnv(t.Context(), &providerCfg, input))
 		assert.Equal(t, "test-secret", providerCfg.APIKey)
 		require.NotNil(t, taskCfg.Env)
 		assert.Equal(t, "test-secret", (*taskCfg.Env)["GROQ_API_KEY"])
@@ -109,7 +108,7 @@ func TestBuildKnowledgeRuntimeConfigRendersEmbedderTemplates(t *testing.T) {
 		projectCfg.SetEnv(core.EnvMap{"OPENAI_API_KEY": "resolved-secret"})
 		input := &ExecuteTaskInput{ProjectConfig: projectCfg}
 
-		cfg, err := exec.buildKnowledgeRuntimeConfig(context.Background(), input)
+		cfg, err := exec.buildKnowledgeRuntimeConfig(t.Context(), input)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		require.Len(t, cfg.Definitions.Embedders, 1)
@@ -172,7 +171,7 @@ func TestNewKnowledgeRuntimeConfigAggregatesKnowledgeBases(t *testing.T) {
 }
 
 func TestReparseAgentConfigHandlesNilWorkflowState(t *testing.T) {
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	exec := &ExecuteTask{templateEngine: tplengine.NewEngine(tplengine.FormatYAML)}
 	question := "What has written about Indexing Optimizations in the document?"
 	env := core.EnvMap{"OPENAI_API_KEY": "dummy"}

@@ -48,7 +48,7 @@ func (m *mockRuntimeWithConfig) GetGlobalTimeout() time.Duration {
 
 func TestInternalTool_ConfigParameter(t *testing.T) {
 	t.Run("Should pass config from tool configuration", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		runtime := &mockRuntimeWithConfig{}
 
 		// Create tool configuration with config parameter
@@ -83,7 +83,7 @@ func TestInternalTool_ConfigParameter(t *testing.T) {
 	})
 
 	t.Run("Should handle nil config", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		runtime := &mockRuntimeWithConfig{}
 
 		// Create tool configuration without config
@@ -112,7 +112,7 @@ func TestInternalTool_ConfigParameter(t *testing.T) {
 	})
 
 	t.Run("Should handle empty config", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		runtime := &mockRuntimeWithConfig{}
 
 		// Create tool configuration with empty config

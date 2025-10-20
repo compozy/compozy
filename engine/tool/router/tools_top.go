@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
-	resourceutil "github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 	tooluc "github.com/compozy/compozy/engine/tool/uc"
 	"github.com/gin-gonic/gin"
 )
@@ -174,9 +174,8 @@ func upsertToolTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	body := make(map[string]any)
-	if err := c.ShouldBindJSON(&body); err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+	body := router.GetRequestBody[map[string]any](c)
+	if body == nil {
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
@@ -184,7 +183,7 @@ func upsertToolTop(c *gin.Context) {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
-	input := &tooluc.UpsertInput{Project: project, ID: toolID, Body: body, IfMatch: ifMatch}
+	input := &tooluc.UpsertInput{Project: project, ID: toolID, Body: *body, IfMatch: ifMatch}
 	out, execErr := tooluc.NewUpsert(store).Execute(c.Request.Context(), input)
 	if execErr != nil {
 		respondToolError(c, execErr)

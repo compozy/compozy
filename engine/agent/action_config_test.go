@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -65,12 +64,12 @@ func Test_ActionConfig_Utilities(t *testing.T) {
 		a := &ActionConfig{ID: "val"}
 		a.InputSchema = &schema.Schema{"type": "object", "required": []string{"name"}}
 		in := &core.Input{"name": "john"}
-		err := a.ValidateInput(context.Background(), in)
+		err := a.ValidateInput(t.Context(), in)
 		assert.NoError(t, err)
 
 		a.OutputSchema = &schema.Schema{"type": "object"}
 		out := &core.Output{"ok": true}
-		err = a.ValidateOutput(context.Background(), out)
+		err = a.ValidateOutput(t.Context(), out)
 		assert.NoError(t, err)
 	})
 }

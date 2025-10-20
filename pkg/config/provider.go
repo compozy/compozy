@@ -340,8 +340,10 @@ func createServerDefaults(defaultConfig *Config) map[string]any {
 			"max_age":           defaultConfig.Server.CORS.MaxAge,
 		},
 		"auth": map[string]any{
-			"enabled":             defaultConfig.Server.Auth.Enabled,
-			"workflow_exceptions": defaultConfig.Server.Auth.WorkflowExceptions,
+			"enabled":                           defaultConfig.Server.Auth.Enabled,
+			"workflow_exceptions":               defaultConfig.Server.Auth.WorkflowExceptions,
+			"api_key_last_used_max_concurrency": defaultConfig.Server.Auth.APIKeyLastUsedMaxConcurrency,
+			"api_key_last_used_timeout":         defaultConfig.Server.Auth.APIKeyLastUsedTimeout.String(),
 		},
 		"timeouts": map[string]any{
 			"monitoring_init":                defaultConfig.Server.Timeouts.MonitoringInit.String(),
@@ -486,6 +488,9 @@ func createLLMDefaults(defaultConfig *Config) map[string]any {
 		"mcp_client_timeout":             defaultConfig.LLM.MCPClientTimeout.String(),
 		"retry_jitter_percent":           defaultConfig.LLM.RetryJitterPercent,
 		"context_warning_thresholds":     defaultConfig.LLM.ContextWarningThresholds,
+		"usage_metrics": map[string]any{
+			"persist_buckets": defaultConfig.LLM.UsageMetrics.PersistBuckets,
+		},
 	}
 }
 
@@ -574,11 +579,15 @@ func createWorkerDefaults(defaultConfig *Config) map[string]any {
 // createMCPProxyDefaults creates MCP proxy configuration defaults
 func createMCPProxyDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
-		"mode":             defaultConfig.MCPProxy.Mode,
-		"host":             defaultConfig.MCPProxy.Host,
-		"port":             defaultConfig.MCPProxy.Port,
-		"base_url":         defaultConfig.MCPProxy.BaseURL,
-		"shutdown_timeout": defaultConfig.MCPProxy.ShutdownTimeout.String(),
+		"mode":                    defaultConfig.MCPProxy.Mode,
+		"host":                    defaultConfig.MCPProxy.Host,
+		"port":                    defaultConfig.MCPProxy.Port,
+		"base_url":                defaultConfig.MCPProxy.BaseURL,
+		"shutdown_timeout":        defaultConfig.MCPProxy.ShutdownTimeout.String(),
+		"max_idle_conns":          defaultConfig.MCPProxy.MaxIdleConns,
+		"max_idle_conns_per_host": defaultConfig.MCPProxy.MaxIdleConnsPerHost,
+		"max_conns_per_host":      defaultConfig.MCPProxy.MaxConnsPerHost,
+		"idle_conn_timeout":       defaultConfig.MCPProxy.IdleConnTimeout.String(),
 	}
 }
 

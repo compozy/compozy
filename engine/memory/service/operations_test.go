@@ -245,7 +245,7 @@ func TestPayloadToMessages(t *testing.T) {
 
 // Test Read operation
 func TestMemoryService_Read(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should successfully read messages", func(t *testing.T) {
 		// Setup
@@ -305,7 +305,7 @@ func TestMemoryService_Read(t *testing.T) {
 
 // Test Write operation with atomic transactions
 func TestMemoryService_Write(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should reject invalid payload type", func(t *testing.T) {
 		// Setup
@@ -359,7 +359,7 @@ func TestMemoryService_Write(t *testing.T) {
 		assert.Equal(t, "test_key", resp.Key)
 
 		// Verify memory was cleared and new message added
-		msgs, _ := memory.Read(context.Background())
+		msgs, _ := memory.Read(t.Context())
 		assert.Len(t, msgs, 1)
 		assert.Equal(t, "Hello world", msgs[0].Content)
 	})
@@ -408,7 +408,7 @@ func TestMemoryService_Write(t *testing.T) {
 
 // Test template resolution
 func TestMemoryService_WriteWithTemplates(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should resolve templates in payload", func(t *testing.T) {
 		memory := &testMemory{}
@@ -460,7 +460,7 @@ func TestMemoryService_WriteWithTemplates(t *testing.T) {
 
 // Test Append operation
 func TestMemoryService_Append(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should reject invalid payload type", func(t *testing.T) {
 		// Setup
@@ -528,7 +528,7 @@ func TestMemoryService_Append(t *testing.T) {
 
 // Test Delete operation
 func TestMemoryService_Delete(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should successfully delete memory", func(t *testing.T) {
 		memory := &testMemory{
@@ -567,7 +567,7 @@ func TestMemoryService_Delete(t *testing.T) {
 
 // Test Clear operation
 func TestMemoryService_Clear(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should successfully clear with confirmation", func(t *testing.T) {
 		memory := &testMemory{
@@ -631,7 +631,7 @@ func TestMemoryService_Clear(t *testing.T) {
 
 // Test MemoryTransaction directly
 func TestMemoryTransaction(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should complete successful transaction", func(t *testing.T) {
 		memory := &testMemory{
@@ -701,7 +701,7 @@ func TestMemoryTransaction(t *testing.T) {
 
 // Test with real Redis instances using miniredis
 func TestMemoryService_WithRealRedis(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should read paginated messages from real Redis", func(t *testing.T) {
 		// Setup real Redis environment
@@ -893,7 +893,7 @@ func TestTokenCountingNonBlocking(t *testing.T) {
 			{Role: "user", Content: "Hello world"},
 			{Role: "assistant", Content: "Hi there!"},
 		}
-		ctx := context.Background()
+		ctx := t.Context()
 		// Call the helper method to verify it returns 0 tokens when counter is nil
 		tokens := svc.(*memoryOperationsService).calculateTokensNonBlocking(ctx, messages)
 		assert.Equal(t, 0, tokens, "Should return 0 tokens when token counter is nil")
@@ -1005,7 +1005,7 @@ func (m *simpleFlushableMemory) MarkFlushPending(_ context.Context, _ bool) erro
 
 // Test Flush operation
 func TestMemoryService_Flush(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("Should use requested strategy when provided", func(t *testing.T) {
 		memory := &testFlushableMemory{

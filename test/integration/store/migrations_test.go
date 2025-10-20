@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -47,7 +46,7 @@ func TestMigrationsOptimized_Integration(t *testing.T) {
 	t.Run("Should error on invalid DSN when applying migrations", func(t *testing.T) {
 		// Test that migrations fail gracefully with an invalid connection
 		invalidPool, err := pgxpool.New(
-			context.Background(),
+			t.Context(),
 			"postgres://invalid:invalid@127.0.0.1:1/db?sslmode=disable",
 		)
 		require.NoError(t, err, "Pool creation should succeed with lazy connection")

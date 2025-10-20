@@ -36,10 +36,12 @@ func (m *mockSchedule) StartPeriodicReconciliation(context.Context, func() []*wo
 }
 func (m *mockSchedule) StopPeriodicReconciliation() {}
 
-func testCtx() context.Context {
-	base := logger.ContextWithLogger(context.Background(), logger.NewForTests())
-	m := pkgcfg.NewManager(pkgcfg.NewService())
-	_, _ = m.Load(base, pkgcfg.NewDefaultProvider(), pkgcfg.NewEnvProvider())
+func testCtx(t *testing.T) context.Context {
+	t.Helper()
+	base := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+	m := pkgcfg.NewManager(t.Context(), pkgcfg.NewService())
+	_, err := m.Load(base, pkgcfg.NewDefaultProvider(), pkgcfg.NewEnvProvider())
+	require.NoError(t, err, "failed to load test configuration")
 	// override to builder mode for tests
 	c := m.Get()
 	c.Server.SourceOfTruth = "builder"
@@ -48,7 +50,7 @@ func testCtx() context.Context {
 
 func TestReverseIndex_ComputeImpacted(t *testing.T) {
 	t.Run("Should map tool id to workflow id via reverse index", func(t *testing.T) {
-		ctx := testCtx()
+		ctx := testCtx(t)
 		store := resources.NewMemoryResourceStore()
 		// seed a minimal workflow in store
 		wf := &workflow.Config{ID: "wf1"}
@@ -86,7 +88,7 @@ func TestReverseIndex_ComputeImpacted(t *testing.T) {
 
 func TestDebounce_BatchesEvents(t *testing.T) {
 	t.Run("Should coalesce multiple events into one reload", func(t *testing.T) {
-		ctx := testCtx()
+		ctx := testCtx(t)
 		store := resources.NewMemoryResourceStore()
 		// seed a minimal workflow
 		wf := &workflow.Config{ID: "wf1"}

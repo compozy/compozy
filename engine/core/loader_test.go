@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,7 +8,7 @@ import (
 )
 
 func TestRejectDollarKeys(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	t.Run("Should allow $schema under schema context", func(t *testing.T) {
 		y := []byte("input:\n  schema:\n    $schema: http://json-schema.org/draft-07/schema#\n    type: object\n")
 		require.NoError(t, rejectDollarKeys(ctx, y, "test.yaml"))

@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"crypto/tls"
+	"maps"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
@@ -210,6 +211,7 @@ type ServerTimeouts struct {
 	HTTPRead                 time.Duration `koanf:"http_read"                      json:"http_read"                      yaml:"http_read"                      mapstructure:"http_read"`
 	HTTPWrite                time.Duration `koanf:"http_write"                     json:"http_write"                     yaml:"http_write"                     mapstructure:"http_write"`
 	HTTPIdle                 time.Duration `koanf:"http_idle"                      json:"http_idle"                      yaml:"http_idle"                      mapstructure:"http_idle"`
+	HTTPReadHeader           time.Duration `koanf:"http_read_header"               json:"http_read_header"               yaml:"http_read_header"               mapstructure:"http_read_header"`
 	ScheduleRetryMaxDuration time.Duration `koanf:"schedule_retry_max_duration"    json:"schedule_retry_max_duration"    yaml:"schedule_retry_max_duration"    mapstructure:"schedule_retry_max_duration"`
 	ScheduleRetryBaseDelay   time.Duration `koanf:"schedule_retry_base_delay"      json:"schedule_retry_base_delay"      yaml:"schedule_retry_base_delay"      mapstructure:"schedule_retry_base_delay"`
 	ScheduleRetryMaxDelay    time.Duration `koanf:"schedule_retry_max_delay"       json:"schedule_retry_max_delay"       yaml:"schedule_retry_max_delay"       mapstructure:"schedule_retry_max_delay"`
@@ -246,6 +248,16 @@ type AuthConfig struct {
 	Enabled            bool            `koanf:"enabled"             json:"enabled"             yaml:"enabled"             mapstructure:"enabled"             env:"SERVER_AUTH_ENABLED"`
 	WorkflowExceptions []string        `koanf:"workflow_exceptions" json:"workflow_exceptions" yaml:"workflow_exceptions" mapstructure:"workflow_exceptions" env:"SERVER_AUTH_WORKFLOW_EXCEPTIONS" validate:"dive,workflow_id"`
 	AdminKey           SensitiveString `koanf:"admin_key"           json:"admin_key"           yaml:"admin_key"           mapstructure:"admin_key"           env:"SERVER_AUTH_ADMIN_KEY"           validate:"omitempty,min=16" sensitive:"true"`
+
+	// APIKeyLastUsedMaxConcurrency bounds background workers that stamp API key last-used timestamps.
+	//
+	// Default: 10. Set to 0 to disable asynchronous updates.
+	APIKeyLastUsedMaxConcurrency int `koanf:"api_key_last_used_max_concurrency" json:"api_key_last_used_max_concurrency" yaml:"api_key_last_used_max_concurrency" mapstructure:"api_key_last_used_max_concurrency" env:"SERVER_AUTH_API_KEY_LAST_USED_MAX_CONCURRENCY" validate:"min=0"`
+
+	// APIKeyLastUsedTimeout limits how long asynchronous last-used updates may run before timing out.
+	//
+	// Default: 2s.
+	APIKeyLastUsedTimeout time.Duration `koanf:"api_key_last_used_timeout" json:"api_key_last_used_timeout" yaml:"api_key_last_used_timeout" mapstructure:"api_key_last_used_timeout" env:"SERVER_AUTH_API_KEY_LAST_USED_TIMEOUT"`
 }
 
 // DatabaseConfig contains database connection configuration.
@@ -326,6 +338,26 @@ type DatabaseConfig struct {
 	//
 	// Default: 2m
 	MigrationTimeout time.Duration `koanf:"migration_timeout" json:"migration_timeout" yaml:"migration_timeout" mapstructure:"migration_timeout" env:"DB_MIGRATION_TIMEOUT"`
+
+	// MaxOpenConns caps total simultaneous PostgreSQL connections from this service.
+	//
+	// Default: `25`
+	MaxOpenConns int `koanf:"max_open_conns" json:"max_open_conns" yaml:"max_open_conns" mapstructure:"max_open_conns" env:"DB_MAX_OPEN_CONNS"`
+
+	// MaxIdleConns defines the number of connections kept idle in the pool.
+	//
+	// Default: `5`
+	MaxIdleConns int `koanf:"max_idle_conns" json:"max_idle_conns" yaml:"max_idle_conns" mapstructure:"max_idle_conns" env:"DB_MAX_IDLE_CONNS"`
+
+	// ConnMaxLifetime bounds how long a connection may be reused.
+	//
+	// Default: `5m`
+	ConnMaxLifetime time.Duration `koanf:"conn_max_lifetime" json:"conn_max_lifetime" yaml:"conn_max_lifetime" mapstructure:"conn_max_lifetime" env:"DB_CONN_MAX_LIFETIME"`
+
+	// ConnMaxIdleTime bounds how long an idle connection is retained before recycling.
+	//
+	// Default: `1m`
+	ConnMaxIdleTime time.Duration `koanf:"conn_max_idle_time" json:"conn_max_idle_time" yaml:"conn_max_idle_time" mapstructure:"conn_max_idle_time" env:"DB_CONN_MAX_IDLE_TIME"`
 }
 
 // TemporalConfig contains Temporal workflow engine configuration.
@@ -457,8 +489,7 @@ type RuntimeConfig struct {
 	RuntimeType string `koanf:"runtime_type" env:"RUNTIME_TYPE" json:"runtime_type" yaml:"runtime_type" mapstructure:"runtime_type" validate:"oneof=bun node"`
 
 	// EntrypointPath specifies the path to the JavaScript/TypeScript entrypoint file.
-	//
-	// Default: "./tools.ts"
+	// Leave empty to disable custom TypeScript tools and rely on built-in capabilities.
 	EntrypointPath string `koanf:"entrypoint_path" env:"RUNTIME_ENTRYPOINT_PATH" json:"entrypoint_path" yaml:"entrypoint_path" mapstructure:"entrypoint_path"`
 
 	// BunPermissions defines runtime security permissions for Bun.
@@ -664,6 +695,12 @@ type LLMConfig struct {
 	// Default: 10s
 	RetryBackoffMax time.Duration `koanf:"retry_backoff_max" env:"LLM_RETRY_BACKOFF_MAX" json:"retry_backoff_max" yaml:"retry_backoff_max" mapstructure:"retry_backoff_max"`
 
+	// RateLimiting configures concurrency throttles and provider queues.
+	//
+	// The limiter guards upstream APIs from bursty traffic and honors Retry-After headers.
+	// Defaults ensure conservative limits that can be tuned per provider.
+	RateLimiting LLMRateLimitConfig `koanf:"rate_limiting" json:"rate_limiting" yaml:"rate_limiting" mapstructure:"rate_limiting"`
+
 	// ProviderTimeout sets the maximum duration allowed for a single provider invocation.
 	//
 	// Applies to each GenerateContent call (including retries) to keep the orchestrator responsive.
@@ -771,12 +808,96 @@ type LLMConfig struct {
 
 	// ContextWarningThresholds defines usage ratios (0-1) that trigger telemetry warnings.
 	ContextWarningThresholds []float64 `koanf:"context_warning_thresholds" env:"LLM_CONTEXT_WARNING_THRESHOLDS" json:"context_warning_thresholds" yaml:"context_warning_thresholds" mapstructure:"context_warning_thresholds"`
+	// UsageMetrics configures observability knobs for usage persistence.
+	//
+	// Allows operators to tune histogram buckets collected by the usage repository.
+	UsageMetrics LLMUsageMetricsConfig `koanf:"usage_metrics"                                                   json:"usage_metrics"              yaml:"usage_metrics"              mapstructure:"usage_metrics"`
+
+	// DefaultTopP sets the default nucleus sampling threshold for all LLM requests.
+	// Value of 0 means use the provider's default. Range: 0.0 to 1.0.
+	// Default: 0.0
+	DefaultTopP float64 `koanf:"default_top_p" json:"default_top_p" yaml:"default_top_p" mapstructure:"default_top_p" env:"LLM_DEFAULT_TOP_P"`
+
+	// DefaultFrequencyPenalty sets the default penalty for token frequency.
+	// Positive values reduce repetition. Range: -2.0 to 2.0.
+	// Default: 0.0
+	DefaultFrequencyPenalty float64 `koanf:"default_frequency_penalty" json:"default_frequency_penalty" yaml:"default_frequency_penalty" mapstructure:"default_frequency_penalty" env:"LLM_DEFAULT_FREQUENCY_PENALTY"`
+
+	// DefaultPresencePenalty sets the default penalty for token presence.
+	// Positive values encourage talking about new topics. Range: -2.0 to 2.0.
+	// Default: 0.0
+	DefaultPresencePenalty float64 `koanf:"default_presence_penalty" json:"default_presence_penalty" yaml:"default_presence_penalty" mapstructure:"default_presence_penalty" env:"LLM_DEFAULT_PRESENCE_PENALTY"`
+
+	// DefaultSeed sets the default seed for reproducible outputs.
+	// Value of 0 means non-deterministic (no seed).
+	// Default: 0
+	DefaultSeed int `koanf:"default_seed" json:"default_seed" yaml:"default_seed" mapstructure:"default_seed" env:"LLM_DEFAULT_SEED"`
 }
 
 // ToolCallCapsConfig captures default and per-tool invocation caps.
 type ToolCallCapsConfig struct {
 	Default   int            `koanf:"default"   json:"default"   yaml:"default"   mapstructure:"default"`
 	Overrides map[string]int `koanf:"overrides" json:"overrides" yaml:"overrides" mapstructure:"overrides"`
+}
+
+// LLMUsageMetricsConfig exposes tuning knobs for usage repository telemetry.
+//
+// PersistBuckets defines histogram bucket boundaries (seconds) for persistence latency.
+type LLMUsageMetricsConfig struct {
+	PersistBuckets []float64 `koanf:"persist_buckets" json:"persist_buckets" yaml:"persist_buckets" mapstructure:"persist_buckets"`
+}
+
+// LLMRateLimitConfig defines shared throttling settings for provider calls.
+//
+// Disabled limiters allow unbounded concurrency, while enabling the limiter applies
+// bounded worker pools with queueing to smooth spikes. Map overrides provide per-provider tuning.
+type LLMRateLimitConfig struct {
+	Enabled bool `koanf:"enabled" json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+
+	// DefaultConcurrency limits concurrent requests per provider when overrides are absent.
+	// Zero defers to registry defaults; values beyond provider quotas are discouraged.
+	DefaultConcurrency int `koanf:"default_concurrency" json:"default_concurrency" yaml:"default_concurrency" mapstructure:"default_concurrency" validate:"min=0"`
+
+	// DefaultQueueSize bounds queued work waiting for a concurrency slot.
+	// Zero disables queuing and causes immediate rejection when the pool is saturated.
+	DefaultQueueSize int `koanf:"default_queue_size" json:"default_queue_size" yaml:"default_queue_size" mapstructure:"default_queue_size" validate:"min=0"`
+
+	// DefaultRequestsPerMinute throttles average request throughput when per-provider overrides
+	// are not supplied. Zero disables request-rate shaping.
+	DefaultRequestsPerMinute int `koanf:"default_requests_per_minute" json:"default_requests_per_minute" yaml:"default_requests_per_minute" mapstructure:"default_requests_per_minute" validate:"min=0"`
+
+	// DefaultTokensPerMinute constrains total tokens consumed per minute when overrides are absent.
+	// Zero disables token-based shaping.
+	DefaultTokensPerMinute int `koanf:"default_tokens_per_minute" json:"default_tokens_per_minute" yaml:"default_tokens_per_minute" mapstructure:"default_tokens_per_minute" validate:"min=0"`
+
+	// DefaultRequestBurst overrides the burst size used for request-per-minute limiters.
+	// Zero falls back to ceiling(perSecond) for compatibility.
+	DefaultRequestBurst int `koanf:"default_request_burst" json:"default_request_burst" yaml:"default_request_burst" mapstructure:"default_request_burst" validate:"min=0"`
+
+	// DefaultTokenBurst overrides the burst size used for token-per-minute limiters.
+	// Zero falls back to ceiling(perSecond) for compatibility.
+	DefaultTokenBurst int `koanf:"default_token_burst" json:"default_token_burst" yaml:"default_token_burst" mapstructure:"default_token_burst" validate:"min=0"`
+
+	// PerProviderLimits customizes concurrency and queue depth for specific providers.
+	// Keys should match provider names (e.g., "openai", "groq").
+	PerProviderLimits map[string]ProviderRateLimitConfig `koanf:"per_provider_limits" json:"per_provider_limits" yaml:"per_provider_limits" mapstructure:"per_provider_limits"`
+}
+
+// ProviderRateLimitConfig describes concurrency limits for a single provider.
+//
+// Concurrency controls in-flight requests, while queue size bounds waiting work. Leaving
+// fields at zero causes the limiter to fall back to global defaults.
+type ProviderRateLimitConfig struct {
+	Concurrency int `koanf:"concurrency"         json:"concurrency"         yaml:"concurrency"         mapstructure:"concurrency"         validate:"min=0"`
+	QueueSize   int `koanf:"queue_size"          json:"queue_size"          yaml:"queue_size"          mapstructure:"queue_size"          validate:"min=0"`
+	// RequestsPerMinute limits average throughput; zero disables the limiter.
+	RequestsPerMinute int `koanf:"requests_per_minute" json:"requests_per_minute" yaml:"requests_per_minute" mapstructure:"requests_per_minute" validate:"min=0"`
+	// TokensPerMinute constrains the total tokens consumed per minute; zero disables shaping.
+	TokensPerMinute int `koanf:"tokens_per_minute"   json:"tokens_per_minute"   yaml:"tokens_per_minute"   mapstructure:"tokens_per_minute"   validate:"min=0"`
+	// RequestBurst overrides the burst size for request-per-minute limiters. Zero defers to defaults.
+	RequestBurst int `koanf:"request_burst"       json:"request_burst"       yaml:"request_burst"       mapstructure:"request_burst"       validate:"min=0"`
+	// TokenBurst overrides the burst size for token-per-minute limiters. Zero defers to defaults.
+	TokenBurst int `koanf:"token_burst"         json:"token_burst"         yaml:"token_burst"         mapstructure:"token_burst"         validate:"min=0"`
 }
 
 // RateLimitConfig contains rate limiting configuration.
@@ -1172,6 +1293,46 @@ type WorkerConfig struct {
 	// **Default**: `5s`
 	StartWorkflowTimeout time.Duration `koanf:"start_workflow_timeout" json:"start_workflow_timeout" yaml:"start_workflow_timeout" mapstructure:"start_workflow_timeout" env:"WORKER_START_WORKFLOW_TIMEOUT"`
 
+	// MaxConcurrentActivityExecutionSize bounds the number of activities a worker executes concurrently.
+	//
+	// **Default**: `0` (auto = 2x CPUs)
+	MaxConcurrentActivityExecutionSize int `koanf:"max_concurrent_activity_execution_size" json:"max_concurrent_activity_execution_size" yaml:"max_concurrent_activity_execution_size" mapstructure:"max_concurrent_activity_execution_size" env:"WORKER_MAX_CONCURRENT_ACTIVITIES"`
+
+	// MaxConcurrentWorkflowExecutionSize bounds the number of workflow tasks executed concurrently.
+	//
+	// **Default**: `0` (auto = 1x CPUs)
+	MaxConcurrentWorkflowExecutionSize int `koanf:"max_concurrent_workflow_execution_size" json:"max_concurrent_workflow_execution_size" yaml:"max_concurrent_workflow_execution_size" mapstructure:"max_concurrent_workflow_execution_size" env:"WORKER_MAX_CONCURRENT_WORKFLOWS"`
+
+	// MaxConcurrentLocalActivityExecutionSize bounds concurrently executing local activities.
+	//
+	// **Default**: `0` (auto = 4x CPUs)
+	MaxConcurrentLocalActivityExecutionSize int `koanf:"max_concurrent_local_activity_execution_size" json:"max_concurrent_local_activity_execution_size" yaml:"max_concurrent_local_activity_execution_size" mapstructure:"max_concurrent_local_activity_execution_size" env:"WORKER_MAX_CONCURRENT_LOCAL_ACTIVITIES"`
+
+	// ActivityStartToCloseTimeout defines the default bounded execution time for retryable activities.
+	//
+	// **Default**: `5m`
+	ActivityStartToCloseTimeout time.Duration `koanf:"activity_start_to_close_timeout" json:"activity_start_to_close_timeout" yaml:"activity_start_to_close_timeout" mapstructure:"activity_start_to_close_timeout" env:"WORKER_ACTIVITY_START_TO_CLOSE_TIMEOUT"`
+
+	// ActivityHeartbeatTimeout defines the default heartbeat window for long-running activities.
+	//
+	// **Default**: `30s`
+	ActivityHeartbeatTimeout time.Duration `koanf:"activity_heartbeat_timeout" json:"activity_heartbeat_timeout" yaml:"activity_heartbeat_timeout" mapstructure:"activity_heartbeat_timeout" env:"WORKER_ACTIVITY_HEARTBEAT_TIMEOUT"`
+
+	// ActivityMaxRetries bounds retry attempts for default activity execution.
+	//
+	// **Default**: `3`
+	ActivityMaxRetries int `koanf:"activity_max_retries" json:"activity_max_retries" yaml:"activity_max_retries" mapstructure:"activity_max_retries" env:"WORKER_ACTIVITY_MAX_RETRIES"`
+
+	// ErrorHandlerTimeout bounds retries invoked during workflow failure handling logic.
+	//
+	// **Default**: `30s`
+	ErrorHandlerTimeout time.Duration `koanf:"error_handler_timeout" json:"error_handler_timeout" yaml:"error_handler_timeout" mapstructure:"error_handler_timeout" env:"WORKER_ERROR_HANDLER_TIMEOUT"`
+
+	// ErrorHandlerMaxRetries caps retry attempts for error handling activities.
+	//
+	// **Default**: `3`
+	ErrorHandlerMaxRetries int `koanf:"error_handler_max_retries" json:"error_handler_max_retries" yaml:"error_handler_max_retries" mapstructure:"error_handler_max_retries" env:"WORKER_ERROR_HANDLER_MAX_RETRIES"`
+
 	// Dispatcher defines heartbeat tracking for dispatcher leases.
 	Dispatcher WorkerDispatcherConfig `koanf:"dispatcher" json:"dispatcher" yaml:"dispatcher" mapstructure:"dispatcher"`
 }
@@ -1221,7 +1382,24 @@ type MCPProxyConfig struct {
 	// ShutdownTimeout sets timeout for graceful shutdown.
 	//
 	// **Default**: `30s`
-	ShutdownTimeout time.Duration `koanf:"shutdown_timeout" json:"shutdown_timeout" yaml:"shutdown_timeout" mapstructure:"shutdown_timeout" env:"MCP_PROXY_SHUTDOWN_TIMEOUT"`
+	ShutdownTimeout time.Duration `koanf:"shutdown_timeout"        json:"shutdown_timeout"        yaml:"shutdown_timeout"        mapstructure:"shutdown_timeout"        env:"MCP_PROXY_SHUTDOWN_TIMEOUT"`
+	// MaxIdleConns controls the maximum number of idle (keep-alive) connections across all hosts.
+	//
+	// **Default**: `128`
+	MaxIdleConns int `koanf:"max_idle_conns"          json:"max_idle_conns"          yaml:"max_idle_conns"          mapstructure:"max_idle_conns"          env:"MCP_PROXY_MAX_IDLE_CONNS"`
+	// MaxIdleConnsPerHost controls the maximum idle (keep-alive) connections to keep per-host.
+	//
+	// **Default**: `128`
+	MaxIdleConnsPerHost int `koanf:"max_idle_conns_per_host" json:"max_idle_conns_per_host" yaml:"max_idle_conns_per_host" mapstructure:"max_idle_conns_per_host" env:"MCP_PROXY_MAX_IDLE_CONNS_PER_HOST"`
+	// MaxConnsPerHost caps the total number of simultaneous connections per host.
+	//
+	// **Default**: `128`
+	MaxConnsPerHost int `koanf:"max_conns_per_host"      json:"max_conns_per_host"      yaml:"max_conns_per_host"      mapstructure:"max_conns_per_host"      env:"MCP_PROXY_MAX_CONNS_PER_HOST"`
+	// IdleConnTimeout is the maximum amount of time an idle (keep-alive) connection will remain
+	// idle before closing itself.
+	//
+	// **Default**: `90s`
+	IdleConnTimeout time.Duration `koanf:"idle_conn_timeout"       json:"idle_conn_timeout"       yaml:"idle_conn_timeout"       mapstructure:"idle_conn_timeout"       env:"MCP_PROXY_IDLE_CONN_TIMEOUT"`
 }
 
 // CLIConfig contains CLI-specific configuration.
@@ -1576,9 +1754,7 @@ func getStringIntMap(registry *definition.Registry, path string) map[string]int 
 	out := make(map[string]int)
 	switch raw := val.(type) {
 	case map[string]int:
-		for k, v := range raw {
-			out[k] = v
-		}
+		maps.Copy(out, raw)
 	case map[string]any:
 		for k, v := range raw {
 			switch num := v.(type) {
@@ -1656,9 +1832,11 @@ func buildServerConfig(registry *definition.Registry) ServerConfig {
 		},
 		Timeout: getDuration(registry, "server.timeout"),
 		Auth: AuthConfig{
-			Enabled:            getBool(registry, "server.auth.enabled"),
-			WorkflowExceptions: getStringSlice(registry, "server.auth.workflow_exceptions"),
-			AdminKey:           SensitiveString(getString(registry, "server.auth.admin_key")),
+			Enabled:                      getBool(registry, "server.auth.enabled"),
+			WorkflowExceptions:           getStringSlice(registry, "server.auth.workflow_exceptions"),
+			AdminKey:                     SensitiveString(getString(registry, "server.auth.admin_key")),
+			APIKeyLastUsedMaxConcurrency: getInt(registry, "server.auth.api_key_last_used_max_concurrency"),
+			APIKeyLastUsedTimeout:        getDuration(registry, "server.auth.api_key_last_used_timeout"),
 		},
 		SourceOfTruth:       getString(registry, "server.source_of_truth"),
 		SeedFromRepoOnEmpty: getBool(registry, "server.seed_from_repo_on_empty"),
@@ -1842,7 +2020,70 @@ func buildLLMConfig(registry *definition.Registry) LLMConfig {
 		MCPClientTimeout:              getDuration(registry, "llm.mcp_client_timeout"),
 		RetryJitterPercent:            getInt(registry, "llm.retry_jitter_percent"),
 		ContextWarningThresholds:      getFloat64Slice(registry, "llm.context_warning_thresholds"),
+		UsageMetrics: LLMUsageMetricsConfig{
+			PersistBuckets: getFloat64Slice(registry, "llm.usage_metrics.persist_buckets"),
+		},
+		RateLimiting:            buildLLMRateLimitConfig(registry),
+		DefaultTopP:             getFloat64(registry, "llm.default_top_p"),
+		DefaultFrequencyPenalty: getFloat64(registry, "llm.default_frequency_penalty"),
+		DefaultPresencePenalty:  getFloat64(registry, "llm.default_presence_penalty"),
+		DefaultSeed:             getInt(registry, "llm.default_seed"),
 	}
+}
+
+func buildLLMRateLimitConfig(registry *definition.Registry) LLMRateLimitConfig {
+	cfg := LLMRateLimitConfig{
+		Enabled:                  getBool(registry, "llm.rate_limiting.enabled"),
+		DefaultConcurrency:       getInt(registry, "llm.rate_limiting.default_concurrency"),
+		DefaultQueueSize:         getInt(registry, "llm.rate_limiting.default_queue_size"),
+		DefaultRequestsPerMinute: getInt(registry, "llm.rate_limiting.default_requests_per_minute"),
+		DefaultTokensPerMinute:   getInt(registry, "llm.rate_limiting.default_tokens_per_minute"),
+		DefaultRequestBurst:      getInt(registry, "llm.rate_limiting.default_request_burst"),
+		DefaultTokenBurst:        getInt(registry, "llm.rate_limiting.default_token_burst"),
+		PerProviderLimits:        buildPerProviderRateLimitOverrides(registry),
+	}
+	if len(cfg.PerProviderLimits) == 0 {
+		cfg.PerProviderLimits = nil
+	}
+	return cfg
+}
+
+func buildPerProviderRateLimitOverrides(registry *definition.Registry) map[string]ProviderRateLimitConfig {
+	val := registry.GetDefault("llm.rate_limiting.per_provider_limits")
+	if val == nil {
+		return nil
+	}
+	out := make(map[string]ProviderRateLimitConfig)
+	switch raw := val.(type) {
+	case map[string]ProviderRateLimitConfig:
+		maps.Copy(out, raw)
+	case map[string]any:
+		for provider, candidate := range raw {
+			m, ok := candidate.(map[string]any)
+			if !ok {
+				continue
+			}
+			var cfg ProviderRateLimitConfig
+			decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+				TagName:          "mapstructure",
+				Result:           &cfg,
+				WeaklyTypedInput: true,
+			})
+			if err != nil {
+				continue
+			}
+			if err := decoder.Decode(m); err != nil {
+				continue
+			}
+			out[provider] = cfg
+		}
+	default:
+		return nil
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func buildRateLimitConfig(registry *definition.Registry) RateLimitConfig {
@@ -1954,11 +2195,15 @@ func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
 		port = 6001
 	}
 	return MCPProxyConfig{
-		Mode:            mode,
-		Host:            getString(registry, "mcp_proxy.host"),
-		Port:            port,
-		BaseURL:         getString(registry, "mcp_proxy.base_url"),
-		ShutdownTimeout: getDuration(registry, "mcp_proxy.shutdown_timeout"),
+		Mode:                mode,
+		Host:                getString(registry, "mcp_proxy.host"),
+		Port:                port,
+		BaseURL:             getString(registry, "mcp_proxy.base_url"),
+		ShutdownTimeout:     getDuration(registry, "mcp_proxy.shutdown_timeout"),
+		MaxIdleConns:        getInt(registry, "mcp_proxy.max_idle_conns"),
+		MaxIdleConnsPerHost: getInt(registry, "mcp_proxy.max_idle_conns_per_host"),
+		MaxConnsPerHost:     getInt(registry, "mcp_proxy.max_conns_per_host"),
+		IdleConnTimeout:     getDuration(registry, "mcp_proxy.idle_conn_timeout"),
 	}
 }
 

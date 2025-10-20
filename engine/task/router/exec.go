@@ -325,43 +325,33 @@ func respondTaskTimeout(
 }
 
 func buildTaskSyncPayload(
-	ctx context.Context,
+	c *gin.Context,
 	repo task.Repository,
 	taskID string,
 	execID core.ID,
 	output *core.Output,
 ) gin.H {
-	payload := gin.H{"exec_id": execID.String()}
-	if output != nil {
-		payload["output"] = output
-	}
-	snapshotCtx := context.WithoutCancel(ctx)
-	stateSnapshot, stateErr := repo.GetState(snapshotCtx, execID)
-	embeddedUsage := false
-	if stateErr == nil && stateSnapshot != nil {
-		dto := newTaskExecutionStatusDTO(stateSnapshot)
-		dto.Usage = router.NewUsageSummary(stateSnapshot.Usage)
-		if dto.Usage != nil {
-			embeddedUsage = true
-		}
-		payload["state"] = dto
-		if stateSnapshot.Output != nil {
-			payload["output"] = stateSnapshot.Output
-		}
-	} else if stateErr != nil {
-		logger.FromContext(ctx).Warn(
-			"Failed to load task execution state after completion",
-			"task_id", taskID,
-			"exec_id", execID.String(),
-			"error", stateErr,
-		)
-	}
-	if !embeddedUsage {
-		if summary := router.ResolveTaskUsageSummary(snapshotCtx, repo, execID); summary != nil {
-			payload["usage"] = summary
-		}
-	}
-	return payload
+	ctx := c.Request.Context()
+	return router.BuildSyncPayload(router.SyncPayloadOptions{
+		Context:      c,
+		Repo:         repo,
+		ExecID:       execID,
+		Output:       output,
+		IncludeState: router.HasIncludeToken(c, "state"),
+		OnState: func(state *task.State) (any, bool) {
+			dto := newTaskExecutionStatusDTO(state)
+			dto.Usage = router.NewUsageSummary(state.Usage)
+			return dto, dto.Usage != nil
+		},
+		OnStateError: func(stateErr error) {
+			logger.FromContext(ctx).Warn(
+				"Failed to load task execution state after completion",
+				"task_id", taskID,
+				"exec_id", execID.String(),
+				"error", stateErr,
+			)
+		},
+	})
 }
 
 type TaskExecutionStatusDTO struct {
@@ -489,7 +479,7 @@ func prepareTaskExecution(c *gin.Context, setup *syncTaskExecutionSetup) (*syncT
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, false
 	}
-	executor, err := ResolveDirectExecutor(setup.state, repo)
+	executor, err := ResolveDirectExecutor(c.Request.Context(), setup.state, repo)
 	if err != nil {
 		setup.recordError(http.StatusInternalServerError)
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to initialize executor", err)
@@ -529,7 +519,7 @@ func executeTaskSyncAndRespond(
 	router.RespondOK(
 		c,
 		"task executed",
-		buildTaskSyncPayload(c.Request.Context(), prep.repo, setup.taskID, execID, output),
+		buildTaskSyncPayload(c, prep.repo, setup.taskID, execID, output),
 	)
 	return monitoring.ExecutionOutcomeSuccess
 }
@@ -590,7 +580,7 @@ func executeTaskAsync(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	executor, err := ResolveDirectExecutor(state, repo)
+	executor, err := ResolveDirectExecutor(c.Request.Context(), state, repo)
 	if err != nil {
 		recordError(http.StatusInternalServerError)
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to initialize executor", err)
@@ -603,6 +593,9 @@ func executeTaskAsync(c *gin.Context) {
 		recordError(http.StatusInternalServerError)
 		router.RespondWithServerError(c, router.ErrInternalCode, "task execution failed", execErr)
 		return
+	}
+	if metrics != nil {
+		metrics.RecordAsyncStarted(ctx, monitoring.ExecutionKindTask)
 	}
 	execURL := fmt.Sprintf("%s/tasks/%s", routes.Executions(), execID.String())
 	c.Header("Location", execURL)

@@ -108,7 +108,7 @@ func (m *MockRepository) CreateInitialAdminIfNone(ctx context.Context, user *mod
 func TestService_CheckBootstrapStatus(t *testing.T) {
 	t.Run("Should return bootstrapped status when admin exists", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)
@@ -137,7 +137,7 @@ func TestService_CheckBootstrapStatus(t *testing.T) {
 
 	t.Run("Should return not bootstrapped when no admin exists", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)
@@ -163,7 +163,7 @@ func TestService_CheckBootstrapStatus(t *testing.T) {
 
 	t.Run("Should return error when repository fails", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)
@@ -184,7 +184,7 @@ func TestService_CheckBootstrapStatus(t *testing.T) {
 func TestService_BootstrapAdmin(t *testing.T) {
 	t.Run("Should create initial admin when system not bootstrapped", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)
@@ -238,7 +238,7 @@ func TestService_BootstrapAdmin(t *testing.T) {
 
 	t.Run("Should fail when system already bootstrapped without force", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)
@@ -272,7 +272,7 @@ func TestService_BootstrapAdmin(t *testing.T) {
 
 	t.Run("Should create additional admin when force is true", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)
@@ -336,7 +336,7 @@ func TestService_BootstrapAdmin(t *testing.T) {
 
 	t.Run("Should return error when email is empty", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)
@@ -360,7 +360,7 @@ func TestService_BootstrapAdmin(t *testing.T) {
 
 	t.Run("Should enforce admin role even if non-admin role is passed", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)
@@ -420,7 +420,7 @@ func TestService_BootstrapAdmin(t *testing.T) {
 func TestService_CreateInitialAdmin(t *testing.T) {
 	t.Run("Should create initial admin successfully", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)
@@ -472,7 +472,7 @@ func TestService_CreateInitialAdmin(t *testing.T) {
 
 	t.Run("Should fail when admin already exists", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)
@@ -502,7 +502,7 @@ func TestService_CreateInitialAdmin(t *testing.T) {
 func TestService_ConcurrentBootstrap(t *testing.T) {
 	t.Run("Should handle unique constraint violation gracefully", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)
@@ -535,7 +535,7 @@ func TestService_ConcurrentBootstrap(t *testing.T) {
 
 	t.Run("Should handle concurrent bootstrap attempts safely", func(t *testing.T) {
 		// Given
-		ctx := context.Background()
+		ctx := t.Context()
 		mockRepo := new(MockRepository)
 		factory := authuc.NewFactory(mockRepo)
 		service := bootstrap.NewService(factory)

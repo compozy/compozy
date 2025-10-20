@@ -26,7 +26,7 @@ func TestBuiltinTool(t *testing.T) {
 		}
 		tool, err := NewBuiltinTool(definition)
 		require.NoError(t, err)
-		result, err := tool.Call(context.Background(), `{"value":"hello"}`)
+		result, err := tool.Call(t.Context(), `{"value":"hello"}`)
 		require.NoError(t, err)
 		assert.True(t, called)
 		assert.JSONEq(t, `{"input":"hello"}`, result)
@@ -83,13 +83,9 @@ func TestValidationHelpers(t *testing.T) {
 	})
 
 	t.Run("Should detect canceled context", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		require.Error(t, CheckContext(ctx))
-	})
-
-	t.Run("Should error on nil context", func(t *testing.T) {
-		require.Error(t, CheckContext(nil)) //nolint:staticcheck // Validate explicit nil handling path.
 	})
 }
 

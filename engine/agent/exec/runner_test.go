@@ -51,9 +51,12 @@ func (s *stubDirectExecutor) ExecuteAsync(context.Context, *task.Config, *tkrout
 }
 
 func installExecutorStub(state *appstate.State, exec tkrouter.DirectExecutor) func() {
-	tkrouter.SetDirectExecutorFactory(state, func(*appstate.State, task.Repository) (tkrouter.DirectExecutor, error) {
-		return exec, nil
-	})
+	tkrouter.SetDirectExecutorFactory(
+		state,
+		func(context.Context, *appstate.State, task.Repository) (tkrouter.DirectExecutor, error) {
+			return exec, nil
+		},
+	)
 	return func() { tkrouter.SetDirectExecutorFactory(state, nil) }
 }
 
@@ -61,7 +64,7 @@ func storeAgent(t *testing.T, store resources.ResourceStore, state *appstate.Sta
 	t.Helper()
 	m, err := cfg.AsMap()
 	require.NoError(t, err)
-	_, err = store.Put(context.Background(), resources.ResourceKey{
+	_, err = store.Put(t.Context(), resources.ResourceKey{
 		Project: state.ProjectConfig.Name,
 		Type:    resources.ResourceAgent,
 		ID:      cfg.ID,
@@ -104,7 +107,7 @@ func TestRunnerExecute(t *testing.T) {
 			With:    core.Input{"topic": "status"},
 			Timeout: 42 * time.Second,
 		}
-		result, err := runner.Execute(context.Background(), req)
+		result, err := runner.Execute(t.Context(), req)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.Equal(t, execID, result.ExecID)
@@ -120,7 +123,7 @@ func TestRunnerExecute(t *testing.T) {
 			Action:  "summary",
 			Timeout: 5 * time.Second,
 		}
-		result, err := runner.Execute(context.Background(), req)
+		result, err := runner.Execute(t.Context(), req)
 		require.Nil(t, result)
 		require.Error(t, err)
 		require.True(t, errors.Is(err, agentuc.ErrNotFound))
@@ -137,7 +140,7 @@ func TestRunnerExecute(t *testing.T) {
 			Action:  "missing",
 			Timeout: 5 * time.Second,
 		}
-		result, err := runner.Execute(context.Background(), req)
+		result, err := runner.Execute(t.Context(), req)
 		require.Nil(t, result)
 		require.Error(t, err)
 		require.True(t, errors.Is(err, agentexec.ErrUnknownAction))
@@ -151,7 +154,7 @@ func TestRunnerExecute(t *testing.T) {
 			AgentID: "agent-one",
 			Prompt:  "run",
 		}
-		result, err := runner.Execute(context.Background(), req)
+		result, err := runner.Execute(t.Context(), req)
 		require.NotNil(t, result)
 		require.Equal(t, execID, result.ExecID)
 		require.Nil(t, result.Output)
@@ -168,7 +171,7 @@ func TestRunnerExecute(t *testing.T) {
 			Prompt:  "run",
 			Timeout: time.Second,
 		}
-		result, err := runner.Execute(context.Background(), req)
+		result, err := runner.Execute(t.Context(), req)
 		require.NotNil(t, result)
 		require.Equal(t, stub.execID, result.ExecID)
 		require.Error(t, err)
@@ -182,7 +185,7 @@ func TestRunnerPrepare(t *testing.T) {
 		stub := &stubDirectExecutor{}
 		runner, cleanup := setupRunner(t, stub, &agent.Config{ID: "agent-one"})
 		defer cleanup()
-		prepared, err := runner.Prepare(context.Background(), agentexec.ExecuteRequest{
+		prepared, err := runner.Prepare(t.Context(), agentexec.ExecuteRequest{
 			AgentID: "agent-one",
 			Prompt:  "hello",
 		})

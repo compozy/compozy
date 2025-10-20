@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
@@ -24,16 +25,17 @@ func NewOutputTransformer(templateEngine *tplengine.TemplateEngine) *OutputTrans
 
 // TransformOutput transforms task output based on the outputs configuration
 func (ot *OutputTransformer) TransformOutput(
+	ctx context.Context,
 	output *core.Output,
 	outputsConfig *core.Input,
-	ctx *shared.NormalizationContext,
+	normCtx *shared.NormalizationContext,
 	taskConfig *task.Config,
 ) (*core.Output, error) {
 	if outputsConfig == nil || output == nil {
 		return output, nil
 	}
 	// Build transformation context
-	transformCtx := ctx.BuildTemplateContext()
+	transformCtx := normCtx.BuildTemplateContext()
 	// Special handling for collection/parallel tasks
 	if taskConfig.Type == task.TaskTypeCollection || taskConfig.Type == task.TaskTypeParallel {
 		// Look for the nested outputs map
@@ -45,10 +47,10 @@ func (ot *OutputTransformer) TransformOutput(
 			transformCtx["output"] = make(map[string]any)
 		}
 		// For parent tasks, also add children context at the top level
-		if ctx.WorkflowState != nil && ctx.WorkflowState.Tasks != nil {
-			if taskState, exists := ctx.WorkflowState.Tasks[taskConfig.ID]; exists {
-				if taskState.CanHaveChildren() && ctx.ChildrenIndex != nil {
-					transformCtx["children"] = buildChildrenContext(taskState, ctx)
+		if normCtx.WorkflowState != nil && normCtx.WorkflowState.Tasks != nil {
+			if taskState, exists := normCtx.WorkflowState.Tasks[taskConfig.ID]; exists {
+				if taskState.CanHaveChildren() && normCtx.ChildrenIndex != nil {
+					transformCtx["children"] = buildChildrenContext(ctx, taskState, normCtx)
 				}
 			}
 		}
@@ -75,16 +77,21 @@ func (ot *OutputTransformer) transformOutputFields(
 }
 
 // buildChildrenContext delegates to the actual ContextBuilder implementation
-func buildChildrenContext(parentState *task.State, ctx *shared.NormalizationContext) map[string]any {
+func buildChildrenContext(
+	ctx context.Context,
+	parentState *task.State,
+	normCtx *shared.NormalizationContext,
+) map[string]any {
 	// Use the ChildrenIndexBuilder's implementation to avoid code duplication
 	childrenBuilder := shared.NewChildrenIndexBuilder()
-	taskOutputBuilder := shared.NewTaskOutputBuilder()
+	taskOutputBuilder := shared.NewTaskOutputBuilder(ctx)
 
 	return childrenBuilder.BuildChildrenContext(
+		ctx,
 		parentState,
-		ctx.WorkflowState,
-		ctx.ChildrenIndex,
-		ctx.TaskConfigs,
+		normCtx.WorkflowState,
+		normCtx.ChildrenIndex,
+		normCtx.TaskConfigs,
 		taskOutputBuilder,
 		0, // depth
 	)

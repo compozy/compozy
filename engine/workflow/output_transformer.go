@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
@@ -10,7 +11,7 @@ import (
 
 // NormalizationContext defines context for normalization
 type NormalizationContext interface {
-	BuildTemplateContext() map[string]any
+	BuildTemplateContext(ctx context.Context) map[string]any
 }
 
 // OutputNormalizer handles workflow output normalization and transformation
@@ -27,16 +28,17 @@ func NewOutputNormalizer(templateEngine *tplengine.TemplateEngine) *OutputNormal
 
 // TransformWorkflowOutput transforms workflow output based on the outputs configuration
 func (ot *OutputNormalizer) TransformWorkflowOutput(
+	ctx context.Context,
 	workflowState *State,
 	outputsConfig *core.Output,
-	ctx NormalizationContext,
+	normCtx NormalizationContext,
 ) (*core.Output, error) {
 	// Return nil consistently when no output config is provided
 	if outputsConfig == nil || len(*outputsConfig) == 0 {
 		return nil, nil
 	}
 	// Build transformation context
-	transformCtx := ctx.BuildTemplateContext()
+	transformCtx := normCtx.BuildTemplateContext(ctx)
 	// Add workflow-specific fields
 	transformCtx["status"] = workflowState.Status
 	transformCtx["workflow_id"] = workflowState.WorkflowID

@@ -135,7 +135,7 @@ func TestConversationLoop_NoProgressDetection(t *testing.T) {
 	llmReq := &llmadapter.LLMRequest{}
 	state := newLoopState(cfg, &MemoryContext{}, &agent.ActionConfig{ID: "a"})
 	req := Request{Agent: &agent.Config{ID: "ag"}, Action: &agent.ActionConfig{ID: "a"}}
-	_, _, err := loop.Run(context.Background(), nil, llmReq, req, state, nil)
+	_, _, err := loop.Run(t.Context(), nil, llmReq, req, state, nil)
 	require.Error(t, err)
 	require.Equal(t, 3, exec.execCalls)
 	require.Equal(t, 3, exec.budgetCalls)
@@ -158,7 +158,7 @@ func TestConversationLoop_RestartOnNoProgress(t *testing.T) {
 	llmReq := &llmadapter.LLMRequest{}
 	state := newLoopState(cfg, &MemoryContext{}, &agent.ActionConfig{ID: "action"})
 	req := Request{Agent: &agent.Config{ID: "agent"}, Action: &agent.ActionConfig{ID: "action"}}
-	_, _, err := loop.Run(context.Background(), nil, llmReq, req, state, nil)
+	_, _, err := loop.Run(t.Context(), nil, llmReq, req, state, nil)
 	require.Error(t, err)
 	require.Equal(t, 1, state.Iteration.Restarts)
 	require.GreaterOrEqual(t, exec.execCalls, 4)
@@ -171,7 +171,7 @@ func TestConversationLoop_CompactionTrigger(t *testing.T) {
 		ContextWarningThresholds: []float64{0.5},
 	})
 	require.NoError(t, err)
-	ctx, run, err := recorder.StartRun(context.Background(), telemetry.RunMetadata{})
+	ctx, run, err := recorder.StartRun(t.Context(), telemetry.RunMetadata{})
 	require.NoError(t, err)
 	defer func() {
 		closeErr := recorder.CloseRun(ctx, run, telemetry.RunResult{})
@@ -203,7 +203,7 @@ func TestConversationLoop_CompactionTrigger(t *testing.T) {
 }
 
 func TestConversationLoop_CompactionFailureRespectsCooldown(t *testing.T) {
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	memMgr := newFailingMemoryManager(ErrCompactionIncomplete)
 	loop := &conversationLoop{
 		cfg: settings{
@@ -236,7 +236,7 @@ func TestConversationLoop_FinalizeStoresMemory(t *testing.T) {
 	memCtx := &MemoryContext{}
 	state := newLoopState(&settings{}, memCtx, &agent.ActionConfig{ID: "action"})
 	req := Request{Agent: &agent.Config{ID: "ag"}, Action: &agent.ActionConfig{ID: "action"}}
-	output, _, err := loop.Run(context.Background(), nil, llmReq, req, state, nil)
+	output, _, err := loop.Run(t.Context(), nil, llmReq, req, state, nil)
 	require.NoError(t, err)
 	require.NotNil(t, output)
 	require.Equal(t, 1, memory.storeCalls)
@@ -246,7 +246,7 @@ func TestConversationLoop_RestartEmitsTelemetry(t *testing.T) {
 	tempDir := t.TempDir()
 	recorder, err := telemetry.NewRecorder(&telemetry.Options{ProjectRoot: tempDir})
 	require.NoError(t, err)
-	ctx, run, err := recorder.StartRun(context.Background(), telemetry.RunMetadata{})
+	ctx, run, err := recorder.StartRun(t.Context(), telemetry.RunMetadata{})
 	require.NoError(t, err)
 
 	loop := &conversationLoop{cfg: settings{maxLoopRestarts: 2}}
@@ -281,7 +281,7 @@ func TestConversationLoop_CompactionCooldownTelemetry(t *testing.T) {
 	tempDir := t.TempDir()
 	recorder, err := telemetry.NewRecorder(&telemetry.Options{ProjectRoot: tempDir})
 	require.NoError(t, err)
-	ctx, run, err := recorder.StartRun(context.Background(), telemetry.RunMetadata{})
+	ctx, run, err := recorder.StartRun(t.Context(), telemetry.RunMetadata{})
 	require.NoError(t, err)
 
 	loop := &conversationLoop{cfg: settings{compactionThreshold: 0.5, compactionCooldown: 3}}
@@ -314,7 +314,7 @@ func TestConversationLoop_RecordLLMResponseAddsTokenMetadata(t *testing.T) {
 		&telemetry.Options{ProjectRoot: tempDir, CaptureContent: false, RedactContent: true},
 	)
 	require.NoError(t, err)
-	ctx, run, err := recorder.StartRun(context.Background(), telemetry.RunMetadata{})
+	ctx, run, err := recorder.StartRun(t.Context(), telemetry.RunMetadata{})
 	require.NoError(t, err)
 
 	loop := &conversationLoop{}

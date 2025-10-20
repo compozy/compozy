@@ -108,6 +108,19 @@
       },
       "type": "object"
     },
+    "EmbedderCacheConfig": {
+      "additionalProperties": false,
+      "description": "EmbedderCacheConfig toggles client-side embedding caches.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "size": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "EmbedderConfig": {
       "additionalProperties": false,
       "description": "EmbedderConfig describes an embedding provider used during knowledge ingestion.",
@@ -137,7 +150,13 @@
         "batch_size": {
           "type": "integer"
         },
+        "cache": {
+          "$ref": "#/$defs/EmbedderCacheConfig"
+        },
         "dimension": {
+          "type": "integer"
+        },
+        "max_concurrent_workers": {
           "type": "integer"
         },
         "retry": {
@@ -251,6 +270,82 @@
       },
       "type": "object"
     },
+    "PGVectorConfig": {
+      "additionalProperties": false,
+      "description": "PGVectorConfig exposes advanced tuning knobs for the pgvector provider.",
+      "properties": {
+        "index": {
+          "$ref": "#/$defs/PGVectorIndexConfig"
+        },
+        "pool": {
+          "$ref": "#/$defs/PGVectorPoolConfig"
+        },
+        "search": {
+          "$ref": "#/$defs/PGVectorSearchConfig"
+        }
+      },
+      "type": "object"
+    },
+    "PGVectorIndexConfig": {
+      "additionalProperties": false,
+      "description": "PGVectorIndexConfig tunes index creation for pgvector-backed stores.",
+      "properties": {
+        "ef_construction": {
+          "type": "integer"
+        },
+        "ef_search": {
+          "type": "integer"
+        },
+        "lists": {
+          "type": "integer"
+        },
+        "m": {
+          "type": "integer"
+        },
+        "probes": {
+          "type": "integer"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PGVectorPoolConfig": {
+      "additionalProperties": false,
+      "description": "PGVectorPoolConfig customizes pgxpool behavior for pgvector stores.",
+      "properties": {
+        "health_check_period": {
+          "type": "integer"
+        },
+        "max_conn_idle_time": {
+          "type": "integer"
+        },
+        "max_conn_lifetime": {
+          "type": "integer"
+        },
+        "max_conns": {
+          "type": "integer"
+        },
+        "min_conns": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "PGVectorSearchConfig": {
+      "additionalProperties": false,
+      "description": "PGVectorSearchConfig adjusts runtime search parameters for pgvector queries.",
+      "properties": {
+        "ef_search": {
+          "type": "integer"
+        },
+        "probes": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "PathCWD": {
       "additionalProperties": false,
       "properties": {
@@ -278,6 +373,14 @@
       "additionalProperties": false,
       "description": "PromptParams defines the parameters that control LLM behavior during text generation.",
       "properties": {
+        "candidate_count": {
+          "description": "CandidateCount specifies the number of response candidates to generate.\nSimilar to N but used by Google AI models.\n- **Range**: 1 to provider-specific maximum\n- **Provider Support**: Google AI (Gemini)",
+          "type": "integer"
+        },
+        "frequency_penalty": {
+          "description": "FrequencyPenalty penalizes tokens based on their frequency in the text so far.\nPositive values reduce repetition, negative values encourage it.\n- **Range**: -2.0 to 2.0\n- **Recommended**: 0.0 (no penalty) to 0.5 (moderate penalty)\n- **Provider Support**: OpenAI, Groq",
+          "type": "number"
+        },
         "max_length": {
           "description": "MaxLength provides an alternative way to specify maximum response length.\nTypically used by providers that distinguish between length and token limits.\n- **Range**: MinLength to provider-specific maximum\n- **Provider Support**: Primarily local models and some API providers",
           "type": "integer"
@@ -286,9 +389,21 @@
           "description": "MaxTokens limits the maximum number of tokens in the generated response.\nThis parameter is crucial for cost control and response time management.\n- **Range**: 1 to model-specific maximum (e.g., 8192 for GPT-4)\n- **Default**: Provider-specific default (typically 1000-2000)",
           "type": "integer"
         },
+        "metadata": {
+          "description": "Metadata contains backend-specific parameters not covered by standard fields.\nUse this for provider-specific features or experimental parameters.\n- **Example**: Custom headers, request tracking, A/B test variants\n- **Provider Support**: Varies by provider",
+          "type": "object"
+        },
         "min_length": {
           "description": "MinLength specifies the minimum number of tokens that must be generated.\nPrevents the model from generating responses that are too short.\n- **Range**: 1 to MaxTokens\n- **Provider Support**: Limited; primarily local models",
           "type": "integer"
+        },
+        "n": {
+          "description": "N specifies how many completion choices to generate for each prompt.\nUseful for generating multiple alternatives and selecting the best one.\n- **Range**: 1 to provider-specific maximum (typically 1-10)\n- **Default**: 1\n- **Provider Support**: OpenAI",
+          "type": "integer"
+        },
+        "presence_penalty": {
+          "description": "PresencePenalty penalizes tokens that have already appeared in the text.\nPositive values encourage the model to talk about new topics.\n- **Range**: -2.0 to 2.0\n- **Recommended**: 0.0 (no penalty) to 0.5 (moderate penalty)\n- **Provider Support**: OpenAI, Groq",
+          "type": "number"
         },
         "repetition_penalty": {
           "description": "RepetitionPenalty reduces the likelihood of repeating the same tokens.\nValues \u003e 1.0 penalize repetition, values \u003c 1.0 encourage it.\n- **Range**: 0.1 to 2.0\n- **Recommended**: 1.0 (no penalty) to 1.2 (moderate penalty)\n- **Provider Support**: Primarily local models (Ollama, etc.)",
@@ -332,6 +447,10 @@
           "description": "APIURL specifies a custom API endpoint for the provider.\n**Use Cases**:\n  - Local model hosting (Ollama, OpenAI-compatible servers)\n  - Enterprise API gateways\n  - Regional API endpoints\n  - Custom proxy servers\n\n**Examples**: `\"http://localhost:11434\"`, `\"https://api.openai.com/v1\"`",
           "type": "string"
         },
+        "context_window": {
+          "description": "ContextWindow optionally overrides the provider's default context window size.\nWhen \u003e 0, this value replaces the provider's default ContextWindowTokens capability.\nUseful for providers like OpenRouter that support multiple models with varying limits.\n- **Example**: 200000 for Claude 3.5 Sonnet via OpenRouter\n- **Default**: Uses provider's default when not specified or \u003c= 0",
+          "type": "integer"
+        },
         "default": {
           "description": "Default indicates that this model should be used as the fallback when no explicit\nmodel configuration is provided at the task or agent level.\n\n**Behavior**:\n  - Only one model per project can be marked as default\n  - When set to true, this model will be used for tasks/agents without explicit model config\n  - Validation ensures at most one default model per project\n\n**Example**:\n```yaml\nmodels:\n  - provider: openai\n    model: gpt-4\n    default: true  # This will be used by default\n```",
           "type": "boolean"
@@ -355,6 +474,35 @@
         "provider": {
           "description": "Provider specifies which AI service to use for LLM operations.\nMust match one of the supported ProviderName constants.\n\n- **Examples**: `\"openai\"`, `\"anthropic\"`, `\"google\"`, `\"ollama\"`",
           "type": "string"
+        },
+        "rate_limit": {
+          "$ref": "#/$defs/ProviderRateLimitConfig",
+          "description": "RateLimit overrides concurrency limits and queue size for this provider.\nWhen omitted the orchestrator applies the global defaults."
+        }
+      },
+      "type": "object"
+    },
+    "ProviderRateLimitConfig": {
+      "additionalProperties": false,
+      "description": "ProviderRateLimitConfig describes concurrency and throughput limits scoped to a provider.",
+      "properties": {
+        "concurrency": {
+          "type": "integer"
+        },
+        "queue_size": {
+          "type": "integer"
+        },
+        "request_burst": {
+          "type": "integer"
+        },
+        "requests_per_minute": {
+          "type": "integer"
+        },
+        "token_burst": {
+          "type": "integer"
+        },
+        "tokens_per_minute": {
+          "type": "integer"
         }
       },
       "type": "object"
@@ -555,6 +703,9 @@
         },
         "path": {
           "type": "string"
+        },
+        "pgvector": {
+          "$ref": "#/$defs/PGVectorConfig"
         },
         "table": {
           "type": "string"
@@ -814,6 +965,14 @@
           "description": "AutoMigrate enables automatic database migrations on startup.\n\nWhen enabled, the system will automatically apply any pending database\nmigrations when establishing a database connection. This eliminates\nthe need for manual migration commands.\n\nDefault: true",
           "type": "boolean"
         },
+        "conn_max_idle_time": {
+          "description": "ConnMaxIdleTime bounds how long an idle connection is retained before recycling.\n\nDefault: `1m`",
+          "type": "integer"
+        },
+        "conn_max_lifetime": {
+          "description": "ConnMaxLifetime bounds how long a connection may be reused.\n\nDefault: `5m`",
+          "type": "integer"
+        },
         "conn_string": {
           "description": "ConnString provides a complete PostgreSQL connection URL.\n\nFormat: `postgres://user:password@host:port/database?sslmode=mode`\nTakes precedence over individual connection parameters.",
           "type": "string"
@@ -821,6 +980,14 @@
         "host": {
           "description": "Host specifies the database server hostname or IP address.\n\nDefault: \"localhost\"",
           "type": "string"
+        },
+        "max_idle_conns": {
+          "description": "MaxIdleConns defines the number of connections kept idle in the pool.\n\nDefault: `5`",
+          "type": "integer"
+        },
+        "max_open_conns": {
+          "description": "MaxOpenConns caps total simultaneous PostgreSQL connections from this service.\n\nDefault: `25`",
+          "type": "integer"
         },
         "migration_timeout": {
           "description": "MigrationTimeout sets the maximum allowed time for applying database\nmigrations during startup. It must be equal to or greater than the\nadvisory lock acquisition window used by ApplyMigrationsWithLock (45s).\n\nDefault: 2m",
@@ -910,6 +1077,22 @@
           },
           "type": "array"
         },
+        "default_frequency_penalty": {
+          "description": "DefaultFrequencyPenalty sets the default penalty for token frequency.\nPositive values reduce repetition. Range: -2.0 to 2.0.\nDefault: 0.0",
+          "type": "number"
+        },
+        "default_presence_penalty": {
+          "description": "DefaultPresencePenalty sets the default penalty for token presence.\nPositive values encourage talking about new topics. Range: -2.0 to 2.0.\nDefault: 0.0",
+          "type": "number"
+        },
+        "default_seed": {
+          "description": "DefaultSeed sets the default seed for reproducible outputs.\nValue of 0 means non-deterministic (no seed).\nDefault: 0",
+          "type": "integer"
+        },
+        "default_top_p": {
+          "description": "DefaultTopP sets the default nucleus sampling threshold for all LLM requests.\nValue of 0 means use the provider's default. Range: 0.0 to 1.0.\nDefault: 0.0",
+          "type": "number"
+        },
         "denied_mcp_names": {
           "description": "DeniedMCPNames excludes MCP servers/tools from advertisement and invocation.\nEntries take precedence over the allow list.",
           "items": {
@@ -989,6 +1172,10 @@
           "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"\" (empty; supply MCP proxy URL explicitly or derive from MCPProxy.BaseURL)",
           "type": "string"
         },
+        "rate_limiting": {
+          "$ref": "#/$defs/config_LLMRateLimitConfig",
+          "description": "RateLimiting configures concurrency throttles and provider queues.\n\nThe limiter guards upstream APIs from bursty traffic and honors Retry-After headers.\nDefaults ensure conservative limits that can be tuned per provider."
+        },
         "register_mcps": {
           "description": "RegisterMCPs contains additional MCP configurations to be registered\nwith the MCP proxy at runtime. Represented as a generic slice to avoid\nimport cycles with engine packages.",
           "items": {
@@ -1027,6 +1214,64 @@
         "tool_call_caps": {
           "$ref": "#/$defs/config_ToolCallCapsConfig",
           "description": "ToolCallCaps configures per-tool invocation caps enforced during orchestration."
+        },
+        "usage_metrics": {
+          "$ref": "#/$defs/config_LLMUsageMetricsConfig",
+          "description": "UsageMetrics configures observability knobs for usage persistence.\n\nAllows operators to tune histogram buckets collected by the usage repository."
+        }
+      },
+      "type": "object"
+    },
+    "config_LLMRateLimitConfig": {
+      "additionalProperties": false,
+      "description": "LLMRateLimitConfig defines shared throttling settings for provider calls.",
+      "properties": {
+        "default_concurrency": {
+          "description": "DefaultConcurrency limits concurrent requests per provider when overrides are absent.\nZero defers to registry defaults; values beyond provider quotas are discouraged.",
+          "type": "integer"
+        },
+        "default_queue_size": {
+          "description": "DefaultQueueSize bounds queued work waiting for a concurrency slot.\nZero disables queuing and causes immediate rejection when the pool is saturated.",
+          "type": "integer"
+        },
+        "default_request_burst": {
+          "description": "DefaultRequestBurst overrides the burst size used for request-per-minute limiters.\nZero falls back to ceiling(perSecond) for compatibility.",
+          "type": "integer"
+        },
+        "default_requests_per_minute": {
+          "description": "DefaultRequestsPerMinute throttles average request throughput when per-provider overrides\nare not supplied. Zero disables request-rate shaping.",
+          "type": "integer"
+        },
+        "default_token_burst": {
+          "description": "DefaultTokenBurst overrides the burst size used for token-per-minute limiters.\nZero falls back to ceiling(perSecond) for compatibility.",
+          "type": "integer"
+        },
+        "default_tokens_per_minute": {
+          "description": "DefaultTokensPerMinute constrains total tokens consumed per minute when overrides are absent.\nZero disables token-based shaping.",
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "per_provider_limits": {
+          "additionalProperties": {
+            "$ref": "#/$defs/config_ProviderRateLimitConfig"
+          },
+          "description": "PerProviderLimits customizes concurrency and queue depth for specific providers.\nKeys should match provider names (e.g., \"openai\", \"groq\").",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "config_LLMUsageMetricsConfig": {
+      "additionalProperties": false,
+      "description": "LLMUsageMetricsConfig exposes tuning knobs for usage repository telemetry.",
+      "properties": {
+        "persist_buckets": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
         }
       },
       "type": "object"
@@ -1081,6 +1326,18 @@
         "host": {
           "description": "Host specifies the network interface to bind the MCP proxy server to.\n\n**Default**: `\"0.0.0.0\"`",
           "type": "string"
+        },
+        "idle_conn_timeout": {
+          "description": "IdleConnTimeout is the maximum amount of time an idle (keep-alive) connection will remain\nidle before closing itself.\n\n**Default**: `90s`",
+          "type": "integer"
+        },
+        "max_idle_conns": {
+          "description": "MaxIdleConns controls the maximum number of idle (keep-alive) connections across all hosts.\n\n**Default**: `128`",
+          "type": "integer"
+        },
+        "max_idle_conns_per_host": {
+          "description": "MaxIdleConnsPerHost controls the maximum idle (keep-alive) connections to keep per-host.\n\n**Default**: `128`",
+          "type": "integer"
         },
         "mode": {
           "description": "Mode controls how the MCP proxy runs within Compozy.\n\nValues:\n  - \"standalone\": embed MCP proxy inside the server\n  - \"\": external MCP proxy (default)\n\nWhen embedded, the server manages lifecycle and health of the proxy\nand will set LLM.ProxyURL if empty.",
@@ -1251,6 +1508,35 @@
       },
       "type": "object"
     },
+    "config_ProviderRateLimitConfig": {
+      "additionalProperties": false,
+      "description": "ProviderRateLimitConfig describes concurrency limits for a single provider.",
+      "properties": {
+        "concurrency": {
+          "type": "integer"
+        },
+        "queue_size": {
+          "type": "integer"
+        },
+        "request_burst": {
+          "description": "RequestBurst overrides the burst size for request-per-minute limiters. Zero defers to defaults.",
+          "type": "integer"
+        },
+        "requests_per_minute": {
+          "description": "RequestsPerMinute limits average throughput; zero disables the limiter.",
+          "type": "integer"
+        },
+        "token_burst": {
+          "description": "TokenBurst overrides the burst size for token-per-minute limiters. Zero defers to defaults.",
+          "type": "integer"
+        },
+        "tokens_per_minute": {
+          "description": "TokensPerMinute constrains the total tokens consumed per minute; zero disables shaping.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "config_RateConfig": {
       "additionalProperties": false,
       "description": "RateConfig represents a single rate limit configuration.",
@@ -1416,7 +1702,7 @@
           "type": "integer"
         },
         "entrypoint_path": {
-          "description": "EntrypointPath specifies the path to the JavaScript/TypeScript entrypoint file.\n\nDefault: \"./tools.ts\"",
+          "description": "EntrypointPath specifies the path to the JavaScript/TypeScript entrypoint file.\nLeave empty to disable custom TypeScript tools and rely on built-in capabilities.",
           "type": "string"
         },
         "environment": {
@@ -1508,6 +1794,9 @@
           "type": "integer"
         },
         "http_read": {
+          "type": "integer"
+        },
+        "http_read_header": {
           "type": "integer"
         },
         "http_write": {
@@ -1617,6 +1906,18 @@
       "additionalProperties": false,
       "description": "WorkerConfig contains Temporal worker configuration.",
       "properties": {
+        "activity_heartbeat_timeout": {
+          "description": "ActivityHeartbeatTimeout defines the default heartbeat window for long-running activities.\n\n**Default**: `30s`",
+          "type": "integer"
+        },
+        "activity_max_retries": {
+          "description": "ActivityMaxRetries bounds retry attempts for default activity execution.\n\n**Default**: `3`",
+          "type": "integer"
+        },
+        "activity_start_to_close_timeout": {
+          "description": "ActivityStartToCloseTimeout defines the default bounded execution time for retryable activities.\n\n**Default**: `5m`",
+          "type": "integer"
+        },
         "config_store_ttl": {
           "description": "ConfigStoreTTL sets how long worker configurations are cached.\n\n**Default**: `24h`",
           "type": "integer"
@@ -1633,8 +1934,28 @@
           "description": "DispatcherRetryDelay sets delay between dispatcher retry attempts.\n\n**Default**: `50ms`",
           "type": "integer"
         },
+        "error_handler_max_retries": {
+          "description": "ErrorHandlerMaxRetries caps retry attempts for error handling activities.\n\n**Default**: `3`",
+          "type": "integer"
+        },
+        "error_handler_timeout": {
+          "description": "ErrorHandlerTimeout bounds retries invoked during workflow failure handling logic.\n\n**Default**: `30s`",
+          "type": "integer"
+        },
         "heartbeat_cleanup_timeout": {
           "description": "HeartbeatCleanupTimeout sets timeout for heartbeat cleanup operations.\n\n**Default**: `5s`",
+          "type": "integer"
+        },
+        "max_concurrent_activity_execution_size": {
+          "description": "MaxConcurrentActivityExecutionSize bounds the number of activities a worker executes concurrently.\n\n**Default**: `0` (auto = 2x CPUs)",
+          "type": "integer"
+        },
+        "max_concurrent_local_activity_execution_size": {
+          "description": "MaxConcurrentLocalActivityExecutionSize bounds concurrently executing local activities.\n\n**Default**: `0` (auto = 4x CPUs)",
+          "type": "integer"
+        },
+        "max_concurrent_workflow_execution_size": {
+          "description": "MaxConcurrentWorkflowExecutionSize bounds the number of workflow tasks executed concurrently.\n\n**Default**: `0` (auto = 1x CPUs)",
           "type": "integer"
         },
         "mcp_proxy_health_check_timeout": {

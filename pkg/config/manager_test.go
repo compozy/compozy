@@ -15,24 +15,24 @@ import (
 
 func TestManager_Creation(t *testing.T) {
 	t.Run("Should create manager with default service", func(t *testing.T) {
-		manager := NewManager(nil)
+		manager := NewManager(t.Context(), nil)
 		require.NotNil(t, manager)
 		require.NotNil(t, manager.Service)
 		assert.Equal(t, 100*time.Millisecond, manager.debounce)
-		require.NoError(t, manager.Close(context.Background()))
+		require.NoError(t, manager.Close(t.Context()))
 	})
 
 	t.Run("Should create manager with custom service", func(t *testing.T) {
 		service := NewService()
-		manager := NewManager(service)
+		manager := NewManager(t.Context(), service)
 		require.NotNil(t, manager)
 		assert.Equal(t, service, manager.Service)
-		require.NoError(t, manager.Close(context.Background()))
+		require.NoError(t, manager.Close(t.Context()))
 	})
 
 	t.Run("Should configure debounce duration", func(t *testing.T) {
-		manager := NewManager(nil)
-		defer manager.Close(context.Background())
+		manager := NewManager(t.Context(), nil)
+		defer manager.Close(t.Context())
 
 		// Set custom debounce
 		manager.SetDebounce(500 * time.Millisecond)
@@ -42,11 +42,11 @@ func TestManager_Creation(t *testing.T) {
 
 func TestManager_Load(t *testing.T) {
 	t.Run("Should load configuration from sources", func(t *testing.T) {
-		manager := NewManager(nil)
-		defer manager.Close(context.Background())
+		manager := NewManager(t.Context(), nil)
+		defer manager.Close(t.Context())
 
 		// Load with default provider
-		ctx := context.Background()
+		ctx := t.Context()
 		config, err := manager.Load(ctx, NewDefaultProvider())
 
 		require.NoError(t, err)
@@ -56,14 +56,14 @@ func TestManager_Load(t *testing.T) {
 	})
 
 	t.Run("Should store configuration atomically", func(t *testing.T) {
-		manager := NewManager(nil)
-		defer manager.Close(context.Background())
+		manager := NewManager(t.Context(), nil)
+		defer manager.Close(t.Context())
 
 		// Initially nil
 		assert.Nil(t, manager.Get())
 
 		// Load configuration
-		ctx := context.Background()
+		ctx := t.Context()
 		config, err := manager.Load(ctx, NewDefaultProvider())
 		require.NoError(t, err)
 
@@ -73,8 +73,8 @@ func TestManager_Load(t *testing.T) {
 	})
 
 	t.Run("Should handle multiple sources with precedence", func(t *testing.T) {
-		manager := NewManager(nil)
-		defer manager.Close(context.Background())
+		manager := NewManager(t.Context(), nil)
+		defer manager.Close(t.Context())
 
 		// Create temp YAML file
 		tmpDir := t.TempDir()
@@ -88,7 +88,7 @@ server:
 		require.NoError(t, err)
 
 		// Load with multiple sources - YAML should override defaults
-		ctx := context.Background()
+		ctx := t.Context()
 		config, err := manager.Load(ctx,
 			NewDefaultProvider(),
 			NewYAMLProvider(yamlPath),
@@ -103,17 +103,17 @@ server:
 
 func TestManager_Get(t *testing.T) {
 	t.Run("Should return nil before loading", func(t *testing.T) {
-		manager := NewManager(nil)
-		defer manager.Close(context.Background())
+		manager := NewManager(t.Context(), nil)
+		defer manager.Close(t.Context())
 
 		assert.Nil(t, manager.Get())
 	})
 
 	t.Run("Should return configuration after loading", func(t *testing.T) {
-		manager := NewManager(nil)
-		defer manager.Close(context.Background())
+		manager := NewManager(t.Context(), nil)
+		defer manager.Close(t.Context())
 
-		ctx := context.Background()
+		ctx := t.Context()
 		loaded, err := manager.Load(ctx, NewDefaultProvider())
 		require.NoError(t, err)
 
@@ -122,10 +122,10 @@ func TestManager_Get(t *testing.T) {
 	})
 
 	t.Run("Should handle concurrent access safely", func(t *testing.T) {
-		manager := NewManager(nil)
-		defer manager.Close(context.Background())
+		manager := NewManager(t.Context(), nil)
+		defer manager.Close(t.Context())
 
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err := manager.Load(ctx, NewDefaultProvider())
 		require.NoError(t, err)
 
@@ -143,11 +143,11 @@ func TestManager_Get(t *testing.T) {
 
 func TestManager_Reload(t *testing.T) {
 	t.Run("Should reload configuration", func(t *testing.T) {
-		manager := NewManager(nil)
-		defer manager.Close(context.Background())
+		manager := NewManager(t.Context(), nil)
+		defer manager.Close(t.Context())
 
 		// Initial load
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err := manager.Load(ctx, NewDefaultProvider())
 		require.NoError(t, err)
 
@@ -179,11 +179,11 @@ func TestManager_Reload(t *testing.T) {
 			},
 		}
 
-		manager := NewManager(service)
-		defer manager.Close(context.Background())
+		manager := NewManager(t.Context(), service)
+		defer manager.Close(t.Context())
 
 		// Reload should fail validation
-		ctx := context.Background()
+		ctx := t.Context()
 		err := manager.Reload(ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "configuration validation failed")
@@ -192,8 +192,8 @@ func TestManager_Reload(t *testing.T) {
 
 func TestManager_OnChange(t *testing.T) {
 	t.Run("Should register and invoke callbacks", func(t *testing.T) {
-		manager := NewManager(nil)
-		defer manager.Close(context.Background())
+		manager := NewManager(t.Context(), nil)
+		defer manager.Close(t.Context())
 
 		// Register callback
 		var callbackConfig *Config
@@ -202,7 +202,7 @@ func TestManager_OnChange(t *testing.T) {
 		})
 
 		// Load configuration - should trigger callback
-		ctx := context.Background()
+		ctx := t.Context()
 		loaded, err := manager.Load(ctx, NewDefaultProvider())
 		require.NoError(t, err)
 
@@ -211,8 +211,8 @@ func TestManager_OnChange(t *testing.T) {
 	})
 
 	t.Run("Should handle multiple callbacks", func(t *testing.T) {
-		manager := NewManager(nil)
-		defer manager.Close(context.Background())
+		manager := NewManager(t.Context(), nil)
+		defer manager.Close(t.Context())
 
 		// Register multiple callbacks
 		var count int32
@@ -223,7 +223,7 @@ func TestManager_OnChange(t *testing.T) {
 		}
 
 		// Load configuration
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err := manager.Load(ctx, NewDefaultProvider())
 		require.NoError(t, err)
 
@@ -245,10 +245,10 @@ server:
 		err := os.WriteFile(yamlPath, []byte(initialContent), 0o644)
 		require.NoError(t, err)
 
-		manager := NewManager(nil)
+		manager := NewManager(t.Context(), nil)
 		// Reduce debounce to make test faster and more reliable
 		manager.SetDebounce(10 * time.Millisecond)
-		defer manager.Close(context.Background())
+		defer manager.Close(t.Context())
 
 		// Track reloads
 		var reloadCount int32
@@ -257,7 +257,7 @@ server:
 		})
 
 		// Load with YAML provider
-		ctx := context.Background()
+		ctx := t.Context()
 		config, err := manager.Load(ctx, NewYAMLProvider(yamlPath))
 		require.NoError(t, err)
 		assert.Equal(t, "initial.example.com", config.Server.Host)
@@ -304,17 +304,17 @@ server:
 
 func TestManager_Close(t *testing.T) {
 	t.Run("Should close gracefully", func(t *testing.T) {
-		manager := NewManager(nil)
+		manager := NewManager(t.Context(), nil)
 
 		// Start watching
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err := manager.Load(ctx, NewDefaultProvider())
 		require.NoError(t, err)
 
 		// Close should not hang
 		done := make(chan bool)
 		go func() {
-			err := manager.Close(context.Background())
+			err := manager.Close(t.Context())
 			assert.NoError(t, err)
 			done <- true
 		}()

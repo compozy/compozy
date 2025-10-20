@@ -56,9 +56,6 @@ func TestMemoryOperationConsistency(t *testing.T) {
 				workflowState := &wf.State{
 					WorkflowID:     "test-workflow",
 					WorkflowExecID: execID,
-					Input: &core.Input{
-						"user_id": "test_user_123",
-					},
 				}
 
 				// Build workflow context
@@ -128,9 +125,6 @@ func TestMemoryOperationConsistency(t *testing.T) {
 				workflowState := &wf.State{
 					WorkflowID:     "concurrent-workflow",
 					WorkflowExecID: execID,
-					Input: &core.Input{
-						"user_id": fmt.Sprintf("concurrent_user_%d", idx),
-					},
 				}
 
 				// Build workflow context

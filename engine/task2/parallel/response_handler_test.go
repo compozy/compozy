@@ -1,7 +1,6 @@
 package parallel
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -103,7 +102,7 @@ func TestParallelResponseHandler_HandleSubtaskResponse(t *testing.T) {
 		}
 
 		result, err := handler.HandleSubtaskResponse(
-			context.Background(),
+			t.Context(),
 			parentState,
 			childState,
 			childConfig,
@@ -136,7 +135,7 @@ func TestParallelResponseHandler_HandleSubtaskResponse(t *testing.T) {
 		}
 
 		result, err := handler.HandleSubtaskResponse(
-			context.Background(),
+			t.Context(),
 			nil,
 			childState,
 			childConfig,
@@ -171,7 +170,7 @@ func TestParallelResponseHandler_HandleSubtaskResponse(t *testing.T) {
 
 		for _, strategy := range strategies {
 			result, err := handler.HandleSubtaskResponse(
-				context.Background(),
+				t.Context(),
 				nil,
 				childState,
 				childConfig,
@@ -228,7 +227,7 @@ func TestParallelResponseHandler_HandleResponse(t *testing.T) {
 		baseHandler := &shared.BaseResponseHandler{}
 		handler := NewResponseHandler(templateEngine, contextBuilder, baseHandler)
 		// Act
-		result, err := handler.HandleResponse(context.Background(), nil)
+		result, err := handler.HandleResponse(t.Context(), nil)
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -250,7 +249,7 @@ func TestParallelResponseHandler_HandleResponse(t *testing.T) {
 			WorkflowState:  &workflow.State{},
 		}
 		// Act
-		result, err := handler.HandleResponse(context.Background(), input)
+		result, err := handler.HandleResponse(t.Context(), input)
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -275,7 +274,7 @@ func TestParallelResponseHandler_HandleResponse(t *testing.T) {
 			WorkflowState:  &workflow.State{},
 		}
 		// Act
-		result, err := handler.HandleResponse(context.Background(), input)
+		result, err := handler.HandleResponse(t.Context(), input)
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -295,7 +294,7 @@ func TestParallelResponseHandler_ApplyDeferredOutputTransformation(t *testing.T)
 		baseHandler := &shared.BaseResponseHandler{}
 		handler := NewResponseHandler(templateEngine, contextBuilder, baseHandler)
 		// Act
-		err := handler.ApplyDeferredOutputTransformation(context.Background(), nil)
+		err := handler.ApplyDeferredOutputTransformation(t.Context(), nil)
 		// Assert
 		assert.Error(t, err)
 		var validationErr *shared.ValidationError
@@ -316,7 +315,7 @@ func TestParallelResponseHandler_ApplyDeferredOutputTransformation(t *testing.T)
 			WorkflowState:  &workflow.State{},
 		}
 		// Act
-		err := handler.ApplyDeferredOutputTransformation(context.Background(), input)
+		err := handler.ApplyDeferredOutputTransformation(t.Context(), input)
 		// Assert
 		assert.Error(t, err)
 		var validationErr *shared.ValidationError
@@ -340,7 +339,7 @@ func TestParallelResponseHandler_ApplyDeferredOutputTransformation(t *testing.T)
 			WorkflowState:  &workflow.State{},
 		}
 		// Act
-		err := handler.ApplyDeferredOutputTransformation(context.Background(), input)
+		err := handler.ApplyDeferredOutputTransformation(t.Context(), input)
 		// Assert - should return nil as basic tasks don't defer transformation
 		assert.NoError(t, err)
 	})

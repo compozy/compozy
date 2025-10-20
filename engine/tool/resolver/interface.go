@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"context"
+
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/tool"
@@ -20,6 +22,7 @@ type ToolResolver interface {
 	// 4. All returned tools must have valid, non-empty IDs
 	// 5. Returns error if any tool lacks required ID field
 	ResolveTools(
+		ctx context.Context,
 		projectConfig *project.Config,
 		workflowConfig *workflow.Config,
 		agentConfig *agent.Config,

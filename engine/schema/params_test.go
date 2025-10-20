@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ func TestParamsValidator_Validate(t *testing.T) {
 		validatorID := "test-task-params"
 
 		v := NewParamsValidator[any](nil, schema, validatorID)
-		err := v.Validate(context.Background())
+		err := v.Validate(t.Context())
 
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "parameters are nil but a schema is defined")
@@ -42,7 +41,7 @@ func TestParamsValidator_Validate(t *testing.T) {
 		}
 
 		v := NewParamsValidator(params, schema, "test-task")
-		err := v.Validate(context.Background())
+		err := v.Validate(t.Context())
 
 		assert.NoError(t, err)
 	})
@@ -64,7 +63,7 @@ func TestParamsValidator_Validate(t *testing.T) {
 		validatorID := "count-validation-task"
 
 		v := NewParamsValidator(params, schema, validatorID)
-		err := v.Validate(context.Background())
+		err := v.Validate(t.Context())
 
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "validation error")
@@ -75,7 +74,7 @@ func TestParamsValidator_Validate(t *testing.T) {
 		params := map[string]any{"any": "data"}
 
 		v := NewParamsValidator(params, nil, "test-task")
-		err := v.Validate(context.Background())
+		err := v.Validate(t.Context())
 
 		assert.NoError(t, err)
 	})
@@ -95,7 +94,7 @@ func TestParamsValidator_Validate(t *testing.T) {
 		validatorID := "required-fields-task"
 
 		v := NewParamsValidator(params, schema, validatorID)
-		err := v.Validate(context.Background())
+		err := v.Validate(t.Context())
 
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "validation error")

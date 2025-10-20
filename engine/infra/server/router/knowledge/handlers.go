@@ -13,8 +13,13 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/engine/knowledge/ingest"
 	"github.com/compozy/compozy/engine/knowledge/uc"
-	"github.com/compozy/compozy/engine/resourceutil"
+	resourceutil "github.com/compozy/compozy/engine/resources/utils"
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	defaultKnowledgeLimit = 50
+	maxKnowledgeLimit     = 500
 )
 
 // listKnowledgeBases handles GET /knowledge-bases.
@@ -41,7 +46,7 @@ func listKnowledgeBases(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
+	limit := router.LimitOrDefault(c, c.Query("limit"), defaultKnowledgeLimit, maxKnowledgeLimit)
 	cursor, err := router.DecodeCursor(c.Query("cursor"))
 	if err != nil {
 		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})

@@ -81,7 +81,7 @@ type CollectionExpander interface {
 		workflowConfig *workflow.Config,
 	) (*ExpansionResult, error)
 	// ValidateExpansion validates the expansion result
-	ValidateExpansion(result *ExpansionResult) error
+	ValidateExpansion(ctx context.Context, result *ExpansionResult) error
 }
 
 // -----------------------------------------------------------------------------

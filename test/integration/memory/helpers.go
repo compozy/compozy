@@ -41,10 +41,9 @@ type TestEnvironment struct {
 // NewTestEnvironment creates a new test environment with all required dependencies
 func NewTestEnvironment(t *testing.T) *TestEnvironment {
 	t.Helper()
-	ctx := context.Background()
 	log := logger.NewForTests()
 	env := &TestEnvironment{
-		ctx:     ctx,
+		ctx:     t.Context(),
 		logger:  log,
 		cleanup: []func(){},
 	}
@@ -73,7 +72,7 @@ func (env *TestEnvironment) setupRedis(t *testing.T) {
 		DB:   0,
 	})
 	// Test connection
-	ctx, cancel := context.WithTimeout(env.ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	err = env.redis.Ping(ctx).Err()
 	require.NoError(t, err, "Failed to connect to miniredis")
@@ -166,8 +165,8 @@ func (env *TestEnvironment) GetConfigRegistry() *autoload.ConfigRegistry {
 }
 
 // RegisterMemoryConfig registers a memory configuration for testing
-func (env *TestEnvironment) RegisterMemoryConfig(config *memory.Config) error {
-	if err := config.Validate(); err != nil {
+func (env *TestEnvironment) RegisterMemoryConfig(ctx context.Context, config *memory.Config) error {
+	if err := config.Validate(ctx); err != nil {
 		return fmt.Errorf("failed to validate config %s: %w", config.ID, err)
 	}
 	return env.configRegistry.Register(config, "test")
@@ -242,7 +241,7 @@ func (env *TestEnvironment) addTestMemoryConfigs() {
 	}
 	for _, tc := range testConfigs {
 		// Validate config to set ParsedTTL
-		if err := tc.config.Validate(); err != nil {
+		if err := tc.config.Validate(env.ctx); err != nil {
 			panic(fmt.Sprintf("Failed to validate test config %s: %v", tc.config.ID, err))
 		}
 		err := env.configRegistry.Register(tc.config, "test")

@@ -39,7 +39,7 @@ func SetupTestReposWithRetry(ctx context.Context, t *testing.T, config ...RetryC
 
 	for attempt := 1; attempt <= retryConfig.MaxAttempts; attempt++ {
 		// Try to create test container
-		pool, cleanup, err := trySetupTestContainer(ctx, t)
+		pool, cleanup, err := trySetupTestContainer(t)
 		if err == nil {
 			// Success! Log if we had to retry
 			if attempt > 1 {
@@ -74,11 +74,11 @@ func SetupTestReposWithRetry(ctx context.Context, t *testing.T, config ...RetryC
 }
 
 // trySetupTestContainer attempts to get the shared container and returns pool, cleanup, and error
-func trySetupTestContainer(ctx context.Context, t *testing.T) (*pgxpool.Pool, func(), error) {
+func trySetupTestContainer(t *testing.T) (*pgxpool.Pool, func(), error) {
 	// Use shared container pattern for better performance
-	pool, cleanup := GetSharedPostgresDB(ctx, t)
+	pool, cleanup := GetSharedPostgresDB(t)
 	// Test the connection
-	if err := pool.Ping(ctx); err != nil {
+	if err := pool.Ping(t.Context()); err != nil {
 		// Clean up on failure
 		if cleanup != nil {
 			cleanup()
@@ -90,15 +90,14 @@ func trySetupTestContainer(ctx context.Context, t *testing.T) (*pgxpool.Pool, fu
 
 // RunWithTestRepos is a helper that sets up test repos with retry and runs a test function
 func RunWithTestRepos(t *testing.T, testFunc func(ctx context.Context, pool *pgxpool.Pool)) {
-	ctx := context.Background()
-
-	pool, cleanup, err := SetupTestReposWithRetry(ctx, t)
+	t.Helper()
+	pool, cleanup, err := SetupTestReposWithRetry(t.Context(), t)
 	if err != nil {
 		t.Fatalf("Failed to set up test repositories: %v", err)
 	}
 	defer cleanup()
 
-	testFunc(ctx, pool)
+	testFunc(t.Context(), pool)
 }
 
 // TestContainerHealthCheck performs additional health checks on the test container

@@ -1,7 +1,6 @@
 package uc
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/memory"
@@ -33,7 +32,7 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		}
 
 		// Validate and register config
-		err := testConfig.Validate()
+		err := testConfig.Validate(t.Context())
 		require.NoError(t, err)
 		err = setup.ConfigRegistry.Register(testConfig, "test")
 		require.NoError(t, err)
@@ -43,7 +42,7 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		// Execute stats operation
-		ctx := context.Background()
+		ctx := t.Context()
 		input := StatsMemoryInput{
 			MemoryRef: "test_memory",
 			Key:       "test_key",
@@ -77,7 +76,7 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		}
 
 		// Validate and register config
-		err := testConfig.Validate()
+		err := testConfig.Validate(t.Context())
 		require.NoError(t, err)
 		err = setup.ConfigRegistry.Register(testConfig, "test")
 		require.NoError(t, err)
@@ -87,7 +86,7 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		// Execute stats operation
-		ctx := context.Background()
+		ctx := t.Context()
 		input := StatsMemoryInput{
 			MemoryRef: "test_memory_no_limit",
 			Key:       "test_key",
@@ -121,7 +120,7 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		}
 
 		// Validate and register config
-		err := testConfig.Validate()
+		err := testConfig.Validate(t.Context())
 		require.NoError(t, err)
 		err = setup.ConfigRegistry.Register(testConfig, "test")
 		require.NoError(t, err)
@@ -129,7 +128,7 @@ func TestStatsMemory_TokenLimitFromConfig(t *testing.T) {
 		// Create memory service and append some messages
 		memService, err := service.NewMemoryOperationsService(setup.Manager, nil, nil, nil, nil)
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Append a message to generate some token count
 		appendReq := &service.AppendRequest{

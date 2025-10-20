@@ -220,7 +220,8 @@ func TestErrorFormatting(t *testing.T) {
 func TestWithContext(t *testing.T) {
 	t.Run("Should respect context cancellation", func(t *testing.T) {
 		// Create a context that will be canceled
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
 
 		// Create mock client
 		mockClient := clitesting.NewMockAPIClient()

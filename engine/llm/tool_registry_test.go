@@ -27,10 +27,14 @@ func TestToolRegistry_AllowedMCPFiltering(t *testing.T) {
 		})
 		defer srv.Close()
 
-		client := mcp.NewProxyClient(srv.URL, 2*time.Second)
-		reg := NewToolRegistry(ToolRegistryConfig{ProxyClient: client, CacheTTL: 1 * time.Millisecond})
+		client := mcp.NewProxyClient(t.Context(), srv.URL, 2*time.Second)
+		reg, err := NewToolRegistry(
+			t.Context(),
+			ToolRegistryConfig{ProxyClient: client, CacheTTL: 1 * time.Millisecond},
+		)
+		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 		tools, err := reg.ListAll(ctx)
 		require.NoError(t, err)
@@ -45,21 +49,22 @@ func TestToolRegistry_AllowedMCPFiltering(t *testing.T) {
 		})
 		defer srv.Close()
 
-		client := mcp.NewProxyClient(srv.URL, 2*time.Second)
-		reg := NewToolRegistry(ToolRegistryConfig{
+		client := mcp.NewProxyClient(t.Context(), srv.URL, 2*time.Second)
+		reg, err := NewToolRegistry(t.Context(), ToolRegistryConfig{
 			ProxyClient:     client,
 			CacheTTL:        1 * time.Millisecond,
 			AllowedMCPNames: []string{"mcp2"},
 		})
+		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 		tools, err := reg.ListAll(ctx)
 		require.NoError(t, err)
 		names := namesOf(tools)
 		assert.ElementsMatch(t, []string{"y-analyze"}, names)
 
-		// Verify tools through ListAll results instead of using internal Find method
+		// Verify filtering via ListAll; dedicated deny-list tests cover Find semantics.
 		foundYAnalyze := false
 		foundXSearch := false
 		for _, tool := range tools {
@@ -81,14 +86,15 @@ func TestToolRegistry_AllowedMCPFiltering(t *testing.T) {
 		})
 		defer srv.Close()
 
-		client := mcp.NewProxyClient(srv.URL, 2*time.Second)
-		reg := NewToolRegistry(ToolRegistryConfig{
+		client := mcp.NewProxyClient(t.Context(), srv.URL, 2*time.Second)
+		reg, err := NewToolRegistry(t.Context(), ToolRegistryConfig{
 			ProxyClient:    client,
 			CacheTTL:       1 * time.Millisecond,
 			DeniedMCPNames: []string{"mcp2"},
 		})
+		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
 		tools, err := reg.ListAll(ctx)
@@ -106,15 +112,16 @@ func TestToolRegistry_AllowedMCPFiltering(t *testing.T) {
 		})
 		defer srv.Close()
 
-		client := mcp.NewProxyClient(srv.URL, 2*time.Second)
-		reg := NewToolRegistry(ToolRegistryConfig{
+		client := mcp.NewProxyClient(t.Context(), srv.URL, 2*time.Second)
+		reg, err := NewToolRegistry(t.Context(), ToolRegistryConfig{
 			ProxyClient:     client,
 			CacheTTL:        1 * time.Millisecond,
 			AllowedMCPNames: []string{"mcp1", "mcp2"},
 			DeniedMCPNames:  []string{"mcp1"},
 		})
+		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
 		tools, err := reg.ListAll(ctx)
@@ -135,15 +142,16 @@ func TestToolRegistry_FindBackgroundRefresh(t *testing.T) {
 	dynamic := newDynamicToolsServer(t, initial)
 	clock := newFakeClock(time.Unix(0, 0))
 
-	client := mcp.NewProxyClient(dynamic.URL(), 2*time.Second)
-	reg := NewToolRegistry(ToolRegistryConfig{
+	client := mcp.NewProxyClient(t.Context(), dynamic.URL(), 2*time.Second)
+	reg, err := NewToolRegistry(t.Context(), ToolRegistryConfig{
 		ProxyClient: client,
 		CacheTTL:    1 * time.Minute,
 	})
+	require.NoError(t, err)
 	regImpl := reg.(*toolRegistry)
 	regImpl.now = clock.Now
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	tool, ok := reg.Find(ctx, "tool-a")
@@ -180,15 +188,16 @@ func TestToolRegistry_FindRefreshesOnStaleMiss(t *testing.T) {
 	dynamic := newDynamicToolsServer(t, initial)
 	clock := newFakeClock(time.Unix(0, 0))
 
-	client := mcp.NewProxyClient(dynamic.URL(), 2*time.Second)
-	reg := NewToolRegistry(ToolRegistryConfig{
+	client := mcp.NewProxyClient(t.Context(), dynamic.URL(), 2*time.Second)
+	reg, err := NewToolRegistry(t.Context(), ToolRegistryConfig{
 		ProxyClient: client,
 		CacheTTL:    30 * time.Second,
 	})
+	require.NoError(t, err)
 	regImpl := reg.(*toolRegistry)
 	regImpl.now = clock.Now
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	_, ok := reg.Find(ctx, "tool-a")
@@ -204,6 +213,35 @@ func TestToolRegistry_FindRefreshesOnStaleMiss(t *testing.T) {
 	require.True(t, ok, "expected synchronous refresh to find new tool")
 	require.Equal(t, "tool-b", tool.Name())
 	require.GreaterOrEqual(t, dynamic.Hits(), 2)
+}
+
+func TestToolRegistry_InvalidateCacheClearsIndex(t *testing.T) {
+	dynamic := newDynamicToolsServer(t, []mcp.ToolDefinition{
+		{Name: "alpha", Description: "A", MCPName: "mcp-one"},
+	})
+
+	client := mcp.NewProxyClient(t.Context(), dynamic.URL(), 2*time.Second)
+	reg, err := NewToolRegistry(t.Context(), ToolRegistryConfig{
+		ProxyClient: client,
+		CacheTTL:    time.Minute,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+
+	tool, ok := reg.Find(ctx, "alpha")
+	require.True(t, ok, "expected to resolve initial MCP tool")
+	require.Equal(t, "alpha", tool.Name())
+
+	dynamic.Set([]mcp.ToolDefinition{
+		{Name: "beta", Description: "B", MCPName: "mcp-one"},
+	})
+	reg.InvalidateCache(ctx)
+
+	tool, ok = reg.Find(ctx, "beta")
+	require.True(t, ok, "expected lookup to find refreshed tool after cache invalidation")
+	require.Equal(t, "beta", tool.Name())
 }
 
 func makeToolsServer(t *testing.T, defs []mcp.ToolDefinition) *httptest.Server {

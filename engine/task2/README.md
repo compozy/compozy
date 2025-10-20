@@ -310,7 +310,7 @@ successNormalizer := factory.CreateSuccessTransitionNormalizer()
 errorNormalizer := factory.CreateErrorTransitionNormalizer()
 
 // Create domain services
-collectionExpander := factory.CreateCollectionExpander()
+collectionExpander := factory.CreateCollectionExpander(ctx)
 cwd, _ := core.CWDFromPath("/path/to/project")
 configRepo, err := factory.CreateTaskConfigRepository(configStore, cwd)
 if err != nil {
@@ -609,7 +609,7 @@ type Factory interface {
     CreateSuccessTransitionNormalizer() *core.SuccessTransitionNormalizer
     CreateErrorTransitionNormalizer() *core.ErrorTransitionNormalizer
     CreateOutputTransformer() *core.OutputTransformer
-    CreateCollectionExpander() shared.CollectionExpander
+    CreateCollectionExpander(ctx context.Context) shared.CollectionExpander
     CreateTaskConfigRepository(configStore core.ConfigStore, cwd *core.PathCWD) (shared.TaskConfigRepository, error)
 }
 ```
@@ -685,7 +685,7 @@ task.TaskTypeAggregate  // Aggregate operations
 
 ```go
 type TaskNormalizer interface {
-    Normalize(config *task.Config, ctx *shared.NormalizationContext) error
+    Normalize(ctx context.Context, config *task.Config, normCtx contracts.NormalizationContext) error
 }
 ```
 

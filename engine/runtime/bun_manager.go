@@ -1,12 +1,14 @@
 package runtime
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -28,6 +30,11 @@ import (
 
 //go:embed bun/worker.tpl.ts
 var bunWorkerTemplate string
+
+const (
+	defaultEntrypointFileName = "default_entrypoint.ts"
+	defaultEntrypointStub     = "export default {}\n"
+)
 
 // Constants for security and performance limits
 const (
@@ -169,6 +176,8 @@ func (bm *BunManager) ExecuteTool(
 }
 
 // ExecuteToolWithTimeout runs a tool with a custom timeout
+//
+//nolint:funlen // legacy implementation with detailed error handling; refactor separately
 func (bm *BunManager) ExecuteToolWithTimeout(
 	ctx context.Context,
 	toolID string,
@@ -177,17 +186,39 @@ func (bm *BunManager) ExecuteToolWithTimeout(
 	config *core.Input,
 	env core.EnvMap,
 	timeout time.Duration,
-) (*core.Output, error) {
+) (_ *core.Output, err error) {
 	log := logger.FromContext(ctx)
+	start := time.Now()
+
+	defer func() {
+		outcome := outcomeSuccess
+		if err != nil {
+			switch {
+			case errors.Is(err, context.DeadlineExceeded):
+				outcome = outcomeTimeout
+				recordToolTimeout(ctx, toolID)
+				recordToolError(ctx, toolID, errorKindTimeout)
+			default:
+				outcome = outcomeError
+				if kind, ok := extractToolErrorKind(err); ok {
+					recordToolError(ctx, toolID, kind)
+				} else {
+					recordToolError(ctx, toolID, errorKindUnknown)
+				}
+			}
+		}
+		recordToolExecution(ctx, toolID, time.Since(start), outcome)
+	}()
 
 	// Validate inputs
-	if err := bm.validateInputs(toolID, toolExecID, input, env); err != nil {
-		return nil, &ToolExecutionError{
+	if validationErr := bm.validateInputs(toolID, toolExecID, input, env); validationErr != nil {
+		err = &ToolExecutionError{
 			ToolID:     toolID,
 			ToolExecID: toolExecID.String(),
 			Operation:  "validate inputs",
-			Err:        err,
+			Err:        wrapToolError(validationErr, errorKindStart),
 		}
+		return nil, err
 	}
 
 	// Create execution context with timeout
@@ -206,23 +237,26 @@ func (bm *BunManager) ExecuteToolWithTimeout(
 
 	requestData, err := json.Marshal(request)
 	if err != nil {
-		return nil, &ToolExecutionError{
+		err = &ToolExecutionError{
 			ToolID:     toolID,
 			ToolExecID: toolExecID.String(),
 			Operation:  "marshal request",
-			Err:        err,
+			Err:        wrapToolError(err, errorKindStart),
 		}
+		return nil, err
 	}
 
 	// Execute tool
-	response, err := bm.executeBunWorker(execCtx, requestData, env)
+	var response *core.Output
+	response, err = bm.executeBunWorker(execCtx, toolID, requestData, env)
 	if err != nil {
-		return nil, &ToolExecutionError{
+		err = &ToolExecutionError{
 			ToolID:     toolID,
 			ToolExecID: toolExecID.String(),
 			Operation:  "execute",
 			Err:        err,
 		}
+		return nil, err
 	}
 
 	log.Debug("Tool executed successfully",
@@ -239,36 +273,49 @@ func (bm *BunManager) GetGlobalTimeout() time.Duration {
 }
 
 // executeBunWorker executes the Bun worker with the given request data
-func (bm *BunManager) executeBunWorker(ctx context.Context, requestData []byte, env core.EnvMap) (*core.Output, error) {
+func (bm *BunManager) executeBunWorker(
+	ctx context.Context,
+	toolID string,
+	requestData []byte,
+	env core.EnvMap,
+) (*core.Output, error) {
 	// Create and configure command
 	cmd, err := bm.createBunCommand(ctx, env)
 	if err != nil {
-		return nil, err
+		return nil, wrapToolError(err, errorKindStart)
 	}
 	// Set up process pipes
 	stdin, stdout, stderr, err := bm.setupProcessPipes(cmd)
 	if err != nil {
-		return nil, err
+		if _, ok := extractToolErrorKind(err); ok {
+			return nil, err
+		}
+		return nil, wrapToolError(err, errorKindStart)
 	}
 	// Start the process
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start bun process: %w", err)
+		return nil, wrapToolError(fmt.Errorf("failed to start bun process: %w", err), errorKindStart)
 	}
 	// Write request data to stdin
 	if err := bm.writeRequestToStdin(ctx, stdin, requestData); err != nil {
-		return nil, err
+		return nil, wrapToolError(err, errorKindStdin)
 	}
 	// Read stderr and stdout concurrently
-	stderrBuf, stderrWg := bm.readStderrInBackground(ctx, stderr)
-	response, err := bm.readStdoutResponse(stdout)
+	stderrBuf, stderrWg := bm.readStderrInBackground(ctx, toolID, stderr)
+	responseBuf, err := bm.readStdoutResponse(ctx, toolID, stdout)
 	if err != nil {
-		return nil, err
+		return nil, wrapToolError(err, errorKindStdout)
 	}
+	defer releaseBuffer(responseBuf)
 	// Wait for process completion and stderr reading
-	if err := bm.waitForProcessCompletion(ctx, cmd, stderrWg, stderrBuf); err != nil {
+	if err := bm.waitForProcessCompletion(ctx, toolID, cmd, stderrWg, stderrBuf); err != nil {
 		return nil, err
 	}
-	return bm.parseToolResponse(response)
+	output, err := bm.parseToolResponse(responseBuf.Bytes())
+	if err != nil {
+		return nil, wrapToolError(err, errorKindParse)
+	}
+	return output, nil
 }
 
 // createBunCommand creates and configures the Bun command with environment variables
@@ -324,26 +371,26 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 func (bm *BunManager) setupProcessPipes(cmd *exec.Cmd) (io.WriteCloser, io.ReadCloser, io.ReadCloser, error) {
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create stdin pipe: %w", err)
+		return nil, nil, nil, wrapToolError(fmt.Errorf("failed to create stdin pipe: %w", err), errorKindStdin)
 	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+		return nil, nil, nil, wrapToolError(fmt.Errorf("failed to create stdout pipe: %w", err), errorKindStdout)
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create stderr pipe: %w", err)
+		return nil, nil, nil, wrapToolError(fmt.Errorf("failed to create stderr pipe: %w", err), errorKindStderr)
 	}
 
 	return stdin, stdout, stderr, nil
 }
 
 // parseToolResponse parses the tool response and handles different response types
-func (bm *BunManager) parseToolResponse(response string) (*core.Output, error) {
-	response = strings.TrimSpace(response)
-	if response == "" {
+func (bm *BunManager) parseToolResponse(response []byte) (*core.Output, error) {
+	response = bytes.TrimSpace(response)
+	if len(response) == 0 {
 		return &core.Output{}, nil
 	}
 
@@ -354,13 +401,13 @@ func (bm *BunManager) parseToolResponse(response string) (*core.Output, error) {
 		Metadata any `json:"metadata"`
 	}
 
-	if err := json.Unmarshal([]byte(response), &toolResponse); err != nil {
+	if err := json.Unmarshal(response, &toolResponse); err != nil {
 		// If JSON parsing fails, this indicates a problem with the worker or tool
 		// Log the non-JSON response for debugging but return an error
 		const maxResponseLength = 512
-		truncatedResponse := response
-		if len(response) > maxResponseLength {
-			truncatedResponse = response[:maxResponseLength] + "..."
+		truncatedResponse := string(response)
+		if len(truncatedResponse) > maxResponseLength {
+			truncatedResponse = truncatedResponse[:maxResponseLength] + "..."
 		}
 		return nil, fmt.Errorf(
 			"tool produced non-JSON output, indicating a potential error or malformed response: %s",
@@ -409,112 +456,119 @@ func (bm *BunManager) writeRequestToStdin(ctx context.Context, stdin io.WriteClo
 // readStderrInBackground starts a goroutine to read stderr for logging and error capture
 func (bm *BunManager) readStderrInBackground(
 	ctx context.Context,
+	toolID string,
 	stderr io.ReadCloser,
 ) (*bytes.Buffer, *sync.WaitGroup) {
 	var stderrBuf bytes.Buffer
-	stderrBuf.Grow(64 * 1024) // pre-allocate small buffer to reduce reallocs
+	maxCapture := bm.config.MaxStderrCaptureSize
+	if maxCapture == 0 {
+		maxCapture = MaxStderrCaptureSize
+	}
+	prealloc := maxCapture
+	if prealloc == 0 || prealloc > 64*1024 {
+		prealloc = 64 * 1024
+	}
+	stderrBuf.Grow(prealloc)
 	var stderrWg sync.WaitGroup
-	stderrWg.Go(func() {
+	stderrWg.Add(1)
+	go func() {
+		defer stderrWg.Done()
 		log := logger.FromContext(ctx)
-		// Use a small buffer for real-time reading
-		buf := make([]byte, 256) // Small buffer for immediate reads
-		var lineBuf bytes.Buffer
-		var captured int
-		maxCapture := bm.config.MaxStderrCaptureSize
-		if maxCapture == 0 {
-			maxCapture = MaxStderrCaptureSize // Use constant as fallback
+		bufferSize := 64 * 1024
+		if maxCapture > bufferSize {
+			bufferSize = maxCapture
 		}
-		for {
-			// Read with small buffer for immediate output
-			n, err := stderr.Read(buf)
-			if n > 0 {
-				// Process the bytes we just read
-				for i := range n {
-					b := buf[i]
-					lineBuf.WriteByte(b)
-					// When we hit a newline, process the complete line
-					if b == '\n' {
-						line := strings.TrimRight(lineBuf.String(), "\r\n")
-						if line != "" {
-							// Log immediately with redaction
-							log.Debug("Bun worker stderr", "output", core.RedactString(line))
-							// Capture for error context
-							if captured < maxCapture {
-								remaining := maxCapture - captured
-								toWrite := line + "\n"
-								if len(toWrite) > remaining {
-									toWrite = toWrite[:remaining]
-								}
-								stderrBuf.WriteString(toWrite)
-								captured += len(toWrite)
-							}
-						}
-						lineBuf.Reset()
-					}
+		if bufferSize < 4096 {
+			bufferSize = 4096
+		}
+		scanner := bufio.NewScanner(stderr)
+		scanner.Buffer(make([]byte, 0, bufferSize), bufferSize)
+		captured := 0
+		for scanner.Scan() {
+			line := strings.TrimRight(scanner.Text(), "\r\n")
+			if line == "" {
+				continue
+			}
+			log.Debug("Bun worker stderr", "output", core.RedactString(line))
+			if captured < maxCapture {
+				remaining := maxCapture - captured
+				if remaining <= 0 {
+					continue
+				}
+				writeLen := len(line)
+				if writeLen > remaining {
+					writeLen = remaining
+				}
+				if writeLen > 0 {
+					stderrBuf.WriteString(line[:writeLen])
+					captured += writeLen
+				}
+				if captured < maxCapture {
+					stderrBuf.WriteByte('\n')
+					captured++
 				}
 			}
-			if err != nil {
-				// Process any remaining data in lineBuf
-				if lineBuf.Len() > 0 {
-					line := strings.TrimRight(lineBuf.String(), "\r\n")
-					if line != "" {
-						log.Debug("Bun worker stderr", "output", core.RedactString(line))
-						if captured < maxCapture {
-							remaining := maxCapture - captured
-							toWrite := line + "\n"
-							if len(toWrite) > remaining {
-								toWrite = toWrite[:remaining]
-							}
-							stderrBuf.WriteString(toWrite)
-							// No need to update captured here as we're breaking
-						}
-					}
-				}
-				break // EOF or error
-			}
 		}
-	})
+		if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) {
+			log.Warn("stderr read error", "error", err)
+			recordToolError(ctx, toolID, errorKindStderr)
+		}
+	}()
 	return &stderrBuf, &stderrWg
 }
 
 // readStdoutResponse reads the response from stdout with size limiting
-func (bm *BunManager) readStdoutResponse(stdout io.ReadCloser) (string, error) {
+func (bm *BunManager) readStdoutResponse(
+	ctx context.Context,
+	toolID string,
+	stdout io.ReadCloser,
+) (*bytes.Buffer, error) {
 	raw := bufferPool.Get()
 	buf, ok := raw.(*bytes.Buffer)
 	if !ok {
 		// Safe fallback if pool returns unexpected type
-		buf = bytes.NewBuffer(make([]byte, 0, 1024))
-	}
-	defer func() {
+		buf = bytes.NewBuffer(make([]byte, 0, InitialBufferSize))
+	} else {
 		buf.Reset()
-		bufferPool.Put(buf)
-	}()
+	}
 
 	// Use LimitReader to prevent memory exhaustion from malicious tools
 	limitedReader := io.LimitReader(stdout, MaxOutputSize+1) // Read one extra byte to detect overflow
 	bytesRead, err := io.Copy(buf, limitedReader)
 	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
+		releaseBuffer(buf)
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	// Check if output exceeded the size limit
 	if bytesRead > MaxOutputSize {
-		return "", fmt.Errorf("tool output exceeds maximum size limit of %d bytes", MaxOutputSize)
+		releaseBuffer(buf)
+		return nil, fmt.Errorf("tool output exceeds maximum size limit of %d bytes", MaxOutputSize)
 	}
 
-	return buf.String(), nil
+	recordToolOutputSize(ctx, toolID, int(bytesRead))
+	return buf, nil
+}
+
+func releaseBuffer(buf *bytes.Buffer) {
+	if buf == nil {
+		return
+	}
+	buf.Reset()
+	bufferPool.Put(buf)
 }
 
 // waitForProcessCompletion waits for the process to complete and handles errors
 func (bm *BunManager) waitForProcessCompletion(
 	ctx context.Context,
+	toolID string,
 	cmd *exec.Cmd,
 	stderrWg *sync.WaitGroup,
 	stderrBuf *bytes.Buffer,
 ) error {
 	// Check for context cancellation first
 	if ctx.Err() != nil {
-		return fmt.Errorf("bun process canceled: %w", ctx.Err())
+		return wrapToolError(fmt.Errorf("bun process canceled: %w", ctx.Err()), errorKindTimeout)
 	}
 
 	// Wait for process to complete
@@ -526,50 +580,48 @@ func (bm *BunManager) waitForProcessCompletion(
 	if waitErr != nil {
 		// Try to enrich error with exit status
 		exitCode := -1 // Default to -1 for unknown exit status
+		statusKind := processStatusExit
+		signalName := ""
 		if exitErr, ok := waitErr.(*exec.ExitError); ok {
 			// Extract status info
 			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
 				exitCode = status.ExitStatus()
 				if status.Signaled() {
 					sig := status.Signal()
-					// Common case: SIGKILL (9) → often OOM killer
+					statusKind = processStatusSignal
+					signalName = sig.String()
+
+					baseMessage := fmt.Sprintf("bun process for tool %s failed (signal: %s)", toolID, signalName)
 					if sig == syscall.SIGKILL {
-						if stderrOutput := stderrBuf.String(); stderrOutput != "" {
-							return fmt.Errorf(
-								"bun process failed: %w (signal: KILL)\npossible OOM or external kill; captured stderr (truncated):\n%s",
-								waitErr,
-								stderrOutput,
-							)
-						}
-						return fmt.Errorf(
-							"bun process failed: %w (signal: KILL) - possible OOM or external kill",
-							waitErr,
-						)
+						baseMessage += " - possible OOM or external kill"
 					}
 					if stderrOutput := stderrBuf.String(); stderrOutput != "" {
-						return fmt.Errorf(
-							"bun process failed: %w (signal: %s)\nstderr (truncated):\n%s",
-							waitErr,
-							sig.String(),
-							stderrOutput,
-						)
+						baseMessage = fmt.Sprintf("%s\nstderr (truncated):\n%s", baseMessage, stderrOutput)
 					}
-					return fmt.Errorf("bun process failed: %w (signal: %s)", waitErr, sig.String())
+
+					recordProcessExit(ctx, statusKind, exitCode, signalName)
+					return wrapToolError(fmt.Errorf("%s: %w", baseMessage, waitErr), errorKindWait)
 				}
 			}
 		}
+		recordProcessExit(ctx, statusKind, exitCode, signalName)
 		// Include stderr output in error for debugging
 		if stderrOutput := stderrBuf.String(); stderrOutput != "" {
-			return fmt.Errorf(
-				"bun process failed (exit %d): %w\nstderr (truncated): %s",
+			return wrapToolError(fmt.Errorf(
+				"bun process for tool %s failed (exit %d): %w\nstderr (truncated): %s",
+				toolID,
 				exitCode,
 				waitErr,
 				stderrOutput,
-			)
+			), errorKindWait)
 		}
-		return fmt.Errorf("bun process failed (exit %d): %w", exitCode, waitErr)
+		return wrapToolError(
+			fmt.Errorf("bun process for tool %s failed (exit %d): %w", toolID, exitCode, waitErr),
+			errorKindWait,
+		)
 	}
 
+	recordProcessExit(ctx, processStatusExit, 0, "")
 	return nil
 }
 
@@ -690,22 +742,21 @@ func (bm *BunManager) compileBunWorker() error {
 
 	workerPath := filepath.Join(compozyDir, "bun_worker.ts")
 
-	// Generate worker content with entrypoint path
-	entrypointPath := bm.config.EntrypointPath
-	if entrypointPath == "" {
-		entrypointPath = "./tools.ts" // Default entrypoint
+	entrypointPath := strings.TrimSpace(bm.config.EntrypointPath)
+	importPath := entrypointPath
+
+	// Generate a minimal stub when no entrypoint is provided so the runtime
+	// remains operable without user-defined TypeScript tools.
+	if importPath == "" {
+		if err := bm.ensureDefaultEntrypoint(compozyDir); err != nil {
+			return err
+		}
+		importPath = "./" + defaultEntrypointFileName
+	} else {
+		importPath = toWorkerRelativeImport(compozyDir, importPath)
 	}
 
-	// Adjust entrypoint path to be relative to the worker location (.compozy directory)
-	// If the path starts with "./" it needs to be "../" to go up one level
-	if strings.HasPrefix(entrypointPath, "./") {
-		entrypointPath = "../" + entrypointPath[2:]
-	} else if !strings.HasPrefix(entrypointPath, "/") && !strings.HasPrefix(entrypointPath, "../") {
-		// If it's a relative path without prefix, make it relative to parent
-		entrypointPath = "../" + entrypointPath
-	}
-
-	workerContent := strings.ReplaceAll(bunWorkerTemplate, "{{.EntrypointPath}}", entrypointPath)
+	workerContent := strings.ReplaceAll(bunWorkerTemplate, "{{.EntrypointPath}}", importPath)
 
 	// Write worker file using configured permissions
 	if err := os.WriteFile(workerPath, []byte(workerContent), bm.config.WorkerFilePerm); err != nil {
@@ -713,6 +764,51 @@ func (bm *BunManager) compileBunWorker() error {
 	}
 
 	return nil
+}
+
+func (bm *BunManager) ensureDefaultEntrypoint(storeDir string) error {
+	fallbackPath := filepath.Join(storeDir, defaultEntrypointFileName)
+	if _, err := os.Stat(fallbackPath); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to stat default entrypoint: %w", err)
+	}
+	if err := os.WriteFile(fallbackPath, []byte(defaultEntrypointStub), bm.config.WorkerFilePerm); err != nil {
+		return fmt.Errorf("failed to write default entrypoint: %w", err)
+	}
+	return nil
+}
+
+func toWorkerRelativeImport(baseDir, entrypointPath string) string {
+	p := strings.TrimSpace(entrypointPath)
+	if p == "" {
+		return ""
+	}
+	// Keep bare module specifiers (no separator and not starting with '.')
+	if !strings.HasPrefix(p, ".") && !strings.ContainsAny(p, `/\`) {
+		return p
+	}
+	// Absolute: compute path relative to the worker dir
+	if filepath.IsAbs(p) {
+		if rel, err := filepath.Rel(baseDir, p); err == nil {
+			p = rel
+		} else {
+			return filepath.ToSlash(p)
+		}
+	}
+	// Project-root relative forms → make worker-relative
+	if strings.HasPrefix(p, "./") {
+		p = "../" + strings.TrimPrefix(p, "./")
+	} else if !strings.HasPrefix(p, "../") && strings.ContainsAny(p, `/\`) {
+		// e.g. "src/index.ts"
+		p = "../" + p
+	}
+	posix := filepath.ToSlash(p)
+	// Ensure file imports are explicit relative (not bare)
+	if !strings.HasPrefix(posix, "./") && !strings.HasPrefix(posix, "../") {
+		posix = "./" + posix
+	}
+	return posix
 }
 
 // IsBunAvailable checks if Bun executable is available in PATH

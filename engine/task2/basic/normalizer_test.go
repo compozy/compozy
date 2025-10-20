@@ -17,7 +17,7 @@ func TestBasicNormalizer_Type(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		normalizer := basic.NewNormalizer(templateEngine)
+		normalizer := basic.NewNormalizer(t.Context(), templateEngine)
 
 		// Act
 		taskType := normalizer.Type()
@@ -31,7 +31,7 @@ func TestBasicNormalizer_Integration(t *testing.T) {
 	t.Run("Should be based on BaseNormalizer", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		normalizer := basic.NewNormalizer(templateEngine)
+		normalizer := basic.NewNormalizer(t.Context(), templateEngine)
 
 		// Assert
 		require.NotNil(t, normalizer)
@@ -44,13 +44,13 @@ func TestBasicNormalizer_Integration(t *testing.T) {
 
 func TestBasicNormalizer_Normalize_ErrorHandling(t *testing.T) {
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-	normalizer := basic.NewNormalizer(templateEngine)
+	normalizer := basic.NewNormalizer(t.Context(), templateEngine)
 
 	t.Run("Should handle nil config gracefully", func(t *testing.T) {
 		// Arrange
 		ctx := &shared.NormalizationContext{}
 		// Act
-		err := normalizer.Normalize(nil, ctx)
+		err := normalizer.Normalize(t.Context(), nil, ctx)
 		// Assert
 		assert.NoError(t, err)
 	})
@@ -65,7 +65,7 @@ func TestBasicNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.ErrorContains(t, err, "basic normalizer cannot handle task type: collection")
 	})
@@ -84,7 +84,7 @@ func TestBasicNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.ErrorContains(t, err, "failed to normalize basic task config")
 	})
@@ -103,7 +103,7 @@ func TestBasicNormalizer_Normalize_ErrorHandling(t *testing.T) {
 
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.ErrorContains(t, err, "failed to convert task config to map")
 	})
@@ -126,7 +126,7 @@ func TestBasicNormalizer_Normalize_ErrorHandling(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "test-task", taskConfig.ID)
@@ -146,7 +146,7 @@ func TestBasicNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "", taskConfig.Action)
@@ -158,7 +158,7 @@ func TestBasicNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should handle nil template engine", func(t *testing.T) {
 		// Arrange
-		normalizer := basic.NewNormalizer(nil)
+		normalizer := basic.NewNormalizer(t.Context(), nil)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -167,14 +167,14 @@ func TestBasicNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert - Should return error instead of panicking
 		assert.ErrorContains(t, err, "template engine is required for normalization")
 	})
 
 	t.Run("Should handle empty task type for basic tasks", func(t *testing.T) {
 		// Arrange
-		normalizer := basic.NewNormalizer(templateEngine)
+		normalizer := basic.NewNormalizer(t.Context(), templateEngine)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "test-task",
@@ -183,14 +183,14 @@ func TestBasicNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 	})
 
 	t.Run("Should handle complex action templates", func(t *testing.T) {
 		// Arrange
-		normalizer := basic.NewNormalizer(templateEngine)
+		normalizer := basic.NewNormalizer(t.Context(), templateEngine)
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
 				ID:   "complex-task",
@@ -208,7 +208,7 @@ func TestBasicNormalizer_BoundaryConditions(t *testing.T) {
 			},
 		}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, "docker run nginx:latest", taskConfig.Action)
@@ -216,7 +216,7 @@ func TestBasicNormalizer_BoundaryConditions(t *testing.T) {
 
 	t.Run("Should preserve basic task configuration", func(t *testing.T) {
 		// Arrange
-		normalizer := basic.NewNormalizer(templateEngine)
+		normalizer := basic.NewNormalizer(t.Context(), templateEngine)
 		originalAction := "original-action"
 		taskConfig := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -229,7 +229,7 @@ func TestBasicNormalizer_BoundaryConditions(t *testing.T) {
 		}
 		ctx := &shared.NormalizationContext{Variables: make(map[string]any)}
 		// Act
-		err := normalizer.Normalize(taskConfig, ctx)
+		err := normalizer.Normalize(t.Context(), taskConfig, ctx)
 		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, originalAction, taskConfig.Action)

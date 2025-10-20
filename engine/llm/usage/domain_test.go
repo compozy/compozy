@@ -94,7 +94,6 @@ func TestSummaryValidateErrors(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			summary := &Summary{Entries: []Entry{tc.entry}}
 			err := summary.Validate()

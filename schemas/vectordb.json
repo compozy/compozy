@@ -1,5 +1,81 @@
 {
   "$defs": {
+    "PGVectorConfig": {
+      "additionalProperties": false,
+      "description": "PGVectorConfig exposes advanced tuning knobs for the pgvector provider.",
+      "properties": {
+        "index": {
+          "$ref": "#/$defs/PGVectorIndexConfig"
+        },
+        "pool": {
+          "$ref": "#/$defs/PGVectorPoolConfig"
+        },
+        "search": {
+          "$ref": "#/$defs/PGVectorSearchConfig"
+        }
+      },
+      "type": "object"
+    },
+    "PGVectorIndexConfig": {
+      "additionalProperties": false,
+      "description": "PGVectorIndexConfig tunes index creation for pgvector-backed stores.",
+      "properties": {
+        "ef_construction": {
+          "type": "integer"
+        },
+        "ef_search": {
+          "type": "integer"
+        },
+        "lists": {
+          "type": "integer"
+        },
+        "m": {
+          "type": "integer"
+        },
+        "probes": {
+          "type": "integer"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PGVectorPoolConfig": {
+      "additionalProperties": false,
+      "description": "PGVectorPoolConfig customizes pgxpool behavior for pgvector stores.",
+      "properties": {
+        "health_check_period": {
+          "type": "integer"
+        },
+        "max_conn_idle_time": {
+          "type": "integer"
+        },
+        "max_conn_lifetime": {
+          "type": "integer"
+        },
+        "max_conns": {
+          "type": "integer"
+        },
+        "min_conns": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "PGVectorSearchConfig": {
+      "additionalProperties": false,
+      "description": "PGVectorSearchConfig adjusts runtime search parameters for pgvector queries.",
+      "properties": {
+        "ef_search": {
+          "type": "integer"
+        },
+        "probes": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "VectorDBConnConfig": {
       "additionalProperties": false,
       "description": "VectorDBConnConfig defines connection and table options for a vector database.",
@@ -36,6 +112,9 @@
         },
         "path": {
           "type": "string"
+        },
+        "pgvector": {
+          "$ref": "#/$defs/PGVectorConfig"
         },
         "table": {
           "type": "string"

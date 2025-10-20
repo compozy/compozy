@@ -21,6 +21,8 @@ import (
 	"github.com/sethvargo/go-retry"
 )
 
+const maxScheduleRetryAttemptsCap = 1_000_000
+
 func setupWorker(
 	ctx context.Context,
 	deps appstate.BaseDeps,
@@ -132,19 +134,14 @@ func (s *Server) maybeStartWorker(
 
 func (s *Server) initializeScheduleManager(state *appstate.State, worker *worker.Worker, workflows []*workflow.Config) {
 	log := logger.FromContext(s.ctx)
-	var scheduleManager schedule.Manager
+	var opts []schedule.Option
 	if s.monitoring != nil && s.monitoring.IsInitialized() {
-		scheduleManager = schedule.NewManagerWithMetrics(
-			s.ctx,
-			worker.GetWorkerClient(),
-			state.ProjectConfig.Name,
-			s.monitoring.Meter(),
-		)
+		opts = append(opts, schedule.WithMetrics(s.ctx, s.monitoring.Meter()))
 		log.Debug("Schedule manager initialized with metrics")
 	} else {
-		scheduleManager = schedule.NewManager(worker.GetWorkerClient(), state.ProjectConfig.Name)
 		log.Debug("Schedule manager initialized without metrics")
 	}
+	scheduleManager := schedule.NewManager(worker.GetWorkerClient(), state.ProjectConfig.Name, opts...)
 	state.SetScheduleManager(scheduleManager)
 	go s.runReconciliationWithRetry(scheduleManager, workflows)
 }
@@ -167,7 +164,7 @@ func (s *Server) runReconciliationWithRetry(
 	backoff = retry.WithCappedDuration(cfg.Server.Timeouts.ScheduleRetryMaxDelay, backoff)
 	var policy = retry.WithMaxDuration(cfg.Server.Timeouts.ScheduleRetryMaxDuration, backoff)
 	if cfg.Server.Timeouts.ScheduleRetryMaxAttempts >= 1 {
-		attempts := min(cfg.Server.Timeouts.ScheduleRetryMaxAttempts, 1000000)
+		attempts := min(cfg.Server.Timeouts.ScheduleRetryMaxAttempts, maxScheduleRetryAttemptsCap)
 		policy = retry.WithMaxRetries(nonNegativeUint64(attempts), policy)
 	}
 	err := retry.Do(

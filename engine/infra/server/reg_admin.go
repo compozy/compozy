@@ -149,7 +149,7 @@ func resolveSourceMode(param string) string {
 func buildOpContext(ctx context.Context, mode string) (context.Context, error) {
 	base := config.ManagerFromContext(ctx)
 	if base == nil {
-		base = config.NewManager(config.NewService())
+		base = config.NewManager(ctx, config.NewService())
 		if _, err := base.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider()); err != nil {
 			return nil, err
 		}
@@ -161,7 +161,7 @@ func buildOpContext(ctx context.Context, mode string) (context.Context, error) {
 	}
 	sources := append(make([]config.Source, 0, len(baseSources)+1), baseSources...)
 	sources = append(sources, override)
-	cm := config.NewManager(base.Service)
+	cm := config.NewManager(ctx, base.Service)
 	if _, err := cm.Load(ctx, sources...); err != nil {
 		return nil, err
 	}

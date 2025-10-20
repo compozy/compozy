@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 	t.Run("Should use TokenProvider configuration from memory config", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create a memory configuration with TokenProvider
 		testConfig := &memory.Config{
@@ -39,7 +38,7 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 		}
 
 		// Validate and register config
-		err := testConfig.Validate()
+		err := testConfig.Validate(t.Context())
 		require.NoError(t, err)
 		err = env.configRegistry.Register(testConfig, "test")
 		require.NoError(t, err)
@@ -88,7 +87,7 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 	t.Run("Should use API key from environment variable in TokenProvider", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Set test API key in environment
 		t.Setenv("TEST_ANTHROPIC_API_KEY", "test-anthropic-key-123")
@@ -113,7 +112,7 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 		}
 
 		// Validate and register config
-		err := testConfig.Validate()
+		err := testConfig.Validate(t.Context())
 		require.NoError(t, err)
 		err = env.configRegistry.Register(testConfig, "test")
 		require.NoError(t, err)
@@ -150,7 +149,7 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 	t.Run("Should handle multiple providers in different memory configs", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 
 		providers := []struct {
 			id       string
@@ -181,7 +180,7 @@ func TestTokenProviderConfig_Integration(t *testing.T) {
 				},
 			}
 
-			err := config.Validate()
+			err := config.Validate(t.Context())
 			require.NoError(t, err)
 			err = env.configRegistry.Register(config, "test")
 			require.NoError(t, err)

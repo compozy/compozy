@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -13,7 +12,7 @@ import (
 
 func TestProject_IndexMemoriesToResourceStore(t *testing.T) {
 	t.Run("Should index project memories into the ResourceStore", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store := resources.NewMemoryResourceStore()
 
 		p := &Config{
@@ -61,7 +60,7 @@ func TestProject_ValidateMemories(t *testing.T) {
 			},
 		}
 
-		err = p.Validate()
+		err = p.Validate(t.Context())
 		require.NoError(t, err)
 	})
 }

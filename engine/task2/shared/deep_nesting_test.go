@@ -16,7 +16,7 @@ import (
 func TestDeepNesting_CollectionCompositeParallelBasic(t *testing.T) {
 	t.Run("Should build correct context for Collection -> Composite -> Parallel -> Basic nesting", func(t *testing.T) {
 		// Arrange - Create the 4-level deep nested structure with PROPER parent-child relationships
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Create task hierarchy: Collection contains Composite, which contains Parallel, which contains Basic
@@ -155,7 +155,7 @@ func TestDeepNesting_CollectionCompositeParallelBasic(t *testing.T) {
 
 		// Test 1: BuildParentContext from basic task should traverse up the runtime parent chain
 		t.Run("Should traverse 4-level parent chain from basic task", func(t *testing.T) {
-			result := builder.BuildParentContext(ctx, basicTask, 0)
+			result := builder.BuildParentContext(t.Context(), ctx, basicTask, 0)
 
 			require.NotNil(t, result)
 			assert.Equal(t, "basic-task", result[shared.IDKey])
@@ -196,7 +196,7 @@ func TestDeepNesting_CollectionCompositeParallelBasic(t *testing.T) {
 		// Test 2: BuildChildrenContext from collection task should traverse down the execution hierarchy
 		t.Run("Should traverse 4-level children hierarchy from collection task", func(t *testing.T) {
 			childrenBuilder := shared.NewChildrenIndexBuilder()
-			outputBuilder := shared.NewTaskOutputBuilder()
+			outputBuilder := shared.NewTaskOutputBuilder(t.Context())
 
 			// Build children index based on parent relationships in workflow state
 			childrenIndex := childrenBuilder.BuildChildrenIndex(workflowState)
@@ -211,6 +211,7 @@ func TestDeepNesting_CollectionCompositeParallelBasic(t *testing.T) {
 
 			collectionState := workflowState.Tasks["collection-task"]
 			result := childrenBuilder.BuildChildrenContext(
+				t.Context(),
 				collectionState,
 				workflowState,
 				childrenIndex,
@@ -286,6 +287,7 @@ func TestDeepNesting_CollectionCompositeParallelBasic(t *testing.T) {
 			// Build full context including task hierarchy and children index
 			ctx.ChildrenIndex = shared.NewChildrenIndexBuilder().BuildChildrenIndex(workflowState)
 			fullContext := builder.BuildContext(
+				t.Context(),
 				workflowState,
 				&workflow.Config{ID: "deep-nesting-test", Tasks: []task.Config{*collectionTask}},
 				collectionTask,
@@ -326,7 +328,7 @@ func TestDeepNesting_CollectionCompositeParallelBasic(t *testing.T) {
 			}
 
 			// Verify parent context accessibility - use original ctx with proper TaskConfigs
-			parentContext := builder.BuildParentContext(ctx, basicTask, 0)
+			parentContext := builder.BuildParentContext(t.Context(), ctx, basicTask, 0)
 			require.NotNil(t, parentContext)
 			assert.Equal(t, "basic-task", parentContext[shared.IDKey])
 
@@ -361,6 +363,7 @@ func TestDeepNesting_CollectionCompositeParallelBasic(t *testing.T) {
 		// Test 4: Collection-specific context building
 		t.Run("Should build collection context with nested structure awareness", func(t *testing.T) {
 			collectionContext := builder.BuildCollectionContext(
+				t.Context(),
 				workflowState,
 				&workflow.Config{ID: "deep-nesting-test"},
 				collectionTask,
@@ -412,10 +415,10 @@ func TestDeepNesting_CollectionCompositeParallelBasic(t *testing.T) {
 func TestDeepNesting_DepthLimitEnforcement(t *testing.T) {
 	t.Run("Should enforce depth limits and handle deep parent chains properly", func(t *testing.T) {
 		// Arrange - Create a deep hierarchy that tests depth limit enforcement
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
-		limits := shared.GetGlobalConfigLimits()
+		limits := shared.GetGlobalConfigLimits(t.Context())
 		// Create exactly at the limit to test boundary behavior
 		testDepth := limits.MaxParentDepth
 
@@ -481,7 +484,7 @@ func TestDeepNesting_DepthLimitEnforcement(t *testing.T) {
 		deepestTaskID := fmt.Sprintf("level-%d-task", testDepth-1)
 		deepestTask := taskConfigs[deepestTaskID]
 
-		result := builder.BuildParentContext(ctx, deepestTask, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, deepestTask, 0)
 
 		// Should return something but respect depth limits
 		require.NotNil(t, result)
@@ -524,7 +527,7 @@ func TestDeepNesting_DepthLimitEnforcement(t *testing.T) {
 		midTaskID := fmt.Sprintf("level-%d-task", testDepth/2)
 		midTask := taskConfigs[midTaskID]
 
-		midResult := builder.BuildParentContext(ctx, midTask, 0)
+		midResult := builder.BuildParentContext(t.Context(), ctx, midTask, 0)
 		require.NotNil(t, midResult)
 
 		// Count mid-level traversal
@@ -555,7 +558,7 @@ func TestDeepNesting_DepthLimitEnforcement(t *testing.T) {
 func TestDeepNesting_CircularReferenceDetection(t *testing.T) {
 	t.Run("Should detect and handle circular references in deep nesting", func(t *testing.T) {
 		// Arrange - Create a hierarchy with a circular reference
-		builder, err := shared.NewContextBuilder()
+		builder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
 
 		// Create tasks that will form a cycle: A -> B -> C -> A
@@ -610,7 +613,7 @@ func TestDeepNesting_CircularReferenceDetection(t *testing.T) {
 		}
 
 		// Act - Try to build parent context for task in cycle
-		result := builder.BuildParentContext(ctx, taskC, 0)
+		result := builder.BuildParentContext(t.Context(), ctx, taskC, 0)
 
 		// Assert - Should detect circular reference and handle gracefully
 		require.NotNil(t, result)

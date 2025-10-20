@@ -17,9 +17,9 @@ func TestWaitNormalizer_ProcessorInheritance(t *testing.T) {
 	t.Run("Should inherit CWD to processor task", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		waitTask := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -48,7 +48,7 @@ func TestWaitNormalizer_ProcessorInheritance(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(waitTask, ctx)
+		err = normalizer.Normalize(t.Context(), waitTask, ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -65,9 +65,9 @@ func TestWaitNormalizer_ProcessorInheritance(t *testing.T) {
 	t.Run("Should not override existing processor CWD", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		waitTask := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -97,7 +97,7 @@ func TestWaitNormalizer_ProcessorInheritance(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(waitTask, ctx)
+		err = normalizer.Normalize(t.Context(), waitTask, ctx)
 
 		// Assert
 		require.NoError(t, err)
@@ -112,9 +112,9 @@ func TestWaitNormalizer_ProcessorInheritance(t *testing.T) {
 	t.Run("Should handle nil processor gracefully", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		contextBuilder, err := shared.NewContextBuilder()
+		contextBuilder, err := shared.NewContextBuilder(t.Context())
 		require.NoError(t, err)
-		normalizer := wait.NewNormalizer(templateEngine, contextBuilder)
+		normalizer := wait.NewNormalizer(t.Context(), templateEngine, contextBuilder)
 
 		waitTask := &task.Config{
 			BaseConfig: task.BaseConfig{
@@ -134,7 +134,7 @@ func TestWaitNormalizer_ProcessorInheritance(t *testing.T) {
 		}
 
 		// Act
-		err = normalizer.Normalize(waitTask, ctx)
+		err = normalizer.Normalize(t.Context(), waitTask, ctx)
 
 		// Assert
 		require.NoError(t, err, "Should handle nil processor without error")

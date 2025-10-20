@@ -15,7 +15,7 @@ import (
 func TestWaitContextBuilder_NewContextBuilder(t *testing.T) {
 	t.Run("Should create wait context builder", func(t *testing.T) {
 		// Act
-		builder := wait.NewContextBuilder()
+		builder := wait.NewContextBuilder(t.Context())
 
 		// Assert
 		assert.NotNil(t, builder)
@@ -25,7 +25,7 @@ func TestWaitContextBuilder_NewContextBuilder(t *testing.T) {
 func TestWaitContextBuilder_TaskType(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
-		builder := wait.NewContextBuilder()
+		builder := wait.NewContextBuilder(t.Context())
 
 		// Act
 		taskType := builder.TaskType()
@@ -37,7 +37,7 @@ func TestWaitContextBuilder_TaskType(t *testing.T) {
 
 func TestWaitContextBuilder_BuildContext(t *testing.T) {
 	// Setup
-	builder := wait.NewContextBuilder()
+	builder := wait.NewContextBuilder(t.Context())
 
 	t.Run("Should build context for wait task", func(t *testing.T) {
 		// Arrange
@@ -61,7 +61,7 @@ func TestWaitContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, workflowConfig, taskConfig)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -86,7 +86,7 @@ func TestWaitContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(nil, workflowConfig, taskConfig)
+		context := builder.BuildContext(t.Context(), nil, workflowConfig, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -111,7 +111,7 @@ func TestWaitContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, nil, taskConfig)
+		context := builder.BuildContext(t.Context(), workflowState, nil, taskConfig)
 
 		// Assert
 		require.NotNil(t, context)
@@ -133,7 +133,7 @@ func TestWaitContextBuilder_BuildContext(t *testing.T) {
 		}
 
 		// Act
-		context := builder.BuildContext(workflowState, workflowConfig, nil)
+		context := builder.BuildContext(t.Context(), workflowState, workflowConfig, nil)
 
 		// Assert
 		require.NotNil(t, context)
@@ -144,7 +144,7 @@ func TestWaitContextBuilder_BuildContext(t *testing.T) {
 
 	t.Run("Should handle all nil parameters", func(t *testing.T) {
 		// Act
-		context := builder.BuildContext(nil, nil, nil)
+		context := builder.BuildContext(t.Context(), nil, nil, nil)
 
 		// Assert
 		require.NotNil(t, context)

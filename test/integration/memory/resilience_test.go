@@ -22,7 +22,7 @@ func TestResilienceRedisFailure(t *testing.T) {
 	t.Run("Should handle Redis connection failures gracefully", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "customer-support",
 			Key: "redis-failure-{{.test.id}}",
@@ -87,7 +87,7 @@ func TestResilienceTimeouts(t *testing.T) {
 			},
 		}
 		// Create instance with very short timeout context
-		shortCtx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+		shortCtx, cancel := context.WithTimeout(t.Context(), 1*time.Millisecond)
 		defer cancel()
 		// Try to get instance with timeout
 		_, err := env.GetMemoryManager().GetInstance(shortCtx, memRef, workflowContext)
@@ -98,7 +98,7 @@ func TestResilienceTimeouts(t *testing.T) {
 				"Should return context error on timeout")
 		}
 		// Now test with normal context
-		ctx := context.Background()
+		ctx := t.Context()
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
 		// Test operation with timeout
@@ -126,7 +126,7 @@ func TestResilienceConcurrentFailures(t *testing.T) {
 	t.Run("Should handle concurrent operation failures", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		const numInstances = 5
 		const numOperations = 10
 		var wg sync.WaitGroup
@@ -208,7 +208,7 @@ func TestResilienceMemoryPressure(t *testing.T) {
 	t.Run("Should handle memory pressure scenarios", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "shared-memory",
 			Key: "memory-pressure-{{.test.id}}",
@@ -258,7 +258,7 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 		defer env.Cleanup()
 
 		// Set a reasonable overall test timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 
 		// Test timeout handling and recovery
@@ -283,7 +283,7 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 			select {
 			case <-ctx.Done():
 				t.Log("Test context canceled, stopping attempts")
-				break
+				goto endLoop
 			default:
 			}
 
@@ -327,6 +327,7 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 			// Small sleep to prevent overwhelming the system
 			time.Sleep(2 * time.Millisecond)
 		}
+	endLoop:
 
 		t.Logf("Total attempts: %d, Timeouts: %d, Successes: %d",
 			numAttempts, timeoutCount, successCount)
@@ -342,7 +343,7 @@ func TestResilienceDataCorruption(t *testing.T) {
 	t.Run("Should handle corrupted data gracefully", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "customer-support",
 			Key: "corruption-test-{{.test.id}}",
@@ -405,7 +406,7 @@ func TestResiliencePrivacyUnderFailure(t *testing.T) {
 	t.Run("Should maintain privacy guarantees under failure conditions", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+		ctx := t.Context()
 		memRef := core.MemoryReference{
 			ID:  "customer-support",
 			Key: "privacy-failure-{{.test.id}}",

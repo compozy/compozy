@@ -3,8 +3,10 @@ package llmadapter
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	factorymetrics "github.com/compozy/compozy/engine/llm/factory/metrics"
 )
 
 // DefaultFactory creates LLM clients using a provider registry.
@@ -15,19 +17,31 @@ type DefaultFactory struct {
 // NewDefaultFactory creates a new DefaultFactory with builtin providers
 // registered against a fresh registry instance.
 func NewDefaultFactory(ctx context.Context) (Factory, error) {
+	start := time.Now()
 	registry := NewProviderRegistry()
 	if err := RegisterProviders(ctx, registry, BuiltinProviders()...); err != nil {
 		return nil, err
 	}
-	return &DefaultFactory{registry: registry}, nil
+	factory := &DefaultFactory{registry: registry}
+	factorymetrics.RecordCreate(ctx, factorymetrics.TypeProvider, "default", time.Since(start))
+	return factory, nil
 }
 
 // NewDefaultFactoryWithRegistry creates a factory bound to the provided registry.
-func NewDefaultFactoryWithRegistry(registry *Registry) Factory {
+// If registry is nil, a new empty registry is created WITHOUT builtin providers.
+// Callers must explicitly register providers via RegisterProviders() after creation.
+// For a factory with builtin providers pre-registered, use NewDefaultFactory() instead.
+func NewDefaultFactoryWithRegistry(ctx context.Context, registry *Registry) (Factory, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context must not be nil")
+	}
+	start := time.Now()
 	if registry == nil {
 		registry = NewProviderRegistry()
 	}
-	return &DefaultFactory{registry: registry}
+	factory := &DefaultFactory{registry: registry}
+	factorymetrics.RecordCreate(ctx, factorymetrics.TypeProvider, "custom_registry", time.Since(start))
+	return factory, nil
 }
 
 // CreateClient creates a new LLMClient for the given provider.

@@ -93,9 +93,9 @@ func setupAdminTestRouter(t *testing.T, withAdminUser bool, state *appstate.Stat
 	ginmode.EnsureGinTestMode()
 	r := gin.New()
 	t.Setenv("SERVER_AUTH_ADMIN_KEY", "test_admin_key_123")
-	cfgMgr := config.NewManager(config.NewService())
+	cfgMgr := config.NewManager(t.Context(), config.NewService())
 	_, err := cfgMgr.Load(
-		context.Background(),
+		t.Context(),
 		config.NewDefaultProvider(),
 		config.NewCLIProvider(map[string]any{"auth-enabled": true}),
 	)
@@ -110,7 +110,7 @@ func setupAdminTestRouter(t *testing.T, withAdminUser bool, state *appstate.Stat
 	}
 	apiBase := r.Group(routes.Base())
 	factory := authuc.NewFactory(dummyRepo{})
-	ctx := config.ContextWithManager(context.Background(), cfgMgr)
+	ctx := config.ContextWithManager(t.Context(), cfgMgr)
 	admin := CreateAdminGroup(ctx, apiBase, factory)
 	admin.POST("/reload", func(c *gin.Context) { adminReloadHandler(c, &Server{envFilePath: ".env"}) })
 	return r

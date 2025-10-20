@@ -1,7 +1,6 @@
 package basic
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -199,7 +198,7 @@ func TestBasicResponseHandler_HandleResponse(t *testing.T) {
 		handler, err := NewResponseHandler(templateEngine, contextBuilder, baseHandler)
 		require.NoError(t, err)
 		// Act
-		result, err := handler.HandleResponse(context.Background(), nil)
+		result, err := handler.HandleResponse(t.Context(), nil)
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -222,7 +221,7 @@ func TestBasicResponseHandler_HandleResponse(t *testing.T) {
 			WorkflowState:  &workflow.State{},
 		}
 		// Act
-		result, err := handler.HandleResponse(context.Background(), input)
+		result, err := handler.HandleResponse(t.Context(), input)
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -248,7 +247,7 @@ func TestBasicResponseHandler_HandleResponse(t *testing.T) {
 			WorkflowState:  &workflow.State{},
 		}
 		// Act
-		result, err := handler.HandleResponse(context.Background(), input)
+		result, err := handler.HandleResponse(t.Context(), input)
 		// Assert
 		assert.Error(t, err)
 		assert.Nil(t, result)

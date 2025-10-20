@@ -1,7 +1,6 @@
 package collection
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,7 +50,7 @@ func TestCollectionResponseHandler_HandleResponse_Validation(t *testing.T) {
 			WorkflowState:  &workflow.State{},  // Valid workflow state
 		}
 
-		result, err := handler.HandleResponse(context.Background(), input)
+		result, err := handler.HandleResponse(t.Context(), input)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -77,7 +76,7 @@ func TestCollectionResponseHandler_applyCollectionContext(t *testing.T) {
 
 		// Should not panic
 		assert.NotPanics(t, func() {
-			handler.applyCollectionContext(input)
+			handler.applyCollectionContext(t.Context(), input)
 		})
 	})
 
@@ -96,7 +95,7 @@ func TestCollectionResponseHandler_applyCollectionContext(t *testing.T) {
 
 		// Should not panic
 		assert.NotPanics(t, func() {
-			handler.applyCollectionContext(input)
+			handler.applyCollectionContext(t.Context(), input)
 		})
 	})
 }
@@ -123,7 +122,7 @@ func TestCollectionResponseHandler_HandleSubtaskResponse(t *testing.T) {
 		}
 
 		result, err := handler.HandleSubtaskResponse(
-			context.Background(),
+			t.Context(),
 			parentState,
 			childState,
 			childConfig,

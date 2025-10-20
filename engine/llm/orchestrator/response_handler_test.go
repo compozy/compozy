@@ -1,7 +1,6 @@
 package orchestrator
 
 import (
-	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -13,7 +12,7 @@ import (
 )
 
 func TestResponseHandler_FinalizationRetries(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	schemaDef := &schema.Schema{"type": "object"}
 	action := &agent.ActionConfig{OutputSchema: schemaDef}
 	settings := &settings{finalizeOutputRetries: 2}
@@ -48,7 +47,7 @@ func TestResponseHandler_FinalizationRetries(t *testing.T) {
 func TestResponseHandler_ParseContent(t *testing.T) {
 	h := NewResponseHandler(&settings{})
 	t.Run("Should treat JSON-looking content as plain text when no schema", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		req := &llmadapter.LLMRequest{}
 		state := newLoopState(&settings{}, nil, nil)
 		request := Request{Action: &agent.ActionConfig{}}
@@ -69,7 +68,7 @@ func TestResponseHandler_ParseContent(t *testing.T) {
 			"type":  "array",
 			"items": map[string]any{"type": "string"},
 		}}
-		output, err := h.(*responseHandler).parseContent(context.Background(), `["a","b"]`, action)
+		output, err := h.(*responseHandler).parseContent(t.Context(), `["a","b"]`, action)
 		require.NoError(t, err)
 		require.NotNil(t, output)
 		values, ok := (*output)[core.OutputRootKey].([]any)
@@ -80,7 +79,7 @@ func TestResponseHandler_ParseContent(t *testing.T) {
 	})
 	t.Run("Should error when JSON required but got text", func(t *testing.T) {
 		action := &agent.ActionConfig{OutputSchema: &schema.Schema{"type": "object"}}
-		_, err := h.(*responseHandler).parseContent(context.Background(), "plain", action)
+		_, err := h.(*responseHandler).parseContent(t.Context(), "plain", action)
 		require.Error(t, err)
 		var coreErr *core.Error
 		require.ErrorAs(t, err, &coreErr)
@@ -90,7 +89,7 @@ func TestResponseHandler_ParseContent(t *testing.T) {
 	t.Run("Should extract embedded JSON when schema required", func(t *testing.T) {
 		action := &agent.ActionConfig{OutputSchema: &schema.Schema{"type": "object"}}
 		content := `Sure! Here is the result:\n\n{"pokemon":"Pikachu","confidence":0.82}`
-		output, err := h.(*responseHandler).parseContent(context.Background(), content, action)
+		output, err := h.(*responseHandler).parseContent(t.Context(), content, action)
 		require.NoError(t, err)
 		require.NotNil(t, output)
 		assert.Equal(t, "Pikachu", (*output)["pokemon"])
@@ -98,7 +97,7 @@ func TestResponseHandler_ParseContent(t *testing.T) {
 	t.Run("Should extract embedded array when schema required", func(t *testing.T) {
 		action := &agent.ActionConfig{OutputSchema: &schema.Schema{"type": "array"}}
 		content := `Some text before [1,2,3] and after`
-		output, err := h.(*responseHandler).parseContent(context.Background(), content, action)
+		output, err := h.(*responseHandler).parseContent(t.Context(), content, action)
 		require.NoError(t, err)
 		require.NotNil(t, output)
 		values, ok := (*output)[core.OutputRootKey].([]any)
@@ -108,7 +107,7 @@ func TestResponseHandler_ParseContent(t *testing.T) {
 }
 
 func TestResponseHandler_TopLevelErrorRetries(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	settings := &settings{finalizeOutputRetries: 2}
 	h := NewResponseHandler(settings)
 	req := &llmadapter.LLMRequest{}
@@ -135,7 +134,7 @@ func TestResponseHandler_TopLevelErrorRetries(t *testing.T) {
 }
 
 func TestResponseHandler_FinalizationPlainTextFeedback(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	settings := &settings{finalizeOutputRetries: 2}
 	h := NewResponseHandler(settings)
 	req := &llmadapter.LLMRequest{}
@@ -153,7 +152,7 @@ func TestResponseHandler_FinalizationPlainTextFeedback(t *testing.T) {
 }
 
 func TestResponseHandler_FinalizationFeedbackReplaced(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	settings := &settings{finalizeOutputRetries: 3}
 	h := NewResponseHandler(settings)
 	req := &llmadapter.LLMRequest{
@@ -211,7 +210,7 @@ func TestResponseHandler_ParseContent_SchemaError(t *testing.T) {
 		"required":   []any{"x"},
 	}
 	action := &agent.ActionConfig{OutputSchema: &sc}
-	_, err := h.(*responseHandler).parseContent(context.Background(), `{"x": 1}`, action)
+	_, err := h.(*responseHandler).parseContent(t.Context(), `{"x": 1}`, action)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "schema validation failed")
 	require.ErrorContains(t, err, "x")

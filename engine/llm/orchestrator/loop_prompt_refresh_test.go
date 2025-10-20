@@ -37,7 +37,7 @@ func TestRefreshUserPrompt(t *testing.T) {
 			baseMessageCount: len(request.Messages),
 			PromptTemplate:   stubPromptTemplate{output: "rendered"},
 		}
-		err := loop.refreshUserPrompt(context.Background(), loopCtx)
+		err := loop.refreshUserPrompt(t.Context(), loopCtx)
 		require.NoError(t, err)
 		require.Equal(t, "memory-transcript", loopCtx.LLMRequest.Messages[0].Content)
 		require.Equal(t, "rendered", loopCtx.LLMRequest.Messages[1].Content)
@@ -73,7 +73,7 @@ func TestRefreshUserPrompt(t *testing.T) {
 			PromptTemplate:   stubPromptTemplate{output: "updated prompt"},
 		}
 		loop := &conversationLoop{}
-		err := loop.refreshUserPrompt(context.Background(), loopCtx)
+		err := loop.refreshUserPrompt(t.Context(), loopCtx)
 		require.NoError(t, err)
 		expected, _ := combineKnowledgeWithPrompt("updated prompt", entries)
 		require.Equal(t, expected, loopCtx.LLMRequest.Messages[0].Content)
@@ -90,7 +90,7 @@ func TestRefreshUserPrompt(t *testing.T) {
 			LLMRequest:     request,
 			PromptTemplate: stubPromptTemplate{output: "ignored"},
 		}
-		err := loop.refreshUserPrompt(context.Background(), loopCtx)
+		err := loop.refreshUserPrompt(t.Context(), loopCtx)
 		require.NoError(t, err)
 	})
 }
@@ -147,7 +147,7 @@ func TestRestartLoop(t *testing.T) {
 			baseMessageCount: len(baseMessages),
 			State:            newLoopState(&cfg, nil, nil),
 		}
-		loop.restartLoop(context.Background(), loopCtx, 1)
+		loop.restartLoop(t.Context(), loopCtx, 1)
 		require.Len(t, loopCtx.LLMRequest.Messages, len(baseMessages))
 		require.Equal(t, originalSnapshot, loopCtx.LLMRequest.Messages)
 		loopCtx.LLMRequest.Messages[0].ToolCalls[0].Arguments[2] = 'X'

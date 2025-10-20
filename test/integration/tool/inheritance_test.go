@@ -1,7 +1,6 @@
 package tool
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,7 +24,7 @@ func TestToolInheritance_HierarchicalResolution(t *testing.T) {
 		agentConfig := CreateTestAgentConfig([]tool.Config{}) // Empty tools
 
 		// Act
-		resolvedTools, err := ResolveToolsWithHierarchy(projectConfig, workflowConfig, agentConfig)
+		resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), projectConfig, workflowConfig, agentConfig)
 
 		// Assert
 		require.NoError(t, err)
@@ -42,7 +41,7 @@ func TestToolInheritance_HierarchicalResolution(t *testing.T) {
 		agentConfig := CreateTestAgentConfig([]tool.Config{})       // Empty
 
 		// Act
-		resolvedTools, err := ResolveToolsWithHierarchy(projectConfig, workflowConfig, agentConfig)
+		resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), projectConfig, workflowConfig, agentConfig)
 
 		// Assert
 		require.NoError(t, err)
@@ -51,7 +50,7 @@ func TestToolInheritance_HierarchicalResolution(t *testing.T) {
 
 	t.Run("Should handle nil configurations gracefully", func(t *testing.T) {
 		// Act - all configs are nil
-		resolvedTools, err := ResolveToolsWithHierarchy(nil, nil, nil)
+		resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), nil, nil, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -75,7 +74,7 @@ func TestToolInheritance_PrecedenceOverride(t *testing.T) {
 		agentConfig := CreateTestAgentConfig([]tool.Config{}) // Empty
 
 		// Act
-		resolvedTools, err := ResolveToolsWithHierarchy(projectConfig, workflowConfig, agentConfig)
+		resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), projectConfig, workflowConfig, agentConfig)
 
 		// Assert
 		require.NoError(t, err)
@@ -98,7 +97,7 @@ func TestToolInheritance_PrecedenceOverride(t *testing.T) {
 		})
 
 		// Act
-		resolvedTools, err := ResolveToolsWithHierarchy(projectConfig, workflowConfig, agentConfig)
+		resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), projectConfig, workflowConfig, agentConfig)
 
 		// Assert
 		require.NoError(t, err)
@@ -121,7 +120,7 @@ func TestToolInheritance_DeterministicOrdering(t *testing.T) {
 
 		// Act - resolve multiple times
 		for range 10 {
-			resolvedTools, err := ResolveToolsWithHierarchy(projectConfig, nil, nil)
+			resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), projectConfig, nil, nil)
 
 			// Assert - same order every time
 			require.NoError(t, err)
@@ -135,7 +134,7 @@ func TestToolInheritance_DeterministicOrdering(t *testing.T) {
 func TestToolInheritance_LLMServiceIntegration(t *testing.T) {
 	t.Run("Should create LLM service with resolved tools", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		projectConfig := CreateTestProjectConfig([]tool.Config{
 			CreateTestTool("project-tool", "Project level tool"),
 		})
@@ -145,7 +144,7 @@ func TestToolInheritance_LLMServiceIntegration(t *testing.T) {
 		agentConfig := CreateTestAgentConfig([]tool.Config{}) // Empty to test inheritance
 
 		// Act
-		resolvedTools, err := ResolveToolsWithHierarchy(projectConfig, workflowConfig, agentConfig)
+		resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), projectConfig, workflowConfig, agentConfig)
 		require.NoError(t, err)
 
 		service := CreateLLMServiceWithResolvedTools(ctx, t, resolvedTools, agentConfig)
@@ -158,13 +157,13 @@ func TestToolInheritance_LLMServiceIntegration(t *testing.T) {
 
 	t.Run("Should maintain backward compatibility with direct agent tools", func(t *testing.T) {
 		// Arrange
-		ctx := context.Background()
+		ctx := t.Context()
 		agentConfig := CreateTestAgentConfig([]tool.Config{
 			CreateTestTool("direct-tool", "Directly configured tool"),
 		})
 
 		// Act - use agent tools directly
-		resolvedTools, err := ResolveToolsWithHierarchy(nil, nil, agentConfig)
+		resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), nil, nil, agentConfig)
 		require.NoError(t, err)
 
 		service := CreateLLMServiceWithResolvedTools(ctx, t, resolvedTools, agentConfig)
@@ -184,7 +183,7 @@ func TestToolInheritance_EdgeCases(t *testing.T) {
 		agentConfig := CreateTestAgentConfig([]tool.Config{})
 
 		// Act
-		resolvedTools, err := ResolveToolsWithHierarchy(projectConfig, workflowConfig, agentConfig)
+		resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), projectConfig, workflowConfig, agentConfig)
 
 		// Assert
 		require.NoError(t, err)
@@ -202,7 +201,7 @@ func TestToolInheritance_EdgeCases(t *testing.T) {
 		})
 
 		// Act
-		resolvedTools, err := ResolveToolsWithHierarchy(projectConfig, workflowConfig, nil)
+		resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), projectConfig, workflowConfig, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -217,7 +216,7 @@ func TestToolInheritance_EdgeCases(t *testing.T) {
 		})
 
 		// Act - project and agent are nil
-		resolvedTools, err := ResolveToolsWithHierarchy(nil, workflowConfig, nil)
+		resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), nil, workflowConfig, nil)
 
 		// Assert
 		require.NoError(t, err)
@@ -242,7 +241,7 @@ func TestToolInheritance_ComplexScenarios(t *testing.T) {
 		agentConfig := CreateTestAgentConfig([]tool.Config{}) // Empty to inherit
 
 		// Act
-		resolvedTools, err := ResolveToolsWithHierarchy(projectConfig, workflowConfig, agentConfig)
+		resolvedTools, err := ResolveToolsWithHierarchy(t.Context(), projectConfig, workflowConfig, agentConfig)
 
 		// Assert
 		require.NoError(t, err)

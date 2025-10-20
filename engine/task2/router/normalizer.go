@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/task"
@@ -17,6 +18,7 @@ type Normalizer struct {
 
 // NewNormalizer creates a new router task normalizer
 func NewNormalizer(
+	_ context.Context,
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 ) *Normalizer {
@@ -32,15 +34,19 @@ func NewNormalizer(
 }
 
 // Normalize applies router task-specific normalization rules
-func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationContext) error {
+func (n *Normalizer) Normalize(
+	ctx context.Context,
+	config *task.Config,
+	parentCtx contracts.NormalizationContext,
+) error {
 	// Call base normalization first
-	if err := n.BaseNormalizer.Normalize(config, ctx); err != nil {
+	if err := n.BaseNormalizer.Normalize(ctx, config, parentCtx); err != nil {
 		return err
 	}
 	// Type assert to get the concrete type for router-specific logic
-	normCtx, ok := ctx.(*shared.NormalizationContext)
+	normCtx, ok := parentCtx.(*shared.NormalizationContext)
 	if !ok {
-		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", ctx)
+		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", parentCtx)
 	}
 	// Build template context for router-specific fields
 	context := normCtx.BuildTemplateContext()

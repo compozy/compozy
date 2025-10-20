@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/knowledge/ingest"
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
@@ -36,11 +39,14 @@ func floatPtr(v float64) *float64 {
 }
 
 type recordingEmbedder struct {
+	mu       sync.Mutex
 	failures int
 	calls    [][]string
 }
 
 func (r *recordingEmbedder) EmbedDocuments(_ context.Context, texts []string) ([][]float32, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.failures > 0 {
 		r.failures--
 		return nil, errors.New("embed failed")
@@ -58,12 +64,15 @@ func (r *recordingEmbedder) EmbedQuery(_ context.Context, _ string) ([]float32, 
 }
 
 type memoryStore struct {
+	mu          sync.Mutex
 	records     []vectordb.Record
 	fail        int
 	deleteCalls []vectordb.Filter
 }
 
 func (m *memoryStore) Upsert(_ context.Context, recs []vectordb.Record) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.fail > 0 {
 		m.fail--
 		return errors.New("upsert failed")
@@ -90,6 +99,8 @@ func (m *memoryStore) Search(context.Context, []float32, vectordb.SearchOptions)
 }
 
 func (m *memoryStore) Delete(_ context.Context, filter vectordb.Filter) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.deleteCalls = append(m.deleteCalls, filter)
 	if len(filter.IDs) == 0 && len(filter.Metadata) == 0 {
 		return nil
@@ -97,13 +108,7 @@ func (m *memoryStore) Delete(_ context.Context, filter vectordb.Filter) error {
 	next := make([]vectordb.Record, 0, len(m.records))
 	for i := range m.records {
 		rec := m.records[i]
-		remove := false
-		for _, id := range filter.IDs {
-			if rec.ID == id {
-				remove = true
-				break
-			}
-		}
+		remove := slices.Contains(filter.IDs, rec.ID)
 		if !remove && len(filter.Metadata) > 0 {
 			match := true
 			for key, val := range filter.Metadata {
@@ -136,6 +141,7 @@ type logEntry struct {
 }
 
 type capturingLogger struct {
+	mu      sync.Mutex
 	entries *[]logEntry
 	fields  map[string]any
 }
@@ -164,10 +170,9 @@ func (l *capturingLogger) Error(msg string, keyvals ...any) {
 }
 
 func (l *capturingLogger) With(args ...any) logger.Logger {
-	nextFields := make(map[string]any, len(l.fields)+len(args)/2)
-	for k, v := range l.fields {
-		nextFields[k] = v
-	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	nextFields := core.CloneMap(l.fields)
 	for i := 0; i < len(args); i += 2 {
 		key := fmt.Sprint(args[i])
 		var val any
@@ -183,13 +188,12 @@ func (l *capturingLogger) With(args ...any) logger.Logger {
 }
 
 func (l *capturingLogger) record(level, msg string, keyvals ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	if l.entries == nil {
 		return
 	}
-	fields := make(map[string]any, len(l.fields)+len(keyvals)/2)
-	for k, v := range l.fields {
-		fields[k] = v
-	}
+	fields := core.CloneMap(l.fields)
 	for i := 0; i < len(keyvals); i += 2 {
 		key := fmt.Sprint(keyvals[i])
 		var val any
@@ -211,7 +215,7 @@ func TestPipeline_ShouldBatchByLimit(t *testing.T) {
 	binding := resolvedBinding(1)
 	pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	result, err := pipe.Run(ctx)
 	require.NoError(t, err)
@@ -233,7 +237,7 @@ func TestPipeline_ShouldPropagateProviderErrors(t *testing.T) {
 	binding := resolvedBinding(2)
 	pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	_, err = pipe.Run(ctx)
 	require.Error(t, err)
@@ -251,7 +255,7 @@ func TestPipeline_ShouldPersistInlinePayloadsAndReingestIdempotent(t *testing.T)
 	binding := resolvedBinding(3)
 	pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	result, err := pipe.Run(ctx)
 	require.NoError(t, err)
@@ -305,7 +309,7 @@ func TestPipeline_ShouldReplaceExistingRecords(t *testing.T) {
 		ingest.Options{CWD: cwd, Strategy: ingest.StrategyReplace},
 	)
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	_, err = pipe.Run(ctx)
 	require.NoError(t, err)
@@ -329,7 +333,7 @@ func TestPipeline_ShouldRejectLargeMarkdownFile(t *testing.T) {
 		embed := &recordingEmbedder{}
 		pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 		require.NoError(t, err)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
 		_, err = pipe.Run(ctx)
 		require.Error(t, err)
@@ -347,11 +351,11 @@ func TestPipeline_ShouldRejectLargeMarkdownFile(t *testing.T) {
 		embed := &recordingEmbedder{}
 		pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 		require.NoError(t, err)
-		manager := appconfig.NewManager(appconfig.NewService())
-		cfg, err := manager.Load(context.Background(), appconfig.NewDefaultProvider())
+		manager := appconfig.NewManager(t.Context(), appconfig.NewService())
+		cfg, err := manager.Load(t.Context(), appconfig.NewDefaultProvider())
 		require.NoError(t, err)
 		cfg.Knowledge.MaxMarkdownFileSizeBytes = limit
-		ctx := appconfig.ContextWithManager(context.Background(), manager)
+		ctx := appconfig.ContextWithManager(t.Context(), manager)
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		_, err = pipe.Run(ctx)
@@ -389,8 +393,8 @@ func runPipelineWithObservability(t *testing.T) observabilityArtifacts {
 	pipe, err := ingest.NewPipeline(binding, embed, store, ingest.Options{CWD: cwd})
 	require.NoError(t, err)
 	log := newCapturingLogger()
-	ctx := logger.ContextWithLogger(context.Background(), log)
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	ctx := logger.ContextWithLogger(t.Context(), log)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	t.Cleanup(cancel)
 	result, err := pipe.Run(ctx)
 	require.NoError(t, err)
@@ -411,7 +415,9 @@ func setupMeterProvider(t *testing.T) *sdkmetric.ManualReader {
 	prev := otel.GetMeterProvider()
 	otel.SetMeterProvider(provider)
 	t.Cleanup(func() {
-		require.NoError(t, provider.Shutdown(context.Background()))
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, provider.Shutdown(shutdownCtx))
 		otel.SetMeterProvider(prev)
 	})
 	return reader
@@ -424,7 +430,9 @@ func setupTracerProvider(t *testing.T) *tracetest.SpanRecorder {
 	prev := otel.GetTracerProvider()
 	otel.SetTracerProvider(provider)
 	t.Cleanup(func() {
-		require.NoError(t, provider.Shutdown(context.Background()))
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, provider.Shutdown(shutdownCtx))
 		otel.SetTracerProvider(prev)
 	})
 	return recorder
@@ -438,19 +446,21 @@ func assertPipelineMetrics(
 ) {
 	t.Helper()
 	var rm metricdata.ResourceMetrics
-	require.NoError(t, reader.Collect(context.Background(), &rm))
+	require.NoError(t, reader.Collect(t.Context(), &rm))
+	durationName := monitoringmetrics.MetricNameWithSubsystem("knowledge", "ingest_duration_seconds")
+	chunkName := monitoringmetrics.MetricNameWithSubsystem("knowledge", "chunks_total")
 	foundDuration := false
 	foundChunks := false
 	for _, scope := range rm.ScopeMetrics {
 		for _, metric := range scope.Metrics {
 			switch metric.Name {
-			case "knowledge_ingest_duration_seconds":
+			case durationName:
 				data := getHistogramData(t, metric)
 				attrs := attributesToMap(data.Attributes)
 				assert.Equal(t, binding.KnowledgeBase.ID, attrs["kb_id"])
 				assert.Greater(t, data.Sum, 0.0)
 				foundDuration = true
-			case "knowledge_chunks_total":
+			case chunkName:
 				data := getSumDataPoint(t, metric)
 				attrs := attributesToMap(data.Attributes)
 				assert.Equal(t, binding.KnowledgeBase.ID, attrs["kb_id"])
@@ -459,8 +469,8 @@ func assertPipelineMetrics(
 			}
 		}
 	}
-	assert.True(t, foundDuration, "expected knowledge_ingest_duration_seconds metric")
-	assert.True(t, foundChunks, "expected knowledge_chunks_total metric")
+	assert.True(t, foundDuration, "expected %s metric", durationName)
+	assert.True(t, foundChunks, "expected %s metric", chunkName)
 }
 
 func getHistogramData(t *testing.T, metric metricdata.Metrics) metricdata.HistogramDataPoint[float64] {

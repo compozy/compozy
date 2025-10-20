@@ -24,14 +24,14 @@ func TestConfig_Validate(t *testing.T) {
 		config := &Config{
 			Enabled: false,
 		}
-		assert.NoError(t, config.Validate())
+		assert.NoError(t, config.Validate(t.Context()))
 	})
 	t.Run("Should fail validation when enabled without include patterns", func(t *testing.T) {
 		config := &Config{
 			Enabled: true,
 			Include: []string{},
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "include patterns are required")
 	})
@@ -40,14 +40,14 @@ func TestConfig_Validate(t *testing.T) {
 			Enabled: true,
 			Include: []string{"workflows/**/*.yaml", "tasks/**/*.yaml"},
 		}
-		assert.NoError(t, config.Validate())
+		assert.NoError(t, config.Validate(t.Context()))
 	})
 	t.Run("Should fail validation with empty include pattern", func(t *testing.T) {
 		config := &Config{
 			Enabled: true,
 			Include: []string{"workflows/**/*.yaml", ""},
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty include pattern")
 	})
@@ -57,7 +57,7 @@ func TestConfig_Validate(t *testing.T) {
 			Include: []string{"workflows/**/*.yaml"},
 			Exclude: []string{"test/**", ""},
 		}
-		err := config.Validate()
+		err := config.Validate(t.Context())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty exclude pattern")
 	})
@@ -67,7 +67,7 @@ func TestConfig_Validate(t *testing.T) {
 			Include: []string{"workflows/**/*.yaml"},
 			Exclude: []string{"**/test/**", "**/*.example.yaml"},
 		}
-		assert.NoError(t, config.Validate())
+		assert.NoError(t, config.Validate(t.Context()))
 	})
 }
 

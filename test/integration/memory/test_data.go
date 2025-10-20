@@ -43,7 +43,7 @@ func (m *TestDataManager) CleanupTest(t *testing.T, testName string) {
 	if len(instances) == 0 {
 		return
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	redis := m.env.GetRedis()
 	for _, instanceID := range instances {
 		// Clean up memory data
@@ -251,7 +251,7 @@ func (h *TestDataHelper) CreateAndPopulateMemory(
 	dataSet *TestDataSet,
 ) (memcore.Memory, error) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	// Create instance
 	instance, err := env.GetMemoryManager().GetInstance(ctx, dataSet.MemoryRef, dataSet.WorkflowCtx)
 	if err != nil {

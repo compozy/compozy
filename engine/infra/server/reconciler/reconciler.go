@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
+	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
@@ -60,29 +61,30 @@ func newReconcilerMetrics(
 ) (metric.Int64Counter, metric.Int64Counter, metric.Int64Counter, metric.Float64Histogram) {
 	meter := otel.GetMeterProvider().Meter("compozy")
 	evTot, err1 := meter.Int64Counter(
-		"compozy_reconciler_events_total",
+		monitoringmetrics.MetricNameWithSubsystem("reconciler", "events_total"),
 		metric.WithDescription("Total store events received"),
 	)
 	if err1 != nil {
 		logger.FromContext(ctx).Error("meter creation failed", "error", err1)
 	}
 	evDrop, err2 := meter.Int64Counter(
-		"compozy_reconciler_events_dropped_total",
+		monitoringmetrics.MetricNameWithSubsystem("reconciler", "events_dropped_total"),
 		metric.WithDescription("Total store events dropped due to backpressure"),
 	)
 	if err2 != nil {
 		logger.FromContext(ctx).Error("meter creation failed", "error", err2)
 	}
 	recTot, err3 := meter.Int64Counter(
-		"compozy_reconciler_recompile_total",
+		monitoringmetrics.MetricNameWithSubsystem("reconciler", "recompile_total"),
 		metric.WithDescription("Total recompilations attempted"),
 	)
 	if err3 != nil {
 		logger.FromContext(ctx).Error("meter creation failed", "error", err3)
 	}
 	bDur, err4 := meter.Float64Histogram(
-		"compozy_reconciler_batch_duration_seconds",
+		monitoringmetrics.MetricNameWithSubsystem("reconciler", "batch_duration_seconds"),
 		metric.WithDescription("Batch processing duration seconds"),
+		metric.WithUnit("s"),
 	)
 	if err4 != nil {
 		logger.FromContext(ctx).Error("meter creation failed", "error", err4)
@@ -398,7 +400,7 @@ func (r *Reconciler) recompileAndSwap(
 	}
 	next := r.buildNextSet(compiled, deletes)
 	slugs := workflow.SlugsFromList(next)
-	if err := project.NewWebhookSlugsValidator(slugs).Validate(); err != nil {
+	if err := project.NewWebhookSlugsValidator(slugs).Validate(ctx); err != nil {
 		if r.recompileTotal != nil {
 			r.recompileTotal.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "error")))
 		}

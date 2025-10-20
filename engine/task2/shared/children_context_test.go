@@ -39,9 +39,10 @@ func TestBuildChildrenContext_EdgeCases(t *testing.T) {
 				},
 			},
 		}
-		taskOutputBuilder := shared.NewTaskOutputBuilder()
+		taskOutputBuilder := shared.NewTaskOutputBuilder(t.Context())
 		// Act
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			taskState,
 			workflowState,
 			childrenIndex,
@@ -82,9 +83,10 @@ func TestBuildChildrenContext_EdgeCases(t *testing.T) {
 				},
 			},
 		}
-		taskOutputBuilder := shared.NewTaskOutputBuilder()
+		taskOutputBuilder := shared.NewTaskOutputBuilder(t.Context())
 		// Act
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			taskState,
 			workflowState,
 			childrenIndex,
@@ -124,9 +126,10 @@ func TestBuildChildrenContext_EdgeCases(t *testing.T) {
 		childrenIndex := builder.BuildChildrenIndex(workflowState)
 		// No task configs provided
 		taskConfigs := map[string]*task.Config{}
-		taskOutputBuilder := shared.NewTaskOutputBuilder()
+		taskOutputBuilder := shared.NewTaskOutputBuilder(t.Context())
 		// Act
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			workflowState.Tasks["parent-task"],
 			workflowState,
 			childrenIndex,
@@ -174,10 +177,11 @@ func TestBuildChildrenContext_EdgeCases(t *testing.T) {
 			Tasks:          taskStates,
 		}
 		childrenIndex := builder.BuildChildrenIndex(workflowState)
-		taskOutputBuilder := shared.NewTaskOutputBuilder()
+		taskOutputBuilder := shared.NewTaskOutputBuilder(t.Context())
 		// Act - Get children for the root task
 		rootTask := taskStates["A-task"]
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			rootTask,
 			workflowState,
 			childrenIndex,
@@ -204,7 +208,7 @@ func TestBuildChildrenContext_EdgeCases(t *testing.T) {
 			}
 		}
 		// Should respect max depth limit
-		limits := shared.GetGlobalConfigLimits()
+		limits := shared.GetGlobalConfigLimits(t.Context())
 		assert.LessOrEqual(t, depth, limits.MaxChildrenDepth, "Should not exceed max children depth")
 	})
 
@@ -269,9 +273,10 @@ func TestBuildChildrenContext_EdgeCases(t *testing.T) {
 				},
 			},
 		}
-		taskOutputBuilder := shared.NewTaskOutputBuilder()
+		taskOutputBuilder := shared.NewTaskOutputBuilder(t.Context())
 		// Act
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			workflowState.Tasks["collection-task"],
 			workflowState,
 			childrenIndex,
@@ -334,9 +339,10 @@ func TestBuildChildrenContext_EdgeCases(t *testing.T) {
 		}
 		childrenIndex := builder.BuildChildrenIndex(workflowState)
 		taskConfigs := map[string]*task.Config{}
-		taskOutputBuilder := shared.NewTaskOutputBuilder()
+		taskOutputBuilder := shared.NewTaskOutputBuilder(t.Context())
 		// Act
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			workflowState.Tasks["parallel-task"],
 			workflowState,
 			childrenIndex,
@@ -395,9 +401,10 @@ func TestBuildChildrenContext_EdgeCases(t *testing.T) {
 		}
 		childrenIndex := builder.BuildChildrenIndex(workflowState)
 		taskConfigs := map[string]*task.Config{}
-		taskOutputBuilder := shared.NewTaskOutputBuilder()
+		taskOutputBuilder := shared.NewTaskOutputBuilder(t.Context())
 		// Act
 		result := builder.BuildChildrenContext(
+			t.Context(),
 			workflowState.Tasks["task-A"],
 			workflowState,
 			childrenIndex,
@@ -450,9 +457,17 @@ func TestBuildChildrenContext_EdgeCases(t *testing.T) {
 		}
 		childrenIndex := map[string][]string{}
 		taskConfigs := map[string]*task.Config{}
-		taskOutputBuilder := shared.NewTaskOutputBuilder()
+		taskOutputBuilder := shared.NewTaskOutputBuilder(t.Context())
 		// Act
-		result := builder.BuildChildrenContext(taskState, nil, childrenIndex, taskConfigs, taskOutputBuilder, 0)
+		result := builder.BuildChildrenContext(
+			t.Context(),
+			taskState,
+			nil,
+			childrenIndex,
+			taskConfigs,
+			taskOutputBuilder,
+			0,
+		)
 		// Assert
 		assert.Empty(t, result)
 	})
@@ -467,9 +482,17 @@ func TestBuildChildrenContext_EdgeCases(t *testing.T) {
 		}
 		childrenIndex := map[string][]string{}
 		taskConfigs := map[string]*task.Config{}
-		taskOutputBuilder := shared.NewTaskOutputBuilder()
+		taskOutputBuilder := shared.NewTaskOutputBuilder(t.Context())
 		// Act & Assert - Should not panic
-		result := builder.BuildChildrenContext(nil, workflowState, childrenIndex, taskConfigs, taskOutputBuilder, 0)
+		result := builder.BuildChildrenContext(
+			t.Context(),
+			nil,
+			workflowState,
+			childrenIndex,
+			taskConfigs,
+			taskOutputBuilder,
+			0,
+		)
 		assert.Empty(t, result)
 	})
 }

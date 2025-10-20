@@ -23,8 +23,8 @@ const requestTimeout = 2 * time.Second
 
 func newCLIContext(t *testing.T, baseURL string) context.Context {
 	t.Helper()
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
-	mgr := config.NewManager(config.NewService())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+	mgr := config.NewManager(t.Context(), config.NewService())
 	_, err := mgr.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
 	cfg := mgr.Get()

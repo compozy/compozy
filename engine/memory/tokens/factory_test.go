@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +33,7 @@ func TestCounterFactory_CreateCounter(t *testing.T) {
 	}
 	t.Run("Should create fallback counter when no config", func(t *testing.T) {
 		factory := NewCounterFactory(fallbackFunc)
-		counter, err := factory.CreateCounter(context.Background(), nil)
+		counter, err := factory.CreateCounter(t.Context(), nil)
 		require.NoError(t, err)
 		assert.NotNil(t, counter)
 		// Should be the fallback counter
@@ -50,7 +49,7 @@ func TestCounterFactory_CreateCounter(t *testing.T) {
 				"timeout": "30s",
 			},
 		}
-		counter, err := factory.CreateCounter(context.Background(), config)
+		counter, err := factory.CreateCounter(t.Context(), config)
 		require.NoError(t, err)
 		assert.NotNil(t, counter)
 		// Should be unified counter
@@ -63,7 +62,7 @@ func TestCounterFactory_CreateCounter(t *testing.T) {
 			Model:    "gpt-4",
 			APIKey:   "test-key",
 		}
-		counter, err := factory.CreateCounter(context.Background(), config)
+		counter, err := factory.CreateCounter(t.Context(), config)
 		assert.Error(t, err)
 		assert.Nil(t, counter)
 		assert.Contains(t, err.Error(), "provider cannot be empty")
@@ -75,7 +74,7 @@ func TestCounterFactory_CreateCounter(t *testing.T) {
 			Model:    "", // Empty model
 			APIKey:   "test-key",
 		}
-		counter, err := factory.CreateCounter(context.Background(), config)
+		counter, err := factory.CreateCounter(t.Context(), config)
 		assert.Error(t, err)
 		assert.Nil(t, counter)
 		assert.Contains(t, err.Error(), "model cannot be empty")
@@ -85,7 +84,7 @@ func TestCounterFactory_CreateCounter(t *testing.T) {
 			return nil, assert.AnError
 		}
 		factory := NewCounterFactory(failingFallbackFunc)
-		counter, err := factory.CreateCounter(context.Background(), nil)
+		counter, err := factory.CreateCounter(t.Context(), nil)
 		assert.Error(t, err)
 		assert.Nil(t, counter)
 		assert.Contains(t, err.Error(), "failed to create fallback counter")
@@ -103,7 +102,7 @@ func TestCounterFactory_CreateCounterFromRegistryKey(t *testing.T) {
 	t.Run("Should create counter from registry key", func(t *testing.T) {
 		factory := NewCounterFactory(fallbackFunc)
 		// Use a default registry key
-		counter, err := factory.CreateCounterFromRegistryKey(context.Background(), "openai-gpt4", "test-api-key")
+		counter, err := factory.CreateCounterFromRegistryKey(t.Context(), "openai-gpt4", "test-api-key")
 		require.NoError(t, err)
 		assert.NotNil(t, counter)
 		// Should be unified counter with OpenAI configuration
@@ -111,7 +110,7 @@ func TestCounterFactory_CreateCounterFromRegistryKey(t *testing.T) {
 	})
 	t.Run("Should fail with non-existent registry key", func(t *testing.T) {
 		factory := NewCounterFactory(fallbackFunc)
-		counter, err := factory.CreateCounterFromRegistryKey(context.Background(), "non-existent", "test-api-key")
+		counter, err := factory.CreateCounterFromRegistryKey(t.Context(), "non-existent", "test-api-key")
 		assert.Error(t, err)
 		assert.Nil(t, counter)
 		assert.Contains(t, err.Error(), "failed to get provider config from registry")
@@ -121,7 +120,7 @@ func TestCounterFactory_CreateCounterFromRegistryKey(t *testing.T) {
 			return nil, assert.AnError
 		}
 		factory := NewCounterFactory(failingFallbackFunc)
-		counter, err := factory.CreateCounterFromRegistryKey(context.Background(), "openai-gpt4", "test-api-key")
+		counter, err := factory.CreateCounterFromRegistryKey(t.Context(), "openai-gpt4", "test-api-key")
 		assert.Error(t, err)
 		assert.Nil(t, counter)
 		assert.Contains(t, err.Error(), "failed to create fallback counter")
@@ -147,7 +146,7 @@ func TestCounterFactory_Integration(t *testing.T) {
 	t.Run("Should work with real tiktoken fallback", func(t *testing.T) {
 		factory := NewCounterFactory(DefaultTokenCounter)
 		// Test fallback counter creation
-		counter, err := factory.CreateCounter(context.Background(), nil)
+		counter, err := factory.CreateCounter(t.Context(), nil)
 		require.NoError(t, err)
 		assert.NotNil(t, counter)
 		// Test unified counter creation with provider config
@@ -156,12 +155,12 @@ func TestCounterFactory_Integration(t *testing.T) {
 			Model:    "gpt-4",
 			APIKey:   "test-key",
 		}
-		unifiedCounter, err := factory.CreateCounter(context.Background(), config)
+		unifiedCounter, err := factory.CreateCounter(t.Context(), config)
 		require.NoError(t, err)
 		assert.NotNil(t, unifiedCounter)
 		// Test registry-based creation
 		registryCounter, err := factory.CreateCounterFromRegistryKey(
-			context.Background(),
+			t.Context(),
 			"anthropic-claude",
 			"test-key",
 		)

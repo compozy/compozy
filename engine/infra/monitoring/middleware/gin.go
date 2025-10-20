@@ -2,11 +2,16 @@ package middleware
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.22.0"
 )
@@ -14,6 +19,8 @@ import (
 var (
 	httpRequestsTotal    metric.Int64Counter
 	httpRequestDuration  metric.Float64Histogram
+	httpRequestSize      metric.Int64Histogram
+	httpResponseSize     metric.Int64Histogram
 	httpRequestsInFlight metric.Int64UpDownCounter
 	initOnce             sync.Once
 	initMutex            sync.Mutex
@@ -27,24 +34,45 @@ func initMetrics(ctx context.Context, meter metric.Meter) {
 	}
 	log := logger.FromContext(ctx)
 	initOnce.Do(func() {
+		initMutex.Lock()
+		defer initMutex.Unlock()
+
 		var err error
 		httpRequestsTotal, err = meter.Int64Counter(
-			"compozy_http_requests",
+			metrics.MetricNameWithSubsystem("http", "requests"),
 			metric.WithDescription("Total HTTP requests"),
 		)
 		if err != nil {
 			log.Error("Failed to create http requests total counter", "error", err)
 		}
 		httpRequestDuration, err = meter.Float64Histogram(
-			"compozy_http_request_duration_seconds",
+			metrics.MetricNameWithSubsystem("http", "request_duration_seconds"),
 			metric.WithDescription("HTTP request latency"),
-			metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
+			metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
 		)
 		if err != nil {
 			log.Error("Failed to create http request duration histogram", "error", err)
 		}
+		httpRequestSize, err = meter.Int64Histogram(
+			metrics.MetricNameWithSubsystem("http", "request_size_bytes"),
+			metric.WithDescription("Size distribution of HTTP request bodies"),
+			metric.WithUnit("bytes"),
+			metric.WithExplicitBucketBoundaries(100, 1000, 10000, 100000, 1000000, 10000000, 100000000),
+		)
+		if err != nil {
+			log.Error("Failed to create http request size histogram", "error", err)
+		}
+		httpResponseSize, err = meter.Int64Histogram(
+			metrics.MetricNameWithSubsystem("http", "response_size_bytes"),
+			metric.WithDescription("Size distribution of HTTP response bodies"),
+			metric.WithUnit("bytes"),
+			metric.WithExplicitBucketBoundaries(100, 1000, 10000, 100000, 1000000, 10000000, 100000000),
+		)
+		if err != nil {
+			log.Error("Failed to create http response size histogram", "error", err)
+		}
 		httpRequestsInFlight, err = meter.Int64UpDownCounter(
-			"compozy_http_requests_in_flight",
+			metrics.MetricNameWithSubsystem("http", "requests_in_flight"),
 			metric.WithDescription("Currently active HTTP requests"),
 		)
 		if err != nil {
@@ -61,6 +89,8 @@ func ResetMetricsForTesting() {
 	defer initMutex.Unlock()
 	httpRequestsTotal = nil
 	httpRequestDuration = nil
+	httpRequestSize = nil
+	httpResponseSize = nil
 	httpRequestsInFlight = nil
 	initOnce = sync.Once{}
 }
@@ -86,28 +116,33 @@ func HTTPMetrics(ctx context.Context, meter metric.Meter) gin.HandlerFunc {
 			}
 		}()
 		start := time.Now()
+		countedBody := wrapRequestBody(c.Request)
 		if httpRequestsInFlight != nil {
-			httpRequestsInFlight.Add(c.Request.Context(), 1)
-			defer httpRequestsInFlight.Add(c.Request.Context(), -1)
+			attrs := metric.WithAttributes(
+				semconv.HTTPMethodKey.String(c.Request.Method),
+			)
+			httpRequestsInFlight.Add(c.Request.Context(), 1, attrs)
+			defer httpRequestsInFlight.Add(c.Request.Context(), -1, attrs)
 		}
 		c.Next()
-		recordMetrics(c, start)
+		recordMetrics(c, start, countedBody)
 	}
 }
 
 // recordMetrics records HTTP metrics after request completion
-func recordMetrics(c *gin.Context, start time.Time) {
+func recordMetrics(c *gin.Context, start time.Time, countedBody *bodyReadCounter) {
 	duration := time.Since(start).Seconds()
 	path := c.FullPath()
 	if path == "" {
 		path = "unmatched"
 	}
 
-	attrs := metric.WithAttributes(
+	labels := []attribute.KeyValue{
 		semconv.HTTPMethodKey.String(c.Request.Method),
 		semconv.HTTPRouteKey.String(path),
 		semconv.HTTPStatusCodeKey.Int(c.Writer.Status()),
-	)
+	}
+	attrs := metric.WithAttributes(labels...)
 
 	if httpRequestsTotal != nil {
 		httpRequestsTotal.Add(c.Request.Context(), 1, attrs)
@@ -115,4 +150,72 @@ func recordMetrics(c *gin.Context, start time.Time) {
 	if httpRequestDuration != nil {
 		httpRequestDuration.Record(c.Request.Context(), duration, attrs)
 	}
+	if httpRequestSize != nil {
+		size := requestSizeBytes(c, countedBody)
+		httpRequestSize.Record(c.Request.Context(), size, attrs)
+	}
+	if httpResponseSize != nil {
+		size := responseSizeBytes(c.Writer)
+		httpResponseSize.Record(c.Request.Context(), size, attrs)
+	}
+}
+
+func requestSizeBytes(c *gin.Context, countedBody *bodyReadCounter) int64 {
+	if countedBody != nil {
+		if read := countedBody.BytesRead(); read > 0 {
+			return read
+		}
+	}
+	if c.Request.ContentLength > 0 {
+		return c.Request.ContentLength
+	}
+	if header := c.Request.Header.Get("Content-Length"); header != "" {
+		if parsed, err := strconv.ParseInt(header, 10, 64); err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
+func responseSizeBytes(writer gin.ResponseWriter) int64 {
+	size := int64(writer.Size())
+	if size >= 0 {
+		return size
+	}
+	if header := writer.Header().Get("Content-Length"); header != "" {
+		if parsed, err := strconv.ParseInt(header, 10, 64); err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
+// bodyReadCounter wraps an io.ReadCloser and tracks the bytes read from it.
+type bodyReadCounter struct {
+	io.ReadCloser
+	bytesRead int64
+}
+
+func (r *bodyReadCounter) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	if n > 0 {
+		r.bytesRead += int64(n)
+	}
+	return n, err
+}
+
+func (r *bodyReadCounter) BytesRead() int64 {
+	return r.bytesRead
+}
+
+func wrapRequestBody(req *http.Request) *bodyReadCounter {
+	if req == nil || req.Body == nil {
+		return nil
+	}
+	if existing, ok := req.Body.(*bodyReadCounter); ok {
+		return existing
+	}
+	counter := &bodyReadCounter{ReadCloser: req.Body}
+	req.Body = counter
+	return counter
 }

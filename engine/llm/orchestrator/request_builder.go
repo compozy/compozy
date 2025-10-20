@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"maps"
 	"sort"
 	"strings"
 	"sync"
@@ -96,20 +95,13 @@ func (b *requestBuilder) Build(
 		"output_format", b.describeOutputFormat(promptResult.Format),
 		"force_json", forceJSON,
 	)
+	stopWords := append([]string(nil), request.Agent.Model.Config.Params.StopWords...)
+	opts := b.buildCallOptions(&request, promptResult.Format, toolChoice, forceJSON, temperature, stopWords)
 	llmReq := llmadapter.LLMRequest{
 		SystemPrompt: b.enhanceSystemPromptWithBuiltins(ctx, request.Agent.Instructions),
 		Messages:     messages,
 		Tools:        toolDefs,
-		Options: llmadapter.CallOptions{
-			Temperature:  temperature,
-			MaxTokens:    request.Agent.Model.Config.Params.MaxTokens,
-			StopWords:    request.Agent.Model.Config.Params.StopWords,
-			ToolChoice:   toolChoice,
-			OutputFormat: promptResult.Format,
-			ForceJSON:    forceJSON,
-			Provider:     request.Agent.Model.Config.Provider,
-			Model:        request.Agent.Model.Config.Model,
-		},
+		Options:      opts,
 	}
 	return RequestBuildOutput{
 		Request:        llmReq,
@@ -156,6 +148,39 @@ func (b *requestBuilder) describeOutputFormat(format llmadapter.OutputFormat) st
 		return "json_schema"
 	}
 	return "default"
+}
+
+func (b *requestBuilder) buildCallOptions(
+	request *Request,
+	format llmadapter.OutputFormat,
+	toolChoice string,
+	forceJSON bool,
+	temperature float64,
+	stopWords []string,
+) llmadapter.CallOptions {
+	params := request.Agent.Model.Config.Params
+	return llmadapter.CallOptions{
+		Temperature:       temperature,
+		TemperatureSet:    params.IsSetTemperature(),
+		MaxTokens:         params.MaxTokens,
+		StopWords:         stopWords,
+		ToolChoice:        toolChoice,
+		OutputFormat:      format,
+		ForceJSON:         forceJSON,
+		Provider:          request.Agent.Model.Config.Provider,
+		Model:             request.Agent.Model.Config.Model,
+		TopP:              params.TopP,
+		TopK:              params.TopK,
+		FrequencyPenalty:  params.FrequencyPenalty,
+		PresencePenalty:   params.PresencePenalty,
+		Seed:              params.Seed,
+		N:                 params.N,
+		CandidateCount:    params.CandidateCount,
+		RepetitionPenalty: params.RepetitionPenalty,
+		MaxLength:         params.MaxLength,
+		MinLength:         params.MinLength,
+		Metadata:          core.CloneMap(params.Metadata),
+	}
 }
 
 //nolint:gocritic // Request copied to construct immutable message slices for the LLM conversation.
@@ -477,23 +502,18 @@ func nearestToolNames(target string, names []string, limit int) []string {
 }
 
 func normalizeToolParameters(input map[string]any) map[string]any {
-	params := cloneMap(input)
+	params := core.CloneMap(input)
 	if !isObjectType(params["type"]) {
 		params["type"] = "object"
 	}
-	if _, ok := params["properties"]; !ok {
-		params["properties"] = map[string]any{}
+	props, ok := params["properties"].(map[string]any)
+	if !ok || props == nil {
+		props = map[string]any{}
+	} else {
+		props = core.CloneMap(props)
 	}
+	params["properties"] = props
 	return params
-}
-
-func cloneMap(src map[string]any) map[string]any {
-	if src == nil {
-		return map[string]any{}
-	}
-	clone := make(map[string]any, len(src))
-	maps.Copy(clone, src)
-	return clone
 }
 
 func isObjectType(value any) bool {
@@ -551,9 +571,6 @@ func loadFallbackTemplate() (*template.Template, error) {
 }
 
 func composeSystemPromptFallback(ctx context.Context, instructions string) string {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	tpl, err := loadFallbackTemplate()
 	if err != nil {
 		logger.FromContext(ctx).Error(
