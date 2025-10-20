@@ -45,3 +45,13 @@ func outputJSONResponse(response map[string]any) error {
 	}
 	return nil
 }
+
+// writeJSONResponse writes the payload as formatted JSON to stdout.
+func writeJSONResponse(payload map[string]any) error {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(payload); err != nil {
+		return fmt.Errorf("failed to encode JSON response: %w", err)
+	}
+	return nil
+}

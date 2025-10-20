@@ -2,9 +2,7 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
@@ -76,13 +74,4 @@ func validateCreateUserRole(role string) error {
 		return nil
 	}
 	return fmt.Errorf("invalid role: must be '%s' or '%s'", api.RoleAdmin, api.RoleUser)
-}
-
-func writeJSONResponse(payload map[string]any) error {
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(payload); err != nil {
-		return fmt.Errorf("failed to encode JSON response: %w", err)
-	}
-	return nil
 }

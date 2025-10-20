@@ -6,6 +6,11 @@ import (
 	"github.com/compozy/compozy/cli/tui/styles"
 )
 
+const (
+	headerHeight = 2 // title line + newline
+	footerHeight = 1 // status bar line
+)
+
 // LayoutComponent provides a consistent layout system
 type LayoutComponent struct {
 	Width  int
@@ -143,10 +148,10 @@ func (l *LayoutComponent) calculateLayoutMetrics() layoutMetrics {
 	availableHeight := l.Height
 	availableWidth := l.Width
 	if l.ShowHeader {
-		availableHeight -= 2
+		availableHeight -= headerHeight
 	}
 	if l.ShowFooter {
-		availableHeight--
+		availableHeight -= footerHeight
 	}
 	availableHeight -= l.Error.Height()
 	if availableHeight < 0 {

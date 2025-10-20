@@ -14,6 +14,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	defaultGeneratedSummaryWidth = 60    // width of the generated summary card
+	generatedSummaryBorderColor  = "69"  // accent color for summary borders
+	generatedSummaryKeyColor     = "214" // highlight color for partial key
+	generatedSummaryInfoColor    = "241" // muted tone for advisory text
+)
+
 // GenerateTUI handles the key generation in TUI mode
 func GenerateTUI(
 	ctx context.Context,
@@ -77,7 +84,7 @@ type generateModel struct {
 func newGenerateModel(ctx context.Context, client api.AuthClient, name, description, expires string) generateModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(generatedSummaryBorderColor))
 	return generateModel{
 		ctx:         ctx,
 		client:      client,
@@ -164,14 +171,14 @@ func renderGeneratingMessage(spinnerView string) string {
 func renderGeneratedSummary(m *generateModel) string {
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("69")).
+		BorderForeground(lipgloss.Color(generatedSummaryBorderColor)).
 		Padding(1, 2).
-		Width(60)
+		Width(defaultGeneratedSummaryWidth)
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("69"))
+		Foreground(lipgloss.Color(generatedSummaryBorderColor))
 	keyStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("214")).
+		Foreground(lipgloss.Color(generatedSummaryKeyColor)).
 		Bold(true)
 	content := titleStyle.Render("✅ API Key Generated Successfully!") + "\n\n"
 	partialKey := renderPartialKey(m.apiKey)
@@ -180,7 +187,7 @@ func renderGeneratedSummary(m *generateModel) string {
 	content += renderClipboardStatus(m.clipboardCopied)
 	content += renderKeyMetadata(m)
 	content += "\n" + lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
+		Foreground(lipgloss.Color(generatedSummaryInfoColor)).
 		Render("⚠️  Save this key securely. You won't be able to see it again!")
 	content += "\n\nPress Enter or 'q' to exit"
 	return style.Render(content)
@@ -202,7 +209,6 @@ func renderClipboardStatus(copied bool) string {
 
 func renderKeyMetadata(m *generateModel) string {
 	var details string
-	details += "Press 'q' to quit\n\n"
 	if m.name != "" {
 		details += fmt.Sprintf("Name: %s\n", m.name)
 	}

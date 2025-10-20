@@ -2,11 +2,13 @@ package helpers
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/term"
 )
 
 // FlagCategory represents a group of related flags
@@ -198,11 +200,12 @@ func SetupCategorizedHelp(cmd *cobra.Command) {
 
 // Define ANSI color codes
 const (
-	colorReset   = "\033[0m"
-	colorBold    = "\033[1m"
-	colorPrimary = "\033[36m" // Cyan
-	colorSuccess = "\033[32m" // Green
-	colorMuted   = "\033[90m" // Bright black (gray)
+	colorReset                 = "\033[0m"
+	colorBold                  = "\033[1m"
+	colorPrimary               = "\033[36m" // Cyan
+	colorSuccess               = "\033[32m" // Green
+	colorMuted                 = "\033[90m" // Bright black (gray)
+	flagDescriptionColumnWidth = 50         // width reserved for flag descriptions
 )
 
 // createSeparator creates a styled separator line
@@ -218,11 +221,10 @@ func createSeparator(width int, noColor bool) string {
 
 // getTerminalWidth attempts to get terminal width, with fallback
 func getTerminalWidth() int {
-	width := lipgloss.Width(strings.Repeat("x", 80)) // Start with default
-	if lipgloss.Width(strings.Repeat("x", 100)) == 100 {
-		width = 100
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+		return w
 	}
-	return width
+	return 80
 }
 
 // categorizedHelpFunc is a custom help function that groups flags by category
@@ -492,10 +494,9 @@ func flagTypeHint(flag *pflag.Flag, noColor bool) string {
 }
 
 func padFlagLine(line *strings.Builder) {
-	const columnWidth = 50
 	visibleLength := calculateVisibleLength(line.String())
-	if visibleLength < columnWidth {
-		line.WriteString(strings.Repeat(" ", columnWidth-visibleLength))
+	if visibleLength < flagDescriptionColumnWidth {
+		line.WriteString(strings.Repeat(" ", flagDescriptionColumnWidth-visibleLength))
 	} else {
 		line.WriteString(" ")
 	}

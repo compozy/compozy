@@ -103,11 +103,10 @@ func buildDownloadRequest(ctx context.Context, requestCtx context.Context, url s
 
 // effectiveUserAgent resolves the user-agent header for outbound requests.
 func effectiveUserAgent(ctx context.Context) string {
-	ua := HTTPUserAgent
 	if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.Attachments.HTTPUserAgent != "" {
 		return cfg.Attachments.HTTPUserAgent
 	}
-	return ua
+	return HTTPUserAgent
 }
 
 // validateHTTPResponse ensures the response status and length are acceptable.

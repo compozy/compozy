@@ -51,16 +51,15 @@ func SetupGlobalConfig(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to extract CLI flags: %w", err)
 	}
 	sources := buildConfigSources(cmd, cliFlags)
-	mgr, ctx, err := loadConfigManager(ctx, sources)
+	_, newCtx, err := loadConfigManager(ctx, sources)
 	if err != nil {
 		return err
 	}
+	ctx = newCtx
 	cfg := config.FromContext(ctx)
 	ensureDefaultCWD(cfg)
 	ctx = attachLogger(ctx, cfg)
 	cmd.SetContext(ctx)
-	mgr.OnChange(func(_ *config.Config) {
-	})
 	return nil
 }
 
@@ -149,10 +148,7 @@ func buildVersionCommand() *cobra.Command {
 }
 
 func commandContext(cmd *cobra.Command) context.Context {
-	if ctx := cmd.Context(); ctx != nil {
-		return ctx
-	}
-	return context.TODO()
+	return cmd.Context()
 }
 
 func buildConfigSources(cmd *cobra.Command, cliFlags map[string]any) []config.Source {

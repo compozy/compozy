@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/compozy/compozy/cli/cmd"
@@ -157,6 +158,7 @@ func ensureBootstrapEmail(flags *bootstrapFlags) error {
 		}
 		flags.email = email
 	}
+	flags.email = strings.TrimSpace(flags.email)
 	if err := bootstrapcli.ValidateEmail(flags.email); err != nil {
 		return fmt.Errorf("invalid email: %w", err)
 	}
@@ -203,13 +205,15 @@ func promptForEmail() (string, error) {
 				Description("Enter the email for the admin user").
 				Placeholder("admin@company.com").
 				Value(&email).
-				Validate(bootstrapcli.ValidateEmail),
+				Validate(func(value string) error {
+					return bootstrapcli.ValidateEmail(strings.TrimSpace(value))
+				}),
 		),
 	)
 	if err := form.Run(); err != nil {
 		return "", err
 	}
-	return email, nil
+	return strings.TrimSpace(email), nil
 }
 
 // confirmBootstrap asks for final confirmation

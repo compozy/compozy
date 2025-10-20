@@ -2,9 +2,7 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -91,10 +89,5 @@ func writeDeleteResponse(userID string, cascade bool) error {
 		},
 		"message": "Success",
 	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(response); err != nil {
-		return fmt.Errorf("failed to encode JSON response: %w", err)
-	}
-	return nil
+	return writeJSONResponse(response)
 }
