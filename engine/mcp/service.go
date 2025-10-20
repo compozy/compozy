@@ -57,20 +57,17 @@ func NewWithTimeout(ctx context.Context, proxyURL string, timeout time.Duration)
 // Ensure registers an MCP with the proxy if not already registered (idempotent)
 func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
 	log := logger.FromContext(ctx)
-	// Convert MCP config to proxy definition
 	def, err := s.convertToDefinition(config)
 	if err != nil {
 		return fmt.Errorf("failed to convert MCP config to definition: %w", err)
 	}
-	// Log registration with redacted headers for security
 	if len(def.Headers) > 0 {
+		// NOTE: Redact headers before logging MCP registration to avoid leaking secrets.
 		log.Debug("Registering MCP with headers", "mcp_id", config.ID, "headers", core.RedactHeaders(def.Headers))
 	}
-	// Register with proxy
 	if err := s.proxy.Register(ctx, &def); err != nil {
 		return fmt.Errorf("failed to register MCP with proxy: %w", err)
 	}
-	// Track successful registrations for best-effort shutdown without admin list
 	s.registeredMu.Lock()
 	s.registered[config.ID] = struct{}{}
 	s.registeredMu.Unlock()
@@ -80,7 +77,6 @@ func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
 // Deregister removes an MCP from the proxy
 func (s *RegisterService) Deregister(ctx context.Context, mcpID string) error {
 	log := logger.FromContext(ctx)
-	// Deregister from proxy
 	if err := s.proxy.Deregister(ctx, mcpID); err != nil {
 		return fmt.Errorf("failed to deregister MCP from proxy: %w", err)
 	}
@@ -182,7 +178,6 @@ func (s *RegisterService) deregisterIDs(ctx context.Context, ids []string) {
 // HealthCheck verifies the proxy connection
 func (s *RegisterService) HealthCheck(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	// Check proxy health
 	if err := s.proxy.Health(ctx); err != nil {
 		return fmt.Errorf("proxy health check failed: %w", err)
 	}
@@ -310,18 +305,15 @@ func resolveHeadersWithEnv(ctx context.Context, headers map[string]string, env c
 	tplCtx := map[string]any{"env": map[string]string(env)}
 	for k, v := range headers {
 		if tplengine.HasTemplate(v) {
-			// Optional strict mode for template validation, disabled by default for compatibility.
 			if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.LLM.MCPHeaderTemplateStrict {
 				if err := validateTemplate(v); err != nil {
 					out[k] = v
 					continue
 				}
 			}
-			// Validate template doesn't contain dangerous patterns
 			if s, err := engine.ProcessString(v, tplCtx); err == nil {
 				out[k] = s
 			} else {
-				// Use original value if template processing fails
 				out[k] = v
 			}
 		} else {
@@ -726,7 +718,6 @@ func setupRegisterServiceFromApp(ctx context.Context) *RegisterService {
 		clientTimeout = defaultMCPClientTimeout
 	}
 	service := NewWithTimeout(ctx, proxyURL, clientTimeout)
-	// Avoid logging full proxy URL which may contain credentials
 	log.Info("Initialized MCP register with proxy", "proxy_configured", true)
 	return service
 }

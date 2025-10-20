@@ -111,7 +111,6 @@ func copySchemaMap(s *schema.Schema) map[string]any {
 	}
 	cloned, err := core.DeepCopy(map[string]any(*s))
 	if err != nil {
-		// fall back to a shallow copy to avoid mutating original schema
 		return core.CloneMap(*s)
 	}
 	return cloned
@@ -153,7 +152,6 @@ func (r *toolRegistry) mcpToolAllowed(t tools.Tool) bool {
 		}
 		return !r.mcpToolDenied(t)
 	}
-	// Unknown tool type with allowlist active -> deny
 	return false
 }
 
@@ -166,7 +164,6 @@ func (r *toolRegistry) mcpToolDenied(t tools.Tool) bool {
 		_, denied := r.deniedMCPSet[r.canonicalize(named.MCPName())]
 		return denied
 	}
-	// If deny list exists but MCP name is unavailable, default to allowing.
 	return false
 }
 
@@ -185,14 +182,12 @@ func (r *toolRegistry) Register(ctx context.Context, tool Tool) error {
 func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 	log := logger.FromContext(ctx)
 	canonical := r.canonicalize(name)
-	// Check local tools first (they have precedence)
 	r.localMu.RLock()
 	if localTool, exists := r.localTools[canonical]; exists {
 		r.localMu.RUnlock()
 		return localTool, true
 	}
 	r.localMu.RUnlock()
-	// Check MCP tools
 	_, stale, err := r.getMCPTools(ctx)
 	if err != nil {
 		log.Warn("Failed to get MCP tools", "error", err)
@@ -255,7 +250,6 @@ func (r *toolRegistry) InvalidateCache(ctx context.Context) {
 
 // Close cleans up resources
 func (r *toolRegistry) Close() error {
-	// Currently no cleanup needed for local implementation
 	return nil
 }
 
@@ -569,14 +563,12 @@ func (a *localToolAdapter) ParameterSchema() map[string]any {
 }
 
 func (a *localToolAdapter) Call(ctx context.Context, input string) (string, error) {
-	// Parse input as JSON
 	var inputMap map[string]any
 	if err := json.Unmarshal([]byte(input), &inputMap); err != nil {
 		return "", core.NewError(err, "INVALID_TOOL_INPUT", map[string]any{
 			"tool": a.config.ID,
 		})
 	}
-	// Execute tool
 	output, err := a.runtime.ExecuteTool(ctx, a.config, inputMap)
 	if err != nil {
 		return "", core.NewError(err, "TOOL_EXECUTION_ERROR", map[string]any{
@@ -588,7 +580,6 @@ func (a *localToolAdapter) Call(ctx context.Context, input string) (string, erro
 			"tool": a.config.ID,
 		})
 	}
-	// Return as JSON string
 	result, err := json.Marshal(*output)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal output: %w", err)

@@ -26,7 +26,7 @@ func (aol *AsyncOperationLogger) LogAsyncOperationStart(
 	metadata map[string]any,
 ) {
 	log := logger.FromContext(ctx)
-	// Extract trace ID if available
+	// NOTE: Capture trace metadata when available to correlate async operations.
 	span := trace.SpanFromContext(ctx)
 	traceID := ""
 	if span.SpanContext().IsValid() {
@@ -41,7 +41,6 @@ func (aol *AsyncOperationLogger) LogAsyncOperationStart(
 	if traceID != "" {
 		baseFields = append(baseFields, "trace_id", traceID)
 	}
-	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}
@@ -58,7 +57,6 @@ func (aol *AsyncOperationLogger) LogAsyncOperationComplete(
 	metadata map[string]any,
 ) {
 	log := logger.FromContext(ctx)
-	// Extract trace ID if available
 	span := trace.SpanFromContext(ctx)
 	traceID := ""
 	if span.SpanContext().IsValid() {
@@ -78,7 +76,6 @@ func (aol *AsyncOperationLogger) LogAsyncOperationComplete(
 	if err != nil {
 		baseFields = append(baseFields, "error", err.Error())
 	}
-	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}
@@ -100,7 +97,6 @@ func (aol *AsyncOperationLogger) LogFlushOperation(
 		"flush_type": flushType,
 		"async":      true,
 	}
-	// Merge with provided metadata
 	merged := core.CopyMaps(baseMetadata, metadata)
 	aol.LogAsyncOperationStart(ctx, "memory_flush", memoryID, merged)
 }
@@ -121,12 +117,10 @@ func (aol *AsyncOperationLogger) LogTemporalWorkflow(
 		"timestamp", time.Now().UTC(),
 		"async", true,
 	}
-	// Extract trace ID if available
 	span := trace.SpanFromContext(ctx)
 	if span.SpanContext().IsValid() {
 		baseFields = append(baseFields, "trace_id", span.SpanContext().TraceID().String())
 	}
-	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}
@@ -143,7 +137,6 @@ func (aol *AsyncOperationLogger) LogTokenManagement(
 	metadata map[string]any,
 ) {
 	log := logger.FromContext(ctx)
-	// Calculate usage percentage, avoiding division by zero
 	var usagePercentage float64
 	if maxTokens > 0 {
 		usagePercentage = float64(tokensUsed) / float64(maxTokens) * 100
@@ -156,7 +149,6 @@ func (aol *AsyncOperationLogger) LogTokenManagement(
 		"usage_percentage", usagePercentage,
 		"timestamp", time.Now().UTC(),
 	}
-	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}
@@ -187,7 +179,6 @@ func (aol *AsyncOperationLogger) LogLockOperation(
 		"duration_ms", duration.Milliseconds(),
 		"timestamp", time.Now().UTC(),
 	}
-	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}
@@ -212,7 +203,6 @@ func (aol *AsyncOperationLogger) LogPrivacyOperation(
 		"privacy", true,
 		"timestamp", time.Now().UTC(),
 	}
-	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}

@@ -229,7 +229,6 @@ func toFloat32(values []float64, dimension int) []float32 {
 	if len(out) > dimension {
 		return out[:dimension]
 	}
-	// Extend with zeros when stored vector was shorter.
 	extended := make([]float32, dimension)
 	copy(extended, out)
 	return extended

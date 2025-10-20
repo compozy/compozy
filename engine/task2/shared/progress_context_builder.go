@@ -11,8 +11,8 @@ import (
 // This function creates a map of progress-related variables that can be used
 // in collection and parallel task templates for conditional logic and monitoring
 func BuildProgressContext(_ context.Context, state *task.ProgressState) map[string]any {
-	// Handle nil state gracefully
 	if state == nil {
+		// NOTE: Provide zeroed progress context so templates don't nil panic.
 		return map[string]any{
 			"total":          0,
 			"completed":      0,
@@ -30,7 +30,6 @@ func BuildProgressContext(_ context.Context, state *task.ProgressState) map[stri
 			"elapsedSeconds": 0.0,
 		}
 	}
-	// Calculate elapsed time, handling zero time case
 	var elapsedSeconds float64
 	if !state.StartTime.IsZero() {
 		elapsedSeconds = time.Since(state.StartTime).Seconds()

@@ -44,23 +44,19 @@ func (e *ParallelTaskExecutor) HandleParallelTask(
 			currentDepth = depth[0]
 		}
 		// TODO: ContinueAsNew guard (history safety) - implement when needed
-		// if historyLength > 25000 { return continueAsNew() }
 		var completed, failed int32
 		pState, childStates, childCfgs, numTasks, err := e.setupParallelExecution(ctx, pConfig)
 		if err != nil {
 			return nil, err
 		}
-		// Execute subtasks in parallel using executeChild helper
 		maxConcurrency := pConfig.GetMaxWorkers()
 		e.executeChildrenInParallel(ctx, pState, childStates, func(cs *task.State) *task.Config {
 			return childCfgs[cs.TaskID]
 		}, pConfig, currentDepth, &completed, &failed, maxConcurrency)
-		// Wait for tasks to complete based on strategy
 		err = e.awaitStrategyCompletion(ctx, pConfig.GetStrategy(), &completed, &failed, numTasks)
 		if err != nil {
 			return nil, fmt.Errorf("failed to await parallel task: %w", err)
 		}
-		// Process parallel response with proper transitions
 		finalResponse, err := e.GetParallelResponse(ctx, pState)
 		if err != nil {
 			return nil, err
@@ -123,22 +119,18 @@ func (e *ParallelTaskExecutor) setupParallelExecution(
 	if err != nil {
 		return nil, nil, nil, 0, err
 	}
-	// Get child states that were created by CreateParallelState
 	childStates, err := e.ListChildStates(ctx, pState.TaskExecID)
 	if err != nil {
 		return nil, nil, nil, 0, fmt.Errorf("failed to list child states: %w", err)
 	}
-	// For nested parallel tasks, use the task's own configs; for root tasks, load from workflow
 	var childCfgs map[string]*task.Config
 	if len(pConfig.Tasks) > 0 {
-		// Nested parallel task - use configs from the task itself
 		childCfgs = make(map[string]*task.Config)
 		for i := range pConfig.Tasks {
 			cfg := &pConfig.Tasks[i]
 			childCfgs[cfg.ID] = cfg
 		}
 	} else {
-		// Root parallel task - load configs from workflow
 		childIDs := make([]string, len(childStates))
 		for i, st := range childStates {
 			childIDs[i] = st.TaskID

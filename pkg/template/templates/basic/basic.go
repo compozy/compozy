@@ -142,9 +142,6 @@ func (t *Template) GetFiles() []template.File {
 
 // GetDirectories returns required directories
 func (t *Template) GetDirectories() []string {
-	// Basic template only needs workflows directory
-	// The autoload configuration in compozy.yaml handles agents and tools
-	// but we don't create empty directories
 	return []string{"workflows"}
 }
 

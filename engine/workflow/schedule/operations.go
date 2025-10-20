@@ -22,24 +22,22 @@ var cronParser6Fields = cron.NewParser(cron.Second | cron.Minute | cron.Hour | c
 // Temporal requires 7 fields for seconds support, so we append year if needed.
 // Returns the converted cron expression.
 func EnsureTemporalCron(cronExpr string) string {
-	// @every syntax is supported by Temporal directly
 	if strings.HasPrefix(cronExpr, "@every ") {
+		// NOTE: Temporal accepts @every expressions natively; no conversion needed.
 		return cronExpr
 	}
-	// Convert cron expression to 7-field format for Temporal
 	fields := strings.Fields(cronExpr)
 	switch len(fields) {
 	case 5:
-		// Standard 5-field cron (minute hour day month weekday) - add seconds and year
+		// NOTE: Pad standard 5-field crons with seconds and year for Temporal compatibility.
 		return "0 " + cronExpr + " *"
 	case 6:
-		// 6-field cron with seconds - add year
+		// NOTE: Append the year field when seconds are present but year is omitted.
 		return cronExpr + " *"
 	case 7:
-		// Already in Temporal format
 		return cronExpr
 	default:
-		// Return as-is, let Temporal handle the validation error
+		// NOTE: Leave unexpected formats untouched so Temporal validation surfaces the error.
 		return cronExpr
 	}
 }
@@ -61,23 +59,18 @@ const (
 
 // isValidYearField validates the year field in a 7-field cron expression
 func isValidYearField(yearField string) bool {
-	// Allow wildcard
 	if yearField == "*" {
 		return true
 	}
-	// Handle step values (e.g., */2, 2024-2030/2)
 	if strings.Contains(yearField, "/") {
 		return isValidStepYearField(yearField)
 	}
-	// Handle ranges (e.g., 2024-2030)
 	if strings.Contains(yearField, "-") {
 		return isValidRangeYearField(yearField)
 	}
-	// Handle comma-separated values (e.g., 2024,2025,2026)
 	if strings.Contains(yearField, ",") {
 		return isValidListYearField(yearField)
 	}
-	// Handle single year
 	return isValidSingleYear(yearField)
 }
 
@@ -130,17 +123,14 @@ func isValidStepYearField(yearField string) bool {
 	if len(parts) != 2 {
 		return false
 	}
-	// Validate step value
 	step, err := strconv.Atoi(parts[1])
 	if err != nil || step <= 0 {
 		return false
 	}
-	// Validate base pattern
 	base := parts[0]
 	if base == "*" {
 		return true
 	}
-	// Recursively validate the base part without step
 	return isValidYearField(base)
 }
 
@@ -151,7 +141,6 @@ func isValidStepYearField(yearField string) bool {
 func (m *manager) listSchedulesByPrefix(ctx context.Context, prefix string) (map[string]client.ScheduleHandle, error) {
 	log := logger.FromContext(ctx)
 	schedules := make(map[string]client.ScheduleHandle)
-	// Create iterator for listing schedules
 	iter, err := m.client.ScheduleClient().List(ctx, client.ScheduleListOptions{
 		PageSize: m.config.PageSize,
 		Query:    fmt.Sprintf("ScheduleId STARTS_WITH %q", prefix),
@@ -159,7 +148,6 @@ func (m *manager) listSchedulesByPrefix(ctx context.Context, prefix string) (map
 	if err != nil {
 		return nil, fmt.Errorf("failed to create schedule iterator: %w", err)
 	}
-	// Iterate through all schedules with error tracking to prevent infinite loops
 	const maxConsecutiveErrors = 5
 	consecutiveErrors := 0
 	for iter.HasNext() {
@@ -169,7 +157,6 @@ func (m *manager) listSchedulesByPrefix(ctx context.Context, prefix string) (map
 			log.Warn("Failed to retrieve schedule from iterator",
 				"error", err,
 				"consecutive_errors", consecutiveErrors)
-			// Break if we hit too many consecutive errors to prevent infinite loops
 			if consecutiveErrors >= maxConsecutiveErrors {
 				log.Error("Too many consecutive iterator errors, aborting iteration",
 					"consecutive_errors", consecutiveErrors,
@@ -178,7 +165,6 @@ func (m *manager) listSchedulesByPrefix(ctx context.Context, prefix string) (map
 			}
 			continue
 		}
-		// Reset consecutive error counter on successful iteration
 		consecutiveErrors = 0
 		scheduleID := schedule.ID
 		handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)
@@ -636,7 +622,6 @@ func (m *manager) buildScheduleUpdater(
 // deleteSchedule deletes a schedule from Temporal
 func (m *manager) deleteSchedule(ctx context.Context, scheduleID string) error {
 	log := logger.FromContext(ctx).With("schedule_id", scheduleID)
-	// Record operation metrics
 	operation := OperationDelete
 	status := OperationStatusFailure // Assume failure, will be set to success on completion
 	if m.metrics != nil {
@@ -649,7 +634,6 @@ func (m *manager) deleteSchedule(ctx context.Context, scheduleID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to delete schedule: %w", err)
 	}
-	// Also remove any overrides associated with the deleted schedule.
 	workflowID := m.workflowIDFromScheduleID(scheduleID)
 	m.overrideCache.ClearOverride(workflowID)
 	status = OperationStatusSuccess // Mark operation as successful
@@ -665,13 +649,11 @@ func (m *manager) checkScheduleNeedsUpdate(
 	wf *workflow.Config,
 ) (needsUpdate bool, expectedTimezone string, expectedEnabled bool) {
 	currentSpec := desc.Schedule.Spec
-	// Check core schedule properties
 	needsUpdate = m.checkCronNeedsUpdate(currentSpec, wf) ||
 		m.checkTimezoneNeedsUpdate(currentSpec, wf) ||
 		m.checkEnabledStateNeedsUpdate(desc, wf) ||
 		m.checkJitterNeedsUpdate(currentSpec, wf) ||
 		m.checkStartEndTimesNeedsUpdate(currentSpec, wf)
-	// Set expected values for return
 	expectedTimezone = wf.Schedule.Timezone
 	if expectedTimezone == "" {
 		expectedTimezone = DefaultTimezone
@@ -695,7 +677,6 @@ func (m *manager) checkTimezoneNeedsUpdate(currentSpec *client.ScheduleSpec, wf 
 	if expectedTimezone == "" {
 		expectedTimezone = DefaultTimezone
 	}
-	// Treat empty timezone as UTC to handle schedules created before defaults were enforced
 	currentTimezone := currentSpec.TimeZoneName
 	if currentTimezone == "" {
 		currentTimezone = DefaultTimezone
@@ -727,12 +708,10 @@ func (m *manager) checkJitterNeedsUpdate(currentSpec *client.ScheduleSpec, wf *w
 
 // checkStartEndTimesNeedsUpdate checks if start/end times need updating
 func (m *manager) checkStartEndTimesNeedsUpdate(currentSpec *client.ScheduleSpec, wf *workflow.Config) bool {
-	// Check start time
 	if (wf.Schedule.StartAt == nil && !currentSpec.StartAt.IsZero()) ||
 		(wf.Schedule.StartAt != nil && !currentSpec.StartAt.Equal(*wf.Schedule.StartAt)) {
 		return true
 	}
-	// Check end time
 	if (wf.Schedule.EndAt == nil && !currentSpec.EndAt.IsZero()) ||
 		(wf.Schedule.EndAt != nil && !currentSpec.EndAt.Equal(*wf.Schedule.EndAt)) {
 		return true

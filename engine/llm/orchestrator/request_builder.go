@@ -164,8 +164,6 @@ func (b *requestBuilder) requiresJSONMode(request Request, format llmadapter.Out
 	if action == nil || action.OutputSchema == nil {
 		return false
 	}
-	// If we already requested native JSON schema support, only skip forcing JSON when the
-	// provider supports structured output natively.
 	if format.IsJSONSchema() {
 		return !request.Execution.ProviderCaps.StructuredOutput
 	}

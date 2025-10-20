@@ -35,11 +35,9 @@ var (
 
 // NormalizePagination applies defaults and limits to pagination parameters
 func NormalizePagination(offset, limit int, limits PaginationLimits) (normalizedOffset, normalizedLimit int) {
-	// Apply offset defaults
 	if offset < 0 {
 		offset = 0
 	}
-	// Apply limit defaults
 	if limit <= 0 {
 		limit = limits.DefaultLimit
 	}

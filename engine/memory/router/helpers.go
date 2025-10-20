@@ -14,7 +14,6 @@ import (
 func handleMemoryError(c *gin.Context, err error, message string) {
 	var statusCode int
 	var errorMessage string
-	// Check for specific error types using switch
 	switch {
 	case errors.Is(err, memuc.ErrMemoryNotFound):
 		statusCode = http.StatusNotFound
@@ -32,7 +31,6 @@ func handleMemoryError(c *gin.Context, err error, message string) {
 		statusCode = http.StatusInternalServerError
 		errorMessage = "memory manager not available"
 	default:
-		// Default to internal server error
 		statusCode = http.StatusInternalServerError
 		errorMessage = message
 	}

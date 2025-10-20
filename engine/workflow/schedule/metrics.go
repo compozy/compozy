@@ -34,7 +34,6 @@ func (m *Metrics) initMetrics() {
 		return
 	}
 	var err error
-	// Schedule operations counter
 	m.scheduleOperationsTotal, err = m.meter.Int64Counter(
 		monitoringmetrics.MetricNameWithSubsystem("schedule", "operations_total"),
 		metric.WithDescription("Total schedule operations"),
@@ -42,7 +41,6 @@ func (m *Metrics) initMetrics() {
 	if err != nil {
 		logger.FromContext(m.ctx).Error("Failed to create schedule operations total counter", "error", err)
 	}
-	// Scheduled workflows gauge
 	m.scheduledWorkflowsTotal, err = m.meter.Int64UpDownCounter(
 		monitoringmetrics.MetricNameWithSubsystem("scheduled", "workflows_total"),
 		metric.WithDescription("Number of scheduled workflows"),
@@ -50,7 +48,6 @@ func (m *Metrics) initMetrics() {
 	if err != nil {
 		logger.FromContext(m.ctx).Error("Failed to create scheduled workflows total gauge", "error", err)
 	}
-	// Reconciliation duration histogram
 	m.reconcileDurationHistogram, err = m.meter.Float64Histogram(
 		monitoringmetrics.MetricNameWithSubsystem("schedule", "reconcile_duration_seconds"),
 		metric.WithDescription("Schedule reconciliation duration"),
@@ -59,7 +56,6 @@ func (m *Metrics) initMetrics() {
 	if err != nil {
 		logger.FromContext(m.ctx).Error("Failed to create reconcile duration histogram", "error", err)
 	}
-	// Reconciliation in-flight gauge
 	m.reconcileInflightGauge, err = m.meter.Int64UpDownCounter(
 		monitoringmetrics.MetricNameWithSubsystem("schedule", "reconcile_inflight"),
 		metric.WithDescription("Number of in-flight reconciliation operations"),
@@ -143,16 +139,13 @@ func (m *Metrics) NewReconciliationTracker(ctx context.Context, project string) 
 		project:   project,
 		startTime: time.Now(),
 	}
-	// Mark reconciliation as started
 	m.StartReconciliation(ctx, project)
 	return tracker
 }
 
 // Finish completes the reconciliation tracking
 func (t *ReconciliationTracker) Finish() {
-	// Record duration
 	duration := time.Since(t.startTime)
 	t.metrics.RecordReconcileDuration(t.ctx, t.project, duration)
-	// Mark reconciliation as ended
 	t.metrics.EndReconciliation(t.ctx, t.project)
 }

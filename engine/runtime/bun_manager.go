@@ -120,10 +120,8 @@ func MergeWithDefaults(config *Config) *Config {
 
 // NewBunManager initializes a BunManager with direct configuration
 func NewBunManager(ctx context.Context, projectRoot string, config *Config) (*BunManager, error) {
-	// Merge partial config with defaults to ensure all required fields are set
 	config = MergeWithDefaults(config)
 	log := logger.FromContext(ctx)
-	// Pre-check Bun availability
 	if !IsBunAvailable() {
 		return nil, &ProcessError{
 			Operation: "check availability",
@@ -134,11 +132,9 @@ func NewBunManager(ctx context.Context, projectRoot string, config *Config) (*Bu
 		config:      config,
 		projectRoot: projectRoot,
 	}
-	// Ensure worker script exists
 	if err := bm.compileBunWorker(); err != nil {
 		return nil, fmt.Errorf("failed to create worker: %w", err)
 	}
-	// Verify worker script exists
 	storeDir := core.GetStoreDir(bm.projectRoot)
 	workerPath := filepath.Join(storeDir, "bun_worker.ts")
 	if _, err := os.Stat(workerPath); os.IsNotExist(err) {
@@ -284,12 +280,10 @@ func (bm *BunManager) executeBunWorker(
 	requestData []byte,
 	env core.EnvMap,
 ) (*core.Output, error) {
-	// Create and configure command
 	cmd, err := bm.createBunCommand(ctx, env)
 	if err != nil {
 		return nil, wrapToolError(err, errorKindStart)
 	}
-	// Set up process pipes
 	stdin, stdout, stderr, err := bm.setupProcessPipes(cmd)
 	if err != nil {
 		if _, ok := extractToolErrorKind(err); ok {
@@ -297,22 +291,18 @@ func (bm *BunManager) executeBunWorker(
 		}
 		return nil, wrapToolError(err, errorKindStart)
 	}
-	// Start the process
 	if err := cmd.Start(); err != nil {
 		return nil, wrapToolError(fmt.Errorf("failed to start bun process: %w", err), errorKindStart)
 	}
-	// Write request data to stdin
 	if err := bm.writeRequestToStdin(ctx, stdin, requestData); err != nil {
 		return nil, wrapToolError(err, errorKindStdin)
 	}
-	// Read stderr and stdout concurrently
 	stderrBuf, stderrWg := bm.readStderrInBackground(ctx, toolID, stderr)
 	responseBuf, err := bm.readStdoutResponse(ctx, toolID, stdout)
 	if err != nil {
 		return nil, wrapToolError(err, errorKindStdout)
 	}
 	defer releaseBuffer(responseBuf)
-	// Wait for process completion and stderr reading
 	if err := bm.waitForProcessCompletion(ctx, toolID, cmd, stderrWg, stderrBuf); err != nil {
 		return nil, err
 	}
@@ -328,8 +318,6 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 	storeDir := core.GetStoreDir(bm.projectRoot)
 	workerPath := filepath.Join(storeDir, "bun_worker.ts")
 	args := make([]string, 0, 8)
-	// Add memory management flags for aggressive garbage collection
-	// Only add --smol flag if Bun version is 0.7.0 or later (when it was introduced)
 	bunVersionStr := bm.getBunVersion(ctx)
 	if bunVersionStr != "" {
 		bunVer, err := semver.NewVersion(bunVersionStr)
@@ -340,21 +328,15 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 			}
 		}
 	}
-	// Now append the subcommand after global flags
 	args = append(args, "run")
 	args = append(args, bm.config.BunPermissions...)
 	args = append(args, workerPath)
 	cmd := exec.CommandContext(ctx, "bun", args...)
 	cmd.Dir = bm.projectRoot
-	// Inherit parent process environment for robustness and tool compatibility
-	// This provides a more predictable execution environment for tools that may
-	// depend on standard environment variables like TMPDIR, LANG, USER, etc.
 	cmd.Env = os.Environ()
-	// Mark executions as running under Compozy runtime for tool-side conditional behavior
 	cmd.Env = append(cmd.Env,
 		"COMPOZY_RUNTIME=worker",
 		"COMPOZY_PROJECT_ROOT="+bm.projectRoot)
-	// Add memory limit environment variable if configured
 	if bm.config.MaxMemoryMB > 0 {
 		cmd.Env = append(cmd.Env,
 			fmt.Sprintf("BUN_JSC_forceRAMSize=%d", bm.config.MaxMemoryMB*1024*1024),
@@ -389,15 +371,12 @@ func (bm *BunManager) parseToolResponse(response []byte) (*core.Output, error) {
 	if len(response) == 0 {
 		return &core.Output{}, nil
 	}
-	// Try to parse as JSON first
 	var toolResponse struct {
 		Result   any `json:"result"`
 		Error    any `json:"error"`
 		Metadata any `json:"metadata"`
 	}
 	if err := json.Unmarshal(response, &toolResponse); err != nil {
-		// If JSON parsing fails, this indicates a problem with the worker or tool
-		// Log the non-JSON response for debugging but return an error
 		const maxResponseLength = 512
 		truncatedResponse := string(response)
 		if len(truncatedResponse) > maxResponseLength {
@@ -408,18 +387,15 @@ func (bm *BunManager) parseToolResponse(response []byte) (*core.Output, error) {
 			truncatedResponse,
 		)
 	}
-	// Check for error in response
 	if toolResponse.Error != nil {
 		return nil, fmt.Errorf("tool execution failed: %v", toolResponse.Error)
 	}
-	// Handle different result types
 	switch result := toolResponse.Result.(type) {
 	case map[string]any:
 		return (*core.Output)(&result), nil
 	case nil:
 		return &core.Output{}, nil
 	default:
-		// Wrap primitives in a structured format
 		return &core.Output{PrimitiveValueKey: result}, nil
 	}
 }
@@ -432,7 +408,6 @@ func (bm *BunManager) writeRequestToStdin(ctx context.Context, stdin io.WriteClo
 		_, err := stdin.Write(requestData)
 		writeErrCh <- err
 	}()
-	// Check for stdin write errors before proceeding
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -544,19 +519,16 @@ func (bm *BunManager) readStdoutResponse(
 	raw := bufferPool.Get()
 	buf, ok := raw.(*bytes.Buffer)
 	if !ok {
-		// Safe fallback if pool returns unexpected type
 		buf = bytes.NewBuffer(make([]byte, 0, InitialBufferSize))
 	} else {
 		buf.Reset()
 	}
-	// Use LimitReader to prevent memory exhaustion from malicious tools
 	limitedReader := io.LimitReader(stdout, MaxOutputSize+1) // Read one extra byte to detect overflow
 	bytesRead, err := io.Copy(buf, limitedReader)
 	if err != nil {
 		releaseBuffer(buf)
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-	// Check if output exceeded the size limit
 	if bytesRead > MaxOutputSize {
 		releaseBuffer(buf)
 		return nil, fmt.Errorf("tool output exceeds maximum size limit of %d bytes", MaxOutputSize)
@@ -652,12 +624,7 @@ func exitFailureError(toolID string, waitErr error, exitCode int, stderrBuf *byt
 
 // validateAndAddEnvironmentVars validates environment variables and adds them to the command env
 func (bm *BunManager) validateAndAddEnvironmentVars(cmdEnv *[]string, env core.EnvMap) error {
-	// Regex for valid environment variable names (uppercase alphanumeric and underscore)
 	validKeyPattern := regexp.MustCompile(`^[A-Z0-9_]+$`)
-	// Security Policy: Dangerous environment variables that must be blocked to prevent:
-	// - Code injection attacks via dynamic library loading
-	// - Runtime behavior modification that could bypass security controls
-	// - Privilege escalation through runtime configuration changes
 	dangerousVars := map[string]bool{
 		"LD_PRELOAD":            true, // Linux: Preload malicious shared libraries
 		"LD_LIBRARY_PATH":       true, // Linux: Hijack library loading paths
@@ -667,7 +634,6 @@ func (bm *BunManager) validateAndAddEnvironmentVars(cmdEnv *[]string, env core.E
 		"BUN_CONFIG_PROFILE":    true, // Bun: Override configuration profiles
 	}
 	for key, value := range env {
-		// Validate key format
 		if !validKeyPattern.MatchString(key) {
 			return fmt.Errorf(
 				"invalid environment variable name %q: must contain only uppercase letters, "+
@@ -676,17 +642,15 @@ func (bm *BunManager) validateAndAddEnvironmentVars(cmdEnv *[]string, env core.E
 			)
 		}
 
-		// Check for dangerous variables
 		if dangerousVars[key] {
+			// WARNING: Blocking runtime mutators (like NODE_OPTIONS) prevents tools from escaping the sandbox.
 			return fmt.Errorf("environment variable %q is not allowed for security reasons", key)
 		}
 
-		// Validate value - prevent newlines and null bytes that could be used for injection
 		if strings.ContainsAny(value, "\n\r\x00") {
 			return fmt.Errorf("environment variable %q contains invalid characters (newline or null byte)", key)
 		}
 
-		// Add validated environment variable
 		*cmdEnv = append(*cmdEnv, key+"="+value)
 	}
 	return nil
@@ -700,8 +664,8 @@ func (bm *BunManager) validateInputs(toolID string, toolExecID core.ID, _ *core.
 	if toolExecID.String() == "" {
 		return fmt.Errorf("tool_exec_id cannot be empty")
 	}
-	// Validate tool_id for security (prevent directory traversal with Unicode normalization)
 	if err := bm.validateToolID(toolID); err != nil {
+		// WARNING: Reject invalid tool identifiers to prevent directory traversal.
 		return err
 	}
 	return nil
@@ -712,32 +676,24 @@ func (bm *BunManager) validateToolID(toolID string) error {
 	if toolID == "" {
 		return fmt.Errorf("tool_id cannot be empty")
 	}
-	// Check for valid UTF-8 encoding
 	if !utf8.ValidString(toolID) {
 		return fmt.Errorf("tool_id contains invalid UTF-8 characters")
 	}
-	// Normalize Unicode to prevent homoglyph and normalization attacks
 	normalized := norm.NFC.String(toolID)
-	// Use filepath.Clean to normalize path separators and resolve . and .. components
 	cleaned := filepath.Clean(normalized)
-	// If Clean changed the path, it likely contained traversal attempts
 	if cleaned != normalized {
 		return fmt.Errorf("tool_id contains path traversal or invalid path components")
 	}
-	// Reject absolute paths
 	if filepath.IsAbs(cleaned) {
 		return fmt.Errorf("tool_id cannot be an absolute path")
 	}
-	// Check for remaining directory traversal patterns after cleaning
 	if strings.Contains(cleaned, "..") {
 		return fmt.Errorf("tool_id contains directory traversal patterns")
 	}
-	// Validate character set (alphanumeric, underscore, hyphen, dot, slash only)
 	validPattern := regexp.MustCompile(`^[a-zA-Z0-9_/.-]+$`)
 	if !validPattern.MatchString(cleaned) {
 		return fmt.Errorf("tool_id contains invalid characters")
 	}
-	// Additional safety: reject paths that start with dot files or contain multiple consecutive dots
 	if strings.HasPrefix(cleaned, ".") || strings.Contains(cleaned, "...") {
 		return fmt.Errorf("tool_id cannot start with dot or contain multiple consecutive dots")
 	}
@@ -753,8 +709,6 @@ func (bm *BunManager) compileBunWorker() error {
 	workerPath := filepath.Join(compozyDir, "bun_worker.ts")
 	entrypointPath := strings.TrimSpace(bm.config.EntrypointPath)
 	importPath := entrypointPath
-	// Generate a minimal stub when no entrypoint is provided so the runtime
-	// remains operable without user-defined TypeScript tools.
 	if importPath == "" {
 		if err := bm.ensureDefaultEntrypoint(compozyDir); err != nil {
 			return err
@@ -764,7 +718,6 @@ func (bm *BunManager) compileBunWorker() error {
 		importPath = toWorkerRelativeImport(compozyDir, importPath)
 	}
 	workerContent := strings.ReplaceAll(bunWorkerTemplate, "{{.EntrypointPath}}", importPath)
-	// Write worker file using configured permissions
 	if err := os.WriteFile(workerPath, []byte(workerContent), bm.config.WorkerFilePerm); err != nil {
 		return fmt.Errorf("failed to write worker file: %w", err)
 	}
@@ -789,11 +742,9 @@ func toWorkerRelativeImport(baseDir, entrypointPath string) string {
 	if p == "" {
 		return ""
 	}
-	// Keep bare module specifiers (no separator and not starting with '.')
 	if !strings.HasPrefix(p, ".") && !strings.ContainsAny(p, `/\`) {
 		return p
 	}
-	// Absolute: compute path relative to the worker dir
 	if filepath.IsAbs(p) {
 		if rel, err := filepath.Rel(baseDir, p); err == nil {
 			p = rel
@@ -801,15 +752,12 @@ func toWorkerRelativeImport(baseDir, entrypointPath string) string {
 			return filepath.ToSlash(p)
 		}
 	}
-	// Project-root relative forms → make worker-relative
 	if strings.HasPrefix(p, "./") {
 		p = "../" + strings.TrimPrefix(p, "./")
 	} else if !strings.HasPrefix(p, "../") && strings.ContainsAny(p, `/\`) {
-		// e.g. "src/index.ts"
 		p = "../" + p
 	}
 	posix := filepath.ToSlash(p)
-	// Ensure file imports are explicit relative (not bare)
 	if !strings.HasPrefix(posix, "./") && !strings.HasPrefix(posix, "../") {
 		posix = "./" + posix
 	}
@@ -825,7 +773,6 @@ func IsBunAvailable() bool {
 // getBunVersion retrieves the Bun version and caches it
 func (bm *BunManager) getBunVersion(ctx context.Context) string {
 	bm.bunVerOnce.Do(func() {
-		// Bound the version check to avoid hangs
 		verCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(verCtx, "bun", "--version")

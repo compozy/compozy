@@ -52,7 +52,6 @@ func (p *ErrorParser) ParseError(err error) *Error {
 	errMsg := err.Error()
 	errMsgLower := strings.ToLower(errMsg)
 	retryHint := p.extractRetryAfter(err)
-	// Try to extract HTTP status code from error message
 	if statusCode := p.extractHTTPStatusCode(errMsgLower); statusCode > 0 {
 		llmErr := NewError(statusCode, errMsg, p.provider, err)
 		if retryHint != nil {
@@ -62,7 +61,6 @@ func (p *ErrorParser) ParseError(err error) *Error {
 		}
 		return llmErr
 	}
-	// Provider-specific error pattern matching
 	if llmErr := p.matchProviderPatterns(errMsgLower, errMsg, err); llmErr != nil {
 		if llmErr.RetryAfter == nil {
 			if retryHint != nil {
@@ -73,7 +71,6 @@ func (p *ErrorParser) ParseError(err error) *Error {
 		}
 		return llmErr
 	}
-	// Network-level error patterns
 	if llmErr := p.matchNetworkPatterns(errMsgLower, errMsg, err); llmErr != nil {
 		if llmErr.RetryAfter == nil {
 			if retryHint != nil {
@@ -103,7 +100,6 @@ func (p *ErrorParser) ParseErrorWithHeaders(err error, headers map[string]string
 
 // extractHTTPStatusCode attempts to extract HTTP status codes from error messages
 func (p *ErrorParser) extractHTTPStatusCode(errMsg string) int {
-	// Match "HTTP 503", "status code: 429", "error 500", "code 404", or standalone 3-digit tokens
 	pats := []string{
 		`(?i)\bhttp\s+(\d{3})\b`,
 		`(?i)\bstatus(?:\s+code)?:\s*(\d{3})\b`,
@@ -155,7 +151,6 @@ func (p *ErrorParser) matchProviderSpecific(errMsgLower, errMsg string, original
 
 // matchNetworkPatterns matches network-level error patterns
 func (p *ErrorParser) matchNetworkPatterns(errMsgLower, errMsg string, originalErr error) *Error {
-	// Timeout patterns
 	timeoutPatterns := []string{
 		"timeout", "timed out", "deadline exceeded", "context deadline exceeded",
 	}
@@ -164,7 +159,6 @@ func (p *ErrorParser) matchNetworkPatterns(errMsgLower, errMsg string, originalE
 			return NewErrorWithCode(ErrCodeTimeout, errMsg, p.provider, originalErr)
 		}
 	}
-	// Connection patterns
 	connectionPatterns := []string{
 		"connection reset", "connection refused", "connection failed",
 		"network error", "dns", "host not found",
@@ -182,7 +176,6 @@ func (p *ErrorParser) matchNetworkPatterns(errMsgLower, errMsg string, originalE
 
 // Provider-specific pattern matching methods
 func (p *ErrorParser) matchOpenAIPatterns(errMsgLower, errMsg string, originalErr error) *Error {
-	// OpenAI-specific patterns
 	if strings.Contains(errMsgLower, "insufficient_quota") {
 		return NewErrorWithCode(ErrCodeQuotaExceeded, errMsg, p.provider, originalErr)
 	}
@@ -190,7 +183,6 @@ func (p *ErrorParser) matchOpenAIPatterns(errMsgLower, errMsg string, originalEr
 }
 
 func (p *ErrorParser) matchAnthropicPatterns(errMsgLower, errMsg string, originalErr error) *Error {
-	// Anthropic-specific patterns
 	if strings.Contains(errMsgLower, "rate_limit_error") {
 		return NewError(http.StatusTooManyRequests, errMsg, p.provider, originalErr)
 	}
@@ -198,7 +190,6 @@ func (p *ErrorParser) matchAnthropicPatterns(errMsgLower, errMsg string, origina
 }
 
 func (p *ErrorParser) matchGooglePatterns(errMsgLower, errMsg string, originalErr error) *Error {
-	// Google AI-specific patterns
 	if strings.Contains(errMsgLower, "quota exceeded") {
 		return NewErrorWithCode(ErrCodeQuotaExceeded, errMsg, p.provider, originalErr)
 	}

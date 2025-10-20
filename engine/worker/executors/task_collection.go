@@ -157,11 +157,9 @@ func (e *CollectionTaskExecutor) HandleCollectionTask(
 	}
 	rawConcurrency := collectionConcurrencyLimit(taskConfig)
 	effectiveConcurrency := rawConcurrency
-	// Default to max concurrency when no explicit limit is set
 	if effectiveConcurrency <= 0 {
 		effectiveConcurrency = MaxConcurrentChildTasks
 	} else if effectiveConcurrency > MaxConcurrentChildTasks {
-		// Clamp to system maximum
 		effectiveConcurrency = MaxConcurrentChildTasks
 	}
 	log.Debug("Executing collection child tasks",
@@ -243,11 +241,9 @@ func (e *CollectionTaskExecutor) handleCollectionParallel(
 	maxConcurrency int,
 ) error {
 	log := workflow.GetLogger(ctx)
-	// Use the loaded child configs instead of the template
 	e.executeChildrenInParallel(ctx, cState, childStates, func(cs *task.State) *task.Config {
 		return childCfgs[cs.TaskID]
 	}, taskConfig, depth, completed, failed, maxConcurrency)
-	// Wait for tasks to complete based on strategy
 	err := e.awaitStrategyCompletion(ctx, taskConfig.GetStrategy(), completed, failed, childCount)
 	if err != nil {
 		return fmt.Errorf("failed to await collection task: %w", err)
@@ -273,7 +269,6 @@ func (e *CollectionTaskExecutor) handleCollectionSequential(
 	depth int,
 ) error {
 	log := workflow.GetLogger(ctx)
-	// Use the loaded child configs instead of the template
 	err := e.executeChildrenSequentially(ctx, cState, childStates, func(cs *task.State) *task.Config {
 		return childCfgs[cs.TaskID]
 	}, taskConfig, taskConfig.GetStrategy(), depth, completed, failed)

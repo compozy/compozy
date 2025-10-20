@@ -31,26 +31,21 @@ func (d *fsDiscoverer) Discover(includes, excludes []string) ([]string, error) {
 		return []string{}, nil
 	}
 	discoveredFiles := make(map[string]bool)
-	// Process each include pattern
 	for _, pattern := range includes {
-		// Validate pattern for security
+		// NOTE: Validate patterns early to block traversal or absolute path injections.
 		if err := d.validatePattern(pattern); err != nil {
 			return nil, err
 		}
 
-		// Build full pattern path
 		fullPattern := filepath.Join(d.root, pattern)
 
-		// Use doublestar.FilepathGlob for better pattern support
 		// Note: doublestar does not follow symbolic links by default
 		matches, err := doublestar.FilepathGlob(fullPattern)
 		if err != nil {
 			return nil, fmt.Errorf("invalid glob pattern %q: %w", pattern, err)
 		}
 
-		// Add matches to set (deduplicates)
 		for _, match := range matches {
-			// Ensure the discovered path is really inside the root directory.
 			rel, err := filepath.Rel(d.root, match)
 			if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
 				return nil, core.NewError(nil, "PATH_ESCAPE_ATTEMPT", map[string]any{
@@ -61,25 +56,20 @@ func (d *fsDiscoverer) Discover(includes, excludes []string) ([]string, error) {
 			discoveredFiles[match] = true
 		}
 	}
-	// Convert map to slice
 	files := make([]string, 0, len(discoveredFiles))
 	for file := range discoveredFiles {
 		files = append(files, file)
 	}
-	// Apply exclude patterns
 	files = d.applyExcludes(files, excludes)
 	return files, nil
 }
 
 // validatePattern validates a pattern for security issues
 func (d *fsDiscoverer) validatePattern(pattern string) error {
-	// Clean the pattern
 	cleanPattern := filepath.Clean(pattern)
-	// Reject absolute paths
 	if filepath.IsAbs(cleanPattern) {
 		return fmt.Errorf("INVALID_PATTERN: absolute paths not allowed: %s", pattern)
 	}
-	// Reject parent directory references
 	if slices.Contains(strings.Split(cleanPattern, string(filepath.Separator)), "..") {
 		return fmt.Errorf("INVALID_PATTERN: parent directory references not allowed: %s", pattern)
 	}

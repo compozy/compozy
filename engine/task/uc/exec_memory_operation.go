@@ -152,7 +152,6 @@ func (uc *ExecuteMemoryOperation) executeWrite(
 	mergedInput *core.Input,
 	workflowState *workflow.State,
 ) (*core.Output, error) {
-	// Let the service handle template resolution
 	resp, err := uc.memoryService.Write(ctx, &service.WriteRequest{
 		BaseRequest: service.BaseRequest{
 			MemoryRef: memoryRef,
@@ -180,7 +179,6 @@ func (uc *ExecuteMemoryOperation) executeAppend(
 	mergedInput *core.Input,
 	workflowState *workflow.State,
 ) (*core.Output, error) {
-	// Let the service handle template resolution
 	resp, err := uc.memoryService.Append(ctx, &service.AppendRequest{
 		BaseRequest: service.BaseRequest{
 			MemoryRef: memoryRef,
@@ -227,7 +225,6 @@ func (uc *ExecuteMemoryOperation) executeFlush(
 	key string,
 	config *task.FlushConfig,
 ) (*core.Output, error) {
-	// Convert task flush config to service flush config
 	flushConfig := &service.FlushConfig{}
 	if config != nil {
 		flushConfig.Force = config.Force
@@ -273,7 +270,6 @@ func (uc *ExecuteMemoryOperation) executeHealth(
 	if config == nil {
 		return nil, fmt.Errorf("health operation requires health_config to be provided")
 	}
-	// Convert task health config to service health config
 	healthConfig := &service.HealthConfig{
 		IncludeStats: config.IncludeStats,
 	}
@@ -313,7 +309,6 @@ func (uc *ExecuteMemoryOperation) executeClear(
 	if config == nil {
 		return nil, fmt.Errorf("clear operation requires clear_config to be provided")
 	}
-	// Convert task clear config to service clear config
 	clearConfig := &service.ClearConfig{
 		Confirm: config.Confirm,
 		Backup:  config.Backup,
@@ -345,7 +340,6 @@ func (uc *ExecuteMemoryOperation) executeStats(
 	if config == nil {
 		return nil, fmt.Errorf("stats operation requires stats_config to be provided")
 	}
-	// Convert task stats config to service stats config
 	statsConfig := &service.StatsConfig{
 		IncludeContent: config.IncludeContent,
 	}

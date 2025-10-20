@@ -438,8 +438,6 @@ func shouldExclude(name string, patterns []compiledPattern) bool {
 				continue
 			}
 			if !hasPositive {
-				// When only negated patterns are provided we exclude every entry
-				// by default, then selectively re-include matches.
 				excluded = true
 			}
 			continue

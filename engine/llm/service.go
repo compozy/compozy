@@ -503,7 +503,6 @@ func (s *Service) buildActionConfig(
 		if directPrompt == "" {
 			return ac, nil
 		}
-		// Create a copy so we don't mutate the original action
 		acCopy := *ac
 		if acCopy.Prompt != "" {
 			basePrompt := strings.TrimRight(acCopy.Prompt, "\n")
@@ -517,7 +516,6 @@ func (s *Service) buildActionConfig(
 		}
 		return &acCopy, nil
 	}
-	// Direct prompt only flow
 	return &agent.ActionConfig{ID: directPromptActionID, Prompt: directPrompt}, nil
 }
 
@@ -852,8 +850,6 @@ func collectMCPsToRegister(agentCfg *agent.Config, cfg *Config) []mcp.Config {
 
 // dedupeMCPsByID removes duplicates using case-insensitive ID comparison.
 func dedupeMCPsByID(in []mcp.Config) []mcp.Config {
-	// Keeps the first occurrence of an ID (case-insensitive). Given the
-	// collection order, agent-level entries take precedence over workflow ones.
 	seen := make(map[string]struct{})
 	out := make([]mcp.Config, 0, len(in))
 	for i := range in {
@@ -898,16 +894,12 @@ func (r *runtimeAdapter) ExecuteTool(
 	toolConfig *tool.Config,
 	input map[string]any,
 ) (*core.Output, error) {
-	// Convert input to core.Input
 	coreInput := core.NewInput(input)
-	// Create tool execution ID
 	toolExecID, err := core.NewID()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tool execution ID: %w", err)
 	}
-	// Get config from tool configuration
 	config := toolConfig.GetConfig()
-	// Execute the tool using the runtime manager (preserve tool env if provided)
 	env := core.EnvMap{}
 	if toolConfig.Env != nil {
 		env = *toolConfig.Env

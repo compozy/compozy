@@ -137,7 +137,7 @@ func (h *ContainerHelpers) ExecuteSubtask(
 	var response *task.SubtaskResponse
 	err := future.Get(ctx, &response)
 	if err != nil {
-		// Let the error propagate for Temporal to handle retries
+		// NOTE: Surface activity errors so Temporal can apply retry/backoff policies.
 		return nil, err
 	}
 	return response, nil
@@ -154,7 +154,6 @@ func (h *ContainerHelpers) shouldCompleteParallelTask(
 	case task.StrategyFailFast:
 		return failed > 0 || completed >= total
 	case task.StrategyRace:
-		// Race terminates on first result, either success or failure
 		return completed > 0 || failed > 0
 	default:
 		return (completed + failed) >= total
@@ -260,7 +259,6 @@ func (h *ContainerHelpers) awaitStrategyCompletion(
 	completed, failed *int32,
 	total int32,
 ) error {
-	// First wait for the strategy condition to be met
 	err := workflow.Await(ctx, func() bool {
 		completedCount := atomic.LoadInt32(completed)
 		failedCount := atomic.LoadInt32(failed)
@@ -269,13 +267,10 @@ func (h *ContainerHelpers) awaitStrategyCompletion(
 	if err != nil {
 		return err
 	}
-	// Then ensure all goroutines have finished to avoid database sync issues
-	// This is critical for ensuring UpdateChildState activities complete
-	// before GetCollectionResponse queries the database
+	// NOTE: Ensure every subtask reaches a terminal state before querying aggregated responses.
 	return workflow.Await(ctx, func() bool {
 		completedCount := atomic.LoadInt32(completed)
 		failedCount := atomic.LoadInt32(failed)
-		// All tasks must have reached a terminal state
 		return (completedCount + failedCount) >= total
 	})
 }

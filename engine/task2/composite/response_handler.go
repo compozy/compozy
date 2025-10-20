@@ -33,19 +33,15 @@ func (h *ResponseHandler) HandleResponse(
 	ctx context.Context,
 	input *shared.ResponseInput,
 ) (*shared.ResponseOutput, error) {
-	// Validate input
 	if err := h.baseHandler.ValidateInput(input); err != nil {
 		return nil, err
 	}
-	// Validate task type matches handler
 	if input.TaskConfig.Type != task.TaskTypeComposite {
 		return nil, &shared.ValidationError{
 			Field:   "task_type",
 			Message: "handler type does not match task type",
 		}
 	}
-	// Composite tasks execute child tasks sequentially
-	// They use standard main task processing without deferred transformation
 	return h.baseHandler.ProcessMainTaskResponse(ctx, input)
 }
 
@@ -62,8 +58,6 @@ func (h *ResponseHandler) HandleSubtaskResponse(
 	childState *task.State,
 	childConfig *task.Config,
 ) (*task.SubtaskResponse, error) {
-	// Return the child response directly
-	// Composite tasks don't aggregate - they pass through sequentially
 	return &task.SubtaskResponse{
 		TaskID: childConfig.ID,
 		Output: childState.Output,

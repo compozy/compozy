@@ -57,9 +57,8 @@ func validateAndLogProgress(
 		"terminal", progressInfo.TerminalCount,
 		"running", progressInfo.RunningCount,
 		"status_counts", progressInfo.StatusCounts)
-	// Check if NO children have reached a terminal state (actual race condition)
-	// This happens when child task status updates haven't propagated to the DB yet
 	if progressInfo.TerminalCount == 0 && progressInfo.TotalChildren > 0 {
+		// NOTE: Treat missing terminal states as transient; child updates may not have reached the DB yet.
 		log.Warn("Progress not yet visible, retrying",
 			"parent_id", parentState.TaskExecID,
 			"total_children", progressInfo.TotalChildren)
@@ -79,9 +78,7 @@ func buildDetailedFailureError(
 	expectedType task.Type,
 ) error {
 	log := logger.FromContext(ctx)
-	// Get detailed error information from failed child tasks
 	failedDetails, detailErr := getFailedChildDetails(ctx, taskRepo, parentState.TaskExecID)
-	// Create a comprehensive error message
 	var errorMsg strings.Builder
 	errorMsg.WriteString(
 		fmt.Sprintf(
@@ -127,15 +124,12 @@ func aggregateChildOutputs(
 			"task_type", taskType)
 		return fmt.Errorf("failed to aggregate child outputs: %w", err)
 	}
-	// Convert to map[string]any
 	outputsMap := make(map[string]any, len(childOutputs))
 	for taskID, output := range childOutputs {
 		if output != nil {
 			outputsMap[taskID] = *output
 		}
 	}
-	// Race condition check: ensure successful children have outputs
-	// We only check successful tasks because failed tasks might legitimately have no output
 	if len(outputsMap) < progressInfo.SuccessCount {
 		log.Warn("Child outputs not yet visible for successful tasks, retrying",
 			"parent_id", parentState.TaskExecID,
@@ -150,7 +144,6 @@ func aggregateChildOutputs(
 			progressInfo.SuccessCount,
 		)
 	}
-	// Store under "outputs" key to avoid collisions
 	(*parentState.Output)["outputs"] = outputsMap
 	log.Debug("Aggregated child outputs",
 		"parent_id", parentState.TaskExecID,

@@ -46,7 +46,6 @@ func NewAppendMemory(
 
 // Execute appends messages to memory
 func (uc *AppendMemory) Execute(ctx context.Context) (*service.AppendResponse, error) {
-	// Use centralized service for appending (validation handled by service)
 	return uc.service.Append(ctx, &service.AppendRequest{
 		BaseRequest: service.BaseRequest{
 			MemoryRef: uc.memoryRef,

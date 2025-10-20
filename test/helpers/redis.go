@@ -20,10 +20,8 @@ type RedisHelper struct {
 
 // NewRedisHelper creates a new Redis helper using miniredis
 func NewRedisHelper(t *testing.T) *RedisHelper {
-	// Start miniredis server
 	s, err := miniredis.Run()
 	require.NoError(t, err, "Failed to start miniredis")
-	// Create Redis client
 	client := redis.NewClient(&redis.Options{
 		Addr:         s.Addr(),
 		DB:           0,
@@ -31,10 +29,8 @@ func NewRedisHelper(t *testing.T) *RedisHelper {
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 3 * time.Second,
 	})
-	// Verify connection
 	err = client.Ping(t.Context()).Err()
 	require.NoError(t, err, "Failed to ping Redis")
-	// Generate unique key prefix for test isolation
 	keyPrefix := fmt.Sprintf("test:%s:%d:", t.Name(), time.Now().UnixNano())
 	return &RedisHelper{
 		client:    client,
@@ -115,15 +111,12 @@ func (h *RedisHelper) FlushNamespace(ctx context.Context) error {
 // Cleanup cleans up Redis resources
 func (h *RedisHelper) Cleanup(t *testing.T) {
 	t.Helper()
-	// Clean up namespace
 	if err := h.FlushNamespace(t.Context()); err != nil {
 		t.Logf("Failed to flush namespace: %v", err)
 	}
-	// Close client
 	if err := h.client.Close(); err != nil {
 		t.Logf("Failed to close Redis client: %v", err)
 	}
-	// Stop miniredis
 	h.miniredis.Close()
 }
 
@@ -156,7 +149,6 @@ func (h *RedisHelper) AssertKeyNotExists(ctx context.Context, t *testing.T, key 
 func (h *RedisHelper) AssertTTL(ctx context.Context, t *testing.T, key string, expectedTTL time.Duration) {
 	ttl, err := h.client.TTL(ctx, h.ensureKey(key)).Result()
 	require.NoError(t, err, "Failed to get TTL")
-	// Allow 1 second tolerance for TTL
 	tolerance := time.Second
 	require.InDelta(t, expectedTTL.Seconds(), ttl.Seconds(), tolerance.Seconds(),
 		"TTL mismatch for key %s: expected %v, got %v", key, expectedTTL, ttl)

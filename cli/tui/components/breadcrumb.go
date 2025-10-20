@@ -38,11 +38,9 @@ func (b *Breadcrumb) SetItems(items []BreadcrumbItem) {
 
 // AddItem adds a breadcrumb item
 func (b *Breadcrumb) AddItem(label string, active bool) {
-	// Mark all existing items as inactive
 	for i := range b.Items {
 		b.Items[i].Active = false
 	}
-	// Add new item
 	b.Items = append(b.Items, BreadcrumbItem{
 		Label:  label,
 		Active: active,
@@ -53,7 +51,6 @@ func (b *Breadcrumb) AddItem(label string, active bool) {
 func (b *Breadcrumb) PopItem() {
 	if len(b.Items) > 0 {
 		b.Items = b.Items[:len(b.Items)-1]
-		// Mark the new last item as active
 		if len(b.Items) > 0 {
 			b.Items[len(b.Items)-1].Active = true
 		}
@@ -82,20 +79,15 @@ func (b *Breadcrumb) View() string {
 
 		parts = append(parts, rendered)
 
-		// Add separator except for last item
 		if i < len(b.Items)-1 {
 			separator := styles.BreadcrumbStyle.Render(" → ")
 			parts = append(parts, separator)
 		}
 	}
 	breadcrumb := strings.Join(parts, "")
-	// Truncate if too long
 	if b.Width > 0 && lipgloss.Width(breadcrumb) > b.Width {
-		// Simple truncation - in a real implementation you might want
-		// to intelligently truncate middle items
 		maxWidth := b.Width - 3 // Leave space for "..."
 		for lipgloss.Width(breadcrumb) > maxWidth && len(parts) > 1 {
-			// Remove items from the beginning (keep separator logic intact)
 			if len(parts) >= 3 {
 				parts = parts[2:] // Remove item and separator
 			} else {

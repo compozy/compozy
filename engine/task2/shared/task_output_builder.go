@@ -39,11 +39,9 @@ func NewTaskOutputBuilderWithContext(ctx context.Context) TaskOutputBuilder {
 	if ctx == nil {
 		return NewTaskOutputBuilder(ctx)
 	}
-	// Prefer values already attached to the context
 	if cfg := config.FromContext(ctx); cfg != nil && cfg.Limits.MaxTaskContextDepth > 0 {
 		return &DefaultTaskOutputBuilder{maxDepth: cfg.Limits.MaxTaskContextDepth}
 	}
-	// As a fallback, reuse the existing logic
 	return NewTaskOutputBuilder(ctx)
 }
 
@@ -51,7 +49,6 @@ func NewTaskOutputBuilderWithContext(ctx context.Context) TaskOutputBuilder {
 // with a default fallback of 10
 func getMaxContextDepthFromConfig(ctx context.Context) int {
 	const defaultMaxDepth = 10
-	// Load configuration from environment
 	service := config.NewService()
 	appConfig, err := service.Load(ctx)
 	if err == nil && appConfig.Limits.MaxTaskContextDepth > 0 {
@@ -67,24 +64,19 @@ func (tob *DefaultTaskOutputBuilder) BuildTaskOutput(
 	childrenIndex map[string][]string,
 	depth int,
 ) any {
-	// Prevent unbounded recursion
 	if depth >= tob.maxDepth || taskState == nil {
 		return nil
 	}
 	if taskState.CanHaveChildren() {
-		// For parent tasks, build nested output structure with child task outputs
 		nestedOutput := make(map[string]any)
-		// Include the parent's own output first (if any)
 		if taskState.Output != nil {
 			nestedOutput["output"] = *taskState.Output
 		}
-		// Use pre-built children index for O(1) lookup
 		if childrenIndex != nil && workflowTasks != nil {
 			parentTaskExecID := string(taskState.TaskExecID)
 			if childTaskIDs, exists := childrenIndex[parentTaskExecID]; exists {
 				for _, childTaskID := range childTaskIDs {
 					if childTaskState, exists := workflowTasks[childTaskID]; exists {
-						// Add child task output to nested structure
 						childOutput := make(map[string]any)
 						childOutput["output"] = tob.BuildTaskOutput(
 							childTaskState,

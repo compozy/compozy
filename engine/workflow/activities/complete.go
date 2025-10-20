@@ -33,30 +33,23 @@ type NormalizationContextAdapter struct {
 }
 
 func (nca *NormalizationContextAdapter) BuildTemplateContext(ctx context.Context) map[string]any {
-	// Use the shared context builder to build a proper context with children support
 	contextBuilder := shared.NewBaseContextBuilder(ctx)
 	normContext := contextBuilder.BuildContext(ctx, nca.workflowState, nca.workflowConfig, nil)
-	// Get the variables which contain the properly built context
 	if normContext.Variables != nil {
-		// The variables already contain workflow, tasks with children, env, etc.
-		// Add additional top-level fields for backward compatibility
 		normContext.Variables["workflow_id"] = nca.workflowState.WorkflowID
 		normContext.Variables["workflow_exec_id"] = nca.workflowState.WorkflowExecID
 		normContext.Variables["status"] = nca.workflowState.Status
 		normContext.Variables["config"] = nca.workflowConfig
 		return normContext.Variables
 	}
-	// Fallback to original implementation if context builder fails
 	workflowMap := map[string]any{
 		"id":      nca.workflowState.WorkflowID,
 		"exec_id": nca.workflowState.WorkflowExecID,
 		"status":  nca.workflowState.Status,
 	}
-	// Add input if available
 	if nca.workflowState.Input != nil {
 		workflowMap["input"] = *nca.workflowState.Input
 	}
-	// Add output if available
 	if nca.workflowState.Output != nil {
 		workflowMap["output"] = *nca.workflowState.Output
 	}
@@ -69,7 +62,6 @@ func (nca *NormalizationContextAdapter) BuildTemplateContext(ctx context.Context
 		"workflow_exec_id": nca.workflowState.WorkflowExecID,
 		"status":           nca.workflowState.Status,
 	}
-	// Add workflow environment if available
 	if envMap := nca.workflowConfig.GetEnv(); envMap != nil {
 		context["env"] = envMap.AsMap()
 	}
@@ -100,7 +92,6 @@ func NewCompleteWorkflow(
 	for _, wf := range workflows {
 		workflowMap[wf.ID] = wf
 	}
-	// Create template engine for output transformation
 	engine := tplengine.NewEngine(tplengine.FormatJSON)
 	return &CompleteWorkflow{
 		workflowRepo:      workflowRepo,
@@ -112,14 +103,12 @@ func NewCompleteWorkflow(
 
 // findWorkflowConfig safely looks up or reloads workflow configuration with race protection
 func (a *CompleteWorkflow) findWorkflowConfig(ctx context.Context, workflowID string) *wf.Config {
-	// First, try to read under read lock
 	a.workflowsMu.RLock()
 	if config, exists := a.workflows[workflowID]; exists {
 		a.workflowsMu.RUnlock()
 		return config
 	}
 	a.workflowsMu.RUnlock()
-	// Attempt to lazily reload workflows from project
 	return a.reloadWorkflowsIfNeeded(ctx, workflowID)
 }
 
@@ -131,27 +120,22 @@ func (a *CompleteWorkflow) reloadWorkflowsIfNeeded(
 	if a.projectConfig == nil {
 		return nil
 	}
-	// Acquire write lock for potential reload
 	a.workflowsMu.Lock()
 	defer a.workflowsMu.Unlock()
-	// Double-check existence after acquiring write lock
 	if config, exists := a.workflows[workflowID]; exists {
 		return config
 	}
-	// Perform the expensive reload operation
 	newWorkflows, err := a.loadWorkflowsFromProject(ctx)
 	if err != nil {
 		logger.FromContext(ctx).Warn("Failed to reload workflows for completion", "error", err)
 		return nil
 	}
-	// Swap the map under write lock
 	a.workflows = newWorkflows
 	return a.workflows[workflowID]
 }
 
 // loadWorkflowsFromProject loads workflows from project configuration
 func (a *CompleteWorkflow) loadWorkflowsFromProject(ctx context.Context) (map[string]*wf.Config, error) {
-	// Honor cancellation before expensive I/O
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -161,7 +145,6 @@ func (a *CompleteWorkflow) loadWorkflowsFromProject(ctx context.Context) (map[st
 	if err != nil {
 		return nil, err
 	}
-	// Build new map off-lock to minimize lock hold time
 	newWorkflows := make(map[string]*wf.Config, len(reloaded))
 	for _, wcfg := range reloaded {
 		newWorkflows[wcfg.ID] = wcfg
@@ -216,18 +199,15 @@ func (a *CompleteWorkflow) completeWorkflowWithRetry(ctx context.Context, workfl
 }
 
 func (a *CompleteWorkflow) Run(ctx context.Context, input *CompleteWorkflowInput) (*wf.State, error) {
-	// Add heartbeat to ensure activity stays alive during retries
 	activity.RecordHeartbeat(ctx, "Attempting to complete workflow")
 	log := logger.FromContext(ctx)
-	// Find the workflow config with race-safe access
+	// NOTE: Look up the workflow config under lock to avoid racing concurrent reloads.
 	config := a.findWorkflowConfig(ctx, input.WorkflowID)
 	if config == nil {
 		log.Warn("Workflow config not found during completion; proceeding without output normalization",
 			"workflow_id", input.WorkflowID,
 			"workflow_exec_id", input.WorkflowExecID)
 	}
-	// Create transformer if outputs are defined
 	transformer := a.createOutputTransformer(ctx, config)
-	// Complete workflow with optional transformer
 	return a.completeWorkflowWithRetry(ctx, input.WorkflowExecID, transformer)
 }

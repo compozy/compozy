@@ -30,10 +30,7 @@ func NewTokenMemoryManager(
 	if counter == nil {
 		return nil, fmt.Errorf("token counter cannot be nil")
 	}
-	// Validate token limits configuration
 	if config.MaxTokens == 0 && config.MaxContextRatio == 0 {
-		// Log warning about potential misconfiguration
-		// This memory will effectively have no token limits
 		log.Warn(
 			"Memory resource has no token limits configured (MaxTokens=0, MaxContextRatio=0). "+
 				"This may lead to unbounded memory growth.",
@@ -60,8 +57,6 @@ func (tmm *TokenMemoryManager) CalculateMessagesWithTokens(
 	processedMessages := make([]memcore.MessageWithTokens, len(messages))
 	totalTokens := 0
 	for i, msg := range messages {
-		// In a more advanced scenario, msg.Metadata might already have a pre-calculated token count.
-		// For now, we always calculate.
 		count, err := tmm.tokenCounter.CountTokens(
 			ctx,
 			msg.Content,
@@ -83,17 +78,14 @@ func (tmm *TokenMemoryManager) EnforceLimits(
 	messages []memcore.MessageWithTokens,
 	currentTotalTokens int,
 ) ([]memcore.MessageWithTokens, int, error) {
-	// Determine effective max tokens
 	effectiveMaxTokens := tmm.config.MaxTokens
 	if effectiveMaxTokens == 0 && tmm.config.MaxContextRatio > 0 {
-		// Use ModelContextSize from config if available, otherwise use default
 		modelContextSize := tmm.config.ModelContextSize
 		if modelContextSize == 0 {
 			modelContextSize = 4096 // Default fallback
 		}
 		effectiveMaxTokens = int(float64(modelContextSize) * tmm.config.MaxContextRatio)
 	}
-	// 1. Token Limit Enforcement (FIFO)
 	if effectiveMaxTokens > 0 && currentTotalTokens > effectiveMaxTokens {
 		evictedMessages := 0
 		for currentTotalTokens > effectiveMaxTokens && len(messages) > 0 {
@@ -102,11 +94,8 @@ func (tmm *TokenMemoryManager) EnforceLimits(
 			evictedMessages++
 		}
 	}
-	// 2. Message Count Limit Enforcement (FIFO)
-	// Applied *after* token limit, as token limit is usually primary for LLMs.
 	if tmm.config.MaxMessages > 0 && len(messages) > tmm.config.MaxMessages {
 		evictCount := len(messages) - tmm.config.MaxMessages
-		// Recalculate tokens if messages were evicted due to count limit
 		for i := range evictCount {
 			currentTotalTokens -= messages[i].TokenCount
 		}
@@ -130,16 +119,7 @@ func (tmm *TokenMemoryManager) ApplyTokenAllocation(
 	if tmm.config.TokenAllocation == nil {
 		return messages, currentTotalTokens, nil // No allocation defined
 	}
-	// This is a placeholder for a more complex allocation-aware eviction.
-	// For example, if TokenAllocation is defined:
-	// 1. Categorize messages (e.g., by role or metadata: system, short_term, long_term).
-	// 2. Calculate token usage per category.
-	// 3. If total tokens exceed MaxTokens:
-	//    a. Try to evict from categories that are over their budget according to ratios.
-	//    b. Prioritize keeping 'system' messages if possible.
-	//    c. Fallback to general FIFO or LIFO within less critical categories.
-	// For now, this function is a no-op as the primary EnforceLimits uses simple FIFO.
-	// logger.Debug(ctx, "Token allocation defined but not yet fully implemented in eviction strategy.")
+	// NOTE: Allocation-aware eviction is not yet implemented; fall back to general FIFO ordering.
 	return messages, currentTotalTokens, nil
 }
 
@@ -157,13 +137,11 @@ func (tmm *TokenMemoryManager) GetManagedMessages(
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to enforce limits: %w", err)
 	}
-	// Convert back to []llm.Message
 	resultMessages := make([]llm.Message, len(finalMessagesWithTokens))
 	for i, mwt := range finalMessagesWithTokens {
 		if msg, ok := mwt.Message.(llm.Message); ok {
 			resultMessages[i] = msg
 		} else {
-			// Handle unexpected type - should not happen if properly structured
 			resultMessages[i] = llm.Message{Role: "system", Content: "Invalid message type"}
 		}
 	}

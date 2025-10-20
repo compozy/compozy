@@ -29,11 +29,9 @@ func NewKeyManager(keyPrefix string) *KeyManager {
 
 // FullKey returns the full Redis key for a given memory key
 func (km *KeyManager) FullKey(key string) string {
-	// If no prefix is set, return the key as-is
 	if km.keyPrefix == "" {
 		return key
 	}
-	// Check if prefix already ends with colon to avoid double colons
 	if strings.HasSuffix(km.keyPrefix, ":") {
 		return km.keyPrefix + key
 	}
@@ -42,11 +40,9 @@ func (km *KeyManager) FullKey(key string) string {
 
 // MetadataKey returns the Redis key for metadata storage
 func (km *KeyManager) MetadataKey(key string) string {
-	// If no prefix is set, append metadata suffix directly to the key
 	if km.keyPrefix == "" {
 		return key + metadataSuffix
 	}
-	// Check if prefix already ends with colon to avoid double colons
 	if strings.HasSuffix(km.keyPrefix, ":") {
 		return km.keyPrefix + key + metadataSuffix
 	}

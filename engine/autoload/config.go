@@ -135,15 +135,12 @@ func (c *Config) Validate(_ context.Context) error {
 	if !c.Enabled {
 		return nil
 	}
-	// Validate that includes are provided when enabled
 	if len(c.Include) == 0 {
 		return fmt.Errorf("autoload.include patterns are required when autoload is enabled")
 	}
-	// Validate include patterns
 	if slices.Contains(c.Include, "") {
 		return fmt.Errorf("empty include pattern is not allowed")
 	}
-	// Validate exclude patterns
 	if slices.Contains(c.Exclude, "") {
 		return fmt.Errorf("empty exclude pattern is not allowed")
 	}
@@ -155,7 +152,6 @@ func (c *Config) SetDefaults() {
 	if c.defaultsApplied {
 		return
 	}
-	// Strict mode defaults to true only when autoload is disabled
 	if !c.Enabled {
 		c.Strict = true
 	}

@@ -19,9 +19,4 @@ package monitoring
 //	@Failure		503	{string}	string	"Monitoring service unavailable"
 //	@Router			/metrics [get]
 func MetricsHandler() {
-	// This is a documentation-only function for Swagger.
-	// The swaggo/swag tool cannot automatically generate OpenAPI specs for
-	// handlers that are methods on a struct and wrapped with gin.WrapH.
-	// This standalone function provides the necessary annotations for spec generation.
-	// The actual handler is s.monitoring.ExporterHandler() in server/mod.go.
 }

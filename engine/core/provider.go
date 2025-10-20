@@ -218,7 +218,6 @@ func (p *PromptParams) UnmarshalYAML(value *yaml.Node) error {
 	if value == nil {
 		return nil
 	}
-	// Track key presence
 	var raw map[string]any
 	if err := value.Decode(&raw); err != nil {
 		return err

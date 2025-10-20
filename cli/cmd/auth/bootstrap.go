@@ -24,7 +24,6 @@ If an admin user already exists, this command will fail.`,
   compozy auth bootstrap --email admin@company.com --force`,
 		RunE: runBootstrap,
 	}
-	// Add flags
 	cmd.Flags().String("email", "", "Admin user email address")
 	cmd.Flags().Bool("force", false, "Skip confirmation prompt")
 	cmd.Flags().Bool("check", false, "Check if system is already bootstrapped")

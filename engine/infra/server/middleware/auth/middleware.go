@@ -34,7 +34,6 @@ func NewManager(factory *uc.Factory, cfg *config.Config) *Manager {
 // WithMetrics adds metrics instrumentation to the manager
 func (m *Manager) WithMetrics(ctx context.Context, meter metric.Meter) *Manager {
 	m.meter = meter
-	// Initialize auth metrics
 	if meter != nil {
 		if err := authmetrics.InitMetrics(meter); err != nil {
 			log := logger.FromContext(ctx)
@@ -156,7 +155,6 @@ func (m *Manager) extractBearerToken(c *gin.Context) (string, error) {
 	if authHeader == "" {
 		return "", &authError{message: "no authorization header"}
 	}
-	// Case-insensitive bearer check and handle extra spaces
 	parts := strings.Fields(authHeader)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
 		return "", &authError{message: "invalid format", public: true}
@@ -170,25 +168,22 @@ func (m *Manager) extractBearerToken(c *gin.Context) (string, error) {
 
 // handleAuthError sends appropriate error response
 func (m *Manager) handleAuthError(c *gin.Context, err error) {
-	// Generic error message to prevent information leakage
+	// WARNING: Return a generic auth failure to avoid disclosing credential validation details.
 	response := gin.H{
 		"error":   "Authentication failed",
 		"details": "Invalid or missing credentials",
 	}
 	status := 401
-	// Only provide specific errors for format issues
 	if authErr, ok := err.(*authError); ok && authErr.public {
 		response["details"] = "Invalid authorization header format"
 		status = 400
 	}
-	// Map known UC errors to proper HTTP status codes
 	switch {
 	case errors.Is(err, uc.ErrRateLimited):
 		status = 429
 	case errors.Is(err, uc.ErrInvalidCredentials), errors.Is(err, uc.ErrTokenExpired):
 		status = 401
 	}
-	// Add WWW-Authenticate header for 401 responses per RFC 7235
 	if status == 401 {
 		c.Header("WWW-Authenticate", `Bearer realm="compozy", charset="UTF-8"`)
 	}
@@ -234,11 +229,9 @@ func categorizeValidationError(err error) authmetrics.AuthFailureReason {
 
 // setAuthContext sets authentication information in context
 func (m *Manager) setAuthContext(c *gin.Context, apiKey string, user *model.User) {
-	// Set in Gin context for rate limiting
 	c.Set(authmetrics.ContextKeyAPIKey, apiKey)
 	c.Set(authmetrics.ContextKeyUserID, user.ID.String())
 	c.Set(authmetrics.ContextKeyUserRole, string(user.Role))
-	// Inject into request context
 	ctx := userctx.WithUser(c.Request.Context(), user)
 	c.Request = c.Request.WithContext(ctx)
 	log := logger.FromContext(ctx)
@@ -258,7 +251,6 @@ func (e *authError) Error() string {
 // RequireAuth returns middleware that requires authentication
 func (m *Manager) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// No-op when auth is disabled
 		if c.Request.Context().Value(config.ManagerCtxKey) != nil {
 			if cfg := config.FromContext(c.Request.Context()); cfg != nil && !cfg.Server.Auth.Enabled {
 				c.Next()
@@ -280,7 +272,6 @@ func (m *Manager) RequireAuth() gin.HandlerFunc {
 // RequireAdmin returns middleware that requires admin role
 func (m *Manager) RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// No-op when auth is disabled
 		if c.Request.Context().Value(config.ManagerCtxKey) != nil {
 			if cfg := config.FromContext(c.Request.Context()); cfg != nil && !cfg.Server.Auth.Enabled {
 				c.Next()

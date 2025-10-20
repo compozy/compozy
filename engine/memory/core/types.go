@@ -196,7 +196,6 @@ func (r *Resource) validateMemoryTypeConstraints() error {
 			return fmt.Errorf("message-count-based memory requires max_messages")
 		}
 	case BufferMemory:
-		// Buffer memory can work with either limit
 	default:
 		return fmt.Errorf("invalid memory type: %s", r.Type)
 	}
@@ -418,7 +417,6 @@ func (f FlushingStrategyType) String() string {
 		return "lru"
 	case TokenAwareLRUFlushing:
 		return "token_aware_lru"
-	// PriorityBasedFlushing removed - use EvictionPolicyConfig instead
 	default:
 		return "unknown"
 	}

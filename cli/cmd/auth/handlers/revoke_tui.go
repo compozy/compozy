@@ -22,14 +22,12 @@ func RevokeTUI(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecu
 	if authClient == nil {
 		return fmt.Errorf("auth client not available")
 	}
-	// Create and run the TUI model
 	m := newRevokeModel(ctx, authClient)
 	p := tea.NewProgram(m)
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
-	// Check if revocation was successful
 	if model, ok := finalModel.(*revokeModel); ok {
 		if model.err != nil {
 			return model.err

@@ -85,7 +85,6 @@ func (c *MCPClient) GetStatus() *MCPStatus {
 	c.mu.RLock()
 	status := c.status
 	c.mu.RUnlock()
-	// Return a thread-safe copy with calculated uptime
 	return status.SafeCopy()
 }
 
@@ -109,7 +108,6 @@ func (c *MCPClient) startStderrLogger() {
 		log := logger.FromContext(c.managerCtx)
 		go func() {
 			scanner := bufio.NewScanner(reader)
-			// Allow up to 1MB per line to avoid truncation of long stderr lines.
 			scanner.Buffer(make([]byte, 0, 64*1024), 1<<20)
 			for scanner.Scan() {
 				log.Debug("MCP client stderr", "mcp_name", c.definition.Name, "line", scanner.Text())
@@ -160,9 +158,7 @@ func createStdioMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, er
 	if err != nil {
 		return nil, false, false, fmt.Errorf("failed to create stdio client: %w", err)
 	}
-	// For stdio transports, the upstream client already starts the process when
-	// constructed via NewStdioMCPClient. Calling Start twice can cause races on
-	// shared stdio readers. Avoid manual Start in Connect for stdio.
+	// NOTE: Stdio clients auto-start during construction; do not call Start again.
 	return client, false, false, nil
 }
 
@@ -279,24 +275,20 @@ func (c *MCPClient) startPingRoutineIfNeeded(ctx context.Context) {
 func (c *MCPClient) Disconnect(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Disconnecting from MCP server", "mcp_name", c.definition.Name)
-	// Check if already disconnected (without lock to avoid deadlock)
 	c.mu.RLock()
 	alreadyDisconnected := !c.connected
 	c.mu.RUnlock()
 	if alreadyDisconnected {
 		return nil
 	}
-	// Mark as disconnected and cancel ping routine
 	c.mu.Lock()
 	c.connected = false
 	pingCancel := c.pingCancel
 	c.mu.Unlock()
-	// Cancel ping routine if it was started
 	if c.needPing && pingCancel != nil {
 		pingCancel()
 		<-c.pingDone // Wait for routine to exit (will be immediate now)
 	}
-	// Close the MCP client - no lock held during network operation
 	if err := c.mcpClient.Close(); err != nil {
 		if isExpectedCloseError(err) {
 			log.Debug("MCP client closed with expected status", "mcp_name", c.definition.Name, "error", err)
@@ -304,7 +296,6 @@ func (c *MCPClient) Disconnect(ctx context.Context) error {
 			log.Error("Error closing MCP client", "error", err, "mcp_name", c.definition.Name)
 		}
 	}
-	// Update remaining state under lock
 	c.mu.Lock()
 	c.initialized = false
 	c.status.UpdateStatus(StatusDisconnected, "")
@@ -323,14 +314,11 @@ func (c *MCPClient) SendRequest(ctx context.Context, _ []byte) ([]byte, error) {
 		responseTime := time.Since(start)
 		c.recordRequest(responseTime)
 	}()
-	// For now, we'll implement this as a simple ping to verify connectivity
-	// In a full implementation, you'd parse the request and route it appropriately
 	err := c.mcpClient.Ping(ctx)
 	if err != nil {
 		c.recordError()
 		return nil, fmt.Errorf("MCP request failed: %w", err)
 	}
-	// Return a simple success response
 	return []byte(`{"result": "success"}`), nil
 }
 
@@ -339,7 +327,6 @@ func (c *MCPClient) Health(ctx context.Context) error {
 	if !c.IsConnected() {
 		return fmt.Errorf("client is not connected")
 	}
-	// Use the MCP ping method for health checking
 	if err := c.mcpClient.Ping(ctx); err != nil {
 		return fmt.Errorf("MCP health check failed: %w", err)
 	}
@@ -665,7 +652,6 @@ func (c *MCPClient) WaitUntilConnected(ctx context.Context) error {
 			if c.IsConnected() {
 				return nil
 			}
-			// Check if client is in error state
 			status := c.GetStatus()
 			if status.Status == StatusError {
 				return fmt.Errorf("client connection failed: %s", status.LastError)

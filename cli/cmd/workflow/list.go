@@ -78,14 +78,11 @@ type columnWidths struct {
 
 // calculateColumnWidths calculates dynamic column widths based on terminal width
 func calculateColumnWidths() columnWidths {
-	// Get terminal width, default to defaultTerminalWidth if not available
 	termWidth := defaultTerminalWidth
 	if width, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && width > 0 {
 		termWidth = width
 	}
-	// Reserve space for separators and padding
 	availableWidth := termWidth - terminalPaddingSpaces
-	// Handle very narrow terminals
 	if availableWidth < minTerminalWidthForTable {
 		return columnWidths{
 			id:      minIDColumnWidth,
@@ -95,7 +92,6 @@ func calculateColumnWidths() columnWidths {
 			updated: minUpdatedColumnWidth,
 		}
 	}
-	// Calculate proportional widths with minimum guarantees
 	return columnWidths{
 		id:      max(minIDColumnWidth, min(maxIDColumnWidth, availableWidth/idColumnRatio)),
 		status:  max(minStatusColumnWidth, min(maxStatusColumnWidth, availableWidth/statusColumnRatio)),
@@ -113,8 +109,6 @@ func ListCmd() *cobra.Command {
 		Long:  "List all workflows with optional filtering and sorting.",
 		RunE:  runList,
 	}
-	// Global flags are now centralized in cli/flags/global.go
-	// Add filtering flags
 	cmd.Flags().String("status", "", "Filter by workflow status")
 	cmd.Flags().StringSlice("tags", []string{}, "Filter by workflow tags")
 	cmd.Flags().Int("limit", defaultWorkflowLimit, "Maximum number of workflows to return")
@@ -157,28 +151,22 @@ func listTUIHandler(
 // handleListJSON handles workflow list command in JSON mode
 func handleListJSON(ctx context.Context, cmd *cobra.Command, client api.AuthClient, _ []string) error {
 	log := logger.FromContext(ctx)
-	// Validate sort flags
 	if err := validateSortFlags(cmd); err != nil {
 		return err
 	}
-	// Parse filters from flags
 	filters, err := parseFiltersFromFlags(cmd)
 	if err != nil {
 		return fmt.Errorf("invalid filters: %w", err)
 	}
-	// Get workflows from API
 	workflows, err := getWorkflows(ctx, client, &filters)
 	if err != nil {
 		return fmt.Errorf("failed to fetch workflows: %w", err)
 	}
-	// Create JSON formatter with pretty printing enabled
 	formatter := cliutils.NewJSONFormatter(true)
-	// Format workflow list response
 	jsonOutput, err := formatter.FormatWorkflowList(workflows, len(workflows), filters.Limit, filters.Offset)
 	if err != nil {
 		return fmt.Errorf("failed to format JSON response: %w", err)
 	}
-	// Output the formatted JSON
 	fmt.Println(jsonOutput)
 	log.Debug("workflows listed successfully", "count", len(workflows), "mode", "json")
 	return nil
@@ -187,24 +175,19 @@ func handleListJSON(ctx context.Context, cmd *cobra.Command, client api.AuthClie
 // handleListTUI handles workflow list command in TUI mode
 func handleListTUI(ctx context.Context, cmd *cobra.Command, client api.AuthClient, _ []string) error {
 	log := logger.FromContext(ctx)
-	// Validate sort flags
 	if err := validateSortFlags(cmd); err != nil {
 		return err
 	}
-	// Parse filters from flags
 	filters, err := parseFiltersFromFlags(cmd)
 	if err != nil {
 		return fmt.Errorf("invalid filters: %w", err)
 	}
-	// Get workflows from API
 	workflows, err := getWorkflows(ctx, client, &filters)
 	if err != nil {
 		return fmt.Errorf("failed to fetch workflows: %w", err)
 	}
-	// Use interactive TUI with WorkflowTableComponent
 	if err := runWorkflowTUI(ctx, workflows); err != nil {
 		log.Error("failed to run workflow TUI", "error", err)
-		// Fall back to simple table display if TUI fails
 		displayWorkflowTable(workflows)
 	}
 	log.Debug("workflows listed successfully", "count", len(workflows), "mode", "tui")
@@ -214,16 +197,12 @@ func handleListTUI(ctx context.Context, cmd *cobra.Command, client api.AuthClien
 // runWorkflowTUI runs the interactive TUI for workflow listing
 func runWorkflowTUI(ctx context.Context, workflows []api.Workflow) error {
 	log := logger.FromContext(ctx)
-	// Create workflow table component
 	tableComponent := components.NewWorkflowTableComponent(workflows)
-	// Create a simple TUI program model
 	model := &workflowTUIModel{
 		table: tableComponent,
 	}
-	// Create TUI program
 	program := tea.NewProgram(model, tea.WithAltScreen())
 	log.Debug("starting workflow TUI", "workflow_count", len(workflows))
-	// Run the program
 	if _, err := program.Run(); err != nil {
 		return fmt.Errorf("failed to run TUI program: %w", err)
 	}
@@ -248,18 +227,14 @@ func (m *workflowTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "enter":
-			// Handle selection
 			selected := m.table.GetSelectedWorkflow()
 			if selected != nil {
-				// For now, just quit - in a full implementation, this would show details
 				return m, tea.Quit
 			}
 		}
 	case tea.WindowSizeMsg:
-		// Update table size
 		m.table.SetSize(msg.Width, msg.Height-tuiHeaderReservedSpace) // Reserve space for header
 	}
-	// Update table component
 	var cmd tea.Cmd
 	m.table, cmd = m.table.Update(msg)
 	return m, cmd
@@ -378,15 +353,12 @@ func getWorkflows(
 	filters *api.WorkflowFilters,
 ) ([]api.Workflow, error) {
 	log := logger.FromContext(ctx)
-	// Create API client from auth client configuration
 	workflowService := createAPIClient(authClient)
-	// Use the workflow service to list workflows
 	log.Debug("fetching workflows from API", "filters", filters)
 	workflows, err := workflowService.List(ctx, filters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workflows: %w", err)
 	}
-	// Handle edge case: empty workflow list
 	if len(workflows) == 0 {
 		log.Info("no workflows found matching the specified filters")
 	}
@@ -396,7 +368,7 @@ func getWorkflows(
 
 // createAPIClient creates an API client from the auth client configuration
 func createAPIClient(authClient api.AuthClient) api.WorkflowService {
-	// Create HTTP client using shared utility with custom timeout
+	// NOTE: Use the shared HTTP client helper to enforce the workflow timeout and headers.
 	config := &cliutils.HTTPClientConfig{
 		Timeout: time.Duration(httpRequestTimeoutSeconds) * time.Second,
 		Headers: map[string]string{
@@ -439,7 +411,6 @@ func (s *workflowAPIService) prepareWorkflowListRequest(
 		req.SetQueryParam("status", filters.Status)
 	}
 	if len(filters.Tags) > 0 {
-		// URL encode each tag individually to handle special characters
 		encodedTags := make([]string, len(filters.Tags))
 		for i, tag := range filters.Tags {
 			encodedTags[i] = url.QueryEscape(tag)
@@ -520,13 +491,11 @@ func (s *workflowAPIService) handleHTTPError(resp *resty.Response) error {
 // Get implements the WorkflowService.Get method using the auth client
 func (s *workflowAPIService) Get(ctx context.Context, id core.ID) (*api.WorkflowDetail, error) {
 	log := logger.FromContext(ctx)
-	// Make the API call
 	var result struct {
 		Data api.WorkflowDetail `json:"data"`
 	}
 	resp, err := s.httpClient.R().SetContext(ctx).SetResult(&result).Get(fmt.Sprintf("/workflows/%s", id))
 	if err != nil {
-		// Handle network errors
 		if cliutils.IsNetworkError(err) {
 			return nil, fmt.Errorf("network error: unable to connect to Compozy server: %w", err)
 		}
@@ -535,7 +504,6 @@ func (s *workflowAPIService) Get(ctx context.Context, id core.ID) (*api.Workflow
 		}
 		return nil, fmt.Errorf("failed to get workflow: %w", err)
 	}
-	// Handle HTTP errors
 	if resp.StatusCode() >= http.StatusBadRequest {
 		if resp.StatusCode() == http.StatusUnauthorized {
 			return nil, fmt.Errorf("authentication failed: please check your API key or login credentials")
@@ -565,9 +533,7 @@ func displayWorkflowTable(workflows []api.Workflow) {
 		fmt.Println("  • Checking your permissions")
 		return
 	}
-	// Calculate dynamic column widths based on terminal width
 	widths := calculateColumnWidths()
-	// Print header
 	fmt.Printf("%-*s %-*s %-*s %-*s %-*s\n",
 		widths.id, "ID",
 		widths.status, "STATUS",
@@ -577,7 +543,6 @@ func displayWorkflowTable(workflows []api.Workflow) {
 	totalWidth := widths.id + widths.status + widths.name + widths.created + widths.updated +
 		headerSeparatorPadding // 4 spaces between columns
 	fmt.Println(strings.Repeat("-", totalWidth))
-	// Print workflows
 	for i := range workflows {
 		fmt.Printf("%-*s %-*s %-*s %-*s %-*s\n",
 			widths.id, cliutils.Truncate(string(workflows[i].ID), widths.id),

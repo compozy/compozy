@@ -204,27 +204,20 @@ func (t *Tutorial) View() string {
 	}
 	step := t.Steps[t.Current]
 	content := t.renderStep(step)
-	// Wrap in dialog
 	dialog := styles.DialogStyle.
 		Width(t.Width - 8).
 		Render(content)
-	// Center the dialog
 	return lipgloss.Place(t.Width, t.Height, lipgloss.Center, lipgloss.Center, dialog)
 }
 
 // renderStep renders a tutorial step
 func (t *Tutorial) renderStep(step TutorialStep) string {
 	var content string
-	// Progress indicator
 	progress := styles.HelpStyle.Render(fmt.Sprintf("Step %d of %d", t.Current+1, len(t.Steps)))
 	content += progress + "\n\n"
-	// Title
 	content += styles.RenderTitle(step.Title) + "\n\n"
-	// Description
 	content += step.Description + "\n\n"
-	// Action
 	content += styles.HelpKeyStyle.Render(step.Action) + "\n\n"
-	// Navigation help
 	nav := ""
 	if t.Current > 0 {
 		nav += styles.HelpStyle.Render("← previous")
@@ -238,7 +231,6 @@ func (t *Tutorial) renderStep(step TutorialStep) string {
 	if nav != "" {
 		content += nav + "\n"
 	}
-	// Close instruction
 	content += styles.HelpStyle.Render("Press q or esc to close tutorial")
 	return content
 }

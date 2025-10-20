@@ -1738,7 +1738,6 @@ func getStringSlice(registry *definition.Registry, path string) []string {
 		if slice, ok := val.([]string); ok {
 			return slice
 		}
-		// Handle case where it might be stored as []interface{}
 		if interfaceSlice, ok := val.([]any); ok {
 			result := make([]string, len(interfaceSlice))
 			for i, v := range interfaceSlice {

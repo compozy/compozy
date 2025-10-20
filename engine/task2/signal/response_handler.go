@@ -36,23 +36,19 @@ func (h *ResponseHandler) HandleResponse(
 	ctx context.Context,
 	input *shared.ResponseInput,
 ) (*shared.ResponseOutput, error) {
-	// Validate input
 	if err := h.baseHandler.ValidateInput(input); err != nil {
 		return nil, err
 	}
-	// Validate task type matches handler
 	if input.TaskConfig.Type != task.TaskTypeSignal {
 		return nil, &shared.ValidationError{
 			Field:   "task_type",
 			Message: "handler type does not match task type",
 		}
 	}
-	// Process signal dispatch result
 	response, err := h.baseHandler.ProcessMainTaskResponse(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-	// Signal-specific: Confirm dispatch was successful
 	if response.State.Status == core.StatusSuccess {
 		log := logger.FromContext(ctx).With(
 			"task_exec_id", input.TaskState.TaskExecID,
@@ -60,7 +56,6 @@ func (h *ResponseHandler) HandleResponse(
 		)
 		log.Info("Signal dispatched successfully")
 
-		// Log signal details if available
 		if response.State.Output != nil {
 			if signalName, exists := (*response.State.Output)["signal_name"]; exists {
 				log.Info("Signal details", "signal_name", signalName)
@@ -83,10 +78,7 @@ func (h *ResponseHandler) ValidateSignalDispatch(state *task.State) error {
 	if state == nil {
 		return fmt.Errorf("signal task state cannot be nil")
 	}
-	// Signal tasks should complete successfully if the signal was dispatched
-	// The actual signal delivery is handled asynchronously by the workflow engine
 	if state.Status == core.StatusSuccess {
-		// Signal was dispatched successfully
 		return nil
 	}
 	if state.Status == core.StatusFailed {
@@ -95,6 +87,5 @@ func (h *ResponseHandler) ValidateSignalDispatch(state *task.State) error {
 		}
 		return fmt.Errorf("signal dispatch failed with unknown error")
 	}
-	// For pending or running states, it's not an error but the signal hasn't been dispatched yet
 	return fmt.Errorf("signal dispatch not completed, current status: %s", state.Status)
 }

@@ -37,7 +37,6 @@ type DispatcherHeartbeatData struct {
 // Uses cache contracts (KV) rather than direct Redis types.
 func DispatcherHeartbeat(ctx context.Context, kv cache.KV, input *DispatcherHeartbeatInput) error {
 	log := logger.FromContext(ctx)
-	// Validate input
 	if input.DispatcherID == "" {
 		return fmt.Errorf("dispatcher ID cannot be empty")
 	}
@@ -51,7 +50,6 @@ func DispatcherHeartbeat(ctx context.Context, kv cache.KV, input *DispatcherHear
 	if kv == nil {
 		return fmt.Errorf("cache KV not configured")
 	}
-	// Prepare heartbeat data
 	data := DispatcherHeartbeatData{
 		DispatcherID:  input.DispatcherID,
 		ProjectName:   input.ProjectName,
@@ -62,15 +60,12 @@ func DispatcherHeartbeat(ctx context.Context, kv cache.KV, input *DispatcherHear
 	if err != nil {
 		return fmt.Errorf("failed to marshal heartbeat data: %w", err)
 	}
-	// Store in Redis with configurable TTL (default 5 minutes)
-	// TTL should be significantly longer than heartbeat interval to handle network delays
 	key := fmt.Sprintf("%s:%s", dispatcherHeartbeatKeyPrefix, input.DispatcherID)
 	ttl := resolveHeartbeatTTL(ctx, input.TTL)
 	err = kv.Set(ctx, key, string(jsonData), ttl)
 	if err != nil {
 		return fmt.Errorf("failed to store heartbeat in Redis: %w", err)
 	}
-	// Record heartbeat metrics
 	interceptor.RecordDispatcherHeartbeat(ctx, input.DispatcherID)
 	monitoring.UpdateDispatcherHeartbeat(ctx, input.DispatcherID)
 	log.Debug("Dispatcher heartbeat recorded successfully",

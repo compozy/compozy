@@ -259,11 +259,8 @@ func buildRuntimeManager(
 	if cfg == nil {
 		return nil, fmt.Errorf("config manager not found in context")
 	}
-	// Use factory to create runtime with direct unified config mapping
 	factory := runtime.NewDefaultFactory(projectRoot)
-	// Create a merged runtime config by applying project-specific overrides
 	mergedRuntimeConfig := cfg.Runtime
-	// Apply project-specific overrides if specified
 	if projectConfig.Runtime.Type != "" {
 		mergedRuntimeConfig.RuntimeType = projectConfig.Runtime.Type
 		log.Debug("Using project-specific runtime type", "type", projectConfig.Runtime.Type)
@@ -284,7 +281,6 @@ func buildRuntimeManager(
 			projectConfig.Runtime.ToolExecutionTimeout,
 		)
 	}
-	// Log final configuration being used for debugging
 	log.Debug("Using unified runtime configuration",
 		"environment", mergedRuntimeConfig.Environment,
 		"runtime_type", mergedRuntimeConfig.RuntimeType,
@@ -600,7 +596,6 @@ func setupRedisAndConfig(
 	if cfg == nil {
 		return nil, nil, fmt.Errorf("config manager not found in context")
 	}
-	// Build cache config from centralized Redis and cache config
 	cacheConfig := cache.FromAppConfig(cfg)
 	redisCache, err := cache.SetupCache(ctx, cacheConfig)
 	if err != nil {
@@ -614,7 +609,6 @@ func setupRedisAndConfig(
 // setupMCPRegister initializes MCP registration for workflows
 func setupMCPRegister(ctx context.Context, workflows []*wf.Config) (*mcp.RegisterService, error) {
 	log := logger.FromContext(ctx)
-	// Initialize MCP register and register all MCPs from all workflows
 	mcpStart := time.Now()
 	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
 	for i, wf := range workflows {
@@ -643,9 +637,7 @@ func setupMemoryManager(
 		log.Warn("Resource registry not provided, memory features will be disabled")
 		return nil, nil
 	}
-	// Redis is a hard requirement; by this point, redisCache should be non-nil.
 	privacyManager := privacy.NewManager()
-	// Extract project ID for consistent namespace resolution
 	fallbackProjectID := ""
 	if projectConfig != nil {
 		fallbackProjectID = projectConfig.Name
@@ -736,9 +728,7 @@ func (o *Worker) Setup(ctx context.Context) error {
 	if o.config != nil && o.config.MonitoringService != nil && o.config.MonitoringService.IsInitialized() {
 		o.startQueueDepthMonitor(ctx)
 	}
-	// Track running worker for monitoring
 	interceptor.IncrementRunningWorkers(ctx)
-	// Register dispatcher for health monitoring
 	cfg := appconfig.FromContext(ctx)
 	if cfg == nil {
 		return fmt.Errorf("config manager not found in context")
@@ -748,27 +738,19 @@ func (o *Worker) Setup(ctx context.Context) error {
 		o.dispatcherID,
 		cfg.Runtime.DispatcherStaleThreshold,
 	)
-	// Ensure dispatcher is running with independent lifecycle context
 	go o.ensureDispatcherRunning(o.lifecycleCtx)
 	return nil
 }
 
 func (o *Worker) Stop(ctx context.Context) {
 	o.stopQueueDepthMonitor()
-	// Track worker stopping for monitoring
 	interceptor.DecrementRunningWorkers(ctx)
-	// Record dispatcher stop event for monitoring
 	o.stopDispatcherMonitoring(ctx)
-	// Cancel lifecycle context to stop background operations
 	o.cancelLifecycle()
-	// Terminate this instance's dispatcher since each server has its own
 	o.terminateDispatcher(ctx)
-	// Stop the worker and close client
 	o.worker.Stop()
 	o.client.Close()
-	// Deregister all MCPs from proxy on shutdown
 	o.shutdownMCPs(ctx)
-	// Close stores
 	o.closeStores(ctx)
 }
 
@@ -1019,13 +1001,11 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 	if cfg == nil {
 		return fmt.Errorf("config manager not found in context")
 	}
-	// Check Redis cache health
 	if o.redisCache != nil {
 		if err := o.redisCache.HealthCheck(ctx); err != nil {
 			return fmt.Errorf("redis cache health check failed: %w", err)
 		}
 	}
-	// Check dispatcher health by verifying recent heartbeat
 	if o.dispatcherID != "" && o.activities != nil {
 		input := &wkacts.ListActiveDispatchersInput{
 			StaleThreshold: cfg.Runtime.DispatcherStaleThreshold,
@@ -1034,7 +1014,6 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 		if err != nil {
 			log.Warn("Failed to check dispatcher health", "error", err)
 		} else {
-			// Check if our dispatcher is in the list and not stale
 			found := false
 			for _, dispatcher := range output.Dispatchers {
 				if dispatcher.DispatcherID == o.dispatcherID {
@@ -1052,9 +1031,7 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 			}
 		}
 	}
-	// Check MCP proxy health if configured
 	if err := o.checkMCPProxyHealth(ctx); err != nil {
-		// Log error but don't fail health check since MCP proxy is optional
 		log.Warn("MCP proxy health check failed", "error", err)
 	}
 	return nil

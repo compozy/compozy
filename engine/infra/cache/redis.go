@@ -278,18 +278,14 @@ func (r *Redis) TxPipeline() redis.Pipeliner {
 // HealthCheck performs a comprehensive health check
 func (r *Redis) HealthCheck(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	// Test basic connectivity
 	if err := r.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("ping failed: %w", err)
 	}
-	// Test basic operations
 	testKey := "health_check_test"
 	testValue := "test_value"
-	// Set a test value
 	if err := r.Set(ctx, testKey, testValue, 10*time.Second).Err(); err != nil {
 		return fmt.Errorf("set operation failed: %w", err)
 	}
-	// Get the test value
 	result, err := r.Get(ctx, testKey).Result()
 	if err != nil {
 		return fmt.Errorf("get operation failed: %w", err)
@@ -297,7 +293,6 @@ func (r *Redis) HealthCheck(ctx context.Context) error {
 	if result != testValue {
 		return fmt.Errorf("get result mismatch: expected %s, got %s", testValue, result)
 	}
-	// Clean up test key
 	if err := r.Del(ctx, testKey).Err(); err != nil {
 		log.Debug("failed to clean up test key", "key", testKey, "error", err)
 	}
@@ -319,12 +314,10 @@ func applyConfigToOptions(opt *redis.Options, cfg *Config) {
 	} else {
 		opt.MinIdleConns = max(1, cfg.MaxIdleConns/2)
 	}
-	// TLS Configuration
 	if cfg.TLSEnabled {
 		if cfg.TLSConfig != nil {
 			opt.TLSConfig = cfg.TLSConfig
 		} else {
-			// Use default TLS config
 			opt.TLSConfig = &tls.Config{
 				ServerName: cfg.Host,
 				MinVersion: tls.VersionTLS12,

@@ -46,7 +46,6 @@ func NewHealthMemory(
 		var err error
 		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
 		if err != nil {
-			// Log error but continue with nil service
 			return nil, err
 		}
 	}
@@ -61,11 +60,9 @@ func NewHealthMemory(
 
 // Execute checks memory health
 func (uc *HealthMemory) Execute(ctx context.Context) (*HealthMemoryResult, error) {
-	// Validate inputs
 	if err := uc.validate(); err != nil {
 		return nil, err
 	}
-	// Use centralized service for health check
 	resp, err := uc.service.Health(ctx, &service.HealthRequest{
 		BaseRequest: service.BaseRequest{
 			MemoryRef: uc.memoryRef,

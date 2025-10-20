@@ -55,11 +55,9 @@ func (n *BaseSubTaskNormalizer) Normalize(
 	if config == nil {
 		return nil
 	}
-	// Normalize parent task configuration
 	if err := n.normalizeParentConfig(config, normCtx); err != nil {
 		return err
 	}
-	// Normalize all sub-tasks with parent context
 	if err := n.normalizeSubTasks(ctx, config, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize %s sub-tasks: %w", n.taskTypeName, err)
 	}
@@ -112,7 +110,6 @@ func (n *BaseSubTaskNormalizer) normalizeSubTasks(
 	parentConfig *task.Config,
 	normCtx *NormalizationContext,
 ) error {
-	// Normalize each sub-task in the Tasks array
 	for i := range parentConfig.Tasks {
 		subTask := &parentConfig.Tasks[i]
 		if err := n.normalizeSingleSubTask(ctx, subTask, parentConfig, normCtx); err != nil {
@@ -120,7 +117,6 @@ func (n *BaseSubTaskNormalizer) normalizeSubTasks(
 		}
 		parentConfig.Tasks[i] = *subTask
 	}
-	// Also normalize the task reference if present
 	if parentConfig.Task != nil {
 		if err := n.normalizeSingleSubTask(ctx, parentConfig.Task, parentConfig, normCtx); err != nil {
 			return fmt.Errorf("failed to normalize task reference: %w", err)
@@ -143,15 +139,12 @@ func InheritTaskConfig(child, parent *task.Config) error {
 	if child == nil || parent == nil {
 		return nil // Graceful handling of nil configs
 	}
-	// Copy CWD from parent config to child config if not already set
 	if child.CWD == nil && parent.CWD != nil {
 		child.CWD = parent.CWD
-		// Recursively propagate CWD to all nested tasks
 		if err := task.PropagateSingleTaskCWD(child, child.CWD, "sub-task"); err != nil {
 			return fmt.Errorf("failed to propagate CWD to nested tasks: %w", err)
 		}
 	}
-	// Copy FilePath from parent config to child config if not already set
 	if child.FilePath == "" && parent.FilePath != "" {
 		child.FilePath = parent.FilePath
 	}
@@ -165,21 +158,17 @@ func (n *BaseSubTaskNormalizer) normalizeSingleSubTask(
 	parentConfig *task.Config,
 	normCtx *NormalizationContext,
 ) error {
-	// Apply config inheritance before template processing
 	if err := InheritTaskConfig(subTask, parentConfig); err != nil {
 		return err
 	}
-	// Prepare sub-task context
 	subTaskCtx, err := n.prepareSubTaskContext(ctx, subTask, parentConfig, normCtx)
 	if err != nil {
 		return err
 	}
-	// Get normalizer for sub-task type
 	subNormalizer, err := n.normalizerFactory.CreateNormalizer(ctx, subTask.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create normalizer for task type %s: %w", subTask.Type, err)
 	}
-	// Recursively normalize the sub-task (this handles nested tasks too)
 	return subNormalizer.Normalize(ctx, subTask, subTaskCtx)
 }
 
@@ -194,11 +183,8 @@ func (n *BaseSubTaskNormalizer) prepareSubTaskContext(
 	if err != nil {
 		return nil, fmt.Errorf("failed to build sub-task context: %w", err)
 	}
-	// Merge parent input with sub-task's With instead of overwriting
-	// This ensures parent-provided input (from collection.with) is accessible
 	if subTask.With != nil {
 		if subTaskCtx.CurrentInput != nil {
-			// Merge parent input with sub-task's With (sub-task's With takes precedence)
 			merged := core.CopyMaps(*subTaskCtx.CurrentInput, *subTask.With)
 			mergedInput := core.Input(merged)
 			subTaskCtx.CurrentInput = &mergedInput

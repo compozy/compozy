@@ -49,23 +49,19 @@ func ValidateRawMessages(messages []map[string]any) error {
 		return NewValidationError("messages", nil, "messages cannot be empty")
 	}
 	limits := getDefaultLimits()
-	// Check maximum number of messages
 	if len(messages) > limits.MaxMessagesPerRequest {
 		return NewValidationError("messages", len(messages),
 			fmt.Sprintf("exceeded maximum number of messages (%d)", limits.MaxMessagesPerRequest))
 	}
 	totalContentSize := 0
 	for i, msg := range messages {
-		// Validate using existing ValidateMessage function
 		if err := ValidateMessage(msg, i); err != nil {
 			return err
 		}
-		// Track total content size
 		if content, ok := msg["content"].(string); ok {
 			totalContentSize += len(content)
 		}
 	}
-	// Check total content size
 	if totalContentSize > limits.MaxTotalContentSize {
 		return NewValidationError("messages", totalContentSize,
 			fmt.Sprintf("total content size exceeds maximum of %d bytes", limits.MaxTotalContentSize))
@@ -76,7 +72,6 @@ func ValidateRawMessages(messages []map[string]any) error {
 // ValidateMessage validates a single message
 func ValidateMessage(msg map[string]any, index int) error {
 	limits := getDefaultLimits()
-	// Check content
 	content, ok := msg["content"].(string)
 	if !ok || content == "" {
 		return NewValidationError(
@@ -85,12 +80,10 @@ func ValidateMessage(msg map[string]any, index int) error {
 			fmt.Sprintf("message[%d] content is required and must be a string", index),
 		)
 	}
-	// Check content length using configurable limits
 	if len(content) > limits.MaxMessageContentLength {
 		return NewValidationError("content", len(content),
 			fmt.Sprintf("message[%d] content too long (max %d bytes)", index, limits.MaxMessageContentLength))
 	}
-	// Check role if provided
 	if role, exists := msg["role"]; exists {
 		roleStr, ok := role.(string)
 		if !ok {
@@ -119,15 +112,12 @@ func ValidateFlushInput(input *FlushMemoryInput) error {
 	if input == nil {
 		return ErrInvalidPayload
 	}
-	// Validate max keys
 	if input.MaxKeys < 0 {
 		return NewValidationError("max_keys", input.MaxKeys, "must be non-negative")
 	}
 	if input.MaxKeys > 10000 {
 		return NewValidationError("max_keys", input.MaxKeys, "too large (max 10000)")
 	}
-	// Strategy validation is handled by the service layer
-	// No need to duplicate it here
 	return nil
 }
 
@@ -136,7 +126,6 @@ func ValidateClearInput(input *ClearMemoryInput) error {
 	if input == nil {
 		return ErrInvalidPayload
 	}
-	// Confirm flag must be true for safety
 	if !input.Confirm {
 		return NewValidationError("confirm", input.Confirm, "must be true to clear memory")
 	}

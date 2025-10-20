@@ -38,7 +38,6 @@ func (uc *LoadWorkflow) Execute(
 	}
 	workflowConfig, err := wf.FindConfig(uc.workflows, input.WorkflowID)
 	if err != nil {
-		// Additional debugging: list available workflow IDs
 		var availableIDs []string
 		for _, wf := range uc.workflows {
 			if wf != nil {

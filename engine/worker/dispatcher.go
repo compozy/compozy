@@ -164,7 +164,6 @@ func BuildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[stri
 					return nil, err
 				}
 			default:
-				// ignore other trigger types here
 				log.Debug("Ignoring unknown or unsupported trigger type",
 					"type", trigger.Type, "workflow", wcfg.ID, "trigger", trigger.Name)
 			}
@@ -180,10 +179,8 @@ func GenerateCorrelationID(ctx workflow.Context, existingID string) string {
 		return existingID
 	}
 	var newID string
-	// Use versioning to handle backward compatibility during replay
 	version := workflow.GetVersion(ctx, "correlation-id-generation", workflow.DefaultVersion, 1)
 	if version == workflow.DefaultVersion {
-		// Old behavior for existing workflows - use deterministic but unique fallback
 		var fallbackID string
 		if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
 			return fmt.Sprintf("generated-%d", workflow.Now(ctx).UnixNano())
@@ -193,7 +190,6 @@ func GenerateCorrelationID(ctx workflow.Context, existingID string) string {
 		}
 		return fallbackID
 	}
-	// New behavior with SideEffect
 	if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
 		return core.MustNewID().String()
 	}).Get(&newID); err != nil {
@@ -237,10 +233,8 @@ func validateSignalPayload(
 func generateWorkflowExecID(ctx workflow.Context) core.ID {
 	log := workflow.GetLogger(ctx)
 	var workflowExecID core.ID
-	// Use versioning to handle backward compatibility during replay
 	version := workflow.GetVersion(ctx, "workflow-id-generation", workflow.DefaultVersion, 1)
 	if version == workflow.DefaultVersion {
-		// Old behavior for existing workflows - use deterministic but unique fallback
 		var fallbackID string
 		if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
 			return fmt.Sprintf("fallback-%d", workflow.Now(ctx).UnixNano())
@@ -250,7 +244,6 @@ func generateWorkflowExecID(ctx workflow.Context) core.ID {
 		}
 		return core.ID(fallbackID)
 	}
-	// New behavior with SideEffect
 	if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
 		return core.MustNewID()
 	}).Get(&workflowExecID); err != nil {
@@ -337,10 +330,8 @@ func ProcessEventSignal(
 	appConfig *config.Config,
 ) bool {
 	log := workflow.GetLogger(ctx)
-	// Use provided correlation ID or generate one for tracking this event
 	correlationID := GenerateCorrelationID(ctx, signal.CorrelationID)
 	log.Debug("Received signal", "name", signal.Name, "correlationId", correlationID)
-	// Find target workflow with enhanced error handling
 	target, ok := signalMap[signal.Name]
 	if !ok {
 		log.Warn("Unknown signal - no workflow configured",
@@ -349,11 +340,9 @@ func ProcessEventSignal(
 			"availableSignals", GetRegisteredSignalNames(signalMap))
 		return false // Not a fatal error, just unknown signal
 	}
-	// Validate payload against pre-compiled schema if defined
 	if !validateSignalPayload(ctx, signal, target, correlationID) {
 		return false // Not a fatal error, just validation failure
 	}
-	// Start child workflow with enhanced error handling and retry options
 	return executeChildWorkflow(ctx, signal, target, correlationID, appConfig)
 }
 

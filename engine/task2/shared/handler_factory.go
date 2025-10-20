@@ -25,11 +25,9 @@ func NewResponseHandlerFactory() *ResponseHandlerFactory {
 func (f *ResponseHandlerFactory) RegisterHandler(taskType task.Type, handler TaskResponseHandler) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	// Validate handler type matches
 	if handler.Type() != taskType {
 		return fmt.Errorf("handler type %s does not match registration type %s", handler.Type(), taskType)
 	}
-	// Check for duplicate registration
 	if _, exists := f.handlers[taskType]; exists {
 		return fmt.Errorf("handler for task type %s already registered", taskType)
 	}
@@ -41,7 +39,6 @@ func (f *ResponseHandlerFactory) RegisterHandler(taskType task.Type, handler Tas
 func (f *ResponseHandlerFactory) GetHandler(taskType task.Type) (TaskResponseHandler, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	// Validate task type
 	if err := f.validateTaskType(taskType); err != nil {
 		return nil, err
 	}
@@ -90,13 +87,11 @@ func (f *ResponseHandlerFactory) RegisterAllHandlers(
 	signalHandler TaskResponseHandler,
 	aggregateHandler TaskResponseHandler,
 ) error {
-	// Validate that all handlers are non-nil
 	if basicHandler == nil || collectionHandler == nil || parallelHandler == nil ||
 		compositeHandler == nil || routerHandler == nil || waitHandler == nil ||
 		signalHandler == nil || aggregateHandler == nil {
 		return fmt.Errorf("all handlers must be non-nil")
 	}
-	// Register each handler with type validation
 	handlers := []struct {
 		taskType task.Type
 		handler  TaskResponseHandler
@@ -134,7 +129,6 @@ func (f *ResponseHandlerFactory) ListRegisteredTypes() []task.Type {
 	for t := range f.handlers {
 		types = append(types, t)
 	}
-	// Sort for deterministic order
 	sort.Slice(types, func(i, j int) bool {
 		return string(types[i]) < string(types[j])
 	})

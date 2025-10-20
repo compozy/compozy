@@ -32,7 +32,6 @@ func TestCommand() *cobra.Command {
 		Use:   "test",
 		Short: "Test command",
 	}
-	// Add common flags
 	cmd.Flags().Bool("json", false, "JSON output")
 	cmd.Flags().Bool("tui", false, "TUI output")
 	cmd.Flags().String("output", "", "Output format")

@@ -18,7 +18,6 @@ func NewCycleValidator() *CycleValidator {
 }
 
 func (v *CycleValidator) Validate() error {
-	// This is a placeholder - actual validation happens in ValidateConfig
 	return nil
 }
 
@@ -214,9 +213,6 @@ func (v *TypeValidator) validateDirectLLMExecutor(hasDirectLLM bool) error {
 }
 
 func (v *TypeValidator) validateBasicTask(ctx context.Context) error {
-	// For basic tasks, just run the standard executor field validation
-	// The runtime check in ExecuteTask will catch missing components when they're actually needed
-	// This allows for $use references and other dynamic resolution patterns to work properly
 	return v.validateExecutorFields(ctx)
 }
 
@@ -245,7 +241,6 @@ func (v *TypeValidator) validateParallelTask(ctx context.Context) error {
 	if len(v.config.Tasks) == 0 {
 		return fmt.Errorf("parallel tasks must have at least one sub-task")
 	}
-	// Check for duplicate IDs first before validating individual items
 	seen := make(map[string]bool)
 	for i := range v.config.Tasks {
 		task := &v.config.Tasks[i]
@@ -254,7 +249,6 @@ func (v *TypeValidator) validateParallelTask(ctx context.Context) error {
 		}
 		seen[task.ID] = true
 	}
-	// Then validate each individual task
 	for i := range v.config.Tasks {
 		task := &v.config.Tasks[i]
 		if err := v.validateParallelTaskItem(ctx, task); err != nil {
@@ -273,7 +267,6 @@ func (v *TypeValidator) validateParallelTaskItem(ctx context.Context, item *Conf
 	if item.ID == "" {
 		return fmt.Errorf("task item ID is required")
 	}
-	// Each task in parallel execution should be a valid task configuration
 	if err := item.Validate(ctx); err != nil {
 		return fmt.Errorf("invalid task configuration: %w", err)
 	}
@@ -314,7 +307,6 @@ func (v *CollectionValidator) Validate(ctx context.Context) error {
 func (v *CollectionValidator) validateStructure(_ context.Context) error {
 	hasTask := v.config.Task != nil
 	hasTasks := len(v.config.Tasks) > 0
-	// Ensure exactly one is provided
 	if !hasTask && !hasTasks {
 		return errors.New("collection tasks must have either a 'task' template or 'tasks' array configured")
 	}
@@ -355,7 +347,6 @@ func (v *TypeValidator) validateAggregateTask(_ context.Context) error {
 	if v.config.Outputs == nil || len(*v.config.Outputs) == 0 {
 		return fmt.Errorf("aggregate tasks must have outputs defined")
 	}
-	// Aggregate tasks should not have action, agent, or tool
 	if v.config.Action != "" {
 		return fmt.Errorf("aggregate tasks cannot have an action field")
 	}
@@ -365,7 +356,6 @@ func (v *TypeValidator) validateAggregateTask(_ context.Context) error {
 	if v.config.Tool != nil {
 		return fmt.Errorf("aggregate tasks cannot have a tool")
 	}
-	// Aggregate tasks should not have other execution-related fields
 	if v.config.Sleep != "" {
 		return fmt.Errorf("aggregate tasks cannot have a sleep field")
 	}
@@ -379,7 +369,6 @@ func (v *TypeValidator) validateCompositeTask(ctx context.Context) error {
 	if len(v.config.Tasks) == 0 {
 		return fmt.Errorf("composite tasks must have at least one sub-task")
 	}
-	// Check for duplicate IDs
 	seen := make(map[string]bool)
 	for i := range v.config.Tasks {
 		task := &v.config.Tasks[i]
@@ -388,14 +377,12 @@ func (v *TypeValidator) validateCompositeTask(ctx context.Context) error {
 		}
 		seen[task.ID] = true
 	}
-	// Validate each individual task
 	for i := range v.config.Tasks {
 		task := &v.config.Tasks[i]
 		if err := v.validateCompositeTaskItem(ctx, task); err != nil {
 			return fmt.Errorf("invalid composite task item %s: %w", task.ID, err)
 		}
 	}
-	// Validate strategy - check the actual field, not the computed value
 	if v.config.Strategy != "" {
 		return fmt.Errorf("composite tasks cannot have a strategy: %s", v.config.Strategy)
 	}
@@ -406,8 +393,6 @@ func (v *TypeValidator) validateCompositeTaskItem(ctx context.Context, item *Con
 	if item.ID == "" {
 		return fmt.Errorf("task item ID is required")
 	}
-	// All task types are now supported as subtasks with nested tasks implementation
-	// Each task in composite execution should be a valid task configuration
 	if err := item.Validate(ctx); err != nil {
 		return fmt.Errorf("invalid task configuration: %w", err)
 	}
@@ -418,7 +403,6 @@ func (v *TypeValidator) validateSignalTask(_ context.Context) error {
 	if v.config.Signal == nil || strings.TrimSpace(v.config.Signal.ID) == "" {
 		return fmt.Errorf("signal.id is required for signal tasks")
 	}
-	// Signal tasks should not have action, agent, or tool
 	if v.config.Action != "" {
 		return fmt.Errorf("signal tasks cannot have an action field")
 	}
@@ -432,7 +416,6 @@ func (v *TypeValidator) validateSignalTask(_ context.Context) error {
 }
 
 func (v *TypeValidator) validateWaitTask(_ context.Context) error {
-	// Wait tasks should not have action, agent, or tool
 	if v.config.Action != "" {
 		return fmt.Errorf("wait tasks cannot have an action field")
 	}
@@ -442,12 +425,10 @@ func (v *TypeValidator) validateWaitTask(_ context.Context) error {
 	if v.config.Tool != nil {
 		return fmt.Errorf("wait tasks cannot have a tool")
 	}
-	// Additional wait task validation is handled in Config.validateWaitTask()
 	return nil
 }
 
 func (v *TypeValidator) validateMemoryTask(_ context.Context) error {
-	// Memory tasks should not have action, agent, or tool
 	if v.config.Action != "" {
 		return fmt.Errorf("memory tasks cannot have an action field")
 	}
@@ -457,6 +438,5 @@ func (v *TypeValidator) validateMemoryTask(_ context.Context) error {
 	if v.config.Tool != nil {
 		return fmt.Errorf("memory tasks cannot have a tool")
 	}
-	// Additional memory task validation is handled in Config.validateMemoryTask()
 	return nil
 }

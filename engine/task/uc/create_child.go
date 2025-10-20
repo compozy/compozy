@@ -50,7 +50,6 @@ func (uc *CreateChildTasks) Execute(ctx context.Context, input *CreateChildTasks
 	if err := uc.validateParentState(parentState); err != nil {
 		return err
 	}
-	// Load parent task config to get its environment
 	parentConfig, err := uc.configStore.Get(ctx, parentState.TaskExecID.String())
 	if err != nil {
 		return fmt.Errorf("failed to load parent task config: %w", err)
@@ -72,7 +71,6 @@ func (uc *CreateChildTasks) createParallelChildren(
 	parentState *task.State,
 	parentConfig *task.Config,
 ) error {
-	// Create config repository from factory
 	cwd := parentConfig.GetCWD()
 	if cwd == nil {
 		cwd = uc.defaultCWD
@@ -103,7 +101,6 @@ func (uc *CreateChildTasks) createCollectionChildren(
 	parentState *task.State,
 	parentConfig *task.Config,
 ) error {
-	// Create config repository from factory
 	cwd := parentConfig.GetCWD()
 	if cwd == nil {
 		cwd = uc.defaultCWD
@@ -134,7 +131,6 @@ func (uc *CreateChildTasks) createCompositeChildren(
 	parentState *task.State,
 	parentConfig *task.Config,
 ) error {
-	// Create config repository from factory
 	cwd := parentConfig.GetCWD()
 	if cwd == nil {
 		cwd = uc.defaultCWD
@@ -302,7 +298,6 @@ func (uc *CreateChildTasks) processChildConfig(
 	childConfig *task.Config,
 	parentEnv *core.EnvMap,
 ) (*task.PartialState, error) {
-	// Merge parent environment with child environment
 	mergedEnv := uc.mergeEnvironments(parentEnv, childConfig.Env)
 	executionType := childConfig.GetExecType()
 	agentConfig := childConfig.GetAgent()
@@ -311,7 +306,6 @@ func (uc *CreateChildTasks) processChildConfig(
 	case childConfig.Type == task.TaskTypeParallel ||
 		childConfig.Type == task.TaskTypeCollection ||
 		childConfig.Type == task.TaskTypeComposite:
-		// Container tasks - create basic state for tracking, actual execution handled by executeChild
 		return &task.PartialState{
 			Component:     core.ComponentTask,
 			ExecutionType: executionType,
@@ -345,12 +339,10 @@ func (uc *CreateChildTasks) processAgent(
 	parentEnv *core.EnvMap,
 ) (*task.PartialState, error) {
 	agentID := agentConfig.ID
-	// Use childInput if provided (for collection children), otherwise use agent's With
 	input := childInput
 	if input == nil {
 		input = agentConfig.With
 	}
-	// Merge parent environment with agent environment
 	mergedEnv := uc.mergeEnvironments(parentEnv, agentConfig.Env)
 	var actionPtr *string
 	if actionID != "" {
@@ -373,12 +365,10 @@ func (uc *CreateChildTasks) processTool(
 	parentEnv *core.EnvMap,
 ) (*task.PartialState, error) {
 	toolID := toolConfig.ID
-	// Use childInput if provided (for collection children), otherwise use tool's With
 	input := childInput
 	if input == nil {
 		input = toolConfig.With
 	}
-	// Merge parent environment with tool environment
 	mergedEnv := uc.mergeEnvironments(parentEnv, toolConfig.Env)
 	return &task.PartialState{
 		Component:     core.ComponentTool,
@@ -395,7 +385,6 @@ func (uc *CreateChildTasks) mergeEnvironments(parentEnv, childEnv *core.EnvMap) 
 	if parentEnv == nil && childEnv == nil {
 		return nil
 	}
-	// Merge parent and child environment variables (child overrides parent)
 	var merged core.EnvMap
 	switch {
 	case parentEnv != nil && childEnv != nil:
@@ -405,7 +394,6 @@ func (uc *CreateChildTasks) mergeEnvironments(parentEnv, childEnv *core.EnvMap) 
 	case childEnv != nil:
 		merged = core.CloneMap(*childEnv)
 	}
-	// Return nil if the map is empty
 	if len(merged) == 0 {
 		return nil
 	}

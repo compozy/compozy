@@ -20,7 +20,6 @@ func init() { //nolint:gochecknoinits // register builtin provider at startup
 
 // DescribeDefinition registers the cp__describe_agent builtin tool.
 func DescribeDefinition(env toolenv.Environment) builtin.BuiltinDefinition {
-	// Simple input schema for {agent_id:string}
 	input := schema.Schema(map[string]any{
 		"type":     "object",
 		"required": []any{"agent_id"},

@@ -59,24 +59,19 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 	if parentTaskConfig.Task == nil {
 		return nil, fmt.Errorf("collection task template is required")
 	}
-	// Create item context with item and index
 	itemContext := cb.createItemContext(context, collectionConfig, item, index)
-	// Clone the task template using deep copy to avoid shared references
 	taskConfig, err := parentTaskConfig.Task.Clone()
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone task template: %w", err)
 	}
-	// Build merged input for the task - this will include workflow context
 	mergedInput, err := cb.buildMergedInput(parentTaskConfig, taskConfig, collectionConfig, item, index, itemContext)
 	if err != nil {
 		return nil, err
 	}
 	taskConfig.With = &mergedInput
-	// Process task ID if it contains templates
 	if err := cb.processTaskID(taskConfig, itemContext); err != nil {
 		return nil, err
 	}
-	// Inherit parent config properties
 	if err := shared.InheritTaskConfig(taskConfig, parentTaskConfig); err != nil {
 		return nil, fmt.Errorf("failed to inherit parent config: %w", err)
 	}
@@ -93,7 +88,6 @@ func (cb *ConfigBuilder) buildMergedInput(
 	itemContext map[string]any,
 ) (core.Input, error) {
 	mergedInput := make(core.Input)
-	// Start with parent task with if available
 	if parentTaskConfig.With != nil {
 		processed, err := cb.parseInputTemplate(*parentTaskConfig.With, itemContext)
 		if err != nil {
@@ -101,13 +95,10 @@ func (cb *ConfigBuilder) buildMergedInput(
 		}
 		mergedInput = core.CopyMaps(mergedInput, processed)
 	}
-	// Process and add task template with
 	if err := cb.processTaskWith(taskConfig, itemContext, mergedInput); err != nil {
 		return nil, err
 	}
-	// Add collection context fields
 	cb.addCollectionContext(mergedInput, collectionConfig, item, index)
-	// Add workflow context from itemContext for nested tasks to access (without overriding user input)
 	if workflow, ok := itemContext["workflow"]; ok {
 		if _, exists := mergedInput["workflow"]; !exists {
 			mergedInput["workflow"] = workflow
@@ -143,21 +134,16 @@ func (cb *ConfigBuilder) addCollectionContext(
 	item any,
 	index int,
 ) {
-	// Add standard fields
 	mergedInput["item"] = item
 	mergedInput["index"] = index
-	// Apply custom item/index keys if specified
 	if collectionConfig.GetItemVar() != "" {
 		mergedInput[collectionConfig.GetItemVar()] = item
-		// Store the custom variable name so it can be used during output transformation
 		mergedInput[shared.FieldCollectionItemVar] = collectionConfig.GetItemVar()
 	}
 	if collectionConfig.GetIndexVar() != "" {
 		mergedInput[collectionConfig.GetIndexVar()] = index
-		// Store the custom variable name so it can be used during output transformation
 		mergedInput[shared.FieldCollectionIndexVar] = collectionConfig.GetIndexVar()
 	}
-	// Store the standard collection fields for output transformation
 	mergedInput[shared.FieldCollectionItem] = item
 	mergedInput[shared.FieldCollectionIndex] = index
 }
@@ -186,16 +172,13 @@ func (cb *ConfigBuilder) createItemContext(
 	item any,
 	index int,
 ) map[string]any {
-	// Clone base context in deterministic order
 	itemContext := make(map[string]any)
 	keys := shared.SortedMapKeys(baseContext)
 	for _, k := range keys {
 		itemContext[k] = baseContext[k]
 	}
-	// Add item and index
 	itemContext["item"] = item
 	itemContext["index"] = index
-	// Add custom keys if specified
 	if config.GetItemVar() != "" {
 		itemContext[config.GetItemVar()] = item
 	}

@@ -245,8 +245,11 @@ func groupIssuesByFunction(issues []SpacingIssue) []FunctionIssues {
 
 func extractBlankLineCount(description string) int {
 	var count int
-	//nolint:errcheck // We intentionally ignore parsing errors, defaulting to 1 if parsing fails
-	fmt.Sscanf(description, "Unnecessary blank line between statements (found %d blank line(s))", &count)
+	const pattern = "Unnecessary blank line between statements (found %d blank line(s))"
+	if _, err := fmt.Sscanf(description, pattern, &count); err != nil {
+		// NOTE: Default to a single blank line when description parsing fails.
+		return 1
+	}
 	if count == 0 {
 		return 1
 	}

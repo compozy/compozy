@@ -18,7 +18,7 @@ type TemporalHelper struct {
 // NewTemporalHelper creates a new Temporal test helper
 func NewTemporalHelper(_ *testing.T, suite *testsuite.WorkflowTestSuite, taskQueue string) *TemporalHelper {
 	env := suite.NewTestWorkflowEnvironment()
-	// Set default workflow execution timeout
+	// NOTE: Cap workflow run time to keep flaky Temporal tests from hanging indefinitely.
 	env.SetWorkflowRunTimeout(30 * time.Second)
 	return &TemporalHelper{
 		suite:     suite,
@@ -126,8 +126,6 @@ func (h *TemporalHelper) RegisterDelayedCallback(callback func(), delay time.Dur
 
 // Cleanup cleans up test environment resources
 func (h *TemporalHelper) Cleanup(t *testing.T) {
-	// The test environment doesn't require explicit cleanup
-	// but we can add any custom cleanup logic here if needed
 	t.Logf("Temporal test environment cleanup completed")
 }
 

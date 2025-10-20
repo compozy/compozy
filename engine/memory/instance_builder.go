@@ -32,7 +32,6 @@ func (mm *Manager) buildMemoryComponents(
 	resourceCfg *memcore.Resource,
 	projectIDVal string,
 ) (*memoryComponents, error) {
-	// Build the key prefix with namespace: compozy:{project_id}:memory
 	keyPrefix := fmt.Sprintf("compozy:%s:memory", projectIDVal)
 	log := logger.FromContext(ctx)
 	log.Debug("🔧 buildMemoryComponents: Redis namespace generation",
@@ -69,12 +68,9 @@ func (mm *Manager) createLockManager(
 	projectIDVal string,
 	resourceCfg *memcore.Resource,
 ) (*instance.LockManagerImpl, error) {
-	// Create distributed lock adapter using existing Redis LockManager
 	locker := newLockManagerAdapter(mm.baseLockManager, projectIDVal)
 	lockManager := instance.NewLockManager(locker)
-	// Configure TTLs from resource configuration if available
 	if resourceCfg != nil {
-		// Parse TTL durations from resource configuration
 		if resourceCfg.AppendTTL != "" {
 			ttl, err := time.ParseDuration(resourceCfg.AppendTTL)
 			if err != nil {
@@ -135,7 +131,6 @@ func (lma *lockManagerAdapter) acquireWithRetry(
 	lockKey string,
 	ttl time.Duration,
 ) (cache.Lock, error) {
-	// Check if this is a flush lock - flush locks should fail fast without retry
 	isFlushLock := strings.Contains(lockKey, ":flush_lock")
 	log := logger.FromContext(ctx)
 	const maxRetries = 3
@@ -149,11 +144,9 @@ func (lma *lockManagerAdapter) acquireWithRetry(
 		}
 		lastErr = err
 
-		// For flush locks, don't retry on lock contention
 		if isFlushLock && errors.Is(err, cache.ErrLockNotAcquired) {
 			log.Debug("Flush lock acquisition failed, not retrying",
 				"key", lockKey, "error", err)
-			// Return immediately for flush locks on contention
 			return nil, fmt.Errorf("%w: lock already held for key %s", memcore.ErrLockAcquisitionFailed, lockKey)
 		}
 
@@ -164,7 +157,6 @@ func (lma *lockManagerAdapter) acquireWithRetry(
 			return nil, retryErr
 		}
 	}
-	// For flush locks that failed on first attempt, report 0 retries
 	actualRetries := maxRetries
 	if isFlushLock && errors.Is(lastErr, cache.ErrLockNotAcquired) {
 		actualRetries = 0
@@ -194,14 +186,10 @@ func (lma *lockManagerAdapter) waitForRetry(
 ) error {
 	log := logger.FromContext(ctx)
 	const baseDelay = 50 * time.Millisecond
-	// Safe exponential backoff with bounds checking to prevent overflow
 	if attempt < 0 {
 		attempt = 0 // Ensure non-negative
 	}
-	// Calculate delay with overflow protection
-	// For attempts > 30, 1<<attempt would overflow, so we cap the shift operation
 	shiftAmount := min(attempt,
-		// 2^30 * 50ms ≈ 53687 seconds ≈ 14.9 hours - more than reasonable max
 		30)
 	delay := time.Duration(1<<shiftAmount) * baseDelay
 	log.Debug("Lock acquisition failed, retrying",
@@ -224,12 +212,9 @@ func (lma *lockManagerAdapter) formatAcquisitionError(
 	log := logger.FromContext(ctx)
 	log.Error("Failed to acquire distributed lock after retries",
 		"key", lockKey, "max_retries", maxRetries, "error", lastErr)
-	// Wrap with appropriate core error type
 	wrappedErr := fmt.Errorf("failed to acquire distributed lock for key %s after %d attempts: %w",
 		lockKey, maxRetries+1, lastErr)
-	// Check if the underlying error is ErrLockNotAcquired from cache layer
 	if errors.Is(lastErr, cache.ErrLockNotAcquired) {
-		// Wrap with our core lock acquisition error
 		return fmt.Errorf("%w: %v", memcore.ErrLockAcquisitionFailed, wrappedErr)
 	}
 	return wrappedErr
@@ -266,7 +251,6 @@ func (dl *distributedLock) Unlock(ctx context.Context) error {
 	}
 	log.Debug("Successfully released distributed lock",
 		"key", dl.key)
-	// Clear the lock reference to prevent double release
 	dl.cacheLock = nil
 	return nil
 }
@@ -277,7 +261,6 @@ func (mm *Manager) createTokenManager(ctx context.Context, resourceCfg *memcore.
 	if resourceCfg.Model != "" {
 		model = resourceCfg.Model
 	}
-	// Use provider configuration if available
 	tokenCounter, err := mm.getOrCreateTokenCounterWithConfig(ctx, model, resourceCfg.TokenProvider)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -325,7 +308,6 @@ func (mm *Manager) getStrategyConfig(resourceCfg *memcore.Resource) *memcore.Flu
 	if resourceCfg.FlushingStrategy != nil {
 		return resourceCfg.FlushingStrategy
 	}
-	// Default to FIFO strategy
 	return &memcore.FlushingStrategyConfig{
 		Type:               memcore.SimpleFIFOFlushing,
 		SummarizeThreshold: 0.8,
@@ -369,14 +351,12 @@ func (mm *Manager) createLegacyHybridStrategy(
 // createStrategyOptions creates strategy options based on resource configuration
 func (mm *Manager) createStrategyOptions(resourceCfg *memcore.Resource) *strategies.StrategyOptions {
 	opts := strategies.GetDefaultStrategyOptions()
-	// Configure based on resource type and limits
 	if resourceCfg.MaxTokens > 0 {
 		opts.MaxTokens = resourceCfg.MaxTokens
 	}
 	if resourceCfg.MaxMessages > 0 {
 		opts.CacheSize = resourceCfg.MaxMessages
 	}
-	// Set threshold from flushing strategy config if available
 	if resourceCfg.FlushingStrategy != nil && resourceCfg.FlushingStrategy.SummarizeThreshold > 0 {
 		opts.DefaultThreshold = resourceCfg.FlushingStrategy.SummarizeThreshold
 	}
@@ -385,7 +365,6 @@ func (mm *Manager) createStrategyOptions(resourceCfg *memcore.Resource) *strateg
 
 // createEvictionPolicy creates an eviction policy for the given resource configuration
 func (mm *Manager) createEvictionPolicy(ctx context.Context, resourceCfg *memcore.Resource) instance.EvictionPolicy {
-	// Use configured eviction policy or get default
 	evictionConfig := resourceCfg.GetEffectiveEvictionPolicy()
 	return eviction.CreatePolicyWithConfig(ctx, evictionConfig)
 }

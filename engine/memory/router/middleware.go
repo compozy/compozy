@@ -28,25 +28,20 @@ const memoryContextKey = "memoryContext"
 // ExtractMemoryContext is a middleware that extracts common memory parameters
 func ExtractMemoryContext() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Extract and validate memory reference
 		memoryRef := c.Param("memory_ref")
 		if err := validateMemoryRef(c, memoryRef); err != nil {
 			return
 		}
 
-		// Extract key based on HTTP method
 		key := extractKey(c)
 
-		// Get app state and validate dependencies
 		appState, memoryManager, tokenCounter, err := getDependencies(c)
 		if err != nil {
 			return
 		}
 
-		// Build workflow context
 		workflowContext := buildWorkflowContext(appState)
 
-		// Create and store memory context
 		ctx := &MemoryContext{
 			MemoryRef:       memoryRef,
 			Key:             key,
@@ -81,7 +76,6 @@ func extractKey(c *gin.Context) string {
 	}
 	key := c.Query("key")
 	requestPath := c.Request.URL.Path
-	// Validate key for GET requests that require it
 	if requiresKey(requestPath) && key == "" {
 		reqErr := router.NewRequestError(
 			http.StatusBadRequest,

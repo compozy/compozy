@@ -213,7 +213,6 @@ func (uc *ProcessWaitSignal) buildEvaluationContext(
 			"exec_id": taskState.WorkflowExecID.String(),
 		},
 	}
-	// Add processor output if available
 	if taskConfig.Processor != nil && taskState.Output != nil {
 		if processorData, ok := (*taskState.Output)["processor_output"]; ok {
 			evalContext["processor"] = map[string]any{

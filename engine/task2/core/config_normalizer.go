@@ -37,16 +37,12 @@ func (cn *ConfigNormalizer) NormalizeTask(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) error {
-	// Build normalization context
 	normCtx := cn.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-	// Merge environments
 	normCtx.MergedEnv = cn.envMerger.MergeWorkflowToTask(workflowConfig, taskConfig)
-	// Create appropriate normalizer based on task type
 	normalizer, err := cn.factory.CreateNormalizer(ctx, taskConfig.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create normalizer for task %s: %w", taskConfig.ID, err)
 	}
-	// Apply normalization
 	if err := normalizer.Normalize(ctx, taskConfig, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize task %s: %w", taskConfig.ID, err)
 	}
@@ -59,27 +55,22 @@ func (cn *ConfigNormalizer) NormalizeAllTasks(
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 ) error {
-	// Build task configs map for context
 	taskConfigs := make(map[string]*task.Config)
 	for i := range workflowConfig.Tasks {
 		taskConfigs[workflowConfig.Tasks[i].ID] = &workflowConfig.Tasks[i]
 	}
-	// Normalize each task
 	for i := range workflowConfig.Tasks {
 		taskConfig := &workflowConfig.Tasks[i]
 
-		// Build normalization context with task configs
 		normCtx := cn.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
 		normCtx.TaskConfigs = taskConfigs
 		normCtx.MergedEnv = cn.envMerger.MergeWorkflowToTask(workflowConfig, taskConfig)
 
-		// Create appropriate normalizer
 		normalizer, err := cn.factory.CreateNormalizer(ctx, taskConfig.Type)
 		if err != nil {
 			return fmt.Errorf("failed to create normalizer for task %s: %w", taskConfig.ID, err)
 		}
 
-		// Apply normalization
 		if err := normalizer.Normalize(ctx, taskConfig, normCtx); err != nil {
 			return fmt.Errorf("failed to normalize task %s: %w", taskConfig.ID, err)
 		}
@@ -94,7 +85,6 @@ func (cn *ConfigNormalizer) NormalizeSubTask(
 	parentTask *task.Config,
 	subTask *task.Config,
 ) error {
-	// Validate inputs
 	if parentCtx == nil {
 		return fmt.Errorf("parent context is nil")
 	}
@@ -104,23 +94,19 @@ func (cn *ConfigNormalizer) NormalizeSubTask(
 	if subTask == nil {
 		return fmt.Errorf("sub-task is nil")
 	}
-	// Build sub-task context
 	normCtx, err := cn.contextBuilder.BuildNormalizationSubTaskContext(ctx, parentCtx, parentTask, subTask)
 	if err != nil {
 		return fmt.Errorf("failed to build sub-task context: %w", err)
 	}
-	// Merge environments for sub-task
 	normCtx.MergedEnv = cn.envMerger.MergeThreeLevels(
 		parentCtx.WorkflowConfig,
 		subTask,
 		nil,
 	)
-	// Create appropriate normalizer
 	normalizer, err := cn.factory.CreateNormalizer(ctx, subTask.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create normalizer for sub-task %s: %w", subTask.ID, err)
 	}
-	// Apply normalization
 	if err := normalizer.Normalize(ctx, subTask, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize sub-task %s: %w", subTask.ID, err)
 	}

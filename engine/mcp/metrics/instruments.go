@@ -156,13 +156,11 @@ func RecordToolExecution(
 	if outcome == "" {
 		outcome = OutcomeSuccess
 	}
-	// Hash high-cardinality labels to prevent time-series explosion.
 	attrs := []attribute.KeyValue{
 		attribute.String(labelServerID, hashLabel(serverID)),
 		attribute.String(labelToolName, hashLabel(toolName)),
 		attribute.String(labelOutcome, string(outcome)),
 	}
-	// Clamp negative durations to zero to protect against clock skew/bugs.
 	d := duration.Seconds()
 	if d < 0 {
 		d = 0
@@ -178,7 +176,6 @@ func RecordToolError(ctx context.Context, serverID, toolName string, kind ErrorK
 	if kind == "" {
 		kind = ErrorKindExecution
 	}
-	// Hash high-cardinality labels to prevent time-series explosion.
 	errorCounter.Add(ctx, 1, metric.WithAttributes(
 		attribute.String(labelServerID, hashLabel(serverID)),
 		attribute.String(labelToolName, hashLabel(toolName)),
@@ -200,7 +197,7 @@ func updateConnectionState(ctx context.Context, serverID string, connected bool)
 	if activeConnections == nil || serverID == "" {
 		return
 	}
-	// Atomically swap and compute delta from previous state to prevent race conditions.
+	// NOTE: Swap atomically so concurrent registry updates cannot double-count connections.
 	prev, loaded := connectionStates.Swap(serverID, connected)
 	var delta int64
 	if loaded {
@@ -214,17 +211,14 @@ func updateConnectionState(ctx context.Context, serverID string, connected bool)
 				delta = -1
 			}
 		} else {
-			// Unknown previous type; reset to known state without delta.
 			return
 		}
 	} else {
-		// First observation: count +1 only when transitioning to connected.
 		if !connected {
 			return
 		}
 		delta = 1
 	}
-	// Hash high-cardinality server_id label.
 	activeConnections.Add(ctx, delta, metric.WithAttributes(attribute.String(labelServerID, hashLabel(serverID))))
 }
 
@@ -237,7 +231,6 @@ func RecordRegistryLookup(ctx context.Context, duration time.Duration, hit bool)
 	if hit {
 		outcome = labelHit
 	}
-	// Include both string outcome for compatibility and boolean hit for simpler queries.
 	registryHistogram.Record(ctx, duration.Seconds(), metric.WithAttributes(
 		attribute.String(labelOutcome, outcome),
 		attribute.Bool("hit", hit),

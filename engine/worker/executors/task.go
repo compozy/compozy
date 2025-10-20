@@ -34,7 +34,6 @@ func NewTaskExecutor(contextBuilder *ContextBuilder) *TaskExecutor {
 	e.signalExecutor = NewTaskSignalExecutor(contextBuilder)
 	e.waitExecutor = NewTaskWaitExecutor(contextBuilder, e.HandleExecution)
 	e.memoryExecutor = NewTaskMemoryExecutor(contextBuilder)
-	// Initialize container task executors
 	containerHelpers := NewContainerHelpers(contextBuilder, e.HandleExecution)
 	e.parallelExecutor = NewParallelTaskExecutor(containerHelpers)
 	e.collectionExecutor = NewCollectionTaskExecutor(containerHelpers)
@@ -46,7 +45,6 @@ func (e *TaskExecutor) ExecuteFirstTask() func(ctx workflow.Context) (task.Respo
 	return func(ctx workflow.Context) (task.Response, error) {
 		ctx = e.BuildTaskContext(ctx, e.InitialTaskID)
 
-		// Load task config via activity (deterministic)
 		var taskConfig *task.Config
 		actInput := &tkacts.LoadTaskConfigInput{
 			WorkflowConfig: e.WorkflowConfig,
@@ -74,21 +72,17 @@ func (e *TaskExecutor) ExecuteTasks(response task.Response) func(ctx workflow.Co
 		}
 		taskID := taskConfig.ID
 		ctx = e.BuildTaskContext(ctx, taskID)
-		// Sleep if needed
 		if err := e.sleepTask(ctx, taskConfig); err != nil {
 			return nil, err
 		}
-		// Execute task
 		taskResponse, err := e.HandleExecution(ctx, taskConfig, 0)
 		if err != nil {
 			return nil, err
 		}
-		// Dispatch next task if there is one
 		if taskResponse.GetNextTask() == nil {
 			log.Info("No more tasks to execute", "task_id", taskID)
 			return nil, nil
 		}
-		// Ensure NextTask has a valid ID
 		nextTaskID := taskResponse.GetNextTask().ID
 		if nextTaskID == "" {
 			log.Error("NextTask has empty ID", "current_task", taskID)
@@ -123,7 +117,6 @@ func (e *TaskExecutor) HandleExecution(
 		}
 		return nil, err
 	}
-	// Validate response and state before accessing
 	if response == nil {
 		log.Error("Nil response returned from task execution", "task_id", taskID)
 		return nil, fmt.Errorf("nil response returned for task %s", taskID)

@@ -83,7 +83,6 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 	if err != nil {
 		return nil, fmt.Errorf("failed to create state: %w", err)
 	}
-	// Execute memory operation
 	output, executionError := a.execMemoryOperationUC.Execute(ctx, &uc.ExecuteMemoryOperationInput{
 		TaskConfig:    normalizedConfig,
 		MergedInput:   input.MergedInput,
@@ -101,7 +100,6 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 	if err != nil {
 		return nil, fmt.Errorf("failed to handle memory response: %w", err)
 	}
-	// Convert shared.ResponseOutput to task.MainTaskResponse
 	converter := NewResponseConverter()
 	mainTaskResponse := converter.ConvertToMainTaskResponse(result)
 	return mainTaskResponse, executionError

@@ -133,11 +133,8 @@ func getBuildInfo() (version, commit, goVersion string) {
 func loadBuildInfo() buildInfoData {
 	versionStr := version.GetVersion()
 	commit := version.GetCommitHash()
-	// If injected build variables are set to non-default values, use them
 	useLdflags := versionStr != defaultVersion && commit != defaultCommit
-	// For tests, avoid slow I/O operations
 	if !useLdflags && !testing.Testing() {
-		// Try to get build info from runtime
 		if info, ok := debug.ReadBuildInfo(); ok {
 			if versionStr == defaultVersion && info.Main.Version != "" && info.Main.Version != "(devel)" {
 				versionStr = info.Main.Version
@@ -167,7 +164,6 @@ func InitSystemMetrics(ctx context.Context, meter metric.Meter) {
 // resetSystemMetrics is used for testing purposes only
 func resetSystemMetrics(ctx context.Context) {
 	log := logger.FromContext(ctx)
-	// Unregister callbacks if they exist
 	if uptimeRegistration != nil {
 		err := uptimeRegistration.Unregister()
 		if err != nil {

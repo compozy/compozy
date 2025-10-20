@@ -102,10 +102,10 @@ func (a *ExecuteAggregate) executeAggregateWithTimeout(
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 ) (*core.Output, error) {
-	// Create timeout context (30 seconds max)
+	// NOTE: Bound aggregate execution to prevent long-running fan-in routines from stalling workflows.
 	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	// Execute in goroutine to respect timeout
+	// NOTE: Run aggregation in a goroutine so the timeout can abort if templates hang.
 	resultChan := make(chan struct {
 		output *core.Output
 		err    error
@@ -138,14 +138,9 @@ func (a *ExecuteAggregate) executeAggregate(
 	if taskConfig.Outputs == nil || len(*taskConfig.Outputs) == 0 {
 		return nil, fmt.Errorf("aggregate task has no outputs defined")
 	}
-	// For aggregate tasks, we don't have actual task output, just template processing
-	// Create an empty output to trigger the transformation
 	emptyOutput := &core.Output{}
-	// Use task2 output transformer to process outputs with template engine
 	outputTransformer := task2core.NewOutputTransformer(a.templateEngine)
-	// Build task configs map for context
 	taskConfigs := task2.BuildTaskConfigsMap(workflowConfig.Tasks)
-	// Create normalization context with proper Variables
 	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
@@ -164,7 +159,6 @@ func (a *ExecuteAggregate) executeAggregate(
 	if err != nil {
 		return nil, fmt.Errorf("failed to process aggregate outputs: %w", err)
 	}
-	// Validate the processed output against schema
 	if err := taskConfig.ValidateOutput(ctx, processedOutput); err != nil {
 		return nil, fmt.Errorf("aggregate output failed schema validation: %w", err)
 	}

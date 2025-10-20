@@ -38,23 +38,19 @@ func NewHealthChecker(
 // GetMemoryHealth returns diagnostic information about the memory instance
 func (h *HealthChecker) GetMemoryHealth(ctx context.Context) (*core.Health, error) {
 	health := &core.Health{}
-	// Get message count
 	messageCount, err := h.store.GetMessageCount(ctx, h.instanceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get message count: %w", err)
 	}
 	health.MessageCount = messageCount
-	// Get token count
 	tokenCount, err := h.operations.GetTokenCount(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get token count: %w", err)
 	}
 	health.TokenCount = tokenCount
-	// Get flush pending status
 	if flushStore, ok := h.store.(core.FlushStateStore); ok {
 		isPending, err := flushStore.IsFlushPending(ctx, h.instanceID)
 		if err != nil {
-			// Log error but continue with default
 			isPending = false
 		}
 		if isPending {
@@ -68,26 +64,21 @@ func (h *HealthChecker) GetMemoryHealth(ctx context.Context) (*core.Health, erro
 
 // PerformHealthCheck performs a comprehensive health check
 func (h *HealthChecker) PerformHealthCheck(ctx context.Context) error {
-	// Set a timeout for the entire health check
+	// NOTE: Bound the health check to 30s to avoid leaked goroutines and hung workflows.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	// Check store connectivity
 	if err := h.checkStoreConnectivity(ctx); err != nil {
 		return fmt.Errorf("store connectivity check failed: %w", err)
 	}
-	// Check basic operations
 	if err := h.checkBasicOperations(ctx); err != nil {
 		return fmt.Errorf("basic operations check failed: %w", err)
 	}
-	// Check lock operations
 	if err := h.checkLockOperations(ctx); err != nil {
 		return fmt.Errorf("lock operations check failed: %w", err)
 	}
-	// Check token operations
 	if err := h.checkTokenOperations(ctx); err != nil {
 		return fmt.Errorf("token operations check failed: %w", err)
 	}
-	// Check metadata operations
 	if err := h.checkMetadataOperations(ctx); err != nil {
 		return fmt.Errorf("metadata operations check failed: %w", err)
 	}
@@ -97,10 +88,8 @@ func (h *HealthChecker) PerformHealthCheck(ctx context.Context) error {
 // checkStoreConnectivity verifies the store is accessible
 func (h *HealthChecker) checkStoreConnectivity(ctx context.Context) error {
 	testKey := fmt.Sprintf("%s:health_check", h.instanceID)
-	// Try to read a non-existent key
 	_, err := h.store.ReadMessages(ctx, testKey)
 	if err != nil {
-		// Check if it's a "not found" error which is expected
 		if err == core.ErrMemoryNotFound {
 			return nil
 		}
@@ -116,11 +105,9 @@ func (h *HealthChecker) checkBasicOperations(ctx context.Context) error {
 		Role:    llm.MessageRoleSystem,
 		Content: "health check test message",
 	}
-	// Write test message
 	if err := h.store.AppendMessage(ctx, testKey, testMsg); err != nil {
 		return fmt.Errorf("failed to append test message: %w", err)
 	}
-	// Read test message
 	messages, err := h.store.ReadMessages(ctx, testKey)
 	if err != nil {
 		return fmt.Errorf("failed to read test message: %w", err)
@@ -128,7 +115,6 @@ func (h *HealthChecker) checkBasicOperations(ctx context.Context) error {
 	if len(messages) != 1 {
 		return fmt.Errorf("expected 1 message, got %d", len(messages))
 	}
-	// Clean up
 	if err := h.store.DeleteMessages(ctx, testKey); err != nil {
 		return fmt.Errorf("failed to delete test message: %w", err)
 	}
@@ -138,12 +124,10 @@ func (h *HealthChecker) checkBasicOperations(ctx context.Context) error {
 // checkLockOperations tests lock acquisition and release
 func (h *HealthChecker) checkLockOperations(ctx context.Context) error {
 	testKey := fmt.Sprintf("%s:health_check_lock", h.instanceID)
-	// Try to acquire a lock
 	unlock, err := h.lockManager.AcquireAppendLock(ctx, testKey)
 	if err != nil {
 		return fmt.Errorf("failed to acquire test lock: %w", err)
 	}
-	// Release the lock
 	if err := unlock(); err != nil {
 		return fmt.Errorf("failed to release test lock: %w", err)
 	}
@@ -157,7 +141,6 @@ func (h *HealthChecker) checkTokenOperations(ctx context.Context) error {
 		Role:    llm.MessageRoleSystem,
 		Content: "test token counting",
 	}
-	// Calculate token count
 	tokenCount := 0
 	if h.tokenCounter != nil {
 		count, err := h.tokenCounter.CountTokens(ctx, testMsg.Content)
@@ -166,13 +149,11 @@ func (h *HealthChecker) checkTokenOperations(ctx context.Context) error {
 		}
 		tokenCount = count
 	}
-	// Test atomic append with token count
 	if atomicStore, ok := h.store.(core.AtomicOperations); ok {
 		if err := atomicStore.AppendMessageWithTokenCount(ctx, testKey, testMsg, tokenCount); err != nil {
 			return fmt.Errorf("failed to append with token count: %w", err)
 		}
 
-		// Verify token count was saved
 		savedCount, err := h.store.GetTokenCount(ctx, testKey)
 		if err != nil {
 			return fmt.Errorf("failed to get token count: %w", err)
@@ -182,7 +163,6 @@ func (h *HealthChecker) checkTokenOperations(ctx context.Context) error {
 			return fmt.Errorf("token count mismatch: expected %d, got %d", tokenCount, savedCount)
 		}
 	}
-	// Clean up
 	if err := h.store.DeleteMessages(ctx, testKey); err != nil {
 		return fmt.Errorf("failed to clean up test data: %w", err)
 	}
@@ -192,12 +172,10 @@ func (h *HealthChecker) checkTokenOperations(ctx context.Context) error {
 // checkMetadataOperations tests metadata operations
 func (h *HealthChecker) checkMetadataOperations(ctx context.Context) error {
 	testKey := fmt.Sprintf("%s:health_check_metadata", h.instanceID)
-	// Test setting token count
 	testTokenCount := 42
 	if err := h.store.SetTokenCount(ctx, testKey, testTokenCount); err != nil {
 		return fmt.Errorf("failed to set token count: %w", err)
 	}
-	// Test getting token count
 	count, err := h.store.GetTokenCount(ctx, testKey)
 	if err != nil {
 		return fmt.Errorf("failed to get token count: %w", err)
@@ -205,12 +183,10 @@ func (h *HealthChecker) checkMetadataOperations(ctx context.Context) error {
 	if count != testTokenCount {
 		return fmt.Errorf("token count mismatch: expected %d, got %d", testTokenCount, count)
 	}
-	// Test incrementing token count
 	incrementBy := 10
 	if err := h.store.IncrementTokenCount(ctx, testKey, incrementBy); err != nil {
 		return fmt.Errorf("failed to increment token count: %w", err)
 	}
-	// Verify increment
 	newCount, err := h.store.GetTokenCount(ctx, testKey)
 	if err != nil {
 		return fmt.Errorf("failed to get incremented token count: %w", err)

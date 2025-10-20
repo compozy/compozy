@@ -254,7 +254,6 @@ func (m *MockClientManager) AddClient(_ context.Context, def *MCPDefinition) err
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	mockClient := NewMockMCPClient(def.Name)
-	// Set up default mock behavior
 	mockClient.On("GetStatus").Return((*MCPStatus)(nil)).Maybe()
 	mockClient.On("IsConnected").Return(true).Maybe()
 	mockClient.On("WaitUntilConnected", mock.Anything).Return(nil).Maybe()

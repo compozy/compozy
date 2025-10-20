@@ -28,29 +28,24 @@ func NewBootstrapSystem(repo Repository, email string) *BootstrapSystem {
 // Execute creates the first admin user and API key.
 // It returns the created user and the plaintext API key.
 func (uc *BootstrapSystem) Execute(ctx context.Context) (*model.User, string, error) {
-	// Generate user ID
 	userID, err := core.NewID()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to generate user ID: %w", err)
 	}
-	// Create admin user atomically
 	user := &model.User{
 		ID:        userID,
 		Email:     uc.email,
 		Role:      model.RoleAdmin,
 		CreatedAt: time.Now().UTC(),
 	}
-	// Use atomic operation to prevent race condition
+	// NOTE: CreateInitialAdminIfNone must be atomic to prevent bootstrap races between nodes.
 	if err := uc.repo.CreateInitialAdminIfNone(ctx, user); err != nil {
-		// Check if it's an already-bootstrapped error and preserve structured error information
 		var coreErr *core.Error
 		if errors.As(err, &coreErr) && coreErr.Code == "ALREADY_BOOTSTRAPPED" {
-			// Preserve the original structured error to maintain error metadata for callers
 			return nil, "", err
 		}
 		return nil, "", fmt.Errorf("creating admin user: %w", err)
 	}
-	// Generate API key for the new admin
 	genUC := NewGenerateAPIKey(uc.repo, user.ID)
 	apiKey, err := genUC.Execute(ctx)
 	if err != nil {

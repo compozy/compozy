@@ -50,7 +50,6 @@ func (m *Model) UnmarshalYAML(value *yaml.Node) error {
 			return err
 		}
 		m.Ref = id
-		// zero the inline config
 		m.Config = enginecore.ProviderConfig{}
 		return nil
 	case yaml.MappingNode, yaml.SequenceNode, yaml.DocumentNode:
@@ -62,7 +61,6 @@ func (m *Model) UnmarshalYAML(value *yaml.Node) error {
 		m.Config = cfg
 		return nil
 	default:
-		// treat other node kinds as empty
 		*m = Model{}
 		return nil
 	}
@@ -84,14 +82,12 @@ func (m *Model) MarshalYAML() (any, error) {
 
 // UnmarshalJSON accepts either a JSON string (ref) or an object (inline config).
 func (m *Model) UnmarshalJSON(b []byte) error {
-	// Try string ref first
 	var s string
 	if err := json.Unmarshal(b, &s); err == nil {
 		m.Ref = s
 		m.Config = enginecore.ProviderConfig{}
 		return nil
 	}
-	// Fallback to inline provider config
 	var cfg enginecore.ProviderConfig
 	if err := json.Unmarshal(b, &cfg); err == nil {
 		m.Ref = ""
@@ -112,6 +108,5 @@ func (m *Model) MarshalJSON() ([]byte, error) {
 	if m.HasRef() {
 		return json.Marshal(m.Ref)
 	}
-	// emit null when empty
 	return []byte("null"), nil
 }

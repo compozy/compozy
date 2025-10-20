@@ -82,7 +82,6 @@ func (mm *Manager) GetInstance(
 	workflowContextData map[string]any,
 ) (memcore.Memory, error) {
 	log := logger.FromContext(ctx)
-	// Retry logic for transient key resolution failures using go-retry
 	var instance memcore.Memory
 	retryConfig := retry.WithMaxRetries(3, retry.NewExponential(100*time.Millisecond))
 	err := retry.Do(ctx, retryConfig, func(ctx context.Context) error {
@@ -91,7 +90,6 @@ func (mm *Manager) GetInstance(
 			"key_template", agentMemoryRef.Key,
 			"resolved_key", agentMemoryRef.ResolvedKey)
 
-		// Check for empty key template and retry
 		if agentMemoryRef.Key == "" && agentMemoryRef.ResolvedKey == "" {
 			workflowExecID := ExtractWorkflowExecID(workflowContextData)
 			err := fmt.Errorf("memory key template is empty for resource_id=%s, workflow_exec_id=%s",
@@ -102,7 +100,6 @@ func (mm *Manager) GetInstance(
 			return retry.RetryableError(err)
 		}
 
-		// If we have a key, proceed with normal flow
 		var err error
 		instance, err = mm.getInstanceInternal(ctx, agentMemoryRef, workflowContextData)
 		if err != nil {
@@ -125,12 +122,10 @@ func (mm *Manager) getInstanceInternal(
 	agentMemoryRef core.MemoryReference,
 	workflowContextData map[string]any,
 ) (memcore.Memory, error) {
-	// Load configuration and resolve key
 	resourceCfg, validatedKey, projectIDVal, err := mm.prepareInstanceData(ctx, agentMemoryRef, workflowContextData)
 	if err != nil {
 		return nil, err
 	}
-	// Setup components and create instance
 	return mm.createMemoryInstanceWithComponents(ctx, validatedKey, projectIDVal, resourceCfg)
 }
 

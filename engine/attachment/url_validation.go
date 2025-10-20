@@ -34,7 +34,6 @@ func validateHTTPURL(ctx context.Context, s string) (string, error) {
 		if host == "" {
 			return "", fmt.Errorf("invalid URL: missing host")
 		}
-		// Evaluate host IPs; block loopback, private, link-local, multicast, unspecified
 		if ip := net.ParseIP(host); ip != nil {
 			if isBlockedIP(ip) {
 				return "", fmt.Errorf("blocked destination IP: %s", ip.String())

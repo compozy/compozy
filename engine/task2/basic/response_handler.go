@@ -43,11 +43,9 @@ func (h *ResponseHandler) HandleResponse(
 	ctx context.Context,
 	input *shared.ResponseInput,
 ) (*shared.ResponseOutput, error) {
-	// Validate input
 	if err := h.baseHandler.ValidateInput(input); err != nil {
 		return nil, err
 	}
-	// Validate task type matches handler
 	if input.TaskConfig.Type != task.TaskTypeBasic {
 		return nil, &shared.ValidationError{
 			Field: "task_type",
@@ -58,8 +56,6 @@ func (h *ResponseHandler) HandleResponse(
 			),
 		}
 	}
-	// Basic tasks use standard main task processing without any special handling
-	// Simply delegate to base handler for all common logic
 	return h.baseHandler.ProcessMainTaskResponse(ctx, input)
 }
 

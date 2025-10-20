@@ -28,17 +28,14 @@ func (r *RuntimeProcessor) ProcessItemConfig(
 	if baseConfig == nil {
 		return nil, fmt.Errorf("base config cannot be nil")
 	}
-	// Convert config to map for processing
 	configMap, err := baseConfig.AsMap()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert config to map: %w", err)
 	}
-	// Process all fields with templates
 	processedMap, err := r.processConfigMap(configMap, itemContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process config templates: %w", err)
 	}
-	// Create new config from processed map
 	newConfig := &task.Config{}
 	if err := newConfig.FromMap(processedMap); err != nil {
 		return nil, fmt.Errorf("failed to create config from processed map: %w", err)
@@ -48,20 +45,16 @@ func (r *RuntimeProcessor) ProcessItemConfig(
 
 // processConfigMap recursively processes all template fields in the config map
 func (r *RuntimeProcessor) processConfigMap(configMap map[string]any, context map[string]any) (map[string]any, error) {
-	// Process all fields except outputs (which should be processed after child task execution)
 	processedMap, err := r.templateEngine.ParseMapWithFilter(configMap, context, func(key string) bool {
-		// Skip outputs field - it will be processed after task execution
 		return key == "outputs"
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to process templates: %w", err)
 	}
-	// Ensure the result is a map
 	resultMap, ok := processedMap.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("expected map result, got %T", processedMap)
 	}
-	// Special handling for specific fields that need deep processing
 	if err := r.processSpecialFields(resultMap, context); err != nil {
 		return nil, fmt.Errorf("failed to process special fields: %w", err)
 	}
@@ -121,12 +114,10 @@ func (r *RuntimeProcessor) processNestedMapField(
 	if !ok {
 		return nil
 	}
-	// Process all fields
 	processedField, err := r.templateEngine.ParseAny(fieldMap, context)
 	if err != nil {
 		return fmt.Errorf("failed to process %s config: %w", fieldName, err)
 	}
-	// Special handling for nested fields
 	if processedMap, ok := processedField.(map[string]any); ok {
 		for nestedField := range nestedFields {
 			if nestedValue, ok := processedMap[nestedField]; ok && nestedValue != nil {
@@ -192,13 +183,11 @@ func (r *RuntimeProcessor) processToolField(configMap map[string]any, context ma
 
 // processWithParameters processes the 'with' parameters deeply
 func (r *RuntimeProcessor) processWithParameters(withParams any, context map[string]any) (any, error) {
-	// Use ParseWithJSONHandling for automatic JSON parsing
 	return r.templateEngine.ParseWithJSONHandling(withParams, context)
 }
 
 // processAgentConfig processes agent configuration templates
 func (r *RuntimeProcessor) processAgentConfig(agentConfig any, context map[string]any) (any, error) {
-	// Use a temporary map to leverage processNestedMapField
 	tempMap := map[string]any{"agent": agentConfig}
 	nestedFields := map[string]bool{"settings": true}
 	if err := r.processNestedMapField(tempMap, "agent", context, nestedFields); err != nil {
@@ -209,7 +198,6 @@ func (r *RuntimeProcessor) processAgentConfig(agentConfig any, context map[strin
 
 // processToolConfig processes tool configuration templates
 func (r *RuntimeProcessor) processToolConfig(toolConfig any, context map[string]any) (any, error) {
-	// Use a temporary map to leverage processNestedMapField
 	tempMap := map[string]any{"tool": toolConfig}
 	nestedFields := map[string]bool{"params": true}
 	if err := r.processNestedMapField(tempMap, "tool", context, nestedFields); err != nil {

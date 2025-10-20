@@ -98,7 +98,6 @@ func DeepCopy[T any](v T) (T, error) {
 // and attempts to convert that value to T. Returns an error if the underlying
 // map copy fails or if the converted value cannot be asserted to T.
 func DeepCopyInput[T any](src Input, zero T) (T, error) {
-	// Check if the Input (which is a map) is nil
 	if src == nil {
 		return zero, nil
 	}
@@ -121,7 +120,6 @@ func DeepCopyInput[T any](src Input, zero T) (T, error) {
 // the requested generic type T. Returns an error if the map copy fails or if the
 // final type assertion to T is not possible.
 func DeepCopyOutput[T any](src Output, zero T) (T, error) {
-	// Check if the Output (which is a map) is nil
 	if src == nil {
 		return zero, nil
 	}
@@ -147,7 +145,6 @@ func DeepCopyInputPtr[T any](src *Input, zero T) (T, error) {
 	if src == nil {
 		return zero, nil
 	}
-	// Also check if the pointed-to Input is nil
 	if *src == nil {
 		return zero, nil
 	}
@@ -171,7 +168,6 @@ func DeepCopyOutputPtr[T any](src *Output, zero T) (T, error) {
 	if src == nil {
 		return zero, nil
 	}
-	// Also check if the pointed-to Output is nil
 	if *src == nil {
 		return zero, nil
 	}

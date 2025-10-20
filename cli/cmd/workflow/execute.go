@@ -42,11 +42,9 @@ Examples:
 		Args: cobra.ExactArgs(1),
 		RunE: runWorkflowExecute,
 	}
-	// Add redesigned input parameter flags
 	cmd.Flags().String("json", "", "Input parameters as a JSON object")
 	cmd.Flags().StringSlice("param", []string{}, "Input parameters in key=value format (can be used multiple times)")
 	cmd.Flags().String("input-file", "", "Path to JSON file containing input parameters")
-	// Mark flags as mutually exclusive
 	cmd.MarkFlagsMutuallyExclusive("json", "param")
 	return cmd
 }
@@ -88,18 +86,14 @@ func executeWorkflow(
 	client api.AuthClient,
 	workflowID core.ID,
 ) (*api.ExecutionResult, error) {
-	// Parse input parameters
 	inputs, err := parseInputParameters(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse input parameters: %w", err)
 	}
-	// Create workflow mutate API client
 	apiClient := createWorkflowMutateAPIClient(client)
-	// Create execution input
 	input := api.ExecutionInput{
 		Data: inputs,
 	}
-	// Start workflow execution
 	result, err := apiClient.Execute(ctx, workflowID, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute workflow: %w", err)
@@ -116,9 +110,7 @@ func workflowExecuteJSONHandler(ctx context.Context, cmd *cobra.Command, client 
 	if err != nil {
 		return err
 	}
-	// Create JSON formatter
 	formatter := cliutils.NewJSONFormatter(true)
-	// Format result
 	output, err := formatter.FormatSuccess(result, &cliutils.FormatterMetadata{
 		Timestamp: time.Now(),
 	})
@@ -136,7 +128,6 @@ func workflowExecuteTUIHandler(ctx context.Context, cmd *cobra.Command, client a
 	if err != nil {
 		return err
 	}
-	// Display result
 	fmt.Println(styles.SuccessStyle.Render("✓ Workflow execution started"))
 	fmt.Printf("Execution ID: %s\n", result.ExecutionID)
 	fmt.Printf("Status: %s\n", renderExecutionStatus(result.Status))
@@ -149,15 +140,12 @@ func workflowExecuteTUIHandler(ctx context.Context, cmd *cobra.Command, client a
 // parseInputParameters parses input parameters from flags
 func parseInputParameters(cmd *cobra.Command) (map[string]any, error) {
 	inputs := make(map[string]any)
-	// Parse --json flag
 	if err := parseJSONFlag(cmd, inputs); err != nil {
 		return nil, err
 	}
-	// Parse --param flags
 	if err := parseParamFlags(cmd, inputs); err != nil {
 		return nil, err
 	}
-	// Parse --input-file flag
 	if err := parseInputFileFlag(cmd, inputs); err != nil {
 		return nil, err
 	}
@@ -171,7 +159,6 @@ func parseJSONFlag(cmd *cobra.Command, inputs map[string]any) error {
 		return fmt.Errorf("failed to get json flag: %w", err)
 	}
 	if jsonInput != "" {
-		// Parse the complete JSON object
 		if err := json.Unmarshal([]byte(jsonInput), &inputs); err != nil {
 			return fmt.Errorf("failed to parse --json input: %w", err)
 		}
@@ -206,7 +193,6 @@ func parseKeyValue(param string) (string, string, error) {
 
 // parseParamValue parses a parameter value with type detection
 func parseParamValue(value string) any {
-	// Try to parse value as JSON for type detection
 	result := gjson.Parse(value)
 	if result.Type == gjson.Null {
 		return value
@@ -217,13 +203,10 @@ func parseParamValue(value string) any {
 	case gjson.True, gjson.False:
 		return result.Bool()
 	case gjson.String:
-		// If it's a JSON string (quoted), use the unquoted value
 		return result.String()
 	case gjson.JSON:
-		// For complex JSON (objects/arrays), use the parsed value
 		return result.Value()
 	default:
-		// For null or other types, treat as string
 		return value
 	}
 }
@@ -245,7 +228,6 @@ func parseInputFileFlag(cmd *cobra.Command, inputs map[string]any) error {
 	if err := json.Unmarshal(data, &fileInputs); err != nil {
 		return fmt.Errorf("failed to parse input file as JSON: %w", err)
 	}
-	// Merge file inputs with other inputs (--json and --param take precedence)
 	for k, v := range fileInputs {
 		if _, exists := inputs[k]; !exists {
 			inputs[k] = v
@@ -266,14 +248,12 @@ func renderExecutionStatus(status api.ExecutionStatus) string {
 	case api.ExecutionStatusCancelled:
 		return styles.ErrorStyle.Render(string(status))
 	default:
-		// Handle unknown status values with warning styling for better visibility
 		return styles.WarningStyle.Render(fmt.Sprintf("Unknown status: %s", status))
 	}
 }
 
 // createWorkflowMutateAPIClient creates an API client for workflow mutation operations
 func createWorkflowMutateAPIClient(authClient api.AuthClient) api.WorkflowMutateService {
-	// Create HTTP client using shared utility
 	client := cliutils.CreateHTTPClient(authClient, nil)
 	return &workflowMutateAPIService{
 		authClient: authClient,

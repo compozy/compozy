@@ -24,7 +24,6 @@ func NewErrorComponent(err error, retryable bool) ErrorComponent {
 func (c ErrorComponent) Update(msg tea.Msg) (ErrorComponent, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		if keyMsg.String() == "d" {
-			// Toggle details
 			c.ShowDetails = !c.ShowDetails
 		}
 	}
@@ -37,13 +36,10 @@ func (c ErrorComponent) View() string {
 		return ""
 	}
 	var content string
-	// Error message
 	content += styles.RenderError(c.Error.Error()) + "\n"
-	// Show details if requested
 	if c.ShowDetails {
 		content += styles.ErrorBoxStyle.Render(c.Error.Error()) + "\n"
 	}
-	// Help text
 	var help [][2]string
 	if c.Retryable {
 		help = append(help, [2]string{"r", "retry"})

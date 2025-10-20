@@ -93,7 +93,6 @@ func GetMemoryHealthForMainEndpoint(ctx context.Context, healthService *HealthSe
 		}
 	}
 	health := healthService.GetOverallHealth(ctx)
-	// Return a simplified version for the main health endpoint
 	return gin.H{
 		"healthy":             health.Healthy,
 		"total_instances":     health.TotalInstances,

@@ -39,18 +39,14 @@ func (n *Normalizer) Normalize(
 	config *task.Config,
 	parentCtx contracts.NormalizationContext,
 ) error {
-	// Call base normalization first
 	if err := n.BaseNormalizer.Normalize(ctx, config, parentCtx); err != nil {
 		return err
 	}
-	// Type assert to get the concrete type for router-specific logic
 	normCtx, ok := parentCtx.(*shared.NormalizationContext)
 	if !ok {
 		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", parentCtx)
 	}
-	// Build template context for router-specific fields
 	context := normCtx.BuildTemplateContext()
-	// Normalize router-specific fields
 	if config.Routes != nil {
 		if err := n.normalizeRoutes(config, config.Routes, context); err != nil {
 			return fmt.Errorf("failed to normalize routes: %w", err)

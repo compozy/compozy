@@ -40,11 +40,8 @@ func (b *BaseContextBuilder) BuildContext(
 		TaskConfig:     taskConfig,
 		TaskConfigs:    make(map[string]*task.Config),
 	}
-	// Build children index
 	nc.ChildrenIndex = b.ChildrenIndexBuilder.BuildChildrenIndex(workflowState)
-	// Build base variables
 	vars := b.VariableBuilder.BuildBaseVariables(workflowState, workflowConfig, taskConfig)
-	// Add workflow tasks for backward compatibility in deterministic order
 	if workflowState != nil && workflowState.Tasks != nil {
 		tasksMap := make(map[string]any)
 		keys := SortedMapKeys(workflowState.Tasks)
@@ -54,7 +51,6 @@ func (b *BaseContextBuilder) BuildContext(
 		}
 		b.VariableBuilder.AddTasksToVariables(vars, workflowState, tasksMap)
 	}
-	// Add current input if present
 	b.VariableBuilder.AddCurrentInputToVariables(vars, nc.CurrentInput)
 	nc.Variables = vars
 	return nc
@@ -68,11 +64,9 @@ func (b *BaseContextBuilder) EnrichContext(normCtx *NormalizationContext, taskSt
 	if taskState == nil {
 		return nil
 	}
-	// Add task state data to variables
 	if normCtx.Variables == nil {
 		normCtx.Variables = make(map[string]any)
 	}
-	// Add task output to variables if available
 	if taskState.Output != nil {
 		taskMap, ok := normCtx.Variables["task"].(map[string]any)
 		if !ok {
@@ -80,7 +74,6 @@ func (b *BaseContextBuilder) EnrichContext(normCtx *NormalizationContext, taskSt
 		}
 		taskMap["output"] = taskState.Output
 	}
-	// Add task state status
 	taskMap, ok := normCtx.Variables["task"].(map[string]any)
 	if !ok {
 		return fmt.Errorf("task variable is not a map[string]any, got %T", normCtx.Variables["task"])
@@ -118,24 +111,18 @@ func (b *BaseContextBuilder) buildSingleTaskContext(
 		"id":     taskID,
 		"status": taskState.Status,
 	}
-	// Add execution type if available
 	if taskState.ExecutionType != "" {
 		taskContext["execution_type"] = taskState.ExecutionType
 	}
-	// Build task output using dedicated builder
 	if taskState.Output != nil {
-		// For single task context, we don't need full recursive output building
 		taskContext["output"] = taskState.Output
 	}
-	// Add input if available
 	if taskState.Input != nil {
 		taskContext["input"] = taskState.Input
 	}
-	// Add error if available
 	if taskState.Error != nil {
 		taskContext["error"] = taskState.Error
 	}
-	// Add children if task can have children
 	if taskState.CanHaveChildren() && nc != nil && nc.ChildrenIndex != nil {
 		taskContext["children"] = b.ChildrenIndexBuilder.BuildChildrenContext(
 			ctx,
@@ -165,7 +152,6 @@ func (b *BaseContextBuilder) AddParentTask(normCtx *NormalizationContext, parent
 		return
 	}
 	normCtx.ParentTask = parentTask
-	// Add parent context to variables
 	if parentConfig, err := parentTask.AsMap(); err == nil {
 		b.VariableBuilder.AddParentToVariables(normCtx.Variables, parentConfig)
 	}

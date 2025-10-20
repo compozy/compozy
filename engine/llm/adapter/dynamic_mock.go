@@ -49,12 +49,9 @@ func (m *DynamicMockLLM) GenerateContent(
 	messages []llms.MessageContent,
 	options ...llms.CallOption,
 ) (*llms.ContentResponse, error) {
-	// Extract action ID from messages
 	actionID := m.extractActionID(messages)
-	// Look for expected output
 	if actionID != "" {
 		if expectedOutput, exists := m.expectedOutputs[actionID]; exists {
-			// Convert core.Output to JSON string
 			jsonBytes, err := json.Marshal(expectedOutput)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal expected output: %w", err)
@@ -69,7 +66,6 @@ func (m *DynamicMockLLM) GenerateContent(
 			}, nil
 		}
 	}
-	// Fall back to static mock behavior if no expected output found
 	return m.fallback.GenerateContent(ctx, messages, options...)
 }
 
@@ -110,6 +106,5 @@ func (m *DynamicMockLLM) matchActionPattern(text string) string {
 
 // Call implements the legacy Call interface
 func (m *DynamicMockLLM) Call(ctx context.Context, prompt string, options ...llms.CallOption) (string, error) {
-	// For legacy interface, fall back to static mock
 	return m.fallback.Call(ctx, prompt, options...)
 }

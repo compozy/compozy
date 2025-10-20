@@ -50,10 +50,8 @@ func (dh *DispatcherHealth) UpdateHealth() {
 	dh.IsHealthy = !isStale
 	if !dh.IsHealthy {
 		if wasHealthy {
-			// Transition from healthy to unhealthy
 			dh.ConsecutiveFailures = 1
 		} else {
-			// Continue being unhealthy
 			dh.ConsecutiveFailures++
 		}
 	} else if dh.IsHealthy {
@@ -209,7 +207,6 @@ func UpdateDispatcherHeartbeat(ctx context.Context, dispatcherID string) {
 	health.mu.Lock()
 	defer health.mu.Unlock()
 	health.LastHeartbeat = time.Now()
-	// Atomically re-evaluate health status based on the new heartbeat
 	health.LastHealthCheck = time.Now()
 	health.IsHealthy = true // A fresh heartbeat always means it's healthy
 	health.ConsecutiveFailures = 0

@@ -66,16 +66,13 @@ func (h *BaseResponseHandler) ProcessMainTaskResponse(
 	ctx context.Context,
 	input *ResponseInput,
 ) (*ResponseOutput, error) {
-	// Process execution and save state
 	isSuccess, executionErr, err := h.processAndSaveTaskResult(ctx, input)
 	if err != nil {
 		return h.handleProcessingError(ctx, input, err)
 	}
-	// Update parent status if needed
 	if err := h.updateParentIfNeeded(ctx, input.TaskState); err != nil {
 		return h.handleProcessingError(ctx, input, err)
 	}
-	// Build final response
 	return h.buildTaskResponse(ctx, input, isSuccess, executionErr)
 }
 
@@ -84,9 +81,7 @@ func (h *BaseResponseHandler) processAndSaveTaskResult(
 	ctx context.Context,
 	input *ResponseInput,
 ) (bool, error, error) {
-	// Process task execution result
 	isSuccess, executionErr := h.processTaskExecutionResult(ctx, input)
-	// Save state with proper error handling
 	if err := h.saveTaskState(ctx, input.TaskState); err != nil {
 		return false, nil, err
 	}
@@ -99,13 +94,11 @@ func (h *BaseResponseHandler) updateParentIfNeeded(
 	state *task.State,
 ) error {
 	if err := h.updateParentStatusIfNeeded(ctx, state); err != nil {
-		// Log detailed error internally
 		log := logger.FromContext(ctx).With(
 			"task_exec_id", state.TaskExecID,
 			"parent_state_id", state.ParentStateID,
 		)
 		log.Error("Failed to update parent task status", "error", err)
-		// Return generic error to prevent information disclosure
 		return errors.New("parent task update failed")
 	}
 	return nil
@@ -118,12 +111,10 @@ func (h *BaseResponseHandler) buildTaskResponse(
 	isSuccess bool,
 	executionErr error,
 ) (*ResponseOutput, error) {
-	// Process transitions
 	onSuccess, onError, err := h.processTransitions(ctx, input, isSuccess, executionErr)
 	if err != nil {
 		return nil, err
 	}
-	// Determine next task
 	nextTask := h.determineNextTask(input, isSuccess)
 	response := &task.MainTaskResponse{
 		OnSuccess: onSuccess,
@@ -154,11 +145,9 @@ func (h *BaseResponseHandler) detectOutputError(output *core.Output) error {
 	if output == nil {
 		return nil
 	}
-	// Check for explicit error field
 	if err := h.checkErrorField(output); err != nil {
 		return err
 	}
-	// Check for success=false indicator
 	return h.checkSuccessField(output)
 }
 
@@ -221,14 +210,10 @@ func (h *BaseResponseHandler) processTaskExecutionResult(
 ) (bool, error) {
 	state := input.TaskState
 	executionErr := input.ExecutionError
-	// Check task output for error indicators (agent tasks may report errors in output)
 	if outputErr := h.detectOutputError(state.Output); outputErr != nil {
 		executionErr = outputErr
 	}
-	// Determine if task is successful so far
 	isSuccess := executionErr == nil && state.Status != core.StatusFailed
-	// Apply output transformation if needed
-	// Skip for collection/parallel tasks as they need children data first
 	if isSuccess && !h.ShouldDeferOutputTransformation(input.TaskConfig) {
 		state.UpdateStatus(core.StatusSuccess)
 		if input.TaskConfig.GetOutputs() != nil && state.Output != nil {
@@ -238,7 +223,6 @@ func (h *BaseResponseHandler) processTaskExecutionResult(
 			}
 		}
 	}
-	// Handle final state
 	if !isSuccess {
 		state.UpdateStatus(core.StatusFailed)
 		h.setErrorState(state, executionErr)
@@ -254,7 +238,6 @@ func (h *BaseResponseHandler) processTransitions(
 	isSuccess bool,
 	executionErr error,
 ) (*core.SuccessTransition, *core.ErrorTransition, error) {
-	// Normalize transitions
 	onSuccess, onError, err := h.normalizeTransitions(ctx, input)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -262,7 +245,6 @@ func (h *BaseResponseHandler) processTransitions(
 		}
 		return nil, nil, fmt.Errorf("failed to normalize transitions: %w", err)
 	}
-	// Check for error transition requirement
 	if !isSuccess && (onError == nil || onError.Next == nil) {
 		if executionErr != nil {
 			return nil, nil, fmt.Errorf("task failed with no error transition defined: %w", executionErr)
@@ -319,9 +301,7 @@ func (h *BaseResponseHandler) normalizeTransitions(
 	if input.TaskConfig == nil {
 		return nil, nil, fmt.Errorf("task config cannot be nil for transition normalization")
 	}
-	// Build contexts
 	normCtx, templateContext := h.buildNormalizationContexts(ctx, input)
-	// Normalize both transitions
 	normalizedSuccess, err := h.normalizeSuccessTransition(input.TaskConfig.OnSuccess, normCtx, templateContext)
 	if err != nil {
 		return nil, nil, err
@@ -355,11 +335,9 @@ func (h *BaseResponseHandler) normalizeSuccessTransition(
 	}
 	normalized := &core.SuccessTransition{}
 	*normalized = *transition
-	// Set current input if not already set
 	if normCtx.CurrentInput == nil && normalized.With != nil {
 		normCtx.CurrentInput = normalized.With
 	}
-	// Apply template processing
 	if err := h.applyTransitionTemplates(normalized, templateContext, "success"); err != nil {
 		return nil, err
 	}
@@ -377,11 +355,9 @@ func (h *BaseResponseHandler) normalizeErrorTransition(
 	}
 	normalized := &core.ErrorTransition{}
 	*normalized = *transition
-	// Set current input if not already set
 	if normCtx.CurrentInput == nil && normalized.With != nil {
 		normCtx.CurrentInput = normalized.With
 	}
-	// Apply template processing
 	if err := h.applyTransitionTemplates(normalized, templateContext, "error"); err != nil {
 		return nil, err
 	}
@@ -394,7 +370,6 @@ func (h *BaseResponseHandler) applyTransitionTemplates(
 	templateContext map[string]any,
 	transitionType string,
 ) error {
-	// Convert to map for template processing
 	var configMap map[string]any
 	var err error
 	switch t := transition.(type) {
@@ -408,12 +383,10 @@ func (h *BaseResponseHandler) applyTransitionTemplates(
 	if err != nil {
 		return fmt.Errorf("failed to convert %s transition to map: %w", transitionType, err)
 	}
-	// Apply template processing
 	parsed, err := h.templateEngine.ParseAny(configMap, templateContext)
 	if err != nil {
 		return fmt.Errorf("failed to normalize %s transition: %w", transitionType, err)
 	}
-	// Update from normalized map
 	switch t := transition.(type) {
 	case *core.SuccessTransition:
 		err = t.FromMap(parsed)
@@ -429,38 +402,31 @@ func (h *BaseResponseHandler) applyTransitionTemplates(
 // updateParentStatusIfNeeded updates parent task status if this is a child task
 // Extracted from TaskResponder.updateParentStatusIfNeeded logic
 func (h *BaseResponseHandler) updateParentStatusIfNeeded(ctx context.Context, childState *task.State) error {
-	// Only proceed if this is a child task (has a parent)
 	if childState.ParentStateID == nil {
 		return nil
 	}
 	if h.parentStatusManager == nil {
 		return nil // No parent status manager configured
 	}
-	// Get parent state to extract strategy
 	parentState, err := h.taskRepo.GetState(ctx, *childState.ParentStateID)
 	if err != nil {
 		return fmt.Errorf("failed to get parent state: %w", err)
 	}
-	// Extract strategy from parent state
 	strategy := h.extractParentStrategy(parentState)
-	// Use the parent status manager to update status
 	return h.parentStatusManager.UpdateParentStatus(ctx, *childState.ParentStateID, strategy)
 }
 
 // extractParentStrategy extracts the parallel strategy from parent state
 func (h *BaseResponseHandler) extractParentStrategy(parentState *task.State) task.ParallelStrategy {
-	// Default strategy if not specified
 	defaultStrategy := task.StrategyWaitAll
 	if parentState.Input == nil {
 		return defaultStrategy
 	}
-	// Check for strategy in input
 	if strategyVal, exists := (*parentState.Input)[FieldStrategy]; exists {
 		if strategyStr, ok := strategyVal.(string); ok {
 			return h.parseStrategy(strategyStr)
 		}
 	}
-	// Check for parallel config in input
 	if parallelConfig, exists := (*parentState.Input)[FieldParallelConfig]; exists {
 		switch v := parallelConfig.(type) {
 		case map[string]any:
@@ -546,8 +512,6 @@ func (h *BaseResponseHandler) CreateResponseContext(input *ResponseInput) *Respo
 // ProcessTransitions handles task transitions after completion
 // Base implementation provides no-op behavior - override in specific task handlers
 func (h *BaseResponseHandler) ProcessTransitions(_ context.Context, _ *ResponseInput) error {
-	// Base implementation does nothing - specific task handlers will override
-	// this method to implement their transition logic
 	return nil
 }
 
@@ -563,16 +527,13 @@ func (h *BaseResponseHandler) ApplyDeferredOutputTransformation(
 	ctx context.Context,
 	input *ResponseInput,
 ) error {
-	// Only apply if no execution error and task is not failed
 	if input.ExecutionError != nil || input.TaskState.Status == core.StatusFailed {
 		return nil
 	}
-	// Apply transformation with transaction support
 	transformer := h.createOutputTransformationFunction(ctx, input)
 	if err := h.transactionService.ApplyTransformation(ctx, input.TaskState.TaskExecID, transformer); err != nil {
 		return err
 	}
-	// Verify transformation persistence and update in-memory state
 	return h.verifyTransformationPersistence(ctx, input)
 }
 

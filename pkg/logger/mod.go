@@ -49,11 +49,9 @@ func FromContext(ctx context.Context) Logger {
 	if ctx == nil {
 		return getDefaultLogger()
 	}
-	// Try to get logger from context - check both type assertion success AND non-nil
 	if l, ok := ctx.Value(LoggerCtxKey).(Logger); ok && l != nil {
 		return l
 	}
-	// Fallback to default logger
 	return getDefaultLogger()
 }
 
@@ -102,7 +100,6 @@ func (c *LogLevel) ToCharmlogLevel() charmlog.Level {
 	case ErrorLevel:
 		return charmlog.ErrorLevel
 	case DisabledLevel:
-		// Set to a very high level to disable all logging
 		return charmlog.Level(1000)
 	default:
 		return charmlog.InfoLevel
@@ -160,17 +157,14 @@ func TestConfig() *Config {
 
 // IsTestEnvironment detects if we're running in a test environment
 func IsTestEnvironment() bool {
-	// Check if we're running under go test by looking for the test binary pattern
 	for _, arg := range os.Args {
 		if strings.HasSuffix(arg, ".test") {
 			return true
 		}
 	}
-	// Check for test-related environment variables
 	if os.Getenv("GO_TEST") == "1" || os.Getenv("TESTING") == "1" {
 		return true
 	}
-	// Check if the program name indicates a test binary
 	if len(os.Args) > 0 {
 		progName := os.Args[0]
 		if strings.HasSuffix(progName, ".test") || strings.Contains(progName, "___") {
@@ -183,7 +177,6 @@ func IsTestEnvironment() bool {
 func NewLogger(cfg *Config) Logger {
 	if cfg == nil {
 		cfg = DefaultConfig()
-		// Auto-detect test environment and use test config
 		if IsTestEnvironment() {
 			cfg = TestConfig()
 		}

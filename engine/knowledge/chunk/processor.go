@@ -235,7 +235,6 @@ func clampOverlap(overlap, size int) int {
 		if size <= 4 {
 			return 0
 		}
-		// Intentional 25% cap when overlap would equal or exceed size
 		return size / 4
 	}
 	return overlap

@@ -98,12 +98,10 @@ func (s *MCPService) rollbackClientAddition(ctx context.Context, name string) {
 
 // UpdateMCP updates an existing MCP definition with hot reload
 func (s *MCPService) UpdateMCP(ctx context.Context, name string, def *MCPDefinition) (*MCPDefinition, error) {
-	// Validate definition
 	def.Name = name
 	if err := def.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidDefinition, err)
 	}
-	// Check if MCP exists
 	existing, err := s.storage.LoadMCP(ctx, name)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -111,14 +109,11 @@ func (s *MCPService) UpdateMCP(ctx context.Context, name string, def *MCPDefinit
 		}
 		return nil, fmt.Errorf("%w: %v", ErrStorageError, err)
 	}
-	// Update timestamps
 	def.UpdatedAt = time.Now()
 	def.CreatedAt = existing.CreatedAt
-	// Save updated definition first
 	if err := s.storage.SaveMCP(ctx, def); err != nil {
 		return nil, fmt.Errorf("%w: failed to update MCP definition: %v", ErrStorageError, err)
 	}
-	// Perform hot reload
 	if err := s.performHotReload(ctx, name, def); err != nil {
 		return def, fmt.Errorf("%w: %v", ErrHotReloadFailed, err)
 	}
@@ -127,7 +122,6 @@ func (s *MCPService) UpdateMCP(ctx context.Context, name string, def *MCPDefinit
 
 // DeleteMCP removes an MCP definition and cleans up associated resources
 func (s *MCPService) DeleteMCP(ctx context.Context, name string) error {
-	// Check if MCP exists
 	_, err := s.storage.LoadMCP(ctx, name)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -135,11 +129,9 @@ func (s *MCPService) DeleteMCP(ctx context.Context, name string) error {
 		}
 		return fmt.Errorf("%w: %v", ErrStorageError, err)
 	}
-	// Remove from storage first
 	if err := s.storage.DeleteMCP(ctx, name); err != nil {
 		return fmt.Errorf("%w: failed to delete MCP definition: %v", ErrStorageError, err)
 	}
-	// Clean up runtime components
 	s.cleanupRuntimeComponents(ctx, name)
 	return nil
 }
@@ -251,7 +243,6 @@ func (s *MCPService) CallTool(
 // performHotReload removes old client and adds updated client
 func (s *MCPService) performHotReload(ctx context.Context, name string, def *MCPDefinition) error {
 	log := logger.FromContext(ctx)
-	// Remove existing client and proxy
 	if err := s.clientManager.RemoveClient(ctx, name); err != nil {
 		log.Debug("Failed to remove client during update", "name", name, "error", err)
 	}
@@ -260,11 +251,9 @@ func (s *MCPService) performHotReload(ctx context.Context, name string, def *MCP
 			log.Debug("Failed to unregister proxy during update", "name", name, "error", err)
 		}
 	}
-	// Add the updated client - the manager will handle connection asynchronously
 	if err := s.clientManager.AddClient(ctx, def); err != nil {
 		return fmt.Errorf("failed to reconnect: %w", err)
 	}
-	// Register the proxy - it will wait for the client to connect
 	if s.proxyHandlers != nil {
 		if err := s.proxyHandlers.RegisterMCPProxy(ctx, def.Name, def); err != nil {
 			log.Warn("Proxy registration failed but client is being managed", "name", def.Name, "error", err)
@@ -291,7 +280,6 @@ func convertToolSchema(inputSchema any) map[string]any {
 	if inputSchema == nil {
 		return nil
 	}
-	// Prefer direct handling to reduce allocations; fall back to JSON round-trip.
 	switch s := inputSchema.(type) {
 	case map[string]any:
 		return s

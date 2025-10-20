@@ -20,8 +20,6 @@ func (vb *VariableBuilder) dereferenceInput(input *core.Input) any {
 	if input == nil {
 		return nil
 	}
-	// Dereference the pointer to expose the underlying map
-	// This allows templates to access nested fields like .workflow.input.user_id
 	return *input
 }
 
@@ -32,7 +30,6 @@ func (vb *VariableBuilder) BuildBaseVariables(
 	taskConfig *task.Config,
 ) map[string]any {
 	vars := make(map[string]any)
-	// Add workflow data
 	if workflowState != nil {
 		workflowData := map[string]any{
 			"id":     workflowState.WorkflowID,
@@ -41,11 +38,8 @@ func (vb *VariableBuilder) BuildBaseVariables(
 			"status": workflowState.Status,
 		}
 		// NOTE: We intentionally do NOT include workflowConfig here during normalization
-		// to prevent premature template evaluation of task references.
-		// The config is available through other means when needed at runtime.
 		vars["workflow"] = workflowData
 	}
-	// Add task data
 	if taskConfig != nil {
 		vars["task"] = map[string]any{
 			"id":     taskConfig.ID,
@@ -55,7 +49,6 @@ func (vb *VariableBuilder) BuildBaseVariables(
 			"env":    taskConfig.Env,
 		}
 	}
-	// Add env from workflow config
 	if workflowConfig != nil && workflowConfig.Opts.Env != nil {
 		vars["env"] = workflowConfig.Opts.Env
 	}
@@ -79,22 +72,17 @@ func (vb *VariableBuilder) AddCurrentInputToVariables(vars map[string]any, curre
 		dereferenced := vb.dereferenceInput(currentInput)
 		vars["input"] = dereferenced
 		vars["with"] = dereferenced
-		// Also add item and index at top level for collection tasks
 		if item, exists := (*currentInput)[FieldItem]; exists {
 			vars[FieldItem] = item
 		} else if collectionItem, exists := (*currentInput)[FieldCollectionItem]; exists {
-			// Fallback: if "item" not found, check for "_collection_item"
 			vars[FieldItem] = collectionItem
 		}
 		if index, exists := (*currentInput)[FieldIndex]; exists {
 			vars[FieldIndex] = index
 		} else if collectionIndex, exists := (*currentInput)[FieldCollectionIndex]; exists {
-			// Fallback: if "index" not found, check for "_collection_index"
 			vars[FieldIndex] = collectionIndex
 		}
-		// Handle collection-specific fields
 		if collectionItem, exists := (*currentInput)[FieldCollectionItem]; exists {
-			// Add custom item variable name if specified
 			if itemVar, exists := (*currentInput)[FieldCollectionItemVar]; exists {
 				if varName, ok := itemVar.(string); ok && varName != "" {
 					vars[varName] = collectionItem
@@ -102,7 +90,6 @@ func (vb *VariableBuilder) AddCurrentInputToVariables(vars map[string]any, curre
 			}
 		}
 		if collectionIndex, exists := (*currentInput)[FieldCollectionIndex]; exists {
-			// Add custom index variable name if specified
 			if indexVar, exists := (*currentInput)[FieldCollectionIndexVar]; exists {
 				if varName, ok := indexVar.(string); ok && varName != "" {
 					vars[varName] = collectionIndex

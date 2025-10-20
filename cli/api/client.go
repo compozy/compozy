@@ -41,14 +41,12 @@ func NewAuthClient(cfg *config.Config, apiKey string) (AuthClient, error) {
 
 // getBaseURL determines the base URL from configuration with proper precedence
 func getBaseURL(cfg *config.Config) (string, error) {
-	// Highest precedence: CLI base_url
 	if cfg.CLI.BaseURL != "" {
 		if _, err := url.Parse(cfg.CLI.BaseURL); err != nil {
 			return "", fmt.Errorf("invalid base URL from CLI config: %w", err)
 		}
 		return strings.TrimRight(cfg.CLI.BaseURL, "/"), nil
 	}
-	// Fallback: construct from server host and port
 	scheme := "https"
 	if cfg.Server.Host == "localhost" || cfg.Server.Host == "127.0.0.1" || cfg.Server.Host == "0.0.0.0" ||
 		cfg.Server.Host == "[::1]" ||
@@ -103,11 +101,9 @@ func (c *client) createRequest(ctx context.Context, method, url string, bodyRead
 
 // shouldRetry determines if a response should trigger a retry
 func (c *client) shouldRetry(resp *http.Response, attempt, maxRetries int) bool {
-	// Don't retry on client errors (4xx)
 	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 		return false
 	}
-	// Retry on server errors (5xx) if not at max attempts
 	return resp.StatusCode >= 500 && attempt < maxRetries
 }
 

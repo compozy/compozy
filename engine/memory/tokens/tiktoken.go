@@ -33,21 +33,16 @@ func NewTiktokenCounter(modelOrEncoding string) (*TiktokenCounter, error) {
 	var encodingName string
 	tke, err := tiktoken.GetEncoding(modelOrEncoding)
 	if err != nil {
-		// Try as a model name
 		tke, err = tiktoken.EncodingForModel(modelOrEncoding)
 		if err != nil {
-			// Fallback to default if specific model/encoding fails
 			// Warning: Failed to get encoding, falling back to default
 			tke, err = tiktoken.GetEncoding(defaultEncoding)
 			if err != nil {
-				// This would be a critical issue if the default encoding itself fails
+				// WARNING: If the default encoding is unavailable, token counting cannot function safely.
 				return nil, fmt.Errorf("failed to get default encoding '%s': %w", defaultEncoding, err)
 			}
 			encodingName = defaultEncoding
 		} else {
-			// Successfully got encoding for model - need to get the actual encoding name
-			// tiktoken-go doesn't expose the encoding name directly, so we'll determine it
-			// For now, we'll use a known mapping
 			encodingName = getEncodingNameForModel(modelOrEncoding)
 		}
 	} else {
@@ -141,12 +136,9 @@ var modelToEncodingMap = map[string]string{
 // Uses tiktoken-go's EncodingForModel to leverage its built-in model mappings,
 // falling back to default encoding for unknown models.
 func getEncodingNameForModel(model string) string {
-	// First check our explicit mapping
 	if encoding, ok := modelToEncodingMap[model]; ok {
 		return encoding
 	}
-	// For unknown models, fall back to the most common modern encoding
-	// cl100k_base is used by GPT-4, GPT-3.5-turbo, and most recent models
 	return defaultEncoding
 }
 

@@ -36,7 +36,7 @@ var (
 func RedactString(s string) string {
 	const maxLen = 256
 	s = strings.TrimSpace(s)
-	// Apply redaction patterns in order of specificity
+	// NOTE: Apply redaction patterns from most to least specific to avoid leaking tokens.
 	s = jwtRe.ReplaceAllString(s, "[JWT_REDACTED]")
 	s = awsKeyRe.ReplaceAllString(s, "[AWS_KEY_REDACTED]")
 	s = githubTokenRe.ReplaceAllString(s, "[GITHUB_TOKEN_REDACTED]")
@@ -82,7 +82,6 @@ var sensitiveSuffixes = []string{
 // 3. Also checks for compound patterns (e.g., "public-key")
 func isSensitiveHeader(headerName string) bool {
 	lowerName := strings.ToLower(headerName)
-	// First check for compound patterns that should be treated as sensitive
 	compoundPatterns := []string{
 		"api-key", "api_key", "apikey",
 		"private-key", "private_key", "privatekey",
@@ -95,17 +94,14 @@ func isSensitiveHeader(headerName string) bool {
 			return true
 		}
 	}
-	// Split by common delimiters: dash, underscore, dot
 	segments := strings.FieldsFunc(lowerName, func(r rune) bool {
 		return r == '-' || r == '_' || r == '.'
 	})
-	// Check for sensitive substrings anywhere in the header name
 	for _, segment := range segments {
 		if slices.Contains(sensitiveSubstrings, segment) {
 			return true
 		}
 	}
-	// Check for sensitive suffixes in the last segment
 	if len(segments) > 0 {
 		lastSegment := segments[len(segments)-1]
 		if slices.Contains(sensitiveSuffixes, lastSegment) {
@@ -126,14 +122,13 @@ func RedactHeaders(headers map[string]string) map[string]string {
 	}
 	out := make(map[string]string, len(headers))
 	for k, v := range headers {
-		// Special handling for specific headers
 		switch {
 		case strings.EqualFold(k, "authorization") || strings.EqualFold(k, "proxy-authorization"):
 			out[k] = RedactString(v)
 		case isSensitiveHeader(k) || strings.EqualFold(k, "set-cookie") || strings.EqualFold(k, "cookie"):
 			out[k] = "[REDACTED]"
 		default:
-			// Still pass through RedactString for non-sensitive headers to catch embedded secrets
+			// NOTE: Run non-sensitive headers through RedactString to catch embedded secrets.
 			out[k] = RedactString(v)
 		}
 	}

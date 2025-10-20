@@ -125,7 +125,6 @@ func (t *TaskStateRowBuilder) CreateTaskStateRows(
 	agentID, toolID any,
 	inputData []byte,
 ) *pgxmock.Rows {
-	// Determine component type and action_id based on provided IDs
 	var component core.ComponentType
 	var actionID any
 	var executionType = "basic"
@@ -160,7 +159,6 @@ func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
 	agentID, toolID any,
 	inputData []byte,
 ) *pgxmock.Rows {
-	// Determine component type and action_id based on provided IDs
 	var component core.ComponentType
 	var actionID any
 	switch {

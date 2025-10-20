@@ -38,21 +38,16 @@ func NewGenerateAPIKey(repo Repository, userID core.ID) *GenerateAPIKey {
 func (uc *GenerateAPIKey) Execute(ctx context.Context) (string, error) {
 	log := logger.FromContext(ctx)
 	log.Debug("Generating API key for user", "user_id", uc.userID)
-	// Generate a cryptographically secure random key
 	randomBytes := make([]byte, 32)
 	if _, err := rand.Read(randomBytes); err != nil {
 		return "", fmt.Errorf("failed to generate random key part: %w", err)
 	}
-	// Create the plaintext API key
 	plaintext := fmt.Sprintf("%s_%s", apiKeyPrefix, base64.RawURLEncoding.EncodeToString(randomBytes))
-	// Hash the key for storage
 	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(plaintext), bcrypt.DefaultCost)
 	if err != nil {
 		return "", fmt.Errorf("failed to hash API key: %w", err)
 	}
-	// Generate a SHA256 fingerprint for O(1) lookups
 	fingerprintHash := sha256.Sum256([]byte(plaintext))
-	// Store the key
 	apiKey := &model.APIKey{
 		ID:          core.MustNewID(),
 		UserID:      uc.userID,

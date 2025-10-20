@@ -33,6 +33,5 @@ func (b *ContextBuilder) BuildContext(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) *shared.NormalizationContext {
-	// Basic tasks use standard context building
 	return b.BaseContextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
 }

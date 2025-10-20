@@ -60,7 +60,6 @@ func SetupGlobalConfig(cmd *cobra.Command) error {
 	ctx = attachLogger(ctx, cfg)
 	cmd.SetContext(ctx)
 	mgr.OnChange(func(_ *config.Config) {
-		// Update logger or other runtime settings if necessary
 	})
 	return nil
 }

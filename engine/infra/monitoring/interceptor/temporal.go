@@ -43,7 +43,6 @@ var (
 
 // resetMetrics is used for testing purposes only
 func resetMetrics(ctx context.Context) {
-	// Unregister callbacks if they exist
 	if callbackRegistration != nil {
 		err := callbackRegistration.Unregister()
 		if err != nil {
@@ -73,7 +72,6 @@ func resetMetrics(ctx context.Context) {
 	workersRunning = nil
 	workersConfigured = nil
 	configuredWorkerCountValue.Store(0)
-	// Reset dispatcher metrics
 	dispatcherActive = nil
 	dispatcherHeartbeatTotal = nil
 	dispatcherLifecycleTotal = nil
@@ -155,7 +153,6 @@ func initWorkerMetrics(ctx context.Context, meter metric.Meter) error {
 		log.Error("Failed to create workers configured gauge", "error", err, "component", "temporal_metrics")
 		return err
 	}
-	// Register the callback only once during initialization
 	callbackRegistration, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
 		o.ObserveInt64(workersConfigured, configuredWorkerCountValue.Load())
 		return nil
@@ -333,7 +330,6 @@ func initDispatcherScanMetrics(ctx context.Context, meter metric.Meter) error {
 }
 
 func initMetrics(ctx context.Context, meter metric.Meter) {
-	// Skip initialization if meter is nil
 	if meter == nil {
 		return
 	}
@@ -354,8 +350,8 @@ func initMetrics(ctx context.Context, meter metric.Meter) {
 
 // TemporalMetrics creates a new Temporal metrics interceptor
 func TemporalMetrics(ctx context.Context, meter metric.Meter) interceptor.WorkerInterceptor {
-	// Handle nil meter gracefully
 	if meter == nil {
+		// NOTE: Return a no-op interceptor when metrics collection is disabled to keep workers running.
 		log := logger.FromContext(ctx)
 		log.Warn("TemporalMetrics called with nil meter, returning no-op interceptor")
 		return &interceptor.WorkerInterceptorBase{}
@@ -543,7 +539,6 @@ func StartDispatcher(ctx context.Context, dispatcherID string) {
 				attribute.String("dispatcher_id", dispatcherID),
 				attribute.String("event", "start")))
 	}
-	// Track start time for uptime calculation
 	dispatcherStartTimes.Store(dispatcherID, time.Now())
 }
 
@@ -564,7 +559,6 @@ func StopDispatcher(ctx context.Context, dispatcherID string) {
 				attribute.String("dispatcher_id", dispatcherID),
 				attribute.String("event", "stop")))
 	}
-	// Remove start time tracking
 	dispatcherStartTimes.Delete(dispatcherID)
 }
 
@@ -606,7 +600,6 @@ func RecordDispatcherRestart(ctx context.Context, dispatcherID string) {
 				attribute.String("dispatcher_id", dispatcherID),
 				attribute.String("event", "restart")))
 	}
-	// Update start time for uptime calculation
 	dispatcherStartTimes.Store(dispatcherID, time.Now())
 }
 

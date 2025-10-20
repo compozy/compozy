@@ -32,23 +32,20 @@ type TestConfig struct {
 // DefaultTestConfig returns the default test configuration
 func DefaultTestConfig() *TestConfig {
 	return &TestConfig{
-		// Lock operation timing thresholds (conservative defaults)
 		LockWaitThreshold:   10 * time.Millisecond, // Increased from 5ms for stability
 		LockTimeoutDuration: 5 * time.Second,
 		AppendDelayMax:      20 * time.Millisecond,
 		ClearDelayMax:       50 * time.Millisecond,
 		FlushDelayMax:       100 * time.Millisecond,
 
-		// Health monitoring timing
 		HealthCheckInterval: 100 * time.Millisecond, // Faster for testing
 		HealthCheckTimeout:  2 * time.Second,
 		HealthWaitTimeout:   5 * time.Second,
 
-		// Resilience testing timing
 		ResilienceTimeout:    10 * time.Millisecond,
 		ResilienceRetryDelay: 2 * time.Millisecond,
 
-		// General test timeouts
+		// NOTE: Cap integration tests to five seconds to catch hung routines quickly.
 		DefaultTestTimeout:  5 * time.Second,
 		AsyncOperationDelay: 100 * time.Millisecond,
 	}
@@ -58,7 +55,6 @@ func DefaultTestConfig() *TestConfig {
 // This allows overriding timing values in CI/CD environments
 func NewTestConfigFromEnv() *TestConfig {
 	config := DefaultTestConfig()
-	// Override values from environment variables if present
 	if val := os.Getenv("TEST_LOCK_WAIT_THRESHOLD_MS"); val != "" {
 		if ms, err := strconv.Atoi(val); err == nil {
 			config.LockWaitThreshold = time.Duration(ms) * time.Millisecond

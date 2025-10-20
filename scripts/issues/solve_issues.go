@@ -170,7 +170,6 @@ func setupFlags() {
 	rootCmd.Flags().BoolVar(&useForm, "form", false, "Use interactive form to collect parameters")
 
 	// Note: PR is usually required, but we handle this dynamically in runSolveIssues
-	// since --form can provide it interactively
 }
 
 // collectFormParams shows interactive form to collect parameters
@@ -1343,13 +1342,10 @@ func executeCommandAndHandleResult(
 			errF.Close()
 		}
 	}()
-	// Create a channel to receive command completion
 	cmdDone := make(chan error, 1)
-	// Start command in background
 	go func() {
 		cmdDone <- cmd.Run()
 	}()
-	// Wait for either command completion or context cancellation
 	select {
 	case err := <-cmdDone:
 		handleCommandCompletion(err, j, index, useUI, uiCh, failed, failuresMu, failures)
@@ -1405,27 +1401,23 @@ func handleCommandCancellation(
 		index+1,
 		strings.Join(j.codeFiles, ", "),
 	)
-	// Try to terminate the process gracefully first
 	if cmd.Process != nil {
+		// NOTE: Attempt graceful termination before force killing spawned commands.
 		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to send SIGTERM to process: %v\n", err)
 		}
 
-		// Wait up to 5 seconds for graceful termination
 		select {
 		case <-cmdDone:
-			// Process terminated gracefully
 			fmt.Fprintf(os.Stderr, "Job %d terminated gracefully\n", index+1)
 		case <-time.After(5 * time.Second):
-			// Timeout - force kill
+			// NOTE: Escalate to SIGKILL if the process ignores our grace period.
 			fmt.Fprintf(os.Stderr, "Job %d did not terminate gracefully, force killing...\n", index+1)
 			if err := cmd.Process.Kill(); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to kill process: %v\n", err)
 			}
 		}
 	}
-	// Don't count shutdown cancellations as failures - they're expected
-	// Just mark the job as canceled in the UI
 	if useUI {
 		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -1}
 	}
@@ -1732,23 +1724,19 @@ func (m *uiModel) handleKey(v tea.KeyMsg) tea.Cmd {
 		}
 		return tea.Quit
 	case "up", "k":
-		// Navigate jobs in sidebar
 		if m.selectedJob > 0 {
 			m.selectedJob--
 		}
 		return nil
 	case "down", "j":
-		// Navigate jobs in sidebar
 		if m.selectedJob < len(m.jobs)-1 {
 			m.selectedJob++
 		}
 		return nil
 	case "left", "h":
-		// Scroll viewport left (for wide logs)
 		m.viewport.ScrollUp(1)
 		return nil
 	case "right", "l":
-		// Scroll viewport right (for wide logs)
 		m.viewport.ScrollDown(1)
 		return nil
 	case "pgup", "b", "u":
@@ -1859,21 +1847,18 @@ func (m *uiModel) refreshViewportContent() {
 }
 
 func (m *uiModel) selectNextRunningJob() {
-	// First, try to find any running job
 	for i := range m.jobs {
 		if m.jobs[i].state == jobRunning {
 			m.selectedJob = i
 			return
 		}
 	}
-	// If no running jobs, try to find the next pending job
 	for i := range m.jobs {
 		if m.jobs[i].state == jobPending {
 			m.selectedJob = i
 			return
 		}
 	}
-	// If no running or pending jobs, keep current selection
 }
 
 func (m *uiModel) handleTick() tea.Cmd {
@@ -1910,7 +1895,6 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 			job.startedAt = time.Now()
 			job.duration = 0
 		}
-		// Auto-select the currently running job
 		m.selectedJob = v.Index
 	}
 	m.refreshViewportContent()
@@ -1932,11 +1916,9 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 			job.completedAt = time.Now()
 			job.duration = job.completedAt.Sub(job.startedAt)
 		}
-		// Auto-select the next running job after this one finishes
 		m.selectNextRunningJob()
 	}
 	m.refreshViewportContent()
-	// Keep UI open after all jobs finish so user can review results
 	return m.waitEvent()
 }
 
@@ -2035,26 +2017,20 @@ func (m *uiModel) renderSidebar() string {
 	if contentHeight < minContentHeight {
 		contentHeight = minContentHeight
 	}
-	// Build all sidebar items
 	var items []string
 	for i := range m.jobs {
 		item := m.renderSidebarItem(&m.jobs[i], i == m.selectedJob)
 		items = append(items, item)
 	}
-	// Set sidebar viewport content
 	m.sidebarViewport.SetContent(strings.Join(items, "\n"))
-	// Auto-scroll to selected job
 	if m.selectedJob >= 0 && m.selectedJob < len(m.jobs) {
-		// Each item is approximately 3 lines (2 lines of text + spacing)
 		lineOffset := m.selectedJob * 3
-		// Scroll to keep selected item visible
 		if lineOffset > m.sidebarViewport.YOffset+m.sidebarViewport.Height-3 {
 			m.sidebarViewport.SetYOffset(lineOffset - m.sidebarViewport.Height + 3)
 		} else if lineOffset < m.sidebarViewport.YOffset {
 			m.sidebarViewport.SetYOffset(lineOffset)
 		}
 	}
-	// Wrap viewport in a bordered box
 	sidebar := lipgloss.NewStyle().
 		Width(sidebarWidth).
 		Height(contentHeight).
@@ -2066,7 +2042,6 @@ func (m *uiModel) renderSidebar() string {
 }
 
 func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
-	// Status icon
 	var icon string
 	var color lipgloss.Color
 	switch job.state {
@@ -2087,8 +2062,6 @@ func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
 	if selected {
 		style = style.Bold(true).Background(lipgloss.Color("235")).Foreground(lipgloss.Color("255"))
 	}
-	// Format: "⚡ batch_001"
-	// Second line: "  3 files, 7 issues"
 	line1 := fmt.Sprintf("%s %s", icon, job.safeName)
 	line2 := fmt.Sprintf("  %d file(s), %d issue(s)", len(job.codeFiles), job.issues)
 	if selected {
@@ -2336,17 +2309,14 @@ func formatNumber(n int) string {
 
 func (m *uiModel) updateViewportForJob(job *uiJob) {
 	var content strings.Builder
-	// Add stdout (preserve ANSI colors)
 	if len(job.lastOut) > 0 {
 		for _, line := range job.lastOut {
 			if line != "" {
-				// CRITICAL: Keep ANSI escape codes intact
 				content.WriteString(line)
 				content.WriteString("\n")
 			}
 		}
 	}
-	// Add stderr (preserve ANSI colors)
 	if len(job.lastErr) > 0 {
 		stderrLabel := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("196")).
@@ -2355,7 +2325,6 @@ func (m *uiModel) updateViewportForJob(job *uiJob) {
 		content.WriteString("\n")
 		for _, line := range job.lastErr {
 			if line != "" {
-				// CRITICAL: Keep ANSI escape codes intact
 				content.WriteString(line)
 				content.WriteString("\n")
 			}
@@ -2418,13 +2387,11 @@ func readIssueEntries(resolvedIssuesDir string) ([]issueEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	// deterministic order
 	names := make([]string, 0, len(files))
 	for _, f := range files {
 		if !f.Type().IsRegular() {
 			continue
 		}
-		// Skip _summary.md files generated by pr-review.ts
 		if f.Name() == "_summary.md" {
 			continue
 		}
@@ -2506,7 +2473,6 @@ func writeGroupedSummaries(groupedDir string, groups map[string][]issueEntry) er
 			}
 			return codeFile
 		}())
-		// included issues list
 		var sb strings.Builder
 		sb.WriteString(header)
 		sb.WriteString("## Included Issues\n\n")
@@ -2558,16 +2524,13 @@ func inferPrFromIssuesDir(dir string) (string, error) {
 }
 
 func extractCodeFileFromIssue(content string) string {
-	// Matches: **File:** `path/to/file.tsx:123` OR without line
 	re := regexp.MustCompile(`\*\*File:\*\*\s*` + "`" + `([^` + "`" + `]+)` + "`")
 	m := re.FindStringSubmatch(content)
 	if len(m) < 2 {
 		return ""
 	}
 	raw := strings.TrimSpace(m[1])
-	// Strip trailing :line if present
 	if idx := strings.LastIndex(raw, ":"); idx != -1 {
-		// ensure there are only digits after colon
 		tail := raw[idx+1:]
 		if tail != "" && isAllDigits(tail) {
 			raw = strings.TrimSpace(raw[:idx])
@@ -2586,7 +2549,6 @@ func isAllDigits(s string) bool {
 }
 
 func sanitizePath(p string) string {
-	// replace non [a-zA-Z0-9._-] with _
 	b := make([]rune, 0, len(p))
 	for _, r := range p {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '_' ||
@@ -2631,11 +2593,9 @@ func buildBatchedIssuesPrompt(p buildBatchedIssuesParams) string {
 }
 
 func buildHelperCommands(pr string, batchGroups map[string][]issueEntry) string {
-	// Extract issue numbers from all issues in the batch
 	var issueNumbers []int
 	for _, items := range batchGroups {
 		for _, item := range items {
-			// Extract issue number from filename (e.g., "001-..." -> 1)
 			parts := strings.SplitN(item.name, "-", 2)
 			if len(parts) > 0 {
 				if num := strings.TrimLeft(parts[0], "0"); num != "" {
@@ -2733,7 +2693,6 @@ Files in this batch: %s
 }
 
 func buildIssueGroups(batchGroups map[string][]issueEntry) string {
-	// Flatten all issues and sort by issue number to maintain sequential order
 	allIssues := make([]issueEntry, 0)
 	for _, items := range batchGroups {
 		allIssues = append(allIssues, items...)
@@ -2741,7 +2700,6 @@ func buildIssueGroups(batchGroups map[string][]issueEntry) string {
 	sort.Slice(allIssues, func(i, j int) bool {
 		return allIssues[i].name < allIssues[j].name
 	})
-	// Group issues by code file while maintaining sequential order
 	issuesByFile := make(map[string][]issueEntry)
 	fileOrder := make([]string, 0)
 	seenFiles := make(map[string]bool)
@@ -2851,7 +2809,6 @@ func buildZenMCPGuidance() string {
 }
 
 func buildBatchChecklist(pr string, batchGroups map[string][]issueEntry, grouped bool) string {
-	// Flatten all issues and sort by issue number to maintain sequential order
 	allIssues := make([]issueEntry, 0)
 	for _, items := range batchGroups {
 		allIssues = append(allIssues, items...)
@@ -2861,7 +2818,6 @@ func buildBatchChecklist(pr string, batchGroups map[string][]issueEntry, grouped
 	})
 	var checklistPaths []string
 	if grouped {
-		// Add grouped files in sequential order of first issue appearance
 		seenGrouped := make(map[string]bool)
 		for _, issue := range allIssues {
 			groupedPath := fmt.Sprintf("ai-docs/reviews-pr-%s/issues/grouped/%s.md", pr, safeFileName(issue.codeFile))
@@ -2871,7 +2827,6 @@ func buildBatchChecklist(pr string, batchGroups map[string][]issueEntry, grouped
 			}
 		}
 	}
-	// Add individual issue files in sequential order
 	for _, item := range allIssues {
 		checklistPaths = append(checklistPaths, normalizeForPrompt(item.absPath))
 	}
@@ -2926,7 +2881,6 @@ func (r *lineRing) appendLine(s string) {
 	}
 	r.lines = append(r.lines, s)
 	if len(r.lines) > r.capN {
-		// drop oldest
 		r.lines = r.lines[len(r.lines)-r.capN:]
 	}
 }
@@ -2955,7 +2909,6 @@ func newUILogTap(idx int, isErr bool, outRing, errRing *lineRing, ch chan<- uiMs
 }
 
 func (t *uiLogTap) Write(p []byte) (int, error) {
-	// Accumulate and split by newline. Treat CR as newline separators as well.
 	cleaned := bytes.ReplaceAll(p, []byte{'\r'}, []byte{'\n'})
 	t.buf = append(t.buf, cleaned...)
 	for {
@@ -2971,11 +2924,9 @@ func (t *uiLogTap) Write(p []byte) (int, error) {
 		}
 		t.buf = t.buf[i+1:]
 	}
-	// Emit an update with current snapshots (best-effort)
 	select {
 	case t.ch <- jobLogUpdateMsg{Index: t.idx, Out: t.out.snapshot(), Err: t.err.snapshot()}:
 	default:
-		// If channel is full, skip; UI will refresh on next tick
 	}
 	return len(p), nil
 }
@@ -3018,30 +2969,24 @@ func (f *jsonFormatter) formatLine(line []byte) []byte {
 	if !json.Valid(line) {
 		return line
 	}
-	// Try to parse as Claude message
 	var msg ClaudeMessage
 	if err := json.Unmarshal(line, &msg); err == nil {
-		// Extract usage if callback is set
 		if f.usageCallback != nil {
 			f.tryParseUsage(&msg)
 		}
 
-		// Format and return message content instead of raw JSON
 		if formatted := f.formatClaudeMessage(&msg); formatted != nil {
 			return formatted
 		}
 	}
-	// Fallback: pretty-print raw JSON if not a Claude message
 	formatted := pretty.Color(pretty.Pretty(line), nil)
 	return formatted
 }
 
 // formatClaudeMessage extracts and formats the readable content from a Claude message
 func (f *jsonFormatter) formatClaudeMessage(msg *ClaudeMessage) []byte {
-	// Handle different message types
 	switch msg.Type {
 	case "user", "assistant":
-		// Extract text content from message
 		if len(msg.Message.Content) > 0 {
 			var contentParts []string
 			for _, content := range msg.Message.Content {
@@ -3056,7 +3001,6 @@ func (f *jsonFormatter) formatClaudeMessage(msg *ClaudeMessage) []byte {
 			}
 		}
 	case "system":
-		// Show system messages as-is (usually initialization)
 		return []byte(fmt.Sprintf("[System: %s]", msg.Type))
 	}
 	return nil // Return nil to trigger fallback to raw JSON
@@ -3064,16 +3008,13 @@ func (f *jsonFormatter) formatClaudeMessage(msg *ClaudeMessage) []byte {
 
 // tryParseUsage attempts to extract token usage from a Claude message
 func (f *jsonFormatter) tryParseUsage(msg *ClaudeMessage) {
-	// Only process assistant messages with usage data
 	if msg.Type != "assistant" {
 		return
 	}
-	// Check if usage data exists
 	usage := msg.Message.Usage
 	if usage.InputTokens == 0 && usage.OutputTokens == 0 {
 		return // No meaningful usage data
 	}
-	// Report usage via callback
 	tokenUsage := TokenUsage{
 		InputTokens:         usage.InputTokens,
 		CacheCreationTokens: usage.CacheCreationTokens,

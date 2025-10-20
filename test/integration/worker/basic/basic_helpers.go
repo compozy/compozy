@@ -217,7 +217,6 @@ func registerTestActivities(temporalHelper *helpers.TemporalHelper, activities *
 	temporalHelper.RegisterActivity(activities.UpdateWorkflowState)
 	temporalHelper.RegisterActivity(activities.CompleteWorkflow)
 	temporalHelper.RegisterActivity(activities.ExecuteBasicTask)
-	// Register activities with specific names as per worker setup
 	env := temporalHelper.GetEnvironment()
 	env.RegisterActivityWithOptions(
 		activities.LoadTaskConfigActivity,
@@ -316,7 +315,6 @@ func newActionConfig(id, prompt string, properties map[string]any) *agent.Action
 
 // createTestConfigStore creates a test config store
 func createTestConfigStore() services.ConfigStore {
-	// For testing, create a simple in-memory config store that implements the interface
 	return &testConfigStore{
 		data:     make(map[string]*task.Config),
 		metadata: make(map[string][]byte),
@@ -405,7 +403,6 @@ func verifyBasicTaskInputs(t *testing.T, fixture *helpers.TestFixture, result *w
 	t.Log("Verifying basic task inputs from database state")
 	for _, taskState := range result.Tasks {
 		if taskState.ExecutionType == task.ExecutionBasic {
-			// Verify task has proper input data
 			for _, expectedTask := range fixture.Expected.TaskStates {
 				if expectedTask.Name == taskState.TaskID && expectedTask.Inputs != nil {
 					require.NotNil(t, taskState.Input, "Task should have input data")
@@ -413,7 +410,6 @@ func verifyBasicTaskInputs(t *testing.T, fixture *helpers.TestFixture, result *w
 						actualValue, ok := (*taskState.Input)[key]
 						assert.True(t, ok, "Input key %s should exist", key)
 
-						// Handle type conversion for JSON deserialization
 						if expectedInt, ok := expectedValue.(int); ok {
 							if actualFloat, ok := actualValue.(float64); ok {
 								assert.Equal(
@@ -445,7 +441,6 @@ func verifyBasicErrorHandling(t *testing.T, fixture *helpers.TestFixture, result
 			assert.NotNil(t, taskState.Error, "Failed task should have error information")
 		}
 	}
-	// For error scenario fixtures, verify we have the expected pattern
 	if fixture.Expected.WorkflowState.Status == "FAILED" {
 		assert.True(t, hasFailedTask, "Workflows expected to fail should have at least one failed task")
 		// Note: Error handler doesn't run for validation/execution failures (realistic behavior)
@@ -464,16 +459,13 @@ func verifyBasicTaskTransitions(t *testing.T, _ *helpers.TestFixture, result *wo
 		t.Log("Skipping transition verification - single task workflow")
 		return
 	}
-	// Convert tasks to slice for ordering
 	var tasks []*task.State
 	for _, taskState := range result.Tasks {
 		tasks = append(tasks, taskState)
 	}
-	// Sort by creation time using standard library
 	sort.Slice(tasks, func(i, j int) bool {
 		return tasks[i].CreatedAt.Before(tasks[j].CreatedAt)
 	})
-	// Verify execution order
 	for i := 1; i < len(tasks); i++ {
 		prevTask := tasks[i-1]
 		currentTask := tasks[i]
@@ -488,7 +480,6 @@ func verifyFinalTaskBehavior(t *testing.T, fixture *helpers.TestFixture, result 
 	t.Log("Verifying final task behavior from database state")
 	var finalTasks []*task.State
 	for _, taskState := range result.Tasks {
-		// Check if this task is marked as final in the fixture
 		for i := range fixture.Workflow.Tasks {
 			taskConfig := &fixture.Workflow.Tasks[i]
 			if taskConfig.ID == taskState.TaskID && taskConfig.Final {
@@ -574,8 +565,6 @@ func (s *testConfigStore) Close() error {
 // createMockRuntime creates a mock runtime manager for integration tests
 // This focuses on testing workflow orchestration without actual tool execution
 func createMockRuntime(t *testing.T) runtime.Runtime {
-	// Create a test runtime manager that won't be used since we're using agents
-	// We need to provide something to satisfy the interface
 	ctx := t.Context()
 	config := runtime.TestConfig()
 	factory := runtime.NewDefaultFactory("/tmp")

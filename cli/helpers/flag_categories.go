@@ -193,8 +193,6 @@ func getInfrastructureCategories() []FlagCategory {
 
 // SetupCategorizedHelp configures the command to use categorized help
 func SetupCategorizedHelp(cmd *cobra.Command) {
-	// Since Cobra doesn't support custom FuncMap in SetHelpTemplate,
-	// we use SetHelpFunc which is the official way for complex help customization
 	cmd.SetHelpFunc(categorizedHelpFunc)
 }
 
@@ -210,14 +208,11 @@ const (
 // createSeparator creates a styled separator line
 func createSeparator(width int, noColor bool) string {
 	if noColor {
-		// Simple dashed line for no-color mode
 		return strings.Repeat("─", width)
 	}
-	// Create a lipgloss style for the separator
 	separatorStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")). // Dark gray
 		Width(width)
-	// Use box-drawing character for a clean line
 	return separatorStyle.Render(strings.Repeat("─", width))
 }
 
@@ -225,7 +220,6 @@ func createSeparator(width int, noColor bool) string {
 func getTerminalWidth() int {
 	width := lipgloss.Width(strings.Repeat("x", 80)) // Start with default
 	if lipgloss.Width(strings.Repeat("x", 100)) == 100 {
-		// If we can display 100 chars, use 100 as width
 		width = 100
 	}
 	return width
@@ -307,7 +301,6 @@ func printCommandSpecificFlags(cmd *cobra.Command, noColor bool) {
 	if !localFlags.HasAvailableFlags() {
 		return
 	}
-	// Count visible local flags
 	visibleCount := 0
 	localFlags.VisitAll(func(flag *pflag.Flag) {
 		if !flag.Hidden {
@@ -317,7 +310,6 @@ func printCommandSpecificFlags(cmd *cobra.Command, noColor bool) {
 	if visibleCount == 0 {
 		return
 	}
-	// Print section with separators
 	width := getTerminalWidth()
 	fmt.Println(createSeparator(width, noColor))
 	fmt.Printf(
@@ -327,7 +319,6 @@ func printCommandSpecificFlags(cmd *cobra.Command, noColor bool) {
 	)
 	fmt.Println(createSeparator(width, noColor))
 	fmt.Println() // Extra line after header
-	// Print each local flag
 	localFlags.VisitAll(func(flag *pflag.Flag) {
 		if !flag.Hidden {
 			printFlag(flag, noColor)
@@ -342,12 +333,10 @@ func printCategorizedFlags(cmd *cobra.Command, noColor bool) {
 	flagMap := collectAllFlags(cmd)
 	displayedFlags := make(map[string]bool)
 	isSubcommand := cmd.Parent() != nil
-	// If this is a subcommand, mark local flags as already displayed
 	if isSubcommand {
 		markLocalFlagsDisplayed(cmd, displayedFlags)
 		printGlobalFlagsHeader(flagMap, displayedFlags, noColor)
 	} else {
-		// For root command, print main flags header
 		width := getTerminalWidth()
 		fmt.Println(createSeparator(width, noColor))
 		fmt.Printf(
@@ -358,9 +347,7 @@ func printCategorizedFlags(cmd *cobra.Command, noColor bool) {
 		fmt.Println(createSeparator(width, noColor))
 		fmt.Println() // Extra line after header
 	}
-	// Process each category
 	printFlagCategories(categories, flagMap, displayedFlags, noColor)
-	// Handle uncategorized flags
 	printUncategorizedFlags(flagMap, displayedFlags, noColor)
 }
 
@@ -442,7 +429,6 @@ func printUncategorizedFlags(flagMap map[string]*pflag.Flag, displayedFlags map[
 		}
 	}
 	if len(uncategorizedFlags) > 0 {
-		// Print section header with separators
 		width := getTerminalWidth()
 		fmt.Println(createSeparator(width, noColor))
 		fmt.Printf(
@@ -453,7 +439,6 @@ func printUncategorizedFlags(flagMap map[string]*pflag.Flag, displayedFlags map[
 		fmt.Println(createSeparator(width, noColor))
 		fmt.Println() // Extra line after header
 
-		// Print the flags
 		for _, flag := range uncategorizedFlags {
 			printFlag(flag, noColor)
 		}
@@ -529,7 +514,6 @@ func appendFlagUsage(line *strings.Builder, flag *pflag.Flag) {
 
 // calculateVisibleLength calculates the visible length of a string, excluding ANSI codes
 func calculateVisibleLength(s string) int {
-	// Simple implementation: count characters that are not part of ANSI sequences
 	inANSI := false
 	length := 0
 	for _, r := range s {

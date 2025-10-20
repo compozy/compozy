@@ -43,7 +43,6 @@ func (p *LRUEvictionPolicy) SelectMessagesToEvict(
 	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	// Create array of messages with their access times
 	messageAccess := make([]messageWithAccess, len(messages))
 	for i, msg := range messages {
 		accessTime := p.getLastAccessTime(msg)
@@ -53,23 +52,18 @@ func (p *LRUEvictionPolicy) SelectMessagesToEvict(
 			index:      i,
 		}
 	}
-	// Sort by access time (oldest first)
 	sort.Slice(messageAccess, func(i, j int) bool {
-		// If both have zero time, maintain original order
 		if messageAccess[i].accessTime.IsZero() && messageAccess[j].accessTime.IsZero() {
 			return messageAccess[i].index < messageAccess[j].index
 		}
-		// Zero time means never accessed, evict first
 		if messageAccess[i].accessTime.IsZero() {
 			return true
 		}
 		if messageAccess[j].accessTime.IsZero() {
 			return false
 		}
-		// Otherwise sort by access time
 		return messageAccess[i].accessTime.Before(messageAccess[j].accessTime)
 	})
-	// Select messages to evict
 	evictCount := len(messages) - targetCount
 	evicted := make([]llm.Message, evictCount)
 	for i := range evictCount {
@@ -106,7 +100,6 @@ func (p *LRUEvictionPolicy) getLastAccessTime(msg llm.Message) time.Time {
 
 // generateMessageID creates a unique identifier for a message
 func (p *LRUEvictionPolicy) generateMessageID(msg llm.Message) string {
-	// Use content hash for consistent ID generation
 	h := fnv.New64a()
 	fmt.Fprintf(h, "%v:%s", msg.Role, msg.Content)
 	return fmt.Sprintf("%d", h.Sum64())

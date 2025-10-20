@@ -24,7 +24,6 @@ func PrepareMemoryContext(
 	}
 	log := logger.FromContext(ctx)
 	var memoryMessages []llmadapter.Message
-	// Read messages from each memory
 	for memID, memory := range memories {
 		memMessages, err := memory.Read(ctx)
 		if err != nil {
@@ -35,7 +34,6 @@ func PrepareMemoryContext(
 			continue
 		}
 
-		// Convert llm.Message to adapter.Message
 		for _, msg := range memMessages {
 			memoryMessages = append(memoryMessages, llmadapter.Message{
 				Role:    string(msg.Role),
@@ -43,7 +41,6 @@ func PrepareMemoryContext(
 			})
 		}
 	}
-	// Prepend memory messages to maintain chronological order
 	if len(memoryMessages) > 0 {
 		return append(memoryMessages, messages...)
 	}

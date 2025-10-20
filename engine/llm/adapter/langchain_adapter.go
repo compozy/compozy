@@ -54,7 +54,6 @@ func NewLangChainAdapter(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM model: %w", err)
 	}
-	// Override context window if explicitly configured
 	if config.ContextWindow > 0 {
 		capabilities.ContextWindowTokens = config.ContextWindow
 	}
@@ -662,7 +661,6 @@ func (a *LangChainAdapter) convertResponse(ctx context.Context, resp *llms.Conte
 	response := &LLMResponse{
 		Content: choice.Content,
 	}
-	// Convert tool calls if present
 	if len(choice.ToolCalls) > 0 {
 		response.ToolCalls = make([]ToolCall, 0, len(choice.ToolCalls))
 		for _, tc := range choice.ToolCalls {
@@ -685,8 +683,6 @@ func (a *LangChainAdapter) convertResponse(ctx context.Context, resp *llms.Conte
 
 // Close implements LLMClient interface - langchain models don't require explicit cleanup
 func (a *LangChainAdapter) Close() error {
-	// LangChain models don't expose cleanup methods directly
-	// HTTP clients and connections are managed by the underlying providers
 	return nil
 }
 

@@ -106,11 +106,9 @@ func (l *LayoutComponent) ClearError() *LayoutComponent {
 func (l *LayoutComponent) Update(msg tea.Msg) (*LayoutComponent, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
-	// Update size
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		l = l.SetSize(windowMsg.Width, windowMsg.Height)
 	}
-	// Update child components
 	l.StatusBar, cmd = l.StatusBar.Update(msg)
 	cmds = append(cmds, cmd)
 	l.Help, cmd = l.Help.Update(msg)
@@ -209,7 +207,6 @@ func (l *LayoutComponent) renderMainContent(width, height int) string {
 		Height(height).
 		Padding(0, 1)
 	if l.Content == "" {
-		// Return empty space with consistent dimensions to match GetContentSize calculations
 		return contentStyle.Render("")
 	}
 	return contentStyle.Render(l.Content)
@@ -233,21 +230,16 @@ func (l *LayoutComponent) renderSidebar(width, height int) string {
 func (l *LayoutComponent) GetContentSize() (width, height int) {
 	width = l.Width
 	height = l.Height
-	// Subtract header
 	if l.ShowHeader {
 		height -= 2
 	}
-	// Subtract footer
 	if l.ShowFooter {
 		height--
 	}
-	// Subtract error component
 	height -= l.Error.Height()
-	// Subtract sidebar
 	if l.ShowSidebar {
 		width -= l.SidebarWidth
 	}
-	// Subtract horizontal padding applied in renderMainContent
 	width -= 2
 	return width, height
 }

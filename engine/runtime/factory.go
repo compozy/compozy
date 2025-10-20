@@ -37,12 +37,10 @@ func (f *DefaultFactory) CreateRuntime(ctx context.Context, config *Config) (Run
 	if config == nil {
 		return nil, fmt.Errorf("runtime config must not be nil")
 	}
-	// Default to Bun if runtime type is not specified
 	runtimeType := config.RuntimeType
 	if runtimeType == "" {
 		runtimeType = RuntimeTypeBun
 	}
-	// Validate runtime type before proceeding
 	if !IsValidRuntimeType(runtimeType) {
 		return nil, fmt.Errorf("unsupported runtime type: %s (supported types: %v)", runtimeType, SupportedRuntimeTypes)
 	}
@@ -53,7 +51,6 @@ func (f *DefaultFactory) CreateRuntime(ctx context.Context, config *Config) (Run
 		// TODO: Implement NewNodeManager in a future task
 		return nil, fmt.Errorf("node.js runtime not yet implemented")
 	default:
-		// This should never be reached due to validation above, but kept for safety
 		return nil, fmt.Errorf("unsupported runtime type: %s", runtimeType)
 	}
 }
@@ -66,7 +63,6 @@ func (f *DefaultFactory) CreateRuntimeFromAppConfig(
 	if appConfig == nil {
 		return nil, fmt.Errorf("runtime app config must not be nil")
 	}
-	// Default to Bun runtime type for now
 	// TODO: Add runtime type to appconfig.RuntimeConfig when needed
 	return NewBunManagerFromConfig(ctx, f.projectRoot, appConfig)
 }

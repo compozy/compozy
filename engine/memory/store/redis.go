@@ -27,9 +27,7 @@ type RedisMemoryStore struct {
 // CRITICAL: The caller is responsible for providing the complete key prefix if needed.
 // This prevents double-prefixing issues when keys are already namespaced by the MemoryManager.
 func NewRedisMemoryStore(client cache.RedisInterface, keyPrefix string) *RedisMemoryStore {
-	// IMPORTANT: Do not add a default prefix here. The MemoryManager provides
-	// fully qualified keys that already include the namespace structure:
-	// "compozy:{project_id}:memory:{user_defined_key}"
+	// NOTE: Do not inject default prefixes; MemoryManager already namespans keys end-to-end.
 	keyManager := NewKeyManager(keyPrefix)
 	ttlOps := NewTTLOperations(keyManager, client)
 	return &RedisMemoryStore{
@@ -57,9 +55,6 @@ func (s *RedisMemoryStore) AppendMessage(ctx context.Context, key string, msg ll
 	if err != nil {
 		return fmt.Errorf("failed to marshal message for redis store: %w", err)
 	}
-	// Use appendAndTrimWithMetadataScript to ensure message count is incremented
-	// ARGV[1]=0 (no trim), ARGV[2]=0 (no token increment yet), ARGV[3]=message
-	// The script automatically increments message_count for each message added
 	return s.client.Eval(ctx, AppendAndTrimWithMetadataScript, []string{fKey, metaKey}, 0, 0, string(msgBytes)).Err()
 }
 
@@ -77,9 +72,6 @@ func (s *RedisMemoryStore) AppendMessageWithTokenCount(
 	if err != nil {
 		return fmt.Errorf("failed to marshal message for redis store: %w", err)
 	}
-	// Use appendAndTrimWithMetadataScript to atomically append message and update metadata
-	// ARGV[1]=0 (no trim), ARGV[2]=tokenCount (increment token count), ARGV[3]=message
-	// The script automatically increments message_count and token_count atomically
 	return s.client.Eval(ctx, AppendAndTrimWithMetadataScript, []string{fKey, metaKey}, 0, tokenCount, string(msgBytes)).
 		Err()
 }
@@ -103,7 +95,6 @@ func (s *RedisMemoryStore) AppendMessages(ctx context.Context, key string, msgs 
 		}
 		args = append(args, string(msgBytes))
 	}
-	// Use appendAndTrimWithMetadataScript to ensure message count is incremented
 	return s.client.Eval(ctx, AppendAndTrimWithMetadataScript, []string{fKey, metaKey}, args...).Err()
 }
 
@@ -122,9 +113,6 @@ func (s *RedisMemoryStore) ReadMessages(ctx context.Context, key string) ([]llm.
 	for _, val := range vals {
 		var msg llm.Message
 		if err := json.Unmarshal([]byte(val), &msg); err != nil {
-			// Log problematic message but try to continue
-			// Consider how to handle poison pill messages - skip or error out?
-			// For now, returning an error to indicate data integrity issue.
 			return nil, fmt.Errorf(
 				"%w: could not unmarshal message from key %s: %s",
 				ErrInvalidMessage,
@@ -144,7 +132,6 @@ func (s *RedisMemoryStore) ReadMessagesPaginated(
 	offset, limit int,
 ) ([]llm.Message, int, error) {
 	fKey := s.fullKey(key)
-	// Get total count first
 	totalCount, err := s.client.LLen(ctx, fKey).Result()
 	if err == redis.Nil {
 		return []llm.Message{}, 0, nil // Key not found, return empty slice
@@ -152,17 +139,14 @@ func (s *RedisMemoryStore) ReadMessagesPaginated(
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get message count from redis for key %s: %w", fKey, err)
 	}
-	// Validate offset
 	if offset >= int(totalCount) {
 		return []llm.Message{}, int(totalCount), nil // Offset beyond available data
 	}
-	// Calculate range for Redis LRANGE (inclusive start, inclusive end)
 	start := int64(offset)
 	end := int64(offset + limit - 1)
 	if end >= totalCount {
 		end = totalCount - 1 // Adjust to available data
 	}
-	// Get paginated messages
 	vals, err := s.client.LRange(ctx, fKey, start, end).Result()
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to read paginated messages from redis for key %s: %w", fKey, err)
@@ -236,7 +220,6 @@ func (s *RedisMemoryStore) SetExpiration(ctx context.Context, key string, ttl ti
 func (s *RedisMemoryStore) DeleteMessages(ctx context.Context, key string) error {
 	fKey := s.fullKey(key)
 	metaKey := s.metadataKey(key)
-	// Delete both the list and metadata in a pipeline for efficiency
 	pipe := s.client.Pipeline()
 	pipe.Del(ctx, fKey)
 	pipe.Del(ctx, metaKey)
@@ -258,7 +241,6 @@ func (s *RedisMemoryStore) GetTokenCount(ctx context.Context, key string) (int, 
 	metaKey := s.metadataKey(key)
 	result, err := s.client.HGet(ctx, metaKey, metadataTokenCountField).Result()
 	if err == redis.Nil {
-		// Metadata doesn't exist - return 0 for migration path
 		return 0, nil
 	}
 	if err != nil {
@@ -277,7 +259,6 @@ func (s *RedisMemoryStore) GetMessageCount(ctx context.Context, key string) (int
 	metaKey := s.metadataKey(key)
 	result, err := s.client.HGet(ctx, metaKey, metadataMessageCountField).Result()
 	if err == redis.Nil {
-		// Metadata doesn't exist - return 0 for migration path
 		return 0, nil
 	}
 	if err != nil {
@@ -328,18 +309,15 @@ func (s *RedisMemoryStore) IsFlushPending(ctx context.Context, key string) (bool
 func (s *RedisMemoryStore) MarkFlushPending(ctx context.Context, key string, pending bool) error {
 	pendingKey := s.flushPendingKey(key)
 	if pending {
-		// Use SetNX for an atomic check-and-set operation
-		// It returns true if the key was set, false if it already existed
 		wasSet, err := s.client.SetNX(ctx, pendingKey, "1", 30*time.Minute).Result()
 		if err != nil {
 			return fmt.Errorf("failed to set flush pending flag: %w", err)
 		}
 		if !wasSet {
-			// The key was already set by another process
 			return memcore.ErrFlushAlreadyPending
 		}
 	} else {
-		// Clear the flag - not a race-sensitive operation
+		// NOTE: Clearing the flag is best-effort and safe even if another worker races us.
 		err := s.client.Del(ctx, pendingKey).Err()
 		if err != nil {
 			return fmt.Errorf("failed to clear flush pending flag: %w", err)

@@ -342,11 +342,9 @@ func (s *MCPStatus) RecordRequest(responseTime time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.TotalRequests++
-	// Calculate rolling average response time
 	if s.TotalRequests == 1 {
 		s.AvgResponseTime = responseTime
 	} else {
-		// Simple exponential moving average
 		s.AvgResponseTime = time.Duration(float64(s.AvgResponseTime)*0.9 + float64(responseTime)*0.1)
 	}
 }
@@ -372,7 +370,6 @@ func (s *MCPStatus) IncrementErrors() {
 func (s *MCPStatus) SafeCopy() *MCPStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	// Create a copy of all fields
 	statusCopy := MCPStatus{
 		Name:              s.Name,
 		Status:            s.Status,
@@ -382,7 +379,6 @@ func (s *MCPStatus) SafeCopy() *MCPStatus {
 		TotalErrors:       s.TotalErrors,
 		AvgResponseTime:   s.AvgResponseTime,
 	}
-	// Copy pointer fields safely
 	if s.LastConnected != nil {
 		connectedTime := *s.LastConnected
 		statusCopy.LastConnected = &connectedTime
@@ -391,7 +387,6 @@ func (s *MCPStatus) SafeCopy() *MCPStatus {
 		errorTime := *s.LastErrorTime
 		statusCopy.LastErrorTime = &errorTime
 	}
-	// Calculate uptime for the copy
 	if statusCopy.LastConnected != nil && statusCopy.Status == StatusConnected {
 		statusCopy.UpTime = time.Since(*statusCopy.LastConnected)
 	}

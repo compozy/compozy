@@ -154,8 +154,6 @@ func (s *TokenAwareLRUStrategy) GetType() core.FlushingStrategyType {
 
 // evictToMeetCapacity evicts LRU messages until the target capacity is met
 func (s *TokenAwareLRUStrategy) evictToMeetCapacity(targetCapacity int, isTokenBased bool) []MessageWithTokens {
-	// The LRU cache doesn't provide direct access to the LRU order,
-	// so we need to collect all messages and sort by their original index
 	allMessages := make([]MessageWithTokens, 0, s.cache.Len())
 	keys := s.cache.Keys()
 	for _, key := range keys {
@@ -163,23 +161,17 @@ func (s *TokenAwareLRUStrategy) evictToMeetCapacity(targetCapacity int, isTokenB
 			allMessages = append(allMessages, msg)
 		}
 	}
-	// Sort by original index to maintain message order
 	sort.Slice(allMessages, func(i, j int) bool {
 		return allMessages[i].Index < allMessages[j].Index
 	})
-	// Now evict from the beginning (oldest messages) until we meet capacity
 	if isTokenBased {
-		// For token-based eviction, remove messages from the start until under limit
 		for len(allMessages) > 0 && s.totalTokens > targetCapacity {
-			// Remove the first (oldest) message
 			oldMsg := allMessages[0]
 			allMessages = allMessages[1:]
 			s.cache.Remove(oldMsg.Index)
 			s.totalTokens -= oldMsg.TokenCount
 		}
 	} else if len(allMessages) > targetCapacity {
-		// For message count-based eviction
-		// Remove oldest messages
 		toRemove := len(allMessages) - targetCapacity
 		for i := 0; i < toRemove && i < len(allMessages); i++ {
 			s.cache.Remove(allMessages[i].Index)
@@ -196,7 +188,6 @@ func (s *TokenAwareLRUStrategy) calculateTargetTokens(config *core.Resource) int
 	if config.MaxTokens > 0 {
 		maxTokens = config.MaxTokens
 	}
-	// Target configured percentage of max capacity to allow room for growth
 	targetPercent := s.options.TokenLRUTargetCapacityPercent
 	if targetPercent == 0 {
 		targetPercent = 0.5 // Default to 50%
@@ -211,21 +202,15 @@ func (s *TokenAwareLRUStrategy) GetMinMaxToFlush(
 	currentTokens int,
 	maxTokens int,
 ) (minFlush, maxFlush int) {
-	// Always set minimum flush to 1
 	minFlush = 1
-	// Calculate max flush based on total messages
-	// For token-aware strategy, we can be more aggressive
 	switch {
 	case totalMsgs <= 3:
 		maxFlush = 1 // Very few messages, only flush 1
 	case currentTokens > maxTokens:
-		// When over token limit, flush up to half the messages
 		maxFlush = max(totalMsgs/2, minFlush)
 	case float64(currentTokens) > float64(maxTokens)*0.9:
-		// High token pressure (>90% capacity): be more aggressive
 		maxFlush = max(totalMsgs/2, minFlush)
 	default:
-		// Normal case: flush up to 1/3 of messages
 		maxFlush = max(totalMsgs/3, minFlush)
 	}
 	return minFlush, maxFlush

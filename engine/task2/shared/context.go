@@ -60,15 +60,12 @@ type ContextBuilder struct {
 //
 // Returns an error if the internal cache cannot be created.
 func NewContextBuilder(ctx context.Context) (*ContextBuilder, error) {
-	// Create Ristretto cache with proper configuration for memory management
-	// Using more conservative limits to prevent memory leaks in long-running workflows
+	// NOTE: Use conservative cache bounds to avoid unbounded growth in long-running workflows.
 	cache, err := ristretto.NewCache(&ristretto.Config[string, map[string]any]{
 		NumCounters: 500, // 5x expected unique parent contexts (100) - reduced from 1000
 		MaxCost:     50,  // Max 50 parent contexts cached - reduced from 100
 		BufferItems: 64,  // Recommended buffer size
 		OnEvict: func(_ *ristretto.Item[map[string]any]) {
-			// Optional: Log cache evictions for monitoring memory usage
-			// This helps track cache efficiency and detect memory pressure
 		},
 	})
 	if err != nil {
@@ -113,16 +110,12 @@ func (cb *ContextBuilder) buildContextInternal(
 		TaskConfig:     taskConfig,
 		TaskConfigs:    make(map[string]*task.Config),
 	}
-	// Build children index using dedicated builder
 	nc.ChildrenIndex = cb.ChildrenIndexBuilder.BuildChildrenIndex(workflowState)
-	// Build variables using dedicated builder
 	vars := cb.VariableBuilder.BuildBaseVariables(workflowState, workflowConfig, taskConfig)
-	// Add workflow output as tasks for backward compatibility in deterministic order
 	if workflowState != nil && workflowState.Tasks != nil {
 		tasksMap := cb.buildTasksMap(ctx, workflowState, taskConfig, parentExecID, nc)
 		cb.VariableBuilder.AddTasksToVariables(vars, workflowState, tasksMap)
 	}
-	// Preserve current input if available
 	if nc.CurrentInput == nil && taskConfig != nil && taskConfig.With != nil {
 		nc.CurrentInput = taskConfig.With
 	}
@@ -139,17 +132,12 @@ func (cb *ContextBuilder) buildTasksMap(
 	parentExecID *core.ID,
 	nc *NormalizationContext,
 ) map[string]any {
-	// Determine the parent exec ID if not provided
 	if parentExecID == nil && taskConfig != nil {
 		parentExecID = cb.findParentExecID(workflowState, taskConfig)
 	}
-	// Build ordered task states
 	states := cb.buildOrderedTaskStates(workflowState)
-	// Build the tasks map with two passes
 	tasksMap := make(map[string]any)
-	// Pass 1: include non-sibling tasks first
 	cb.addNonSiblingTasks(ctx, tasksMap, states, parentExecID, nc)
-	// Pass 2: overlay siblings so they shadow duplicates
 	cb.addSiblingTasks(ctx, tasksMap, states, parentExecID, nc)
 	return tasksMap
 }
@@ -177,7 +165,6 @@ func (cb *ContextBuilder) buildOrderedTaskStates(workflowState *workflow.State) 
 		states = append(states, stateWithKey{key: key, state: ts})
 	}
 	sort.Slice(states, func(i, j int) bool {
-		// TaskExecID is a ULID -> lexicographic order matches creation order.
 		return states[i].state.TaskExecID.String() < states[j].state.TaskExecID.String()
 	})
 	return states
@@ -285,7 +272,6 @@ func (cb *ContextBuilder) BuildSubTaskContext(
 	parentTask *task.Config,
 	parentState *task.State,
 ) (*NormalizationContext, error) {
-	// Clone the base context
 	nc := &NormalizationContext{
 		WorkflowState:  normCtx.WorkflowState,
 		WorkflowConfig: normCtx.WorkflowConfig,
@@ -293,17 +279,14 @@ func (cb *ContextBuilder) BuildSubTaskContext(
 		Variables:      make(map[string]any),
 		TaskConfigs:    normCtx.TaskConfigs,
 	}
-	// Copy base variables using variable builder
 	vars, err := cb.VariableBuilder.CopyVariables(normCtx.Variables)
 	if err != nil {
 		return nil, err
 	}
 	nc.Variables = vars
-	// Use recursive parent building with caching
 	if parentTask != nil {
 		cb.VariableBuilder.AddParentToVariables(nc.Variables, cb.BuildParentContext(ctx, normCtx, parentTask, 0))
 	}
-	// Add current task state if available
 	if parentState != nil {
 		currentMap := map[string]any{
 			IDKey:     parentState.TaskID,
@@ -327,7 +310,6 @@ func (cb *ContextBuilder) BuildNormalizationSubTaskContext(
 	parentTask *task.Config,
 	subTask *task.Config,
 ) (*NormalizationContext, error) {
-	// Clone the base context
 	nc := &NormalizationContext{
 		WorkflowState:  parentCtx.WorkflowState,
 		WorkflowConfig: parentCtx.WorkflowConfig,
@@ -338,13 +320,11 @@ func (cb *ContextBuilder) BuildNormalizationSubTaskContext(
 		CurrentInput:   parentCtx.CurrentInput,
 		ChildrenIndex:  parentCtx.ChildrenIndex,
 	}
-	// Copy parent variables using variable builder
 	vars, err := cb.VariableBuilder.CopyVariables(parentCtx.Variables)
 	if err != nil {
 		return nil, err
 	}
 	nc.Variables = vars
-	// Update task data for sub-task
 	nc.Variables["task"] = map[string]any{
 		IDKey:     subTask.ID,
 		TypeKey:   subTask.Type,
@@ -352,7 +332,6 @@ func (cb *ContextBuilder) BuildNormalizationSubTaskContext(
 		WithKey:   subTask.With,
 		EnvKey:    subTask.Env,
 	}
-	// Use recursive parent building with caching
 	if parentTask != nil {
 		cb.VariableBuilder.AddParentToVariables(nc.Variables, cb.BuildParentContext(ctx, parentCtx, parentTask, 0))
 	}
@@ -509,7 +488,6 @@ func copyVisitedFlags(source map[string]bool) map[string]bool {
 // buildCacheKey creates a unique cache key for a task in a workflow execution
 func (cb *ContextBuilder) buildCacheKey(normCtx *NormalizationContext, taskConfig *task.Config) string {
 	if normCtx.WorkflowState != nil {
-		// Include workflow execution ID for better cache isolation between runs
 		return fmt.Sprintf(
 			"%s:%s:%s",
 			normCtx.WorkflowState.WorkflowID,
@@ -517,7 +495,6 @@ func (cb *ContextBuilder) buildCacheKey(normCtx *NormalizationContext, taskConfi
 			taskConfig.ID,
 		)
 	}
-	// Fallback to just task ID if no workflow state
 	return taskConfig.ID
 }
 
@@ -628,7 +605,6 @@ func (cb *ContextBuilder) searchParentInWorkflow(
 	workflow *workflow.Config,
 	childTaskID string,
 ) *task.Config {
-	// Search through all tasks in workflow
 	for i := range workflow.Tasks {
 		task := &workflow.Tasks[i]
 		if cb.taskContainsChild(task, childTaskID) {
@@ -653,41 +629,27 @@ func (cb *ContextBuilder) taskContainsChild(
 	parentTask *task.Config,
 	childTaskID string,
 ) bool {
-	// Handle different task types based on their child containment patterns
 	switch parentTask.Type {
 	case task.TaskTypeParallel, task.TaskTypeComposite:
-		// These task types contain direct children in the Tasks slice
-		// Each child can potentially have its own nested children (recursive structure)
 		if parentTask.Tasks != nil {
 			for i := range parentTask.Tasks {
 				subTask := &parentTask.Tasks[i]
-				// STEP 1: Check for direct match (child is immediate descendant)
 				if subTask.ID == childTaskID {
 					return true // Found direct child
 				}
-				// STEP 2: Recursive check for nested children (grandchildren, etc.)
-				// This handles deeply nested task hierarchies like:
-				// Parallel -> Composite -> Collection -> Basic
 				if cb.taskContainsChild(subTask, childTaskID) {
 					return true // Found in nested structure
 				}
 			}
 		}
 	case task.TaskTypeCollection:
-		// Collection tasks use a different structure - they have a template task in Task field
-		// The template is instantiated multiple times at runtime but config contains the pattern
 		if parentTask.Task != nil {
-			// STEP 1: Check if the template task itself matches
 			if parentTask.Task.ID == childTaskID {
 				return true // Child is the collection template
 			}
-			// STEP 2: Recursively check if the template contains nested children
-			// This handles cases where collection template is a complex nested structure
 			return cb.taskContainsChild(parentTask.Task, childTaskID)
 		}
 	}
-	// Default case: Task types that don't contain children
-	// (Basic, Router, Wait, Signal, Aggregate tasks are leaf nodes)
 	return false
 }
 
@@ -711,20 +673,10 @@ func (cb *ContextBuilder) ClearWorkflowCache(workflowID string, _ core.ID) {
 	if workflowID == "" {
 		return // Invalid workflow ID - nothing to clear
 	}
-	// LIMITATION: Ristretto doesn't provide prefix-based deletion by design
-	// We can't directly delete all entries matching "workflowID:workflowExecID:*"
-	// Instead, we rely on a multi-layered approach:
-	// 1. Reduced cache size limits (MaxCost: 50 instead of 100) for natural eviction
-	// 2. LRU eviction policy automatically removes oldest entries when cache fills
-	// 3. Intelligent full cache clearing when performance indicates problems
-	// STRATEGY: Performance-based cache management
-	// If cache hit ratio is low, the cache is not providing value and may contain stale data
-	// Better to clear everything and rebuild cache with fresh, relevant data
 	if cb.parentContextCache.Metrics.Ratio() < 0.5 { // Hit ratio below 50% indicates poor performance
 		cb.parentContextCache.Clear() // Aggressive but safe - ensures no memory leaks
 	}
 	// NOTE: This is intentionally aggressive to prioritize memory safety over cache performance
-	// In production, consider implementing a custom cache with prefix deletion if needed
 }
 
 // GetCacheStats returns cache statistics for monitoring memory usage
@@ -774,22 +726,17 @@ func (cb *ContextBuilder) BuildCollectionContext(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) map[string]any {
-	// Defensive null checks to prevent null pointer dereferences
 	if workflowState == nil || taskConfig == nil {
 		return make(map[string]any)
 	}
-	// Build full context using proper BuildContext method to populate Variables
 	normCtx := cb.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-	// Add additional TaskConfigs from workflowConfig if available
 	if workflowConfig != nil && workflowConfig.Tasks != nil {
 		for i := range workflowConfig.Tasks {
 			tc := &workflowConfig.Tasks[i]
 			normCtx.TaskConfigs[tc.ID] = tc
 		}
 	}
-	// Use the proper template context from BuildContext which includes Variables
 	templateContext := normCtx.BuildTemplateContext()
-	// Add task-specific context from 'with' parameter
 	if taskConfig.With != nil {
 		templateContext = core.CopyMaps(templateContext, *taskConfig.With)
 	}
@@ -806,19 +753,13 @@ func (nc *NormalizationContext) BuildTemplateContext() map[string]any {
 
 // IsWithinCollection checks if the current task or any of its ancestors is a collection task
 func (nc *NormalizationContext) IsWithinCollection() bool {
-	// Check if the current task is a collection
 	if nc.TaskConfig != nil && nc.TaskConfig.Type == task.TaskTypeCollection {
 		return true
 	}
-	// Check if the parent task is a collection
 	if nc.ParentTask != nil && nc.ParentTask.Type == task.TaskTypeCollection {
 		return true
 	}
-	// For composite tasks within collections, we need to check the parent context
-	// The ParentTask might be a composite, but that composite might be within a collection
-	// We can detect this by checking if there are collection-specific variables like "item" or "index"
 	if nc.Variables != nil {
-		// If we have item or index variables, we're within a collection context
 		if _, hasItem := nc.Variables[ItemKey]; hasItem {
 			return true
 		}

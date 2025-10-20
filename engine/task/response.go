@@ -90,22 +90,18 @@ func (r *SubtaskResponse) GetState() *State {
 }
 
 func (r *SubtaskResponse) GetOnSuccess() *core.SuccessTransition {
-	// Subtasks don't have transitions
 	return nil
 }
 
 func (r *SubtaskResponse) GetOnError() *core.ErrorTransition {
-	// Subtasks don't have transitions
 	return nil
 }
 
 func (r *SubtaskResponse) GetNextTask() *Config {
-	// Subtasks don't have next tasks
 	return nil
 }
 
 func (r *SubtaskResponse) NextTaskID(_ context.Context) string {
-	// Subtasks don't transition to other tasks
 	return ""
 }
 

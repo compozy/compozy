@@ -38,7 +38,6 @@ func (r *ProviderRegistry) RegisterDefaultsFromYAML() error {
 	if err != nil {
 		return fmt.Errorf("failed to load provider defaults: %w", err)
 	}
-	// Register each provider configuration
 	for _, def := range defaults.Providers {
 		config := &ProviderConfig{
 			Provider: def.Provider,
@@ -46,8 +45,6 @@ func (r *ProviderRegistry) RegisterDefaultsFromYAML() error {
 			Settings: def.Settings,
 		}
 		if err := r.Register(def.Name, config); err != nil {
-			// Log warning but continue with other registrations
-			// This allows partial success if some configurations have issues
 			continue
 		}
 	}

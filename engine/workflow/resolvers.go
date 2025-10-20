@@ -110,7 +110,6 @@ func finishAgentSetup(
 	if err := linkAgentSchemas(ctx, proj, store, agentCfg); err != nil {
 		return err
 	}
-	// Resolve MCP selectors declared on the agent (e.g., { id: "srv" }).
 	if err := resolveMCPs(ctx, proj, store, agentCfg); err != nil {
 		return err
 	}
@@ -634,7 +633,6 @@ func resolveMCPs(
 	log := logger.FromContext(ctx)
 	for i := range a.MCPs {
 		if !isMCPSelector(&a.MCPs[i]) {
-			// Inline definition: ensure defaults for consistency
 			a.MCPs[i].SetDefaults()
 			continue
 		}
@@ -663,8 +661,6 @@ func resolveMCPs(
 		if err != nil {
 			return fmt.Errorf("failed to clone mcp '%s': %w", id, err)
 		}
-		// Apply defaults; defer validation to explicit validation phases to
-		// keep compile independent from runtime environment requirements.
 		clone.SetDefaults()
 		a.MCPs[i] = *clone
 		log.Debug("Resolved mcp selector", "mcp_id", id)
@@ -694,7 +690,6 @@ func applyAgentModelSelector(
 		}
 		return fmt.Errorf("model lookup failed for '%s': %w", modelID, err)
 	}
-	// Models are stored as *core.ProviderConfig
 	pc, err := modelConfigFromStore(val)
 	if err != nil {
 		return fmt.Errorf("model decode failed for '%s': %w", modelID, err)
@@ -702,8 +697,6 @@ func applyAgentModelSelector(
 	if pc == nil {
 		return &TypeMismatchError{Type: resources.ResourceModel, ID: modelID, Got: val}
 	}
-	// Task-level/agent-level model selector takes precedence over defaults per PRD
-	// Override identity (Provider/Model) from the referenced model; fill other fields when empty.
 	overrideProviderIdentity(&a.Model.Config, pc)
 	mergeProviderParamsPreferDst(&a.Model.Config.Params, &pc.Params)
 	if a.Model.Config.APIKey == "" {

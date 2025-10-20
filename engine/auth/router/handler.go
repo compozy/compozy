@@ -242,12 +242,10 @@ func (h *Handler) handleUpdateUserError(ctx context.Context, c *gin.Context, use
 func (h *Handler) GenerateKey(c *gin.Context) {
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
-	// Regular API key generation flow
 	userID, ok := h.getUserIDFromContext(c)
 	if !ok {
 		return // Error response already sent by helper
 	}
-	// Generate the API key
 	generateUC := h.factory.GenerateAPIKey(userID)
 	apiKey, err := generateUC.Execute(ctx)
 	if err != nil {
@@ -277,12 +275,10 @@ func (h *Handler) GenerateKey(c *gin.Context) {
 func (h *Handler) ListKeys(c *gin.Context) {
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
-	// Get user ID from context
 	userID, ok := h.getUserIDFromContext(c)
 	if !ok {
 		return // Error response already sent by helper
 	}
-	// List API keys
 	listUC := h.factory.ListAPIKeys(userID)
 	keys, err := listUC.Execute(ctx)
 	if err != nil {
@@ -290,7 +286,7 @@ func (h *Handler) ListKeys(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list API keys", "details": err.Error()})
 		return
 	}
-	// Mask the hash field for security
+	// NOTE: Exclude hashed API key material from responses to avoid leaking secrets.
 	maskedKeys := make([]APIKeyMetadataResponse, len(keys))
 	for i, key := range keys {
 		metadata := APIKeyMetadataResponse{
@@ -298,7 +294,6 @@ func (h *Handler) ListKeys(c *gin.Context) {
 			Prefix:    key.Prefix,
 			CreatedAt: key.CreatedAt,
 		}
-		// Handle nullable LastUsed
 		if key.LastUsed.Valid {
 			metadata.LastUsed = &key.LastUsed.Time
 		}
@@ -393,7 +388,6 @@ func (h *Handler) CreateUser(c *gin.Context) {
 func (h *Handler) ListUsers(c *gin.Context) {
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
-	// List users through use case
 	listUC := h.factory.ListUsers()
 	users, err := listUC.Execute(ctx)
 	if err != nil {
@@ -464,14 +458,12 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 func (h *Handler) DeleteUser(c *gin.Context) {
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
-	// Get user ID from URL
 	userIDStr := c.Param("id")
 	userID, err := core.ParseID(userIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID", "details": err.Error()})
 		return
 	}
-	// Delete user through use case
 	deleteUC := h.factory.DeleteUser(userID)
 	err = deleteUC.Execute(ctx)
 	if err != nil {

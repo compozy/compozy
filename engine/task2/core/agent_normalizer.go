@@ -21,7 +21,6 @@ func (n *AgentNormalizer) buildTaskMetadata(id, taskType string, config any) map
 		"id":   id,
 		"type": taskType,
 	}
-	// Add config-specific fields based on type
 	switch taskType {
 	case "agent":
 		if agentCfg, ok := config.(*agent.Config); ok {
@@ -255,7 +254,6 @@ func (n *AgentNormalizer) normalizeAgentActions(
 	ctx *shared.NormalizationContext,
 	actionID string,
 ) error {
-	// Normalize agent actions (only if actionID is provided and actions exist)
 	if actionID != "" && len(config.Actions) > 0 {
 		aConfig, err := agent.FindActionConfig(config.Actions, actionID)
 		if err != nil {
@@ -264,13 +262,11 @@ func (n *AgentNormalizer) normalizeAgentActions(
 		if aConfig == nil {
 			return fmt.Errorf("agent action %s not found in agent config %s", actionID, config.ID)
 		}
-		// Merge input from agent and action
 		mergedInput, err := config.GetInput().Merge(aConfig.GetInput())
 		if err != nil {
 			return fmt.Errorf("failed to merge input for agent action %s: %w", aConfig.ID, err)
 		}
 		aConfig.With = mergedInput
-		// Create action context with agent as parent
 		actionCtx := &shared.NormalizationContext{
 			WorkflowState:  ctx.WorkflowState,
 			WorkflowConfig: ctx.WorkflowConfig,
@@ -279,9 +275,7 @@ func (n *AgentNormalizer) normalizeAgentActions(
 				"id":           config.ID,
 				"input":        config.With,
 				"instructions": config.Instructions,
-				// Keep key name `config` for backward template compatibility,
-				// but now it carries the resolved provider configuration.
-				"config": config.Model.Config,
+				"config":       config.Model.Config,
 			},
 			CurrentInput:  aConfig.With,
 			MergedEnv:     ctx.MergedEnv,
@@ -289,7 +283,6 @@ func (n *AgentNormalizer) normalizeAgentActions(
 			Variables:     ctx.Variables,  // Copy variables to preserve workflow context
 			ParentTask:    ctx.ParentTask, // Preserve parent task to maintain collection context
 		}
-		// Normalize the action config
 		if err := n.normalizeAgentActionConfig(aConfig, actionCtx); err != nil {
 			return fmt.Errorf("failed to normalize agent action config: %w", err)
 		}

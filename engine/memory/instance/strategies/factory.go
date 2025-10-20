@@ -55,14 +55,12 @@ func NewStrategyFactoryWithTokenCounter(coreTokenCounter core.TokenCounter) *Str
 		strategies:       make(map[core.FlushingStrategyType]StrategyConstructor),
 		coreTokenCounter: coreTokenCounter,
 	}
-	// Register all available strategies
 	factory.registerDefaultStrategies()
 	return factory
 }
 
 // registerDefaultStrategies registers all built-in strategies
 func (f *StrategyFactory) registerDefaultStrategies() {
-	// Create the FIFO strategy constructor
 	fifoConstructor := func(config *core.FlushingStrategyConfig, opts *StrategyOptions) (core.FlushStrategy, error) {
 		threshold := 0.8
 		if config != nil && config.SummarizeThreshold > 0 {
@@ -71,32 +69,25 @@ func (f *StrategyFactory) registerDefaultStrategies() {
 			threshold = opts.DefaultThreshold
 		}
 
-		// Use core token counter if available, otherwise use default strategy counter
 		if f.coreTokenCounter != nil {
 			return NewFIFOStrategyWithTokenCounter(threshold, f.coreTokenCounter), nil
 		}
 		return NewFIFOStrategy(threshold), nil
 	}
-	// Register FIFO strategy with both names
 	f.Register(core.SimpleFIFOFlushing, fifoConstructor)
 	f.Register(core.FIFOFlushing, fifoConstructor) // Register alias
-	// Register LRU strategy
 	f.Register(
 		core.LRUFlushing,
 		func(config *core.FlushingStrategyConfig, opts *StrategyOptions) (core.FlushStrategy, error) {
 			return NewLRUStrategy(config, opts)
 		},
 	)
-	// Register Token-Aware LRU strategy
 	f.Register(
 		core.TokenAwareLRUFlushing,
 		func(config *core.FlushingStrategyConfig, opts *StrategyOptions) (core.FlushStrategy, error) {
 			return NewTokenAwareLRUStrategy(config, opts)
 		},
 	)
-
-	// Priority-based eviction is now handled by EvictionPolicy, not FlushStrategy
-	// Use SimpleFIFOFlushing with PriorityEviction policy instead of PriorityBasedFlushing
 }
 
 // Register adds a new strategy constructor to the factory
@@ -110,7 +101,6 @@ func (f *StrategyFactory) CreateStrategy(
 	opts *StrategyOptions,
 ) (core.FlushStrategy, error) {
 	if config == nil {
-		// Use default FIFO strategy configuration
 		config = &core.FlushingStrategyConfig{
 			Type: core.SimpleFIFOFlushing,
 		}
@@ -158,14 +148,11 @@ func GetDefaultStrategyOptions() *StrategyOptions {
 		MaxTokens:        4000,
 		DefaultThreshold: 0.8,
 
-		// LRU Strategy defaults
 		LRUTargetCapacityPercent: 0.5,  // Reduce to 50% capacity after flush
 		LRUMinFlushPercent:       0.25, // Minimum 25% flush when no specific limits
 
-		// Token-aware LRU defaults
 		TokenLRUTargetCapacityPercent: 0.5, // Target 50% of max capacity
 
-		// Priority-based strategy defaults
 		PriorityTargetCapacityPercent: 0.6,  // Target 60% capacity (more conservative)
 		PriorityConservativePercent:   0.75, // Keep 75% when no limits (fallback)
 		PriorityRecentThreshold:       0.8,  // Last 20% of messages are "recent"
@@ -184,7 +171,6 @@ func (f *StrategyFactory) ValidateStrategyConfig(config *core.FlushingStrategyCo
 	if !f.IsStrategySupported(config.Type) {
 		return fmt.Errorf("strategy type %s is not supported by this factory", config.Type)
 	}
-	// Validate threshold for strategies that use it
 	if config.SummarizeThreshold != 0 && (config.SummarizeThreshold <= 0 || config.SummarizeThreshold > 1) {
 		return fmt.Errorf("summarize threshold must be between 0 and 1, got %f", config.SummarizeThreshold)
 	}
@@ -196,7 +182,6 @@ func (f *StrategyFactory) ValidateStrategyConfig(config *core.FlushingStrategyCo
 // An empty string is considered valid and will use the default strategy.
 func (f *StrategyFactory) ValidateStrategyType(strategyType string) error {
 	if strategyType == "" {
-		// Empty string is valid - uses default strategy
 		return nil
 	}
 	flushType := core.FlushingStrategyType(strategyType)
@@ -212,12 +197,10 @@ func (f *StrategyFactory) ValidateStrategyType(strategyType string) error {
 // GetSupportedStrategies returns all valid strategy types as strings for API use.
 // The strategies are returned in alphabetical order for consistency.
 func (f *StrategyFactory) GetSupportedStrategies() []string {
-	// Get all registered strategies dynamically
 	strategies := make([]string, 0, len(f.strategies))
 	for strategyType := range f.strategies {
 		strategies = append(strategies, string(strategyType))
 	}
-	// Sort for consistent order
 	sort.Strings(strategies)
 	return strategies
 }

@@ -229,7 +229,6 @@ func appendMemory(c *gin.Context) {
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/delete [post]
 func deleteMemory(c *gin.Context) {
-	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
 	if !ok {
 		reqErr := router.NewRequestError(
@@ -240,7 +239,6 @@ func deleteMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	// Parse request body with key
 	var req DeleteMemoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		reqErr := router.NewRequestError(
@@ -251,7 +249,6 @@ func deleteMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	// Execute use case
 	uc, err := memuc.NewDeleteMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, nil)
 	if err != nil {
 		handleMemoryError(c, err, "failed to create delete memory use case")
@@ -283,7 +280,6 @@ func deleteMemory(c *gin.Context) {
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/flush [post]
 func flushMemory(c *gin.Context) {
-	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
 	if !ok {
 		reqErr := router.NewRequestError(
@@ -294,7 +290,6 @@ func flushMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	// Parse request body with key
 	var req FlushMemoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		reqErr := router.NewRequestError(
@@ -305,14 +300,12 @@ func flushMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	// Create input for use case
 	input := memuc.FlushMemoryInput{
 		Force:    req.Force,
 		DryRun:   req.DryRun,
 		MaxKeys:  req.MaxKeys,
 		Strategy: req.Strategy,
 	}
-	// Execute use case
 	uc, err := memuc.NewFlushMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
 	if err != nil {
 		handleMemoryError(c, err, "failed to create flush memory use case")
@@ -345,7 +338,6 @@ func flushMemory(c *gin.Context) {
 //	@Failure		500				{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/health [get]
 func healthMemory(c *gin.Context) {
-	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
 	if !ok {
 		reqErr := router.NewRequestError(
@@ -356,9 +348,7 @@ func healthMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	// Get query parameter
 	includeStats := c.Query("include_stats") == "true"
-	// Execute use case
 	input := &memuc.HealthMemoryInput{
 		IncludeStats: includeStats,
 	}
@@ -393,7 +383,6 @@ func healthMemory(c *gin.Context) {
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/clear [post]
 func clearMemory(c *gin.Context) {
-	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
 	if !ok {
 		reqErr := router.NewRequestError(
@@ -404,7 +393,6 @@ func clearMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	// Parse request body with key
 	var req ClearMemoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		reqErr := router.NewRequestError(
@@ -415,12 +403,10 @@ func clearMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	// Create input for use case
 	input := memuc.ClearMemoryInput{
 		Confirm: req.Confirm,
 		Backup:  req.Backup,
 	}
-	// Execute use case
 	uc, err := memuc.NewClearMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
 	if err != nil {
 		handleMemoryError(c, err, "failed to create clear memory use case")

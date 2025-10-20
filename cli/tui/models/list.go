@@ -86,23 +86,19 @@ func newListStyles() listStyles {
 
 // NewListModel creates a new generic list model
 func NewListModel[T ListableItem](ctx context.Context, client DataClient[T], columns []table.Column) *ListModel[T] {
-	// Create spinner
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
-	// Create search box
 	searchBox := textinput.New()
 	searchBox.Placeholder = "Search items..."
 	searchBox.Prompt = "🔍 "
 	searchBox.CharLimit = 50
 	searchBox.Width = 30
-	// Create table
 	t := table.New(
 		table.WithColumns(columns),
 		table.WithFocused(true),
 		table.WithHeight(10),
 	)
-	// Set table styles
 	tableStyle := table.DefaultStyles()
 	tableStyle.Header = tableStyle.Header.
 		BorderStyle(lipgloss.NormalBorder()).
@@ -140,7 +136,6 @@ func (m *ListModel[T]) Init() tea.Cmd {
 // Update handles messages
 func (m *ListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	// Handle base model updates
 	if cmd := m.BaseModel.Update(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -159,7 +154,6 @@ func (m *ListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.handleItemsLoaded(msg)
 	case errMsg:
 		m.handleError(msg)
-		// Allow user to see the error and potentially retry
 		m.loading = false
 		return m, nil
 	case spinner.TickMsg:
@@ -167,7 +161,6 @@ func (m *ListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 	}
-	// Update components
 	if cmd := m.updateComponents(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -292,7 +285,6 @@ func (m *ListModel[T]) updateComponents(msg tea.Msg) tea.Cmd {
 	if m.searching {
 		var cmd tea.Cmd
 		m.searchBox, cmd = m.searchBox.Update(msg)
-		// Apply filter on each keystroke
 		m.applyFilter()
 		return cmd
 	}
@@ -310,21 +302,16 @@ func (m *ListModel[T]) View() string {
 		return fmt.Sprintf("%s Loading items...", m.spinner.View())
 	}
 	var s strings.Builder
-	// Title
 	s.WriteString(m.styles.title.Render("📋 Items"))
 	s.WriteString("\n\n")
-	// Search box (if searching)
 	if m.searching {
 		s.WriteString(m.styles.searchBox.Render(m.searchBox.View()))
 		s.WriteString("\n\n")
 	}
-	// Table
 	s.WriteString(m.table.View())
 	s.WriteString("\n")
-	// Status bar
 	status := m.buildStatusBar()
 	s.WriteString(m.styles.statusBar.Render(status))
-	// Help
 	help := m.buildHelp()
 	s.WriteString("\n")
 	s.WriteString(m.styles.help.Render(help))
@@ -357,7 +344,6 @@ func (m *ListModel[T]) buildHelp() string {
 	if m.searching {
 		return "esc: cancel • enter: apply filter"
 	}
-	// Show retry option when there's an error
 	if m.Error() != nil {
 		return "r: retry • q: quit"
 	}
@@ -390,19 +376,15 @@ func (m *ListModel[T]) applyFilter() {
 			}
 		}
 	}
-	// Reset to first page when filtering
 	m.currentPage = 0
 	m.updateTable()
 }
 
 // updateTable updates the table with current data
 func (m *ListModel[T]) updateTable() {
-	// Sort the filtered items
 	m.sortItems(m.filtered, m.sortBy, m.sortOrder)
-	// Get current page of items
 	startIdx := m.currentPage * m.pageSize
 	endIdx := min(startIdx+m.pageSize, len(m.filtered))
-	// Convert to table rows
 	rows := make([]table.Row, 0)
 	for i := startIdx; i < endIdx; i++ {
 		item := m.filtered[i]
@@ -421,7 +403,6 @@ func (m *ListModel[T]) sortItems(items []T, sortBy string, order SortOrder) {
 		keyI := items[i].GetSortKey(sortBy)
 		keyJ := items[j].GetSortKey(sortBy)
 
-		// Compare based on type using type switch
 		var ascending bool
 
 		switch valI := keyI.(type) {
@@ -449,7 +430,6 @@ func (m *ListModel[T]) sortItems(items []T, sortBy string, order SortOrder) {
 			return false
 		}
 
-		// Apply sort order
 		if order == SortDescending {
 			return !ascending
 		}

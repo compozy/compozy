@@ -50,12 +50,10 @@ func (s *redisConfigStore) Save(ctx context.Context, taskExecID string, config *
 	if config == nil {
 		return fmt.Errorf("config cannot be nil")
 	}
-	// Marshal config to JSON
 	data, err := json.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config for taskExecID %s: %w", taskExecID, err)
 	}
-	// Save to Redis with TTL
 	key := ConfigKeyPrefix + taskExecID
 	if err := s.redis.Set(ctx, key, data, s.ttl).Err(); err != nil {
 		return fmt.Errorf("failed to save config for taskExecID %s: %w", taskExecID, err)
@@ -81,7 +79,6 @@ func (s *redisConfigStore) Get(ctx context.Context, taskExecID string) (*task.Co
 		}
 		return nil, fmt.Errorf("failed to get config for taskExecID %s: %w", taskExecID, err)
 	}
-	// Unmarshal JSON to config
 	var config task.Config
 	if err := json.Unmarshal([]byte(data), &config); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config for taskExecID %s: %w", taskExecID, err)
@@ -125,7 +122,6 @@ func (s *redisConfigStore) SaveMetadata(ctx context.Context, key string, data []
 	if data == nil {
 		return fmt.Errorf("data cannot be nil")
 	}
-	// Save to Redis with metadata prefix to avoid collisions
 	prefixedKey := MetadataKeyPrefix + key
 	if err := s.redis.Set(ctx, prefixedKey, data, s.ttl).Err(); err != nil {
 		return fmt.Errorf("failed to save metadata for key %s: %w", key, err)

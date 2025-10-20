@@ -32,6 +32,5 @@ func (b *ContextBuilder) BuildContext(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) *shared.NormalizationContext {
-	// Router tasks use standard context building
 	return b.BaseContextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
 }

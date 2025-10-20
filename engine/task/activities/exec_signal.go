@@ -141,14 +141,11 @@ func (a *ExecuteSignal) dispatchSignal(
 	if taskConfig.Signal == nil || taskConfig.Signal.ID == "" {
 		return fmt.Errorf("signal.id is required for signal task")
 	}
-	// Create the signal payload
 	payload := taskConfig.Signal.Payload
 	if payload == nil {
 		payload = make(map[string]any)
 	}
-	// Add project name to context for signal dispatcher
 	ctx = core.WithProjectName(ctx, projectName)
-	// Use the signal dispatcher service
 	return a.signalDispatcher.DispatchSignal(ctx, taskConfig.Signal.ID, payload, correlationID)
 }
 

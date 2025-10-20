@@ -63,15 +63,12 @@ func RunWithWatcher(ctx context.Context, cwd, configFile, envFilePath string) er
 	}()
 	restartChan := make(chan bool, 1)
 	go startWatcher(ctx, watcher, restartChan, &watchedDirs)
-	// Integrate with config hot-reload via manager in context
 	config.ManagerFromContext(ctx).OnChange(func(_ *config.Config) {
 		log := logger.FromContext(ctx)
 		log.Info("Configuration change detected, triggering restart")
 		select {
 		case restartChan <- true:
-			// enqueued
 		default:
-			// restart already pending
 		}
 	})
 	return runAndWatchServer(ctx, cwd, configFile, envFilePath, restartChan)
@@ -91,7 +88,6 @@ func setupWatcher(ctx context.Context, cwd string, watchedDirs *sync.Map) (*fsno
 			return err
 		}
 
-		// Skip ignored directories
 		if info.IsDir() {
 			if isIgnoredDir(path) {
 				return filepath.SkipDir
@@ -101,7 +97,6 @@ func setupWatcher(ctx context.Context, cwd string, watchedDirs *sync.Map) (*fsno
 			}
 		}
 
-		// Count YAML files and track their parent directories
 		if !info.IsDir() && isYAMLFile(path) {
 			fileCount++
 		}

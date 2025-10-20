@@ -56,40 +56,33 @@ func NewStateRepository(taskRepo task.Repository) StateRepository {
 
 // SaveTaskState saves the task state with transaction safety when available
 func (r *DefaultStateRepository) SaveTaskState(ctx context.Context, state *task.State) error {
-	// Validate state
 	if err := r.validateState(state); err != nil {
 		return fmt.Errorf("task data validation failed: %w", err)
 	}
-	// Delegate to transaction service for proper transaction handling
 	return r.transactionService.SaveStateWithLocking(ctx, state)
 }
 
 // SaveTaskStateWithLocking saves the task state ensuring parent status is updated atomically
 func (r *DefaultStateRepository) SaveTaskStateWithLocking(ctx context.Context, state *task.State) error {
-	// This method ensures that both task state save and parent status update happen atomically
-	// to prevent race conditions
+	// NOTE: Delegate to transactional save so parent updates and state writes remain atomic.
 	return r.SaveTaskState(ctx, state)
 }
 
 // GetParentState retrieves parent state with caching
 func (r *DefaultStateRepository) GetParentState(ctx context.Context, parentID core.ID) (*task.State, error) {
-	// Validate ID
 	if err := r.validateID(parentID); err != nil {
 		return nil, fmt.Errorf("invalid parent task reference: %w", err)
 	}
-	// Check cache first with read lock
 	r.cacheMutex.RLock()
 	if cached, exists := r.parentCache[parentID]; exists {
 		r.cacheMutex.RUnlock()
 		return cached, nil
 	}
 	r.cacheMutex.RUnlock()
-	// Fetch from repository
 	parentState, err := r.taskRepo.GetState(ctx, parentID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve parent task: %w", err)
 	}
-	// Cache the result with write lock
 	r.cacheMutex.Lock()
 	r.parentCache[parentID] = parentState
 	r.cacheMutex.Unlock()
@@ -115,7 +108,5 @@ func (r *DefaultStateRepository) validateID(id core.ID) error {
 	if id == "" {
 		return fmt.Errorf("invalid identifier provided")
 	}
-	// core.ID should be a valid UUID
-	// Additional validation can be added here if needed
 	return nil
 }

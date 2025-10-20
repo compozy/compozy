@@ -46,7 +46,6 @@ func NewConfigShowCommand() *cobra.Command {
 Supports JSON, YAML, and table output formats.`,
 		RunE: executeConfigShowCommand,
 	}
-	// Command-specific flags
 	cmd.Flags().StringP("format", "f", "table", "Output format (json, yaml, table)")
 	return cmd
 }
@@ -108,7 +107,6 @@ func NewConfigDiagnosticsCommand() *cobra.Command {
 - File accessibility checks`,
 		RunE: executeConfigDiagnosticsCommand,
 	}
-	// Command-specific flags
 	cmd.Flags().BoolP("verbose", "v", false, "Show detailed source information")
 	return cmd
 }
@@ -268,7 +266,7 @@ func outputDiagnosticsResults(
 ) error {
 	diagnostics := map[string]any{
 		"working_directory": cwd,
-		// Use flattened, redacted view to avoid leaking secrets
+		// NOTE: Use a flattened, redacted view to avoid leaking secrets in diagnostics output.
 		"configuration": flattenConfig(cfg),
 		"validation": map[string]any{
 			"valid": validationErr == nil,
@@ -327,7 +325,7 @@ func outputDiagnosticsTUI(ctx context.Context, cwd string, validationErr error, 
 // outputJSON outputs configuration as JSON
 func outputJSON(cfg *config.Config, sources map[string]config.SourceType, showSources bool) error {
 	output := make(map[string]any)
-	// Use redacted, flattened representation
+	// NOTE: Serialize a redacted, flattened configuration to avoid exposing secrets.
 	output["config"] = flattenConfig(cfg)
 	if showSources && len(sources) > 0 {
 		output["sources"] = sources
@@ -340,7 +338,7 @@ func outputJSON(cfg *config.Config, sources map[string]config.SourceType, showSo
 // outputYAML outputs configuration as YAML
 func outputYAML(cfg *config.Config, sources map[string]config.SourceType, showSources bool) error {
 	output := make(map[string]any)
-	// Use redacted, flattened representation
+	// NOTE: Emit the configuration in redacted, flattened form for safe YAML output.
 	output["config"] = flattenConfig(cfg)
 	if showSources && len(sources) > 0 {
 		output["sources"] = sources
@@ -354,15 +352,12 @@ func outputYAML(cfg *config.Config, sources map[string]config.SourceType, showSo
 func outputTable(cfg *config.Config, sources map[string]config.SourceType, showSources bool) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	defer w.Flush()
-	// Convert config to flat map for table display
 	flatMap := flattenConfig(cfg)
-	// Sort keys for consistent output
 	keys := make([]string, 0, len(flatMap))
 	for k := range flatMap {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	// Print header
 	if showSources {
 		fmt.Fprintln(w, "KEY\tVALUE\tSOURCE")
 		fmt.Fprintln(w, "---\t-----\t------")
@@ -370,7 +365,6 @@ func outputTable(cfg *config.Config, sources map[string]config.SourceType, showS
 		fmt.Fprintln(w, "KEY\tVALUE")
 		fmt.Fprintln(w, "---\t-----")
 	}
-	// Print values
 	for _, key := range keys {
 		value := flatMap[key]
 		if showSources {
@@ -738,23 +732,23 @@ func flattenRateLimitConfig(cfg *config.Config, result map[string]string) {
 
 // redactURL redacts sensitive information from URLs (passwords, tokens, etc.)
 func redactURL(urlStr string) string {
-	// Handle Redis URLs: redis://user:password@host:port/db
 	if strings.HasPrefix(urlStr, "redis://") {
+		// NOTE: Redis URLs store credentials inline; redact to avoid leaking passwords.
 		if atIndex := strings.Index(urlStr, "@"); atIndex > 0 {
 			protocolEnd := strings.Index(urlStr, "://") + 3
 			return urlStr[:protocolEnd] + "[REDACTED]@" + urlStr[atIndex+1:]
 		}
 	}
-	// Handle PostgreSQL/MySQL/MongoDB URLs
 	if strings.Contains(urlStr, "://") && strings.Contains(urlStr, "@") {
+		// NOTE: Standard DSN URLs may embed credentials; redact the auth segment.
 		protocolEnd := strings.Index(urlStr, "://") + 3
 		atIndex := strings.Index(urlStr, "@")
 		if atIndex > protocolEnd {
 			return urlStr[:protocolEnd] + "[REDACTED]@" + urlStr[atIndex+1:]
 		}
 	}
-	// Handle URLs with token parameters
 	if strings.Contains(urlStr, "token=") {
+		// NOTE: Tokenized URLs leak sensitive query parameters unless scrubbed.
 		return tokenRegex.ReplaceAllString(urlStr, "token=[REDACTED]")
 	}
 	return urlStr

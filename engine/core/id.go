@@ -38,7 +38,6 @@ func ParseID(s string) (ID, error) {
 	if s == "" {
 		return "", fmt.Errorf("empty ID")
 	}
-	// Validate it's a valid KSUID
 	if _, err := ksuid.Parse(s); err != nil {
 		return "", fmt.Errorf("invalid ID format: %w", err)
 	}

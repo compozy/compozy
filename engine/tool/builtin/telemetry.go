@@ -120,7 +120,6 @@ func RecordInvocation(
 			attribute.String("tool_id", toolID),
 		))
 	}
-	// best-effort logging of anomalies
 	if status == StatusFailure {
 		logger.FromContext(ctx).
 			Debug("cp__ tool failure recorded", "tool_id", toolID, "request_id", requestID, "error_code", errorCode)

@@ -17,16 +17,13 @@ import (
 
 // BootstrapTUI handles the bootstrap command in TUI mode
 func BootstrapTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandExecutor, _ []string) error {
-	// Parse flags
 	flags, err := parseTUIBootstrapFlags(cobraCmd)
 	if err != nil {
 		return fmt.Errorf("failed to parse flags: %w", err)
 	}
-	// Handle check status
 	if flags.check {
 		return handleTUIStatusCheck(ctx)
 	}
-	// Check existing bootstrap and get user decisions
 	shouldContinue, updatedFlags, err := checkAndPromptBootstrap(ctx, flags)
 	if err != nil {
 		return err
@@ -34,7 +31,6 @@ func BootstrapTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandEx
 	if !shouldContinue {
 		return nil
 	}
-	// Execute bootstrap
 	return executeTUIBootstrap(ctx, updatedFlags)
 }
 

@@ -59,7 +59,6 @@ func (sdb *StateDB) ToState() (*State, error) {
 		summary.Sort()
 		state.Usage = &summary
 	}
-	// Unmarshal input
 	if sdb.InputRaw != nil {
 		var input core.Input
 		if err := json.Unmarshal(sdb.InputRaw, &input); err != nil {
@@ -67,7 +66,6 @@ func (sdb *StateDB) ToState() (*State, error) {
 		}
 		state.Input = &input
 	}
-	// Unmarshal output
 	if sdb.OutputRaw != nil {
 		var output core.Output
 		if err := json.Unmarshal(sdb.OutputRaw, &output); err != nil {
@@ -75,7 +73,6 @@ func (sdb *StateDB) ToState() (*State, error) {
 		}
 		state.Output = &output
 	}
-	// Unmarshal error
 	if sdb.ErrorRaw != nil {
 		var errorObj core.Error
 		if err := json.Unmarshal(sdb.ErrorRaw, &errorObj); err != nil {

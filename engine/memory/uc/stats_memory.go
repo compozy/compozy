@@ -51,7 +51,6 @@ func NewStatsMemory(
 		var err error
 		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
 		if err != nil {
-			// Log error but continue with nil service
 			return nil, err
 		}
 	}
@@ -123,16 +122,13 @@ func (uc *StatsMemory) getTokenLimit(ctx context.Context, memoryRef string) (int
 	if err != nil {
 		return 0, err
 	}
-	// Get memory resource configuration from manager
 	resource, err := manager.GetMemoryConfig(ctx, memoryRef)
 	if err != nil {
 		return 0, NewErrorContext(err, "get_memory_config", memoryRef, "")
 	}
-	// Use MaxTokens from configuration, with fallback to default context window
 	if resource.MaxTokens > 0 {
 		return resource.MaxTokens, nil
 	}
-	// Default fallback for when MaxTokens is not configured
 	return 128000, nil
 }
 

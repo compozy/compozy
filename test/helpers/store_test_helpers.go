@@ -11,13 +11,10 @@ import (
 // SetupStoreTestWithSharedDB returns a ctx + shared pool prepared per autoMigrate flag.
 func SetupStoreTestWithSharedDB(t *testing.T, autoMigrate bool) (context.Context, *pgxpool.Pool, func()) {
 	t.Helper()
-	// Use shared container for better performance
 	pool, cleanup := GetSharedPostgresDB(t)
-	// Clean existing schema if we need a fresh start
 	if !autoMigrate {
 		cleanupExistingSchema(t.Context(), pool)
 	} else {
-		// Ensure tables exist for tests that expect migrated schema
 		require.NoError(t, ensureTablesExist(pool))
 	}
 	return t.Context(), pool, func() { cleanup() }
@@ -25,11 +22,9 @@ func SetupStoreTestWithSharedDB(t *testing.T, autoMigrate bool) (context.Context
 
 // cleanupExistingSchema removes existing tables and migration state for clean testing
 func cleanupExistingSchema(ctx context.Context, pool *pgxpool.Pool) {
-	// Drop all business tables
 	tables := []string{"workflow_states", "task_states", "users", "api_keys", "goose_db_version"}
 	for _, table := range tables {
 		if _, err := pool.Exec(ctx, "DROP TABLE IF EXISTS "+table+" CASCADE"); err != nil {
-			// Log error but continue cleanup - table might not exist
 			continue
 		}
 	}

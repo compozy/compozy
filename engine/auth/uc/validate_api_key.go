@@ -114,11 +114,11 @@ func NewValidateAPIKey(repo Repository, plaintext string) *ValidateAPIKey {
 // Execute validates an API key and returns the associated user
 func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 	log := logger.FromContext(ctx)
-	// Hash the plaintext key to find it in the database (fingerprint for O(1) lookup)
 	hash := sha256.Sum256([]byte(uc.plaintext))
 	apiKey, err := uc.repo.GetAPIKeyByHash(ctx, hash[:])
 	if err != nil {
-		//nolint:errcheck // Intentionally ignore error for timing equalization to prevent timing attacks
+		// NOTE: Intentionally ignore timing side-channel result to equalize responses.
+		//nolint:errcheck // CompareHashAndPassword failure is expected for invalid keys.
 		_ = bcrypt.CompareHashAndPassword(
 			dummyBcryptHash,
 			[]byte(uc.plaintext),
@@ -134,7 +134,6 @@ func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 		log.Debug("Invalid API key", "error", err)
 		return nil, ErrInvalidCredentials
 	}
-	// Get the associated user
 	user, err := uc.repo.GetUserByID(ctx, apiKey.UserID)
 	if err != nil {
 		log.Error("Failed to get user for valid API key", "error", err, "user_id", apiKey.UserID)

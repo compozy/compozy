@@ -72,15 +72,11 @@ func (rb *ResourceBuilder) Build(ctx context.Context) (*memcore.Resource, error)
 		Metadata:             nil,   // Metadata not stored in config
 		DisableFlush:         false, // Flush enabled by default
 	}
-	// Apply privacy policy if configured
 	if err := rb.applyPrivacyPolicy(ctx, resource); err != nil {
 		return nil, err
 	}
-	// Apply locking configuration
 	rb.applyLockingConfig(resource)
-	// Apply persistence configuration
 	rb.applyPersistenceConfig(resource)
-	// Log the conversion
 	log.Debug("Config to resource conversion",
 		"config_ttl", rb.config.Persistence.TTL,
 		"parsed_ttl", rb.config.Persistence.ParsedTTL,
@@ -98,7 +94,6 @@ func (rb *ResourceBuilder) applyPrivacyPolicy(ctx context.Context, resource *mem
 		DefaultRedactionString:     rb.config.PrivacyPolicy.DefaultRedactionString,
 	}
 	if len(rb.config.PrivacyPolicy.RedactPatterns) > 0 {
-		// Validate and use regex patterns directly
 		if err := privacy.ValidateRedactionPatterns(rb.config.PrivacyPolicy.RedactPatterns); err != nil {
 			return &Error{
 				Type:       ErrorTypeConfig,
@@ -129,7 +124,6 @@ func (rb *ResourceBuilder) applyPersistenceConfig(resource *memcore.Resource) {
 
 // loadMemoryConfig loads and validates a memory configuration by ID
 func (mm *Manager) loadMemoryConfig(ctx context.Context, resourceID string) (*memcore.Resource, error) {
-	// Since this is greenfield, we expect properly typed configs only
 	configMap, err := mm.resourceRegistry.Get("memory", resourceID)
 	if err != nil {
 		return nil, &Error{
@@ -139,12 +133,10 @@ func (mm *Manager) loadMemoryConfig(ctx context.Context, resourceID string) (*me
 			Cause:      err,
 		}
 	}
-	// Create a properly typed config from the map
 	config, err := mm.createConfigFromMap(ctx, resourceID, configMap)
 	if err != nil {
 		return nil, err
 	}
-	// Build resource using the new builder pattern
 	builder := &ResourceBuilder{config: config}
 	return builder.Build(ctx)
 }
@@ -156,14 +148,10 @@ func (mm *Manager) resolveMemoryKey(
 	workflowContextData map[string]any,
 ) (string, error) {
 	log := logger.FromContext(ctx)
-	// Extract project ID early
 	projectID := mm.projectContextResolver.ResolveProjectID(ctx, workflowContextData)
-	// Get the key to validate
 	keyToValidate := mm.getKeyToValidate(ctx, agentMemoryRef, workflowContextData)
-	// Validate the key
 	validatedKey, err := mm.validateKey(keyToValidate)
 	if err != nil {
-		// Extract workflow execution ID for correlation
 		workflowExecID := ExtractWorkflowExecID(workflowContextData)
 		return "", fmt.Errorf("memory key validation failed for '%s' (project: %s, workflow_exec_id: %s): %w",
 			keyToValidate, projectID, workflowExecID, err)
@@ -187,18 +175,14 @@ func (mm *Manager) getKeyToValidate(
 	agentMemoryRef core.MemoryReference,
 	workflowContextData map[string]any,
 ) string {
-	// Use pre-resolved key if available (e.g., from REST API)
 	if agentMemoryRef.ResolvedKey != "" {
 		log := logger.FromContext(ctx)
 		log.Debug("Using pre-resolved key", "key", agentMemoryRef.ResolvedKey)
 		return agentMemoryRef.ResolvedKey
 	}
-	// Determine template to use: agent-specified key, or fallback to
-	// memory.Config.default_key_template if agent key is empty.
 	keyTemplate := agentMemoryRef.Key
 	if keyTemplate == "" {
 		log := logger.FromContext(ctx)
-		// Attempt to load memory config to retrieve default key template
 		if mm.resourceRegistry != nil {
 			if configMap, err := mm.resourceRegistry.Get("memory", agentMemoryRef.ID); err == nil {
 				if cfg, err2 := mm.createConfigFromMap(ctx, agentMemoryRef.ID, configMap); err2 == nil && cfg != nil {
@@ -213,7 +197,6 @@ func (mm *Manager) getKeyToValidate(
 			}
 		}
 	}
-	// Resolve from template (may still be empty and will be validated later)
 	return mm.resolveKeyFromTemplate(ctx, keyTemplate, agentMemoryRef.ID, workflowContextData)
 }
 
@@ -229,7 +212,6 @@ func (mm *Manager) resolveKeyFromTemplate(
 		log.Debug("Using literal key (no template syntax detected)", "key", keyTemplate)
 		return keyTemplate
 	}
-	// Attempt template resolution
 	log.Debug("Attempting template resolution",
 		"template", keyTemplate,
 		"has_template_engine", mm.tplEngine != nil)
@@ -242,8 +224,6 @@ func (mm *Manager) resolveKeyFromTemplate(
 		log.Error("Failed to evaluate key template",
 			"template", keyTemplate,
 			"error", err)
-		// Return template as-is to trigger validation error
-		// This ensures template resolution errors are properly propagated
 		return keyTemplate
 	}
 	log.Debug("Template resolved successfully",
@@ -267,7 +247,6 @@ func NewProjectContextResolver(fallbackProjectID string) *ProjectContextResolver
 // ResolveProjectID extracts project ID from workflow context with fallback
 func (r *ProjectContextResolver) ResolveProjectID(ctx context.Context, workflowContextData map[string]any) string {
 	log := logger.FromContext(ctx)
-	// Try nested format first (standard workflow format)
 	if project, ok := workflowContextData["project"]; ok {
 		if projectMap, ok := project.(map[string]any); ok {
 			if id, ok := projectMap["id"]; ok {
@@ -278,14 +257,12 @@ func (r *ProjectContextResolver) ResolveProjectID(ctx context.Context, workflowC
 			}
 		}
 	}
-	// Try flat format (legacy support)
 	if projectID, ok := workflowContextData["project.id"]; ok {
 		if projectIDStr, ok := projectID.(string); ok && projectIDStr != "" {
 			log.Info("Project ID resolved from flat format", "project_id", projectIDStr)
 			return projectIDStr
 		}
 	}
-	// Use fallback project ID (from appState.ProjectConfig.Name)
 	log.Info("Using fallback project ID", "fallback_project_id", r.fallbackProjectID)
 	return r.fallbackProjectID
 }
@@ -295,7 +272,6 @@ func ExtractWorkflowExecID(contextData map[string]any) string {
 	if contextData == nil {
 		return "unknown"
 	}
-	// Check for workflow.exec_id
 	if workflow, ok := contextData["workflow"].(map[string]any); ok {
 		if execID, ok := workflow["exec_id"].(string); ok && execID != "" {
 			return execID
@@ -314,7 +290,6 @@ func (mm *Manager) validateKey(key string) (string, error) {
 			key,
 		)
 	}
-	// Additional validation: prevent keys that might conflict with Redis internals
 	if strings.HasPrefix(key, "__") || strings.HasSuffix(key, "__") {
 		return "", fmt.Errorf("invalid memory key '%s': keys cannot start or end with '__'", key)
 	}
@@ -345,7 +320,6 @@ func (mm *Manager) getOrCreateTokenCounterWithConfig(
 	model string,
 	providerConfig *memcore.TokenProviderConfig,
 ) (memcore.TokenCounter, error) {
-	// Create new counter directly without caching
 	if providerConfig != nil {
 		return mm.createUnifiedCounter(ctx, model, providerConfig)
 	}
@@ -360,7 +334,6 @@ func (mm *Manager) createUnifiedCounter(
 ) (memcore.TokenCounter, error) {
 	keyResolver := tokens.NewAPIKeyResolver()
 	tokensProviderConfig := keyResolver.ResolveProviderConfig(ctx, providerConfig)
-	// Create fallback counter
 	fallback, err := tokens.NewTiktokenCounter(model)
 	if err != nil {
 		return nil, &Error{
@@ -370,7 +343,6 @@ func (mm *Manager) createUnifiedCounter(
 			Cause:      err,
 		}
 	}
-	// Create unified counter
 	counter, err := tokens.NewUnifiedTokenCounter(tokensProviderConfig, fallback)
 	if err != nil {
 		return nil, &Error{
@@ -399,7 +371,6 @@ func (mm *Manager) createTiktokenCounter(model string) (memcore.TokenCounter, er
 
 // createConfigFromMap efficiently creates a Config from a map
 func (mm *Manager) createConfigFromMap(ctx context.Context, resourceID string, configMap any) (*Config, error) {
-	// Handle the case where the registry already returns a typed config
 	if cfg, ok := configMap.(*Config); ok {
 		cloned := cloneConfigForValidation(cfg)
 		if err := cloned.Validate(ctx); err != nil {
@@ -412,8 +383,6 @@ func (mm *Manager) createConfigFromMap(ctx context.Context, resourceID string, c
 		}
 		return cloned, nil
 	}
-	// For maps, we still need to use YAML conversion due to complex nested structures
-	// In a greenfield project, we would enforce typed configs throughout
 	rawMap, ok := configMap.(map[string]any)
 	if !ok {
 		return nil, &Error{
@@ -423,7 +392,6 @@ func (mm *Manager) createConfigFromMap(ctx context.Context, resourceID string, c
 			Cause:      fmt.Errorf("expected map[string]any, got %T", configMap),
 		}
 	}
-	// Create config using FromMap method for consistency
 	config := &Config{}
 	if err := config.FromMap(rawMap); err != nil {
 		return nil, &Error{
@@ -433,7 +401,6 @@ func (mm *Manager) createConfigFromMap(ctx context.Context, resourceID string, c
 			Cause:      err,
 		}
 	}
-	// Validate the config
 	if err := config.Validate(ctx); err != nil {
 		return nil, &Error{
 			Type:       ErrorTypeConfig,

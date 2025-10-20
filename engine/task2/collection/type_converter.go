@@ -32,20 +32,15 @@ func (tc *TypeConverter) ConvertToSlice(value any) []any {
 		return []any{}
 	}
 	// Note: Precision conversion is now handled by the template engine
-	// when WithPrecisionPreservation is enabled
-	// Handle slice types
 	if result := tc.convertSliceTypes(value); result != nil {
 		return result
 	}
-	// Handle map types
 	if result := tc.convertMapTypes(value); result != nil {
 		return result
 	}
-	// Handle string types (including range expressions)
 	if result := tc.convertStringTypes(value); result != nil {
 		return result
 	}
-	// Handle primitive types
 	return tc.convertPrimitiveTypes(value)
 }
 
@@ -114,7 +109,6 @@ func (tc *TypeConverter) convertPrimitiveTypes(value any) []any {
 	case bool:
 		return []any{value}
 	case json.Number:
-		// Convert json.Number to appropriate numeric type
 		return []any{tc.handleJSONNumber(v)}
 	default:
 		return []any{value}
@@ -124,7 +118,6 @@ func (tc *TypeConverter) convertPrimitiveTypes(value any) []any {
 // parseRangeExpression parses range expressions like "1..10" or "a..z"
 func (tc *TypeConverter) parseRangeExpression(expr string) []any {
 	expr = strings.TrimSpace(expr)
-	// Check for ".." in the expression
 	if !strings.Contains(expr, "..") {
 		return nil
 	}
@@ -134,15 +127,12 @@ func (tc *TypeConverter) parseRangeExpression(expr string) []any {
 	}
 	start := strings.TrimSpace(parts[0])
 	end := strings.TrimSpace(parts[1])
-	// Try numeric range first
 	if numRange := tc.parseNumericRange(start, end); numRange != nil {
 		return numRange
 	}
-	// Try character range
 	if charRange := tc.parseCharacterRange(start, end); charRange != nil {
 		return charRange
 	}
-	// Not a valid range expression
 	return nil
 }
 
@@ -153,7 +143,6 @@ func (tc *TypeConverter) parseNumericRange(start, end string) []any {
 	if err1 != nil || err2 != nil {
 		return nil
 	}
-	// Handle reverse ranges
 	if startNum > endNum {
 		diff := startNum - endNum
 		result := make([]any, diff+1)
@@ -162,7 +151,6 @@ func (tc *TypeConverter) parseNumericRange(start, end string) []any {
 		}
 		return result
 	}
-	// Normal ascending range
 	diff := endNum - startNum
 	result := make([]any, diff+1)
 	for i := 0; i <= diff; i++ {
@@ -173,15 +161,11 @@ func (tc *TypeConverter) parseNumericRange(start, end string) []any {
 
 // parseNumber attempts to parse a string as an integer
 func (tc *TypeConverter) parseNumber(s string) (int, error) {
-	// Try parsing as integer
 	if i, err := strconv.Atoi(s); err == nil {
 		return i, nil
 	}
-	// Try parsing as float and convert to int
 	if f, err := strconv.ParseFloat(s, 64); err == nil {
-		// Check if it's a whole number
 		if f == math.Floor(f) {
-			// Check if float is within int range before converting
 			if f > float64(math.MaxInt) || f < float64(math.MinInt) {
 				return 0, fmt.Errorf("number out of int range: %s", s)
 			}
@@ -189,7 +173,6 @@ func (tc *TypeConverter) parseNumber(s string) (int, error) {
 		}
 		return 0, fmt.Errorf("not a whole number: %s", s)
 	}
-	// Try parsing as big int
 	if bigInt, ok := new(big.Int).SetString(s, 10); ok {
 		if bigInt.IsInt64() {
 			i64 := bigInt.Int64()
@@ -213,18 +196,14 @@ func (tc *TypeConverter) parseCharacterRange(start, end string) []any {
 	}
 	startChar := startRunes[0]
 	endChar := endRunes[0]
-	// Check if both are letters (using Unicode-aware function)
 	if !unicode.IsLetter(startChar) || !unicode.IsLetter(endChar) {
 		return nil
 	}
-	// Check if both are from the same Unicode script for consistency
 	if !isSameScript(startChar, endChar) {
 		return nil
 	}
-	// Handle reverse ranges
 	if startChar > endChar {
 		size := int(startChar-endChar) + 1
-		// Prevent allocation overflow - limit range size to reasonable bounds
 		if size > 10000 { // Max 10k characters in a range
 			return nil
 		}
@@ -234,9 +213,7 @@ func (tc *TypeConverter) parseCharacterRange(start, end string) []any {
 		}
 		return result
 	}
-	// Normal ascending range
 	size := int(endChar-startChar) + 1
-	// Prevent allocation overflow - limit range size to reasonable bounds
 	if size > 10000 { // Max 10k characters in a range
 		return nil
 	}
@@ -250,11 +227,9 @@ func (tc *TypeConverter) parseCharacterRange(start, end string) []any {
 // isSameScript checks if two runes belong to the same Unicode script
 // This ensures character ranges make sense (e.g., "a..z" or "α..ω" but not "a..α")
 func isSameScript(r1, r2 rune) bool {
-	// For ASCII letters, check if both are ASCII and same case
 	if isASCIILetter(r1) && isASCIILetter(r2) {
 		return unicode.IsUpper(r1) == unicode.IsUpper(r2)
 	}
-	// For non-ASCII, check common Unicode scripts
 	scripts := []*unicode.RangeTable{
 		unicode.Greek, unicode.Cyrillic, unicode.Arabic, unicode.Hebrew,
 		unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Thai,
@@ -265,8 +240,6 @@ func isSameScript(r1, r2 rune) bool {
 			return true
 		}
 	}
-	// If neither are ASCII letters and don't match known scripts,
-	// allow if they're close in Unicode codepoint space (same block)
 	const blockSize = 128 // Approximate Unicode block size
 	return (r1 / blockSize) == (r2 / blockSize)
 }
@@ -279,14 +252,11 @@ func isASCIILetter(r rune) bool {
 // handleJSONNumber processes json.Number type to preserve precision
 func (tc *TypeConverter) handleJSONNumber(num json.Number) any {
 	numStr := string(num)
-	// Try int64 first
 	if i, err := strconv.ParseInt(numStr, 10, 64); err == nil {
 		return i
 	}
-	// Try float64
 	if f, err := strconv.ParseFloat(numStr, 64); err == nil {
 		return f
 	}
-	// Cannot parse as number, return as string
 	return numStr
 }

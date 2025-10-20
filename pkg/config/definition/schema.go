@@ -154,7 +154,6 @@ func registerServerFields(registry *Registry) {
 func registerServerCoreFields(registry *Registry) {
 	registerServerHostPortCors(registry)
 	registerServerTimeoutField(registry)
-	// server.source_of_truth determines whether to load workflows from repo (YAML) or builder store
 	registry.Register(
 		&FieldDef{
 			Path:    "server.source_of_truth",
@@ -165,7 +164,6 @@ func registerServerCoreFields(registry *Registry) {
 			Help:    "Source of truth for workflows: repo|builder",
 		},
 	)
-	// server.seed_from_repo_on_empty controls optional seeding behavior in builder mode
 	registry.Register(
 		&FieldDef{
 			Path:    "server.seed_from_repo_on_empty",
@@ -261,7 +259,7 @@ func registerServerTimeoutField(registry *Registry) {
 }
 
 func registerServerAuthFields(registry *Registry) {
-	// Authentication configuration
+	// NOTE: Separate MCP client timeout avoids leaking readiness settings into HTTP requests.
 	registry.Register(&FieldDef{
 		Path:    "server.auth.enabled",
 		Default: false, // Default to disabled in development
@@ -1183,7 +1181,6 @@ func registerLLMFields(registry *Registry) {
 
 // registerLLMMCPExtras splits MCP-related LLM fields to keep function sizes small
 func registerLLMMCPExtras(registry *Registry) {
-	// MCP options
 	registry.Register(&FieldDef{
 		Path:    "llm.allowed_mcp_names",
 		Default: []string{},
@@ -1200,7 +1197,6 @@ func registerLLMMCPExtras(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Fail-fast when MCP registration encounters an error",
 	})
-	// Complex type; CLI flag omitted due to structure complexity
 	registry.Register(&FieldDef{
 		Path:    "llm.register_mcps",
 		Default: []any{},
@@ -1209,7 +1205,6 @@ func registerLLMMCPExtras(registry *Registry) {
 		Type:    reflect.TypeOf([]any{}),
 		Help:    "Additional MCP configurations to register with the proxy",
 	})
-	// MCP client HTTP timeout (separate from readiness timeout)
 	registry.Register(&FieldDef{
 		Path:    "llm.mcp_client_timeout",
 		Default: 30 * time.Second,
@@ -1218,7 +1213,6 @@ func registerLLMMCPExtras(registry *Registry) {
 		Type:    durationType,
 		Help:    "HTTP client timeout for MCP proxy communication",
 	})
-	// Retry jitter percent applied to proxy retries (when jitter enabled)
 	registry.Register(&FieldDef{
 		Path:    "llm.retry_jitter_percent",
 		Default: 10,
@@ -1909,7 +1903,6 @@ func registerOutputFormatFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Default page size for paginated results",
 	})
-	// Add output format alias flag
 	registry.Register(&FieldDef{
 		Path:      "cli.output_format_alias",
 		Default:   "",
@@ -1919,7 +1912,6 @@ func registerOutputFormatFields(registry *Registry) {
 		Type:      reflect.TypeOf(""),
 		Help:      "Output format alias (same as --format)",
 	})
-	// Add no-color flag for boolean color control
 	registry.Register(&FieldDef{
 		Path:    "cli.no_color",
 		Default: false,

@@ -27,9 +27,7 @@ func (p *FIFOEvictionPolicy) SelectMessagesToEvict(
 	if len(messages) <= targetCount || targetCount < 0 {
 		return nil // No eviction needed
 	}
-	// Calculate how many messages to evict
 	evictCount := len(messages) - targetCount
-	// Return the oldest messages (first in the array)
 	return messages[:evictCount]
 }
 

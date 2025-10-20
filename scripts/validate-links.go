@@ -171,12 +171,10 @@ func extractLinks(filePath, _ string) ([]Link, error) {
 	var links []Link
 	lines := strings.Split(string(content), "\n")
 	for lineNum, line := range lines {
-		// Skip lines that are in code blocks
 		if strings.HasPrefix(strings.TrimSpace(line), "```") {
 			continue
 		}
 
-		// Extract markdown links [text](url)
 		matches := markdownLinkRegex.FindAllStringSubmatch(line, -1)
 		for _, match := range matches {
 			if len(match) >= 3 {
@@ -187,7 +185,6 @@ func extractLinks(filePath, _ string) ([]Link, error) {
 			}
 		}
 
-		// Extract href props href="url"
 		hrefMatches := hrefPropRegex.FindAllStringSubmatch(line, -1)
 		for _, match := range hrefMatches {
 			if len(match) >= 2 {
@@ -209,7 +206,6 @@ func createLink(url, text, sourceFile string, lineNumber int) *Link {
 		LineNumber: lineNumber,
 		Valid:      true,
 	}
-	// Determine link type
 	switch {
 	case strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://"):
 		link.Type = LinkTypeExternal
@@ -261,7 +257,6 @@ func validateLinks(ctx context.Context, links []Link, docsRoot string, result *V
 			validateFileLink(link, docsRoot)
 		}
 
-		// Update counters
 		result.mu.Lock()
 		if link.Valid {
 			result.ValidLinks++
@@ -421,27 +416,21 @@ func finalizeExternalValidation(result *ValidationResult, link *Link, success bo
 }
 
 func validateAnchorLink(link *Link, docsRoot string) {
-	// Handle pure anchors (#section) and paths with anchors
 	if after, ok := strings.CutPrefix(link.URL, "#"); ok {
-		// Pure anchor - check in the same file
 		if !validateAnchorInFile(link.SourceFile, after) {
 			link.Valid = false
 			link.Error = fmt.Sprintf("anchor '%s' not found in current file", link.URL)
 		}
 	} else if strings.Contains(link.URL, "#") {
-		// Path with anchor - validate as internal link
 		link.Type = LinkTypeInternal
 		validateInternalLink(link, docsRoot)
 	}
 }
 
 func validateFileLink(link *Link, _ string) {
-	// For relative file links
 	basePath := filepath.Dir(link.SourceFile)
 	linkPath := link.URL
-	// Remove any anchors
 	linkPath = strings.Split(linkPath, "#")[0]
-	// Handle relative paths - try with .mdx extension
 	possiblePaths := []string{
 		filepath.Join(basePath, linkPath),
 		filepath.Join(basePath, linkPath+".mdx"),
@@ -454,7 +443,6 @@ func validateFileLink(link *Link, _ string) {
 			found = true
 			foundPath = path
 
-			// If there's an anchor, validate it
 			if strings.Contains(link.URL, "#") {
 				parts := strings.Split(link.URL, "#")
 				if len(parts) > 1 {
@@ -480,13 +468,10 @@ func validateAnchorInFile(filePath, anchor string) bool {
 	if err != nil {
 		return false
 	}
-	// Anchors in markdown are typically lowercase with hyphens
-	// Find all headers
 	headers := headerRegex.FindAllStringSubmatch(string(content), -1)
 	for _, match := range headers {
 		if len(match) > 1 {
 			header := strings.TrimSpace(match[1])
-			// Convert header to anchor format
 			headerAnchor := strings.ToLower(header)
 			headerAnchor = regexp.MustCompile(`[^a-z0-9\s-]`).ReplaceAllString(headerAnchor, "")
 			headerAnchor = strings.ReplaceAll(headerAnchor, " ", "-")
@@ -497,7 +482,6 @@ func validateAnchorInFile(filePath, anchor string) bool {
 			}
 		}
 	}
-	// Also check for explicit anchor definitions {#anchor-name}
 	anchorDefRegex := regexp.MustCompile(`\{#([^}]+)\}`)
 	anchorDefs := anchorDefRegex.FindAllStringSubmatch(string(content), -1)
 	for _, match := range anchorDefs {

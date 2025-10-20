@@ -21,9 +21,7 @@ func NewPolicyFactory(ctx context.Context) (*PolicyFactory, error) {
 	factory := &PolicyFactory{
 		policies: make(map[string]func() instance.EvictionPolicy),
 	}
-	// Register built-in policies
 	if err := factory.registerBuiltInPolicies(ctx); err != nil {
-		// This should never happen with built-in policies
 		return nil, fmt.Errorf("failed to register built-in eviction policies: %w", err)
 	}
 	return factory, nil
@@ -31,19 +29,16 @@ func NewPolicyFactory(ctx context.Context) (*PolicyFactory, error) {
 
 // registerBuiltInPolicies registers all default eviction policies
 func (f *PolicyFactory) registerBuiltInPolicies(ctx context.Context) error {
-	// FIFO policy
 	if err := f.Register("fifo", func() instance.EvictionPolicy {
 		return NewFIFOEvictionPolicy(ctx)
 	}); err != nil {
 		return fmt.Errorf("failed to register FIFO policy: %w", err)
 	}
-	// LRU policy
 	if err := f.Register("lru", func() instance.EvictionPolicy {
 		return NewLRUEvictionPolicy(ctx)
 	}); err != nil {
 		return fmt.Errorf("failed to register LRU policy: %w", err)
 	}
-	// Priority-based policy
 	if err := f.Register("priority", func() instance.EvictionPolicy {
 		return NewPriorityEvictionPolicy(ctx)
 	}); err != nil {
@@ -81,7 +76,6 @@ func (f *PolicyFactory) Create(policyType string) (instance.EvictionPolicy, erro
 func (f *PolicyFactory) CreateOrDefault(ctx context.Context, policyType string) instance.EvictionPolicy {
 	policy, err := f.Create(policyType)
 	if err != nil {
-		// Return default FIFO policy
 		return NewFIFOEvictionPolicy(ctx)
 	}
 	return policy
@@ -153,7 +147,6 @@ func CreatePolicyWithConfig(ctx context.Context, config *memcore.EvictionPolicyC
 	case memcore.FIFOEviction:
 		return NewFIFOEvictionPolicy(ctx)
 	default:
-		// Default to FIFO if unknown policy type
 		return NewFIFOEvictionPolicy(ctx)
 	}
 }

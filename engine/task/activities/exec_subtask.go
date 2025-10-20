@@ -92,7 +92,6 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 	log.Debug("ExecuteSubtask.Run starting",
 		"task_exec_id", input.TaskExecID,
 		"parent_state_id", input.ParentStateID)
-	// Load workflow and task configs
 	_, workflowConfig, taskConfig, err := a.loadConfigs(ctx, input)
 	if err != nil {
 		return nil, err
@@ -100,10 +99,6 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 	log.Debug("Loaded task config",
 		"task_id", taskConfig.ID,
 		"task_type", taskConfig.Type)
-	// ---------------- SEQUENTIAL EXECUTION FOR SIBLINGS ----------------
-	// CRITICAL FIX: Wait for prior siblings BEFORE normalization
-	// This ensures sibling task outputs are available in the workflow state
-	// when templates are parsed during normalization
 	log.Debug("About to wait for prior siblings",
 		"parent_state_id", input.ParentStateID,
 		"current_task_id", taskConfig.ID)
@@ -111,7 +106,6 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 		return nil, fmt.Errorf("failed waiting for sibling tasks: %w", err)
 	}
 	log.Debug("Finished waiting for prior siblings")
-	// Refresh workflow state after siblings complete to get their outputs
 	workflowState, _, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
@@ -119,13 +113,9 @@ func (a *ExecuteSubtask) Run(ctx context.Context, input *ExecuteSubtaskInput) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to refresh workflow state: %w", err)
 	}
-	// -------------------------------------------------------------------
-	// Normalize task configuration AFTER siblings complete
-	// This ensures template interpolation has access to sibling outputs
 	if err := a.normalizeTask(ctx, taskConfig, workflowState, workflowConfig, &input.ParentStateID); err != nil {
 		return nil, err
 	}
-	// Execute the task and handle response
 	return a.executeAndHandleResponse(ctx, input, taskConfig, workflowState, workflowConfig)
 }
 
@@ -133,7 +123,6 @@ func (a *ExecuteSubtask) loadConfigs(
 	ctx context.Context,
 	input *ExecuteSubtaskInput,
 ) (*workflow.State, *workflow.Config, *task.Config, error) {
-	// Load workflow state and config
 	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
@@ -141,7 +130,6 @@ func (a *ExecuteSubtask) loadConfigs(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	// Load task config from store
 	taskConfig, err := a.configStore.Get(ctx, input.TaskExecID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to load task config for taskExecID %s: %w", input.TaskExecID, err)
@@ -156,17 +144,14 @@ func (a *ExecuteSubtask) normalizeTask(
 	workflowConfig *workflow.Config,
 	parentStateID *core.ID,
 ) error {
-	// Use task2 normalizer for subtask
 	normalizer, err := a.task2Factory.CreateNormalizer(ctx, taskConfig.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create subtask normalizer: %w", err)
 	}
-	// Create context builder to build proper normalization context
 	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create context builder: %w", err)
 	}
-	// Build proper normalization context with all template variables
 	normContext := contextBuilder.BuildContextForTaskInstance(
 		ctx,
 		workflowState,
@@ -174,7 +159,6 @@ func (a *ExecuteSubtask) normalizeTask(
 		taskConfig,
 		parentStateID,
 	)
-	// Normalize the task configuration
 	if err := normalizer.Normalize(ctx, taskConfig, normContext); err != nil {
 		return fmt.Errorf("failed to normalize subtask: %w", err)
 	}
@@ -188,7 +172,6 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 ) (*task.SubtaskResponse, error) {
-	// Get child state with retry logic
 	taskState, err := a.getChildStateWithRetry(ctx, input.ParentStateID, taskConfig.ID)
 	if err != nil {
 		return nil, err
@@ -340,11 +323,9 @@ func (a *ExecuteSubtask) getChildStateWithRetry(
 			var err error
 			taskState, err = a.getChildState(ctx, parentStateID, taskID)
 			if err != nil {
-				// If the error is anything other than Not Found, fail immediately (non-retryable)
 				if !errors.Is(err, store.ErrTaskNotFound) {
 					return fmt.Errorf("failed to get child state: %w", err)
 				}
-				// ErrTaskNotFound is retryable
 				return retry.RetryableError(err)
 			}
 			return nil
@@ -353,7 +334,6 @@ func (a *ExecuteSubtask) getChildStateWithRetry(
 	if err != nil {
 		return nil, fmt.Errorf("child state for task %s not found after retries: %w", taskID, err)
 	}
-	// Add explicit nil check in case repository returns (nil, nil)
 	if taskState == nil {
 		return nil, fmt.Errorf("child state for task %s returned nil without error", taskID)
 	}
@@ -366,7 +346,6 @@ func (a *ExecuteSubtask) getChildState(
 	parentStateID core.ID,
 	taskID string,
 ) (*task.State, error) {
-	// Use optimized direct lookup instead of fetching all children
 	return a.taskRepo.GetChildByTaskID(ctx, parentStateID, taskID)
 }
 

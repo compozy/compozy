@@ -38,7 +38,6 @@ type HandleResponse struct {
 }
 
 func NewHandleResponse(workflowRepo workflow.Repository, taskRepo task.Repository) *HandleResponse {
-	// Create template engine for task2 normalizers
 	tplEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	return &HandleResponse{
 		workflowRepo:                workflowRepo,
@@ -51,21 +50,17 @@ func NewHandleResponse(workflowRepo workflow.Repository, taskRepo task.Repositor
 }
 
 func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInput) (task.Response, error) {
-	// Process task execution result and determine success status
 	isSuccess, executionErr := uc.processTaskResult(ctx, input)
-	// Save state with context handling
 	if err := uc.saveStateWithContextHandling(ctx, input.TaskState); err != nil {
 		if ctx.Err() != nil {
 			return &task.MainTaskResponse{State: input.TaskState}, nil
 		}
 		return nil, err
 	}
-	// Update parent status and handle context cancellation
 	uc.logParentStatusUpdateError(ctx, input.TaskState)
 	if ctx.Err() != nil {
 		return &task.MainTaskResponse{State: input.TaskState}, nil
 	}
-	// Process transitions and validate error handling
 	onSuccess, onError, err := uc.processTransitionsWithValidation(ctx, input, isSuccess, executionErr)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -73,7 +68,6 @@ func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInpu
 		}
 		return nil, err
 	}
-	// Determine next task
 	nextTask := uc.selectNextTask(input, isSuccess)
 	return &task.MainTaskResponse{
 		OnSuccess: onSuccess,
@@ -87,8 +81,6 @@ func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInpu
 func (uc *HandleResponse) processTaskResult(ctx context.Context, input *HandleResponseInput) (bool, error) {
 	state := input.TaskState
 	executionErr := input.ExecutionError
-	// If successful so far, try to apply output transformation.
-	// If transformation fails, it becomes a task failure.
 	isSuccess := executionErr == nil && state.Status != core.StatusFailed
 	if isSuccess {
 		state.UpdateStatus(core.StatusSuccess)
@@ -99,7 +91,6 @@ func (uc *HandleResponse) processTaskResult(ctx context.Context, input *HandleRe
 			}
 		}
 	}
-	// Handle final state (success or failure)
 	if !isSuccess {
 		state.UpdateStatus(core.StatusFailed)
 		uc.setErrorState(state, executionErr)
@@ -148,9 +139,7 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 	if err != nil {
 		return fmt.Errorf("failed to get workflow state for output transformation: %w", err)
 	}
-	// Build task configs map for context
 	taskConfigs := task2.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
-	// Create normalization context with proper Variables
 	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create context builder: %w", err)
@@ -159,12 +148,9 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 	normCtx.TaskConfigs = taskConfigs
 	normCtx.CurrentInput = input.TaskConfig.With
 	normCtx.MergedEnv = input.TaskConfig.Env
-	// For collection child tasks, we need to add the item context
-	// Check if this task has a parent that is a collection
 	if input.TaskState.ParentStateID != nil {
 		parentState, err := uc.taskRepo.GetState(ctx, *input.TaskState.ParentStateID)
 		if err == nil && parentState.ExecutionType == task.ExecutionCollection {
-			// Extract item and index from the task's input
 			if input.TaskState.Input != nil {
 				if item, hasItem := (*input.TaskState.Input)[shared.ItemKey]; hasItem {
 					normCtx.Variables[shared.ItemKey] = item

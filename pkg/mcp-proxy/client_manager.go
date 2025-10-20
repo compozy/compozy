@@ -84,25 +84,20 @@ func NewMCPClientManager(ctx context.Context, storage Storage, config *ClientMan
 func (m *MCPClientManager) Start(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Starting MCP client manager")
-	// Replace internal context with a cancelable derivative that preserves values
 	base := context.WithoutCancel(ctx)
-	// Cancel any previous background context to avoid leaks
 	if m.cancel != nil {
+		// NOTE: Cancel the previous manager context so stale health monitors don't linger.
 		m.cancel()
 	}
 	mctx, cancel := context.WithCancel(base)
 	m.ctx = logger.ContextWithLogger(mctx, log)
 	m.cancel = cancel
-	// Load existing definitions and start clients
 	definitions, err := m.storage.ListMCPs(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load MCP definitions: %w", err)
 	}
-	// Use errgroup to start clients concurrently for faster startup
-	// This improves startup time when multiple MCP servers need to be connected
 	g, groupCtx := errgroup.WithContext(ctx)
 	for _, def := range definitions {
-		// capture loop variable for closure
 		g.Go(func() error {
 			if err := m.AddClient(groupCtx, def); err != nil {
 				log.Error("Failed to add client during startup", "name", def.Name, "error", err)
@@ -111,11 +106,9 @@ func (m *MCPClientManager) Start(ctx context.Context) error {
 			return nil
 		})
 	}
-	// Wait for all clients to start or fail
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("failed to start some MCP clients: %w", err)
 	}
-	// Start background health monitoring
 	m.wg.Add(1)
 	go m.healthMonitor()
 	log.Info("MCP client manager started", "clients", len(m.clients))
@@ -126,13 +119,10 @@ func (m *MCPClientManager) Start(ctx context.Context) error {
 func (m *MCPClientManager) Stop(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Stopping MCP client manager")
-	// Cancel background operations
 	m.cancel()
-	// Disconnect all clients concurrently using errgroup
 	m.mu.Lock()
 	clients := core.CloneMap(m.clients)
 	m.mu.Unlock()
-	// Use errgroup for concurrent disconnection
 	g, groupCtx := errgroup.WithContext(ctx)
 	for name, client := range clients {
 		name, client := name, client // capture loop variables
@@ -144,11 +134,9 @@ func (m *MCPClientManager) Stop(ctx context.Context) error {
 			return nil
 		})
 	}
-	// Wait for all disconnections to complete
 	if err := g.Wait(); err != nil {
 		log.Warn("Some clients failed to disconnect cleanly", "error", err)
 	}
-	// Wait for background goroutines to finish
 	m.wg.Wait()
 	log.Info("MCP client manager stopped")
 	return nil
@@ -163,35 +151,28 @@ func (m *MCPClientManager) AddClient(ctx context.Context, def *MCPDefinition) er
 	if err := def.Validate(); err != nil {
 		return fmt.Errorf("invalid definition: %w", err)
 	}
-	// Create client outside the critical section to avoid blocking
+	// NOTE: Build the client before taking the lock so slow dials don't block other operations.
 	client, err := m.createClient(def)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
-	// Only hold lock for map operations
 	m.mu.Lock()
-	// Check if client already exists
 	if _, exists := m.clients[def.Name]; exists {
 		m.mu.Unlock()
-		// Clean up the created client since we're not using it
 		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
 			log.Debug("Failed to clean up unused client", "name", def.Name, "error", disconnectErr)
 		}
 		return fmt.Errorf("client '%s' already exists", def.Name)
 	}
-	// Check connection limit
 	if len(m.clients) >= m.config.MaxConcurrentConnections {
 		m.mu.Unlock()
-		// Clean up the created client since we can't add it
 		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
 			log.Debug("Failed to clean up client due to connection limit", "name", def.Name, "error", disconnectErr)
 		}
 		return fmt.Errorf("maximum concurrent connections (%d) reached", m.config.MaxConcurrentConnections)
 	}
-	// Add to map
 	m.clients[def.Name] = client
 	m.mu.Unlock()
-	// Start connection in background
 	m.wg.Go(func() {
 		m.connectClient(m.ctx, client)
 	})
@@ -208,11 +189,9 @@ func (m *MCPClientManager) RemoveClient(ctx context.Context, name string) error 
 	if !exists {
 		return fmt.Errorf("client '%s' not found", name)
 	}
-	// Disconnect the client
 	if err := client.Disconnect(ctx); err != nil {
 		log.Error("Failed to disconnect client", "name", name, "error", err)
 	}
-	// Remove from map
 	delete(m.clients, name)
 	log.Debug("Removed MCP client", "name", name)
 	return nil
@@ -238,7 +217,6 @@ func (m *MCPClientManager) ListClientStatuses(ctx context.Context) map[string]*M
 	if len(clients) == 0 {
 		return make(map[string]*MCPStatus)
 	}
-	// Use errgroup for concurrent status retrieval
 	g := &errgroup.Group{}
 	statuses := make(map[string]*MCPStatus)
 	statusesMu := sync.Mutex{}
@@ -252,7 +230,6 @@ func (m *MCPClientManager) ListClientStatuses(ctx context.Context) map[string]*M
 			return nil
 		})
 	}
-	// Wait for all status retrievals to complete
 	if err := g.Wait(); err != nil {
 		log.Warn("Error during concurrent status retrieval", "error", err)
 	}
@@ -273,13 +250,11 @@ func (m *MCPClientManager) ReloadClient(ctx context.Context, def *MCPDefinition)
 	if def == nil {
 		return fmt.Errorf("definition cannot be nil")
 	}
-	// Remove existing client if it exists
 	if _, err := m.GetClient(def.Name); err == nil {
 		if err := m.RemoveClient(ctx, def.Name); err != nil {
 			return fmt.Errorf("failed to remove existing client: %w", err)
 		}
 	}
-	// Add the new client
 	return m.AddClient(ctx, def)
 }
 

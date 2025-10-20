@@ -263,11 +263,6 @@ func (s *Server) seedAndIngestKnowledge(
 }
 
 func chooseResourceStore(redisClient *redis.Client, cfg *config.Config) resources.ResourceStore {
-	// In repo mode, workflows are loaded directly from YAML and require
-	// preserving concrete Go types in the ResourceStore for schema/agent/tool
-	// resolution. The Redis-backed store serializes values to JSON which loses
-	// type information and causes type mismatches during compilation.
-	// Use in-memory store for repo source of truth to retain types.
 	if cfg != nil && cfg.Server.SourceOfTruth == sourceRepo {
 		return resources.NewMemoryResourceStore()
 	}

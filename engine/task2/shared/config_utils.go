@@ -37,9 +37,6 @@ func (p *defaultConfigProvider) GetConfig(ctx context.Context) *config.Config {
 		p.config, p.configErr = service.Load(ctx)
 		if p.configErr != nil {
 			// TODO: Inject logger for proper error logging
-			// log := logger.FromContext(ctx)
-			// log.Error("Failed to load configuration, using defaults", "error", p.configErr)
-			// Fallback to defaults if loading fails
 			p.config = config.Default()
 		}
 	})
@@ -48,7 +45,6 @@ func (p *defaultConfigProvider) GetConfig(ctx context.Context) *config.Config {
 
 // Error returns the error encountered during configuration loading, if any
 func (p *defaultConfigProvider) Error(ctx context.Context) error {
-	// Ensure config has been loaded before returning error
 	_ = p.GetConfig(ctx)
 	return p.configErr
 }
@@ -75,24 +71,19 @@ func GetConfigLimitsWithConfig(ctx context.Context, appConfig *config.Config) *C
 		MaxConfigDepth:   DefaultMaxConfigDepth,
 		MaxTemplateDepth: DefaultMaxTemplateDepth,
 	}
-	// Use provided config or get from global provider
 	if appConfig == nil {
 		appConfig = globalConfigProvider.GetConfig(ctx)
 	}
-	// Use MaxNestingDepth from config (used by project config)
 	if appConfig.Limits.MaxNestingDepth > 0 {
 		limits.MaxNestingDepth = appConfig.Limits.MaxNestingDepth
-		// Use the same limit for all depth-related configurations
 		limits.MaxParentDepth = appConfig.Limits.MaxNestingDepth
 		limits.MaxChildrenDepth = appConfig.Limits.MaxNestingDepth
 		limits.MaxContextDepth = appConfig.Limits.MaxNestingDepth
 		limits.MaxConfigDepth = appConfig.Limits.MaxNestingDepth
 	}
-	// Use MaxStringLength from config
 	if appConfig.Limits.MaxStringLength > 0 {
 		limits.MaxStringLength = appConfig.Limits.MaxStringLength
 	}
-	// Use specific task context depth if set
 	if appConfig.Limits.MaxTaskContextDepth > 0 {
 		limits.MaxContextDepth = appConfig.Limits.MaxTaskContextDepth
 	}
@@ -115,7 +106,6 @@ func GetGlobalConfigLimits(ctx context.Context) *ConfigLimits {
 	configLimitsMutex.RUnlock()
 	configLimitsMutex.Lock()
 	defer configLimitsMutex.Unlock()
-	// Double-check after acquiring write lock
 	if globalConfigLimits == nil {
 		globalConfigLimits = GetConfigLimits(ctx)
 	}
@@ -126,7 +116,6 @@ func GetGlobalConfigLimits(ctx context.Context) *ConfigLimits {
 func RefreshGlobalConfigLimits(ctx context.Context) {
 	configLimitsMutex.Lock()
 	defer configLimitsMutex.Unlock()
-	// Reset the provider to force reload on next access
 	globalConfigProvider = &defaultConfigProvider{}
 	globalConfigLimits = GetConfigLimits(ctx)
 }
@@ -135,7 +124,6 @@ func RefreshGlobalConfigLimits(ctx context.Context) {
 func resetGlobalConfigLimits() {
 	configLimitsMutex.Lock()
 	defer configLimitsMutex.Unlock()
-	// Reset both the provider and limits
 	globalConfigProvider = &defaultConfigProvider{}
 	globalConfigLimits = nil
 }

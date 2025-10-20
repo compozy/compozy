@@ -51,13 +51,12 @@ func NewMemoryOperationsService(
 	}
 	tracer := otel.Tracer("memory.service")
 	meter := otel.Meter("memory.service")
-	// Create metrics
 	operationCount, err := meter.Int64Counter(
 		monitoringmetrics.MetricNameWithSubsystem("memory", "operations_total"),
 		metric.WithDescription("Total number of memory operations"),
 	)
 	if err != nil {
-		// Log error but continue - metrics are not critical for core functionality
+		// NOTE: Metrics are best-effort; continue without counters if instrumentation setup fails.
 		operationCount = nil
 	}
 	operationDuration, err := meter.Float64Histogram(
@@ -65,7 +64,7 @@ func NewMemoryOperationsService(
 		metric.WithDescription("Duration of memory operations in seconds"),
 	)
 	if err != nil {
-		// Log error but continue - metrics are not critical for core functionality
+		// NOTE: Metrics are best-effort; skip histograms if setup fails to avoid blocking service.
 		operationDuration = nil
 	}
 	return &memoryOperationsService{
@@ -86,23 +85,19 @@ func NewMemoryOperationsService(
 func (s *memoryOperationsService) Read(ctx context.Context, req *ReadRequest) (*ReadResponse, error) {
 	ctx, span := s.tracer.Start(ctx, "memory.service.Read")
 	defer span.End()
-	// Add attributes
 	span.SetAttributes(
 		attribute.String("memory_ref", req.MemoryRef),
 		attribute.String("key", req.Key),
 	)
-	// Record operation
 	if s.operationCount != nil {
 		s.operationCount.Add(ctx, 1, metric.WithAttributes(
 			attribute.String("operation", "read"),
 			attribute.String("memory_ref", req.MemoryRef),
 		))
 	}
-	// Validate request
 	if err := ValidateBaseRequestWithLimits(&req.BaseRequest, &s.config.ValidationLimits); err != nil {
 		return nil, err
 	}
-	// Get memory instance
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "read")
 	if err != nil {
 		return nil, memcore.NewMemoryError(
@@ -111,7 +106,6 @@ func (s *memoryOperationsService) Read(ctx context.Context, req *ReadRequest) (*
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-	// Read messages
 	messages, err := instance.Read(ctx)
 	if err != nil {
 		return nil, memcore.NewMemoryError(
@@ -252,23 +246,19 @@ func (s *memoryOperationsService) AppendMany(ctx context.Context, req *AppendReq
 func (s *memoryOperationsService) Delete(ctx context.Context, req *DeleteRequest) (*DeleteResponse, error) {
 	ctx, span := s.tracer.Start(ctx, "memory.service.Delete")
 	defer span.End()
-	// Add attributes
 	span.SetAttributes(
 		attribute.String("memory_ref", req.MemoryRef),
 		attribute.String("key", req.Key),
 	)
-	// Record operation
 	if s.operationCount != nil {
 		s.operationCount.Add(ctx, 1, metric.WithAttributes(
 			attribute.String("operation", "delete"),
 			attribute.String("memory_ref", req.MemoryRef),
 		))
 	}
-	// Validate request
 	if err := ValidateBaseRequestWithLimits(&req.BaseRequest, &s.config.ValidationLimits); err != nil {
 		return nil, err
 	}
-	// Get memory instance
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "delete")
 	if err != nil {
 		return nil, memcore.NewMemoryError(
@@ -277,7 +267,6 @@ func (s *memoryOperationsService) Delete(ctx context.Context, req *DeleteRequest
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-	// Clear all messages (delete operation)
 	if err := instance.Clear(ctx); err != nil {
 		return nil, memcore.NewMemoryError(
 			memcore.ErrCodeMemoryClear,
@@ -707,8 +696,6 @@ func dereferenceInput(input *core.Input) any {
 	if input == nil {
 		return nil
 	}
-	// Dereference the pointer to expose the underlying map
-	// This allows templates to access nested fields like .workflow.input.user_id
 	return *input
 }
 
@@ -717,16 +704,10 @@ func (s *memoryOperationsService) getMemoryInstance(
 	ctx context.Context,
 	memoryRef, key, operation string,
 ) (memcore.Memory, error) {
-	// For REST API operations, we use the explicit key provided by the client
-	// rather than any template defined in the memory resource configuration.
-	// This allows external systems to manage memory with explicit keys.
-	// The key can be any format the user chooses: "user:123", "session:abc",
-	// "cache:data", "my-custom-key", etc.
 	memRef := core.MemoryReference{
 		ID:          memoryRef,
 		ResolvedKey: key, // Use ResolvedKey for explicit keys from REST API
 	}
-	// Use the workflow context from the service if available, or create a minimal one
 	workflowContext := s.workflowContext
 	if workflowContext == nil {
 		workflowContext = map[string]any{
@@ -745,11 +726,9 @@ func (s *memoryOperationsService) resolvePayload(
 	if payload == nil {
 		return nil, nil
 	}
-	// If no template engine or workflow state, return payload as-is
 	if s.templateEngine == nil || workflowState == nil {
 		return payload, nil
 	}
-	// Build context for template evaluation following project standards
 	tplCtx := map[string]any{
 		"workflow": map[string]any{
 			"id":      workflowState.WorkflowID,
@@ -758,7 +737,6 @@ func (s *memoryOperationsService) resolvePayload(
 		},
 		"tasks": workflowState.Tasks,
 	}
-	// Add merged input as "input" at top level for task context
 	if mergedInput != nil {
 		tplCtx["input"] = dereferenceInput(mergedInput)
 	}
@@ -769,14 +747,12 @@ func (s *memoryOperationsService) resolvePayload(
 func (s *memoryOperationsService) resolvePayloadRecursive(payload any, context map[string]any) (any, error) {
 	switch v := payload.(type) {
 	case string:
-		// Resolve string templates
 		resolved, err := s.templateEngine.RenderString(v, context)
 		if err != nil {
 			return nil, err
 		}
 		return resolved, nil
 	case map[string]any:
-		// Recursively resolve map values
 		resolved := make(map[string]any)
 		for k, val := range v {
 			resolvedVal, err := s.resolvePayloadRecursive(val, context)
@@ -791,7 +767,6 @@ func (s *memoryOperationsService) resolvePayloadRecursive(payload any, context m
 		}
 		return resolved, nil
 	case []any:
-		// Recursively resolve array elements
 		resolved := make([]any, len(v))
 		for i, item := range v {
 			resolvedItem, err := s.resolvePayloadRecursive(item, context)
@@ -806,7 +781,6 @@ func (s *memoryOperationsService) resolvePayloadRecursive(payload any, context m
 		}
 		return resolved, nil
 	default:
-		// Return other types as-is (numbers, booleans, etc)
 		return v, nil
 	}
 }
@@ -821,8 +795,7 @@ func (s *memoryOperationsService) calculateTokensNonBlocking(ctx context.Context
 	for _, msg := range messages {
 		count, err := s.tokenCounter.CountTokens(ctx, msg.Content)
 		if err != nil {
-			// Log error but continue with 0 tokens for this message
-			// Token counting should not block the write operation
+			// NOTE: Token counts are advisory; keep writes fast even if estimation fails.
 			log.Warn("Failed to count tokens for message, using 0",
 				"error", err,
 				"content_length", len(msg.Content))
@@ -840,9 +813,7 @@ func (s *memoryOperationsService) performAtomicWrite(
 	key string,
 	messages []llm.Message,
 ) (*WriteResponse, error) {
-	// Calculate total tokens without blocking operation
 	totalTokens := s.calculateTokensNonBlocking(ctx, messages)
-	// Use atomic replace operation
 	if err := instance.ReplaceMessagesWithMetadata(ctx, key, messages, totalTokens); err != nil {
 		return nil, memcore.NewMemoryError(
 			memcore.ErrCodeStoreOperation,
@@ -951,7 +922,6 @@ func (s *memoryOperationsService) prepareAppendOperation(
 	ctx context.Context,
 	req *AppendRequest,
 ) (memcore.Memory, []llm.Message, int, error) {
-	// Validate payload type
 	if err := ValidatePayloadType(req.Payload); err != nil {
 		return nil, nil, 0, memcore.NewMemoryError(
 			memcore.ErrCodeInvalidConfig,
@@ -1144,10 +1114,8 @@ func (s *memoryOperationsService) performDryRunFlush(
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-	// Determine what strategy would be used
 	actualStrategy := health.ActualStrategy
 	if req.Config != nil && req.Config.Strategy != "" {
-		// If user requested a specific strategy, that would be used
 		actualStrategy = req.Config.Strategy
 	}
 	return &FlushResponse{

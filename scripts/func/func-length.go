@@ -82,7 +82,6 @@ func analyzeFile(filename string) ([]FunctionInfo, error) {
 			return true
 		}
 
-		// Only count function body lines, not the signature
 		bodyStartLine := fset.Position(funcDecl.Body.Pos()).Line
 		bodyEndLine := fset.Position(funcDecl.End()).Line
 		lines := bodyEndLine - bodyStartLine + 1

@@ -186,7 +186,6 @@ func NormalizePhase2(
 	atts []Attachment,
 	tplCtx map[string]any,
 ) ([]Attachment, error) {
-	// Re-run the same logic; any previously deferred templates should now resolve and expand.
 	return NormalizePhase1(ctx, eng, cwd, atts, tplCtx)
 }
 
@@ -335,7 +334,6 @@ func applyTemplateString(eng *tplengine.TemplateEngine, ctx map[string]any, in s
 	if !ok {
 		return "", false, fmt.Errorf("template did not resolve to string")
 	}
-	// Deferred if original template references .tasks.* and still contains template syntax after evaluation
 	deferred := strings.Contains(in, ".tasks.") && tplengine.HasTemplate(s)
 	return s, deferred, nil
 }
@@ -427,7 +425,6 @@ func newAttachmentItem(kind Type, src Source, base baseAttachment, v string) Att
 	if f, ok := attachmentSingleFactories[kind]; ok {
 		return f(base, src, v)
 	}
-	// Unreachable with supported kinds; return nil to surface misuse during tests
 	return nil
 }
 

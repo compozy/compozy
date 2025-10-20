@@ -13,7 +13,6 @@ import (
 
 func categorizeToolError(err error) mcpmetrics.ErrorKind {
 	if err == nil {
-		// No error should be classified; let callers skip recording.
 		return ""
 	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {

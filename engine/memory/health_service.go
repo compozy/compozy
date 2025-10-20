@@ -110,7 +110,6 @@ func (mhs *HealthService) GetOverallHealth(ctx context.Context) *SystemHealth {
 	mhs.ensureRecentHealthCheck(ctx)
 	health := mhs.initializeSystemHealth()
 	var totalInstances, healthyInstances int
-	// Only collect instance health if we have a manager
 	if mhs.manager != nil {
 		totalInstances, healthyInstances = mhs.collectInstanceHealth(health)
 	}
@@ -162,7 +161,8 @@ func (mhs *HealthService) collectInstanceHealth(health *SystemHealth) (totalInst
 
 // buildInstanceHealth creates an InstanceHealth object for a specific memory instance
 func (mhs *HealthService) buildInstanceHealth(memoryID string, state *metrics.HealthState) *InstanceHealth {
-	// Read state fields under lock to prevent races
+	// NOTE: Acquire the read lock before inspecting fields to avoid races with health updates.
+	// NOTE: Acquire the read lock before returning per-instance health to callers.
 	state.Mu.RLock()
 	healthy := state.IsHealthy
 	lastCheck := state.LastHealthCheck
@@ -242,7 +242,6 @@ func (mhs *HealthService) GetInstanceHealth(memoryID string) (*InstanceHealth, b
 	if !ok {
 		return nil, false
 	}
-	// Read state fields under lock to prevent races
 	state.Mu.RLock()
 	healthy := state.IsHealthy
 	lastCheck := state.LastHealthCheck
@@ -309,7 +308,6 @@ func (mhs *HealthService) performHealthCheck(ctx context.Context) {
 			return true
 		}
 
-		// Perform health check (this could be expanded to actually ping the instance)
 		healthy := mhs.checkInstanceHealth(checkCtx, memoryID)
 
 		state.Mu.Lock()
@@ -321,11 +319,9 @@ func (mhs *HealthService) performHealthCheck(ctx context.Context) {
 			state.IsHealthy = false
 			state.ConsecutiveFailures++
 		}
-		// Capture the failures count before releasing the lock
 		failures := state.ConsecutiveFailures
 		state.Mu.Unlock()
 
-		// Update the global health state
 		metrics.GetDefaultState().UpdateHealthState(memoryID, healthy, failures)
 
 		return true
@@ -518,7 +514,6 @@ func generateRandomString(length int) string {
 	for i := range result {
 		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
 		if err != nil {
-			// Fallback to timestamp-based selection if crypto/rand fails
 			result[i] = charset[time.Now().UnixNano()%int64(len(charset))]
 		} else {
 			result[i] = charset[num.Int64()]

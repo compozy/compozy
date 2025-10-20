@@ -32,24 +32,20 @@ func extractMappings(t reflect.Type, prefix string) []EnvMapping {
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 
-		// Skip unexported fields
 		if !field.IsExported() {
 			continue
 		}
 
-		// Get koanf tag for config path
 		koanfTag := field.Tag.Get("koanf")
 		if koanfTag == "" || koanfTag == "-" {
 			continue
 		}
 
-		// Build config path
 		configPath := koanfTag
 		if prefix != "" {
 			configPath = prefix + "." + koanfTag
 		}
 
-		// Get env tag
 		envTag := field.Tag.Get("env")
 		if envTag != "" && envTag != "-" {
 			mappings = append(mappings, EnvMapping{
@@ -58,9 +54,7 @@ func extractMappings(t reflect.Type, prefix string) []EnvMapping {
 			})
 		}
 
-		// Recurse into struct fields
 		if field.Type.Kind() == reflect.Struct {
-			// Skip time.Duration and time.Time
 			if field.Type.PkgPath() == "time" {
 				continue
 			}
@@ -109,7 +103,7 @@ func checkSensitiveField(t reflect.Type, pathParts []string) bool {
 
 		if koanfTag == pathParts[0] {
 			if len(pathParts) == 1 {
-				// Check if field is SensitiveString or has sensitive tag
+				// NOTE: Treat SensitiveString or explicit sensitive tags as secrets for env mapping.
 				if field.Type.Name() == "SensitiveString" {
 					return true
 				}
@@ -117,7 +111,6 @@ func checkSensitiveField(t reflect.Type, pathParts []string) bool {
 				return sensitiveTag == "true"
 			}
 
-			// Recurse into nested structs
 			if field.Type.Kind() == reflect.Struct && field.Type.PkgPath() != "time" {
 				return checkSensitiveField(field.Type, pathParts[1:])
 			}

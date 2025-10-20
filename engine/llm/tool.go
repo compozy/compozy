@@ -58,7 +58,6 @@ func (t *InternalTool) Call(ctx context.Context, input *core.Input) (*core.Outpu
 	if err != nil {
 		return nil, fmt.Errorf("input validation failed: %w", err)
 	}
-	// Get config from tool configuration
 	config := t.config.GetConfig()
 	output, err := t.executeTool(ctx, inputMap, config)
 	if err != nil {
@@ -68,7 +67,6 @@ func (t *InternalTool) Call(ctx context.Context, input *core.Input) (*core.Outpu
 	if err != nil {
 		return nil, fmt.Errorf("output processing failed: %w", err)
 	}
-	// Return output directly - runtime manager handles all parsing and normalization
 	return output, nil
 }
 
@@ -98,7 +96,6 @@ func (t *InternalTool) executeTool(ctx context.Context, input *core.Input, confi
 		if err != nil {
 			return nil, err
 		}
-		// Handler returns nil map when tool produced no output; normalize to empty map pointer.
 		if outputMap == nil {
 			outputMap = core.Output{}
 		}

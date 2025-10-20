@@ -44,7 +44,6 @@ func NewWorkflowValidator() *WorkflowValidator {
 // initValidator initializes the validator with custom rules
 func (v *WorkflowValidator) initValidator() {
 	v.once.Do(func() {
-		// Register custom validation rules
 		if err := v.validator.RegisterValidation("cron", v.validateCron); err != nil {
 			return // Skip validation registration on error
 		}
@@ -60,13 +59,11 @@ func (v *WorkflowValidator) validateCron(fl validator.FieldLevel) bool {
 	if cronExpr == "" {
 		return true // Allow empty for optional fields
 	}
-	// Parse the cron expression
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 	schedule, err := parser.Parse(cronExpr)
 	if err != nil {
 		return false
 	}
-	// Ensure the expression yields at least one next time within 1 year
 	now := time.Now()
 	next := schedule.Next(now)
 	return next.Before(now.AddDate(1, 0, 0))
@@ -78,10 +75,8 @@ func (v *WorkflowValidator) validateJSONPath(fl validator.FieldLevel) bool {
 	if jsonPath == "" {
 		return true // Allow empty for optional fields
 	}
-	// Test with a simple JSON object to validate the path
 	testJSON := `{"test": "value"}`
 	result := gjson.Get(testJSON, jsonPath)
-	// If the path is valid, result.Type will not be Null unless the path doesn't exist
 	return result.Type != gjson.Null || jsonPath == "test"
 }
 
@@ -124,15 +119,12 @@ func (f *WorkflowFilterer) FilterWorkflows(
 	options *WorkflowFilterOptions,
 ) ([]api.Workflow, error) {
 	log := logger.FromContext(ctx)
-	// Validate filter options
 	if err := f.validator.ValidateWorkflowFilters(options); err != nil {
 		return nil, fmt.Errorf("invalid filter options: %w", err)
 	}
-	// If no JSON path filtering is needed, return original workflows
 	if options.JSONPath == "" {
 		return f.sortWorkflows(workflows, options), nil
 	}
-	// Apply JSON path filtering
 	filtered := make([]api.Workflow, 0, len(workflows))
 	for i := range workflows {
 		if f.matchesJSONPath(&workflows[i], options.JSONPath) {
@@ -153,7 +145,6 @@ func (f *WorkflowFilterer) FilterWorkflows(
 
 // matchesJSONPath checks if a workflow matches the JSON path criteria
 func (f *WorkflowFilterer) matchesJSONPath(workflow *api.Workflow, jsonPath string) bool {
-	// Convert workflow to JSON for path matching
 	workflowData, err := json.Marshal(workflow)
 	if err != nil {
 		return false
@@ -236,11 +227,9 @@ func (f *WorkflowExecutionFilterer) matchesExecutionFilters(
 	execution *api.Execution,
 	filters *api.ExecutionFilters,
 ) bool {
-	// Filter by workflow ID
 	if filters.WorkflowID != "" && execution.WorkflowID != filters.WorkflowID {
 		return false
 	}
-	// Filter by status
 	if filters.Status != "" && execution.Status != filters.Status {
 		return false
 	}

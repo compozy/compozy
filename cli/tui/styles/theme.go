@@ -187,8 +187,6 @@ func RenderStatusBar(width int, left, center, right string) string {
 	centerWidth := width - leftWidth - rightWidth - 4 // 4 for padding
 	if centerWidth < 0 {
 		centerWidth = 0
-		// When width is too small, prioritize left and right content
-		// and skip center content if necessary
 		if width < leftWidth+rightWidth {
 			return StatusBarStyle.Width(width).Render(left + right)
 		}

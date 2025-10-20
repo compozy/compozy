@@ -35,37 +35,26 @@ func (h *ResponseHandler) HandleResponse(
 	ctx context.Context,
 	input *shared.ResponseInput,
 ) (*shared.ResponseOutput, error) {
-	// Validate input
 	if err := h.baseHandler.ValidateInput(input); err != nil {
 		return nil, err
 	}
-	// Validate task type matches handler
 	if input.TaskConfig.Type != task.TaskTypeCollection {
 		return nil, &shared.ValidationError{
 			Field:   "task_type",
 			Message: "handler type does not match task type",
 		}
 	}
-	// Apply collection context variables before processing
 	h.applyCollectionContext(ctx, input)
-	// Capture after validation to avoid nil deref
 	originalExecID := input.TaskState.TaskExecID
-	// Delegate to base handler for common logic
 	response, err := h.baseHandler.ProcessMainTaskResponse(ctx, input)
 	if err != nil {
-		// Ensure the original ID is still restored even on error
 		input.TaskState.TaskExecID = originalExecID
 		return nil, err
 	}
-	// Restore the original TaskExecID on both the input state and the response state
 	input.TaskState.TaskExecID = originalExecID
 	if response != nil && response.State != nil {
 		response.State.TaskExecID = originalExecID
 	}
-	// Collection tasks use deferred output transformation
-	// The transformation happens after all child tasks complete
-	// This is handled by the orchestrator calling ApplyDeferredOutputTransformation
-	// We don't need to do it here as it's done after children processing
 	return response, nil
 }
 
@@ -80,24 +69,19 @@ func (h *ResponseHandler) applyCollectionContext(ctx context.Context, input *sha
 	if taskInput == nil {
 		return
 	}
-	// Build normalization context for variable access
 	normCtx := h.contextBuilder.BuildContext(ctx, input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
-	// Apply standard item variable
 	if item, exists := (*taskInput)[shared.FieldCollectionItem]; exists {
 		normCtx.Variables["item"] = item
 
-		// Apply custom item variable name if specified
 		if itemVar, exists := (*taskInput)[shared.FieldCollectionItemVar]; exists {
 			if varName, ok := itemVar.(string); ok && varName != "" {
 				normCtx.Variables[varName] = item
 			}
 		}
 	}
-	// Apply standard index variable
 	if index, exists := (*taskInput)[shared.FieldCollectionIndex]; exists {
 		normCtx.Variables["index"] = index
 
-		// Apply custom index variable name if specified
 		if indexVar, exists := (*taskInput)[shared.FieldCollectionIndexVar]; exists {
 			if varName, ok := indexVar.(string); ok && varName != "" {
 				normCtx.Variables[varName] = index
@@ -112,15 +96,12 @@ func (h *ResponseHandler) ApplyDeferredOutputTransformation(
 	ctx context.Context,
 	input *shared.ResponseInput,
 ) error {
-	// Validate input
 	if err := h.baseHandler.ValidateInput(input); err != nil {
 		return err
 	}
-	// Ensure we should defer transformation for this task type
 	if !h.baseHandler.ShouldDeferOutputTransformation(input.TaskConfig) {
 		return nil
 	}
-	// Apply the deferred transformation using the base handler
 	if err := h.baseHandler.ApplyDeferredOutputTransformation(ctx, input); err != nil {
 		return fmt.Errorf("collection deferred transformation failed: %w", err)
 	}
@@ -135,10 +116,6 @@ func (h *ResponseHandler) HandleSubtaskResponse(
 	childState *task.State,
 	childConfig *task.Config,
 ) (*task.SubtaskResponse, error) {
-	// For collection tasks, we aggregate child outputs into parent output
-	// This logic will be implemented when we extract subtask handling
-
-	// Basic response for now
 	return &task.SubtaskResponse{
 		TaskID: childConfig.ID,
 		Output: childState.Output,
@@ -153,10 +130,5 @@ func (h *ResponseHandler) ValidateCollectionOutput(output *core.Output) error {
 	if output == nil {
 		return nil
 	}
-	// No validation is currently needed for collection outputs because:
-	// 1. Collection outputs are dynamically structured based on the collection configuration
-	// 2. The output structure is determined by the user-defined transformation in the workflow
-	// 3. Validation would overly constrain the flexibility of collection transformations
-	// The orchestrator and output transformer handle the actual aggregation and structuring
 	return nil
 }

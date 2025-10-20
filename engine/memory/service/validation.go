@@ -57,7 +57,6 @@ func ValidateMemoryRefWithLimits(ref string, limits *ValidationLimits) error {
 			nil,
 		).WithContext("ref", ref).WithContext("length", len(ref)).WithContext("max_length", maxLength)
 	}
-	// Check each character - must be alphanumeric or underscore
 	for i, r := range ref {
 		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
 			return memcore.NewMemoryError(
@@ -95,7 +94,6 @@ func ValidateKeyWithLimits(key string, limits *ValidationLimits) error {
 			nil,
 		).WithContext("key", key).WithContext("length", len(key)).WithContext("max_length", maxLength)
 	}
-	// Check for control characters
 	for i, r := range key {
 		if r < 32 || r == 127 { // Control characters
 			return memcore.NewMemoryError(
@@ -293,7 +291,6 @@ func ValidateFlushConfig(config *FlushConfig, factory *strategies.StrategyFactor
 	if config == nil {
 		return nil // Config is optional
 	}
-	// Validate max keys
 	if config.MaxKeys < 0 {
 		return memcore.NewMemoryError(
 			memcore.ErrCodeInvalidConfig,
@@ -308,7 +305,6 @@ func ValidateFlushConfig(config *FlushConfig, factory *strategies.StrategyFactor
 			nil,
 		).WithContext("max_keys", config.MaxKeys)
 	}
-	// Validate threshold
 	if config.Threshold < 0 || config.Threshold > 1 {
 		return memcore.NewMemoryError(
 			memcore.ErrCodeInvalidConfig,
@@ -316,9 +312,7 @@ func ValidateFlushConfig(config *FlushConfig, factory *strategies.StrategyFactor
 			nil,
 		).WithContext("threshold", config.Threshold)
 	}
-	// Validate strategy if provided
 	if config.Strategy != "" {
-		// Use the provided factory instance for validation
 		if err := factory.ValidateStrategyType(config.Strategy); err != nil {
 			validStrategies := factory.GetSupportedStrategies()
 			return memcore.NewMemoryError(
@@ -340,7 +334,6 @@ func ValidateClearConfig(config *ClearConfig) error {
 			nil,
 		)
 	}
-	// Confirm flag must be true for safety
 	if !config.Confirm {
 		return memcore.NewMemoryError(
 			memcore.ErrCodeInvalidConfig,

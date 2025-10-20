@@ -105,7 +105,6 @@ func DefaultRetryConfig() RetryConfig {
 // small random jitter is added to reduce synchronized retries.
 func (c *Client) ConfigureRetry(maxRetries uint64, base, maxDelay time.Duration, jitter bool, jitterPercent uint64) {
 	if maxRetries > 0 {
-		// Apply a conservative upper bound to avoid runaway retries
 		c.retryConf.MaxAttempts = min(maxRetries, 64)
 	}
 	if base > 0 {
@@ -216,7 +215,6 @@ func (c *Client) Register(ctx context.Context, def *Definition) error {
 		if err != nil {
 			return fmt.Errorf("failed to read response body: %w", err)
 		}
-		// Handle different status codes
 		switch resp.StatusCode {
 		case http.StatusCreated:
 			log.Info("Successfully registered MCP with proxy",
@@ -227,7 +225,6 @@ func (c *Client) Register(ctx context.Context, def *Definition) error {
 				"mcp_name", def.Name, "proxy_url", c.baseURL)
 			return nil // Treat as success - idempotent operation
 		case http.StatusUnauthorized:
-			// Parse structured error and lowercase message for test compatibility
 			err := parseProxyError(resp.StatusCode, body)
 			if perr, ok := err.(*ProxyRequestError); ok {
 				perr.Message = strings.ToLower(perr.Message)
@@ -480,7 +477,6 @@ func (c *Client) WaitForConnections(ctx context.Context, names []string, pollInt
 	nameSet := buildNameSet(names)
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
-	// Track last observed errors for clearer reporting
 	lastErrors := make(map[string]string)
 	for {
 		select {
@@ -488,7 +484,7 @@ func (c *Client) WaitForConnections(ctx context.Context, names []string, pollInt
 			if len(lastErrors) == 0 {
 				return ctx.Err()
 			}
-			// Include last seen connection errors in timeout/error message
+			// NOTE: Surface the last proxy connection failures to aid MCP troubleshooting.
 			return fmt.Errorf("%w: %s", ctx.Err(), formatConnectionErrors(lastErrors))
 		case <-ticker.C:
 			connected, err := c.checkConnections(ctx, nameSet, lastErrors)
@@ -655,7 +651,6 @@ func normalizeToolResult(result any) any {
 
 // Close cleans up the HTTP client resources
 func (c *Client) Close() error {
-	// Close idle connections
 	c.http.CloseIdleConnections()
 	return nil
 }
@@ -663,7 +658,6 @@ func (c *Client) Close() error {
 // withRetry executes the provided function with exponential backoff retry logic
 func (c *Client) withRetry(ctx context.Context, operation string, fn func() error) error {
 	log := logger.FromContext(ctx)
-	// Build backoff chain from config
 	var b = retry.NewExponential(c.retryConf.BaseDelay)
 	if c.retryConf.MaxDelay > 0 {
 		b = retry.WithCappedDuration(c.retryConf.MaxDelay, b)
@@ -694,13 +688,10 @@ func isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Check for structured proxy errors
 	var proxyErr *ProxyRequestError
 	if errors.As(err, &proxyErr) {
-		// Only retry on server errors (5xx status codes)
 		return proxyErr.StatusCode >= 500 && proxyErr.StatusCode < 600
 	}
-	// Unwrap *url.Error and net.Error for better classification
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
 		if ne, ok := urlErr.Err.(net.Error); ok {
@@ -708,17 +699,14 @@ func isRetryableError(err error) bool {
 				return true
 			}
 		}
-		// Connection refused and similar syscall errors often wrapped; keep conservative retry
 		if strings.Contains(strings.ToLower(urlErr.Err.Error()), "connection refused") {
 			return true
 		}
 		return false
 	}
-	// Respect context cancellation without retry
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return false
 	}
-	// Generic transient patterns
 	lc := strings.ToLower(err.Error())
 	if strings.Contains(lc, "connection reset by peer") ||
 		strings.Contains(lc, "broken pipe") ||

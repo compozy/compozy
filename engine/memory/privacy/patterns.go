@@ -10,7 +10,6 @@ import (
 // ValidateRedactionPattern validates a regex pattern for safety and correctness
 // It checks for valid regex syntax and potential ReDoS vulnerabilities
 func ValidateRedactionPattern(pattern string) error {
-	// First check if it's a valid regex
 	if _, err := regexp.Compile(pattern); err != nil {
 		return memcore.NewMemoryError(
 			memcore.ErrCodePrivacyValidation,
@@ -18,7 +17,6 @@ func ValidateRedactionPattern(pattern string) error {
 			err,
 		).WithContext("pattern", pattern)
 	}
-	// Then check for ReDoS vulnerabilities using the existing function
 	if err := validateRedactionPattern(pattern); err != nil {
 		return memcore.NewMemoryError(
 			memcore.ErrCodePrivacyValidation,

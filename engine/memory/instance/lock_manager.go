@@ -79,7 +79,6 @@ func (lm *LockManagerImpl) AcquireAppendLock(ctx context.Context, key string) (U
 	lockKey := fmt.Sprintf("%s:append_lock", key)
 	lock, err := lm.locker.Lock(ctx, lockKey, lm.ttls.append)
 	if err != nil {
-		// Check if this is a lock acquisition failure and wrap with core error
 		if errors.Is(err, memcore.ErrLockAcquisitionFailed) {
 			return nil, fmt.Errorf("%w: %v", memcore.ErrAppendLockFailed, err)
 		}
@@ -103,7 +102,6 @@ func (lm *LockManagerImpl) AcquireFlushLock(ctx context.Context, key string) (Un
 	lockKey := fmt.Sprintf("%s:flush_lock", key)
 	lock, err := lm.locker.Lock(ctx, lockKey, lm.ttls.flush)
 	if err != nil {
-		// Check if this is a lock acquisition failure and wrap with core error
 		if errors.Is(err, memcore.ErrLockAcquisitionFailed) {
 			return nil, fmt.Errorf("%w: %v", memcore.ErrFlushLockFailed, err)
 		}
@@ -115,7 +113,6 @@ func (lm *LockManagerImpl) AcquireFlushLock(ctx context.Context, key string) (Un
 // createUnlockFunc creates a function to release a lock
 func (lm *LockManagerImpl) createUnlockFunc(ctx context.Context, lock Lock) UnlockFunc {
 	return func() error {
-		// Derive an uncancelable context but preserve values for logging/tracing
 		base := context.WithoutCancel(ctx)
 		unlockCtx, cancel := context.WithTimeout(base, 5*time.Second)
 		defer cancel()

@@ -22,7 +22,6 @@ func NewDevCommand() *cobra.Command {
 		Short: "Run the Compozy development server",
 		RunE:  executeDevCommand,
 	}
-	// Add development-specific flags
 	cmd.Flags().Bool("watch", false, "Enable file watcher to restart server on change")
 	return cmd
 }
@@ -53,7 +52,7 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	if cfg == nil {
 		return fmt.Errorf("missing config in context; ensure config.ContextWithManager is set in root command")
 	}
-	// Embedded Temporal dev server is no longer supported; external Temporal is required.
+	// NOTE: Embedded Temporal dev server is no longer supported; require an external Temporal endpoint.
 	setupGinMode(cfg)
 	CWD, err := setupWorkingDirectory(ctx, cfg)
 	if err != nil {

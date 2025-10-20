@@ -64,7 +64,6 @@ func (uc *Upsert) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, 
 		ctx, uc.store, projectID, resources.ResourceMCP, cfg.ID, "api", updatedBy,
 	); err != nil {
 		log.Error("failed to write mcp meta", "error", err, "mcp", cfg.ID)
-		// Best-effort metadata write: do not fail the operation.
 	}
 	entry, err := core.AsMapDefault(cfg)
 	if err != nil {
@@ -92,9 +91,6 @@ func (uc *Upsert) storeMCP(
 		}
 		return etag, false, nil
 	}
-	// Read first to determine if the resource exists so we can
-	// accurately report Created vs Updated in the output and audit meta.
-	// Our store's Put does not indicate creation status.
 	_, _, err := uc.store.Get(ctx, key)
 	created := errors.Is(err, resources.ErrNotFound)
 	if err != nil && !created {

@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -21,7 +22,10 @@ type CommentIssue struct {
 	Snippet   string
 }
 
-var errFuncCommentViolations = errors.New("function comment violations detected")
+var (
+	errFuncCommentViolations = errors.New("function comment violations detected")
+	todoCommentPattern       = regexp.MustCompile(`(?i)^//\s*(TODO|FIXME|NOTE|HACK|XXX|BUG|OPTIMIZE|WARNING)`)
+)
 
 func runFuncCommentCleanup(root string, fix bool) error {
 	issues, err := analyzeFunctionComments(root)
@@ -134,7 +138,7 @@ func collectFunctionCommentIssues(
 
 func isTodoComment(text string) bool {
 	trimmed := strings.TrimSpace(text)
-	return strings.HasPrefix(trimmed, "// TODO")
+	return todoCommentPattern.MatchString(trimmed)
 }
 
 func isStandaloneComment(lines []string, startLine, endLine int) bool {

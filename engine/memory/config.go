@@ -277,7 +277,6 @@ func (c *Config) GetCWD() *core.PathCWD {
 // Validate performs validation on the memory resource configuration.
 // This will be called by the autoload registry after loading.
 func (c *Config) Validate(ctx context.Context) error {
-	// Manual validation is the single source of truth for memory.Config
 	if err := c.validateResource(ctx); err != nil {
 		return err
 	}
@@ -319,7 +318,6 @@ func (c *Config) validatePersistence(_ context.Context) error {
 				err,
 			)
 		}
-		// Reject negative TTLs for all backends to avoid timer misuse
 		if parsedTTL < 0 {
 			return fmt.Errorf(
 				"memory config ID '%s': persistence.ttl must be non-negative, got '%s'",
@@ -327,7 +325,6 @@ func (c *Config) validatePersistence(_ context.Context) error {
 				c.Persistence.TTL,
 			)
 		}
-		// Store the parsed TTL for runtime use
 		c.Persistence.ParsedTTL = parsedTTL
 	} else if c.Persistence.Type != memcore.InMemoryPersistence {
 		return fmt.Errorf(
@@ -428,7 +425,6 @@ func (c *Config) validateTokenBased(_ context.Context) error {
 				c.ID,
 			)
 		}
-		// Guardrail: if using max_context_ratio, require token provider info
 		if c.MaxContextRatio > 0 && c.TokenProvider == nil {
 			return fmt.Errorf(
 				"memory config ID '%s': max_context_ratio requires token_provider configuration",
@@ -465,7 +461,6 @@ type TTLManager struct {
 // - **Flush operations**: `5 minutes` (may involve summarization with LLM calls)
 func NewTTLManager(lockConfig *memcore.LockConfig) *TTLManager {
 	tm := &TTLManager{
-		// Default TTLs
 		appendTTL: 30 * time.Second,
 		clearTTL:  10 * time.Second,
 		flushTTL:  5 * time.Minute,
@@ -473,7 +468,6 @@ func NewTTLManager(lockConfig *memcore.LockConfig) *TTLManager {
 	if lockConfig == nil {
 		return tm
 	}
-	// Use parsed durations from validation if provided; otherwise keep defaults
 	if lockConfig.ParsedAppendTTL > 0 {
 		tm.appendTTL = lockConfig.ParsedAppendTTL
 	} else if lockConfig.AppendTTL != "" {
@@ -562,12 +556,10 @@ func (c *Config) GetFlushLockTTL() time.Duration {
 // Implement them minimally if core.LoadConfig or registry expects them.
 
 func (c *Config) GetEnv() core.EnvMap {
-	// Memory resources typically don't have their own env vars in this way.
 	return core.EnvMap{}
 }
 
 func (c *Config) GetInput() *core.Input {
-	// Memory resources don't take dynamic inputs like workflows/tasks.
 	return &core.Input{}
 }
 
@@ -634,7 +626,6 @@ func (c *Config) copyConfigFields(from *Config) {
 	}
 	c.filePath = from.filePath
 	c.CWD = from.CWD
-	// Deliberately not copying ttlManager and ttlManagerOnce
 }
 
 // Merge merges another memory configuration into this one.
@@ -652,23 +643,19 @@ func (c *Config) Merge(other any) error {
 	if c.ID != otherConfig.ID && otherConfig.ID != "" {
 		return fmt.Errorf("cannot merge memory configs with different IDs: '%s' and '%s'", c.ID, otherConfig.ID)
 	}
-	// Deep copy the other config to avoid mutating it
 	copiedOther, err := core.DeepCopy(otherConfig)
 	if err != nil {
 		return fmt.Errorf("failed to deep copy config: %w", err)
 	}
-	// Clear sync fields from the copy to prevent mergo from copying them
 	copiedOther.ttlManager = nil
 	copiedOther.ttlManagerOnce = sync.Once{}
 	if err := mergo.Merge(c, copiedOther, mergo.WithOverride); err != nil {
 		return fmt.Errorf("failed to merge memory configs: %w", err)
 	}
-	// Invalidate cached TTL manager if Locking was provided to ensure fresh TTLs
 	if otherConfig.Locking != nil {
 		c.ttlManager = nil
 		c.ttlManagerOnce = sync.Once{}
 	}
-	// The sync fields in c remain untouched since we cleared them in copiedOther
 	return nil
 }
 
@@ -690,12 +677,10 @@ func (c *Config) FromMap(data any) error {
 	if err != nil {
 		return err
 	}
-	// Deep copy the parsed config to handle nested structures properly
 	copiedConfig, err := core.DeepCopy(parsedConfig)
 	if err != nil {
 		return fmt.Errorf("failed to deep copy config: %w", err)
 	}
-	// Use helper method to copy all fields except sync fields
 	c.copyConfigFields(copiedConfig)
 	return nil
 }

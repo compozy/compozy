@@ -62,10 +62,8 @@ func IsTimeoutError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Check using errors.Is for proper error types
 	return errors.Is(err, context.DeadlineExceeded) ||
 		errors.Is(err, ErrTimeout) ||
-		// Fallback to string matching for compatibility
 		strings.Contains(strings.ToLower(err.Error()), "timeout") ||
 		strings.Contains(strings.ToLower(err.Error()), "timed out")
 }
@@ -75,11 +73,9 @@ func IsNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Check using errors.Is for proper error types
 	if errors.Is(err, ErrNetwork) {
 		return true
 	}
-	// Fallback to string matching for compatibility
 	errStr := strings.ToLower(err.Error())
 	networkKeywords := []string{
 		"connection refused", "connection reset", "connection timeout",
@@ -99,11 +95,9 @@ func IsAuthError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Check using errors.Is for proper error types
 	if errors.Is(err, ErrAuth) {
 		return true
 	}
-	// Fallback to string matching for compatibility
 	errStr := strings.ToLower(err.Error())
 	authKeywords := []string{
 		"unauthorized", "authentication", "invalid token",
@@ -149,7 +143,6 @@ func formatErrorJSON(err error) string {
 	}
 	jsonBytes, err := json.MarshalIndent(errorResponse, "", "  ")
 	if err != nil {
-		// Fallback to simple error message if JSON marshaling fails
 		fallbackResponse := map[string]any{
 			"error":   "JSON marshaling failed",
 			"details": "",
@@ -157,7 +150,6 @@ func formatErrorJSON(err error) string {
 		if fallbackBytes, fallbackErr := json.Marshal(fallbackResponse); fallbackErr == nil {
 			return string(fallbackBytes)
 		}
-		// Last resort - return minimal JSON with escaped message
 		return `{"error": "JSON marshaling failed", "details": ""}`
 	}
 	return string(jsonBytes)
@@ -226,7 +218,6 @@ func ValidateID(id string) error {
 	if id == "" {
 		return NewCliError("INVALID_ID", "ID cannot be empty")
 	}
-	// Basic UUID validation pattern
 	uuidPattern := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 	if !uuidPattern.MatchString(id) {
 		return NewCliError("INVALID_ID", "ID must be a valid UUID", fmt.Sprintf("provided: %s", id))
@@ -391,7 +382,6 @@ func FormatDuration(d time.Duration) string {
 
 // SanitizeForJSON sanitizes a string for safe JSON output
 func SanitizeForJSON(s string) string {
-	// Remove control characters except tab, newline, and carriage return
 	reg := regexp.MustCompile(`[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]`)
 	return reg.ReplaceAllString(s, "")
 }

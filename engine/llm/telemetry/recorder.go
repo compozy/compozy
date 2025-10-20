@@ -69,7 +69,6 @@ func (r *recorder) StartRun(ctx context.Context, meta RunMetadata) (context.Cont
 	}
 	ctx = ContextWithRun(ctx, run)
 	ctx = ContextWithRecorder(ctx, r)
-	// Record run_started event immediately.
 	startEvt := Event{
 		Stage:     "run_started",
 		Severity:  SeverityInfo,

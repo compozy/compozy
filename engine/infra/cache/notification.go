@@ -90,7 +90,6 @@ func NewRedisNotificationSystem(client RedisInterface, config *Config) (*RedisNo
 // Publish sends a message to the specified channel
 func (ns *RedisNotificationSystem) Publish(ctx context.Context, channel string, message any) error {
 	start := time.Now()
-	// Serialize message to JSON
 	payload, err := json.Marshal(message)
 	if err != nil {
 		ns.metrics.mu.Lock()
@@ -98,7 +97,6 @@ func (ns *RedisNotificationSystem) Publish(ctx context.Context, channel string, 
 		ns.metrics.mu.Unlock()
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
-	// Publish to Redis
 	result := ns.client.Publish(ctx, channel, payload)
 	if err := result.Err(); err != nil {
 		ns.metrics.mu.Lock()
@@ -106,11 +104,9 @@ func (ns *RedisNotificationSystem) Publish(ctx context.Context, channel string, 
 		ns.metrics.mu.Unlock()
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
-	// Update metrics
 	ns.metrics.mu.Lock()
 	ns.metrics.MessagesPublished++
 	latency := time.Since(start)
-	// Simple moving average for latency
 	if ns.metrics.AverageLatency == 0 {
 		ns.metrics.AverageLatency = latency
 	} else {
@@ -126,9 +122,7 @@ func (ns *RedisNotificationSystem) Subscribe(ctx context.Context, channels ...st
 	if len(channels) == 0 {
 		return nil, fmt.Errorf("at least one channel must be specified")
 	}
-	// Create Redis pub/sub
 	pubsub := ns.client.Subscribe(ctx, channels...)
-	// Verify subscription by receiving subscription confirmation
 	_, err := pubsub.Receive(ctx)
 	if err != nil {
 		pubsub.Close()
@@ -137,13 +131,10 @@ func (ns *RedisNotificationSystem) Subscribe(ctx context.Context, channels ...st
 		ns.metrics.mu.Unlock()
 		return nil, fmt.Errorf("failed to confirm subscription: %w", err)
 	}
-	// Create message channel
 	msgChan := make(chan Message, ns.bufferSize) // Buffered to prevent blocking
-	// Update metrics
 	ns.metrics.mu.Lock()
 	ns.metrics.ActiveChannels++
 	ns.metrics.mu.Unlock()
-	// Start message receiving goroutine
 	ns.wg.Add(1)
 	go ns.receiveMessages(ctx, pubsub, msgChan, channels)
 	// Note: Successfully subscribed to channels
@@ -155,9 +146,7 @@ func (ns *RedisNotificationSystem) SubscribePattern(ctx context.Context, pattern
 	if len(patterns) == 0 {
 		return nil, fmt.Errorf("at least one pattern must be specified")
 	}
-	// Create Redis pattern pub/sub
 	pubsub := ns.client.PSubscribe(ctx, patterns...)
-	// Verify subscription by receiving subscription confirmation
 	_, err := pubsub.Receive(ctx)
 	if err != nil {
 		pubsub.Close()
@@ -166,13 +155,10 @@ func (ns *RedisNotificationSystem) SubscribePattern(ctx context.Context, pattern
 		ns.metrics.mu.Unlock()
 		return nil, fmt.Errorf("failed to confirm pattern subscription: %w", err)
 	}
-	// Create message channel
 	msgChan := make(chan Message, ns.bufferSize) // Buffered to prevent blocking
-	// Update metrics
 	ns.metrics.mu.Lock()
 	ns.metrics.ActiveChannels++
 	ns.metrics.mu.Unlock()
-	// Start message receiving goroutine
 	ns.wg.Add(1)
 	go ns.receiveMessages(ctx, pubsub, msgChan, patterns)
 	// Note: Successfully subscribed to patterns
@@ -197,7 +183,6 @@ func (ns *RedisNotificationSystem) Close() error {
 func (ns *RedisNotificationSystem) GetMetrics() NotificationMetrics {
 	ns.metrics.mu.RLock()
 	defer ns.metrics.mu.RUnlock()
-	// Return a copy of the metrics without copying the mutex
 	return NotificationMetrics{
 		MessagesPublished: ns.metrics.MessagesPublished,
 		MessagesReceived:  ns.metrics.MessagesReceived,
@@ -333,7 +318,6 @@ func (ns *RedisNotificationSystem) PublishTaskEvent(
 		Data:       data,
 		Timestamp:  time.Now(),
 	}
-	// Publish to both task-specific and workflow-specific channels
 	taskChannel := fmt.Sprintf("task:%s", taskID)
 	if err := ns.Publish(ctx, taskChannel, taskEvent); err != nil {
 		return err

@@ -22,7 +22,6 @@ func GenerateTUI(
 	_ []string,
 ) error {
 	log := logger.FromContext(ctx)
-	// Parse flags for initial values
 	name, err := cobraCmd.Flags().GetString("name")
 	if err != nil {
 		return fmt.Errorf("failed to get name flag: %w", err)
@@ -36,19 +35,16 @@ func GenerateTUI(
 		return fmt.Errorf("failed to get expires flag: %w", err)
 	}
 	log.Debug("generating API key in TUI mode")
-	// Get the auth client from executor
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return fmt.Errorf("auth client not available")
 	}
-	// Create and run the TUI model
 	m := newGenerateModel(ctx, authClient, name, description, expiresStr)
 	p := tea.NewProgram(&m)
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
-	// Check if generation was successful
 	if model, ok := finalModel.(*generateModel); ok {
 		if model.err != nil {
 			return model.err

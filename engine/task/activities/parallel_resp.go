@@ -165,28 +165,23 @@ func (a *GetParallelResponse) convertToMainTaskResponse(
 	ctx context.Context,
 	result *shared.ResponseOutput,
 ) *task.MainTaskResponse {
-	// Extract the MainTaskResponse from the response result
 	var mainTaskResponse *task.MainTaskResponse
 	if result.Response != nil {
 		if mtr, ok := result.Response.(*task.MainTaskResponse); ok {
 			mainTaskResponse = mtr
 		}
 	}
-	// If no MainTaskResponse in Response field, create one from state
 	if mainTaskResponse == nil {
 		mainTaskResponse = &task.MainTaskResponse{
 			State: result.State,
 		}
-		// Get parallel metadata from config store if available
 		configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
 		if err != nil {
-			// Log error but don't fail - metadata is optional for response
 			logger.FromContext(ctx).Error("failed to create task config repository", "error", err)
 		} else {
 			metadata, err := configRepo.LoadParallelMetadata(ctx, result.State.TaskExecID)
 			if err == nil && metadata != nil {
 				if parallelMetadata, ok := metadata.(*task2core.ParallelTaskMetadata); ok {
-					// Add parallel-specific metadata to output
 					if result.State.Output == nil {
 						output := make(core.Output)
 						result.State.Output = &output

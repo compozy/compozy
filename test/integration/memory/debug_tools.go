@@ -54,6 +54,7 @@ func (d *DebugTools) CaptureRedisState(t *testing.T, label string) {
 
 // createCaptureFile creates the output directory and file for capturing
 func (d *DebugTools) createCaptureFile(t *testing.T, label string) *os.File {
+	// NOTE: Create trace directory up front so we always capture artifacts when tracing.
 	err := os.MkdirAll(d.outputDir, 0755)
 	require.NoError(t, err)
 	filename := fmt.Sprintf("redis_%s_%d.json", label, time.Now().UnixNano())
@@ -236,20 +237,16 @@ func (d *DebugTools) EnableTracing(t *testing.T) func() {
 	if !d.enableCapture {
 		return func() {}
 	}
-	// Create trace file
 	err := os.MkdirAll(d.outputDir, 0755)
 	require.NoError(t, err)
 	filename := fmt.Sprintf("trace_%s_%d.log", t.Name(), time.Now().UnixNano())
 	filepath := filepath.Join(d.outputDir, filename)
 	file, err := os.Create(filepath)
 	require.NoError(t, err)
-	// Create writer
 	writer := bufio.NewWriter(file)
-	// Log start
 	fmt.Fprintf(writer, "=== TRACE START: %s ===\n", t.Name())
 	fmt.Fprintf(writer, "Time: %s\n\n", time.Now().Format(time.RFC3339))
 	writer.Flush()
-	// Return cleanup function
 	return func() {
 		fmt.Fprintf(writer, "\n=== TRACE END: %s ===\n", t.Name())
 		writer.Flush()
@@ -264,25 +261,20 @@ func (d *DebugTools) DumpTestFailure(t *testing.T, err error) {
 		return
 	}
 	t.Helper()
-	// Create failure directory
 	failureDir := filepath.Join(d.outputDir, "failures")
 	failErr := os.MkdirAll(failureDir, 0755)
 	require.NoError(t, failErr)
-	// Create failure file
 	filename := fmt.Sprintf("failure_%s_%d.txt", strings.ReplaceAll(t.Name(), "/", "_"), time.Now().UnixNano())
 	filepath := filepath.Join(failureDir, filename)
 	file, fileErr := os.Create(filepath)
 	require.NoError(t, fileErr)
 	defer file.Close()
-	// Write failure details
 	fmt.Fprintf(file, "Test Failure Report\n")
 	fmt.Fprintf(file, "==================\n\n")
 	fmt.Fprintf(file, "Test: %s\n", t.Name())
 	fmt.Fprintf(file, "Time: %s\n", time.Now().Format(time.RFC3339))
 	fmt.Fprintf(file, "Error: %v\n\n", err)
-	// Capture Redis state
 	d.CaptureRedisState(t, "failure")
-	// Add Redis info
 	ctx := t.Context()
 	redis := d.env.GetRedis()
 	info, infoErr := redis.Info(ctx).Result()
@@ -319,25 +311,18 @@ func (m *MaintenanceTools) CleanupStaleData(t *testing.T, olderThan time.Duratio
 	t.Helper()
 	ctx := t.Context()
 	redis := m.env.GetRedis()
-	// Get all keys with test prefix
 	keys, err := redis.Keys(ctx, "compozy:test-project:*").Result()
 	if err != nil {
 		t.Logf("Failed to get keys: %v", err)
 		return
 	}
 	cleaned := 0
-	// For this test, we'll clean up all memory instances that were created more than olderThan ago
-	// Since the test creates instances with specific timestamps in their keys, we can identify them
 	for _, key := range keys {
-		// Check if this is a memory instance key (not metadata)
 		if strings.HasPrefix(key, "compozy:test-project:memory:") && !strings.HasSuffix(key, ":metadata") {
-			// For test purposes, we'll assume all non-TTL keys are old enough to be cleaned
-			// In a real scenario, you'd want to track creation timestamps
 			err := redis.Del(ctx, key).Err()
 			if err == nil {
 				cleaned++
 				t.Logf("Cleaned up test key: %s", key)
-				// Also clean up metadata key
 				metadataKey := key + ":metadata"
 				redis.Del(ctx, metadataKey)
 			}
@@ -351,7 +336,6 @@ func (m *MaintenanceTools) CleanupSpecificInstance(t *testing.T, instanceID stri
 	t.Helper()
 	ctx := t.Context()
 	redis := m.env.GetRedis()
-	// Clean up specific instance keys
 	mainKey := fmt.Sprintf("compozy:test-project:memory:%s", instanceID)
 	metadataKey := fmt.Sprintf("compozy:test-project:memory:%s:metadata", instanceID)
 	err := redis.Del(ctx, mainKey).Err()
@@ -373,10 +357,8 @@ func (m *MaintenanceTools) VerifyNoLeaks(t maintenanceTestWithContext, allowedPr
 	t.Helper()
 	ctx := t.Context()
 	redis := m.env.GetRedis()
-	// Get all keys
 	keys, err := redis.Keys(ctx, "*").Result()
 	require.NoError(t, err)
-	// Check for unexpected keys
 	var unexpectedKeys []string
 	for _, key := range keys {
 		allowed := false
@@ -398,17 +380,14 @@ func (m *MaintenanceTools) VerifyNoLeaks(t maintenanceTestWithContext, allowedPr
 // GenerateTestReport generates a test execution report
 func (m *MaintenanceTools) GenerateTestReport(t *testing.T, results map[string]TestResult) {
 	t.Helper()
-	// Create report directory
 	reportDir := filepath.Join("testdata", "reports")
 	err := os.MkdirAll(reportDir, 0755)
 	require.NoError(t, err)
-	// Create report file
 	filename := fmt.Sprintf("report_%s.html", time.Now().Format("2006-01-02_15-04-05"))
 	filepath := filepath.Join(reportDir, filename)
 	file, err := os.Create(filepath)
 	require.NoError(t, err)
 	defer file.Close()
-	// Write HTML report
 	m.writeHTMLReport(file, results)
 	t.Logf("Test report generated: %s", filepath)
 }

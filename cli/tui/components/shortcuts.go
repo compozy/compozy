@@ -175,18 +175,15 @@ func (k *KeyboardShortcuts) View() string {
 	content := styles.RenderTitle("Keyboard Shortcuts") + "\n\n"
 	content += k.renderCategories()
 	content += "\n" + styles.HelpStyle.Render("Press ESC or q to close")
-	// Wrap in dialog
 	dialog := styles.DialogStyle.
 		Width(k.Width - 4).
 		Render(content)
-	// Center the dialog
 	return lipgloss.Place(k.Width, k.Height, lipgloss.Center, lipgloss.Center, dialog)
 }
 
 // renderCategories renders all shortcut categories
 func (k *KeyboardShortcuts) renderCategories() string {
 	var content string
-	// Calculate number of columns based on width
 	cols := 1
 	if k.Width > 100 {
 		cols = 3
@@ -194,7 +191,6 @@ func (k *KeyboardShortcuts) renderCategories() string {
 		cols = 2
 	}
 	if cols == 1 {
-		// Single column layout
 		for i, category := range k.Categories {
 			if i > 0 {
 				content += "\n"
@@ -202,7 +198,6 @@ func (k *KeyboardShortcuts) renderCategories() string {
 			content += k.renderCategory(category)
 		}
 	} else {
-		// Multi-column layout
 		content += k.renderMultiColumn(cols)
 	}
 	return content
@@ -211,9 +206,7 @@ func (k *KeyboardShortcuts) renderCategories() string {
 // renderCategory renders a single category
 func (k *KeyboardShortcuts) renderCategory(category ShortcutCategory) string {
 	var content string
-	// Category header
 	content += styles.HelpDescStyle.Render(category.Name) + "\n"
-	// Shortcuts
 	for _, shortcut := range category.Shortcuts {
 		key := styles.HelpKeyStyle.Render(shortcut[0])
 		desc := styles.HelpDescStyle.Render(shortcut[1])
@@ -224,8 +217,6 @@ func (k *KeyboardShortcuts) renderCategory(category ShortcutCategory) string {
 
 // renderMultiColumn renders categories in multiple columns
 func (k *KeyboardShortcuts) renderMultiColumn(cols int) string {
-	// Simple multi-column implementation
-	// In a real implementation, you might want more sophisticated column balancing
 	var columns []string
 	itemsPerCol := (len(k.Categories) + cols - 1) / cols
 	for col := range cols {

@@ -21,7 +21,6 @@ func MapToMessageWithLimits(msg map[string]any, limits *ValidationLimits) (llm.M
 			nil,
 		)
 	}
-	// Validate content length if limits are provided
 	if limits != nil && limits.MaxMessageContentLength > 0 && len(content) > limits.MaxMessageContentLength {
 		return llm.Message{}, memcore.NewMemoryError(
 			memcore.ErrCodeInvalidConfig,
@@ -29,7 +28,6 @@ func MapToMessageWithLimits(msg map[string]any, limits *ValidationLimits) (llm.M
 			nil,
 		).WithContext("content_length", len(content)).WithContext("max_allowed", limits.MaxMessageContentLength)
 	}
-	// Validate role
 	if err := ValidateMessageRole(role); err != nil {
 		return llm.Message{}, err
 	}

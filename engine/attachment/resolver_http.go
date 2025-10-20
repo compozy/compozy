@@ -165,7 +165,6 @@ func makeHTTPClient(timeout time.Duration, maxRedirects int) (*http.Client, *int
 	client := &http.Client{
 		Timeout: timeout,
 		Transport: &http.Transport{
-			// Keep ResponseHeaderTimeout for slow servers
 			ResponseHeaderTimeout: timeout,
 		},
 	}
@@ -188,7 +187,6 @@ func streamToTemp(ctx context.Context, limit int64, r io.Reader) (string, int64,
 		return "", 0, nil, fmt.Errorf("temp file create failed: %w", err)
 	}
 	path := tmpf.Name()
-	// Ensure cleanup on any error
 	cleanup := func() {
 		tmpf.Close()
 		os.Remove(path)

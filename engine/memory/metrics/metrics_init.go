@@ -266,9 +266,7 @@ func registerHealthStatusCallback(ctx context.Context, meter metric.Meter) error
 func resetMemoryMetrics(_ context.Context) {
 	memoryResetMutex.Lock()
 	defer memoryResetMutex.Unlock()
-	// Reset state maps
 	GetDefaultState().Clear()
-	// Unregister callbacks
 	if goroutinePoolCallback != nil {
 		_ = goroutinePoolCallback.Unregister() //nolint:errcheck // Ignore cleanup errors
 		goroutinePoolCallback = nil
@@ -281,7 +279,6 @@ func resetMemoryMetrics(_ context.Context) {
 		_ = healthStatusCallback.Unregister() //nolint:errcheck // Ignore cleanup errors
 		healthStatusCallback = nil
 	}
-	// Reset metrics to nil
 	memoryMessagesTotal = nil
 	memoryTokensTotal = nil
 	memoryTrimTotal = nil
@@ -295,7 +292,6 @@ func resetMemoryMetrics(_ context.Context) {
 	memoryGoroutinePoolActive = nil
 	memoryTokensUsedGauge = nil
 	memoryHealthStatusGauge = nil
-	// Reset the once flag by creating a new one
 	memoryMetricsOnce = sync.Once{}
 }
 

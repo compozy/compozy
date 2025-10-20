@@ -26,8 +26,6 @@ func NewBaseNormalizer(
 	filterFunc func(string) bool,
 ) *BaseNormalizer {
 	if filterFunc == nil {
-		// Default filter for most task types
-		// Filter returns true for fields that should NOT be template processed
 		filterFunc = func(k string) bool {
 			return k == "agent" || k == "tool" || k == "outputs" || k == "output"
 		}

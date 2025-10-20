@@ -28,10 +28,10 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 	if cfg == nil {
 		return nil, nil, fmt.Errorf("config manager not found in context")
 	}
-	// Add timeout for database connection to prevent indefinite hanging
+	// NOTE: Apply a timeout so auth bootstrap DB connections never hang indefinitely.
 	dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	// Always use Postgres for auth bootstrap
+	// NOTE: Auth bootstrap always uses Postgres to enforce consistent credential handling.
 	dbCfg := &postgres.Config{
 		ConnString: cfg.Database.ConnString,
 		Host:       cfg.Database.Host,
@@ -62,7 +62,6 @@ func ValidateEmail(email string) error {
 	if email == "" {
 		return fmt.Errorf("email is required")
 	}
-	// Basic email validation regex
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 	if !emailRegex.MatchString(email) {
 		return fmt.Errorf("invalid email format")

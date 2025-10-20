@@ -21,7 +21,6 @@ func convertToScheduleInfoResponse(info *schedule.Info) ScheduleInfoResponse {
 		YAMLConfig:    info.YAMLConfig,
 		LastRunStatus: info.LastRunStatus,
 	}
-	// Handle optional time fields
 	if !info.NextRunTime.IsZero() {
 		resp.NextRunTime = &info.NextRunTime
 	}
@@ -99,7 +98,6 @@ func listSchedules(c *gin.Context) {
 		))
 		return
 	}
-	// Convert to response format
 	response := ScheduleListResponse{
 		Schedules: make([]ScheduleInfoResponse, 0, len(schedules)),
 		Total:     len(schedules),
@@ -149,7 +147,6 @@ func getSchedule(c *gin.Context) {
 		))
 		return
 	}
-	// Convert to response format
 	response := convertToScheduleInfoResponse(info)
 	router.RespondOK(c, "schedule retrieved", response)
 }

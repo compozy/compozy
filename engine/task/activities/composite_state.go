@@ -178,7 +178,6 @@ func (a *CreateCompositeState) storeCompositeArtifacts(
 	if err := configRepo.StoreCompositeMetadata(ctx, state.TaskExecID, metadata); err != nil {
 		return fmt.Errorf("failed to store composite metadata: %w", err)
 	}
-	// Store full config so waitForPriorSiblings can determine sibling ordering
 	cfgCopy, err := core.DeepCopy(config)
 	if err != nil {
 		return fmt.Errorf("failed to clone composite config: %w", err)

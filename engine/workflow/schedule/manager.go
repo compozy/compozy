@@ -127,7 +127,6 @@ func (c *OverrideCache) ShouldSkipReconciliation(workflowID string, yamlModTime 
 	if !exists {
 		return false
 	}
-	// Skip if override is newer than YAML
 	return override.ModifiedAt.After(yamlModTime)
 }
 
@@ -166,19 +165,16 @@ func (c *OverrideCache) GetOverride(workflowID string) (*Override, bool) {
 	if !exists {
 		return nil, false
 	}
-	// Return a copy to prevent concurrent modification
 	result := &Override{
 		WorkflowID: override.WorkflowID,
 		ModifiedAt: override.ModifiedAt,
 		Values:     copyValues(override.Values),
 	}
-	// Deep copy the original schedule if present
 	if override.OriginalSchedule != nil {
 		copiedSchedule, err := core.DeepCopy(override.OriginalSchedule)
 		if err == nil {
 			result.OriginalSchedule = copiedSchedule
 		}
-		// If error, continue with nil OriginalSchedule
 	}
 	return result, true
 }
@@ -203,7 +199,6 @@ func (c *OverrideCache) ListOverrides() map[string]*Override {
 			ModifiedAt: v.ModifiedAt,
 			Values:     copyValues(v.Values),
 		}
-		// Deep copy the original schedule if present
 		if v.OriginalSchedule != nil {
 			copiedSchedule, err := core.DeepCopy(v.OriginalSchedule)
 			if err == nil {
@@ -223,10 +218,6 @@ func copyValues(original map[string]any) map[string]any {
 	}
 	copied, err := core.DeepCopy(original)
 	if err != nil {
-		// Since this is a package-level function without logger access,
-		// we cannot log the error. The calling code should handle errors appropriately.
-		// Fallback to empty map on copy failure to prevent panics
-		// This maintains the function's contract of always returning a valid map
 		return make(map[string]any)
 	}
 	return copied
@@ -267,7 +258,6 @@ func (m *manager) getYAMLModTime(ctx context.Context, wf *workflow.Config) time.
 		return time.Time{} // Return zero time to preserve overrides
 	}
 	modTime := stat.ModTime()
-	// Cache the successful modification time
 	m.mu.Lock()
 	m.lastKnownModTimes[wf.ID] = modTime
 	m.mu.Unlock()
@@ -328,14 +318,12 @@ func (m *manager) ReconcileSchedules(ctx context.Context, workflows []*workflow.
 	defer m.reconcileMu.Unlock()
 	log := logger.FromContext(ctx).With("project", m.projectID)
 	log.Info("Starting schedule reconciliation", "workflow_count", len(workflows))
-	// Track reconciliation with metrics
 	var tracker *ReconciliationTracker
 	if m.metrics != nil {
 		tracker = m.metrics.NewReconciliationTracker(ctx, m.projectID)
 		defer tracker.Finish()
 	}
 	startTime := time.Now()
-	// 1. Get existing schedules and build desired state
 	existingSchedules, desiredSchedules, yamlModTimes, err := m.buildReconciliationState(ctx, workflows)
 	if err != nil {
 		log.Error(
@@ -343,21 +331,16 @@ func (m *manager) ReconcileSchedules(ctx context.Context, workflows []*workflow.
 			"error",
 			err,
 		)
-		// This is the resilience: we proceed with an empty map for existing schedules
 		existingSchedules = make(map[string]client.ScheduleHandle)
 	}
-	// If desiredSchedules is nil (which shouldn't happen with the refactor, but is good defense), we cannot proceed
 	if desiredSchedules == nil {
 		return fmt.Errorf("cannot proceed with reconciliation without a desired state")
 	}
-	// 2. Determine operations needed (respecting active overrides)
 	toCreate, toUpdate, toDelete, _ := m.planReconciliationOperations(
 		ctx, existingSchedules, desiredSchedules, yamlModTimes)
-	// 3. Execute reconciliation
 	if err := m.executeReconciliation(ctx, toCreate, toUpdate, toDelete); err != nil {
 		return fmt.Errorf("reconciliation failed: %w", err)
 	}
-	// 4. Update metrics and log completion
 	m.finishReconciliation(ctx, desiredSchedules, toCreate, toUpdate, toDelete, startTime)
 	return nil
 }
@@ -367,7 +350,6 @@ func (m *manager) ReconcileSchedules(ctx context.Context, workflows []*workflow.
 func (m *manager) buildReconciliationState(ctx context.Context, workflows []*workflow.Config) (
 	map[string]client.ScheduleHandle, map[string]*workflow.Config, map[string]time.Time, error) {
 	log := logger.FromContext(ctx)
-	// Build desired state from YAML first
 	desiredSchedules := make(map[string]*workflow.Config)
 	yamlModTimes := make(map[string]time.Time)
 	for _, wf := range workflows {
@@ -378,10 +360,9 @@ func (m *manager) buildReconciliationState(ctx context.Context, workflows []*wor
 		}
 	}
 	log.Debug("Built desired state", "count", len(desiredSchedules))
-	// Get all existing schedules from Temporal
+	// NOTE: Fetch the current Temporal schedules so we can diff with desired state.
 	existingSchedules, err := m.listSchedulesByPrefix(ctx, m.schedulePrefix())
 	if err != nil {
-		// Return error along with successfully built desired state
 		return nil, desiredSchedules, yamlModTimes, fmt.Errorf("failed to list existing schedules: %w", err)
 	}
 	log.Debug("Found existing schedules", "count", len(existingSchedules))
@@ -485,7 +466,6 @@ func (m *manager) finishReconciliation(
 	startTime time.Time,
 ) {
 	log := logger.FromContext(ctx)
-	// Update workflow count metrics
 	if m.metrics != nil {
 		m.updateWorkflowCountMetrics(ctx, desiredSchedules)
 	}
@@ -590,7 +570,6 @@ func (m *manager) GetSchedule(ctx context.Context, workflowID string) (*Info, er
 	handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)
 	info, err := m.getScheduleInfo(ctx, scheduleID, handle)
 	if err != nil {
-		// Check if this is a "not found" error and return more specific message
 		var notFoundErr *serviceerror.NotFound
 		if errors.As(err, &notFoundErr) {
 			return nil, ErrScheduleNotFound
@@ -604,25 +583,18 @@ func (m *manager) GetSchedule(ctx context.Context, workflowID string) (*Info, er
 func (m *manager) UpdateSchedule(ctx context.Context, workflowID string, update UpdateRequest) error {
 	scheduleID := m.scheduleID(workflowID)
 	handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)
-	// Get current schedule description
 	desc, err := m.getScheduleDescription(ctx, handle)
 	if err != nil {
 		return err
 	}
-	// Log the API override operation
 	m.logAPIOverrideOperation(ctx, update)
-	// Prepare override values
 	values, err := m.prepareOverrideValues(ctx, workflowID, desc, update)
 	if err != nil {
 		return err
 	}
-	// Construct original schedule from current Temporal state
 	originalSchedule := m.constructScheduleFromDescription(desc)
-	// Store the override in cache with original schedule
 	m.overrideCache.SetOverrideWithSchedule(workflowID, values, originalSchedule)
-	// Update in Temporal
 	if err := m.updateScheduleInTemporal(ctx, handle, update); err != nil {
-		// Remove override on failure
 		m.overrideCache.ClearOverride(workflowID)
 		return fmt.Errorf("failed to update schedule %s: %w", workflowID, err)
 	}
@@ -636,7 +608,6 @@ func (m *manager) getScheduleDescription(
 ) (*client.ScheduleDescription, error) {
 	desc, err := handle.Describe(ctx)
 	if err != nil {
-		// Check if this is a "not found" error
 		var notFoundErr *serviceerror.NotFound
 		if errors.As(err, &notFoundErr) {
 			return nil, ErrScheduleNotFound
@@ -672,23 +643,18 @@ func (m *manager) logAPIOverrideOperation(ctx context.Context, update UpdateRequ
 // constructScheduleFromDescription creates a workflow.Schedule from Temporal description
 func (m *manager) constructScheduleFromDescription(desc *client.ScheduleDescription) *workflow.Schedule {
 	schedule := &workflow.Schedule{}
-	// Extract cron expression
 	if len(desc.Schedule.Spec.CronExpressions) > 0 {
 		schedule.Cron = desc.Schedule.Spec.CronExpressions[0]
 	}
-	// Extract enabled state
 	enabled := !desc.Schedule.State.Paused
 	schedule.Enabled = &enabled
-	// Extract timezone
 	schedule.Timezone = desc.Schedule.Spec.TimeZoneName
 	if schedule.Timezone == "" {
 		schedule.Timezone = DefaultTimezone
 	}
-	// Extract jitter
 	if desc.Schedule.Spec.Jitter > 0 {
 		schedule.Jitter = desc.Schedule.Spec.Jitter.String()
 	}
-	// Extract start/end times
 	if !desc.Schedule.Spec.StartAt.IsZero() {
 		startAt := desc.Schedule.Spec.StartAt
 		schedule.StartAt = &startAt
@@ -697,7 +663,6 @@ func (m *manager) constructScheduleFromDescription(desc *client.ScheduleDescript
 		endAt := desc.Schedule.Spec.EndAt
 		schedule.EndAt = &endAt
 	}
-	// Extract workflow input from action
 	if action, ok := desc.Schedule.Action.(*client.ScheduleWorkflowAction); ok && len(action.Args) > 0 {
 		if triggerInput, ok := action.Args[0].(map[string]any); ok {
 			if input, ok := triggerInput["input"].(map[string]any); ok {
@@ -716,20 +681,19 @@ func (m *manager) prepareOverrideValues(
 	update UpdateRequest,
 ) (map[string]any, error) {
 	values := make(map[string]any)
-	// Store original values from current Temporal state
 	if len(desc.Schedule.Spec.CronExpressions) > 0 {
+		// NOTE: Preserve the original cron so API overrides can be reverted accurately.
 		values["original_cron"] = desc.Schedule.Spec.CronExpressions[0]
 	}
 	values["original_enabled"] = !desc.Schedule.State.Paused
 	if desc.Schedule.Spec.TimeZoneName != "" {
+		// NOTE: Cache Temporal's timezone to restore it when overrides expire.
 		values["original_timezone"] = desc.Schedule.Spec.TimeZoneName
 	}
-	// Set new override values
 	if update.Enabled != nil {
 		values["enabled"] = *update.Enabled
 	}
 	if update.Cron != nil {
-		// Validate cron expression before storing
 		if err := m.validateCronExpression(ctx, workflowID, *update.Cron); err != nil {
 			return nil, err
 		}
@@ -749,13 +713,13 @@ func (m *manager) updateScheduleInTemporal(
 	handle client.ScheduleHandle,
 	update UpdateRequest,
 ) error {
+	// NOTE: Apply updates directly through the Temporal handle so state stays authoritative.
 	return handle.Update(ctx, client.ScheduleUpdateOptions{
 		DoUpdate: func(schedule client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {
 			if update.Enabled != nil {
 				schedule.Description.Schedule.State.Paused = !*update.Enabled
 			}
 			if update.Cron != nil {
-				// Temporal requires 7 fields, so append year if needed
 				cronExpr := EnsureTemporalCron(*update.Cron)
 				schedule.Description.Schedule.Spec.CronExpressions = []string{cronExpr}
 			}
@@ -772,14 +736,12 @@ func (m *manager) DeleteSchedule(ctx context.Context, workflowID string) error {
 	handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)
 	err := handle.Delete(ctx)
 	if err != nil {
-		// Check if this is a "not found" error
 		var notFoundErr *serviceerror.NotFound
 		if errors.As(err, &notFoundErr) {
 			return ErrScheduleNotFound
 		}
 		return fmt.Errorf("failed to delete schedule %s: %w", workflowID, err)
 	}
-	// Remove any overrides
 	m.overrideCache.ClearOverride(workflowID)
 	return nil
 }
@@ -806,12 +768,6 @@ func (m *manager) workflowIDFromScheduleID(scheduleID string) string {
 // slugify converts a string to a valid Temporal task queue name
 // Uses the gosimple/slug library for RFC-compliant URL-friendly slugs
 func slugify(s string) string {
-	// The slug library handles all edge cases including:
-	// - Converting to lowercase
-	// - Replacing spaces and special characters with hyphens
-	// - Removing non-ASCII characters
-	// - Collapsing multiple hyphens
-	// - Trimming leading/trailing hyphens
 	return slug.Make(s)
 }
 
@@ -821,13 +777,12 @@ func isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Check for specific Temporal service errors that are permanent
 	var invalidArgErr *serviceerror.InvalidArgument
 	var permissionDeniedErr *serviceerror.PermissionDenied
 	var alreadyExistsErr *serviceerror.AlreadyExists
 	var notFoundErr *serviceerror.NotFound
 	var unimplementedErr *serviceerror.Unimplemented
-	// These errors are permanent and should not be retried
+	// NOTE: These Temporal service errors are permanent; don't retry them.
 	if errors.As(err, &invalidArgErr) ||
 		errors.As(err, &permissionDeniedErr) ||
 		errors.As(err, &alreadyExistsErr) ||
@@ -835,13 +790,11 @@ func isRetryableError(err error) bool {
 		errors.As(err, &unimplementedErr) {
 		return false
 	}
-	// Check for context cancellation/timeout which should not be retried
+	// NOTE: Honor caller cancellations; retrying would hide upstream shutdowns.
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
-	// Default to retryable for network/temporary errors
 	// Note: Removed fragile string matching as it could incorrectly classify
-	// retryable errors as permanent (e.g., "invalid connection" network errors)
 	return true
 }
 
@@ -859,26 +812,21 @@ func (m *manager) executeReconciliation(
 	toCreate, toUpdate map[string]*workflow.Config,
 	toDelete []string,
 ) error {
-	// Create work queue with all operations
 	totalOps := len(toCreate) + len(toUpdate) + len(toDelete)
 	workQueue := make(chan workItem, totalOps)
 	errChan := make(chan error, totalOps)
-	// Queue all work items
 	m.queueCreateOperations(workQueue, toCreate)
 	m.queueUpdateOperations(workQueue, toUpdate)
 	m.queueDeleteOperations(workQueue, toDelete)
 	close(workQueue)
-	// Start bounded worker pool
 	const maxWorkers = 10
 	var wg sync.WaitGroup
 	for range maxWorkers {
 		wg.Add(1)
 		go m.reconciliationWorker(ctx, workQueue, errChan, &wg)
 	}
-	// Wait for all workers to complete
 	wg.Wait()
 	close(errChan)
-	// Collect any errors
 	return m.collectReconciliationErrors(ctx, errChan)
 }
 
@@ -953,17 +901,13 @@ func (m *manager) reconciliationWorker(
 // processWorkItem processes a single work item with retry logic
 func (m *manager) processWorkItem(ctx context.Context, work workItem) error {
 	log := logger.FromContext(ctx)
-	// Check context cancellation
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	// Execute operation with retry for retryable errors
 	err := work.execute(ctx)
 	if err != nil && isRetryableError(err) {
-		// Retry with backoff, using retry context
 		backoff := retry.WithMaxRetries(3, retry.NewExponential(1*time.Second))
 		err = retry.Do(ctx, backoff, func(retryCtx context.Context) error {
-			// Use the retry context for the operation
 			return work.execute(retryCtx)
 		})
 	}
@@ -1008,14 +952,11 @@ func (m *manager) StartPeriodicReconciliation(
 	if interval <= 0 {
 		return fmt.Errorf("periodic reconciliation interval must be positive, got %v", interval)
 	}
-	// Stop any existing periodic reconciliation
 	m.StopPeriodicReconciliation()
-	// Create new cancellation context
 	periodicCtx, cancel := context.WithCancel(ctx)
 	m.mu.Lock()
 	m.periodicCancel = cancel
 	m.mu.Unlock()
-	// Start periodic reconciliation goroutine
 	m.periodicWG.Go(func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
@@ -1044,6 +985,5 @@ func (m *manager) StopPeriodicReconciliation() {
 		m.periodicCancel = nil
 	}
 	m.mu.Unlock()
-	// Wait for the goroutine to finish
 	m.periodicWG.Wait()
 }

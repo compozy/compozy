@@ -25,8 +25,8 @@ func (cm *ConfigMerger) MergeTaskConfigIfExists(
 	}
 	if taskConfigs != nil {
 		if taskConfig, exists := taskConfigs[taskID]; exists {
-			// Ignore merge errors - best effort merge for non-critical context building
-			//nolint:errcheck // Intentionally ignoring errors for non-critical merge operation
+			// NOTE: Best-effort merge; missing optional fields shouldn't break normalization.
+			//nolint:errcheck // MergeTaskConfig only enriches context; safe to ignore errors.
 			_ = cm.MergeTaskConfig(taskContext, taskConfig)
 		}
 	}

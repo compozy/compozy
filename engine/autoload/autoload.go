@@ -412,9 +412,7 @@ func (al *AutoLoader) Stats() map[string]int {
 
 // Validate performs a dry-run validation of all discoverable files
 func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
-	// Create a temporary registry for validation
 	tempRegistry := NewConfigRegistry()
-	// Create a config copy with strict mode disabled to collect all errors
 	tempConfig := &Config{
 		Enabled:      al.config.Enabled,
 		Strict:       false, // Force non-strict mode to collect all errors
@@ -429,17 +427,14 @@ func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 		registry:    tempRegistry,
 		discoverer:  al.discoverer,
 	}
-	// Run load with temporary registry
 	return tempLoader.LoadWithResult(ctx)
 }
 
 // loadAndRegisterConfig loads a configuration file and registers it in the registry
 func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string) (string, error) {
-	// Security: Verify the file path doesn't escape the project root
 	if err := al.validateFilePath(filePath); err != nil {
 		return "", err
 	}
-	// First, load the file as a map to determine the resource type
 	configMap, err := core.MapFromFilePath(ctx, filePath)
 	if err != nil {
 		return "", core.NewError(err, "PARSE_ERROR", map[string]any{
@@ -451,7 +446,6 @@ func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string
 	if resourceErr != nil {
 		return "", resourceErr
 	}
-	// Register the configuration map - validation happens in the registry
 	if err := al.registry.Register(configMap, "autoload"); err != nil {
 		return "", err
 	}
@@ -543,10 +537,8 @@ func (al *AutoLoader) categorizeError(err error, summary *ErrorSummary, file str
 	summary.TotalErrors++
 	summary.ByFile[file]++
 	label := errorLabelValidation
-	// Prefer categorization by structured error code if available
 	var ce *core.Error
 	if errors.As(err, &ce) {
-		// Use error codes from core.Error for reliable categorization
 		switch ce.Code {
 		case "PATH_TRAVERSAL_ATTEMPT", "PATH_RESOLUTION_FAILED":
 			summary.SecurityErrors++
@@ -560,12 +552,10 @@ func (al *AutoLoader) categorizeError(err error, summary *ErrorSummary, file str
 		case "INVALID_RESOURCE_INFO", "RESOURCE_NOT_FOUND", "UNKNOWN_CONFIG_TYPE":
 			summary.ValidationErrors++
 		default:
-			// Fallback for unknown core.Error codes
 			summary.ValidationErrors++
 		}
 		return label
 	}
-	// Fallback for non-core.Error types using string matching
 	errStr := err.Error()
 	switch {
 	case strings.Contains(errStr, "YAML") || strings.Contains(errStr, "JSON") || strings.Contains(errStr, "syntax"):

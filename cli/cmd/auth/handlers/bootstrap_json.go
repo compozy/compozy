@@ -14,16 +14,13 @@ import (
 
 // BootstrapJSON handles the bootstrap command in JSON mode
 func BootstrapJSON(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandExecutor, _ []string) error {
-	// Parse flags
 	flags, err := parseBootstrapFlags(cobraCmd)
 	if err != nil {
 		return outputJSONError(fmt.Sprintf("failed to parse flags: %v", err))
 	}
-	// Handle check status
 	if flags.check {
 		return handleJSONStatusCheck(ctx)
 	}
-	// Validate and execute bootstrap
 	if flags.email == "" {
 		return outputJSONError("email is required in JSON mode")
 	}

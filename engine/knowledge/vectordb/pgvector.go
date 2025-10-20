@@ -598,7 +598,6 @@ func minDistanceForMetric(metric string, matches []Match) (float64, bool) {
 		if distance < 0 {
 			distance = 0
 		}
-		// Cosine similarity can yield distances up to 2 when vectors oppose; do not clamp upper bound.
 		return distance, true
 	case metricL2:
 		if score <= 0 {

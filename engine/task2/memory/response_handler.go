@@ -43,11 +43,9 @@ func (h *ResponseHandler) HandleResponse(
 	ctx context.Context,
 	input *shared.ResponseInput,
 ) (*shared.ResponseOutput, error) {
-	// Validate input
 	if err := h.baseHandler.ValidateInput(input); err != nil {
 		return nil, err
 	}
-	// Validate task type matches handler
 	if input.TaskConfig.Type != task.TaskTypeMemory {
 		return nil, &shared.ValidationError{
 			Field: "task_type",
@@ -58,9 +56,6 @@ func (h *ResponseHandler) HandleResponse(
 			),
 		}
 	}
-	// Memory task constraints are already validated in task.TypeValidator.validateMemoryTask()
-	// Memory tasks use standard main task processing like basic tasks
-	// but are explicitly memory tasks in type
 	return h.baseHandler.ProcessMainTaskResponse(ctx, input)
 }
 

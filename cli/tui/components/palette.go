@@ -271,7 +271,6 @@ func (p *CommandPalette) filterCommands(query string) {
 
 // executeCommand executes the selected command
 func (p *CommandPalette) executeCommand(cmd *Command) tea.Cmd {
-	// Return a message that other components can handle
 	return func() tea.Msg {
 		return ExecuteCommandMsg{Command: *cmd}
 	}

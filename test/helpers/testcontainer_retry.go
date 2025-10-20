@@ -36,10 +36,8 @@ func SetupTestReposWithRetry(ctx context.Context, t *testing.T, config ...RetryC
 	var lastErr error
 	delay := retryConfig.InitialDelay
 	for attempt := 1; attempt <= retryConfig.MaxAttempts; attempt++ {
-		// Try to create test container
 		pool, cleanup, err := trySetupTestContainer(t)
 		if err == nil {
-			// Success! Log if we had to retry
 			if attempt > 1 {
 				t.Logf("Successfully created test container on attempt %d", attempt)
 			}
@@ -49,17 +47,14 @@ func SetupTestReposWithRetry(ctx context.Context, t *testing.T, config ...RetryC
 		lastErr = err
 		t.Logf("Failed to create test container on attempt %d/%d: %v", attempt, retryConfig.MaxAttempts, err)
 
-		// Don't sleep after the last attempt
 		if attempt < retryConfig.MaxAttempts {
 			t.Logf("Retrying in %v...", delay)
 			select {
 			case <-time.After(delay):
-				// Continue with next attempt
 			case <-ctx.Done():
 				return nil, nil, fmt.Errorf("context canceled while retrying: %w", ctx.Err())
 			}
 
-			// Exponential backoff with max delay
 			delay = min(time.Duration(float64(delay)*retryConfig.BackoffFactor), retryConfig.MaxDelay)
 		}
 	}
@@ -72,11 +67,8 @@ func SetupTestReposWithRetry(ctx context.Context, t *testing.T, config ...RetryC
 
 // trySetupTestContainer attempts to get the shared container and returns pool, cleanup, and error
 func trySetupTestContainer(t *testing.T) (*pgxpool.Pool, func(), error) {
-	// Use shared container pattern for better performance
 	pool, cleanup := GetSharedPostgresDB(t)
-	// Test the connection
 	if err := pool.Ping(t.Context()); err != nil {
-		// Clean up on failure
 		if cleanup != nil {
 			cleanup()
 		}
@@ -98,7 +90,6 @@ func RunWithTestRepos(t *testing.T, testFunc func(ctx context.Context, pool *pgx
 
 // TestContainerHealthCheck performs additional health checks on the test container
 func TestContainerHealthCheck(ctx context.Context, pool *pgxpool.Pool) error {
-	// Check if we can execute a simple query
 	var result int
 	err := pool.QueryRow(ctx, "SELECT 1").Scan(&result)
 	if err != nil {
@@ -107,7 +98,6 @@ func TestContainerHealthCheck(ctx context.Context, pool *pgxpool.Pool) error {
 	if result != 1 {
 		return fmt.Errorf("unexpected health check result: %d", result)
 	}
-	// Check if our tables exist
 	var tableCount int
 	err = pool.QueryRow(ctx, `
 		SELECT COUNT(*)

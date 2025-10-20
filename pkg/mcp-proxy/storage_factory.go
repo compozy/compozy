@@ -70,7 +70,6 @@ func (m *MemoryStorage) SaveMCP(_ context.Context, def *MCPDefinition) error {
 		return fmt.Errorf("invalid definition: %w", err)
 	}
 	def.SetDefaults()
-	// Clone to prevent external modifications
 	clone, cerr := def.Clone()
 	if cerr != nil {
 		return fmt.Errorf("failed to clone definition: %w", cerr)
@@ -92,7 +91,6 @@ func (m *MemoryStorage) LoadMCP(_ context.Context, name string) (*MCPDefinition,
 	if !exists {
 		return nil, fmt.Errorf("MCP definition '%s' not found", name)
 	}
-	// Return a clone to prevent external modifications
 	clone, cerr := def.Clone()
 	if cerr != nil {
 		return nil, fmt.Errorf("failed to clone definition: %w", cerr)
@@ -122,7 +120,6 @@ func (m *MemoryStorage) ListMCPs(_ context.Context) ([]*MCPDefinition, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for _, def := range m.mcps {
-		// Return clones to prevent external modifications
 		if clone, err := def.Clone(); err == nil && clone != nil {
 			definitions = append(definitions, clone)
 		}
@@ -138,7 +135,6 @@ func (m *MemoryStorage) SaveStatus(_ context.Context, status *MCPStatus) error {
 	if status.Name == "" {
 		return fmt.Errorf("status name cannot be empty")
 	}
-	// Create a copy to prevent external modifications
 	statusCopy := status.SafeCopy()
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -155,10 +151,8 @@ func (m *MemoryStorage) LoadStatus(_ context.Context, name string) (*MCPStatus, 
 	status, exists := m.statuses[name]
 	m.mu.RUnlock()
 	if !exists {
-		// Return default status if not found
 		return NewMCPStatus(name), nil
 	}
-	// Return a copy to prevent external modifications
 	return status.SafeCopy(), nil
 }
 

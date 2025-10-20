@@ -37,9 +37,7 @@ type Options struct {
 
 // ensureTemplatesRegistered is called before template operations
 func ensureTemplatesRegistered() error {
-	// Register default templates (idempotent operation)
 	if err := basic.Register(); err != nil {
-		// Check if it's already registered (not an error)
 		if err.Error() == `template "basic" already registered` {
 			return nil
 		}
@@ -107,16 +105,12 @@ func prepareInitOptions(cobraCmd *cobra.Command, opts *Options, args []string) e
 
 // executeInitCommand handles the init command execution using the unified executor pattern
 func executeInitCommand(cobraCmd *cobra.Command, opts *Options, args []string) error {
-	// Use standard mode detection without custom overrides
-
-	// Create executor using standard mode detection
 	executor, err := cmd.NewCommandExecutor(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: false,
 	})
 	if err != nil {
 		return cmd.HandleCommonErrors(err, helpers.DetectMode(cobraCmd))
 	}
-	// Use normal mode-based execution
 	return cmd.HandleCommonErrors(executor.Execute(cobraCmd.Context(), cobraCmd, cmd.ModeHandlers{
 		JSON: func(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 			return runInitJSON(ctx, cobraCmd, executor, opts)
@@ -278,7 +272,6 @@ func printTUISuccess(opts *Options, envFileName string) {
 
 // runInteractiveForm runs the interactive form to collect project information
 func runInteractiveForm(_ context.Context, opts *Options) error {
-	// Create project form data from existing options
 	projectData := &components.ProjectFormData{
 		Name:          opts.Name,
 		Description:   opts.Description,
@@ -289,20 +282,17 @@ func runInteractiveForm(_ context.Context, opts *Options) error {
 		IncludeDocker: opts.DockerSetup,
 		InstallBun:    opts.InstallBun,
 	}
-	// Create and run the init model with header and form
 	initModel := components.NewInitModel(projectData)
 	p := tea.NewProgram(initModel, tea.WithAltScreen(), tea.WithMouseAllMotion())
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run project form: %w", err)
 	}
-	// Check if form was canceled
 	if m, ok := finalModel.(*components.InitModel); ok {
 		if m.IsCanceled() {
 			return fmt.Errorf("initialization canceled by user")
 		}
 	}
-	// Copy data back to options
 	opts.Name = projectData.Name
 	opts.Description = projectData.Description
 	opts.Version = projectData.Version
@@ -324,7 +314,6 @@ func installBun(ctx context.Context) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to install Bun: %w", err)
 	}
-	// Verify installation
 	if !runtime.IsBunAvailable() {
 		return fmt.Errorf("bun installation completed but executable not found in PATH. " +
 			"You may need to restart your terminal or source your shell configuration")

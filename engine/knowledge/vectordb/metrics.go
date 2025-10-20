@@ -128,7 +128,8 @@ func initVectorGauge(meter metric.Meter) error {
 // ShutdownVectorMetrics unregisters the gauge callback (useful for tests/shutdown).
 func ShutdownVectorMetrics() {
 	if vectorGaugeReg != nil {
-		//nolint:errcheck // Unregister errors are non-critical during shutdown
+		// NOTE: Gauge unregister failures are best-effort during shutdown.
+		//nolint:errcheck // Preserve metrics shutdown even if unregister fails.
 		_ = vectorGaugeReg.Unregister()
 	}
 }

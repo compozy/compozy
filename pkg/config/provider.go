@@ -24,7 +24,6 @@ func NewEnvProvider() Source {
 
 // Load returns empty map as environment loading is handled natively by koanf.
 func (e *envProvider) Load() (map[string]any, error) {
-	// Environment loading is now handled by koanf's native env provider
 	return make(map[string]any), nil
 }
 
@@ -60,10 +59,8 @@ func (c *cliProvider) Load() (map[string]any, error) {
 	if c.flags == nil {
 		return make(map[string]any), nil
 	}
-	// Get CLI flag mappings from the registry (single source of truth)
 	registry := definition.CreateRegistry()
 	flagToPath := registry.GetCLIFlagMapping()
-	// Convert flat CLI flags to nested structure
 	config := make(map[string]any)
 	for key, value := range c.flags {
 		if path, ok := flagToPath[key]; ok {
@@ -71,14 +68,12 @@ func (c *cliProvider) Load() (map[string]any, error) {
 				return nil, fmt.Errorf("failed to set CLI flag %s: %w", key, err)
 			}
 		}
-		// Ignore unknown flags
 	}
 	return config, nil
 }
 
 // Watch is not implemented for CLI flags as they don't change at runtime.
 func (c *cliProvider) Watch(_ context.Context, _ func()) error {
-	// CLI flags don't support watching
 	return nil
 }
 
@@ -108,7 +103,6 @@ func setNested(m map[string]any, path string, value any) error {
 
 		next, ok := current[part].(map[string]any)
 		if !ok {
-			// Structure conflict, cannot set value
 			return fmt.Errorf("configuration conflict: key %q is not a map", strings.Join(parts[:i+1], "."))
 		}
 		current = next
@@ -141,7 +135,6 @@ func (y *yamlProvider) Load() (map[string]any, error) {
 	data, err := os.ReadFile(y.path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Return empty map when file doesn't exist to prevent overriding environment variables
 			return make(map[string]any), nil
 		}
 		return nil, fmt.Errorf("failed to read YAML file: %w", err)
@@ -150,8 +143,6 @@ func (y *yamlProvider) Load() (map[string]any, error) {
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML file: %w", err)
 	}
-	// Filter out nil values to prevent overriding existing configs
-	// This ensures that missing sections in YAML don't reset environment variables
 	filtered := filterNilValues(config)
 	return filtered, nil
 }
@@ -164,10 +155,8 @@ func filterNilValues(m map[string]any) map[string]any {
 		if v == nil {
 			continue
 		}
-		// Recursively filter nested maps
 		if nestedMap, ok := v.(map[string]any); ok {
 			filtered := filterNilValues(nestedMap)
-			// Only include non-empty maps
 			if len(filtered) > 0 {
 				result[k] = filtered
 			}
@@ -181,12 +170,10 @@ func filterNilValues(m map[string]any) map[string]any {
 // Watch monitors the YAML file for changes.
 func (y *yamlProvider) Watch(ctx context.Context, callback func()) error {
 	var watchErr error
-	// Use sync.Once to ensure we only create and start the watcher once
 	y.watchOnce.Do(func() {
 		y.watcherMu.Lock()
 		defer y.watcherMu.Unlock()
 
-		// Create a new watcher
 		watcher, err := NewWatcher()
 		if err != nil {
 			watchErr = fmt.Errorf("failed to create watcher: %w", err)
@@ -194,7 +181,6 @@ func (y *yamlProvider) Watch(ctx context.Context, callback func()) error {
 		}
 		y.watcher = watcher
 
-		// Start watching the file
 		if err := y.watcher.Watch(ctx, y.path); err != nil {
 			watchErr = fmt.Errorf("failed to watch YAML file: %w", err)
 			return
@@ -204,7 +190,6 @@ func (y *yamlProvider) Watch(ctx context.Context, callback func()) error {
 	if watchErr != nil {
 		return watchErr
 	}
-	// Register the callback (this can be called multiple times safely)
 	y.watcherMu.Lock()
 	defer y.watcherMu.Unlock()
 	if y.watcher != nil {
@@ -221,7 +206,6 @@ func (y *yamlProvider) Type() SourceType {
 // Close releases any resources held by the source.
 func (y *yamlProvider) Close() error {
 	var closeErr error
-	// Use sync.Once to ensure we only close once
 	y.closeOnce.Do(func() {
 		y.watcherMu.Lock()
 		defer y.watcherMu.Unlock()
@@ -235,7 +219,6 @@ func (y *yamlProvider) Close() error {
 			y.isWatching = false
 		}
 
-		// Reset watchOnce to allow re-watching after close
 		y.watchOnce = sync.Once{}
 	})
 	return closeErr
@@ -277,7 +260,6 @@ func (d *defaultProvider) Close() error {
 func createDefaultMap() map[string]any {
 	defaultConfig := Default()
 	result := make(map[string]any)
-	// top-level defaults
 	addCoreDefaults(result, defaultConfig)
 	addServiceDefaults(result, defaultConfig)
 	addInfraDefaults(result, defaultConfig)

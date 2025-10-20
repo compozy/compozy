@@ -83,7 +83,6 @@ func makeAbs(cwd *core.PathCWD, rel string) string {
 	if base != "" {
 		relToBase, err := filepath.Rel(base, abs)
 		if err != nil || relToBase == ".." || strings.HasPrefix(relToBase, ".."+string(os.PathSeparator)) {
-			// Path tries to escape the working directory, return empty string as error indicator
 			return ""
 		}
 	}
@@ -98,10 +97,8 @@ func ComputeEffectiveItems(
 	agent []Attachment, agentCWD *core.PathCWD,
 	action []Attachment, actionCWD *core.PathCWD,
 ) []EffectiveItem {
-	// Stable order preservation using a slice of keys
 	order := make([]string, 0)
 	items := make(map[string]EffectiveItem)
-	// Helper to insert/override while preserving first-seen order
 	put := func(att Attachment, cwd *core.PathCWD) {
 		if att == nil {
 			return
@@ -115,7 +112,6 @@ func ComputeEffectiveItems(
 		}
 		items[key] = EffectiveItem{Att: att, CWD: cwd}
 	}
-	// Precedence: earlier scopes are overridden by later ones
 	for _, a := range task {
 		put(a, taskCWD)
 	}

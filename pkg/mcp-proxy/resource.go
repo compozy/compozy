@@ -129,9 +129,7 @@ func processBatch[T any](
 ) error {
 	g, gCtx := errgroup.WithContext(ctx)
 	for _, item := range items {
-		// capture loop variable
 		g.Go(func() error {
-			// Acquire semaphore to limit concurrency
 			select {
 			case sem <- struct{}{}:
 				defer func() { <-sem }()

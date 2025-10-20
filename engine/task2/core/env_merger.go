@@ -40,9 +40,7 @@ func (em *EnvMerger) MergeWorkflowToTask(
 	if taskConfig != nil && taskConfig.Env != nil {
 		taskEnv = taskConfig.Env
 	}
-	// Task env overrides workflow env
 	merged := em.mergeEnvMaps(workflowEnv, taskEnv)
-	// Update task config with merged env
 	if taskConfig != nil {
 		taskConfig.Env = merged
 	}
@@ -62,7 +60,6 @@ func (em *EnvMerger) MergeThreeLevels(
 	if taskConfig != nil && taskConfig.Env != nil {
 		taskEnv = taskConfig.Env
 	}
-	// Component env overrides task env which overrides workflow env
 	return em.mergeEnvMaps(workflowEnv, taskEnv, componentEnv)
 }
 
@@ -71,6 +68,5 @@ func (em *EnvMerger) MergeForComponent(
 	baseEnv *core.EnvMap,
 	componentEnv *core.EnvMap,
 ) *core.EnvMap {
-	// Component env overrides base env
 	return em.mergeEnvMaps(baseEnv, componentEnv)
 }

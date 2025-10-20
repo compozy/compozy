@@ -49,7 +49,6 @@ func (v *DatabaseStateVerifier) VerifyWorkflowState(
 	}
 	ctx, cancel := context.WithTimeout(v.t.Context(), timeout)
 	defer cancel()
-	// Poll for the expected status with backoff
 	ticker := time.NewTicker(DefaultPollInterval)
 	defer ticker.Stop()
 	for {
@@ -201,22 +200,17 @@ func (v *DatabaseStateVerifier) VerifyWorkflowCompletesWithStatus(
 ) {
 	v.t.Helper()
 	v.VerifyWorkflowStateEventually(workflowExecID, expectedStatus, maxWait)
-	// Also verify the workflow state contains expected fields
 	state, err := v.workflowRepo.GetState(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err)
 	assert.Equal(v.t, expectedStatus, state.Status)
 	assert.NotNil(v.t, state.Input, "Workflow should have input")
-	// Verify state fields based on status
 	switch expectedStatus {
 	case core.StatusSuccess:
-		// For successful workflows, output might be populated
 		v.t.Logf("Workflow completed successfully with status: %s", state.Status)
 	case core.StatusFailed:
-		// For failed workflows, error should be populated
 		assert.NotNil(v.t, state.Error, "Failed workflow should have error details")
 		v.t.Logf("Workflow failed with error: %v", state.Error)
 	case core.StatusCanceled:
-		// For canceled workflows, verify cancellation was recorded
 		v.t.Logf("Workflow was canceled with status: %s", state.Status)
 	}
 }
@@ -237,7 +231,6 @@ func (v *DatabaseStateVerifier) VerifyStatusTransitionSequence(workflowExecID co
 		if transition.Component == "workflow" {
 			v.VerifyWorkflowStateEventually(workflowExecID, transition.Status, transition.MaxWait)
 		} else {
-			// It's a task ID
 			v.VerifyTaskStateEventually(workflowExecID, transition.Component, transition.Status, transition.MaxWait)
 		}
 	}
@@ -276,10 +269,8 @@ func (v *DatabaseStateVerifier) VerifyTaskCount(workflowExecID core.ID, expected
 // VerifyNoErrors verifies that workflow and tasks have no error states
 func (v *DatabaseStateVerifier) VerifyNoErrors(workflowExecID core.ID) {
 	v.t.Helper()
-	// Check workflow for errors
 	workflowState := v.GetWorkflowState(workflowExecID)
 	assert.Nil(v.t, workflowState.Error, "Workflow should not have errors")
-	// Check all tasks for errors
 	tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err)
 	for _, taskState := range tasks {
@@ -296,7 +287,6 @@ func (v *DatabaseStateVerifier) VerifyTaskStatusCascade(
 ) {
 	v.t.Helper()
 	require.Eventually(v.t, func() bool {
-		// Check workflow status
 		workflowState, err := v.workflowRepo.GetState(v.t.Context(), workflowExecID)
 		if err != nil {
 			v.t.Logf("Failed to get workflow state: %v", err)
@@ -308,7 +298,6 @@ func (v *DatabaseStateVerifier) VerifyTaskStatusCascade(
 			return false
 		}
 
-		// Check task statuses
 		tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 		if err != nil {
 			v.t.Logf("Failed to get tasks: %v", err)
@@ -347,19 +336,16 @@ func (v *DatabaseStateVerifier) VerifyTaskStateConsistency(workflowExecID core.I
 
 		switch workflowState.Status {
 		case core.StatusPaused:
-			// Tasks should be paused unless they were already completed
 			if taskState.Status != core.StatusSuccess && taskState.Status != core.StatusFailed {
 				assert.Equal(v.t, core.StatusPaused, taskState.Status,
 					"Task %s should be paused when workflow is paused", taskID)
 			}
 		case core.StatusCanceled:
-			// Tasks should be canceled unless they were already completed
 			if taskState.Status != core.StatusSuccess {
 				assert.Equal(v.t, core.StatusCanceled, taskState.Status,
 					"Task %s should be canceled when workflow is canceled", taskID)
 			}
 		case core.StatusFailed:
-			// Tasks should be failed unless they were already completed successfully
 			if taskState.Status != core.StatusSuccess {
 				assert.True(v.t,
 					taskState.Status == core.StatusFailed || taskState.Status == core.StatusCanceled,

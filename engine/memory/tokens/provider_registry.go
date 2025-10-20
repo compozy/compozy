@@ -65,9 +65,8 @@ func (r *ProviderRegistry) Remove(name string) {
 
 // RegisterDefaults registers commonly used provider configurations from embedded YAML
 func (r *ProviderRegistry) RegisterDefaults() {
-	// Load defaults from embedded YAML file
-	// Errors are ignored to maintain backward compatibility
-	//nolint:errcheck // Best effort loading of defaults
+	// NOTE: Defaults are best-effort; ignore errors so registry remains usable without YAML.
+	//nolint:errcheck // Default YAML may be missing in trimmed builds; skip hard failure.
 	r.RegisterDefaultsFromYAML()
 }
 
@@ -79,7 +78,6 @@ func (r *ProviderRegistry) Clone(name string) (*ProviderConfig, error) {
 	if !exists {
 		return nil, fmt.Errorf("provider '%s' not found", name)
 	}
-	// Deep copy the config
 	cloned := &ProviderConfig{
 		Provider: config.Provider,
 		Model:    config.Model,

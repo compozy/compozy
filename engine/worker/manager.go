@@ -83,8 +83,6 @@ func (m *Manager) BuildErrHandler(ctx workflow.Context) func(err error) error {
 			return err
 		}
 
-		// For non-cancellation errors, update status to failed in a disconnected context
-		// to ensure the status update happens even if workflow is being terminated
 		log.Info("Updating workflow status to Failed due to error", "error", err)
 		cleanupCtx, _ := workflow.NewDisconnectedContext(ctx)
 		label := wfacts.UpdateStateLabel
@@ -123,7 +121,6 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 	cleanupCtx = workflow.WithActivityOptions(cleanupCtx, workflow.ActivityOptions{
 		StartToCloseTimeout: timeout,
 	})
-	// Update workflow status to canceled
 	statusInput := &wfacts.UpdateStateInput{
 		WorkflowID:     m.WorkflowID,
 		WorkflowExecID: m.WorkflowExecID,
@@ -167,7 +164,6 @@ func InitManager(ctx workflow.Context, input WorkflowInput) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	// MCP servers are initialized at server startup, not during workflow execution
 	contextBuilder := NewContextBuilder(
 		data.Workflows,
 		data.ProjectConfig,

@@ -26,7 +26,6 @@ func GetCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE:  runWorkflowGet,
 	}
-	// Add flags
 	cmd.Flags().Bool("show-tasks", false, "Include detailed task information")
 	return cmd
 }
@@ -70,31 +69,23 @@ func getTUIHandler(
 // workflowGetJSONHandler handles JSON output mode
 func workflowGetJSONHandler(ctx context.Context, cmd *cobra.Command, client api.AuthClient, args []string) error {
 	workflowID := core.ID(args[0])
-	// Create workflow service
 	service := createAPIClient(client)
-	// Fetch workflow details
 	workflow, err := service.Get(ctx, workflowID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow: %w", err)
 	}
-	// Check if we should show tasks
 	showTasks, err := cmd.Flags().GetBool("show-tasks")
 	if err != nil {
-		// Log error and use default
 		logger.FromContext(ctx).Debug("failed to get show-tasks flag", "error", err)
 		showTasks = false
 	}
-	// Format output
 	formatter := cliutils.NewJSONFormatter(true) // pretty print enabled
-	// Prepare output data
 	outputData := workflow
 	if !showTasks {
-		// Create a copy without tasks if not requested
 		workflowCopy := *workflow
 		workflowCopy.Tasks = nil
 		outputData = &workflowCopy
 	}
-	// Use FormatSuccess method
 	output, err := formatter.FormatSuccess(outputData, &cliutils.FormatterMetadata{
 		Timestamp: time.Now(),
 	})
@@ -108,21 +99,16 @@ func workflowGetJSONHandler(ctx context.Context, cmd *cobra.Command, client api.
 // workflowGetTUIHandler handles TUI output mode
 func workflowGetTUIHandler(ctx context.Context, cmd *cobra.Command, client api.AuthClient, args []string) error {
 	workflowID := core.ID(args[0])
-	// Create workflow service
 	service := createAPIClient(client)
-	// Fetch workflow details
 	workflow, err := service.Get(ctx, workflowID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow: %w", err)
 	}
-	// Check if we should show tasks
 	showTasks, err := cmd.Flags().GetBool("show-tasks")
 	if err != nil {
-		// Log error and use default
 		logger.FromContext(ctx).Debug("failed to get show-tasks flag", "error", err)
 		showTasks = false
 	}
-	// Create and run the workflow detail model
 	model := newWorkflowDetailModel(workflow, showTasks)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
@@ -159,9 +145,7 @@ func (m *workflowDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h := max(
-			// Reserve space for header and footer
 			msg.Height-reservedLines,
-			// Clamp to minimum height of 1 to prevent negative values
 			1)
 		m.height = h
 		m.content = m.renderContent()
@@ -228,12 +212,9 @@ func (m *workflowDetailModel) View() string {
 	if !m.ready {
 		return "Loading..."
 	}
-	// Header
 	header := styles.TitleStyle.Render(fmt.Sprintf("Workflow: %s", m.workflow.Name))
-	// Get content lines and handle scrolling
 	lines := strings.Split(m.content, "\n")
 	visibleLines := []string{}
-	// Simple scrolling implementation
 	start := m.scrollOffset
 	if start >= len(lines) {
 		start = len(lines) - 1
@@ -245,9 +226,7 @@ func (m *workflowDetailModel) View() string {
 	if start < len(lines) {
 		visibleLines = lines[start:end]
 	}
-	// Footer
 	footer := styles.HelpStyle.Render("↑/↓: scroll • pgup/pgdn: page • q: quit")
-	// Combine all parts
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		header,
@@ -259,25 +238,19 @@ func (m *workflowDetailModel) View() string {
 // renderContent renders the workflow details content
 func (m *workflowDetailModel) renderContent() string {
 	var sections []string
-	// Basic Information section
 	sections = append(sections, m.renderBasicInfo())
-	// Inputs section
 	if len(m.workflow.Inputs) > 0 {
 		sections = append(sections, m.renderInputs())
 	}
-	// Outputs section
 	if len(m.workflow.Outputs) > 0 {
 		sections = append(sections, m.renderOutputs())
 	}
-	// Tasks section
 	if m.showTasks && len(m.workflow.Tasks) > 0 {
 		sections = append(sections, m.renderTasks())
 	}
-	// Schedule section
 	if m.workflow.Schedule != nil {
 		sections = append(sections, m.renderSchedule())
 	}
-	// Statistics section
 	if m.workflow.Statistics != nil {
 		sections = append(sections, m.renderStatistics())
 	}

@@ -30,7 +30,6 @@ func outputJSONError(message string) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(errorResponse); err != nil {
-		// Output a simple error message to stderr if JSON encoding fails
 		fmt.Fprintf(os.Stderr, "Error: %s\n", message)
 		return fmt.Errorf("failed to encode JSON error response: %w", err)
 	}

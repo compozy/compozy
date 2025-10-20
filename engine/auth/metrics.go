@@ -203,15 +203,11 @@ func maskIPAddress(ip string) string {
 	if ip == "" {
 		return maskedIPUnknownValue
 	}
-	// Handle host:port and bracketed IPv6 forms.
-	// Try parsing with SplitHostPort first (handles both "ip:port" and "[ipv6]:port")
 	if h, _, err := net.SplitHostPort(ip); err == nil {
 		ip = h
 	} else if strings.HasPrefix(ip, "[") && strings.HasSuffix(ip, "]") {
-		// Handle plain bracketed IPv6 without port
 		ip = strings.Trim(ip, "[]")
 	}
-	// Remove IPv6 zone-id if present (e.g., fe80::1%eth0)
 	if i := strings.IndexByte(ip, '%'); i != -1 {
 		ip = ip[:i]
 	}

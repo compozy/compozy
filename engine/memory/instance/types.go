@@ -45,15 +45,12 @@ type AsyncOperationLogger struct {
 
 // LogAppend logs an append operation
 func (l *AsyncOperationLogger) LogAppend(_ any, _ int) {
-	// Implementation will be added when logger is migrated
 }
 
 // LogFlush logs a flush operation
 func (l *AsyncOperationLogger) LogFlush(_, _ int) {
-	// Implementation will be added when logger is migrated
 }
 
 // LogError logs an error
 func (l *AsyncOperationLogger) LogError(_ string, _ error) {
-	// Implementation will be added when logger is migrated
 }

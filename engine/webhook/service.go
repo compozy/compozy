@@ -65,11 +65,9 @@ func NewOrchestrator(
 		maxBody:   maxBody,
 		dedupeTTL: dedupeTTL,
 	}
-	// Guard nil cfg to prevent panics; fall back to zero-values and local defaults below.
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	// Ensure Stripe default skew and other verifier defaults use application cfg
 	o.verifierFactory = func(v VerifyConfig) (Verifier, error) {
 		if v.Strategy == StrategyStripe && v.Skew == 0 {
 			if cfg != nil && cfg.Webhooks.StripeSkew > 0 {

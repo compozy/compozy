@@ -165,7 +165,6 @@ func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) err
 		log.Debug("Proxy server not found for unregistration", "name", name)
 		return nil
 	}
-	// Shutdown server resources first
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if proxyServer.sseServer != nil {
@@ -173,7 +172,6 @@ func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) err
 			log.Error("Failed to shutdown SSE server", "name", name, "error", err)
 		}
 	}
-	// Disconnect the client connection
 	if proxyServer.client != nil {
 		disconnectCtx := logger.ContextWithLogger(shutdownCtx, log)
 		if err := proxyServer.client.Disconnect(disconnectCtx); err != nil {
@@ -207,7 +205,6 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		return
 	}
 	log.Debug("Handling SSE proxy request", "name", name, "path", c.Request.URL.Path)
-	// Get the proxy server for this MCP
 	p.serversMutex.RLock()
 	proxyServer, exists := p.servers[name]
 	p.serversMutex.RUnlock()
@@ -216,7 +213,6 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "MCP server not found", "details": fmt.Sprintf("name=%s", name)})
 		return
 	}
-	// Check if proxy server is properly initialized and ready
 	if proxyServer.client == nil || !proxyServer.client.IsConnected() {
 		log.Error("MCP proxy server not ready", "name", name)
 		c.JSON(
@@ -225,11 +221,9 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		)
 		return
 	}
-	// Use cached definition to avoid repeated storage queries
 	middlewares := []gin.HandlerFunc{
 		recoverMiddleware(name),
 	}
-	// Check if SSE server is available (test scenario)
 	if proxyServer.sseServer == nil {
 		c.JSON(
 			http.StatusInternalServerError,
@@ -237,7 +231,6 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		)
 		return
 	}
-	// Wrap SSE server with middlewares and call
 	wrappedHandler := wrapWithGinMiddlewares(proxyServer.sseServer, middlewares...)
 	wrappedHandler(c)
 }
@@ -272,8 +265,6 @@ func (p *ProxyHandlers) StreamableHTTPProxyHandler(c *gin.Context) {
 		return
 	}
 	log.Debug("Handling streamable HTTP proxy request", "name", name, "path", c.Request.URL.Path)
-	// For streamable HTTP, we use the same SSE handler approach
-	// The client transport handles the difference
 	p.SSEProxyHandler(c)
 }
 
@@ -287,23 +278,19 @@ func (p *ProxyHandlers) initializeClientConnection(
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("Waiting for MCP client to be connected", "name", name)
-	// Wait for the client to be connected by the ClientManager.
-	// This requires a way to observe the client's status. The client has WaitUntilConnected method.
 	if err := client.WaitUntilConnected(ctx); err != nil {
 		return fmt.Errorf("client connection timed out or failed: %w", err)
 	}
 	log.Debug("MCP client is connected, loading resources", "name", name)
-	// Create resource loader
 	resourceLoader := NewResourceLoader(client, mcpServer, name)
-	// Load critical capabilities first (tools)
 	var toolFilter *ToolFilter
 	if def != nil {
 		toolFilter = def.ToolFilter
 	}
+	// NOTE: Tools must load before prompts/resources so dependent capabilities register safely.
 	if err := resourceLoader.LoadTools(ctx, toolFilter); err != nil {
 		return err
 	}
-	// Load optional capabilities concurrently
 	p.loadOptionalCapabilities(ctx, resourceLoader)
 	return nil
 }
@@ -315,7 +302,6 @@ func (p *ProxyHandlers) loadOptionalCapabilities(
 ) {
 	log := logger.FromContext(ctx)
 	optionalGroup, optionalCtx := errgroup.WithContext(ctx)
-	// Define optional capability loaders
 	capabilities := []struct {
 		name   string
 		loader func(context.Context) error
@@ -324,7 +310,6 @@ func (p *ProxyHandlers) loadOptionalCapabilities(
 		{"resources", resourceLoader.LoadResources},
 		{"resource_templates", resourceLoader.LoadResourceTemplates},
 	}
-	// Load each capability concurrently
 	for _, cap := range capabilities {
 		capability := cap // capture loop variable
 		optionalGroup.Go(func() error {
@@ -336,7 +321,6 @@ func (p *ProxyHandlers) loadOptionalCapabilities(
 			return nil // Don't propagate errors for optional capabilities
 		})
 	}
-	// Wait for all optional operations to complete
 	if err := optionalGroup.Wait(); err != nil {
 		log.Debug("Unexpected error from optional operations", "error", err)
 	}

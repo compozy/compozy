@@ -68,16 +68,12 @@ func NewFixtureLoader(basePath string) *FixtureLoader {
 
 // LoadFixture loads a test fixture from a YAML file
 func (l *FixtureLoader) LoadFixture(t *testing.T, taskType, fixtureName string) *TestFixture {
-	// Construct the file path
 	filePath := filepath.Join(l.basePath, "fixtures", taskType, fixtureName+".yaml")
-	// Read the file
 	data, err := os.ReadFile(filePath)
 	require.NoError(t, err, "Failed to read fixture file: %s", filePath)
-	// Parse the YAML
 	var fixture TestFixture
 	err = yaml.Unmarshal(data, &fixture)
 	require.NoError(t, err, "Failed to parse fixture YAML: %s", filePath)
-	// Validate the fixture
 	l.validateFixture(t, &fixture)
 	return &fixture
 }
@@ -95,9 +91,7 @@ func (l *FixtureLoader) LoadTaskConfigs(t *testing.T, taskType, fixtureName stri
 	if fixture.Tasks != nil {
 		return fixture.Tasks
 	}
-	// If no separate tasks, extract from workflow
 	if fixture.Workflow != nil && len(fixture.Workflow.Tasks) > 0 {
-		// Convert []task.Config to []*task.Config
 		tasks := make([]*task.Config, len(fixture.Workflow.Tasks))
 		for i := range fixture.Workflow.Tasks {
 			tasks[i] = &fixture.Workflow.Tasks[i]
@@ -111,7 +105,6 @@ func (l *FixtureLoader) LoadTaskConfigs(t *testing.T, taskType, fixtureName stri
 func (l *FixtureLoader) validateFixture(t *testing.T, fixture *TestFixture) {
 	require.NotEmpty(t, fixture.Name, "Fixture must have a name")
 	require.NotEmpty(t, fixture.Expected.WorkflowState.Status, "Fixture must have expected workflow status")
-	// Either workflow or tasks must be present
 	if fixture.Workflow == nil && len(fixture.Tasks) == 0 {
 		t.Fatal("Fixture must contain either a workflow or tasks")
 	}
@@ -167,8 +160,6 @@ func (f *TestFixture) AssertWorkflowState(t *testing.T, state *workflow.State) {
 	if expected.CompletedTasks > 0 {
 		completedCount := 0
 		for _, taskState := range state.Tasks {
-			// Count tasks that have finished execution (success or failed) as completed
-			// Running/pending tasks are not completed yet
 			if taskState.Status == core.StatusSuccess || taskState.Status == core.StatusFailed {
 				completedCount++
 			}

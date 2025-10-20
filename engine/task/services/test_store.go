@@ -51,12 +51,10 @@ func NewTestConfigStoreWithTTL(t *testing.T, ttl time.Duration) *TestConfigStore
 func (s *TestConfigStore) Save(ctx context.Context, key string, config *task.Config) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// Serialize config to JSON
 	data, err := json.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
-	// Store in Redis with TTL
 	err = s.client.Set(ctx, s.configKey(key), data, s.ttl).Err()
 	if err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
@@ -67,7 +65,6 @@ func (s *TestConfigStore) Save(ctx context.Context, key string, config *task.Con
 func (s *TestConfigStore) Get(ctx context.Context, key string) (*task.Config, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	// Get from Redis
 	data, err := s.client.Get(ctx, s.configKey(key)).Bytes()
 	if err != nil {
 		if err == redis.Nil {
@@ -75,12 +72,10 @@ func (s *TestConfigStore) Get(ctx context.Context, key string) (*task.Config, er
 		}
 		return nil, fmt.Errorf("failed to get config: %w", err)
 	}
-	// Deserialize config
 	var config task.Config
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
-	// Extend TTL on read (similar to the actual Redis store)
 	s.client.Expire(ctx, s.configKey(key), s.ttl)
 	return &config, nil
 }
@@ -115,7 +110,6 @@ func (s *TestConfigStore) GetMetadata(ctx context.Context, key string) ([]byte, 
 		}
 		return nil, fmt.Errorf("failed to get metadata: %w", err)
 	}
-	// Extend TTL on read
 	s.client.Expire(ctx, s.metadataKey(key), s.ttl)
 	return data, nil
 }
@@ -131,11 +125,9 @@ func (s *TestConfigStore) DeleteMetadata(ctx context.Context, key string) error 
 }
 
 func (s *TestConfigStore) Close() error {
-	// Close Redis client
 	if err := s.client.Close(); err != nil {
 		return fmt.Errorf("failed to close Redis client: %w", err)
 	}
-	// Close miniredis
 	s.miniredis.Close()
 	return nil
 }

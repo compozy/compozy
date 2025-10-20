@@ -76,11 +76,9 @@ func ReadInput(ctx context.Context, source string) ([]byte, error) {
 	log := logger.FromContext(ctx)
 	switch source {
 	case "", "-":
-		// Read from stdin
 		log.Debug("reading from stdin")
 		return io.ReadAll(os.Stdin)
 	default:
-		// Read from file
 		log.Debug("reading from file", "file", source)
 		return ReadFile(source)
 	}
@@ -91,11 +89,9 @@ func ReadFile(path string) ([]byte, error) {
 	if path == "" {
 		return nil, NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
-	// Check if file exists
 	if !FileExists(path) {
 		return nil, NewCliError("FILE_NOT_FOUND", fmt.Sprintf("File not found: %s", path))
 	}
-	// Read file
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, NewCliError("FILE_READ_ERROR", fmt.Sprintf("Failed to read file: %s", path), err.Error())
@@ -108,12 +104,10 @@ func WriteFile(path string, data []byte) error {
 	if path == "" {
 		return NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
-	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return NewCliError("DIRECTORY_CREATE_ERROR", fmt.Sprintf("Failed to create directory: %s", dir), err.Error())
 	}
-	// Write file
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		return NewCliError("FILE_WRITE_ERROR", fmt.Sprintf("Failed to write file: %s", path), err.Error())
 	}
@@ -125,12 +119,10 @@ func AppendToFile(path string, data []byte) (returnErr error) {
 	if path == "" {
 		return NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
-	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return NewCliError("DIRECTORY_CREATE_ERROR", fmt.Sprintf("Failed to create directory: %s", dir), err.Error())
 	}
-	// Open file for appending
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return NewCliError("FILE_OPEN_ERROR", fmt.Sprintf("Failed to open file: %s", path), err.Error())
@@ -140,7 +132,6 @@ func AppendToFile(path string, data []byte) (returnErr error) {
 			returnErr = NewCliError("FILE_CLOSE_ERROR", fmt.Sprintf("Failed to close file: %s", path), closeErr.Error())
 		}
 	}()
-	// Write data
 	if _, err := file.Write(data); err != nil {
 		returnErr = NewCliError("FILE_WRITE_ERROR", fmt.Sprintf("Failed to write to file: %s", path), err.Error())
 		return
@@ -174,7 +165,6 @@ func WriteLines(path string, lines []string) error {
 	if path == "" {
 		return NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
-	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return NewCliError("DIRECTORY_CREATE_ERROR", fmt.Sprintf("Failed to create directory: %s", dir), err.Error())
@@ -382,7 +372,6 @@ func FindFilesWithPattern(dir, pattern string) ([]string, error) {
 			err.Error(),
 		)
 	}
-	// Filter out directories
 	var files []string
 	for _, match := range matches {
 		if FileExists(match) {
@@ -424,7 +413,6 @@ func CopyFile(src, dst string) error {
 		return NewCliError("FILE_OPEN_ERROR", fmt.Sprintf("Failed to open source file: %s", src), err.Error())
 	}
 	defer srcFile.Close()
-	// Ensure destination directory exists
 	dstDir := filepath.Dir(dst)
 	if err := EnsureDirectory(dstDir); err != nil {
 		return err
@@ -445,11 +433,9 @@ func MoveFile(src, dst string) error {
 	if src == "" || dst == "" {
 		return NewCliError("INVALID_PATH", "Source and destination paths cannot be empty")
 	}
-	// Try rename first (fastest if on same filesystem)
 	if err := os.Rename(src, dst); err == nil {
 		return nil
 	}
-	// Fall back to copy + remove
 	if err := CopyFile(src, dst); err != nil {
 		return err
 	}
@@ -477,18 +463,15 @@ func IsValidFilename(filename string) bool {
 	if filename == "" {
 		return false
 	}
-	// Check if it's just a filename without path components
 	if filename != filepath.Base(filename) {
 		return false
 	}
-	// Check for invalid characters (excluding path separators since they're handled above)
 	invalidChars := []string{":", "*", "?", "\"", "<", ">", "|"}
 	for _, char := range invalidChars {
 		if strings.Contains(filename, char) {
 			return false
 		}
 	}
-	// Check for reserved names (Windows)
 	reserved := []string{
 		"CON",
 		"PRN",

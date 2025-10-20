@@ -143,7 +143,6 @@ func (s *Server) buildRouter(state *appstate.State) error {
 
 func (s *Server) logStartupBanner() {
 	log := logger.FromContext(s.ctx)
-	// Prefer values from runtime config context, fallback to serverConfig
 	cfg := config.FromContext(s.ctx)
 	host := s.serverConfig.Host
 	port := s.serverConfig.Port

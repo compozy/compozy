@@ -112,12 +112,10 @@ func (sdb *StateDB) ToState() (*State, error) {
 		summary.Sort()
 		state.Usage = &summary
 	}
-	// Handle parent-child relationship
 	if sdb.ParentStateID.Valid {
 		parentID := core.ID(sdb.ParentStateID.String)
 		state.ParentStateID = &parentID
 	}
-	// Convert basic fields for all execution types
 	err := convertBasic(sdb, state)
 	if err != nil {
 		return nil, err
@@ -363,7 +361,6 @@ func CreateState(input *CreateStateInput, result *PartialState) *State {
 		Output:         nil,
 		Error:          nil,
 	}
-	// Set component-specific fields
 	if result.AgentID != nil {
 		state.AgentID = result.AgentID
 		state.ActionID = result.ActionID
@@ -381,9 +378,7 @@ func CreateBasicState(input *CreateStateInput, result *PartialState) *State {
 
 // CreateParentState creates a parent task state (kept for backward compatibility)
 func CreateParentState(input *CreateStateInput, result *PartialState) *State {
-	// Ensure parent state has correct component
 	result.Component = core.ComponentTask
-	// Only set ExecutionParallel if the execution type is not already a valid parent type
 	isValidParentType := result.ExecutionType == ExecutionParallel ||
 		result.ExecutionType == ExecutionCollection ||
 		result.ExecutionType == ExecutionComposite

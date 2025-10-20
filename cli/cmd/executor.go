@@ -43,15 +43,12 @@ type ExecutorOptions struct {
 func NewCommandExecutor(cmd *cobra.Command, opts ExecutorOptions) (*CommandExecutor, error) {
 	ctx := cmd.Context()
 	log := logger.FromContext(ctx)
-	// Detect execution mode
 	mode := helpers.DetectMode(cmd)
 	log.Debug("detected execution mode", "mode", mode)
 	executor := &CommandExecutor{
 		mode: mode,
 	}
-	// Initialize auth client if required
 	if opts.RequireAuth {
-		// Use context-based config
 		cfg := config.FromContext(ctx)
 		if cfg == nil {
 			return nil, fmt.Errorf("configuration manager not found in context")
@@ -59,7 +56,6 @@ func NewCommandExecutor(cmd *cobra.Command, opts ExecutorOptions) (*CommandExecu
 
 		apiKey := getAPIKeyFromConfigOrFlag(cmd, cfg)
 
-		// Only require API key if authentication is enabled
 		if cfg.Server.Auth.Enabled && apiKey == "" {
 			return nil, fmt.Errorf(
 				"API key is required (set CLI.APIKey in config file, COMPOZY_API_KEY environment variable, or use --api-key flag)",
@@ -77,17 +73,14 @@ func NewCommandExecutor(cmd *cobra.Command, opts ExecutorOptions) (*CommandExecu
 
 // getAPIKeyFromConfigOrFlag retrieves the API key from --api-key flag or config
 func getAPIKeyFromConfigOrFlag(cmd *cobra.Command, cfg *config.Config) string {
-	// Check for --api-key flag first (highest priority)
 	if flagValue, err := cmd.Flags().GetString("api-key"); err == nil && flagValue != "" {
 		return flagValue
 	}
-	// Fall back to config value
 	return string(cfg.CLI.APIKey)
 }
 
 // Execute runs the appropriate handler based on the detected mode.
 func (e *CommandExecutor) Execute(ctx context.Context, cmd *cobra.Command, handlers ModeHandlers, args []string) error {
-	// Create a cancellable context for the command execution
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	switch e.mode {
@@ -148,7 +141,6 @@ func ValidateRequiredFlags(cmd *cobra.Command, required []string) error {
 			return helpers.NewCliError("MISSING_FLAG", fmt.Sprintf("required flag '%s' not specified", flag))
 		}
 
-		// Check if the flag value is empty
 		if value, err := cmd.Flags().GetString(flag); err == nil && value == "" {
 			return helpers.NewCliError("EMPTY_FLAG", fmt.Sprintf("required flag '%s' cannot be empty", flag))
 		}
@@ -166,7 +158,6 @@ func HandleCommonErrors(err error, mode models.Mode) error {
 		helpers.OutputError(cliErr, mode)
 		return cliErr
 	}
-	// For unknown errors, still format them based on mode
 	helpers.OutputError(err, mode)
 	return err
 }

@@ -151,10 +151,8 @@ func (r *MemoryResolver) resolveKey(ctx context.Context, keyTemplate string) (st
 				"key_template", keyTemplate)
 			return "", fmt.Errorf("template engine is required to resolve key template: %s", keyTemplate)
 		}
-		// If no template syntax, return as literal key
 		return keyTemplate, nil
 	}
-	// Execute the template with the workflow context
 	resolved, err := r.templateEngine.RenderString(keyTemplate, r.workflowContext)
 	if err != nil {
 		log.Error("Template resolution failed",
@@ -174,7 +172,6 @@ func (r *MemoryResolver) resolveKey(ctx context.Context, keyTemplate string) (st
 func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.Config) (map[string]llm.Memory, error) {
 	log := logger.FromContext(ctx)
 	memoryRefs := agent.Memory
-	// Enhanced logging for debugging memory configuration issues
 	log.Debug("ResolveAgentMemories called",
 		"agent_id", agent.ID,
 		"memory_refs_count", len(memoryRefs),
@@ -186,8 +183,7 @@ func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.
 		return nil, nil
 	}
 	memories := make(map[string]llm.Memory)
-	// Create a copy of memory references to avoid mutating the shared agent config
-	// This is critical for thread safety in concurrent workflow executions
+	// NOTE: Copy memory references to keep agent config immutable across concurrent executions.
 	localMemoryRefs := make([]core.MemoryReference, len(memoryRefs))
 	copy(localMemoryRefs, memoryRefs)
 	for i := range localMemoryRefs {
@@ -203,8 +199,6 @@ func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.
 
 		if memory != nil {
 			memories[localMemoryRefs[i].ID] = memory
-			// The resolved key was already computed in GetMemory
-			// and is available in the memory instance if needed for logging
 		}
 	}
 	log.Debug("Resolved agent memories",

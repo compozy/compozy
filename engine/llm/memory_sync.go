@@ -42,11 +42,9 @@ func (ms *MemorySync) WithMultipleLocks(memoryIDs []string, fn func()) {
 		ms.WithLock(memoryIDs[0], fn)
 		return
 	}
-	// Sort memory IDs to prevent deadlocks
 	sortedIDs := make([]string, len(memoryIDs))
 	copy(sortedIDs, memoryIDs)
 	sort.Strings(sortedIDs)
-	// Remove duplicates while preserving order
 	uniqueIDs := make([]string, 0, len(sortedIDs))
 	seen := make(map[string]bool)
 	for _, id := range sortedIDs {
@@ -55,14 +53,12 @@ func (ms *MemorySync) WithMultipleLocks(memoryIDs []string, fn func()) {
 			seen[id] = true
 		}
 	}
-	// Acquire locks in sorted order
 	var locks []*sync.Mutex
 	for _, id := range uniqueIDs {
 		lock := ms.GetLock(id)
 		locks = append(locks, lock)
 		lock.Lock()
 	}
-	// Release locks in reverse order when done
 	defer func() {
 		for i := len(locks) - 1; i >= 0; i-- {
 			locks[i].Unlock()

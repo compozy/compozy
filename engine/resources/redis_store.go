@@ -265,8 +265,6 @@ func (s *RedisResourceStore) Delete(ctx context.Context, key ResourceKey) error 
 	}
 	k := s.keyFor(key)
 	etagKey := s.etagKey(key)
-	// Atomic GET + DEL using Lua to preserve ETag of removed value
-	// Returns bulk string of previous value or nil
 	script := "local v=redis.call('GET', KEYS[1]); if v then " +
 		"redis.call('DEL', KEYS[1]); redis.call('DEL', KEYS[2]); end; return v"
 	cmd := s.r.Eval(ctx, script, []string{k, etagKey})
@@ -282,11 +280,9 @@ func (s *RedisResourceStore) Delete(ctx context.Context, key ResourceKey) error 
 	}
 	bs, ok := res.(string)
 	if !ok {
-		// handle binary-safe return; try []byte
 		if bsb, ok2 := res.([]byte); ok2 {
 			bs = string(bsb)
 		} else {
-			// fallback: publish delete without etag
 			evt := Event{Type: EventDelete, Key: key, ETag: ETag(""), At: time.Now().UTC()}
 			if err := s.publish(ctx, key.Project, key.Type, &evt); err != nil {
 				log.Warn("publish delete failed", "error", err)
@@ -345,7 +341,6 @@ func (s *RedisResourceStore) ListWithValues(
 	if s.closed.Load() {
 		return nil, fmt.Errorf("store is closed")
 	}
-	// Collect keys using SCAN
 	resKeys, redisKeys, etagKeys, err := s.scanResourceKeys(ctx, project, typ)
 	if err != nil {
 		return nil, err
@@ -728,7 +723,6 @@ func (s *RedisResourceStore) Close() error {
 	if !s.closed.CompareAndSwap(false, true) {
 		return nil
 	}
-	// The store does not own the Redis client; caller manages its lifecycle.
 	return nil
 }
 

@@ -103,9 +103,7 @@ func (mi *memoryInstance) setupFlushScheduler(ctx context.Context, log logger.Lo
 
 // estimateTokenCount provides a consistent fallback token estimation
 func (mi *memoryInstance) estimateTokenCount(text string) int {
-	// Rough estimate: 4 characters per token (common for most tokenizers)
 	tokens := len(text) / estimatedCharsPerToken
-	// Ensure at least 1 token for non-empty text
 	if tokens == 0 && text != "" {
 		tokens = 1
 	}
@@ -129,11 +127,8 @@ func (mi *memoryInstance) calculateTokenCountWithFallback(ctx context.Context, t
 
 // calculateMessageTokenCount calculates tokens for a single message including role and structure overhead
 func (mi *memoryInstance) calculateMessageTokenCount(ctx context.Context, msg llm.Message) int {
-	// Count content tokens with consistent fallback
 	contentCount := mi.calculateTokenCountWithFallback(ctx, msg.Content, "content")
-	// Count role tokens with consistent fallback
 	roleCount := mi.calculateTokenCountWithFallback(ctx, string(msg.Role), "role")
-	// Add structure overhead for message formatting
 	return contentCount + roleCount + messageStructureOverhead
 }
 
@@ -196,16 +191,13 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) (err erro
 // reconcileAsyncTokenCount asynchronously reconciles the actual token count with the persisted estimate
 func (mi *memoryInstance) reconcileAsyncTokenCount(ctx context.Context, msg llm.Message) {
 	log := logger.FromContext(ctx)
-	// Actual content tokens via async worker
 	actualContent, err := mi.asyncTokenCounter.ProcessWithResult(ctx, mi.id, msg.Content)
 	if err != nil {
 		log.Debug("Async token reconciliation skipped", "error", err, "memory_id", mi.id)
 		return
 	}
-	// Role tokens sync (cheap) + structure overhead
 	actualRole := mi.calculateTokenCountWithFallback(ctx, string(msg.Role), "role")
 	actualTotal := actualContent + actualRole + messageStructureOverhead
-	// Estimated total used at write time
 	estTotal := mi.estimateTokenCount(msg.Content) + mi.estimateTokenCount(string(msg.Role)) + messageStructureOverhead
 	delta := actualTotal - estTotal
 	if delta == 0 {
@@ -255,12 +247,9 @@ func (mi *memoryInstance) AppendMany(ctx context.Context, msgs []llm.Message) (e
 // calculateTokenCountForMessage calculates tokens for a single message
 func (mi *memoryInstance) calculateTokenCountForMessage(ctx context.Context, msg llm.Message) int {
 	if mi.asyncTokenCounter != nil {
-		// Queue async token counting (non-blocking)
 		mi.asyncTokenCounter.ProcessAsync(ctx, mi.id, msg.Content)
-		// Use estimate for immediate metrics
 		return mi.estimateTokenCount(msg.Content) + mi.estimateTokenCount(string(msg.Role)) + messageStructureOverhead
 	}
-	// Fallback to synchronous counting
 	return mi.calculateMessageTokenCount(ctx, msg)
 }
 
@@ -277,13 +266,12 @@ func (mi *memoryInstance) calculateTotalTokenCount(ctx context.Context, msgs []l
 // updateMetadataAndMetrics updates token count metadata and metrics
 func (mi *memoryInstance) updateMetadataAndMetrics(ctx context.Context, totalTokenCount int) {
 	log := logger.FromContext(ctx)
-	// Update token count metadata
 	if err := mi.store.IncrementTokenCount(ctx, mi.id, totalTokenCount); err != nil {
 		log.Warn("Failed to update token count metadata after append_many",
 			"error", err,
 			"memory_id", mi.id,
 			"token_count", totalTokenCount)
-		// Continue as this is not critical for the append operation
+		// NOTE: Continue processing because append persistence succeeded even if metadata update failed.
 	}
 	mi.metrics.RecordTokenCount(ctx, totalTokenCount)
 }
@@ -428,26 +416,20 @@ func (mi *memoryInstance) Clear(ctx context.Context) error {
 
 func (mi *memoryInstance) AppendWithPrivacy(ctx context.Context, msg llm.Message, metadata core.PrivacyMetadata) error {
 	log := logger.FromContext(ctx)
-	// Check explicit DoNotPersist flag
 	if metadata.DoNotPersist {
 		log.Debug("Message marked as DoNotPersist, skipping storage",
 			"message_role", msg.Role,
 			"memory_id", mi.id)
 		return nil
 	}
-	// Apply privacy controls if privacy manager is available
 	if mi.privacyManager != nil {
-		// For now, we'll handle the privacy manager interface properly when we implement full privacy support
-		// The basic DoNotPersist check above handles the test requirement
 		log.Debug("Privacy manager available but not fully integrated yet",
 			"memory_id", mi.id)
 	}
-	// Proceed with regular append
 	return mi.Append(ctx, msg)
 }
 
 func (mi *memoryInstance) PerformFlush(ctx context.Context) (*core.FlushMemoryActivityOutput, error) {
-	// Use PerformFlushWithStrategy with empty strategy to use default
 	return mi.PerformFlushWithStrategy(ctx, core.FlushingStrategyType(""))
 }
 
@@ -456,13 +438,11 @@ func (mi *memoryInstance) PerformFlushWithStrategy(
 	ctx context.Context,
 	strategyType core.FlushingStrategyType,
 ) (*core.FlushMemoryActivityOutput, error) {
-	// Validate strategy type if provided
 	if strategyType != "" {
 		if err := mi.validateStrategyType(string(strategyType)); err != nil {
 			return nil, fmt.Errorf("invalid strategy type: %w", err)
 		}
 	}
-	// Create flush handler with necessary dependencies
 	flushHandler := &FlushHandler{
 		instanceID:        mi.id,
 		projectID:         mi.projectID,
@@ -488,7 +468,6 @@ func (mi *memoryInstance) GetConfiguredStrategy() core.FlushingStrategyType {
 
 // validateStrategyType validates that the strategy type is supported
 func (mi *memoryInstance) validateStrategyType(strategyType string) error {
-	// Use factory's validation method
 	return mi.strategyFactory.ValidateStrategyType(strategyType)
 }
 
@@ -497,8 +476,6 @@ func (mi *memoryInstance) MarkFlushPending(ctx context.Context, pending bool) er
 }
 
 func (mi *memoryInstance) checkFlushTrigger(_ context.Context) {
-	// The context is not used since the debounced function runs independently
-	// This ensures flush checks are not tied to the lifecycle of individual requests
 	mi.debouncedFlush()
 }
 
@@ -507,32 +484,26 @@ func (mi *memoryInstance) checkFlushTrigger(_ context.Context) {
 // if flushing should be triggered based on token and message counts.
 func (mi *memoryInstance) performAsyncFlushCheck(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	// Create a timeout context to prevent goroutine leaks
+	// NOTE: Wrap flush checks with a timeout to prevent leaked goroutines when callers cancel late.
 	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	// Check if the context is already canceled before starting work
 	if mi.isContextCanceled(timeoutCtx, "Flush trigger check canceled") {
 		return nil
 	}
-	// Get token count with cancellation check
 	tokenCount, err := mi.getTokenCountWithCheck(timeoutCtx)
 	if err != nil {
 		return err
 	}
-	// Check cancellation again before the second call
 	if mi.isContextCanceled(timeoutCtx, "Flush trigger check canceled after token count") {
 		return nil
 	}
-	// Get message count with cancellation check
 	messageCount, err := mi.getMessageCountWithCheck(timeoutCtx)
 	if err != nil {
 		return err
 	}
-	// Final cancellation check before flush decision
 	if mi.isContextCanceled(timeoutCtx, "Flush trigger check canceled before flush decision") {
 		return nil
 	}
-	// Check if flush should be triggered
 	if mi.flushingStrategy.ShouldFlush(tokenCount, messageCount, mi.resourceConfig) {
 		log.Info(
 			"Flush triggered",
@@ -543,7 +514,6 @@ func (mi *memoryInstance) performAsyncFlushCheck(ctx context.Context) error {
 			"memory_id",
 			mi.id,
 		)
-		// Perform the actual flush
 		_, err := mi.PerformFlush(timeoutCtx)
 		if err != nil {
 			log.Error("Failed to perform flush", "error", err, "memory_id", mi.id)
@@ -573,7 +543,6 @@ func (mi *memoryInstance) getTokenCountWithCheck(ctx context.Context) (int, erro
 	log := logger.FromContext(ctx)
 	tokenCount, err := mi.GetTokenCount(ctx)
 	if err != nil {
-		// Check if error is due to context cancellation
 		if ctx.Err() != nil {
 			log.Debug("Token count check canceled", "memory_id", mi.id, "reason", ctx.Err())
 			return 0, err
@@ -591,7 +560,6 @@ func (mi *memoryInstance) getMessageCountWithCheck(ctx context.Context) (int, er
 	log := logger.FromContext(ctx)
 	messageCount, err := mi.Len(ctx)
 	if err != nil {
-		// Check if error is due to context cancellation
 		if ctx.Err() != nil {
 			log.Debug("Message count check canceled", "memory_id", mi.id, "reason", ctx.Err())
 			return 0, err
@@ -605,21 +573,15 @@ func (mi *memoryInstance) getMessageCountWithCheck(ctx context.Context) (int, er
 // Close gracefully shuts down the memory instance
 func (mi *memoryInstance) Close(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	// 1. Acquire flush mutex to prevent new flush operations from starting
 	mi.flushMutex.Lock()
-	// 2. Stop the debouncer from scheduling any further calls
 	if mi.flushCancelFunc != nil {
 		mi.flushCancelFunc()
 		mi.flushCancelFunc = nil // Prevent double cancellation
 	}
-	// 3. Release mutex before waiting to avoid deadlock
 	mi.flushMutex.Unlock()
-	// 4. Wait for any in-flight flush operations to complete
 	mi.flushWG.Wait()
-	// 5. Perform a final synchronous flush to ensure all data is persisted
 	mi.flushMutex.Lock()
 	defer mi.flushMutex.Unlock()
-	// Perform final flush check with provided context
 	if err := mi.performAsyncFlushCheck(ctx); err != nil {
 		log.Error("Failed to perform final flush during close", "error", err, "memory_id", mi.id)
 		return fmt.Errorf("failed to perform final flush during close: %w", err)

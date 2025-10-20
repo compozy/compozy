@@ -159,13 +159,10 @@ func (s *Service) createInitialAdminUser(ctx context.Context, email string) (*Re
 	bootstrapUC := s.factory.BootstrapSystem(email)
 	user, apiKey, err := bootstrapUC.Execute(ctx)
 	if err != nil {
-		// Check if it's a structured error we should preserve
 		var coreErr *core.Error
 		if errors.As(err, &coreErr) {
-			// Preserve structured errors like ALREADY_BOOTSTRAPPED
 			return nil, err
 		}
-		// For non-structured errors, wrap with service-level context
 		return nil, core.NewError(
 			fmt.Errorf("failed to bootstrap system: %w", err),
 			"BOOTSTRAP_SYSTEM_FAILED",
@@ -190,7 +187,6 @@ func (s *Service) CreateInitialAdmin(ctx context.Context, email string) (*model.
 	}
 	log := logger.FromContext(ctx)
 	log.Info("Creating initial admin user", "email", email)
-	// Check if any admin exists
 	status, err := s.CheckBootstrapStatus(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to check bootstrap status: %w", err)
@@ -198,7 +194,6 @@ func (s *Service) CreateInitialAdmin(ctx context.Context, email string) (*model.
 	if status.IsBootstrapped {
 		return nil, "", fmt.Errorf("system already has %d admin user(s)", status.AdminCount)
 	}
-	// Use the factory to create user
 	createInput := &uc.CreateUserInput{
 		Email: email,
 		Role:  model.RoleAdmin,
@@ -207,7 +202,6 @@ func (s *Service) CreateInitialAdmin(ctx context.Context, email string) (*model.
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create admin user: %w", err)
 	}
-	// Generate API key
 	apiKey, err := s.factory.GenerateAPIKey(createdUser.ID).Execute(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to generate API key: %w", err)

@@ -43,7 +43,6 @@ func (n *NavigationManager) SetSize(width, height int) {
 // Update handles updates for all navigation components
 func (n *NavigationManager) Update(msg tea.Msg) tea.Cmd {
 	var cmds []tea.Cmd
-	// Update all components
 	help, helpCmd := n.Help.Update(msg)
 	n.Help = help
 	if helpCmd != nil {
@@ -61,7 +60,6 @@ func (n *NavigationManager) Update(msg tea.Msg) tea.Cmd {
 	if shortcutsCmd != nil {
 		cmds = append(cmds, shortcutsCmd)
 	}
-	// Handle special navigation keys
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
 		case ctrlKKey:
@@ -74,7 +72,6 @@ func (n *NavigationManager) Update(msg tea.Msg) tea.Cmd {
 			}
 		}
 	}
-	// Handle palette commands
 	if executeMsg, ok := msg.(ExecuteCommandMsg); ok {
 		return n.handlePaletteCommand(&executeMsg.Command)
 	}
@@ -94,7 +91,6 @@ func (n *NavigationManager) handlePaletteCommand(cmd *Command) tea.Cmd {
 	case "shortcuts":
 		n.Shortcuts.Show()
 	default:
-		// Return the command as a message for the parent to handle
 		return func() tea.Msg {
 			return ExecuteCommandMsg{Command: *cmd}
 		}
@@ -105,9 +101,7 @@ func (n *NavigationManager) handlePaletteCommand(cmd *Command) tea.Cmd {
 // View renders all visible navigation components
 func (n *NavigationManager) View() string {
 	var overlays []string
-	// Breadcrumb is always rendered if it has items
 	breadcrumb := n.Breadcrumb.View()
-	// Add overlays in order of priority (last one on top)
 	if n.Help.Visible {
 		overlays = append(overlays, n.Help.View())
 	}
@@ -120,14 +114,11 @@ func (n *NavigationManager) View() string {
 	if n.Palette.Visible {
 		overlays = append(overlays, n.Palette.View())
 	}
-	// Combine breadcrumb and overlays
 	if len(overlays) == 0 {
 		return breadcrumb
 	}
-	// If we have overlays, render the top one over the breadcrumb
 	topOverlay := overlays[len(overlays)-1]
 	if breadcrumb != "" {
-		// Place breadcrumb at top, overlay in center
 		breadcrumbView := lipgloss.PlaceHorizontal(n.Width, lipgloss.Left, breadcrumb)
 		return breadcrumbView + "\n" + topOverlay
 	}

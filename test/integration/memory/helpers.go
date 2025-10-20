@@ -47,42 +47,32 @@ func NewTestEnvironment(t *testing.T) *TestEnvironment {
 		logger:  log,
 		cleanup: []func(){},
 	}
-	// Setup Redis
 	env.setupRedis(t)
-	// Setup Temporal (using test suite for now)
+	// NOTE: Wire a minimal Temporal mock to satisfy manager dependencies during tests.
 	env.setupTemporal(t)
-	// Setup registries
 	env.setupRegistries(t)
-	// Setup template engine
 	env.setupTemplateEngine(t)
-	// Setup memory manager
 	env.setupMemoryManager(t)
 	return env
 }
 
 func (env *TestEnvironment) setupRedis(t *testing.T) {
 	t.Helper()
-	// Create miniredis instance
 	mr, err := miniredis.Run()
 	require.NoError(t, err, "Failed to start miniredis")
 	env.miniredis = mr
-	// Create Redis client connected to miniredis
 	env.redis = redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 		DB:   0,
 	})
-	// Test connection
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	err = env.redis.Ping(ctx).Err()
 	require.NoError(t, err, "Failed to connect to miniredis")
-	// Redis client already implements RedisInterface
 	env.redisClient = env.redis
-	// Create lock manager
 	lockManager, err := cache.NewRedisLockManager(env.redisClient)
 	require.NoError(t, err)
 	env.lockManager = lockManager
-	// Cleanup function
 	env.cleanup = append(env.cleanup, func() {
 		_ = env.redis.Close()
 		env.miniredis.Close()
@@ -91,22 +81,15 @@ func (env *TestEnvironment) setupRedis(t *testing.T) {
 
 func (env *TestEnvironment) setupTemporal(t *testing.T) {
 	t.Helper()
-	// For memory integration tests, we create a minimal mock client
-	// Since most memory operations don't actually use Temporal workflows,
-	// this provides just enough to satisfy the interface requirement
 	mockClient := &mocks.Client{}
 	env.temporalClient = mockClient
-	// Add cleanup
 	env.cleanup = append(env.cleanup, func() {
-		// No cleanup needed for mock client
 	})
 }
 
 func (env *TestEnvironment) setupRegistries(t *testing.T) {
 	t.Helper()
-	// Create test registries
 	env.configRegistry = autoload.NewConfigRegistry()
-	// Add test memory configurations
 	env.addTestMemoryConfigs()
 }
 
@@ -117,9 +100,7 @@ func (env *TestEnvironment) setupTemplateEngine(t *testing.T) {
 
 func (env *TestEnvironment) setupMemoryManager(t *testing.T) {
 	t.Helper()
-	// Create privacy manager
 	privacyManager := privacy.NewManager()
-	// Create memory manager options with test project ID fallback
 	opts := &memory.ManagerOptions{
 		ResourceRegistry:  env.configRegistry,
 		TplEngine:         env.tplEngine,
@@ -130,7 +111,6 @@ func (env *TestEnvironment) setupMemoryManager(t *testing.T) {
 		PrivacyManager:    privacyManager,
 		FallbackProjectID: "basic-memory", // Use the same project ID as the examples
 	}
-	// Create memory manager
 	var err error
 	env.memoryManager, err = memory.NewManager(opts)
 	require.NoError(t, err)

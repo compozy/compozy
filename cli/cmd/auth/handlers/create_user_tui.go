@@ -16,7 +16,6 @@ import (
 // CreateUserTUI handles user creation in TUI mode using the unified executor pattern
 func CreateUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 	log := logger.FromContext(ctx)
-	// Parse flags for initial values
 	email, err := cobraCmd.Flags().GetString("email")
 	if err != nil {
 		return fmt.Errorf("failed to get email flag: %w", err)
@@ -34,14 +33,12 @@ func CreateUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 	if authClient == nil {
 		return fmt.Errorf("auth client not available")
 	}
-	// Create and run the TUI model
 	m := newCreateUserModel(ctx, authClient, email, name, role)
 	p := tea.NewProgram(m)
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
-	// Check if creation was successful
 	if model, ok := finalModel.(*createUserModel); ok {
 		if model.err != nil {
 			return model.err
@@ -89,9 +86,7 @@ func newCreateUserModel(ctx context.Context, client api.AuthClient, email, name,
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
-	// Initialize inputs with provided values
 	inputs := []string{email, name, role}
-	// Set default role if empty
 	if inputs[2] == "" {
 		inputs[2] = roleUser
 	}
@@ -180,7 +175,6 @@ func (m *createUserModel) handleInputting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", keyCtrlC:
 		return m, tea.Quit
 	case keyEnter:
-		// Validate inputs
 		if err := m.validateInputs(); err != nil {
 			m.err = err
 			return m, tea.Quit
@@ -199,7 +193,6 @@ func (m *createUserModel) handleInputting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.inputs[m.cursorPos] = m.inputs[m.cursorPos][:len(m.inputs[m.cursorPos])-1]
 		}
 	default:
-		// Add character to current input
 		if len(msg.String()) == 1 {
 			m.inputs[m.cursorPos] += msg.String()
 		}

@@ -292,8 +292,6 @@ func (a *Activities) ExecuteBasicTask(
 	ctx context.Context,
 	input *tkfacts.ExecuteBasicInput,
 ) (*task.MainTaskResponse, error) {
-	// Ensure logger and configuration manager are attached to the activity context
-	// so downstream code (use-cases, LLM orchestrator) can emit logs and see app config.
 	ctx = a.withActivityContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -366,7 +364,6 @@ func (a *Activities) ExecuteSubtask(
 	ctx context.Context,
 	input *tkfacts.ExecuteSubtaskInput,
 ) (*task.SubtaskResponse, error) {
-	// Ensure logger and configuration manager are attached for downstream code.
 	ctx = a.withActivityContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -575,7 +572,6 @@ func (a *Activities) LoadCompositeConfigsActivity(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	// Create task config repository from factory
 	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.projectConfig.CWD)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task config repository: %w", err)
@@ -591,7 +587,6 @@ func (a *Activities) LoadCollectionConfigsActivity(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	// Create task config repository from factory
 	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.projectConfig.CWD)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task config repository: %w", err)
@@ -690,7 +685,6 @@ func (a *Activities) EvaluateCondition(
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	// Use the shared CEL evaluator instance
 	act := tkfacts.NewEvaluateCondition(a.celEvaluator)
 	return act.Run(ctx, input)
 }
@@ -715,7 +709,6 @@ func (a *Activities) ListActiveDispatchers(
 	if a.cacheKV == nil || a.cacheKeys == nil {
 		return wkacts.ListActiveDispatchers(ctx, nil, input)
 	}
-	// Compose minimal contract interface
 	type contracts interface {
 		cache.KV
 		cache.KeysProvider
@@ -742,7 +735,6 @@ func (a *Activities) FlushMemory(
 	ctx context.Context,
 	input memcore.FlushMemoryActivityInput,
 ) (*memcore.FlushMemoryActivityOutput, error) {
-	// Delegate to the memory activities implementation
 	return a.memoryActivities.FlushMemory(ctx, input)
 }
 
@@ -750,6 +742,5 @@ func (a *Activities) ClearFlushPendingFlag(
 	ctx context.Context,
 	input memcore.ClearFlushPendingFlagInput,
 ) error {
-	// Delegate to the memory activities implementation
 	return a.memoryActivities.ClearFlushPendingFlag(ctx, input)
 }

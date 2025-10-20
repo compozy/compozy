@@ -25,7 +25,6 @@ func ListUsersTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.Co
 	if authClient == nil {
 		return fmt.Errorf("auth client not available")
 	}
-	// Parse flags for initial filtering
 	roleFilter, err := cobraCmd.Flags().GetString("role")
 	if err != nil {
 		return fmt.Errorf("failed to get role flag: %w", err)
@@ -42,14 +41,12 @@ func ListUsersTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.Co
 	if err != nil {
 		return fmt.Errorf("failed to get active flag: %w", err)
 	}
-	// Create and run the TUI model
 	m := newListUsersModel(ctx, authClient, roleFilter, sortBy, filterStr, activeOnly)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
-	// Check for errors
 	if model, ok := finalModel.(*listUsersModel); ok && model.err != nil {
 		return model.err
 	}
@@ -172,11 +169,8 @@ func (m *listUsersModel) View() string {
 }
 
 func (m *listUsersModel) updateTable() {
-	// Apply filters
 	filteredUsers := m.applyFilters(m.users)
-	// Apply sorting
 	m.applySorting(filteredUsers)
-	// Convert to table rows
 	rows := make([]table.Row, len(filteredUsers))
 	for i, user := range filteredUsers {
 		createdAt := formatDate(user.CreatedAt)
@@ -193,12 +187,10 @@ func (m *listUsersModel) updateTable() {
 func (m *listUsersModel) applyFilters(users []api.UserInfo) []api.UserInfo {
 	filtered := make([]api.UserInfo, 0, len(users))
 	for _, user := range users {
-		// Apply role filter
 		if m.roleFilter != "" && user.Role != m.roleFilter {
 			continue
 		}
 
-		// Apply text filter (name or email)
 		if m.filter != "" {
 			if !helpers.Contains(user.Name, m.filter) && !helpers.Contains(user.Email, m.filter) {
 				continue
@@ -236,10 +228,8 @@ func formatDate(dateStr string) string {
 	if dateStr == "" {
 		return "N/A"
 	}
-	// Try to parse as RFC3339 and format nicely
 	if t, err := time.Parse(time.RFC3339, dateStr); err == nil {
 		return t.Format("2006-01-02 15:04")
 	}
-	// If parsing fails, return the original string
 	return dateStr
 }

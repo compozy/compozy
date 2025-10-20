@@ -32,21 +32,16 @@ func (b *ContextBuilder) BuildContext(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) *shared.NormalizationContext {
-	// Start with base context
 	normCtx := b.BaseContextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-	// Parallel tasks don't need special context modifications
-	// Each sub-task will get its own context when normalized
 	return normCtx
 }
 
 // EnrichContext adds parallel-specific data to an existing context
 func (b *ContextBuilder) EnrichContext(ctx *shared.NormalizationContext, taskState *task.State) error {
-	// Use base enrichment - parallel tasks don't need special enrichment
 	return b.BaseContextBuilder.EnrichContext(ctx, taskState)
 }
 
 // ValidateContext ensures the context has all required fields for parallel tasks
 func (b *ContextBuilder) ValidateContext(ctx *shared.NormalizationContext) error {
-	// Use base validation - parallel tasks don't have special validation requirements
 	return b.BaseContextBuilder.ValidateContext(ctx)
 }

@@ -28,7 +28,6 @@ func NewNormalizer(
 			contextBuilder,
 			task.TaskTypeWait,
 			func(k string) bool {
-				// Wait tasks skip "processor" field - it contains signal templates that need deferred evaluation
 				return k == "agent" || k == "tool" || k == "outputs" || k == "output" || k == "processor"
 			},
 		),
@@ -37,11 +36,9 @@ func NewNormalizer(
 
 // Normalize applies wait task-specific normalization rules
 func (n *Normalizer) Normalize(ctx context.Context, config *task.Config, normCtx contracts.NormalizationContext) error {
-	// Call base normalization first
 	if err := n.BaseNormalizer.Normalize(ctx, config, normCtx); err != nil {
 		return err
 	}
-	// Apply inheritance to processor if present
 	if config != nil && config.Processor != nil {
 		if err := shared.InheritTaskConfig(config.Processor, config); err != nil {
 			return fmt.Errorf("failed to inherit task config: %w", err)

@@ -35,34 +35,26 @@ func (n *ToolNormalizer) NormalizeTool(
 	if config == nil {
 		return nil
 	}
-	// Merge environment variables across workflow -> task -> tool levels
 	mergedEnv := n.envMerger.MergeThreeLevels(
 		ctx.WorkflowConfig,
 		ctx.TaskConfig,
 		config.Env, // Tool's environment overrides task and workflow
 	)
-	// Update context with merged environment for template processing
 	ctx.MergedEnv = mergedEnv
-	// Set current input if not already set
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
 	}
-	// Build template context
 	context := ctx.BuildTemplateContext()
-	// Convert config to map for template processing
 	configMap, err := config.AsMap()
 	if err != nil {
 		return fmt.Errorf("failed to convert tool config to map: %w", err)
 	}
-	// Apply template processing with appropriate filters
-	// Skip input and output fields during tool normalization
 	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, func(k string) bool {
 		return k == fieldInput || k == fieldOutput
 	})
 	if err != nil {
 		return fmt.Errorf("failed to normalize tool config: %w", err)
 	}
-	// Update config from normalized map
 	if err := config.FromMap(parsed); err != nil {
 		return fmt.Errorf("failed to update tool config from normalized map: %w", err)
 	}
