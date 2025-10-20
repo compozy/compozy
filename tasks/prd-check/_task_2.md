@@ -46,6 +46,7 @@ This task can be executed in parallel with Tasks 3.0 (Core Logic) and 4.0 (UI La
 ### 2.1 File System Abstractions (infrastructure/filesystem/)
 
 **filesystem/reader.go**:
+
 ```go
 type OSReader struct{}
 
@@ -74,6 +75,7 @@ func (r *OSReader) FileExists(ctx context.Context, path string) (bool, error) {
 ```
 
 **filesystem/writer.go**:
+
 ```go
 type OSWriter struct{}
 
@@ -97,6 +99,7 @@ func (w *OSWriter) MkdirAll(ctx context.Context, path string, perm os.FileMode) 
 ```
 
 **filesystem/filesystem.go**:
+
 ```go
 type OSFileSystem struct {
     reader *OSReader
@@ -124,6 +127,7 @@ func (fs *OSFileSystem) WriteFile(ctx context.Context, path string, data []byte,
 ```
 
 **filesystem/scanner.go**:
+
 ```go
 type DirectoryScanner struct {
     fs ports.FileSystem
@@ -142,6 +146,7 @@ func (s *DirectoryScanner) ScanIssues(ctx context.Context, dir string) ([]models
 ### 2.2 Command Execution Layer (infrastructure/execution/)
 
 **execution/runner.go**:
+
 ```go
 type OSCommandExecutor struct{}
 
@@ -201,6 +206,7 @@ func (e *OSCommandExecutor) IsAvailable(ctx context.Context, toolName string) (b
 ```
 
 **execution/ide_builder.go**:
+
 ```go
 // Factory for IDE command builders
 type IDECommandBuilder interface {
@@ -250,6 +256,7 @@ type DroidCommandBuilder struct{}
 ```
 
 **execution/factory.go**:
+
 ```go
 type IDEToolFactory struct {
     executor ports.CommandExecutor
@@ -276,6 +283,7 @@ func (f *IDEToolFactory) CreateBuilder(ide string) (IDECommandBuilder, error) {
 ### 2.3 Logging Infrastructure (infrastructure/logging/)
 
 **logging/tap.go**:
+
 ```go
 type LogTap struct {
     mu     sync.Mutex
@@ -331,6 +339,7 @@ func (t *LogTap) TailLines(n int) []string {
 ```
 
 **logging/formatter.go**:
+
 ```go
 type JSONLogFormatter struct{}
 
@@ -349,6 +358,7 @@ func (f *JSONLogFormatter) Format(ctx context.Context, data []byte) ([]byte, err
 ```
 
 **logging/usage_tracker.go**:
+
 ```go
 type TokenUsageTracker struct {
     mu    sync.RWMutex
@@ -393,6 +403,7 @@ func (t *TokenUsageTracker) TotalUsage() models.TokenUsage {
 ### 2.4 Prompt Building (infrastructure/prompts/)
 
 **prompts/builder.go**:
+
 ```go
 type PromptBuilder struct {
     fs ports.FileSystem
@@ -426,6 +437,7 @@ func (b *PromptBuilder) WritePromptToFile(ctx context.Context, prompt string, pa
 ```
 
 **prompts/formatter.go**:
+
 ```go
 type PromptFormatter struct{}
 
@@ -445,6 +457,7 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 ### Relevant Files
 
 **Files to Create**:
+
 - `scripts/markdown/infrastructure/filesystem/reader.go`
 - `scripts/markdown/infrastructure/filesystem/writer.go`
 - `scripts/markdown/infrastructure/filesystem/filesystem.go`
@@ -459,6 +472,7 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 - `scripts/markdown/infrastructure/prompts/formatter.go`
 
 **Test Files**:
+
 - `scripts/markdown/infrastructure/filesystem/reader_test.go`
 - `scripts/markdown/infrastructure/filesystem/writer_test.go`
 - `scripts/markdown/infrastructure/filesystem/scanner_test.go`
@@ -471,11 +485,13 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 ### Dependent Files
 
 **Dependencies from Task 1.0**:
+
 - `scripts/markdown/core/models/*.go` - Domain models
 - `scripts/markdown/core/ports/*.go` - Interface definitions
 - `scripts/markdown/shared/types/constants.go` - Constants
 
 **Reference for extraction**:
+
 - `scripts/markdown/check.go` - Source of infrastructure logic
 
 ## Deliverables
@@ -554,6 +570,7 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 ## Success Criteria
 
 ### Functional Requirements
+
 - [ ] All port interfaces fully implemented
 - [ ] File system operations work correctly
 - [ ] Command execution handles all edge cases
@@ -561,6 +578,7 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 - [ ] Prompt building generates valid prompts
 
 ### Architectural Requirements
+
 - [ ] Infrastructure layer depends only on core/ports (DIP)
 - [ ] No business logic in infrastructure layer
 - [ ] All implementations are swappable
@@ -568,6 +586,7 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 - [ ] Context propagation throughout
 
 ### Quality Requirements
+
 - [ ] All functions < 50 lines
 - [ ] All code passes `make lint`
 - [ ] All tests pass with: `gotestsum --format pkgname -- -race -parallel=4 ./scripts/markdown/infrastructure/...`
@@ -576,6 +595,7 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 - [ ] Proper resource cleanup (no leaked file handles)
 
 ### Integration Requirements
+
 - [ ] Can be used by Task 3.0 (Core Logic)
 - [ ] Can be wired in Task 5.0 (Application Wiring)
 - [ ] Mock implementations available for testing
@@ -583,6 +603,7 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 ## Implementation Notes
 
 ### Order of Implementation
+
 1. File system layer (reader, writer, filesystem, scanner)
 2. Command execution layer (runner, builders, factory)
 3. Logging infrastructure (tap, formatter, tracker)
@@ -592,6 +613,7 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 7. Run `make fmt && make lint && make test`
 
 ### Key Design Decisions
+
 - **Interface-based**: All implementations respect port interfaces
 - **Context-first**: All I/O operations accept context
 - **Logger from context**: Use `logger.FromContext(ctx)` for all logging
@@ -599,6 +621,7 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 - **Resource cleanup**: Defer file handle closures
 
 ### Common Pitfalls to Avoid
+
 - ❌ Don't use `context.Background()` in implementation code
 - ❌ Don't leak file handles or goroutines
 - ❌ Don't hardcode configuration values
@@ -606,6 +629,7 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 - ❌ Don't create global state or singletons
 
 ### Testing Strategy
+
 - **Unit tests**: Mock external dependencies (file system, commands)
 - **Integration tests**: Use real file system in temp directories
 - **Thread safety**: Test concurrent access with race detector
@@ -613,7 +637,9 @@ func (f *PromptFormatter) FormatBatchHeader(jobName string, files []string) stri
 - **Context cancellation**: Verify proper cleanup on cancellation
 
 ### Parallelization Notes
+
 This task can be executed in parallel with:
+
 - **Task 3.0 (Core Logic)**: Different layers, minimal dependencies
 - **Task 4.0 (UI Layer)**: Different layers, minimal dependencies
 

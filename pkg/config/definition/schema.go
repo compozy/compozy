@@ -1974,6 +1974,8 @@ func registerBehaviorFlags(registry *Registry) {
 	registerCLIModeFlags(registry)
 	registerCLIPathFlags(registry)
 	registerCLIPortReleaseFlags(registry)
+	registerCLIDevWatcherFields(registry)
+	registerCLIUsersFields(registry)
 }
 
 // registerCLIModeFlags configures CLI verbosity and interaction toggles.
@@ -2070,6 +2072,47 @@ func registerCLIPortReleaseFlags(registry *Registry) {
 			EnvVar:  "COMPOZY_FILE_WATCH_INTERVAL",
 			Type:    durationType,
 			Help:    "Polling interval for CLI file watching fallback when fsnotify support is unavailable",
+		},
+	)
+}
+
+func registerCLIDevWatcherFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "cli.dev.watcher_debounce",
+			Default: 200 * time.Millisecond,
+			EnvVar:  "COMPOZY_DEV_WATCHER_DEBOUNCE",
+			Type:    durationType,
+			Help:    "Quiet period before restarting the dev server after file changes",
+		},
+		FieldDef{
+			Path:    "cli.dev.watcher_retry_initial",
+			Default: 500 * time.Millisecond,
+			EnvVar:  "COMPOZY_DEV_WATCHER_RETRY_INITIAL",
+			Type:    durationType,
+			Help:    "Initial delay before retrying a failed dev server restart",
+		},
+		FieldDef{
+			Path:    "cli.dev.watcher_retry_max",
+			Default: 30 * time.Second,
+			EnvVar:  "COMPOZY_DEV_WATCHER_RETRY_MAX",
+			Type:    durationType,
+			Help:    "Maximum backoff between dev server restart attempts",
+		},
+	)
+}
+
+func registerCLIUsersFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "cli.users.active_window_days",
+			Default: 30,
+			CLIFlag: "cli-users-active-window-days",
+			EnvVar:  "COMPOZY_USERS_ACTIVE_WINDOW_DAYS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Number of days defining an 'active' user for CLI filtering",
 		},
 	)
 }

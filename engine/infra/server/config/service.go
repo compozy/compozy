@@ -205,7 +205,7 @@ func (s *service) compileFromStore(
 	if err := s.publishAutoloadResources(ctx, projectConfig, configRegistry); err != nil {
 		return nil, err
 	}
-	keys, skip, err := s.workflowKeysFromStore(ctx, projectConfig, configRegistry)
+	keys, skip, err := s.workflowKeysFromStore(ctx, projectConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +242,6 @@ func (s *service) publishAutoloadResources(
 func (s *service) workflowKeysFromStore(
 	ctx context.Context,
 	projectConfig *project.Config,
-	configRegistry *autoload.ConfigRegistry,
 ) ([]resources.ResourceKey, bool, error) {
 	log := logger.FromContext(ctx)
 	keys, err := s.store.List(ctx, projectConfig.Name, resources.ResourceWorkflow)
@@ -257,7 +256,7 @@ func (s *service) workflowKeysFromStore(
 		return nil, true, nil
 	}
 	log.Info("Store empty; seeding from repo YAML")
-	if err := s.seedFromRepo(ctx, projectConfig, configRegistry); err != nil {
+	if err := s.seedFromRepo(ctx, projectConfig); err != nil {
 		return nil, false, err
 	}
 	relisted, err := s.store.List(ctx, projectConfig.Name, resources.ResourceWorkflow)
@@ -298,7 +297,6 @@ func (s *service) shouldSeedFromRepo(ctx context.Context, _ *project.Config) boo
 func (s *service) seedFromRepo(
 	ctx context.Context,
 	projectConfig *project.Config,
-	configRegistry *autoload.ConfigRegistry,
 ) error {
 	workflows, err := workflow.WorkflowsFromProject(ctx, projectConfig)
 	if err != nil {
@@ -313,11 +311,6 @@ func (s *service) seedFromRepo(
 		}
 		if err := wf.IndexToResourceStore(ctx, projectConfig.Name, s.store); err != nil {
 			return fmt.Errorf("seed index workflow '%s' failed: %w", wf.ID, err)
-		}
-	}
-	if configRegistry != nil {
-		if err := configRegistry.SyncToResourceStore(ctx, projectConfig.Name, s.store); err != nil {
-			return fmt.Errorf("seed publish autoload failed: %w", err)
 		}
 	}
 	return nil

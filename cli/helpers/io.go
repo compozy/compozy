@@ -367,6 +367,18 @@ func watchFileWithFSNotify(
 			return err
 		}
 	}
+	return runFSNotifyLoop(ctx, watcher, path, callback, lastModTime, log)
+}
+
+// runFSNotifyLoop processes fsnotify events until the context is canceled or watcher closes.
+func runFSNotifyLoop(
+	ctx context.Context,
+	watcher *fsnotify.Watcher,
+	path string,
+	callback func([]byte) error,
+	lastModTime time.Time,
+	log logger.Logger,
+) error {
 	for {
 		select {
 		case <-ctx.Done():

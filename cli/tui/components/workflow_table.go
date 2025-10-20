@@ -385,19 +385,18 @@ func (wt *WorkflowTableComponent) updateFilteredRows() {
 
 // matchesFilter checks if a workflow matches the current filter
 func (wt *WorkflowTableComponent) matchesFilter(workflow *api.Workflow) bool {
-	filterLower := strings.ToLower(wt.filterTerm)
-	if strings.Contains(strings.ToLower(workflow.Name), filterLower) {
+	if cliutils.Contains(workflow.Name, wt.filterTerm) {
 		return true
 	}
-	if strings.Contains(strings.ToLower(string(workflow.Status)), filterLower) {
+	if cliutils.Contains(string(workflow.Status), wt.filterTerm) {
 		return true
 	}
 	for _, tag := range workflow.Tags {
-		if strings.Contains(strings.ToLower(tag), filterLower) {
+		if cliutils.Contains(tag, wt.filterTerm) {
 			return true
 		}
 	}
-	return strings.Contains(strings.ToLower(workflow.Description), filterLower)
+	return cliutils.Contains(workflow.Description, wt.filterTerm)
 }
 
 // sortRows sorts the rows based on current sort settings

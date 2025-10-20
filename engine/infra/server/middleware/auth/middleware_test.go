@@ -110,7 +110,7 @@ func TestManager_Middleware(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.JSONEq(
 			t,
-			`{"error":"Authentication failed", "details":"Invalid authorization header format"}`,
+			`{"status":400,"error":{"code":"BAD_REQUEST","message":"Authentication failed","details":"Invalid authorization header format"}}`,
 			w.Body.String(),
 		)
 	})
@@ -131,7 +131,7 @@ func TestManager_Middleware(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.JSONEq(
 			t,
-			`{"error":"Authentication failed", "details":"Invalid authorization header format"}`,
+			`{"status":400,"error":{"code":"BAD_REQUEST","message":"Authentication failed","details":"Invalid authorization header format"}}`,
 			w.Body.String(),
 		)
 	})
@@ -154,7 +154,7 @@ func TestManager_Middleware(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 		assert.JSONEq(
 			t,
-			`{"error":"Authentication failed", "details":"Invalid or missing credentials"}`,
+			`{"status":401,"error":{"code":"UNAUTHORIZED","message":"Authentication failed","details":"Invalid or missing credentials"}}`,
 			w.Body.String(),
 		)
 	})

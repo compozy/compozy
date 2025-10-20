@@ -22,6 +22,17 @@ const (
 	maxKnowledgeLimit     = 500
 )
 
+const (
+	knowledgeErrInvalidInputCode   = "invalid_input"
+	knowledgeErrProjectMissingCode = "project_missing"
+	knowledgeErrIDMissingCode      = "id_missing"
+	knowledgeErrIDMismatchCode     = "id_mismatch"
+	knowledgeErrValidationCode     = "validation_failed"
+	knowledgeErrNotFoundCode       = "knowledge_not_found"
+	knowledgeErrAlreadyExistsCode  = "already_exists"
+	knowledgeErrPreconditionCode   = "precondition_failed"
+)
+
 // listKnowledgeBases handles GET /knowledge-bases.
 //
 // @Summary List knowledge bases
@@ -49,7 +60,7 @@ func listKnowledgeBases(c *gin.Context) {
 	limit := router.LimitOrDefault(c, c.Query("limit"), defaultKnowledgeLimit, maxKnowledgeLimit)
 	cursor, err := router.DecodeCursor(c.Query("cursor"))
 	if err != nil {
-		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblemWithCode(c, http.StatusBadRequest, "invalid_cursor", "invalid cursor parameter")
 		return
 	}
 	input := &uc.ListInput{
@@ -115,7 +126,7 @@ func getKnowledgeBase(c *gin.Context) {
 	}
 	ifNoneMatch, err := router.ParseStrongETag(c.GetHeader("If-None-Match"))
 	if err != nil {
-		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-None-Match header"})
+		router.RespondProblemWithCode(c, http.StatusBadRequest, "invalid_if_none_match", "invalid If-None-Match header")
 		return
 	}
 	out, err := uc.NewGet(store).Execute(c.Request.Context(), &uc.GetInput{Project: project, ID: kbID})
@@ -131,7 +142,11 @@ func getKnowledgeBase(c *gin.Context) {
 	}
 	payload, err := core.AsMapDefault(out.KnowledgeBase)
 	if err != nil {
-		router.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{
+			Status: http.StatusInternalServerError,
+			Detail: err.Error(),
+			Extras: map[string]any{"code": "serialization_error"},
+		})
 		return
 	}
 	payload["_etag"] = etag
@@ -274,7 +289,7 @@ func ingestKnowledgeBase(c *gin.Context) {
 	}
 	strategy, err := parseIngestStrategy(body.Strategy)
 	if err != nil {
-		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblemWithCode(c, http.StatusBadRequest, "invalid_strategy", err.Error())
 		return
 	}
 	input := &uc.IngestInput{Project: project, ID: kbID, Strategy: strategy, CWD: state.CWD}
@@ -362,25 +377,28 @@ func respondKnowledgeError(c *gin.Context, err error) {
 	switch {
 	case err == nil:
 		return
-	case errors.Is(err, uc.ErrInvalidInput),
-		errors.Is(err, uc.ErrProjectMissing),
-		errors.Is(err, uc.ErrIDMissing),
-		errors.Is(err, uc.ErrIDMismatch):
-		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+	case errors.Is(err, uc.ErrInvalidInput):
+		router.RespondProblemWithCode(c, http.StatusBadRequest, knowledgeErrInvalidInputCode, err.Error())
+	case errors.Is(err, uc.ErrProjectMissing):
+		router.RespondProblemWithCode(c, http.StatusBadRequest, knowledgeErrProjectMissingCode, err.Error())
+	case errors.Is(err, uc.ErrIDMissing):
+		router.RespondProblemWithCode(c, http.StatusBadRequest, knowledgeErrIDMissingCode, err.Error())
+	case errors.Is(err, uc.ErrIDMismatch):
+		router.RespondProblemWithCode(c, http.StatusBadRequest, knowledgeErrIDMismatchCode, err.Error())
 	case errors.Is(err, uc.ErrValidationFail):
-		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblemWithCode(c, http.StatusBadRequest, knowledgeErrValidationCode, err.Error())
 	case errors.Is(err, uc.ErrNotFound):
-		router.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblemWithCode(c, http.StatusNotFound, knowledgeErrNotFoundCode, err.Error())
 	case errors.Is(err, uc.ErrAlreadyExists):
-		router.RespondProblem(c, &core.Problem{Status: http.StatusConflict, Detail: err.Error()})
+		router.RespondProblemWithCode(c, http.StatusConflict, knowledgeErrAlreadyExistsCode, err.Error())
 	case errors.Is(err, uc.ErrETagMismatch), errors.Is(err, uc.ErrStaleIfMatch):
-		router.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblemWithCode(c, http.StatusPreconditionFailed, knowledgeErrPreconditionCode, err.Error())
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
 			router.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		router.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblemWithCode(c, http.StatusInternalServerError, router.ErrInternalCode, err.Error())
 	}
 }

@@ -65,7 +65,7 @@ RUN addgroup -g 1001 -S compozy \
     && adduser -u 1001 -S compozy -G compozy
 
 # Create necessary directories
-RUN mkdir -p /app/config /app/data /app/tools /app/logs /app/tmp \
+RUN mkdir -p /app/config /app/data /app/tools /app/logs /app/tmp /app/docs \
     && chown -R compozy:compozy /app
 
 # Copy timezone data and certificates from builder
@@ -74,6 +74,7 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Copy the binary from builder
 COPY --from=builder --chown=compozy:compozy /build/compozy /usr/local/bin/compozy
+COPY --from=builder --chown=compozy:compozy /build/docs /app/docs
 
 # Note: Configuration should be provided at runtime via volume mount or ConfigMap
 

@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -38,6 +39,7 @@ func setupRouter(t *testing.T) (*gin.Engine, *appstate.State, resources.Resource
 	store := routertest.NewResourceStore(state)
 	r.Use(func(c *gin.Context) {
 		ctx := appstate.WithState(c.Request.Context(), state)
+		ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	})
@@ -294,14 +296,26 @@ func putKnowledgeBase(
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	if etag != "" {
-		trimmed := strings.TrimSpace(etag)
-		if trimmed != "" {
-			upper := strings.ToUpper(trimmed)
-			if strings.HasPrefix(trimmed, "\"") || strings.HasPrefix(upper, "W/") {
-				req.Header.Set("If-Match", trimmed)
-			} else {
-				req.Header.Set("If-Match", "\""+trimmed+"\"")
+		parts := strings.Split(etag, ",")
+		out := make([]string, 0, len(parts))
+		for _, part := range parts {
+			token := strings.TrimSpace(part)
+			if token == "" {
+				continue
 			}
+			upper := strings.ToUpper(token)
+			if strings.HasPrefix(token, "\"") || strings.HasPrefix(upper, "W/") {
+				if strings.HasPrefix(upper, "W/") && len(token) >= 2 {
+					rest := strings.TrimSpace(token[2:])
+					token = "W/" + rest
+				}
+				out = append(out, token)
+			} else {
+				out = append(out, "\""+token+"\"")
+			}
+		}
+		if len(out) > 0 {
+			req.Header.Set("If-Match", strings.Join(out, ", "))
 		}
 	}
 	req = routertest.WithConfig(t, req)

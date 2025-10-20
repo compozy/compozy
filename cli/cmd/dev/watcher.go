@@ -19,15 +19,32 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-// Constants for dev server configuration
-const (
-	// Server restart delays
-	initialRetryDelay = 500 * time.Millisecond
-	maxRetryDelay     = 30 * time.Second
+type watcherSettings struct {
+	debounce     time.Duration
+	retryInitial time.Duration
+	retryMax     time.Duration
+}
 
-	// File watcher debounce delay
-	fileChangeDebounceDelay = 200 * time.Millisecond
-)
+func resolveWatcherSettings(cfg *config.Config) watcherSettings {
+	settings := watcherSettings{
+		debounce:     config.DefaultCLIDevWatcherDebounce,
+		retryInitial: config.DefaultCLIDevWatcherInitialDelay,
+		retryMax:     config.DefaultCLIDevWatcherMaxDelay,
+	}
+	if cfg == nil {
+		return settings
+	}
+	if cfg.CLI.Dev.WatcherDebounce > 0 {
+		settings.debounce = cfg.CLI.Dev.WatcherDebounce
+	}
+	if cfg.CLI.Dev.WatcherRetryInitial > 0 {
+		settings.retryInitial = cfg.CLI.Dev.WatcherRetryInitial
+	}
+	if cfg.CLI.Dev.WatcherRetryMax > 0 {
+		settings.retryMax = cfg.CLI.Dev.WatcherRetryMax
+	}
+	return settings
+}
 
 // ignoredDirs contains directories that should be skipped during file watching
 var ignoredDirs = map[string]bool{
@@ -50,6 +67,8 @@ var ignoredDirs = map[string]bool{
 
 // RunWithWatcher sets up file watching and runs the server with restart capability
 func RunWithWatcher(ctx context.Context, cwd, configFile, envFilePath string) error {
+	cfg := config.FromContext(ctx)
+	settings := resolveWatcherSettings(cfg)
 	var watchedDirs sync.Map
 	watcher, err := setupWatcher(ctx, cwd, &watchedDirs)
 	if err != nil {
@@ -64,7 +83,7 @@ func RunWithWatcher(ctx context.Context, cwd, configFile, envFilePath string) er
 	restartChan := make(chan bool, 1)
 	watchCtx, cancelWatch := context.WithCancel(ctx)
 	defer cancelWatch()
-	go startWatcher(watchCtx, watcher, restartChan, &watchedDirs)
+	go startWatcher(watchCtx, watcher, restartChan, &watchedDirs, settings)
 	config.ManagerFromContext(ctx).OnChange(func(_ *config.Config) {
 		log := logger.FromContext(ctx)
 		log.Info("Configuration change detected, triggering restart")
@@ -73,7 +92,7 @@ func RunWithWatcher(ctx context.Context, cwd, configFile, envFilePath string) er
 		default:
 		}
 	})
-	return runAndWatchServer(ctx, cwd, configFile, envFilePath, restartChan)
+	return runAndWatchServer(ctx, cwd, configFile, envFilePath, restartChan, settings)
 }
 
 // setupWatcher creates and configures the file system watcher
@@ -116,9 +135,15 @@ func setupWatcher(ctx context.Context, cwd string, watchedDirs *sync.Map) (*fsno
 }
 
 // startWatcher monitors file system events and triggers server restarts
-func startWatcher(ctx context.Context, watcher *fsnotify.Watcher, restartChan chan bool, watchedDirs *sync.Map) {
+func startWatcher(
+	ctx context.Context,
+	watcher *fsnotify.Watcher,
+	restartChan chan bool,
+	watchedDirs *sync.Map,
+	settings watcherSettings,
+) {
 	log := logger.FromContext(ctx)
-	debouncer := newRestartDebouncer(ctx, restartChan)
+	debouncer := newRestartDebouncer(ctx, restartChan, settings.debounce)
 	for {
 		select {
 		case <-ctx.Done():
@@ -147,20 +172,28 @@ type restartDebouncer struct {
 	ctx         context.Context
 	restartChan chan bool
 	pending     bool
+	debounce    time.Duration
 }
 
-func newRestartDebouncer(ctx context.Context, restartChan chan bool) *restartDebouncer {
-	return &restartDebouncer{ctx: ctx, restartChan: restartChan}
+func newRestartDebouncer(ctx context.Context, restartChan chan bool, debounce time.Duration) *restartDebouncer {
+	return &restartDebouncer{ctx: ctx, restartChan: restartChan, debounce: debounce}
 }
 
 func (d *restartDebouncer) schedule() {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	d.pending = true
 	if d.timer != nil {
 		d.timer.Stop()
+		d.timer = nil
 	}
-	d.timer = time.AfterFunc(fileChangeDebounceDelay, d.flush)
+	delay := d.debounce
+	if delay <= 0 {
+		d.mu.Unlock()
+		d.flush()
+		return
+	}
+	d.timer = time.AfterFunc(delay, d.flush)
+	d.mu.Unlock()
 }
 
 func (d *restartDebouncer) flush() {
@@ -175,12 +208,17 @@ func (d *restartDebouncer) flush() {
 	default:
 	}
 	d.pending = false
+	if d.timer != nil {
+		d.timer.Stop()
+		d.timer = nil
+	}
 }
 
 func (d *restartDebouncer) stop() {
 	d.mu.Lock()
 	if d.timer != nil {
 		d.timer.Stop()
+		d.timer = nil
 	}
 	d.pending = false
 	d.mu.Unlock()
@@ -246,13 +284,17 @@ func runAndWatchServer(
 	ctx context.Context,
 	cwd, configFile, envFilePath string,
 	restartChan chan bool,
+	settings watcherSettings,
 ) error {
 	log := logger.FromContext(ctx)
 	cfg := config.FromContext(ctx)
 	if cfg == nil {
 		return fmt.Errorf("missing configuration in context")
 	}
-	retryDelay := initialRetryDelay
+	retryDelay := settings.retryInitial
+	if retryDelay <= 0 {
+		retryDelay = config.DefaultCLIDevWatcherInitialDelay
+	}
 	for {
 		if err := ensureServerReady(ctx, log, cfg); err != nil {
 			return err
@@ -267,7 +309,10 @@ func runAndWatchServer(
 		decision, err := waitForServerEvent(ctx, srv, restartChan, serverErrChan, log, cfg)
 		switch decision {
 		case serverDecisionRestart:
-			retryDelay = initialRetryDelay
+			retryDelay = settings.retryInitial
+			if retryDelay <= 0 {
+				retryDelay = config.DefaultCLIDevWatcherInitialDelay
+			}
 			drainRestartSignals(restartChan)
 			continue
 		case serverDecisionRetry:
@@ -279,7 +324,7 @@ func runAndWatchServer(
 				return ctx.Err()
 			case <-t.C:
 			}
-			retryDelay = nextRetryDelay(retryDelay)
+			retryDelay = nextRetryDelay(retryDelay, settings.retryMax)
 			continue
 		case serverDecisionStop:
 			return err
@@ -376,10 +421,16 @@ func drainRestartSignals(restartChan chan bool) {
 	}
 }
 
-func nextRetryDelay(current time.Duration) time.Duration {
+func nextRetryDelay(current time.Duration, maxDelay time.Duration) time.Duration {
+	if current <= 0 {
+		if maxDelay > 0 {
+			return maxDelay
+		}
+		return config.DefaultCLIDevWatcherInitialDelay
+	}
 	next := current * 2
-	if next > maxRetryDelay {
-		return maxRetryDelay
+	if maxDelay > 0 && next > maxDelay {
+		return maxDelay
 	}
 	return next
 }

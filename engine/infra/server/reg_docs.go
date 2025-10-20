@@ -3,11 +3,14 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/docs"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/getkin/kin-openapi/openapi2"
 	"github.com/getkin/kin-openapi/openapi2conv"
@@ -124,9 +127,7 @@ func convertSwaggerToOpenAPI(ctx context.Context, raw []byte, host string) ([]by
 			details: err.Error(),
 		}
 	}
-	if v2.Host == "" {
-		v2.Host = host
-	}
+	v2.Host = resolveSwaggerHost(ctx, host)
 	v3, err := openapi2conv.ToV3(&v2)
 	if err != nil {
 		log.Error("failed to convert swagger v2 to openapi v3", "error", err)
@@ -146,6 +147,32 @@ func convertSwaggerToOpenAPI(ctx context.Context, raw []byte, host string) ([]by
 		}
 	}
 	return data, nil
+}
+
+func resolveSwaggerHost(ctx context.Context, fallback string) string {
+	cfg := config.FromContext(ctx)
+	fb := strings.TrimSpace(fallback)
+	if cfg == nil {
+		return fb
+	}
+	host := strings.TrimSpace(cfg.Server.Host)
+	port := cfg.Server.Port
+	if host == "" {
+		return fb
+	}
+	if host == "0.0.0.0" || host == "::" {
+		host = ""
+	}
+	if host == "" {
+		return fb
+	}
+	if port > 0 {
+		if strings.Contains(host, ":") {
+			return host
+		}
+		return net.JoinHostPort(host, strconv.Itoa(port))
+	}
+	return host
 }
 
 func respondWithError(c *gin.Context, err *handlerError) {

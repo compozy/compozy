@@ -51,6 +51,9 @@ func upsertKnowledgeBases(
 ) error {
 	upsert := uc.NewUpsert(store)
 	projectID := strings.TrimSpace(projectName)
+	if projectID == "" {
+		return fmt.Errorf("project name cannot be empty or whitespace-only")
+	}
 	for i := range refs {
 		if err := ensureKnowledgeBase(ctx, store, upsert, projectID, &refs[i]); err != nil {
 			return err

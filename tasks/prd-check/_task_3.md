@@ -508,6 +508,7 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 ### Relevant Files
 
 **Files to Create**:
+
 - `scripts/markdown/core/services/issue_processor.go`
 - `scripts/markdown/core/services/job_executor.go`
 - `scripts/markdown/core/services/batch_preparer.go`
@@ -515,6 +516,7 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 - `scripts/markdown/core/usecases/solve_issues.go`
 
 **Test Files**:
+
 - `scripts/markdown/core/services/issue_processor_test.go`
 - `scripts/markdown/core/services/job_executor_test.go`
 - `scripts/markdown/core/services/batch_preparer_test.go`
@@ -524,15 +526,18 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 ### Dependent Files
 
 **Dependencies from Task 1.0**:
+
 - `scripts/markdown/core/models/*.go` - Domain models
 - `scripts/markdown/core/ports/*.go` - Interface definitions
 - `scripts/markdown/shared/*.go` - Shared utilities
 
 **Dependencies from Task 2.0** (interfaces only, not implementations):
+
 - `scripts/markdown/core/ports/filesystem.go`
 - `scripts/markdown/core/ports/executor.go`
 
 **Reference for extraction**:
+
 - `scripts/markdown/check.go` - Source of business logic
 
 ## Deliverables
@@ -620,6 +625,7 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 ## Success Criteria
 
 ### Functional Requirements
+
 - [ ] All business logic extracted from check.go
 - [ ] Workflow executes correctly end-to-end
 - [ ] Concurrent execution works without race conditions
@@ -627,6 +633,7 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 - [ ] Grouped summaries generated correctly
 
 ### Architectural Requirements
+
 - [ ] Services depend only on port interfaces (DIP)
 - [ ] No infrastructure dependencies in core layer
 - [ ] Single responsibility per service (SRP)
@@ -634,6 +641,7 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 - [ ] Use case orchestrates without business logic
 
 ### Quality Requirements
+
 - [ ] All functions < 50 lines
 - [ ] All code passes `make lint`
 - [ ] All tests pass: `gotestsum --format pkgname -- -race -parallel=4 ./scripts/markdown/core/...`
@@ -642,6 +650,7 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 - [ ] All error paths tested
 
 ### Integration Requirements
+
 - [ ] Can be wired with Task 2.0 infrastructure implementations
 - [ ] Can be integrated with Task 4.0 UI components
 - [ ] Ready for Task 5.0 dependency injection
@@ -649,6 +658,7 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 ## Implementation Notes
 
 ### Order of Implementation
+
 1. IssueProcessor (no dependencies on other services)
 2. Summarizer (minimal dependencies)
 3. BatchPreparer (depends on IssueProcessor concepts)
@@ -659,6 +669,7 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 8. Run `make fmt && make lint && make test`
 
 ### Key Design Decisions
+
 - **Pure business logic**: No UI or infrastructure code
 - **Port-based dependencies**: Depend on abstractions, not implementations
 - **Orchestration in use case**: Services are atomic, use case coordinates
@@ -666,6 +677,7 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 - **Context propagation**: All methods accept context for cancellation
 
 ### Common Pitfalls to Avoid
+
 - ❌ Don't add infrastructure code in services
 - ❌ Don't couple services to each other (use interfaces)
 - ❌ Don't use global state or singletons
@@ -673,6 +685,7 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 - ❌ Don't skip error handling or wrapping
 
 ### Testing Strategy
+
 - **Unit tests**: Mock port interfaces for isolated testing
 - **Integration tests**: Use real implementations with test fixtures
 - **Table-driven tests**: For multiple scenarios
@@ -680,7 +693,9 @@ func (uc *SolveIssuesUseCase) prepareJobs(ctx context.Context, batches [][]model
 - **Error injection**: Test error paths thoroughly
 
 ### Parallelization Notes
+
 This task can be executed in parallel with:
+
 - **Task 2.0 (Infrastructure)**: Use port interfaces, not implementations
 - **Task 4.0 (UI Layer)**: Independent concerns
 

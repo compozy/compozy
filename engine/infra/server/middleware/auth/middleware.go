@@ -172,25 +172,23 @@ func (m *Manager) extractBearerToken(c *gin.Context) (string, error) {
 // handleAuthError sends appropriate error response
 func (m *Manager) handleAuthError(c *gin.Context, err error) {
 	// WARNING: Return a generic auth failure to avoid disclosing credential validation details.
-	response := gin.H{
-		"error":   "Authentication failed",
-		"details": "Invalid or missing credentials",
-	}
-	status := 401
+	reason := "Authentication failed"
+	details := "Invalid or missing credentials"
+	status := http.StatusUnauthorized
 	if authErr, ok := err.(*authError); ok && authErr.public {
-		response["details"] = "Invalid authorization header format"
-		status = 400
+		details = "Invalid authorization header format"
+		status = http.StatusBadRequest
 	}
 	switch {
 	case errors.Is(err, uc.ErrRateLimited):
-		status = 429
+		status = http.StatusTooManyRequests
 	case errors.Is(err, uc.ErrInvalidCredentials), errors.Is(err, uc.ErrTokenExpired):
-		status = 401
+		status = http.StatusUnauthorized
 	}
-	if status == 401 {
+	if status == http.StatusUnauthorized {
 		c.Header("WWW-Authenticate", `Bearer realm="compozy", charset="UTF-8"`)
 	}
-	c.JSON(status, response)
+	router.RespondWithError(c, status, router.NewRequestError(status, reason, errors.New(details)))
 	c.Abort()
 }
 

@@ -9,16 +9,16 @@ import (
 	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
 	"github.com/compozy/compozy/cli/helpers"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
 const (
-	sortName                                = "name"
-	sortEmail                               = "email"
-	sortRole                                = "role"
-	sortCreated                             = "created"
-	defaultActiveUserDuration time.Duration = 30 * 24 * time.Hour
+	sortName    = "name"
+	sortEmail   = "email"
+	sortRole    = "role"
+	sortCreated = "created"
 )
 
 // userFilters holds the parsed command line flags for user filtering
@@ -50,7 +50,7 @@ func ListUsersJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 	if err != nil {
 		return outputJSONError(fmt.Sprintf("failed to list users: %v", err))
 	}
-	filteredUsers := filterAndSortUsers(users, filters)
+	filteredUsers := filterAndSortUsers(ctx, users, filters)
 	response := buildUsersResponse(filteredUsers)
 	return outputJSONResponse(response)
 }
@@ -89,8 +89,20 @@ func parseListUsersFlags(cmd *cobra.Command) (*userFilters, error) {
 }
 
 // filterAndSortUsers applies filtering and sorting to the user list
-func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserInfo {
+func activeUserWindowDuration(ctx context.Context) time.Duration {
+	cfg := config.FromContext(ctx)
+	days := config.DefaultCLIActiveWindowDays
+	if cfg != nil {
+		if configured := cfg.CLI.Users.ActiveWindowDays; configured > 0 {
+			days = configured
+		}
+	}
+	return time.Duration(days) * 24 * time.Hour
+}
+
+func filterAndSortUsers(ctx context.Context, users []api.UserInfo, filters *userFilters) []api.UserInfo {
 	filtered := make([]api.UserInfo, 0, len(users))
+	activeWindow := activeUserWindowDuration(ctx)
 	for _, user := range users {
 		if filters.roleFilter != "" && user.Role != filters.roleFilter {
 			continue
@@ -100,7 +112,7 @@ func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserIn
 			continue
 		}
 
-		if filters.activeOnly && !isUserActive(&user) {
+		if filters.activeOnly && !isUserActive(activeWindow, &user) {
 			continue
 		}
 
@@ -125,21 +137,21 @@ func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserIn
 
 // isUserActive determines if a user is considered active based on available data.
 // This is a heuristic implementation until richer activity signals are available from the API.
-func isUserActive(user *api.UserInfo) bool {
+func isUserActive(activeWindow time.Duration, user *api.UserInfo) bool {
 	if user.Role == roleAdmin {
 		return true
 	}
-	if isWithinActiveWindow(user.UpdatedAt) {
+	if isWithinActiveWindow(activeWindow, user.UpdatedAt) {
 		return true
 	}
-	if isWithinActiveWindow(user.CreatedAt) {
+	if isWithinActiveWindow(activeWindow, user.CreatedAt) {
 		return true
 	}
 	return false
 }
 
 // isWithinActiveWindow reports whether the timestamp falls within the active user window.
-func isWithinActiveWindow(timestamp string) bool {
+func isWithinActiveWindow(activeWindow time.Duration, timestamp string) bool {
 	ts, ok := parseAPITimestamp(timestamp)
 	if !ok {
 		return false
@@ -148,7 +160,7 @@ func isWithinActiveWindow(timestamp string) bool {
 	if ts.After(now) {
 		return true
 	}
-	return now.Sub(ts) <= defaultActiveUserDuration
+	return now.Sub(ts) <= activeWindow
 }
 
 func parseAPITimestamp(value string) (time.Time, bool) {

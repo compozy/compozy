@@ -153,6 +153,9 @@ func HandleCommonErrors(err error, mode models.Mode) error {
 	if err == nil {
 		return nil
 	}
+	if helpers.IsJSONHandledError(err) {
+		return err
+	}
 	cliErr := categorizeError(err)
 	if cliErr != nil {
 		helpers.OutputError(cliErr, mode)

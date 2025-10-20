@@ -41,10 +41,10 @@ func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
 	monitoringStart := time.Now()
 	timeouts := config.FromContext(s.ctx).Server.Timeouts
 	monitoringCtx, monitoringCancel := context.WithTimeout(s.ctx, timeouts.MonitoringInit)
+	defer monitoringCancel()
 	monitoringService, err := monitoring.NewMonitoringService(monitoringCtx, projectConfig.MonitoringConfig)
 	monitoringDuration := time.Since(monitoringStart)
 	if err != nil {
-		monitoringCancel()
 		if errors.Is(err, context.DeadlineExceeded) {
 			log.Warn("Monitoring initialization timed out, continuing without monitoring",
 				"duration", monitoringDuration)
@@ -63,7 +63,6 @@ func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
 			"duration", monitoringDuration)
 		s.initReadinessMetrics()
 		return func() {
-			monitoringCancel()
 			if s.readyCallback != nil {
 				if err := s.readyCallback.Unregister(); err != nil {
 					log.Error("Failed to unregister readiness callback", "error", err)
@@ -76,7 +75,6 @@ func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
 			}
 		}
 	}
-	monitoringCancel()
 	log.Info("Monitoring is disabled in the configuration", "duration", monitoringDuration)
 	return func() {}
 }

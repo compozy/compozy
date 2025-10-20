@@ -87,16 +87,17 @@ func TestDispatcherHealthUpdateHealth(t *testing.T) {
 			ConsecutiveFailures: 0,
 		}
 		// Should become unhealthy
-		health.UpdateHealth()
+		now := time.Now()
+		health.UpdateHealthAt(now)
 		assert.False(t, health.IsHealthy, "Should be unhealthy when stale")
 		assert.Equal(t, 1, health.ConsecutiveFailures, "Should increment failure count")
 		// Update again - failure count should increment
-		health.UpdateHealth()
+		health.UpdateHealthAt(now)
 		assert.False(t, health.IsHealthy, "Should still be unhealthy")
 		assert.Equal(t, 2, health.ConsecutiveFailures, "Should increment failure count again")
 		// Make it healthy again
 		health.LastHeartbeat = time.Now()
-		health.UpdateHealth()
+		health.UpdateHealthAt(time.Now())
 		assert.True(t, health.IsHealthy, "Should be healthy after recent heartbeat")
 		assert.Equal(t, 0, health.ConsecutiveFailures, "Should reset failure count when healthy")
 	})

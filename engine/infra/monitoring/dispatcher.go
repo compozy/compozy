@@ -39,13 +39,13 @@ func (dh *DispatcherHealth) IsStale() bool {
 	return time.Since(dh.LastHeartbeat) > dh.StaleThreshold
 }
 
-// UpdateHealth updates the health status based on current time and stale threshold
-func (dh *DispatcherHealth) UpdateHealth() {
+// UpdateHealthAt updates the health status using the provided timestamp.
+func (dh *DispatcherHealth) UpdateHealthAt(now time.Time) {
 	dh.mu.Lock()
 	defer dh.mu.Unlock()
-	dh.LastHealthCheck = time.Now()
+	dh.LastHealthCheck = now
 	wasHealthy := dh.IsHealthy
-	isStale := time.Since(dh.LastHeartbeat) > dh.StaleThreshold
+	isStale := now.Sub(dh.LastHeartbeat) > dh.StaleThreshold
 	dh.IsHealthy = !isStale
 	if !dh.IsHealthy {
 		if wasHealthy {
@@ -145,7 +145,7 @@ func observeDispatcherHealth(observer metric.Observer) {
 		if !ok {
 			return true
 		}
-		health.UpdateHealth()
+		health.UpdateHealthAt(now)
 		healthValue, isStale, timeSinceHeartbeat, failures := health.getMetricValues(now)
 		observer.ObserveInt64(dispatcherHealthGauge, healthValue,
 			metric.WithAttributes(
@@ -204,10 +204,11 @@ func UpdateDispatcherHeartbeat(ctx context.Context, dispatcherID string) {
 	if !ok {
 		return // Skip invalid value
 	}
+	now := time.Now()
 	health.mu.Lock()
 	defer health.mu.Unlock()
-	health.LastHeartbeat = time.Now()
-	health.LastHealthCheck = time.Now()
+	health.LastHeartbeat = now
+	health.LastHealthCheck = now
 	health.IsHealthy = true // A fresh heartbeat always means it's healthy
 	health.ConsecutiveFailures = 0
 	isHealthy := health.IsHealthy
@@ -224,7 +225,8 @@ func GetDispatcherHealth(dispatcherID string) (*DispatcherHealth, bool) {
 		if !ok {
 			return nil, false // Invalid value
 		}
-		health.UpdateHealth()
+		now := time.Now()
+		health.UpdateHealthAt(now)
 		return health, true
 	}
 	return nil, false
@@ -233,6 +235,7 @@ func GetDispatcherHealth(dispatcherID string) (*DispatcherHealth, bool) {
 // GetAllDispatcherHealth returns health status for all registered dispatchers
 func GetAllDispatcherHealth() map[string]*DispatcherHealth {
 	result := make(map[string]*DispatcherHealth)
+	now := time.Now()
 	dispatcherHealthStore.Range(func(key, value any) bool {
 		dispatcherID, ok := key.(string)
 		if !ok {
@@ -242,7 +245,7 @@ func GetAllDispatcherHealth() map[string]*DispatcherHealth {
 		if !ok {
 			return true // Skip invalid value
 		}
-		health.UpdateHealth()
+		health.UpdateHealthAt(now)
 		result[dispatcherID] = health
 		return true
 	})
@@ -252,13 +255,15 @@ func GetAllDispatcherHealth() map[string]*DispatcherHealth {
 // GetHealthyDispatcherCount returns the count of healthy dispatchers
 func GetHealthyDispatcherCount() int {
 	count := 0
+	now := time.Now()
 	dispatcherHealthStore.Range(func(_, value any) bool {
 		health, ok := value.(*DispatcherHealth)
 		if !ok {
 			return true // Skip invalid value
 		}
-		health.UpdateHealth()
-		if health.IsHealthy {
+		health.UpdateHealthAt(now)
+		healthValue, _, _, _ := health.getMetricValues(now)
+		if healthValue == 1 {
 			count++
 		}
 		return true
@@ -269,13 +274,15 @@ func GetHealthyDispatcherCount() int {
 // GetStaleDispatcherCount returns the count of stale dispatchers
 func GetStaleDispatcherCount() int {
 	count := 0
+	now := time.Now()
 	dispatcherHealthStore.Range(func(_, value any) bool {
 		health, ok := value.(*DispatcherHealth)
 		if !ok {
 			return true // Skip invalid value
 		}
-		health.UpdateHealth()
-		if health.IsStale() {
+		health.UpdateHealthAt(now)
+		_, isStale, _, _ := health.getMetricValues(now)
+		if isStale {
 			count++
 		}
 		return true

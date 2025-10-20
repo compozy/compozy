@@ -116,16 +116,20 @@ func (m *Manager) Middleware() gin.HandlerFunc {
 			if m.config.FailOpen {
 				c.Next()
 			} else {
+				extras := map[string]any{
+					"fail_open": m.config.FailOpen,
+					"key_type":  keyType,
+				}
+				if !m.config.FailOpen {
+					extras["code"] = "rate_limit_backend_unavailable"
+				}
 				router.RespondProblem(c, &core.Problem{
 					Status:   http.StatusInternalServerError,
 					Title:    "Rate limit check failed",
 					Detail:   "Rate limiting backend unavailable",
 					Type:     "https://docs.compozy.com/problems/rate-limit-backend-unavailable",
 					Instance: c.FullPath(),
-					Extras: map[string]any{
-						"fail_open": m.config.FailOpen,
-						"key_type":  keyType,
-					},
+					Extras:   extras,
 				})
 				c.Abort()
 			}
@@ -199,7 +203,10 @@ func (m *Manager) handleRateLimitExceeded(c *gin.Context, lctx limiter.Context, 
 		Detail:   detail,
 		Type:     "https://docs.compozy.com/problems/rate-limit-exceeded",
 		Instance: c.FullPath(),
-		Extras:   map[string]any{"retry_after": resetIn},
+		Extras: map[string]any{
+			"retry_after": resetIn,
+			"code":        "rate_limit_exceeded",
+		},
 	})
 	c.Abort()
 }

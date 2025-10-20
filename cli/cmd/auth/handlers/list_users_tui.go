@@ -186,6 +186,7 @@ func (m *listUsersModel) updateTable() {
 
 func (m *listUsersModel) applyFilters(users []api.UserInfo) []api.UserInfo {
 	filtered := make([]api.UserInfo, 0, len(users))
+	activeWindow := activeUserWindowDuration(m.ctx)
 	for _, user := range users {
 		if m.roleFilter != "" && user.Role != m.roleFilter {
 			continue
@@ -197,7 +198,7 @@ func (m *listUsersModel) applyFilters(users []api.UserInfo) []api.UserInfo {
 			}
 		}
 
-		if m.activeOnly && !isUserActive(&user) {
+		if m.activeOnly && !isUserActive(activeWindow, &user) {
 			continue
 		}
 

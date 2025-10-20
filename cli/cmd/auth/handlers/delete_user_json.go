@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
@@ -21,7 +22,7 @@ func DeleteUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.
 	}
 	options, err := parseDeleteUserFlags(cobraCmd)
 	if err != nil {
-		return err
+		return outputJSONError(err.Error())
 	}
 	options.userID = userID
 	log.Debug("deleting user in JSON mode",
@@ -35,7 +36,9 @@ func DeleteUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.
 	if authClient == nil {
 		return outputJSONError("auth client not available")
 	}
-	if err := authClient.DeleteUser(ctx, options.userID); err != nil {
+	if err := authClient.DeleteUser(ctx, options.userID, api.DeleteUserOptions{
+		Cascade: options.cascade,
+	}); err != nil {
 		return outputJSONError(fmt.Sprintf("failed to delete user: %v", err))
 	}
 	return writeDeleteResponse(options.userID, options.cascade)
@@ -84,7 +87,7 @@ func writeDeleteResponse(userID string, cascade bool) error {
 	response := map[string]any{
 		"data": map[string]any{
 			"user_id": userID,
-			"deleted": time.Now().Format(time.RFC3339),
+			"deleted": time.Now().UTC().Format(time.RFC3339),
 			"cascade": cascade,
 		},
 		"message": "Success",

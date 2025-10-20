@@ -3,7 +3,6 @@ package workflow
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	"github.com/compozy/compozy/cli/tui/styles"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/go-resty/resty/v2"
 	"github.com/spf13/cobra"
 	"github.com/tidwall/gjson"
 )
@@ -46,8 +44,21 @@ Examples:
 	cmd.Flags().String("json", "", "Input parameters as a JSON object")
 	cmd.Flags().StringSlice("param", []string{}, "Input parameters in key=value format (can be used multiple times)")
 	cmd.Flags().String("input-file", "", "Path to JSON file containing input parameters")
-	cmd.MarkFlagsMutuallyExclusive("json", "param")
+	mustMarkFlagsMutuallyExclusive(cmd, "json", "param")
 	return cmd
+}
+
+func mustMarkFlagsMutuallyExclusive(cmd *cobra.Command, flagNames ...string) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.FromContext(nil).Debug(
+				"failed to mark flags mutually exclusive",
+				"flags", flagNames,
+				"error", r,
+			)
+		}
+	}()
+	cmd.MarkFlagsMutuallyExclusive(flagNames...)
 }
 
 // runWorkflowExecute handles the workflow execute command execution
@@ -91,7 +102,8 @@ func executeWorkflow(
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse input parameters: %w", err)
 	}
-	apiClient := createWorkflowMutateAPIClient(client)
+	httpClient := cliutils.CreateHTTPClient(client, nil)
+	apiClient := api.NewWorkflowMutateService(client, httpClient)
 	input := api.ExecutionInput{
 		Data: inputs,
 	}
@@ -99,8 +111,6 @@ func executeWorkflow(
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute workflow: %w", err)
 	}
-	logger.FromContext(ctx).
-		Debug("workflow execution started", "workflow_id", workflowID, "execution_id", result.ExecutionID)
 	return result, nil
 }
 
@@ -251,143 +261,4 @@ func renderExecutionStatus(status api.ExecutionStatus) string {
 	default:
 		return styles.WarningStyle.Render(fmt.Sprintf("Unknown status: %s", status))
 	}
-}
-
-// createWorkflowMutateAPIClient creates an API client for workflow mutation operations
-func createWorkflowMutateAPIClient(authClient api.AuthClient) api.WorkflowMutateService {
-	client := cliutils.CreateHTTPClient(authClient, nil)
-	return &workflowMutateAPIService{
-		authClient: authClient,
-		httpClient: client,
-	}
-}
-
-// workflowMutateAPIService implements the WorkflowMutateService interface
-type workflowMutateAPIService struct {
-	authClient api.AuthClient
-	httpClient *resty.Client
-}
-
-// Execute implements the WorkflowMutateService.Execute method
-func (s *workflowMutateAPIService) Execute(
-	ctx context.Context,
-	id core.ID,
-	input api.ExecutionInput,
-) (*api.ExecutionResult, error) {
-	log := logger.FromContext(ctx)
-	result, err := s.requestWorkflowExecution(ctx, id, input)
-	if err != nil {
-		return nil, err
-	}
-	log.Debug("workflow execution requested", "workflow_id", id, "execution_id", result.ExecutionID)
-	return result, nil
-}
-
-func (s *workflowMutateAPIService) requestWorkflowExecution(
-	ctx context.Context,
-	id core.ID,
-	input api.ExecutionInput,
-) (*api.ExecutionResult, error) {
-	var response struct {
-		Data api.ExecutionResult `json:"data"`
-	}
-	resp, err := s.httpClient.R().
-		SetContext(ctx).
-		SetBody(map[string]any{"input": input.Data}).
-		SetResult(&response).
-		Post(fmt.Sprintf("/workflows/%s/executions", id))
-	if err != nil {
-		return nil, transformWorkflowRequestError(err)
-	}
-	if err := validateExecutionResponse(resp, id); err != nil {
-		return nil, err
-	}
-	return &response.Data, nil
-}
-
-func transformWorkflowRequestError(err error) error {
-	if errors.Is(err, context.Canceled) {
-		return fmt.Errorf("request canceled by user")
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return fmt.Errorf("request timed out: context deadline exceeded")
-	}
-	if cliutils.IsNetworkError(err) {
-		return fmt.Errorf("network error: unable to connect to Compozy server: %w", err)
-	}
-	if cliutils.IsTimeoutError(err) {
-		return fmt.Errorf("request timed out: server may be busy: %w", err)
-	}
-	return fmt.Errorf("failed to execute workflow: %w", err)
-}
-
-func validateExecutionResponse(resp *resty.Response, id core.ID) error {
-	code := resp.StatusCode()
-	if code < 400 {
-		return nil
-	}
-	switch code {
-	case 401:
-		return fmt.Errorf("authentication failed: please check your API key or login credentials")
-	case 403:
-		return fmt.Errorf("permission denied: you don't have access to execute this workflow")
-	case 404:
-		return fmt.Errorf("workflow not found: workflow with ID %s does not exist", id)
-	case 400:
-		return apiErrorWithPrefix(resp, code, "invalid request")
-	case 409:
-		return apiErrorWithPrefix(resp, code, "conflict")
-	case 422:
-		return apiErrorWithPrefix(resp, code, "unprocessable entity")
-	case 429:
-		return fmt.Errorf("rate limit exceeded: please retry later")
-	default:
-		if code >= 500 {
-			return fmt.Errorf("server error (status %d): try again later", code)
-		}
-		if msg := parseAPIError(resp); msg != "" {
-			return fmt.Errorf("API error: %s (status %d)", msg, code)
-		}
-		return fmt.Errorf("API error (status %d)", code)
-	}
-}
-
-func apiErrorWithPrefix(resp *resty.Response, code int, prefix string) error {
-	if msg := parseAPIError(resp); msg != "" {
-		return fmt.Errorf("%s: %s (status %d)", prefix, msg, code)
-	}
-	return fmt.Errorf("%s (status %d)", prefix, code)
-}
-
-func parseAPIError(resp *resty.Response) string {
-	if resp == nil {
-		return ""
-	}
-	body := resp.Body()
-	if len(body) == 0 {
-		return ""
-	}
-	var envelope struct {
-		Error   string          `json:"error"`
-		Message string          `json:"message"`
-		Details json.RawMessage `json:"details"`
-	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return ""
-	}
-	message := strings.TrimSpace(envelope.Error)
-	if message == "" {
-		message = strings.TrimSpace(envelope.Message)
-	}
-	if message == "" {
-		return ""
-	}
-	if len(envelope.Details) == 0 || string(envelope.Details) == "null" {
-		return message
-	}
-	var details string
-	if err := json.Unmarshal(envelope.Details, &details); err == nil && strings.TrimSpace(details) != "" {
-		return fmt.Sprintf("%s: %s", message, strings.TrimSpace(details))
-	}
-	return message
 }

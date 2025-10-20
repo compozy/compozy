@@ -34,9 +34,9 @@ func initMetrics(ctx context.Context, meter metric.Meter) {
 	if meter == nil {
 		return
 	}
+	initMutex.Lock()
+	defer initMutex.Unlock()
 	initOnce.Do(func() {
-		initMutex.Lock()
-		defer initMutex.Unlock()
 		initializeHTTPMetrics(ctx, meter)
 	})
 }
@@ -55,6 +55,7 @@ func initializeHTTPMetrics(ctx context.Context, meter metric.Meter) {
 	httpRequestDuration, err = meter.Float64Histogram(
 		metrics.MetricNameWithSubsystem("http", "request_duration_seconds"),
 		metric.WithDescription("HTTP request latency"),
+		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(httpDurationBuckets...),
 	)
 	if err != nil {
@@ -120,8 +121,13 @@ func HTTPMetrics(ctx context.Context, meter metric.Meter) gin.HandlerFunc {
 		start := time.Now()
 		countedBody := wrapRequestBody(c.Request)
 		if httpRequestsInFlight != nil {
+			route := c.FullPath()
+			if route == "" {
+				route = "unmatched"
+			}
 			attrs := metric.WithAttributes(
 				semconv.HTTPMethodKey.String(c.Request.Method),
+				semconv.HTTPRouteKey.String(route),
 			)
 			httpRequestsInFlight.Add(c.Request.Context(), 1, attrs)
 			defer httpRequestsInFlight.Add(c.Request.Context(), -1, attrs)

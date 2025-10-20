@@ -59,7 +59,12 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	if manager == nil {
 		return fmt.Errorf("configuration manager missing from context")
 	}
+	ctxManager, ok := ctx.Value(config.ManagerCtxKey).(*config.Manager)
+	owned := ok && ctxManager == manager
 	defer func() {
+		if !owned {
+			return
+		}
 		if err := manager.Close(ctx); err != nil {
 			log.Warn("failed to close config manager", "error", err)
 		}

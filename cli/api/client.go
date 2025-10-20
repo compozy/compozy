@@ -402,8 +402,11 @@ func (c *client) UpdateUser(ctx context.Context, userID string, req UpdateUserRe
 }
 
 // DeleteUser deletes a user (admin only)
-func (c *client) DeleteUser(ctx context.Context, userID string) error {
-	path := fmt.Sprintf("/users/%s", userID)
+func (c *client) DeleteUser(ctx context.Context, userID string, opts DeleteUserOptions) error {
+	path := fmt.Sprintf("/users/%s", url.PathEscape(userID))
+	if opts.Cascade {
+		path += "?cascade=true"
+	}
 	resp, err := c.doRequest(ctx, http.MethodDelete, path, nil, nil)
 	if err != nil {
 		return err

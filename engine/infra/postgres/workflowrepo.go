@@ -189,26 +189,22 @@ func (r *WorkflowRepo) fetchTaskStatesForExec(
 		return map[string]map[string]*task.State{}, nil
 	}
 	var taskStatesDB []*task.StateDB
-	stringIDs := make([]string, len(execIDs))
-	uuidIDs := make([]uuid.UUID, len(execIDs))
-	allUUID := true
-	for i := range execIDs {
-		stringIDs[i] = execIDs[i].String()
-		u, err := uuid.Parse(stringIDs[i])
-		if err != nil {
-			allUUID = false
-			continue
-		}
-		uuidIDs[i] = u
-	}
-	var selectErr error
-	if allUUID {
+	uuidIDs, useUUID := parseExecIDsAsUUID(execIDs)
+	var (
+		selectErr error
+		stringIDs []string
+	)
+	if useUUID {
 		selectErr = pgxscan.Select(ctx, r.db, &taskStatesDB, taskStatesByExecQueryUUID, uuidIDs)
 	} else {
+		stringIDs = execIDStrings(execIDs)
 		selectErr = pgxscan.Select(ctx, r.db, &taskStatesDB, taskStatesByExecQueryText, stringIDs)
 	}
 	if selectErr != nil {
 		return nil, fmt.Errorf("scanning task states: %w", selectErr)
+	}
+	if stringIDs == nil {
+		stringIDs = execIDStrings(execIDs)
 	}
 	result := make(map[string]map[string]*task.State, len(stringIDs))
 	for _, id := range stringIDs {
@@ -226,6 +222,26 @@ func (r *WorkflowRepo) fetchTaskStatesForExec(
 		result[key][st.TaskID] = st
 	}
 	return result, nil
+}
+
+func parseExecIDsAsUUID(execIDs []core.ID) ([]uuid.UUID, bool) {
+	uuidIDs := make([]uuid.UUID, len(execIDs))
+	for i, id := range execIDs {
+		parsed, err := uuid.Parse(id.String())
+		if err != nil {
+			return nil, false
+		}
+		uuidIDs[i] = parsed
+	}
+	return uuidIDs, true
+}
+
+func execIDStrings(execIDs []core.ID) []string {
+	stringIDs := make([]string, len(execIDs))
+	for i := range execIDs {
+		stringIDs[i] = execIDs[i].String()
+	}
+	return stringIDs
 }
 
 // assembleWorkflowStates converts database states into API models.

@@ -45,6 +45,7 @@ This task can be executed in parallel with Tasks 2.0 (Infrastructure) and 3.0 (C
 ### 4.1 Huh Form Builders (ui/forms/)
 
 **forms/builder.go**:
+
 ```go
 type FormBuilder struct {
     form   *huh.Form
@@ -81,6 +82,7 @@ func (b *FormBuilder) Run(ctx context.Context) error {
 ```
 
 **forms/inputs.go**:
+
 ```go
 type InputFactory struct{}
 
@@ -231,6 +233,7 @@ func (f *InputFactory) CreateTailLinesInput(target *string) huh.Field {
 ```
 
 **forms/validators.go**:
+
 ```go
 type Validator struct{}
 
@@ -286,6 +289,7 @@ func (v *Validator) ValidateReasoningEffort(effort string) error {
 ### 4.2 Bubble Tea UI Components (ui/tea/)
 
 **tea/model.go**:
+
 ```go
 type UIModel struct {
     ctx       context.Context
@@ -416,6 +420,7 @@ type LogLineMsg struct {
 ```
 
 **tea/sidebar.go**:
+
 ```go
 type SidebarComponent struct {
     width int
@@ -483,6 +488,7 @@ func (c *SidebarComponent) getStatusIcon(status models.JobStatus) string {
 ```
 
 **tea/main.go**:
+
 ```go
 type MainComponent struct {
     width int
@@ -548,6 +554,7 @@ func (c *MainComponent) renderResult(result models.JobResult) string {
 ```
 
 **tea/logs.go**:
+
 ```go
 type LogComponent struct {
     viewport viewport.Model
@@ -592,6 +599,7 @@ func (c *LogComponent) updateViewport() {
 ### 4.3 UI Styling (ui/styles/)
 
 **styles/theme.go**:
+
 ```go
 var (
     // Colors
@@ -655,6 +663,7 @@ var (
 ### Relevant Files
 
 **Files to Create**:
+
 - `scripts/markdown/ui/forms/builder.go`
 - `scripts/markdown/ui/forms/inputs.go`
 - `scripts/markdown/ui/forms/validators.go`
@@ -665,6 +674,7 @@ var (
 - `scripts/markdown/ui/styles/theme.go`
 
 **Test Files**:
+
 - `scripts/markdown/ui/forms/builder_test.go`
 - `scripts/markdown/ui/forms/inputs_test.go`
 - `scripts/markdown/ui/forms/validators_test.go`
@@ -674,10 +684,12 @@ var (
 ### Dependent Files
 
 **Dependencies from Task 1.0**:
+
 - `scripts/markdown/core/models/*.go` - Domain models
 - `scripts/markdown/shared/types/constants.go` - Constants
 
 **Reference for extraction**:
+
 - `scripts/markdown/check.go` - Source of UI code
 
 ## Deliverables
@@ -763,6 +775,7 @@ var (
 ## Success Criteria
 
 ### Functional Requirements
+
 - [ ] Forms collect all required input
 - [ ] Forms validate input correctly
 - [ ] UI displays job progress accurately
@@ -770,6 +783,7 @@ var (
 - [ ] UI handles errors gracefully
 
 ### Architectural Requirements
+
 - [ ] UI layer has no business logic
 - [ ] UI components are modular and reusable
 - [ ] UI state is properly managed
@@ -777,6 +791,7 @@ var (
 - [ ] Styles are centralized and consistent
 
 ### Quality Requirements
+
 - [ ] All functions < 50 lines
 - [ ] All code passes `make lint`
 - [ ] All tests pass: `gotestsum --format pkgname -- -race -parallel=4 ./scripts/markdown/ui/...`
@@ -784,6 +799,7 @@ var (
 - [ ] No rendering panics or crashes
 
 ### Integration Requirements
+
 - [ ] Can be integrated with Task 3.0 use cases
 - [ ] Can be wired in Task 5.0 (Application Wiring)
 - [ ] UI notifications work with any notifier implementation
@@ -791,6 +807,7 @@ var (
 ## Implementation Notes
 
 ### Order of Implementation
+
 1. Form builders (inputs, validators, builder)
 2. UI styles (theme)
 3. UI components (model, sidebar, main, logs)
@@ -800,6 +817,7 @@ var (
 7. Run `make fmt && make lint && make test`
 
 ### Key Design Decisions
+
 - **No business logic**: UI only displays and collects data
 - **Component-based**: Each UI concern is a separate component
 - **Message-driven**: Bubble Tea message pattern for events
@@ -807,6 +825,7 @@ var (
 - **Styled centrally**: All styles in one place
 
 ### Common Pitfalls to Avoid
+
 - ❌ Don't add business logic to UI components
 - ❌ Don't hardcode dimensions (use dynamic sizing)
 - ❌ Don't skip error handling in forms
@@ -814,13 +833,16 @@ var (
 - ❌ Don't forget to handle edge cases (no jobs, empty results)
 
 ### Testing Strategy
+
 - **Unit tests**: Test logic, not rendering
 - **Mock messages**: Test message handlers independently
 - **Validation tests**: Comprehensive validator coverage
 - **Integration tests**: Full form and UI workflows
 
 ### Parallelization Notes
+
 This task can be executed in parallel with:
+
 - **Task 2.0 (Infrastructure)**: Independent concerns
 - **Task 3.0 (Core Logic)**: Independent concerns
 

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/compozy/compozy/cli/api"
+	"github.com/compozy/compozy/cli/helpers"
 )
 
 const (
@@ -33,7 +34,7 @@ func outputJSONError(message string) error {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", message)
 		return fmt.Errorf("failed to encode JSON error response: %w", err)
 	}
-	return nil
+	return helpers.NewJSONHandledError(message)
 }
 
 // outputJSONResponse outputs the response as JSON

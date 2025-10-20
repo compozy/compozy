@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -32,7 +33,7 @@ func (d *fsDiscoverer) Discover(ctx context.Context, includes, excludes []string
 	if len(includes) == 0 {
 		return []string{}, nil
 	}
-	discoveredFiles := make(map[string]bool)
+	discoveredFiles := make(map[string]struct{})
 	for _, pattern := range includes {
 		// NOTE: Validate patterns early to block traversal or absolute path injections.
 		if err := d.validatePattern(pattern); err != nil {
@@ -55,7 +56,7 @@ func (d *fsDiscoverer) Discover(ctx context.Context, includes, excludes []string
 					"root": d.root,
 				})
 			}
-			discoveredFiles[match] = true
+			discoveredFiles[match] = struct{}{}
 		}
 	}
 	files := make([]string, 0, len(discoveredFiles))
@@ -63,6 +64,7 @@ func (d *fsDiscoverer) Discover(ctx context.Context, includes, excludes []string
 		files = append(files, file)
 	}
 	files = d.applyExcludes(ctx, files, excludes)
+	sort.Strings(files)
 	return files, nil
 }
 

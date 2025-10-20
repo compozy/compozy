@@ -3,6 +3,7 @@ package helpers
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -241,8 +242,16 @@ func categorizedHelpFunc(cmd *cobra.Command, _ []string) {
 }
 
 func isNoColorEnabled(cmd *cobra.Command) bool {
-	flag := cmd.Flag("no-color")
-	return flag != nil && flag.Value.String() == "true"
+	if os.Getenv("NO_COLOR") != "" {
+		return true
+	}
+	if f := cmd.Flags().Lookup("color-mode"); f != nil && strings.EqualFold(f.Value.String(), "never") {
+		return true
+	}
+	if f := cmd.Flags().Lookup("no-color"); f != nil && f.Value.String() == "true" {
+		return true
+	}
+	return false
 }
 
 func printCommandDescription(cmd *cobra.Command) {
@@ -440,7 +449,9 @@ func printUncategorizedFlags(flagMap map[string]*pflag.Flag, displayedFlags map[
 		)
 		fmt.Println(createSeparator(width, noColor))
 		fmt.Println() // Extra line after header
-
+		sort.Slice(uncategorizedFlags, func(i, j int) bool {
+			return uncategorizedFlags[i].Name < uncategorizedFlags[j].Name
+		})
 		for _, flag := range uncategorizedFlags {
 			printFlag(flag, noColor)
 		}
@@ -483,12 +494,18 @@ func flagTypeHint(flag *pflag.Flag, noColor bool) string {
 	}
 	typeStr := flag.Value.Type()
 	switch typeStr {
-	case "stringSlice":
+	case "stringSlice", "stringArray":
 		typeStr = "strings"
+	case "stringToString":
+		typeStr = "map"
 	case "duration":
 		typeStr = "duration"
 	case "int", "int64":
 		typeStr = "int"
+	case "intSlice":
+		typeStr = "ints"
+	case "float64", "float32":
+		typeStr = "float"
 	}
 	return fmt.Sprintf(" %s%s%s", applyColor(colorMuted, noColor), typeStr, applyColor(colorReset, noColor))
 }
@@ -508,7 +525,11 @@ func appendFlagUsage(line *strings.Builder, flag *pflag.Flag) {
 		return
 	}
 	if flag.DefValue != "" && flag.DefValue != "false" && flag.DefValue != "[]" {
-		usage += fmt.Sprintf(" (default %s)", flag.DefValue)
+		if flag.Value.Type() == "string" {
+			usage += fmt.Sprintf(" (default %q)", flag.DefValue)
+		} else {
+			usage += fmt.Sprintf(" (default %s)", flag.DefValue)
+		}
 	}
 	line.WriteString(usage)
 }

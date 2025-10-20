@@ -3,9 +3,11 @@
 ## Relevant Files
 
 ### Source File to Refactor
+
 - `scripts/markdown/check.go` - 3,055-line monolithic script to be refactored
 
 ### Target Architecture Structure
+
 ```
 scripts/markdown/
 ├── cmd/check/              # Application Layer (CLI Entry)
@@ -16,6 +18,7 @@ scripts/markdown/
 ```
 
 ### Related Project Standards
+
 - `.cursor/rules/go-coding-standards.mdc` - Go coding standards
 - `.cursor/rules/architecture.mdc` - Architecture patterns
 - `.cursor/rules/test-standards.mdc` - Testing requirements
@@ -30,6 +33,7 @@ scripts/markdown/
 - [ ] 6.0 Testing and Migration - Comprehensive Tests and Cleanup (L)
 
 Notes on sizing:
+
 - S = Small (≤ half-day)
 - M = Medium (1–2 days)
 - L = Large (3+ days)
@@ -46,15 +50,19 @@ Notes on sizing:
 ## Execution Plan
 
 ### Critical Path (Sequential Dependencies)
+
 1.0 (Foundation) → 3.0 (Core Logic) → 5.0 (Wiring) → 6.0 (Testing & Migration)
 
 ### Parallel Track A (after 1.0)
+
 - 2.0 (Infrastructure Layer) - Can be developed independently after domain models exist
 
 ### Parallel Track B (after 1.0)
+
 - 4.0 (UI Layer) - Can be developed independently after domain models exist
 
 ### Parallelization Strategy
+
 ```
 Start: 1.0 (Foundation)
   ↓
@@ -83,11 +91,13 @@ Split into 3 parallel tracks:
 ## Architecture Overview
 
 ### Current State (Problem)
+
 - **Single File**: 3,055 lines, 158 functions
 - **Violations**: SRP, DIP, ISP, OCP
 - **Issues**: Tight coupling, no testability, hard to extend
 
 ### Target State (Solution)
+
 **5-Layer Clean Architecture**:
 
 1. **cmd/** - Application entry point, CLI setup, DI container
@@ -97,6 +107,7 @@ Split into 3 parallel tracks:
 5. **shared/** - Shared utilities (errors/, types/, utils/)
 
 ### Key Design Principles Applied
+
 - **SOLID Compliance**: Each layer respects SRP, OCP, LSP, ISP, DIP
 - **Dependency Inversion**: High-level modules depend on abstractions
 - **Interface Segregation**: Small, focused interfaces
@@ -105,6 +116,7 @@ Split into 3 parallel tracks:
 ## Quality Requirements
 
 ### Mandatory Checks Before Task Completion
+
 - [ ] All functions < 50 lines
 - [ ] `make lint` passes
 - [ ] `make test` passes
@@ -114,6 +126,7 @@ Split into 3 parallel tracks:
 - [ ] Config from context (`config.FromContext(ctx)`)
 
 ### Testing Strategy
+
 - **Unit Tests**: Each component tested in isolation
 - **Integration Tests**: Layer interactions validated
 - **E2E Tests**: Full workflow preserved
@@ -122,11 +135,13 @@ Split into 3 parallel tracks:
 ## Risk Mitigation
 
 ### Backward Compatibility
+
 - Original CLI interface preserved
 - Functional equivalence guaranteed
 - No breaking changes to user experience
 
 ### Rollback Strategy
+
 - Keep original `check.go` as `check.go.bak` during refactoring
 - Each batch is independently reversible
 - Feature flags for gradual rollout (if needed)
@@ -134,18 +149,21 @@ Split into 3 parallel tracks:
 ## Success Criteria
 
 ### Functional Requirements
+
 - [ ] All existing functionality preserved
 - [ ] CLI interface unchanged
 - [ ] Performance characteristics maintained
 - [ ] Memory usage not significantly increased
 
 ### Architectural Requirements
+
 - [ ] SOLID principles followed throughout
 - [ ] Clean architecture layers properly separated
 - [ ] All dependencies injected through constructors
 - [ ] No circular dependencies between layers
 
 ### Quality Metrics
+
 - [ ] Cyclomatic complexity < 10 per function
 - [ ] Function length < 50 lines
 - [ ] Test coverage > 80%
@@ -154,6 +172,7 @@ Split into 3 parallel tracks:
 ## Timeline Estimate
 
 **Sequential Execution**: ~10 days
+
 - Day 1-2: Task 1.0 (Foundation)
 - Day 3-4: Task 2.0 (Infrastructure) OR Task 3.0 (Core) OR Task 4.0 (UI)
 - Day 5-6: Remaining parallel tasks
@@ -161,6 +180,7 @@ Split into 3 parallel tracks:
 - Day 9-10: Task 6.0 (Testing & Migration)
 
 **Parallel Execution**: ~6 days (with 3 concurrent tracks)
+
 - Day 1-2: Task 1.0 (Foundation)
 - Day 3-4: Tasks 2.0, 3.0, 4.0 (Parallel)
 - Day 5: Task 5.0 (Wiring)

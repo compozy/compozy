@@ -41,8 +41,6 @@ var (
 	dispatcherScanDuration     metric.Float64Histogram
 )
 
-var workflowDurationBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
-
 // resetMetrics is used for testing purposes only
 func resetMetrics(ctx context.Context) {
 	if callbackRegistration != nil {
@@ -126,7 +124,8 @@ func initWorkflowMetrics(ctx context.Context, meter metric.Meter) error {
 	workflowTaskDuration, err = meter.Float64Histogram(
 		metrics.MetricNameWithSubsystem("temporal", "workflow_duration_seconds"),
 		metric.WithDescription("Workflow execution time"),
-		metric.WithExplicitBucketBoundaries(workflowDurationBuckets...),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(metrics.WorkflowDurationBuckets...),
 	)
 	if err != nil {
 		log.Error("Failed to create workflow task duration histogram", "error", err, "component", "temporal_metrics")
@@ -452,7 +451,7 @@ func (w *workflowInboundInterceptor) recoverFromWorkflowPanic() {
 // recordWorkflowOutcome records completion or failure metrics and logs diagnostics.
 func (w *workflowInboundInterceptor) recordWorkflowOutcome(
 	ctx context.Context,
-	metrics workflowMetricSet,
+	wms workflowMetricSet,
 	duration float64,
 	workflowType string,
 	info *workflow.Info,
@@ -460,12 +459,12 @@ func (w *workflowInboundInterceptor) recordWorkflowOutcome(
 ) {
 	if err != nil {
 		label, message := classifyWorkflowError(err)
-		metrics.duration.Record(ctx, duration,
+		wms.duration.Record(ctx, duration,
 			metric.WithAttributes(
 				attribute.String("workflow_type", workflowType),
 				attribute.String("result", label),
 			))
-		metrics.failed.Add(ctx, 1,
+		wms.failed.Add(ctx, 1,
 			metric.WithAttributes(
 				attribute.String("workflow_type", workflowType),
 				attribute.String("result", label),
@@ -478,12 +477,12 @@ func (w *workflowInboundInterceptor) recordWorkflowOutcome(
 		)
 		return
 	}
-	metrics.duration.Record(ctx, duration,
+	wms.duration.Record(ctx, duration,
 		metric.WithAttributes(
 			attribute.String("workflow_type", workflowType),
 			attribute.String("result", "completed"),
 		))
-	metrics.completed.Add(ctx, 1,
+	wms.completed.Add(ctx, 1,
 		metric.WithAttributes(attribute.String("workflow_type", workflowType)))
 }
 

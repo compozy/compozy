@@ -117,7 +117,9 @@ func (m *deleteUserModel) Init() tea.Cmd {
 // deleteUser deletes the user
 func (m *deleteUserModel) deleteUser() tea.Cmd {
 	return func() tea.Msg {
-		err := m.client.DeleteUser(m.ctx, m.userID)
+		err := m.client.DeleteUser(m.ctx, m.userID, api.DeleteUserOptions{
+			Cascade: m.cascade,
+		})
 		if err != nil {
 			return errMsg{err}
 		}

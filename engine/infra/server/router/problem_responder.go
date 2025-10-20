@@ -37,10 +37,13 @@ func writeProblemResponse(c *gin.Context, problem *core.Problem, body map[string
 	payload, err := json.Marshal(body)
 	if err != nil {
 		logger.FromContext(c.Request.Context()).Error("failed to marshal problem", "err", err)
-		c.Status(http.StatusInternalServerError)
+		fallback := []byte(`{"status":500,"error":"Internal Server Error"}`)
+		c.Data(http.StatusInternalServerError, "application/problem+json", fallback)
+		c.Abort()
 		return
 	}
 	c.Data(problem.Status, "application/problem+json", payload)
+	c.Abort()
 }
 
 func logProblem(c *gin.Context, problem *core.Problem) {
@@ -61,6 +64,15 @@ func logProblem(c *gin.Context, problem *core.Problem) {
 	}
 	if code, ok := problem.Extras["code"]; ok {
 		fields = append(fields, "code", code)
+	}
+	if correlationID := c.Request.Header.Get("X-Correlation-ID"); correlationID != "" {
+		fields = append(fields, "correlation_id", correlationID)
+	} else if requestID := c.Request.Header.Get("X-Request-ID"); requestID != "" {
+		fields = append(fields, "request_id", requestID)
+	} else if correlationID := c.Writer.Header().Get("X-Correlation-ID"); correlationID != "" {
+		fields = append(fields, "correlation_id", correlationID)
+	} else if requestID := c.Writer.Header().Get("X-Request-ID"); requestID != "" {
+		fields = append(fields, "request_id", requestID)
 	}
 	if problem.Status >= http.StatusInternalServerError {
 		log.Error("request failed", fields...)

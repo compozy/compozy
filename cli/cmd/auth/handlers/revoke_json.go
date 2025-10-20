@@ -2,9 +2,7 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -60,17 +58,11 @@ func ensureForceRevocation(force bool) error {
 }
 
 func writeRevokeResponse(keyID string) error {
-	response := map[string]any{
+	return writeJSONResponse(map[string]any{
 		"data": map[string]any{
 			"key_id":  keyID,
-			"revoked": time.Now().Format(time.RFC3339),
+			"revoked": time.Now().UTC().Format(time.RFC3339),
 		},
 		"message": "Success",
-	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(response); err != nil {
-		return fmt.Errorf("failed to encode JSON response: %w", err)
-	}
-	return nil
+	})
 }

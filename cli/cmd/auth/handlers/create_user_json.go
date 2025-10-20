@@ -16,7 +16,7 @@ func CreateUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.
 	log := logger.FromContext(ctx)
 	options, err := parseCreateUserFlags(cobraCmd)
 	if err != nil {
-		return err
+		return outputJSONError(err.Error())
 	}
 	if err := validateCreateUserRole(options.role); err != nil {
 		return outputJSONError(err.Error())

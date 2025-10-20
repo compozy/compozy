@@ -118,6 +118,7 @@ func GetRequestBody[T any](c *gin.Context) *T {
 	var input T
 	if err := c.ShouldBindJSON(&input); err != nil {
 		RespondProblemWithCode(c, http.StatusBadRequest, ErrBadRequestCode, err.Error())
+		c.Abort()
 		return nil
 	}
 	return &input

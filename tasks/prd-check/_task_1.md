@@ -77,6 +77,7 @@ scripts/markdown/
 From the current `check.go`, extract and refactor these types:
 
 **core/models/issue.go**:
+
 ```go
 type Issue struct {
     Name     string // Filename of the issue markdown
@@ -87,6 +88,7 @@ type Issue struct {
 ```
 
 **core/models/job.go**:
+
 ```go
 type Job struct {
     Index      int      // Job index in batch
@@ -118,6 +120,7 @@ const (
 ```
 
 **core/models/config.go**:
+
 ```go
 type Config struct {
     PR              string
@@ -138,6 +141,7 @@ func (c *Config) Validate() error {
 ```
 
 **core/models/token_usage.go**:
+
 ```go
 type TokenUsage struct {
     InputTokens     int
@@ -149,6 +153,7 @@ type TokenUsage struct {
 ```
 
 **core/models/preparation.go**:
+
 ```go
 type Preparation struct {
     ResolvedIssuesDir string
@@ -161,6 +166,7 @@ type Preparation struct {
 ### 1.3 Core Interfaces (Ports)
 
 **core/ports/filesystem.go**:
+
 ```go
 type FileReader interface {
     ReadFile(ctx context.Context, path string) ([]byte, error)
@@ -180,6 +186,7 @@ type FileSystem interface {
 ```
 
 **core/ports/executor.go**:
+
 ```go
 type CommandExecutor interface {
     Execute(ctx context.Context, cmd *Command) (*CommandResult, error)
@@ -204,6 +211,7 @@ type CommandResult struct {
 ```
 
 **core/ports/logger.go**:
+
 ```go
 type LogFormatter interface {
     Format(ctx context.Context, data []byte) ([]byte, error)
@@ -217,6 +225,7 @@ type LogTap interface {
 ```
 
 **core/ports/ui.go**:
+
 ```go
 type UINotifier interface {
     NotifyJobStarted(ctx context.Context, job Job) error
@@ -229,6 +238,7 @@ type UINotifier interface {
 ### 1.4 Shared Utilities
 
 **shared/errors/errors.go**:
+
 ```go
 // Domain-specific error types
 var (
@@ -244,6 +254,7 @@ func WrapError(err error, msg string) error {
 ```
 
 **shared/types/constants.go**:
+
 ```go
 // Extract constants from check.go
 const (
@@ -260,6 +271,7 @@ const (
 ```
 
 **shared/utils/path.go**:
+
 ```go
 // Path manipulation utilities
 func SafeFileName(name string) string {
@@ -274,6 +286,7 @@ func ResolveAbsPath(ctx context.Context, path string) (string, error) {
 ### Relevant Files
 
 **Files to Create**:
+
 - `scripts/markdown/cmd/check/main.go`
 - `scripts/markdown/cmd/check/root.go`
 - `scripts/markdown/cmd/check/di.go`
@@ -291,6 +304,7 @@ func ResolveAbsPath(ctx context.Context, path string) (string, error) {
 - `scripts/markdown/shared/utils/path.go`
 
 **Empty directory structure** (create placeholder files or package docs):
+
 - `scripts/markdown/ui/tea/doc.go`
 - `scripts/markdown/ui/forms/doc.go`
 - `scripts/markdown/ui/styles/doc.go`
@@ -304,9 +318,11 @@ func ResolveAbsPath(ctx context.Context, path string) (string, error) {
 ### Dependent Files
 
 **Reference for extraction**:
+
 - `scripts/markdown/check.go` - Source of domain models and constants
 
 **Project standards**:
+
 - `.cursor/rules/go-coding-standards.mdc`
 - `.cursor/rules/architecture.mdc`
 
@@ -375,6 +391,7 @@ Unit tests for domain models and utilities:
 ## Success Criteria
 
 ### Functional Requirements
+
 - [ ] All domain models compile without errors
 - [ ] All interfaces are properly defined and documented
 - [ ] Constants are extracted and accessible
@@ -382,6 +399,7 @@ Unit tests for domain models and utilities:
 - [ ] Config validation logic is comprehensive
 
 ### Architectural Requirements
+
 - [ ] Domain models have no external dependencies (pure Go)
 - [ ] Interfaces follow Interface Segregation Principle (small, focused)
 - [ ] Directory structure matches clean architecture pattern
@@ -389,6 +407,7 @@ Unit tests for domain models and utilities:
 - [ ] No circular dependencies between packages
 
 ### Quality Requirements
+
 - [ ] All functions < 50 lines
 - [ ] All code passes `make lint`
 - [ ] All tests pass with `gotestsum --format pkgname -- -race -parallel=4 ./scripts/markdown/core/... ./scripts/markdown/shared/...`
@@ -396,6 +415,7 @@ Unit tests for domain models and utilities:
 - [ ] All public types and functions have doc comments
 
 ### Unblocking Criteria
+
 - [ ] Other developers can start Task 2.0 (Infrastructure)
 - [ ] Other developers can start Task 3.0 (Core Logic)
 - [ ] Other developers can start Task 4.0 (UI Layer)
@@ -403,6 +423,7 @@ Unit tests for domain models and utilities:
 ## Implementation Notes
 
 ### Order of Implementation
+
 1. Create directory structure first (all folders)
 2. Create shared utilities (no dependencies)
 3. Create domain models (depend only on shared)
@@ -412,12 +433,14 @@ Unit tests for domain models and utilities:
 7. Run `make fmt && make lint && make test`
 
 ### Key Design Decisions
+
 - **No business logic in models**: Models are pure data structures
 - **Context-first APIs**: All methods that perform I/O accept `context.Context` as first parameter
 - **Interface-based design**: Define interfaces in core/ports, implementations come later
 - **Shared utilities are minimal**: Only truly shared code goes in shared/
 
 ### Common Pitfalls to Avoid
+
 - ❌ Don't add business logic to domain models
 - ❌ Don't create circular dependencies between packages
 - ❌ Don't use global state or singletons
@@ -425,6 +448,7 @@ Unit tests for domain models and utilities:
 - ❌ Don't hardcode paths or configuration values
 
 ### Testing Strategy for This Task
+
 - Focus on unit tests for validation logic
 - Test edge cases for path utilities
 - Ensure error wrapping maintains error chains

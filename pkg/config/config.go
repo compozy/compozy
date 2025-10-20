@@ -1447,10 +1447,37 @@ type MCPProxyConfig struct {
 //	  quiet: false                      # Suppress output
 //	  interactive: true                 # Interactive prompts
 const (
-	DefaultPortReleaseTimeout      = 5 * time.Second
-	DefaultPortReleasePollInterval = 100 * time.Millisecond
-	DefaultCLIMaxRetries           = 3
+	DefaultPortReleaseTimeout        = 5 * time.Second
+	DefaultPortReleasePollInterval   = 100 * time.Millisecond
+	DefaultCLIMaxRetries             = 3
+	DefaultCLIActiveWindowDays       = 30
+	DefaultCLIDevWatcherDebounce     = 200 * time.Millisecond
+	DefaultCLIDevWatcherInitialDelay = 500 * time.Millisecond
+	DefaultCLIDevWatcherMaxDelay     = 30 * time.Second
 )
+
+// CLIDevConfig contains development tooling settings for the CLI.
+//
+// These options let operators tune hot-reload behavior when running
+// `compozy dev`, including how aggressively file changes trigger restarts.
+type CLIDevConfig struct {
+	// WatcherDebounce defines the quiet period before restarting the dev server after a file change.
+	// Lower values trigger faster restarts; higher values reduce churn when many files change at once.
+	//
+	// **Default**: `200ms`
+	WatcherDebounce time.Duration `koanf:"watcher_debounce" env:"COMPOZY_DEV_WATCHER_DEBOUNCE" json:"WatcherDebounce" yaml:"watcher_debounce" mapstructure:"watcher_debounce" validate:"min=0"`
+
+	// WatcherRetryInitial controls the first backoff duration after an unexpected server failure.
+	// The delay doubles after each failure until WatcherRetryMax is reached.
+	//
+	// **Default**: `500ms`
+	WatcherRetryInitial time.Duration `koanf:"watcher_retry_initial" env:"COMPOZY_DEV_WATCHER_RETRY_INITIAL" json:"WatcherRetryInitial" yaml:"watcher_retry_initial" mapstructure:"watcher_retry_initial" validate:"min=0"`
+
+	// WatcherRetryMax caps the exponential backoff window when the dev server repeatedly fails to start.
+	//
+	// **Default**: `30s`
+	WatcherRetryMax time.Duration `koanf:"watcher_retry_max" env:"COMPOZY_DEV_WATCHER_RETRY_MAX" json:"WatcherRetryMax" yaml:"watcher_retry_max" mapstructure:"watcher_retry_max" validate:"min=0"`
+}
 
 type CLIConfig struct {
 	// APIKey authenticates CLI requests to the Compozy API.
@@ -1567,6 +1594,23 @@ type CLIConfig struct {
 	// MaxRetries sets the maximum retry attempts for CLI HTTP requests.
 	// Default: 3. Set to a non-negative value; 0 reverts to the default and negative disables retries.
 	MaxRetries int `koanf:"max_retries" env:"COMPOZY_MAX_RETRIES" json:"MaxRetries" yaml:"max_retries" mapstructure:"max_retries"`
+
+	// Dev exposes local development settings, including watcher debounce and restart backoff.
+	Dev CLIDevConfig `koanf:"dev" json:"Dev" yaml:"dev" mapstructure:"dev"`
+
+	// Users configures CLI behavior for user-management commands.
+	//
+	// Provides operator-tunable knobs for filters and heuristics like the active-user window.
+	Users CLIUsersConfig `koanf:"users" json:"Users" yaml:"users" mapstructure:"users"`
+}
+
+// CLIUsersConfig controls CLI user-management heuristics and filters.
+type CLIUsersConfig struct {
+	// ActiveWindowDays specifies how many days define an "active" user.
+	//
+	// Used by commands like `auth users list --active` to determine recent activity.
+	// Default: 30 days.
+	ActiveWindowDays int `koanf:"active_window_days" env:"COMPOZY_USERS_ACTIVE_WINDOW_DAYS" json:"ActiveWindowDays" yaml:"active_window_days" mapstructure:"active_window_days" validate:"min=0"`
 }
 
 // WebhooksConfig contains webhook processing and validation configuration.
@@ -2146,6 +2190,10 @@ func buildCLIConfig(registry *definition.Registry) CLIConfig {
 	if prpi <= 0 {
 		prpi = DefaultPortReleasePollInterval
 	}
+	activeWindowDays := getInt(registry, "cli.users.active_window_days")
+	if activeWindowDays <= 0 {
+		activeWindowDays = DefaultCLIActiveWindowDays
+	}
 	return CLIConfig{
 		APIKey:                  SensitiveString(getString(registry, "cli.api_key")),
 		BaseURL:                 getString(registry, "cli.base_url"),
@@ -2165,6 +2213,30 @@ func buildCLIConfig(registry *definition.Registry) CLIConfig {
 		PortReleaseTimeout:      prt,
 		PortReleasePollInterval: prpi,
 		MaxRetries:              getInt(registry, "cli.max_retries"),
+		Dev:                     buildCLIDevConfig(registry),
+		Users: CLIUsersConfig{
+			ActiveWindowDays: activeWindowDays,
+		},
+	}
+}
+
+func buildCLIDevConfig(registry *definition.Registry) CLIDevConfig {
+	debounce := getDuration(registry, "cli.dev.watcher_debounce")
+	if debounce <= 0 {
+		debounce = DefaultCLIDevWatcherDebounce
+	}
+	initial := getDuration(registry, "cli.dev.watcher_retry_initial")
+	if initial <= 0 {
+		initial = DefaultCLIDevWatcherInitialDelay
+	}
+	maxDelay := getDuration(registry, "cli.dev.watcher_retry_max")
+	if maxDelay <= 0 {
+		maxDelay = DefaultCLIDevWatcherMaxDelay
+	}
+	return CLIDevConfig{
+		WatcherDebounce:     debounce,
+		WatcherRetryInitial: initial,
+		WatcherRetryMax:     maxDelay,
 	}
 }
 

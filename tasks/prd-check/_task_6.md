@@ -45,6 +45,7 @@ This task MUST wait for Task 5.0 to complete, as it validates the entire integra
 ### 6.1 Coverage Analysis and Missing Tests
 
 **Step 1: Generate Coverage Report**
+
 ```bash
 # Generate coverage for all packages
 go test -coverprofile=coverage.out ./scripts/markdown/...
@@ -57,6 +58,7 @@ go tool cover -html=coverage.out -o coverage.html
 ```
 
 **Step 2: Identify Low Coverage Areas**
+
 ```bash
 # Find packages with < 80% coverage
 go tool cover -func=coverage.out | awk '$3 < 80.0 {print}'
@@ -65,6 +67,7 @@ go tool cover -func=coverage.out | awk '$3 < 80.0 {print}'
 **Step 3: Add Missing Tests**
 
 Focus on:
+
 - **Error paths**: Ensure all error conditions are tested
 - **Edge cases**: Boundary conditions, empty inputs, etc.
 - **Concurrency**: Race conditions, goroutine leaks
@@ -74,6 +77,7 @@ Focus on:
 ### 6.2 Comprehensive Integration Tests
 
 **integration_test.go**:
+
 ```go
 // +build integration
 
@@ -237,6 +241,7 @@ Another test issue.`,
 ### 6.3 Performance Comparison Tests
 
 **performance_test.go**:
+
 ```go
 // +build performance
 
@@ -384,6 +389,7 @@ func BenchmarkMemoryAllocation(b *testing.B) {
 ### 6.4 Functional Equivalence Validation
 
 **equivalence_test.go**:
+
 ```go
 // +build equivalence
 
@@ -515,6 +521,7 @@ func compareFiles(t *testing.T, oldPath, newPath string) {
 ### 6.5 Full Test Suite Execution
 
 **test_runner.sh**:
+
 ```bash
 #!/bin/bash
 set -e
@@ -528,9 +535,9 @@ gotestsum --format pkgname -- -race -coverprofile=coverage.out ./scripts/markdow
 # 2. Check coverage threshold
 echo "Checking coverage..."
 COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-    echo "Coverage is below 80%: ${COVERAGE}%"
-    exit 1
+if (($(echo "$COVERAGE < 80" | bc -l))); then
+  echo "Coverage is below 80%: ${COVERAGE}%"
+  exit 1
 fi
 echo "Coverage: ${COVERAGE}%"
 
@@ -552,6 +559,7 @@ echo "All tests passed!"
 ### 6.6 Update Build System and Documentation
 
 **Update Makefile**:
+
 ```makefile
 # Add new check command
 .PHONY: check-refactored
@@ -572,7 +580,8 @@ coverage-check:
 ```
 
 **Update README or docs**:
-```markdown
+
+````markdown
 ## Markdown Check Tool
 
 Refactored implementation with clean architecture.
@@ -589,10 +598,12 @@ go run scripts/markdown/cmd/check/main.go --pr 259 --concurrent 4 --batch-size 3
 # Dry run
 go run scripts/markdown/cmd/check/main.go --pr 259 --dry-run
 ```
+````
 
 ### Architecture
 
 The tool follows clean architecture with these layers:
+
 - `cmd/check/` - Application entry point and CLI
 - `core/` - Business logic (services, use cases, domain models)
 - `infrastructure/` - External dependencies (file system, command execution)
@@ -611,7 +622,8 @@ make coverage-check
 # Run integration tests
 go test -v -tags=integration ./scripts/markdown/...
 ```
-```
+
+````
 
 ### 6.7 Migration and Cleanup
 
@@ -620,7 +632,7 @@ go test -v -tags=integration ./scripts/markdown/...
 1. **Backup old file**:
 ```bash
 cp scripts/markdown/check.go scripts/markdown/check.go.bak
-```
+````
 
 2. **Update build scripts** to use new implementation
 
@@ -629,11 +641,13 @@ cp scripts/markdown/check.go scripts/markdown/check.go.bak
 4. **Update documentation** with new usage patterns
 
 5. **Remove old file** (after validation period):
+
 ```bash
 rm scripts/markdown/check.go.bak
 ```
 
 6. **Update git history**:
+
 ```bash
 git add scripts/markdown/
 git commit -m "refactor(check): complete clean architecture refactoring
@@ -650,6 +664,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 ### Relevant Files
 
 **Files to Create/Update**:
+
 - `scripts/markdown/cmd/check/integration_test.go`
 - `scripts/markdown/cmd/check/performance_test.go`
 - `scripts/markdown/cmd/check/equivalence_test.go`
@@ -658,9 +673,11 @@ BREAKING CHANGE: None - CLI interface is preserved"
 - `README.md` or `docs/check-tool.md` (update)
 
 **Files to Archive**:
+
 - `scripts/markdown/check.go` → `scripts/markdown/check.go.bak`
 
 **Files to Eventually Remove**:
+
 - `scripts/markdown/check.go.bak` (after validation period)
 
 ## Deliverables
@@ -679,6 +696,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 ## Tests
 
 ### Coverage Tests
+
 - [ ] Achieve > 80% coverage in `core/models/`
 - [ ] Achieve > 80% coverage in `core/services/`
 - [ ] Achieve > 80% coverage in `core/usecases/`
@@ -687,6 +705,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 - [ ] Achieve > 80% coverage in `cmd/check/`
 
 ### Integration Tests
+
 - [ ] Complete workflow with small dataset
 - [ ] Workflow with context cancellation
 - [ ] Concurrent execution with multiple jobs
@@ -695,6 +714,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 - [ ] Error handling and recovery
 
 ### Performance Tests
+
 - [ ] Benchmark small dataset processing
 - [ ] Benchmark large dataset processing
 - [ ] Benchmark concurrent execution at different levels
@@ -702,6 +722,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 - [ ] Compare performance with old implementation
 
 ### Equivalence Tests
+
 - [ ] Output files match between old and new
 - [ ] Grouped summaries are equivalent
 - [ ] Prompt files are equivalent
@@ -711,6 +732,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 ## Success Criteria
 
 ### Functional Requirements
+
 - [ ] All original functionality preserved
 - [ ] No regressions in behavior
 - [ ] Performance is comparable or better
@@ -718,6 +740,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 - [ ] Error handling improved
 
 ### Quality Requirements
+
 - [ ] Test coverage > 80%
 - [ ] All tests pass: `make test`
 - [ ] All linting passes: `make lint`
@@ -727,6 +750,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 - [ ] Memory usage reasonable
 
 ### Documentation Requirements
+
 - [ ] Usage documentation updated
 - [ ] Architecture documented
 - [ ] Migration guide provided
@@ -734,6 +758,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 - [ ] Build system documented
 
 ### Migration Requirements
+
 - [ ] Old file backed up
 - [ ] Equivalence validated
 - [ ] Build system updated
@@ -743,6 +768,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 ## Implementation Notes
 
 ### Order of Implementation
+
 1. Generate coverage report and identify gaps
 2. Add missing unit tests
 3. Write integration tests
@@ -754,6 +780,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 9. Final validation: `make fmt && make lint && make test`
 
 ### Key Design Decisions
+
 - **80% coverage threshold**: Industry standard for quality
 - **Integration tests**: Verify layer interactions
 - **Performance tests**: Ensure no regression
@@ -761,6 +788,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 - **Graceful migration**: Backup, validate, then remove
 
 ### Common Pitfalls to Avoid
+
 - ❌ Don't skip edge case testing
 - ❌ Don't ignore race conditions
 - ❌ Don't skip performance validation
@@ -768,6 +796,7 @@ BREAKING CHANGE: None - CLI interface is preserved"
 - ❌ Don't forget to update documentation
 
 ### Testing Strategy
+
 - **Comprehensive coverage**: Test all code paths
 - **Integration testing**: Test real workflows
 - **Performance testing**: Benchmark against old version

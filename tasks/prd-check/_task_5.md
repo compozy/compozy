@@ -525,6 +525,7 @@ func executeWorkflow(ctx context.Context, config models.Config) error {
 ### Relevant Files
 
 **Files to Create**:
+
 - `scripts/markdown/cmd/check/main.go`
 - `scripts/markdown/cmd/check/root.go`
 - `scripts/markdown/cmd/check/di.go`
@@ -532,6 +533,7 @@ func executeWorkflow(ctx context.Context, config models.Config) error {
 - `scripts/markdown/cmd/check/workflow.go`
 
 **Test Files**:
+
 - `scripts/markdown/cmd/check/root_test.go`
 - `scripts/markdown/cmd/check/di_test.go`
 - `scripts/markdown/cmd/check/flow_test.go`
@@ -541,6 +543,7 @@ func executeWorkflow(ctx context.Context, config models.Config) error {
 ### Dependent Files
 
 **Dependencies from All Previous Tasks**:
+
 - Task 1.0: Domain models, ports, shared utilities
 - Task 2.0: Infrastructure implementations
 - Task 3.0: Services and use cases
@@ -609,6 +612,7 @@ func executeWorkflow(ctx context.Context, config models.Config) error {
 ## Success Criteria
 
 ### Functional Requirements
+
 - [ ] CLI works with flags and interactive mode
 - [ ] Complete workflow executes successfully
 - [ ] Dry-run mode works correctly
@@ -616,6 +620,7 @@ func executeWorkflow(ctx context.Context, config models.Config) error {
 - [ ] All features from original check.go preserved
 
 ### Architectural Requirements
+
 - [ ] Proper dependency injection throughout
 - [ ] No global state or singletons
 - [ ] Context propagation everywhere
@@ -623,6 +628,7 @@ func executeWorkflow(ctx context.Context, config models.Config) error {
 - [ ] All layers properly wired
 
 ### Quality Requirements
+
 - [ ] All functions < 50 lines
 - [ ] All code passes `make lint`
 - [ ] All tests pass: `gotestsum --format pkgname -- -race -parallel=4 ./scripts/markdown/...`
@@ -630,6 +636,7 @@ func executeWorkflow(ctx context.Context, config models.Config) error {
 - [ ] E2E tests verify real-world scenarios
 
 ### Migration Requirements
+
 - [ ] Original CLI interface preserved
 - [ ] All original functionality works
 - [ ] Performance is comparable or better
@@ -638,6 +645,7 @@ func executeWorkflow(ctx context.Context, config models.Config) error {
 ## Implementation Notes
 
 ### Order of Implementation
+
 1. Main entry point (main.go)
 2. Cobra command setup (root.go)
 3. Dependency injection (di.go)
@@ -649,6 +657,7 @@ func executeWorkflow(ctx context.Context, config models.Config) error {
 9. Run `make fmt && make lint && make test`
 
 ### Key Design Decisions
+
 - **No business logic**: Cmd layer only wires components
 - **Context everywhere**: Proper context propagation
 - **Graceful shutdown**: Handle signals properly
@@ -656,6 +665,7 @@ func executeWorkflow(ctx context.Context, config models.Config) error {
 - **Separation of concerns**: CLI, DI, and workflow are separate
 
 ### Common Pitfalls to Avoid
+
 - ❌ Don't add business logic to cmd layer
 - ❌ Don't use global state
 - ❌ Don't skip context propagation
@@ -663,13 +673,16 @@ func executeWorkflow(ctx context.Context, config models.Config) error {
 - ❌ Don't hardcode dependencies
 
 ### Testing Strategy
+
 - **Unit tests**: Test each file independently
 - **Integration tests**: Test complete workflows
 - **E2E tests**: Test with real data (small sets)
 - **Signal tests**: Verify graceful shutdown
 
 ### Dependencies
+
 This task CANNOT proceed in parallel. It requires:
+
 - Task 1.0 (Foundation) - COMPLETE
 - Task 2.0 (Infrastructure) - COMPLETE
 - Task 3.0 (Core Logic) - COMPLETE

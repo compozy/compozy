@@ -112,14 +112,15 @@ func readinessTimings(
 func probeMCPProxy(ctx context.Context, client *http.Client, baseURL string, timeout time.Duration) bool {
 	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	log := logger.FromContext(ctx)
 	u, jerr := url.JoinPath(baseURL, "healthz")
 	if jerr != nil {
-		logger.FromContext(ctx).Error("failed to build MCP readiness URL", "error", jerr, "base_url", baseURL)
+		log.Error("failed to build MCP readiness URL", "error", jerr, "base_url", baseURL)
 		return false
 	}
 	req, err := http.NewRequestWithContext(rctx, http.MethodGet, u, http.NoBody)
 	if err != nil {
-		logger.FromContext(ctx).Error("failed to create MCP readiness request", "error", err, "url", u)
+		log.Error("failed to create MCP readiness request", "error", err, "url", u)
 		return false
 	}
 	resp, err := client.Do(req)
@@ -127,7 +128,13 @@ func probeMCPProxy(ctx context.Context, client *http.Client, baseURL string, tim
 		_ = resp.Body.Close()
 		return true
 	}
+	if err != nil {
+		log.Debug("MCP readiness probe request failed", "error", err, "url", u)
+	}
 	if resp != nil {
+		if resp.StatusCode != http.StatusOK {
+			log.Debug("MCP readiness probe non-OK", "status", resp.StatusCode, "url", u)
+		}
 		_ = resp.Body.Close()
 	}
 	return false

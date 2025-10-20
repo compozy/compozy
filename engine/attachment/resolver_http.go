@@ -109,13 +109,10 @@ func effectiveUserAgent(ctx context.Context) string {
 	return HTTPUserAgent
 }
 
-// validateHTTPResponse ensures the response status and length are acceptable.
+// validateHTTPResponse ensures the response status is acceptable.
 func validateHTTPResponse(resp *http.Response) error {
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("unexpected status: %d", resp.StatusCode)
-	}
-	if resp.ContentLength == 0 {
-		return fmt.Errorf("empty response from server")
 	}
 	return nil
 }

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	agentuc "github.com/compozy/compozy/engine/agent/uc"
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
@@ -54,7 +53,7 @@ func listAgentsTop(c *gin.Context) {
 	limit := router.LimitOrDefault(c, c.Query("limit"), defaultAgentsLimit, maxAgentsLimit)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblemWithCode(c, http.StatusBadRequest, "invalid_request", "invalid cursor parameter")
 		return
 	}
 	input := &agentuc.ListInput{
@@ -184,7 +183,7 @@ func upsertAgentTop(c *gin.Context) {
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblemWithCode(c, http.StatusBadRequest, "invalid_request", "invalid If-Match header")
 		return
 	}
 	input := &agentuc.UpsertInput{Project: project, ID: agentID, Body: *body, IfMatch: ifMatch}

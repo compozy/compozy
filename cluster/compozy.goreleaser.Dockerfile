@@ -28,7 +28,7 @@ RUN addgroup -g 1001 -S compozy \
     && adduser -u 1001 -S compozy -G compozy
 
 # Create necessary directories
-RUN mkdir -p /app/config /app/data /app/tools /app/logs /app/tmp \
+RUN mkdir -p /app/config /app/data /app/tools /app/logs /app/tmp /app/docs \
     && chown -R compozy:compozy /app
 
 # Copy the pre-built binary from GoReleaser
@@ -39,6 +39,7 @@ RUN chmod +x /usr/local/bin/compozy
 # Copy additional files if they exist
 COPY README.md /app/README.md
 COPY LICENSE /app/LICENSE
+COPY --chown=compozy:compozy docs /app/docs
 
 # Switch to non-root user
 USER compozy

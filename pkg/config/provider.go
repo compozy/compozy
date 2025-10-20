@@ -504,6 +504,11 @@ func createCLIDefaults(defaultConfig *Config) map[string]any {
 		"cwd":                 defaultConfig.CLI.CWD,
 		"env_file":            defaultConfig.CLI.EnvFile,
 		"max_retries":         defaultConfig.CLI.MaxRetries,
+		"dev": map[string]any{
+			"watcher_debounce":      defaultConfig.CLI.Dev.WatcherDebounce.String(),
+			"watcher_retry_initial": defaultConfig.CLI.Dev.WatcherRetryInitial.String(),
+			"watcher_retry_max":     defaultConfig.CLI.Dev.WatcherRetryMax.String(),
+		},
 	}
 }
 

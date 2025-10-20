@@ -124,12 +124,11 @@ func getBuildInfo() (version, commit, goVersion string) {
 		data := loadBuildInfo()
 		buildInfoCache.Store(&data)
 	})
-	if data := buildInfoCache.Load(); data != nil {
-		return data.version, data.commit, data.goVersion
+	data := buildInfoCache.Load()
+	if data == nil {
+		return "", "", ""
 	}
-	fallback := loadBuildInfo()
-	buildInfoCache.Store(&fallback)
-	return fallback.version, fallback.commit, fallback.goVersion
+	return data.version, data.commit, data.goVersion
 }
 
 // loadBuildInfo loads build information from various sources
