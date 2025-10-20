@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,10 +31,8 @@ var (
 	startTime             time.Time
 	systemInitOnce        sync.Once
 	systemResetMutex      sync.Mutex
-	// Build info cache with thread safety
-	buildInfoCache      buildInfoData
-	buildInfoOnce       sync.Once
-	buildInfoCacheMutex sync.RWMutex
+	buildInfoCache        atomic.Pointer[buildInfoData]
+	buildInfoOnce         sync.Once
 )
 
 type buildInfoData struct {
@@ -120,13 +119,15 @@ func registerBuildInfoCallback(meter metric.Meter) (metric.Registration, error) 
 // getBuildInfo returns build information with lazy loading and caching
 func getBuildInfo() (version, commit, goVersion string) {
 	buildInfoOnce.Do(func() {
-		buildInfoCacheMutex.Lock()
-		buildInfoCache = loadBuildInfo()
-		buildInfoCacheMutex.Unlock()
+		data := loadBuildInfo()
+		buildInfoCache.Store(&data)
 	})
-	buildInfoCacheMutex.RLock()
-	defer buildInfoCacheMutex.RUnlock()
-	return buildInfoCache.version, buildInfoCache.commit, buildInfoCache.goVersion
+	if data := buildInfoCache.Load(); data != nil {
+		return data.version, data.commit, data.goVersion
+	}
+	fallback := loadBuildInfo()
+	buildInfoCache.Store(&fallback)
+	return fallback.version, fallback.commit, fallback.goVersion
 }
 
 // loadBuildInfo loads build information from various sources
@@ -182,10 +183,9 @@ func resetSystemMetrics(ctx context.Context) {
 	uptimeGauge = nil
 	startTime = time.Time{}
 	systemInitOnce = sync.Once{}
-	buildInfoCacheMutex.Lock()
 	buildInfoOnce = sync.Once{}
-	buildInfoCache = buildInfoData{}
-	buildInfoCacheMutex.Unlock()
+	buildInfoCache = atomic.Pointer[buildInfoData]{}
+	buildInfoCache.Store(nil)
 }
 
 // ResetSystemMetricsForTesting resets the system metrics initialization state for testing

@@ -41,6 +41,8 @@ var (
 	dispatcherScanDuration     metric.Float64Histogram
 )
 
+var workflowDurationBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+
 // resetMetrics is used for testing purposes only
 func resetMetrics(ctx context.Context) {
 	if callbackRegistration != nil {
@@ -124,7 +126,7 @@ func initWorkflowMetrics(ctx context.Context, meter metric.Meter) error {
 	workflowTaskDuration, err = meter.Float64Histogram(
 		metrics.MetricNameWithSubsystem("temporal", "workflow_duration_seconds"),
 		metric.WithDescription("Workflow execution time"),
-		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
+		metric.WithExplicitBucketBoundaries(workflowDurationBuckets...),
 	)
 	if err != nil {
 		log.Error("Failed to create workflow task duration histogram", "error", err, "component", "temporal_metrics")

@@ -89,17 +89,23 @@ func adminReloadHandler(c *gin.Context, server *Server) {
 	log := logger.FromContext(ctx)
 	st := router.GetAppState(c)
 	if st == nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "application state not initialized", nil)
 		return
 	}
 	desiredMode, ok := parseReloadSource(c)
 	if !ok {
 		return
 	}
-	opCtx, err := buildOpContext(ctx, desiredMode)
+	opCtx, cleanup, err := buildOpContext(ctx, desiredMode)
 	if err != nil {
 		respondReloadServerError(c, newReloadError("failed to prepare operation configuration", err))
 		return
 	}
+	defer func() {
+		if err := cleanup(); err != nil {
+			log.Warn("failed to release admin reload context", "error", err)
+		}
+	}()
 	compiled, err := server.loadAndReplaceWorkflows(opCtx, st)
 	if err != nil {
 		respondReloadServerError(c, err)
@@ -200,12 +206,15 @@ func resolveSourceMode(param string) string {
 	}
 }
 
-func buildOpContext(ctx context.Context, mode string) (context.Context, error) {
+func buildOpContext(ctx context.Context, mode string) (context.Context, func() error, error) {
 	base := config.ManagerFromContext(ctx)
+	baseCreated := false
 	if base == nil {
 		base = config.NewManager(ctx, config.NewService())
+		baseCreated = true
 		if _, err := base.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider()); err != nil {
-			return nil, err
+			_ = base.Close(ctx)
+			return nil, func() error { return nil }, err
 		}
 	}
 	override := &staticSource{data: map[string]any{"server": map[string]any{"source_of_truth": mode}}}
@@ -217,9 +226,25 @@ func buildOpContext(ctx context.Context, mode string) (context.Context, error) {
 	sources = append(sources, override)
 	cm := config.NewManager(ctx, base.Service)
 	if _, err := cm.Load(ctx, sources...); err != nil {
-		return nil, err
+		_ = cm.Close(ctx)
+		if baseCreated {
+			_ = base.Close(ctx)
+		}
+		return nil, func() error { return nil }, err
 	}
-	return config.ContextWithManager(ctx, cm), nil
+	cleanup := func() error {
+		var errs []error
+		if err := cm.Close(ctx); err != nil {
+			errs = append(errs, err)
+		}
+		if baseCreated {
+			if err := base.Close(ctx); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		return errors.Join(errs...)
+	}
+	return config.ContextWithManager(ctx, cm), cleanup, nil
 }
 
 func extractProjectPaths(st *appstate.State) (string, string, bool) {

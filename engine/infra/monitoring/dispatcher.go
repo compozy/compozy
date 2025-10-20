@@ -19,7 +19,6 @@ var (
 	dispatcherHealthInitOnce      sync.Once
 	dispatcherHealthMutex         sync.RWMutex
 	dispatcherHealthStore         sync.Map // map[string]*DispatcherHealth
-	dispatcherHealthResetMutex    sync.Mutex
 )
 
 // DispatcherHealth represents the health status of a dispatcher
@@ -309,7 +308,7 @@ func resetDispatcherHealthMetrics(ctx context.Context) {
 // ResetDispatcherHealthMetricsForTesting resets dispatcher health metrics for testing
 // This should only be used in tests to ensure clean state between test runs
 func ResetDispatcherHealthMetricsForTesting(ctx context.Context) {
-	dispatcherHealthResetMutex.Lock()
-	defer dispatcherHealthResetMutex.Unlock()
+	dispatcherHealthMutex.Lock()
+	defer dispatcherHealthMutex.Unlock()
 	resetDispatcherHealthMetrics(ctx)
 }

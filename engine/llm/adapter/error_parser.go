@@ -139,11 +139,11 @@ func (p *ErrorParser) matchProviderPatterns(errMsgLower, errMsg string, original
 
 func (p *ErrorParser) matchProviderSpecific(errMsgLower, errMsg string, originalErr error) *Error {
 	switch strings.ToLower(p.provider) {
-	case "openai":
+	case "openai", "azureopenai", "azure-openai":
 		return p.matchOpenAIPatterns(errMsgLower, errMsg, originalErr)
-	case "anthropic":
+	case "anthropic", "claude":
 		return p.matchAnthropicPatterns(errMsgLower, errMsg, originalErr)
-	case "google":
+	case "google", "googleai", "gemini", "vertex", "vertexai":
 		return p.matchGooglePatterns(errMsgLower, errMsg, originalErr)
 	}
 	return nil

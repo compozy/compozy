@@ -90,6 +90,7 @@ func newGenerateModel(ctx context.Context, client api.AuthClient, name, descript
 
 // Init initializes the model
 func (m *generateModel) Init() tea.Cmd {
+	m.generating = true
 	return tea.Batch(
 		m.spinner.Tick,
 		m.generateKey(),

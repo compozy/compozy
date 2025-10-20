@@ -40,11 +40,11 @@ func NewStore(ctx context.Context, cfg *Config) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("postgres: new pool: %w", err)
 	}
-	if metricsTracker != nil {
-		metricsTracker.attach(pool)
-	}
 	if err := verifyPoolConnection(ctx, pool, metricsTracker); err != nil {
 		return nil, err
+	}
+	if metricsTracker != nil {
+		metricsTracker.attach(pool)
 	}
 	logStoreInitialization(ctx, cfg)
 	return &Store{pool: pool, metrics: metricsTracker}, nil

@@ -138,7 +138,8 @@ func (r *WorkflowRepo) ListStates(ctx context.Context, filter *workflow.StateFil
 func buildListStatesQuery(filter *workflow.StateFilter) (string, []any, error) {
 	sb := squirrel.Select("workflow_exec_id", "workflow_id", "status", "usage", "input", "output", "error").
 		From("workflow_states").
-		PlaceholderFormat(squirrel.Dollar)
+		PlaceholderFormat(squirrel.Dollar).
+		OrderBy("updated_at DESC")
 	if filter != nil {
 		if filter.Status != nil {
 			sb = sb.Where("status = ?", *filter.Status)
@@ -213,7 +214,11 @@ func assembleWorkflowStates(
 		if err != nil {
 			return nil, fmt.Errorf("converting state: %w", err)
 		}
-		state.Tasks = tasksByExec[state.WorkflowExecID.String()]
+		if tasks := tasksByExec[state.WorkflowExecID.String()]; tasks != nil {
+			state.Tasks = tasks
+		} else {
+			state.Tasks = make(map[string]*task.State)
+		}
 		states = append(states, state)
 	}
 	return states, nil
