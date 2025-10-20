@@ -78,10 +78,10 @@ func TestRespondConflictIncludesReferences(t *testing.T) {
 		conflictErr := ConflictError{Details: details}
 		RespondConflict(c, conflictErr, details)
 		require.Equal(t, http.StatusConflict, w.Code)
-		assert.Equal(t, "application/problem+json", w.Header().Get("Content-Type"))
+		assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 
 		response := decodeProblemResponse(t, w.Body.Bytes())
-		detail, ok := response["detail"].(string)
+		detail, ok := response["details"].(string)
 		require.True(t, ok)
 		assert.Equal(t, conflictErr.Error(), detail)
 
@@ -96,7 +96,7 @@ func TestRespondConflictDefaultDetail(t *testing.T) {
 		c, w := setupTestContext(t)
 		RespondConflict(c, errors.New("   "), nil)
 		response := decodeProblemResponse(t, w.Body.Bytes())
-		assert.Equal(t, "resource has active references", response["detail"])
+		assert.Equal(t, "resource has active references", response["details"])
 	})
 }
 
@@ -119,7 +119,7 @@ func TestRespondConflictPreservesErrorMessage(t *testing.T) {
 		err := errors.New("resource in use by workflows")
 		RespondConflict(c, err, []ReferenceDetail{})
 		response := decodeProblemResponse(t, w.Body.Bytes())
-		assert.Equal(t, "resource in use by workflows", response["detail"])
+		assert.Equal(t, "resource in use by workflows", response["details"])
 	})
 }
 

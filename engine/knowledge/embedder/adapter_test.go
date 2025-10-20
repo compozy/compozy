@@ -28,7 +28,7 @@ func newTestContext(t *testing.T) context.Context {
 }
 
 func TestAdapter_EmbedDocuments(t *testing.T) {
-	t.Run("ShouldBatchInputsAccordingToConfig", func(t *testing.T) {
+	t.Run("Should batch inputs according to config", func(t *testing.T) {
 		ctx := newTestContext(t)
 		client := &fakeClient{}
 		impl, err := embeddings.NewEmbedder(client, embeddings.WithBatchSize(2), embeddings.WithStripNewLines(true))
@@ -54,7 +54,7 @@ func TestAdapter_EmbedDocuments(t *testing.T) {
 		require.Len(t, vectors, len(documents))
 	})
 
-	t.Run("ShouldWrapProviderErrors", func(t *testing.T) {
+	t.Run("Should wrap provider errors", func(t *testing.T) {
 		ctx := newTestContext(t)
 		client := &fakeClient{failAfter: 1}
 		impl, err := embeddings.NewEmbedder(client, embeddings.WithBatchSize(1))
@@ -75,7 +75,7 @@ func TestAdapter_EmbedDocuments(t *testing.T) {
 		assert.ErrorContains(t, err, `embedder "failing"`)
 	})
 
-	t.Run("ShouldEmbedQueryViaUnderlyingClient", func(t *testing.T) {
+	t.Run("Should embed query via underlying client", func(t *testing.T) {
 		ctx := newTestContext(t)
 		client := &fakeClient{}
 		impl, err := embeddings.NewEmbedder(client)
@@ -223,7 +223,7 @@ func TestCategorizeError(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	t.Run("ShouldReturnErrorForUnsupportedProvider", func(t *testing.T) {
+	t.Run("Should return error for unsupported provider", func(t *testing.T) {
 		ctx := newTestContext(t)
 		cfg := &Config{
 			ID:            "unknown",
@@ -238,7 +238,7 @@ func TestNew(t *testing.T) {
 		assert.ErrorContains(t, err, "provider")
 	})
 
-	t.Run("ShouldValidateDimension", func(t *testing.T) {
+	t.Run("Should validate dimension", func(t *testing.T) {
 		ctx := newTestContext(t)
 		cfg := &Config{
 			ID:            "bad",

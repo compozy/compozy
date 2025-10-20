@@ -52,7 +52,7 @@ func TestSchemasEndpoints(t *testing.T) {
 			map[string]string{"If-Match": "\"schema-bad\""},
 		)
 		require.Equal(t, http.StatusPreconditionFailed, staleRes.Code)
-		assert.Contains(t, staleRes.Header().Get("Content-Type"), "application/problem+json")
+		assert.Contains(t, staleRes.Header().Get("Content-Type"), "application/json")
 		client.do(http.MethodPut, "/api/v0/schemas/audit", schemaPayload(map[string]any{}), nil)
 		// Walk paginated list and collect schema IDs from typed items (body.id)
 		path := "/api/v0/schemas?limit=1"
@@ -101,14 +101,14 @@ func TestSchemasEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		delRes := client.do(http.MethodDelete, "/api/v0/schemas/contact", nil, nil)
 		require.Equal(t, http.StatusConflict, delRes.Code)
-		assert.Equal(t, "application/problem+json", delRes.Header().Get("Content-Type"))
+		assert.Equal(t, "application/json", delRes.Header().Get("Content-Type"))
 		assert.Contains(t, delRes.Body.String(), "workflows")
 	})
 	t.Run("Should reject malformed schema payload", func(t *testing.T) {
 		client := newResourceClient(t)
 		res := client.do(http.MethodPut, "/api/v0/schemas/bad", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
+		assert.Equal(t, "application/json", res.Header().Get("Content-Type"))
 	})
 }
 
@@ -136,6 +136,6 @@ func TestSchemasQueries(t *testing.T) {
 		client.do(http.MethodPut, "/api/v0/schemas/c1", schemaPayload(map[string]any{}), nil)
 		res := client.do(http.MethodGet, "/api/v0/schemas?cursor=abc", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
+		assert.Equal(t, "application/json", res.Header().Get("Content-Type"))
 	})
 }

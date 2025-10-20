@@ -1429,6 +1429,7 @@ type MCPProxyConfig struct {
 const (
 	DefaultPortReleaseTimeout      = 5 * time.Second
 	DefaultPortReleasePollInterval = 100 * time.Millisecond
+	DefaultCLIMaxRetries           = 3
 )
 
 type CLIConfig struct {
@@ -1536,6 +1537,10 @@ type CLIConfig struct {
 	//
 	// Default: 100ms
 	PortReleasePollInterval time.Duration `koanf:"port_release_poll_interval" env:"COMPOZY_PORT_RELEASE_POLL_INTERVAL" json:"PortReleasePollInterval" yaml:"port_release_poll_interval" mapstructure:"port_release_poll_interval" validate:"min=0"`
+
+	// MaxRetries sets the maximum retry attempts for CLI HTTP requests.
+	// Default: 3. Set to a non-negative value; 0 reverts to the default and negative disables retries.
+	MaxRetries int `koanf:"max_retries" env:"COMPOZY_MAX_RETRIES" json:"MaxRetries" yaml:"max_retries" mapstructure:"max_retries"`
 }
 
 // WebhooksConfig contains webhook processing and validation configuration.
@@ -2133,6 +2138,7 @@ func buildCLIConfig(registry *definition.Registry) CLIConfig {
 		EnvFile:                 getString(registry, "cli.env_file"),
 		PortReleaseTimeout:      prt,
 		PortReleasePollInterval: prpi,
+		MaxRetries:              getInt(registry, "cli.max_retries"),
 	}
 }
 

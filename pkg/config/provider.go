@@ -495,6 +495,7 @@ func createCLIDefaults(defaultConfig *Config) map[string]any {
 		"config_file":         defaultConfig.CLI.ConfigFile,
 		"cwd":                 defaultConfig.CLI.CWD,
 		"env_file":            defaultConfig.CLI.EnvFile,
+		"max_retries":         defaultConfig.CLI.MaxRetries,
 	}
 }
 

@@ -7,14 +7,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ProblemDocument models an RFC 7807 error envelope for API responses.
+// ProblemDocument models the canonical error envelope for API responses.
 type ProblemDocument struct {
-	Type     string `json:"type,omitempty"     example:"about:blank"`
-	Title    string `json:"title"              example:"Bad Request"`
 	Status   int    `json:"status"             example:"400"`
-	Detail   string `json:"detail,omitempty"   example:"Invalid cursor parameter"`
-	Instance string `json:"instance,omitempty" example:"/api/v0/workflows"`
+	Error    string `json:"error"              example:"Bad Request"`
+	Details  string `json:"details,omitempty"  example:"Invalid cursor parameter"`
 	Code     string `json:"code,omitempty"     example:"invalid_cursor"`
+	Type     string `json:"type,omitempty"     example:"about:blank"`
+	Instance string `json:"instance,omitempty" example:"/api/v0/workflows"`
 }
 
 type Problem struct {
@@ -26,7 +26,7 @@ type Problem struct {
 	Extras   map[string]any
 }
 
-// RespondProblem writes an RFC7807 problem+json response.
+// RespondProblem writes a canonical JSON error response.
 // Accepts a pointer to avoid copying a potentially large struct and to satisfy linters.
 func RespondProblem(c *gin.Context, problem *Problem) {
 	prepared := ensureProblemDefaults(problem)
@@ -45,36 +45,47 @@ func ensureProblemDefaults(problem *Problem) *Problem {
 	if problem.Title == "" {
 		problem.Title = http.StatusText(problem.Status)
 	}
+	if problem.Type == "" {
+		problem.Type = "about:blank"
+	}
 	return problem
 }
 
-// buildProblemBody assembles the RFC7807 payload.
+// buildProblemBody assembles the error payload.
 func buildProblemBody(problem *Problem) gin.H {
 	body := gin.H{
 		"status": problem.Status,
-		"title":  problem.Title,
+		"error":  problem.Title,
+	}
+	if problem.Detail != "" {
+		body["details"] = problem.Detail
+	}
+	if code, ok := problem.Extras["code"]; ok {
+		body["code"] = code
 	}
 	if problem.Type != "" {
 		body["type"] = problem.Type
 	}
-	if problem.Detail != "" {
-		body["detail"] = problem.Detail
-	}
 	if problem.Instance != "" {
 		body["instance"] = problem.Instance
 	}
+	filteredExtras := make(map[string]any)
 	for key, value := range problem.Extras {
 		if !isReservedProblemKey(key) {
-			body[key] = value
+			filteredExtras[key] = value
 		}
 	}
-	return body
+	if len(filteredExtras) == 0 {
+		return body
+	}
+	merged := CopyMaps(map[string]any(body), filteredExtras)
+	return gin.H(merged)
 }
 
 // isReservedProblemKey reports whether a key is already populated by the problem envelope.
 func isReservedProblemKey(key string) bool {
 	switch key {
-	case "status", "title", "type", "detail", "instance":
+	case "status", "error", "details", "code", "type", "instance":
 		return true
 	default:
 		return false
@@ -83,7 +94,7 @@ func isReservedProblemKey(key string) bool {
 
 // writeProblemResponse writes headers, logs, and JSON body for a problem response.
 func writeProblemResponse(c *gin.Context, problem *Problem, body gin.H) {
-	c.Header("Content-Type", "application/problem+json")
+	c.Header("Content-Type", "application/json")
 	logProblem(c, problem)
 	c.JSON(problem.Status, body)
 }

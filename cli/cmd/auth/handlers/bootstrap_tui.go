@@ -57,8 +57,7 @@ func parseTUIBootstrapFlags(cmd *cobra.Command) (*bootstrapFlags, error) {
 
 // handleTUIStatusCheck displays bootstrap status in TUI mode
 func handleTUIStatusCheck(ctx context.Context) error {
-	factory := &bootstrapcli.DefaultServiceFactory{}
-	service, cleanup, err := factory.CreateService(ctx)
+	service, cleanup, err := createBootstrapService(ctx)
 	if err != nil {
 		fmt.Println(styles.ErrorStyle.Render("❌ Failed to create service: " + err.Error()))
 		return err
@@ -233,8 +232,7 @@ func confirmBootstrap(email string) bool {
 // executeTUIBootstrap performs the bootstrap operation
 func executeTUIBootstrap(ctx context.Context, flags *bootstrapFlags) error {
 	fmt.Println(styles.InfoStyle.Render("Creating admin user..."))
-	factory := &bootstrapcli.DefaultServiceFactory{}
-	service, cleanup, err := factory.CreateService(ctx)
+	service, cleanup, err := createBootstrapService(ctx)
 	if err != nil {
 		fmt.Println(styles.ErrorStyle.Render("❌ Failed to create service: " + err.Error()))
 		return err

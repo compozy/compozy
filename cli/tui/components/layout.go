@@ -228,18 +228,11 @@ func (l *LayoutComponent) renderSidebar(width, height int) string {
 
 // GetContentSize returns the available content size
 func (l *LayoutComponent) GetContentSize() (width, height int) {
-	width = l.Width
-	height = l.Height
-	if l.ShowHeader {
-		height -= 2
+	metrics := l.calculateLayoutMetrics()
+	width = metrics.contentWidth - 2
+	if width < 0 {
+		width = 0
 	}
-	if l.ShowFooter {
-		height--
-	}
-	height -= l.Error.Height()
-	if l.ShowSidebar {
-		width -= l.SidebarWidth
-	}
-	width -= 2
+	height = metrics.availableHeight
 	return width, height
 }

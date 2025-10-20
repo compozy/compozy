@@ -144,6 +144,7 @@ func isRecentlyCreated(_ string) bool {
 	// TODO: This is a simplified check - in practice, you'd parse the timestamp
 	// and compare with current time. For now, return true to avoid filtering
 	// until proper activity tracking is implemented
+	// TODO(auth-activity): Replace this placeholder once timestamp parsing and activity signals are available.
 	return true
 }
 

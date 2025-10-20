@@ -1868,6 +1868,14 @@ func registerBasicCLIFields(registry *Registry) {
 		Help:    "Timeout for API requests",
 	})
 	registry.Register(&FieldDef{
+		Path:    "cli.max_retries",
+		Default: 3,
+		CLIFlag: "max-retries",
+		EnvVar:  "COMPOZY_MAX_RETRIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum retry attempts for CLI HTTP requests",
+	})
+	registry.Register(&FieldDef{
 		Path:    "cli.mode",
 		Default: "auto",
 		CLIFlag: "mode",

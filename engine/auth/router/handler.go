@@ -458,14 +458,12 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 func (h *Handler) DeleteUser(c *gin.Context) {
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
-	userIDStr := c.Param("id")
-	userID, err := core.ParseID(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID", "details": err.Error()})
+	userID, ok := h.parseIDParam(c, "id", "Invalid user ID")
+	if !ok {
 		return
 	}
 	deleteUC := h.factory.DeleteUser(userID)
-	err = deleteUC.Execute(ctx)
+	err := deleteUC.Execute(ctx)
 	if err != nil {
 		log.Error("Failed to delete user", "error", err, "user_id", userID)
 		if errors.Is(err, uc.ErrUserNotFound) {

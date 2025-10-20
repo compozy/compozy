@@ -171,7 +171,7 @@ func TestKnowledgeUpsertETagPrecondition(t *testing.T) {
 		require.NotEqual(t, etag, newETag)
 		rec3 := putKnowledgeBase(t, r, kbID, update, etag)
 		require.Equal(t, http.StatusPreconditionFailed, rec3.Code)
-		require.Contains(t, rec3.Header().Get("Content-Type"), "application/problem+json")
+		require.Contains(t, rec3.Header().Get("Content-Type"), "application/json")
 	})
 }
 
@@ -245,7 +245,7 @@ func TestKnowledgeQueryValidation(t *testing.T) {
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusBadRequest, rec.Code)
-		require.Contains(t, rec.Header().Get("Content-Type"), "application/problem+json")
+		require.Contains(t, rec.Header().Get("Content-Type"), "application/json")
 	})
 }
 

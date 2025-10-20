@@ -93,7 +93,7 @@ func TestWorkflowsEndpoints(t *testing.T) {
 		invalid := workflowPayload("other", "mismatch")
 		res := client.do(http.MethodPut, "/api/v0/workflows/bad", invalid, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
+		assert.Equal(t, "application/json", res.Header().Get("Content-Type"))
 	})
 }
 
@@ -243,7 +243,7 @@ func TestWorkflowsQueries(t *testing.T) {
 		client.do(http.MethodPut, "/api/v0/workflows/wf-c1", workflowPayload("wf-c1", "c1"), nil)
 		res := client.do(http.MethodGet, "/api/v0/workflows?cursor=abc", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
+		assert.Equal(t, "application/json", res.Header().Get("Content-Type"))
 	})
 
 	t.Run("Should expand tasks in list when requested", func(t *testing.T) {

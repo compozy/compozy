@@ -136,6 +136,10 @@
           "description": "Mode controls the CLI execution behavior.\n\nAvailable modes:\n  - `\"normal\"`: Standard interactive mode (default)\n  - `\"batch\"`: Non-interactive batch processing\n  - `\"script\"`: Optimized for scripting (minimal output)",
           "type": "string"
         },
+        "MaxRetries": {
+          "description": "MaxRetries sets the maximum retry attempts for CLI HTTP requests.\n\nDefault: 3. Set to a non-negative value; 0 reverts to the default and negative disables retries.",
+          "type": "integer"
+        },
         "NoColor": {
           "description": "NoColor disables all color output regardless of terminal support.\n\nOverrides ColorMode when set to true.",
           "type": "boolean"

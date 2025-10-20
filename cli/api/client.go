@@ -115,8 +115,19 @@ func (c *client) doRequest(
 	headers map[string]string,
 ) (*http.Response, error) {
 	log := logger.FromContext(ctx)
+	cfg := config.FromContext(ctx)
+	maxRetries := config.DefaultCLIMaxRetries
+	if cfg != nil {
+		switch {
+		case cfg.CLI.MaxRetries < 0:
+			maxRetries = 0
+		case cfg.CLI.MaxRetries == 0:
+			maxRetries = config.DefaultCLIMaxRetries
+		default:
+			maxRetries = cfg.CLI.MaxRetries
+		}
+	}
 	url := c.baseURL + path
-	const maxRetries = 3
 	backoff := 100 * time.Millisecond
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
@@ -136,7 +147,7 @@ func (c *client) doRequest(
 		}
 
 		if c.shouldRetry(resp, attempt, maxRetries) {
-			closeResponseBody(log, resp.Body)
+			closeResponseBody(ctx, resp.Body)
 			if attempt == maxRetries {
 				return nil, fmt.Errorf("server error (status %d) after %d attempts", resp.StatusCode, maxRetries+1)
 			}
@@ -186,11 +197,12 @@ func waitForBackoff(ctx context.Context, duration time.Duration) error {
 	}
 }
 
-func closeResponseBody(log logger.Logger, body io.ReadCloser) {
+func closeResponseBody(ctx context.Context, body io.ReadCloser) {
 	if body == nil {
 		return
 	}
 	if err := body.Close(); err != nil {
+		log := logger.FromContext(ctx)
 		log.Debug("Failed to close response body", "error", err)
 	}
 }

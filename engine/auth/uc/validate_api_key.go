@@ -51,9 +51,6 @@ func (l *backgroundLimiter) ensure(limit int) chan struct{} {
 	l.mu.RUnlock()
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if limit < 0 {
-		limit = 0
-	}
 	if limit == l.limit {
 		return l.sem
 	}
@@ -117,7 +114,7 @@ func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 	hash := sha256.Sum256([]byte(uc.plaintext))
 	apiKey, err := uc.repo.GetAPIKeyByHash(ctx, hash[:])
 	if err != nil {
-		// NOTE: Intentionally ignore timing side-channel result to equalize responses.
+		// NOTE: Perform dummy bcrypt comparison to equalize timing with the success path and prevent timing attacks.
 		//nolint:errcheck // CompareHashAndPassword failure is expected for invalid keys.
 		_ = bcrypt.CompareHashAndPassword(
 			dummyBcryptHash,
@@ -148,10 +145,10 @@ func (uc *ValidateAPIKey) scheduleLastUsedUpdate(ctx context.Context, apiKey *mo
 	maxConcurrency := defaultAPIKeyLastUsedMaxConcurrency
 	updateTimeout := defaultAPIKeyLastUsedTimeout
 	if cfg != nil {
-		if v := cfg.Server.Auth.APIKeyLastUsedMaxConcurrency; v >= 0 {
-			maxConcurrency = v
-		} else {
+		if v := cfg.Server.Auth.APIKeyLastUsedMaxConcurrency; v < 0 {
 			maxConcurrency = 0
+		} else if v > 0 {
+			maxConcurrency = v
 		}
 		if timeout := cfg.Server.Auth.APIKeyLastUsedTimeout; timeout > 0 {
 			updateTimeout = timeout

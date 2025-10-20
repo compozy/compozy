@@ -667,6 +667,7 @@ func flattenCLIConfig(cfg *config.Config, result map[string]string) {
 	result["cli.api_key"] = redactSensitive(cfg.CLI.APIKey.String())
 	result["cli.base_url"] = redactURL(cfg.CLI.BaseURL)
 	result["cli.timeout"] = cfg.CLI.Timeout.String()
+	result["cli.max_retries"] = fmt.Sprintf("%d", cfg.CLI.MaxRetries)
 	result["cli.mode"] = cfg.CLI.Mode
 	result["cli.default_format"] = cfg.CLI.DefaultFormat
 	result["cli.color_mode"] = cfg.CLI.ColorMode

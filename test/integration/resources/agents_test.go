@@ -44,7 +44,7 @@ func TestAgentsEndpoints(t *testing.T) {
 			map[string]string{"If-Match": "\"bogus\""},
 		)
 		require.Equal(t, http.StatusPreconditionFailed, staleRes.Code)
-		assert.Contains(t, staleRes.Header().Get("Content-Type"), "application/problem+json")
+		assert.Contains(t, staleRes.Header().Get("Content-Type"), "application/json")
 		client.do(http.MethodPut, "/api/v0/agents/reserve", agentPayload("reserve", "assist"), nil)
 		ids := collectIDs(t, client, "/api/v0/agents?limit=1", "agents", "id")
 		assert.ElementsMatch(t, []string{"reserve", "support"}, ids)
@@ -94,7 +94,7 @@ func TestAgentsEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		delRes := client.do(http.MethodDelete, "/api/v0/agents/planner", nil, nil)
 		require.Equal(t, http.StatusConflict, delRes.Code)
-		assert.Contains(t, delRes.Header().Get("Content-Type"), "application/problem+json")
+		assert.Contains(t, delRes.Header().Get("Content-Type"), "application/json")
 		bodyStr := delRes.Body.String()
 		assert.Contains(t, bodyStr, "workflows")
 		assert.Contains(t, bodyStr, "tasks")
@@ -103,7 +103,7 @@ func TestAgentsEndpoints(t *testing.T) {
 		client := newResourceClient(t)
 		res := client.do(http.MethodPut, "/api/v0/agents/bad", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Contains(t, res.Header().Get("Content-Type"), "application/problem+json")
+		assert.Contains(t, res.Header().Get("Content-Type"), "application/json")
 	})
 }
 
@@ -161,6 +161,6 @@ func TestAgentsQueries(t *testing.T) {
 		client.do(http.MethodPut, "/api/v0/agents/c1", agentPayload("c1", "c"), nil)
 		res := client.do(http.MethodGet, "/api/v0/agents?cursor=abc", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Contains(t, res.Header().Get("Content-Type"), "application/problem+json")
+		assert.Contains(t, res.Header().Get("Content-Type"), "application/json")
 	})
 }

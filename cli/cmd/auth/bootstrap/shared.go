@@ -14,6 +14,9 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+// defaultAuthBootstrapDBTimeout is the bounded timeout for bootstrap DB operations.
+const defaultAuthBootstrapDBTimeout = 10 * time.Second
+
 // ServiceFactory interface for dependency injection
 type ServiceFactory interface {
 	CreateService(ctx context.Context) (*bootstrap.Service, func(), error)
@@ -28,8 +31,8 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 	if cfg == nil {
 		return nil, nil, fmt.Errorf("config manager not found in context")
 	}
-	// NOTE: Apply a timeout so auth bootstrap DB connections never hang indefinitely.
-	dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	// Apply a bounded timeout for the DB connect.
+	dbCtx, cancel := context.WithTimeout(ctx, defaultAuthBootstrapDBTimeout)
 	defer cancel()
 	// NOTE: Auth bootstrap always uses Postgres to enforce consistent credential handling.
 	dbCfg := &postgres.Config{
@@ -48,7 +51,9 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 	provider := repo.NewProvider(drv.Pool())
 	authRepo := provider.NewAuthRepo()
 	cleanup := func() {
-		if err := drv.Close(ctx); err != nil {
+		closeCtx, cancelClose := context.WithTimeout(context.WithoutCancel(ctx), defaultAuthBootstrapDBTimeout)
+		defer cancelClose()
+		if err := drv.Close(closeCtx); err != nil {
 			logger.FromContext(ctx).Error("Failed to close database", "error", err)
 		}
 	}

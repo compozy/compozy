@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/auth"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -183,16 +184,15 @@ func (m *Manager) handleRateLimitExceeded(c *gin.Context, lctx limiter.Context, 
 	IncrementBlockedRequests(c.Request.Context(), path, keyType)
 	resetIn := max(lctx.Reset-time.Now().Unix(), 0)
 	detail := fmt.Sprintf("API rate limit exceeded. Retry after %d seconds", resetIn)
-	body := gin.H{
-		"type":        "https://docs.compozy.com/problems/rate-limit-exceeded",
-		"title":       "Too Many Requests",
-		"status":      http.StatusTooManyRequests,
-		"detail":      detail,
-		"retry_after": resetIn,
-	}
 	c.Header("Retry-After", fmt.Sprintf("%d", resetIn))
-	c.Header("Content-Type", "application/problem+json")
-	c.JSON(http.StatusTooManyRequests, body)
+	core.RespondProblem(c, &core.Problem{
+		Status:   http.StatusTooManyRequests,
+		Title:    "Too Many Requests",
+		Detail:   detail,
+		Type:     "https://docs.compozy.com/problems/rate-limit-exceeded",
+		Instance: c.FullPath(),
+		Extras:   map[string]any{"retry_after": resetIn},
+	})
 	c.Abort()
 }
 
