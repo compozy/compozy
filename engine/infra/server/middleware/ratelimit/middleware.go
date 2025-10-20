@@ -18,6 +18,7 @@ import (
 
 	"github.com/compozy/compozy/engine/auth"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -185,7 +186,7 @@ func (m *Manager) handleRateLimitExceeded(c *gin.Context, lctx limiter.Context, 
 	resetIn := max(lctx.Reset-time.Now().Unix(), 0)
 	detail := fmt.Sprintf("API rate limit exceeded. Retry after %d seconds", resetIn)
 	c.Header("Retry-After", fmt.Sprintf("%d", resetIn))
-	core.RespondProblem(c, &core.Problem{
+	router.RespondProblem(c, &core.Problem{
 		Status:   http.StatusTooManyRequests,
 		Title:    "Too Many Requests",
 		Detail:   detail,

@@ -168,10 +168,10 @@ func (r *WorkflowRepo) selectWorkflowStates(ctx context.Context, sql string, arg
 }
 
 // workflowExecIDs extracts execution identifiers from the state list.
-func workflowExecIDs(statesDB []*workflow.StateDB) []string {
-	ids := make([]string, 0, len(statesDB))
+func workflowExecIDs(statesDB []*workflow.StateDB) []core.ID {
+	ids := make([]core.ID, 0, len(statesDB))
 	for _, sdb := range statesDB {
-		ids = append(ids, sdb.WorkflowExecID.String())
+		ids = append(ids, sdb.WorkflowExecID)
 	}
 	return ids
 }
@@ -179,13 +179,17 @@ func workflowExecIDs(statesDB []*workflow.StateDB) []string {
 // fetchTaskStatesForExec loads task states for the provided workflow executions.
 func (r *WorkflowRepo) fetchTaskStatesForExec(
 	ctx context.Context,
-	execIDs []string,
+	execIDs []core.ID,
 ) (map[string]map[string]*task.State, error) {
 	if len(execIDs) == 0 {
 		return map[string]map[string]*task.State{}, nil
 	}
 	var taskStatesDB []*task.StateDB
-	if err := pgxscan.Select(ctx, r.db, &taskStatesDB, taskStatesByExecQuery, execIDs); err != nil {
+	stringIDs := make([]string, len(execIDs))
+	for i := range execIDs {
+		stringIDs[i] = execIDs[i].String()
+	}
+	if err := pgxscan.Select(ctx, r.db, &taskStatesDB, taskStatesByExecQuery, stringIDs); err != nil {
 		return nil, fmt.Errorf("scanning task states: %w", err)
 	}
 	result := make(map[string]map[string]*task.State)

@@ -358,6 +358,26 @@ type DatabaseConfig struct {
 	//
 	// Default: `1m`
 	ConnMaxIdleTime time.Duration `koanf:"conn_max_idle_time" json:"conn_max_idle_time" yaml:"conn_max_idle_time" mapstructure:"conn_max_idle_time" env:"DB_CONN_MAX_IDLE_TIME"`
+
+	// PingTimeout bounds how long connectivity checks may wait when establishing the pool.
+	//
+	// Default: `3s`
+	PingTimeout time.Duration `koanf:"ping_timeout" json:"ping_timeout" yaml:"ping_timeout" mapstructure:"ping_timeout" env:"DB_PING_TIMEOUT"`
+
+	// HealthCheckTimeout limits the runtime health check duration before reporting failure.
+	//
+	// Default: `1s`
+	HealthCheckTimeout time.Duration `koanf:"health_check_timeout" json:"health_check_timeout" yaml:"health_check_timeout" mapstructure:"health_check_timeout" env:"DB_HEALTH_CHECK_TIMEOUT"`
+
+	// HealthCheckPeriod configures how frequently the pool performs background health checks.
+	//
+	// Default: `30s`
+	HealthCheckPeriod time.Duration `koanf:"health_check_period" json:"health_check_period" yaml:"health_check_period" mapstructure:"health_check_period" env:"DB_HEALTH_CHECK_PERIOD"`
+
+	// ConnectTimeout bounds how long the driver may spend establishing new PostgreSQL connections.
+	//
+	// Default: `5s`
+	ConnectTimeout time.Duration `koanf:"connect_timeout" json:"connect_timeout" yaml:"connect_timeout" mapstructure:"connect_timeout" env:"DB_CONNECT_TIMEOUT"`
 }
 
 // TemporalConfig contains Temporal workflow engine configuration.

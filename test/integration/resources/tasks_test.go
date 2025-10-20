@@ -124,14 +124,14 @@ func TestTasksEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		delRes := client.do(http.MethodDelete, "/api/v0/tasks/route", nil, nil)
 		require.Equal(t, http.StatusConflict, delRes.Code)
-		assert.Equal(t, "application/json", delRes.Header().Get("Content-Type"))
+		assert.Equal(t, "application/problem+json", delRes.Header().Get("Content-Type"))
 		assert.Contains(t, delRes.Body.String(), "workflows")
 	})
 	t.Run("Should reject malformed task payload", func(t *testing.T) {
 		client := newResourceClient(t)
 		res := client.do(http.MethodPut, "/api/v0/tasks/oops", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Equal(t, "application/json", res.Header().Get("Content-Type"))
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 }
 
@@ -200,7 +200,7 @@ func TestTasksQueries(t *testing.T) {
 		client.do(http.MethodPut, "/api/v0/tasks/c1", taskPayload("c1", "c"), nil)
 		res := client.do(http.MethodGet, "/api/v0/tasks?cursor=abc", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Equal(t, "application/json", res.Header().Get("Content-Type"))
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 
 	t.Run("Should expand subtasks in list when requested", func(t *testing.T) {

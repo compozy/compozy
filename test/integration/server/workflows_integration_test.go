@@ -135,7 +135,7 @@ func TestWorkflowEndpointsIntegration(t *testing.T) {
 		staleRes := httptest.NewRecorder()
 		srv.ServeHTTP(staleRes, staleReq)
 		assert.Equal(t, http.StatusPreconditionFailed, staleRes.Code)
-		assert.Equal(t, "application/json", staleRes.Header().Get("Content-Type"))
+		assert.Equal(t, "application/problem+json", staleRes.Header().Get("Content-Type"))
 		assert.Contains(t, staleRes.Body.String(), "etag mismatch")
 	})
 }

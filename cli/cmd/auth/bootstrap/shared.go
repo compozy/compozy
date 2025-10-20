@@ -36,13 +36,17 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 	defer cancel()
 	// NOTE: Auth bootstrap always uses Postgres to enforce consistent credential handling.
 	dbCfg := &postgres.Config{
-		ConnString: cfg.Database.ConnString,
-		Host:       cfg.Database.Host,
-		Port:       cfg.Database.Port,
-		User:       cfg.Database.User,
-		Password:   cfg.Database.Password,
-		DBName:     cfg.Database.DBName,
-		SSLMode:    cfg.Database.SSLMode,
+		ConnString:         cfg.Database.ConnString,
+		Host:               cfg.Database.Host,
+		Port:               cfg.Database.Port,
+		User:               cfg.Database.User,
+		Password:           cfg.Database.Password,
+		DBName:             cfg.Database.DBName,
+		SSLMode:            cfg.Database.SSLMode,
+		PingTimeout:        cfg.Database.PingTimeout,
+		HealthCheckTimeout: cfg.Database.HealthCheckTimeout,
+		HealthCheckPeriod:  cfg.Database.HealthCheckPeriod,
+		ConnectTimeout:     cfg.Database.ConnectTimeout,
 	}
 	drv, err := postgres.NewStore(dbCtx, dbCfg)
 	if err != nil {

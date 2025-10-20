@@ -91,12 +91,12 @@ func upsertProject(c *gin.Context) {
 	}
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	out, execErr := projectuc.NewUpsert(store).
@@ -128,7 +128,7 @@ func upsertProject(c *gin.Context) {
 // @Failure 405 {object} core.ProblemDocument "Method not allowed"
 // @Router /project [delete]
 func deleteProject(c *gin.Context) {
-	core.RespondProblem(
+	router.RespondProblem(
 		c,
 		&core.Problem{Status: http.StatusMethodNotAllowed, Detail: "project deletion not supported"},
 	)
@@ -139,14 +139,14 @@ func respondProjectError(c *gin.Context, err error) {
 	case errors.Is(err, projectuc.ErrInvalidInput),
 		errors.Is(err, projectuc.ErrProjectMissing),
 		errors.Is(err, projectuc.ErrNameMismatch):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, projectuc.ErrNotFound):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, projectuc.ErrETagMismatch), errors.Is(err, projectuc.ErrStaleIfMatch):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	case errors.Is(err, projectuc.ErrIfMatchRequired):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionRequired, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionRequired, Detail: err.Error()})
 	default:
-		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

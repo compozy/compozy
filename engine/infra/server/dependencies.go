@@ -114,17 +114,21 @@ func (s *Server) setupStore() (*repo.Provider, func(), error) {
 // buildPostgresConfigFromApp constructs the postgres.Config from application configuration.
 func buildPostgresConfigFromApp(cfg *config.Config) *postgres.Config {
 	return &postgres.Config{
-		ConnString:      cfg.Database.ConnString,
-		Host:            cfg.Database.Host,
-		Port:            cfg.Database.Port,
-		User:            cfg.Database.User,
-		Password:        cfg.Database.Password,
-		DBName:          cfg.Database.DBName,
-		SSLMode:         cfg.Database.SSLMode,
-		MaxOpenConns:    cfg.Database.MaxOpenConns,
-		MaxIdleConns:    cfg.Database.MaxIdleConns,
-		ConnMaxLifetime: cfg.Database.ConnMaxLifetime,
-		ConnMaxIdleTime: cfg.Database.ConnMaxIdleTime,
+		ConnString:         cfg.Database.ConnString,
+		Host:               cfg.Database.Host,
+		Port:               cfg.Database.Port,
+		User:               cfg.Database.User,
+		Password:           cfg.Database.Password,
+		DBName:             cfg.Database.DBName,
+		SSLMode:            cfg.Database.SSLMode,
+		MaxOpenConns:       cfg.Database.MaxOpenConns,
+		MaxIdleConns:       cfg.Database.MaxIdleConns,
+		ConnMaxLifetime:    cfg.Database.ConnMaxLifetime,
+		ConnMaxIdleTime:    cfg.Database.ConnMaxIdleTime,
+		PingTimeout:        cfg.Database.PingTimeout,
+		HealthCheckTimeout: cfg.Database.HealthCheckTimeout,
+		HealthCheckPeriod:  cfg.Database.HealthCheckPeriod,
+		ConnectTimeout:     cfg.Database.ConnectTimeout,
 	}
 }
 

@@ -83,14 +83,14 @@ func TestModelsEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		delRes := client.do(http.MethodDelete, "/api/v0/models/openai-gpt-big", nil, nil)
 		require.Equal(t, http.StatusConflict, delRes.Code)
-		assert.Equal(t, "application/json", delRes.Header().Get("Content-Type"))
+		assert.Equal(t, "application/problem+json", delRes.Header().Get("Content-Type"))
 		assert.Contains(t, delRes.Body.String(), "agents")
 	})
 	t.Run("Should reject malformed model payload", func(t *testing.T) {
 		client := newResourceClient(t)
 		res := client.do(http.MethodPut, "/api/v0/models/openai:broken", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Equal(t, "application/json", res.Header().Get("Content-Type"))
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 }
 
@@ -128,6 +128,6 @@ func TestModelsQueries(t *testing.T) {
 		client.do(http.MethodPut, "/api/v0/models/openai-x", modelPayload("openai", "x"), nil)
 		res := client.do(http.MethodGet, "/api/v0/models?cursor=abc", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Equal(t, "application/json", res.Header().Get("Content-Type"))
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 }

@@ -1,11 +1,6 @@
 package core
 
-import (
-	"net/http"
-
-	"github.com/compozy/compozy/pkg/logger"
-	"github.com/gin-gonic/gin"
-)
+import "net/http"
 
 // ProblemDocument models the canonical error envelope for API responses.
 type ProblemDocument struct {
@@ -17,6 +12,7 @@ type ProblemDocument struct {
 	Instance string `json:"instance,omitempty" example:"/api/v0/workflows"`
 }
 
+// Problem captures the information returned in an RFC 7807 error response.
 type Problem struct {
 	Type     string
 	Title    string
@@ -26,16 +22,8 @@ type Problem struct {
 	Extras   map[string]any
 }
 
-// RespondProblem writes a canonical JSON error response.
-// Accepts a pointer to avoid copying a potentially large struct and to satisfy linters.
-func RespondProblem(c *gin.Context, problem *Problem) {
-	prepared := ensureProblemDefaults(problem)
-	body := buildProblemBody(prepared)
-	writeProblemResponse(c, prepared, body)
-}
-
-// ensureProblemDefaults normalizes a problem payload before rendering.
-func ensureProblemDefaults(problem *Problem) *Problem {
+// NormalizeProblem ensures the provided problem includes canonical defaults.
+func NormalizeProblem(problem *Problem) *Problem {
 	if problem == nil {
 		problem = &Problem{}
 	}
@@ -51,9 +39,9 @@ func ensureProblemDefaults(problem *Problem) *Problem {
 	return problem
 }
 
-// buildProblemBody assembles the error payload.
-func buildProblemBody(problem *Problem) gin.H {
-	body := gin.H{
+// BuildProblemBody assembles the serialized representation of the problem.
+func BuildProblemBody(problem *Problem) map[string]any {
+	body := map[string]any{
 		"status": problem.Status,
 		"error":  problem.Title,
 	}
@@ -69,7 +57,10 @@ func buildProblemBody(problem *Problem) gin.H {
 	if problem.Instance != "" {
 		body["instance"] = problem.Instance
 	}
-	filteredExtras := make(map[string]any)
+	if len(problem.Extras) == 0 {
+		return body
+	}
+	filteredExtras := make(map[string]any, len(problem.Extras))
 	for key, value := range problem.Extras {
 		if !isReservedProblemKey(key) {
 			filteredExtras[key] = value
@@ -78,11 +69,9 @@ func buildProblemBody(problem *Problem) gin.H {
 	if len(filteredExtras) == 0 {
 		return body
 	}
-	merged := CopyMaps(map[string]any(body), filteredExtras)
-	return gin.H(merged)
+	return CopyMaps(body, filteredExtras)
 }
 
-// isReservedProblemKey reports whether a key is already populated by the problem envelope.
 func isReservedProblemKey(key string) bool {
 	switch key {
 	case "status", "error", "details", "code", "type", "instance":
@@ -90,37 +79,4 @@ func isReservedProblemKey(key string) bool {
 	default:
 		return false
 	}
-}
-
-// writeProblemResponse writes headers, logs, and JSON body for a problem response.
-func writeProblemResponse(c *gin.Context, problem *Problem, body gin.H) {
-	c.Header("Content-Type", "application/json")
-	logProblem(c, problem)
-	c.JSON(problem.Status, body)
-}
-
-// logProblem reports problem responses using the context logger.
-func logProblem(c *gin.Context, problem *Problem) {
-	log := logger.FromContext(c.Request.Context())
-	fields := []any{
-		"status", problem.Status,
-		"title", problem.Title,
-		"detail", problem.Detail,
-		"path", c.FullPath(),
-	}
-	if problem.Status >= http.StatusInternalServerError {
-		log.Error("request failed", fields...)
-		return
-	}
-	log.Warn("request failed", fields...)
-}
-
-func RespondProblemWithCode(c *gin.Context, status int, code string, detail string) {
-	problem := Problem{
-		Status: status,
-		Title:  http.StatusText(status),
-		Detail: detail,
-		Extras: map[string]any{"code": code},
-	}
-	RespondProblem(c, &problem)
 }

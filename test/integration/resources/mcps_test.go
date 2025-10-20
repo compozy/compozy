@@ -88,14 +88,14 @@ func TestMCPSEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		delRes := client.do(http.MethodDelete, "/api/v0/mcps/shared", nil, nil)
 		require.Equal(t, http.StatusConflict, delRes.Code)
-		assert.Equal(t, "application/json", delRes.Header().Get("Content-Type"))
+		assert.Equal(t, "application/problem+json", delRes.Header().Get("Content-Type"))
 		assert.Contains(t, delRes.Body.String(), "agents")
 	})
 	t.Run("Should reject malformed mcp payload", func(t *testing.T) {
 		client := newResourceClient(t)
 		res := client.do(http.MethodPut, "/api/v0/mcps/bad", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Equal(t, "application/json", res.Header().Get("Content-Type"))
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 }
 
@@ -134,6 +134,6 @@ func TestMCPQueries(t *testing.T) {
 		client.do(http.MethodPut, "/api/v0/mcps/x", mcpPayload("x"), nil)
 		res := client.do(http.MethodGet, "/api/v0/mcps?cursor=abc", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Equal(t, "application/json", res.Header().Get("Content-Type"))
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 }

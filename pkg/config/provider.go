@@ -340,15 +340,23 @@ func createServerDefaults(defaultConfig *Config) map[string]any {
 // createDatabaseDefaults creates database configuration defaults
 func createDatabaseDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
-		"host":              defaultConfig.Database.Host,
-		"port":              defaultConfig.Database.Port,
-		"user":              defaultConfig.Database.User,
-		"password":          defaultConfig.Database.Password,
-		"name":              defaultConfig.Database.DBName,
-		"ssl_mode":          defaultConfig.Database.SSLMode,
-		"conn_string":       defaultConfig.Database.ConnString,
-		"auto_migrate":      defaultConfig.Database.AutoMigrate,
-		"migration_timeout": defaultConfig.Database.MigrationTimeout.String(),
+		"host":                 defaultConfig.Database.Host,
+		"port":                 defaultConfig.Database.Port,
+		"user":                 defaultConfig.Database.User,
+		"password":             defaultConfig.Database.Password,
+		"name":                 defaultConfig.Database.DBName,
+		"ssl_mode":             defaultConfig.Database.SSLMode,
+		"conn_string":          defaultConfig.Database.ConnString,
+		"auto_migrate":         defaultConfig.Database.AutoMigrate,
+		"migration_timeout":    defaultConfig.Database.MigrationTimeout.String(),
+		"max_open_conns":       defaultConfig.Database.MaxOpenConns,
+		"max_idle_conns":       defaultConfig.Database.MaxIdleConns,
+		"conn_max_lifetime":    defaultConfig.Database.ConnMaxLifetime.String(),
+		"conn_max_idle_time":   defaultConfig.Database.ConnMaxIdleTime.String(),
+		"ping_timeout":         defaultConfig.Database.PingTimeout.String(),
+		"health_check_timeout": defaultConfig.Database.HealthCheckTimeout.String(),
+		"health_check_period":  defaultConfig.Database.HealthCheckPeriod.String(),
+		"connect_timeout":      defaultConfig.Database.ConnectTimeout.String(),
 	}
 }
 

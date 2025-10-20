@@ -12,7 +12,7 @@ import (
 
 const (
 	defaultMaxConns           = 20
-	defaultMinConns           = 2
+	defaultMinConns           = 0
 	defaultHealthCheckPeriod  = 30 * time.Second
 	defaultConnectTimeout     = 5 * time.Second
 	defaultPingTimeout        = 3 * time.Second
@@ -22,8 +22,9 @@ const (
 // Store is the concrete PostgreSQL driver backed by pgxpool.Pool.
 // It intentionally does not leak pgx types through its public API.
 type Store struct {
-	pool    *pgxpool.Pool
-	metrics *poolMetrics
+	pool               *pgxpool.Pool
+	metrics            *poolMetrics
+	healthCheckTimeout time.Duration
 }
 
 // NewStore initializes the pgx pool using the provided config and performs a
@@ -40,14 +41,22 @@ func NewStore(ctx context.Context, cfg *Config) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("postgres: new pool: %w", err)
 	}
-	if err := verifyPoolConnection(ctx, pool, metricsTracker); err != nil {
+	pingTimeout := defaultPingTimeout
+	if cfg.PingTimeout > 0 {
+		pingTimeout = cfg.PingTimeout
+	}
+	if err := verifyPoolConnection(ctx, pool, metricsTracker, pingTimeout); err != nil {
 		return nil, err
 	}
 	if metricsTracker != nil {
 		metricsTracker.attach(pool)
 	}
-	logStoreInitialization(ctx, cfg)
-	return &Store{pool: pool, metrics: metricsTracker}, nil
+	healthCheckTimeout := defaultHealthCheckTimeout
+	if cfg.HealthCheckTimeout > 0 {
+		healthCheckTimeout = cfg.HealthCheckTimeout
+	}
+	logStoreInitialization(ctx, cfg, poolCfg.MaxConns, poolCfg.MinConns)
+	return &Store{pool: pool, metrics: metricsTracker, healthCheckTimeout: healthCheckTimeout}, nil
 }
 
 // Close shuts down the connection pool.
@@ -66,7 +75,11 @@ func (s *Store) Pool() *pgxpool.Pool { return s.pool }
 
 // HealthCheck verifies the connection is alive.
 func (s *Store) HealthCheck(ctx context.Context) error {
-	hctx, cancel := context.WithTimeout(ctx, defaultHealthCheckTimeout)
+	timeout := s.healthCheckTimeout
+	if timeout <= 0 {
+		timeout = defaultHealthCheckTimeout
+	}
+	hctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	if err := s.pool.Ping(hctx); err != nil {
 		return fmt.Errorf("postgres: health check failed: %w", err)
@@ -105,8 +118,16 @@ func buildPoolConfig(ctx context.Context, cfg *Config) (*pgxpool.Config, *poolMe
 	maxConns, minConns := deriveConnectionBounds(cfg)
 	poolCfg.MaxConns = maxConns
 	poolCfg.MinConns = minConns
-	poolCfg.HealthCheckPeriod = defaultHealthCheckPeriod
-	poolCfg.ConnConfig.ConnectTimeout = defaultConnectTimeout
+	if cfg.HealthCheckPeriod > 0 {
+		poolCfg.HealthCheckPeriod = cfg.HealthCheckPeriod
+	} else {
+		poolCfg.HealthCheckPeriod = defaultHealthCheckPeriod
+	}
+	if cfg.ConnectTimeout > 0 {
+		poolCfg.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
+	} else {
+		poolCfg.ConnConfig.ConnectTimeout = defaultConnectTimeout
+	}
 	applyLifetimeSettings(cfg, poolCfg)
 	return poolCfg, metricsTracker, nil
 }
@@ -144,8 +165,16 @@ func applyLifetimeSettings(cfg *Config, poolCfg *pgxpool.Config) {
 }
 
 // verifyPoolConnection pings the pool and cleans up on failure.
-func verifyPoolConnection(ctx context.Context, pool *pgxpool.Pool, metricsTracker *poolMetrics) error {
-	pingCtx, cancel := context.WithTimeout(ctx, defaultPingTimeout)
+func verifyPoolConnection(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	metricsTracker *poolMetrics,
+	pingTimeout time.Duration,
+) error {
+	if pingTimeout <= 0 {
+		pingTimeout = defaultPingTimeout
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, pingTimeout)
 	defer cancel()
 	if err := pool.Ping(pingCtx); err != nil {
 		pool.Close()
@@ -158,12 +187,14 @@ func verifyPoolConnection(ctx context.Context, pool *pgxpool.Pool, metricsTracke
 }
 
 // logStoreInitialization emits a standardized initialization message.
-func logStoreInitialization(ctx context.Context, cfg *Config) {
+func logStoreInitialization(ctx context.Context, cfg *Config, maxConns int32, minConns int32) {
 	logger.FromContext(ctx).With(
 		"store_driver", "postgres",
 		"host", cfg.Host,
 		"port", cfg.Port,
 		"db_name", cfg.DBName,
 		"ssl_mode", cfg.SSLMode,
+		"max_conns", maxConns,
+		"min_conns", minConns,
 	).Info("Store initialized")
 }

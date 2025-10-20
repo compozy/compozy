@@ -49,7 +49,7 @@ func listSchemas(c *gin.Context) {
 	}
 	input, limit, parseErr := parseListSchemasInput(c, project)
 	if parseErr != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	out, err := schemauc.NewList(store).Execute(c.Request.Context(), input)
@@ -62,13 +62,13 @@ func listSchemas(c *gin.Context) {
 	items, buildErr := buildSchemaListItems(c.Request.Context(), out.Items)
 	if buildErr != nil {
 		if errors.Is(buildErr, errSchemaExceedsLimit) {
-			core.RespondProblem(
+			router.RespondProblem(
 				c,
 				&core.Problem{Status: http.StatusInternalServerError, Detail: buildErr.Error()},
 			)
 			return
 		}
-		core.RespondProblem(
+		router.RespondProblem(
 			c,
 			&core.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
 		)
@@ -121,14 +121,14 @@ func getSchema(c *gin.Context) {
 	}
 	dto, n, err := toSchemaDTO(out.Schema)
 	if err != nil {
-		core.RespondProblem(
+		router.RespondProblem(
 			c,
 			&core.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
 		)
 		return
 	}
 	if maxBytes > 0 && n > maxBytes {
-		core.RespondProblem(
+		router.RespondProblem(
 			c,
 			&core.Problem{
 				Status: http.StatusInternalServerError,
@@ -188,7 +188,7 @@ func upsertSchema(c *gin.Context) {
 	}
 	ifMatch, err := parseIfMatchHeader(c)
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	input := &schemauc.UpsertInput{Project: project, ID: schemaID, Body: body, IfMatch: ifMatch}
@@ -246,21 +246,21 @@ func respondSchemaError(c *gin.Context, err error) {
 		errors.Is(err, schemauc.ErrProjectMissing),
 		errors.Is(err, schemauc.ErrIDMissing),
 		errors.Is(err, schemauc.ErrIDMismatch):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrNotFound):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrETagMismatch),
 		errors.Is(err, schemauc.ErrStaleIfMatch):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrReferenced):
-		resourceutil.RespondConflict(c, err, nil)
+		router.RespondConflict(c, err, nil)
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
-			resourceutil.RespondConflict(c, err, conflict.Details)
+			router.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }
 
@@ -362,14 +362,14 @@ func respondSchemaBodyError(c *gin.Context, err error) {
 	default:
 		detail = "invalid request body"
 	}
-	core.RespondProblem(c, &core.Problem{Status: status, Detail: detail})
+	router.RespondProblem(c, &core.Problem{Status: status, Detail: detail})
 }
 
 // respondUpsertResult writes the upsert response payload based on creation status.
 func respondUpsertResult(c *gin.Context, schemaID string, out *schemauc.UpsertOutput) error {
 	dto, _, err := toSchemaDTO(out.Schema)
 	if err != nil {
-		core.RespondProblem(
+		router.RespondProblem(
 			c,
 			&core.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
 		)

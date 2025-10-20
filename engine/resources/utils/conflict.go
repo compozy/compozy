@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/gin-gonic/gin"
 )
 
 // ReferenceDetail describes a resource reference that prevents deletion.
@@ -57,22 +56,32 @@ func (e ConflictError) Error() string {
 	return fmt.Sprintf("resource referenced by %d %s: %s", totalRefs, label, strings.Join(types, ", "))
 }
 
-func RespondConflict(c *gin.Context, err error, details []ReferenceDetail) {
-	extras := map[string]any{}
+// BuildConflictProblem constructs a problem payload representing a conflict error.
+func BuildConflictProblem(err error, details []ReferenceDetail) *core.Problem {
+	var extras map[string]any
 	if len(details) > 0 {
-		refs := make([]map[string]any, 0, len(details))
+		references := make([]map[string]any, 0, len(details))
 		for i := range details {
-			d := map[string]any{"resource": details[i].Resource, "ids": details[i].IDs}
-			refs = append(refs, d)
+			references = append(references, map[string]any{
+				"resource": strings.TrimSpace(details[i].Resource),
+				"ids":      details[i].IDs,
+			})
 		}
-		extras["references"] = refs
+		extras = map[string]any{"references": references}
 	}
-	var detail string
+	detail := "resource has active references"
 	if err != nil {
-		detail = strings.TrimSpace(err.Error())
+		if trimmed := strings.TrimSpace(err.Error()); trimmed != "" {
+			detail = trimmed
+		}
 	}
-	if detail == "" {
-		detail = "resource has active references"
+	problem := &core.Problem{
+		Status: http.StatusConflict,
+		Title:  http.StatusText(http.StatusConflict),
+		Detail: detail,
 	}
-	core.RespondProblem(c, &core.Problem{Status: http.StatusConflict, Detail: detail, Extras: extras})
+	if extras != nil {
+		problem.Extras = extras
+	}
+	return core.NormalizeProblem(problem)
 }

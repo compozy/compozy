@@ -53,7 +53,7 @@ func listToolsTop(c *gin.Context) {
 	limit := router.LimitOrDefault(c, c.Query("limit"), defaultToolsLimit, maxToolsLimit)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	input := &tooluc.ListInput{
@@ -180,7 +180,7 @@ func upsertToolTop(c *gin.Context) {
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	input := &tooluc.UpsertInput{Project: project, ID: toolID, Body: *body, IfMatch: ifMatch}
@@ -238,27 +238,27 @@ func deleteToolTop(c *gin.Context) {
 }
 func respondToolError(c *gin.Context, err error) {
 	if err == nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: "unknown error"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: "unknown error"})
 		return
 	}
 	switch {
 	case errors.Is(err, tooluc.ErrInvalidInput),
 		errors.Is(err, tooluc.ErrProjectMissing),
 		errors.Is(err, tooluc.ErrIDMissing):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, tooluc.ErrNotFound):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, tooluc.ErrETagMismatch),
 		errors.Is(err, tooluc.ErrStaleIfMatch):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	case errors.Is(err, tooluc.ErrWorkflowNotFound):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
-			resourceutil.RespondConflict(c, err, conflict.Details)
+			router.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

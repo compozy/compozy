@@ -561,6 +561,7 @@ func registerDatabaseOperationalFields(registry *Registry) {
 	registerDatabaseMigrationFields(registry)
 	registerDatabasePoolSizeFields(registry)
 	registerDatabasePoolLifetimeFields(registry)
+	registerDatabasePoolTimeoutFields(registry)
 }
 
 // registerDatabaseMigrationFields controls migration automation knobs.
@@ -631,6 +632,45 @@ func registerDatabasePoolLifetimeFields(registry *Registry) {
 			EnvVar:  "DB_CONN_MAX_IDLE_TIME",
 			Type:    durationType,
 			Help:    "Maximum idle time before a connection is recycled",
+		},
+	)
+}
+
+// registerDatabasePoolTimeoutFields covers timeout and period knobs for connectivity checks.
+func registerDatabasePoolTimeoutFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "database.ping_timeout",
+			Default: 3 * time.Second,
+			CLIFlag: "db-ping-timeout",
+			EnvVar:  "DB_PING_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for PostgreSQL ping during startup verification",
+		},
+		FieldDef{
+			Path:    "database.health_check_timeout",
+			Default: 1 * time.Second,
+			CLIFlag: "db-health-check-timeout",
+			EnvVar:  "DB_HEALTH_CHECK_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for runtime PostgreSQL health checks",
+		},
+		FieldDef{
+			Path:    "database.health_check_period",
+			Default: 30 * time.Second,
+			CLIFlag: "db-health-check-period",
+			EnvVar:  "DB_HEALTH_CHECK_PERIOD",
+			Type:    durationType,
+			Help:    "Interval between background pool health checks",
+		},
+		FieldDef{
+			Path:    "database.connect_timeout",
+			Default: 5 * time.Second,
+			CLIFlag: "db-connect-timeout",
+			EnvVar:  "DB_CONNECT_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for establishing new PostgreSQL connections",
 		},
 	)
 }

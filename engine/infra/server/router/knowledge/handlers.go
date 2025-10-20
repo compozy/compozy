@@ -49,7 +49,7 @@ func listKnowledgeBases(c *gin.Context) {
 	limit := router.LimitOrDefault(c, c.Query("limit"), defaultKnowledgeLimit, maxKnowledgeLimit)
 	cursor, err := router.DecodeCursor(c.Query("cursor"))
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	input := &uc.ListInput{
@@ -115,7 +115,7 @@ func getKnowledgeBase(c *gin.Context) {
 	}
 	ifNoneMatch, err := router.ParseStrongETag(c.GetHeader("If-None-Match"))
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-None-Match header"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-None-Match header"})
 		return
 	}
 	out, err := uc.NewGet(store).Execute(c.Request.Context(), &uc.GetInput{Project: project, ID: kbID})
@@ -131,7 +131,7 @@ func getKnowledgeBase(c *gin.Context) {
 	}
 	payload, err := core.AsMapDefault(out.KnowledgeBase)
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 		return
 	}
 	payload["_etag"] = etag
@@ -178,7 +178,7 @@ func upsertKnowledgeBase(c *gin.Context) {
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	input := &uc.UpsertInput{Project: project, ID: kbID, Body: *body, IfMatch: ifMatch}
@@ -274,7 +274,7 @@ func ingestKnowledgeBase(c *gin.Context) {
 	}
 	strategy, err := parseIngestStrategy(body.Strategy)
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 		return
 	}
 	input := &uc.IngestInput{Project: project, ID: kbID, Strategy: strategy, CWD: state.CWD}
@@ -366,21 +366,21 @@ func respondKnowledgeError(c *gin.Context, err error) {
 		errors.Is(err, uc.ErrProjectMissing),
 		errors.Is(err, uc.ErrIDMissing),
 		errors.Is(err, uc.ErrIDMismatch):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, uc.ErrValidationFail):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, uc.ErrNotFound):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, uc.ErrAlreadyExists):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusConflict, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusConflict, Detail: err.Error()})
 	case errors.Is(err, uc.ErrETagMismatch), errors.Is(err, uc.ErrStaleIfMatch):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
-			resourceutil.RespondConflict(c, err, conflict.Details)
+			router.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

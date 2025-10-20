@@ -8,6 +8,18 @@ import (
 	"github.com/ulule/limiter/v3"
 )
 
+const (
+	defaultGlobalRateLimit   = 100
+	defaultAPIKeyRateLimit   = 100
+	defaultMemoryRateLimit   = 200
+	defaultHooksRateLimit    = 60
+	defaultWorkflowRateLimit = 100
+	defaultTaskRateLimit     = 100
+	defaultAuthRateLimit     = 20
+	defaultUsersRateLimit    = 30
+	defaultRatePeriod        = time.Minute
+)
+
 // Config represents rate limiting configuration
 type Config struct {
 	// Global rate limit settings
@@ -71,8 +83,8 @@ func DefaultConfig() *Config {
 // defaultGlobalRate returns the default global rate limiter configuration.
 func defaultGlobalRate() RateConfig {
 	return RateConfig{
-		Limit:    100,
-		Period:   time.Minute,
+		Limit:    defaultGlobalRateLimit,
+		Period:   defaultRatePeriod,
 		Disabled: false,
 	}
 }
@@ -80,8 +92,8 @@ func defaultGlobalRate() RateConfig {
 // defaultAPIKeyRate returns the default API key rate limiter configuration.
 func defaultAPIKeyRate() RateConfig {
 	return RateConfig{
-		Limit:    100,
-		Period:   time.Minute,
+		Limit:    defaultAPIKeyRateLimit,
+		Period:   defaultRatePeriod,
 		Disabled: false,
 	}
 }
@@ -90,33 +102,33 @@ func defaultAPIKeyRate() RateConfig {
 func defaultRouteRates() map[string]RateConfig {
 	return map[string]RateConfig{
 		routes.Base() + "/memory": {
-			Limit:    200,
-			Period:   time.Minute,
+			Limit:    defaultMemoryRateLimit,
+			Period:   defaultRatePeriod,
 			Disabled: false,
 		},
 		routes.Hooks(): {
-			Limit:    60,
-			Period:   time.Minute,
+			Limit:    defaultHooksRateLimit,
+			Period:   defaultRatePeriod,
 			Disabled: false,
 		},
 		routes.Base() + "/workflow": {
-			Limit:    100,
-			Period:   time.Minute,
+			Limit:    defaultWorkflowRateLimit,
+			Period:   defaultRatePeriod,
 			Disabled: false,
 		},
 		routes.Base() + "/task": {
-			Limit:    100,
-			Period:   time.Minute,
+			Limit:    defaultTaskRateLimit,
+			Period:   defaultRatePeriod,
 			Disabled: false,
 		},
 		routes.Base() + "/auth": {
-			Limit:    20,
-			Period:   time.Minute,
+			Limit:    defaultAuthRateLimit,
+			Period:   defaultRatePeriod,
 			Disabled: false,
 		},
 		routes.Base() + "/users": {
-			Limit:    30,
-			Period:   time.Minute,
+			Limit:    defaultUsersRateLimit,
+			Period:   defaultRatePeriod,
 			Disabled: false,
 		},
 	}
