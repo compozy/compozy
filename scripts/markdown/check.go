@@ -2475,6 +2475,7 @@ func writeGroupedSummaries(groupedDir string, groups map[string][]issueEntry) er
 		}())
 		var sb strings.Builder
 		sb.WriteString(header)
+		sb.WriteString(buildGroupedResolutionChecklist(items))
 		sb.WriteString("## Included Issues\n\n")
 		for _, it := range items {
 			sb.WriteString("- ")
@@ -2493,6 +2494,33 @@ func writeGroupedSummaries(groupedDir string, groups map[string][]issueEntry) er
 		}
 	}
 	return nil
+}
+
+func buildGroupedResolutionChecklist(items []issueEntry) string {
+	var checklist strings.Builder
+	checklist.WriteString("## Resolution Checklist\n\n")
+	checklist.WriteString(
+		"> ⚠️ This grouped issue contains multiple unresolved review tasks for the same source file.\n",
+	)
+	checklist.WriteString("> Resolve **every** task below before treating this file as complete.\n")
+	checklist.WriteString(
+		"> After resolving a task, update the original issue file with " + "`RESOLVED ✓`" + " and run any provided gh command.\n\n",
+	)
+	for _, it := range items {
+		checklist.WriteString("- [ ] Resolve `")
+		checklist.WriteString(it.name)
+		checklist.WriteString("` (source issue: `")
+		checklist.WriteString(normalizeForPrompt(it.absPath))
+		checklist.WriteString("`)\n")
+		checklist.WriteString(
+			"      - Apply the requested code changes and update the issue status to " + "`RESOLVED ✓`" + ".\n",
+		)
+		checklist.WriteString("      - Run the review thread command if a Thread ID is provided.\n")
+	}
+	checklist.WriteString(
+		"- [ ] Document the fixes in this grouped file and tick every checklist item above.\n\n",
+	)
+	return checklist.String()
 }
 
 func normalizeForPrompt(absPath string) string {

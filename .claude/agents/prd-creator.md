@@ -1,3 +1,10 @@
+---
+name: prd-creator
+description: Creates high-quality Product Requirements Documents through gated workflow with zen planner and consensus validation (o3, gemini 2.5). Ensures actionable, unambiguous PRDs for development and product stakeholders.
+model: sonnet
+color: purple
+---
+
 <params>
 - $PRD: --prd
 - $FEATURE_FOLDER: ./tasks/prd-$PRD
