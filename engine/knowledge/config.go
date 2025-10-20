@@ -590,23 +590,10 @@ func validatePGVectorIndex(_ context.Context, vectorID string, idx *PGVectorInde
 
 // validatePGVectorIndexType ensures the pgvector index type is supported.
 func validatePGVectorIndexType(vectorID string, idx *PGVectorIndexConfig) []error {
-	normalized := strings.TrimSpace(strings.ToLower(idx.Type))
-	switch normalized {
-	case "":
-		return nil
-	case string(vectordb.PGVectorIndexIVFFlat):
-		return nil
-	case string(vectordb.PGVectorIndexHNSW):
-		return nil
-	default:
-		return []error{fmt.Errorf(
-			"knowledge: vector_db %q pgvector.index.type %q must be %q or %q",
-			vectorID,
-			idx.Type,
-			vectordb.PGVectorIndexIVFFlat,
-			vectordb.PGVectorIndexHNSW,
-		)}
+	if _, err := vectordb.NormalizePGVectorIndexType(idx.Type); err != nil {
+		return []error{fmt.Errorf("knowledge: vector_db %q %w", vectorID, err)}
 	}
+	return nil
 }
 
 // validatePGVectorIndexParameters validates numerical pgvector index parameters.

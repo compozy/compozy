@@ -55,6 +55,21 @@ func TestLangChainAdapter_ConvertMessages(t *testing.T) {
 		assert.Len(t, messages, 1)
 		assert.Equal(t, llms.ChatMessageTypeHuman, messages[0].Role)
 	})
+
+	t.Run("Should retain empty messages for conversation continuity", func(t *testing.T) {
+		req := LLMRequest{
+			Messages: []Message{
+				{Role: "assistant"},
+			},
+		}
+
+		messages, err := adapter.convertMessages(t.Context(), &req)
+		require.NoError(t, err)
+
+		require.Len(t, messages, 1)
+		assert.Equal(t, llms.ChatMessageTypeAI, messages[0].Role)
+		assert.Len(t, messages[0].Parts, 0)
+	})
 }
 
 func TestLangChainAdapter_ConvertMessages_WithImageParts(t *testing.T) {

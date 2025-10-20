@@ -116,9 +116,16 @@ func (m *Manager) Middleware() gin.HandlerFunc {
 			if m.config.FailOpen {
 				c.Next()
 			} else {
-				c.JSON(500, gin.H{
-					"error":   "Internal server error",
-					"details": "Rate limiting backend unavailable",
+				router.RespondProblem(c, &core.Problem{
+					Status:   http.StatusInternalServerError,
+					Title:    "Rate limit check failed",
+					Detail:   "Rate limiting backend unavailable",
+					Type:     "https://docs.compozy.com/problems/rate-limit-backend-unavailable",
+					Instance: c.FullPath(),
+					Extras: map[string]any{
+						"fail_open": m.config.FailOpen,
+						"key_type":  keyType,
+					},
 				})
 				c.Abort()
 			}

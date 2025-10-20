@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"net/url"
 	"sync"
 	"time"
 
@@ -115,10 +116,26 @@ func pingRedis(ctx context.Context, client redis.UniversalClient, timeout time.D
 
 // logRedisConnection emits a diagnostic message after successful connection.
 func logRedisConnection(ctx context.Context, cfg *Config) {
+	host := cfg.Host
+	port := cfg.Port
+	if cfg.URL != "" {
+		if parsed, err := url.Parse(cfg.URL); err == nil && parsed != nil {
+			if h, p, err := net.SplitHostPort(parsed.Host); err == nil {
+				if h != "" {
+					host = h
+				}
+				if p != "" {
+					port = p
+				}
+			} else if parsed.Host != "" {
+				host = parsed.Host
+			}
+		}
+	}
 	logger.FromContext(ctx).With(
 		"cache_driver", "redis",
-		"host", cfg.Host,
-		"port", cfg.Port,
+		"host", host,
+		"port", port,
 		"db", cfg.DB,
 		"pool_size", cfg.PoolSize,
 		"tls_enabled", cfg.TLSEnabled,

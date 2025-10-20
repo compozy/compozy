@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -109,6 +110,22 @@ func (opts PGVectorIndexOptions) IsValidIndexType() bool {
 		return true // empty is valid, will use default
 	}
 	return opts.Type == PGVectorIndexHNSW || opts.Type == PGVectorIndexIVFFlat
+}
+
+// NormalizePGVectorIndexType trims and lowercases a pgvector index type and validates it.
+func NormalizePGVectorIndexType(value string) (PGVectorIndexType, error) {
+	normalized := PGVectorIndexType(strings.TrimSpace(strings.ToLower(value)))
+	switch normalized {
+	case "", PGVectorIndexIVFFlat, PGVectorIndexHNSW:
+		return normalized, nil
+	default:
+		return "", fmt.Errorf(
+			"pgvector index.type must be one of {%s,%s}: %q",
+			PGVectorIndexIVFFlat,
+			PGVectorIndexHNSW,
+			value,
+		)
+	}
 }
 
 // PGVectorPoolOptions customizes pgxpool behavior.

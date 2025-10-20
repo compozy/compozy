@@ -95,9 +95,29 @@ func executeWorkflowSync(c *gin.Context) {
 	if !ok {
 		return
 	}
+	outcome = completeWorkflowSync(
+		c,
+		repo,
+		workflowID,
+		execID,
+		req.Timeout,
+		metrics,
+		recordError,
+	)
+}
+
+func completeWorkflowSync(
+	c *gin.Context,
+	repo workflow.Repository,
+	workflowID string,
+	execID core.ID,
+	timeout int,
+	metrics *monitoring.ExecutionMetrics,
+	recordError func(int),
+) string {
 	log := logger.FromContext(c.Request.Context())
 	log.Info("Workflow execution started", "workflow_id", workflowID, "exec_id", execID.String())
-	deadline := workflowDeadline(req.Timeout)
+	deadline := workflowDeadline(timeout)
 	stateResult, timedOut, pollErr := waitForWorkflowCompletion(
 		c.Request.Context(),
 		repo,
@@ -118,10 +138,8 @@ func executeWorkflowSync(c *gin.Context) {
 		recordError,
 	)
 	if handled {
-		outcome = newOutcome
-		return
+		return newOutcome
 	}
-	outcome = newOutcome
 	summary := router.NewUsageSummary(stateResult.Usage)
 	response := WorkflowSyncResponse{
 		Workflow: newWorkflowExecutionDTO(stateResult, summary),
@@ -129,6 +147,7 @@ func executeWorkflowSync(c *gin.Context) {
 		ExecID:   execID.String(),
 	}
 	router.RespondOK(c, "workflow execution completed", response)
+	return newOutcome
 }
 
 func triggerWorkflowSync(

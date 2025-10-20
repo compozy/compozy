@@ -134,9 +134,6 @@ func (a *LangChainAdapter) convertMessages(ctx context.Context, req *LLMRequest)
 		if err != nil {
 			return nil, err
 		}
-		if len(parts) == 0 {
-			continue
-		}
 		messages = append(messages, llms.MessageContent{
 			Role:  a.mapMessageRole(msg.Role),
 			Parts: parts,
@@ -158,7 +155,6 @@ func (a *LangChainAdapter) ensureRequestReady(ctx context.Context, req *LLMReque
 				"Provider does not support native structured output; falling back to prompt-based extraction",
 				"provider", string(a.provider.Provider),
 			)
-		req.Options.ForceJSON = false
 	}
 	return nil
 }
@@ -179,10 +175,18 @@ func (a *LangChainAdapter) parseGenerateError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if a.errorParser == nil {
-		a.errorParser = NewErrorParser(string(a.provider.Provider))
+	a.modelMu.RLock()
+	parser := a.errorParser
+	a.modelMu.RUnlock()
+	if parser == nil {
+		a.modelMu.Lock()
+		if a.errorParser == nil {
+			a.errorParser = NewErrorParser(string(a.provider.Provider))
+		}
+		parser = a.errorParser
+		a.modelMu.Unlock()
 	}
-	if structuredErr := a.errorParser.ParseError(err); structuredErr != nil {
+	if structuredErr := parser.ParseError(err); structuredErr != nil {
 		return structuredErr
 	}
 	return fmt.Errorf(

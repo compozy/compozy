@@ -132,6 +132,9 @@ func (h *responseHandler) injectFinalizeFeedback(
 		return
 	}
 	tail := llmReq.Messages[base:]
+	if len(tail) > 0 {
+		tail = tail[1:]
+	}
 	llmReq.Messages = append(llmReq.Messages[:base:base], feedback)
 	llmReq.Messages = append(llmReq.Messages, tail...)
 }

@@ -68,18 +68,17 @@ func NewActivities(
 ) (*Activities, error) {
 	log := logger.FromContext(ctx)
 	logWorkflowInitialization(log, workflows)
-	celEvaluator, err := newCELEvaluator()
+	celEvaluator, task2Factory, recorder, err := buildActivityDependencies(
+		ctx,
+		templateEngine,
+		workflowRepo,
+		taskRepo,
+		providerMetrics,
+		toolEnv,
+	)
 	if err != nil {
 		return nil, err
 	}
-	task2Factory, err := buildTaskFactory(ctx, templateEngine, workflowRepo, taskRepo)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateToolEnvironment(toolEnv); err != nil {
-		return nil, fmt.Errorf("activities: %w", err)
-	}
-	recorder := ensureProviderRecorder(providerMetrics)
 	acts := newActivitiesInstance(
 		projectConfig,
 		workflows,
@@ -102,6 +101,30 @@ func NewActivities(
 		return nil, err
 	}
 	return acts, nil
+}
+
+// buildActivityDependencies prepares reusable instances required to construct Activities.
+func buildActivityDependencies(
+	ctx context.Context,
+	templateEngine *tplengine.TemplateEngine,
+	workflowRepo workflow.Repository,
+	taskRepo task.Repository,
+	providerMetrics providermetrics.Recorder,
+	toolEnv toolenv.Environment,
+) (*task.CELEvaluator, task2.Factory, providermetrics.Recorder, error) {
+	celEvaluator, err := newCELEvaluator()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	task2Factory, err := buildTaskFactory(ctx, templateEngine, workflowRepo, taskRepo)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := validateToolEnvironment(toolEnv); err != nil {
+		return nil, nil, nil, fmt.Errorf("activities: %w", err)
+	}
+	recorder := ensureProviderRecorder(providerMetrics)
+	return celEvaluator, task2Factory, recorder, nil
 }
 
 // logWorkflowInitialization records workflow identifiers for diagnostics.

@@ -352,6 +352,56 @@ func initializeWorkerComponents(
 	workflows []*wf.Config,
 	toolEnv toolenv.Environment,
 ) (*workerInitResult, error) {
+	deps, err := buildWorkerDependencies(ctx, config, clientConfig, projectConfig, workflows)
+	if err != nil {
+		return nil, err
+	}
+	projectName := ""
+	if projectConfig != nil {
+		projectName = projectConfig.Name
+	}
+	dispatcher := createDispatcher(deps.core.taskQueue, projectName, deps.client)
+	activities, err := prepareWorkerActivities(
+		ctx,
+		config,
+		projectConfig,
+		workflows,
+		deps.core,
+		dispatcher,
+		deps.memoryManager,
+		deps.templateEngine,
+		toolEnv,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &workerInitResult{
+		client:         deps.client,
+		core:           deps.core,
+		mcpRegister:    deps.mcpRegister,
+		templateEngine: deps.templateEngine,
+		memoryManager:  deps.memoryManager,
+		dispatcher:     dispatcher,
+		activities:     activities,
+	}, nil
+}
+
+type workerDependencies struct {
+	client         *Client
+	core           *workerCoreComponents
+	mcpRegister    *mcp.RegisterService
+	templateEngine *tplengine.TemplateEngine
+	memoryManager  *memory.Manager
+}
+
+// buildWorkerDependencies creates the foundational services required by the worker.
+func buildWorkerDependencies(
+	ctx context.Context,
+	config *Config,
+	clientConfig *TemporalConfig,
+	projectConfig *project.Config,
+	workflows []*wf.Config,
+) (*workerDependencies, error) {
 	client, err := createTemporalClient(ctx, clientConfig)
 	if err != nil {
 		return nil, err
@@ -368,33 +418,12 @@ func initializeWorkerComponents(
 	if err != nil {
 		return nil, err
 	}
-	projectName := ""
-	if projectConfig != nil {
-		projectName = projectConfig.Name
-	}
-	dispatcher := createDispatcher(workerCore.taskQueue, projectName, client)
-	activities, err := prepareWorkerActivities(
-		ctx,
-		config,
-		projectConfig,
-		workflows,
-		workerCore,
-		dispatcher,
-		memoryManager,
-		templateEngine,
-		toolEnv,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &workerInitResult{
+	return &workerDependencies{
 		client:         client,
 		core:           workerCore,
 		mcpRegister:    mcpRegister,
 		templateEngine: templateEngine,
 		memoryManager:  memoryManager,
-		dispatcher:     dispatcher,
-		activities:     activities,
 	}, nil
 }
 

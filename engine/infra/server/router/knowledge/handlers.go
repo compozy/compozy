@@ -178,7 +178,7 @@ func upsertKnowledgeBase(c *gin.Context) {
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblemWithCode(c, http.StatusBadRequest, "invalid_if_match", "invalid If-Match header")
 		return
 	}
 	input := &uc.UpsertInput{Project: project, ID: kbID, Body: *body, IfMatch: ifMatch}

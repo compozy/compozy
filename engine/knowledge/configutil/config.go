@@ -277,9 +277,12 @@ func buildPGVectorOptions(
 	}
 	options := &vectordb.PGVectorOptions{}
 	if idx := cfg.Index; idx != nil {
-		trimmedType := vectordb.PGVectorIndexType(strings.TrimSpace(strings.ToLower(idx.Type)))
+		normalizedType, err := vectordb.NormalizePGVectorIndexType(idx.Type)
+		if err != nil {
+			return nil, err
+		}
 		options.Index = vectordb.PGVectorIndexOptions{
-			Type:           trimmedType,
+			Type:           normalizedType,
 			Lists:          idx.Lists,
 			M:              idx.M,
 			EFConstruction: idx.EFConstruction,
@@ -308,11 +311,8 @@ func validatePGVectorOptions(opts *knowledge.PGVectorConfig) error {
 		return nil
 	}
 	if idx := opts.Index; idx != nil {
-		typeName := strings.TrimSpace(strings.ToLower(idx.Type))
-		if typeName != "" &&
-			typeName != string(vectordb.PGVectorIndexIVFFlat) &&
-			typeName != string(vectordb.PGVectorIndexHNSW) {
-			return fmt.Errorf("pgvector index.type must be one of {ivfflat,hnsw}: %q", idx.Type)
+		if _, err := vectordb.NormalizePGVectorIndexType(idx.Type); err != nil {
+			return err
 		}
 		if idx.Lists < 0 {
 			return fmt.Errorf("pgvector index.lists cannot be negative: %d", idx.Lists)

@@ -452,12 +452,12 @@ func (l *providerRateLimiter) release(ctx context.Context, tokens int) {
 		return
 	}
 	if ctx == nil {
+		ctx = context.TODO()
 		logger.FromContext(ctx).Warn(
-			"rate limiter release skipped token wait because context is nil",
+			"rate limiter release received nil context; enforcing token wait with fallback context",
 			"provider", l.provider,
 			"tokens", tokens,
 		)
-		return
 	}
 	if err := l.tokenLimiter.WaitN(ctx, tokens); err != nil {
 		logger.FromContext(ctx).Warn(

@@ -34,7 +34,7 @@ func (v *ActionsValidator) Validate(ctx context.Context) error {
 			return fmt.Errorf("action at index %d is nil", i)
 		}
 		if err := action.Validate(ctx); err != nil {
-			return err
+			return fmt.Errorf("action at index %d: %w", i, err)
 		}
 	}
 	return nil

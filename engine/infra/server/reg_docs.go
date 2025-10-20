@@ -20,9 +20,9 @@ const swaggerModelsExpandDepthCollapsed = -1
 // setupSwaggerAndDocs wires up Swagger UI and the OpenAPI endpoint with the correct runtime prefix.
 func setupSwaggerAndDocs(router *gin.Engine, prefixURL string) {
 	configureSwaggerInfo(prefixURL)
+	registerOpenAPIJSON(router)
 	registerDocsUI(router)
 	registerSwaggerRedirect(router)
-	registerOpenAPIJSON(router)
 }
 
 // configureSwaggerInfo synchronizes the generated swagger metadata with the runtime prefix.
@@ -36,7 +36,7 @@ func configureSwaggerInfo(prefixURL string) {
 func registerDocsUI(router *gin.Engine) {
 	router.GET("/docs/*any", ginSwagger.WrapHandler(
 		swaggerFiles.Handler,
-		ginSwagger.URL("openapi.json"),
+		ginSwagger.URL("/openapi.json"),
 		ginSwagger.InstanceName(docs.SwaggerInfo.InstanceName()),
 		ginSwagger.DefaultModelsExpandDepth(swaggerModelsExpandDepthCollapsed),
 	))
@@ -52,7 +52,6 @@ func registerSwaggerRedirect(router *gin.Engine) {
 // registerOpenAPIJSON exposes the OpenAPI 3.0 document converted from the swagger specification.
 func registerOpenAPIJSON(router *gin.Engine) {
 	router.GET("/openapi.json", openAPIHandler())
-	router.GET("/docs/openapi.json", openAPIHandler())
 }
 
 // openAPIHandler converts the swagger v2 document into OpenAPI v3 on the fly.

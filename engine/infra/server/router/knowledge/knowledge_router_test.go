@@ -171,7 +171,11 @@ func TestKnowledgeUpsertETagPrecondition(t *testing.T) {
 		require.NotEqual(t, etag, newETag)
 		rec3 := putKnowledgeBase(t, r, kbID, update, etag)
 		require.Equal(t, http.StatusPreconditionFailed, rec3.Code)
-		require.Equal(t, "application/problem+json", rec3.Header().Get("Content-Type"))
+		require.True(
+			t,
+			strings.HasPrefix(rec3.Header().Get("Content-Type"), "application/problem+json"),
+			"expected Content-Type to start with application/problem+json",
+		)
 	})
 }
 
@@ -245,7 +249,11 @@ func TestKnowledgeQueryValidation(t *testing.T) {
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusBadRequest, rec.Code)
-		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
+		require.True(
+			t,
+			strings.HasPrefix(rec.Header().Get("Content-Type"), "application/problem+json"),
+			"expected Content-Type to start with application/problem+json",
+		)
 	})
 }
 
@@ -286,7 +294,15 @@ func putKnowledgeBase(
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	if etag != "" {
-		req.Header.Set("If-Match", "\""+etag+"\"")
+		trimmed := strings.TrimSpace(etag)
+		if trimmed != "" {
+			upper := strings.ToUpper(trimmed)
+			if strings.HasPrefix(trimmed, "\"") || strings.HasPrefix(upper, "W/") {
+				req.Header.Set("If-Match", trimmed)
+			} else {
+				req.Header.Set("If-Match", "\""+trimmed+"\"")
+			}
+		}
 	}
 	req = routertest.WithConfig(t, req)
 	rec := httptest.NewRecorder()
@@ -295,7 +311,11 @@ func putKnowledgeBase(
 }
 
 func trimETag(value string) string {
-	return strings.Trim(value, "\"")
+	v := strings.TrimSpace(value)
+	if len(v) >= 2 && (v[0] == 'W' || v[0] == 'w') && v[1] == '/' {
+		v = strings.TrimSpace(v[2:])
+	}
+	return strings.Trim(v, "\"")
 }
 
 func loadKnowledgeSwaggerSubset(t *testing.T, root string) []byte {

@@ -188,6 +188,18 @@ func verifyPoolConnection(
 
 // logStoreInitialization emits a standardized initialization message.
 func logStoreInitialization(ctx context.Context, cfg *Config, maxConns int32, minConns int32) {
+	connectTimeout := cfg.ConnectTimeout
+	if connectTimeout <= 0 {
+		connectTimeout = defaultConnectTimeout
+	}
+	healthCheckPeriod := cfg.HealthCheckPeriod
+	if healthCheckPeriod <= 0 {
+		healthCheckPeriod = defaultHealthCheckPeriod
+	}
+	pingTimeout := cfg.PingTimeout
+	if pingTimeout <= 0 {
+		pingTimeout = defaultPingTimeout
+	}
 	logger.FromContext(ctx).With(
 		"store_driver", "postgres",
 		"host", cfg.Host,
@@ -196,5 +208,8 @@ func logStoreInitialization(ctx context.Context, cfg *Config, maxConns int32, mi
 		"ssl_mode", cfg.SSLMode,
 		"max_conns", maxConns,
 		"min_conns", minConns,
+		"connect_timeout", connectTimeout,
+		"health_check_period", healthCheckPeriod,
+		"ping_timeout", pingTimeout,
 	).Info("Store initialized")
 }
