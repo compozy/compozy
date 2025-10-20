@@ -68,13 +68,14 @@ func (m *Manager) Middleware() gin.HandlerFunc {
 	}
 }
 
-// shouldSkipAuth determines if authentication is disabled at runtime.
+// shouldSkipAuth determines if authentication is disabled using context-backed configuration.
 func (m *Manager) shouldSkipAuth(c *gin.Context) bool {
 	if c.Request.Context().Value(config.ManagerCtxKey) != nil {
 		if cfg := config.FromContext(c.Request.Context()); cfg != nil && !cfg.Server.Auth.Enabled {
 			return true
 		}
 	} else if m.config != nil && !m.config.Server.Auth.Enabled {
+		// This fallback is reserved for tests that inject config directly on the manager.
 		return true
 	}
 	return false

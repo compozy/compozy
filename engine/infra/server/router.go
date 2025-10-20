@@ -156,7 +156,7 @@ func (s *Server) logStartupBanner() {
 	docsURL := fmt.Sprintf("%s/swagger/index.html", httpURL)
 	openapiJSON := fmt.Sprintf("%s/openapi.json", httpURL)
 	hooksURL := fmt.Sprintf("%s%s", httpURL, routes.Hooks())
-	mcp := s.mcpBaseURL
+	mcp := s.mcpBaseURLValue()
 	temporalHP := ""
 	if cfg := config.FromContext(s.ctx); cfg != nil {
 		temporalHP = cfg.Temporal.HostPort

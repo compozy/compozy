@@ -48,7 +48,7 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 			logger.FromContext(ctx).Warn("Failed to stop embedded MCP proxy", "error", err)
 		}
 		s.setMCPReady(false)
-		s.mcpBaseURL = ""
+		s.setMCPBaseURL("")
 		s.onReadinessMaybeChanged("mcp_stopped")
 	}, nil
 }
@@ -156,7 +156,7 @@ func (s *Server) launchMCPServer(ctx context.Context, cfg *config.Config) (*mcpp
 		return nil, "", "", err
 	}
 	baseURL := server.BaseURL()
-	s.mcpBaseURL = baseURL
+	s.setMCPBaseURL(baseURL)
 	return server, driver, baseURL, nil
 }
 

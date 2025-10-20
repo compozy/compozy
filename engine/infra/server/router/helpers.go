@@ -44,14 +44,9 @@ func GetServerAddress(c *gin.Context) string {
 func GetAppState(c *gin.Context) *appstate.State {
 	appState, err := appstate.GetState(c.Request.Context())
 	if err != nil {
-		reqErr := NewRequestError(
-			http.StatusInternalServerError,
-			"failed to get application state",
-			err,
-		)
 		log := logger.FromContext(c.Request.Context())
 		log.Error("Failed to get app state", "error", err)
-		RespondWithError(c, reqErr.StatusCode, reqErr)
+		RespondProblemWithCode(c, http.StatusInternalServerError, ErrInternalCode, "failed to get application state")
 		return nil
 	}
 	return appState
@@ -61,22 +56,17 @@ func GetAppStateWithWorker(c *gin.Context) *appstate.State {
 	state := GetAppState(c)
 	if state == nil {
 		if !c.Writer.Written() {
-			reqErr := NewRequestError(
+			RespondProblemWithCode(
+				c,
 				http.StatusServiceUnavailable,
+				ErrServiceUnavailableCode,
 				ErrMsgAppStateNotInitialized,
-				nil,
 			)
-			RespondWithError(c, reqErr.StatusCode, reqErr)
 		}
 		return nil
 	}
 	if state.Worker == nil {
-		reqErr := NewRequestError(
-			http.StatusServiceUnavailable,
-			ErrMsgWorkerNotRunning,
-			nil,
-		)
-		RespondWithError(c, reqErr.StatusCode, reqErr)
+		RespondProblemWithCode(c, http.StatusServiceUnavailable, ErrServiceUnavailableCode, ErrMsgWorkerNotRunning)
 		return nil
 	}
 	return state
@@ -94,21 +84,28 @@ func GetResourceStore(c *gin.Context) (resources.ResourceStore, bool) {
 	state := GetAppState(c)
 	if state == nil {
 		if !c.Writer.Written() {
-			reqErr := NewRequestError(http.StatusInternalServerError, "application state not initialized", nil)
-			RespondWithError(c, reqErr.StatusCode, reqErr)
+			RespondProblemWithCode(
+				c,
+				http.StatusInternalServerError,
+				ErrInternalCode,
+				"application state not initialized",
+			)
 		}
 		return nil, false
 	}
 	v, ok := state.ResourceStore()
 	if !ok || v == nil {
-		reqErr := NewRequestError(http.StatusServiceUnavailable, "resource store not available", nil)
-		RespondWithError(c, reqErr.StatusCode, reqErr)
+		RespondProblemWithCode(
+			c,
+			http.StatusServiceUnavailable,
+			ErrServiceUnavailableCode,
+			"resource store not available",
+		)
 		return nil, false
 	}
 	rs, ok := v.(resources.ResourceStore)
 	if !ok || rs == nil {
-		reqErr := NewRequestError(http.StatusInternalServerError, "invalid resource store instance", nil)
-		RespondWithError(c, reqErr.StatusCode, reqErr)
+		RespondProblemWithCode(c, http.StatusInternalServerError, ErrInternalCode, "invalid resource store instance")
 		return nil, false
 	}
 	return rs, true
@@ -127,12 +124,7 @@ func GetRequestBody[T any](c *gin.Context) *T {
 func GetURLParam(c *gin.Context, key string) string {
 	param := c.Param(key)
 	if param == "" {
-		reqErr := NewRequestError(
-			http.StatusBadRequest,
-			fmt.Sprintf("%s is required", key),
-			nil,
-		)
-		RespondWithError(c, reqErr.StatusCode, reqErr)
+		RespondProblemWithCode(c, http.StatusBadRequest, ErrBadRequestCode, fmt.Sprintf("%s is required", key))
 		return ""
 	}
 	return param

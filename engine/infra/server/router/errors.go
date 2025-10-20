@@ -19,13 +19,27 @@ var (
 
 // Error codes
 const (
-	ErrInternalCode       = "INTERNAL_ERROR"
-	ErrBadRequestCode     = "BAD_REQUEST"
-	ErrUnauthorizedCode   = "UNAUTHORIZED"
-	ErrForbiddenCode      = "FORBIDDEN"
-	ErrNotFoundCode       = "NOT_FOUND"
-	ErrConflictCode       = "CONFLICT"
-	ErrRequestTimeoutCode = "REQUEST_TIMEOUT"
+	ErrInternalCode           = "INTERNAL_ERROR"
+	ErrBadRequestCode         = "BAD_REQUEST"
+	ErrUnauthorizedCode       = "UNAUTHORIZED"
+	ErrForbiddenCode          = "FORBIDDEN"
+	ErrNotFoundCode           = "NOT_FOUND"
+	ErrConflictCode           = "CONFLICT"
+	ErrRequestTimeoutCode     = "REQUEST_TIMEOUT"
+	ErrServiceUnavailableCode = "SERVICE_UNAVAILABLE"
+)
+
+// Knowledge router specific problem codes.
+const (
+	KnowledgeErrInvalidInputCode   = "invalid_input"
+	KnowledgeErrProjectMissingCode = "project_missing"
+	KnowledgeErrIDMissingCode      = "id_missing"
+	KnowledgeErrIDMismatchCode     = "id_mismatch"
+	KnowledgeErrValidationCode     = "validation_failed"
+	KnowledgeErrNotFoundCode       = "knowledge_not_found"
+	KnowledgeErrAlreadyExistsCode  = "already_exists"
+	KnowledgeErrPreconditionCode   = "precondition_failed"
+	ErrSerializationCode           = "serialization_error"
 )
 
 // Error messages

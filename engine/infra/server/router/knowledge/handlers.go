@@ -14,23 +14,13 @@ import (
 	"github.com/compozy/compozy/engine/knowledge/ingest"
 	"github.com/compozy/compozy/engine/knowledge/uc"
 	resourceutil "github.com/compozy/compozy/engine/resources/utils"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
 const (
 	defaultKnowledgeLimit = 50
 	maxKnowledgeLimit     = 500
-)
-
-const (
-	knowledgeErrInvalidInputCode   = "invalid_input"
-	knowledgeErrProjectMissingCode = "project_missing"
-	knowledgeErrIDMissingCode      = "id_missing"
-	knowledgeErrIDMismatchCode     = "id_mismatch"
-	knowledgeErrValidationCode     = "validation_failed"
-	knowledgeErrNotFoundCode       = "knowledge_not_found"
-	knowledgeErrAlreadyExistsCode  = "already_exists"
-	knowledgeErrPreconditionCode   = "precondition_failed"
 )
 
 // listKnowledgeBases handles GET /knowledge-bases.
@@ -142,11 +132,18 @@ func getKnowledgeBase(c *gin.Context) {
 	}
 	payload, err := core.AsMapDefault(out.KnowledgeBase)
 	if err != nil {
-		router.RespondProblem(c, &core.Problem{
-			Status: http.StatusInternalServerError,
-			Detail: err.Error(),
-			Extras: map[string]any{"code": "serialization_error"},
-		})
+		logger.FromContext(c.Request.Context()).Error(
+			"Failed to serialize knowledge base",
+			"error", err,
+			"project", project,
+			"knowledge_base", kbID,
+		)
+		router.RespondProblemWithCode(
+			c,
+			http.StatusInternalServerError,
+			router.ErrSerializationCode,
+			"failed to serialize response payload",
+		)
 		return
 	}
 	payload["_etag"] = etag
@@ -378,21 +375,26 @@ func respondKnowledgeError(c *gin.Context, err error) {
 	case err == nil:
 		return
 	case errors.Is(err, uc.ErrInvalidInput):
-		router.RespondProblemWithCode(c, http.StatusBadRequest, knowledgeErrInvalidInputCode, err.Error())
+		router.RespondProblemWithCode(c, http.StatusBadRequest, router.KnowledgeErrInvalidInputCode, err.Error())
 	case errors.Is(err, uc.ErrProjectMissing):
-		router.RespondProblemWithCode(c, http.StatusBadRequest, knowledgeErrProjectMissingCode, err.Error())
+		router.RespondProblemWithCode(c, http.StatusBadRequest, router.KnowledgeErrProjectMissingCode, err.Error())
 	case errors.Is(err, uc.ErrIDMissing):
-		router.RespondProblemWithCode(c, http.StatusBadRequest, knowledgeErrIDMissingCode, err.Error())
+		router.RespondProblemWithCode(c, http.StatusBadRequest, router.KnowledgeErrIDMissingCode, err.Error())
 	case errors.Is(err, uc.ErrIDMismatch):
-		router.RespondProblemWithCode(c, http.StatusBadRequest, knowledgeErrIDMismatchCode, err.Error())
+		router.RespondProblemWithCode(c, http.StatusBadRequest, router.KnowledgeErrIDMismatchCode, err.Error())
 	case errors.Is(err, uc.ErrValidationFail):
-		router.RespondProblemWithCode(c, http.StatusBadRequest, knowledgeErrValidationCode, err.Error())
+		router.RespondProblemWithCode(c, http.StatusBadRequest, router.KnowledgeErrValidationCode, err.Error())
 	case errors.Is(err, uc.ErrNotFound):
-		router.RespondProblemWithCode(c, http.StatusNotFound, knowledgeErrNotFoundCode, err.Error())
+		router.RespondProblemWithCode(c, http.StatusNotFound, router.KnowledgeErrNotFoundCode, err.Error())
 	case errors.Is(err, uc.ErrAlreadyExists):
-		router.RespondProblemWithCode(c, http.StatusConflict, knowledgeErrAlreadyExistsCode, err.Error())
+		router.RespondProblemWithCode(c, http.StatusConflict, router.KnowledgeErrAlreadyExistsCode, err.Error())
 	case errors.Is(err, uc.ErrETagMismatch), errors.Is(err, uc.ErrStaleIfMatch):
-		router.RespondProblemWithCode(c, http.StatusPreconditionFailed, knowledgeErrPreconditionCode, err.Error())
+		router.RespondProblemWithCode(
+			c,
+			http.StatusPreconditionFailed,
+			router.KnowledgeErrPreconditionCode,
+			err.Error(),
+		)
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {

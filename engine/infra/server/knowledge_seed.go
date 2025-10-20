@@ -54,12 +54,13 @@ func upsertKnowledgeBases(
 	if projectID == "" {
 		return fmt.Errorf("project name cannot be empty or whitespace-only")
 	}
+	var errs error
 	for i := range refs {
 		if err := ensureKnowledgeBase(ctx, store, upsert, projectID, &refs[i]); err != nil {
-			return err
+			errs = errors.Join(errs, err)
 		}
 	}
-	return nil
+	return errs
 }
 
 // ensureKnowledgeBase creates a knowledge base definition when missing.
@@ -71,10 +72,12 @@ func ensureKnowledgeBase(
 	ref *project.KnowledgeBaseRef,
 ) error {
 	if ref == nil {
+		logger.FromContext(ctx).Debug("Skipping nil knowledge base ref")
 		return nil
 	}
 	id := strings.TrimSpace(ref.Base.ID)
 	if id == "" {
+		logger.FromContext(ctx).Debug("Skipping knowledge base with empty ID", "origin", ref.Origin)
 		return nil
 	}
 	key := resources.ResourceKey{
