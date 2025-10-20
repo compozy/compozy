@@ -46,11 +46,15 @@ func NewCommandPalette() CommandPalette {
 
 // defaultCommands returns the default command set
 func defaultCommands() []Command {
-	commands := make([]Command, 0, 11)
-	commands = append(commands, navigationCommands()...)
-	commands = append(commands, keyCommands()...)
-	commands = append(commands, userCommands()...)
-	commands = append(commands, helpCommands()...)
+	nav := navigationCommands()
+	keys := keyCommands()
+	users := userCommands()
+	help := helpCommands()
+	commands := make([]Command, 0, len(nav)+len(keys)+len(users)+len(help))
+	commands = append(commands, nav...)
+	commands = append(commands, keys...)
+	commands = append(commands, users...)
+	commands = append(commands, help...)
 	return commands
 }
 

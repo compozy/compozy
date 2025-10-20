@@ -8,6 +8,7 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // FileDiscoverer interface for discovering configuration files
@@ -19,6 +20,8 @@ type FileDiscoverer interface {
 type fsDiscoverer struct {
 	root string
 }
+
+var discovererLogger = logger.NewLogger(nil).With("component", "autoload_discoverer")
 
 // NewFileDiscoverer creates a new file discoverer
 func NewFileDiscoverer(root string) FileDiscoverer {
@@ -111,6 +114,8 @@ func (d *fsDiscoverer) combineExcludePatterns(excludes []string) []string {
 func (d *fsDiscoverer) shouldExcludeFile(file string, patterns []string) bool {
 	relFile, err := filepath.Rel(d.root, file)
 	if err != nil {
+		log := discovererLogger.With("root", d.root, "file", file)
+		log.Debug("failed to compute relative path for exclude evaluation", "error", err)
 		return false
 	}
 	relFile = filepath.ToSlash(relFile)

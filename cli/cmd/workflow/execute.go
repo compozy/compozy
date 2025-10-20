@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -278,7 +279,7 @@ func (s *workflowMutateAPIService) Execute(
 	if err != nil {
 		return nil, err
 	}
-	log.Debug("workflow executed successfully", "workflow_id", id, "execution_id", result.ExecutionID)
+	log.Debug("workflow execution requested", "workflow_id", id, "execution_id", result.ExecutionID)
 	return result, nil
 }
 
@@ -305,6 +306,12 @@ func (s *workflowMutateAPIService) requestWorkflowExecution(
 }
 
 func transformWorkflowRequestError(err error) error {
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("request canceled by user")
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("request timed out: context deadline exceeded")
+	}
 	if cliutils.IsNetworkError(err) {
 		return fmt.Errorf("network error: unable to connect to Compozy server: %w", err)
 	}
@@ -326,10 +333,61 @@ func validateExecutionResponse(resp *resty.Response, id core.ID) error {
 		return fmt.Errorf("permission denied: you don't have access to execute this workflow")
 	case 404:
 		return fmt.Errorf("workflow not found: workflow with ID %s does not exist", id)
+	case 400:
+		return apiErrorWithPrefix(resp, code, "invalid request")
+	case 409:
+		return apiErrorWithPrefix(resp, code, "conflict")
+	case 422:
+		return apiErrorWithPrefix(resp, code, "unprocessable entity")
+	case 429:
+		return fmt.Errorf("rate limit exceeded: please retry later")
 	default:
 		if code >= 500 {
 			return fmt.Errorf("server error (status %d): try again later", code)
 		}
-		return fmt.Errorf("API error: %s (status %d)", resp.String(), code)
+		if msg := parseAPIError(resp); msg != "" {
+			return fmt.Errorf("API error: %s (status %d)", msg, code)
+		}
+		return fmt.Errorf("API error (status %d)", code)
 	}
+}
+
+func apiErrorWithPrefix(resp *resty.Response, code int, prefix string) error {
+	if msg := parseAPIError(resp); msg != "" {
+		return fmt.Errorf("%s: %s (status %d)", prefix, msg, code)
+	}
+	return fmt.Errorf("%s (status %d)", prefix, code)
+}
+
+func parseAPIError(resp *resty.Response) string {
+	if resp == nil {
+		return ""
+	}
+	body := resp.Body()
+	if len(body) == 0 {
+		return ""
+	}
+	var envelope struct {
+		Error   string          `json:"error"`
+		Message string          `json:"message"`
+		Details json.RawMessage `json:"details"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return ""
+	}
+	message := strings.TrimSpace(envelope.Error)
+	if message == "" {
+		message = strings.TrimSpace(envelope.Message)
+	}
+	if message == "" {
+		return ""
+	}
+	if len(envelope.Details) == 0 || string(envelope.Details) == "null" {
+		return message
+	}
+	var details string
+	if err := json.Unmarshal(envelope.Details, &details); err == nil && strings.TrimSpace(details) != "" {
+		return fmt.Sprintf("%s: %s", message, strings.TrimSpace(details))
+	}
+	return message
 }

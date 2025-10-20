@@ -15,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/fsnotify/fsnotify"
 )
 
 // OutputWriter handles different output formats
@@ -213,37 +214,29 @@ func WatchFile(ctx context.Context, path string, callback func([]byte) error) er
 	if err := validateWatchFilePath(path); err != nil {
 		return err
 	}
+	if callback == nil {
+		return NewCliError("INVALID_CALLBACK", "callback cannot be nil")
+	}
 	log := logger.FromContext(ctx)
 	log.Info("watching file for changes", "file", path)
 	if err := readAndNotify(ctx, path, callback); err != nil {
 		return err
 	}
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	lastModTime, err := fileModTime(path)
-	if err != nil {
+	if err := watchFileWithFSNotify(ctx, path, callback, log); err != nil {
+		if errors.Is(err, errFSNotifyUnavailable) || errors.Is(err, errFSNotifyClosed) {
+			log.Warn("fsnotify unavailable, falling back to polling", "file", path, "error", err)
+			return watchFileWithTicker(ctx, path, callback)
+		}
 		return err
 	}
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			updated, modTime, err := processFileChange(ctx, path, callback, lastModTime)
-			if err != nil {
-				if errors.Is(err, errFileMissing) {
-					continue
-				}
-				return err
-			}
-			if updated {
-				lastModTime = modTime
-			}
-		}
-	}
+	return nil
 }
 
+const defaultWatchInterval = time.Second
+
 var errFileMissing = errors.New("file missing")
+var errFSNotifyUnavailable = errors.New("fsnotify unavailable")
+var errFSNotifyClosed = errors.New("fsnotify watcher closed unexpectedly")
 
 func validateWatchFilePath(path string) error {
 	if path != "" {
@@ -296,13 +289,130 @@ func processFileChange(
 	data, err := ReadFile(path)
 	if err != nil {
 		log.Error("failed to read changed file", "file", path, "error", err)
-		return false, lastModTime, nil
+		return false, lastModTime, err
 	}
 	if err := callback(data); err != nil {
 		log.Error("callback failed for file change", "file", path, "error", err)
-		return false, lastModTime, nil
+		return false, lastModTime, fmt.Errorf("watch callback failed: %w", err)
 	}
 	return true, modTime, nil
+}
+
+func watchFileWithTicker(ctx context.Context, path string, callback func([]byte) error) error {
+	ticker := time.NewTicker(defaultWatchInterval)
+	defer ticker.Stop()
+	lastModTime, err := fileModTime(path)
+	if err != nil {
+		return err
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			updated, modTime, err := processFileChange(ctx, path, callback, lastModTime)
+			if err != nil {
+				if errors.Is(err, errFileMissing) {
+					continue
+				}
+				return err
+			}
+			if updated {
+				lastModTime = modTime
+			}
+		}
+	}
+}
+
+func watchFileWithFSNotify(
+	ctx context.Context,
+	path string,
+	callback func([]byte) error,
+	log logger.Logger,
+) error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("%w: %v", errFSNotifyUnavailable, err)
+	}
+	defer watcher.Close()
+	dir := filepath.Dir(path)
+	if dir == "" {
+		dir = "."
+	}
+	if err := watcher.Add(dir); err != nil {
+		return fmt.Errorf("%w: %v", errFSNotifyUnavailable, err)
+	}
+	lastModTime, err := fileModTime(path)
+	if err != nil {
+		return err
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return errFSNotifyClosed
+			}
+			var err error
+			lastModTime, err = handleFSNotifyEvent(ctx, path, callback, lastModTime, event)
+			if err != nil {
+				if errors.Is(err, errFileMissing) {
+					continue
+				}
+				return err
+			}
+		case watchErr, ok := <-watcher.Errors:
+			if err := handleFSNotifyError(log, path, watchErr, ok); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func eventMatchesFile(event fsnotify.Event, target string) bool {
+	if event.Name == "" {
+		return false
+	}
+	cleanEvent := filepath.Clean(event.Name)
+	cleanTarget := filepath.Clean(target)
+	if cleanEvent != cleanTarget {
+		return false
+	}
+	if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) || event.Has(fsnotify.Rename) {
+		return true
+	}
+	return false
+}
+
+func handleFSNotifyEvent(
+	ctx context.Context,
+	path string,
+	callback func([]byte) error,
+	lastModTime time.Time,
+	event fsnotify.Event,
+) (time.Time, error) {
+	if !eventMatchesFile(event, path) {
+		return lastModTime, nil
+	}
+	updated, modTime, err := processFileChange(ctx, path, callback, lastModTime)
+	if err != nil {
+		return lastModTime, err
+	}
+	if updated {
+		return modTime, nil
+	}
+	return lastModTime, nil
+}
+
+func handleFSNotifyError(log logger.Logger, path string, watchErr error, ok bool) error {
+	if !ok {
+		return errFSNotifyClosed
+	}
+	if watchErr != nil {
+		log.Error("file watcher error", "file", path, "error", watchErr)
+	}
+	return nil
 }
 
 // ReadJSONFile reads and parses a JSON file
