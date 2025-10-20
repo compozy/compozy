@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -54,7 +55,7 @@ type Redis struct {
 	ctx    context.Context
 }
 
-const fallbackRedisPingTimeout = 10 * time.Second
+const fallbackRedisPingTimeout time.Duration = 10 * time.Second
 
 // NewRedis creates a new Redis client with the provided configuration.
 func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
@@ -94,7 +95,7 @@ func buildRedisClient(cfg *Config) (redis.UniversalClient, error) {
 		return redis.NewClient(opt), nil
 	}
 	opt := &redis.Options{
-		Addr:     fmt.Sprintf(`%s:%s`, cfg.Host, cfg.Port),
+		Addr:     net.JoinHostPort(cfg.Host, cfg.Port),
 		Password: cfg.Password,
 		DB:       cfg.DB,
 	}
@@ -107,7 +108,7 @@ func pingRedis(ctx context.Context, client redis.UniversalClient, timeout time.D
 	pingCtx, pingCancel := context.WithTimeout(ctx, timeout)
 	defer pingCancel()
 	if err := client.Ping(pingCtx).Err(); err != nil {
-		return fmt.Errorf("pinging Redis server: %w", err)
+		return fmt.Errorf("pinging Redis server (timeout=%s): %w", timeout, err)
 	}
 	return nil
 }

@@ -74,7 +74,7 @@ func BuildProblemBody(problem *Problem) map[string]any {
 
 func isReservedProblemKey(key string) bool {
 	switch key {
-	case "status", "error", "details", "code", "type", "instance":
+	case "status", "error", "detail", "details", "code", "type", "instance":
 		return true
 	default:
 		return false

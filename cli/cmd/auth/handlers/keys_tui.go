@@ -16,9 +16,13 @@ import (
 
 const (
 	defaultGeneratedSummaryWidth = 60    // width of the generated summary card
+	minGeneratedSummaryWidth     = 20    // minimum width to keep layout readable
+	summaryWidthMargin           = 4     // extra space to account for border/padding
+	defaultPartialKeyPrefixLen   = 16    // number of chars to reveal from the key
 	generatedSummaryBorderColor  = "69"  // accent color for summary borders
 	generatedSummaryKeyColor     = "214" // highlight color for partial key
 	generatedSummaryInfoColor    = "241" // muted tone for advisory text
+	generatedSummaryErrorColor   = "196" // error/accent color for failure states
 )
 
 // GenerateTUI handles the key generation in TUI mode
@@ -160,7 +164,7 @@ func (m *generateModel) View() string {
 
 func renderKeyGenerationError(err error) string {
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("196")).
+		Foreground(lipgloss.Color(generatedSummaryErrorColor)).
 		Render(fmt.Sprintf("❌ Error: %v", err))
 }
 
@@ -169,11 +173,21 @@ func renderGeneratingMessage(spinnerView string) string {
 }
 
 func renderGeneratedSummary(m *generateModel) string {
+	width := defaultGeneratedSummaryWidth
+	if m.width > 0 {
+		available := m.width - summaryWidthMargin
+		if available < width {
+			width = available
+			if width < minGeneratedSummaryWidth {
+				width = minGeneratedSummaryWidth
+			}
+		}
+	}
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(generatedSummaryBorderColor)).
 		Padding(1, 2).
-		Width(defaultGeneratedSummaryWidth)
+		Width(width)
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(generatedSummaryBorderColor))
@@ -182,7 +196,7 @@ func renderGeneratedSummary(m *generateModel) string {
 		Bold(true)
 	content := titleStyle.Render("✅ API Key Generated Successfully!") + "\n\n"
 	partialKey := renderPartialKey(m.apiKey)
-	content += "Your new API key (showing first 16 chars):\n"
+	content += fmt.Sprintf("Your new API key (showing first %d chars):\n", defaultPartialKeyPrefixLen)
 	content += keyStyle.Render(partialKey) + "\n\n"
 	content += renderClipboardStatus(m.clipboardCopied)
 	content += renderKeyMetadata(m)
@@ -194,8 +208,8 @@ func renderGeneratedSummary(m *generateModel) string {
 }
 
 func renderPartialKey(apiKey string) string {
-	if len(apiKey) > 16 {
-		return apiKey[:16] + "..."
+	if len(apiKey) > defaultPartialKeyPrefixLen {
+		return apiKey[:defaultPartialKeyPrefixLen] + "..."
 	}
 	return apiKey
 }

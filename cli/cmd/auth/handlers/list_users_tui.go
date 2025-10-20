@@ -197,9 +197,9 @@ func (m *listUsersModel) applyFilters(users []api.UserInfo) []api.UserInfo {
 			}
 		}
 
-		// TODO: Apply active filter when KeyCount field is available
-		// For now, include all users when active filter is requested
-		_ = m.activeOnly // Prevent unused variable warning
+		if m.activeOnly && !isUserActive(&user) {
+			continue
+		}
 
 		filtered = append(filtered, user)
 	}

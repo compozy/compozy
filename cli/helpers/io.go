@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/cli/tui/models"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/fsnotify/fsnotify"
 )
@@ -232,7 +233,15 @@ func WatchFile(ctx context.Context, path string, callback func([]byte) error) er
 	return nil
 }
 
-const defaultWatchInterval = time.Second
+const defaultWatchInterval time.Duration = time.Second
+
+func resolveWatchInterval(ctx context.Context) time.Duration {
+	cfg := config.FromContext(ctx)
+	if cfg != nil && cfg.CLI.FileWatchInterval > 0 {
+		return cfg.CLI.FileWatchInterval
+	}
+	return defaultWatchInterval
+}
 
 var errFileMissing = errors.New("file missing")
 var errFSNotifyUnavailable = errors.New("fsnotify unavailable")
@@ -299,11 +308,17 @@ func processFileChange(
 }
 
 func watchFileWithTicker(ctx context.Context, path string, callback func([]byte) error) error {
-	ticker := time.NewTicker(defaultWatchInterval)
+	interval := resolveWatchInterval(ctx)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	lastModTime, err := fileModTime(path)
 	if err != nil {
-		return err
+		if errors.Is(err, errFileMissing) {
+			logger.FromContext(ctx).Debug("file not found; waiting for creation", "file", path)
+			lastModTime = time.Time{}
+		} else {
+			return err
+		}
 	}
 	for {
 		select {
@@ -313,6 +328,7 @@ func watchFileWithTicker(ctx context.Context, path string, callback func([]byte)
 			updated, modTime, err := processFileChange(ctx, path, callback, lastModTime)
 			if err != nil {
 				if errors.Is(err, errFileMissing) {
+					lastModTime = time.Time{}
 					continue
 				}
 				return err
@@ -344,7 +360,12 @@ func watchFileWithFSNotify(
 	}
 	lastModTime, err := fileModTime(path)
 	if err != nil {
-		return err
+		if errors.Is(err, errFileMissing) {
+			log.Debug("file not found; waiting for creation", "file", path)
+			lastModTime = time.Time{}
+		} else {
+			return err
+		}
 	}
 	for {
 		select {
@@ -358,6 +379,7 @@ func watchFileWithFSNotify(
 			lastModTime, err = handleFSNotifyEvent(ctx, path, callback, lastModTime, event)
 			if err != nil {
 				if errors.Is(err, errFileMissing) {
+					lastModTime = time.Time{}
 					continue
 				}
 				return err

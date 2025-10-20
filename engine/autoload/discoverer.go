@@ -1,6 +1,7 @@
 package autoload
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -13,7 +14,7 @@ import (
 
 // FileDiscoverer interface for discovering configuration files
 type FileDiscoverer interface {
-	Discover(includes, excludes []string) ([]string, error)
+	Discover(ctx context.Context, includes, excludes []string) ([]string, error)
 }
 
 // fsDiscoverer implements FileDiscoverer using the filesystem
@@ -21,15 +22,13 @@ type fsDiscoverer struct {
 	root string
 }
 
-var discovererLogger = logger.NewLogger(nil).With("component", "autoload_discoverer")
-
 // NewFileDiscoverer creates a new file discoverer
 func NewFileDiscoverer(root string) FileDiscoverer {
 	return &fsDiscoverer{root: root}
 }
 
 // Discover finds all files matching include patterns and filters out exclude patterns
-func (d *fsDiscoverer) Discover(includes, excludes []string) ([]string, error) {
+func (d *fsDiscoverer) Discover(ctx context.Context, includes, excludes []string) ([]string, error) {
 	if len(includes) == 0 {
 		return []string{}, nil
 	}
@@ -63,7 +62,7 @@ func (d *fsDiscoverer) Discover(includes, excludes []string) ([]string, error) {
 	for file := range discoveredFiles {
 		files = append(files, file)
 	}
-	files = d.applyExcludes(files, excludes)
+	files = d.applyExcludes(ctx, files, excludes)
 	return files, nil
 }
 
@@ -80,14 +79,14 @@ func (d *fsDiscoverer) validatePattern(pattern string) error {
 }
 
 // applyExcludes filters out files matching exclude patterns
-func (d *fsDiscoverer) applyExcludes(files []string, excludes []string) []string {
+func (d *fsDiscoverer) applyExcludes(ctx context.Context, files []string, excludes []string) []string {
 	patterns := d.combineExcludePatterns(excludes)
 	if len(patterns) == 0 {
 		return files
 	}
 	filtered := make([]string, 0, len(files))
 	for _, file := range files {
-		if d.shouldExcludeFile(file, patterns) {
+		if d.shouldExcludeFile(ctx, file, patterns) {
 			continue
 		}
 		filtered = append(filtered, file)
@@ -111,10 +110,10 @@ func (d *fsDiscoverer) combineExcludePatterns(excludes []string) []string {
 }
 
 // shouldExcludeFile determines whether a file matches any exclude pattern.
-func (d *fsDiscoverer) shouldExcludeFile(file string, patterns []string) bool {
+func (d *fsDiscoverer) shouldExcludeFile(ctx context.Context, file string, patterns []string) bool {
 	relFile, err := filepath.Rel(d.root, file)
 	if err != nil {
-		log := discovererLogger.With("root", d.root, "file", file)
+		log := logger.FromContext(ctx).With("component", "autoload_discoverer", "root", d.root, "file", file)
 		log.Debug("failed to compute relative path for exclude evaluation", "error", err)
 		return false
 	}

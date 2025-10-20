@@ -53,6 +53,7 @@ swagger.yaml
 ehthumbs.db
 Thumbs.db
 
+.claude/agents/**
 .claude/commands/**
 .cursor/rules/**
 

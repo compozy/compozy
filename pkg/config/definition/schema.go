@@ -2063,6 +2063,14 @@ func registerCLIPortReleaseFlags(registry *Registry) {
 			Type:    durationType,
 			Help:    "How often to check if a port has become available",
 		},
+		FieldDef{
+			Path:    "cli.file_watch_interval",
+			Default: 1 * time.Second,
+			CLIFlag: "file-watch-interval",
+			EnvVar:  "COMPOZY_FILE_WATCH_INTERVAL",
+			Type:    durationType,
+			Help:    "Polling interval for CLI file watching fallback when fsnotify support is unavailable",
+		},
 	)
 }
 

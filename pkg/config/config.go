@@ -1558,6 +1558,12 @@ type CLIConfig struct {
 	// Default: 100ms
 	PortReleasePollInterval time.Duration `koanf:"port_release_poll_interval" env:"COMPOZY_PORT_RELEASE_POLL_INTERVAL" json:"PortReleasePollInterval" yaml:"port_release_poll_interval" mapstructure:"port_release_poll_interval" validate:"min=0"`
 
+	// FileWatchInterval controls the polling cadence when filesystem notifications are unavailable.
+	//
+	// Default: 1s
+	// Set to 0 to use the built-in default.
+	FileWatchInterval time.Duration `koanf:"file_watch_interval" env:"COMPOZY_FILE_WATCH_INTERVAL" json:"FileWatchInterval" yaml:"file_watch_interval" mapstructure:"file_watch_interval" validate:"min=0"`
+
 	// MaxRetries sets the maximum retry attempts for CLI HTTP requests.
 	// Default: 3. Set to a non-negative value; 0 reverts to the default and negative disables retries.
 	MaxRetries int `koanf:"max_retries" env:"COMPOZY_MAX_RETRIES" json:"MaxRetries" yaml:"max_retries" mapstructure:"max_retries"`

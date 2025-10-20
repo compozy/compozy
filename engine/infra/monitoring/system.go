@@ -187,7 +187,6 @@ func resetSystemMetrics(ctx context.Context) {
 	systemInitOnce = sync.Once{}
 	buildInfoOnce = sync.Once{}
 	buildInfoCache = atomic.Pointer[buildInfoData]{}
-	buildInfoCache.Store(nil)
 }
 
 // ResetSystemMetricsForTesting resets the system metrics initialization state for testing

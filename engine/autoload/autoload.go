@@ -174,7 +174,7 @@ func (al *AutoLoader) LoadWithResult(ctx context.Context) (*LoadResult, error) {
 // discoverFiles handles file discovery and returns the list of files to process
 func (al *AutoLoader) discoverFiles(ctx context.Context) ([]string, error) {
 	log := logger.FromContext(ctx)
-	files, err := al.discoverer.Discover(al.config.Include, al.config.Exclude)
+	files, err := al.discoverer.Discover(ctx, al.config.Include, al.config.Exclude)
 	if err != nil {
 		log.Error(
 			"File discovery failed",
@@ -385,8 +385,8 @@ func (al *AutoLoader) logCompletionStats(ctx context.Context, startTime time.Tim
 }
 
 // Discover returns the list of files that would be loaded
-func (al *AutoLoader) Discover(_ context.Context) ([]string, error) {
-	return al.discoverer.Discover(al.config.Include, al.config.Exclude)
+func (al *AutoLoader) Discover(ctx context.Context) ([]string, error) {
+	return al.discoverer.Discover(ctx, al.config.Include, al.config.Exclude)
 }
 
 // GetRegistry returns the config registry
@@ -509,7 +509,7 @@ func (al *AutoLoader) canonicalizeProjectRoot() (string, error) {
 
 // normalizeComparablePaths prepares file and project paths for comparisons on all OSes.
 func normalizeComparablePaths(filePath string, projectPath string) (string, string) {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
 		return strings.ToLower(filePath), strings.ToLower(projectPath)
 	}
 	return filePath, projectPath

@@ -38,7 +38,7 @@ func NewList(store resources.ResourceStore) *List {
 }
 
 func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error) {
-	projectID, err := uc.normalizeListInput(in)
+	projectID, err := normalizeListInput(in)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 	if err != nil {
 		return nil, err
 	}
-	filtered := uc.applyAgentFilters(items, strings.TrimSpace(in.Prefix), filterIDs)
+	filtered := applyAgentFilters(items, strings.TrimSpace(in.Prefix), filterIDs)
 	window, nextValue, nextDir, prevValue, prevDir := resourceutil.ApplyCursorWindow(
 		filtered,
 		strings.TrimSpace(in.CursorValue),
@@ -72,7 +72,7 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 	}, nil
 }
 
-func (uc *List) normalizeListInput(in *ListInput) (string, error) {
+func normalizeListInput(in *ListInput) (string, error) {
 	if in == nil {
 		return "", fmt.Errorf("input cannot be nil: %w", ErrInvalidInput)
 	}
@@ -99,7 +99,7 @@ func (uc *List) workflowFilter(ctx context.Context, projectID, workflowID string
 	return filters, nil
 }
 
-func (uc *List) applyAgentFilters(
+func applyAgentFilters(
 	items []resources.StoredItem,
 	prefix string,
 	allow map[string]struct{},

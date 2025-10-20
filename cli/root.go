@@ -45,13 +45,13 @@ func SetupGlobalConfig(cmd *cobra.Command) error {
 	if err := helpers.LoadEnvironmentFile(cmd); err != nil {
 		return fmt.Errorf("failed to load environment file: %w", err)
 	}
-	ctx := commandContext(cmd)
+	ctx := cmd.Context()
 	cliFlags, err := helpers.ExtractCLIFlags(cmd)
 	if err != nil {
 		return fmt.Errorf("failed to extract CLI flags: %w", err)
 	}
 	sources := buildConfigSources(cmd, cliFlags)
-	_, newCtx, err := loadConfigManager(ctx, sources)
+	newCtx, err := loadConfigManager(ctx, sources)
 	if err != nil {
 		return err
 	}
@@ -147,10 +147,6 @@ func buildVersionCommand() *cobra.Command {
 	}
 }
 
-func commandContext(cmd *cobra.Command) context.Context {
-	return cmd.Context()
-}
-
 func buildConfigSources(cmd *cobra.Command, cliFlags map[string]any) []config.Source {
 	sources := []config.Source{
 		config.NewDefaultProvider(),
@@ -181,13 +177,13 @@ func resolveConfigFile(cmd *cobra.Command) string {
 	return ""
 }
 
-func loadConfigManager(ctx context.Context, sources []config.Source) (*config.Manager, context.Context, error) {
+func loadConfigManager(ctx context.Context, sources []config.Source) (context.Context, error) {
 	mgr := config.NewManager(ctx, nil)
 	if _, err := mgr.Load(ctx, sources...); err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize configuration: %w", err)
+		return nil, fmt.Errorf("failed to initialize configuration: %w", err)
 	}
 	ctx = config.ContextWithManager(ctx, mgr)
-	return mgr, ctx, nil
+	return ctx, nil
 }
 
 func attachLogger(ctx context.Context, cfg *config.Config) context.Context {

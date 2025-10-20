@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
@@ -13,10 +14,11 @@ import (
 )
 
 const (
-	sortName    = "name"
-	sortEmail   = "email"
-	sortRole    = "role"
-	sortCreated = "created"
+	sortName                                = "name"
+	sortEmail                               = "email"
+	sortRole                                = "role"
+	sortCreated                             = "created"
+	defaultActiveUserDuration time.Duration = 30 * 24 * time.Hour
 )
 
 // userFilters holds the parsed command line flags for user filtering
@@ -98,8 +100,6 @@ func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserIn
 			continue
 		}
 
-		// TODO: Apply active filter - currently based on user activity heuristics
-		// In the future, this will use KeyCount field when available from API
 		if filters.activeOnly && !isUserActive(&user) {
 			continue
 		}
@@ -124,28 +124,44 @@ func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserIn
 }
 
 // isUserActive determines if a user is considered active based on available data.
-// This is a heuristic implementation until KeyCount field is available from API.
-// Currently considers a user active if they have recent activity or are admin users.
+// This is a heuristic implementation until richer activity signals are available from the API.
 func isUserActive(user *api.UserInfo) bool {
 	if user.Role == roleAdmin {
 		return true
 	}
-	// TODO: For regular users, we use creation time as a proxy for activity
-	// This is a temporary heuristic until proper activity tracking is implemented
-	// Users created within the last 30 days are considered active
-	if user.CreatedAt != "" {
-		return isRecentlyCreated(user.CreatedAt)
+	if isWithinActiveWindow(user.UpdatedAt) {
+		return true
+	}
+	if isWithinActiveWindow(user.CreatedAt) {
+		return true
 	}
 	return false
 }
 
-// isRecentlyCreated checks if a user was created within the last 30 days
-func isRecentlyCreated(_ string) bool {
-	// TODO: This is a simplified check - in practice, you'd parse the timestamp
-	// and compare with current time. For now, return true to avoid filtering
-	// until proper activity tracking is implemented
-	// TODO(auth-activity): Replace this placeholder once timestamp parsing and activity signals are available.
-	return true
+// isWithinActiveWindow reports whether the timestamp falls within the active user window.
+func isWithinActiveWindow(timestamp string) bool {
+	ts, ok := parseAPITimestamp(timestamp)
+	if !ok {
+		return false
+	}
+	now := time.Now().UTC()
+	if ts.After(now) {
+		return true
+	}
+	return now.Sub(ts) <= defaultActiveUserDuration
+}
+
+func parseAPITimestamp(value string) (time.Time, bool) {
+	if value == "" {
+		return time.Time{}, false
+	}
+	layouts := []string{time.RFC3339Nano, time.RFC3339}
+	for _, layout := range layouts {
+		if ts, err := time.Parse(layout, value); err == nil {
+			return ts, true
+		}
+	}
+	return time.Time{}, false
 }
 
 // isValidSortField checks if the sort field is valid
