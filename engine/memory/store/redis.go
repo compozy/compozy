@@ -32,7 +32,6 @@ func NewRedisMemoryStore(client cache.RedisInterface, keyPrefix string) *RedisMe
 	// "compozy:{project_id}:memory:{user_defined_key}"
 	keyManager := NewKeyManager(keyPrefix)
 	ttlOps := NewTTLOperations(keyManager, client)
-
 	return &RedisMemoryStore{
 		client:     client,
 		keyManager: keyManager,
@@ -119,7 +118,6 @@ func (s *RedisMemoryStore) ReadMessages(ctx context.Context, key string) ([]llm.
 	if err != nil {
 		return nil, fmt.Errorf("failed to read messages from redis for key %s: %w", fKey, err)
 	}
-
 	messages := make([]llm.Message, 0, len(vals))
 	for _, val := range vals {
 		var msg llm.Message

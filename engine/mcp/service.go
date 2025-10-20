@@ -66,7 +66,6 @@ func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
 	if len(def.Headers) > 0 {
 		log.Debug("Registering MCP with headers", "mcp_id", config.ID, "headers", core.RedactHeaders(def.Headers))
 	}
-
 	// Register with proxy
 	if err := s.proxy.Register(ctx, &def); err != nil {
 		return fmt.Errorf("failed to register MCP with proxy: %w", err)
@@ -85,11 +84,9 @@ func (s *RegisterService) Deregister(ctx context.Context, mcpID string) error {
 	if err := s.proxy.Deregister(ctx, mcpID); err != nil {
 		return fmt.Errorf("failed to deregister MCP from proxy: %w", err)
 	}
-
 	s.registeredMu.Lock()
 	delete(s.registered, mcpID)
 	s.registeredMu.Unlock()
-
 	log.Info("Successfully deregistered MCP from proxy", "mcp_id", mcpID)
 	return nil
 }
@@ -646,24 +643,20 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 	if service == nil {
 		return nil, nil
 	}
-
 	allMCPs := CollectWorkflowMCPs(ctx, workflows)
 	if len(allMCPs) == 0 {
 		return service, nil
 	}
-
 	log.Info("Registering MCPs and waiting for connections", "mcp_count", len(allMCPs))
 	service.deregisterExistingMCPs(ctx, allMCPs)
 	if err := service.EnsureMultiple(ctx, allMCPs); err != nil {
 		return service, err
 	}
-
 	clientNames := extractMCPClientNames(allMCPs)
 	timeout, pollInterval := readinessTimings(ctx)
 	if err := service.waitForConnections(ctx, clientNames, timeout, pollInterval); err != nil {
 		return service, err
 	}
-
 	log.Info("All MCP clients connected", "count", len(clientNames))
 	return service, nil
 }
@@ -749,7 +742,6 @@ func setupRegisterServiceFromApp(ctx context.Context) *RegisterService {
 func CollectWorkflowMCPs(ctx context.Context, workflows []WorkflowConfig) []Config {
 	seen := make(map[string]bool)
 	var allMCPs []Config
-
 	for _, workflow := range workflows {
 		mcps := workflow.GetMCPs()
 		for i := range mcps {
@@ -764,6 +756,5 @@ func CollectWorkflowMCPs(ctx context.Context, workflows []WorkflowConfig) []Conf
 			}
 		}
 	}
-
 	return allMCPs
 }

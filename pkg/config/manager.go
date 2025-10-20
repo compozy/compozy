@@ -50,16 +50,13 @@ func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) 
 	m.reloadMu.Lock()
 	m.sources = append([]Source(nil), sources...)
 	m.reloadMu.Unlock()
-
 	// Initial load
 	config, err := m.Service.Load(ctx, sources...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
-
 	// Apply configuration atomically and notify callbacks
 	m.applyConfig(config)
-
 	// Rebind internal watch context to a non-canceling derivative of the caller's context
 	if ctx != nil {
 		// Cancel any existing watcher ctx to prevent leaks
@@ -80,10 +77,8 @@ func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) 
 		m.watchWg = &errgroup.Group{}
 		m.watchMu.Unlock()
 	}
-
 	// Start watching sources that support it
 	m.startWatching(sources)
-
 	return config, nil
 }
 
@@ -116,21 +111,17 @@ func (m *Manager) Get() *Config {
 func (m *Manager) Reload(ctx context.Context) error {
 	m.reloadMu.Lock()
 	defer m.reloadMu.Unlock()
-
 	// Load configuration from sources
 	newConfig, err := m.Service.Load(ctx, m.sources...)
 	if err != nil {
 		return fmt.Errorf("failed to reload configuration: %w", err)
 	}
-
 	// Validate the new configuration before applying
 	if err := m.Service.Validate(newConfig); err != nil {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
-
 	// Apply the new configuration atomically
 	m.applyConfig(newConfig)
-
 	return nil
 }
 
@@ -178,7 +169,6 @@ func (m *Manager) Close(ctx context.Context) error {
 			}
 		}
 	})
-
 	return nil
 }
 
@@ -221,18 +211,15 @@ func (m *Manager) applyConfig(config *Config) {
 	// Store new configuration atomically
 	oldConfig := m.Get()
 	m.current.Store(config)
-
 	// Skip callbacks if configuration hasn't changed
 	if oldConfig != nil && configEqual(oldConfig, config) {
 		return
 	}
-
 	// Get callbacks under lock
 	m.callbackMu.RLock()
 	callbacks := make([]func(*Config), len(m.callbacks))
 	copy(callbacks, m.callbacks)
 	m.callbackMu.RUnlock()
-
 	// Invoke callbacks outside of lock
 	for _, callback := range callbacks {
 		if callback != nil {

@@ -57,7 +57,6 @@ func (f *FlushHandler) executeFlush(ctx context.Context) (*core.FlushMemoryActiv
 	if err != nil {
 		return nil, fmt.Errorf("failed to read messages for flush: %w", err)
 	}
-
 	if len(messages) == 0 {
 		return &core.FlushMemoryActivityOutput{
 			Success:          true,
@@ -66,24 +65,20 @@ func (f *FlushHandler) executeFlush(ctx context.Context) (*core.FlushMemoryActiv
 			SummaryGenerated: false,
 		}, nil
 	}
-
 	// Select the strategy to use
 	strategy, err := f.selectStrategy()
 	if err != nil {
 		return nil, fmt.Errorf("failed to select flush strategy: %w", err)
 	}
-
 	// Execute flushing strategy
 	result, err := strategy.PerformFlush(ctx, messages, f.resourceConfig)
 	if err != nil {
 		return nil, fmt.Errorf("flushing strategy failed: %w", err)
 	}
-
 	// Apply the flush results
 	if err := f.applyFlushResults(ctx, result, len(messages)); err != nil {
 		return nil, fmt.Errorf("failed to apply flush results: %w", err)
 	}
-
 	return result, nil
 }
 
@@ -104,7 +99,6 @@ func (f *FlushHandler) selectStrategy() (core.FlushStrategy, error) {
 
 		return f.strategyFactory.CreateStrategy(strategyConfig, opts)
 	}
-
 	// Fall back to configured strategy
 	return f.flushingStrategy, nil
 }
@@ -161,7 +155,6 @@ func (f *FlushHandler) executeFlushWithLock(ctx context.Context) (*core.FlushMem
 				"instance_id", f.instanceID)
 		}
 	}()
-
 	result, err := f.executeFlush(ctx)
 	if err != nil {
 		if isTransientError(err) {
@@ -196,12 +189,10 @@ func (f *FlushHandler) applyFlushResults(
 	if !result.Success || result.MessageCount == 0 {
 		return nil
 	}
-
 	// If all messages were flushed, we've already handled this in the strategy
 	if result.MessageCount >= originalMessageCount {
 		return nil
 	}
-
 	// Check if store supports atomic operations
 	atomicStore, ok := f.store.(store.AtomicStore)
 	if !ok {
@@ -210,13 +201,11 @@ func (f *FlushHandler) applyFlushResults(
 			"store_type", fmt.Sprintf("%T", f.store))
 		return nil
 	}
-
 	// Trim messages to keep only the remaining ones
 	err := atomicStore.TrimMessagesWithMetadata(ctx, f.instanceID, result.MessageCount, result.TokenCount)
 	if err != nil {
 		return fmt.Errorf("failed to trim messages after flush for instance %s: %w", f.instanceID, err)
 	}
-
 	return nil
 }
 
@@ -225,7 +214,6 @@ func isTransientError(err error) bool {
 	if err == nil {
 		return false
 	}
-
 	// Common transient error patterns
 	transientPatterns := []string{
 		"connection refused",
@@ -235,25 +223,21 @@ func isTransientError(err error) bool {
 		"network is unreachable",
 		"lock timeout",
 	}
-
 	errStr := strings.ToLower(err.Error())
 	for _, pattern := range transientPatterns {
 		if strings.Contains(errStr, strings.ToLower(pattern)) {
 			return true
 		}
 	}
-
 	// Redis-specific errors
 	if errors.Is(err, redis.Nil) {
 		return false // Not found is not transient
 	}
-
 	// Network errors
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {
 		return true
 	}
-
 	// Syscall errors that are transient
 	var errno syscall.Errno
 	if errors.As(err, &errno) {
@@ -262,6 +246,5 @@ func isTransientError(err error) bool {
 			return true
 		}
 	}
-
 	return false
 }

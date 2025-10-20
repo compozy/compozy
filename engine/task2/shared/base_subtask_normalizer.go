@@ -120,7 +120,6 @@ func (n *BaseSubTaskNormalizer) normalizeSubTasks(
 		}
 		parentConfig.Tasks[i] = *subTask
 	}
-
 	// Also normalize the task reference if present
 	if parentConfig.Task != nil {
 		if err := n.normalizeSingleSubTask(ctx, parentConfig.Task, parentConfig, normCtx); err != nil {
@@ -170,19 +169,16 @@ func (n *BaseSubTaskNormalizer) normalizeSingleSubTask(
 	if err := InheritTaskConfig(subTask, parentConfig); err != nil {
 		return err
 	}
-
 	// Prepare sub-task context
 	subTaskCtx, err := n.prepareSubTaskContext(ctx, subTask, parentConfig, normCtx)
 	if err != nil {
 		return err
 	}
-
 	// Get normalizer for sub-task type
 	subNormalizer, err := n.normalizerFactory.CreateNormalizer(ctx, subTask.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create normalizer for task type %s: %w", subTask.Type, err)
 	}
-
 	// Recursively normalize the sub-task (this handles nested tasks too)
 	return subNormalizer.Normalize(ctx, subTask, subTaskCtx)
 }

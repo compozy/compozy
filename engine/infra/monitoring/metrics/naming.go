@@ -34,11 +34,9 @@ func MetricNameWithSubsystem(subsystem string, name string) string {
 	// Normalize subsystem: lowercase and replace spaces with underscores
 	subsystem = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(subsystem), " ", "_"))
 	subsystem = strings.Trim(subsystem, "_")
-
 	// Normalize base: lowercase and replace spaces with underscores
 	base := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(name), " ", "_"))
 	base = strings.Trim(base, "_")
-
 	if subsystem != "" {
 		if base != "" {
 			base = subsystem + "_" + base

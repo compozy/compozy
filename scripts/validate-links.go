@@ -73,14 +73,11 @@ var (
 func main() {
 	parseFlags()
 	printRunConfiguration()
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-
 	result := newValidationResult()
 	files := discoverDocumentationFiles(cancel)
 	fmt.Printf("📄 Found %d MDX files\n\n", len(files))
-
 	processDocumentation(ctx, files, result)
 	generateReport(result, docsPath)
 }
@@ -152,7 +149,6 @@ func processDocumentation(ctx context.Context, files []string, result *Validatio
 
 func findMDXFiles(root string) ([]string, error) {
 	var files []string
-
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -164,7 +160,6 @@ func findMDXFiles(root string) ([]string, error) {
 
 		return nil
 	})
-
 	return files, err
 }
 
@@ -173,10 +168,8 @@ func extractLinks(filePath, _ string) ([]Link, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	var links []Link
 	lines := strings.Split(string(content), "\n")
-
 	for lineNum, line := range lines {
 		// Skip lines that are in code blocks
 		if strings.HasPrefix(strings.TrimSpace(line), "```") {
@@ -205,7 +198,6 @@ func extractLinks(filePath, _ string) ([]Link, error) {
 			}
 		}
 	}
-
 	return links, nil
 }
 
@@ -217,7 +209,6 @@ func createLink(url, text, sourceFile string, lineNumber int) *Link {
 		LineNumber: lineNumber,
 		Valid:      true,
 	}
-
 	// Determine link type
 	switch {
 	case strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://"):
@@ -229,7 +220,6 @@ func createLink(url, text, sourceFile string, lineNumber int) *Link {
 	default:
 		link.Type = LinkTypeFile
 	}
-
 	return link
 }
 
@@ -245,7 +235,6 @@ func shouldIgnoreLink(url string) bool {
 func validateLinks(ctx context.Context, links []Link, docsRoot string, result *ValidationResult) {
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, maxWorkers)
-
 	for i := range links {
 		link := &links[i]
 
@@ -288,7 +277,6 @@ func validateLinks(ctx context.Context, links []Link, docsRoot string, result *V
 		}
 		result.mu.Unlock()
 	}
-
 	wg.Wait()
 }
 
@@ -298,7 +286,6 @@ func validateInternalLink(link *Link, docsRoot string) {
 		link.Error = "internal link should start with /docs/"
 		return
 	}
-
 	docPath := normalizeInternalDocPath(link.URL)
 	targetPath, found := resolveInternalTarget(docsRoot, docPath)
 	if !found {
@@ -306,11 +293,9 @@ func validateInternalLink(link *Link, docsRoot string) {
 		link.Error = fmt.Sprintf("file not found for path: %s", docPath)
 		return
 	}
-
 	if !validateAnchorIfPresent(link, targetPath) {
 		return
 	}
-
 	link.Valid = true
 }
 
@@ -363,7 +348,6 @@ func validateExternalLink(ctx context.Context, link *Link, result *ValidationRes
 		applyCachedExternalResult(link, cached)
 		return
 	}
-
 	client := newExternalHTTPClient()
 	success, lastErr := probeExternalLink(ctx, client, link.URL)
 	finalizeExternalValidation(result, link, success, lastErr)
@@ -431,7 +415,6 @@ func finalizeExternalValidation(result *ValidationResult, link *Link, success bo
 	if !success {
 		link.Error = fmt.Sprintf("failed: %v", lastErr)
 	}
-
 	result.mu.Lock()
 	result.ExternalCache[link.URL] = success
 	result.mu.Unlock()
@@ -456,17 +439,14 @@ func validateFileLink(link *Link, _ string) {
 	// For relative file links
 	basePath := filepath.Dir(link.SourceFile)
 	linkPath := link.URL
-
 	// Remove any anchors
 	linkPath = strings.Split(linkPath, "#")[0]
-
 	// Handle relative paths - try with .mdx extension
 	possiblePaths := []string{
 		filepath.Join(basePath, linkPath),
 		filepath.Join(basePath, linkPath+".mdx"),
 		filepath.Join(basePath, linkPath, "index.mdx"),
 	}
-
 	found := false
 	var foundPath string
 	for _, path := range possiblePaths {
@@ -489,7 +469,6 @@ func validateFileLink(link *Link, _ string) {
 			break
 		}
 	}
-
 	if !found {
 		link.Valid = false
 		link.Error = fmt.Sprintf("file not found: %s", link.URL)
@@ -501,9 +480,7 @@ func validateAnchorInFile(filePath, anchor string) bool {
 	if err != nil {
 		return false
 	}
-
 	// Anchors in markdown are typically lowercase with hyphens
-
 	// Find all headers
 	headers := headerRegex.FindAllStringSubmatch(string(content), -1)
 	for _, match := range headers {
@@ -520,7 +497,6 @@ func validateAnchorInFile(filePath, anchor string) bool {
 			}
 		}
 	}
-
 	// Also check for explicit anchor definitions {#anchor-name}
 	anchorDefRegex := regexp.MustCompile(`\{#([^}]+)\}`)
 	anchorDefs := anchorDefRegex.FindAllStringSubmatch(string(content), -1)
@@ -529,7 +505,6 @@ func validateAnchorInFile(filePath, anchor string) bool {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -556,10 +531,8 @@ func printBrokenLinkDetails(result *ValidationResult, docsRoot string) {
 	if result.BrokenLinks == 0 {
 		return
 	}
-
 	fmt.Println("\n❌ Broken Links by File")
 	fmt.Println("======================")
-
 	files := sortedBrokenFiles(result)
 	for _, file := range files {
 		links := result.BrokenByFile[file]
@@ -598,7 +571,6 @@ func printReportSummary(result *ValidationResult) {
 		fmt.Println("✅ All links are valid! 🎉")
 		return
 	}
-
 	fmt.Printf("❌ Found %d broken links that need to be fixed.\n", result.BrokenLinks)
 	fmt.Println("\n💡 Common fixes:")
 	fmt.Println("  - For internal links: ensure the target .mdx file exists")

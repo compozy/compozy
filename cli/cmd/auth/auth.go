@@ -13,7 +13,6 @@ func Cmd() *cobra.Command {
 		Short: "Authentication and API key management",
 		Long:  "Commands for managing API keys and authentication",
 	}
-
 	// Add subcommands
 	cmd.AddCommand(
 		BootstrapCmd(),
@@ -25,7 +24,6 @@ func Cmd() *cobra.Command {
 		UpdateUserCmd(),
 		DeleteUserCmd(),
 	)
-
 	return cmd
 }
 
@@ -37,12 +35,10 @@ func GenerateCmd() *cobra.Command {
 		Long:  "Generate a new API key for authenticating with the Compozy API",
 		RunE:  runGenerate,
 	}
-
 	// Add flags
 	cmd.Flags().String("name", "", "Name/description for the API key")
 	cmd.Flags().String("description", "", "Detailed description of the API key usage")
 	cmd.Flags().String("expires", "", "Expiration date for the key (YYYY-MM-DD format)")
-
 	return cmd
 }
 
@@ -64,13 +60,11 @@ func ListCmd() *cobra.Command {
 		Long:  "List all API keys with optional filtering and sorting",
 		RunE:  runList,
 	}
-
 	// Add flags
 	cmd.Flags().String("sort", "created", "Sort by field (created, name, expires)")
 	cmd.Flags().String("filter", "", "Filter keys by name or description")
 	cmd.Flags().Int("page", 1, "Page number for pagination")
 	cmd.Flags().Int("limit", 20, "Number of keys per page")
-
 	return cmd
 }
 
@@ -92,10 +86,8 @@ func RevokeCmd() *cobra.Command {
 		Long:  "Revoke an API key by ID",
 		RunE:  runRevoke,
 	}
-
 	// Add flags
 	cmd.Flags().Bool("force", false, "Force revocation without confirmation")
-
 	return cmd
 }
 
@@ -117,12 +109,10 @@ func CreateUserCmd() *cobra.Command {
 		Long:  "Create a new user with specified email, name, and role",
 		RunE:  runCreateUser,
 	}
-
 	// Add flags
 	cmd.Flags().String("email", "", "User email address")
 	cmd.Flags().String("name", "", "User full name")
 	cmd.Flags().String("role", "user", "User role (user or admin)")
-
 	return cmd
 }
 
@@ -144,7 +134,6 @@ func ListUsersCmd() *cobra.Command {
 		Long:  "List all users with optional filtering and sorting",
 		RunE:  runListUsers,
 	}
-
 	// Add flags
 	cmd.Flags().String("sort", "created", "Sort by field (created, name, email, role)")
 	cmd.Flags().String("filter", "", "Filter users by name or email")
@@ -152,7 +141,6 @@ func ListUsersCmd() *cobra.Command {
 	cmd.Flags().Bool("active", false, "Show only active users")
 	cmd.Flags().Int("page", 1, "Page number for pagination")
 	cmd.Flags().Int("limit", 20, "Number of users per page")
-
 	return cmd
 }
 
@@ -174,12 +162,10 @@ func UpdateUserCmd() *cobra.Command {
 		Long:  "Update an existing user's email, name, or role",
 		RunE:  runUpdateUser,
 	}
-
 	// Add flags
 	cmd.Flags().String("email", "", "New user email address")
 	cmd.Flags().String("name", "", "New user full name")
 	cmd.Flags().String("role", "", "New user role (user or admin)")
-
 	return cmd
 }
 
@@ -201,11 +187,9 @@ func DeleteUserCmd() *cobra.Command {
 		Long:  "Delete a user by ID",
 		RunE:  runDeleteUser,
 	}
-
 	// Add flags
 	cmd.Flags().Bool("force", false, "Force deletion without confirmation")
 	cmd.Flags().Bool("cascade", false, "Cascade delete related resources")
-
 	return cmd
 }
 

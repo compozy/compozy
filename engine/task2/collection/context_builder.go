@@ -67,7 +67,6 @@ func (b *ContextBuilder) BuildIterationContext(
 	} else {
 		iterCtx.Variables = make(map[string]any)
 	}
-
 	// Add item and index to variables
 	iterCtx.Variables[shared.ItemKey] = item
 	iterCtx.Variables[shared.IndexKey] = index
@@ -104,13 +103,11 @@ func (b *ContextBuilder) BuildIterationContextWithProgress(
 	if err != nil {
 		return nil, err
 	}
-
 	// Add progress context if provided
 	if progressState != nil {
 		progressCtx := shared.BuildProgressContext(ctx, progressState)
 		iterCtx.Variables["progress"] = progressCtx
 	}
-
 	return iterCtx, nil
 }
 

@@ -52,7 +52,6 @@ func (h *ResponseHandler) HandleResponse(
 	if err != nil {
 		return nil, err
 	}
-
 	// Signal-specific: Confirm dispatch was successful
 	if response.State.Status == core.StatusSuccess {
 		log := logger.FromContext(ctx).With(
@@ -71,7 +70,6 @@ func (h *ResponseHandler) HandleResponse(
 			}
 		}
 	}
-
 	return response, nil
 }
 

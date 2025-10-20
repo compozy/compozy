@@ -122,7 +122,6 @@ func ValidateRawMessagesWithLimits(messages []map[string]any, limits *Validation
 	if err := validateMessageCount(len(messages), maxMessages); err != nil {
 		return err
 	}
-
 	totalContentSize := 0
 	for i, msg := range messages {
 		if err := ValidateMessageWithLimits(msg, i, limits); err != nil {
@@ -130,7 +129,6 @@ func ValidateRawMessagesWithLimits(messages []map[string]any, limits *Validation
 		}
 		totalContentSize += contentLength(msg)
 	}
-
 	return validateTotalContentSize(totalContentSize, maxTotalSize)
 }
 
@@ -295,7 +293,6 @@ func ValidateFlushConfig(config *FlushConfig, factory *strategies.StrategyFactor
 	if config == nil {
 		return nil // Config is optional
 	}
-
 	// Validate max keys
 	if config.MaxKeys < 0 {
 		return memcore.NewMemoryError(
@@ -311,7 +308,6 @@ func ValidateFlushConfig(config *FlushConfig, factory *strategies.StrategyFactor
 			nil,
 		).WithContext("max_keys", config.MaxKeys)
 	}
-
 	// Validate threshold
 	if config.Threshold < 0 || config.Threshold > 1 {
 		return memcore.NewMemoryError(
@@ -320,7 +316,6 @@ func ValidateFlushConfig(config *FlushConfig, factory *strategies.StrategyFactor
 			nil,
 		).WithContext("threshold", config.Threshold)
 	}
-
 	// Validate strategy if provided
 	if config.Strategy != "" {
 		// Use the provided factory instance for validation
@@ -333,7 +328,6 @@ func ValidateFlushConfig(config *FlushConfig, factory *strategies.StrategyFactor
 			).WithContext("strategy", config.Strategy).WithContext("valid_strategies", validStrategies)
 		}
 	}
-
 	return nil
 }
 
@@ -346,7 +340,6 @@ func ValidateClearConfig(config *ClearConfig) error {
 			nil,
 		)
 	}
-
 	// Confirm flag must be true for safety
 	if !config.Confirm {
 		return memcore.NewMemoryError(
@@ -355,6 +348,5 @@ func ValidateClearConfig(config *ClearConfig) error {
 			nil,
 		).WithContext("confirm", config.Confirm)
 	}
-
 	return nil
 }

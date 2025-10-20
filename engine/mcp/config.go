@@ -522,7 +522,6 @@ func (c *Config) validateProxy(_ context.Context) error {
 	if proxyURL == "" {
 		return errors.New("MCP_PROXY_URL environment variable is required for MCP server configuration")
 	}
-
 	return validateURLFormat(proxyURL, "proxy url")
 }
 
@@ -562,15 +561,12 @@ func validateURLFormat(urlStr, context string) error {
 	if err != nil {
 		return fmt.Errorf("invalid %s format: %w", context, err)
 	}
-
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
 		return fmt.Errorf("%s must use http or https scheme, got: %s", context, parsedURL.Scheme)
 	}
-
 	if parsedURL.Host == "" {
 		return fmt.Errorf("%s must include a host", context)
 	}
-
 	return nil
 }
 

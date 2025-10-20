@@ -10,7 +10,6 @@ import (
 func Register(apiBase *gin.RouterGroup) {
 	// Memory routes
 	memoryGroup := apiBase.Group("/memory")
-
 	// Routes with memory reference only (key moved to query params or body)
 	refGroup := memoryGroup.Group("/:memory_ref")
 	refGroup.Use(ExtractMemoryContext())

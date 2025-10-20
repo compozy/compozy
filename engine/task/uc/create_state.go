@@ -37,13 +37,11 @@ func NewCreateState(taskRepo task.Repository, configStore services.ConfigStore) 
 func (uc *CreateState) Execute(ctx context.Context, input *CreateStateInput) (*task.State, error) {
 	// Generate taskExecID early so we can save config before creating state
 	taskExecID := core.MustNewID()
-
 	// Save task config to Redis BEFORE creating state to avoid race condition
 	err := uc.configStore.Save(ctx, taskExecID.String(), input.TaskConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save task config: %w", err)
 	}
-
 	// Create the basic state with the pre-generated taskExecID
 	state, err := uc.createBasicState(ctx, input, taskExecID)
 	if err != nil {
@@ -52,7 +50,6 @@ func (uc *CreateState) Execute(ctx context.Context, input *CreateStateInput) (*t
 		}
 		return nil, err
 	}
-
 	// Note: Child config preparation is now handled by task2 infrastructure
 	// in the respective activity implementations (collection_state.go, parallel_state.go, etc.)
 	return state, nil
@@ -78,7 +75,6 @@ func (uc *CreateState) createBasicState(
 	if err != nil {
 		return nil, err
 	}
-
 	if err := input.TaskConfig.ValidateInput(ctx, taskState.Input); err != nil {
 		return nil, fmt.Errorf("failed to validate task params: %w", err)
 	}

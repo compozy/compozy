@@ -52,7 +52,6 @@ func (h *ResponseHandler) HandleResponse(
 	if err != nil {
 		return nil, err
 	}
-
 	// Wait-specific: Validate signal was received
 	if input.ExecutionError == nil && response.State.Status == core.StatusSuccess {
 		// Wait completed successfully - signal was received
@@ -69,7 +68,6 @@ func (h *ResponseHandler) HandleResponse(
 			}
 		}
 	}
-
 	return response, nil
 }
 

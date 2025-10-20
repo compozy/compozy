@@ -96,7 +96,6 @@ func (env *TestEnvironment) setupTemporal(t *testing.T) {
 	// this provides just enough to satisfy the interface requirement
 	mockClient := &mocks.Client{}
 	env.temporalClient = mockClient
-
 	// Add cleanup
 	env.cleanup = append(env.cleanup, func() {
 		// No cleanup needed for mock client

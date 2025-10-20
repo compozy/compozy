@@ -126,7 +126,6 @@ func (e *RequestError) GetErrorInfo() *ErrorInfo {
 	if e.Err != nil {
 		details = e.Err.Error()
 	}
-
 	code := ErrInternalCode
 	switch e.StatusCode {
 	case http.StatusBadRequest:
@@ -142,7 +141,6 @@ func (e *RequestError) GetErrorInfo() *ErrorInfo {
 	case http.StatusRequestTimeout:
 		code = ErrRequestTimeoutCode
 	}
-
 	return &ErrorInfo{
 		Code:    code,
 		Message: e.Reason,

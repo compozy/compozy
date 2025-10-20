@@ -185,11 +185,9 @@ func (tf *ToolFilter) Validate() error {
 	if tf.Mode != ToolFilterAllow && tf.Mode != ToolFilterBlock {
 		return fmt.Errorf("invalid tool filter mode: %s", tf.Mode)
 	}
-
 	if len(tf.List) == 0 {
 		return errors.New("tool filter list cannot be empty")
 	}
-
 	return nil
 }
 
@@ -236,11 +234,9 @@ func (m *MCPDefinition) setMapDefaults() {
 	if m.Env == nil && m.Transport == TransportStdio {
 		m.Env = make(map[string]string)
 	}
-
 	if m.Headers == nil && (m.Transport == TransportSSE || m.Transport == TransportStreamableHTTP) {
 		m.Headers = make(map[string]string)
 	}
-
 	if m.Tags == nil {
 		m.Tags = make(map[string]string)
 	}
@@ -251,7 +247,6 @@ func (m *MCPDefinition) setSliceDefaults() {
 	if m.Args == nil {
 		m.Args = make([]string, 0)
 	}
-
 	if m.ToolFilter != nil && m.ToolFilter.List == nil {
 		m.ToolFilter.List = make([]string, 0)
 	}
@@ -303,11 +298,9 @@ func FromJSON(data []byte) (*MCPDefinition, error) {
 	if err := json.Unmarshal(data, &def); err != nil {
 		return nil, err
 	}
-
 	if err := def.Validate(); err != nil {
 		return nil, err
 	}
-
 	def.SetDefaults()
 	return &def, nil
 }
@@ -327,10 +320,8 @@ func NewMCPStatus(name string) *MCPStatus {
 func (s *MCPStatus) UpdateStatus(status ConnectionStatus, errorMsg string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
 	s.Status = status
 	now := time.Now()
-
 	switch status {
 	case StatusConnected:
 		s.LastConnected = &now
@@ -350,9 +341,7 @@ func (s *MCPStatus) UpdateStatus(status ConnectionStatus, errorMsg string) {
 func (s *MCPStatus) RecordRequest(responseTime time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
 	s.TotalRequests++
-
 	// Calculate rolling average response time
 	if s.TotalRequests == 1 {
 		s.AvgResponseTime = responseTime
@@ -366,7 +355,6 @@ func (s *MCPStatus) RecordRequest(responseTime time.Duration) {
 func (s *MCPStatus) CalculateUpTime() time.Duration {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	if s.LastConnected == nil || s.Status != StatusConnected {
 		return 0
 	}
@@ -384,7 +372,6 @@ func (s *MCPStatus) IncrementErrors() {
 func (s *MCPStatus) SafeCopy() *MCPStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	// Create a copy of all fields
 	statusCopy := MCPStatus{
 		Name:              s.Name,
@@ -395,7 +382,6 @@ func (s *MCPStatus) SafeCopy() *MCPStatus {
 		TotalErrors:       s.TotalErrors,
 		AvgResponseTime:   s.AvgResponseTime,
 	}
-
 	// Copy pointer fields safely
 	if s.LastConnected != nil {
 		connectedTime := *s.LastConnected
@@ -405,11 +391,9 @@ func (s *MCPStatus) SafeCopy() *MCPStatus {
 		errorTime := *s.LastErrorTime
 		statusCopy.LastErrorTime = &errorTime
 	}
-
 	// Calculate uptime for the copy
 	if statusCopy.LastConnected != nil && statusCopy.Status == StatusConnected {
 		statusCopy.UpTime = time.Since(*statusCopy.LastConnected)
 	}
-
 	return &statusCopy
 }

@@ -42,7 +42,6 @@ func (a *GetData) Run(_ context.Context, input *GetDataInput) (*GetData, error) 
 		}
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}
-
 	return &GetData{
 		ProjectConfig:  a.ProjectConfig,
 		Workflows:      a.Workflows,

@@ -55,7 +55,6 @@ func (h *ResponseHandler) HandleResponse(
 	if err != nil {
 		return nil, err
 	}
-
 	// Aggregate-specific: Validate aggregation result
 	if response.State.Status == core.StatusSuccess && response.State.Output != nil {
 		// Aggregation completed - validate result structure
@@ -69,7 +68,6 @@ func (h *ResponseHandler) HandleResponse(
 		)
 		log.Info("Aggregate task completed successfully")
 	}
-
 	return response, nil
 }
 
@@ -83,10 +81,8 @@ func (h *ResponseHandler) validateAggregationResult(output *core.Output) error {
 	if output == nil {
 		return fmt.Errorf("aggregate output cannot be nil for validation")
 	}
-
 	// Check if the output contains expected aggregation fields
 	outputMap := map[string]any(*output)
-
 	// Validate that aggregated data exists
 	if _, exists := outputMap[shared.FieldAggregated]; !exists {
 		// Not all aggregate tasks may have "aggregated" field, check for other patterns
@@ -97,7 +93,6 @@ func (h *ResponseHandler) validateAggregationResult(output *core.Output) error {
 			return fmt.Errorf("aggregate output is empty: no data to aggregate")
 		}
 	}
-
 	return nil
 }
 
@@ -117,12 +112,10 @@ func (h *ResponseHandler) HandleAggregateCompletion(
 		mergedOutput := core.Output(merged)
 		state.Output = &mergedOutput
 	}
-
 	log := logger.FromContext(ctx).With(
 		"task_exec_id", state.TaskExecID,
 		"task_id", state.TaskID,
 	)
 	log.Info("Aggregation completed", "data_keys", len(aggregatedData))
-
 	return nil
 }

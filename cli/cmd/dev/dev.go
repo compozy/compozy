@@ -22,10 +22,8 @@ func NewDevCommand() *cobra.Command {
 		Short: "Run the Compozy development server",
 		RunE:  executeDevCommand,
 	}
-
 	// Add development-specific flags
 	cmd.Flags().Bool("watch", false, "Enable file watcher to restart server on change")
-
 	return cmd
 }
 
@@ -114,19 +112,16 @@ func resolveEnvFilePath(cobraCmd *cobra.Command, baseDir string) string {
 	if filepath.IsAbs(envFilePath) {
 		return envFilePath
 	}
-
 	candidate := filepath.Join(baseDir, envFilePath)
 	if _, err := os.Stat(candidate); err == nil {
 		return candidate
 	}
-
 	if wd, err := os.Getwd(); err == nil {
 		fallback := filepath.Join(wd, envFilePath)
 		if _, statErr := os.Stat(fallback); statErr == nil {
 			return fallback
 		}
 	}
-
 	return candidate
 }
 

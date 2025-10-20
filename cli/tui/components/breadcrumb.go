@@ -42,7 +42,6 @@ func (b *Breadcrumb) AddItem(label string, active bool) {
 	for i := range b.Items {
 		b.Items[i].Active = false
 	}
-
 	// Add new item
 	b.Items = append(b.Items, BreadcrumbItem{
 		Label:  label,
@@ -71,7 +70,6 @@ func (b *Breadcrumb) View() string {
 	if len(b.Items) == 0 {
 		return ""
 	}
-
 	var parts []string
 	for i, item := range b.Items {
 		var rendered string
@@ -90,9 +88,7 @@ func (b *Breadcrumb) View() string {
 			parts = append(parts, separator)
 		}
 	}
-
 	breadcrumb := strings.Join(parts, "")
-
 	// Truncate if too long
 	if b.Width > 0 && lipgloss.Width(breadcrumb) > b.Width {
 		// Simple truncation - in a real implementation you might want
@@ -111,7 +107,6 @@ func (b *Breadcrumb) View() string {
 			breadcrumb = "..." + breadcrumb
 		}
 	}
-
 	return breadcrumb
 }
 

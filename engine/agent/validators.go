@@ -58,12 +58,10 @@ func (v *MemoryValidator) Validate(_ context.Context) error {
 		// This means no memory configuration was found or explicitly set to none, which is valid.
 		return nil
 	}
-
 	if len(v.references) == 0 {
 		// Also valid (e.g. memory: false, or just no memory fields)
 		return nil
 	}
-
 	for i, ref := range v.references {
 		// Basic structural validation should have been done by normalizeAndValidateMemoryConfig
 		// and schema.NewStructValidator if applied to core.MemoryReference itself.

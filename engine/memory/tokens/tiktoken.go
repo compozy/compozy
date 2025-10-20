@@ -30,7 +30,6 @@ func NewTiktokenCounter(modelOrEncoding string) (*TiktokenCounter, error) {
 	if modelOrEncoding == "" {
 		modelOrEncoding = defaultEncoding
 	}
-
 	var encodingName string
 	tke, err := tiktoken.GetEncoding(modelOrEncoding)
 	if err != nil {
@@ -54,7 +53,6 @@ func NewTiktokenCounter(modelOrEncoding string) (*TiktokenCounter, error) {
 	} else {
 		encodingName = modelOrEncoding
 	}
-
 	return &TiktokenCounter{
 		encodingName: encodingName, // Store the name of the encoding actually used
 		tke:          tke,
@@ -65,11 +63,9 @@ func NewTiktokenCounter(modelOrEncoding string) (*TiktokenCounter, error) {
 func (tc *TiktokenCounter) CountTokens(_ context.Context, text string) (int, error) {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
-
 	if tc.tke == nil {
 		return 0, fmt.Errorf("tiktoken encoder is not initialized for encoding %s", tc.encodingName)
 	}
-
 	tokens := tc.tke.Encode(text, nil, nil) // Pass nil for allowedSpecial and disallowedSpecial
 	return len(tokens), nil
 }
@@ -85,11 +81,9 @@ func (tc *TiktokenCounter) GetEncoding() string {
 func (tc *TiktokenCounter) EncodeTokens(_ context.Context, text string) ([]int, error) {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
-
 	if tc.tke == nil {
 		return nil, fmt.Errorf("tiktoken encoder is not initialized for encoding %s", tc.encodingName)
 	}
-
 	tokens := tc.tke.Encode(text, nil, nil)
 	return tokens, nil
 }
@@ -98,11 +92,9 @@ func (tc *TiktokenCounter) EncodeTokens(_ context.Context, text string) ([]int, 
 func (tc *TiktokenCounter) DecodeTokens(_ context.Context, tokens []int) (string, error) {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
-
 	if tc.tke == nil {
 		return "", fmt.Errorf("tiktoken encoder is not initialized for encoding %s", tc.encodingName)
 	}
-
 	text := tc.tke.Decode(tokens)
 	return text, nil
 }

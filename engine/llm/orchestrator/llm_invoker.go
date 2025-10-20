@@ -139,11 +139,9 @@ func (i *llmInvoker) Invoke(
 	if cancel != nil {
 		defer cancel()
 	}
-
 	maxRetries := i.retryAttemptCount()
 	backoff := i.buildBackoff(maxRetries)
 	rateLimitedBackoff := newAdaptiveBackoff(backoff)
-
 	attempts := 0
 	var lastErr error
 	var response *llmadapter.LLMResponse

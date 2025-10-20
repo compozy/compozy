@@ -85,7 +85,6 @@ func (mm *Manager) GetInstance(
 	// Retry logic for transient key resolution failures using go-retry
 	var instance memcore.Memory
 	retryConfig := retry.WithMaxRetries(3, retry.NewExponential(100*time.Millisecond))
-
 	err := retry.Do(ctx, retryConfig, func(ctx context.Context) error {
 		log.Info("GetInstance called: Starting memory instance retrieval",
 			"resource_id", agentMemoryRef.ID,
@@ -111,14 +110,12 @@ func (mm *Manager) GetInstance(
 		}
 		return nil
 	})
-
 	if err != nil {
 		log.Error("All retry attempts failed for memory instance retrieval",
 			"resource_id", agentMemoryRef.ID,
 			"error", err)
 		return nil, err
 	}
-
 	return instance, nil
 }
 

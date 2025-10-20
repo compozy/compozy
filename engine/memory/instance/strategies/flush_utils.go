@@ -58,7 +58,6 @@ func (fde *FlushDecisionEngine) shouldFlushBuffer(tokenCount, messageCount int, 
 			return true
 		}
 	}
-
 	// Check message threshold if configured
 	if config.MaxMessages > 0 {
 		messageThreshold := float64(config.MaxMessages) * fde.thresholdPercent
@@ -66,7 +65,6 @@ func (fde *FlushDecisionEngine) shouldFlushBuffer(tokenCount, messageCount int, 
 			return true
 		}
 	}
-
 	return false
 }
 

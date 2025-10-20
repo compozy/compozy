@@ -64,15 +64,12 @@ func (b *promptBuilder) Build(
 	if input.Action == nil {
 		return orchestrator.PromptBuildResult{}, fmt.Errorf("action config is nil")
 	}
-
 	static := templateStaticData{
 		ActionPrompt: input.Action.Prompt,
 		HasTools:     len(input.Tools) > 0,
 	}
-
 	variant := defaultTemplateName
 	format := llmadapter.DefaultOutputFormat()
-
 	if schema := input.Action.OutputSchema; schema != nil {
 		if len(input.Tools) == 0 && shouldUseNativeStructured(input.ProviderCaps, input.Action) {
 			variant = jsonNativeTemplateName
@@ -82,18 +79,15 @@ func (b *promptBuilder) Build(
 			static.SchemaJSON = marshalSchema(ctx, schema)
 		}
 	}
-
 	rendered, normalized, err := b.render(variant, static, input.Dynamic)
 	if err != nil {
 		return orchestrator.PromptBuildResult{}, err
 	}
-
 	state := &promptTemplateState{
 		builder: b,
 		variant: variant,
 		static:  static,
 	}
-
 	return orchestrator.PromptBuildResult{
 		Prompt:   rendered,
 		Format:   format,

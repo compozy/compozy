@@ -34,11 +34,9 @@ import (
 
 func RootCmd() *cobra.Command {
 	var showVersion bool
-
 	root := newRootCommand(&showVersion)
 	configureRootFlags(root, &showVersion)
 	registerRootSubcommands(root)
-
 	return root
 }
 
@@ -47,31 +45,23 @@ func SetupGlobalConfig(cmd *cobra.Command) error {
 	if err := helpers.LoadEnvironmentFile(cmd); err != nil {
 		return fmt.Errorf("failed to load environment file: %w", err)
 	}
-
 	ctx := commandContext(cmd)
-
 	cliFlags, err := helpers.ExtractCLIFlags(cmd)
 	if err != nil {
 		return fmt.Errorf("failed to extract CLI flags: %w", err)
 	}
-
 	sources := buildConfigSources(cmd, cliFlags)
-
 	mgr, ctx, err := loadConfigManager(ctx, sources)
 	if err != nil {
 		return err
 	}
-
 	cfg := config.FromContext(ctx)
 	ensureDefaultCWD(cfg)
-
 	ctx = attachLogger(ctx, cfg)
 	cmd.SetContext(ctx)
-
 	mgr.OnChange(func(_ *config.Config) {
 		// Update logger or other runtime settings if necessary
 	})
-
 	return nil
 }
 
@@ -171,17 +161,14 @@ func buildConfigSources(cmd *cobra.Command, cliFlags map[string]any) []config.So
 		config.NewDefaultProvider(),
 		config.NewEnvProvider(),
 	}
-
 	if configFile := resolveConfigFile(cmd); configFile != "" {
 		sources = append(sources, config.NewYAMLProvider(configFile))
 	} else if _, err := os.Stat("compozy.yaml"); err == nil {
 		sources = append(sources, config.NewYAMLProvider("compozy.yaml"))
 	}
-
 	if len(cliFlags) > 0 {
 		sources = append(sources, config.NewCLIProvider(cliFlags))
 	}
-
 	return sources
 }
 
@@ -212,14 +199,12 @@ func attachLogger(ctx context.Context, cfg *config.Config) context.Context {
 	if cfg == nil {
 		return ctx
 	}
-
 	level := logger.InfoLevel
 	if cfg.CLI.Quiet {
 		level = logger.DisabledLevel
 	} else if cfg.CLI.Debug {
 		level = logger.DebugLevel
 	}
-
 	log := logger.SetupLogger(level, false, cfg.CLI.Debug)
 	return logger.ContextWithLogger(ctx, log)
 }

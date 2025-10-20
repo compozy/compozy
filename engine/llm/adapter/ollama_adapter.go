@@ -79,23 +79,19 @@ func (a *ollamaAdapter) GenerateContent(ctx context.Context, req *LLMRequest) (*
 	if len(req.Tools) == 0 {
 		return a.LangChainAdapter.GenerateContent(ctx, req)
 	}
-
 	log.Debug("Using Ollama tool calling adapter",
 		"model", a.provider.Model,
 		"tools_count", len(req.Tools),
 		"tool_choice", req.Options.ToolChoice,
 	)
-
 	chatReq, err := a.convertToOllamaRequest(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert request: %w", err)
 	}
-
 	response, err := a.callOllamaAPI(ctx, chatReq)
 	if err != nil {
 		return nil, err
 	}
-
 	return a.convertFromOllamaResponse(response)
 }
 
@@ -103,19 +99,15 @@ func (a *ollamaAdapter) convertToOllamaRequest(ctx context.Context, req *LLMRequ
 	if req == nil {
 		return nil, fmt.Errorf("nil LLMRequest")
 	}
-
 	chatReq := &api.ChatRequest{
 		Model:   a.provider.Model,
 		Options: a.buildOllamaOptions(ctx, req),
 	}
-
 	stream := false
 	chatReq.Stream = &stream
-
 	if req.Options.ForceJSON || req.Options.OutputFormat.IsJSONSchema() {
 		chatReq.Format = json.RawMessage(`"json"`)
 	}
-
 	if len(req.Tools) > 0 {
 		chatReq.Tools = make(api.Tools, len(req.Tools))
 		for i, tool := range req.Tools {
@@ -126,31 +118,26 @@ func (a *ollamaAdapter) convertToOllamaRequest(ctx context.Context, req *LLMRequ
 			chatReq.Tools[i] = apiTool
 		}
 	}
-
 	if req.Options.ToolChoice != "" {
 		logger.FromContext(ctx).Warn(
 			"Ollama API does not currently honor tool_choice; continuing with default behavior",
 			"tool_choice", req.Options.ToolChoice,
 		)
 	}
-
 	chatReq.Messages = make([]api.Message, 0, len(req.Messages)+1)
 	a.appendSystemMessage(chatReq, req)
 	if err := a.appendConversationMessages(ctx, chatReq, req); err != nil {
 		return nil, err
 	}
-
 	return chatReq, nil
 }
 
 func (a *ollamaAdapter) ensureClient() (*api.Client, error) {
 	a.clientMu.Lock()
 	defer a.clientMu.Unlock()
-
 	if a.apiClient != nil {
 		return a.apiClient, nil
 	}
-
 	if a.parsedBase == nil {
 		parsed, err := url.Parse(a.apiURL)
 		if err != nil {
@@ -158,9 +145,7 @@ func (a *ollamaAdapter) ensureClient() (*api.Client, error) {
 		}
 		a.parsedBase = parsed
 	}
-
 	httpClient := a.ensureHTTPClient()
-
 	a.apiClient = api.NewClient(a.parsedBase, httpClient)
 	return a.apiClient, nil
 }
@@ -170,20 +155,17 @@ func (a *ollamaAdapter) callOllamaAPI(ctx context.Context, req *api.ChatRequest)
 	if err != nil {
 		return nil, err
 	}
-
 	log := logger.FromContext(ctx)
 	log.Debug("Sending Ollama API request",
 		"url", a.apiURL,
 		"model", req.Model,
 		"tools_count", len(req.Tools),
 	)
-
 	var (
 		finalResp  *api.ChatResponse
 		toolCalls  []api.ToolCall
 		contentBuf strings.Builder
 	)
-
 	err = client.Chat(ctx, req, func(resp api.ChatResponse) error {
 		if resp.Message.Content != "" {
 			contentBuf.WriteString(resp.Message.Content)
@@ -198,16 +180,13 @@ func (a *ollamaAdapter) callOllamaAPI(ctx context.Context, req *api.ChatRequest)
 	if err != nil {
 		return nil, fmt.Errorf("ollama chat request failed: %w", err)
 	}
-
 	if finalResp == nil {
 		return nil, fmt.Errorf("ollama chat returned no response")
 	}
-
 	finalResp.Message.Content = contentBuf.String()
 	if len(toolCalls) > 0 {
 		finalResp.Message.ToolCalls = toolCalls
 	}
-
 	return finalResp, nil
 }
 
@@ -235,7 +214,6 @@ func (a *ollamaAdapter) fetchRemoteImage(ctx context.Context, imageURL string) (
 	if isLocalOrPrivateHost(host) {
 		return nil, fmt.Errorf("refusing to fetch image from private/loopback host: %s", host)
 	}
-
 	baseClient := a.ensureHTTPClient()
 	client := *baseClient
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -247,7 +225,6 @@ func (a *ollamaAdapter) fetchRemoteImage(ctx context.Context, imageURL string) (
 		}
 		return nil
 	}
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, http.NoBody)
 	if err != nil {
 		return nil, err
@@ -309,12 +286,10 @@ func (a *ollamaAdapter) convertFromOllamaResponse(resp *api.ChatResponse) (*LLMR
 	if resp == nil {
 		return nil, fmt.Errorf("nil Ollama response")
 	}
-
 	llmResp := &LLMResponse{
 		Content: resp.Message.Content,
 		Usage:   buildUsageFromResponse(resp),
 	}
-
 	if len(resp.Message.ToolCalls) > 0 {
 		llmResp.ToolCalls = make([]ToolCall, len(resp.Message.ToolCalls))
 		for i, tc := range resp.Message.ToolCalls {
@@ -329,7 +304,6 @@ func (a *ollamaAdapter) convertFromOllamaResponse(resp *api.ChatResponse) (*LLMR
 			}
 		}
 	}
-
 	return llmResp, nil
 }
 
@@ -343,7 +317,6 @@ func buildUsageFromResponse(resp *api.ChatResponse) *Usage {
 	if resp.PromptEvalCount == 0 && resp.EvalCount == 0 {
 		return nil
 	}
-
 	total := resp.PromptEvalCount + resp.EvalCount
 	return &Usage{
 		PromptTokens:     resp.PromptEvalCount,
@@ -356,27 +329,22 @@ func (a *ollamaAdapter) convertMessage(ctx context.Context, msg *Message) (api.M
 	if msg == nil {
 		return api.Message{}, fmt.Errorf("nil message")
 	}
-
 	content, images := a.buildMessageContent(ctx, msg)
-
 	toolCalls, err := convertToolCallsToAPI(msg.ToolCalls)
 	if err != nil {
 		return api.Message{}, err
 	}
-
 	result := api.Message{
 		Role:      strings.ToLower(msg.Role),
 		Content:   content,
 		Images:    images,
 		ToolCalls: toolCalls,
 	}
-
 	if msg.Role == RoleTool && len(msg.ToolResults) > 0 {
 		if msg.ToolResults[0].Name != "" {
 			result.ToolName = msg.ToolResults[0].Name
 		}
 	}
-
 	return result, nil
 }
 
@@ -385,15 +353,12 @@ func (a *ollamaAdapter) buildMessageContent(ctx context.Context, msg *Message) (
 	if msg.Content != "" {
 		sections = append(sections, msg.Content)
 	}
-
 	partSections, partImages := a.collectPartContent(ctx, msg.Parts)
 	if len(partSections) > 0 {
 		sections = append(sections, partSections...)
 	}
-
 	images := append([]api.ImageData(nil), partImages...)
 	appendToolResultSections(&sections, msg.ToolResults)
-
 	return joinNonEmptySections(sections), images
 }
 
@@ -404,10 +369,8 @@ func (a *ollamaAdapter) collectPartContent(
 	if len(parts) == 0 {
 		return nil, nil
 	}
-
 	sections := make([]string, 0, len(parts))
 	images := make([]api.ImageData, 0, len(parts))
-
 	for _, part := range parts {
 		switch v := part.(type) {
 		case TextPart:
@@ -426,7 +389,6 @@ func (a *ollamaAdapter) collectPartContent(
 			)
 		}
 	}
-
 	return sections, images
 }
 
@@ -707,28 +669,23 @@ func convertToolDefinition(tool ToolDefinition) (api.Tool, error) {
 			},
 		},
 	}
-
 	if len(tool.Parameters) == 0 {
 		return apiTool, nil
 	}
-
 	raw, err := json.Marshal(tool.Parameters)
 	if err != nil {
 		return api.Tool{}, fmt.Errorf("failed to encode parameters for tool %q: %w", tool.Name, err)
 	}
-
 	var params api.ToolFunctionParameters
 	if err := json.Unmarshal(raw, &params); err != nil {
 		return api.Tool{}, fmt.Errorf("invalid parameters for tool %q: %w", tool.Name, err)
 	}
-
 	if params.Type == "" {
 		params.Type = "object"
 	}
 	if params.Properties == nil {
 		params.Properties = map[string]api.ToolProperty{}
 	}
-
 	apiTool.Function.Parameters = params
 	return apiTool, nil
 }

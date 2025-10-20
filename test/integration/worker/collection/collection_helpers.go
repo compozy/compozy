@@ -34,19 +34,15 @@ func executeWorkflowAndGetState(
 
 func verifyCollectionSequentialExecution(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying sequential execution timing from database state")
-
 	// Find parent collection task and its children using common helpers
 	parentTask := helpers.FindParentTask(result, task.ExecutionCollection)
 	require.NotNil(t, parentTask, "Should have a parent collection task")
-
 	childTasks := helpers.FindChildTasks(result, parentTask.TaskExecID)
 	assert.GreaterOrEqual(t, len(childTasks), 2, "Should have at least 2 child tasks")
-
 	// Sort child tasks by creation time for verification
 	sort.Slice(childTasks, func(i, j int) bool {
 		return childTasks[i].CreatedAt.Before(childTasks[j].CreatedAt)
 	})
-
 	// Verify that child tasks executed sequentially (creation times are different)
 	if len(childTasks) >= 2 {
 		for i := 1; i < len(childTasks); i++ {
@@ -62,14 +58,11 @@ func verifyCollectionSequentialExecution(t *testing.T, _ *helpers.TestFixture, r
 
 func verifyCollectionParallelExecution(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying parallel execution timing from database state")
-
 	// Find parent collection task and its children using common helpers
 	parentTask := helpers.FindParentTask(result, task.ExecutionCollection)
 	require.NotNil(t, parentTask, "Should have a parent collection task")
-
 	childTasks := helpers.FindChildTasks(result, parentTask.TaskExecID)
 	assert.GreaterOrEqual(t, len(childTasks), 2, "Should have at least 2 child tasks")
-
 	// For parallel execution, tasks should start at the same time (or very close)
 	if len(childTasks) >= 2 {
 		// Sort child tasks by creation time to ensure deterministic ordering
@@ -94,33 +87,26 @@ func verifyCollectionParallelExecution(t *testing.T, _ *helpers.TestFixture, res
 
 func verifyCollectionChildTasks(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying child task creation from database state")
-
 	// Find the parent collection task using common helper
 	parentTask := helpers.FindParentTask(result, task.ExecutionCollection)
 	require.NotNil(t, parentTask, "Should have a parent collection task")
-
 	// Get actual child count from the result
 	childTasks := helpers.FindChildTasks(result, parentTask.TaskExecID)
 	actualCount := len(childTasks)
-
 	// Verify we have at least some child tasks
 	require.Greater(t, actualCount, 0, "Collection task should have child tasks")
-
 	// Log the actual count for debugging
 	t.Logf("Collection task has %d child tasks", actualCount)
 }
 
 func verifyCollectionOutputAggregation(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying collection output aggregation from database state")
-
 	// Find the parent collection task using common helper
 	parentTask := helpers.FindParentTask(result, task.ExecutionCollection)
 	require.NotNil(t, parentTask, "Should have a parent collection task")
-
 	// Verify task status and output using common helpers
 	helpers.VerifyTaskHasOutput(t, parentTask, "Parent collection task")
 	helpers.VerifyTaskStatus(t, parentTask, string(core.StatusSuccess), "Parent collection task")
-
 	// Verify aggregated outputs match expectations from fixture
 	if len(fixture.Expected.TaskStates) > 0 {
 		for _, expectedTask := range fixture.Expected.TaskStates {
@@ -150,15 +136,12 @@ func verifyCollectionOutputAggregation(t *testing.T, fixture *helpers.TestFixtur
 // verifyEmptyCollectionHandling verifies empty collection handling with database state
 func verifyEmptyCollectionHandling(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying empty collection handling from database state")
-
 	// Find parent collection task using common helper
 	parentTask := helpers.FindParentTask(result, task.ExecutionCollection)
 	require.NotNil(t, parentTask, "Should have a parent collection task")
 	helpers.VerifyTaskStatus(t, parentTask, string(core.StatusSuccess), "Empty collection task")
-
 	// Verify no child tasks using common helper
 	helpers.VerifyChildTaskCount(t, result, parentTask.TaskExecID, 0, "Empty collection task")
-
 	// Verify empty collection outputs using common helper and specific assertions
 	helpers.VerifyTaskHasOutput(t, parentTask, "Empty collection task")
 	if parentTask.Output != nil {
@@ -259,14 +242,11 @@ func assertPrecisionString(t *testing.T, expected string, value any, minFraction
 func verifyDeterministicMapProcessing(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying deterministic map processing from database state")
-
 	parentTask := requireParentCollectionTask(t, result)
 	childTasks := childTasksSortedByIndex(t, result, parentTask.TaskExecID)
 	orderedConfigSets := orderedConfigSetsFromFixture(t, fixture.Input["config_sets"])
-
 	assertDeterministicChildOrder(t, childTasks, orderedConfigSets)
 	assertDeterministicWithKeys(t, childTasks)
-
 	t.Log("Deterministic map processing verified successfully")
 }
 
@@ -343,7 +323,6 @@ func assertDeterministicWithKeys(t *testing.T, childTasks []*task.State) {
 	if len(childTasks) == 0 || childTasks[0].Input == nil {
 		return
 	}
-
 	inputMap := map[string]any(*childTasks[0].Input)
 	expectedWithKeys := []string{
 		"alpha_config",
@@ -362,15 +341,12 @@ func assertDeterministicWithKeys(t *testing.T, childTasks []*task.State) {
 // and correctly populated during collection processing
 func verifyProgressContextIntegration(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying progress context integration from database state")
-
 	// Find parent collection task
 	parentTask := helpers.FindParentTask(result, task.ExecutionCollection)
 	require.NotNil(t, parentTask, "Should have a parent collection task")
-
 	// Find child tasks and verify progress context was available
 	childTasks := helpers.FindChildTasks(result, parentTask.TaskExecID)
 	require.GreaterOrEqual(t, len(childTasks), 1, "Should have at least one child task")
-
 	// Verify progress context was properly integrated in child tasks
 	for _, childTask := range childTasks {
 		// Progress context is validated through the input data passed to tasks
@@ -403,7 +379,6 @@ func verifyProgressContextIntegration(t *testing.T, fixture *helpers.TestFixture
 			}
 		}
 	}
-
 	t.Log("Progress context integration verified successfully")
 }
 
@@ -413,14 +388,11 @@ func verifyProgressContextIntegration(t *testing.T, fixture *helpers.TestFixture
 func verifyComplexTemplateProcessing(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying complex template processing from database state")
-
 	parentTask := requireParentCollectionTask(t, result)
 	childTasks := requireComplexTemplateChildTasks(t, result, parentTask.TaskExecID)
 	expectations := expectedComplexTemplateResults()
-
 	assertComplexTemplateTaskIDs(t, childTasks, expectations)
 	assertComplexTemplateInputs(t, childTasks, expectations)
-
 	t.Log("Complex template processing verified successfully")
 }
 

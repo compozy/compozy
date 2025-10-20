@@ -18,21 +18,17 @@ import (
 func RevokeTUI(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 	log := logger.FromContext(ctx)
 	log.Debug("revoking API key in TUI mode")
-
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return fmt.Errorf("auth client not available")
 	}
-
 	// Create and run the TUI model
 	m := newRevokeModel(ctx, authClient)
 	p := tea.NewProgram(m)
-
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
-
 	// Check if revocation was successful
 	if model, ok := finalModel.(*revokeModel); ok {
 		if model.err != nil {
@@ -42,7 +38,6 @@ func RevokeTUI(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecu
 			return fmt.Errorf("key revocation canceled")
 		}
 	}
-
 	return nil
 }
 
@@ -80,7 +75,6 @@ func newRevokeModel(ctx context.Context, client api.KeyManager) *revokeModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
-
 	return &revokeModel{
 		ctx:     ctx,
 		client:  client,
@@ -162,7 +156,6 @@ func (m *revokeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	}
-
 	return m, nil
 }
 
@@ -221,7 +214,6 @@ func (m *revokeModel) View() string {
 			Foreground(lipgloss.Color("196")).
 			Render(fmt.Sprintf("❌ Error: %v", m.err))
 	}
-
 	switch m.state {
 	case stateLoadingKeys:
 		return fmt.Sprintf("%s Loading API keys...", m.spinner.View())
@@ -234,7 +226,6 @@ func (m *revokeModel) View() string {
 	case stateDone:
 		return m.viewDone()
 	}
-
 	return ""
 }
 
@@ -245,18 +236,14 @@ func (m *revokeModel) viewKeySelection() string {
 		BorderForeground(lipgloss.Color("69")).
 		Padding(1, 2).
 		Width(80)
-
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("69"))
-
 	selectedStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("229")).
 		Background(lipgloss.Color("57")).
 		Bold(false)
-
 	content := titleStyle.Render("🔑 Select API Key to Revoke") + "\n\n"
-
 	for i, key := range m.keys {
 		created := key.CreatedAt
 		if t, err := time.Parse(time.RFC3339, key.CreatedAt); err == nil {
@@ -276,11 +263,9 @@ func (m *revokeModel) viewKeySelection() string {
 			content += line + "\n"
 		}
 	}
-
 	content += "\n" + lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241")).
 		Render("↑/↓ to navigate • Enter to select • q to quit")
-
 	return style.Render(content)
 }
 
@@ -291,41 +276,33 @@ func (m *revokeModel) viewConfirmation() string {
 		BorderForeground(lipgloss.Color("214")).
 		Padding(1, 2).
 		Width(60)
-
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("214"))
-
 	keyStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("69"))
-
 	selectedKey := m.keys[m.selected]
 	content := titleStyle.Render("⚠️  Confirm Key Revocation") + "\n\n"
 	content += "You are about to revoke the following API key:\n\n"
 	content += keyStyle.Render(fmt.Sprintf("  Key: %s", selectedKey.Prefix)) + "\n"
 	content += fmt.Sprintf("  ID: %s\n", selectedKey.ID)
-
 	created := selectedKey.CreatedAt
 	if t, err := time.Parse(time.RFC3339, selectedKey.CreatedAt); err == nil {
 		created = t.Format("2006-01-02 15:04")
 	}
 	content += fmt.Sprintf("  Created: %s\n", created)
-
 	if selectedKey.LastUsedAt != "" {
 		if t, err := time.Parse(time.RFC3339, selectedKey.LastUsedAt); err == nil {
 			content += fmt.Sprintf("  Last used: %s\n", t.Format("2006-01-02 15:04"))
 		}
 	}
-
 	content += "\n" + lipgloss.NewStyle().
 		Foreground(lipgloss.Color("196")).
 		Bold(true).
 		Render("⚠️  This action cannot be undone!")
-
 	content += "\n\n" + lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241")).
 		Render("y/Y to confirm • n/N to cancel • q to quit")
-
 	return style.Render(content)
 }
 
@@ -336,16 +313,13 @@ func (m *revokeModel) viewDone() string {
 		BorderForeground(lipgloss.Color("10")).
 		Padding(1, 2).
 		Width(50)
-
 	content := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("10")).
 		Render("✅ API Key Revoked Successfully")
-
 	content += "\n\nThe API key has been permanently revoked."
 	content += "\n\n" + lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241")).
 		Render("Press any key to exit")
-
 	return style.Render(content)
 }

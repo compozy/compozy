@@ -19,7 +19,6 @@ func InitializeGlobalHealthService(ctx context.Context, manager *Manager) *Healt
 
 		globalHealthService = NewHealthService(ctx, manager)
 	})
-
 	return globalHealthService
 }
 
@@ -27,7 +26,6 @@ func InitializeGlobalHealthService(ctx context.Context, manager *Manager) *Healt
 func GetGlobalHealthService() *HealthService {
 	healthServiceMu.RLock()
 	defer healthServiceMu.RUnlock()
-
 	return globalHealthService
 }
 
@@ -36,7 +34,6 @@ func StartGlobalHealthService(ctx context.Context) {
 	healthServiceMu.RLock()
 	service := globalHealthService
 	healthServiceMu.RUnlock()
-
 	if service != nil {
 		service.Start(ctx)
 	}
@@ -47,7 +44,6 @@ func StopGlobalHealthService() {
 	healthServiceMu.RLock()
 	service := globalHealthService
 	healthServiceMu.RUnlock()
-
 	if service != nil {
 		service.Stop()
 	}
@@ -58,7 +54,6 @@ func RegisterInstanceGlobally(memoryID string) {
 	healthServiceMu.RLock()
 	service := globalHealthService
 	healthServiceMu.RUnlock()
-
 	if service != nil {
 		service.RegisterInstance(memoryID)
 	}
@@ -69,7 +64,6 @@ func UnregisterInstanceGlobally(memoryID string) {
 	healthServiceMu.RLock()
 	service := globalHealthService
 	healthServiceMu.RUnlock()
-
 	if service != nil {
 		service.UnregisterInstance(memoryID)
 	}
@@ -79,11 +73,9 @@ func UnregisterInstanceGlobally(memoryID string) {
 func ResetGlobalHealthServiceForTesting() {
 	healthServiceMu.Lock()
 	defer healthServiceMu.Unlock()
-
 	if globalHealthService != nil {
 		globalHealthService.Stop()
 	}
-
 	globalHealthService = nil
 	healthServiceOnce = sync.Once{}
 }

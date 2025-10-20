@@ -48,7 +48,6 @@ func (h *ResponseHandler) HandleResponse(
 	}
 	// Apply collection context variables before processing
 	h.applyCollectionContext(ctx, input)
-
 	// Capture after validation to avoid nil deref
 	originalExecID := input.TaskState.TaskExecID
 	// Delegate to base handler for common logic
@@ -58,18 +57,15 @@ func (h *ResponseHandler) HandleResponse(
 		input.TaskState.TaskExecID = originalExecID
 		return nil, err
 	}
-
 	// Restore the original TaskExecID on both the input state and the response state
 	input.TaskState.TaskExecID = originalExecID
 	if response != nil && response.State != nil {
 		response.State.TaskExecID = originalExecID
 	}
-
 	// Collection tasks use deferred output transformation
 	// The transformation happens after all child tasks complete
 	// This is handled by the orchestrator calling ApplyDeferredOutputTransformation
 	// We don't need to do it here as it's done after children processing
-
 	return response, nil
 }
 
@@ -84,10 +80,8 @@ func (h *ResponseHandler) applyCollectionContext(ctx context.Context, input *sha
 	if taskInput == nil {
 		return
 	}
-
 	// Build normalization context for variable access
 	normCtx := h.contextBuilder.BuildContext(ctx, input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
-
 	// Apply standard item variable
 	if item, exists := (*taskInput)[shared.FieldCollectionItem]; exists {
 		normCtx.Variables["item"] = item
@@ -99,7 +93,6 @@ func (h *ResponseHandler) applyCollectionContext(ctx context.Context, input *sha
 			}
 		}
 	}
-
 	// Apply standard index variable
 	if index, exists := (*taskInput)[shared.FieldCollectionIndex]; exists {
 		normCtx.Variables["index"] = index
@@ -127,12 +120,10 @@ func (h *ResponseHandler) ApplyDeferredOutputTransformation(
 	if !h.baseHandler.ShouldDeferOutputTransformation(input.TaskConfig) {
 		return nil
 	}
-
 	// Apply the deferred transformation using the base handler
 	if err := h.baseHandler.ApplyDeferredOutputTransformation(ctx, input); err != nil {
 		return fmt.Errorf("collection deferred transformation failed: %w", err)
 	}
-
 	return nil
 }
 
@@ -162,12 +153,10 @@ func (h *ResponseHandler) ValidateCollectionOutput(output *core.Output) error {
 	if output == nil {
 		return nil
 	}
-
 	// No validation is currently needed for collection outputs because:
 	// 1. Collection outputs are dynamically structured based on the collection configuration
 	// 2. The output structure is determined by the user-defined transformation in the workflow
 	// 3. Validation would overly constrain the flexibility of collection transformations
 	// The orchestrator and output transformer handle the actual aggregation and structuring
-
 	return nil
 }

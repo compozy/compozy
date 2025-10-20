@@ -108,7 +108,6 @@ func (p *Pipeline) Run(ctx context.Context) (result *Result, err error) {
 		attribute.String("strategy", string(strategy)),
 	))
 	defer p.finishRun(ctx, span, start, &result, &err)
-
 	log.Info("Knowledge ingestion started", "strategy", string(strategy))
 	if validateErr := p.validateStrategy(strategy); validateErr != nil {
 		err = validateErr
@@ -127,7 +126,6 @@ func (p *Pipeline) finishRun(
 ) {
 	duration := time.Since(start)
 	knowledge.RecordIngestDuration(ctx, p.binding.KnowledgeBase.ID, duration)
-
 	log := logger.FromContext(ctx).With(
 		"kb_id", p.binding.KnowledgeBase.ID,
 		"binding_id", p.binding.ID,
@@ -141,7 +139,6 @@ func (p *Pipeline) finishRun(
 		span.End()
 		return
 	}
-
 	if result != nil && *result != nil {
 		res := *result
 		RecordDocuments(ctx, res.Documents, OutcomeSuccess)
@@ -347,12 +344,10 @@ func (p *Pipeline) persistChunks(ctx context.Context, chunks []chunk.Chunk) (int
 	g, groupCtx := errgroup.WithContext(ctx)
 	results := make(chan []vectordb.Record, workers)
 	var total int
-
 	g.Go(func() error {
 		defer close(results)
 		return p.runEmbeddingStage(groupCtx, batches, workers, results)
 	})
-
 	g.Go(func() error {
 		for records := range results {
 			if err := p.upsertBatch(groupCtx, records); err != nil {
@@ -362,7 +357,6 @@ func (p *Pipeline) persistChunks(ctx context.Context, chunks []chunk.Chunk) (int
 		}
 		return nil
 	})
-
 	if err := g.Wait(); err != nil {
 		return 0, err
 	}

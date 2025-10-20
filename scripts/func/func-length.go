@@ -31,19 +31,16 @@ func runFuncLengthCheck(root string) error {
 	if err != nil {
 		return err
 	}
-
 	violations := reportResults(functions)
 	if violations > 0 {
 		return fmt.Errorf("%w: %d functions exceed %d lines", errFuncLengthViolations, violations, maxFunctionLines)
 	}
-
 	return nil
 }
 
 func analyzeFunctionLengths(root string) ([]FunctionInfo, error) {
 	var functions []FunctionInfo
 	excluded := strings.Split(excludedDirs, ",")
-
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -69,7 +66,6 @@ func analyzeFunctionLengths(root string) ([]FunctionInfo, error) {
 		functions = append(functions, funcs...)
 		return nil
 	})
-
 	return functions, err
 }
 
@@ -79,9 +75,7 @@ func analyzeFile(filename string) ([]FunctionInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	var functions []FunctionInfo
-
 	ast.Inspect(node, func(n ast.Node) bool {
 		funcDecl, ok := n.(*ast.FuncDecl)
 		if !ok {
@@ -110,7 +104,6 @@ func analyzeFile(filename string) ([]FunctionInfo, error) {
 
 		return true
 	})
-
 	return functions, nil
 }
 
@@ -134,22 +127,18 @@ func reportResults(functions []FunctionInfo) int {
 		fmt.Printf("✅ All functions are within the %d-line limit!\n", maxFunctionLines)
 		return 0
 	}
-
 	sort.Slice(functions, func(i, j int) bool {
 		if functions[i].Lines == functions[j].Lines {
 			return functions[i].File < functions[j].File
 		}
 		return functions[i].Lines > functions[j].Lines
 	})
-
 	fmt.Printf("Found %d functions with more than %d lines:\n\n", len(functions), maxFunctionLines)
-
 	for _, fn := range functions {
 		fmt.Printf("📄 %s:%d\n", fn.File, fn.StartPos)
 		fmt.Printf("   Function: %s\n", fn.Name)
 		fmt.Printf("   Lines: %d (exceeds limit by %d)\n\n", fn.Lines, fn.Lines-maxFunctionLines)
 	}
-
 	fmt.Printf("Total violations: %d\n", len(functions))
 	return len(functions)
 }

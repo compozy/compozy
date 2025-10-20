@@ -63,6 +63,5 @@ func (uc *ListTools) Execute(_ context.Context) ([]tool.Config, error) {
 			}
 		}
 	}
-
 	return tools, nil
 }

@@ -93,7 +93,6 @@ func (tmm *TokenMemoryManager) EnforceLimits(
 		}
 		effectiveMaxTokens = int(float64(modelContextSize) * tmm.config.MaxContextRatio)
 	}
-
 	// 1. Token Limit Enforcement (FIFO)
 	if effectiveMaxTokens > 0 && currentTotalTokens > effectiveMaxTokens {
 		evictedMessages := 0
@@ -103,7 +102,6 @@ func (tmm *TokenMemoryManager) EnforceLimits(
 			evictedMessages++
 		}
 	}
-
 	// 2. Message Count Limit Enforcement (FIFO)
 	// Applied *after* token limit, as token limit is usually primary for LLMs.
 	if tmm.config.MaxMessages > 0 && len(messages) > tmm.config.MaxMessages {
@@ -132,7 +130,6 @@ func (tmm *TokenMemoryManager) ApplyTokenAllocation(
 	if tmm.config.TokenAllocation == nil {
 		return messages, currentTotalTokens, nil // No allocation defined
 	}
-
 	// This is a placeholder for a more complex allocation-aware eviction.
 	// For example, if TokenAllocation is defined:
 	// 1. Categorize messages (e.g., by role or metadata: system, short_term, long_term).
@@ -141,7 +138,6 @@ func (tmm *TokenMemoryManager) ApplyTokenAllocation(
 	//    a. Try to evict from categories that are over their budget according to ratios.
 	//    b. Prioritize keeping 'system' messages if possible.
 	//    c. Fallback to general FIFO or LIFO within less critical categories.
-
 	// For now, this function is a no-op as the primary EnforceLimits uses simple FIFO.
 	// logger.Debug(ctx, "Token allocation defined but not yet fully implemented in eviction strategy.")
 	return messages, currentTotalTokens, nil
@@ -157,12 +153,10 @@ func (tmm *TokenMemoryManager) GetManagedMessages(
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to calculate token counts: %w", err)
 	}
-
 	finalMessagesWithTokens, finalTotalTokens, err := tmm.EnforceLimits(ctx, messagesWithTokens, totalTokens)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to enforce limits: %w", err)
 	}
-
 	// Convert back to []llm.Message
 	resultMessages := make([]llm.Message, len(finalMessagesWithTokens))
 	for i, mwt := range finalMessagesWithTokens {
@@ -173,7 +167,6 @@ func (tmm *TokenMemoryManager) GetManagedMessages(
 			resultMessages[i] = llm.Message{Role: "system", Content: "Invalid message type"}
 		}
 	}
-
 	return resultMessages, finalTotalTokens, nil
 }
 
@@ -199,13 +192,11 @@ func (tmm *TokenMemoryManager) EnforceLimitsWithPriority(
 	if effectiveMaxTokens <= 0 || currentTotalTokens <= effectiveMaxTokens {
 		return messages, currentTotalTokens, nil
 	}
-
 	setOriginalIndices(messages)
 	sorted := copyAndSortByPriority(messages)
 	tokensToEvict := currentTotalTokens - effectiveMaxTokens
 	kept := makeKeepMask(len(messages))
 	remainingTokens := evictByPriority(sorted, kept, tokensToEvict, currentTotalTokens)
-
 	return collectKeptMessages(messages, kept), remainingTokens, nil
 }
 

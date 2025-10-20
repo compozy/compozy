@@ -49,10 +49,8 @@ func NewMemoryOperationsService(
 	if config == nil {
 		config = DefaultConfig()
 	}
-
 	tracer := otel.Tracer("memory.service")
 	meter := otel.Meter("memory.service")
-
 	// Create metrics
 	operationCount, err := meter.Int64Counter(
 		monitoringmetrics.MetricNameWithSubsystem("memory", "operations_total"),
@@ -62,7 +60,6 @@ func NewMemoryOperationsService(
 		// Log error but continue - metrics are not critical for core functionality
 		operationCount = nil
 	}
-
 	operationDuration, err := meter.Float64Histogram(
 		monitoringmetrics.MetricNameWithSubsystem("memory", "operation_duration_seconds"),
 		metric.WithDescription("Duration of memory operations in seconds"),
@@ -71,7 +68,6 @@ func NewMemoryOperationsService(
 		// Log error but continue - metrics are not critical for core functionality
 		operationDuration = nil
 	}
-
 	return &memoryOperationsService{
 		memoryManager:     memoryManager,
 		templateEngine:    templateEngine,
@@ -90,13 +86,11 @@ func NewMemoryOperationsService(
 func (s *memoryOperationsService) Read(ctx context.Context, req *ReadRequest) (*ReadResponse, error) {
 	ctx, span := s.tracer.Start(ctx, "memory.service.Read")
 	defer span.End()
-
 	// Add attributes
 	span.SetAttributes(
 		attribute.String("memory_ref", req.MemoryRef),
 		attribute.String("key", req.Key),
 	)
-
 	// Record operation
 	if s.operationCount != nil {
 		s.operationCount.Add(ctx, 1, metric.WithAttributes(
@@ -108,7 +102,6 @@ func (s *memoryOperationsService) Read(ctx context.Context, req *ReadRequest) (*
 	if err := ValidateBaseRequestWithLimits(&req.BaseRequest, &s.config.ValidationLimits); err != nil {
 		return nil, err
 	}
-
 	// Get memory instance
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "read")
 	if err != nil {
@@ -118,7 +111,6 @@ func (s *memoryOperationsService) Read(ctx context.Context, req *ReadRequest) (*
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-
 	// Read messages
 	messages, err := instance.Read(ctx)
 	if err != nil {
@@ -128,7 +120,6 @@ func (s *memoryOperationsService) Read(ctx context.Context, req *ReadRequest) (*
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-
 	span.SetAttributes(attribute.Int("message_count", len(messages)))
 	return &ReadResponse{
 		Messages: messages,
@@ -151,7 +142,6 @@ func (s *memoryOperationsService) ReadPaginated(
 		attribute.Int("limit", req.Limit),
 	)
 	defer span.End()
-
 	s.recordOperationMetric(ctx, "read_paginated", req.MemoryRef)
 	if err := s.validateReadPaginatedRequest(req); err != nil {
 		return nil, err
@@ -160,14 +150,12 @@ func (s *memoryOperationsService) ReadPaginated(
 	if err != nil {
 		return nil, err
 	}
-
 	hasMore := (req.Offset + len(messages)) < totalCount
 	span.SetAttributes(
 		attribute.Int("message_count", len(messages)),
 		attribute.Int("total_count", totalCount),
 		attribute.Bool("has_more", hasMore),
 	)
-
 	return &ReadPaginatedResponse{
 		Messages:   messages,
 		Count:      len(messages),
@@ -188,17 +176,14 @@ func (s *memoryOperationsService) Write(ctx context.Context, req *WriteRequest) 
 		attribute.String("key", req.Key),
 	)
 	defer span.End()
-
 	s.recordOperationMetric(ctx, "write", req.MemoryRef)
 	if err := s.validateWriteRequest(req); err != nil {
 		return nil, err
 	}
-
 	instance, messages, err := s.prepareWriteResources(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-
 	if atomicInstance, ok := instance.(memcore.AtomicOperations); ok {
 		return s.performAtomicWrite(ctx, atomicInstance, req.Key, messages)
 	}
@@ -242,21 +227,17 @@ func (s *memoryOperationsService) AppendMany(ctx context.Context, req *AppendReq
 		attribute.String("key", req.Key),
 	)
 	defer span.End()
-
 	s.recordOperationMetric(ctx, "append_many", req.MemoryRef)
 	if err := ValidateBaseRequestWithLimits(&req.BaseRequest, &s.config.ValidationLimits); err != nil {
 		return nil, err
 	}
-
 	instance, messages, beforeCount, err := s.prepareAppendOperation(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-
 	if len(messages) == 0 {
 		return s.appendNoopResponse(span, beforeCount, req.Key), nil
 	}
-
 	if err := instance.AppendMany(ctx, messages); err != nil {
 		return nil, memcore.NewMemoryError(
 			memcore.ErrCodeMemoryAppend,
@@ -264,7 +245,6 @@ func (s *memoryOperationsService) AppendMany(ctx context.Context, req *AppendReq
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-
 	return s.appendSuccessResponse(ctx, span, instance, beforeCount, req)
 }
 
@@ -272,13 +252,11 @@ func (s *memoryOperationsService) AppendMany(ctx context.Context, req *AppendReq
 func (s *memoryOperationsService) Delete(ctx context.Context, req *DeleteRequest) (*DeleteResponse, error) {
 	ctx, span := s.tracer.Start(ctx, "memory.service.Delete")
 	defer span.End()
-
 	// Add attributes
 	span.SetAttributes(
 		attribute.String("memory_ref", req.MemoryRef),
 		attribute.String("key", req.Key),
 	)
-
 	// Record operation
 	if s.operationCount != nil {
 		s.operationCount.Add(ctx, 1, metric.WithAttributes(
@@ -290,7 +268,6 @@ func (s *memoryOperationsService) Delete(ctx context.Context, req *DeleteRequest
 	if err := ValidateBaseRequestWithLimits(&req.BaseRequest, &s.config.ValidationLimits); err != nil {
 		return nil, err
 	}
-
 	// Get memory instance
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "delete")
 	if err != nil {
@@ -300,7 +277,6 @@ func (s *memoryOperationsService) Delete(ctx context.Context, req *DeleteRequest
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-
 	// Clear all messages (delete operation)
 	if err := instance.Clear(ctx); err != nil {
 		return nil, memcore.NewMemoryError(
@@ -309,7 +285,6 @@ func (s *memoryOperationsService) Delete(ctx context.Context, req *DeleteRequest
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-
 	return &DeleteResponse{
 		Success: true,
 		Key:     req.Key,
@@ -343,17 +318,14 @@ func (s *memoryOperationsService) Clear(ctx context.Context, req *ClearRequest) 
 		attribute.String("key", req.Key),
 	)
 	defer span.End()
-
 	s.recordOperationMetric(ctx, "clear", req.MemoryRef)
 	if err := s.validateClearRequest(req); err != nil {
 		return nil, err
 	}
-
 	clearedCount, err := s.performClearOperation(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-
 	span.SetAttributes(attribute.Int("messages_cleared", clearedCount))
 	return &ClearResponse{
 		Success:         true,
@@ -372,13 +344,11 @@ func (s *memoryOperationsService) Health(ctx context.Context, req *HealthRequest
 		attribute.String("key", req.Key),
 	)
 	defer span.End()
-
 	s.recordOperationMetric(ctx, "health", req.MemoryRef)
 	config, err := s.validateHealthRequest(req)
 	if err != nil {
 		return nil, err
 	}
-
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "health")
 	if err != nil {
 		return nil, memcore.NewMemoryError(
@@ -387,7 +357,6 @@ func (s *memoryOperationsService) Health(ctx context.Context, req *HealthRequest
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-
 	health, err := instance.GetMemoryHealth(ctx)
 	if err != nil {
 		return nil, memcore.NewMemoryError(
@@ -396,7 +365,6 @@ func (s *memoryOperationsService) Health(ctx context.Context, req *HealthRequest
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-
 	result := buildHealthResponse(req, health)
 	if config.IncludeStats {
 		s.populateHealthStats(ctx, instance, result)
@@ -413,13 +381,11 @@ func (s *memoryOperationsService) Stats(ctx context.Context, req *StatsRequest) 
 		attribute.String("key", req.Key),
 	)
 	defer span.End()
-
 	s.recordOperationMetric(ctx, "stats", req.MemoryRef)
 	config, err := s.validateStatsRequest(req)
 	if err != nil {
 		return nil, err
 	}
-
 	instance, err := s.getMemoryInstance(ctx, req.MemoryRef, req.Key, "stats")
 	if err != nil {
 		return nil, memcore.NewMemoryError(
@@ -428,12 +394,10 @@ func (s *memoryOperationsService) Stats(ctx context.Context, req *StatsRequest) 
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-
 	messageCount, tokenCount, health, err := s.collectStatsData(ctx, instance, req)
 	if err != nil {
 		return nil, err
 	}
-
 	return buildStatsResponse(req, messageCount, tokenCount, health, config.IncludeContent), nil
 }
 
@@ -661,7 +625,6 @@ func (s *memoryOperationsService) executeFlush(
 		}
 		return result, actual, nil
 	}
-
 	result, err := flushable.PerformFlush(ctx)
 	if err != nil {
 		return nil, "", err
@@ -763,7 +726,6 @@ func (s *memoryOperationsService) getMemoryInstance(
 		ID:          memoryRef,
 		ResolvedKey: key, // Use ResolvedKey for explicit keys from REST API
 	}
-
 	// Use the workflow context from the service if available, or create a minimal one
 	workflowContext := s.workflowContext
 	if workflowContext == nil {
@@ -771,7 +733,6 @@ func (s *memoryOperationsService) getMemoryInstance(
 			"api_operation": operation,
 		}
 	}
-
 	return s.memoryManager.GetInstance(ctx, memRef, workflowContext)
 }
 
@@ -784,12 +745,10 @@ func (s *memoryOperationsService) resolvePayload(
 	if payload == nil {
 		return nil, nil
 	}
-
 	// If no template engine or workflow state, return payload as-is
 	if s.templateEngine == nil || workflowState == nil {
 		return payload, nil
 	}
-
 	// Build context for template evaluation following project standards
 	tplCtx := map[string]any{
 		"workflow": map[string]any{
@@ -799,12 +758,10 @@ func (s *memoryOperationsService) resolvePayload(
 		},
 		"tasks": workflowState.Tasks,
 	}
-
 	// Add merged input as "input" at top level for task context
 	if mergedInput != nil {
 		tplCtx["input"] = dereferenceInput(mergedInput)
 	}
-
 	return s.resolvePayloadRecursive(payload, tplCtx)
 }
 
@@ -1187,14 +1144,12 @@ func (s *memoryOperationsService) performDryRunFlush(
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-
 	// Determine what strategy would be used
 	actualStrategy := health.ActualStrategy
 	if req.Config != nil && req.Config.Strategy != "" {
 		// If user requested a specific strategy, that would be used
 		actualStrategy = req.Config.Strategy
 	}
-
 	return &FlushResponse{
 		Success:        true,
 		DryRun:         true,
@@ -1221,7 +1176,6 @@ func (s *memoryOperationsService) performActualFlush(
 			err,
 		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
 	}
-
 	response := buildFlushResponse(result, req.Key, actualStrategy)
 	if result.Error != "" {
 		response.Error = result.Error

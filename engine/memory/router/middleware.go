@@ -79,10 +79,8 @@ func extractKey(c *gin.Context) string {
 	if c.Request.Method != http.MethodGet {
 		return ""
 	}
-
 	key := c.Query("key")
 	requestPath := c.Request.URL.Path
-
 	// Validate key for GET requests that require it
 	if requiresKey(requestPath) && key == "" {
 		reqErr := router.NewRequestError(
@@ -94,7 +92,6 @@ func extractKey(c *gin.Context) string {
 		c.Abort()
 		return ""
 	}
-
 	return key
 }
 
@@ -111,7 +108,6 @@ func getDependencies(c *gin.Context) (*appstate.State, *memory.Manager, memcore.
 	if appState == nil {
 		return nil, nil, nil, fmt.Errorf("app state not available")
 	}
-
 	if appState.Worker == nil {
 		reqErr := router.NewRequestError(
 			http.StatusInternalServerError,
@@ -121,7 +117,6 @@ func getDependencies(c *gin.Context) (*appstate.State, *memory.Manager, memcore.
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, nil, nil, reqErr
 	}
-
 	memoryManager := appState.Worker.GetMemoryManager()
 	if memoryManager == nil {
 		reqErr := router.NewRequestError(
@@ -132,7 +127,6 @@ func getDependencies(c *gin.Context) (*appstate.State, *memory.Manager, memcore.
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, nil, nil, reqErr
 	}
-
 	tokenCounter, err := memoryManager.GetTokenCounter(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
@@ -143,7 +137,6 @@ func getDependencies(c *gin.Context) (*appstate.State, *memory.Manager, memcore.
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, nil, nil, reqErr
 	}
-
 	return appState, memoryManager, tokenCounter, nil
 }
 

@@ -66,7 +66,6 @@ func handleExecute(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
 	execID := workflowStateID.WorkflowExecID.String()
 	execURL := fmt.Sprintf("%s/executions/workflows/%s", routes.Base(), execID)
 	c.Header("Location", execURL)

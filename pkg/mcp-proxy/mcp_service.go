@@ -41,27 +41,22 @@ func (s *MCPService) CreateMCP(ctx context.Context, def *MCPDefinition) error {
 	if err := s.ensureDefinitionIsCreatable(ctx, def); err != nil {
 		return err
 	}
-
 	s.applyCreationTimestamps(def)
 	if err := s.storage.SaveMCP(ctx, def); err != nil {
 		return fmt.Errorf("%w: failed to save MCP definition: %v", ErrStorageError, err)
 	}
-
 	if err := s.clientManager.AddClient(ctx, def); err != nil {
 		s.rollbackMCPStorage(ctx, def.Name)
 		return fmt.Errorf("failed to add client to manager: %w", err)
 	}
-
 	if s.proxyHandlers == nil {
 		return nil
 	}
-
 	if err := s.proxyHandlers.RegisterMCPProxy(ctx, def.Name, def); err != nil {
 		s.rollbackClientAddition(ctx, def.Name)
 		s.rollbackMCPStorage(ctx, def.Name)
 		return fmt.Errorf("%w: %v", ErrProxyRegFailed, err)
 	}
-
 	return nil
 }
 
@@ -265,19 +260,16 @@ func (s *MCPService) performHotReload(ctx context.Context, name string, def *MCP
 			log.Debug("Failed to unregister proxy during update", "name", name, "error", err)
 		}
 	}
-
 	// Add the updated client - the manager will handle connection asynchronously
 	if err := s.clientManager.AddClient(ctx, def); err != nil {
 		return fmt.Errorf("failed to reconnect: %w", err)
 	}
-
 	// Register the proxy - it will wait for the client to connect
 	if s.proxyHandlers != nil {
 		if err := s.proxyHandlers.RegisterMCPProxy(ctx, def.Name, def); err != nil {
 			log.Warn("Proxy registration failed but client is being managed", "name", def.Name, "error", err)
 		}
 	}
-
 	return nil
 }
 

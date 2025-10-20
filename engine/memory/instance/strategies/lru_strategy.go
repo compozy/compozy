@@ -28,16 +28,13 @@ func NewLRUStrategy(config *core.FlushingStrategyConfig, options *StrategyOption
 	if err := validateLRUOptions(resolvedOptions); err != nil {
 		return nil, err
 	}
-
 	cacheSize := sanitizeLRUCacheSize(resolvedOptions.CacheSize)
 	cache, err := lru.New[int, time.Time](cacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LRU cache: %w", err)
 	}
-
 	thresholdPercent := resolveLRUThreshold(config)
 	tokenCounter := buildLRUTokenCounter(resolvedOptions)
-
 	return &LRUStrategy{
 		cache:         cache,
 		config:        config,
@@ -123,10 +120,8 @@ func (s *LRUStrategy) PerformFlush(
 			TokenCount:       0,
 		}, nil
 	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
 	// Calculate target message count
 	targetCount := s.calculateTargetMessageCount(len(messages), config)
 	if targetCount >= len(messages) {
@@ -138,11 +133,9 @@ func (s *LRUStrategy) PerformFlush(
 			TokenCount:       s.calculateTotalTokens(ctx, messages),
 		}, nil
 	}
-
 	// Perform LRU eviction
 	remainingMessages := s.performLRUEviction(messages, targetCount)
 	remainingTokens := s.calculateTotalTokens(ctx, remainingMessages)
-
 	return &core.FlushMemoryActivityOutput{
 		Success:          true,
 		SummaryGenerated: false,
@@ -163,11 +156,9 @@ func (s *LRUStrategy) calculateTargetMessageCount(currentCount int, config *core
 	if targetPercent <= 0 {
 		targetPercent = 0.6 // Default to 60%
 	}
-
 	if config.MaxMessages > 0 {
 		return int(float64(config.MaxMessages) * targetPercent)
 	}
-
 	// Default: keep configured percentage of messages
 	return int(float64(currentCount) * targetPercent)
 }
@@ -210,21 +201,16 @@ type indexedMessage struct {
 func (s *LRUStrategy) performLRUEviction(messages []llm.Message, targetCount int) []llm.Message {
 	// Build indexed messages with access times
 	indexedMessages := s.buildIndexedMessages(messages)
-
 	// Sort by access time (oldest first for eviction)
 	sort.Slice(indexedMessages, func(i, j int) bool {
 		return indexedMessages[i].accessTime.Before(indexedMessages[j].accessTime)
 	})
-
 	// Determine which messages to keep
 	remainingIndices := s.selectMessagesToKeep(indexedMessages, len(messages)-targetCount)
-
 	// Collect remaining messages in original order
 	remainingMessages := s.collectRemainingMessages(messages, remainingIndices)
-
 	// Update cache with remaining messages
 	s.updateCacheAfterEviction(messages, remainingMessages, remainingIndices)
-
 	return remainingMessages
 }
 
@@ -232,7 +218,6 @@ func (s *LRUStrategy) performLRUEviction(messages []llm.Message, targetCount int
 func (s *LRUStrategy) buildIndexedMessages(messages []llm.Message) []indexedMessage {
 	indexedMessages := make([]indexedMessage, len(messages))
 	now := time.Now()
-
 	for i, msg := range messages {
 		accessTime, found := s.cache.Get(i)
 		if !found {
@@ -284,10 +269,8 @@ func (s *LRUStrategy) updateCacheAfterEviction(
 			accessTimeMap[origIdx] = accessTime
 		}
 	}
-
 	// Clear the cache and repopulate with remaining messages
 	s.cache.Purge()
-
 	// Create a mapping from new index to original index for remaining messages
 	newToOrigIndex := make([]int, len(remainingMessages))
 	newIdx := 0
@@ -297,7 +280,6 @@ func (s *LRUStrategy) updateCacheAfterEviction(
 			newIdx++
 		}
 	}
-
 	// Rebuild cache with new indices
 	for newIdx := range remainingMessages {
 		origIdx := newToOrigIndex[newIdx]

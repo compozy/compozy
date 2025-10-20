@@ -93,10 +93,8 @@ func NewWorkflowTableComponent(workflows []api.Workflow) WorkflowTableComponent 
 		totalItems:    len(workflows),
 		keyMap:        DefaultWorkflowTableKeyMap(),
 	}
-
 	component.updateFilteredRows()
 	component.updateTableRows()
-
 	return component
 }
 
@@ -148,11 +146,9 @@ func defaultWorkflowTableStyles() table.Styles {
 func (wt *WorkflowTableComponent) SetSize(width, height int) *WorkflowTableComponent {
 	wt.width = width
 	wt.height = height
-
 	// Update table size, ensure minimum height
 	tableHeight := max(1, height-4) // Reserve space for header and pagination
 	wt.table.SetHeight(tableHeight)
-
 	// Guard against very narrow terminals
 	if width < 40 {
 		// Use minimal columns for very narrow terminals
@@ -163,7 +159,6 @@ func (wt *WorkflowTableComponent) SetSize(width, height int) *WorkflowTableCompo
 		wt.table.SetColumns(columns)
 		return wt
 	}
-
 	// Adjust column widths based on available space
 	availableWidth := width - 10 // Reserve space for borders and padding
 	columns := []table.Column{
@@ -176,7 +171,6 @@ func (wt *WorkflowTableComponent) SetSize(width, height int) *WorkflowTableCompo
 		{Title: "Tags", Width: max(8, min(20, availableWidth/6))},
 	}
 	wt.table.SetColumns(columns)
-
 	return wt
 }
 
@@ -204,12 +198,10 @@ func (wt *WorkflowTableComponent) GetSelectedWorkflow() *api.Workflow {
 	if len(wt.filteredRows) == 0 {
 		return nil
 	}
-
 	selectedIndex := wt.table.Cursor()
 	if selectedIndex < 0 || selectedIndex >= len(wt.filteredRows) {
 		return nil
 	}
-
 	// Find the workflow by ID from the first column
 	workflowID := wt.filteredRows[selectedIndex][0]
 	for i := range wt.workflows {
@@ -217,14 +209,12 @@ func (wt *WorkflowTableComponent) GetSelectedWorkflow() *api.Workflow {
 			return &wt.workflows[i]
 		}
 	}
-
 	return nil
 }
 
 // Update handles component updates
 func (wt *WorkflowTableComponent) Update(msg tea.Msg) (WorkflowTableComponent, tea.Cmd) {
 	var cmd tea.Cmd
-
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch {
 		case key.Matches(keyMsg, wt.keyMap.SortByName):
@@ -260,7 +250,6 @@ func (wt *WorkflowTableComponent) Update(msg tea.Msg) (WorkflowTableComponent, t
 			}
 		}
 	}
-
 	// Update the table
 	wt.table, cmd = wt.table.Update(msg)
 	return *wt, cmd
@@ -271,42 +260,33 @@ func (wt *WorkflowTableComponent) View() string {
 	if wt.width <= 0 || wt.height <= 0 {
 		return ""
 	}
-
 	var sections []string
-
 	// Header with sort information
 	header := wt.renderHeader()
 	sections = append(sections, header)
-
 	// Table view
 	tableView := wt.table.View()
 	sections = append(sections, tableView)
-
 	// Pagination info
 	pagination := wt.renderPagination()
 	sections = append(sections, pagination)
-
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
 // renderHeader renders the table header with sort and filter info
 func (wt *WorkflowTableComponent) renderHeader() string {
 	var parts []string
-
 	// Sort indicator
 	sortIndicator := fmt.Sprintf("Sort: %s %s", wt.sortColumn, wt.sortDirection)
 	parts = append(parts, styles.InfoStyle.Render(sortIndicator))
-
 	// Filter indicator
 	if wt.filterTerm != "" {
 		filterIndicator := fmt.Sprintf("Filter: %s", wt.filterTerm)
 		parts = append(parts, styles.WarningStyle.Render(filterIndicator))
 	}
-
 	// Total count
 	totalIndicator := fmt.Sprintf("Total: %d", len(wt.filteredRows))
 	parts = append(parts, styles.HelpStyle.Render(totalIndicator))
-
 	return strings.Join(parts, " • ")
 }
 
@@ -315,15 +295,12 @@ func (wt *WorkflowTableComponent) renderPagination() string {
 	if wt.totalItems == 0 {
 		return styles.PaginationStyle.Render("No workflows found")
 	}
-
 	startItem := wt.currentPage*wt.itemsPerPage + 1
 	endItem := min(startItem+wt.itemsPerPage-1, len(wt.filteredRows))
 	totalPages := (len(wt.filteredRows) + wt.itemsPerPage - 1) / wt.itemsPerPage
-
 	if totalPages == 0 {
 		totalPages = 1
 	}
-
 	pagination := fmt.Sprintf(
 		"Page %d of %d • Items %d-%d of %d",
 		wt.currentPage+1,
@@ -332,7 +309,6 @@ func (wt *WorkflowTableComponent) renderPagination() string {
 		endItem,
 		len(wt.filteredRows),
 	)
-
 	return styles.PaginationStyle.Render(pagination)
 }
 
@@ -349,7 +325,6 @@ func (wt *WorkflowTableComponent) setSortColumn(column string) {
 		wt.sortColumn = column
 		wt.sortDirection = SortOrderAsc
 	}
-
 	wt.updateFilteredRows()
 	wt.updateTableRows()
 }
@@ -398,7 +373,6 @@ func (wt *WorkflowTableComponent) lastPage() {
 func (wt *WorkflowTableComponent) updateFilteredRows() {
 	// Convert workflows to rows
 	rows := make([]table.Row, 0, len(wt.workflows))
-
 	for i := range wt.workflows {
 		workflow := &wt.workflows[i]
 		// Apply filter
@@ -423,39 +397,32 @@ func (wt *WorkflowTableComponent) updateFilteredRows() {
 		}
 		rows = append(rows, row)
 	}
-
 	// Sort rows
 	wt.sortRows(rows)
-
 	wt.filteredRows = rows
 }
 
 // matchesFilter checks if a workflow matches the current filter
 func (wt *WorkflowTableComponent) matchesFilter(workflow *api.Workflow) bool {
 	filterLower := strings.ToLower(wt.filterTerm)
-
 	// Check name
 	if strings.Contains(strings.ToLower(workflow.Name), filterLower) {
 		return true
 	}
-
 	// Check status
 	if strings.Contains(strings.ToLower(string(workflow.Status)), filterLower) {
 		return true
 	}
-
 	// Check tags
 	for _, tag := range workflow.Tags {
 		if strings.Contains(strings.ToLower(tag), filterLower) {
 			return true
 		}
 	}
-
 	// Check description
 	if strings.Contains(strings.ToLower(workflow.Description), filterLower) {
 		return true
 	}
-
 	return false
 }
 
@@ -491,18 +458,15 @@ func (wt *WorkflowTableComponent) updateTableRows() {
 		wt.table.SetRows([]table.Row{})
 		return
 	}
-
 	// Calculate page bounds
 	start := wt.currentPage * wt.itemsPerPage
 	end := min(start+wt.itemsPerPage, len(wt.filteredRows))
-
 	// Ensure bounds are valid
 	if start >= len(wt.filteredRows) {
 		start = 0
 		wt.currentPage = 0
 		end = min(wt.itemsPerPage, len(wt.filteredRows))
 	}
-
 	pageRows := wt.filteredRows[start:end]
 	wt.table.SetRows(pageRows)
 }

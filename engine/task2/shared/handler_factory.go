@@ -110,7 +110,6 @@ func (f *ResponseHandlerFactory) RegisterAllHandlers(
 		{task.TaskTypeSignal, signalHandler},
 		{task.TaskTypeAggregate, aggregateHandler},
 	}
-
 	for _, h := range handlers {
 		if err := f.RegisterHandler(h.taskType, h.handler); err != nil {
 			return fmt.Errorf("failed to register %s handler: %w", h.taskType, err)

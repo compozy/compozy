@@ -585,7 +585,6 @@ func deliverEvent(ctx context.Context, ch chan Event, evt *Event) bool {
 	log := logger.FromContext(ctx)
 	state := &deliveryState{}
 	defer state.stop()
-
 	for {
 		select {
 		case ch <- *evt:

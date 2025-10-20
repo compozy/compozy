@@ -44,14 +44,12 @@ func (pc *PrecisionConverter) convertStringWithPrecision(s string) any {
 	if s == "" {
 		return s
 	}
-
 	// Try parsing with decimal first to validate and check precision
 	dec, err := decimal.NewFromString(s)
 	if err != nil {
 		// Not a valid number, return as string
 		return s
 	}
-
 	// Check if it's a whole number
 	if dec.IsInteger() {
 		bigInt := dec.BigInt()
@@ -67,33 +65,27 @@ func (pc *PrecisionConverter) convertStringWithPrecision(s string) any {
 		// Too large for safe integer representation, preserve as string
 		return s
 	}
-
 	// For decimal numbers, check if conversion to float64 loses precision
 	f64, _ := dec.Float64()
-
 	// Convert back to decimal to check if we lost precision
 	backDec := decimal.NewFromFloat(f64)
-
 	// Compare the original decimal with the back-converted one
 	if !dec.Equal(backDec) {
 		// Precision would be lost, keep as string
 		return s
 	}
-
 	// Check if the decimal has too many significant digits for float64
 	// Float64 can accurately represent about 15-17 significant digits
 	if countSignificantDigits(s) > Float64SignificantDigits {
 		// Too many digits for accurate float64 representation
 		return s
 	}
-
 	return f64
 }
 
 // countSignificantDigits counts the number of significant digits in a numeric string
 func countSignificantDigits(s string) int {
 	s = strings.TrimSpace(s)
-
 	// Handle scientific notation
 	if strings.Contains(strings.ToLower(s), "e") {
 		// For scientific notation, count digits in the mantissa
@@ -102,20 +94,16 @@ func countSignificantDigits(s string) int {
 			s = parts[0]
 		}
 	}
-
 	// Remove leading sign
 	if strings.HasPrefix(s, "-") || strings.HasPrefix(s, "+") {
 		s = s[1:]
 	}
-
 	// Remove leading zeros
 	s = strings.TrimLeft(s, "0")
-
 	// If empty after trimming zeros, it was "0" or "0.0" etc
 	if s == "" || s == "." {
 		return 1
 	}
-
 	// Count digits, excluding decimal point
 	count := 0
 	for _, c := range s {
@@ -123,7 +111,6 @@ func countSignificantDigits(s string) int {
 			count++
 		}
 	}
-
 	return count
 }
 
@@ -131,12 +118,10 @@ func countSignificantDigits(s string) int {
 func (pc *PrecisionConverter) ConvertJSONWithPrecision(jsonStr string) (any, error) {
 	decoder := json.NewDecoder(strings.NewReader(jsonStr))
 	decoder.UseNumber() // Use json.Number to preserve precision
-
 	var result any
 	if err := decoder.Decode(&result); err != nil {
 		return nil, err
 	}
-
 	// Convert json.Number values to appropriate types
 	return pc.convertJSONValue(result), nil
 }

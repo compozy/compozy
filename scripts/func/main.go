@@ -28,11 +28,9 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-
 	cmd.AddCommand(newLengthCommand())
 	cmd.AddCommand(newSpacingCommand())
 	cmd.AddCommand(newCommentsCommand())
-
 	return cmd
 }
 
@@ -49,13 +47,11 @@ func newLengthCommand() *cobra.Command {
 			return runFuncLengthCheck(root)
 		},
 	}
-
 	return cmd
 }
 
 func newSpacingCommand() *cobra.Command {
 	var fix bool
-
 	cmd := &cobra.Command{
 		Use:   "spacing [path]",
 		Short: "Detect or fix unnecessary blank lines inside function bodies",
@@ -68,15 +64,12 @@ func newSpacingCommand() *cobra.Command {
 			return runFuncSpacingCheck(root, fix)
 		},
 	}
-
 	cmd.Flags().BoolVar(&fix, "fix", false, "Automatically remove blank lines between statements")
-
 	return cmd
 }
 
 func newCommentsCommand() *cobra.Command {
 	var fix bool
-
 	cmd := &cobra.Command{
 		Use:   "comments [path]",
 		Short: "Detect or remove non-TODO comments inside function bodies",
@@ -89,8 +82,6 @@ func newCommentsCommand() *cobra.Command {
 			return runFuncCommentCleanup(root, fix)
 		},
 	}
-
 	cmd.Flags().BoolVar(&fix, "fix", false, "Delete removable comments inside function bodies")
-
 	return cmd
 }

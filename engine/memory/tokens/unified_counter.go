@@ -55,10 +55,8 @@ func (u *UnifiedTokenCounter) CountTokens(ctx context.Context, text string) (int
 	if !isProviderConfigured(config) {
 		return u.countWithFallback(ctx, text)
 	}
-
 	apiCtx, cancel := context.WithTimeout(ctx, DefaultAPITimeout)
 	defer cancel()
-
 	count, err := u.tryCountWithProvider(apiCtx, config, text)
 	if err != nil {
 		return u.handleProviderFailure(ctx, text, config, err)
@@ -66,7 +64,6 @@ func (u *UnifiedTokenCounter) CountTokens(ctx context.Context, text string) (int
 	if count == 0 {
 		return u.handleZeroCount(ctx, text, config)
 	}
-
 	return count, nil
 }
 
@@ -92,7 +89,6 @@ func (u *UnifiedTokenCounter) tryCountWithProvider(
 		case <-ctx.Done():
 		}
 	}()
-
 	select {
 	case <-ctx.Done():
 		return 0, ctx.Err()

@@ -94,7 +94,6 @@ func NewToolRegistry(ctx context.Context, config ToolRegistryConfig) (ToolRegist
 	if config.EmptyCacheTTL == 0 {
 		config.EmptyCacheTTL = 30 * time.Second
 	}
-
 	registry := &toolRegistry{
 		config:        config,
 		localTools:    make(map[string]Tool),
@@ -175,13 +174,10 @@ func (r *toolRegistry) mcpToolDenied(t tools.Tool) bool {
 func (r *toolRegistry) Register(ctx context.Context, tool Tool) error {
 	log := logger.FromContext(ctx)
 	canonical := r.canonicalize(tool.Name())
-
 	r.localMu.Lock()
 	defer r.localMu.Unlock()
-
 	r.localTools[canonical] = tool
 	log.Debug("Registered local tool", "name", canonical)
-
 	return nil
 }
 
@@ -189,7 +185,6 @@ func (r *toolRegistry) Register(ctx context.Context, tool Tool) error {
 func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 	log := logger.FromContext(ctx)
 	canonical := r.canonicalize(name)
-
 	// Check local tools first (they have precedence)
 	r.localMu.RLock()
 	if localTool, exists := r.localTools[canonical]; exists {
@@ -197,14 +192,12 @@ func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 		return localTool, true
 	}
 	r.localMu.RUnlock()
-
 	// Check MCP tools
 	_, stale, err := r.getMCPTools(ctx)
 	if err != nil {
 		log.Warn("Failed to get MCP tools", "error", err)
 		return nil, false
 	}
-
 	lookupStart := time.Now()
 	if tool, ok := r.findMCPTool(canonical); ok {
 		mcpmetrics.RecordRegistryLookup(ctx, time.Since(lookupStart), true)
@@ -214,7 +207,6 @@ func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 		return tool, true
 	}
 	mcpmetrics.RecordRegistryLookup(ctx, time.Since(lookupStart), false)
-
 	if stale {
 		_, refreshErr := r.fetchFreshMCPTools(ctx)
 		if refreshErr != nil {
@@ -228,7 +220,6 @@ func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 		}
 		mcpmetrics.RecordRegistryLookup(ctx, time.Since(refreshStart), false)
 	}
-
 	return nil, false
 }
 
@@ -255,7 +246,6 @@ func (r *toolRegistry) InvalidateCache(ctx context.Context) {
 	log := logger.FromContext(ctx)
 	r.mcpMu.Lock()
 	defer r.mcpMu.Unlock()
-
 	r.mcpTools = nil
 	r.mcpToolIndex = nil
 	r.mcpCacheTs = time.Time{}
@@ -272,7 +262,6 @@ func (r *toolRegistry) Close() error {
 // getMCPTools returns the cached MCP tools and whether the cache is stale.
 func (r *toolRegistry) getMCPTools(ctx context.Context) ([]tools.Tool, bool, error) {
 	now := r.now()
-
 	r.mcpMu.RLock()
 	hasCache := !r.mcpCacheTs.IsZero()
 	snapshot := append([]tools.Tool(nil), r.mcpTools...)
@@ -285,11 +274,9 @@ func (r *toolRegistry) getMCPTools(ctx context.Context) ([]tools.Tool, bool, err
 	}
 	stale := hasCache && now.Sub(r.mcpCacheTs) >= ttl
 	r.mcpMu.RUnlock()
-
 	if hasCache {
 		return snapshot, stale, nil
 	}
-
 	fresh, err := r.fetchFreshMCPTools(ctx)
 	return fresh, false, err
 }
@@ -302,7 +289,6 @@ func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error
 		log.Debug("Refreshed MCP tools cache (proxy disabled/absent)")
 		return []tools.Tool{}, nil
 	}
-
 	toolDefs, err := r.config.ProxyClient.ListTools(ctx)
 	if err != nil {
 		return nil, core.NewError(err, "MCP_PROXY_ERROR", map[string]any{
@@ -590,7 +576,6 @@ func (a *localToolAdapter) Call(ctx context.Context, input string) (string, erro
 			"tool": a.config.ID,
 		})
 	}
-
 	// Execute tool
 	output, err := a.runtime.ExecuteTool(ctx, a.config, inputMap)
 	if err != nil {
@@ -603,7 +588,6 @@ func (a *localToolAdapter) Call(ctx context.Context, input string) (string, erro
 			"tool": a.config.ID,
 		})
 	}
-
 	// Return as JSON string
 	result, err := json.Marshal(*output)
 	if err != nil {

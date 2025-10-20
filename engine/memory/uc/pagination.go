@@ -39,7 +39,6 @@ func NormalizePagination(offset, limit int, limits PaginationLimits) (normalized
 	if offset < 0 {
 		offset = 0
 	}
-
 	// Apply limit defaults
 	if limit <= 0 {
 		limit = limits.DefaultLimit
@@ -47,6 +46,5 @@ func NormalizePagination(offset, limit int, limits PaginationLimits) (normalized
 	if limit > limits.MaxLimit {
 		limit = limits.MaxLimit
 	}
-
 	return offset, limit
 }

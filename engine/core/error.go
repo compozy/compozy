@@ -40,12 +40,10 @@ func (e *Error) AsMap() map[string]any {
 	if e == nil {
 		return nil
 	}
-
 	// Return nil if the error has no meaningful content
 	if e.Message == "" && e.Code == "" && e.Details == nil {
 		return nil
 	}
-
 	return map[string]any{
 		"message": e.Message,
 		"code":    e.Code,

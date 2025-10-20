@@ -221,15 +221,12 @@ func (h *BaseResponseHandler) processTaskExecutionResult(
 ) (bool, error) {
 	state := input.TaskState
 	executionErr := input.ExecutionError
-
 	// Check task output for error indicators (agent tasks may report errors in output)
 	if outputErr := h.detectOutputError(state.Output); outputErr != nil {
 		executionErr = outputErr
 	}
-
 	// Determine if task is successful so far
 	isSuccess := executionErr == nil && state.Status != core.StatusFailed
-
 	// Apply output transformation if needed
 	// Skip for collection/parallel tasks as they need children data first
 	if isSuccess && !h.ShouldDeferOutputTransformation(input.TaskConfig) {
@@ -241,13 +238,11 @@ func (h *BaseResponseHandler) processTaskExecutionResult(
 			}
 		}
 	}
-
 	// Handle final state
 	if !isSuccess {
 		state.UpdateStatus(core.StatusFailed)
 		h.setErrorState(state, executionErr)
 	}
-
 	return isSuccess, executionErr
 }
 
@@ -267,7 +262,6 @@ func (h *BaseResponseHandler) processTransitions(
 		}
 		return nil, nil, fmt.Errorf("failed to normalize transitions: %w", err)
 	}
-
 	// Check for error transition requirement
 	if !isSuccess && (onError == nil || onError.Next == nil) {
 		if executionErr != nil {
@@ -275,7 +269,6 @@ func (h *BaseResponseHandler) processTransitions(
 		}
 		return nil, nil, errors.New("task failed with no error transition defined")
 	}
-
 	return onSuccess, onError, nil
 }
 
@@ -440,20 +433,16 @@ func (h *BaseResponseHandler) updateParentStatusIfNeeded(ctx context.Context, ch
 	if childState.ParentStateID == nil {
 		return nil
 	}
-
 	if h.parentStatusManager == nil {
 		return nil // No parent status manager configured
 	}
-
 	// Get parent state to extract strategy
 	parentState, err := h.taskRepo.GetState(ctx, *childState.ParentStateID)
 	if err != nil {
 		return fmt.Errorf("failed to get parent state: %w", err)
 	}
-
 	// Extract strategy from parent state
 	strategy := h.extractParentStrategy(parentState)
-
 	// Use the parent status manager to update status
 	return h.parentStatusManager.UpdateParentStatus(ctx, *childState.ParentStateID, strategy)
 }
@@ -544,16 +533,13 @@ func (h *BaseResponseHandler) CreateResponseContext(input *ResponseInput) *Respo
 	context := &ResponseContext{
 		IsParentTask: input.TaskState.ParentStateID != nil,
 	}
-
 	if input.TaskState.ParentStateID != nil {
 		context.ParentTaskID = input.TaskState.ParentStateID.String()
 	}
-
 	context.DeferredConfig = h.CreateDeferredOutputConfig(
 		input.TaskConfig.Type,
 		fmt.Sprintf("Output transformation deferred for %s tasks", input.TaskConfig.Type),
 	)
-
 	return context
 }
 

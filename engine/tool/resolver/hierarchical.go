@@ -48,7 +48,6 @@ func (r *hierarchicalResolver) ResolveTools(
 		toolIDs = append(toolIDs, id)
 	}
 	sort.Strings(toolIDs)
-
 	result := make([]tool.Config, 0, len(toolMap))
 	for _, id := range toolIDs {
 		result = append(result, toolMap[id])

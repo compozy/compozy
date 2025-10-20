@@ -33,13 +33,11 @@ func NewUpdateState(workflowRepo workflow.Repository, taskRepo task.Repository) 
 
 func (a *UpdateState) Run(ctx context.Context, input *UpdateStateInput) error {
 	workflowExecID := input.WorkflowExecID
-
 	// Update workflow state
 	state, err := a.workflowRepo.GetState(ctx, workflowExecID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow %s: %w", input.WorkflowExecID, err)
 	}
-
 	state.WithStatus(input.Status)
 	if input.Error != nil {
 		state.WithError(input.Error)
@@ -47,16 +45,13 @@ func (a *UpdateState) Run(ctx context.Context, input *UpdateStateInput) error {
 	if input.Output != nil {
 		state.WithOutput(input.Output)
 	}
-
 	if err := a.workflowRepo.UpsertState(ctx, state); err != nil {
 		return fmt.Errorf("failed to update workflow %s: %w", input.WorkflowExecID, err)
 	}
-
 	// Cascade state changes to tasks when appropriate
 	if err := a.cascadeStateToTasks(ctx, workflowExecID, input.Status); err != nil {
 		return fmt.Errorf("failed to cascade state to tasks: %w", err)
 	}
-
 	return nil
 }
 
@@ -70,13 +65,11 @@ func (a *UpdateState) cascadeStateToTasks(
 	if !shouldCascadeToTasks(newStatus) {
 		return nil
 	}
-
 	// Get all tasks in the workflow
 	tasks, err := a.taskRepo.ListTasksInWorkflow(ctx, workflowExecID)
 	if err != nil {
 		return fmt.Errorf("failed to list tasks in workflow: %w", err)
 	}
-
 	// Update tasks based on the new workflow status
 	for _, taskState := range tasks {
 		if shouldUpdateTaskState(taskState.Status, newStatus) {
@@ -88,7 +81,6 @@ func (a *UpdateState) cascadeStateToTasks(
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -111,7 +103,6 @@ func shouldUpdateTaskState(taskStatus, workflowStatus core.StatusType) bool {
 		taskStatus == core.StatusTimedOut {
 		return false
 	}
-
 	switch workflowStatus {
 	case core.StatusPaused:
 		// Only pause tasks that are currently running or pending

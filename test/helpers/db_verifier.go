@@ -47,14 +47,11 @@ func (v *DatabaseStateVerifier) VerifyWorkflowState(
 	if len(timeoutDuration) > 0 {
 		timeout = timeoutDuration[0]
 	}
-
 	ctx, cancel := context.WithTimeout(v.t.Context(), timeout)
 	defer cancel()
-
 	// Poll for the expected status with backoff
 	ticker := time.NewTicker(DefaultPollInterval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -114,13 +111,10 @@ func (v *DatabaseStateVerifier) VerifyTaskState(
 	if len(timeoutDuration) > 0 {
 		timeout = timeoutDuration[0]
 	}
-
 	ctx, cancel := context.WithTimeout(v.t.Context(), timeout)
 	defer cancel()
-
 	ticker := time.NewTicker(DefaultPollInterval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -188,7 +182,6 @@ func (v *DatabaseStateVerifier) VerifyTaskExists(workflowExecID core.ID, taskID 
 	v.t.Helper()
 	tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err, "Should be able to list tasks in workflow")
-
 	found := false
 	for _, taskState := range tasks {
 		if taskState.TaskID == taskID {
@@ -208,14 +201,11 @@ func (v *DatabaseStateVerifier) VerifyWorkflowCompletesWithStatus(
 ) {
 	v.t.Helper()
 	v.VerifyWorkflowStateEventually(workflowExecID, expectedStatus, maxWait)
-
 	// Also verify the workflow state contains expected fields
 	state, err := v.workflowRepo.GetState(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err)
-
 	assert.Equal(v.t, expectedStatus, state.Status)
 	assert.NotNil(v.t, state.Input, "Workflow should have input")
-
 	// Verify state fields based on status
 	switch expectedStatus {
 	case core.StatusSuccess:
@@ -266,7 +256,6 @@ func (v *DatabaseStateVerifier) GetTaskState(workflowExecID core.ID, taskID stri
 	v.t.Helper()
 	tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err)
-
 	for _, taskState := range tasks {
 		if taskState.TaskID == taskID {
 			return taskState
@@ -290,11 +279,9 @@ func (v *DatabaseStateVerifier) VerifyNoErrors(workflowExecID core.ID) {
 	// Check workflow for errors
 	workflowState := v.GetWorkflowState(workflowExecID)
 	assert.Nil(v.t, workflowState.Error, "Workflow should not have errors")
-
 	// Check all tasks for errors
 	tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err)
-
 	for _, taskState := range tasks {
 		assert.Nil(v.t, taskState.Error, "Task %s should not have errors", taskState.TaskID)
 	}
@@ -352,10 +339,8 @@ func (v *DatabaseStateVerifier) VerifyTaskStateConsistency(workflowExecID core.I
 	v.t.Helper()
 	workflowState, err := v.workflowRepo.GetState(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err, "Failed to get workflow state")
-
 	tasks, err := v.taskRepo.ListTasksInWorkflow(v.t.Context(), workflowExecID)
 	require.NoError(v.t, err, "Failed to get tasks")
-
 	for taskID, taskState := range tasks {
 		v.t.Logf("Checking task %s consistency: workflow=%s, task=%s",
 			taskID, workflowState.Status, taskState.Status)

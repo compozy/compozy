@@ -58,14 +58,12 @@ func (b *requestBuilder) Build(
 	if err != nil {
 		return RequestBuildOutput{}, err
 	}
-
 	toolDefs, err := b.buildToolDefinitions(ctx, request.Agent.Tools)
 	if err != nil {
 		return RequestBuildOutput{}, NewLLMError(err, ErrCodeToolDefinitions, map[string]any{
 			"agent": request.Agent.ID,
 		})
 	}
-
 	messages, err := b.buildMessages(ctx, promptResult.Prompt, memoryCtx, request)
 	if err != nil {
 		return RequestBuildOutput{}, err
@@ -73,7 +71,6 @@ func (b *requestBuilder) Build(
 	if err := b.validateConversation(messages, &request); err != nil {
 		return RequestBuildOutput{}, err
 	}
-
 	llmReq := b.composeLLMRequest(ctx, &request, &promptResult, toolDefs, messages)
 	return RequestBuildOutput{
 		Request:        llmReq,
@@ -255,18 +252,15 @@ func (b *requestBuilder) buildMessages(
 	} else {
 		parts = []llmadapter.ContentPart{}
 	}
-
 	messages := []llmadapter.Message{{
 		Role:    "user",
 		Content: enhancedPrompt,
 		Parts:   parts,
 	}}
-
 	if memoryCtx != nil {
 		messages = b.memory.Inject(ctx, messages, memoryCtx)
 	}
 	messages = b.injectKnowledge(ctx, messages, request.Knowledge.Entries)
-
 	return messages, nil
 }
 
@@ -420,7 +414,6 @@ func (b *requestBuilder) collectConfiguredToolDefs(
 		defs = append(defs, def)
 		included[canonicalToolName(def.Name)] = struct{}{}
 	}
-
 	return defs, included, nil
 }
 
@@ -439,14 +432,12 @@ func (b *requestBuilder) appendRegistryToolDefs(
 	if b.tools == nil {
 		return defs
 	}
-
 	log := logger.FromContext(ctx)
 	allTools, err := b.tools.ListAll(ctx)
 	if err != nil {
 		log.Warn("Failed to list tools from registry", "error", core.RedactError(err))
 		return defs
 	}
-
 	for _, rt := range allTools {
 		name := rt.Name()
 		lower := canonicalToolName(name)
@@ -459,7 +450,6 @@ func (b *requestBuilder) appendRegistryToolDefs(
 		defs = append(defs, llmadapter.ToolDefinition{Name: name, Description: rt.Description(), Parameters: params})
 		included[lower] = struct{}{}
 	}
-
 	return defs
 }
 

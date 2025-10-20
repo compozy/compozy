@@ -65,12 +65,10 @@ func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemp
 	if r.skipMemoryResolution(ctx, memoryID) {
 		return nil, nil
 	}
-
 	resolvedKey, err := r.prepareMemoryKey(ctx, keyTemplate)
 	if err != nil {
 		return nil, err
 	}
-
 	memRef := r.buildMemoryReference(memoryID, keyTemplate, resolvedKey)
 	return r.fetchMemoryInstance(ctx, memRef)
 }
@@ -95,7 +93,6 @@ func (r *MemoryResolver) prepareMemoryKey(ctx context.Context, keyTemplate strin
 	if strings.TrimSpace(keyTemplate) == "" {
 		return "", nil
 	}
-
 	resolvedKey, err := r.resolveKey(ctx, keyTemplate)
 	if err != nil {
 		return "", err
@@ -125,7 +122,6 @@ func (r *MemoryResolver) buildMemoryReference(
 func (r *MemoryResolver) fetchMemoryInstance(ctx context.Context, memRef core.MemoryReference) (llm.Memory, error) {
 	log := logger.FromContext(ctx)
 	log.Debug("Passing memory reference to manager", "memory_id", memRef.ID)
-
 	memInstance, err := r.memoryManager.GetInstance(ctx, memRef, r.workflowContext)
 	if err != nil {
 		log.Error("Failed to get memory instance",
@@ -135,11 +131,9 @@ func (r *MemoryResolver) fetchMemoryInstance(ctx context.Context, memRef core.Me
 		)
 		return nil, fmt.Errorf("failed to get memory instance: %w", err)
 	}
-
 	if memInstance == nil {
 		return nil, nil
 	}
-
 	return &memoryResolverAdapter{memory: memInstance}, nil
 }
 
@@ -151,7 +145,6 @@ func (r *MemoryResolver) resolveKey(ctx context.Context, keyTemplate string) (st
 		"has_template_engine", r.templateEngine != nil,
 		"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
 	)
-
 	if r.templateEngine == nil {
 		if tplengine.HasTemplate(keyTemplate) {
 			log.Error("Template engine is nil but key has template syntax",
@@ -161,7 +154,6 @@ func (r *MemoryResolver) resolveKey(ctx context.Context, keyTemplate string) (st
 		// If no template syntax, return as literal key
 		return keyTemplate, nil
 	}
-
 	// Execute the template with the workflow context
 	resolved, err := r.templateEngine.RenderString(keyTemplate, r.workflowContext)
 	if err != nil {
@@ -171,11 +163,9 @@ func (r *MemoryResolver) resolveKey(ctx context.Context, keyTemplate string) (st
 			"workflow_context", fmt.Sprintf("%+v", r.workflowContext))
 		return "", fmt.Errorf("failed to execute key template: %w", err)
 	}
-
 	log.Debug("Template resolved successfully",
 		"key_template", keyTemplate,
 		"resolved_key", resolved)
-
 	return resolved, nil
 }
 
@@ -184,7 +174,6 @@ func (r *MemoryResolver) resolveKey(ctx context.Context, keyTemplate string) (st
 func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.Config) (map[string]llm.Memory, error) {
 	log := logger.FromContext(ctx)
 	memoryRefs := agent.Memory
-
 	// Enhanced logging for debugging memory configuration issues
 	log.Debug("ResolveAgentMemories called",
 		"agent_id", agent.ID,
@@ -192,18 +181,15 @@ func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.
 		"memory_refs", fmt.Sprintf("%+v", memoryRefs),
 		"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
 	)
-
 	if len(memoryRefs) == 0 {
 		log.Debug("No memory references configured for agent", "agent_id", agent.ID)
 		return nil, nil
 	}
-
 	memories := make(map[string]llm.Memory)
 	// Create a copy of memory references to avoid mutating the shared agent config
 	// This is critical for thread safety in concurrent workflow executions
 	localMemoryRefs := make([]core.MemoryReference, len(memoryRefs))
 	copy(localMemoryRefs, memoryRefs)
-
 	for i := range localMemoryRefs {
 		if localMemoryRefs[i].Mode == core.MemoryModeReadOnly {
 			log.Warn("Skipping read-only memory; mode not supported", "memory_id", localMemoryRefs[i].ID)
@@ -221,7 +207,6 @@ func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.
 			// and is available in the memory instance if needed for logging
 		}
 	}
-
 	log.Debug("Resolved agent memories",
 		"agent_id", agent.ID,
 		"memory_count", len(memories),

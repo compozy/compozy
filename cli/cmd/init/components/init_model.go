@@ -24,12 +24,10 @@ type InitModel struct {
 // NewInitModel creates a new init model with header and form
 func NewInitModel(formData *ProjectFormData) *InitModel {
 	form := NewProjectForm(formData)
-
 	// Create viewport for scrolling
 	vp := viewport.New(80, 20)
 	vp.SetContent("")
 	vp.MouseWheelEnabled = true // Enable mouse wheel scrolling
-
 	return &InitModel{
 		form:     form,
 		viewport: vp,
@@ -54,20 +52,16 @@ func (m *InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if quitCmd := m.handleUpdateMessage(msg); quitCmd != nil {
 		return m, quitCmd
 	}
-
 	if cmd := m.updateFormState(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
-
 	m.viewport.SetContent(m.renderFormContent())
 	viewportModel, viewportCmd := m.viewport.Update(msg)
 	m.viewport = viewportModel
 	cmds = append(cmds, viewportCmd)
-
 	if quitCmd := m.checkFormCompletion(); quitCmd != nil {
 		cmds = append(cmds, quitCmd)
 	}
-
 	return m, tea.Batch(cmds...)
 }
 
@@ -124,7 +118,6 @@ func (m *InitModel) View() string {
 	if m.quitting {
 		return ""
 	}
-
 	// Generate header if not cached or width changed
 	if m.header == "" {
 		header, err := components.RenderASCIIHeader(m.width)
@@ -134,14 +127,12 @@ func (m *InitModel) View() string {
 			m.header = header
 		}
 	}
-
 	// Create a separator
 	separator := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#333333")).
 		Width(m.width).
 		Align(lipgloss.Left).
 		Render("─────────────────────────────────────────")
-
 	// Compose the view: header, separator, then viewport
 	return fmt.Sprintf("%s\n%s\n\n%s", m.header, separator, m.viewport.View())
 }
@@ -152,7 +143,6 @@ func (m *InitModel) renderFormContent() string {
 	formContainer := lipgloss.NewStyle().
 		Width(m.width - 4).
 		Align(lipgloss.Left)
-
 	// Render form within the container
 	return formContainer.Render(m.form.View())
 }

@@ -69,7 +69,6 @@ func (e *Extractor) extractStructured(
 	if err != nil {
 		return "", Stats{}, err
 	}
-
 	finalLines := finalizeLineOutputs(allOutputs)
 	for _, line := range finalLines {
 		if line.separator != "" && limiter.AppendString(line.separator) {
@@ -79,7 +78,6 @@ func (e *Extractor) extractStructured(
 			break
 		}
 	}
-
 	text := strings.TrimSpace(limiter.String())
 	return text, computeStats(text, true), nil
 }
@@ -141,7 +139,6 @@ func groupSegments(segments []*rectSegment) []*lineGroup {
 func finalizeLineOutputs(outputs []*lineOutput) []finalLine {
 	final := make([]finalLine, 0, len(outputs))
 	pendingSeparator := ""
-
 	for _, out := range outputs {
 		if out == nil {
 			continue
@@ -175,12 +172,10 @@ func appendOrMergeLine(
 	if len(final) == 0 {
 		return append(final, buildFinalLine(text, "", out))
 	}
-
 	prev := &final[len(final)-1]
 	if mergeWithPrevious(prev, text, out) {
 		return final
 	}
-
 	separator := resolveSeparator(*pending, prev, out)
 	*pending = ""
 	return append(final, buildFinalLine(text, separator, out))

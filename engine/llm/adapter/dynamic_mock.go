@@ -51,7 +51,6 @@ func (m *DynamicMockLLM) GenerateContent(
 ) (*llms.ContentResponse, error) {
 	// Extract action ID from messages
 	actionID := m.extractActionID(messages)
-
 	// Look for expected output
 	if actionID != "" {
 		if expectedOutput, exists := m.expectedOutputs[actionID]; exists {
@@ -70,7 +69,6 @@ func (m *DynamicMockLLM) GenerateContent(
 			}, nil
 		}
 	}
-
 	// Fall back to static mock behavior if no expected output found
 	return m.fallback.GenerateContent(ctx, messages, options...)
 }

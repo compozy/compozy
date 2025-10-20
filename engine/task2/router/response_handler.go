@@ -40,20 +40,17 @@ func (h *ResponseHandler) HandleResponse(
 	if err := h.validateRequest(input); err != nil {
 		return nil, err
 	}
-
 	// Process routing decision result
 	response, err := h.baseHandler.ProcessMainTaskResponse(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-
 	// Handle router-specific logic for successful responses
 	if response.State.Status == core.StatusSuccess {
 		if err := h.processSuccessfulRoute(ctx, input, response); err != nil {
 			return nil, err
 		}
 	}
-
 	return response, nil
 }
 
@@ -81,20 +78,17 @@ func (h *ResponseHandler) processSuccessfulRoute(
 	if response.State.Output == nil {
 		return fmt.Errorf("router task %s must produce routing decision output", input.TaskConfig.ID)
 	}
-
 	// Log the routing decision
 	log := logger.FromContext(ctx).With(
 		"task_exec_id", response.State.TaskExecID,
 		"task_id", response.State.TaskID,
 	)
 	log.Info("Router task completed, routing decision made")
-
 	// Extract the selected route from output and set NextTaskOverride
 	if err := h.setNextTaskFromRoute(input, response); err != nil {
 		// Log error but don't fail - let workflow engine handle routing
 		log.Warn("Failed to set next task from route", "error", err, "task_id", input.TaskConfig.ID)
 	}
-
 	return nil
 }
 
@@ -108,11 +102,9 @@ func (h *ResponseHandler) ValidateRoutingDecision(output *core.Output) error {
 	if output == nil {
 		return fmt.Errorf("router output cannot be nil for validation")
 	}
-
 	// The actual routing logic validation would depend on the specific
 	// router implementation and its expected output format
 	// This is a placeholder for router-specific validation
-
 	return nil
 }
 

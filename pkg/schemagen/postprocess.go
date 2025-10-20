@@ -32,7 +32,6 @@ func postProcessAgentSchema(schema map[string]any) bool {
 		return false
 	}
 	updated := ensureArrayRef(props, "tools", "tool.json")
-
 	if ensureArrayRef(props, "mcps", "mcp.json") {
 		updated = true
 	}
@@ -60,7 +59,6 @@ func postProcessWorkflowSchema(schema map[string]any) bool {
 		return false
 	}
 	updated := ensureArrayRef(props, "tools", "tool.json")
-
 	if ensureArrayRef(props, "agents", "agent.json") {
 		updated = true
 	}
@@ -88,7 +86,6 @@ func postProcessTaskSchema(schema map[string]any) bool {
 		return false
 	}
 	updated := ensureRef(props, "agent", "agent.json")
-
 	if ensureRef(props, "tool", "tool.json") {
 		updated = true
 	}
@@ -130,7 +127,6 @@ func postProcessProjectSchema(schema map[string]any) bool {
 		return false
 	}
 	updated := ensureRef(props, "cache", "cache.json")
-
 	if ensureRef(props, "autoload", "autoload.json") {
 		updated = true
 	}

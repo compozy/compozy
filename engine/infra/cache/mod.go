@@ -18,7 +18,6 @@ type Config struct {
 func FromAppConfig(appConfig *config.Config) *Config {
 	redisConfig := &appConfig.Redis
 	cacheConfig := &appConfig.Cache
-
 	return &Config{
 		RedisConfig: redisConfig,
 		CacheConfig: cacheConfig,
@@ -36,24 +35,20 @@ func SetupCache(ctx context.Context, config *Config) (*Cache, error) {
 	if config == nil {
 		return nil, fmt.Errorf("cache config cannot be nil")
 	}
-
 	redis, err := NewRedis(ctx, config)
 	if err != nil {
 		return nil, err
 	}
-
 	// Create lock manager for distributed locking
 	lockManager, err := NewRedisLockManager(redis)
 	if err != nil {
 		return nil, err
 	}
-
 	// Create notification system for pub/sub
 	notification, err := NewRedisNotificationSystem(redis, config)
 	if err != nil {
 		return nil, err
 	}
-
 	return &Cache{
 		Redis:        redis,
 		LockManager:  lockManager,
@@ -69,7 +64,6 @@ func (c *Cache) Close() error {
 			return fmt.Errorf("failed to close notification system: %w", err)
 		}
 	}
-
 	// Close Redis connection
 	if c.Redis != nil {
 		if err := c.Redis.Close(); err != nil {

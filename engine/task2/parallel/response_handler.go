@@ -50,11 +50,9 @@ func (h *ResponseHandler) HandleResponse(
 	if err != nil {
 		return nil, err
 	}
-
 	// Parallel tasks use deferred output transformation
 	// The transformation happens after child tasks complete based on strategy
 	// This is handled by the orchestrator calling ApplyDeferredOutputTransformation
-
 	return response, nil
 }
 
@@ -77,12 +75,10 @@ func (h *ResponseHandler) ApplyDeferredOutputTransformation(
 	if !h.baseHandler.ShouldDeferOutputTransformation(input.TaskConfig) {
 		return nil
 	}
-
 	// Apply the deferred transformation using the base handler
 	if err := h.baseHandler.ApplyDeferredOutputTransformation(ctx, input); err != nil {
 		return fmt.Errorf("parallel deferred transformation failed: %w", err)
 	}
-
 	return nil
 }
 

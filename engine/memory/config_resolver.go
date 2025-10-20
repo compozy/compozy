@@ -158,10 +158,8 @@ func (mm *Manager) resolveMemoryKey(
 	log := logger.FromContext(ctx)
 	// Extract project ID early
 	projectID := mm.projectContextResolver.ResolveProjectID(ctx, workflowContextData)
-
 	// Get the key to validate
 	keyToValidate := mm.getKeyToValidate(ctx, agentMemoryRef, workflowContextData)
-
 	// Validate the key
 	validatedKey, err := mm.validateKey(keyToValidate)
 	if err != nil {
@@ -170,13 +168,11 @@ func (mm *Manager) resolveMemoryKey(
 		return "", fmt.Errorf("memory key validation failed for '%s' (project: %s, workflow_exec_id: %s): %w",
 			keyToValidate, projectID, workflowExecID, err)
 	}
-
 	log.Debug("Memory key resolution complete",
 		"original_template", agentMemoryRef.Key,
 		"resolved_key", agentMemoryRef.ResolvedKey,
 		"validated_key", validatedKey,
 		"project_id", projectID)
-
 	return validatedKey, nil
 }
 
@@ -233,17 +229,14 @@ func (mm *Manager) resolveKeyFromTemplate(
 		log.Debug("Using literal key (no template syntax detected)", "key", keyTemplate)
 		return keyTemplate
 	}
-
 	// Attempt template resolution
 	log.Debug("Attempting template resolution",
 		"template", keyTemplate,
 		"has_template_engine", mm.tplEngine != nil)
-
 	if mm.tplEngine == nil {
 		log.Error("Template engine not available for key resolution", "template", keyTemplate)
 		return keyTemplate // Return original for validation error
 	}
-
 	rendered, err := mm.tplEngine.RenderString(keyTemplate, workflowContextData)
 	if err != nil {
 		log.Error("Failed to evaluate key template",
@@ -253,7 +246,6 @@ func (mm *Manager) resolveKeyFromTemplate(
 		// This ensures template resolution errors are properly propagated
 		return keyTemplate
 	}
-
 	log.Debug("Template resolved successfully",
 		"template", keyTemplate,
 		"rendered", rendered)
@@ -286,7 +278,6 @@ func (r *ProjectContextResolver) ResolveProjectID(ctx context.Context, workflowC
 			}
 		}
 	}
-
 	// Try flat format (legacy support)
 	if projectID, ok := workflowContextData["project.id"]; ok {
 		if projectIDStr, ok := projectID.(string); ok && projectIDStr != "" {
@@ -294,7 +285,6 @@ func (r *ProjectContextResolver) ResolveProjectID(ctx context.Context, workflowC
 			return projectIDStr
 		}
 	}
-
 	// Use fallback project ID (from appState.ProjectConfig.Name)
 	log.Info("Using fallback project ID", "fallback_project_id", r.fallbackProjectID)
 	return r.fallbackProjectID
@@ -305,14 +295,12 @@ func ExtractWorkflowExecID(contextData map[string]any) string {
 	if contextData == nil {
 		return "unknown"
 	}
-
 	// Check for workflow.exec_id
 	if workflow, ok := contextData["workflow"].(map[string]any); ok {
 		if execID, ok := workflow["exec_id"].(string); ok && execID != "" {
 			return execID
 		}
 	}
-
 	return "unknown"
 }
 
@@ -326,12 +314,10 @@ func (mm *Manager) validateKey(key string) (string, error) {
 			key,
 		)
 	}
-
 	// Additional validation: prevent keys that might conflict with Redis internals
 	if strings.HasPrefix(key, "__") || strings.HasSuffix(key, "__") {
 		return "", fmt.Errorf("invalid memory key '%s': keys cannot start or end with '__'", key)
 	}
-
 	return key, nil
 }
 

@@ -93,7 +93,6 @@ func buildSettings(cfg *Config) settings {
 		rateLimiter:                    cfg.RateLimiter,
 		providerMetrics:                cfg.ProviderMetrics,
 	}
-
 	normalizeNumericDefaults(cfg, &s)
 	if s.providerMetrics == nil {
 		s.providerMetrics = providermetrics.Nop()

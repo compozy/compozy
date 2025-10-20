@@ -85,7 +85,6 @@ func (lm *LockManagerImpl) AcquireAppendLock(ctx context.Context, key string) (U
 		}
 		return nil, fmt.Errorf("failed to acquire append lock: %w", err)
 	}
-
 	return lm.createUnlockFunc(ctx, lock), nil
 }
 
@@ -96,7 +95,6 @@ func (lm *LockManagerImpl) AcquireClearLock(ctx context.Context, key string) (Un
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire clear lock: %w", err)
 	}
-
 	return lm.createUnlockFunc(ctx, lock), nil
 }
 
@@ -111,7 +109,6 @@ func (lm *LockManagerImpl) AcquireFlushLock(ctx context.Context, key string) (Un
 		}
 		return nil, fmt.Errorf("failed to acquire flush lock: %w", err)
 	}
-
 	return lm.createUnlockFunc(ctx, lock), nil
 }
 

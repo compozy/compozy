@@ -61,10 +61,8 @@ func RunWithWatcher(ctx context.Context, cwd, configFile, envFilePath string) er
 			log.Warn("Failed to close watcher", "error", closeErr)
 		}
 	}()
-
 	restartChan := make(chan bool, 1)
 	go startWatcher(ctx, watcher, restartChan, &watchedDirs)
-
 	// Integrate with config hot-reload via manager in context
 	config.ManagerFromContext(ctx).OnChange(func(_ *config.Config) {
 		log := logger.FromContext(ctx)
@@ -76,22 +74,18 @@ func RunWithWatcher(ctx context.Context, cwd, configFile, envFilePath string) er
 			// restart already pending
 		}
 	})
-
 	return runAndWatchServer(ctx, cwd, configFile, envFilePath, restartChan)
 }
 
 // setupWatcher creates and configures the file system watcher
 func setupWatcher(ctx context.Context, cwd string, watchedDirs *sync.Map) (*fsnotify.Watcher, error) {
 	log := logger.FromContext(ctx)
-
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file watcher: %w", err)
 	}
-
 	fileCount := 0
 	dirCount := 0
-
 	if err := filepath.Walk(cwd, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -118,11 +112,9 @@ func setupWatcher(ctx context.Context, cwd string, watchedDirs *sync.Map) (*fsno
 		}
 		return nil, fmt.Errorf("failed to walk project directory: %w", err)
 	}
-
 	log.Info("File watcher initialized",
 		"yaml_files", fileCount,
 		"watched_directories", dirCount)
-
 	return watcher, nil
 }
 
@@ -130,7 +122,6 @@ func setupWatcher(ctx context.Context, cwd string, watchedDirs *sync.Map) (*fsno
 func startWatcher(ctx context.Context, watcher *fsnotify.Watcher, restartChan chan bool, watchedDirs *sync.Map) {
 	log := logger.FromContext(ctx)
 	debouncer := newRestartDebouncer(log, restartChan)
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -264,7 +255,6 @@ func runAndWatchServer(
 		return fmt.Errorf("missing configuration in context")
 	}
 	retryDelay := initialRetryDelay
-
 	for {
 		if err := ensureServerReady(ctx, log, cfg); err != nil {
 			return err

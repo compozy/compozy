@@ -22,12 +22,10 @@ func BootstrapTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandEx
 	if err != nil {
 		return fmt.Errorf("failed to parse flags: %w", err)
 	}
-
 	// Handle check status
 	if flags.check {
 		return handleTUIStatusCheck(ctx)
 	}
-
 	// Check existing bootstrap and get user decisions
 	shouldContinue, updatedFlags, err := checkAndPromptBootstrap(ctx, flags)
 	if err != nil {
@@ -36,7 +34,6 @@ func BootstrapTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandEx
 	if !shouldContinue {
 		return nil
 	}
-
 	// Execute bootstrap
 	return executeTUIBootstrap(ctx, updatedFlags)
 }
@@ -47,17 +44,14 @@ func parseTUIBootstrapFlags(cmd *cobra.Command) (*bootstrapFlags, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get email flag: %w", err)
 	}
-
 	force, err := cmd.Flags().GetBool("force")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get force flag: %w", err)
 	}
-
 	check, err := cmd.Flags().GetBool("check")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get check flag: %w", err)
 	}
-
 	return &bootstrapFlags{
 		email: email,
 		force: force,
@@ -74,13 +68,11 @@ func handleTUIStatusCheck(ctx context.Context) error {
 		return err
 	}
 	defer cleanup()
-
 	status, err := service.CheckBootstrapStatus(ctx)
 	if err != nil {
 		fmt.Println(styles.ErrorStyle.Render("❌ Failed to check status: " + err.Error()))
 		return err
 	}
-
 	if status.IsBootstrapped {
 		fmt.Println(styles.SuccessStyle.Render("✅ System is bootstrapped"))
 		fmt.Printf("   Admin users: %d\n", status.AdminCount)
@@ -99,7 +91,6 @@ func checkAndPromptBootstrap(ctx context.Context, flags *bootstrapFlags) (bool, 
 		return false, nil, err
 	}
 	defer cleanup()
-
 	proceed, err := ensureBootstrapEligibility(ctx, service, flags)
 	if err != nil {
 		return false, nil, err
@@ -107,15 +98,12 @@ func checkAndPromptBootstrap(ctx context.Context, flags *bootstrapFlags) (bool, 
 	if !proceed {
 		return false, nil, nil
 	}
-
 	if err := ensureBootstrapEmail(flags); err != nil {
 		return false, nil, err
 	}
-
 	if !confirmBootstrapAction(flags) {
 		return false, nil, nil
 	}
-
 	return true, flags, nil
 }
 
@@ -147,7 +135,6 @@ func handleStatusCheckFailure(ctx context.Context, checkErr error) (bool, error)
 	logger.FromContext(ctx).Warn("Failed to check bootstrap status", "error", checkErr)
 	fmt.Println(styles.WarningStyle.Render("⚠️  Could not verify bootstrap status"))
 	fmt.Println(styles.HelpStyle.Render("   This might be due to database connectivity issues"))
-
 	var continueAnyway bool
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -193,7 +180,6 @@ func promptForAdditionalAdmin(status *bootstrap.Status) bool {
 	fmt.Println(styles.WarningStyle.Render("⚠️  System is already bootstrapped"))
 	fmt.Printf("   Admin users: %d\n", status.AdminCount)
 	fmt.Printf("   Total users: %d\n", status.UserCount)
-
 	var confirm bool
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -202,7 +188,6 @@ func promptForAdditionalAdmin(status *bootstrap.Status) bool {
 				Value(&confirm),
 		),
 	)
-
 	if err := form.Run(); err != nil {
 		return false
 	}
@@ -222,7 +207,6 @@ func promptForEmail() (string, error) {
 				Validate(bootstrapcli.ValidateEmail),
 		),
 	)
-
 	if err := form.Run(); err != nil {
 		return "", err
 	}
@@ -234,7 +218,6 @@ func confirmBootstrap(email string) bool {
 	fmt.Println(styles.TitleStyle.Render("Bootstrap Configuration"))
 	fmt.Printf("   Email: %s\n", email)
 	fmt.Printf("   Role:  admin\n\n")
-
 	var confirm bool
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -245,7 +228,6 @@ func confirmBootstrap(email string) bool {
 				Negative("No"),
 		),
 	)
-
 	if err := form.Run(); err != nil {
 		return false
 	}
@@ -255,7 +237,6 @@ func confirmBootstrap(email string) bool {
 // executeTUIBootstrap performs the bootstrap operation
 func executeTUIBootstrap(ctx context.Context, flags *bootstrapFlags) error {
 	fmt.Println(styles.InfoStyle.Render("Creating admin user..."))
-
 	factory := &bootstrapcli.DefaultServiceFactory{}
 	service, cleanup, err := factory.CreateService(ctx)
 	if err != nil {
@@ -263,12 +244,10 @@ func executeTUIBootstrap(ctx context.Context, flags *bootstrapFlags) error {
 		return err
 	}
 	defer cleanup()
-
 	result, err := service.BootstrapAdmin(ctx, &bootstrap.Input{
 		Email: flags.email,
 		Force: flags.force,
 	})
-
 	if err != nil {
 		var coreErr *core.Error
 		if errors.As(err, &coreErr) {
@@ -278,7 +257,6 @@ func executeTUIBootstrap(ctx context.Context, flags *bootstrapFlags) error {
 		}
 		return err
 	}
-
 	displaySuccess(result)
 	return nil
 }

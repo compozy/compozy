@@ -66,7 +66,6 @@ func (cib *ChildrenIndexBuilder) buildChildrenContextWithVisited(
 	if depth >= limits.MaxChildrenDepth || parentState == nil {
 		return make(map[string]any)
 	}
-
 	// Check for circular reference
 	parentExecID := string(parentState.TaskExecID)
 	if visited[parentExecID] {
@@ -74,13 +73,11 @@ func (cib *ChildrenIndexBuilder) buildChildrenContextWithVisited(
 			"error": "circular reference detected in children chain",
 		}
 	}
-
 	// Mark as visited
 	visited[parentExecID] = true
 	defer func() {
 		delete(visited, parentExecID) // Clean up for other branches
 	}()
-
 	children := make(map[string]any)
 	if childTaskIDs, exists := childrenIndex[parentExecID]; exists {
 		for _, childTaskID := range childTaskIDs {

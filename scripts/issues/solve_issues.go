@@ -176,15 +176,12 @@ func setupFlags() {
 // collectFormParams shows interactive form to collect parameters
 func collectFormParams(cmd *cobra.Command) error {
 	fmt.Println("\n🎯 Interactive Parameter Collection")
-
 	inputs := newFormInputs()
 	builder := newFormBuilder(cmd)
 	inputs.register(builder)
-
 	if err := builder.build().Run(); err != nil {
 		return fmt.Errorf("form canceled or error: %w", err)
 	}
-
 	inputs.apply(cmd)
 	fmt.Println("\n✅ Parameters collected successfully!")
 	return nil
@@ -651,7 +648,6 @@ func prepareJobs(
 	if batchSize <= 0 {
 		batchSize = 1
 	}
-
 	issueBatches := createIssueBatches(allIssues, batchSize)
 	jobs := make([]job, 0, len(issueBatches))
 	for batchIdx, batchIssues := range issueBatches {
@@ -679,12 +675,10 @@ func buildBatchJob(
 		BatchGroups: batchGroups,
 		Grouped:     grouped,
 	})
-
 	outPromptPath, outLog, errLog, err := writeBatchArtifacts(promptRoot, safeName, promptStr)
 	if err != nil {
 		return job{}, err
 	}
-
 	return job{
 		codeFiles:     batchFiles,
 		groups:        batchGroups,
@@ -763,10 +757,8 @@ func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, args *cliA
 		return 0, []failInfo{{err: err}}, total, nil
 	}
 	defer execCtx.cleanup()
-
 	_, cancelJobs := execCtx.launchWorkers(ctx)
 	defer cancelJobs()
-
 	done := execCtx.waitChannel()
 	return execCtx.awaitCompletion(ctx, done, cancelJobs)
 }
@@ -793,7 +785,6 @@ func newJobExecutionContext(ctx context.Context, jobs []job, args *cliArgs) (*jo
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current working directory: %w", err)
 	}
-
 	execCtx := &jobExecutionContext{
 		args:  args,
 		jobs:  jobs,
@@ -801,7 +792,6 @@ func newJobExecutionContext(ctx context.Context, jobs []job, args *cliArgs) (*jo
 		cwd:   cwd,
 		sem:   make(chan struct{}, maxInt(1, args.concurrent)),
 	}
-
 	execCtx.uiCh, execCtx.uiProg = setupUI(ctx, jobs, args, !args.dryRun, &execCtx.aggregateUsage, &execCtx.aggregateMu)
 	return execCtx, nil
 }
@@ -884,7 +874,6 @@ func (j *jobExecutionContext) awaitShutdownAfterCancel(done <-chan struct{}) (in
 	shutdownTimeout := 30 * time.Second
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer shutdownCancel()
-
 	select {
 	case <-done:
 		fmt.Fprintf(os.Stderr, "All jobs completed gracefully within %v\n", shutdownTimeout)
@@ -964,21 +953,17 @@ func runOneJob(
 		}
 		return
 	}
-
 	notifyJobStart(useUI, uiCh, index, j, args.ide, args.model, args.reasoningEffort)
-
 	if args.dryRun {
 		if useUI {
 			uiCh <- jobFinishedMsg{Index: index, Success: true, ExitCode: 0}
 		}
 		return
 	}
-
 	cmd, outF, errF := setupCommandExecution(ctx, args, j, cwd, useUI, uiCh, index, aggregateUsage, aggregateMu)
 	if cmd == nil {
 		return
 	}
-
 	executeCommandAndHandleResult(ctx, cmd, outF, errF, j, index, useUI, uiCh, failed, failuresMu, failures)
 }
 
@@ -1092,7 +1077,6 @@ func createIDECommand(ctx context.Context, args *cliArgs) *exec.Cmd {
 	if model == "" {
 		model = defaultModelForIDE(args.ide)
 	}
-
 	switch args.ide {
 	case ideCodex:
 		return codexCommand(ctx, model, args.reasoningEffort)
@@ -1184,7 +1168,6 @@ func setupCommandIO(
 	aggregateMu *sync.Mutex,
 ) (*os.File, *os.File, error) {
 	configureCommandEnvironment(cmd, cwd, j.prompt)
-
 	outF, err := createLogFile(j.outLog, "out")
 	if err != nil {
 		return nil, nil, fmt.Errorf("create out log: %w", err)
@@ -1194,7 +1177,6 @@ func setupCommandIO(
 		outF.Close()
 		return nil, nil, fmt.Errorf("create err log: %w", err)
 	}
-
 	outTap, errTap := buildCommandTaps(
 		outF,
 		errF,
@@ -1206,7 +1188,6 @@ func setupCommandIO(
 		aggregateUsage,
 		aggregateMu,
 	)
-
 	cmd.Stdout = outTap
 	cmd.Stderr = errTap
 	return outF, errF, nil
@@ -1362,15 +1343,12 @@ func executeCommandAndHandleResult(
 			errF.Close()
 		}
 	}()
-
 	// Create a channel to receive command completion
 	cmdDone := make(chan error, 1)
-
 	// Start command in background
 	go func() {
 		cmdDone <- cmd.Run()
 	}()
-
 	// Wait for either command completion or context cancellation
 	select {
 	case err := <-cmdDone:
@@ -1427,7 +1405,6 @@ func handleCommandCancellation(
 		index+1,
 		strings.Join(j.codeFiles, ", "),
 	)
-
 	// Try to terminate the process gracefully first
 	if cmd.Process != nil {
 		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
@@ -1447,7 +1424,6 @@ func handleCommandCancellation(
 			}
 		}
 	}
-
 	// Don't count shutdown cancellations as failures - they're expected
 	// Just mark the job as canceled in the UI
 	if useUI {
@@ -1795,10 +1771,8 @@ func (m *uiModel) handleKey(v tea.KeyMsg) tea.Cmd {
 func (m *uiModel) handleWindowSize(v tea.WindowSizeMsg) {
 	m.width = v.Width
 	m.height = v.Height
-
 	sidebarWidth, mainWidth := m.computePaneWidths(v.Width)
 	contentHeight := m.computeContentHeight(v.Height)
-
 	m.configureViewports(sidebarWidth, mainWidth, contentHeight)
 	m.sidebarWidth = sidebarWidth
 	m.mainWidth = mainWidth
@@ -1861,7 +1835,6 @@ func (m *uiModel) configureViewports(sidebarWidth, mainWidth, contentHeight int)
 		m.sidebarViewport.SetYOffset(sidebarViewportHeight)
 	}
 	m.sidebarViewport.Height = sidebarViewportHeight
-
 	mainViewportWidth := mainWidth - mainHorizontalPadding
 	if mainViewportWidth < 10 {
 		mainViewportWidth = 10
@@ -1993,13 +1966,11 @@ func (m *uiModel) View() string {
 	header, headerStyle := m.renderHeader()
 	helpText, helpStyle := m.renderHelp()
 	separator := m.renderSeparator()
-
 	splitView := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		m.renderSidebar(),
 		m.renderMainContent(),
 	)
-
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		headerStyle.Render(header),
@@ -2017,17 +1988,14 @@ func (m *uiModel) renderHeader() (string, lipgloss.Style) {
 		Foreground(lipgloss.Color("62")).
 		MarginTop(1).
 		MarginBottom(1)
-
 	if !complete {
 		msg := fmt.Sprintf("Processing Jobs: %d/%d completed, %d failed", m.completed, m.total, m.failed)
 		return msg, style
 	}
-
 	if m.failed > 0 {
 		style = style.Foreground(lipgloss.Color("220"))
 		return fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded, %d failed", m.completed, m.total, m.failed), style
 	}
-
 	style = style.Foreground(lipgloss.Color("42"))
 	return fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded!", m.completed, m.total), style
 }
@@ -2067,17 +2035,14 @@ func (m *uiModel) renderSidebar() string {
 	if contentHeight < minContentHeight {
 		contentHeight = minContentHeight
 	}
-
 	// Build all sidebar items
 	var items []string
 	for i := range m.jobs {
 		item := m.renderSidebarItem(&m.jobs[i], i == m.selectedJob)
 		items = append(items, item)
 	}
-
 	// Set sidebar viewport content
 	m.sidebarViewport.SetContent(strings.Join(items, "\n"))
-
 	// Auto-scroll to selected job
 	if m.selectedJob >= 0 && m.selectedJob < len(m.jobs) {
 		// Each item is approximately 3 lines (2 lines of text + spacing)
@@ -2089,7 +2054,6 @@ func (m *uiModel) renderSidebar() string {
 			m.sidebarViewport.SetYOffset(lineOffset)
 		}
 	}
-
 	// Wrap viewport in a bordered box
 	sidebar := lipgloss.NewStyle().
 		Width(sidebarWidth).
@@ -2098,7 +2062,6 @@ func (m *uiModel) renderSidebar() string {
 		BorderForeground(lipgloss.Color("62")).
 		Padding(0, 1). // Reduced vertical padding
 		Render(m.sidebarViewport.View())
-
 	return sidebar
 }
 
@@ -2120,23 +2083,19 @@ func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
 		icon = "✗"
 		color = lipgloss.Color("196")
 	}
-
 	style := lipgloss.NewStyle().Foreground(color)
 	if selected {
 		style = style.Bold(true).Background(lipgloss.Color("235")).Foreground(lipgloss.Color("255"))
 	}
-
 	// Format: "⚡ batch_001"
 	// Second line: "  3 files, 7 issues"
 	line1 := fmt.Sprintf("%s %s", icon, job.safeName)
 	line2 := fmt.Sprintf("  %d file(s), %d issue(s)", len(job.codeFiles), job.issues)
-
 	if selected {
 		line1 = "► " + line1
 	} else {
 		line1 = "  " + line1
 	}
-
 	return style.Render(line1) + "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render(line2)
 }
 
@@ -2148,22 +2107,18 @@ func (m *uiModel) renderMainContent() string {
 			Foreground(lipgloss.Color("245")).
 			Render(emptyMsg)
 	}
-
 	job := &m.jobs[m.selectedJob]
 	mainWidth, contentHeight := m.mainDimensions()
 	metaBlock := m.buildMetaBlock(job)
 	logsHeader := m.renderLogsHeader()
-
 	m.viewport.Height = m.availableLogHeight(contentHeight, metaBlock, logsHeader)
 	m.updateViewportForJob(job)
-
 	body := lipgloss.JoinVertical(
 		lipgloss.Left,
 		metaBlock,
 		logsHeader,
 		m.viewport.View(),
 	)
-
 	return lipgloss.NewStyle().
 		Width(mainWidth).
 		Height(contentHeight).
@@ -2174,20 +2129,16 @@ func (m *uiModel) renderMainContent() string {
 // buildMetaBlock assembles the summary sections shown above the log viewport.
 func (m *uiModel) buildMetaBlock(job *uiJob) string {
 	sections := []string{m.renderMainHeader(job)}
-
 	if fileList := strings.TrimSpace(m.renderMainFileList(job)); fileList != "" {
 		sections = append(sections, fileList)
 	}
-
 	sections = append(sections, m.renderMainStatus(job), m.renderRuntime(job))
-
 	if usage := strings.TrimSpace(m.renderTokenUsage(job)); usage != "" {
 		sections = append(sections, usage)
 	}
 	if paths := strings.TrimSpace(m.renderLogPaths(job)); paths != "" {
 		sections = append(sections, paths)
 	}
-
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
@@ -2293,14 +2244,12 @@ func (m *uiModel) renderRuntime(job *uiJob) string {
 			duration = time.Since(job.startedAt)
 		}
 	}
-
 	var rendered string
 	if duration <= 0 {
 		rendered = fmt.Sprintf("%s: --:--", label)
 	} else {
 		rendered = fmt.Sprintf("%s: %s", label, formatDuration(duration))
 	}
-
 	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color("117")).
 		MarginBottom(1).
@@ -2342,7 +2291,6 @@ func (m *uiModel) renderTokenUsage(job *uiJob) string {
 	lines = append(lines,
 		fmt.Sprintf("  Output:         %s tokens", formatNumber(usage.OutputTokens)),
 		fmt.Sprintf("  Total:          %s tokens", formatNumber(usage.Total())))
-
 	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color("141")).
 		MarginBottom(1).
@@ -2388,7 +2336,6 @@ func formatNumber(n int) string {
 
 func (m *uiModel) updateViewportForJob(job *uiJob) {
 	var content strings.Builder
-
 	// Add stdout (preserve ANSI colors)
 	if len(job.lastOut) > 0 {
 		for _, line := range job.lastOut {
@@ -2399,7 +2346,6 @@ func (m *uiModel) updateViewportForJob(job *uiJob) {
 			}
 		}
 	}
-
 	// Add stderr (preserve ANSI colors)
 	if len(job.lastErr) > 0 {
 		stderrLabel := lipgloss.NewStyle().
@@ -2415,7 +2361,6 @@ func (m *uiModel) updateViewportForJob(job *uiJob) {
 			}
 		}
 	}
-
 	m.viewport.SetContent(content.String())
 	m.viewport.GotoBottom() // Auto-scroll to latest
 	if len(job.lastOut) == 0 && len(job.lastErr) == 0 {
@@ -2448,7 +2393,6 @@ func assertIDEExists(ide string) error {
 func assertExecSupported(ide string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	var cmd *exec.Cmd
 	switch ide {
 	case ideCodex:
@@ -2460,7 +2404,6 @@ func assertExecSupported(ide string) error {
 	default:
 		return fmt.Errorf("unsupported IDE: %s", ide)
 	}
-
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	if err := cmd.Run(); err != nil {
@@ -2490,7 +2433,6 @@ func readIssueEntries(resolvedIssuesDir string) ([]issueEntry, error) {
 		}
 	}
 	sort.Strings(names)
-
 	for _, name := range names {
 		absPath := filepath.Join(resolvedIssuesDir, name)
 		b, err := os.ReadFile(absPath)
@@ -2683,10 +2625,8 @@ func buildBatchedIssuesPrompt(p buildBatchedIssuesParams) string {
 	task := buildBatchTask(p.PR, codeFiles, p.Grouped)
 	testingReqs := buildTestingRequirements()
 	checklist := buildBatchChecklist(p.PR, p.BatchGroups, p.Grouped)
-
 	composed := strings.Join([]string{helperCommands, header, critical, batchNotice,
 		issueGroups, task, testingReqs, checklist}, "\n\n")
-
 	return composed
 }
 
@@ -2842,7 +2782,6 @@ func buildBatchTask(pr string, codeFiles []string, grouped bool) string {
 - Resolve ALL issues above across ALL %d files in a cohesive set of changes.
 - In each included issue file under ai-docs/reviews-pr-%s/issues,
   update the status section/checkbox to RESOLVED ✓ when addressed.`, len(codeFiles), pr)
-
 	if grouped {
 		groupedFiles := make([]string, len(codeFiles))
 		for i, codeFile := range codeFiles {
@@ -2852,7 +2791,6 @@ func buildBatchTask(pr string, codeFiles []string, grouped bool) string {
 - Update the grouped tracking files for each file in this batch:
   %s`, strings.Join(groupedFiles, "\n  "))
 	}
-
 	taskText += fmt.Sprintf(`
 - If a GitHub review thread ID is present in any issue,
   resolve it using gh as per the command snippet included in that issue.
@@ -2869,7 +2807,6 @@ func buildBatchTask(pr string, codeFiles []string, grouped bool) string {
   Example: `+"`git commit -am \"fix: resolve PR #%s issues [batch]\"`"+`
   Note: Commit locally only - do NOT push. Multiple batches will be committed separately.
 </after_finish>`, pr)
-
 	return taskText
 }
 
@@ -3081,7 +3018,6 @@ func (f *jsonFormatter) formatLine(line []byte) []byte {
 	if !json.Valid(line) {
 		return line
 	}
-
 	// Try to parse as Claude message
 	var msg ClaudeMessage
 	if err := json.Unmarshal(line, &msg); err == nil {
@@ -3095,7 +3031,6 @@ func (f *jsonFormatter) formatLine(line []byte) []byte {
 			return formatted
 		}
 	}
-
 	// Fallback: pretty-print raw JSON if not a Claude message
 	formatted := pretty.Color(pretty.Pretty(line), nil)
 	return formatted
@@ -3133,13 +3068,11 @@ func (f *jsonFormatter) tryParseUsage(msg *ClaudeMessage) {
 	if msg.Type != "assistant" {
 		return
 	}
-
 	// Check if usage data exists
 	usage := msg.Message.Usage
 	if usage.InputTokens == 0 && usage.OutputTokens == 0 {
 		return // No meaningful usage data
 	}
-
 	// Report usage via callback
 	tokenUsage := TokenUsage{
 		InputTokens:         usage.InputTokens,

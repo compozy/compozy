@@ -43,15 +43,12 @@ type ExecutorOptions struct {
 func NewCommandExecutor(cmd *cobra.Command, opts ExecutorOptions) (*CommandExecutor, error) {
 	ctx := cmd.Context()
 	log := logger.FromContext(ctx)
-
 	// Detect execution mode
 	mode := helpers.DetectMode(cmd)
 	log.Debug("detected execution mode", "mode", mode)
-
 	executor := &CommandExecutor{
 		mode: mode,
 	}
-
 	// Initialize auth client if required
 	if opts.RequireAuth {
 		// Use context-based config
@@ -75,7 +72,6 @@ func NewCommandExecutor(cmd *cobra.Command, opts ExecutorOptions) (*CommandExecu
 		}
 		executor.authClient = authClient
 	}
-
 	return executor, nil
 }
 
@@ -85,7 +81,6 @@ func getAPIKeyFromConfigOrFlag(cmd *cobra.Command, cfg *config.Config) string {
 	if flagValue, err := cmd.Flags().GetString("api-key"); err == nil && flagValue != "" {
 		return flagValue
 	}
-
 	// Fall back to config value
 	return string(cfg.CLI.APIKey)
 }
@@ -95,7 +90,6 @@ func (e *CommandExecutor) Execute(ctx context.Context, cmd *cobra.Command, handl
 	// Create a cancellable context for the command execution
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
 	switch e.mode {
 	case models.ModeJSON:
 		if handlers.JSON == nil {
@@ -128,7 +122,6 @@ func ExecuteCommand(cmd *cobra.Command, opts ExecutorOptions, handlers ModeHandl
 	if err != nil {
 		return HandleCommonErrors(err, helpers.DetectMode(cmd))
 	}
-
 	return HandleCommonErrors(executor.Execute(cmd.Context(), cmd, handlers, args), executor.GetMode())
 }
 
@@ -145,7 +138,6 @@ func ExecuteWithContext(
 	if err != nil {
 		return HandleCommonErrors(err, helpers.DetectMode(cmd))
 	}
-
 	return HandleCommonErrors(executor.Execute(ctx, cmd, handlers, args), executor.GetMode())
 }
 
@@ -169,14 +161,11 @@ func HandleCommonErrors(err error, mode models.Mode) error {
 	if err == nil {
 		return nil
 	}
-
 	cliErr := categorizeError(err)
-
 	if cliErr != nil {
 		helpers.OutputError(cliErr, mode)
 		return cliErr
 	}
-
 	// For unknown errors, still format them based on mode
 	helpers.OutputError(err, mode)
 	return err

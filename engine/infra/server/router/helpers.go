@@ -127,7 +127,6 @@ func GetRequestBody[T any](c *gin.Context) *T {
 		})
 		return nil
 	}
-
 	return &input
 }
 

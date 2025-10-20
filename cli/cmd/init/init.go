@@ -51,7 +51,6 @@ func ensureTemplatesRegistered() error {
 // NewInitCommand creates the init command using the unified command pattern
 func NewInitCommand() *cobra.Command {
 	opts := defaultInitOptions()
-
 	command := &cobra.Command{
 		Use:   "init [path]",
 		Short: "Initialize a new Compozy project",
@@ -70,7 +69,6 @@ Examples:
 			return executeInitCommand(cobraCmd, opts, args)
 		},
 	}
-
 	applyInitFlags(command, opts)
 	return command
 }
@@ -118,7 +116,6 @@ func executeInitCommand(cobraCmd *cobra.Command, opts *Options, args []string) e
 	if err != nil {
 		return cmd.HandleCommonErrors(err, helpers.DetectMode(cobraCmd))
 	}
-
 	// Use normal mode-based execution
 	return cmd.HandleCommonErrors(executor.Execute(cobraCmd.Context(), cobraCmd, cmd.ModeHandlers{
 		JSON: func(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
@@ -135,7 +132,6 @@ func runInitJSON(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, 
 	log := logger.FromContext(ctx)
 	log.Debug("executing init command in JSON mode")
 	logDebugMode(ctx, log)
-
 	if err := ensureNameProvided(opts); err != nil {
 		return err
 	}
@@ -157,7 +153,6 @@ func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, o
 	log := logger.FromContext(ctx)
 	log.Debug("executing init command in TUI mode")
 	logDebugMode(ctx, log)
-
 	if err := runInteractiveForm(ctx, opts); err != nil {
 		return fmt.Errorf("interactive form failed: %w", err)
 	}
@@ -294,23 +289,19 @@ func runInteractiveForm(_ context.Context, opts *Options) error {
 		IncludeDocker: opts.DockerSetup,
 		InstallBun:    opts.InstallBun,
 	}
-
 	// Create and run the init model with header and form
 	initModel := components.NewInitModel(projectData)
-
 	p := tea.NewProgram(initModel, tea.WithAltScreen(), tea.WithMouseAllMotion())
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run project form: %w", err)
 	}
-
 	// Check if form was canceled
 	if m, ok := finalModel.(*components.InitModel); ok {
 		if m.IsCanceled() {
 			return fmt.Errorf("initialization canceled by user")
 		}
 	}
-
 	// Copy data back to options
 	opts.Name = projectData.Name
 	opts.Description = projectData.Description
@@ -320,7 +311,6 @@ func runInteractiveForm(_ context.Context, opts *Options) error {
 	opts.Template = projectData.Template
 	opts.DockerSetup = projectData.IncludeDocker
 	opts.InstallBun = projectData.InstallBun
-
 	return nil
 }
 
@@ -328,21 +318,17 @@ func runInteractiveForm(_ context.Context, opts *Options) error {
 func installBun(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Installing Bun runtime...")
-
 	cmd := exec.CommandContext(ctx, "bash", "-c", "curl -fsSL https://bun.sh/install | bash")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to install Bun: %w", err)
 	}
-
 	// Verify installation
 	if !runtime.IsBunAvailable() {
 		return fmt.Errorf("bun installation completed but executable not found in PATH. " +
 			"You may need to restart your terminal or source your shell configuration")
 	}
-
 	log.Info("Bun installed successfully!")
 	return nil
 }

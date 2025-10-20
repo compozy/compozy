@@ -139,7 +139,6 @@ func (p *Processor) effectiveChunkSettings(meta map[string]any, text string) (in
 	size := clampChunkSize(p.settings.Size)
 	overlap := p.settings.Overlap
 	length := utf8.RuneCountInString(text)
-
 	switch {
 	case length > veryLongTextThreshold:
 		size = clampChunkSize(size * 2)
@@ -150,17 +149,14 @@ func (p *Processor) effectiveChunkSettings(meta map[string]any, text string) (in
 	case length < shortTextThreshold:
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, size/2))
 	}
-
 	contentType := strings.ToLower(metadataString(meta, "content_type"))
 	filename := strings.ToLower(metadataString(meta, "filename"))
 	sourceType := strings.ToLower(metadataString(meta, "source_type"))
-
 	isPDF := strings.Contains(contentType, "pdf") || strings.HasSuffix(filename, ".pdf")
 	isMD := strings.Contains(contentType, "markdown") || strings.HasSuffix(filename, ".md")
 	isData := strings.Contains(contentType, "json") ||
 		strings.Contains(contentType, "yaml") ||
 		strings.Contains(contentType, "toml")
-
 	switch {
 	case isPDF:
 		size = clampChunkSize(size * 2)
@@ -171,17 +167,14 @@ func (p *Processor) effectiveChunkSettings(meta map[string]any, text string) (in
 	case isData:
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, size/2))
 	}
-
 	if strings.Contains(sourceType, "transcript") || strings.Contains(sourceType, "meeting") {
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, size/2))
 		overlap = maxInt(overlap, size/overlapDenTranscript)
 	}
-
 	if n := len(headingPattern.FindAllStringIndex(text, -1)); n > 0 && length/n < headingCharsPerHeading {
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, (size*3)/4))
 		overlap = maxInt(overlap, size/overlapDenHeadingDensity)
 	}
-
 	return size, clampOverlap(overlap, size)
 }
 

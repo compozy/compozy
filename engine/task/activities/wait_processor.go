@@ -52,18 +52,15 @@ func (a *NormalizeWaitProcessor) Run(ctx context.Context, input *NormalizeWaitPr
 	if err != nil {
 		return nil, fmt.Errorf("failed to load workflow context: %w", err)
 	}
-
 	// Create a copy of the processor config to avoid mutating the original
 	normalizedConfig, err := input.ProcessorConfig.Clone()
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone processor config: %w", err)
 	}
-
 	// Apply parent context inheritance from wait task to processor
 	if err := shared.InheritTaskConfig(normalizedConfig, input.ParentTaskConfig); err != nil {
 		return nil, fmt.Errorf("failed to inherit task config: %w", err)
 	}
-
 	// Create task2 orchestrator for signal normalization
 	engine := tplengine.NewEngine(tplengine.FormatJSON)
 	envMerger := task2core.NewEnvMerger()
@@ -76,12 +73,10 @@ func (a *NormalizeWaitProcessor) Run(ctx context.Context, input *NormalizeWaitPr
 	if err != nil {
 		return nil, fmt.Errorf("failed to create normalizer factory: %w", err)
 	}
-
 	orchestrator, err := task2.NewConfigOrchestrator(ctx, factory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config orchestrator: %w", err)
 	}
-
 	// Normalize the processor config with signal context using task2
 	err = orchestrator.NormalizeTaskWithSignal(ctx, normalizedConfig, workflowState, workflowConfig, input.Signal)
 	if err != nil {

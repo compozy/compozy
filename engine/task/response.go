@@ -51,11 +51,9 @@ func (r *MainTaskResponse) NextTaskID(ctx context.Context) string {
 	if r.State == nil {
 		return ""
 	}
-
 	state := r.State
 	taskID := state.TaskID
 	var nextTaskID string
-
 	switch {
 	case state.Status == core.StatusSuccess && r.OnSuccess != nil && r.OnSuccess.Next != nil:
 		nextTaskID = *r.OnSuccess.Next

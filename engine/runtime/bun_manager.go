@@ -123,7 +123,6 @@ func NewBunManager(ctx context.Context, projectRoot string, config *Config) (*Bu
 	// Merge partial config with defaults to ensure all required fields are set
 	config = MergeWithDefaults(config)
 	log := logger.FromContext(ctx)
-
 	// Pre-check Bun availability
 	if !IsBunAvailable() {
 		return nil, &ProcessError{
@@ -131,24 +130,20 @@ func NewBunManager(ctx context.Context, projectRoot string, config *Config) (*Bu
 			Err:       fmt.Errorf("bun executable not found in PATH"),
 		}
 	}
-
 	bm := &BunManager{
 		config:      config,
 		projectRoot: projectRoot,
 	}
-
 	// Ensure worker script exists
 	if err := bm.compileBunWorker(); err != nil {
 		return nil, fmt.Errorf("failed to create worker: %w", err)
 	}
-
 	// Verify worker script exists
 	storeDir := core.GetStoreDir(bm.projectRoot)
 	workerPath := filepath.Join(storeDir, "bun_worker.ts")
 	if _, err := os.Stat(workerPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("worker file not found at %s: run 'compozy dev' to generate it", workerPath)
 	}
-
 	log.Info("Bun runtime manager initialized", "project_root", projectRoot)
 	return bm, nil
 }
@@ -188,7 +183,6 @@ func (bm *BunManager) ExecuteToolWithTimeout(
 	timeout time.Duration,
 ) (_ *core.Output, err error) {
 	defer bm.recordExecutionOutcome(ctx, toolID, time.Now(), &err)
-
 	if validationErr := bm.validateInputs(toolID, toolExecID, input, env); validationErr != nil {
 		return nil, bm.toolExecutionError(
 			toolID,
@@ -197,20 +191,16 @@ func (bm *BunManager) ExecuteToolWithTimeout(
 			wrapToolError(validationErr, errorKindStart),
 		)
 	}
-
 	execCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-
 	requestData, err := bm.marshalExecutionRequest(toolID, toolExecID, input, config, env, timeout)
 	if err != nil {
 		return nil, err
 	}
-
 	response, execErr := bm.executeBunWorker(execCtx, toolID, requestData, env)
 	if execErr != nil {
 		return nil, bm.toolExecutionError(toolID, toolExecID, "execute", execErr)
 	}
-
 	logger.FromContext(ctx).Debug("Tool executed successfully",
 		"tool_id", toolID,
 		"tool_exec_id", toolExecID,
@@ -275,7 +265,6 @@ func (bm *BunManager) marshalExecutionRequest(
 		Env:        env,
 		TimeoutMs:  int64(timeout / time.Millisecond),
 	}
-
 	data, err := json.Marshal(request)
 	if err != nil {
 		return nil, bm.toolExecutionError(toolID, toolExecID, "marshal request", wrapToolError(err, errorKindStart))
@@ -338,7 +327,6 @@ func (bm *BunManager) executeBunWorker(
 func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*exec.Cmd, error) {
 	storeDir := core.GetStoreDir(bm.projectRoot)
 	workerPath := filepath.Join(storeDir, "bun_worker.ts")
-
 	args := make([]string, 0, 8)
 	// Add memory management flags for aggressive garbage collection
 	// Only add --smol flag if Bun version is 0.7.0 or later (when it was introduced)
@@ -356,10 +344,8 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 	args = append(args, "run")
 	args = append(args, bm.config.BunPermissions...)
 	args = append(args, workerPath)
-
 	cmd := exec.CommandContext(ctx, "bun", args...)
 	cmd.Dir = bm.projectRoot
-
 	// Inherit parent process environment for robustness and tool compatibility
 	// This provides a more predictable execution environment for tools that may
 	// depend on standard environment variables like TMPDIR, LANG, USER, etc.
@@ -368,18 +354,15 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 	cmd.Env = append(cmd.Env,
 		"COMPOZY_RUNTIME=worker",
 		"COMPOZY_PROJECT_ROOT="+bm.projectRoot)
-
 	// Add memory limit environment variable if configured
 	if bm.config.MaxMemoryMB > 0 {
 		cmd.Env = append(cmd.Env,
 			fmt.Sprintf("BUN_JSC_forceRAMSize=%d", bm.config.MaxMemoryMB*1024*1024),
 			fmt.Sprintf("COMPOZY_MAX_MEMORY_MB=%d", bm.config.MaxMemoryMB))
 	}
-
 	if err := bm.validateAndAddEnvironmentVars(&cmd.Env, env); err != nil {
 		return nil, fmt.Errorf("environment variable validation failed: %w", err)
 	}
-
 	return cmd, nil
 }
 
@@ -389,17 +372,14 @@ func (bm *BunManager) setupProcessPipes(cmd *exec.Cmd) (io.WriteCloser, io.ReadC
 	if err != nil {
 		return nil, nil, nil, wrapToolError(fmt.Errorf("failed to create stdin pipe: %w", err), errorKindStdin)
 	}
-
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, nil, nil, wrapToolError(fmt.Errorf("failed to create stdout pipe: %w", err), errorKindStdout)
 	}
-
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return nil, nil, nil, wrapToolError(fmt.Errorf("failed to create stderr pipe: %w", err), errorKindStderr)
 	}
-
 	return stdin, stdout, stderr, nil
 }
 
@@ -409,14 +389,12 @@ func (bm *BunManager) parseToolResponse(response []byte) (*core.Output, error) {
 	if len(response) == 0 {
 		return &core.Output{}, nil
 	}
-
 	// Try to parse as JSON first
 	var toolResponse struct {
 		Result   any `json:"result"`
 		Error    any `json:"error"`
 		Metadata any `json:"metadata"`
 	}
-
 	if err := json.Unmarshal(response, &toolResponse); err != nil {
 		// If JSON parsing fails, this indicates a problem with the worker or tool
 		// Log the non-JSON response for debugging but return an error
@@ -430,12 +408,10 @@ func (bm *BunManager) parseToolResponse(response []byte) (*core.Output, error) {
 			truncatedResponse,
 		)
 	}
-
 	// Check for error in response
 	if toolResponse.Error != nil {
 		return nil, fmt.Errorf("tool execution failed: %v", toolResponse.Error)
 	}
-
 	// Handle different result types
 	switch result := toolResponse.Result.(type) {
 	case map[string]any:
@@ -456,7 +432,6 @@ func (bm *BunManager) writeRequestToStdin(ctx context.Context, stdin io.WriteClo
 		_, err := stdin.Write(requestData)
 		writeErrCh <- err
 	}()
-
 	// Check for stdin write errors before proceeding
 	select {
 	case <-ctx.Done():
@@ -478,7 +453,6 @@ func (bm *BunManager) readStderrInBackground(
 	limit := bm.maxStderrCapture()
 	buf := &bytes.Buffer{}
 	buf.Grow(initialStderrCapacity(limit))
-
 	var stderrWg sync.WaitGroup
 	stderrWg.Add(1)
 	go func() {
@@ -513,7 +487,6 @@ func (bm *BunManager) captureStderr(
 	scanner := bufio.NewScanner(stderr)
 	bufferSize := determineStderrBuffer(limit)
 	scanner.Buffer(make([]byte, 0, bufferSize), bufferSize)
-
 	captured := 0
 	for scanner.Scan() {
 		line := strings.TrimRight(scanner.Text(), "\r\n")
@@ -576,7 +549,6 @@ func (bm *BunManager) readStdoutResponse(
 	} else {
 		buf.Reset()
 	}
-
 	// Use LimitReader to prevent memory exhaustion from malicious tools
 	limitedReader := io.LimitReader(stdout, MaxOutputSize+1) // Read one extra byte to detect overflow
 	bytesRead, err := io.Copy(buf, limitedReader)
@@ -584,13 +556,11 @@ func (bm *BunManager) readStdoutResponse(
 		releaseBuffer(buf)
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-
 	// Check if output exceeded the size limit
 	if bytesRead > MaxOutputSize {
 		releaseBuffer(buf)
 		return nil, fmt.Errorf("tool output exceeds maximum size limit of %d bytes", MaxOutputSize)
 	}
-
 	recordToolOutputSize(ctx, toolID, int(bytesRead))
 	return buf, nil
 }
@@ -614,13 +584,11 @@ func (bm *BunManager) waitForProcessCompletion(
 	if err := ctx.Err(); err != nil {
 		return wrapToolError(fmt.Errorf("bun process canceled: %w", err), errorKindTimeout)
 	}
-
 	waitErr := cmd.Wait()
 	stderrWg.Wait()
 	if waitErr != nil {
 		return bm.handleProcessFailure(ctx, toolID, waitErr, stderrBuf)
 	}
-
 	recordProcessExit(ctx, processStatusExit, 0, "")
 	return nil
 }
@@ -633,12 +601,10 @@ func (bm *BunManager) handleProcessFailure(
 ) error {
 	exitCode, statusKind, signalName, signal := processStatus(waitErr)
 	recordProcessExit(ctx, statusKind, exitCode, signalName)
-
 	if statusKind == processStatusSignal {
 		message := signalFailureMessage(toolID, signal, stderrBuf)
 		return wrapToolError(fmt.Errorf("%s: %w", message, waitErr), errorKindWait)
 	}
-
 	return wrapToolError(exitFailureError(toolID, waitErr, exitCode, stderrBuf), errorKindWait)
 }
 
@@ -647,7 +613,6 @@ func processStatus(err error) (int, toolProcessStatus, string, syscall.Signal) {
 	statusKind := processStatusExit
 	signalName := ""
 	var signal syscall.Signal
-
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
 			exitCode = status.ExitStatus()
@@ -658,7 +623,6 @@ func processStatus(err error) (int, toolProcessStatus, string, syscall.Signal) {
 			}
 		}
 	}
-
 	return exitCode, statusKind, signalName, signal
 }
 
@@ -690,7 +654,6 @@ func exitFailureError(toolID string, waitErr error, exitCode int, stderrBuf *byt
 func (bm *BunManager) validateAndAddEnvironmentVars(cmdEnv *[]string, env core.EnvMap) error {
 	// Regex for valid environment variable names (uppercase alphanumeric and underscore)
 	validKeyPattern := regexp.MustCompile(`^[A-Z0-9_]+$`)
-
 	// Security Policy: Dangerous environment variables that must be blocked to prevent:
 	// - Code injection attacks via dynamic library loading
 	// - Runtime behavior modification that could bypass security controls
@@ -703,7 +666,6 @@ func (bm *BunManager) validateAndAddEnvironmentVars(cmdEnv *[]string, env core.E
 		"NODE_OPTIONS":          true, // Node.js: Modify runtime behavior (--inspect, --require)
 		"BUN_CONFIG_PROFILE":    true, // Bun: Override configuration profiles
 	}
-
 	for key, value := range env {
 		// Validate key format
 		if !validKeyPattern.MatchString(key) {
@@ -727,7 +689,6 @@ func (bm *BunManager) validateAndAddEnvironmentVars(cmdEnv *[]string, env core.E
 		// Add validated environment variable
 		*cmdEnv = append(*cmdEnv, key+"="+value)
 	}
-
 	return nil
 }
 
@@ -739,12 +700,10 @@ func (bm *BunManager) validateInputs(toolID string, toolExecID core.ID, _ *core.
 	if toolExecID.String() == "" {
 		return fmt.Errorf("tool_exec_id cannot be empty")
 	}
-
 	// Validate tool_id for security (prevent directory traversal with Unicode normalization)
 	if err := bm.validateToolID(toolID); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -753,44 +712,35 @@ func (bm *BunManager) validateToolID(toolID string) error {
 	if toolID == "" {
 		return fmt.Errorf("tool_id cannot be empty")
 	}
-
 	// Check for valid UTF-8 encoding
 	if !utf8.ValidString(toolID) {
 		return fmt.Errorf("tool_id contains invalid UTF-8 characters")
 	}
-
 	// Normalize Unicode to prevent homoglyph and normalization attacks
 	normalized := norm.NFC.String(toolID)
-
 	// Use filepath.Clean to normalize path separators and resolve . and .. components
 	cleaned := filepath.Clean(normalized)
-
 	// If Clean changed the path, it likely contained traversal attempts
 	if cleaned != normalized {
 		return fmt.Errorf("tool_id contains path traversal or invalid path components")
 	}
-
 	// Reject absolute paths
 	if filepath.IsAbs(cleaned) {
 		return fmt.Errorf("tool_id cannot be an absolute path")
 	}
-
 	// Check for remaining directory traversal patterns after cleaning
 	if strings.Contains(cleaned, "..") {
 		return fmt.Errorf("tool_id contains directory traversal patterns")
 	}
-
 	// Validate character set (alphanumeric, underscore, hyphen, dot, slash only)
 	validPattern := regexp.MustCompile(`^[a-zA-Z0-9_/.-]+$`)
 	if !validPattern.MatchString(cleaned) {
 		return fmt.Errorf("tool_id contains invalid characters")
 	}
-
 	// Additional safety: reject paths that start with dot files or contain multiple consecutive dots
 	if strings.HasPrefix(cleaned, ".") || strings.Contains(cleaned, "...") {
 		return fmt.Errorf("tool_id cannot start with dot or contain multiple consecutive dots")
 	}
-
 	return nil
 }
 
@@ -800,12 +750,9 @@ func (bm *BunManager) compileBunWorker() error {
 	if err := os.MkdirAll(compozyDir, 0755); err != nil {
 		return fmt.Errorf("failed to create .compozy directory: %w", err)
 	}
-
 	workerPath := filepath.Join(compozyDir, "bun_worker.ts")
-
 	entrypointPath := strings.TrimSpace(bm.config.EntrypointPath)
 	importPath := entrypointPath
-
 	// Generate a minimal stub when no entrypoint is provided so the runtime
 	// remains operable without user-defined TypeScript tools.
 	if importPath == "" {
@@ -816,14 +763,11 @@ func (bm *BunManager) compileBunWorker() error {
 	} else {
 		importPath = toWorkerRelativeImport(compozyDir, importPath)
 	}
-
 	workerContent := strings.ReplaceAll(bunWorkerTemplate, "{{.EntrypointPath}}", importPath)
-
 	// Write worker file using configured permissions
 	if err := os.WriteFile(workerPath, []byte(workerContent), bm.config.WorkerFilePerm); err != nil {
 		return fmt.Errorf("failed to write worker file: %w", err)
 	}
-
 	return nil
 }
 
@@ -904,7 +848,6 @@ func (bm *BunManager) GetBunWorkerFileHash() (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	hash := sha256.Sum256(content)
 	return hex.EncodeToString(hash[:]), nil
 }

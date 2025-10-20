@@ -39,21 +39,17 @@ func (cn *ConfigNormalizer) NormalizeTask(
 ) error {
 	// Build normalization context
 	normCtx := cn.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-
 	// Merge environments
 	normCtx.MergedEnv = cn.envMerger.MergeWorkflowToTask(workflowConfig, taskConfig)
-
 	// Create appropriate normalizer based on task type
 	normalizer, err := cn.factory.CreateNormalizer(ctx, taskConfig.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create normalizer for task %s: %w", taskConfig.ID, err)
 	}
-
 	// Apply normalization
 	if err := normalizer.Normalize(ctx, taskConfig, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize task %s: %w", taskConfig.ID, err)
 	}
-
 	return nil
 }
 
@@ -68,7 +64,6 @@ func (cn *ConfigNormalizer) NormalizeAllTasks(
 	for i := range workflowConfig.Tasks {
 		taskConfigs[workflowConfig.Tasks[i].ID] = &workflowConfig.Tasks[i]
 	}
-
 	// Normalize each task
 	for i := range workflowConfig.Tasks {
 		taskConfig := &workflowConfig.Tasks[i]
@@ -89,7 +84,6 @@ func (cn *ConfigNormalizer) NormalizeAllTasks(
 			return fmt.Errorf("failed to normalize task %s: %w", taskConfig.ID, err)
 		}
 	}
-
 	return nil
 }
 
@@ -110,30 +104,25 @@ func (cn *ConfigNormalizer) NormalizeSubTask(
 	if subTask == nil {
 		return fmt.Errorf("sub-task is nil")
 	}
-
 	// Build sub-task context
 	normCtx, err := cn.contextBuilder.BuildNormalizationSubTaskContext(ctx, parentCtx, parentTask, subTask)
 	if err != nil {
 		return fmt.Errorf("failed to build sub-task context: %w", err)
 	}
-
 	// Merge environments for sub-task
 	normCtx.MergedEnv = cn.envMerger.MergeThreeLevels(
 		parentCtx.WorkflowConfig,
 		subTask,
 		nil,
 	)
-
 	// Create appropriate normalizer
 	normalizer, err := cn.factory.CreateNormalizer(ctx, subTask.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create normalizer for sub-task %s: %w", subTask.ID, err)
 	}
-
 	// Apply normalization
 	if err := normalizer.Normalize(ctx, subTask, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize sub-task %s: %w", subTask.ID, err)
 	}
-
 	return nil
 }

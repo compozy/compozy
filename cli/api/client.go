@@ -30,7 +30,6 @@ func NewAuthClient(cfg *config.Config, apiKey string) (AuthClient, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &client{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
@@ -123,7 +122,6 @@ func (c *client) doRequest(
 	url := c.baseURL + path
 	const maxRetries = 3
 	backoff := 100 * time.Millisecond
-
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			log.Debug("Retrying request", "attempt", attempt, "backoff", backoff)
@@ -151,7 +149,6 @@ func (c *client) doRequest(
 
 		return resp, nil
 	}
-
 	return nil, fmt.Errorf("request failed after all retry attempts")
 }
 
@@ -208,7 +205,6 @@ func (c *client) parseResponse(resp *http.Response, result any) error {
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
-
 	if resp.StatusCode >= 400 {
 		var errResp models.APIResponse
 		if err := json.Unmarshal(body, &errResp); err != nil {
@@ -219,13 +215,11 @@ func (c *client) parseResponse(resp *http.Response, result any) error {
 		}
 		return fmt.Errorf("server returned %d", resp.StatusCode)
 	}
-
 	if result != nil && len(body) > 0 {
 		if err := json.Unmarshal(body, result); err != nil {
 			return fmt.Errorf("failed to unmarshal response: %w", err)
 		}
 	}
-
 	return nil
 }
 
@@ -303,18 +297,15 @@ func (c *client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (stri
 		return "", err
 	}
 	defer resp.Body.Close()
-
 	var result struct {
 		Data struct {
 			APIKey string `json:"api_key"`
 		} `json:"data"`
 		Message string `json:"message"`
 	}
-
 	if err := c.parseResponse(resp, &result); err != nil {
 		return "", err
 	}
-
 	return result.Data.APIKey, nil
 }
 
@@ -325,18 +316,15 @@ func (c *client) ListKeys(ctx context.Context) ([]KeyInfo, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	var result struct {
 		Data struct {
 			Keys []KeyInfo `json:"keys"`
 		} `json:"data"`
 		Message string `json:"message"`
 	}
-
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
-
 	return result.Data.Keys, nil
 }
 
@@ -348,7 +336,6 @@ func (c *client) RevokeKey(ctx context.Context, keyID string) error {
 		return err
 	}
 	defer resp.Body.Close()
-
 	return c.parseResponse(resp, nil)
 }
 
@@ -359,18 +346,15 @@ func (c *client) ListUsers(ctx context.Context) ([]UserInfo, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	var result struct {
 		Data struct {
 			Users []UserInfo `json:"users"`
 		} `json:"data"`
 		Message string `json:"message"`
 	}
-
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
-
 	return result.Data.Users, nil
 }
 
@@ -381,7 +365,6 @@ func (c *client) CreateUser(ctx context.Context, req CreateUserRequest) (*UserIn
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	var result struct {
 		Data    UserInfo `json:"data"`
 		Message string   `json:"message"`
@@ -389,7 +372,6 @@ func (c *client) CreateUser(ctx context.Context, req CreateUserRequest) (*UserIn
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
-
 	return &result.Data, nil
 }
 
@@ -401,7 +383,6 @@ func (c *client) UpdateUser(ctx context.Context, userID string, req UpdateUserRe
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	var result struct {
 		Data    UserInfo `json:"data"`
 		Message string   `json:"message"`
@@ -409,7 +390,6 @@ func (c *client) UpdateUser(ctx context.Context, userID string, req UpdateUserRe
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
-
 	return &result.Data, nil
 }
 
@@ -421,6 +401,5 @@ func (c *client) DeleteUser(ctx context.Context, userID string) error {
 		return err
 	}
 	defer resp.Body.Close()
-
 	return c.parseResponse(resp, nil)
 }

@@ -151,7 +151,6 @@ func registerWebhookEvents(
 func BuildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[string]*CompiledTrigger, error) {
 	log := workflow.GetLogger(ctx)
 	signalMap := make(map[string]*CompiledTrigger)
-
 	for _, wcfg := range data.Workflows {
 		for i := range wcfg.Triggers {
 			trigger := &wcfg.Triggers[i]
@@ -177,11 +176,9 @@ func BuildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[stri
 // GenerateCorrelationID generates or uses existing correlation ID for event tracking
 func GenerateCorrelationID(ctx workflow.Context, existingID string) string {
 	log := workflow.GetLogger(ctx)
-
 	if existingID != "" {
 		return existingID
 	}
-
 	var newID string
 	// Use versioning to handle backward compatibility during replay
 	version := workflow.GetVersion(ctx, "correlation-id-generation", workflow.DefaultVersion, 1)
@@ -196,7 +193,6 @@ func GenerateCorrelationID(ctx workflow.Context, existingID string) string {
 		}
 		return fallbackID
 	}
-
 	// New behavior with SideEffect
 	if err := workflow.SideEffect(ctx, func(_ workflow.Context) any {
 		return core.MustNewID().String()
@@ -215,11 +211,9 @@ func validateSignalPayload(
 	correlationID string,
 ) bool {
 	log := workflow.GetLogger(ctx)
-
 	if target.CompiledSchema == nil {
 		return true // No schema to validate against
 	}
-
 	isValid, validationErrors := ValidatePayloadAgainstCompiledSchema(
 		signal.Payload,
 		target.CompiledSchema,
@@ -232,7 +226,6 @@ func validateSignalPayload(
 			"validationErrors", validationErrors)
 		return false
 	}
-
 	log.Debug("Payload validation passed",
 		"signalName", signal.Name,
 		"correlationId", correlationID,
@@ -344,11 +337,9 @@ func ProcessEventSignal(
 	appConfig *config.Config,
 ) bool {
 	log := workflow.GetLogger(ctx)
-
 	// Use provided correlation ID or generate one for tracking this event
 	correlationID := GenerateCorrelationID(ctx, signal.CorrelationID)
 	log.Debug("Received signal", "name", signal.Name, "correlationId", correlationID)
-
 	// Find target workflow with enhanced error handling
 	target, ok := signalMap[signal.Name]
 	if !ok {
@@ -358,12 +349,10 @@ func ProcessEventSignal(
 			"availableSignals", GetRegisteredSignalNames(signalMap))
 		return false // Not a fatal error, just unknown signal
 	}
-
 	// Validate payload against pre-compiled schema if defined
 	if !validateSignalPayload(ctx, signal, target, correlationID) {
 		return false // Not a fatal error, just validation failure
 	}
-
 	// Start child workflow with enhanced error handling and retry options
 	return executeChildWorkflow(ctx, signal, target, correlationID, appConfig)
 }
@@ -589,7 +578,6 @@ func (t *SignalDispatcher) DispatchSignal(
 	if err != nil {
 		return fmt.Errorf("failed to get project name: %w", err)
 	}
-
 	_, err = t.client.SignalWithStartWorkflow(
 		ctx,
 		t.dispatcherID,

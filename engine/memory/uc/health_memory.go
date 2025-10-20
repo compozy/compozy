@@ -65,7 +65,6 @@ func (uc *HealthMemory) Execute(ctx context.Context) (*HealthMemoryResult, error
 	if err := uc.validate(); err != nil {
 		return nil, err
 	}
-
 	// Use centralized service for health check
 	resp, err := uc.service.Health(ctx, &service.HealthRequest{
 		BaseRequest: service.BaseRequest{
@@ -79,7 +78,6 @@ func (uc *HealthMemory) Execute(ctx context.Context) (*HealthMemoryResult, error
 	if err != nil {
 		return nil, NewErrorContext(err, "health_memory", uc.memoryRef, uc.key)
 	}
-
 	return &HealthMemoryResult{
 		Healthy:        resp.Healthy,
 		Key:            resp.Key,

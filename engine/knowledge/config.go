@@ -457,7 +457,6 @@ func (d *Definitions) Validate(ctx context.Context) error {
 	embedderIndex, embedderErrs := validateEmbedders(ctx, d.Embedders)
 	vectorIndex, vectorErrs := validateVectorDBs(ctx, d.VectorDBs)
 	kbErrs := validateKnowledgeBases(ctx, d.KnowledgeBases, embedderIndex, vectorIndex)
-
 	totalErrs := len(embedderErrs) + len(vectorErrs) + len(kbErrs)
 	errs := make([]error, 0, totalErrs)
 	errs = append(errs, embedderErrs...)

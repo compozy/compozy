@@ -270,7 +270,6 @@ func registerServerAuthFields(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Enable or disable authentication for API endpoints",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "server.auth.workflow_exceptions",
 		Default: []string{},
@@ -279,7 +278,6 @@ func registerServerAuthFields(registry *Registry) {
 		Type:    reflect.TypeOf([]string{}),
 		Help:    "List of workflow IDs that are exempt from authentication (comma-separated)",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "server.auth.api_key_last_used_max_concurrency",
 		Default: 10,
@@ -288,7 +286,6 @@ func registerServerAuthFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum concurrent API key last-used updates (0 disables async updates)",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "server.auth.api_key_last_used_timeout",
 		Default: 2 * time.Second,
@@ -648,7 +645,6 @@ func registerTemporalFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Temporal host:port",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "temporal.namespace",
 		Default: "default",
@@ -657,7 +653,6 @@ func registerTemporalFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Temporal namespace",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "temporal.task_queue",
 		Default: "compozy-tasks",
@@ -1012,7 +1007,6 @@ func registerAttachmentsLimits(registry *Registry) {
 		Type:    reflect.TypeOf(int64(0)),
 		Help:    "Maximum download size in bytes for attachment resolution",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.download_timeout",
 		Default: 30 * time.Second,
@@ -1021,7 +1015,6 @@ func registerAttachmentsLimits(registry *Registry) {
 		Type:    durationType,
 		Help:    "Timeout for downloading attachments",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.max_redirects",
 		Default: 3,
@@ -1087,7 +1080,6 @@ func registerAttachmentsExtras(registry *Registry) {
 		Type:    reflect.TypeOf(int64(0)),
 		Help:    "Maximum text bytes loaded from files when converting to TextPart",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.pdf_extract_max_chars",
 		Default: 1_000_000,
@@ -1096,7 +1088,6 @@ func registerAttachmentsExtras(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum characters extracted from PDF when converting to text",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.http_user_agent",
 		Default: "Compozy/1.0",
@@ -1105,7 +1096,6 @@ func registerAttachmentsExtras(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "User-Agent header for attachment HTTP requests",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.mime_head_max_bytes",
 		Default: 512,
@@ -1114,7 +1104,6 @@ func registerAttachmentsExtras(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Number of initial bytes used for MIME detection",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.ssrf_strict",
 		Default: false,
@@ -1134,7 +1123,6 @@ func registerMemoryFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Redis key prefix for memory storage",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "memory.ttl",
 		Default: 24 * time.Hour,
@@ -1143,7 +1131,6 @@ func registerMemoryFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Memory TTL",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "memory.max_entries",
 		Default: 10000,
@@ -1163,7 +1150,6 @@ func registerLLMFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "LLM proxy URL",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.mcp_readiness_timeout",
 		Default: 60 * time.Second,
@@ -1172,7 +1158,6 @@ func registerLLMFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Max time to wait for MCP clients to connect",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.mcp_readiness_poll_interval",
 		Default: 200 * time.Millisecond,
@@ -1181,7 +1166,6 @@ func registerLLMFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Polling interval for MCP connection readiness",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.mcp_header_template_strict",
 		Default: false,
@@ -1190,7 +1174,6 @@ func registerLLMFields(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Enable strict template validation for MCP headers",
 	})
-
 	registerLLMRetryAndLimits(registry)
 	registerLLMRateLimiterFields(registry)
 	registerLLMConversationControls(registry)
@@ -1209,7 +1192,6 @@ func registerLLMMCPExtras(registry *Registry) {
 		Type:    reflect.TypeOf([]string{}),
 		Help:    "Allowed MCP IDs for tool advertisement and lookup",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.fail_on_mcp_registration_error",
 		Default: false,
@@ -1218,7 +1200,6 @@ func registerLLMMCPExtras(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Fail-fast when MCP registration encounters an error",
 	})
-
 	// Complex type; CLI flag omitted due to structure complexity
 	registry.Register(&FieldDef{
 		Path:    "llm.register_mcps",
@@ -1228,7 +1209,6 @@ func registerLLMMCPExtras(registry *Registry) {
 		Type:    reflect.TypeOf([]any{}),
 		Help:    "Additional MCP configurations to register with the proxy",
 	})
-
 	// MCP client HTTP timeout (separate from readiness timeout)
 	registry.Register(&FieldDef{
 		Path:    "llm.mcp_client_timeout",
@@ -1238,7 +1218,6 @@ func registerLLMMCPExtras(registry *Registry) {
 		Type:    durationType,
 		Help:    "HTTP client timeout for MCP proxy communication",
 	})
-
 	// Retry jitter percent applied to proxy retries (when jitter enabled)
 	registry.Register(&FieldDef{
 		Path:    "llm.retry_jitter_percent",
@@ -1550,7 +1529,6 @@ func registerLLMRestartControls(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Enable automatic loop restarts when progress remains stalled",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.restart_stall_threshold",
 		Default: 2,
@@ -1559,7 +1537,6 @@ func registerLLMRestartControls(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Number of stalled iterations required before triggering a loop restart",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.max_loop_restarts",
 		Default: 0,
@@ -1579,7 +1556,6 @@ func registerLLMCompactionControls(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Enable summarisation-based context compaction when usage exceeds thresholds",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.context_compaction_threshold",
 		Default: 0.85,
@@ -1588,7 +1564,6 @@ func registerLLMCompactionControls(registry *Registry) {
 		Type:    reflect.TypeOf(0.0),
 		Help:    "Context usage ratio (0-1) that triggers compaction when enabled",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.context_compaction_cooldown",
 		Default: 2,
@@ -2172,7 +2147,6 @@ func registerWorkerCacheLifecycleFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "TTL for configuration data in cache",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.heartbeat_cleanup_timeout",
 		Default: 5 * time.Second,
@@ -2181,7 +2155,6 @@ func registerWorkerCacheLifecycleFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Timeout for cleaning up dispatcher heartbeats",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.mcp_shutdown_timeout",
 		Default: 30 * time.Second,
@@ -2190,7 +2163,6 @@ func registerWorkerCacheLifecycleFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Timeout for MCP server shutdown",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.mcp_proxy_health_check_timeout",
 		Default: 10 * time.Second,
@@ -2210,7 +2182,6 @@ func registerWorkerDispatcherFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "TTL for dispatcher heartbeat records",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.dispatcher.stale_threshold",
 		Default: 2 * time.Minute,
@@ -2219,7 +2190,6 @@ func registerWorkerDispatcherFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Duration after which a dispatcher heartbeat is considered stale",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.dispatcher_retry_delay",
 		Default: 50 * time.Millisecond,
@@ -2228,7 +2198,6 @@ func registerWorkerDispatcherFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Delay between dispatcher retry attempts",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.dispatcher_max_retries",
 		Default: 2,
@@ -2259,7 +2228,6 @@ func registerWorkerConcurrencyFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum concurrent activity executions (0 = auto based on CPU)",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.max_concurrent_workflow_execution_size",
 		Default: 0,
@@ -2268,7 +2236,6 @@ func registerWorkerConcurrencyFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum concurrent workflow task executions (0 = auto based on CPU)",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.max_concurrent_local_activity_execution_size",
 		Default: 0,
@@ -2288,7 +2255,6 @@ func registerWorkerActivityDefaults(registry *Registry) {
 		Type:    durationType,
 		Help:    "Default activity start-to-close timeout",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.activity_heartbeat_timeout",
 		Default: 30 * time.Second,
@@ -2297,7 +2263,6 @@ func registerWorkerActivityDefaults(registry *Registry) {
 		Type:    durationType,
 		Help:    "Default activity heartbeat timeout",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.activity_max_retries",
 		Default: 3,
@@ -2317,7 +2282,6 @@ func registerWorkerErrorHandlerFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Timeout for workflow error handler activities",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.error_handler_max_retries",
 		Default: 3,
@@ -2433,7 +2397,6 @@ func registerWebhooksFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Default HTTP method for webhook requests",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "webhooks.default_max_body",
 		Default: int64(1 << 20), // 1MB
@@ -2442,7 +2405,6 @@ func registerWebhooksFields(registry *Registry) {
 		Type:    reflect.TypeOf(int64(0)),
 		Help:    "Default maximum body size for webhook requests (bytes)",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "webhooks.default_dedupe_ttl",
 		Default: 10 * time.Minute,
@@ -2451,7 +2413,6 @@ func registerWebhooksFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Default time-to-live for webhook deduplication",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "webhooks.stripe_skew",
 		Default: 5 * time.Minute,

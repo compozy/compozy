@@ -62,7 +62,6 @@ func (c *Config) Validate() error {
 func NewServer(config *Config, storage Storage, clientManager ClientManager) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-
 	// Add logging middleware
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		Formatter: func(param gin.LogFormatterParams) string {
@@ -79,7 +78,6 @@ func NewServer(config *Config, storage Storage, clientManager ClientManager) *Se
 			)
 		},
 	}))
-
 	router.Use(gin.Recovery())
 	proxyHandlers := NewProxyHandlers(storage, clientManager, config.BaseURL)
 	service := NewMCPService(storage, clientManager, proxyHandlers)
@@ -100,7 +98,6 @@ func NewServer(config *Config, storage Storage, clientManager ClientManager) *Se
 		},
 		boundCh: make(chan struct{}),
 	}
-
 	server.setupRoutes()
 	return server
 }
@@ -109,7 +106,6 @@ func NewServer(config *Config, storage Storage, clientManager ClientManager) *Se
 func (s *Server) setupRoutes() {
 	// Health check endpoint
 	s.Router.GET("/healthz", s.healthzHandler)
-
 	// Admin API for MCP management (no IP-based filtering; rely on external network controls)
 	admin := s.Router.Group("/admin")
 	{
@@ -129,7 +125,6 @@ func (s *Server) setupRoutes() {
 		// Metrics endpoint
 		admin.GET("/metrics", s.metricsHandler)
 	}
-
 	// MCP Proxy endpoints - direct routes for each transport type
 	{
 		// SSE transport proxy - GET only (SSE semantics)
@@ -140,7 +135,6 @@ func (s *Server) setupRoutes() {
 		s.Router.Any("/mcp-proxy/:name/stream", s.proxyHandlers.StreamableHTTPProxyHandler)
 		s.Router.Any("/mcp-proxy/:name/stream/*path", s.proxyHandlers.StreamableHTTPProxyHandler)
 	}
-
 	// API versioning for legacy compatibility
 	v1 := s.Router.Group("/api/v1")
 	{
@@ -162,7 +156,6 @@ func (s *Server) healthzHandler(c *gin.Context) {
 // metricsHandler handles metrics requests
 func (s *Server) metricsHandler(c *gin.Context) {
 	metrics := s.clientManager.GetMetrics()
-
 	c.JSON(http.StatusOK, gin.H{
 		"timestamp": time.Now().UTC(),
 		"metrics":   metrics,
@@ -175,24 +168,20 @@ func (s *Server) Start(ctx context.Context) error {
 	log.Info("Starting MCP proxy server", "port", s.config.Port, "host", s.config.Host)
 	log.Info("MCP proxy has no built-in IP filtering; secure /admin endpoints via network controls")
 	s.httpServer.BaseContext = func(_ net.Listener) context.Context { return ctx }
-
 	ln, err := s.bindListener(ctx)
 	if err != nil {
 		return err
 	}
 	s.boundOnce.Do(func() { close(s.boundCh) })
-
 	if err := s.clientManager.Start(ctx); err != nil {
 		_ = ln.Close()
 		return fmt.Errorf("failed to start client manager: %w", err)
 	}
-
 	errChan := s.launchHTTPServer(ln)
 	if err := s.awaitStartup(ctx, errChan); err != nil {
 		s.stopClientManagerSilently(ctx)
 		return err
 	}
-
 	log.Info("MCP proxy server started successfully")
 	return s.waitForShutdown(ctx, errChan)
 }
@@ -259,20 +248,16 @@ func (s *Server) stopClientManagerSilently(ctx context.Context) {
 func (s *Server) Stop(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Shutting down MCP proxy server")
-
 	shutdownCtx, cancel := context.WithTimeout(ctx, s.config.ShutdownTimeout)
 	defer cancel()
-
 	// Stop client manager first
 	if err := s.clientManager.Stop(shutdownCtx); err != nil {
 		log.Error("Client manager shutdown failed", "error", err)
 	}
-
 	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Error("Server shutdown failed", "error", err)
 		return err
 	}
-
 	log.Info("MCP proxy server stopped gracefully")
 	return nil
 }
@@ -297,12 +282,10 @@ func (s *Server) waitForShutdown(ctx context.Context, errChan <-chan error) erro
 			return s.Stop(ctx)
 		}
 	}
-
 	// Standalone mode: install OS signal handler
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(quit)
-
 	select {
 	case <-ctx.Done():
 		log.Debug("Context canceled, shutting down server")

@@ -36,7 +36,6 @@ func (o *Options) applyDefaults() {
 		o.ContextWarningThresholds = []float64{0.7, 0.85}
 	}
 	sort.Float64s(o.ContextWarningThresholds)
-
 	// Normalise capture settings.
 	if !o.CaptureContent && !o.RedactContent {
 		o.CaptureContent = true
@@ -44,7 +43,6 @@ func (o *Options) applyDefaults() {
 	if o.RedactContent {
 		o.CaptureContent = false
 	}
-
 	// Ensure ProjectRoot resolves to store (even when empty)
 	o.ProjectRoot = storeDir
 }

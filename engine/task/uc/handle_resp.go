@@ -53,7 +53,6 @@ func NewHandleResponse(workflowRepo workflow.Repository, taskRepo task.Repositor
 func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInput) (task.Response, error) {
 	// Process task execution result and determine success status
 	isSuccess, executionErr := uc.processTaskResult(ctx, input)
-
 	// Save state with context handling
 	if err := uc.saveStateWithContextHandling(ctx, input.TaskState); err != nil {
 		if ctx.Err() != nil {
@@ -61,13 +60,11 @@ func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInpu
 		}
 		return nil, err
 	}
-
 	// Update parent status and handle context cancellation
 	uc.logParentStatusUpdateError(ctx, input.TaskState)
 	if ctx.Err() != nil {
 		return &task.MainTaskResponse{State: input.TaskState}, nil
 	}
-
 	// Process transitions and validate error handling
 	onSuccess, onError, err := uc.processTransitionsWithValidation(ctx, input, isSuccess, executionErr)
 	if err != nil {
@@ -76,10 +73,8 @@ func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInpu
 		}
 		return nil, err
 	}
-
 	// Determine next task
 	nextTask := uc.selectNextTask(input, isSuccess)
-
 	return &task.MainTaskResponse{
 		OnSuccess: onSuccess,
 		OnError:   onError,
@@ -92,7 +87,6 @@ func (uc *HandleResponse) Execute(ctx context.Context, input *HandleResponseInpu
 func (uc *HandleResponse) processTaskResult(ctx context.Context, input *HandleResponseInput) (bool, error) {
 	state := input.TaskState
 	executionErr := input.ExecutionError
-
 	// If successful so far, try to apply output transformation.
 	// If transformation fails, it becomes a task failure.
 	isSuccess := executionErr == nil && state.Status != core.StatusFailed
@@ -105,13 +99,11 @@ func (uc *HandleResponse) processTaskResult(ctx context.Context, input *HandleRe
 			}
 		}
 	}
-
 	// Handle final state (success or failure)
 	if !isSuccess {
 		state.UpdateStatus(core.StatusFailed)
 		uc.setErrorState(state, executionErr)
 	}
-
 	return isSuccess, executionErr
 }
 
@@ -134,14 +126,12 @@ func (uc *HandleResponse) processTransitionsWithValidation(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to normalize transitions: %w", err)
 	}
-
 	if !isSuccess && (onError == nil || onError.Next == nil) {
 		if executionErr != nil {
 			return nil, nil, fmt.Errorf("task failed with no error transition defined: %w", executionErr)
 		}
 		return nil, nil, errors.New("task failed with no error transition defined")
 	}
-
 	return onSuccess, onError, nil
 }
 
@@ -160,7 +150,6 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 	}
 	// Build task configs map for context
 	taskConfigs := task2.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
-
 	// Create normalization context with proper Variables
 	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
@@ -170,7 +159,6 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 	normCtx.TaskConfigs = taskConfigs
 	normCtx.CurrentInput = input.TaskConfig.With
 	normCtx.MergedEnv = input.TaskConfig.Env
-
 	// For collection child tasks, we need to add the item context
 	// Check if this task has a parent that is a collection
 	if input.TaskState.ParentStateID != nil {
@@ -187,7 +175,6 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 			}
 		}
 	}
-
 	output, err := uc.outputTransformer.TransformOutput(
 		ctx,
 		input.TaskState.Output,
@@ -224,17 +211,14 @@ func (uc *HandleResponse) normalizeTransitions(
 	if err != nil {
 		return nil, nil, err
 	}
-
 	successTransition, err := uc.normalizeSuccessTransition(input.TaskConfig.OnSuccess, normCtx)
 	if err != nil {
 		return nil, nil, err
 	}
-
 	errorTransition, err := uc.normalizeErrorTransition(input.TaskConfig.OnError, normCtx)
 	if err != nil {
 		return nil, nil, err
 	}
-
 	return successTransition, errorTransition, nil
 }
 
@@ -247,12 +231,10 @@ func (uc *HandleResponse) buildTransitionContext(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow state: %w", err)
 	}
-
 	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
-
 	normCtx := contextBuilder.BuildContext(ctx, workflowState, input.WorkflowConfig, input.TaskConfig)
 	normCtx.CurrentInput = input.TaskState.Input
 	return normCtx, nil
@@ -266,12 +248,10 @@ func (uc *HandleResponse) normalizeSuccessTransition(
 	if transition == nil {
 		return nil, nil
 	}
-
 	transitionCopy := cloneSuccessTransition(transition)
 	if err := uc.successTransitionNormalizer.Normalize(transitionCopy, normCtx); err != nil {
 		return nil, fmt.Errorf("failed to normalize success transition: %w", err)
 	}
-
 	return transitionCopy, nil
 }
 
@@ -283,12 +263,10 @@ func (uc *HandleResponse) normalizeErrorTransition(
 	if transition == nil {
 		return nil, nil
 	}
-
 	transitionCopy := cloneErrorTransition(transition)
 	if err := uc.errorTransitionNormalizer.Normalize(transitionCopy, normCtx); err != nil {
 		return nil, fmt.Errorf("failed to normalize error transition: %w", err)
 	}
-
 	return transitionCopy, nil
 }
 
@@ -325,12 +303,10 @@ func (uc *HandleResponse) updateParentStatusIfNeeded(ctx context.Context, childS
 	if childState.ParentStateID == nil {
 		return nil
 	}
-
 	parentState, err := uc.loadParallelParentState(ctx, *childState.ParentStateID)
 	if err != nil || parentState == nil {
 		return err
 	}
-
 	strategy := uc.extractParallelStrategy(ctx, parentState)
 	_, err = uc.parentStatusUpdater.UpdateParentStatus(ctx, &services.UpdateParentStatusInput{
 		ParentStateID: *childState.ParentStateID,

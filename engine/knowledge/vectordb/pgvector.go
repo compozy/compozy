@@ -493,7 +493,6 @@ ON CONFLICT (id) DO UPDATE SET
     document = excluded.document,
     metadata = excluded.metadata,
     updated_at = excluded.updated_at`, p.tableIdent)
-
 	batch := &pgx.Batch{}
 	ids, err := prepareBatchRecords(records, p.dimension, stmt, batch)
 	if err != nil {
@@ -530,7 +529,6 @@ func (p *pgStore) executeSearch(ctx context.Context, query []float32, opts Searc
 	sql, args := buildSearchQuery(p.tableIdent, p.metric, opts.Filters, opts.MinScore)
 	args[0] = pgvector.NewVector(query)
 	args = append(args, topK)
-
 	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("pgvector: begin transaction: %w", err)
@@ -540,11 +538,9 @@ func (p *pgStore) executeSearch(ctx context.Context, query []float32, opts Searc
 			logger.FromContext(ctx).Warn("pgvector: rollback search transaction", "error", rbErr)
 		}
 	}()
-
 	if tuneErr := p.applySearchParametersLocal(ctx, tx); tuneErr != nil {
 		return nil, tuneErr
 	}
-
 	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("pgvector: search: %w", err)
@@ -554,7 +550,6 @@ func (p *pgStore) executeSearch(ctx context.Context, query []float32, opts Searc
 	if err != nil {
 		return nil, err
 	}
-
 	if commitErr := tx.Commit(ctx); commitErr != nil {
 		return nil, fmt.Errorf("pgvector: commit search transaction: %w", commitErr)
 	}

@@ -29,7 +29,6 @@ func NewFactory(
 			return nil, fmt.Errorf("failed to create memory operations service: %w", err)
 		}
 	}
-
 	return &Factory{
 		manager:       manager,
 		worker:        worker,

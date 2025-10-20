@@ -284,14 +284,12 @@ func fetchRemoteDocument(ctx context.Context, rawURL string, maxBytes int) (remo
 		return remoteFetchResult{}, fmt.Errorf("knowledge: download url %q: %w", rawURL, err)
 	}
 	defer handle.Cleanup()
-
 	path, ok := handle.AsFilePath()
 	if !ok || path == "" {
 		return remoteFetchResult{}, fmt.Errorf("knowledge: downloaded url %q missing file path", rawURL)
 	}
 	mime := normalizeContentType(path, handle.MIME())
 	filename := filenameFromURL(rawURL)
-
 	if isPDFContentType(mime) {
 		result, err := pdfExtractor(ctx, path)
 		if err != nil {
@@ -305,7 +303,6 @@ func fetchRemoteDocument(ctx context.Context, rawURL string, maxBytes int) (remo
 			pdfStats:    &result.Stats,
 		}, nil
 	}
-
 	text, err := readAndDecodeDocument(rawURL, path, mime, limit)
 	if err != nil {
 		return remoteFetchResult{}, err

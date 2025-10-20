@@ -32,23 +32,19 @@ func (aol *AsyncOperationLogger) LogAsyncOperationStart(
 	if span.SpanContext().IsValid() {
 		traceID = span.SpanContext().TraceID().String()
 	}
-
 	baseFields := []any{
 		"operation", operation,
 		"memory_id", memoryID,
 		"phase", "start",
 		"timestamp", time.Now().UTC(),
 	}
-
 	if traceID != "" {
 		baseFields = append(baseFields, "trace_id", traceID)
 	}
-
 	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}
-
 	log.Info("Async operation started", baseFields...)
 }
 
@@ -68,7 +64,6 @@ func (aol *AsyncOperationLogger) LogAsyncOperationComplete(
 	if span.SpanContext().IsValid() {
 		traceID = span.SpanContext().TraceID().String()
 	}
-
 	baseFields := []any{
 		"operation", operation,
 		"memory_id", memoryID,
@@ -77,20 +72,16 @@ func (aol *AsyncOperationLogger) LogAsyncOperationComplete(
 		"timestamp", time.Now().UTC(),
 		"success", err == nil,
 	}
-
 	if traceID != "" {
 		baseFields = append(baseFields, "trace_id", traceID)
 	}
-
 	if err != nil {
 		baseFields = append(baseFields, "error", err.Error())
 	}
-
 	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}
-
 	if err != nil {
 		log.Error("Async operation failed", baseFields...)
 	} else {
@@ -130,18 +121,15 @@ func (aol *AsyncOperationLogger) LogTemporalWorkflow(
 		"timestamp", time.Now().UTC(),
 		"async", true,
 	}
-
 	// Extract trace ID if available
 	span := trace.SpanFromContext(ctx)
 	if span.SpanContext().IsValid() {
 		baseFields = append(baseFields, "trace_id", span.SpanContext().TraceID().String())
 	}
-
 	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}
-
 	log.Info("Temporal workflow scheduled", baseFields...)
 }
 
@@ -168,12 +156,10 @@ func (aol *AsyncOperationLogger) LogTokenManagement(
 		"usage_percentage", usagePercentage,
 		"timestamp", time.Now().UTC(),
 	}
-
 	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}
-
 	switch {
 	case tokensUsed > maxTokens:
 		log.Warn("Token limit exceeded", baseFields...)
@@ -201,12 +187,10 @@ func (aol *AsyncOperationLogger) LogLockOperation(
 		"duration_ms", duration.Milliseconds(),
 		"timestamp", time.Now().UTC(),
 	}
-
 	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}
-
 	if success {
 		log.Debug("Lock operation succeeded", baseFields...)
 	} else {
@@ -228,11 +212,9 @@ func (aol *AsyncOperationLogger) LogPrivacyOperation(
 		"privacy", true,
 		"timestamp", time.Now().UTC(),
 	}
-
 	// Add metadata fields
 	for k, v := range metadata {
 		baseFields = append(baseFields, k, v)
 	}
-
 	log.Info("Privacy operation", baseFields...)
 }

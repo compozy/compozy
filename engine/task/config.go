@@ -2847,7 +2847,6 @@ func applyDefaults(config *Config) {
 			applyDefaults(&config.Tasks[i])
 		}
 	}
-
 	// Handle collection tasks with task template
 	if config.Type == TaskTypeCollection && config.Task != nil {
 		applyDefaults(config.Task)
@@ -2859,7 +2858,6 @@ func setCWDForTask(task *Config, parentCWD *core.PathCWD, taskType string) error
 	if task.CWD != nil || parentCWD == nil {
 		return nil
 	}
-
 	if err := task.SetCWD(parentCWD.PathStr()); err != nil {
 		return fmt.Errorf("failed to set CWD for %s %s: %w", taskType, task.ID, err)
 	}

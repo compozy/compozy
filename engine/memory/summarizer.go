@@ -322,7 +322,6 @@ func (hfs *HybridFlushingStrategy) ShouldFlush(tokenCount, _ int, config *memcor
 	if hfs.config == nil {
 		return false
 	}
-
 	// Determine effective max tokens for threshold calculation
 	effectiveMaxTokens := config.MaxTokens
 	if effectiveMaxTokens == 0 && config.MaxContextRatio > 0 {
@@ -332,14 +331,12 @@ func (hfs *HybridFlushingStrategy) ShouldFlush(tokenCount, _ int, config *memcor
 		}
 		effectiveMaxTokens = int(float64(modelContextSize) * config.MaxContextRatio)
 	}
-
 	if effectiveMaxTokens > 0 && hfs.config.SummarizeThreshold > 0 {
 		thresholdTokens := int(float64(effectiveMaxTokens) * hfs.config.SummarizeThreshold)
 		if tokenCount >= thresholdTokens {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -353,7 +350,6 @@ func (hfs *HybridFlushingStrategy) ShouldFlushByCount(
 	if hfs.config == nil {
 		return false
 	}
-
 	// Determine effective max tokens for threshold calculation
 	effectiveMaxTokens := hfs.tokenManager.config.MaxTokens
 	if effectiveMaxTokens == 0 && hfs.tokenManager.config.MaxContextRatio > 0 {
@@ -363,14 +359,12 @@ func (hfs *HybridFlushingStrategy) ShouldFlushByCount(
 		}
 		effectiveMaxTokens = int(float64(modelContextSize) * hfs.tokenManager.config.MaxContextRatio)
 	}
-
 	if effectiveMaxTokens > 0 && hfs.config.SummarizeThreshold > 0 {
 		thresholdTokens := int(float64(effectiveMaxTokens) * hfs.config.SummarizeThreshold)
 		if currentTotalTokens >= thresholdTokens {
 			return true
 		}
 	}
-
 	// Could add message count based threshold too if needed
 	// The messageCount parameter is available here for future use
 	return false
@@ -494,7 +488,6 @@ func (hfs *HybridFlushingStrategy) PerformFlush(
 			TokenCount: tokenCount,
 		}
 	}
-
 	// Use existing FlushMessages method
 	newMessages, newTotalTokens, summaryGenerated, err := hfs.FlushMessages(ctx, messagesWithTokens)
 	if err != nil {
@@ -503,7 +496,6 @@ func (hfs *HybridFlushingStrategy) PerformFlush(
 			Error:   err.Error(),
 		}, err
 	}
-
 	return &memcore.FlushMemoryActivityOutput{
 		Success:          true,
 		SummaryGenerated: summaryGenerated,

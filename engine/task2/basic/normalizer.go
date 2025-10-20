@@ -43,18 +43,15 @@ func (n *Normalizer) Normalize(
 	if config == nil {
 		return nil
 	}
-
 	// Always apply base normalization - it will handle selective processing
 	if err := n.normalizeWithSelectiveProcessing(ctx, config, parentCtx); err != nil {
 		return err
 	}
-
 	// Type assert to get the concrete type
 	normCtx, ok := parentCtx.(*shared.NormalizationContext)
 	if !ok {
 		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", parentCtx)
 	}
-
 	// Normalize agent configuration if present
 	if config.Agent != nil {
 		actionID := config.Action
@@ -62,7 +59,6 @@ func (n *Normalizer) Normalize(
 			return fmt.Errorf("failed to normalize agent config: %w", err)
 		}
 	}
-
 	return nil
 }
 
@@ -77,30 +73,25 @@ func (n *Normalizer) normalizeWithSelectiveProcessing(
 	if !ok {
 		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", parentCtx)
 	}
-
 	// Detect if runtime already has the .tasks map with completed task outputs
 	hasTasksVar := normCtx != nil &&
 		normCtx.Variables != nil &&
 		normCtx.Variables["tasks"] != nil
-
 	// Preserve With only when it still contains runtime references *and*
 	// the tasks variable is NOT yet available (compile-time pass).
 	var preservedWith *enginecore.Input
 	if config.With != nil && n.containsRuntimeReferences(config.With) && !hasTasksVar {
 		preservedWith = config.With
 	}
-
 	// Apply base normalization which will process all templates
 	if err := n.BaseNormalizer.Normalize(ctx, config, normCtx); err != nil {
 		return err
 	}
-
 	// Restore the preserved With field if it had runtime references
 	// that we intentionally skipped during the first pass
 	if preservedWith != nil {
 		config.With = preservedWith
 	}
-
 	return nil
 }
 

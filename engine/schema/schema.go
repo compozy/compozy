@@ -126,7 +126,6 @@ func (s *Schema) compileCached(ctx context.Context) (*jsonschema.Schema, error) 
 	if s == nil {
 		return nil, nil
 	}
-
 	start := time.Now()
 	fingerprint := core.ETagFromAny(map[string]any(*s))
 	entryValue, _ := compiledSchemaCache.LoadOrStore(s, &schemaCacheEntry{})
@@ -134,24 +133,19 @@ func (s *Schema) compileCached(ctx context.Context) (*jsonschema.Schema, error) 
 	if !ok {
 		return nil, fmt.Errorf("unexpected schema cache entry type %T", entryValue)
 	}
-
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
-
 	if entry.compiled != nil && entry.fingerprint == fingerprint {
 		recordSchemaCompile(ctx, time.Since(start), true)
 		return entry.compiled, nil
 	}
-
 	compiled, err := s.compileFresh(ctx)
 	if err != nil {
 		compiledSchemaCache.Delete(s)
 		return nil, err
 	}
-
 	entry.compiled = compiled
 	entry.fingerprint = fingerprint
-
 	return entry.compiled, nil
 }
 
@@ -238,7 +232,6 @@ func (s *Schema) extractDefaults() map[string]any {
 			}
 		}
 	}
-
 	return defaults
 }
 

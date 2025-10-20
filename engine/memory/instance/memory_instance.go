@@ -131,10 +131,8 @@ func (mi *memoryInstance) calculateTokenCountWithFallback(ctx context.Context, t
 func (mi *memoryInstance) calculateMessageTokenCount(ctx context.Context, msg llm.Message) int {
 	// Count content tokens with consistent fallback
 	contentCount := mi.calculateTokenCountWithFallback(ctx, msg.Content, "content")
-
 	// Count role tokens with consistent fallback
 	roleCount := mi.calculateTokenCountWithFallback(ctx, string(msg.Role), "role")
-
 	// Add structure overhead for message formatting
 	return contentCount + roleCount + messageStructureOverhead
 }
@@ -182,13 +180,11 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) (err erro
 		release()
 		mi.applyReleaseError(&err, releaseErrPtr)
 	}()
-
 	tokenCount := mi.calculateTokenCountForMessage(ctx, msg)
 	if appendErr := mi.store.AppendMessageWithTokenCount(ctx, mi.id, msg, tokenCount); appendErr != nil {
 		mi.recordAppendMetrics(ctx, start, tokenCount, appendErr)
 		return fmt.Errorf("failed to append message to store: %w", appendErr)
 	}
-
 	mi.recordAppendMetrics(ctx, start, tokenCount, nil)
 	mi.metrics.RecordTokenCount(ctx, tokenCount)
 	mi.enqueueAsyncTokenReconciliation(ctx, msg)
@@ -209,7 +205,6 @@ func (mi *memoryInstance) reconcileAsyncTokenCount(ctx context.Context, msg llm.
 	// Role tokens sync (cheap) + structure overhead
 	actualRole := mi.calculateTokenCountWithFallback(ctx, string(msg.Role), "role")
 	actualTotal := actualContent + actualRole + messageStructureOverhead
-
 	// Estimated total used at write time
 	estTotal := mi.estimateTokenCount(msg.Content) + mi.estimateTokenCount(string(msg.Role)) + messageStructureOverhead
 	delta := actualTotal - estTotal
@@ -244,7 +239,6 @@ func (mi *memoryInstance) AppendMany(ctx context.Context, msgs []llm.Message) (e
 		release()
 		mi.applyReleaseError(&err, releaseErrPtr)
 	}()
-
 	totalTokenCount := mi.calculateTotalTokenCount(ctx, msgs)
 	if appendErr := mi.store.AppendMessages(ctx, mi.id, msgs); appendErr != nil {
 		mi.recordAppendMetrics(ctx, start, totalTokenCount, appendErr)
@@ -468,7 +462,6 @@ func (mi *memoryInstance) PerformFlushWithStrategy(
 			return nil, fmt.Errorf("invalid strategy type: %w", err)
 		}
 	}
-
 	// Create flush handler with necessary dependencies
 	flushHandler := &FlushHandler{
 		instanceID:        mi.id,
@@ -614,29 +607,23 @@ func (mi *memoryInstance) Close(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	// 1. Acquire flush mutex to prevent new flush operations from starting
 	mi.flushMutex.Lock()
-
 	// 2. Stop the debouncer from scheduling any further calls
 	if mi.flushCancelFunc != nil {
 		mi.flushCancelFunc()
 		mi.flushCancelFunc = nil // Prevent double cancellation
 	}
-
 	// 3. Release mutex before waiting to avoid deadlock
 	mi.flushMutex.Unlock()
-
 	// 4. Wait for any in-flight flush operations to complete
 	mi.flushWG.Wait()
-
 	// 5. Perform a final synchronous flush to ensure all data is persisted
 	mi.flushMutex.Lock()
 	defer mi.flushMutex.Unlock()
-
 	// Perform final flush check with provided context
 	if err := mi.performAsyncFlushCheck(ctx); err != nil {
 		log.Error("Failed to perform final flush during close", "error", err, "memory_id", mi.id)
 		return fmt.Errorf("failed to perform final flush during close: %w", err)
 	}
-
 	log.Info("Memory instance flushed and closed successfully", "memory_id", mi.id)
 	return nil
 }

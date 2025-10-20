@@ -96,12 +96,10 @@ func (e *TemplateEngine) WithPrecisionPreservation(enabled bool) *TemplateEngine
 func (e *TemplateEngine) getFuncMap() template.FuncMap {
 	// Start with sprig functions
 	funcMap := sprig.FuncMap()
-
 	// Add HTML safety functions with comprehensive XSS protection
 	funcMap["htmlEscape"] = html.EscapeString
 	funcMap["htmlAttrEscape"] = html.EscapeString // For attribute values
 	funcMap["jsEscape"] = html_template.JSEscapeString
-
 	return funcMap
 }
 
@@ -109,12 +107,10 @@ func (e *TemplateEngine) getFuncMap() template.FuncMap {
 func (e *TemplateEngine) AddTemplate(name, templateStr string) error {
 	// Preprocess template to handle hyphens in field names
 	processedTemplate := e.preprocessTemplateForHyphens(templateStr)
-
 	tmpl, err := template.New(name).Option("missingkey=error").Funcs(e.getFuncMap()).Parse(processedTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
-
 	e.mu.Lock()
 	e.templates[name] = tmpl
 	e.mu.Unlock()
@@ -131,11 +127,9 @@ func (e *TemplateEngine) Render(name string, context map[string]any) (string, er
 	e.mu.RLock()
 	tmpl, ok := e.templates[name]
 	e.mu.RUnlock()
-
 	if !ok {
 		return "", fmt.Errorf("template not found: %s", name)
 	}
-
 	return e.renderTemplate(tmpl, context)
 }
 
@@ -145,28 +139,23 @@ func (e *TemplateEngine) RenderString(templateStr string, context map[string]any
 	if !HasTemplate(templateStr) {
 		return templateStr, nil
 	}
-
 	// Preprocess template to handle hyphens in field names
 	processedTemplate := e.preprocessTemplateForHyphens(templateStr)
-
 	// Create a new template and parse the string
 	tmpl, err := template.New("inline").Option("missingkey=error").Funcs(e.getFuncMap()).Parse(processedTemplate)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
-
 	return e.renderTemplate(tmpl, context)
 }
 
 // renderTemplate renders a parsed template with the given context
 func (e *TemplateEngine) renderTemplate(tmpl *template.Template, context map[string]any) (string, error) {
 	processedContext := e.preprocessContext(context)
-
 	// Thread-safe access to global values - merge in global values
 	e.mu.RLock()
 	processedContext = core.CopyMaps(processedContext, e.globalValues)
 	e.mu.RUnlock()
-
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, processedContext); err != nil {
 		if isExecMissingKey(err) {
@@ -174,7 +163,6 @@ func (e *TemplateEngine) renderTemplate(tmpl *template.Template, context map[str
 		}
 		return "", fmt.Errorf("template execution error: %w", err)
 	}
-
 	return buf.String(), nil
 }
 
@@ -218,7 +206,6 @@ func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (s
 	if err != nil {
 		return "", fmt.Errorf("failed to read template file: %w", err)
 	}
-
 	// Determine format from file extension if not specified
 	e.mu.RLock()
 	currentFormat := e.format
@@ -236,7 +223,6 @@ func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (s
 		}
 		e.mu.Unlock()
 	}
-
 	// Process the template
 	return e.ProcessString(string(templateBytes), context)
 }
@@ -362,12 +348,10 @@ func (e *TemplateEngine) canResolveTaskReferencesNow(v string, data map[string]a
 	if data == nil {
 		return false
 	}
-
 	tasksVal, ok := data["tasks"]
 	if !ok || tasksVal == nil {
 		return false
 	}
-
 	// Handle pointer cases first, then value cases
 	var tasksMap map[string]any
 	switch t := tasksVal.(type) {
@@ -392,11 +376,9 @@ func (e *TemplateEngine) canResolveTaskReferencesNow(v string, data map[string]a
 	default:
 		return false // unsupported type – cannot resolve yet
 	}
-
 	if tasksMap == nil {
 		return false
 	}
-
 	referenced := extractTaskReferences(v)
 	return areAllTasksAvailable(referenced, tasksMap)
 }
@@ -496,14 +478,12 @@ func (e *TemplateEngine) parseStringValue(v string, data map[string]any) (any, e
 		}
 		return v, nil
 	}
-
 	// Handle simple object references to preserve object types
 	if e.isSimpleObjectReference(v) {
 		if obj := e.extractObjectFromContext(v, data); obj != nil {
 			return e.prepareValueForTemplate(obj)
 		}
 	}
-
 	return e.renderAndProcessTemplate(v, data)
 }
 
@@ -531,7 +511,6 @@ func (e *TemplateEngine) renderAndProcessTemplate(v string, data map[string]any)
 	if err != nil {
 		return nil, err
 	}
-
 	// Apply precision conversion if enabled
 	e.mu.RLock()
 	preservePrecision := e.preserveNumericPrecision
@@ -540,12 +519,10 @@ func (e *TemplateEngine) renderAndProcessTemplate(v string, data map[string]any)
 		pc := NewPrecisionConverter()
 		return pc.ConvertWithPrecision(parsed), nil
 	}
-
 	// Convert boolean results from template rendering to strings
 	if parsed == trueString || parsed == falseString {
 		return parsed, nil
 	}
-
 	// Check if the parsed result is a JSON-like string and try to parse it
 	if strings.HasPrefix(parsed, "{") || strings.HasPrefix(parsed, "[") {
 		var jsonObj any
@@ -564,18 +541,14 @@ func (e *TemplateEngine) isSimpleObjectReference(template string) bool {
 		strings.HasSuffix(trimmed, "}}") &&
 		strings.Count(trimmed, "{{") == 1 &&
 		strings.Count(trimmed, "}}") == 1
-
 	if !hasTemplateMarkers {
 		return false
 	}
-
 	// Extract the content between {{ and }}
 	content := strings.TrimSpace(trimmed[2 : len(trimmed)-2])
-
 	// Must start with a dot and have no spaces or special template functions
 	hasNoFilters := !strings.Contains(content, "|") && !strings.Contains(content, " ")
 	hasObjectPath := strings.HasPrefix(content, ".") && strings.Contains(content, ".")
-
 	return hasNoFilters && hasObjectPath
 }
 
@@ -585,7 +558,6 @@ func (e *TemplateEngine) extractObjectFromContext(template string, data map[stri
 	if path == "" {
 		return nil
 	}
-
 	parts := strings.Split(path, ".")
 	return e.traverseObjectPath(data, parts)
 }
@@ -596,12 +568,10 @@ func (e *TemplateEngine) extractPathFromTemplate(template string) string {
 	if !strings.HasPrefix(template, "{{") || !strings.HasSuffix(template, "}}") {
 		return ""
 	}
-
 	path := strings.TrimSpace(template[2 : len(template)-2])
 	if !strings.HasPrefix(path, ".") { // Path must start with . like {{ .foo }}
 		return ""
 	}
-
 	return path[1:] // Remove leading dot
 }
 
@@ -623,7 +593,6 @@ func (e *TemplateEngine) traverseObjectPath(data map[string]any, parts []string)
 		}
 		currentAny = val
 	}
-
 	// Return the final value preserving its original type
 	return currentAny
 }
@@ -664,9 +633,7 @@ func (e *TemplateEngine) preprocessContext(ctx map[string]any) map[string]any {
 	if ctx == nil {
 		ctx = make(map[string]any)
 	}
-
 	result := core.CloneMap(ctx)
-
 	// Add default fields if they don't exist
 	if _, ok := result["env"]; !ok {
 		result["env"] = make(map[string]string)
@@ -689,7 +656,6 @@ func (e *TemplateEngine) preprocessContext(ctx map[string]any) map[string]any {
 	if _, ok := result["agents"]; !ok {
 		result["agents"] = make(map[string]any)
 	}
-
 	return result
 }
 

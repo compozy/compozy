@@ -213,12 +213,10 @@ func (rl *ResourceLoader) createToolFilter(ctx context.Context, filter *ToolFilt
 	if filter == nil || len(filter.List) == 0 {
 		return func(_ string) bool { return true }
 	}
-
 	filterSet := make(map[string]struct{})
 	for _, toolName := range filter.List {
 		filterSet[toolName] = struct{}{}
 	}
-
 	switch filter.Mode {
 	case ToolFilterAllow:
 		return func(toolName string) bool {

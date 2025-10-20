@@ -399,7 +399,6 @@ func (t *taskRepoTx) MergeUsage(ctx context.Context, taskExecID core.ID, summary
 	delta.Sort()
 	base.MergeAll(delta)
 	base.Sort()
-
 	stateCopy := *state
 	stateCopy.Usage = base
 	return t.parent.UpsertStateWithTx(ctx, t.tx, &stateCopy)

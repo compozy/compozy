@@ -12,7 +12,6 @@ func BuildParent(_ task.ParallelStrategy) *task.State {
 	now := time.Now()
 	parentID, _ := core.NewID()       //nolint:errcheck // Safe to ignore in test code
 	workflowExecID, _ := core.NewID() //nolint:errcheck // Safe to ignore in test code
-
 	return &task.State{
 		Component:      core.ComponentTask,
 		Status:         core.StatusPending,
@@ -31,7 +30,6 @@ func BuildChild(parentID core.ID, status core.StatusType) *task.State {
 	now := time.Now()
 	childID, _ := core.NewID()        //nolint:errcheck // Safe to ignore in test code
 	workflowExecID, _ := core.NewID() //nolint:errcheck // Safe to ignore in test code
-
 	return &task.State{
 		Component:      core.ComponentTask,
 		Status:         status,

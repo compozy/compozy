@@ -39,10 +39,8 @@ func (f *FormWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return f, tea.Quit
 		}
 	}
-
 	// Handle base model updates (like window size)
 	f.BaseModel.Update(msg)
-
 	// Delegate to huh form
 	form, cmd := f.form.Update(msg)
 	if frm, ok := form.(*huh.Form); ok {
@@ -56,7 +54,6 @@ func (f *FormWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return f, tea.Quit
 		}
 	}
-
 	return f, cmd
 }
 

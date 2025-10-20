@@ -49,17 +49,14 @@ func (n *AgentNormalizer) parseInputTemplates(
 	if input == nil || *input == nil || len(*input) == 0 {
 		return input, nil
 	}
-
 	parsedAny, err := n.templateEngine.ParseAny(map[string]any(*input), templateCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse input templates: %w", err)
 	}
-
 	parsedMap, ok := parsedAny.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("parsed input is not a map (got %T)", parsedAny)
 	}
-
 	parsedInput := enginecore.Input(parsedMap)
 	return &parsedInput, nil
 }
@@ -87,7 +84,6 @@ func (n *AgentNormalizer) ReparseInput(
 	if agentCfg == nil || ctx == nil {
 		return nil
 	}
-
 	templateCtx := ctx.BuildTemplateContext()
 	if err := n.reparseAgentWithBlock(agentCfg, templateCtx); err != nil {
 		return err

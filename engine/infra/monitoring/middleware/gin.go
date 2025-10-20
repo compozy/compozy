@@ -139,14 +139,12 @@ func recordMetrics(c *gin.Context, start time.Time, countedBody *bodyReadCounter
 	if path == "" {
 		path = "unmatched"
 	}
-
 	labels := []attribute.KeyValue{
 		semconv.HTTPMethodKey.String(c.Request.Method),
 		semconv.HTTPRouteKey.String(path),
 		semconv.HTTPStatusCodeKey.Int(c.Writer.Status()),
 	}
 	attrs := metric.WithAttributes(labels...)
-
 	if httpRequestsTotal != nil {
 		httpRequestsTotal.Add(c.Request.Context(), 1, attrs)
 	}

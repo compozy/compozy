@@ -16,7 +16,6 @@ func (c *ValueConverter) YAMLToJSON(node *yaml.Node) (any, error) {
 	if node == nil {
 		return nil, fmt.Errorf("invalid argument: YAML node is nil")
 	}
-
 	switch node.Kind {
 	case yaml.ScalarNode:
 		return c.scalarToJSON(node)
@@ -91,7 +90,6 @@ func (c *ValueConverter) sliceToYAML(slice []any) (*yaml.Node, error) {
 		Tag:     "!!seq",
 		Content: content,
 	}
-
 	for i, item := range slice {
 		itemNode, err := c.JSONToYAML(item)
 		if err != nil {
@@ -99,7 +97,6 @@ func (c *ValueConverter) sliceToYAML(slice []any) (*yaml.Node, error) {
 		}
 		content[i] = itemNode
 	}
-
 	return node, nil
 }
 
@@ -111,7 +108,6 @@ func (c *ValueConverter) mapToYAML(m map[string]any) (*yaml.Node, error) {
 		Tag:     "!!map",
 		Content: content,
 	}
-
 	for key, val := range m {
 		keyNode := &yaml.Node{
 			Kind:  yaml.ScalarNode,
@@ -124,7 +120,6 @@ func (c *ValueConverter) mapToYAML(m map[string]any) (*yaml.Node, error) {
 		}
 		node.Content = append(node.Content, keyNode, valNode)
 	}
-
 	return node, nil
 }
 
@@ -133,7 +128,6 @@ func (c *ValueConverter) scalarToJSON(node *yaml.Node) (any, error) {
 	if node == nil {
 		return nil, fmt.Errorf("invalid argument: scalar node is nil")
 	}
-
 	switch node.Tag {
 	case "!!null":
 		return nil, nil
@@ -152,9 +146,7 @@ func (c *ValueConverter) mappingToJSON(node *yaml.Node) (any, error) {
 	if node == nil {
 		return nil, fmt.Errorf("invalid argument: mapping node is nil")
 	}
-
 	result := make(map[string]any)
-
 	for i := 0; i < len(node.Content); i += 2 {
 		if i+1 >= len(node.Content) {
 			return nil, fmt.Errorf("invalid argument: invalid YAML mapping node: odd number of elements")
@@ -175,7 +167,6 @@ func (c *ValueConverter) mappingToJSON(node *yaml.Node) (any, error) {
 
 		result[key] = value
 	}
-
 	return result, nil
 }
 
@@ -183,9 +174,7 @@ func (c *ValueConverter) sequenceToJSON(node *yaml.Node) (any, error) {
 	if node == nil {
 		return nil, fmt.Errorf("invalid argument: sequence node is nil")
 	}
-
 	result := make([]any, len(node.Content))
-
 	for i, item := range node.Content {
 		value, err := c.YAMLToJSON(item)
 		if err != nil {
@@ -193,7 +182,6 @@ func (c *ValueConverter) sequenceToJSON(node *yaml.Node) (any, error) {
 		}
 		result[i] = value
 	}
-
 	return result, nil
 }
 
@@ -202,18 +190,15 @@ func YAMLNodeToJSON(node *yaml.Node) (string, error) {
 	if node == nil {
 		return "", fmt.Errorf("invalid argument: YAML node is nil")
 	}
-
 	converter := &ValueConverter{}
 	jsonValue, err := converter.YAMLToJSON(node)
 	if err != nil {
 		return "", err
 	}
-
 	jsonBytes, err := json.Marshal(jsonValue)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal JSON: %w", err)
 	}
-
 	return string(jsonBytes), nil
 }
 
@@ -222,12 +207,10 @@ func JSONToYAMLNode(jsonStr string) (*yaml.Node, error) {
 	if jsonStr == "" {
 		return nil, fmt.Errorf("invalid argument: JSON string is empty")
 	}
-
 	var jsonValue any
 	if err := json.Unmarshal([]byte(jsonStr), &jsonValue); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
-
 	converter := &ValueConverter{}
 	return converter.JSONToYAML(jsonValue)
 }

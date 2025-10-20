@@ -28,11 +28,9 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 	if cfg == nil {
 		return nil, nil, fmt.Errorf("config manager not found in context")
 	}
-
 	// Add timeout for database connection to prevent indefinite hanging
 	dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-
 	// Always use Postgres for auth bootstrap
 	dbCfg := &postgres.Config{
 		ConnString: cfg.Database.ConnString,
@@ -54,7 +52,6 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 			logger.FromContext(ctx).Error("Failed to close database", "error", err)
 		}
 	}
-
 	factory := authuc.NewFactory(authRepo)
 	service := bootstrap.NewService(factory)
 	return service, cleanup, nil
@@ -65,13 +62,11 @@ func ValidateEmail(email string) error {
 	if email == "" {
 		return fmt.Errorf("email is required")
 	}
-
 	// Basic email validation regex
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 	if !emailRegex.MatchString(email) {
 		return fmt.Errorf("invalid email format")
 	}
-
 	return nil
 }
 

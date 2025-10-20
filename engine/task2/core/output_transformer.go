@@ -85,7 +85,6 @@ func buildChildrenContext(
 	// Use the ChildrenIndexBuilder's implementation to avoid code duplication
 	childrenBuilder := shared.NewChildrenIndexBuilder()
 	taskOutputBuilder := shared.NewTaskOutputBuilder(ctx)
-
 	return childrenBuilder.BuildChildrenContext(
 		ctx,
 		parentState,

@@ -143,10 +143,8 @@ func (a *ExecuteAggregate) executeAggregate(
 	emptyOutput := &core.Output{}
 	// Use task2 output transformer to process outputs with template engine
 	outputTransformer := task2core.NewOutputTransformer(a.templateEngine)
-
 	// Build task configs map for context
 	taskConfigs := task2.BuildTaskConfigsMap(workflowConfig.Tasks)
-
 	// Create normalization context with proper Variables
 	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
@@ -156,7 +154,6 @@ func (a *ExecuteAggregate) executeAggregate(
 	normCtx.TaskConfigs = taskConfigs
 	normCtx.CurrentInput = taskConfig.With
 	normCtx.MergedEnv = taskConfig.Env
-
 	processedOutput, err := outputTransformer.TransformOutput(
 		ctx,
 		emptyOutput,

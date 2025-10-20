@@ -31,25 +31,20 @@ func (tc *TypeConverter) ConvertToSlice(value any) []any {
 	if value == nil {
 		return []any{}
 	}
-
 	// Note: Precision conversion is now handled by the template engine
 	// when WithPrecisionPreservation is enabled
-
 	// Handle slice types
 	if result := tc.convertSliceTypes(value); result != nil {
 		return result
 	}
-
 	// Handle map types
 	if result := tc.convertMapTypes(value); result != nil {
 		return result
 	}
-
 	// Handle string types (including range expressions)
 	if result := tc.convertStringTypes(value); result != nil {
 		return result
 	}
-
 	// Handle primitive types
 	return tc.convertPrimitiveTypes(value)
 }
@@ -284,17 +279,14 @@ func isASCIILetter(r rune) bool {
 // handleJSONNumber processes json.Number type to preserve precision
 func (tc *TypeConverter) handleJSONNumber(num json.Number) any {
 	numStr := string(num)
-
 	// Try int64 first
 	if i, err := strconv.ParseInt(numStr, 10, 64); err == nil {
 		return i
 	}
-
 	// Try float64
 	if f, err := strconv.ParseFloat(numStr, 64); err == nil {
 		return f
 	}
-
 	// Cannot parse as number, return as string
 	return numStr
 }

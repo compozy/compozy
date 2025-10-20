@@ -59,7 +59,6 @@ func networkErrorKind(err error) mcpmetrics.ErrorKind {
 		}
 		return mcpmetrics.ErrorKindConnection
 	}
-
 	var urlErr *url.Error
 	if !errors.As(err, &urlErr) {
 		return ""

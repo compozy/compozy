@@ -69,7 +69,6 @@ func parsePaginationParams(c *gin.Context, defaultLimit, maxLimit int) (int, int
 	if limit <= 0 {
 		limit = defaultLimit
 	}
-
 	offset := 0
 	if offsetStr := c.Query("offset"); offsetStr != "" {
 		if parsed, err := strconv.Atoi(offsetStr); err == nil {
@@ -104,14 +103,11 @@ func readMemory(c *gin.Context) {
 	if !ok {
 		return
 	}
-
 	limit, offset := parsePaginationParams(c, 50, 1000)
-
 	svc, ok := buildMemoryOperationsService(c, memCtx)
 	if !ok {
 		return
 	}
-
 	uc := memuc.NewReadMemory(memCtx.Manager, memCtx.Worker, svc)
 	output, err := uc.Execute(c.Request.Context(), memuc.ReadMemoryInput{
 		MemoryRef: memCtx.MemoryRef,
@@ -123,7 +119,6 @@ func readMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to read memory")
 		return
 	}
-
 	router.RespondOK(c, "memory read successfully", map[string]any{
 		"key":         memCtx.Key,
 		"messages":    convertMessagesToResponse(output.Messages),
@@ -156,17 +151,14 @@ func writeMemory(c *gin.Context) {
 	if !ok {
 		return
 	}
-
 	var req WriteMemoryRequest
 	if !bindJSONOrRespond(c, &req, "invalid request body") {
 		return
 	}
-
 	memService, ok := buildMemoryOperationsService(c, memCtx)
 	if !ok {
 		return
 	}
-
 	uc := memuc.NewWriteMemory(memService, memCtx.MemoryRef, req.Key, &memuc.WriteMemoryInput{
 		Messages: req.Messages,
 	})
@@ -175,7 +167,6 @@ func writeMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to write memory")
 		return
 	}
-
 	router.RespondOK(c, "memory written successfully", result)
 }
 
@@ -201,17 +192,14 @@ func appendMemory(c *gin.Context) {
 	if !ok {
 		return
 	}
-
 	var req AppendMemoryRequest
 	if !bindJSONOrRespond(c, &req, "invalid request body") {
 		return
 	}
-
 	memService, ok := buildMemoryOperationsService(c, memCtx)
 	if !ok {
 		return
 	}
-
 	uc := memuc.NewAppendMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &memuc.AppendMemoryInput{
 		Messages: req.Messages,
 	}, memService)
@@ -220,7 +208,6 @@ func appendMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to append to memory")
 		return
 	}
-
 	router.RespondOK(c, "memory appended successfully", result)
 }
 
@@ -253,7 +240,6 @@ func deleteMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
 	// Parse request body with key
 	var req DeleteMemoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -265,7 +251,6 @@ func deleteMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
 	// Execute use case
 	uc, err := memuc.NewDeleteMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, nil)
 	if err != nil {
@@ -277,7 +262,6 @@ func deleteMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to delete memory")
 		return
 	}
-
 	router.RespondOK(c, "memory deleted successfully", result)
 }
 
@@ -310,7 +294,6 @@ func flushMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
 	// Parse request body with key
 	var req FlushMemoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -322,7 +305,6 @@ func flushMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
 	// Create input for use case
 	input := memuc.FlushMemoryInput{
 		Force:    req.Force,
@@ -330,7 +312,6 @@ func flushMemory(c *gin.Context) {
 		MaxKeys:  req.MaxKeys,
 		Strategy: req.Strategy,
 	}
-
 	// Execute use case
 	uc, err := memuc.NewFlushMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
 	if err != nil {
@@ -342,7 +323,6 @@ func flushMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to flush memory")
 		return
 	}
-
 	router.RespondOK(c, "memory flushed successfully", result)
 }
 
@@ -376,10 +356,8 @@ func healthMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
 	// Get query parameter
 	includeStats := c.Query("include_stats") == "true"
-
 	// Execute use case
 	input := &memuc.HealthMemoryInput{
 		IncludeStats: includeStats,
@@ -394,7 +372,6 @@ func healthMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to get memory health")
 		return
 	}
-
 	router.RespondOK(c, "memory health retrieved successfully", result)
 }
 
@@ -427,7 +404,6 @@ func clearMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
 	// Parse request body with key
 	var req ClearMemoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -439,13 +415,11 @@ func clearMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
 	// Create input for use case
 	input := memuc.ClearMemoryInput{
 		Confirm: req.Confirm,
 		Backup:  req.Backup,
 	}
-
 	// Execute use case
 	uc, err := memuc.NewClearMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
 	if err != nil {
@@ -457,7 +431,6 @@ func clearMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to clear memory")
 		return
 	}
-
 	router.RespondOK(c, "memory cleared successfully", result)
 }
 
@@ -485,20 +458,16 @@ func statsMemory(c *gin.Context) {
 	if !ok {
 		return
 	}
-
 	limit, offset := parsePaginationParams(c, 100, 10000)
-
 	memService, ok := buildMemoryOperationsService(c, memCtx)
 	if !ok {
 		return
 	}
-
 	uc, err := memuc.NewStatsMemory(memCtx.Manager, memCtx.Worker, memService)
 	if err != nil {
 		handleMemoryError(c, err, "failed to create stats memory use case")
 		return
 	}
-
 	result, err := uc.Execute(c.Request.Context(), memuc.StatsMemoryInput{
 		MemoryRef: memCtx.MemoryRef,
 		Key:       memCtx.Key,
@@ -509,6 +478,5 @@ func statsMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to get memory statistics")
 		return
 	}
-
 	router.RespondOK(c, "memory statistics retrieved successfully", result)
 }

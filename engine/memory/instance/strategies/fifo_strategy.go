@@ -55,13 +55,11 @@ func (s *FIFOStrategy) ShouldFlush(tokenCount, messageCount int, config *core.Re
 		threshold := float64(config.MaxTokens) * s.thresholdPercent
 		return float64(tokenCount) >= threshold
 	}
-
 	// Check message-based threshold
 	if config.Type == core.MessageCountBasedMemory && config.MaxMessages > 0 {
 		threshold := float64(config.MaxMessages) * s.thresholdPercent
 		return float64(messageCount) >= threshold
 	}
-
 	// For buffer memory, check both limits
 	if config.Type == core.BufferMemory {
 		if config.MaxTokens > 0 {
@@ -77,7 +75,6 @@ func (s *FIFOStrategy) ShouldFlush(tokenCount, messageCount int, config *core.Re
 			}
 		}
 	}
-
 	return false
 }
 
@@ -95,7 +92,6 @@ func (s *FIFOStrategy) PerformFlush(
 			TokenCount:       0,
 		}, nil
 	}
-
 	// Calculate how many messages to remove
 	messagesToRemove := s.calculateMessagesToRemove(len(messages), config)
 	if messagesToRemove == 0 {
@@ -106,9 +102,7 @@ func (s *FIFOStrategy) PerformFlush(
 			TokenCount:       0,
 		}, nil
 	}
-
 	remainingTokens := s.countTokens(ctx, messages[messagesToRemove:])
-
 	return &core.FlushMemoryActivityOutput{
 		Success:          true,
 		SummaryGenerated: false,
@@ -121,7 +115,6 @@ func (s *FIFOStrategy) countTokens(ctx context.Context, messages []llm.Message) 
 	if len(messages) == 0 {
 		return 0
 	}
-
 	total := 0
 	for i := range messages {
 		count, err := s.tokenCounter.CountTokens(ctx, messages[i].Content)
@@ -149,7 +142,6 @@ func (s *FIFOStrategy) calculateMessagesToRemove(currentCount int, config *core.
 		// If already under target, don't remove any
 		return 0
 	}
-
 	// Default: remove default percentage of messages
 	return int(float64(currentCount) * defaultRemovalRatio)
 }
@@ -165,13 +157,11 @@ func (s *FIFOStrategy) GetMinMaxToFlush(
 	if totalMsgs <= 0 || maxTokens <= 0 || currentTokens < 0 {
 		return 0, 0
 	}
-
 	// Calculate minimum flush to avoid micro-flushes
 	minFlush = int(float64(totalMsgs) * minFlushPercent)
 	if minFlush < 1 && totalMsgs > 0 {
 		minFlush = 1
 	}
-
 	// Calculate maximum flush based on target capacity
 	if currentTokens > maxTokens {
 		// Need to flush to get under limit
@@ -195,11 +185,9 @@ func (s *FIFOStrategy) GetMinMaxToFlush(
 		// Not over limit, but prepare for a moderate flush
 		maxFlush = int(float64(totalMsgs) * defaultRemovalRatio)
 	}
-
 	// Ensure min <= max
 	if minFlush > maxFlush {
 		minFlush = maxFlush
 	}
-
 	return minFlush, maxFlush
 }

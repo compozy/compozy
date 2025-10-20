@@ -75,12 +75,10 @@ func GetConfigLimitsWithConfig(ctx context.Context, appConfig *config.Config) *C
 		MaxConfigDepth:   DefaultMaxConfigDepth,
 		MaxTemplateDepth: DefaultMaxTemplateDepth,
 	}
-
 	// Use provided config or get from global provider
 	if appConfig == nil {
 		appConfig = globalConfigProvider.GetConfig(ctx)
 	}
-
 	// Use MaxNestingDepth from config (used by project config)
 	if appConfig.Limits.MaxNestingDepth > 0 {
 		limits.MaxNestingDepth = appConfig.Limits.MaxNestingDepth
@@ -90,17 +88,14 @@ func GetConfigLimitsWithConfig(ctx context.Context, appConfig *config.Config) *C
 		limits.MaxContextDepth = appConfig.Limits.MaxNestingDepth
 		limits.MaxConfigDepth = appConfig.Limits.MaxNestingDepth
 	}
-
 	// Use MaxStringLength from config
 	if appConfig.Limits.MaxStringLength > 0 {
 		limits.MaxStringLength = appConfig.Limits.MaxStringLength
 	}
-
 	// Use specific task context depth if set
 	if appConfig.Limits.MaxTaskContextDepth > 0 {
 		limits.MaxContextDepth = appConfig.Limits.MaxTaskContextDepth
 	}
-
 	return limits
 }
 
@@ -118,7 +113,6 @@ func GetGlobalConfigLimits(ctx context.Context) *ConfigLimits {
 		return globalConfigLimits
 	}
 	configLimitsMutex.RUnlock()
-
 	configLimitsMutex.Lock()
 	defer configLimitsMutex.Unlock()
 	// Double-check after acquiring write lock

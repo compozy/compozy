@@ -389,7 +389,6 @@ func (l *providerRateLimiter) acquire(ctx context.Context) error {
 		return nil
 	}
 	l.metrics.totalRequests.Add(1)
-
 	if l.sem.TryAcquire(1) {
 		l.metrics.activeRequests.Add(1)
 		if l.rateLimiter != nil {
@@ -402,12 +401,10 @@ func (l *providerRateLimiter) acquire(ctx context.Context) error {
 		}
 		return nil
 	}
-
 	if l.queueSem == nil {
 		l.metrics.rejectedRequests.Add(1)
 		return newRateLimitError(l.provider, "provider concurrency limit reached", nil)
 	}
-
 	if !l.queueSem.TryAcquire(1) {
 		l.metrics.rejectedRequests.Add(1)
 		return newRateLimitError(l.provider, "provider rate limit queue is full", nil)
@@ -417,7 +414,6 @@ func (l *providerRateLimiter) acquire(ctx context.Context) error {
 		l.queueSem.Release(1)
 		l.metrics.queuedRequests.Add(-1)
 	}()
-
 	if err := l.sem.Acquire(ctx, 1); err != nil {
 		l.metrics.rejectedRequests.Add(1)
 		return newRateLimitError(l.provider, "provider rate limit wait canceled", err)

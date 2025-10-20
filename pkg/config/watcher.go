@@ -30,7 +30,6 @@ func NewWatcher() (*Watcher, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file watcher: %w", err)
 	}
-
 	return &Watcher{
 		watcher:   fsWatcher,
 		callbacks: make([]func(), 0),
@@ -46,17 +45,14 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to resolve path: %w", err)
 	}
-
 	// Add the file to the watcher
 	if err := w.watcher.Add(absPath); err != nil {
 		return fmt.Errorf("failed to watch file: %w", err)
 	}
-
 	// Mark path as being watched with its context
 	w.mu.Lock()
 	w.watched[absPath] = ctx
 	w.mu.Unlock()
-
 	// Stop watching this specific path when the provided context is canceled
 	if done := ctx.Done(); done != nil {
 		go func(p string, done <-chan struct{}) {
@@ -78,12 +74,10 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 			}
 		}(absPath, done)
 	}
-
 	// Start the event handler only once
 	w.startOnce.Do(func() {
 		go w.handleEvents()
 	})
-
 	return nil
 }
 
@@ -139,7 +133,6 @@ func (w *Watcher) notifyCallbacks() {
 	callbacks := make([]func(), len(w.callbacks))
 	copy(callbacks, w.callbacks)
 	w.mu.RUnlock()
-
 	// Execute callbacks outside of the lock
 	for _, callback := range callbacks {
 		if callback != nil {
@@ -151,7 +144,6 @@ func (w *Watcher) notifyCallbacks() {
 // Close stops the watcher and releases resources.
 func (w *Watcher) Close() error {
 	var closeErr error
-
 	// Use sync.Once to ensure we only close once
 	w.closeOnce.Do(func() {
 		close(w.stopCh)
@@ -159,6 +151,5 @@ func (w *Watcher) Close() error {
 			closeErr = fmt.Errorf("failed to close watcher: %w", err)
 		}
 	})
-
 	return closeErr
 }

@@ -34,7 +34,6 @@ func NewTaskExecutor(contextBuilder *ContextBuilder) *TaskExecutor {
 	e.signalExecutor = NewTaskSignalExecutor(contextBuilder)
 	e.waitExecutor = NewTaskWaitExecutor(contextBuilder, e.HandleExecution)
 	e.memoryExecutor = NewTaskMemoryExecutor(contextBuilder)
-
 	// Initialize container task executors
 	containerHelpers := NewContainerHelpers(contextBuilder, e.HandleExecution)
 	e.parallelExecutor = NewParallelTaskExecutor(containerHelpers)

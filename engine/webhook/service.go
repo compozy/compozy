@@ -390,7 +390,6 @@ func (o *Orchestrator) processEventsWithMetrics(
 	defer cancel()
 	source := webhookSource(r, slug)
 	payloadSize := len(body)
-
 	for _, ev := range entry.Webhook.Events {
 		res, handled, err := o.handleEventWithMetrics(
 			eventCtx,

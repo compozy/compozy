@@ -42,7 +42,6 @@ func (e *DefaultTokenEstimator) EstimateTokens(_ context.Context, text string) i
 	if text == "" {
 		return 0
 	}
-
 	switch e.strategy {
 	case UnicodeEstimation:
 		// For Unicode-heavy text, use rune count as a better approximation

@@ -21,31 +21,25 @@ func DeleteUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.
 	if err != nil {
 		return outputJSONError(err.Error())
 	}
-
 	options, err := parseDeleteUserFlags(cobraCmd)
 	if err != nil {
 		return err
 	}
 	options.userID = userID
-
 	log.Debug("deleting user in JSON mode",
 		"user_id", options.userID,
 		"force", options.force,
 		"cascade", options.cascade)
-
 	if err := ensureForceDeletion(options.force); err != nil {
 		return outputJSONError(err.Error())
 	}
-
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return outputJSONError("auth client not available")
 	}
-
 	if err := authClient.DeleteUser(ctx, options.userID); err != nil {
 		return outputJSONError(fmt.Sprintf("failed to delete user: %v", err))
 	}
-
 	return writeDeleteResponse(options.userID, options.cascade)
 }
 

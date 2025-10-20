@@ -55,10 +55,8 @@ func NewStrategyFactoryWithTokenCounter(coreTokenCounter core.TokenCounter) *Str
 		strategies:       make(map[core.FlushingStrategyType]StrategyConstructor),
 		coreTokenCounter: coreTokenCounter,
 	}
-
 	// Register all available strategies
 	factory.registerDefaultStrategies()
-
 	return factory
 }
 
@@ -79,11 +77,9 @@ func (f *StrategyFactory) registerDefaultStrategies() {
 		}
 		return NewFIFOStrategy(threshold), nil
 	}
-
 	// Register FIFO strategy with both names
 	f.Register(core.SimpleFIFOFlushing, fifoConstructor)
 	f.Register(core.FIFOFlushing, fifoConstructor) // Register alias
-
 	// Register LRU strategy
 	f.Register(
 		core.LRUFlushing,
@@ -91,7 +87,6 @@ func (f *StrategyFactory) registerDefaultStrategies() {
 			return NewLRUStrategy(config, opts)
 		},
 	)
-
 	// Register Token-Aware LRU strategy
 	f.Register(
 		core.TokenAwareLRUFlushing,
@@ -120,17 +115,14 @@ func (f *StrategyFactory) CreateStrategy(
 			Type: core.SimpleFIFOFlushing,
 		}
 	}
-
 	constructor, exists := f.strategies[config.Type]
 	if !exists {
 		return nil, fmt.Errorf("unknown flush strategy type: %s", config.Type)
 	}
-
 	strategy, err := constructor(config, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s strategy: %w", config.Type, err)
 	}
-
 	return strategy, nil
 }
 
@@ -186,20 +178,16 @@ func (f *StrategyFactory) ValidateStrategyConfig(config *core.FlushingStrategyCo
 	if config == nil {
 		return fmt.Errorf("strategy config cannot be nil")
 	}
-
 	if !config.Type.IsValid() {
 		return fmt.Errorf("invalid strategy type: %s", config.Type)
 	}
-
 	if !f.IsStrategySupported(config.Type) {
 		return fmt.Errorf("strategy type %s is not supported by this factory", config.Type)
 	}
-
 	// Validate threshold for strategies that use it
 	if config.SummarizeThreshold != 0 && (config.SummarizeThreshold <= 0 || config.SummarizeThreshold > 1) {
 		return fmt.Errorf("summarize threshold must be between 0 and 1, got %f", config.SummarizeThreshold)
 	}
-
 	return nil
 }
 
@@ -211,16 +199,13 @@ func (f *StrategyFactory) ValidateStrategyType(strategyType string) error {
 		// Empty string is valid - uses default strategy
 		return nil
 	}
-
 	flushType := core.FlushingStrategyType(strategyType)
 	if !flushType.IsValid() {
 		return fmt.Errorf("invalid strategy type: %s", strategyType)
 	}
-
 	if !f.IsStrategySupported(flushType) {
 		return fmt.Errorf("strategy type %s is not supported", strategyType)
 	}
-
 	return nil
 }
 

@@ -99,19 +99,16 @@ func (e *Extractor) ExtractBytes(ctx context.Context, data []byte, runeLimit int
 	if err := e.validateExtractBytesInput(data); err != nil {
 		return Result{}, err
 	}
-
 	instance, err := e.acquireInstance(ctx)
 	if err != nil {
 		return Result{}, err
 	}
 	defer instance.Close()
-
 	doc, closeDoc, err := e.openDocument(instance, data)
 	if err != nil {
 		return Result{}, err
 	}
 	defer closeDoc()
-
 	pageCount, err := e.pageCount(instance, doc)
 	if err != nil {
 		return Result{}, err
@@ -119,7 +116,6 @@ func (e *Extractor) ExtractBytes(ctx context.Context, data []byte, runeLimit int
 	if pageCount == 0 {
 		return Result{Stats: Stats{}}, nil
 	}
-
 	return e.extractWithFallback(ctx, instance, doc, runeLimit, pageCount)
 }
 
@@ -186,7 +182,6 @@ func (e *Extractor) extractWithFallback(
 	if stats.IsReadable() {
 		return Result{Text: text, Stats: stats}, nil
 	}
-
 	fallbackText, fallbackStats, fallbackErr := e.extractStructured(ctx, instance, doc, runeLimit, pageCount)
 	if fallbackErr != nil {
 		return Result{Text: text, Stats: stats}, fmt.Errorf("pdftext: structured fallback failed: %w", fallbackErr)

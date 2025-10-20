@@ -304,11 +304,9 @@ func (uc *CreateChildTasks) processChildConfig(
 ) (*task.PartialState, error) {
 	// Merge parent environment with child environment
 	mergedEnv := uc.mergeEnvironments(parentEnv, childConfig.Env)
-
 	executionType := childConfig.GetExecType()
 	agentConfig := childConfig.GetAgent()
 	toolConfig := childConfig.GetTool()
-
 	switch {
 	case childConfig.Type == task.TaskTypeParallel ||
 		childConfig.Type == task.TaskTypeCollection ||

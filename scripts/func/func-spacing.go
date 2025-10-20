@@ -89,13 +89,11 @@ func analyzeFileSpacing(filename string) ([]SpacingIssue, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	content, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", filename, err)
 	}
 	lines := strings.Split(string(content), "\n")
-
 	var issues []SpacingIssue
 	ast.Inspect(node, func(n ast.Node) bool {
 		funcDecl, ok := n.(*ast.FuncDecl)

@@ -113,25 +113,20 @@ func (cb *ContextBuilder) buildContextInternal(
 		TaskConfig:     taskConfig,
 		TaskConfigs:    make(map[string]*task.Config),
 	}
-
 	// Build children index using dedicated builder
 	nc.ChildrenIndex = cb.ChildrenIndexBuilder.BuildChildrenIndex(workflowState)
-
 	// Build variables using dedicated builder
 	vars := cb.VariableBuilder.BuildBaseVariables(workflowState, workflowConfig, taskConfig)
-
 	// Add workflow output as tasks for backward compatibility in deterministic order
 	if workflowState != nil && workflowState.Tasks != nil {
 		tasksMap := cb.buildTasksMap(ctx, workflowState, taskConfig, parentExecID, nc)
 		cb.VariableBuilder.AddTasksToVariables(vars, workflowState, tasksMap)
 	}
-
 	// Preserve current input if available
 	if nc.CurrentInput == nil && taskConfig != nil && taskConfig.With != nil {
 		nc.CurrentInput = taskConfig.With
 	}
 	cb.VariableBuilder.AddCurrentInputToVariables(vars, nc.CurrentInput)
-
 	nc.Variables = vars
 	return nc
 }
@@ -148,19 +143,14 @@ func (cb *ContextBuilder) buildTasksMap(
 	if parentExecID == nil && taskConfig != nil {
 		parentExecID = cb.findParentExecID(workflowState, taskConfig)
 	}
-
 	// Build ordered task states
 	states := cb.buildOrderedTaskStates(workflowState)
-
 	// Build the tasks map with two passes
 	tasksMap := make(map[string]any)
-
 	// Pass 1: include non-sibling tasks first
 	cb.addNonSiblingTasks(ctx, tasksMap, states, parentExecID, nc)
-
 	// Pass 2: overlay siblings so they shadow duplicates
 	cb.addSiblingTasks(ctx, tasksMap, states, parentExecID, nc)
-
 	return tasksMap
 }
 
@@ -259,7 +249,6 @@ func (cb *ContextBuilder) buildSingleTaskContext(
 	if taskState == nil {
 		return map[string]any{IDKey: taskID}
 	}
-
 	taskContext := map[string]any{
 		IDKey:     taskID,
 		InputKey:  taskState.Input,
@@ -310,7 +299,6 @@ func (cb *ContextBuilder) BuildSubTaskContext(
 		return nil, err
 	}
 	nc.Variables = vars
-
 	// Use recursive parent building with caching
 	if parentTask != nil {
 		cb.VariableBuilder.AddParentToVariables(nc.Variables, cb.BuildParentContext(ctx, normCtx, parentTask, 0))
@@ -356,7 +344,6 @@ func (cb *ContextBuilder) BuildNormalizationSubTaskContext(
 		return nil, err
 	}
 	nc.Variables = vars
-
 	// Update task data for sub-task
 	nc.Variables["task"] = map[string]any{
 		IDKey:     subTask.ID,
@@ -730,7 +717,6 @@ func (cb *ContextBuilder) ClearWorkflowCache(workflowID string, _ core.ID) {
 	// 1. Reduced cache size limits (MaxCost: 50 instead of 100) for natural eviction
 	// 2. LRU eviction policy automatically removes oldest entries when cache fills
 	// 3. Intelligent full cache clearing when performance indicates problems
-
 	// STRATEGY: Performance-based cache management
 	// If cache hit ratio is low, the cache is not providing value and may contain stale data
 	// Better to clear everything and rebuild cache with fresh, relevant data
@@ -752,7 +738,6 @@ func (cb *ContextBuilder) AddTaskState(normCtx *NormalizationContext, taskState 
 	if taskState == nil {
 		return
 	}
-
 	vars := normCtx.GetVariables()
 	vars["state"] = map[string]any{
 		IDKey:       taskState.TaskID,
@@ -793,10 +778,8 @@ func (cb *ContextBuilder) BuildCollectionContext(
 	if workflowState == nil || taskConfig == nil {
 		return make(map[string]any)
 	}
-
 	// Build full context using proper BuildContext method to populate Variables
 	normCtx := cb.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-
 	// Add additional TaskConfigs from workflowConfig if available
 	if workflowConfig != nil && workflowConfig.Tasks != nil {
 		for i := range workflowConfig.Tasks {
@@ -804,10 +787,8 @@ func (cb *ContextBuilder) BuildCollectionContext(
 			normCtx.TaskConfigs[tc.ID] = tc
 		}
 	}
-
 	// Use the proper template context from BuildContext which includes Variables
 	templateContext := normCtx.BuildTemplateContext()
-
 	// Add task-specific context from 'with' parameter
 	if taskConfig.With != nil {
 		templateContext = core.CopyMaps(templateContext, *taskConfig.With)

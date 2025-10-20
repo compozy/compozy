@@ -129,7 +129,6 @@ func (t *TaskStateRowBuilder) CreateTaskStateRows(
 	var component core.ComponentType
 	var actionID any
 	var executionType = "basic"
-
 	switch {
 	case agentID != nil:
 		component = core.ComponentAgent
@@ -141,7 +140,6 @@ func (t *TaskStateRowBuilder) CreateTaskStateRows(
 		component = core.ComponentTask
 		actionID = DefaultActionID // Task components may have actions
 	}
-
 	now := time.Now()
 	return t.mock.NewRows([]string{
 		"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
@@ -165,7 +163,6 @@ func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
 	// Determine component type and action_id based on provided IDs
 	var component core.ComponentType
 	var actionID any
-
 	switch {
 	case agentID != nil:
 		component = core.ComponentAgent
@@ -183,7 +180,6 @@ func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
 		"agent_id", "action_id", "tool_id", "input", "output",
 		"error", "created_at", "updated_at",
 	}
-
 	now := time.Now()
 	values := []any{
 		taskExecID, taskID, workflowExecID, workflowID,
@@ -191,7 +187,6 @@ func (t *TaskStateRowBuilder) CreateTaskStateRowsWithExecution(
 		agentID, actionID, toolID, inputData, nil,
 		nil, now, now,
 	}
-
 	return t.mock.NewRows(columns).AddRow(values...)
 }
 

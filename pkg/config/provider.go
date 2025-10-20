@@ -60,14 +60,11 @@ func (c *cliProvider) Load() (map[string]any, error) {
 	if c.flags == nil {
 		return make(map[string]any), nil
 	}
-
 	// Get CLI flag mappings from the registry (single source of truth)
 	registry := definition.CreateRegistry()
 	flagToPath := registry.GetCLIFlagMapping()
-
 	// Convert flat CLI flags to nested structure
 	config := make(map[string]any)
-
 	for key, value := range c.flags {
 		if path, ok := flagToPath[key]; ok {
 			if err := setNested(config, path, value); err != nil {
@@ -76,7 +73,6 @@ func (c *cliProvider) Load() (map[string]any, error) {
 		}
 		// Ignore unknown flags
 	}
-
 	return config, nil
 }
 
@@ -102,10 +98,8 @@ func setNested(m map[string]any, path string, value any) error {
 	if path == "" {
 		return nil // Don't set anything for empty path
 	}
-
 	parts := strings.Split(path, ".")
 	current := m
-
 	for i := 0; i < len(parts)-1; i++ {
 		part := parts[i]
 		if _, exists := current[part]; !exists {
@@ -119,7 +113,6 @@ func setNested(m map[string]any, path string, value any) error {
 		}
 		current = next
 	}
-
 	if len(parts) > 0 {
 		current[parts[len(parts)-1]] = value
 	}
@@ -153,16 +146,13 @@ func (y *yamlProvider) Load() (map[string]any, error) {
 		}
 		return nil, fmt.Errorf("failed to read YAML file: %w", err)
 	}
-
 	var config map[string]any
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML file: %w", err)
 	}
-
 	// Filter out nil values to prevent overriding existing configs
 	// This ensures that missing sections in YAML don't reset environment variables
 	filtered := filterNilValues(config)
-
 	return filtered, nil
 }
 
@@ -191,7 +181,6 @@ func filterNilValues(m map[string]any) map[string]any {
 // Watch monitors the YAML file for changes.
 func (y *yamlProvider) Watch(ctx context.Context, callback func()) error {
 	var watchErr error
-
 	// Use sync.Once to ensure we only create and start the watcher once
 	y.watchOnce.Do(func() {
 		y.watcherMu.Lock()
@@ -212,18 +201,15 @@ func (y *yamlProvider) Watch(ctx context.Context, callback func()) error {
 		}
 		y.isWatching = true
 	})
-
 	if watchErr != nil {
 		return watchErr
 	}
-
 	// Register the callback (this can be called multiple times safely)
 	y.watcherMu.Lock()
 	defer y.watcherMu.Unlock()
 	if y.watcher != nil {
 		y.watcher.OnChange(callback)
 	}
-
 	return nil
 }
 
@@ -235,7 +221,6 @@ func (y *yamlProvider) Type() SourceType {
 // Close releases any resources held by the source.
 func (y *yamlProvider) Close() error {
 	var closeErr error
-
 	// Use sync.Once to ensure we only close once
 	y.closeOnce.Do(func() {
 		y.watcherMu.Lock()
@@ -253,7 +238,6 @@ func (y *yamlProvider) Close() error {
 		// Reset watchOnce to allow re-watching after close
 		y.watchOnce = sync.Once{}
 	})
-
 	return closeErr
 }
 

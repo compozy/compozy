@@ -34,7 +34,6 @@ func sensitiveStringDecodeHook(_ reflect.Type, to reflect.Type, data any) (any, 
 	if to != reflect.TypeOf(SensitiveString("")) {
 		return data, nil
 	}
-
 	switch v := data.(type) {
 	case string:
 		return SensitiveString(v), nil
@@ -69,19 +68,15 @@ func (l *loader) Load(_ context.Context, sources ...Source) (*Config, error) {
 	if err := l.loadDefaults(); err != nil {
 		return nil, err
 	}
-
 	cliSource, otherSources := l.partitionSources(sources)
 	if err := l.applyNonDefaultSources(otherSources, cliSource); err != nil {
 		return nil, err
 	}
-
 	config, err := l.unmarshalAndValidate()
 	if err != nil {
 		return nil, err
 	}
-
 	l.currentConfig.Store(config)
-
 	return config, nil
 }
 
@@ -130,7 +125,6 @@ func (l *loader) loadCLISource(cliSource Source) error {
 // reset clears the configuration and metadata.
 func (l *loader) reset() {
 	l.koanf.Cut("")
-
 	l.metadataMu.Lock()
 	l.metadata.Sources = make(map[string]SourceType)
 	l.metadata.LoadedAt = time.Now()
@@ -140,18 +134,15 @@ func (l *loader) reset() {
 // loadDefaults loads the default configuration.
 func (l *loader) loadDefaults() error {
 	defaultConfig := Default()
-
 	// Use structs provider to automatically convert the default config to a map
 	// This eliminates the need for hardcoded key-value pairs and reduces duplication
 	if err := l.koanf.Load(structs.Provider(defaultConfig, "koanf"), nil); err != nil {
 		return fmt.Errorf("failed to load defaults: %w", err)
 	}
-
 	// Track all keys as coming from defaults
 	for _, key := range l.koanf.Keys() {
 		l.trackSource(key, SourceDefault)
 	}
-
 	return nil
 }
 
@@ -160,13 +151,11 @@ func (l *loader) loadDefaults() error {
 func transformEnvKey(s string) string {
 	// Convert to lowercase
 	s = strings.ToLower(s)
-
 	// Split by underscore and filter out empty parts
 	// This handles edge cases like "FOO__BAR", "_FOO", "FOO_"
 	parts := strings.FieldsFunc(s, func(r rune) bool {
 		return r == '_'
 	})
-
 	// Handle empty or single part
 	if len(parts) == 0 {
 		return ""
@@ -174,17 +163,13 @@ func transformEnvKey(s string) string {
 	if len(parts) == 1 {
 		return parts[0]
 	}
-
 	// For config like LIMITS_MAX_NESTING_DEPTH:
 	// parts = ["limits", "max", "nesting", "depth"]
 	// We want: "limits.max_nesting_depth"
-
 	// First part is the top-level key (e.g., "limits")
 	result := parts[0]
-
 	// Join the remaining parts with underscores to preserve field names
 	result = result + "." + strings.Join(parts[1:], "_")
-
 	return result
 }
 
@@ -195,16 +180,13 @@ func (l *loader) loadEnvironment() error {
 	for _, key := range l.koanf.Keys() {
 		keysBefore[key] = l.koanf.Get(key)
 	}
-
 	// Get env to config path mappings from struct tags
 	envMappings := GenerateEnvMappings()
-
 	// Create a map for quick lookup
 	envToPath := make(map[string]string)
 	for _, mapping := range envMappings {
 		envToPath[mapping.EnvVar] = mapping.ConfigPath
 	}
-
 	// Load environment variables using env/v2 provider with transformation support
 	if err := l.koanf.Load(env.Provider(".", env.Opt{
 		Prefix: "",
@@ -219,7 +201,6 @@ func (l *loader) loadEnvironment() error {
 	}), nil); err != nil {
 		return fmt.Errorf("failed to load environment variables: %w", err)
 	}
-
 	// Track keys that were overridden by environment
 	for _, key := range l.koanf.Keys() {
 		valBefore, existed := keysBefore[key]
@@ -228,7 +209,6 @@ func (l *loader) loadEnvironment() error {
 			l.trackSource(key, SourceEnv)
 		}
 	}
-
 	return nil
 }
 
@@ -252,18 +232,15 @@ func (l *loader) loadSource(source Source) error {
 	if err != nil {
 		return fmt.Errorf("failed to load from source %s: %w", source.Type(), err)
 	}
-
 	// Skip loading if data is empty
 	if len(data) == 0 {
 		return nil
 	}
-
 	// Track keys before loading
 	keysBefore := make(map[string]any)
 	for _, key := range l.koanf.Keys() {
 		keysBefore[key] = l.koanf.Get(key)
 	}
-
 	// For YAML sources, use a merge strategy that preserves existing values
 	// when the new source doesn't contain those keys
 	if source.Type() == SourceYAML {
@@ -280,7 +257,6 @@ func (l *loader) loadSource(source Source) error {
 			return fmt.Errorf("failed to apply source %s: %w", source.Type(), err)
 		}
 	}
-
 	// Track which keys were added or changed by this source
 	for _, key := range l.koanf.Keys() {
 		valBefore, existed := keysBefore[key]
@@ -289,7 +265,6 @@ func (l *loader) loadSource(source Source) error {
 			l.trackSource(key, source.Type())
 		}
 	}
-
 	return nil
 }
 
@@ -315,7 +290,6 @@ func flattenMap(prefix string, m map[string]any) map[string]any {
 // unmarshalAndValidate unmarshals the configuration and validates it.
 func (l *loader) unmarshalAndValidate() (*Config, error) {
 	var config Config
-
 	// Use custom unmarshal configuration with decoder hook for SensitiveString
 	if err := l.koanf.UnmarshalWithConf("", &config, koanf.UnmarshalConf{
 		Tag: "koanf",
@@ -332,14 +306,11 @@ func (l *loader) unmarshalAndValidate() (*Config, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
-
 	// Normalize fields that require formatting before validation
 	// Application mode removed in greenfield cleanup.
-
 	if err := l.Validate(&config); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
-
 	return &config, nil
 }
 
@@ -348,11 +319,9 @@ func (l *loader) Watch(_ context.Context, callback func(*Config)) error {
 	if callback == nil {
 		return fmt.Errorf("callback cannot be nil")
 	}
-
 	l.callbackMu.Lock()
 	l.watchCallbacks = append(l.watchCallbacks, callback)
 	l.callbackMu.Unlock()
-
 	// Note: The actual file watching is handled by the Manager and Source providers
 	// This method just registers callbacks for when configuration changes
 	return nil
@@ -363,17 +332,14 @@ func (l *loader) Validate(config *Config) error {
 	if config == nil {
 		return fmt.Errorf("configuration cannot be nil")
 	}
-
 	// Validate using struct tags
 	if err := l.validator.Struct(config); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
-
 	// Additional custom validation
 	if err := l.validateCustom(config); err != nil {
 		return fmt.Errorf("custom validation failed: %w", err)
 	}
-
 	return nil
 }
 
@@ -381,7 +347,6 @@ func (l *loader) Validate(config *Config) error {
 func (l *loader) GetSource(key string) SourceType {
 	l.metadataMu.RLock()
 	defer l.metadataMu.RUnlock()
-
 	if source, ok := l.metadata.Sources[key]; ok {
 		return source
 	}

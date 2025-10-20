@@ -21,7 +21,6 @@ func executeWorkflowAndGetState(
 ) *workflow.State {
 	// Use basic agent configuration for composite tasks
 	agentConfig := helpers.CreateBasicAgentConfig()
-
 	// Inject agent into all basic tasks recursively for testing
 	var injectAgentRecursively func(tasks []task.Config)
 	injectAgentRecursively = func(tasks []task.Config) {
@@ -37,7 +36,6 @@ func executeWorkflowAndGetState(
 		}
 	}
 	injectAgentRecursively(fixture.Workflow.Tasks)
-
 	// Execute real workflow using common helper
 	return helpers.ExecuteWorkflowAndGetState(
 		t,
@@ -53,19 +51,15 @@ func executeWorkflowAndGetState(
 func verifySequentialExecution(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying sequential execution from database state")
-
 	compositeTask := helpers.FindParentTask(result, task.ExecutionComposite)
 	require.NotNil(t, compositeTask, "Should have a composite task")
-
 	// Find child tasks
 	childTasks := helpers.FindChildTasks(result, compositeTask.TaskExecID)
 	assert.Greater(t, len(childTasks), 1, "Should have multiple child tasks for sequential verification")
-
 	// Sort child tasks by creation time to ensure consistent ordering
 	sort.Slice(childTasks, func(i, j int) bool {
 		return childTasks[i].CreatedAt.Before(childTasks[j].CreatedAt)
 	})
-
 	// Verify sequential execution order by creation times
 	// Note: Tasks executed in quick succession might have the same timestamp
 	for i := 1; i < len(childTasks); i++ {
@@ -79,33 +73,26 @@ func verifySequentialExecution(t *testing.T, _ *helpers.TestFixture, result *wor
 func verifyChildTaskCreation(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying child task creation from database state")
-
 	compositeTask := helpers.FindParentTask(result, task.ExecutionComposite)
 	require.NotNil(t, compositeTask, "Should have a composite task")
-
 	// Verify child tasks were created
 	childTasks := helpers.FindChildTasks(result, compositeTask.TaskExecID)
 	assert.Greater(t, len(childTasks), 0, "Should have created child tasks")
-
 	// Verify child task properties
 	for _, childTask := range childTasks {
 		assert.Equal(t, task.ExecutionBasic, childTask.ExecutionType, "Child tasks should be basic execution type")
 		assert.Equal(t, compositeTask.TaskExecID, *childTask.ParentStateID, "Child task should reference parent")
 	}
-
 	t.Logf("Verified %d child tasks were created", len(childTasks))
 }
 
 func verifyStatePassingBetweenTasks(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying state passing between tasks from database state")
-
 	compositeTask := helpers.FindParentTask(result, task.ExecutionComposite)
 	require.NotNil(t, compositeTask, "Should have a composite task")
-
 	// Verify composite task has appropriate output for state aggregation
 	helpers.VerifyTaskHasOutput(t, compositeTask, "composite task")
-
 	// Check that progress info exists which indicates state aggregation
 	if compositeTask.Output != nil {
 		assert.Contains(t, *compositeTask.Output, "progress_info",
@@ -116,10 +103,8 @@ func verifyStatePassingBetweenTasks(t *testing.T, _ *helpers.TestFixture, result
 func verifyNestedCompositeExecution(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying nested composite execution from database state")
-
 	compositeTask := helpers.FindParentTask(result, task.ExecutionComposite)
 	require.NotNil(t, compositeTask, "Should have a composite task")
-
 	// Verify composite execution succeeded
 	assert.Equal(t, core.StatusSuccess, compositeTask.Status, "Nested composite should complete successfully")
 }
@@ -127,17 +112,13 @@ func verifyNestedCompositeExecution(t *testing.T, _ *helpers.TestFixture, result
 func verifyNestedTaskStates(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying nested task states from database state")
-
 	compositeTask := helpers.FindParentTask(result, task.ExecutionComposite)
 	require.NotNil(t, compositeTask, "Should have a composite task")
-
 	// Verify proper task hierarchy
 	assert.Equal(t, task.ExecutionComposite, compositeTask.ExecutionType, "Parent should be composite type")
-
 	// Find child tasks of the parent composite
 	childTasks := helpers.FindChildTasks(result, compositeTask.TaskExecID)
 	assert.Greater(t, len(childTasks), 0, "Should have child tasks in composite")
-
 	// Check if any child is also a composite (nested)
 	var nestedCompositeFound bool
 	for _, child := range childTasks {
@@ -148,7 +129,6 @@ func verifyNestedTaskStates(t *testing.T, _ *helpers.TestFixture, result *workfl
 			assert.Greater(t, len(nestedChildren), 0, "Nested composite should have child tasks")
 		}
 	}
-
 	// If we have a truly nested fixture, verify it
 	if nestedCompositeFound {
 		t.Log("Verified nested composite structure")
@@ -158,13 +138,10 @@ func verifyNestedTaskStates(t *testing.T, _ *helpers.TestFixture, result *workfl
 func verifyEmptyCompositeHandling(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying empty composite handling from database state")
-
 	compositeTask := helpers.FindParentTask(result, task.ExecutionComposite)
 	require.NotNil(t, compositeTask, "Should have a composite task")
-
 	// Empty composite should still complete successfully
 	assert.Equal(t, core.StatusSuccess, compositeTask.Status, "Empty composite should complete successfully")
-
 	// Verify no child tasks were created
 	childTasks := helpers.FindChildTasks(result, compositeTask.TaskExecID)
 	assert.Equal(t, 0, len(childTasks), "Empty composite should have no child tasks")
@@ -173,10 +150,8 @@ func verifyEmptyCompositeHandling(t *testing.T, _ *helpers.TestFixture, result *
 func verifyChildFailurePropagation(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying child failure propagation from database state")
-
 	compositeTask := helpers.FindParentTask(result, task.ExecutionComposite)
 	require.NotNil(t, compositeTask, "Should have a composite task")
-
 	// Find failed child tasks
 	childTasks := helpers.FindChildTasks(result, compositeTask.TaskExecID)
 	var failedChildFound bool
@@ -186,7 +161,6 @@ func verifyChildFailurePropagation(t *testing.T, _ *helpers.TestFixture, result 
 			break
 		}
 	}
-
 	if failedChildFound {
 		assert.Equal(t, core.StatusFailed, compositeTask.Status, "Composite should fail when child fails")
 		assert.NotNil(t, compositeTask.Error, "Composite should have error when child fails")
@@ -196,10 +170,8 @@ func verifyChildFailurePropagation(t *testing.T, _ *helpers.TestFixture, result 
 func verifyCompositeFailureHandling(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying composite failure handling from database state")
-
 	compositeTask := helpers.FindParentTask(result, task.ExecutionComposite)
 	require.NotNil(t, compositeTask, "Should have a composite task")
-
 	if compositeTask.Status == core.StatusFailed {
 		assert.NotNil(t, compositeTask.Error, "Failed composite should have error details")
 		if compositeTask.Output != nil {
@@ -212,10 +184,8 @@ func verifyCompositeFailureHandling(t *testing.T, _ *helpers.TestFixture, result
 func verifyCompositeStateManagement(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying composite state management from database state")
-
 	compositeTask := requireCompositeTask(t, result)
 	helpers.VerifyTaskHasOutput(t, compositeTask, "composite task")
-
 	progressInfo := extractCompositeProgressInfo(compositeTask)
 	if progressInfo != nil {
 		assertCompositeProgressKeys(t, progressInfo)
@@ -277,7 +247,6 @@ func assertCompositeProgressMatchesFixture(
 	if !ok {
 		return
 	}
-
 	if expectedTotal, ok := expectedValue["total_children"]; ok {
 		assert.EqualValues(t, expectedTotal, progress["total_children"],
 			"Total children count should match expected")
@@ -299,10 +268,8 @@ func assertCompositeProgressMatchesFixture(
 func verifyChildTaskDataFlow(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying child task data flow from database state")
-
 	compositeTask := helpers.FindParentTask(result, task.ExecutionComposite)
 	require.NotNil(t, compositeTask, "Should have a composite task")
-
 	// Verify child tasks exist and successful ones have output
 	childTasks := helpers.FindChildTasks(result, compositeTask.TaskExecID)
 	for _, childTask := range childTasks {
@@ -318,7 +285,6 @@ func verifyChildTaskDataFlow(t *testing.T, _ *helpers.TestFixture, result *workf
 func testDatabaseStateOperations(t *testing.T, _ *helpers.TestFixture, dbHelper *helpers.DatabaseHelper) {
 	t.Helper()
 	t.Log("Testing database state operations for composite tasks")
-
 	// Database operations are already tested via the common helpers
 	// Just verify the helper is functional
 	assert.NotNil(t, dbHelper, "Database helper should be available")
@@ -327,7 +293,6 @@ func testDatabaseStateOperations(t *testing.T, _ *helpers.TestFixture, dbHelper 
 func testRedisOperations(t *testing.T, _ *helpers.TestFixture, redisHelper *helpers.RedisHelper) {
 	t.Helper()
 	t.Log("Testing redis operations for composite tasks")
-
 	// Redis operations would be tested here when implemented
 	// For now, just verify the helper is functional
 	assert.NotNil(t, redisHelper, "Redis helper should be available")

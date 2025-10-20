@@ -213,12 +213,10 @@ func createSeparator(width int, noColor bool) string {
 		// Simple dashed line for no-color mode
 		return strings.Repeat("─", width)
 	}
-
 	// Create a lipgloss style for the separator
 	separatorStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")). // Dark gray
 		Width(width)
-
 	// Use box-drawing character for a clean line
 	return separatorStyle.Render(strings.Repeat("─", width))
 }
@@ -309,7 +307,6 @@ func printCommandSpecificFlags(cmd *cobra.Command, noColor bool) {
 	if !localFlags.HasAvailableFlags() {
 		return
 	}
-
 	// Count visible local flags
 	visibleCount := 0
 	localFlags.VisitAll(func(flag *pflag.Flag) {
@@ -317,11 +314,9 @@ func printCommandSpecificFlags(cmd *cobra.Command, noColor bool) {
 			visibleCount++
 		}
 	})
-
 	if visibleCount == 0 {
 		return
 	}
-
 	// Print section with separators
 	width := getTerminalWidth()
 	fmt.Println(createSeparator(width, noColor))
@@ -332,7 +327,6 @@ func printCommandSpecificFlags(cmd *cobra.Command, noColor bool) {
 	)
 	fmt.Println(createSeparator(width, noColor))
 	fmt.Println() // Extra line after header
-
 	// Print each local flag
 	localFlags.VisitAll(func(flag *pflag.Flag) {
 		if !flag.Hidden {
@@ -348,7 +342,6 @@ func printCategorizedFlags(cmd *cobra.Command, noColor bool) {
 	flagMap := collectAllFlags(cmd)
 	displayedFlags := make(map[string]bool)
 	isSubcommand := cmd.Parent() != nil
-
 	// If this is a subcommand, mark local flags as already displayed
 	if isSubcommand {
 		markLocalFlagsDisplayed(cmd, displayedFlags)
@@ -365,10 +358,8 @@ func printCategorizedFlags(cmd *cobra.Command, noColor bool) {
 		fmt.Println(createSeparator(width, noColor))
 		fmt.Println() // Extra line after header
 	}
-
 	// Process each category
 	printFlagCategories(categories, flagMap, displayedFlags, noColor)
-
 	// Handle uncategorized flags
 	printUncategorizedFlags(flagMap, displayedFlags, noColor)
 }

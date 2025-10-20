@@ -101,7 +101,6 @@ func ComputeEffectiveItems(
 	// Stable order preservation using a slice of keys
 	order := make([]string, 0)
 	items := make(map[string]EffectiveItem)
-
 	// Helper to insert/override while preserving first-seen order
 	put := func(att Attachment, cwd *core.PathCWD) {
 		if att == nil {
@@ -116,7 +115,6 @@ func ComputeEffectiveItems(
 		}
 		items[key] = EffectiveItem{Att: att, CWD: cwd}
 	}
-
 	// Precedence: earlier scopes are overridden by later ones
 	for _, a := range task {
 		put(a, taskCWD)
@@ -127,7 +125,6 @@ func ComputeEffectiveItems(
 	for _, a := range action {
 		put(a, actionCWD)
 	}
-
 	out := make([]EffectiveItem, 0, len(order))
 	for _, k := range order {
 		out = append(out, items[k])

@@ -164,7 +164,6 @@ func (k *KeyboardShortcuts) Update(msg tea.Msg) tea.Cmd {
 	case HideShortcutsMsg:
 		k.Hide()
 	}
-
 	return nil
 }
 
@@ -173,16 +172,13 @@ func (k *KeyboardShortcuts) View() string {
 	if !k.Visible {
 		return ""
 	}
-
 	content := styles.RenderTitle("Keyboard Shortcuts") + "\n\n"
 	content += k.renderCategories()
 	content += "\n" + styles.HelpStyle.Render("Press ESC or q to close")
-
 	// Wrap in dialog
 	dialog := styles.DialogStyle.
 		Width(k.Width - 4).
 		Render(content)
-
 	// Center the dialog
 	return lipgloss.Place(k.Width, k.Height, lipgloss.Center, lipgloss.Center, dialog)
 }
@@ -190,7 +186,6 @@ func (k *KeyboardShortcuts) View() string {
 // renderCategories renders all shortcut categories
 func (k *KeyboardShortcuts) renderCategories() string {
 	var content string
-
 	// Calculate number of columns based on width
 	cols := 1
 	if k.Width > 100 {
@@ -198,7 +193,6 @@ func (k *KeyboardShortcuts) renderCategories() string {
 	} else if k.Width > 60 {
 		cols = 2
 	}
-
 	if cols == 1 {
 		// Single column layout
 		for i, category := range k.Categories {
@@ -211,24 +205,20 @@ func (k *KeyboardShortcuts) renderCategories() string {
 		// Multi-column layout
 		content += k.renderMultiColumn(cols)
 	}
-
 	return content
 }
 
 // renderCategory renders a single category
 func (k *KeyboardShortcuts) renderCategory(category ShortcutCategory) string {
 	var content string
-
 	// Category header
 	content += styles.HelpDescStyle.Render(category.Name) + "\n"
-
 	// Shortcuts
 	for _, shortcut := range category.Shortcuts {
 		key := styles.HelpKeyStyle.Render(shortcut[0])
 		desc := styles.HelpDescStyle.Render(shortcut[1])
 		content += "  " + key + " " + desc + "\n"
 	}
-
 	return content
 }
 
@@ -238,7 +228,6 @@ func (k *KeyboardShortcuts) renderMultiColumn(cols int) string {
 	// In a real implementation, you might want more sophisticated column balancing
 	var columns []string
 	itemsPerCol := (len(k.Categories) + cols - 1) / cols
-
 	for col := range cols {
 		var colContent string
 		start := col * itemsPerCol
@@ -252,7 +241,6 @@ func (k *KeyboardShortcuts) renderMultiColumn(cols int) string {
 		}
 		columns = append(columns, colContent)
 	}
-
 	return lipgloss.JoinHorizontal(lipgloss.Top, columns...)
 }
 

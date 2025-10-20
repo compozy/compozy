@@ -707,14 +707,12 @@ func (p *Config) validateKnowledge(ctx context.Context) error {
 // validateRuntimeConfig validates the runtime configuration fields with detailed error messages
 func (p *Config) validateRuntimeConfig(ctx context.Context) error {
 	runtime := &p.Runtime
-
 	// Validate runtime type if specified
 	if runtime.Type != "" {
 		if err := validateRuntimeType(ctx, runtime.Type); err != nil {
 			return err
 		}
 	}
-
 	// Validate entrypoint path if specified
 	if runtime.Entrypoint != "" {
 		if err := validateEntrypointPath(ctx, p.CWD, runtime.Entrypoint); err != nil {
@@ -724,7 +722,6 @@ func (p *Config) validateRuntimeConfig(ctx context.Context) error {
 			return err
 		}
 	}
-
 	// Validate tool execution timeout if specified
 	if runtime.ToolExecutionTimeout < 0 {
 		return fmt.Errorf("runtime configuration error: tool_execution_timeout must be non-negative if specified")
@@ -742,7 +739,6 @@ func (p *Config) validateRuntimeConfig(ctx context.Context) error {
 			"runtime configuration error: task_execution_timeout_default must not exceed task_execution_timeout_max",
 		)
 	}
-
 	return nil
 }
 

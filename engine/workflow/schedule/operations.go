@@ -636,7 +636,6 @@ func (m *manager) buildScheduleUpdater(
 // deleteSchedule deletes a schedule from Temporal
 func (m *manager) deleteSchedule(ctx context.Context, scheduleID string) error {
 	log := logger.FromContext(ctx).With("schedule_id", scheduleID)
-
 	// Record operation metrics
 	operation := OperationDelete
 	status := OperationStatusFailure // Assume failure, will be set to success on completion
@@ -666,14 +665,12 @@ func (m *manager) checkScheduleNeedsUpdate(
 	wf *workflow.Config,
 ) (needsUpdate bool, expectedTimezone string, expectedEnabled bool) {
 	currentSpec := desc.Schedule.Spec
-
 	// Check core schedule properties
 	needsUpdate = m.checkCronNeedsUpdate(currentSpec, wf) ||
 		m.checkTimezoneNeedsUpdate(currentSpec, wf) ||
 		m.checkEnabledStateNeedsUpdate(desc, wf) ||
 		m.checkJitterNeedsUpdate(currentSpec, wf) ||
 		m.checkStartEndTimesNeedsUpdate(currentSpec, wf)
-
 	// Set expected values for return
 	expectedTimezone = wf.Schedule.Timezone
 	if expectedTimezone == "" {
@@ -683,7 +680,6 @@ func (m *manager) checkScheduleNeedsUpdate(
 	if wf.Schedule.Enabled != nil {
 		expectedEnabled = *wf.Schedule.Enabled
 	}
-
 	return needsUpdate, expectedTimezone, expectedEnabled
 }
 

@@ -248,12 +248,10 @@ func RecordRegistryLookup(ctx context.Context, duration time.Duration, hit bool)
 func ResetForTesting() {
 	resetMu.Lock()
 	defer resetMu.Unlock()
-
 	executionHistogram = nil
 	errorCounter = nil
 	activeConnections = nil
 	registryHistogram = nil
-
 	connectionStates = sync.Map{}
 	once = sync.Once{}
 }

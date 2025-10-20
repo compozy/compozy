@@ -34,7 +34,6 @@ func NewManager(factory *uc.Factory, cfg *config.Config) *Manager {
 // WithMetrics adds metrics instrumentation to the manager
 func (m *Manager) WithMetrics(ctx context.Context, meter metric.Meter) *Manager {
 	m.meter = meter
-
 	// Initialize auth metrics
 	if meter != nil {
 		if err := authmetrics.InitMetrics(meter); err != nil {
@@ -42,7 +41,6 @@ func (m *Manager) WithMetrics(ctx context.Context, meter metric.Meter) *Manager 
 			log.Error("Failed to initialize auth metrics", "error", err)
 		}
 	}
-
 	return m
 }
 
@@ -158,18 +156,15 @@ func (m *Manager) extractBearerToken(c *gin.Context) (string, error) {
 	if authHeader == "" {
 		return "", &authError{message: "no authorization header"}
 	}
-
 	// Case-insensitive bearer check and handle extra spaces
 	parts := strings.Fields(authHeader)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
 		return "", &authError{message: "invalid format", public: true}
 	}
-
 	apiKey := strings.TrimSpace(parts[1])
 	if apiKey == "" {
 		return "", &authError{message: "empty token", public: true}
 	}
-
 	return apiKey, nil
 }
 
@@ -180,14 +175,12 @@ func (m *Manager) handleAuthError(c *gin.Context, err error) {
 		"error":   "Authentication failed",
 		"details": "Invalid or missing credentials",
 	}
-
 	status := 401
 	// Only provide specific errors for format issues
 	if authErr, ok := err.(*authError); ok && authErr.public {
 		response["details"] = "Invalid authorization header format"
 		status = 400
 	}
-
 	// Map known UC errors to proper HTTP status codes
 	switch {
 	case errors.Is(err, uc.ErrRateLimited):
@@ -195,12 +188,10 @@ func (m *Manager) handleAuthError(c *gin.Context, err error) {
 	case errors.Is(err, uc.ErrInvalidCredentials), errors.Is(err, uc.ErrTokenExpired):
 		status = 401
 	}
-
 	// Add WWW-Authenticate header for 401 responses per RFC 7235
 	if status == 401 {
 		c.Header("WWW-Authenticate", `Bearer realm="compozy", charset="UTF-8"`)
 	}
-
 	c.JSON(status, response)
 	c.Abort()
 }
@@ -209,7 +200,6 @@ func categorizeHeaderError(err *authError) authmetrics.AuthFailureReason {
 	if err == nil {
 		return authmetrics.ReasonUnknown
 	}
-
 	switch err.message {
 	case "no authorization header":
 		return authmetrics.ReasonMissingAuth
@@ -224,7 +214,6 @@ func categorizeValidationError(err error) authmetrics.AuthFailureReason {
 	if err == nil {
 		return authmetrics.ReasonUnknown
 	}
-
 	switch {
 	case errors.Is(err, uc.ErrInvalidCredentials):
 		return authmetrics.ReasonInvalidCredentials
@@ -233,7 +222,6 @@ func categorizeValidationError(err error) authmetrics.AuthFailureReason {
 	case errors.Is(err, uc.ErrRateLimited):
 		return authmetrics.ReasonRateLimited
 	}
-
 	message := strings.ToLower(err.Error())
 	if strings.Contains(message, "expired") {
 		return authmetrics.ReasonExpiredToken
@@ -241,7 +229,6 @@ func categorizeValidationError(err error) authmetrics.AuthFailureReason {
 	if strings.Contains(message, "rate limit") {
 		return authmetrics.ReasonRateLimited
 	}
-
 	return authmetrics.ReasonUnknown
 }
 
@@ -251,11 +238,9 @@ func (m *Manager) setAuthContext(c *gin.Context, apiKey string, user *model.User
 	c.Set(authmetrics.ContextKeyAPIKey, apiKey)
 	c.Set(authmetrics.ContextKeyUserID, user.ID.String())
 	c.Set(authmetrics.ContextKeyUserRole, string(user.Role))
-
 	// Inject into request context
 	ctx := userctx.WithUser(c.Request.Context(), user)
 	c.Request = c.Request.WithContext(ctx)
-
 	log := logger.FromContext(ctx)
 	log.Debug("Authentication successful", "user_id", user.ID)
 }

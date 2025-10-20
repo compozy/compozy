@@ -35,28 +35,23 @@ func ListUsersJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 	if authClient == nil {
 		return outputJSONError("auth client not available")
 	}
-
 	// Parse flags - convert any Go errors to JSON format
 	filters, err := parseListUsersFlags(cobraCmd)
 	if err != nil {
 		return outputJSONError(err.Error())
 	}
-
 	log.Debug("listing users in JSON mode",
 		"role", filters.roleFilter,
 		"sort", filters.sortBy,
 		"filter", filters.filterStr,
 		"activeOnly", filters.activeOnly)
-
 	// Get users from API - convert any Go errors to JSON format
 	users, err := authClient.ListUsers(ctx)
 	if err != nil {
 		return outputJSONError(fmt.Sprintf("failed to list users: %v", err))
 	}
-
 	// Apply filters and sorting
 	filteredUsers := filterAndSortUsers(users, filters)
-
 	// Prepare and output response
 	response := buildUsersResponse(filteredUsers)
 	return outputJSONResponse(response)
@@ -81,17 +76,14 @@ func parseListUsersFlags(cmd *cobra.Command) (*userFilters, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active flag: %w", err)
 	}
-
 	// Validate role filter
 	if roleFilter != "" && roleFilter != roleAdmin && roleFilter != roleUser {
 		return nil, fmt.Errorf("invalid role filter: %s (must be '%s' or '%s')", roleFilter, roleAdmin, roleUser)
 	}
-
 	// Validate sort field
 	if !isValidSortField(sortBy) {
 		return nil, fmt.Errorf("invalid sort field: %s (must be one of: %v)", sortBy, getValidSortFields())
 	}
-
 	return &userFilters{
 		roleFilter: roleFilter,
 		sortBy:     sortBy,
@@ -103,7 +95,6 @@ func parseListUsersFlags(cmd *cobra.Command) (*userFilters, error) {
 // filterAndSortUsers applies filtering and sorting to the user list
 func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserInfo {
 	filtered := make([]api.UserInfo, 0, len(users))
-
 	for _, user := range users {
 		// Apply role filter
 		if filters.roleFilter != "" && user.Role != filters.roleFilter {
@@ -123,7 +114,6 @@ func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserIn
 
 		filtered = append(filtered, user)
 	}
-
 	// Sort users
 	sort.Slice(filtered, func(i, j int) bool {
 		switch filters.sortBy {
@@ -139,7 +129,6 @@ func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserIn
 			return filtered[i].CreatedAt < filtered[j].CreatedAt
 		}
 	})
-
 	return filtered
 }
 

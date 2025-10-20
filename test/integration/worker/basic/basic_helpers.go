@@ -217,7 +217,6 @@ func registerTestActivities(temporalHelper *helpers.TemporalHelper, activities *
 	temporalHelper.RegisterActivity(activities.UpdateWorkflowState)
 	temporalHelper.RegisterActivity(activities.CompleteWorkflow)
 	temporalHelper.RegisterActivity(activities.ExecuteBasicTask)
-
 	// Register activities with specific names as per worker setup
 	env := temporalHelper.GetEnvironment()
 	env.RegisterActivityWithOptions(
@@ -404,7 +403,6 @@ func assertJSONEquivalent(t *testing.T, expected any, actual any, msg string, ar
 
 func verifyBasicTaskInputs(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying basic task inputs from database state")
-
 	for _, taskState := range result.Tasks {
 		if taskState.ExecutionType == task.ExecutionBasic {
 			// Verify task has proper input data
@@ -440,16 +438,13 @@ func verifyBasicTaskInputs(t *testing.T, fixture *helpers.TestFixture, result *w
 
 func verifyBasicErrorHandling(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying error handling from database state")
-
 	var hasFailedTask bool
-
 	for _, taskState := range result.Tasks {
 		if taskState.Status == core.StatusFailed {
 			hasFailedTask = true
 			assert.NotNil(t, taskState.Error, "Failed task should have error information")
 		}
 	}
-
 	// For error scenario fixtures, verify we have the expected pattern
 	if fixture.Expected.WorkflowState.Status == "FAILED" {
 		assert.True(t, hasFailedTask, "Workflows expected to fail should have at least one failed task")
@@ -465,23 +460,19 @@ func verifyBasicErrorHandling(t *testing.T, fixture *helpers.TestFixture, result
 
 func verifyBasicTaskTransitions(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying task transitions from database state")
-
 	if len(result.Tasks) < 2 {
 		t.Log("Skipping transition verification - single task workflow")
 		return
 	}
-
 	// Convert tasks to slice for ordering
 	var tasks []*task.State
 	for _, taskState := range result.Tasks {
 		tasks = append(tasks, taskState)
 	}
-
 	// Sort by creation time using standard library
 	sort.Slice(tasks, func(i, j int) bool {
 		return tasks[i].CreatedAt.Before(tasks[j].CreatedAt)
 	})
-
 	// Verify execution order
 	for i := 1; i < len(tasks); i++ {
 		prevTask := tasks[i-1]
@@ -495,7 +486,6 @@ func verifyBasicTaskTransitions(t *testing.T, _ *helpers.TestFixture, result *wo
 
 func verifyFinalTaskBehavior(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying final task behavior from database state")
-
 	var finalTasks []*task.State
 	for _, taskState := range result.Tasks {
 		// Check if this task is marked as final in the fixture
@@ -506,7 +496,6 @@ func verifyFinalTaskBehavior(t *testing.T, fixture *helpers.TestFixture, result 
 			}
 		}
 	}
-
 	if len(finalTasks) > 0 {
 		t.Logf("Found %d final tasks", len(finalTasks))
 		for _, finalTask := range finalTasks {

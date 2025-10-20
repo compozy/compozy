@@ -328,14 +328,12 @@ func (m *manager) ReconcileSchedules(ctx context.Context, workflows []*workflow.
 	defer m.reconcileMu.Unlock()
 	log := logger.FromContext(ctx).With("project", m.projectID)
 	log.Info("Starting schedule reconciliation", "workflow_count", len(workflows))
-
 	// Track reconciliation with metrics
 	var tracker *ReconciliationTracker
 	if m.metrics != nil {
 		tracker = m.metrics.NewReconciliationTracker(ctx, m.projectID)
 		defer tracker.Finish()
 	}
-
 	startTime := time.Now()
 	// 1. Get existing schedules and build desired state
 	existingSchedules, desiredSchedules, yamlModTimes, err := m.buildReconciliationState(ctx, workflows)
@@ -352,16 +350,13 @@ func (m *manager) ReconcileSchedules(ctx context.Context, workflows []*workflow.
 	if desiredSchedules == nil {
 		return fmt.Errorf("cannot proceed with reconciliation without a desired state")
 	}
-
 	// 2. Determine operations needed (respecting active overrides)
 	toCreate, toUpdate, toDelete, _ := m.planReconciliationOperations(
 		ctx, existingSchedules, desiredSchedules, yamlModTimes)
-
 	// 3. Execute reconciliation
 	if err := m.executeReconciliation(ctx, toCreate, toUpdate, toDelete); err != nil {
 		return fmt.Errorf("reconciliation failed: %w", err)
 	}
-
 	// 4. Update metrics and log completion
 	m.finishReconciliation(ctx, desiredSchedules, toCreate, toUpdate, toDelete, startTime)
 	return nil
@@ -372,7 +367,6 @@ func (m *manager) ReconcileSchedules(ctx context.Context, workflows []*workflow.
 func (m *manager) buildReconciliationState(ctx context.Context, workflows []*workflow.Config) (
 	map[string]client.ScheduleHandle, map[string]*workflow.Config, map[string]time.Time, error) {
 	log := logger.FromContext(ctx)
-
 	// Build desired state from YAML first
 	desiredSchedules := make(map[string]*workflow.Config)
 	yamlModTimes := make(map[string]time.Time)
@@ -384,7 +378,6 @@ func (m *manager) buildReconciliationState(ctx context.Context, workflows []*wor
 		}
 	}
 	log.Debug("Built desired state", "count", len(desiredSchedules))
-
 	// Get all existing schedules from Temporal
 	existingSchedules, err := m.listSchedulesByPrefix(ctx, m.schedulePrefix())
 	if err != nil {
@@ -392,7 +385,6 @@ func (m *manager) buildReconciliationState(ctx context.Context, workflows []*wor
 		return nil, desiredSchedules, yamlModTimes, fmt.Errorf("failed to list existing schedules: %w", err)
 	}
 	log.Debug("Found existing schedules", "count", len(existingSchedules))
-
 	return existingSchedules, desiredSchedules, yamlModTimes, nil
 }
 
@@ -493,12 +485,10 @@ func (m *manager) finishReconciliation(
 	startTime time.Time,
 ) {
 	log := logger.FromContext(ctx)
-
 	// Update workflow count metrics
 	if m.metrics != nil {
 		m.updateWorkflowCountMetrics(ctx, desiredSchedules)
 	}
-
 	duration := time.Since(startTime)
 	log.Info("Schedule reconciliation completed",
 		"duration", duration,
@@ -614,28 +604,22 @@ func (m *manager) GetSchedule(ctx context.Context, workflowID string) (*Info, er
 func (m *manager) UpdateSchedule(ctx context.Context, workflowID string, update UpdateRequest) error {
 	scheduleID := m.scheduleID(workflowID)
 	handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)
-
 	// Get current schedule description
 	desc, err := m.getScheduleDescription(ctx, handle)
 	if err != nil {
 		return err
 	}
-
 	// Log the API override operation
 	m.logAPIOverrideOperation(ctx, update)
-
 	// Prepare override values
 	values, err := m.prepareOverrideValues(ctx, workflowID, desc, update)
 	if err != nil {
 		return err
 	}
-
 	// Construct original schedule from current Temporal state
 	originalSchedule := m.constructScheduleFromDescription(desc)
-
 	// Store the override in cache with original schedule
 	m.overrideCache.SetOverrideWithSchedule(workflowID, values, originalSchedule)
-
 	// Update in Temporal
 	if err := m.updateScheduleInTemporal(ctx, handle, update); err != nil {
 		// Remove override on failure
@@ -676,12 +660,10 @@ func (m *manager) logAPIOverrideOperation(ctx context.Context, update UpdateRequ
 	if update.Cron != nil {
 		actions = append(actions, "update_cron")
 	}
-
 	action := "unknown"
 	if len(actions) > 0 {
 		action = strings.Join(actions, ", ")
 	}
-
 	log.Warn("Schedule modified via API",
 		"action", action,
 		"will_revert_on_reload", true)
@@ -690,27 +672,22 @@ func (m *manager) logAPIOverrideOperation(ctx context.Context, update UpdateRequ
 // constructScheduleFromDescription creates a workflow.Schedule from Temporal description
 func (m *manager) constructScheduleFromDescription(desc *client.ScheduleDescription) *workflow.Schedule {
 	schedule := &workflow.Schedule{}
-
 	// Extract cron expression
 	if len(desc.Schedule.Spec.CronExpressions) > 0 {
 		schedule.Cron = desc.Schedule.Spec.CronExpressions[0]
 	}
-
 	// Extract enabled state
 	enabled := !desc.Schedule.State.Paused
 	schedule.Enabled = &enabled
-
 	// Extract timezone
 	schedule.Timezone = desc.Schedule.Spec.TimeZoneName
 	if schedule.Timezone == "" {
 		schedule.Timezone = DefaultTimezone
 	}
-
 	// Extract jitter
 	if desc.Schedule.Spec.Jitter > 0 {
 		schedule.Jitter = desc.Schedule.Spec.Jitter.String()
 	}
-
 	// Extract start/end times
 	if !desc.Schedule.Spec.StartAt.IsZero() {
 		startAt := desc.Schedule.Spec.StartAt
@@ -720,7 +697,6 @@ func (m *manager) constructScheduleFromDescription(desc *client.ScheduleDescript
 		endAt := desc.Schedule.Spec.EndAt
 		schedule.EndAt = &endAt
 	}
-
 	// Extract workflow input from action
 	if action, ok := desc.Schedule.Action.(*client.ScheduleWorkflowAction); ok && len(action.Args) > 0 {
 		if triggerInput, ok := action.Args[0].(map[string]any); ok {
@@ -729,7 +705,6 @@ func (m *manager) constructScheduleFromDescription(desc *client.ScheduleDescript
 			}
 		}
 	}
-
 	return schedule
 }
 
@@ -741,7 +716,6 @@ func (m *manager) prepareOverrideValues(
 	update UpdateRequest,
 ) (map[string]any, error) {
 	values := make(map[string]any)
-
 	// Store original values from current Temporal state
 	if len(desc.Schedule.Spec.CronExpressions) > 0 {
 		values["original_cron"] = desc.Schedule.Spec.CronExpressions[0]
@@ -750,7 +724,6 @@ func (m *manager) prepareOverrideValues(
 	if desc.Schedule.Spec.TimeZoneName != "" {
 		values["original_timezone"] = desc.Schedule.Spec.TimeZoneName
 	}
-
 	// Set new override values
 	if update.Enabled != nil {
 		values["enabled"] = *update.Enabled
@@ -762,7 +735,6 @@ func (m *manager) prepareOverrideValues(
 		}
 		values["cron"] = *update.Cron
 	}
-
 	return values, nil
 }
 
@@ -891,13 +863,11 @@ func (m *manager) executeReconciliation(
 	totalOps := len(toCreate) + len(toUpdate) + len(toDelete)
 	workQueue := make(chan workItem, totalOps)
 	errChan := make(chan error, totalOps)
-
 	// Queue all work items
 	m.queueCreateOperations(workQueue, toCreate)
 	m.queueUpdateOperations(workQueue, toUpdate)
 	m.queueDeleteOperations(workQueue, toDelete)
 	close(workQueue)
-
 	// Start bounded worker pool
 	const maxWorkers = 10
 	var wg sync.WaitGroup
@@ -905,11 +875,9 @@ func (m *manager) executeReconciliation(
 		wg.Add(1)
 		go m.reconciliationWorker(ctx, workQueue, errChan, &wg)
 	}
-
 	// Wait for all workers to complete
 	wg.Wait()
 	close(errChan)
-
 	// Collect any errors
 	return m.collectReconciliationErrors(ctx, errChan)
 }
@@ -989,7 +957,6 @@ func (m *manager) processWorkItem(ctx context.Context, work workItem) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-
 	// Execute operation with retry for retryable errors
 	err := work.execute(ctx)
 	if err != nil && isRetryableError(err) {
@@ -1000,7 +967,6 @@ func (m *manager) processWorkItem(ctx context.Context, work workItem) error {
 			return work.execute(retryCtx)
 		})
 	}
-
 	if err != nil {
 		log.Error("Operation failed",
 			"operation", work.operation,

@@ -15,13 +15,11 @@ func SetupTestRepos(ctx context.Context, t *testing.T) (task.Repository, workflo
 	if err != nil {
 		t.Fatalf("Failed to setup test repositories: %v", err)
 	}
-
 	// Perform health check
 	if err := TestContainerHealthCheck(ctx, pool); err != nil {
 		cleanup()
 		t.Fatalf("Test container health check failed: %v", err)
 	}
-
 	// Create real repository instances
 	taskRepo := postgres.NewTaskRepo(pool)
 	workflowRepo := postgres.NewWorkflowRepo(pool)

@@ -11,12 +11,10 @@ func Cmd() *cobra.Command {
 		Short: "Workflow management commands",
 		Long:  "Manage workflows: list, get details, and execute workflows.",
 	}
-
 	cmd.AddCommand(
 		ListCmd(),
 		GetCmd(),
 		ExecuteCmd(),
 	)
-
 	return cmd
 }

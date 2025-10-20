@@ -67,11 +67,9 @@ func New(projectRoot string, config *Config, registry *ConfigRegistry, opts ...O
 	if registry == nil {
 		registry = NewConfigRegistry()
 	}
-
 	if config == nil {
 		config = NewConfig()
 	}
-
 	loader := &AutoLoader{
 		projectRoot: projectRoot,
 		projectName: deriveProjectName(projectRoot),
@@ -127,11 +125,9 @@ func (al *AutoLoader) Load(ctx context.Context) error {
 		log.Error("AutoLoad failed", "error", err, "files_processed", result.FilesProcessed)
 		return err
 	}
-
 	if len(result.Errors) > 0 && !al.config.Strict {
 		log.Warn("Some files failed to load but were skipped (non-strict mode)", "failed_count", len(result.Errors))
 	}
-
 	return nil
 }
 
@@ -418,7 +414,6 @@ func (al *AutoLoader) Stats() map[string]int {
 func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 	// Create a temporary registry for validation
 	tempRegistry := NewConfigRegistry()
-
 	// Create a config copy with strict mode disabled to collect all errors
 	tempConfig := &Config{
 		Enabled:      al.config.Enabled,
@@ -427,7 +422,6 @@ func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 		Exclude:      al.config.Exclude,
 		WatchEnabled: al.config.WatchEnabled,
 	}
-
 	tempLoader := &AutoLoader{
 		projectRoot: al.projectRoot,
 		projectName: al.projectMetricLabel(),
@@ -435,7 +429,6 @@ func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 		registry:    tempRegistry,
 		discoverer:  al.discoverer,
 	}
-
 	// Run load with temporary registry
 	return tempLoader.LoadWithResult(ctx)
 }
@@ -550,7 +543,6 @@ func (al *AutoLoader) categorizeError(err error, summary *ErrorSummary, file str
 	summary.TotalErrors++
 	summary.ByFile[file]++
 	label := errorLabelValidation
-
 	// Prefer categorization by structured error code if available
 	var ce *core.Error
 	if errors.As(err, &ce) {
@@ -573,7 +565,6 @@ func (al *AutoLoader) categorizeError(err error, summary *ErrorSummary, file str
 		}
 		return label
 	}
-
 	// Fallback for non-core.Error types using string matching
 	errStr := err.Error()
 	switch {

@@ -86,12 +86,10 @@ func BuildURL(baseURL, path string, params map[string]string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("invalid base URL: %w", err)
 	}
-
 	// Join path
 	if path != "" {
 		base.Path = strings.TrimSuffix(base.Path, "/") + "/" + strings.TrimPrefix(path, "/")
 	}
-
 	// Add query parameters
 	if len(params) > 0 {
 		query := base.Query()
@@ -100,7 +98,6 @@ func BuildURL(baseURL, path string, params map[string]string) (string, error) {
 		}
 		base.RawQuery = query.Encode()
 	}
-
 	return base.String(), nil
 }
 
@@ -109,7 +106,6 @@ func ParsePaginationParams(limitStr, offsetStr string) (limit, offset int, err e
 	// Default values
 	limit = 50
 	offset = 0
-
 	if limitStr != "" {
 		limit, err = strconv.Atoi(limitStr)
 		if err != nil {
@@ -119,7 +115,6 @@ func ParsePaginationParams(limitStr, offsetStr string) (limit, offset int, err e
 			return 0, 0, fmt.Errorf("limit must be between 1 and 1000")
 		}
 	}
-
 	if offsetStr != "" {
 		offset, err = strconv.Atoi(offsetStr)
 		if err != nil {
@@ -129,27 +124,23 @@ func ParsePaginationParams(limitStr, offsetStr string) (limit, offset int, err e
 			return 0, 0, fmt.Errorf("offset must be non-negative")
 		}
 	}
-
 	return limit, offset, nil
 }
 
 // BuildFilters constructs query filters from various inputs
 func BuildFilters(params map[string]string) map[string]string {
 	filters := make(map[string]string)
-
 	// Standard filter parameters
 	filterKeys := []string{
 		"status", "name", "type", "tag", "tags",
 		"created_after", "created_before", "updated_after", "updated_before",
 		"workflow_id", "execution_id", "user_id",
 	}
-
 	for _, key := range filterKeys {
 		if value := params[key]; value != "" {
 			filters[key] = value
 		}
 	}
-
 	return filters
 }
 
@@ -158,20 +149,16 @@ func ValidateURL(urlStr string) error {
 	if urlStr == "" {
 		return NewCliError("INVALID_URL", "URL cannot be empty")
 	}
-
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
 		return NewCliError("INVALID_URL", "Invalid URL format", err.Error())
 	}
-
 	if parsedURL.Scheme == "" {
 		return NewCliError("INVALID_URL", "URL must include a scheme (http:// or https://)")
 	}
-
 	if parsedURL.Host == "" {
 		return NewCliError("INVALID_URL", "URL must include a host")
 	}
-
 	return nil
 }
 
@@ -224,9 +211,7 @@ func (rc *RetryConfig) CalculateRetryWait(attempt int) time.Duration {
 	if attempt <= 0 {
 		return rc.InitialWait
 	}
-
 	wait := min(time.Duration(float64(rc.InitialWait)*math.Pow(rc.Multiplier, float64(attempt))), rc.MaxWait)
-
 	return wait
 }
 
@@ -245,7 +230,6 @@ func ParseIDFromPath(path string) (core.ID, error) {
 	if len(parts) == 0 {
 		return "", NewCliError("INVALID_PATH", "Path cannot be empty")
 	}
-
 	// Get the last part of the path as the ID
 	idStr := parts[len(parts)-1]
 	return ParseID(idStr)
@@ -257,7 +241,6 @@ func SanitizeURLForLog(urlStr string) string {
 	if err != nil {
 		return urlStr // Return as-is if parsing fails
 	}
-
 	// Remove sensitive query parameters
 	query := parsedURL.Query()
 	sensitiveParams := []string{"api_key", "token", "password", "secret", "key"}
@@ -266,11 +249,9 @@ func SanitizeURLForLog(urlStr string) string {
 			query.Set(param, "[REDACTED]")
 		}
 	}
-
 	// Remove user info from URL
 	parsedURL.User = nil
 	parsedURL.RawQuery = query.Encode()
-
 	return parsedURL.String()
 }
 
@@ -298,20 +279,16 @@ func CreateHTTPClient(authClient api.AuthClient, config *HTTPClientConfig) *rest
 	if config == nil {
 		config = DefaultHTTPClientConfig()
 	}
-
 	client := resty.New().
 		SetBaseURL(authClient.GetBaseURL()).
 		SetTimeout(config.Timeout)
-
 	// Set headers
 	for key, value := range config.Headers {
 		client.SetHeader(key, value)
 	}
-
 	// Add authentication header if available
 	if apiKey := authClient.GetAPIKey(); apiKey != "" {
 		client.SetAuthToken(apiKey)
 	}
-
 	return client
 }

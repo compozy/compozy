@@ -25,7 +25,6 @@ func (v *ParamsValidator) Validate(ctx context.Context) error {
 	if v.schema == nil {
 		return nil
 	}
-
 	// If there is a schema, but no parameters are provided, this is an error.
 	if v.params == nil {
 		return fmt.Errorf(
@@ -35,7 +34,6 @@ func (v *ParamsValidator) Validate(ctx context.Context) error {
 			"parameters are nil but a schema is defined",
 		)
 	}
-
 	// Both schema and parameters are present, proceed with validation.
 	result, err := v.schema.Validate(ctx, v.params)
 	if err != nil {

@@ -117,7 +117,6 @@ func (uc *SendSignalToExecution) Execute(ctx context.Context) error {
 	if state == nil {
 		return fmt.Errorf("workflow state not found for execution %s", uc.workflowExecID)
 	}
-
 	// Create signal envelope
 	signal := &task.SignalEnvelope{
 		Metadata: task.SignalMetadata{
@@ -128,10 +127,8 @@ func (uc *SendSignalToExecution) Execute(ctx context.Context) error {
 		},
 		Payload: uc.payload,
 	}
-
 	// Build the workflow ID for Temporal (workflow_id + "-" + exec_id)
 	temporalWorkflowID := fmt.Sprintf("%s-%s", state.WorkflowID, uc.workflowExecID.String())
-
 	// Send signal to workflow using Temporal client
 	return uc.worker.GetClient().SignalWorkflow(
 		ctx,

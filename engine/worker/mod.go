@@ -263,7 +263,6 @@ func buildRuntimeManager(
 	factory := runtime.NewDefaultFactory(projectRoot)
 	// Create a merged runtime config by applying project-specific overrides
 	mergedRuntimeConfig := cfg.Runtime
-
 	// Apply project-specific overrides if specified
 	if projectConfig.Runtime.Type != "" {
 		mergedRuntimeConfig.RuntimeType = projectConfig.Runtime.Type
@@ -285,7 +284,6 @@ func buildRuntimeManager(
 			projectConfig.Runtime.ToolExecutionTimeout,
 		)
 	}
-
 	// Log final configuration being used for debugging
 	log.Debug("Using unified runtime configuration",
 		"environment", mergedRuntimeConfig.Environment,
@@ -293,7 +291,6 @@ func buildRuntimeManager(
 		"entrypoint_path", mergedRuntimeConfig.EntrypointPath,
 		"bun_permissions", mergedRuntimeConfig.BunPermissions,
 		"tool_execution_timeout", mergedRuntimeConfig.ToolExecutionTimeout)
-
 	return factory.CreateRuntimeFromAppConfig(ctx, &mergedRuntimeConfig)
 }
 
@@ -603,10 +600,8 @@ func setupRedisAndConfig(
 	if cfg == nil {
 		return nil, nil, fmt.Errorf("config manager not found in context")
 	}
-
 	// Build cache config from centralized Redis and cache config
 	cacheConfig := cache.FromAppConfig(cfg)
-
 	redisCache, err := cache.SetupCache(ctx, cacheConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to setup Redis cache: %w", err)
@@ -648,16 +643,13 @@ func setupMemoryManager(
 		log.Warn("Resource registry not provided, memory features will be disabled")
 		return nil, nil
 	}
-
 	// Redis is a hard requirement; by this point, redisCache should be non-nil.
 	privacyManager := privacy.NewManager()
-
 	// Extract project ID for consistent namespace resolution
 	fallbackProjectID := ""
 	if projectConfig != nil {
 		fallbackProjectID = projectConfig.Name
 	}
-
 	memoryManagerOpts := &memory.ManagerOptions{
 		ResourceRegistry:  config.ResourceRegistry,
 		TplEngine:         templateEngine,

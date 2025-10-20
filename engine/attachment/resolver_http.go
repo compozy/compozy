@@ -41,12 +41,10 @@ func httpDownloadToTemp(ctx context.Context, urlStr string, maxSize int64) (stri
 	client, redirects := makeHTTPClient(effTimeout, effMaxRedirects)
 	rctx, cancel := context.WithTimeout(ctx, effTimeout)
 	defer cancel()
-
 	done := make(chan downloadResult, 1)
 	go func() {
 		done <- executeHTTPDownload(ctx, rctx, client, redirects, s, effMaxSize)
 	}()
-
 	return awaitDownload(rctx, done)
 }
 

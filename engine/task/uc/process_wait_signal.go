@@ -64,13 +64,11 @@ func (uc *ProcessWaitSignal) Execute(
 	if mismatch := uc.handleSignalMismatch(ctx, taskConfig, input); mismatch != nil {
 		return mismatch, nil
 	}
-
 	evalContext := uc.buildEvaluationContext(input, taskState, taskConfig)
 	conditionMet, err := uc.evaluateWaitCondition(ctx, taskConfig, taskState, input.SignalName, evalContext)
 	if err != nil {
 		return nil, err
 	}
-
 	output := &ProcessWaitSignalOutput{ConditionMet: conditionMet}
 	uc.populateProcessorOutput(ctx, taskConfig, taskState, output)
 	logger.FromContext(ctx).Debug("Signal processing complete",

@@ -123,7 +123,6 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 	cleanupCtx = workflow.WithActivityOptions(cleanupCtx, workflow.ActivityOptions{
 		StartToCloseTimeout: timeout,
 	})
-
 	// Update workflow status to canceled
 	statusInput := &wfacts.UpdateStateInput{
 		WorkflowID:     m.WorkflowID,
@@ -168,7 +167,6 @@ func InitManager(ctx workflow.Context, input WorkflowInput) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	// MCP servers are initialized at server startup, not during workflow execution
 	contextBuilder := NewContextBuilder(
 		data.Workflows,

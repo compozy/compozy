@@ -21,29 +21,23 @@ func RevokeJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.Comm
 	if err != nil {
 		return outputJSONError(err.Error())
 	}
-
 	force, err := cobraCmd.Flags().GetBool("force")
 	if err != nil {
 		return fmt.Errorf("failed to get force flag: %w", err)
 	}
-
 	log.Debug("revoking API key in JSON mode",
 		"key_id", keyID,
 		"force", force)
-
 	if err := ensureForceRevocation(force); err != nil {
 		return outputJSONError(err.Error())
 	}
-
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return outputJSONError("auth client not available")
 	}
-
 	if err := authClient.RevokeKey(ctx, keyID); err != nil {
 		return outputJSONError(fmt.Sprintf("failed to revoke API key: %v", err))
 	}
-
 	return writeRevokeResponse(keyID)
 }
 

@@ -14,18 +14,15 @@ func ValidatePayloadAgainstCompiledSchema(
 		// No schema means no validation required
 		return true, nil
 	}
-
 	// Validate payload directly without unnecessary conversion
 	result := compiledSchema.Validate(payload)
 	if result.Valid {
 		return true, nil
 	}
-
 	// Extract validation errors from the result with pre-allocation
 	validationErrors := make([]string, 0, len(result.Errors))
 	for _, err := range result.Errors {
 		validationErrors = append(validationErrors, err.Error())
 	}
-
 	return false, validationErrors
 }

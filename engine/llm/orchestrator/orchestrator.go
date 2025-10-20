@@ -68,13 +68,11 @@ func (o *orchestrator) Execute(ctx context.Context, request Request) (_ *core.Ou
 		return nil, startErr
 	}
 	defer o.closeRun(ctx, recorder, run, &err)
-
 	memoryCtx, buildResult, client, cleanup, prepErr := o.prepareExecution(ctx, &request)
 	if prepErr != nil {
 		return nil, prepErr
 	}
 	defer cleanup(ctx)
-
 	request.Prompt.DynamicContext = buildResult.PromptContext
 	state := newLoopState(&o.settings, memoryCtx, request.Action)
 	output, response, runErr := o.loop.Run(

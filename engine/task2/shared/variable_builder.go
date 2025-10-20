@@ -32,7 +32,6 @@ func (vb *VariableBuilder) BuildBaseVariables(
 	taskConfig *task.Config,
 ) map[string]any {
 	vars := make(map[string]any)
-
 	// Add workflow data
 	if workflowState != nil {
 		workflowData := map[string]any{
@@ -46,7 +45,6 @@ func (vb *VariableBuilder) BuildBaseVariables(
 		// The config is available through other means when needed at runtime.
 		vars["workflow"] = workflowData
 	}
-
 	// Add task data
 	if taskConfig != nil {
 		vars["task"] = map[string]any{
@@ -57,12 +55,10 @@ func (vb *VariableBuilder) BuildBaseVariables(
 			"env":    taskConfig.Env,
 		}
 	}
-
 	// Add env from workflow config
 	if workflowConfig != nil && workflowConfig.Opts.Env != nil {
 		vars["env"] = workflowConfig.Opts.Env
 	}
-
 	return vars
 }
 
@@ -121,7 +117,6 @@ func (vb *VariableBuilder) CopyVariables(source map[string]any) (map[string]any,
 	if source == nil {
 		return make(map[string]any), nil
 	}
-
 	vars, err := core.DeepCopy(source)
 	if err != nil {
 		return nil, err

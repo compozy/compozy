@@ -300,7 +300,6 @@ func sendSignalToExecution(c *gin.Context) {
 	if !ok {
 		return
 	}
-
 	body := router.GetRequestBody[SignalRequest](c)
 	if body == nil {
 		return
@@ -314,7 +313,6 @@ func sendSignalToExecution(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
 	useCase := uc.NewSendSignalToExecution(appState.Worker, execID, body.SignalName, body.Payload)
 	err := useCase.Execute(c.Request.Context())
 	if err != nil {
@@ -326,7 +324,6 @@ func sendSignalToExecution(c *gin.Context) {
 		})
 		return
 	}
-
 	router.RespondOK(c, "signal sent successfully", SignalResponse{
 		Message: "Signal sent successfully",
 	})

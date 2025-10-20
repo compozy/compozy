@@ -46,10 +46,8 @@ func (d *DebugTools) CaptureRedisState(t *testing.T, label string) {
 		return
 	}
 	t.Helper()
-
 	file := d.createCaptureFile(t, label)
 	defer file.Close()
-
 	state := d.buildRedisState(t, label)
 	d.writeStateToFile(t, file, state, "Redis")
 }
@@ -58,7 +56,6 @@ func (d *DebugTools) CaptureRedisState(t *testing.T, label string) {
 func (d *DebugTools) createCaptureFile(t *testing.T, label string) *os.File {
 	err := os.MkdirAll(d.outputDir, 0755)
 	require.NoError(t, err)
-
 	filename := fmt.Sprintf("redis_%s_%d.json", label, time.Now().UnixNano())
 	filepath := filepath.Join(d.outputDir, filename)
 	file, err := os.Create(filepath)
@@ -74,7 +71,6 @@ func (d *DebugTools) buildRedisState(t *testing.T, label string) map[string]any 
 		t.Logf("Failed to get Redis keys: %v", err)
 		return d.createEmptyState(label)
 	}
-
 	state := map[string]any{
 		"timestamp": time.Now().Format(time.RFC3339),
 		"label":     label,
@@ -111,7 +107,6 @@ func (d *DebugTools) captureKeyInfo(ctx context.Context, redis *redis.Client, ke
 	if err != nil {
 		return nil
 	}
-
 	keyInfo := map[string]any{"type": keyType}
 	d.addTTLInfo(ctx, redis, key, keyInfo)
 	d.addValueInfo(ctx, redis, key, keyType, keyInfo)
@@ -356,18 +351,15 @@ func (m *MaintenanceTools) CleanupSpecificInstance(t *testing.T, instanceID stri
 	t.Helper()
 	ctx := t.Context()
 	redis := m.env.GetRedis()
-
 	// Clean up specific instance keys
 	mainKey := fmt.Sprintf("compozy:test-project:memory:%s", instanceID)
 	metadataKey := fmt.Sprintf("compozy:test-project:memory:%s:metadata", instanceID)
-
 	err := redis.Del(ctx, mainKey).Err()
 	if err != nil {
 		t.Logf("Failed to delete main key %s: %v", mainKey, err)
 	} else {
 		t.Logf("Cleaned up instance key: %s", mainKey)
 	}
-
 	err = redis.Del(ctx, metadataKey).Err()
 	if err != nil {
 		t.Logf("Failed to delete metadata key %s: %v", metadataKey, err)

@@ -26,10 +26,8 @@ func GetCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE:  runWorkflowGet,
 	}
-
 	// Add flags
 	cmd.Flags().Bool("show-tasks", false, "Include detailed task information")
-
 	return cmd
 }
 
@@ -72,16 +70,13 @@ func getTUIHandler(
 // workflowGetJSONHandler handles JSON output mode
 func workflowGetJSONHandler(ctx context.Context, cmd *cobra.Command, client api.AuthClient, args []string) error {
 	workflowID := core.ID(args[0])
-
 	// Create workflow service
 	service := createAPIClient(client)
-
 	// Fetch workflow details
 	workflow, err := service.Get(ctx, workflowID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow: %w", err)
 	}
-
 	// Check if we should show tasks
 	showTasks, err := cmd.Flags().GetBool("show-tasks")
 	if err != nil {
@@ -89,10 +84,8 @@ func workflowGetJSONHandler(ctx context.Context, cmd *cobra.Command, client api.
 		logger.FromContext(ctx).Debug("failed to get show-tasks flag", "error", err)
 		showTasks = false
 	}
-
 	// Format output
 	formatter := cliutils.NewJSONFormatter(true) // pretty print enabled
-
 	// Prepare output data
 	outputData := workflow
 	if !showTasks {
@@ -101,7 +94,6 @@ func workflowGetJSONHandler(ctx context.Context, cmd *cobra.Command, client api.
 		workflowCopy.Tasks = nil
 		outputData = &workflowCopy
 	}
-
 	// Use FormatSuccess method
 	output, err := formatter.FormatSuccess(outputData, &cliutils.FormatterMetadata{
 		Timestamp: time.Now(),
@@ -109,7 +101,6 @@ func workflowGetJSONHandler(ctx context.Context, cmd *cobra.Command, client api.
 	if err != nil {
 		return fmt.Errorf("failed to format workflow data: %w", err)
 	}
-
 	fmt.Println(output)
 	return nil
 }
@@ -117,16 +108,13 @@ func workflowGetJSONHandler(ctx context.Context, cmd *cobra.Command, client api.
 // workflowGetTUIHandler handles TUI output mode
 func workflowGetTUIHandler(ctx context.Context, cmd *cobra.Command, client api.AuthClient, args []string) error {
 	workflowID := core.ID(args[0])
-
 	// Create workflow service
 	service := createAPIClient(client)
-
 	// Fetch workflow details
 	workflow, err := service.Get(ctx, workflowID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow: %w", err)
 	}
-
 	// Check if we should show tasks
 	showTasks, err := cmd.Flags().GetBool("show-tasks")
 	if err != nil {
@@ -134,15 +122,12 @@ func workflowGetTUIHandler(ctx context.Context, cmd *cobra.Command, client api.A
 		logger.FromContext(ctx).Debug("failed to get show-tasks flag", "error", err)
 		showTasks = false
 	}
-
 	// Create and run the workflow detail model
 	model := newWorkflowDetailModel(workflow, showTasks)
 	p := tea.NewProgram(model, tea.WithAltScreen())
-
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("failed to run workflow detail view: %w", err)
 	}
-
 	return nil
 }
 
@@ -185,7 +170,6 @@ func (m *workflowDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 	}
-
 	return m, nil
 }
 
@@ -244,14 +228,11 @@ func (m *workflowDetailModel) View() string {
 	if !m.ready {
 		return "Loading..."
 	}
-
 	// Header
 	header := styles.TitleStyle.Render(fmt.Sprintf("Workflow: %s", m.workflow.Name))
-
 	// Get content lines and handle scrolling
 	lines := strings.Split(m.content, "\n")
 	visibleLines := []string{}
-
 	// Simple scrolling implementation
 	start := m.scrollOffset
 	if start >= len(lines) {
@@ -260,16 +241,12 @@ func (m *workflowDetailModel) View() string {
 	if start < 0 {
 		start = 0
 	}
-
 	end := min(start+m.height, len(lines))
-
 	if start < len(lines) {
 		visibleLines = lines[start:end]
 	}
-
 	// Footer
 	footer := styles.HelpStyle.Render("↑/↓: scroll • pgup/pgdn: page • q: quit")
-
 	// Combine all parts
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -282,42 +259,34 @@ func (m *workflowDetailModel) View() string {
 // renderContent renders the workflow details content
 func (m *workflowDetailModel) renderContent() string {
 	var sections []string
-
 	// Basic Information section
 	sections = append(sections, m.renderBasicInfo())
-
 	// Inputs section
 	if len(m.workflow.Inputs) > 0 {
 		sections = append(sections, m.renderInputs())
 	}
-
 	// Outputs section
 	if len(m.workflow.Outputs) > 0 {
 		sections = append(sections, m.renderOutputs())
 	}
-
 	// Tasks section
 	if m.showTasks && len(m.workflow.Tasks) > 0 {
 		sections = append(sections, m.renderTasks())
 	}
-
 	// Schedule section
 	if m.workflow.Schedule != nil {
 		sections = append(sections, m.renderSchedule())
 	}
-
 	// Statistics section
 	if m.workflow.Statistics != nil {
 		sections = append(sections, m.renderStatistics())
 	}
-
 	return strings.Join(sections, "\n\n")
 }
 
 // renderBasicInfo renders the basic workflow information
 func (m *workflowDetailModel) renderBasicInfo() string {
 	var lines []string
-
 	lines = append(lines,
 		styles.SubtitleStyle.Render("Basic Information"),
 		fmt.Sprintf("ID:          %s", m.workflow.ID),
@@ -327,11 +296,9 @@ func (m *workflowDetailModel) renderBasicInfo() string {
 		fmt.Sprintf("Status:      %s", m.renderStatus(m.workflow.Status)),
 		fmt.Sprintf("Created:     %s", m.workflow.CreatedAt.Format("2006-01-02 15:04:05")),
 		fmt.Sprintf("Updated:     %s", m.workflow.UpdatedAt.Format("2006-01-02 15:04:05")))
-
 	if len(m.workflow.Tags) > 0 {
 		lines = append(lines, fmt.Sprintf("Tags:        %s", strings.Join(m.workflow.Tags, ", ")))
 	}
-
 	return strings.Join(lines, "\n")
 }
 
@@ -352,9 +319,7 @@ func (m *workflowDetailModel) renderStatus(status api.WorkflowStatus) string {
 // renderInputs renders the workflow inputs
 func (m *workflowDetailModel) renderInputs() string {
 	var lines []string
-
 	lines = append(lines, styles.SubtitleStyle.Render("Inputs"))
-
 	for _, input := range m.workflow.Inputs {
 		required := ""
 		if input.Required {
@@ -365,85 +330,68 @@ func (m *workflowDetailModel) renderInputs() string {
 			lines = append(lines, fmt.Sprintf("    %s", input.Description))
 		}
 	}
-
 	return strings.Join(lines, "\n")
 }
 
 // renderOutputs renders the workflow outputs
 func (m *workflowDetailModel) renderOutputs() string {
 	var lines []string
-
 	lines = append(lines, styles.SubtitleStyle.Render("Outputs"))
-
 	for _, output := range m.workflow.Outputs {
 		lines = append(lines, fmt.Sprintf("  • %s [%s]", output.Name, output.Type))
 		if output.Description != "" {
 			lines = append(lines, fmt.Sprintf("    %s", output.Description))
 		}
 	}
-
 	return strings.Join(lines, "\n")
 }
 
 // renderTasks renders the workflow tasks
 func (m *workflowDetailModel) renderTasks() string {
 	var lines []string
-
 	lines = append(lines, styles.SubtitleStyle.Render("Tasks"))
-
 	for i, task := range m.workflow.Tasks {
 		lines = append(lines, fmt.Sprintf("  %d. %s [%s]", i+1, task.Name, task.Type))
 		if task.Description != "" {
 			lines = append(lines, fmt.Sprintf("     %s", task.Description))
 		}
 	}
-
 	return strings.Join(lines, "\n")
 }
 
 // renderSchedule renders the workflow schedule
 func (m *workflowDetailModel) renderSchedule() string {
 	var lines []string
-
 	lines = append(lines, styles.SubtitleStyle.Render("Schedule"))
-
 	schedule := m.workflow.Schedule
 	enabled := styles.ErrorStyle.Render("Disabled")
 	if schedule.Enabled {
 		enabled = styles.SuccessStyle.Render("Enabled")
 	}
-
 	lines = append(lines,
 		fmt.Sprintf("Status:      %s", enabled),
 		fmt.Sprintf("Expression:  %s", schedule.CronExpr),
 		fmt.Sprintf("Timezone:    %s", schedule.Timezone),
 		fmt.Sprintf("Next Run:    %s", schedule.NextRun.Format("2006-01-02 15:04:05")))
-
 	if schedule.LastRun != nil {
 		lines = append(lines, fmt.Sprintf("Last Run:    %s", schedule.LastRun.Format("2006-01-02 15:04:05")))
 	}
-
 	return strings.Join(lines, "\n")
 }
 
 // renderStatistics renders the workflow statistics
 func (m *workflowDetailModel) renderStatistics() string {
 	var lines []string
-
 	lines = append(lines, styles.SubtitleStyle.Render("Statistics"))
-
 	stats := m.workflow.Statistics
 	lines = append(lines,
 		fmt.Sprintf("Total Executions:      %d", stats.TotalExecutions),
 		fmt.Sprintf("Successful:            %d", stats.SuccessfulExecutions),
 		fmt.Sprintf("Failed:                %d", stats.FailedExecutions))
-
 	if stats.TotalExecutions > 0 {
 		successRate := float64(stats.SuccessfulExecutions) / float64(stats.TotalExecutions) * 100
 		lines = append(lines, fmt.Sprintf("Success Rate:          %.1f%%", successRate))
 	}
-
 	lines = append(lines, fmt.Sprintf("Avg Execution Time:    %s", stats.AverageExecutionTime))
-
 	return strings.Join(lines, "\n")
 }

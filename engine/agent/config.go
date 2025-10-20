@@ -342,7 +342,6 @@ func (a *Config) GetMaxIterations() int {
 // This ensures all memory configurations have valid IDs, keys, and access modes before agent execution.
 func (a *Config) NormalizeAndValidateMemoryConfig() error {
 	const defaultMemoryMode = "read-write"
-
 	for i := range a.Memory {
 		if a.Memory[i].ID == "" {
 			return fmt.Errorf("memory reference %d missing required 'id' field", i)
@@ -372,7 +371,6 @@ func (a *Config) Validate(ctx context.Context) error {
 	if err := baseValidator.Validate(ctx); err != nil {
 		return err
 	}
-
 	// Normalize and validate memory configuration first
 	if err := a.NormalizeAndValidateMemoryConfig(); err != nil {
 		return fmt.Errorf("invalid memory configuration: %w", err)
@@ -383,7 +381,6 @@ func (a *Config) Validate(ctx context.Context) error {
 	if len(a.Knowledge) == 1 && strings.TrimSpace(a.Knowledge[0].ID) == "" {
 		return fmt.Errorf("agent configuration error: knowledge binding requires an id reference")
 	}
-
 	// Now build composite validator including memory (if any)
 	v := schema.NewCompositeValidator(
 		schema.NewCWDValidator(a.CWD, a.ID),
@@ -393,7 +390,6 @@ func (a *Config) Validate(ctx context.Context) error {
 	if err := v.Validate(ctx); err != nil {
 		return fmt.Errorf("agent config validation failed: %w", err)
 	}
-
 	var mcpErrors []error
 	for i := range a.MCPs {
 		if err := a.MCPs[i].Validate(ctx); err != nil {

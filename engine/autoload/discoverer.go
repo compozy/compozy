@@ -30,9 +30,7 @@ func (d *fsDiscoverer) Discover(includes, excludes []string) ([]string, error) {
 	if len(includes) == 0 {
 		return []string{}, nil
 	}
-
 	discoveredFiles := make(map[string]bool)
-
 	// Process each include pattern
 	for _, pattern := range includes {
 		// Validate pattern for security
@@ -63,16 +61,13 @@ func (d *fsDiscoverer) Discover(includes, excludes []string) ([]string, error) {
 			discoveredFiles[match] = true
 		}
 	}
-
 	// Convert map to slice
 	files := make([]string, 0, len(discoveredFiles))
 	for file := range discoveredFiles {
 		files = append(files, file)
 	}
-
 	// Apply exclude patterns
 	files = d.applyExcludes(files, excludes)
-
 	return files, nil
 }
 
@@ -80,17 +75,14 @@ func (d *fsDiscoverer) Discover(includes, excludes []string) ([]string, error) {
 func (d *fsDiscoverer) validatePattern(pattern string) error {
 	// Clean the pattern
 	cleanPattern := filepath.Clean(pattern)
-
 	// Reject absolute paths
 	if filepath.IsAbs(cleanPattern) {
 		return fmt.Errorf("INVALID_PATTERN: absolute paths not allowed: %s", pattern)
 	}
-
 	// Reject parent directory references
 	if slices.Contains(strings.Split(cleanPattern, string(filepath.Separator)), "..") {
 		return fmt.Errorf("INVALID_PATTERN: parent directory references not allowed: %s", pattern)
 	}
-
 	return nil
 }
 

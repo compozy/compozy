@@ -32,18 +32,14 @@ func (m *MemoryMonitoringInterceptor) GetInstance(
 ) (memcore.Memory, error) {
 	start := time.Now()
 	projectID := getProjectIDFromContext(ctx)
-
 	instance, err := m.Manager.GetInstance(ctx, ref, workflowContext)
-
 	duration := time.Since(start)
 	metrics.RecordMemoryOp(ctx, ref.ID, projectID, "get_instance", duration, 0, err)
-
 	if err != nil {
 		metrics.GetDefaultState().UpdateHealthState(ref.ID, false, 1)
 	} else {
 		metrics.GetDefaultState().UpdateHealthState(ref.ID, true, 0)
 	}
-
 	return instance, err
 }
 

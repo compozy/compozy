@@ -50,12 +50,10 @@ func (s *TransactionService) SaveStateWithLocking(
 	if state == nil {
 		return fmt.Errorf("task state cannot be nil")
 	}
-
 	// Try transaction-based save first
 	if txRepo := s.getTransactionalRepo(); txRepo != nil {
 		return s.saveWithTransaction(ctx, state, txRepo)
 	}
-
 	// Fallback to regular save
 	return s.saveWithoutTransaction(ctx, state)
 }
@@ -70,7 +68,6 @@ func (s *TransactionService) ApplyTransformation(
 	if txRepo := s.getTransactionalRepo(); txRepo != nil {
 		return s.applyWithTransaction(ctx, taskExecID, transformer, txRepo)
 	}
-
 	// Fallback to direct transformation
 	return s.applyWithoutTransaction(ctx, taskExecID, transformer)
 }
@@ -187,17 +184,14 @@ func (s *TransactionService) applyWithoutTransaction(
 	if err != nil {
 		return fmt.Errorf("unable to retrieve task: %w", err)
 	}
-
 	// Apply transformation
 	if err := transformer(state); err != nil {
 		return fmt.Errorf("task processing failed: %w", err)
 	}
-
 	// Save transformed state
 	if err := s.taskRepo.UpsertState(ctx, state); err != nil {
 		return fmt.Errorf("unable to save processed task: %w", err)
 	}
-
 	return nil
 }
 
@@ -210,26 +204,22 @@ func (s *TransactionService) mergeStateChanges(target, source *task.State) {
 	if target == nil || source == nil {
 		return
 	}
-
 	// Status (only set when valid)
 	if source.Status.IsValid() {
 		target.Status = source.Status
 	}
-
 	// Output (deep copy to avoid aliasing)
 	if source.Output != nil {
 		target.Output = deepCopyOrSame(source.Output)
 	} else {
 		target.Output = nil
 	}
-
 	// Error (deep copy to avoid aliasing)
 	if source.Error != nil {
 		target.Error = deepCopyOrSame(source.Error)
 	} else {
 		target.Error = nil
 	}
-
 	// Backfill Input only when missing in target (deep copy to avoid aliasing)
 	if target.Input == nil && source.Input != nil {
 		target.Input = deepCopyOrSame(source.Input)

@@ -143,17 +143,14 @@ func (s *MemoryResourceStore) PutIfMatch(
 	if value == nil {
 		return "", fmt.Errorf("nil value is not allowed")
 	}
-
 	cp, etag, copyErr := copyValueForStore(value)
 	if copyErr != nil {
 		return "", copyErr
 	}
-
 	created, watchers, err := s.storeValueIfMatch(ctx, key, cp, expectedETag, etag)
 	if err != nil {
 		return "", err
 	}
-
 	evt := Event{Type: EventPut, Key: key, ETag: etag, At: time.Now().UTC()}
 	if created {
 		resmetrics.AdjustStoreSize(string(key.Type), 1)
@@ -386,23 +383,18 @@ func (s *MemoryResourceStore) ListWithValuesPage(
 	if err = ctx.Err(); err != nil {
 		return nil, 0, fmt.Errorf("context canceled: %w", err)
 	}
-
 	offset, limit = normalizePageBounds(offset, limit)
-
 	pairs, err := s.collectPairs(project, typ)
 	if err != nil {
 		return nil, 0, err
 	}
-
 	sortPairs(pairs)
 	total = len(pairs)
 	resmetrics.SetStoreSize(string(typ), int64(total))
-
 	page := selectPage(pairs, offset, limit)
 	if len(page) == 0 {
 		return []StoredItem{}, total, nil
 	}
-
 	items, err = copyPairs(page)
 	if err != nil {
 		return nil, 0, err
@@ -430,7 +422,6 @@ func (s *MemoryResourceStore) storeValueIfMatch(
 	if s.closed {
 		return false, nil, fmt.Errorf("store is closed")
 	}
-
 	entry, ok := s.items[key]
 	switch {
 	case !ok:
@@ -444,7 +435,6 @@ func (s *MemoryResourceStore) storeValueIfMatch(
 	default:
 		s.items[key] = storedEntry{value: value, etag: etag}
 	}
-
 	watchers := cloneWatchers(s.watchers[watcherKeyspace(key.Project, key.Type)])
 	created := !ok
 	return created, watchers, nil

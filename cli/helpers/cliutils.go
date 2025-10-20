@@ -123,7 +123,6 @@ func FormatError(err error, mode models.Mode) string {
 	if err == nil {
 		return ""
 	}
-
 	switch mode {
 	case models.ModeJSON:
 		return formatErrorJSON(err)
@@ -137,7 +136,6 @@ func FormatError(err error, mode models.Mode) string {
 // formatErrorJSON formats errors for JSON output according to API standards
 func formatErrorJSON(err error) string {
 	var errorResponse map[string]any
-
 	if cliErr, ok := err.(*CliError); ok {
 		errorResponse = map[string]any{
 			"error":   cliErr.Message,
@@ -149,7 +147,6 @@ func formatErrorJSON(err error) string {
 			"details": "",
 		}
 	}
-
 	jsonBytes, err := json.MarshalIndent(errorResponse, "", "  ")
 	if err != nil {
 		// Fallback to simple error message if JSON marshaling fails
@@ -170,12 +167,10 @@ func formatErrorJSON(err error) string {
 func formatErrorTUI(err error) string {
 	message, details := extractErrorInfo(err)
 	icon := getErrorIcon(err)
-
 	result := formatErrorMessage(icon, message)
 	if details != "" {
 		result += formatErrorDetails(details)
 	}
-
 	return result
 }
 
@@ -222,7 +217,6 @@ func OutputError(err error, mode models.Mode) {
 	if err == nil {
 		return
 	}
-
 	formattedError := FormatError(err, mode)
 	fmt.Fprintln(os.Stderr, formattedError)
 }
@@ -232,13 +226,11 @@ func ValidateID(id string) error {
 	if id == "" {
 		return NewCliError("INVALID_ID", "ID cannot be empty")
 	}
-
 	// Basic UUID validation pattern
 	uuidPattern := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 	if !uuidPattern.MatchString(id) {
 		return NewCliError("INVALID_ID", "ID must be a valid UUID", fmt.Sprintf("provided: %s", id))
 	}
-
 	return nil
 }
 
@@ -271,11 +263,9 @@ func ValidateEnum(value string, allowed []string, fieldName string) error {
 	if value == "" {
 		return nil // Allow empty values, use ValidateRequired separately if needed
 	}
-
 	if slices.Contains(allowed, value) {
 		return nil
 	}
-
 	return NewCliError("INVALID_ENUM",
 		fmt.Sprintf("%s must be one of: %s", fieldName, strings.Join(allowed, ", ")),
 		fmt.Sprintf("provided: %s", value))
@@ -345,18 +335,14 @@ func GetFlagIntWithDefault(cmd *cobra.Command, flagName string, defaultValue int
 func LogOperation(ctx context.Context, operation string, fn func() error) error {
 	log := logger.FromContext(ctx)
 	start := time.Now()
-
 	log.Info("starting operation", "operation", operation)
-
 	err := fn()
 	duration := time.Since(start)
-
 	if err != nil {
 		log.Error("operation failed", "operation", operation, "duration", duration, "error", err)
 	} else {
 		log.Info("operation completed", "operation", operation, "duration", duration)
 	}
-
 	return err
 }
 
@@ -366,15 +352,12 @@ func WithTimeout(ctx context.Context, timeout time.Duration, fn func(context.Con
 	if timeout <= 0 {
 		return fn(ctx)
 	}
-
 	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-
 	done := make(chan error, 1)
 	go func() {
 		done <- fn(timeoutCtx)
 	}()
-
 	select {
 	case err := <-done:
 		return err

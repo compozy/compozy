@@ -137,17 +137,14 @@ func (r *Runner) Prepare(ctx context.Context, req ExecuteRequest) (*PreparedExec
 	if err := r.validatePreparePreconditions(ctx, req); err != nil {
 		return nil, err
 	}
-
 	projectName, err := r.projectName()
 	if err != nil {
 		return nil, err
 	}
-
 	timeout, err := normalizeTimeout(req.Timeout)
 	if err != nil {
 		return nil, err
 	}
-
 	agentConfig, err := r.loadAgentConfig(ctx, projectName, req.AgentID)
 	if err != nil {
 		return nil, err
@@ -155,13 +152,11 @@ func (r *Runner) Prepare(ctx context.Context, req ExecuteRequest) (*PreparedExec
 	if err := validateAgentAction(agentConfig, req.Action); err != nil {
 		return nil, err
 	}
-
 	taskCfg := buildTaskConfig(req.AgentID, agentConfig, req, timeout)
 	executor, err := tkrouter.ResolveDirectExecutor(ctx, r.state, r.repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize executor: %w", err)
 	}
-
 	return &PreparedExecution{
 		Config:   taskCfg,
 		Metadata: buildExecMetadata(req, taskCfg),

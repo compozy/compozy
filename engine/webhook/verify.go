@@ -88,7 +88,6 @@ func resolveSecret(s string) ([]byte, error) {
 	if !tplengine.HasTemplate(s) {
 		return []byte(s), nil
 	}
-
 	// Build a minimal template context with host environment variables.
 	// We intentionally avoid reading from any global config singleton here.
 	// Map env var names to their values (strings). Missing keys cause a template error.
@@ -104,7 +103,6 @@ func resolveSecret(s string) ([]byte, error) {
 			envMap[k] = v
 		}
 	}
-
 	engine := tplengine.NewEngine(tplengine.FormatText)
 	rendered, err := engine.RenderString(s, map[string]any{"env": envMap})
 	if err != nil {

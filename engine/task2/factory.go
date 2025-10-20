@@ -129,7 +129,6 @@ func (f *DefaultNormalizerFactory) CreateResponseHandler(
 	// Create dependencies
 	parentStatusManager := f.createParentStatusManager(ctx)
 	outputTransformer := f.createOutputTransformer()
-
 	// Create base handler with all dependencies
 	baseHandler := shared.NewBaseResponseHandler(
 		f.templateEngine,
@@ -139,7 +138,6 @@ func (f *DefaultNormalizerFactory) CreateResponseHandler(
 		f.taskRepo,
 		outputTransformer,
 	)
-
 	// Create task-specific handler
 	switch taskType {
 	case task.TaskTypeBasic:

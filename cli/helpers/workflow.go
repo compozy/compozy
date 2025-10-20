@@ -60,14 +60,12 @@ func (v *WorkflowValidator) validateCron(fl validator.FieldLevel) bool {
 	if cronExpr == "" {
 		return true // Allow empty for optional fields
 	}
-
 	// Parse the cron expression
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 	schedule, err := parser.Parse(cronExpr)
 	if err != nil {
 		return false
 	}
-
 	// Ensure the expression yields at least one next time within 1 year
 	now := time.Now()
 	next := schedule.Next(now)
@@ -80,7 +78,6 @@ func (v *WorkflowValidator) validateJSONPath(fl validator.FieldLevel) bool {
 	if jsonPath == "" {
 		return true // Allow empty for optional fields
 	}
-
 	// Test with a simple JSON object to validate the path
 	testJSON := `{"test": "value"}`
 	result := gjson.Get(testJSON, jsonPath)
@@ -127,26 +124,21 @@ func (f *WorkflowFilterer) FilterWorkflows(
 	options *WorkflowFilterOptions,
 ) ([]api.Workflow, error) {
 	log := logger.FromContext(ctx)
-
 	// Validate filter options
 	if err := f.validator.ValidateWorkflowFilters(options); err != nil {
 		return nil, fmt.Errorf("invalid filter options: %w", err)
 	}
-
 	// If no JSON path filtering is needed, return original workflows
 	if options.JSONPath == "" {
 		return f.sortWorkflows(workflows, options), nil
 	}
-
 	// Apply JSON path filtering
 	filtered := make([]api.Workflow, 0, len(workflows))
-
 	for i := range workflows {
 		if f.matchesJSONPath(&workflows[i], options.JSONPath) {
 			filtered = append(filtered, workflows[i])
 		}
 	}
-
 	log.Debug(
 		"filtered workflows",
 		"original_count",
@@ -156,7 +148,6 @@ func (f *WorkflowFilterer) FilterWorkflows(
 		"json_path",
 		options.JSONPath,
 	)
-
 	return f.sortWorkflows(filtered, options), nil
 }
 
@@ -168,7 +159,6 @@ func (f *WorkflowFilterer) matchesJSONPath(workflow *api.Workflow, jsonPath stri
 		return false
 	}
 	workflowJSON := string(workflowData)
-
 	result := gjson.Get(workflowJSON, jsonPath)
 	return result.Exists() && result.Type != gjson.Null
 }
@@ -181,10 +171,8 @@ func (f *WorkflowFilterer) sortWorkflows(
 	if options.SortBy == "" {
 		return workflows
 	}
-
 	sorted := make([]api.Workflow, len(workflows))
 	copy(sorted, workflows)
-
 	sort.Slice(sorted, func(i, j int) bool {
 		result := f.compareWorkflows(&sorted[i], &sorted[j], options.SortBy)
 		if options.SortOrder == "desc" {
@@ -192,7 +180,6 @@ func (f *WorkflowFilterer) sortWorkflows(
 		}
 		return result
 	})
-
 	return sorted
 }
 
@@ -231,21 +218,16 @@ func (f *WorkflowExecutionFilterer) FilterExecutions(
 	filters *api.ExecutionFilters,
 ) ([]api.Execution, error) {
 	log := logger.FromContext(ctx)
-
 	if filters == nil {
 		return executions, nil
 	}
-
 	filtered := make([]api.Execution, 0, len(executions))
-
 	for i := range executions {
 		if f.matchesExecutionFilters(&executions[i], filters) {
 			filtered = append(filtered, executions[i])
 		}
 	}
-
 	log.Debug("filtered executions", "original_count", len(executions), "filtered_count", len(filtered))
-
 	return filtered, nil
 }
 
@@ -258,12 +240,10 @@ func (f *WorkflowExecutionFilterer) matchesExecutionFilters(
 	if filters.WorkflowID != "" && execution.WorkflowID != filters.WorkflowID {
 		return false
 	}
-
 	// Filter by status
 	if filters.Status != "" && execution.Status != filters.Status {
 		return false
 	}
-
 	return true
 }
 
@@ -285,10 +265,8 @@ func (h *WorkflowErrorHandler) HandleWorkflowError(
 	if err == nil {
 		return nil
 	}
-
 	log := logger.FromContext(ctx)
 	log.Error("workflow operation failed", "operation", operation, "workflow_id", workflowID, "error", err)
-
 	switch {
 	case strings.Contains(err.Error(), "not found"):
 		return fmt.Errorf(
@@ -327,10 +305,8 @@ func (h *WorkflowErrorHandler) HandleExecutionError(
 	if err == nil {
 		return nil
 	}
-
 	log := logger.FromContext(ctx)
 	log.Error("execution operation failed", "operation", operation, "execution_id", executionID, "error", err)
-
 	switch {
 	case strings.Contains(err.Error(), "not found"):
 		return fmt.Errorf(
@@ -373,10 +349,8 @@ func (h *WorkflowErrorHandler) HandleScheduleError(
 	if err == nil {
 		return nil
 	}
-
 	log := logger.FromContext(ctx)
 	log.Error("schedule operation failed", "operation", operation, "workflow_id", workflowID, "error", err)
-
 	switch {
 	case strings.Contains(err.Error(), "not found"):
 		return fmt.Errorf(
@@ -415,10 +389,8 @@ func (s *SuggestionProvider) GetWorkflowSuggestions(err error) []string {
 	if err == nil {
 		return nil
 	}
-
 	errStr := strings.ToLower(err.Error())
 	var suggestions []string
-
 	switch {
 	case strings.Contains(errStr, "not found"):
 		suggestions = append(suggestions,
@@ -445,7 +417,6 @@ func (s *SuggestionProvider) GetWorkflowSuggestions(err error) []string {
 			"Verify data types match the expected format",
 		)
 	}
-
 	return suggestions
 }
 
@@ -454,10 +425,8 @@ func (s *SuggestionProvider) GetExecutionSuggestions(err error) []string {
 	if err == nil {
 		return nil
 	}
-
 	errStr := strings.ToLower(err.Error())
 	var suggestions []string
-
 	switch {
 	case strings.Contains(errStr, "not found"):
 		suggestions = append(suggestions,
@@ -478,7 +447,6 @@ func (s *SuggestionProvider) GetExecutionSuggestions(err error) []string {
 			"Ensure all required inputs were provided",
 		)
 	}
-
 	return suggestions
 }
 
@@ -487,10 +455,8 @@ func (s *SuggestionProvider) GetScheduleSuggestions(err error) []string {
 	if err == nil {
 		return nil
 	}
-
 	errStr := strings.ToLower(err.Error())
 	var suggestions []string
-
 	switch {
 	case strings.Contains(errStr, "invalid cron"):
 		suggestions = append(suggestions,
@@ -506,6 +472,5 @@ func (s *SuggestionProvider) GetScheduleSuggestions(err error) []string {
 			"Create a schedule first with 'compozy schedule update'",
 		)
 	}
-
 	return suggestions
 }

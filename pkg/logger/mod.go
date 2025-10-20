@@ -166,12 +166,10 @@ func IsTestEnvironment() bool {
 			return true
 		}
 	}
-
 	// Check for test-related environment variables
 	if os.Getenv("GO_TEST") == "1" || os.Getenv("TESTING") == "1" {
 		return true
 	}
-
 	// Check if the program name indicates a test binary
 	if len(os.Args) > 0 {
 		progName := os.Args[0]
@@ -179,7 +177,6 @@ func IsTestEnvironment() bool {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -191,21 +188,18 @@ func NewLogger(cfg *Config) Logger {
 			cfg = TestConfig()
 		}
 	}
-
 	charmLogger := charmlog.NewWithOptions(cfg.Output, charmlog.Options{
 		ReportCaller:    cfg.AddSource,
 		ReportTimestamp: true,
 		TimeFormat:      cfg.TimeFormat,
 		Level:           cfg.Level.ToCharmlogLevel(),
 	})
-
 	if cfg.JSON {
 		charmLogger.SetFormatter(charmlog.JSONFormatter)
 	} else {
 		charmLogger.SetFormatter(charmlog.TextFormatter)
 		charmLogger.SetStyles(getDefaultStyles())
 	}
-
 	return &loggerImpl{charmLogger: charmLogger}
 }
 

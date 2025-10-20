@@ -33,10 +33,8 @@ func SetupTestReposWithRetry(ctx context.Context, t *testing.T, config ...RetryC
 	if len(config) > 0 {
 		retryConfig = config[0]
 	}
-
 	var lastErr error
 	delay := retryConfig.InitialDelay
-
 	for attempt := 1; attempt <= retryConfig.MaxAttempts; attempt++ {
 		// Try to create test container
 		pool, cleanup, err := trySetupTestContainer(t)
@@ -65,7 +63,6 @@ func SetupTestReposWithRetry(ctx context.Context, t *testing.T, config ...RetryC
 			delay = min(time.Duration(float64(delay)*retryConfig.BackoffFactor), retryConfig.MaxDelay)
 		}
 	}
-
 	return nil, nil, fmt.Errorf(
 		"failed to create test container after %d attempts: %w",
 		retryConfig.MaxAttempts,
@@ -96,7 +93,6 @@ func RunWithTestRepos(t *testing.T, testFunc func(ctx context.Context, pool *pgx
 		t.Fatalf("Failed to set up test repositories: %v", err)
 	}
 	defer cleanup()
-
 	testFunc(t.Context(), pool)
 }
 
@@ -111,7 +107,6 @@ func TestContainerHealthCheck(ctx context.Context, pool *pgxpool.Pool) error {
 	if result != 1 {
 		return fmt.Errorf("unexpected health check result: %d", result)
 	}
-
 	// Check if our tables exist
 	var tableCount int
 	err = pool.QueryRow(ctx, `
@@ -126,6 +121,5 @@ func TestContainerHealthCheck(ctx context.Context, pool *pgxpool.Pool) error {
 	if tableCount != 2 {
 		return fmt.Errorf("expected 2 tables, found %d", tableCount)
 	}
-
 	return nil
 }

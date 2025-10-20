@@ -18,10 +18,8 @@ type TemporalHelper struct {
 // NewTemporalHelper creates a new Temporal test helper
 func NewTemporalHelper(_ *testing.T, suite *testsuite.WorkflowTestSuite, taskQueue string) *TemporalHelper {
 	env := suite.NewTestWorkflowEnvironment()
-
 	// Set default workflow execution timeout
 	env.SetWorkflowRunTimeout(30 * time.Second)
-
 	return &TemporalHelper{
 		suite:     suite,
 		env:       env,
@@ -47,13 +45,11 @@ func (h *TemporalHelper) RegisterActivity(activity any) {
 // ExecuteWorkflow executes a workflow and returns the result
 func (h *TemporalHelper) ExecuteWorkflow(workflowFunc any, args ...any) (any, error) {
 	h.env.ExecuteWorkflow(workflowFunc, args...)
-
 	if h.env.IsWorkflowCompleted() {
 		var result any
 		err := h.env.GetWorkflowResult(&result)
 		return result, err
 	}
-
 	return nil, h.env.GetWorkflowError()
 }
 
@@ -78,7 +74,6 @@ func (h *TemporalHelper) QueryWorkflow(queryType string, args ...any) (any, erro
 	if err != nil {
 		return nil, err
 	}
-
 	var result any
 	err = value.Get(&result)
 	return result, err
@@ -161,7 +156,6 @@ func (ctx *WorkflowTestContext) ExecuteAndVerifyWorkflow(
 	result, err := ctx.helper.ExecuteWorkflow(workflowFunc, args...)
 	require.NoError(ctx.t, err, "Workflow execution failed")
 	require.Equal(ctx.t, expectedResult, result, "Workflow result mismatch")
-
 	duration := time.Since(ctx.startTime)
 	ctx.t.Logf("Workflow completed successfully in %v", duration)
 }

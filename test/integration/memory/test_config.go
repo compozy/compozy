@@ -58,32 +58,27 @@ func DefaultTestConfig() *TestConfig {
 // This allows overriding timing values in CI/CD environments
 func NewTestConfigFromEnv() *TestConfig {
 	config := DefaultTestConfig()
-
 	// Override values from environment variables if present
 	if val := os.Getenv("TEST_LOCK_WAIT_THRESHOLD_MS"); val != "" {
 		if ms, err := strconv.Atoi(val); err == nil {
 			config.LockWaitThreshold = time.Duration(ms) * time.Millisecond
 		}
 	}
-
 	if val := os.Getenv("TEST_LOCK_TIMEOUT_SECONDS"); val != "" {
 		if s, err := strconv.Atoi(val); err == nil {
 			config.LockTimeoutDuration = time.Duration(s) * time.Second
 		}
 	}
-
 	if val := os.Getenv("TEST_HEALTH_CHECK_INTERVAL_MS"); val != "" {
 		if ms, err := strconv.Atoi(val); err == nil {
 			config.HealthCheckInterval = time.Duration(ms) * time.Millisecond
 		}
 	}
-
 	if val := os.Getenv("TEST_DEFAULT_TIMEOUT_SECONDS"); val != "" {
 		if s, err := strconv.Atoi(val); err == nil {
 			config.DefaultTestTimeout = time.Duration(s) * time.Second
 		}
 	}
-
 	return config
 }
 

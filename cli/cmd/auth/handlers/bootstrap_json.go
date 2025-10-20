@@ -19,21 +19,17 @@ func BootstrapJSON(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandE
 	if err != nil {
 		return outputJSONError(fmt.Sprintf("failed to parse flags: %v", err))
 	}
-
 	// Handle check status
 	if flags.check {
 		return handleJSONStatusCheck(ctx)
 	}
-
 	// Validate and execute bootstrap
 	if flags.email == "" {
 		return outputJSONError("email is required in JSON mode")
 	}
-
 	if err := bootstrapcli.ValidateEmail(flags.email); err != nil {
 		return outputJSONError(fmt.Sprintf("invalid email: %v", err))
 	}
-
 	result, err := executeBootstrap(ctx, flags.email, flags.force)
 	if err != nil {
 		if coreErr, ok := err.(*core.Error); ok {
@@ -41,7 +37,6 @@ func BootstrapJSON(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandE
 		}
 		return outputJSONError(fmt.Sprintf("Bootstrap failed: %v", err))
 	}
-
 	return outputBootstrapResult(result)
 }
 
@@ -58,17 +53,14 @@ func parseBootstrapFlags(cmd *cobra.Command) (*bootstrapFlags, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get email flag: %w", err)
 	}
-
 	force, err := cmd.Flags().GetBool("force")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get force flag: %w", err)
 	}
-
 	check, err := cmd.Flags().GetBool("check")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get check flag: %w", err)
 	}
-
 	return &bootstrapFlags{
 		email: email,
 		force: force,
@@ -84,12 +76,10 @@ func handleJSONStatusCheck(ctx context.Context) error {
 		return outputJSONError(fmt.Sprintf("failed to create service: %v", err))
 	}
 	defer cleanup()
-
 	status, err := service.CheckBootstrapStatus(ctx)
 	if err != nil {
 		return outputJSONError(err.Error())
 	}
-
 	return outputJSONResponse(map[string]any{
 		"bootstrapped": status.IsBootstrapped,
 		"admin_count":  status.AdminCount,
@@ -105,10 +95,8 @@ func executeBootstrap(ctx context.Context, email string, force bool) (*bootstrap
 		return nil, fmt.Errorf("failed to create service: %w", err)
 	}
 	defer cleanup()
-
 	log := logger.FromContext(ctx)
 	log.Info("Bootstrapping initial admin user", "email", email)
-
 	return service.BootstrapAdmin(ctx, &bootstrap.Input{
 		Email: email,
 		Force: force,

@@ -41,10 +41,8 @@ func (n *ToolNormalizer) NormalizeTool(
 		ctx.TaskConfig,
 		config.Env, // Tool's environment overrides task and workflow
 	)
-
 	// Update context with merged environment for template processing
 	ctx.MergedEnv = mergedEnv
-
 	// Set current input if not already set
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With

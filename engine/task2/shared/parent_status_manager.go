@@ -27,7 +27,6 @@ func NewParentStatusManager(ctx context.Context, taskRepo task.Repository) Paren
 	if err == nil && appConfig.Limits.ParentUpdateBatchSize > 0 {
 		batchSize = appConfig.Limits.ParentUpdateBatchSize
 	}
-
 	return &DefaultParentStatusManager{
 		taskRepo:    taskRepo,
 		batchSize:   batchSize,
@@ -57,7 +56,6 @@ func (m *DefaultParentStatusManager) UpdateParentStatus(
 			Strategy: strategy,
 		}})
 	}
-
 	return m.updateSingleParentStatus(ctx, parentStateID, strategy)
 }
 
@@ -75,7 +73,6 @@ func (m *DefaultParentStatusManager) updateParentStatusBatch(
 	if len(updates) == 0 {
 		return nil
 	}
-
 	// Process updates in batches to avoid overwhelming the database
 	for i := 0; i < len(updates); i += m.batchSize {
 		end := min(i+m.batchSize, len(updates))
@@ -85,7 +82,6 @@ func (m *DefaultParentStatusManager) updateParentStatusBatch(
 			return fmt.Errorf("failed to process batch %d-%d: %w", i, end, err)
 		}
 	}
-
 	return nil
 }
 
@@ -182,11 +178,9 @@ func (m *DefaultParentStatusManager) batchGetParentStates(
 	type batchRepo interface {
 		GetStates(ctx context.Context, ids []core.ID) ([]*task.State, error)
 	}
-
 	if br, ok := m.taskRepo.(batchRepo); ok {
 		return br.GetStates(ctx, parentIDs)
 	}
-
 	// Fallback to individual fetches
 	states := make([]*task.State, 0, len(parentIDs))
 	for _, id := range parentIDs {
@@ -196,7 +190,6 @@ func (m *DefaultParentStatusManager) batchGetParentStates(
 		}
 		states = append(states, state)
 	}
-
 	return states, nil
 }
 
@@ -209,18 +202,15 @@ func (m *DefaultParentStatusManager) batchUpdateStates(
 	type batchRepo interface {
 		UpsertStates(ctx context.Context, states []*task.State) error
 	}
-
 	if br, ok := m.taskRepo.(batchRepo); ok {
 		return br.UpsertStates(ctx, states)
 	}
-
 	// Fallback to individual updates
 	for _, state := range states {
 		if err := m.taskRepo.UpsertState(ctx, state); err != nil {
 			return fmt.Errorf("failed to update state %s: %w", state.TaskExecID, err)
 		}
 	}
-
 	return nil
 }
 

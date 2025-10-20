@@ -106,22 +106,17 @@ func (l *LayoutComponent) ClearError() *LayoutComponent {
 func (l *LayoutComponent) Update(msg tea.Msg) (*LayoutComponent, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
-
 	// Update size
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		l = l.SetSize(windowMsg.Width, windowMsg.Height)
 	}
-
 	// Update child components
 	l.StatusBar, cmd = l.StatusBar.Update(msg)
 	cmds = append(cmds, cmd)
-
 	l.Help, cmd = l.Help.Update(msg)
 	cmds = append(cmds, cmd)
-
 	l.Error, cmd = l.Error.Update(msg)
 	cmds = append(cmds, cmd)
-
 	return l, tea.Batch(cmds...)
 }
 
@@ -136,30 +131,25 @@ func (l *LayoutComponent) View() string {
 	if l.Width <= 0 || l.Height <= 0 {
 		return ""
 	}
-
 	metrics := l.calculateLayoutMetrics()
 	sections := l.collectLayoutSections(metrics)
 	layout := lipgloss.JoinVertical(lipgloss.Left, sections...)
-
 	if l.Help.Visible {
 		helpView := l.Help.View()
 		layout = lipgloss.Place(l.Width, l.Height, lipgloss.Center, lipgloss.Center, helpView)
 	}
-
 	return layout
 }
 
 func (l *LayoutComponent) calculateLayoutMetrics() layoutMetrics {
 	availableHeight := l.Height
 	availableWidth := l.Width
-
 	if l.ShowHeader {
 		availableHeight -= 2
 	}
 	if l.ShowFooter {
 		availableHeight--
 	}
-
 	availableHeight -= l.Error.Height()
 	if availableHeight < 0 {
 		availableHeight = 0
@@ -167,7 +157,6 @@ func (l *LayoutComponent) calculateLayoutMetrics() layoutMetrics {
 	if availableWidth < 0 {
 		availableWidth = 0
 	}
-
 	contentWidth := availableWidth
 	sidebarWidth := 0
 	if l.ShowSidebar {
@@ -177,7 +166,6 @@ func (l *LayoutComponent) calculateLayoutMetrics() layoutMetrics {
 			contentWidth = 0
 		}
 	}
-
 	return layoutMetrics{
 		availableHeight: availableHeight,
 		contentWidth:    contentWidth,
@@ -187,26 +175,21 @@ func (l *LayoutComponent) calculateLayoutMetrics() layoutMetrics {
 
 func (l *LayoutComponent) collectLayoutSections(metrics layoutMetrics) []string {
 	sections := make([]string, 0, 4)
-
 	if l.ShowHeader {
 		sections = append(sections, l.renderHeader())
 	}
-
 	if l.Error.Error != nil {
 		sections = append(sections, l.Error.View())
 	}
-
 	mainContent := l.renderMainContent(metrics.contentWidth, metrics.availableHeight)
 	if l.ShowSidebar {
 		sidebar := l.renderSidebar(metrics.sidebarWidth, metrics.availableHeight)
 		mainContent = lipgloss.JoinHorizontal(lipgloss.Top, mainContent, sidebar)
 	}
 	sections = append(sections, mainContent)
-
 	if l.ShowFooter {
 		sections = append(sections, l.StatusBar.View())
 	}
-
 	return sections
 }
 
@@ -215,7 +198,6 @@ func (l *LayoutComponent) renderHeader() string {
 	if l.Header != "" {
 		return l.Header
 	}
-
 	title := styles.RenderTitle(l.Title)
 	return title + "\n"
 }
@@ -226,12 +208,10 @@ func (l *LayoutComponent) renderMainContent(width, height int) string {
 		Width(width).
 		Height(height).
 		Padding(0, 1)
-
 	if l.Content == "" {
 		// Return empty space with consistent dimensions to match GetContentSize calculations
 		return contentStyle.Render("")
 	}
-
 	return contentStyle.Render(l.Content)
 }
 
@@ -240,14 +220,12 @@ func (l *LayoutComponent) renderSidebar(width, height int) string {
 	if l.Sidebar == "" {
 		return ""
 	}
-
 	sidebarStyle := lipgloss.NewStyle().
 		Width(width).
 		Height(height).
 		Border(lipgloss.NormalBorder(), false, false, false, true).
 		BorderForeground(styles.Border).
 		Padding(0, 1)
-
 	return sidebarStyle.Render(l.Sidebar)
 }
 
@@ -255,27 +233,21 @@ func (l *LayoutComponent) renderSidebar(width, height int) string {
 func (l *LayoutComponent) GetContentSize() (width, height int) {
 	width = l.Width
 	height = l.Height
-
 	// Subtract header
 	if l.ShowHeader {
 		height -= 2
 	}
-
 	// Subtract footer
 	if l.ShowFooter {
 		height--
 	}
-
 	// Subtract error component
 	height -= l.Error.Height()
-
 	// Subtract sidebar
 	if l.ShowSidebar {
 		width -= l.SidebarWidth
 	}
-
 	// Subtract horizontal padding applied in renderMainContent
 	width -= 2
-
 	return width, height
 }

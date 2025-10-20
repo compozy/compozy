@@ -245,7 +245,6 @@ func (v *TypeValidator) validateParallelTask(ctx context.Context) error {
 	if len(v.config.Tasks) == 0 {
 		return fmt.Errorf("parallel tasks must have at least one sub-task")
 	}
-
 	// Check for duplicate IDs first before validating individual items
 	seen := make(map[string]bool)
 	for i := range v.config.Tasks {
@@ -255,7 +254,6 @@ func (v *TypeValidator) validateParallelTask(ctx context.Context) error {
 		}
 		seen[task.ID] = true
 	}
-
 	// Then validate each individual task
 	for i := range v.config.Tasks {
 		task := &v.config.Tasks[i]
@@ -263,7 +261,6 @@ func (v *TypeValidator) validateParallelTask(ctx context.Context) error {
 			return fmt.Errorf("invalid parallel task item %s: %w", task.ID, err)
 		}
 	}
-
 	strategy := v.config.GetStrategy()
 	if strategy != StrategyWaitAll && strategy != StrategyFailFast && strategy != StrategyBestEffort &&
 		strategy != StrategyRace {
@@ -317,37 +314,30 @@ func (v *CollectionValidator) Validate(ctx context.Context) error {
 func (v *CollectionValidator) validateStructure(_ context.Context) error {
 	hasTask := v.config.Task != nil
 	hasTasks := len(v.config.Tasks) > 0
-
 	// Ensure exactly one is provided
 	if !hasTask && !hasTasks {
 		return errors.New("collection tasks must have either a 'task' template or 'tasks' array configured")
 	}
-
 	if hasTask && hasTasks {
 		return errors.New(
 			"collection tasks cannot have both 'task' template and 'tasks' array configured - use only one",
 		)
 	}
-
 	return nil
 }
 
 // validateConfig validates collection configuration details
 func (v *CollectionValidator) validateConfig(_ context.Context) error {
 	cc := &v.config.CollectionConfig
-
 	if strings.TrimSpace(cc.Items) == "" {
 		return errors.New("collection config: items field is required")
 	}
-
 	if cc.Mode != "" && !ValidateCollectionMode(string(cc.Mode)) {
 		return fmt.Errorf("collection config: invalid mode '%s', must be 'parallel' or 'sequential'", cc.Mode)
 	}
-
 	if cc.Batch < 0 {
 		return errors.New("collection config: batch size cannot be negative")
 	}
-
 	return nil
 }
 
@@ -358,7 +348,6 @@ func (v *CollectionValidator) validateTaskTemplate(ctx context.Context) error {
 			return fmt.Errorf("invalid collection task template: %w", err)
 		}
 	}
-
 	return nil
 }
 

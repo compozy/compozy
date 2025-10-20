@@ -190,7 +190,6 @@ func assembleOrchestratorConfig(
 		thresholds := append([]float64(nil), config.TelemetryContextWarningThresholds...)
 		telemetryOpts = &telemetry.Options{ContextWarningThresholds: thresholds}
 	}
-
 	return orchestratorpkg.Config{
 		ToolRegistry:                   &orchestratorToolRegistryAdapter{registry: toolRegistry},
 		PromptBuilder:                  promptBuilder,

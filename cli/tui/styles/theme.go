@@ -185,7 +185,6 @@ func RenderStatusBar(width int, left, center, right string) string {
 	leftWidth := lipgloss.Width(left)
 	rightWidth := lipgloss.Width(right)
 	centerWidth := width - leftWidth - rightWidth - 4 // 4 for padding
-
 	if centerWidth < 0 {
 		centerWidth = 0
 		// When width is too small, prioritize left and right content
@@ -194,13 +193,11 @@ func RenderStatusBar(width int, left, center, right string) string {
 			return StatusBarStyle.Width(width).Render(left + right)
 		}
 	}
-
 	status := lipgloss.JoinHorizontal(
 		lipgloss.Left,
 		left,
 		lipgloss.PlaceHorizontal(centerWidth, lipgloss.Center, center),
 		right,
 	)
-
 	return StatusBarStyle.Width(width).Render(status)
 }

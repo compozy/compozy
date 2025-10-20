@@ -23,17 +23,14 @@ func CreateUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.
 	if err := validateCreateUserRole(options.role); err != nil {
 		return outputJSONError(err.Error())
 	}
-
 	log.Debug("creating user in JSON mode",
 		"email", options.email,
 		"name", options.name,
 		"role", options.role)
-
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return outputJSONError("auth client not available")
 	}
-
 	user, err := authClient.CreateUser(ctx, api.CreateUserRequest{
 		Email: options.email,
 		Name:  options.name,
@@ -42,7 +39,6 @@ func CreateUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.
 	if err != nil {
 		return outputJSONError(fmt.Sprintf("failed to create user: %v", err))
 	}
-
 	return writeJSONResponse(map[string]any{
 		"data":    user,
 		"message": "Success",

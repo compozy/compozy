@@ -36,26 +36,20 @@ func (c ErrorComponent) View() string {
 	if c.Error == nil {
 		return ""
 	}
-
 	var content string
-
 	// Error message
 	content += styles.RenderError(c.Error.Error()) + "\n"
-
 	// Show details if requested
 	if c.ShowDetails {
 		content += styles.ErrorBoxStyle.Render(c.Error.Error()) + "\n"
 	}
-
 	// Help text
 	var help [][2]string
 	if c.Retryable {
 		help = append(help, [2]string{"r", "retry"})
 	}
 	help = append(help, [2]string{"d", "toggle details"}, [2]string{"q", "quit"})
-
 	content += "\n" + styles.RenderHelp(help)
-
 	return content
 }
 
@@ -64,13 +58,11 @@ func (c ErrorComponent) Height() int {
 	if c.Error == nil {
 		return 0
 	}
-
 	height := 2 // Error message + spacing
 	if c.ShowDetails {
 		height += 3 // Error box with padding
 	}
 	height += 2 // Help text
-
 	return height
 }
 

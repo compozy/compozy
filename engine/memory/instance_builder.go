@@ -34,13 +34,11 @@ func (mm *Manager) buildMemoryComponents(
 ) (*memoryComponents, error) {
 	// Build the key prefix with namespace: compozy:{project_id}:memory
 	keyPrefix := fmt.Sprintf("compozy:%s:memory", projectIDVal)
-
 	log := logger.FromContext(ctx)
 	log.Debug("🔧 buildMemoryComponents: Redis namespace generation",
 		"resource_id", resourceCfg.ID,
 		"project_id_input", projectIDVal,
 		"generated_key_prefix", keyPrefix)
-
 	redisStore := store.NewRedisMemoryStore(mm.baseRedisClient, keyPrefix)
 	lockManager, err := mm.createLockManager(projectIDVal, resourceCfg)
 	if err != nil {
@@ -74,7 +72,6 @@ func (mm *Manager) createLockManager(
 	// Create distributed lock adapter using existing Redis LockManager
 	locker := newLockManagerAdapter(mm.baseLockManager, projectIDVal)
 	lockManager := instance.NewLockManager(locker)
-
 	// Configure TTLs from resource configuration if available
 	if resourceCfg != nil {
 		// Parse TTL durations from resource configuration
@@ -105,7 +102,6 @@ func (mm *Manager) createLockManager(
 			lockManager = lockManager.WithFlushTTL(ttl)
 		}
 	}
-
 	return lockManager, nil
 }
 
@@ -142,7 +138,6 @@ func (lma *lockManagerAdapter) acquireWithRetry(
 	// Check if this is a flush lock - flush locks should fail fast without retry
 	isFlushLock := strings.Contains(lockKey, ":flush_lock")
 	log := logger.FromContext(ctx)
-
 	const maxRetries = 3
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
@@ -229,17 +224,14 @@ func (lma *lockManagerAdapter) formatAcquisitionError(
 	log := logger.FromContext(ctx)
 	log.Error("Failed to acquire distributed lock after retries",
 		"key", lockKey, "max_retries", maxRetries, "error", lastErr)
-
 	// Wrap with appropriate core error type
 	wrappedErr := fmt.Errorf("failed to acquire distributed lock for key %s after %d attempts: %w",
 		lockKey, maxRetries+1, lastErr)
-
 	// Check if the underlying error is ErrLockNotAcquired from cache layer
 	if errors.Is(lastErr, cache.ErrLockNotAcquired) {
 		// Wrap with our core lock acquisition error
 		return fmt.Errorf("%w: %v", memcore.ErrLockAcquisitionFailed, wrappedErr)
 	}
-
 	return wrappedErr
 }
 
@@ -265,7 +257,6 @@ func (dl *distributedLock) Unlock(ctx context.Context) error {
 	if dl.cacheLock == nil {
 		return fmt.Errorf("lock already released or never acquired")
 	}
-
 	err := dl.cacheLock.Release(ctx)
 	if err != nil {
 		log.Error("Failed to release distributed lock",
@@ -273,10 +264,8 @@ func (dl *distributedLock) Unlock(ctx context.Context) error {
 			"error", err)
 		return fmt.Errorf("failed to release distributed lock for key %s: %w", dl.key, err)
 	}
-
 	log.Debug("Successfully released distributed lock",
 		"key", dl.key)
-
 	// Clear the lock reference to prevent double release
 	dl.cacheLock = nil
 	return nil
@@ -313,15 +302,12 @@ func (mm *Manager) createFlushingStrategy(
 ) (memcore.FlushStrategy, error) {
 	factory := mm.createStrategyFactory(tokenManager)
 	strategyConfig := mm.getStrategyConfig(resourceCfg)
-
 	if err := factory.ValidateStrategyConfig(strategyConfig); err != nil {
 		return nil, fmt.Errorf("invalid strategy configuration for resource '%s': %w", resourceCfg.ID, err)
 	}
-
 	if strategyConfig.Type == memcore.HybridSummaryFlushing {
 		return mm.createLegacyHybridStrategy(ctx, resourceCfg, tokenManager, strategyConfig)
 	}
-
 	return mm.createStrategyWithFactory(factory, resourceCfg, strategyConfig)
 }
 
@@ -373,7 +359,6 @@ func (mm *Manager) createLegacyHybridStrategy(
 		return nil, fmt.Errorf("failed to create token counter for summarizer: %w", err)
 	}
 	summarizer = NewRuleBasedSummarizer(tokenCounter, 1, 1)
-
 	flushingStrategy, err := NewHybridFlushingStrategy(strategyConfig, summarizer, tokenManager)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create hybrid flushing strategy for resource '%s': %w", resourceCfg.ID, err)

@@ -146,7 +146,6 @@ func (n *Normalizer) ExpandCollectionItems(
 	if err != nil {
 		return nil, fmt.Errorf("failed to process items expression: %w", err)
 	}
-
 	// If the result is a string, try to parse it as JSON with precision handling
 	if strValue, ok := processedString.(string); ok {
 		var parsedValue any
@@ -158,7 +157,6 @@ func (n *Normalizer) ExpandCollectionItems(
 		}
 		// If JSON parsing fails, keep the string as is (for range expressions like "1..3")
 	}
-
 	// Convert to a slice of items
 	items := n.converter.ConvertToSlice(processedString)
 	return items, nil

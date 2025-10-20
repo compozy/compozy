@@ -48,7 +48,6 @@ func (sdb *StateDB) ToState() (*State, error) {
 		Status:         sdb.Status,
 		Tasks:          make(map[string]*task.State),
 	}
-
 	if len(sdb.UsageRaw) > 0 {
 		var summary usage.Summary
 		if err := json.Unmarshal(sdb.UsageRaw, &summary); err != nil {
@@ -60,7 +59,6 @@ func (sdb *StateDB) ToState() (*State, error) {
 		summary.Sort()
 		state.Usage = &summary
 	}
-
 	// Unmarshal input
 	if sdb.InputRaw != nil {
 		var input core.Input
@@ -69,7 +67,6 @@ func (sdb *StateDB) ToState() (*State, error) {
 		}
 		state.Input = &input
 	}
-
 	// Unmarshal output
 	if sdb.OutputRaw != nil {
 		var output core.Output
@@ -78,7 +75,6 @@ func (sdb *StateDB) ToState() (*State, error) {
 		}
 		state.Output = &output
 	}
-
 	// Unmarshal error
 	if sdb.ErrorRaw != nil {
 		var errorObj core.Error
@@ -87,7 +83,6 @@ func (sdb *StateDB) ToState() (*State, error) {
 		}
 		state.Error = &errorObj
 	}
-
 	return state, nil
 }
 

@@ -129,18 +129,15 @@ func (uc *ExecuteTask) normalizeProviderConfigWithEnv(
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context canceled before provider config normalization: %w", err)
 	}
-
 	// Build normalization context
 	normCtx, err := uc.buildNormalizationContext(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to build normalization context: %w", err)
 	}
-
 	// Render provider config templates
 	if err := uc.renderProviderConfig(ctx, cfg, normCtx); err != nil {
 		return fmt.Errorf("failed to render provider config: %w", err)
 	}
-
 	return nil
 }
 
@@ -163,7 +160,6 @@ func (uc *ExecuteTask) buildNormalizationContext(
 		taskConfig = input.TaskConfig
 	}
 	normCtx := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-
 	// Merge env following project standards (workflow -> task)
 	// For agent cases, the agent-level env is merged by AgentNormalizer already
 	envMerger := task2core.NewEnvMerger()
@@ -191,7 +187,6 @@ func (uc *ExecuteTask) buildNormalizationContext(
 		}
 		normCtx.Variables["env"] = merged
 	}
-
 	return normCtx, nil
 }
 
@@ -206,7 +201,6 @@ func (uc *ExecuteTask) renderProviderConfig(
 	if engine == nil {
 		engine = tplengine.NewEngine(tplengine.FormatJSON)
 	}
-
 	// Convert config to map, parse templates with the built context, and write back
 	cfgMap, err := cfg.AsMap()
 	if err != nil {
@@ -235,7 +229,6 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 	hasDirectLLM := input.TaskConfig.ModelConfig.Provider != "" &&
 		input.TaskConfig.ModelConfig.Model != "" &&
 		input.TaskConfig.Prompt != ""
-
 	var result *core.Output
 	var err error
 	switch {
@@ -355,11 +348,9 @@ func (uc *ExecuteTask) setupMemoryResolver(
 ) ([]llm.Option, bool) {
 	var llmOpts []llm.Option
 	hasMemoryConfig := false
-
 	// Integrate memory resolver if memory manager is available
 	hasMemoryDependencies := uc.memoryManager != nil && uc.templateEngine != nil
 	hasWorkflowContext := input.WorkflowState != nil
-
 	if hasMemoryDependencies && hasWorkflowContext {
 		// Build workflow context for template evaluation
 		workflowContext := buildWorkflowContext(
@@ -374,7 +365,6 @@ func (uc *ExecuteTask) setupMemoryResolver(
 	} else if len(agentConfig.Memory) > 0 {
 		hasMemoryConfig = true
 	}
-
 	return llmOpts, hasMemoryConfig
 }
 
@@ -385,17 +375,14 @@ func (uc *ExecuteTask) refreshWorkflowState(ctx context.Context, input *ExecuteT
 	if input == nil || input.WorkflowState == nil {
 		return
 	}
-
 	execID := input.WorkflowState.WorkflowExecID
 	if execID.IsZero() {
 		return
 	}
-
 	if uc.workflowRepo == nil {
 		// If no workflow repo available (e.g., in ExecuteBasic), skip refresh
 		return
 	}
-
 	freshState, err := uc.workflowRepo.GetState(ctx, execID)
 	if err != nil {
 		// Non-fatal: log and keep the old snapshot
@@ -404,7 +391,6 @@ func (uc *ExecuteTask) refreshWorkflowState(ctx context.Context, input *ExecuteT
 			"error", err)
 		return
 	}
-
 	input.WorkflowState = freshState
 }
 
@@ -1009,7 +995,6 @@ func (uc *ExecuteTask) executeDirectLLM(ctx context.Context, input *ExecuteTaskI
 	if input.TaskConfig.Prompt == "" {
 		return nil, fmt.Errorf("direct LLM requires a non-empty prompt (task_id=%s)", input.TaskConfig.ID)
 	}
-
 	// Build a synthetic agent config from the task's LLM properties
 	syntheticAgent := &agent.Config{
 		ID:            fmt.Sprintf("task-%s-llm", input.TaskConfig.ID),

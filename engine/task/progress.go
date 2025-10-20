@@ -32,7 +32,6 @@ func (p *ProgressInfo) CalculateOverallStatus(strategy ParallelStrategy) core.St
 		p.OverallStatus = core.StatusPending
 		return core.StatusPending
 	}
-
 	var status core.StatusType
 	switch strategy {
 	case StrategyWaitAll:
@@ -47,7 +46,6 @@ func (p *ProgressInfo) CalculateOverallStatus(strategy ParallelStrategy) core.St
 		// Default to wait_all strategy
 		status = p.calculateWaitAllStatus()
 	}
-
 	p.OverallStatus = status
 	return status
 }

@@ -41,7 +41,6 @@ func NewOperations(
 // AppendMessage appends a message with proper locking and metrics
 func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) (err error) {
 	start := time.Now()
-
 	// Acquire append lock
 	unlock, err := o.lockManager.AcquireAppendLock(ctx, o.instanceID)
 	if err != nil {
@@ -52,23 +51,19 @@ func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) (err er
 		unlockErr := o.handleLockRelease(ctx, unlock, "append")
 		err = o.combineErrors(err, unlockErr, "append message")
 	}()
-
 	// Calculate token count
 	tokenCount := o.calculateTokenCount(ctx, msg)
-
 	// Append to store
 	if opErr := o.store.AppendMessage(ctx, o.instanceID, msg); opErr != nil {
 		o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, opErr)
 		err = opErr
 		return err
 	}
-
 	// Update token count metadata
 	if err := o.store.IncrementTokenCount(ctx, o.instanceID, tokenCount); err != nil {
 		// Log but don't fail the operation
 		o.recordMetadataError(ctx, "increment_token_count", err)
 	}
-
 	o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, nil)
 	return nil
 }
@@ -76,7 +71,6 @@ func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) (err er
 // AppendMessageWithTokenCount appends a message and updates token count atomically
 func (o *Operations) AppendMessageWithTokenCount(ctx context.Context, msg llm.Message, tokenCount int) (err error) {
 	start := time.Now()
-
 	// Acquire append lock
 	unlock, err := o.lockManager.AcquireAppendLock(ctx, o.instanceID)
 	if err != nil {
@@ -87,7 +81,6 @@ func (o *Operations) AppendMessageWithTokenCount(ctx context.Context, msg llm.Me
 		unlockErr := o.handleLockRelease(ctx, unlock, "append")
 		err = o.combineErrors(err, unlockErr, "append message with token count")
 	}()
-
 	// Use atomic operation if available
 	if atomicStore, ok := o.store.(core.AtomicOperations); ok {
 		err = atomicStore.AppendMessageWithTokenCount(ctx, o.instanceID, msg, tokenCount)
@@ -99,7 +92,6 @@ func (o *Operations) AppendMessageWithTokenCount(ctx context.Context, msg llm.Me
 			return err
 		}
 	}
-
 	o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, err)
 	return
 }
@@ -107,10 +99,8 @@ func (o *Operations) AppendMessageWithTokenCount(ctx context.Context, msg llm.Me
 // ReadMessages retrieves all messages
 func (o *Operations) ReadMessages(ctx context.Context) ([]llm.Message, error) {
 	start := time.Now()
-
 	messages, err := o.store.ReadMessages(ctx, o.instanceID)
 	messageCount := len(messages)
-
 	o.metrics.RecordRead(ctx, time.Since(start), messageCount, err)
 	return messages, err
 }
@@ -126,17 +116,14 @@ func (o *Operations) ClearMessages(ctx context.Context) (err error) {
 		unlockErr := o.handleLockRelease(ctx, unlock, "clear")
 		err = o.combineErrors(err, unlockErr, "clear messages")
 	}()
-
 	// Clear messages
 	operationErr := o.store.DeleteMessages(ctx, o.instanceID)
-
 	// Reset token count
 	if operationErr == nil {
 		if setErr := o.store.SetTokenCount(ctx, o.instanceID, 0); setErr != nil {
 			o.recordMetadataError(ctx, "reset_token_count", setErr)
 		}
 	}
-
 	return operationErr
 }
 
@@ -163,7 +150,6 @@ func (o *Operations) GetTokenCount(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	log.Debug("Got token count from store", "instanceID", o.instanceID, "tokenCount", tokenCount)
-
 	// If token count is 0, it might need migration
 	if tokenCount == 0 {
 		// Check if there are messages
@@ -177,7 +163,6 @@ func (o *Operations) GetTokenCount(ctx context.Context) (int, error) {
 			return o.calculateTokensFromMessages(ctx)
 		}
 	}
-
 	return tokenCount, nil
 }
 
@@ -211,10 +196,8 @@ func (o *Operations) calculateTokenCountWithFallback(ctx context.Context, text s
 func (o *Operations) calculateTokenCount(ctx context.Context, msg llm.Message) int {
 	// Count content tokens with consistent fallback
 	contentCount := o.calculateTokenCountWithFallback(ctx, msg.Content, "content")
-
 	// Count role tokens with consistent fallback
 	roleCount := o.calculateTokenCountWithFallback(ctx, string(msg.Role), "role")
-
 	// Add structure overhead for message formatting
 	structureOverhead := 2
 	return contentCount + roleCount + structureOverhead
@@ -226,17 +209,14 @@ func (o *Operations) calculateTokensFromMessages(ctx context.Context) (int, erro
 	if err != nil {
 		return 0, err
 	}
-
 	caches := tokenCountCaches{}
 	totalTokens := 0
 	for _, msg := range messages {
 		totalTokens += o.calculateMessageTokens(ctx, msg, &caches)
 	}
-
 	if err := o.store.SetTokenCount(ctx, o.instanceID, totalTokens); err != nil {
 		o.recordMetadataError(ctx, "set_token_count_migration", err)
 	}
-
 	return totalTokens, nil
 }
 
@@ -255,7 +235,6 @@ func (o *Operations) loadTokenCount(ctx context.Context, cache *sync.Map, text, 
 			return cachedCount
 		}
 	}
-
 	calculated := o.calculateTokenCountWithFallback(ctx, text, description)
 	cache.Store(text, calculated)
 	return calculated

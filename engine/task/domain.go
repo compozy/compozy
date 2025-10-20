@@ -101,7 +101,6 @@ func (sdb *StateDB) ToState() (*State, error) {
 		CreatedAt:      sdb.CreatedAt,
 		UpdatedAt:      sdb.UpdatedAt,
 	}
-
 	if len(sdb.UsageRaw) > 0 {
 		var summary usage.Summary
 		if err := json.Unmarshal(sdb.UsageRaw, &summary); err != nil {
@@ -113,19 +112,16 @@ func (sdb *StateDB) ToState() (*State, error) {
 		summary.Sort()
 		state.Usage = &summary
 	}
-
 	// Handle parent-child relationship
 	if sdb.ParentStateID.Valid {
 		parentID := core.ID(sdb.ParentStateID.String)
 		state.ParentStateID = &parentID
 	}
-
 	// Convert basic fields for all execution types
 	err := convertBasic(sdb, state)
 	if err != nil {
 		return nil, err
 	}
-
 	return state, nil
 }
 
@@ -367,7 +363,6 @@ func CreateState(input *CreateStateInput, result *PartialState) *State {
 		Output:         nil,
 		Error:          nil,
 	}
-
 	// Set component-specific fields
 	if result.AgentID != nil {
 		state.AgentID = result.AgentID
@@ -376,7 +371,6 @@ func CreateState(input *CreateStateInput, result *PartialState) *State {
 	if result.ToolID != nil {
 		state.ToolID = result.ToolID
 	}
-
 	return state
 }
 

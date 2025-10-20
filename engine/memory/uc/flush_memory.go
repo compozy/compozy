@@ -70,7 +70,6 @@ func (uc *FlushMemory) Execute(ctx context.Context) (*FlushMemoryResult, error) 
 	if err := uc.validate(); err != nil {
 		return nil, err
 	}
-
 	// Use centralized service for flushing
 	resp, err := uc.service.Flush(ctx, &service.FlushRequest{
 		BaseRequest: service.BaseRequest{
@@ -87,7 +86,6 @@ func (uc *FlushMemory) Execute(ctx context.Context) (*FlushMemoryResult, error) 
 	if err != nil {
 		return nil, NewErrorContext(err, "flush_memory", uc.memoryRef, uc.key)
 	}
-
 	return &FlushMemoryResult{
 		Success:          resp.Success,
 		Key:              resp.Key,

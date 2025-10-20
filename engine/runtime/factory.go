@@ -37,18 +37,15 @@ func (f *DefaultFactory) CreateRuntime(ctx context.Context, config *Config) (Run
 	if config == nil {
 		return nil, fmt.Errorf("runtime config must not be nil")
 	}
-
 	// Default to Bun if runtime type is not specified
 	runtimeType := config.RuntimeType
 	if runtimeType == "" {
 		runtimeType = RuntimeTypeBun
 	}
-
 	// Validate runtime type before proceeding
 	if !IsValidRuntimeType(runtimeType) {
 		return nil, fmt.Errorf("unsupported runtime type: %s (supported types: %v)", runtimeType, SupportedRuntimeTypes)
 	}
-
 	switch runtimeType {
 	case RuntimeTypeBun:
 		return NewBunManager(ctx, f.projectRoot, config)

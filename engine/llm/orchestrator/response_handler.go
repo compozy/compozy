@@ -207,7 +207,6 @@ func (h *responseHandler) parseContent(
 		output := core.Output(map[string]any{"response": content})
 		return &output, nil
 	}
-
 	value, err := h.parseStructuredValue(content, action)
 	if err != nil {
 		return nil, err

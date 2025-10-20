@@ -52,18 +52,14 @@ type ServerHarness struct {
 
 func NewServerHarness(t *testing.T, opts ...Option) *ServerHarness {
 	t.Helper()
-
 	ctx := ctxhelpers.TestContext(t)
 	options := resolveServerOptions(t, opts)
-
 	ctx, cfg := loadTestConfig(ctx, t)
 	applyServerDefaults(cfg)
-
 	proj, projectFile, projectDir := prepareProject(t, options.ProjectName)
 	pool := prepareDatabase(t, cfg)
 	state, store := buildApplicationState(t, proj, pool)
 	engine, srv := buildGinComponents(ctx, t, cfg, state, projectDir, projectFile)
-
 	return &ServerHarness{
 		Engine:        engine,
 		State:         state,
@@ -115,7 +111,6 @@ func prepareProject(t *testing.T, projectName string) (*project.Config, string, 
 	projFile := filepath.Join(tempDir, "compozy.yaml")
 	yamlContent := fmt.Sprintf("name: %s\nversion: 1.0.0\n", projectName)
 	require.NoError(t, os.WriteFile(projFile, []byte(yamlContent), 0o600))
-
 	proj := &project.Config{Name: projectName, Version: "1.0.0"}
 	require.NoError(t, proj.SetCWD(tempDir))
 	proj.SetFilePath(projFile)
@@ -127,7 +122,6 @@ func prepareDatabase(t *testing.T, cfg *config.Config) *pgxpool.Pool {
 	pool, cleanup := helpers.GetSharedPostgresDB(t)
 	t.Cleanup(cleanup)
 	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
-
 	cfg.Database.ConnString = pool.Config().ConnString()
 	cfg.Database.AutoMigrate = false
 	return pool
@@ -142,7 +136,6 @@ func buildApplicationState(
 	deps := appstate.NewBaseDeps(proj, nil, repo.NewProvider(pool), nil)
 	state, err := appstate.NewState(deps, nil)
 	require.NoError(t, err)
-
 	store := resources.NewMemoryResourceStore()
 	state.SetResourceStore(store)
 	return state, store
@@ -157,20 +150,16 @@ func buildGinComponents(
 	projectDir, projectFile string,
 ) (*gin.Engine, *server.Server) {
 	ginmode.EnsureGinTestMode()
-
 	srv, err := server.NewServer(ctx, projectDir, projectFile, "")
 	require.NoError(t, err)
-
 	engine := gin.New()
 	engine.Use(gin.Recovery())
-
 	authFactory := authuc.NewFactory(state.Store.NewAuthRepo())
 	authManager := authmw.NewManager(authFactory, cfg)
 	engine.Use(authManager.Middleware())
 	engine.Use(lgmiddleware.Middleware(ctx))
 	engine.Use(appstate.StateMiddleware(state))
 	engine.Use(serverrouter.ErrorHandler())
-
 	require.NoError(t, server.RegisterRoutes(ctx, engine, state, srv))
 	return engine, srv
 }

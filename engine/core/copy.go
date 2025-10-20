@@ -77,7 +77,6 @@ func deepCopyMap(m map[string]any) (map[string]any, error) {
 // Note: nil pointer Input/Output values are treated as absent and result in the zero value of T with a nil error.
 func DeepCopy[T any](v T) (T, error) {
 	var zero T // zero value used for early returns
-
 	switch src := any(v).(type) {
 	case Input:
 		return DeepCopyInput(src, zero)

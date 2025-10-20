@@ -30,13 +30,11 @@ func BuildProgressContext(_ context.Context, state *task.ProgressState) map[stri
 			"elapsedSeconds": 0.0,
 		}
 	}
-
 	// Calculate elapsed time, handling zero time case
 	var elapsedSeconds float64
 	if !state.StartTime.IsZero() {
 		elapsedSeconds = time.Since(state.StartTime).Seconds()
 	}
-
 	return map[string]any{
 		"total":          state.TotalChildren,
 		"completed":      state.SuccessCount, // Keep "completed" key for template compatibility

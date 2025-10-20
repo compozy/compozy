@@ -67,7 +67,6 @@ func (dh *DispatcherHealth) getMetricValues(
 ) (healthValue int64, isStale bool, timeSinceHeartbeat float64, consecutiveFailures int) {
 	dh.mu.RLock()
 	defer dh.mu.RUnlock()
-
 	if dh.IsHealthy {
 		healthValue = 1
 	}
@@ -207,18 +206,14 @@ func UpdateDispatcherHeartbeat(ctx context.Context, dispatcherID string) {
 	if !ok {
 		return // Skip invalid value
 	}
-
 	health.mu.Lock()
 	defer health.mu.Unlock()
-
 	health.LastHeartbeat = time.Now()
-
 	// Atomically re-evaluate health status based on the new heartbeat
 	health.LastHealthCheck = time.Now()
 	health.IsHealthy = true // A fresh heartbeat always means it's healthy
 	health.ConsecutiveFailures = 0
 	isHealthy := health.IsHealthy
-
 	log := logger.FromContext(ctx)
 	log.Debug("Updated dispatcher heartbeat",
 		"dispatcher_id", dispatcherID,

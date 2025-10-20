@@ -88,7 +88,6 @@ func (a *LoadBatchConfigs) Run(_ context.Context, input *LoadBatchConfigsInput) 
 		}
 		configs[taskID] = config
 	}
-
 	return configs, nil
 }
 

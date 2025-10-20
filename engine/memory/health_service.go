@@ -168,7 +168,6 @@ func (mhs *HealthService) buildInstanceHealth(memoryID string, state *metrics.He
 	lastCheck := state.LastHealthCheck
 	failures := state.ConsecutiveFailures
 	state.Mu.RUnlock()
-
 	instanceHealth := &InstanceHealth{
 		MemoryID:            memoryID,
 		LastChecked:         lastCheck,
@@ -239,30 +238,25 @@ func (mhs *HealthService) GetInstanceHealth(memoryID string) (*InstanceHealth, b
 	if !exists {
 		return nil, false
 	}
-
 	state, ok := value.(*metrics.HealthState)
 	if !ok {
 		return nil, false
 	}
-
 	// Read state fields under lock to prevent races
 	state.Mu.RLock()
 	healthy := state.IsHealthy
 	lastCheck := state.LastHealthCheck
 	failures := state.ConsecutiveFailures
 	state.Mu.RUnlock()
-
 	instanceHealth := &InstanceHealth{
 		MemoryID:            memoryID,
 		LastChecked:         lastCheck,
 		ConsecutiveFailures: failures,
 		Healthy:             healthy && time.Since(lastCheck) < 2*mhs.checkInterval,
 	}
-
 	if !instanceHealth.Healthy && time.Since(lastCheck) > 2*mhs.checkInterval {
 		instanceHealth.ErrorMessage = "health check timeout"
 	}
-
 	return instanceHealth, true
 }
 
@@ -274,7 +268,6 @@ func (mhs *HealthService) RegisterInstance(memoryID string) {
 		LastHealthCheck:     time.Now(),
 		ConsecutiveFailures: 0,
 	}
-
 	mhs.healthStates.Store(memoryID, state)
 	logger.FromContext(mhs.ctx).Debug("Registered memory instance for health monitoring", "memory_id", memoryID)
 }
@@ -289,7 +282,6 @@ func (mhs *HealthService) UnregisterInstance(memoryID string) {
 func (mhs *HealthService) healthCheckLoop(ctx context.Context) {
 	ticker := time.NewTicker(mhs.checkInterval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -306,7 +298,6 @@ func (mhs *HealthService) healthCheckLoop(ctx context.Context) {
 func (mhs *HealthService) performHealthCheck(ctx context.Context) {
 	checkCtx, cancel := context.WithTimeout(ctx, mhs.healthTimeout)
 	defer cancel()
-
 	mhs.healthStates.Range(func(key, value any) bool {
 		memoryID, ok := key.(string)
 		if !ok {
@@ -346,7 +337,6 @@ func (mhs *HealthService) checkInstanceHealth(ctx context.Context, memoryID stri
 	if mhs.manager == nil {
 		return false
 	}
-
 	state, exists := metrics.GetDefaultState().GetHealthState(memoryID)
 	if !exists {
 		mhs.logDefaultHealthy(memoryID)

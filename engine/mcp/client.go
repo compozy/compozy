@@ -611,7 +611,6 @@ func (c *Client) invokeToolRequest(req *http.Request, response *ToolCallResponse
 		return fmt.Errorf("tool call request failed: %w", err)
 	}
 	defer resp.Body.Close()
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response: %w", err)
@@ -677,7 +676,6 @@ func (c *Client) withRetry(ctx context.Context, operation string, fn func() erro
 		b = retry.WithJitterPercent(jp, b)
 	}
 	b = retry.WithMaxRetries(c.retryConf.MaxAttempts, b)
-
 	return retry.Do(ctx, b, func(_ context.Context) error {
 		err := fn()
 		if err != nil {
@@ -696,14 +694,12 @@ func isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-
 	// Check for structured proxy errors
 	var proxyErr *ProxyRequestError
 	if errors.As(err, &proxyErr) {
 		// Only retry on server errors (5xx status codes)
 		return proxyErr.StatusCode >= 500 && proxyErr.StatusCode < 600
 	}
-
 	// Unwrap *url.Error and net.Error for better classification
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
@@ -718,12 +714,10 @@ func isRetryableError(err error) bool {
 		}
 		return false
 	}
-
 	// Respect context cancellation without retry
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return false
 	}
-
 	// Generic transient patterns
 	lc := strings.ToLower(err.Error())
 	if strings.Contains(lc, "connection reset by peer") ||

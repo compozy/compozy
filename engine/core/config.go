@@ -62,7 +62,6 @@ func AsMapDefault(config any) (map[string]any, error) {
 // or decoding fails.
 func FromMapDefault[T any](data any) (T, error) {
 	var config T
-
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
 		Result:           &config,
@@ -72,7 +71,6 @@ func FromMapDefault[T any](data any) (T, error) {
 	if err != nil {
 		return config, err
 	}
-
 	return config, decoder.Decode(data)
 }
 

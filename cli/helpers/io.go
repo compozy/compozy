@@ -74,7 +74,6 @@ func (ow *OutputWriter) writeTUI(_ any) error {
 // ReadInput reads input from various sources
 func ReadInput(ctx context.Context, source string) ([]byte, error) {
 	log := logger.FromContext(ctx)
-
 	switch source {
 	case "", "-":
 		// Read from stdin
@@ -92,18 +91,15 @@ func ReadFile(path string) ([]byte, error) {
 	if path == "" {
 		return nil, NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
-
 	// Check if file exists
 	if !FileExists(path) {
 		return nil, NewCliError("FILE_NOT_FOUND", fmt.Sprintf("File not found: %s", path))
 	}
-
 	// Read file
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, NewCliError("FILE_READ_ERROR", fmt.Sprintf("Failed to read file: %s", path), err.Error())
 	}
-
 	return data, nil
 }
 
@@ -112,18 +108,15 @@ func WriteFile(path string, data []byte) error {
 	if path == "" {
 		return NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
-
 	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return NewCliError("DIRECTORY_CREATE_ERROR", fmt.Sprintf("Failed to create directory: %s", dir), err.Error())
 	}
-
 	// Write file
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		return NewCliError("FILE_WRITE_ERROR", fmt.Sprintf("Failed to write file: %s", path), err.Error())
 	}
-
 	return nil
 }
 
@@ -132,13 +125,11 @@ func AppendToFile(path string, data []byte) (returnErr error) {
 	if path == "" {
 		return NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
-
 	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return NewCliError("DIRECTORY_CREATE_ERROR", fmt.Sprintf("Failed to create directory: %s", dir), err.Error())
 	}
-
 	// Open file for appending
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
@@ -149,13 +140,11 @@ func AppendToFile(path string, data []byte) (returnErr error) {
 			returnErr = NewCliError("FILE_CLOSE_ERROR", fmt.Sprintf("Failed to close file: %s", path), closeErr.Error())
 		}
 	}()
-
 	// Write data
 	if _, err := file.Write(data); err != nil {
 		returnErr = NewCliError("FILE_WRITE_ERROR", fmt.Sprintf("Failed to write to file: %s", path), err.Error())
 		return
 	}
-
 	return
 }
 
@@ -164,23 +153,19 @@ func ReadLines(path string) ([]string, error) {
 	if path == "" {
 		return nil, NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
-
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, NewCliError("FILE_OPEN_ERROR", fmt.Sprintf("Failed to open file: %s", path), err.Error())
 	}
 	defer file.Close()
-
 	var lines []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
-
 	if err := scanner.Err(); err != nil {
 		return nil, NewCliError("FILE_READ_ERROR", fmt.Sprintf("Failed to read file: %s", path), err.Error())
 	}
-
 	return lines, nil
 }
 
@@ -189,26 +174,22 @@ func WriteLines(path string, lines []string) error {
 	if path == "" {
 		return NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
-
 	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return NewCliError("DIRECTORY_CREATE_ERROR", fmt.Sprintf("Failed to create directory: %s", dir), err.Error())
 	}
-
 	file, err := os.Create(path)
 	if err != nil {
 		return NewCliError("FILE_CREATE_ERROR", fmt.Sprintf("Failed to create file: %s", path), err.Error())
 	}
 	defer file.Close()
-
 	writer := bufio.NewWriter(file)
 	for _, line := range lines {
 		if _, err := writer.WriteString(line + "\n"); err != nil {
 			return NewCliError("FILE_WRITE_ERROR", fmt.Sprintf("Failed to write to file: %s", path), err.Error())
 		}
 	}
-
 	return writer.Flush()
 }
 
@@ -219,12 +200,10 @@ func CreateTempFile(pattern string, content []byte) (string, error) {
 		return "", NewCliError("TEMP_FILE_ERROR", "Failed to create temporary file", err.Error())
 	}
 	defer tmpFile.Close()
-
 	if _, err := tmpFile.Write(content); err != nil {
 		_ = os.Remove(tmpFile.Name()) // Best effort cleanup, ignore error
 		return "", NewCliError("TEMP_FILE_ERROR", "Failed to write to temporary file", err.Error())
 	}
-
 	return tmpFile.Name(), nil
 }
 
@@ -233,11 +212,9 @@ func CleanupTempFile(path string) error {
 	if path == "" {
 		return nil
 	}
-
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return NewCliError("TEMP_FILE_ERROR", fmt.Sprintf("Failed to remove temporary file: %s", path), err.Error())
 	}
-
 	return nil
 }
 
@@ -246,22 +223,17 @@ func WatchFile(ctx context.Context, path string, callback func([]byte) error) er
 	if err := validateWatchFilePath(path); err != nil {
 		return err
 	}
-
 	log := logger.FromContext(ctx)
 	log.Info("watching file for changes", "file", path)
-
 	if err := readAndNotify(ctx, path, callback); err != nil {
 		return err
 	}
-
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
-
 	lastModTime, err := fileModTime(path)
 	if err != nil {
 		return err
 	}
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -330,20 +302,16 @@ func processFileChange(
 	if !modTime.After(lastModTime) {
 		return false, lastModTime, nil
 	}
-
 	log.Debug("file changed", "file", path)
-
 	data, err := ReadFile(path)
 	if err != nil {
 		log.Error("failed to read changed file", "file", path, "error", err)
 		return false, lastModTime, nil
 	}
-
 	if err := callback(data); err != nil {
 		log.Error("callback failed for file change", "file", path, "error", err)
 		return false, lastModTime, nil
 	}
-
 	return true, modTime, nil
 }
 
@@ -353,11 +321,9 @@ func ReadJSONFile(path string, v any) error {
 	if err != nil {
 		return err
 	}
-
 	if err := json.Unmarshal(data, v); err != nil {
 		return NewCliError("JSON_PARSE_ERROR", fmt.Sprintf("Failed to parse JSON file: %s", path), err.Error())
 	}
-
 	return nil
 }
 
@@ -367,7 +333,6 @@ func WriteJSONFile(path string, v any) error {
 	if err != nil {
 		return NewCliError("JSON_MARSHAL_ERROR", fmt.Sprintf("Failed to marshal JSON for file: %s", path), err.Error())
 	}
-
 	return WriteFile(path, data)
 }
 
@@ -376,12 +341,10 @@ func GetFileSize(path string) (int64, error) {
 	if path == "" {
 		return 0, NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
-
 	info, err := os.Stat(path)
 	if err != nil {
 		return 0, NewCliError("FILE_STAT_ERROR", fmt.Sprintf("Failed to stat file: %s", path), err.Error())
 	}
-
 	return info.Size(), nil
 }
 
@@ -390,12 +353,10 @@ func GetFileModTime(path string) (time.Time, error) {
 	if path == "" {
 		return time.Time{}, NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
-
 	info, err := os.Stat(path)
 	if err != nil {
 		return time.Time{}, NewCliError("FILE_STAT_ERROR", fmt.Sprintf("Failed to stat file: %s", path), err.Error())
 	}
-
 	return info.ModTime(), nil
 }
 
@@ -405,7 +366,6 @@ func IsFileOlderThan(path string, duration time.Duration) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
 	return time.Since(modTime) > duration, nil
 }
 
@@ -414,7 +374,6 @@ func FindFilesWithPattern(dir, pattern string) ([]string, error) {
 	if dir == "" {
 		return nil, NewCliError("INVALID_PATH", "Directory path cannot be empty")
 	}
-
 	matches, err := filepath.Glob(filepath.Join(dir, pattern))
 	if err != nil {
 		return nil, NewCliError(
@@ -423,7 +382,6 @@ func FindFilesWithPattern(dir, pattern string) ([]string, error) {
 			err.Error(),
 		)
 	}
-
 	// Filter out directories
 	var files []string
 	for _, match := range matches {
@@ -431,7 +389,6 @@ func FindFilesWithPattern(dir, pattern string) ([]string, error) {
 			files = append(files, match)
 		}
 	}
-
 	return files, nil
 }
 
@@ -440,11 +397,9 @@ func EnsureDirectory(path string) error {
 	if path == "" {
 		return NewCliError("INVALID_PATH", "Directory path cannot be empty")
 	}
-
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return NewCliError("DIRECTORY_CREATE_ERROR", fmt.Sprintf("Failed to create directory: %s", path), err.Error())
 	}
-
 	return nil
 }
 
@@ -453,11 +408,9 @@ func RemoveDirectory(path string) error {
 	if path == "" {
 		return NewCliError("INVALID_PATH", "Directory path cannot be empty")
 	}
-
 	if err := os.RemoveAll(path); err != nil {
 		return NewCliError("DIRECTORY_REMOVE_ERROR", fmt.Sprintf("Failed to remove directory: %s", path), err.Error())
 	}
-
 	return nil
 }
 
@@ -466,29 +419,24 @@ func CopyFile(src, dst string) error {
 	if src == "" || dst == "" {
 		return NewCliError("INVALID_PATH", "Source and destination paths cannot be empty")
 	}
-
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return NewCliError("FILE_OPEN_ERROR", fmt.Sprintf("Failed to open source file: %s", src), err.Error())
 	}
 	defer srcFile.Close()
-
 	// Ensure destination directory exists
 	dstDir := filepath.Dir(dst)
 	if err := EnsureDirectory(dstDir); err != nil {
 		return err
 	}
-
 	dstFile, err := os.Create(dst)
 	if err != nil {
 		return NewCliError("FILE_CREATE_ERROR", fmt.Sprintf("Failed to create destination file: %s", dst), err.Error())
 	}
 	defer dstFile.Close()
-
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
 		return NewCliError("FILE_COPY_ERROR", fmt.Sprintf("Failed to copy file from %s to %s", src, dst), err.Error())
 	}
-
 	return nil
 }
 
@@ -497,17 +445,14 @@ func MoveFile(src, dst string) error {
 	if src == "" || dst == "" {
 		return NewCliError("INVALID_PATH", "Source and destination paths cannot be empty")
 	}
-
 	// Try rename first (fastest if on same filesystem)
 	if err := os.Rename(src, dst); err == nil {
 		return nil
 	}
-
 	// Fall back to copy + remove
 	if err := CopyFile(src, dst); err != nil {
 		return err
 	}
-
 	return os.Remove(src)
 }
 
@@ -516,7 +461,6 @@ func GetRelativePath(base, target string) (string, error) {
 	if base == "" || target == "" {
 		return "", NewCliError("INVALID_PATH", "Base and target paths cannot be empty")
 	}
-
 	relPath, err := filepath.Rel(base, target)
 	if err != nil {
 		return "", NewCliError(
@@ -525,7 +469,6 @@ func GetRelativePath(base, target string) (string, error) {
 			err.Error(),
 		)
 	}
-
 	return relPath, nil
 }
 
@@ -534,12 +477,10 @@ func IsValidFilename(filename string) bool {
 	if filename == "" {
 		return false
 	}
-
 	// Check if it's just a filename without path components
 	if filename != filepath.Base(filename) {
 		return false
 	}
-
 	// Check for invalid characters (excluding path separators since they're handled above)
 	invalidChars := []string{":", "*", "?", "\"", "<", ">", "|"}
 	for _, char := range invalidChars {
@@ -547,7 +488,6 @@ func IsValidFilename(filename string) bool {
 			return false
 		}
 	}
-
 	// Check for reserved names (Windows)
 	reserved := []string{
 		"CON",

@@ -84,7 +84,6 @@ func (c *Collector) Record(_ context.Context, snapshot *Snapshot) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	entry := Entry{
 		Provider:           snapshot.Provider,
 		Model:              snapshot.Model,

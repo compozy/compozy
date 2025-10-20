@@ -67,16 +67,13 @@ func (t *MemoryTransaction) Rollback(ctx context.Context) error {
 	t.mu.RLock()
 	backup := t.backup
 	t.mu.RUnlock()
-
 	if backup == nil {
 		return nil // Nothing to rollback
 	}
-
 	// Clear any partial state
 	if err := t.mem.Clear(ctx); err != nil {
 		return fmt.Errorf("rollback clear failed: %w", err)
 	}
-
 	// Restore backup messages
 	for i, msg := range backup {
 		// Check for context cancellation
@@ -90,7 +87,6 @@ func (t *MemoryTransaction) Rollback(ctx context.Context) error {
 			return fmt.Errorf("rollback failed at message %d: %w", i, err)
 		}
 	}
-
 	return nil
 }
 

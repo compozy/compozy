@@ -43,12 +43,10 @@ func (s *ParentStatusUpdater) validateRecursionSafety(input *UpdateParentStatusI
 	if input.visited == nil {
 		input.visited = make(map[core.ID]bool)
 	}
-
 	// Check for cycle detection
 	if input.visited[input.ParentStateID] {
 		return fmt.Errorf("cycle detected in parent state chain at ID %s", input.ParentStateID)
 	}
-
 	// Check recursion depth
 	if input.depth >= MaxRecursionDepth {
 		return fmt.Errorf(
@@ -57,7 +55,6 @@ func (s *ParentStatusUpdater) validateRecursionSafety(input *UpdateParentStatusI
 			input.ParentStateID,
 		)
 	}
-
 	// Mark current ID as visited
 	input.visited[input.ParentStateID] = true
 	return nil
@@ -131,19 +128,16 @@ func (s *ParentStatusUpdater) updateParentStatusInTx(
 		return nil, err
 	}
 	defer delete(input.visited, input.ParentStateID) // Clean up on exit
-
 	// Get current parent state with row-level lock to prevent concurrent updates
 	parentState, err := repo.GetStateForUpdate(ctx, input.ParentStateID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parent state %s with lock: %w", input.ParentStateID, err)
 	}
-
 	// Get progress information from child tasks
 	progressInfo, err := repo.GetProgressInfo(ctx, input.ParentStateID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get progress info for parent %s: %w", input.ParentStateID, err)
 	}
-
 	// Calculate new status based on strategy and child progress
 	newStatus := progressInfo.CalculateOverallStatus(input.Strategy)
 	// Always update progress metadata to keep it fresh
@@ -153,7 +147,6 @@ func (s *ParentStatusUpdater) updateParentStatusInTx(
 	}
 	progressOutput := s.buildProgressOutput(progressInfo, input)
 	(*parentState.Output)["progress_info"] = progressOutput
-
 	// Track if we need to update the database
 	statusChanged := s.updateParentStateStatus(parentState, newStatus, progressInfo, input)
 	// Update parent state in database (always update to refresh progress metadata)
@@ -216,7 +209,6 @@ func (s *ParentStatusUpdater) handleRecursiveUpdateInTx(
 	if err != nil {
 		return fmt.Errorf("failed to recursively update parent status: %w", err)
 	}
-
 	return nil
 }
 

@@ -29,13 +29,11 @@ func NewConfigCommand() *cobra.Command {
 		Short: "Configuration management and diagnostics",
 		Long:  `Configuration management and diagnostics for Compozy projects.`,
 	}
-
 	cmd.AddCommand(
 		NewConfigShowCommand(),
 		NewConfigDiagnosticsCommand(),
 		NewConfigValidateCommand(),
 	)
-
 	return cmd
 }
 
@@ -48,10 +46,8 @@ func NewConfigShowCommand() *cobra.Command {
 Supports JSON, YAML, and table output formats.`,
 		RunE: executeConfigShowCommand,
 	}
-
 	// Command-specific flags
 	cmd.Flags().StringP("format", "f", "table", "Output format (json, yaml, table)")
-
 	return cmd
 }
 
@@ -74,13 +70,11 @@ func handleConfigShowJSON(
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing config show command in JSON mode")
-
 	cfg := config.FromContext(ctx)
 	format, err := cobraCmd.Flags().GetString("format")
 	if err != nil {
 		return fmt.Errorf("failed to get format flag: %w", err)
 	}
-
 	return formatConfigOutput(cfg, nil, format, false)
 }
 
@@ -93,13 +87,11 @@ func handleConfigShowTUI(
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing config show command in TUI mode")
-
 	cfg := config.FromContext(ctx)
 	format, err := cobraCmd.Flags().GetString("format")
 	if err != nil {
 		return fmt.Errorf("failed to get format flag: %w", err)
 	}
-
 	return formatConfigOutput(cfg, nil, format, false)
 }
 
@@ -116,10 +108,8 @@ func NewConfigDiagnosticsCommand() *cobra.Command {
 - File accessibility checks`,
 		RunE: executeConfigDiagnosticsCommand,
 	}
-
 	// Command-specific flags
 	cmd.Flags().BoolP("verbose", "v", false, "Show detailed source information")
-
 	return cmd
 }
 
@@ -142,7 +132,6 @@ func handleConfigDiagnosticsJSON(
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing config diagnostics command in JSON mode")
-
 	return runDiagnostics(ctx, cobraCmd, executor, true)
 }
 
@@ -155,7 +144,6 @@ func handleConfigDiagnosticsTUI(
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing config diagnostics command in TUI mode")
-
 	return runDiagnostics(ctx, cobraCmd, executor, false)
 }
 
@@ -167,7 +155,6 @@ func NewConfigValidateCommand() *cobra.Command {
 		Long:  `Validate a configuration file for syntax errors and required fields.`,
 		RunE:  executeConfigValidateCommand,
 	}
-
 	return cmd
 }
 
@@ -190,13 +177,11 @@ func handleConfigValidateJSON(
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing config validate command in JSON mode")
-
 	cfg := config.FromContext(ctx)
 	service := config.ManagerFromContext(ctx).Service
 	if err := service.Validate(cfg); err != nil {
 		return outputValidationJSON(false, err.Error())
 	}
-
 	return outputValidationJSON(true, "Configuration is valid")
 }
 
@@ -209,13 +194,11 @@ func handleConfigValidateTUI(
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing config validate command in TUI mode")
-
 	cfg := config.FromContext(ctx)
 	service := config.ManagerFromContext(ctx).Service
 	if err := service.Validate(cfg); err != nil {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
-
 	fmt.Println("✅ Configuration is valid")
 	return nil
 }
@@ -250,20 +233,16 @@ func runDiagnostics(
 	if err != nil {
 		return err
 	}
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
-
 	cfg := config.FromContext(ctx)
 	service := config.ManagerFromContext(ctx).Service
 	validationErr := service.Validate(cfg)
-
 	if isJSON {
 		return outputDiagnosticsResults(ctx, cwd, cfg, validationErr, verbose)
 	}
-
 	return outputDiagnosticsTUI(ctx, cwd, validationErr, verbose)
 }
 
@@ -301,7 +280,6 @@ func outputDiagnosticsResults(
 			}(),
 		},
 	}
-
 	if verbose {
 		sources := make(map[string]string)
 		if service, ok := config.ManagerFromContext(ctx).Service.(interface {
@@ -318,36 +296,30 @@ func outputDiagnosticsResults(
 			diagnostics["sources"] = map[string]any{"note": "Source tracking not available"}
 		}
 	}
-
 	return outputDiagnosticsJSON(diagnostics)
 }
 
 // outputDiagnosticsTUI outputs diagnostics in TUI format
 func outputDiagnosticsTUI(ctx context.Context, cwd string, validationErr error, verbose bool) error {
 	log := logger.FromContext(ctx)
-
 	fmt.Println("=== Configuration Diagnostics ===")
 	fmt.Printf("Working Directory: %s\n\n", cwd)
-
 	fmt.Println("\n--- Configuration Validation ---")
 	if validationErr != nil {
 		fmt.Printf("❌ Validation errors:\n%v\n", validationErr)
 	} else {
 		fmt.Println("✅ Configuration is valid")
 	}
-
 	if verbose {
 		fmt.Println("\n--- Configuration Sources ---")
 		fmt.Println("Note: Source tracking is not currently implemented")
 	}
-
 	fmt.Println("\n--- Source Precedence ---")
 	fmt.Println("Configuration sources (highest to lowest precedence):")
 	fmt.Println("1. CLI flags")
 	fmt.Println("2. YAML configuration file")
 	fmt.Println("3. Environment variables")
 	fmt.Println("4. Default values")
-
 	log.Debug("diagnostics completed successfully")
 	return nil
 }
@@ -360,7 +332,6 @@ func outputJSON(cfg *config.Config, sources map[string]config.SourceType, showSo
 	if showSources && len(sources) > 0 {
 		output["sources"] = sources
 	}
-
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(output)
@@ -374,7 +345,6 @@ func outputYAML(cfg *config.Config, sources map[string]config.SourceType, showSo
 	if showSources && len(sources) > 0 {
 		output["sources"] = sources
 	}
-
 	encoder := yaml.NewEncoder(os.Stdout)
 	encoder.SetIndent(2)
 	return encoder.Encode(output)
@@ -384,17 +354,14 @@ func outputYAML(cfg *config.Config, sources map[string]config.SourceType, showSo
 func outputTable(cfg *config.Config, sources map[string]config.SourceType, showSources bool) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	defer w.Flush()
-
 	// Convert config to flat map for table display
 	flatMap := flattenConfig(cfg)
-
 	// Sort keys for consistent output
 	keys := make([]string, 0, len(flatMap))
 	for k := range flatMap {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-
 	// Print header
 	if showSources {
 		fmt.Fprintln(w, "KEY\tVALUE\tSOURCE")
@@ -403,7 +370,6 @@ func outputTable(cfg *config.Config, sources map[string]config.SourceType, showS
 		fmt.Fprintln(w, "KEY\tVALUE")
 		fmt.Fprintln(w, "---\t-----")
 	}
-
 	// Print values
 	for _, key := range keys {
 		value := flatMap[key]
@@ -417,7 +383,6 @@ func outputTable(cfg *config.Config, sources map[string]config.SourceType, showS
 			fmt.Fprintf(w, "%s\t%v\n", key, value)
 		}
 	}
-
 	return nil
 }
 
@@ -780,7 +745,6 @@ func redactURL(urlStr string) string {
 			return urlStr[:protocolEnd] + "[REDACTED]@" + urlStr[atIndex+1:]
 		}
 	}
-
 	// Handle PostgreSQL/MySQL/MongoDB URLs
 	if strings.Contains(urlStr, "://") && strings.Contains(urlStr, "@") {
 		protocolEnd := strings.Index(urlStr, "://") + 3
@@ -789,12 +753,10 @@ func redactURL(urlStr string) string {
 			return urlStr[:protocolEnd] + "[REDACTED]@" + urlStr[atIndex+1:]
 		}
 	}
-
 	// Handle URLs with token parameters
 	if strings.Contains(urlStr, "token=") {
 		return tokenRegex.ReplaceAllString(urlStr, "token=[REDACTED]")
 	}
-
 	return urlStr
 }
 
@@ -812,7 +774,6 @@ func outputValidationJSON(valid bool, message string) error {
 		"valid":   valid,
 		"message": message,
 	}
-
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(result)

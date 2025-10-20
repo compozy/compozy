@@ -40,17 +40,14 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 	if err != nil {
 		return nil, err
 	}
-
 	filterIDs, err := uc.collectWorkflowFilters(ctx, projectID, in.WorkflowID)
 	if err != nil {
 		return nil, err
 	}
-
 	items, err := uc.store.ListWithValues(ctx, projectID, resources.ResourceTask)
 	if err != nil {
 		return nil, err
 	}
-
 	filtered := uc.applyTaskFilters(items, prefix, filterIDs)
 	window, nextValue, nextDir, prevValue, prevDir := resourceutil.ApplyCursorWindow(
 		filtered,
@@ -58,12 +55,10 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 		in.CursorDirection,
 		limit,
 	)
-
 	payload, err := uc.buildListPayload(window)
 	if err != nil {
 		return nil, err
 	}
-
 	return &ListOutput{
 		Items:               payload,
 		NextCursorValue:     nextValue,

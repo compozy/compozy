@@ -297,7 +297,6 @@ func (a *RedisAdapter) AppendAndTrimWithMetadata(
 		args = append(args, m)
 	}
 	args = append(args, maxLen, tokenDelta, ttl.Milliseconds())
-
 	res, err := a.client.Eval(ctx, luaAppendTrimMeta, keys, args...).Result()
 	if err != nil {
 		logger.FromContext(ctx).With(

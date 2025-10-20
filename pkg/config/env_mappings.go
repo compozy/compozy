@@ -29,7 +29,6 @@ func GenerateEnvMappings() []EnvMapping {
 // extractMappings recursively extracts env mappings from struct fields
 func extractMappings(t reflect.Type, prefix string) []EnvMapping {
 	var mappings []EnvMapping
-
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 
@@ -69,7 +68,6 @@ func extractMappings(t reflect.Type, prefix string) []EnvMapping {
 			mappings = append(mappings, submappings...)
 		}
 	}
-
 	return mappings
 }
 
@@ -77,24 +75,20 @@ func extractMappings(t reflect.Type, prefix string) []EnvMapping {
 func GenerateEnvToConfigMap() map[string]string {
 	mappings := GenerateEnvMappings()
 	result := make(map[string]string, len(mappings))
-
 	for _, m := range mappings {
 		result[m.EnvVar] = m.ConfigPath
 	}
-
 	return result
 }
 
 // GetEnvVarForConfigPath returns the environment variable for a given config path
 func GetEnvVarForConfigPath(configPath string) string {
 	mappings := GenerateEnvMappings()
-
 	for _, m := range mappings {
 		if m.ConfigPath == configPath {
 			return m.EnvVar
 		}
 	}
-
 	return ""
 }
 
@@ -109,7 +103,6 @@ func checkSensitiveField(t reflect.Type, pathParts []string) bool {
 	if len(pathParts) == 0 {
 		return false
 	}
-
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		koanfTag := field.Tag.Get("koanf")
@@ -130,6 +123,5 @@ func checkSensitiveField(t reflect.Type, pathParts []string) bool {
 			}
 		}
 	}
-
 	return false
 }

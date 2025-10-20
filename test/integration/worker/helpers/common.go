@@ -76,7 +76,6 @@ func CreateTestProjectConfig(_ *TestFixture, projectName string) *project.Config
 			cwd = nil
 		}
 	}
-
 	return &project.Config{
 		Name: projectName,
 		CWD:  cwd,
@@ -113,7 +112,6 @@ func RegisterCommonActivities(env *testsuite.TestWorkflowEnvironment, activities
 	env.RegisterActivity(activities.GetCollectionResponse)
 	env.RegisterActivity(activities.GetParallelResponse)
 	env.RegisterActivity(activities.GetCompositeResponse)
-
 	// Register activities with specific names as per worker setup
 	env.RegisterActivityWithOptions(
 		activities.LoadTaskConfigActivity,
@@ -506,13 +504,10 @@ func CreateTestActivities(
 ) *worker.Activities {
 	projectConfig := CreateTestProjectConfig(fixture, projectName)
 	workflows := createTestWorkflowConfigs(fixture, agentConfig)
-
 	// Create template engine for tests
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-
 	// Create memory manager for tests - use nil for now as it's not needed for most tests
 	var memoryManager *memory.Manager
-
 	ctx := t.Context()
 	mgr := config.NewManager(ctx, config.NewService())
 	_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
@@ -526,7 +521,6 @@ func CreateTestActivities(
 	}
 	toolEnv, err := builder.Build(projectConfig, workflows, workflowRepo, taskRepo, store)
 	require.NoError(t, err)
-
 	acts, err := worker.NewActivities(
 		ctx,
 		projectConfig,
@@ -580,7 +574,6 @@ func configureBasicTask(taskConfig *task.Config, agentConfig *agent.Config, cwd 
 // task, the agent is propagated to all nested basic child tasks.
 func configureCollectionTask(taskConfig *task.Config, agentConfig *agent.Config, cwd *core.PathCWD) {
 	applyAgentToTask(taskConfig, agentConfig, cwd)
-
 	// Apply to child task template if it exists
 	if taskConfig.Task != nil {
 		// Clone the child config to avoid mutating shared fixture state
@@ -638,7 +631,6 @@ func createTestWorkflowConfigs(fixture *TestFixture, agentConfig *agent.Config) 
 			cwd = nil
 		}
 	}
-
 	tasks := make([]task.Config, len(fixture.Workflow.Tasks))
 	for i := range fixture.Workflow.Tasks {
 		t := fixture.Workflow.Tasks[i]
@@ -656,7 +648,6 @@ func createTestWorkflowConfigs(fixture *TestFixture, agentConfig *agent.Config) 
 			configureCompositeTask(&tasks[i], agentConfig, cwd)
 		}
 	}
-
 	workflowConfig := &workflow.Config{
 		ID:    fixture.Workflow.ID,
 		Tasks: tasks,
@@ -675,22 +666,18 @@ func ExecuteWorkflowAndGetState(
 	ctx := t.Context()
 	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 	defer cleanup()
-
 	// Create test suite and worker
 	testSuite := testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
-
 	// Create repositories and runtime
 	configStore := services.NewTestConfigStore(t)
 	runtime := CreateMockRuntime(t)
-
 	// Ensure proper cleanup of resources
 	defer func() {
 		if err := configStore.Close(); err != nil {
 			t.Logf("Warning: failed to close config store: %v", err)
 		}
 	}()
-
 	// Register activities with test activities
 	activities := CreateTestActivities(
 		t,
@@ -703,34 +690,27 @@ func ExecuteWorkflowAndGetState(
 		agentConfig,
 	)
 	RegisterCommonActivities(env, activities)
-
 	// Prepare workflow input
 	workflowExecID := core.MustNewID()
-
 	var workflowInput *core.Input
 	if fixture.Input != nil {
 		input := core.Input(fixture.Input)
 		workflowInput = &input
 	}
-
 	temporalInput := worker.WorkflowInput{
 		WorkflowID:     fixture.Workflow.ID,
 		WorkflowExecID: workflowExecID,
 		Input:          workflowInput,
 		InitialTaskID:  FindInitialTaskID(fixture),
 	}
-
 	// Execute workflow through Temporal
 	env.ExecuteWorkflow(worker.CompozyWorkflow, temporalInput)
-
 	// Verify workflow completed successfully
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
-
 	// Retrieve final state from database
 	finalState, err := workflowRepo.GetState(ctx, workflowExecID)
 	require.NoError(t, err, "Failed to retrieve final workflow state")
-
 	return finalState
 }
 

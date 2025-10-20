@@ -19,7 +19,6 @@ func ParseHumanDuration(s string) (time.Duration, error) {
 	if d, err := time.ParseDuration(s); err == nil {
 		return d, nil
 	}
-
 	// Convert common human-readable formats to Go format
 	converted := convertHumanToGoFormat(s)
 	if converted != s {
@@ -27,7 +26,6 @@ func ParseHumanDuration(s string) (time.Duration, error) {
 			return d, nil
 		}
 	}
-
 	// Fall back to str2duration for complex formats
 	return str2duration.ParseDuration(s)
 }

@@ -89,25 +89,20 @@ func (h HelpComponent) View() string {
 	if !h.Visible {
 		return ""
 	}
-
 	content := styles.RenderTitle(h.Title) + "\n\n"
-
 	// Render key bindings in two columns if we have enough width
 	if h.Width > 60 && len(h.Bindings) > 6 {
 		content += h.renderTwoColumns()
 	} else {
 		content += h.renderSingleColumn()
 	}
-
 	// Add close instruction
 	content += "\n" + styles.HelpStyle.Render("Press ESC or ? to close")
-
 	// Wrap in dialog box
 	dialog := styles.DialogStyle.
 		Width(h.Width - 4).
 		Height(h.Height - 4).
 		Render(content)
-
 	// Center the dialog
 	return lipgloss.Place(h.Width, h.Height, lipgloss.Center, lipgloss.Center, dialog)
 }
@@ -126,9 +121,7 @@ func (h HelpComponent) renderSingleColumn() string {
 // renderTwoColumns renders bindings in two columns
 func (h HelpComponent) renderTwoColumns() string {
 	mid := (len(h.Bindings) + 1) / 2
-
 	var leftCol, rightCol string
-
 	// Left column
 	for i := range mid {
 		binding := h.Bindings[i]
@@ -136,7 +129,6 @@ func (h HelpComponent) renderTwoColumns() string {
 		desc := styles.HelpDescStyle.Render(binding[1])
 		leftCol += key + " " + desc + "\n"
 	}
-
 	// Right column
 	for i := mid; i < len(h.Bindings); i++ {
 		binding := h.Bindings[i]
@@ -144,7 +136,6 @@ func (h HelpComponent) renderTwoColumns() string {
 		desc := styles.HelpDescStyle.Render(binding[1])
 		rightCol += key + " " + desc + "\n"
 	}
-
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftCol, rightCol)
 }
 

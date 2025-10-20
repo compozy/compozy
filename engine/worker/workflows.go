@@ -19,25 +19,21 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, erro
 	if err != nil {
 		return nil, err
 	}
-
 	// Setup activity context and error handler
 	ctx = manager.BuildBaseContext(ctx)
 	errHandler := manager.BuildErrHandler(ctx)
-
 	// Execute main trigger activity
 	triggerFn := manager.TriggerWorkflow()
 	_, err = actHandler(errHandler, triggerFn)(ctx)
 	if err != nil {
 		return nil, err
 	}
-
 	// Dispatch first task
 	execFn := manager.ExecuteFirstTask()
 	output, err := actHandler(errHandler, execFn)(ctx)
 	if err != nil {
 		return nil, err
 	}
-
 	// Iterate over tasks until get the final one
 	for output.GetNextTask() != nil {
 		// Create a new task execution function for each iteration
@@ -51,7 +47,6 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, erro
 		}
 		output = nextTask
 	}
-
 	// Complete workflow
 	completeFn := manager.CompleteWorkflow()
 	wState, err := actHandler(errHandler, completeFn)(ctx)

@@ -60,7 +60,6 @@ func NewReadMemory(
 func (uc *ReadMemory) Execute(ctx context.Context, input ReadMemoryInput) (*ReadMemoryOutput, error) {
 	// Apply pagination defaults
 	input = uc.applyPaginationDefaults(input)
-
 	// Use centralized service for paginated reading to prevent memory exhaustion
 	resp, err := uc.Service.ReadPaginated(ctx, &service.ReadPaginatedRequest{
 		BaseRequest: service.BaseRequest{
@@ -73,10 +72,8 @@ func (uc *ReadMemory) Execute(ctx context.Context, input ReadMemoryInput) (*Read
 	if err != nil {
 		return nil, err // Service already provides typed errors with context
 	}
-
 	// Service now returns typed messages directly
 	messages := resp.Messages
-
 	// Return paginated result directly from service
 	return &ReadMemoryOutput{
 		Messages:   messages,

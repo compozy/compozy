@@ -40,7 +40,6 @@ func ValidateKey(key string) error {
 	if !keyPattern.MatchString(key) {
 		return NewValidationError("key", key, "must not contain control characters, 1-255 characters")
 	}
-
 	return nil
 }
 
@@ -120,7 +119,6 @@ func ValidateFlushInput(input *FlushMemoryInput) error {
 	if input == nil {
 		return ErrInvalidPayload
 	}
-
 	// Validate max keys
 	if input.MaxKeys < 0 {
 		return NewValidationError("max_keys", input.MaxKeys, "must be non-negative")
@@ -128,10 +126,8 @@ func ValidateFlushInput(input *FlushMemoryInput) error {
 	if input.MaxKeys > 10000 {
 		return NewValidationError("max_keys", input.MaxKeys, "too large (max 10000)")
 	}
-
 	// Strategy validation is handled by the service layer
 	// No need to duplicate it here
-
 	return nil
 }
 
@@ -140,11 +136,9 @@ func ValidateClearInput(input *ClearMemoryInput) error {
 	if input == nil {
 		return ErrInvalidPayload
 	}
-
 	// Confirm flag must be true for safety
 	if !input.Confirm {
 		return NewValidationError("confirm", input.Confirm, "must be true to clear memory")
 	}
-
 	return nil
 }

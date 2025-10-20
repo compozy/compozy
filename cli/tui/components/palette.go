@@ -36,7 +36,6 @@ func NewCommandPalette() CommandPalette {
 	input := textinput.New()
 	input.Placeholder = "Type to search commands..."
 	input.Focus()
-
 	return CommandPalette{
 		Input:    input,
 		Visible:  false,
@@ -259,10 +258,8 @@ func (p *CommandPalette) filterCommands(query string) {
 		p.Filtered = p.Commands
 		return
 	}
-
 	query = strings.ToLower(query)
 	p.Filtered = nil
-
 	for _, cmd := range p.Commands {
 		if strings.Contains(strings.ToLower(cmd.Name), query) ||
 			strings.Contains(strings.ToLower(cmd.Description), query) ||

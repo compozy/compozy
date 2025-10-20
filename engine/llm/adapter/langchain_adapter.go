@@ -605,7 +605,6 @@ func createOpenAIResponseFormat(format OutputFormat) (*openai.ResponseFormat, er
 func (a *LangChainAdapter) convertTools(tools []ToolDefinition) []llms.Tool {
 	effective := a.ensureProviderTools(tools)
 	llmTools := make([]llms.Tool, 0, len(effective))
-
 	for _, tool := range effective {
 		llmTool := llms.Tool{
 			Type: "function",
@@ -617,7 +616,6 @@ func (a *LangChainAdapter) convertTools(tools []ToolDefinition) []llms.Tool {
 		}
 		llmTools = append(llmTools, llmTool)
 	}
-
 	return llmTools
 }
 
@@ -660,12 +658,10 @@ func (a *LangChainAdapter) convertResponse(ctx context.Context, resp *llms.Conte
 	if resp.Choices[0] == nil {
 		return nil, fmt.Errorf("empty response from LLM")
 	}
-
 	choice := resp.Choices[0]
 	response := &LLMResponse{
 		Content: choice.Content,
 	}
-
 	// Convert tool calls if present
 	if len(choice.ToolCalls) > 0 {
 		response.ToolCalls = make([]ToolCall, 0, len(choice.ToolCalls))
@@ -679,7 +675,6 @@ func (a *LangChainAdapter) convertResponse(ctx context.Context, resp *llms.Conte
 			}
 		}
 	}
-
 	if usage, ok := a.buildUsage(choice.GenerationInfo); ok {
 		response.Usage = usage
 	} else {

@@ -48,21 +48,18 @@ func (s *Service) CheckBootstrapStatus(ctx context.Context) (*Status, error) {
 	if s.factory == nil {
 		return nil, fmt.Errorf("factory is required")
 	}
-
 	log := logger.FromContext(ctx)
 	users, err := s.factory.ListUsers().Execute(ctx)
 	if err != nil {
 		log.Error("Failed to list users", "error", err)
 		return nil, fmt.Errorf("failed to check bootstrap status: %w", err)
 	}
-
 	adminCount := 0
 	for _, user := range users {
 		if user.Role == model.RoleAdmin {
 			adminCount++
 		}
 	}
-
 	return &Status{
 		IsBootstrapped: adminCount > 0,
 		AdminCount:     adminCount,
@@ -75,7 +72,6 @@ func (s *Service) BootstrapAdmin(ctx context.Context, input *Input) (*Result, er
 	if err := s.validateInput(input); err != nil {
 		return nil, err
 	}
-
 	status, err := s.CheckBootstrapStatus(ctx)
 	if err != nil {
 		return nil, core.NewError(
@@ -84,7 +80,6 @@ func (s *Service) BootstrapAdmin(ctx context.Context, input *Input) (*Result, er
 			map[string]any{"error": err.Error()},
 		)
 	}
-
 	if status.IsBootstrapped && !input.Force {
 		return nil, core.NewError(
 			fmt.Errorf("system is already bootstrapped with %d admin user(s)", status.AdminCount),
@@ -95,16 +90,13 @@ func (s *Service) BootstrapAdmin(ctx context.Context, input *Input) (*Result, er
 			},
 		)
 	}
-
 	logger.FromContext(ctx).Info("Creating admin user",
 		"email", input.Email,
 		"force", input.Force,
 		"existing_admins", status.AdminCount)
-
 	if input.Force && status.IsBootstrapped {
 		return s.createAdditionalAdmin(ctx, input.Email)
 	}
-
 	return s.createInitialAdminUser(ctx, input.Email)
 }
 
@@ -117,7 +109,6 @@ func (s *Service) validateInput(input *Input) error {
 			map[string]any{"reason": "factory not initialized"},
 		)
 	}
-
 	if input.Email == "" {
 		return core.NewError(
 			fmt.Errorf("email is required"),
@@ -125,7 +116,6 @@ func (s *Service) validateInput(input *Input) error {
 			map[string]any{"field": "email"},
 		)
 	}
-
 	return nil
 }
 
@@ -135,7 +125,6 @@ func (s *Service) createAdditionalAdmin(ctx context.Context, email string) (*Res
 		Email: email,
 		Role:  model.RoleAdmin,
 	}
-
 	user, err := s.factory.CreateUser(createInput).Execute(ctx)
 	if err != nil {
 		return nil, core.NewError(
@@ -147,7 +136,6 @@ func (s *Service) createAdditionalAdmin(ctx context.Context, email string) (*Res
 			},
 		)
 	}
-
 	apiKey, err := s.factory.GenerateAPIKey(user.ID).Execute(ctx)
 	if err != nil {
 		return nil, core.NewError(
@@ -159,7 +147,6 @@ func (s *Service) createAdditionalAdmin(ctx context.Context, email string) (*Res
 			},
 		)
 	}
-
 	return &Result{
 		UserID: user.ID.String(),
 		Email:  user.Email,
@@ -188,7 +175,6 @@ func (s *Service) createInitialAdminUser(ctx context.Context, email string) (*Re
 			},
 		)
 	}
-
 	return &Result{
 		UserID: user.ID.String(),
 		Email:  user.Email,
@@ -202,36 +188,29 @@ func (s *Service) CreateInitialAdmin(ctx context.Context, email string) (*model.
 	if s.factory == nil {
 		return nil, "", fmt.Errorf("factory is required for server-side bootstrap")
 	}
-
 	log := logger.FromContext(ctx)
 	log.Info("Creating initial admin user", "email", email)
-
 	// Check if any admin exists
 	status, err := s.CheckBootstrapStatus(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to check bootstrap status: %w", err)
 	}
-
 	if status.IsBootstrapped {
 		return nil, "", fmt.Errorf("system already has %d admin user(s)", status.AdminCount)
 	}
-
 	// Use the factory to create user
 	createInput := &uc.CreateUserInput{
 		Email: email,
 		Role:  model.RoleAdmin,
 	}
-
 	createdUser, err := s.factory.CreateUser(createInput).Execute(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create admin user: %w", err)
 	}
-
 	// Generate API key
 	apiKey, err := s.factory.GenerateAPIKey(createdUser.ID).Execute(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to generate API key: %w", err)
 	}
-
 	return createdUser, apiKey, nil
 }

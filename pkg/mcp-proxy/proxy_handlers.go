@@ -56,19 +56,15 @@ func (p *ProxyHandlers) SetBaseURL(u string) {
 func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *MCPDefinition) error {
 	log := logger.FromContext(ctx)
 	log.Info("Registering MCP proxy", "name", name)
-
 	client, err := p.clientManager.GetClient(name)
 	if err != nil {
 		log.Error("Failed to get MCP client", "name", name, "error", err)
 		return err
 	}
-
 	proxyServer := p.buildProxyServer(name, def, client)
-
 	if err := p.storeProxyServer(name, proxyServer); err != nil {
 		return err
 	}
-
 	p.startProxyInitialization(ctx, name, proxyServer)
 	log.Info("Successfully registered MCP proxy", "name", name)
 	return nil
@@ -86,7 +82,6 @@ func (p *ProxyHandlers) buildProxyServer(
 		server.WithStaticBasePath(name),
 		server.WithBaseURL(p.currentBaseURL()),
 	)
-
 	return &ProxyServer{
 		mcpServer: mcpServer,
 		sseServer: sseServer,
@@ -136,15 +131,12 @@ func (p *ProxyHandlers) startProxyInitialization(ctx context.Context, name strin
 func (p *ProxyHandlers) initializeProxy(ctx context.Context, name string, proxyServer *ProxyServer) {
 	log := logger.FromContext(ctx)
 	bgCtx := logger.ContextWithLogger(context.WithoutCancel(ctx), log)
-
 	timeout := 30 * time.Second
 	if proxyServer.def != nil && proxyServer.def.Timeout > 0 {
 		timeout = proxyServer.def.Timeout
 	}
-
 	waitCtx, cancel := context.WithTimeout(bgCtx, timeout)
 	defer cancel()
-
 	if err := p.initializeClientConnection(
 		waitCtx,
 		proxyServer.client,
@@ -163,19 +155,16 @@ func (p *ProxyHandlers) initializeProxy(ctx context.Context, name string, proxyS
 func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) error {
 	log := logger.FromContext(ctx)
 	log.Info("Unregistering MCP proxy", "name", name)
-
 	p.serversMutex.Lock()
 	proxyServer, exists := p.servers[name]
 	if exists {
 		delete(p.servers, name)
 	}
 	p.serversMutex.Unlock()
-
 	if !exists {
 		log.Debug("Proxy server not found for unregistration", "name", name)
 		return nil
 	}
-
 	// Shutdown server resources first
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
@@ -191,7 +180,6 @@ func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) err
 			log.Error("Failed to disconnect MCP client", "name", name, "error", err)
 		}
 	}
-
 	log.Info("Successfully unregistered MCP proxy", "name", name)
 	return nil
 }
@@ -218,20 +206,16 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "MCP name is required", "details": ""})
 		return
 	}
-
 	log.Debug("Handling SSE proxy request", "name", name, "path", c.Request.URL.Path)
-
 	// Get the proxy server for this MCP
 	p.serversMutex.RLock()
 	proxyServer, exists := p.servers[name]
 	p.serversMutex.RUnlock()
-
 	if !exists {
 		log.Debug("MCP proxy server not found", "name", name)
 		c.JSON(http.StatusNotFound, gin.H{"error": "MCP server not found", "details": fmt.Sprintf("name=%s", name)})
 		return
 	}
-
 	// Check if proxy server is properly initialized and ready
 	if proxyServer.client == nil || !proxyServer.client.IsConnected() {
 		log.Error("MCP proxy server not ready", "name", name)
@@ -241,13 +225,10 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		)
 		return
 	}
-
 	// Use cached definition to avoid repeated storage queries
-
 	middlewares := []gin.HandlerFunc{
 		recoverMiddleware(name),
 	}
-
 	// Check if SSE server is available (test scenario)
 	if proxyServer.sseServer == nil {
 		c.JSON(
@@ -256,7 +237,6 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		)
 		return
 	}
-
 	// Wrap SSE server with middlewares and call
 	wrappedHandler := wrapWithGinMiddlewares(proxyServer.sseServer, middlewares...)
 	wrappedHandler(c)
@@ -291,9 +271,7 @@ func (p *ProxyHandlers) StreamableHTTPProxyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "MCP name is required", "details": ""})
 		return
 	}
-
 	log.Debug("Handling streamable HTTP proxy request", "name", name, "path", c.Request.URL.Path)
-
 	// For streamable HTTP, we use the same SSE handler approach
 	// The client transport handles the difference
 	p.SSEProxyHandler(c)
@@ -309,18 +287,14 @@ func (p *ProxyHandlers) initializeClientConnection(
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("Waiting for MCP client to be connected", "name", name)
-
 	// Wait for the client to be connected by the ClientManager.
 	// This requires a way to observe the client's status. The client has WaitUntilConnected method.
 	if err := client.WaitUntilConnected(ctx); err != nil {
 		return fmt.Errorf("client connection timed out or failed: %w", err)
 	}
-
 	log.Debug("MCP client is connected, loading resources", "name", name)
-
 	// Create resource loader
 	resourceLoader := NewResourceLoader(client, mcpServer, name)
-
 	// Load critical capabilities first (tools)
 	var toolFilter *ToolFilter
 	if def != nil {
@@ -329,10 +303,8 @@ func (p *ProxyHandlers) initializeClientConnection(
 	if err := resourceLoader.LoadTools(ctx, toolFilter); err != nil {
 		return err
 	}
-
 	// Load optional capabilities concurrently
 	p.loadOptionalCapabilities(ctx, resourceLoader)
-
 	return nil
 }
 
@@ -343,7 +315,6 @@ func (p *ProxyHandlers) loadOptionalCapabilities(
 ) {
 	log := logger.FromContext(ctx)
 	optionalGroup, optionalCtx := errgroup.WithContext(ctx)
-
 	// Define optional capability loaders
 	capabilities := []struct {
 		name   string
@@ -353,7 +324,6 @@ func (p *ProxyHandlers) loadOptionalCapabilities(
 		{"resources", resourceLoader.LoadResources},
 		{"resource_templates", resourceLoader.LoadResourceTemplates},
 	}
-
 	// Load each capability concurrently
 	for _, cap := range capabilities {
 		capability := cap // capture loop variable
@@ -366,7 +336,6 @@ func (p *ProxyHandlers) loadOptionalCapabilities(
 			return nil // Don't propagate errors for optional capabilities
 		})
 	}
-
 	// Wait for all optional operations to complete
 	if err := optionalGroup.Wait(); err != nil {
 		log.Debug("Unexpected error from optional operations", "error", err)

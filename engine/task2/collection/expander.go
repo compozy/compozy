@@ -181,18 +181,15 @@ func (e *Expander) injectCollectionContext(
 	if childConfig.With == nil {
 		childConfig.With = &core.Input{}
 	}
-
 	// Deep copy existing child context to avoid shared pointer mutations
 	withMap, err := core.DeepCopy(*childConfig.With) // returns core.Input
 	if err != nil {
 		// If deep copy fails, preserve current values
 		withMap = *childConfig.With
 	}
-
 	// Always publish canonical vars
 	withMap[shared.FieldCollectionItem] = item
 	withMap[shared.FieldCollectionIndex] = index
-
 	// Custom variable naming support (avoid duplicates)
 	if parentConfig != nil {
 		if iv := parentConfig.GetItemVar(); iv != "" && iv != shared.FieldCollectionItem {
@@ -202,7 +199,6 @@ func (e *Expander) injectCollectionContext(
 			withMap[ix] = index
 		}
 	}
-
 	// Merge inherited parent With after deep-copy to preserve precedence rules
 	if parentConfig != nil && parentConfig.With != nil {
 		parentMap, err := core.DeepCopy(*parentConfig.With) // returns core.Input
@@ -216,7 +212,6 @@ func (e *Expander) injectCollectionContext(
 			}
 		}
 	}
-
 	newWith := withMap
 	childConfig.With = &newWith
 }
