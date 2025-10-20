@@ -49,9 +49,10 @@ Examples:
 }
 
 func mustMarkFlagsMutuallyExclusive(cmd *cobra.Command, flagNames ...string) {
+	ctx := cmd.Context()
 	defer func() {
 		if r := recover(); r != nil {
-			logger.FromContext(nil).Debug(
+			logger.FromContext(ctx).Debug(
 				"failed to mark flags mutually exclusive",
 				"flags", flagNames,
 				"error", r,
