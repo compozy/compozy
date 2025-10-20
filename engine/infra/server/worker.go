@@ -21,7 +21,10 @@ import (
 	"github.com/sethvargo/go-retry"
 )
 
-const maxScheduleRetryAttemptsCap = 1_000_000
+const (
+	maxScheduleRetryAttemptsCap   = 1_000_000
+	defaultScheduleRetryBaseDelay = time.Second
+)
 
 func setupWorker(
 	ctx context.Context,
@@ -183,7 +186,7 @@ func (s *Server) runReconciliationWithRetry(
 			return retry.RetryableError(err)
 		},
 	)
-	s.handleScheduleReconciliationFailure(err, log, startTime, cfg)
+	s.handleScheduleReconciliationFailure(err, startTime, cfg)
 }
 
 // buildScheduleRetryPolicy constructs the retry policy for schedule reconciliation.
@@ -206,7 +209,7 @@ func scheduleRetryBaseDelay(cfg *config.Config) time.Duration {
 		base = time.Duration(secs) * time.Second
 	}
 	if base <= 0 {
-		return time.Second
+		return defaultScheduleRetryBaseDelay
 	}
 	return base
 }
@@ -214,13 +217,13 @@ func scheduleRetryBaseDelay(cfg *config.Config) time.Duration {
 // handleScheduleReconciliationFailure records terminal reconciliation failures.
 func (s *Server) handleScheduleReconciliationFailure(
 	err error,
-	log logger.Logger,
 	start time.Time,
 	cfg *config.Config,
 ) {
 	if err == nil {
 		return
 	}
+	log := logger.FromContext(s.ctx)
 	if s.ctx.Err() == context.Canceled {
 		log.Info("Schedule reconciliation canceled during server shutdown")
 		return

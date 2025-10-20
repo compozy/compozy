@@ -9,15 +9,17 @@ import (
 )
 
 const (
-	defaultGlobalRateLimit   = 100
-	defaultAPIKeyRateLimit   = 100
-	defaultMemoryRateLimit   = 200
-	defaultHooksRateLimit    = 60
-	defaultWorkflowRateLimit = 100
-	defaultTaskRateLimit     = 100
-	defaultAuthRateLimit     = 20
-	defaultUsersRateLimit    = 30
-	defaultRatePeriod        = time.Minute
+	defaultGlobalRateLimit     = 100
+	defaultAPIKeyRateLimit     = 100
+	defaultMemoryRateLimit     = 200
+	defaultHooksRateLimit      = 60
+	defaultWorkflowRateLimit   = 100
+	defaultTaskRateLimit       = 100
+	defaultAuthRateLimit       = 20
+	defaultUsersRateLimit      = 30
+	defaultRatePeriod          = time.Minute
+	defaultMaxRetry            = 3
+	defaultHealthCheckInterval = 30 * time.Second
 )
 
 // Config represents rate limiting configuration
@@ -71,11 +73,11 @@ func DefaultConfig() *Config {
 		RedisPassword:       "",
 		RedisDB:             0,
 		Prefix:              "compozy:ratelimit:",
-		MaxRetry:            3,
-		HealthCheckInterval: 30 * time.Second,
+		MaxRetry:            defaultMaxRetry,
+		HealthCheckInterval: defaultHealthCheckInterval,
 		DisableHeaders:      false,
 		ExcludedPaths:       defaultExcludedPaths(),
-		ExcludedIPs:         []string{},
+		ExcludedIPs:         nil,
 		FailOpen:            true,
 	}
 }

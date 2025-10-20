@@ -56,6 +56,8 @@ type Reconciler struct {
 	runCancel      context.CancelFunc
 }
 
+const reconcilerSubsystem = "reconciler"
+
 func newReconcilerMetrics(
 	ctx context.Context,
 ) (metric.Int64Counter, metric.Int64Counter, metric.Int64Counter, metric.Float64Histogram) {
@@ -102,8 +104,6 @@ const (
 	modeRepo    = "repo"
 	modeBuilder = "builder"
 )
-
-const reconcilerSubsystem = "reconciler"
 
 func resolveStore(state *appstate.State) (resources.ResourceStore, error) {
 	v, ok := state.ResourceStore()

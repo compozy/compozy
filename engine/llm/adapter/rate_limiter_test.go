@@ -197,9 +197,7 @@ func TestProviderRateLimiter_RequestRateLimit(t *testing.T) {
 		elapsed := time.Since(start)
 		registry.Release(ctx, core.ProviderAnthropic, 0)
 
-		if elapsed < 800*time.Millisecond {
-			t.Fatalf("expected rate limiter to enforce ~1s spacing, elapsed=%v", elapsed)
-		}
+		require.GreaterOrEqual(t, elapsed, 800*time.Millisecond, "should enforce ~1s spacing")
 	})
 }
 
@@ -227,11 +225,13 @@ func TestProviderRateLimiter_TokenRateLimit(t *testing.T) {
 		registry.Release(ctx, core.ProviderAnthropic, 2)
 		elapsed := time.Since(start)
 
-		if elapsed < 800*time.Millisecond {
-			t.Fatalf("expected token limiter to enforce ~1s spacing, elapsed=%v", elapsed)
-		}
+		require.GreaterOrEqual(t, elapsed, 800*time.Millisecond, "should enforce ~1s spacing")
 	})
 
+	// This test directly accesses internal implementation to verify the precise
+	// sequencing of releaseSlotBeforeTokenWait behavior (slot release happens before
+	// token wait blocks). Testing this behavior through the public API alone would
+	// require complex timing assumptions and be unreliable.
 	t.Run("Should release slot before token wait when enabled", func(t *testing.T) {
 		limiter := &providerRateLimiter{
 			provider:                   core.ProviderOpenAI,

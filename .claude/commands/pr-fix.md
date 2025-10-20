@@ -1,3 +1,7 @@
+---
+description: Fix issues for a given PR
+---
+
 <type>--type</type>
 <pr>--pr</pr>
 <from>--from</from>
@@ -39,3 +43,10 @@ This script displays issues in a clean, readable format with:
 - After making all the changes, you need to update the progress in the _summary.md file and all the related <type>.md files.
 - **MUST DO:** If <type> is `issue`, after resolving every issue run `scripts/resolve_pr_issues.sh --pr-dir ai-docs/reviews-pr-<pr> --from <start> --to <end>` so the script calls `gh` to close the review threads and refreshes the summary.
 </critical>
+
+<after_finish>
+- **MUST COMMIT:** After fixing ALL issues in this batch and ensuring make lint && make test pass,
+  commit the changes with a descriptive message that references the PR and fixed issues.
+  Example: "git commit -am "fix(repo): resolve PR #%s issues [batch]"
+  Note: Commit locally only - do NOT push. Multiple batches will be committed separately.
+</after_finish>

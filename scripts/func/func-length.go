@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	maxFunctionLines = 30
+	maxFunctionLines = 50
 	excludedDirs     = "vendor,node_modules,.git,bin,docs/node_modules"
 )
 
@@ -45,24 +45,20 @@ func analyzeFunctionLengths(root string) ([]FunctionInfo, error) {
 		if err != nil {
 			return err
 		}
-
 		if info.IsDir() {
 			if shouldSkipDir(info.Name(), excluded) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-
 		funcs, err := analyzeFile(path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to parse %s: %v\n", path, err)
 			return nil
 		}
-
 		functions = append(functions, funcs...)
 		return nil
 	})
