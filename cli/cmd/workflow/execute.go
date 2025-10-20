@@ -324,51 +324,62 @@ func (s *workflowMutateAPIService) Execute(
 	input api.ExecutionInput,
 ) (*api.ExecutionResult, error) {
 	log := logger.FromContext(ctx)
+	result, err := s.requestWorkflowExecution(ctx, id, input)
+	if err != nil {
+		return nil, err
+	}
+	log.Debug("workflow executed successfully", "workflow_id", id, "execution_id", result.ExecutionID)
+	return result, nil
+}
 
-	// Make the API call
-	var result struct {
+func (s *workflowMutateAPIService) requestWorkflowExecution(
+	ctx context.Context,
+	id core.ID,
+	input api.ExecutionInput,
+) (*api.ExecutionResult, error) {
+	var response struct {
 		Data api.ExecutionResult `json:"data"`
 	}
-
-	// Send the request with "input" field as expected by the server
-	requestBody := map[string]any{
-		"input": input.Data,
-	}
-
 	resp, err := s.httpClient.R().
 		SetContext(ctx).
-		SetBody(requestBody).
-		SetResult(&result).
+		SetBody(map[string]any{"input": input.Data}).
+		SetResult(&response).
 		Post(fmt.Sprintf("/workflows/%s/executions", id))
-
 	if err != nil {
-		// Handle network errors
-		if cliutils.IsNetworkError(err) {
-			return nil, fmt.Errorf("network error: unable to connect to Compozy server: %w", err)
-		}
-		if cliutils.IsTimeoutError(err) {
-			return nil, fmt.Errorf("request timed out: server may be busy: %w", err)
-		}
-		return nil, fmt.Errorf("failed to execute workflow: %w", err)
+		return nil, transformWorkflowRequestError(err)
 	}
-
-	// Handle HTTP errors
-	if resp.StatusCode() >= 400 {
-		if resp.StatusCode() == 401 {
-			return nil, fmt.Errorf("authentication failed: please check your API key or login credentials")
-		}
-		if resp.StatusCode() == 403 {
-			return nil, fmt.Errorf("permission denied: you don't have access to execute this workflow")
-		}
-		if resp.StatusCode() == 404 {
-			return nil, fmt.Errorf("workflow not found: workflow with ID %s does not exist", id)
-		}
-		if resp.StatusCode() >= 500 {
-			return nil, fmt.Errorf("server error (status %d): try again later", resp.StatusCode())
-		}
-		return nil, fmt.Errorf("API error: %s (status %d)", resp.String(), resp.StatusCode())
+	if err := validateExecutionResponse(resp, id); err != nil {
+		return nil, err
 	}
+	return &response.Data, nil
+}
 
-	log.Debug("workflow executed successfully", "workflow_id", id, "execution_id", result.Data.ExecutionID)
-	return &result.Data, nil
+func transformWorkflowRequestError(err error) error {
+	if cliutils.IsNetworkError(err) {
+		return fmt.Errorf("network error: unable to connect to Compozy server: %w", err)
+	}
+	if cliutils.IsTimeoutError(err) {
+		return fmt.Errorf("request timed out: server may be busy: %w", err)
+	}
+	return fmt.Errorf("failed to execute workflow: %w", err)
+}
+
+func validateExecutionResponse(resp *resty.Response, id core.ID) error {
+	code := resp.StatusCode()
+	if code < 400 {
+		return nil
+	}
+	switch code {
+	case 401:
+		return fmt.Errorf("authentication failed: please check your API key or login credentials")
+	case 403:
+		return fmt.Errorf("permission denied: you don't have access to execute this workflow")
+	case 404:
+		return fmt.Errorf("workflow not found: workflow with ID %s does not exist", id)
+	default:
+		if code >= 500 {
+			return fmt.Errorf("server error (status %d): try again later", code)
+		}
+		return fmt.Errorf("API error: %s (status %d)", resp.String(), code)
+	}
 }

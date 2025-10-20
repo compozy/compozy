@@ -60,30 +60,89 @@ func ToVectorStoreConfig(ctx context.Context, project string, cfg *knowledge.Vec
 	if cfg == nil {
 		return nil, fmt.Errorf("vector_db config is required")
 	}
+	provider, err := resolveVectorProvider(project, cfg)
+	if err != nil {
+		return nil, err
+	}
+	dsn := resolveVectorStoreDSN(ctx, provider, cfg)
+	pathValue := resolveVectorStorePath(ctx, provider, cfg)
+	if err := validateVectorDimension(project, cfg); err != nil {
+		return nil, err
+	}
+	storeCfg := buildVectorStoreConfig(provider, cfg, dsn, pathValue)
+	if cfg.Config.PGVector != nil {
+		options, err := buildPGVectorOptions(project, cfg.ID, cfg.Config.PGVector)
+		if err != nil {
+			return nil, err
+		}
+		storeCfg.PGVector = options
+	}
+	return storeCfg, nil
+}
+
+// resolveVectorProvider normalizes and validates the requested vector DB provider.
+func resolveVectorProvider(project string, cfg *knowledge.VectorDBConfig) (vectordb.Provider, error) {
 	provider := vectordb.Provider(strings.TrimSpace(string(cfg.Type)))
 	switch provider {
 	case vectordb.ProviderPGVector, vectordb.ProviderQdrant, vectordb.ProviderRedis, vectordb.ProviderFilesystem:
+		return provider, nil
 	default:
-		return nil, fmt.Errorf("project %s vector_db %q: unsupported type %q", project, cfg.ID, cfg.Type)
+		return "", fmt.Errorf("project %s vector_db %q: unsupported type %q", project, cfg.ID, cfg.Type)
 	}
+}
+
+// resolveVectorStoreDSN returns the DSN for the given provider, applying fallbacks when needed.
+func resolveVectorStoreDSN(
+	ctx context.Context,
+	provider vectordb.Provider,
+	cfg *knowledge.VectorDBConfig,
+) string {
 	dsn := strings.TrimSpace(cfg.Config.DSN)
-	if dsn == "" && provider == vectordb.ProviderPGVector {
-		dsn = resolvePGVectorDSN(ctx, cfg.ID)
+	switch provider {
+	case vectordb.ProviderPGVector:
+		if dsn == "" {
+			dsn = resolvePGVectorDSN(ctx, cfg.ID)
+		}
+	case vectordb.ProviderRedis:
+		if dsn == "" {
+			dsn = resolveRedisDSN(ctx, cfg.ID)
+		}
 	}
-	if dsn == "" && provider == vectordb.ProviderRedis {
-		dsn = resolveRedisDSN(ctx, cfg.ID)
-	}
+	return dsn
+}
+
+// resolveVectorStorePath provides a filesystem path fallback when required.
+func resolveVectorStorePath(
+	ctx context.Context,
+	provider vectordb.Provider,
+	cfg *knowledge.VectorDBConfig,
+) string {
 	pathValue := strings.TrimSpace(cfg.Config.Path)
 	if provider == vectordb.ProviderFilesystem && pathValue == "" {
-		pathValue = defaultFilesystemPath(ctx, cfg.ID)
+		return defaultFilesystemPath(ctx, cfg.ID)
 	}
+	return pathValue
+}
+
+// validateVectorDimension checks the configured vector dimension.
+func validateVectorDimension(project string, cfg *knowledge.VectorDBConfig) error {
 	if cfg.Config.Dimension <= 0 {
-		return nil, fmt.Errorf(
+		return fmt.Errorf(
 			"project %s vector_db %q: config.dimension must be greater than zero",
 			project,
 			cfg.ID,
 		)
 	}
+	return nil
+}
+
+// buildVectorStoreConfig assembles the vectordb.Config structure with normalized values.
+func buildVectorStoreConfig(
+	provider vectordb.Provider,
+	cfg *knowledge.VectorDBConfig,
+	dsn string,
+	pathValue string,
+) *vectordb.Config {
 	storeCfg := &vectordb.Config{
 		ID:          cfg.ID,
 		Provider:    provider,
@@ -101,14 +160,7 @@ func ToVectorStoreConfig(ctx context.Context, project string, cfg *knowledge.Vec
 	if len(cfg.Config.Auth) > 0 {
 		storeCfg.Auth = core.CloneMap(cfg.Config.Auth)
 	}
-	if cfg.Config.PGVector != nil {
-		options, err := buildPGVectorOptions(project, cfg.ID, cfg.Config.PGVector)
-		if err != nil {
-			return nil, err
-		}
-		storeCfg.PGVector = options
-	}
-	return storeCfg, nil
+	return storeCfg
 }
 
 func resolvePGVectorDSN(ctx context.Context, vectorDBID string) string {
@@ -229,19 +281,17 @@ func buildPGVectorOptions(
 		options.Index = vectordb.PGVectorIndexOptions{
 			Type:           trimmedType,
 			Lists:          idx.Lists,
-			Probes:         idx.Probes,
 			M:              idx.M,
 			EFConstruction: idx.EFConstruction,
-			EFSearch:       idx.EFSearch,
 		}
 	}
 	if pool := cfg.Pool; pool != nil {
 		options.Pool = vectordb.PGVectorPoolOptions{
 			MinConns:          pool.MinConns,
 			MaxConns:          pool.MaxConns,
-			MaxConnLifetime:   vectordb.Duration(pool.MaxConnLifetime),
-			MaxConnIdleTime:   vectordb.Duration(pool.MaxConnIdleTime),
-			HealthCheckPeriod: vectordb.Duration(pool.HealthCheckPeriod),
+			MaxConnLifetime:   pool.MaxConnLifetime,
+			MaxConnIdleTime:   pool.MaxConnIdleTime,
+			HealthCheckPeriod: pool.HealthCheckPeriod,
 		}
 	}
 	if search := cfg.Search; search != nil {
@@ -258,20 +308,20 @@ func validatePGVectorOptions(opts *knowledge.PGVectorConfig) error {
 		return nil
 	}
 	if idx := opts.Index; idx != nil {
+		typeName := strings.TrimSpace(strings.ToLower(idx.Type))
+		if typeName != "" &&
+			typeName != string(vectordb.PGVectorIndexIVFFlat) &&
+			typeName != string(vectordb.PGVectorIndexHNSW) {
+			return fmt.Errorf("pgvector index.type must be one of {ivfflat,hnsw}: %q", idx.Type)
+		}
 		if idx.Lists < 0 {
 			return fmt.Errorf("pgvector index.lists cannot be negative: %d", idx.Lists)
-		}
-		if idx.Probes < 0 {
-			return fmt.Errorf("pgvector index.probes cannot be negative: %d", idx.Probes)
 		}
 		if idx.M < 0 {
 			return fmt.Errorf("pgvector index.m cannot be negative: %d", idx.M)
 		}
 		if idx.EFConstruction < 0 {
 			return fmt.Errorf("pgvector index.ef_construction cannot be negative: %d", idx.EFConstruction)
-		}
-		if idx.EFSearch < 0 {
-			return fmt.Errorf("pgvector index.ef_search cannot be negative: %d", idx.EFSearch)
 		}
 	}
 	if search := opts.Search; search != nil {
@@ -296,6 +346,13 @@ func validatePGVectorPoolOptions(pool *knowledge.PGVectorPoolConfig) error {
 	}
 	if pool.MaxConns < 0 {
 		return fmt.Errorf("pgvector pool.max_conns cannot be negative: %d", pool.MaxConns)
+	}
+	if pool.MaxConns > 0 && pool.MinConns > pool.MaxConns {
+		return fmt.Errorf(
+			"pgvector pool.min_conns (%d) cannot exceed max_conns (%d)",
+			pool.MinConns,
+			pool.MaxConns,
+		)
 	}
 	if pool.MaxConnLifetime < 0 {
 		return fmt.Errorf("pgvector pool.max_conn_lifetime cannot be negative: %s", pool.MaxConnLifetime)

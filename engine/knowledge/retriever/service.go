@@ -256,6 +256,7 @@ func (s *Service) finishRetrieve(
 		"kb_id", binding.KnowledgeBase.ID,
 		"binding_id", binding.ID,
 	)
+	span.SetAttributes(attribute.String("strategy", strategy))
 	seconds := duration.Seconds()
 	if runErr != nil && *runErr != nil {
 		err := *runErr

@@ -174,80 +174,76 @@ func (env *TestEnvironment) RegisterMemoryConfig(ctx context.Context, config *me
 
 // addTestMemoryConfigs adds test-specific memory configurations
 func (env *TestEnvironment) addTestMemoryConfigs() {
-	// Register test memory resources
-	testConfigs := []struct {
-		config *memory.Config
-	}{
-		{
-			config: &memory.Config{
-				Resource:    "memory",
-				ID:          "customer-support",
-				Type:        memcore.TokenBasedMemory,
-				Description: "Customer support session memory",
-				MaxTokens:   4000,
-				MaxMessages: 100,
-				Persistence: memcore.PersistenceConfig{
-					Type: memcore.RedisPersistence,
-					TTL:  "24h",
-				},
-				Flushing: &memcore.FlushingStrategyConfig{
-					Type:               memcore.SimpleFIFOFlushing,
-					SummarizeThreshold: 0.8,
-				},
-			},
-		},
-		{
-			config: &memory.Config{
-				Resource:    "memory",
-				ID:          "shared-memory",
-				Type:        memcore.MessageCountBasedMemory,
-				Description: "Shared knowledge base memory",
-				MaxTokens:   8000,
-				MaxMessages: 500,
-				Persistence: memcore.PersistenceConfig{
-					Type: memcore.RedisPersistence,
-					TTL:  "0", // No expiration
-				},
-				Locking: &memcore.LockConfig{
-					AppendTTL: "30s",
-					ClearTTL:  "60s",
-					FlushTTL:  "120s",
-				},
-			},
-		},
-		{
-			config: &memory.Config{
-				Resource:    "memory",
-				ID:          "flushable-memory",
-				Type:        memcore.TokenBasedMemory,
-				Description: "Memory with aggressive flushing",
-				MaxTokens:   2000,
-				MaxMessages: 50,
-				Persistence: memcore.PersistenceConfig{
-					Type: memcore.RedisPersistence,
-					TTL:  "1h",
-				},
-				Flushing: &memcore.FlushingStrategyConfig{
-					Type:               memcore.SimpleFIFOFlushing,
-					SummarizeThreshold: 0.5, // Aggressive flushing at 50%
-				},
-				Locking: &memcore.LockConfig{
-					AppendTTL: "30s",
-					ClearTTL:  "60s",
-					FlushTTL:  "120s",
-				},
-			},
+	configs := []*memory.Config{
+		newCustomerSupportMemoryConfig(),
+		newSharedMemoryConfig(),
+		newFlushableMemoryConfig(),
+	}
+	for _, cfg := range configs {
+		env.mustRegisterTestConfig(cfg)
+	}
+}
+
+func newCustomerSupportMemoryConfig() *memory.Config {
+	return &memory.Config{
+		Resource:    "memory",
+		ID:          "customer-support",
+		Type:        memcore.TokenBasedMemory,
+		Description: "Customer support session memory",
+		MaxTokens:   4000,
+		MaxMessages: 100,
+		Persistence: memcore.PersistenceConfig{Type: memcore.RedisPersistence, TTL: "24h"},
+		Flushing: &memcore.FlushingStrategyConfig{
+			Type:               memcore.SimpleFIFOFlushing,
+			SummarizeThreshold: 0.8,
 		},
 	}
-	for _, tc := range testConfigs {
-		// Validate config to set ParsedTTL
-		if err := tc.config.Validate(env.ctx); err != nil {
-			panic(fmt.Sprintf("Failed to validate test config %s: %v", tc.config.ID, err))
-		}
-		err := env.configRegistry.Register(tc.config, "test")
-		if err != nil {
-			panic(fmt.Sprintf("Failed to register test config: %v", err))
-		}
+}
+
+func newSharedMemoryConfig() *memory.Config {
+	return &memory.Config{
+		Resource:    "memory",
+		ID:          "shared-memory",
+		Type:        memcore.MessageCountBasedMemory,
+		Description: "Shared knowledge base memory",
+		MaxTokens:   8000,
+		MaxMessages: 500,
+		Persistence: memcore.PersistenceConfig{Type: memcore.RedisPersistence, TTL: "0"},
+		Locking: &memcore.LockConfig{
+			AppendTTL: "30s",
+			ClearTTL:  "60s",
+			FlushTTL:  "120s",
+		},
+	}
+}
+
+func newFlushableMemoryConfig() *memory.Config {
+	return &memory.Config{
+		Resource:    "memory",
+		ID:          "flushable-memory",
+		Type:        memcore.TokenBasedMemory,
+		Description: "Memory with aggressive flushing",
+		MaxTokens:   2000,
+		MaxMessages: 50,
+		Persistence: memcore.PersistenceConfig{Type: memcore.RedisPersistence, TTL: "1h"},
+		Flushing: &memcore.FlushingStrategyConfig{
+			Type:               memcore.SimpleFIFOFlushing,
+			SummarizeThreshold: 0.5,
+		},
+		Locking: &memcore.LockConfig{
+			AppendTTL: "30s",
+			ClearTTL:  "60s",
+			FlushTTL:  "120s",
+		},
+	}
+}
+
+func (env *TestEnvironment) mustRegisterTestConfig(cfg *memory.Config) {
+	if err := cfg.Validate(env.ctx); err != nil {
+		panic(fmt.Sprintf("Failed to validate test config %s: %v", cfg.ID, err))
+	}
+	if err := env.configRegistry.Register(cfg, "test"); err != nil {
+		panic(fmt.Sprintf("Failed to register test config %s: %v", cfg.ID, err))
 	}
 }
 

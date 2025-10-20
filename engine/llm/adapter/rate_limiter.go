@@ -40,24 +40,26 @@ type RateLimiterMetricsSnapshot struct {
 
 // RateLimiterLimitSnapshot provides a read-only view of configured rate limits.
 type RateLimiterLimitSnapshot struct {
-	Concurrency       int64
-	QueueSize         int64
-	RequestsPerMinute float64
-	TokensPerMinute   float64
-	RequestBurst      int
-	TokenBurst        int
+	Concurrency                int64
+	QueueSize                  int64
+	RequestsPerMinute          float64
+	TokensPerMinute            float64
+	RequestBurst               int
+	TokenBurst                 int
+	ReleaseSlotBeforeTokenWait bool
 }
 
 type providerRateLimiter struct {
 	provider core.ProviderName
 	enabled  bool
 
-	concurrency       int64
-	queueSize         int64
-	requestsPerMinute float64
-	tokensPerMinute   float64
-	requestBurst      int
-	tokenBurst        int
+	concurrency                int64
+	queueSize                  int64
+	requestsPerMinute          float64
+	tokensPerMinute            float64
+	requestBurst               int
+	tokenBurst                 int
+	releaseSlotBeforeTokenWait bool
 
 	sem          *semaphore.Weighted
 	queueSem     *semaphore.Weighted
@@ -75,12 +77,13 @@ type limiterMetrics struct {
 }
 
 type limiterSettings struct {
-	concurrency       int64
-	queueSize         int64
-	requestsPerMinute float64
-	tokensPerMinute   float64
-	requestBurst      int
-	tokenBurst        int
+	concurrency                int64
+	queueSize                  int64
+	requestsPerMinute          float64
+	tokensPerMinute            float64
+	requestBurst               int
+	tokenBurst                 int
+	releaseSlotBeforeTokenWait bool
 }
 
 // NewRateLimiterRegistry creates a registry using the supplied configuration.
@@ -172,12 +175,13 @@ func (r *RateLimiterRegistry) Limits(provider core.ProviderName) (RateLimiterLim
 		return RateLimiterLimitSnapshot{}, false
 	}
 	return RateLimiterLimitSnapshot{
-		Concurrency:       limiter.concurrency,
-		QueueSize:         limiter.queueSize,
-		RequestsPerMinute: limiter.requestsPerMinute,
-		TokensPerMinute:   limiter.tokensPerMinute,
-		RequestBurst:      limiter.requestBurst,
-		TokenBurst:        limiter.tokenBurst,
+		Concurrency:                limiter.concurrency,
+		QueueSize:                  limiter.queueSize,
+		RequestsPerMinute:          limiter.requestsPerMinute,
+		TokensPerMinute:            limiter.tokensPerMinute,
+		RequestBurst:               limiter.requestBurst,
+		TokenBurst:                 limiter.tokenBurst,
+		ReleaseSlotBeforeTokenWait: limiter.releaseSlotBeforeTokenWait,
 	}, true
 }
 
@@ -238,12 +242,13 @@ func (r *RateLimiterRegistry) buildSettings(
 // defaultLimiterSettings creates base limiter settings from global defaults.
 func (r *RateLimiterRegistry) defaultLimiterSettings() limiterSettings {
 	return limiterSettings{
-		concurrency:       int64(r.config.DefaultConcurrency),
-		queueSize:         int64(r.config.DefaultQueueSize),
-		requestsPerMinute: float64(r.config.DefaultRequestsPerMinute),
-		tokensPerMinute:   float64(r.config.DefaultTokensPerMinute),
-		requestBurst:      r.config.DefaultRequestBurst,
-		tokenBurst:        r.config.DefaultTokenBurst,
+		concurrency:                int64(r.config.DefaultConcurrency),
+		queueSize:                  int64(r.config.DefaultQueueSize),
+		requestsPerMinute:          float64(r.config.DefaultRequestsPerMinute),
+		tokensPerMinute:            float64(r.config.DefaultTokensPerMinute),
+		requestBurst:               r.config.DefaultRequestBurst,
+		tokenBurst:                 r.config.DefaultTokenBurst,
+		releaseSlotBeforeTokenWait: r.config.DefaultReleaseSlotBeforeTokenWait,
 	}
 }
 
@@ -274,6 +279,9 @@ func (r *RateLimiterRegistry) applyPerProviderSettings(
 	if perProvider.TokenBurst > 0 {
 		settings.tokenBurst = perProvider.TokenBurst
 	}
+	if perProvider.ReleaseSlotBeforeTokenWait != nil {
+		settings.releaseSlotBeforeTokenWait = *perProvider.ReleaseSlotBeforeTokenWait
+	}
 	return settings
 }
 
@@ -300,6 +308,9 @@ func applyOverrideLimiterSettings(settings limiterSettings, override *core.Provi
 	if override.TokenBurst > 0 {
 		settings.tokenBurst = override.TokenBurst
 	}
+	if override.ReleaseSlotBeforeTokenWait != nil {
+		settings.releaseSlotBeforeTokenWait = *override.ReleaseSlotBeforeTokenWait
+	}
 	return settings
 }
 
@@ -320,14 +331,15 @@ func newProviderRateLimiter(
 	settings limiterSettings,
 ) *providerRateLimiter {
 	limiter := &providerRateLimiter{
-		provider:          provider,
-		enabled:           settings.concurrency > 0,
-		concurrency:       settings.concurrency,
-		queueSize:         settings.queueSize,
-		requestsPerMinute: settings.requestsPerMinute,
-		tokensPerMinute:   settings.tokensPerMinute,
-		requestBurst:      settings.requestBurst,
-		tokenBurst:        settings.tokenBurst,
+		provider:                   provider,
+		enabled:                    settings.concurrency > 0,
+		concurrency:                settings.concurrency,
+		queueSize:                  settings.queueSize,
+		requestsPerMinute:          settings.requestsPerMinute,
+		tokensPerMinute:            settings.tokensPerMinute,
+		requestBurst:               settings.requestBurst,
+		tokenBurst:                 settings.tokenBurst,
+		releaseSlotBeforeTokenWait: settings.releaseSlotBeforeTokenWait,
 	}
 	if !limiter.enabled {
 		return limiter
@@ -368,7 +380,8 @@ func (l *providerRateLimiter) matches(settings limiterSettings) bool {
 		math.Abs(l.requestsPerMinute-settings.requestsPerMinute) < rateLimitFloatEpsilon &&
 		math.Abs(l.tokensPerMinute-settings.tokensPerMinute) < rateLimitFloatEpsilon &&
 		l.requestBurst == settings.requestBurst &&
-		l.tokenBurst == settings.tokenBurst
+		l.tokenBurst == settings.tokenBurst &&
+		l.releaseSlotBeforeTokenWait == settings.releaseSlotBeforeTokenWait
 }
 
 func (l *providerRateLimiter) acquire(ctx context.Context) error {
@@ -421,17 +434,24 @@ func (l *providerRateLimiter) acquire(ctx context.Context) error {
 	return nil
 }
 
-// release frees the concurrency slot and enforces token budgets after a request completes.
-// Token waits happen post-execution to keep slot ownership aligned with active calls while still
-// applying downstream back-pressure once the caller reports actual token usage.
+// release frees a concurrency slot and enforces token budgets after a request completes.
+// By default the limiter holds the slot until token waits finish, preserving strict ownership at the
+// cost of potential head-of-line blocking. When releaseSlotBeforeTokenWait is enabled the slot is
+// released prior to token waits, favoring throughput by letting other callers proceed while tokens
+// settle for the completed request.
 func (l *providerRateLimiter) release(ctx context.Context, tokens int) {
 	if l == nil || !l.enabled || l.sem == nil {
 		return
 	}
-	defer func() {
+	releaseSlot := func() {
 		l.sem.Release(1)
 		l.metrics.activeRequests.Add(-1)
-	}()
+	}
+	if l.releaseSlotBeforeTokenWait {
+		releaseSlot()
+	} else {
+		defer releaseSlot()
+	}
 	if l.tokenLimiter == nil || tokens <= 0 {
 		return
 	}

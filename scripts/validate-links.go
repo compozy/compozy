@@ -71,38 +71,62 @@ var (
 )
 
 func main() {
+	parseFlags()
+	printRunConfiguration()
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	result := newValidationResult()
+	files := discoverDocumentationFiles(cancel)
+	fmt.Printf("📄 Found %d MDX files\n\n", len(files))
+
+	processDocumentation(ctx, files, result)
+	generateReport(result, docsPath)
+}
+
+// parseFlags registers and parses CLI flags for the validator.
+func parseFlags() {
 	flag.StringVar(&docsPath, "path", "./docs/content/docs", "Path to the docs folder")
 	flag.DurationVar(&timeout, "timeout", 10*time.Second, "Timeout for external link checks")
 	flag.IntVar(&maxWorkers, "workers", 10, "Maximum concurrent workers for external link checking")
 	flag.BoolVar(&checkExternal, "external", true, "Check external links")
 	flag.BoolVar(&verbose, "verbose", false, "Verbose output")
 	flag.Parse()
+}
 
+// printRunConfiguration outputs the current execution settings to stdout.
+func printRunConfiguration() {
 	fmt.Println("🔍 Compozy Documentation Link Validator")
 	fmt.Println("=====================================")
 	fmt.Printf("📁 Docs path: %s\n", docsPath)
 	fmt.Printf("⏱️  Timeout: %s\n", timeout)
 	fmt.Printf("👷 Workers: %d\n", maxWorkers)
 	fmt.Printf("🌐 Check external: %v\n\n", checkExternal)
+}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	result := &ValidationResult{
+// newValidationResult constructs a zero-initialized validation accumulator.
+func newValidationResult() *ValidationResult {
+	return &ValidationResult{
 		LinksByFile:   make(map[string][]Link),
 		BrokenByFile:  make(map[string][]Link),
 		ExternalCache: make(map[string]bool),
 	}
+}
 
-	// Find all MDX files
+// discoverDocumentationFiles enumerates MDX files or exits on error.
+func discoverDocumentationFiles(cancel context.CancelFunc) []string {
 	files, err := findMDXFiles(docsPath)
 	if err != nil {
 		fmt.Printf("❌ Error finding MDX files: %v\n", err)
 		cancel()
 		os.Exit(1)
 	}
+	return files
+}
 
-	fmt.Printf("📄 Found %d MDX files\n\n", len(files))
-
-	// Extract and validate links from each file
+// processDocumentation extracts and validates links across all MDX files.
+func processDocumentation(ctx context.Context, files []string, result *ValidationResult) {
 	for i, file := range files {
 		relPath, err := filepath.Rel(docsPath, file)
 		if err != nil {
@@ -116,17 +140,14 @@ func main() {
 			continue
 		}
 
-		if len(links) > 0 {
-			result.LinksByFile[file] = links
-			result.TotalLinks += len(links)
-
-			// Validate links
-			validateLinks(ctx, links, docsPath, result)
+		if len(links) == 0 {
+			continue
 		}
-	}
 
-	// Generate report
-	generateReport(result, docsPath)
+		result.LinksByFile[file] = links
+		result.TotalLinks += len(links)
+		validateLinks(ctx, links, docsPath, result)
+	}
 }
 
 func findMDXFiles(root string) ([]string, error) {
@@ -272,75 +293,101 @@ func validateLinks(ctx context.Context, links []Link, docsRoot string, result *V
 }
 
 func validateInternalLink(link *Link, docsRoot string) {
-	// Internal links should start with /docs/
 	if !strings.HasPrefix(link.URL, "/docs/") {
 		link.Valid = false
 		link.Error = "internal link should start with /docs/"
 		return
 	}
 
-	// Remove /docs/ prefix and any anchors
-	docPath := strings.TrimPrefix(link.URL, "/docs/")
-	docPath = strings.Split(docPath, "#")[0]
+	docPath := normalizeInternalDocPath(link.URL)
+	targetPath, found := resolveInternalTarget(docsRoot, docPath)
+	if !found {
+		link.Valid = false
+		link.Error = fmt.Sprintf("file not found for path: %s", docPath)
+		return
+	}
 
-	// Special case for /docs/ root
+	if !validateAnchorIfPresent(link, targetPath) {
+		return
+	}
+
+	link.Valid = true
+}
+
+// normalizeInternalDocPath trims prefixes and anchors from an internal link.
+func normalizeInternalDocPath(url string) string {
+	docPath := strings.TrimPrefix(url, "/docs/")
+	docPath = strings.Split(docPath, "#")[0]
 	if docPath == "" {
 		docPath = "index"
 	}
+	return strings.TrimPrefix(docPath, "core/")
+}
 
-	// Try to find corresponding MDX file
-	// Remove /core prefix as it maps to the root content/docs directory
-	docPath = strings.TrimPrefix(docPath, "core/")
-
-	possiblePaths := []string{
+// resolveInternalTarget returns the first matching file path for an internal link.
+func resolveInternalTarget(docsRoot, docPath string) (string, bool) {
+	candidates := []string{
 		filepath.Join(docsRoot, docPath+".mdx"),
 		filepath.Join(docsRoot, docPath, "index.mdx"),
 		filepath.Join(docsRoot, "core", docPath+".mdx"),
 		filepath.Join(docsRoot, "core", docPath, "index.mdx"),
 	}
-
-	found := false
-	for _, path := range possiblePaths {
+	for _, path := range candidates {
 		if _, err := os.Stat(path); err == nil {
-			found = true
-
-			// If there's an anchor, validate it
-			if strings.Contains(link.URL, "#") {
-				parts := strings.Split(link.URL, "#")
-				if len(parts) > 1 {
-					anchor := parts[1]
-					if !validateAnchorInFile(path, anchor) {
-						link.Valid = false
-						link.Error = fmt.Sprintf("anchor '#%s' not found in file", anchor)
-						return
-					}
-				}
-			}
-			break
+			return path, true
 		}
 	}
+	return "", false
+}
 
-	if !found {
-		link.Valid = false
-		link.Error = fmt.Sprintf("file not found for path: %s", docPath)
+// validateAnchorIfPresent checks the anchor portion of a link when provided.
+func validateAnchorIfPresent(link *Link, path string) bool {
+	if !strings.Contains(link.URL, "#") {
+		return true
 	}
+	parts := strings.Split(link.URL, "#")
+	if len(parts) <= 1 || parts[1] == "" {
+		return true
+	}
+	anchor := parts[1]
+	if validateAnchorInFile(path, anchor) {
+		return true
+	}
+	link.Valid = false
+	link.Error = fmt.Sprintf("anchor '#%s' not found in file", anchor)
+	return false
 }
 
 func validateExternalLink(ctx context.Context, link *Link, result *ValidationResult) {
-	// Check cache first
-	result.mu.Lock()
-	if cached, ok := result.ExternalCache[link.URL]; ok {
-		link.Valid = cached
-		if !cached {
-			link.Error = "failed (cached)"
-		}
-		result.mu.Unlock()
+	if cached, ok := lookupExternalCache(result, link); ok {
+		applyCachedExternalResult(link, cached)
 		return
 	}
-	result.mu.Unlock()
 
-	// Create HTTP client with timeout
-	client := &http.Client{
+	client := newExternalHTTPClient()
+	success, lastErr := probeExternalLink(ctx, client, link.URL)
+	finalizeExternalValidation(result, link, success, lastErr)
+}
+
+// lookupExternalCache retrieves cached external validation outcomes.
+func lookupExternalCache(result *ValidationResult, link *Link) (bool, bool) {
+	result.mu.Lock()
+	defer result.mu.Unlock()
+	cached, ok := result.ExternalCache[link.URL]
+	return cached, ok
+}
+
+// applyCachedExternalResult updates the link using cached validation state.
+func applyCachedExternalResult(link *Link, valid bool) {
+	link.Valid = valid
+	if !valid {
+		link.Error = "failed (cached)"
+	}
+}
+
+// newExternalHTTPClient constructs an HTTP client respecting timeout and redirects.
+func newExternalHTTPClient() *http.Client {
+	return &http.Client{
 		Timeout: timeout,
 		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
@@ -349,19 +396,18 @@ func validateExternalLink(ctx context.Context, link *Link, result *ValidationRes
 			return nil
 		},
 	}
+}
 
-	// Try HEAD request first, fall back to GET
+// probeExternalLink attempts to reach the URL using HEAD/GET semantics.
+func probeExternalLink(ctx context.Context, client *http.Client, url string) (bool, error) {
 	methods := []string{"HEAD", "GET"}
 	var lastErr error
-
 	for _, method := range methods {
-		req, err := http.NewRequestWithContext(ctx, method, link.URL, http.NoBody)
+		req, err := http.NewRequestWithContext(ctx, method, url, http.NoBody)
 		if err != nil {
 			lastErr = err
 			continue
 		}
-
-		// Add user agent to avoid being blocked
 		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; CompozyLinkValidator/1.0)")
 
 		resp, err := client.Do(req)
@@ -372,25 +418,22 @@ func validateExternalLink(ctx context.Context, link *Link, result *ValidationRes
 		resp.Body.Close()
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-			link.Valid = true
-
-			// Cache the result
-			result.mu.Lock()
-			result.ExternalCache[link.URL] = true
-			result.mu.Unlock()
-
-			return
+			return true, nil
 		}
-
 		lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
+	return false, lastErr
+}
 
-	link.Valid = false
-	link.Error = fmt.Sprintf("failed: %v", lastErr)
+// finalizeExternalValidation records the result and updates the shared cache.
+func finalizeExternalValidation(result *ValidationResult, link *Link, success bool, lastErr error) {
+	link.Valid = success
+	if !success {
+		link.Error = fmt.Sprintf("failed: %v", lastErr)
+	}
 
-	// Cache the negative result
 	result.mu.Lock()
-	result.ExternalCache[link.URL] = false
+	result.ExternalCache[link.URL] = success
 	result.mu.Unlock()
 }
 
@@ -491,66 +534,83 @@ func validateAnchorInFile(filePath, anchor string) bool {
 }
 
 func generateReport(result *ValidationResult, docsRoot string) {
+	printReportOverview(result)
+	printBrokenLinkDetails(result, docsRoot)
+	printReportSummary(result)
+}
+
+// printReportOverview displays aggregate totals for the validation run.
+func printReportOverview(result *ValidationResult) {
 	fmt.Println("\n📊 Validation Report")
 	fmt.Println("==================")
 	fmt.Printf("Total links:    %d\n", result.TotalLinks)
-	fmt.Printf(
-		"✅ Valid:       %d (%.1f%%)\n",
-		result.ValidLinks,
-		float64(result.ValidLinks)/float64(result.TotalLinks)*100,
-	)
-	fmt.Printf(
-		"❌ Broken:      %d (%.1f%%)\n",
-		result.BrokenLinks,
-		float64(result.BrokenLinks)/float64(result.TotalLinks)*100,
-	)
+	fmt.Printf("✅ Valid:       %d (%.1f%%)\n", result.ValidLinks, percentage(result.ValidLinks, result.TotalLinks))
+	fmt.Printf("❌ Broken:      %d (%.1f%%)\n", result.BrokenLinks, percentage(result.BrokenLinks, result.TotalLinks))
 	if result.SkippedLinks > 0 {
 		fmt.Printf("⏭️  Skipped:     %d\n", result.SkippedLinks)
 	}
+}
 
-	if result.BrokenLinks > 0 {
-		fmt.Println("\n❌ Broken Links by File")
-		fmt.Println("======================")
-
-		// Sort files for consistent output
-		var files []string
-		for file := range result.BrokenByFile {
-			files = append(files, file)
-		}
-		sort.Strings(files)
-
-		for _, file := range files {
-			links := result.BrokenByFile[file]
-			relPath, err := filepath.Rel(docsRoot, file)
-			if err != nil {
-				relPath = file
-			}
-			fmt.Printf("\n📄 %s (%d broken links)\n", relPath, len(links))
-
-			for _, link := range links {
-				fmt.Printf("  Line %d: %s\n", link.LineNumber, link.URL)
-				if link.Text != "" {
-					fmt.Printf("    Text: \"%s\"\n", link.Text)
-				}
-				fmt.Printf("    Type: %s\n", link.Type)
-				fmt.Printf("    Error: %s\n", link.Error)
-			}
-		}
+// printBrokenLinkDetails lists broken links grouped by file when present.
+func printBrokenLinkDetails(result *ValidationResult, docsRoot string) {
+	if result.BrokenLinks == 0 {
+		return
 	}
 
-	// Summary
+	fmt.Println("\n❌ Broken Links by File")
+	fmt.Println("======================")
+
+	files := sortedBrokenFiles(result)
+	for _, file := range files {
+		links := result.BrokenByFile[file]
+		relPath, err := filepath.Rel(docsRoot, file)
+		if err != nil {
+			relPath = file
+		}
+		fmt.Printf("\n📄 %s (%d broken links)\n", relPath, len(links))
+
+		for _, link := range links {
+			fmt.Printf("  Line %d: %s\n", link.LineNumber, link.URL)
+			if link.Text != "" {
+				fmt.Printf("    Text: \"%s\"\n", link.Text)
+			}
+			fmt.Printf("    Type: %s\n", link.Type)
+			fmt.Printf("    Error: %s\n", link.Error)
+		}
+	}
+}
+
+// sortedBrokenFiles returns a deterministic ordering of files with broken links.
+func sortedBrokenFiles(result *ValidationResult) []string {
+	files := make([]string, 0, len(result.BrokenByFile))
+	for file := range result.BrokenByFile {
+		files = append(files, file)
+	}
+	sort.Strings(files)
+	return files
+}
+
+// printReportSummary closes the report with actionable guidance.
+func printReportSummary(result *ValidationResult) {
 	fmt.Println("\n📈 Summary")
 	fmt.Println("=========")
 	if result.BrokenLinks == 0 {
 		fmt.Println("✅ All links are valid! 🎉")
-	} else {
-		fmt.Printf("❌ Found %d broken links that need to be fixed.\n", result.BrokenLinks)
-
-		// Provide suggestions
-		fmt.Println("\n💡 Common fixes:")
-		fmt.Println("  - For internal links: ensure the target .mdx file exists")
-		fmt.Println("  - For anchors: verify the heading exists and matches the anchor format")
-		fmt.Println("  - For external links: check if the URL has changed or the site is down")
-		fmt.Println("  - Remember: /docs/core/ paths map to content/docs/ directory")
+		return
 	}
+
+	fmt.Printf("❌ Found %d broken links that need to be fixed.\n", result.BrokenLinks)
+	fmt.Println("\n💡 Common fixes:")
+	fmt.Println("  - For internal links: ensure the target .mdx file exists")
+	fmt.Println("  - For anchors: verify the heading exists and matches the anchor format")
+	fmt.Println("  - For external links: check if the URL has changed or the site is down")
+	fmt.Println("  - Remember: /docs/core/ paths map to content/docs/ directory")
+}
+
+// percentage safely computes percentages for reporting.
+func percentage(part, total int) float64 {
+	if total == 0 {
+		return 0
+	}
+	return float64(part) / float64(total) * 100
 }

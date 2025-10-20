@@ -62,46 +62,74 @@ func NewMemoryResolver(
 func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemplate string) (llm.Memory, error) {
 	log := logger.FromContext(ctx)
 	log.Debug("Resolving memory access", "memory_id", memoryID)
-	if strings.TrimSpace(memoryID) == "" {
-		log.Warn("Empty memory ID provided")
+	if r.skipMemoryResolution(ctx, memoryID) {
 		return nil, nil
+	}
+
+	resolvedKey, err := r.prepareMemoryKey(ctx, keyTemplate)
+	if err != nil {
+		return nil, err
+	}
+
+	memRef := r.buildMemoryReference(memoryID, keyTemplate, resolvedKey)
+	return r.fetchMemoryInstance(ctx, memRef)
+}
+
+// skipMemoryResolution reports whether resolution should stop due to invalid setup.
+func (r *MemoryResolver) skipMemoryResolution(ctx context.Context, memoryID string) bool {
+	trimmedID := strings.TrimSpace(memoryID)
+	log := logger.FromContext(ctx)
+	if trimmedID == "" {
+		log.Warn("Empty memory ID provided")
+		return true
 	}
 	if r.memoryManager == nil {
 		log.Warn("Memory manager is nil")
-		return nil, nil
+		return true
+	}
+	return false
+}
+
+// prepareMemoryKey resolves the key template when provided.
+func (r *MemoryResolver) prepareMemoryKey(ctx context.Context, keyTemplate string) (string, error) {
+	if strings.TrimSpace(keyTemplate) == "" {
+		return "", nil
 	}
 
-	// Allow empty keyTemplate: manager will fall back to memory.Config.default_key_template if available.
-	var resolvedKey string
-	if strings.TrimSpace(keyTemplate) != "" {
-		var err error
-		resolvedKey, err = r.resolveKey(ctx, keyTemplate)
-		if err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(resolvedKey) == "" {
-			return nil, fmt.Errorf("resolved key template to empty string: %q", keyTemplate)
-		}
+	resolvedKey, err := r.resolveKey(ctx, keyTemplate)
+	if err != nil {
+		return "", err
 	}
+	if strings.TrimSpace(resolvedKey) == "" {
+		return "", fmt.Errorf("resolved key template to empty string: %q", keyTemplate)
+	}
+	return resolvedKey, nil
+}
 
-	// Create a memory reference for the manager
-	// Precedence: when a pre-resolved key exists we set ResolvedKey and clear Key;
-	// otherwise we pass the template in Key and let the manager resolve it.
+// buildMemoryReference constructs the reference passed to the memory manager.
+func (r *MemoryResolver) buildMemoryReference(
+	memoryID string,
+	keyTemplate string,
+	resolvedKey string,
+) core.MemoryReference {
 	memRef := core.MemoryReference{ID: memoryID, Mode: core.MemoryModeReadWrite}
 	if strings.TrimSpace(resolvedKey) != "" {
 		memRef.ResolvedKey = resolvedKey
-		memRef.Key = ""
-	} else {
-		memRef.Key = keyTemplate
+		return memRef
 	}
+	memRef.Key = keyTemplate
+	return memRef
+}
 
-	log.Debug("Passing memory reference to manager", "memory_id", memoryID)
+// fetchMemoryInstance retrieves and adapts the underlying memory implementation.
+func (r *MemoryResolver) fetchMemoryInstance(ctx context.Context, memRef core.MemoryReference) (llm.Memory, error) {
+	log := logger.FromContext(ctx)
+	log.Debug("Passing memory reference to manager", "memory_id", memRef.ID)
 
-	// Get the memory instance from the manager
 	memInstance, err := r.memoryManager.GetInstance(ctx, memRef, r.workflowContext)
 	if err != nil {
 		log.Error("Failed to get memory instance",
-			"memory_id", memoryID,
+			"memory_id", memRef.ID,
 			"error", err,
 			"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
 		)
@@ -112,7 +140,6 @@ func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemp
 		return nil, nil
 	}
 
-	// Wrap the memory instance to adapt it to the llm.Memory interface
 	return &memoryResolverAdapter{memory: memInstance}, nil
 }
 

@@ -117,7 +117,15 @@ func ConvertTaskConfigToResponse(cfg *task.Config) (TaskResponse, error) {
 	if err != nil {
 		return TaskResponse{}, fmt.Errorf("deep copy task config: %w", err)
 	}
-	resp := TaskResponse{
+	resp := taskResponseFromClone(clone)
+	applyOptionalTaskFields(&resp, clone)
+	populateSubtaskMeta(&resp, clone)
+	return resp, nil
+}
+
+// taskResponseFromClone builds a response using the cloned task configuration.
+func taskResponseFromClone(clone *task.Config) TaskResponse {
+	return TaskResponse{
 		ID:            clone.ID,
 		Type:          clone.Type,
 		Resource:      clone.Resource,
@@ -163,6 +171,10 @@ func ConvertTaskConfigToResponse(cfg *task.Config) (TaskResponse, error) {
 		StatsConfig:   clone.StatsConfig,
 		ClearConfig:   clone.ClearConfig,
 	}
+}
+
+// applyOptionalTaskFields augments the response with optional configuration details.
+func applyOptionalTaskFields(resp *TaskResponse, clone *task.Config) {
 	if clone.Config != (core.GlobalOpts{}) {
 		resp.Config = &clone.Config
 	}
@@ -181,8 +193,6 @@ func ConvertTaskConfigToResponse(cfg *task.Config) (TaskResponse, error) {
 	if clone.Type == task.TaskTypeWait {
 		resp.SignalName = clone.WaitFor
 	}
-	populateSubtaskMeta(&resp, clone)
-	return resp, nil
 }
 
 // ConvertTaskConfigsToResponses converts multiple task.Config to TaskResponse

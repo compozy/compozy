@@ -26,51 +26,85 @@ func loadKnowledgeTriple(
 	projectID string,
 	kbID string,
 ) (*knowledgeTriple, error) {
-	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceKnowledgeBase, ID: kbID}
-	val, etag, err := store.Get(ctx, key)
-	if err != nil {
-		if errors.Is(err, resources.ErrNotFound) {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("load knowledge base %q: %w", kbID, err)
-	}
-	kb, err := decodeStoredKnowledgeBase(val, kbID)
+	kb, etag, err := loadKnowledgeBaseConfig(ctx, store, projectID, kbID)
 	if err != nil {
 		return nil, err
 	}
-	embKey := resources.ResourceKey{
-		Project: projectID,
-		Type:    resources.ResourceEmbedder,
-		ID:      strings.TrimSpace(kb.Embedder),
-	}
-	embVal, _, err := store.Get(ctx, embKey)
-	if err != nil {
-		if errors.Is(err, resources.ErrNotFound) {
-			return nil, errors.Join(ErrNotFound, fmt.Errorf("load embedder %q: %w", kb.Embedder, err))
-		}
-		return nil, fmt.Errorf("load embedder %q: %w", kb.Embedder, err)
-	}
-	emb, err := decodeStoredEmbedder(embVal, kb.Embedder)
+	emb, err := loadEmbedderConfig(ctx, store, projectID, kb.Embedder)
 	if err != nil {
 		return nil, err
 	}
-	vecKey := resources.ResourceKey{
-		Project: projectID,
-		Type:    resources.ResourceVectorDB,
-		ID:      strings.TrimSpace(kb.VectorDB),
-	}
-	vecVal, _, err := store.Get(ctx, vecKey)
-	if err != nil {
-		if errors.Is(err, resources.ErrNotFound) {
-			return nil, errors.Join(ErrNotFound, fmt.Errorf("load vector_db %q: %w", kb.VectorDB, err))
-		}
-		return nil, fmt.Errorf("load vector_db %q: %w", kb.VectorDB, err)
-	}
-	vector, err := decodeStoredVectorDB(vecVal, kb.VectorDB)
+	vector, err := loadVectorDBConfig(ctx, store, projectID, kb.VectorDB)
 	if err != nil {
 		return nil, err
 	}
 	return &knowledgeTriple{base: kb, embedder: emb, vector: vector, etag: etag}, nil
+}
+
+// loadKnowledgeBaseConfig retrieves and decodes a knowledge base resource.
+func loadKnowledgeBaseConfig(
+	ctx context.Context,
+	store resources.ResourceStore,
+	projectID string,
+	kbID string,
+) (*knowledge.BaseConfig, resources.ETag, error) {
+	key := resources.ResourceKey{Project: projectID, Type: resources.ResourceKnowledgeBase, ID: kbID}
+	val, etag, err := store.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return nil, "", ErrNotFound
+		}
+		return nil, "", fmt.Errorf("load knowledge base %q: %w", kbID, err)
+	}
+	kb, err := decodeStoredKnowledgeBase(val, kbID)
+	if err != nil {
+		return nil, "", err
+	}
+	return kb, etag, nil
+}
+
+// loadEmbedderConfig retrieves and decodes the embedder referenced by the knowledge base.
+func loadEmbedderConfig(
+	ctx context.Context,
+	store resources.ResourceStore,
+	projectID string,
+	embedderID string,
+) (*knowledge.EmbedderConfig, error) {
+	embKey := resources.ResourceKey{
+		Project: projectID,
+		Type:    resources.ResourceEmbedder,
+		ID:      strings.TrimSpace(embedderID),
+	}
+	embVal, _, err := store.Get(ctx, embKey)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return nil, errors.Join(ErrNotFound, fmt.Errorf("load embedder %q: %w", embedderID, err))
+		}
+		return nil, fmt.Errorf("load embedder %q: %w", embedderID, err)
+	}
+	return decodeStoredEmbedder(embVal, embedderID)
+}
+
+// loadVectorDBConfig retrieves and decodes the vector DB referenced by the knowledge base.
+func loadVectorDBConfig(
+	ctx context.Context,
+	store resources.ResourceStore,
+	projectID string,
+	vectorID string,
+) (*knowledge.VectorDBConfig, error) {
+	vecKey := resources.ResourceKey{
+		Project: projectID,
+		Type:    resources.ResourceVectorDB,
+		ID:      strings.TrimSpace(vectorID),
+	}
+	vecVal, _, err := store.Get(ctx, vecKey)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return nil, errors.Join(ErrNotFound, fmt.Errorf("load vector_db %q: %w", vectorID, err))
+		}
+		return nil, fmt.Errorf("load vector_db %q: %w", vectorID, err)
+	}
+	return decodeStoredVectorDB(vecVal, vectorID)
 }
 
 func normalizeKnowledgeTriple(

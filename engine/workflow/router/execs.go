@@ -353,52 +353,7 @@ type executionErrorMessages struct {
 }
 
 func respondWithExecutionError(c *gin.Context, err error, msgs executionErrorMessages) {
-	statusCode := http.StatusInternalServerError
-	reason := msgs.defaultMsg
-	if reason == "" {
-		reason = "internal server error"
-	}
-	switch {
-	case isWorkflowNotFound(err):
-		statusCode = http.StatusNotFound
-		if msgs.notFound != "" {
-			reason = msgs.notFound
-		} else {
-			reason = "execution not found"
-		}
-	default:
-		if grpcStatus, ok := status.FromError(err); ok {
-			switch grpcStatus.Code() {
-			case codes.InvalidArgument:
-				statusCode = http.StatusBadRequest
-				if msgs.badRequest != "" {
-					reason = msgs.badRequest
-				} else {
-					reason = "invalid request"
-				}
-			case codes.AlreadyExists, codes.FailedPrecondition:
-				statusCode = http.StatusConflict
-				switch {
-				case msgs.conflict != "":
-					reason = msgs.conflict
-				case msgs.defaultMsg != "":
-					reason = msgs.defaultMsg
-				default:
-					reason = "execution conflict"
-				}
-			case codes.NotFound:
-				statusCode = http.StatusNotFound
-				if msgs.notFound != "" {
-					reason = msgs.notFound
-				} else {
-					reason = "execution not found"
-				}
-			case codes.Unavailable:
-				statusCode = http.StatusServiceUnavailable
-				reason = "worker unavailable"
-			}
-		}
-	}
+	statusCode, reason := resolveExecutionError(err, msgs)
 	log := logger.FromContext(c.Request.Context())
 	log.Error(
 		"workflow request failed",
@@ -408,6 +363,39 @@ func respondWithExecutionError(c *gin.Context, err error, msgs executionErrorMes
 	)
 	reqErr := router.NewRequestError(statusCode, reason, err) // ensure router sanitizes details
 	router.RespondWithError(c, statusCode, reqErr)
+}
+
+func resolveExecutionError(err error, msgs executionErrorMessages) (int, string) {
+	defaultReason := fallbackReason(msgs.defaultMsg, "internal server error")
+	if isWorkflowNotFound(err) {
+		return http.StatusNotFound, fallbackReason(msgs.notFound, "execution not found")
+	}
+	if grpcStatus, ok := status.FromError(err); ok {
+		return mapExecutionStatus(grpcStatus.Code(), msgs, defaultReason)
+	}
+	return http.StatusInternalServerError, defaultReason
+}
+
+func mapExecutionStatus(code codes.Code, msgs executionErrorMessages, defaultReason string) (int, string) {
+	switch code {
+	case codes.InvalidArgument:
+		return http.StatusBadRequest, fallbackReason(msgs.badRequest, "invalid request")
+	case codes.AlreadyExists, codes.FailedPrecondition:
+		return http.StatusConflict, fallbackReason(msgs.conflict, fallbackReason(defaultReason, "execution conflict"))
+	case codes.NotFound:
+		return http.StatusNotFound, fallbackReason(msgs.notFound, "execution not found")
+	case codes.Unavailable:
+		return http.StatusServiceUnavailable, "worker unavailable"
+	default:
+		return http.StatusInternalServerError, defaultReason
+	}
+}
+
+func fallbackReason(primary string, fallback string) string {
+	if primary != "" {
+		return primary
+	}
+	return fallback
 }
 
 func isWorkflowNotFound(err error) bool {

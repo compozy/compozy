@@ -153,20 +153,11 @@ func (s *Server) runReconciliationWithRetry(
 	log := logger.FromContext(s.ctx)
 	startTime := time.Now()
 	cfg := config.FromContext(s.ctx)
-	baseDelay := cfg.Server.Timeouts.ScheduleRetryBaseDelay
-	if secs := cfg.Server.Timeouts.ScheduleRetryBackoffSeconds; secs > 0 {
-		baseDelay = time.Duration(secs) * time.Second
+	if cfg == nil {
+		log.Error("Schedule reconciliation aborted: config missing from context")
+		return
 	}
-	if baseDelay <= 0 {
-		baseDelay = 1 * time.Second
-	}
-	backoff := retry.NewExponential(baseDelay)
-	backoff = retry.WithCappedDuration(cfg.Server.Timeouts.ScheduleRetryMaxDelay, backoff)
-	var policy = retry.WithMaxDuration(cfg.Server.Timeouts.ScheduleRetryMaxDuration, backoff)
-	if cfg.Server.Timeouts.ScheduleRetryMaxAttempts >= 1 {
-		attempts := min(cfg.Server.Timeouts.ScheduleRetryMaxAttempts, maxScheduleRetryAttemptsCap)
-		policy = retry.WithMaxRetries(nonNegativeUint64(attempts), policy)
-	}
+	policy := buildScheduleRetryPolicy(cfg)
 	err := retry.Do(
 		s.ctx,
 		policy,
@@ -192,18 +183,54 @@ func (s *Server) runReconciliationWithRetry(
 			return retry.RetryableError(err)
 		},
 	)
-	if err != nil {
-		if s.ctx.Err() == context.Canceled {
-			log.Info("Schedule reconciliation canceled during server shutdown")
-		} else {
-			finalErr := fmt.Errorf("schedule reconciliation failed after maximum retries: %w", err)
-			s.reconciliationState.setError(finalErr)
-			log.Error("Schedule reconciliation exhausted retries",
-				"error", err,
-				"duration", time.Since(startTime),
-				"max_duration", cfg.Server.Timeouts.ScheduleRetryMaxDuration)
-		}
+	s.handleScheduleReconciliationFailure(err, log, startTime, cfg)
+}
+
+// buildScheduleRetryPolicy constructs the retry policy for schedule reconciliation.
+func buildScheduleRetryPolicy(cfg *config.Config) retry.Backoff {
+	baseDelay := scheduleRetryBaseDelay(cfg)
+	backoff := retry.NewExponential(baseDelay)
+	backoff = retry.WithCappedDuration(cfg.Server.Timeouts.ScheduleRetryMaxDelay, backoff)
+	policy := retry.WithMaxDuration(cfg.Server.Timeouts.ScheduleRetryMaxDuration, backoff)
+	if cfg.Server.Timeouts.ScheduleRetryMaxAttempts >= 1 {
+		attempts := min(cfg.Server.Timeouts.ScheduleRetryMaxAttempts, maxScheduleRetryAttemptsCap)
+		policy = retry.WithMaxRetries(nonNegativeUint64(attempts), policy)
 	}
+	return policy
+}
+
+// scheduleRetryBaseDelay resolves the base delay for retrying schedule reconciliation.
+func scheduleRetryBaseDelay(cfg *config.Config) time.Duration {
+	base := cfg.Server.Timeouts.ScheduleRetryBaseDelay
+	if secs := cfg.Server.Timeouts.ScheduleRetryBackoffSeconds; secs > 0 {
+		base = time.Duration(secs) * time.Second
+	}
+	if base <= 0 {
+		return time.Second
+	}
+	return base
+}
+
+// handleScheduleReconciliationFailure records terminal reconciliation failures.
+func (s *Server) handleScheduleReconciliationFailure(
+	err error,
+	log logger.Logger,
+	start time.Time,
+	cfg *config.Config,
+) {
+	if err == nil {
+		return
+	}
+	if s.ctx.Err() == context.Canceled {
+		log.Info("Schedule reconciliation canceled during server shutdown")
+		return
+	}
+	finalErr := fmt.Errorf("schedule reconciliation failed after maximum retries: %w", err)
+	s.reconciliationState.setError(finalErr)
+	log.Error("Schedule reconciliation exhausted retries",
+		"error", err,
+		"duration", time.Since(start),
+		"max_duration", cfg.Server.Timeouts.ScheduleRetryMaxDuration)
 }
 
 func nonNegativeUint64(value int) uint64 {

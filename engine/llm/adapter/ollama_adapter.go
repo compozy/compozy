@@ -616,51 +616,62 @@ func (a *ollamaAdapter) buildOllamaOptions(ctx context.Context, req *LLMRequest)
 		return nil
 	}
 	options := make(map[string]any)
-	if req.Options.TemperatureSet {
-		options["temperature"] = req.Options.Temperature
-	} else if req.Options.Temperature > 0 {
-		options["temperature"] = req.Options.Temperature
-	}
-	if req.Options.TopP > 0 {
-		options["top_p"] = req.Options.TopP
-	}
-	if req.Options.TopK > 0 {
-		options["top_k"] = req.Options.TopK
-	}
-	if req.Options.Seed != 0 {
-		options["seed"] = req.Options.Seed
-	}
-	if req.Options.MaxTokens > 0 {
-		options["num_predict"] = req.Options.MaxTokens
-	}
-	if req.Options.RepetitionPenalty > 0 {
-		options["repeat_penalty"] = req.Options.RepetitionPenalty
-	}
-	if len(req.Options.StopWords) > 0 {
-		options["stop"] = req.Options.StopWords
-	}
+	applyOllamaSamplingOptions(options, &req.Options)
 	if len(req.Options.Metadata) > 0 {
-		metadata := core.CloneMap(req.Options.Metadata)
-		for key, value := range metadata {
-			if _, exists := options[key]; exists {
-				continue
-			}
-			if !isSupportedOllamaOptionValue(value) {
-				logger.FromContext(ctx).Debug(
-					"Skipping unsupported Ollama option metadata value",
-					"provider", string(a.provider.Provider),
-					"key", key,
-					"type", fmt.Sprintf("%T", value),
-				)
-				continue
-			}
-			options[key] = normalizeOllamaOptionValue(value)
-		}
+		a.mergeMetadataOptions(ctx, options, req.Options.Metadata)
 	}
 	if len(options) == 0 {
 		return nil
 	}
 	return options
+}
+
+func applyOllamaSamplingOptions(options map[string]any, opts *CallOptions) {
+	if opts == nil {
+		return
+	}
+	if opts.TemperatureSet {
+		options["temperature"] = opts.Temperature
+	} else if opts.Temperature > 0 {
+		options["temperature"] = opts.Temperature
+	}
+	if opts.TopP > 0 {
+		options["top_p"] = opts.TopP
+	}
+	if opts.TopK > 0 {
+		options["top_k"] = opts.TopK
+	}
+	if opts.Seed != 0 {
+		options["seed"] = opts.Seed
+	}
+	if opts.MaxTokens > 0 {
+		options["num_predict"] = opts.MaxTokens
+	}
+	if opts.RepetitionPenalty > 0 {
+		options["repeat_penalty"] = opts.RepetitionPenalty
+	}
+	if len(opts.StopWords) > 0 {
+		options["stop"] = opts.StopWords
+	}
+}
+
+func (a *ollamaAdapter) mergeMetadataOptions(ctx context.Context, options map[string]any, metadata map[string]any) {
+	cloned := core.CloneMap(metadata)
+	for key, value := range cloned {
+		if _, exists := options[key]; exists {
+			continue
+		}
+		if !isSupportedOllamaOptionValue(value) {
+			logger.FromContext(ctx).Debug(
+				"Skipping unsupported Ollama option metadata value",
+				"provider", string(a.provider.Provider),
+				"key", key,
+				"type", fmt.Sprintf("%T", value),
+			)
+			continue
+		}
+		options[key] = normalizeOllamaOptionValue(value)
+	}
 }
 
 func buildToolChoiceDirective(toolChoice string, tools []ToolDefinition) string {

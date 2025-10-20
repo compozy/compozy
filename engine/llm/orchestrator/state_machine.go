@@ -109,74 +109,67 @@ func loopFSMEvents() fsm.Events {
 }
 
 func loopFSMCallbacks(observer *transitionObserver, deps loopDeps) fsm.Callbacks {
+	callbacks := baseFSMCallbacks(observer, deps)
+	handlers := []struct {
+		state string
+		fn    func(loopDeps, context.Context, *LoopContext) transitionResult
+	}{
+		{StateInit, func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterInit(cbCtx, lc)
+		}},
+		{StateAwaitLLM, func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterAwaitLLM(cbCtx, lc)
+		}},
+		{StateEvaluateResponse, func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterEvaluateResponse(cbCtx, lc)
+		}},
+		{StateProcessTools, func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterProcessTools(cbCtx, lc)
+		}},
+		{StateUpdateBudgets, func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterUpdateBudgets(cbCtx, lc)
+		}},
+		{StateHandleCompletion, func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterHandleCompletion(cbCtx, lc)
+		}},
+		{StateFinalize, func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterFinalize(cbCtx, lc)
+		}},
+		{StateTerminateError, func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
+			return d.OnEnterTerminateError(cbCtx, lc)
+		}},
+	}
+	registerEnterCallbacks(callbacks, observer, deps, handlers)
+	return callbacks
+}
+
+func baseFSMCallbacks(observer *transitionObserver, deps loopDeps) fsm.Callbacks {
 	callbacks := fsm.Callbacks{
 		"before_event": func(cbCtx context.Context, e *fsm.Event) { observer.BeforeEvent(cbCtx, e) },
 		"after_event":  func(cbCtx context.Context, e *fsm.Event) { observer.AfterEvent(cbCtx, e) },
-		"after_" + EventFailure: func(cbCtx context.Context, e *fsm.Event) {
-			if deps == nil {
-				return
-			}
-			obsCtx := observer.resolveContext(cbCtx)
-			deps.OnFailure(obsCtx, loopContextFromEvent(obsCtx, e), e.Event)
-		},
 	}
-	callbacks["enter_"+StateInit] = makeEnterCallback(
-		observer,
-		deps,
-		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
-			return d.OnEnterInit(cbCtx, lc)
-		},
-	)
-	callbacks["enter_"+StateAwaitLLM] = makeEnterCallback(
-		observer,
-		deps,
-		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
-			return d.OnEnterAwaitLLM(cbCtx, lc)
-		},
-	)
-	callbacks["enter_"+StateEvaluateResponse] = makeEnterCallback(
-		observer,
-		deps,
-		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
-			return d.OnEnterEvaluateResponse(cbCtx, lc)
-		},
-	)
-	callbacks["enter_"+StateProcessTools] = makeEnterCallback(
-		observer,
-		deps,
-		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
-			return d.OnEnterProcessTools(cbCtx, lc)
-		},
-	)
-	callbacks["enter_"+StateUpdateBudgets] = makeEnterCallback(
-		observer,
-		deps,
-		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
-			return d.OnEnterUpdateBudgets(cbCtx, lc)
-		},
-	)
-	callbacks["enter_"+StateHandleCompletion] = makeEnterCallback(
-		observer,
-		deps,
-		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
-			return d.OnEnterHandleCompletion(cbCtx, lc)
-		},
-	)
-	callbacks["enter_"+StateFinalize] = makeEnterCallback(
-		observer,
-		deps,
-		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
-			return d.OnEnterFinalize(cbCtx, lc)
-		},
-	)
-	callbacks["enter_"+StateTerminateError] = makeEnterCallback(
-		observer,
-		deps,
-		func(d loopDeps, cbCtx context.Context, lc *LoopContext) transitionResult {
-			return d.OnEnterTerminateError(cbCtx, lc)
-		},
-	)
+	callbacks["after_"+EventFailure] = func(cbCtx context.Context, e *fsm.Event) {
+		if deps == nil {
+			return
+		}
+		obsCtx := observer.resolveContext(cbCtx)
+		deps.OnFailure(obsCtx, loopContextFromEvent(obsCtx, e), e.Event)
+	}
 	return callbacks
+}
+
+func registerEnterCallbacks(
+	callbacks fsm.Callbacks,
+	observer *transitionObserver,
+	deps loopDeps,
+	handlers []struct {
+		state string
+		fn    func(loopDeps, context.Context, *LoopContext) transitionResult
+	},
+) {
+	for _, handler := range handlers {
+		callbacks["enter_"+handler.state] = makeEnterCallback(observer, deps, handler.fn)
+	}
 }
 
 func loopContextFromEvent(ctx context.Context, e *fsm.Event) *LoopContext {

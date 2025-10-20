@@ -32,42 +32,9 @@ func NewStore(ctx context.Context, cfg *Config) (*Store, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("postgres: config is required")
 	}
-	log := logger.FromContext(ctx)
-	poolCfg, err := pgxpool.ParseConfig(dsn(cfg))
+	poolCfg, metricsTracker, err := buildPoolConfig(ctx, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("postgres: parse config: %w", err)
-	}
-	metricsTracker, mErr := configurePostgresMetrics(cfg, poolCfg)
-	if mErr != nil {
-		log.With("err", mErr).Warn("Postgres metrics not initialized; continuing without metrics")
-	}
-	maxConns := int32(defaultMaxConns)
-	if cfg.MaxOpenConns > 0 {
-		if cfg.MaxOpenConns > int(math.MaxInt32) {
-			maxConns = math.MaxInt32
-		} else {
-			maxConns = int32(cfg.MaxOpenConns)
-		}
-	}
-	minConns := int32(defaultMinConns)
-	if cfg.MaxIdleConns > 0 {
-		candidate := clampIntToInt32WithLimit(cfg.MaxIdleConns, maxConns)
-		if candidate > 0 {
-			minConns = candidate
-		}
-	}
-	if minConns > maxConns {
-		minConns = maxConns
-	}
-	poolCfg.MaxConns = maxConns
-	poolCfg.MinConns = minConns
-	poolCfg.HealthCheckPeriod = defaultHealthCheckPeriod
-	poolCfg.ConnConfig.ConnectTimeout = defaultConnectTimeout
-	if cfg.ConnMaxLifetime > 0 {
-		poolCfg.MaxConnLifetime = cfg.ConnMaxLifetime
-	}
-	if cfg.ConnMaxIdleTime > 0 {
-		poolCfg.MaxConnIdleTime = cfg.ConnMaxIdleTime
+		return nil, err
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
@@ -76,22 +43,10 @@ func NewStore(ctx context.Context, cfg *Config) (*Store, error) {
 	if metricsTracker != nil {
 		metricsTracker.attach(pool)
 	}
-	pingCtx, cancel := context.WithTimeout(ctx, defaultPingTimeout)
-	defer cancel()
-	if err := pool.Ping(pingCtx); err != nil {
-		pool.Close()
-		if metricsTracker != nil {
-			metricsTracker.unregister()
-		}
-		return nil, fmt.Errorf("postgres: ping: %w", err)
+	if err := verifyPoolConnection(ctx, pool, metricsTracker); err != nil {
+		return nil, err
 	}
-	log.With(
-		"store_driver", "postgres",
-		"host", cfg.Host,
-		"port", cfg.Port,
-		"db_name", cfg.DBName,
-		"ssl_mode", cfg.SSLMode,
-	).Info("Store initialized")
+	logStoreInitialization(ctx, cfg)
 	return &Store{pool: pool, metrics: metricsTracker}, nil
 }
 
@@ -135,4 +90,80 @@ func clampIntToInt32WithLimit(value int, limit int32) int32 {
 		return limit
 	}
 	return int32(value)
+}
+
+// buildPoolConfig parses the DSN, configures metrics, and applies pool settings.
+func buildPoolConfig(ctx context.Context, cfg *Config) (*pgxpool.Config, *poolMetrics, error) {
+	poolCfg, err := pgxpool.ParseConfig(dsn(cfg))
+	if err != nil {
+		return nil, nil, fmt.Errorf("postgres: parse config: %w", err)
+	}
+	metricsTracker, mErr := configurePostgresMetrics(cfg, poolCfg)
+	if mErr != nil {
+		logger.FromContext(ctx).With("err", mErr).Warn("Postgres metrics not initialized; continuing without metrics")
+	}
+	maxConns, minConns := deriveConnectionBounds(cfg)
+	poolCfg.MaxConns = maxConns
+	poolCfg.MinConns = minConns
+	poolCfg.HealthCheckPeriod = defaultHealthCheckPeriod
+	poolCfg.ConnConfig.ConnectTimeout = defaultConnectTimeout
+	applyLifetimeSettings(cfg, poolCfg)
+	return poolCfg, metricsTracker, nil
+}
+
+// deriveConnectionBounds computes max/min connections respecting defaults and limits.
+func deriveConnectionBounds(cfg *Config) (int32, int32) {
+	maxConns := int32(defaultMaxConns)
+	if cfg.MaxOpenConns > 0 {
+		if cfg.MaxOpenConns > int(math.MaxInt32) {
+			maxConns = math.MaxInt32
+		} else {
+			maxConns = int32(cfg.MaxOpenConns)
+		}
+	}
+	minConns := int32(defaultMinConns)
+	if cfg.MaxIdleConns > 0 {
+		if candidate := clampIntToInt32WithLimit(cfg.MaxIdleConns, maxConns); candidate > 0 {
+			minConns = candidate
+		}
+	}
+	if minConns > maxConns {
+		minConns = maxConns
+	}
+	return maxConns, minConns
+}
+
+// applyLifetimeSettings applies connection lifetime and idle time configuration.
+func applyLifetimeSettings(cfg *Config, poolCfg *pgxpool.Config) {
+	if cfg.ConnMaxLifetime > 0 {
+		poolCfg.MaxConnLifetime = cfg.ConnMaxLifetime
+	}
+	if cfg.ConnMaxIdleTime > 0 {
+		poolCfg.MaxConnIdleTime = cfg.ConnMaxIdleTime
+	}
+}
+
+// verifyPoolConnection pings the pool and cleans up on failure.
+func verifyPoolConnection(ctx context.Context, pool *pgxpool.Pool, metricsTracker *poolMetrics) error {
+	pingCtx, cancel := context.WithTimeout(ctx, defaultPingTimeout)
+	defer cancel()
+	if err := pool.Ping(pingCtx); err != nil {
+		pool.Close()
+		if metricsTracker != nil {
+			metricsTracker.unregister()
+		}
+		return fmt.Errorf("postgres: ping: %w", err)
+	}
+	return nil
+}
+
+// logStoreInitialization emits a standardized initialization message.
+func logStoreInitialization(ctx context.Context, cfg *Config) {
+	logger.FromContext(ctx).With(
+		"store_driver", "postgres",
+		"host", cfg.Host,
+		"port", cfg.Port,
+		"db_name", cfg.DBName,
+		"ssl_mode", cfg.SSLMode,
+	).Info("Store initialized")
 }

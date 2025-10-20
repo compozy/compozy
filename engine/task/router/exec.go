@@ -550,50 +550,86 @@ func executeTaskAsync(c *gin.Context) {
 	if state == nil {
 		return
 	}
-	metrics := router.ResolveExecutionMetrics(c, state)
 	ctx := c.Request.Context()
-	recordError := func(code int) {
-		if metrics != nil && code >= http.StatusBadRequest {
-			metrics.RecordError(ctx, monitoring.ExecutionKindTask, code)
-		}
-	}
+	metrics := router.ResolveExecutionMetrics(c, state)
+	recordError := buildAsyncErrorRecorder(ctx, metrics)
 	resourceStore, ok := router.GetResourceStore(c)
 	if !ok {
 		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
-	timeouts := resolveTaskExecutionTimeouts(c.Request.Context(), state)
 	req, ok := parseTaskExecRequest(c)
 	if !ok {
 		recordError(http.StatusBadRequest)
 		return
 	}
-	taskCfg, _, ok := loadDirectTaskConfig(c, resourceStore, state, taskID, req, timeouts)
+	timeouts := resolveTaskExecutionTimeouts(ctx, state)
+	taskCfg, ok := loadAsyncTaskConfig(c, resourceStore, state, taskID, req, timeouts, recordError)
 	if !ok {
-		recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
 		return
 	}
 	repo := router.ResolveTaskRepository(c, state)
 	if repo == nil {
-		recordError(http.StatusInternalServerError)
-		reqErr := router.NewRequestError(http.StatusInternalServerError, "task repository unavailable", nil)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		handleMissingTaskRepo(c, recordError)
 		return
 	}
-	executor, err := ResolveDirectExecutor(c.Request.Context(), state, repo)
+	executor, err := ResolveDirectExecutor(ctx, state, repo)
 	if err != nil {
 		recordError(http.StatusInternalServerError)
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to initialize executor", err)
 		return
 	}
-	component := deriveTaskComponent(taskCfg)
-	meta := ExecMetadata{Component: component, TaskID: taskCfg.ID}
-	execID, execErr := executor.ExecuteAsync(c.Request.Context(), taskCfg, &meta)
+	meta := ExecMetadata{Component: deriveTaskComponent(taskCfg), TaskID: taskCfg.ID}
+	execID, execErr := executor.ExecuteAsync(ctx, taskCfg, &meta)
 	if execErr != nil {
 		recordError(http.StatusInternalServerError)
 		router.RespondWithServerError(c, router.ErrInternalCode, "task execution failed", execErr)
 		return
 	}
+	finalizeAsyncExecution(ctx, c, metrics, execID)
+}
+
+// buildAsyncErrorRecorder returns a helper that records router errors for metrics.
+func buildAsyncErrorRecorder(ctx context.Context, metrics *monitoring.ExecutionMetrics) func(int) {
+	return func(code int) {
+		if metrics != nil && code >= http.StatusBadRequest {
+			metrics.RecordError(ctx, monitoring.ExecutionKindTask, code)
+		}
+	}
+}
+
+// loadAsyncTaskConfig loads the task config and records failures consistently.
+func loadAsyncTaskConfig(
+	c *gin.Context,
+	resourceStore resources.ResourceStore,
+	state *appstate.State,
+	taskID string,
+	req *TaskExecRequest,
+	timeouts taskExecutionTimeouts,
+	recordError func(int),
+) (*task.Config, bool) {
+	taskCfg, _, ok := loadDirectTaskConfig(c, resourceStore, state, taskID, req, timeouts)
+	if ok {
+		return taskCfg, true
+	}
+	recordError(router.StatusOrFallback(c, http.StatusInternalServerError))
+	return nil, false
+}
+
+// handleMissingTaskRepo responds when the task repository cannot be resolved.
+func handleMissingTaskRepo(c *gin.Context, recordError func(int)) {
+	recordError(http.StatusInternalServerError)
+	reqErr := router.NewRequestError(http.StatusInternalServerError, "task repository unavailable", nil)
+	router.RespondWithError(c, reqErr.StatusCode, reqErr)
+}
+
+// finalizeAsyncExecution records metrics and emits the accepted response.
+func finalizeAsyncExecution(
+	ctx context.Context,
+	c *gin.Context,
+	metrics *monitoring.ExecutionMetrics,
+	execID core.ID,
+) {
 	if metrics != nil {
 		metrics.RecordAsyncStarted(ctx, monitoring.ExecutionKindTask)
 	}

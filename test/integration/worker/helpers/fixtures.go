@@ -206,64 +206,128 @@ func (f *TestFixture) AssertWorkflowState(t *testing.T, state *workflow.State) {
 	}
 }
 
-// AssertTaskStates asserts that task states match expectations
+// AssertTaskStates asserts that task states match expectations.
+// It builds a lookup map and delegates detailed checks to helper functions.
 func (f *TestFixture) AssertTaskStates(t *testing.T, states []*task.State) {
+	t.Helper()
 	assert := require.New(t)
 
-	// Create a map of states by task ID for easier lookup
-	stateMap := make(map[string]*task.State)
+	stateMap := mapTaskStatesByID(states)
+	for i := range f.Expected.TaskStates {
+		expected := &f.Expected.TaskStates[i]
+		taskID := resolveExpectedTaskID(expected)
+		state := requireTaskState(assert, stateMap, taskID)
+
+		assertTaskStatusMatches(assert, expected, state, taskID)
+		assertTaskParentMatches(assert, expected, state, taskID)
+		assertTaskOutputMatches(t, assert, expected, state, taskID)
+		assertTaskErrorMatches(assert, expected, state, taskID)
+	}
+}
+
+// mapTaskStatesByID builds a lookup table for task states keyed by task identifier.
+// It simplifies downstream assertions that reference states by ID or name.
+func mapTaskStatesByID(states []*task.State) map[string]*task.State {
+	stateMap := make(map[string]*task.State, len(states))
 	for _, state := range states {
 		stateMap[state.TaskID] = state
 	}
+	return stateMap
+}
 
-	// Check each expected task state
-	for _, expected := range f.Expected.TaskStates {
-		taskID := expected.ID
-		if taskID == "" {
-			taskID = expected.Name
+// resolveExpectedTaskID picks the best identifier available for the expected state.
+// It prefers explicit IDs and falls back to the configured name.
+func resolveExpectedTaskID(expected *TaskStateExpectation) string {
+	if expected.ID != "" {
+		return expected.ID
+	}
+	return expected.Name
+}
+
+// requireTaskState fetches a task state from the map and asserts its presence.
+// Returning the state simplifies follow-up assertions.
+func requireTaskState(
+	assert *require.Assertions,
+	stateMap map[string]*task.State,
+	taskID string,
+) *task.State {
+	state, exists := stateMap[taskID]
+	assert.True(exists, "Task state not found for task: %s", taskID)
+	return state
+}
+
+// assertTaskStatusMatches verifies the task status aligns with expectations.
+// Status mismatches indicate important behavioral regressions.
+func assertTaskStatusMatches(
+	assert *require.Assertions,
+	expected *TaskStateExpectation,
+	state *task.State,
+	taskID string,
+) {
+	assert.Equal(expected.Status, string(state.Status), "Task %s status mismatch", taskID)
+}
+
+// assertTaskParentMatches ensures parent/child relationships align with fixtures.
+// It fails fast when the fixture expects a parent that is missing.
+func assertTaskParentMatches(
+	assert *require.Assertions,
+	expected *TaskStateExpectation,
+	state *task.State,
+	taskID string,
+) {
+	if expected.Parent == "" {
+		assert.Nil(state.ParentStateID, "Expected no parent but found parent for task %s", taskID)
+		return
+	}
+	if state.ParentStateID == nil {
+		assert.NotNil(state.ParentStateID, "Expected parent %s but got nil for task %s", expected.Parent, taskID)
+		return
+	}
+	assert.Equal(expected.Parent, string(*state.ParentStateID),
+		"Parent mismatch for task %s", taskID)
+}
+
+// assertTaskOutputMatches compares expected output fragments with actual values.
+// String expectations use substring matching to support templated content.
+func assertTaskOutputMatches(
+	t *testing.T,
+	assert *require.Assertions,
+	expected *TaskStateExpectation,
+	state *task.State,
+	taskID string,
+) {
+	t.Helper()
+	if expected.Output == nil || state.Output == nil {
+		return
+	}
+	for key, expectedValue := range expected.Output {
+		actualValue, ok := (*state.Output)[key]
+		assert.True(ok, "Output key %s not found in task %s", key, taskID)
+		if expectedStr, okStr := expectedValue.(string); okStr {
+			actualStr := fmt.Sprint(actualValue)
+			if !strings.Contains(actualStr, expectedStr) {
+				t.Logf("Actual output for %s/%s:\n%q", taskID, key, actualStr)
+			}
+			assert.Contains(actualStr, expectedStr, "Output mismatch for key %s in task %s", key, taskID)
+			continue
 		}
+		assert.Equal(expectedValue, actualValue, "Output mismatch for key %s in task %s", key, taskID)
+	}
+}
 
-		state, exists := stateMap[taskID]
-		assert.True(exists, "Task state not found for task: %s", taskID)
-
-		if exists {
-			assert.Equal(expected.Status, string(state.Status),
-				"Task %s status mismatch", taskID)
-
-			if expected.Parent != "" {
-				if state.ParentStateID != nil {
-					assert.Equal(expected.Parent, string(*state.ParentStateID),
-						"Parent mismatch for task %s", taskID)
-				} else {
-					assert.Empty(expected.Parent, "Expected no parent but fixture specifies parent for task %s", taskID)
-				}
-			}
-
-			// Note: ExecutionOrder is not tracked in the current State struct
-			// Note: ChildrenCount would require a separate repository query to verify
-
-			if expected.Output != nil && state.Output != nil {
-				// Compare outputs
-				for key, expectedValue := range expected.Output {
-					actualValue, ok := (*state.Output)[key]
-					assert.True(ok, "Output key %s not found in task %s", key, taskID)
-					if expectedStr, okStr := expectedValue.(string); okStr {
-						actualStr := fmt.Sprint(actualValue)
-						if !strings.Contains(actualStr, expectedStr) {
-							t.Logf("Actual output for %s/%s:\n%q", taskID, key, actualStr)
-						}
-						assert.Contains(actualStr, expectedStr, "Output mismatch for key %s in task %s", key, taskID)
-					} else {
-						assert.Equal(expectedValue, actualValue, "Output mismatch for key %s in task %s", key, taskID)
-					}
-				}
-			}
-
-			if expected.Error != "" {
-				assert.NotNil(state.Error, "Expected error for task %s", taskID)
-				assert.Contains(state.Error.Message, expected.Error,
-					"Error message mismatch for task %s", taskID)
-			}
-		}
+// assertTaskErrorMatches verifies error expectations when provided in fixtures.
+// It ensures the error struct is present and includes the expected details.
+func assertTaskErrorMatches(
+	assert *require.Assertions,
+	expected *TaskStateExpectation,
+	state *task.State,
+	taskID string,
+) {
+	if expected.Error == "" {
+		return
+	}
+	assert.NotNil(state.Error, "Expected error for task %s", taskID)
+	if state.Error != nil {
+		assert.Contains(state.Error.Message, expected.Error, "Error message mismatch for task %s", taskID)
 	}
 }

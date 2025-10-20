@@ -51,61 +51,87 @@ func NewUnifiedTokenCounter(
 
 // CountTokens counts tokens using the configured provider or falls back to tiktoken
 func (u *UnifiedTokenCounter) CountTokens(ctx context.Context, text string) (int, error) {
-	log := logger.FromContext(ctx)
-	u.mu.RLock()
-	config := u.providerConfig
-	u.mu.RUnlock()
-	if config == nil || config.APIKey == "" {
-		// No real-time counting configured, use fallback
-		return u.fallbackCounter.CountTokens(ctx, text)
+	config := u.GetProviderConfig()
+	if !isProviderConfigured(config) {
+		return u.countWithFallback(ctx, text)
 	}
-	// Create a context with timeout for external API call
+
 	apiCtx, cancel := context.WithTimeout(ctx, DefaultAPITimeout)
 	defer cancel()
-	// Channel to receive the result
-	type result struct {
-		count int
-		err   error
+
+	count, err := u.tryCountWithProvider(apiCtx, config, text)
+	if err != nil {
+		return u.handleProviderFailure(ctx, text, config, err)
 	}
-	resultChan := make(chan result, 1)
-	// Run the API call in a goroutine to respect the timeout
+	if count == 0 {
+		return u.handleZeroCount(ctx, text, config)
+	}
+
+	return count, nil
+}
+
+func isProviderConfigured(config *ProviderConfig) bool {
+	return config != nil && config.APIKey != ""
+}
+
+func (u *UnifiedTokenCounter) tryCountWithProvider(
+	ctx context.Context,
+	config *ProviderConfig,
+	text string,
+) (int, error) {
+	resultChan := make(chan int, 1)
 	go func() {
-		// Try real-time API counting
 		count := u.realCounter.GetNumTokensFromPrompt(
 			text,
 			config.Provider,
 			config.Model,
 			config.APIKey,
 		)
-		// Use select to prevent blocking if context is already done
 		select {
-		case resultChan <- result{count: count, err: nil}:
-			// Result sent successfully
-		case <-apiCtx.Done():
-			// Context was canceled, abort sending and exit goroutine
-			return
+		case resultChan <- count:
+		case <-ctx.Done():
 		}
 	}()
-	// Wait for result or timeout
+
 	select {
-	case <-apiCtx.Done():
-		// Timeout occurred
-		log.Warn("Token counting API call timed out, using fallback",
-			"provider", config.Provider,
-			"model", config.Model,
-			"timeout", DefaultAPITimeout)
-		return u.fallbackCounter.CountTokens(ctx, text)
-	case res := <-resultChan:
-		if res.count == 0 {
-			// Alembica returns 0 for errors or unsupported providers
-			log.Warn("Real-time token counting failed or returned zero, using fallback",
-				"provider", config.Provider,
-				"model", config.Model)
-			// Fallback to tiktoken
-			return u.fallbackCounter.CountTokens(ctx, text)
-		}
-		return res.count, nil
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	case count := <-resultChan:
+		return count, nil
 	}
+}
+
+func (u *UnifiedTokenCounter) handleProviderFailure(
+	ctx context.Context,
+	text string,
+	config *ProviderConfig,
+	cause error,
+) (int, error) {
+	log := logger.FromContext(ctx)
+	log.Warn("Token counting API call timed out, using fallback",
+		"provider", config.Provider,
+		"model", config.Model,
+		"timeout", DefaultAPITimeout,
+		"error", cause,
+	)
+	return u.countWithFallback(ctx, text)
+}
+
+func (u *UnifiedTokenCounter) handleZeroCount(
+	ctx context.Context,
+	text string,
+	config *ProviderConfig,
+) (int, error) {
+	log := logger.FromContext(ctx)
+	log.Warn("Real-time token counting failed or returned zero, using fallback",
+		"provider", config.Provider,
+		"model", config.Model,
+	)
+	return u.countWithFallback(ctx, text)
+}
+
+func (u *UnifiedTokenCounter) countWithFallback(ctx context.Context, text string) (int, error) {
+	return u.fallbackCounter.CountTokens(ctx, text)
 }
 
 // GetEncoding returns a string identifying the encoding/provider being used

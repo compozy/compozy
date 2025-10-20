@@ -39,64 +39,14 @@ type FlushHandler struct {
 
 // PerformFlush executes the complete memory flush operation with retry logic
 func (f *FlushHandler) PerformFlush(ctx context.Context) (*core.FlushMemoryActivityOutput, error) {
-	log := logger.FromContext(ctx)
 	start := time.Now()
-	var result *core.FlushMemoryActivityOutput
-	var finalErr error
-
-	// Retry logic with exponential backoff for transient failures
-	retryConfig := retry.WithMaxRetries(3, retry.NewExponential(100*time.Millisecond))
-
-	err := retry.Do(ctx, retryConfig, func(ctx context.Context) error {
-		// Acquire flush lock
-		unlock, err := f.lockManager.AcquireFlushLock(ctx, f.instanceID)
-		if err != nil {
-			// Check if it's a lock contention error
-			if errors.Is(err, core.ErrFlushLockFailed) || errors.Is(err, core.ErrLockAcquisitionFailed) {
-				log.Debug("Flush already in progress for instance",
-					"instance_id", f.instanceID)
-				return core.ErrFlushAlreadyPending
-			}
-			if isTransientError(err) {
-				log.Warn("Transient error acquiring flush lock, will retry",
-					"error", err,
-					"instance_id", f.instanceID)
-				return retry.RetryableError(err)
-			}
-			return fmt.Errorf("failed to acquire flush lock: %w", err)
-		}
-		defer func() {
-			if err := unlock(); err != nil {
-				log.Error("Failed to release flush lock",
-					"error", err,
-					"instance_id", f.instanceID)
-			}
-		}()
-
-		// Execute the flush directly
-		result, err = f.executeFlush(ctx)
-		if err != nil {
-			if isTransientError(err) {
-				log.Warn("Transient error during flush, will retry",
-					"error", err,
-					"instance_id", f.instanceID)
-				return retry.RetryableError(err)
-			}
-			finalErr = err
-			return err
-		}
-
-		finalErr = nil
-		return nil
-	})
-
-	// Record metrics
+	result, err := f.runFlushWithRetry(ctx)
+	duration := time.Since(start)
+	messageCount := 0
 	if result != nil {
-		f.metrics.RecordFlush(ctx, time.Since(start), result.MessageCount, finalErr)
-	} else {
-		f.metrics.RecordFlush(ctx, time.Since(start), 0, finalErr)
+		messageCount = result.MessageCount
 	}
-
+	f.metrics.RecordFlush(ctx, duration, messageCount, err)
 	return result, err
 }
 
@@ -157,6 +107,72 @@ func (f *FlushHandler) selectStrategy() (core.FlushStrategy, error) {
 
 	// Fall back to configured strategy
 	return f.flushingStrategy, nil
+}
+
+func (f *FlushHandler) runFlushWithRetry(ctx context.Context) (*core.FlushMemoryActivityOutput, error) {
+	retryConfig := retry.WithMaxRetries(3, retry.NewExponential(100*time.Millisecond))
+	var (
+		result   *core.FlushMemoryActivityOutput
+		finalErr error
+	)
+	err := retry.Do(ctx, retryConfig, func(ctx context.Context) error {
+		res, retryable, execErr := f.executeFlushWithLock(ctx)
+		if execErr != nil {
+			finalErr = execErr
+			if retryable {
+				return retry.RetryableError(execErr)
+			}
+			return execErr
+		}
+		finalErr = nil
+		result = res
+		return nil
+	})
+	if err != nil {
+		if finalErr != nil {
+			return result, finalErr
+		}
+		return result, err
+	}
+	return result, nil
+}
+
+func (f *FlushHandler) executeFlushWithLock(ctx context.Context) (*core.FlushMemoryActivityOutput, bool, error) {
+	log := logger.FromContext(ctx)
+	unlock, err := f.lockManager.AcquireFlushLock(ctx, f.instanceID)
+	if err != nil {
+		if errors.Is(err, core.ErrFlushLockFailed) || errors.Is(err, core.ErrLockAcquisitionFailed) {
+			log.Debug("Flush already in progress for instance",
+				"instance_id", f.instanceID)
+			return nil, false, core.ErrFlushAlreadyPending
+		}
+		if isTransientError(err) {
+			log.Warn("Transient error acquiring flush lock, will retry",
+				"error", err,
+				"instance_id", f.instanceID)
+			return nil, true, err
+		}
+		return nil, false, fmt.Errorf("failed to acquire flush lock: %w", err)
+	}
+	defer func() {
+		if unlockErr := unlock(); unlockErr != nil {
+			log.Error("Failed to release flush lock",
+				"error", unlockErr,
+				"instance_id", f.instanceID)
+		}
+	}()
+
+	result, err := f.executeFlush(ctx)
+	if err != nil {
+		if isTransientError(err) {
+			log.Warn("Transient error during flush, will retry",
+				"error", err,
+				"instance_id", f.instanceID)
+			return nil, true, err
+		}
+		return nil, false, err
+	}
+	return result, false, nil
 }
 
 // getThreshold returns the summarize threshold from the resource config

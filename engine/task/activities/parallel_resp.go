@@ -51,7 +51,38 @@ func (a *GetParallelResponse) Run(
 	ctx context.Context,
 	input *GetParallelResponseInput,
 ) (*task.MainTaskResponse, error) {
-	// Fetch task config from Redis using parent state's TaskExecID
+	taskConfig, err := a.loadParentTaskConfig(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	workflowState, err := a.loadWorkflowState(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	executionError := a.processParallelTask(ctx, input, taskConfig)
+	handler, err := a.createParallelResponseHandler(ctx)
+	if err != nil {
+		return nil, err
+	}
+	responseInput := buildParallelResponseInput(taskConfig, input, workflowState)
+	result, err := handler.HandleResponse(ctx, responseInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle parallel response: %w", err)
+	}
+	if err := a.applyDeferredTransformation(ctx, handler, responseInput, executionError, input.ParentState); err != nil {
+		return nil, err
+	}
+	if executionError != nil {
+		return nil, executionError
+	}
+	return a.convertToMainTaskResponse(ctx, result), nil
+}
+
+// loadParentTaskConfig retrieves the parent task configuration from the config store.
+func (a *GetParallelResponse) loadParentTaskConfig(
+	ctx context.Context,
+	input *GetParallelResponseInput,
+) (*task.Config, error) {
 	taskConfig, err := a.configStore.Get(ctx, input.ParentState.TaskExecID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task config: %w", err)
@@ -59,52 +90,65 @@ func (a *GetParallelResponse) Run(
 	if taskConfig == nil {
 		return nil, fmt.Errorf("task config for exec %s not found", input.ParentState.TaskExecID)
 	}
-	// Load workflow state
+	return taskConfig, nil
+}
+
+// loadWorkflowState fetches the workflow state required for response handling.
+func (a *GetParallelResponse) loadWorkflowState(
+	ctx context.Context,
+	input *GetParallelResponseInput,
+) (*workflow.State, error) {
 	workflowState, err := a.workflowRepo.GetState(ctx, input.ParentState.WorkflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow state: %w", err)
 	}
-	// Process the parallel task
-	executionError := a.processParallelTask(ctx, input, taskConfig)
-	// Use task2 ResponseHandler for parallel type
+	return workflowState, nil
+}
+
+// createParallelResponseHandler returns the response handler for parallel tasks.
+func (a *GetParallelResponse) createParallelResponseHandler(ctx context.Context) (shared.TaskResponseHandler, error) {
 	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeParallel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create parallel response handler: %w", err)
 	}
-	// Prepare input for response handler
-	responseInput := &shared.ResponseInput{
+	return handler, nil
+}
+
+// buildParallelResponseInput assembles the input for the response handler invocation.
+func buildParallelResponseInput(
+	taskConfig *task.Config,
+	input *GetParallelResponseInput,
+	workflowState *workflow.State,
+) *shared.ResponseInput {
+	return &shared.ResponseInput{
 		TaskConfig:     taskConfig,
 		TaskState:      input.ParentState,
 		WorkflowConfig: input.WorkflowConfig,
 		WorkflowState:  workflowState,
 	}
-	// Handle the response
-	result, err := handler.HandleResponse(ctx, responseInput)
-	if err != nil {
-		return nil, fmt.Errorf("failed to handle parallel response: %w", err)
-	}
+}
 
-	// Apply deferred output transformation for parallel tasks after children are processed
-	// This handles parallel response aggregation with child outputs
-	if parallelHandler, ok := handler.(interface {
+// applyDeferredTransformation runs post-processing when parallel handlers expose it.
+func (a *GetParallelResponse) applyDeferredTransformation(
+	ctx context.Context,
+	handler shared.TaskResponseHandler,
+	responseInput *shared.ResponseInput,
+	executionError error,
+	parentState *task.State,
+) error {
+	parallelHandler, ok := handler.(interface {
 		ApplyDeferredOutputTransformation(context.Context, *shared.ResponseInput) error
-	}); ok {
-		// CRITICAL: Only apply transformation if no execution error
-		// This matches the condition in BaseResponseHandler.ApplyDeferredOutputTransformation
-		if executionError == nil && input.ParentState.Status != core.StatusFailed {
-			if err := parallelHandler.ApplyDeferredOutputTransformation(ctx, responseInput); err != nil {
-				return nil, fmt.Errorf("failed to apply deferred output transformation: %w", err)
-			}
-		}
+	})
+	if !ok {
+		return nil
 	}
-
-	// If there was an execution error, the parallel task should be considered failed
-	if executionError != nil {
-		return nil, executionError
+	if executionError != nil || parentState.Status == core.StatusFailed {
+		return nil
 	}
-	// Convert shared.ResponseOutput to task.MainTaskResponse
-	mainTaskResponse := a.convertToMainTaskResponse(ctx, result)
-	return mainTaskResponse, nil
+	if err := parallelHandler.ApplyDeferredOutputTransformation(ctx, responseInput); err != nil {
+		return fmt.Errorf("failed to apply deferred output transformation: %w", err)
+	}
+	return nil
 }
 
 // processParallelTask handles parallel task processing logic and returns execution error if any

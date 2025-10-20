@@ -24,56 +24,75 @@ type LRUStrategy struct {
 
 // NewLRUStrategy creates a new LRU flushing strategy
 func NewLRUStrategy(config *core.FlushingStrategyConfig, options *StrategyOptions) (*LRUStrategy, error) {
-	// Use default options if none provided
-	if options == nil {
-		options = GetDefaultStrategyOptions()
+	resolvedOptions := resolveLRUOptions(options)
+	if err := validateLRUOptions(resolvedOptions); err != nil {
+		return nil, err
 	}
 
-	// Validate LRU-specific options
-	if options.LRUTargetCapacityPercent < 0 || options.LRUTargetCapacityPercent > 1 {
-		return nil, fmt.Errorf(
-			"LRUTargetCapacityPercent must be between 0 and 1, got %f",
-			options.LRUTargetCapacityPercent,
-		)
-	}
-
-	cacheSize := options.CacheSize
-	if cacheSize <= 0 {
-		cacheSize = 1000 // Default cache size
-	}
-	// Enforce maximum cache size to prevent excessive memory usage
-	const maxCacheSize = 10000
-	if cacheSize > maxCacheSize {
-		cacheSize = maxCacheSize
-	}
-
-	// Create the LRU cache
+	cacheSize := sanitizeLRUCacheSize(resolvedOptions.CacheSize)
 	cache, err := lru.New[int, time.Time](cacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LRU cache: %w", err)
 	}
 
-	thresholdPercent := 0.8 // Default to 80%
-	if config != nil && config.SummarizeThreshold > 0 {
-		thresholdPercent = config.SummarizeThreshold
-	}
-
-	// Create token counter with fallback estimation
-	baseCounter := NewGPTTokenCounterAdapter()
-	estimationStrategy := options.TokenEstimationStrategy
-	if estimationStrategy == "" {
-		estimationStrategy = core.EnglishEstimation
-	}
-	tokenEstimator := core.NewTokenEstimator(estimationStrategy)
-	tokenCounter := core.NewTokenCounterWithFallback(baseCounter, tokenEstimator)
+	thresholdPercent := resolveLRUThreshold(config)
+	tokenCounter := buildLRUTokenCounter(resolvedOptions)
 
 	return &LRUStrategy{
 		cache:         cache,
 		config:        config,
 		flushDecision: NewFlushDecisionEngine(thresholdPercent),
 		tokenCounter:  tokenCounter,
-		options:       options,
+		options:       resolvedOptions,
 	}, nil
+}
+
+func resolveLRUOptions(options *StrategyOptions) *StrategyOptions {
+	if options != nil {
+		return options
+	}
+	return GetDefaultStrategyOptions()
+}
+
+func validateLRUOptions(options *StrategyOptions) error {
+	if options.LRUTargetCapacityPercent < 0 || options.LRUTargetCapacityPercent > 1 {
+		return fmt.Errorf(
+			"LRUTargetCapacityPercent must be between 0 and 1, got %f",
+			options.LRUTargetCapacityPercent,
+		)
+	}
+	return nil
+}
+
+func sanitizeLRUCacheSize(size int) int {
+	const (
+		defaultCacheSize = 1000
+		maxCacheSize     = 10000
+	)
+	if size <= 0 {
+		size = defaultCacheSize
+	}
+	if size > maxCacheSize {
+		return maxCacheSize
+	}
+	return size
+}
+
+func resolveLRUThreshold(config *core.FlushingStrategyConfig) float64 {
+	if config != nil && config.SummarizeThreshold > 0 {
+		return config.SummarizeThreshold
+	}
+	return 0.8
+}
+
+func buildLRUTokenCounter(options *StrategyOptions) core.TokenCounter {
+	baseCounter := NewGPTTokenCounterAdapter()
+	estimationStrategy := options.TokenEstimationStrategy
+	if estimationStrategy == "" {
+		estimationStrategy = core.EnglishEstimation
+	}
+	tokenEstimator := core.NewTokenEstimator(estimationStrategy)
+	return core.NewTokenCounterWithFallback(baseCounter, tokenEstimator)
 }
 
 // ShouldFlush determines if a flush should be triggered based on current state

@@ -43,42 +43,78 @@ func registerPublicWebhookRoutes(
 	server *Server,
 	meter metric.Meter,
 ) error {
-	cfg := config.FromContext(ctx)
-	if cfg == nil {
-		return fmt.Errorf("missing config in context; ensure middleware attaches config")
+	cfg, err := validateWebhookConfig(ctx, state)
+	if err != nil {
+		return err
 	}
-	limiterMax := cfg.Webhooks.DefaultMaxBody
-	hooks := router.Group(routes.Hooks())
-	hooks.Use(sizemw.BodySizeLimiter(limiterMax))
-	if state.ProjectConfig.Name == "" {
-		return fmt.Errorf("project name is empty; set project.name")
-	}
-	hooks.Use(prmiddleware.Middleware(state.ProjectConfig.Name))
+	hooks := configureWebhookGroup(router, cfg.Webhooks.DefaultMaxBody, state.ProjectConfig.Name)
 	reg := resolveWebhookRegistry(state)
 	eval, err := task.NewCELEvaluator()
 	if err != nil {
 		return fmt.Errorf("failed to init CEL evaluator: %w", err)
 	}
-	if server != nil {
-		if closer, ok := any(eval).(interface{ Close() error }); ok {
-			server.RegisterCleanup(func() {
-				if err := closer.Close(); err != nil {
-					logger.FromContext(ctx).Warn("Failed to close CEL evaluator", "error", err)
-				}
-			})
-		}
-	}
+	registerCELEvaluatorCleanup(ctx, server, eval)
 	filter := webhook.NewCELAdapter(eval)
 	dispatcher := buildWebhookDispatcher(ctx, state)
 	idemSvc, err := buildWebhookIdempotencyService(server)
 	if err != nil {
 		return fmt.Errorf("failed to initialize redis idempotency service: %w", err)
 	}
-	// Use operator-configured limits rather than hardcoded constants.
-	// These map to orchestrator's maxBody and dedupeTTL parameters.
+	orchestrator := buildWebhookOrchestrator(cfg, reg, filter, dispatcher, idemSvc)
+	state.SetAPIIdempotencyService(idemSvc)
+	if err := attachWebhookMetrics(ctx, meter, orchestrator); err != nil {
+		return err
+	}
+	webhook.RegisterPublic(hooks, orchestrator)
+	logger.FromContext(ctx).Info("Public webhook routes registered", "path", routes.Hooks())
+	return nil
+}
+
+// validateWebhookConfig ensures the webhook setup has the required configuration context.
+func validateWebhookConfig(ctx context.Context, state *appstate.State) (*config.Config, error) {
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return nil, fmt.Errorf("missing config in context; ensure middleware attaches config")
+	}
+	if state.ProjectConfig == nil || state.ProjectConfig.Name == "" {
+		return nil, fmt.Errorf("project name is empty; set project.name")
+	}
+	return cfg, nil
+}
+
+// configureWebhookGroup builds the public webhook route group with middleware.
+func configureWebhookGroup(router *gin.Engine, limiterMax int64, projectName string) *gin.RouterGroup {
+	hooks := router.Group(routes.Hooks())
+	hooks.Use(sizemw.BodySizeLimiter(limiterMax))
+	hooks.Use(prmiddleware.Middleware(projectName))
+	return hooks
+}
+
+// registerCELEvaluatorCleanup ensures evaluator resources are released with the server lifecycle.
+func registerCELEvaluatorCleanup(ctx context.Context, server *Server, eval any) {
+	if server == nil {
+		return
+	}
+	if closer, ok := eval.(interface{ Close() error }); ok {
+		server.RegisterCleanup(func() {
+			if err := closer.Close(); err != nil {
+				logger.FromContext(ctx).Warn("Failed to close CEL evaluator", "error", err)
+			}
+		})
+	}
+}
+
+// buildWebhookOrchestrator constructs the orchestrator using operator-configured limits.
+func buildWebhookOrchestrator(
+	cfg *config.Config,
+	reg webhook.Lookup,
+	filter *webhook.CELAdapter,
+	dispatcher services.SignalDispatcher,
+	idemSvc webhook.Service,
+) *webhook.Orchestrator {
 	maxBody := cfg.Webhooks.DefaultMaxBody
 	dedupeTTL := cfg.Webhooks.DefaultDedupeTTL
-	orchestrator := webhook.NewOrchestrator(
+	return webhook.NewOrchestrator(
 		cfg,
 		reg,
 		filter,
@@ -87,17 +123,22 @@ func registerPublicWebhookRoutes(
 		maxBody,
 		dedupeTTL,
 	)
-	// Reuse webhook idempotency service for API execution endpoints.
-	state.SetAPIIdempotencyService(idemSvc)
-	if meter != nil {
-		metrics, err := webhook.NewMetrics(ctx, meter)
-		if err != nil {
-			return fmt.Errorf("failed to initialize webhook metrics: %w", err)
-		}
-		orchestrator.SetMetrics(metrics)
+}
+
+// attachWebhookMetrics wires webhook metrics when monitoring is available.
+func attachWebhookMetrics(
+	ctx context.Context,
+	meter metric.Meter,
+	orchestrator *webhook.Orchestrator,
+) error {
+	if meter == nil {
+		return nil
 	}
-	webhook.RegisterPublic(hooks, orchestrator)
-	logger.FromContext(ctx).Info("Public webhook routes registered", "path", routes.Hooks())
+	metrics, err := webhook.NewMetrics(ctx, meter)
+	if err != nil {
+		return fmt.Errorf("failed to initialize webhook metrics: %w", err)
+	}
+	orchestrator.SetMetrics(metrics)
 	return nil
 }
 

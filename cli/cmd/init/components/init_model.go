@@ -51,69 +51,72 @@ func (m *InitModel) Init() tea.Cmd {
 // Update implements tea.Model
 func (m *InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		// Update header with new width
-		header, err := components.RenderASCIIHeader(m.width)
-		if err != nil {
-			m.header = "Compozy CLI"
-		} else {
-			m.header = header
-		}
-
-		// Calculate available height for form (subtract header, separator, and margins)
-		headerLines := countLines(m.header)
-		availableHeight := max(m.height-headerLines-4, 10)
-
-		// Update viewport dimensions
-		m.viewport.Width = m.width
-		m.viewport.Height = availableHeight
-
-		// Update form width
-		m.form.WithWidth(m.width - 4) // small margin on sides
-
-		// Force viewport to update
-		m.viewport.SetContent(m.renderFormContent())
-
-	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
-			m.quitting = true
-			return m, tea.Quit
-		}
+	if quitCmd := m.handleUpdateMessage(msg); quitCmd != nil {
+		return m, quitCmd
 	}
 
-	// Process form update first
-	var formCmd tea.Cmd
-	form, formCmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
+	if cmd := m.updateFormState(msg); cmd != nil {
+		cmds = append(cmds, cmd)
 	}
-	cmds = append(cmds, formCmd)
 
-	// Update viewport content after form update
 	m.viewport.SetContent(m.renderFormContent())
+	viewportModel, viewportCmd := m.viewport.Update(msg)
+	m.viewport = viewportModel
+	cmds = append(cmds, viewportCmd)
 
-	// Update viewport for scrolling
-	vpModel, vpCmd := m.viewport.Update(msg)
-	m.viewport = vpModel
-	cmds = append(cmds, vpCmd)
-
-	// Check if form is completed
-	if m.form.State == huh.StateCompleted {
-		m.quitting = true
-		cmds = append(cmds, tea.Quit)
-	}
-
-	// Check if form is aborted
-	if m.form.State == huh.StateAborted {
-		m.quitting = true
-		cmds = append(cmds, tea.Quit)
+	if quitCmd := m.checkFormCompletion(); quitCmd != nil {
+		cmds = append(cmds, quitCmd)
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m *InitModel) handleUpdateMessage(msg tea.Msg) tea.Cmd {
+	switch typed := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.handleWindowResize(typed)
+	case tea.KeyMsg:
+		if typed.String() == "ctrl+c" {
+			m.quitting = true
+			return tea.Quit
+		}
+	}
+	return nil
+}
+
+func (m *InitModel) handleWindowResize(msg tea.WindowSizeMsg) {
+	m.width = msg.Width
+	m.height = msg.Height
+	header, err := components.RenderASCIIHeader(m.width)
+	if err != nil {
+		m.header = "Compozy CLI"
+	} else {
+		m.header = header
+	}
+	headerLines := countLines(m.header)
+	availableHeight := max(m.height-headerLines-4, 10)
+	m.viewport.Width = m.width
+	m.viewport.Height = availableHeight
+	m.form.WithWidth(m.width - 4)
+	m.viewport.SetContent(m.renderFormContent())
+}
+
+func (m *InitModel) updateFormState(msg tea.Msg) tea.Cmd {
+	form, cmd := m.form.Update(msg)
+	if updated, ok := form.(*huh.Form); ok {
+		m.form = updated
+	}
+	return cmd
+}
+
+func (m *InitModel) checkFormCompletion() tea.Cmd {
+	switch m.form.State {
+	case huh.StateCompleted, huh.StateAborted:
+		m.quitting = true
+		return tea.Quit
+	default:
+		return nil
+	}
 }
 
 // View implements tea.Model

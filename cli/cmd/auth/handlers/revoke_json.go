@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/cli/cmd"
@@ -13,16 +14,14 @@ import (
 )
 
 // RevokeJSON handles key revocation in JSON mode using the unified executor pattern
+
 func RevokeJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, args []string) error {
 	log := logger.FromContext(ctx)
-
-	// In JSON mode, require key ID as argument
-	if len(args) == 0 {
-		return outputJSONError("key ID required in JSON mode")
+	keyID, err := resolveKeyID(args)
+	if err != nil {
+		return outputJSONError(err.Error())
 	}
-	keyID := args[0]
 
-	// Get force flag
 	force, err := cobraCmd.Flags().GetBool("force")
 	if err != nil {
 		return fmt.Errorf("failed to get force flag: %w", err)
@@ -32,10 +31,8 @@ func RevokeJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.Comm
 		"key_id", keyID,
 		"force", force)
 
-	// If not forced, we should show a warning (in a real implementation,
-	// we'd show affected resources)
-	if !force {
-		return outputJSONError("revocation requires --force flag in JSON mode")
+	if err := ensureForceRevocation(force); err != nil {
+		return outputJSONError(err.Error())
 	}
 
 	authClient := executor.GetAuthClient()
@@ -43,13 +40,32 @@ func RevokeJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.Comm
 		return outputJSONError("auth client not available")
 	}
 
-	// Revoke the key
-	err = authClient.RevokeKey(ctx, keyID)
-	if err != nil {
+	if err := authClient.RevokeKey(ctx, keyID); err != nil {
 		return outputJSONError(fmt.Sprintf("failed to revoke API key: %v", err))
 	}
 
-	// Prepare response
+	return writeRevokeResponse(keyID)
+}
+
+func resolveKeyID(args []string) (string, error) {
+	if len(args) == 0 {
+		return "", fmt.Errorf("key ID required in JSON mode")
+	}
+	id := strings.TrimSpace(args[0])
+	if id == "" {
+		return "", fmt.Errorf("key ID cannot be empty or whitespace")
+	}
+	return id, nil
+}
+
+func ensureForceRevocation(force bool) error {
+	if force {
+		return nil
+	}
+	return fmt.Errorf("revocation requires --force flag in JSON mode")
+}
+
+func writeRevokeResponse(keyID string) error {
 	response := map[string]any{
 		"data": map[string]any{
 			"key_id":  keyID,
@@ -57,13 +73,10 @@ func RevokeJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.Comm
 		},
 		"message": "Success",
 	}
-
-	// Output JSON
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(response); err != nil {
 		return fmt.Errorf("failed to encode JSON response: %w", err)
 	}
-
 	return nil
 }

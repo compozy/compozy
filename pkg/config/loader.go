@@ -65,25 +65,37 @@ func NewService() Service {
 // Load loads configuration from the specified sources with precedence order.
 // Precedence order (lowest to highest): defaults -> config file -> env -> CLI flags
 func (l *loader) Load(_ context.Context, sources ...Source) (*Config, error) {
-	// Clear and reset
 	l.reset()
-
-	// Load defaults (lowest precedence)
 	if err := l.loadDefaults(); err != nil {
 		return nil, err
 	}
 
-	// Separate sources by type to ensure correct precedence
+	cliSource, otherSources := l.partitionSources(sources)
+	if err := l.applyNonDefaultSources(otherSources, cliSource); err != nil {
+		return nil, err
+	}
+
+	config, err := l.unmarshalAndValidate()
+	if err != nil {
+		return nil, err
+	}
+
+	l.currentConfig.Store(config)
+
+	return config, nil
+}
+
+// partitionSources separates CLI, env, and other providers for precedence handling.
+// Env sources are skipped because loadEnvironment already covers that tier.
+func (l *loader) partitionSources(sources []Source) (Source, []Source) {
 	var cliSource Source
 	var otherSources []Source
-
 	for _, source := range sources {
 		if source == nil {
 			continue
 		}
 		switch source.Type() {
 		case SourceEnv:
-			// Skip env source as it's handled by loadEnvironment()
 			continue
 		case SourceCLI:
 			cliSource = source
@@ -91,34 +103,28 @@ func (l *loader) Load(_ context.Context, sources ...Source) (*Config, error) {
 			otherSources = append(otherSources, source)
 		}
 	}
+	return cliSource, otherSources
+}
 
-	// Load config files and other sources (medium precedence)
+// applyNonDefaultSources layers configuration beyond defaults in precedence order.
+// It applies file or struct sources, then environment, and finally CLI overrides.
+func (l *loader) applyNonDefaultSources(otherSources []Source, cliSource Source) error {
 	if err := l.loadSources(otherSources); err != nil {
-		return nil, err
+		return err
 	}
-
-	// Load environment variables (higher precedence)
 	if err := l.loadEnvironment(); err != nil {
-		return nil, err
+		return err
 	}
+	return l.loadCLISource(cliSource)
+}
 
-	// Load CLI flags last (highest precedence)
-	if cliSource != nil {
-		if err := l.loadSource(cliSource); err != nil {
-			return nil, err
-		}
+// loadCLISource applies CLI overrides when available.
+// It keeps the core Load path small by isolating the nil guard.
+func (l *loader) loadCLISource(cliSource Source) error {
+	if cliSource == nil {
+		return nil
 	}
-
-	// Unmarshal and validate
-	config, err := l.unmarshalAndValidate()
-	if err != nil {
-		return nil, err
-	}
-
-	// Store current configuration atomically
-	l.currentConfig.Store(config)
-
-	return config, nil
+	return l.loadSource(cliSource)
 }
 
 // reset clears the configuration and metadata.

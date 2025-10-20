@@ -213,63 +213,86 @@ func verifyCompositeStateManagement(t *testing.T, fixture *helpers.TestFixture, 
 	t.Helper()
 	t.Log("Verifying composite state management from database state")
 
-	compositeTask := helpers.FindParentTask(result, task.ExecutionComposite)
-	require.NotNil(t, compositeTask, "Should have a composite task")
-
+	compositeTask := requireCompositeTask(t, result)
 	helpers.VerifyTaskHasOutput(t, compositeTask, "composite task")
 
-	if compositeTask.Output != nil {
-		assert.Contains(t, *compositeTask.Output, "progress_info", "Composite output should contain progress_info")
-		if progressInfo, ok := (*compositeTask.Output)["progress_info"]; ok {
-			if pi, ok := progressInfo.(map[string]any); ok {
-				assert.Contains(t, pi, "total_children", "Progress info should contain total_children")
-				assert.Contains(t, pi, "success_count", "Progress info should contain success_count")
-				assert.Contains(t, pi, "failed_count", "Progress info should contain failed_count")
+	progressInfo := extractCompositeProgressInfo(compositeTask)
+	if progressInfo != nil {
+		assertCompositeProgressKeys(t, progressInfo)
+		assertCompositeProgressMatchesFixture(t, progressInfo, fixture)
+	}
+}
 
-				// Compare against expected values from fixture
-				if len(fixture.Expected.TaskStates) > 0 {
-					expectedState := fixture.Expected.TaskStates[0]
-					if expectedState.Output != nil {
-						if expectedPI, ok := expectedState.Output["progress_info"].(map[string]any); ok {
-							// Verify counts match expected values
-							if expectedTotal, ok := expectedPI["total_children"]; ok {
-								assert.EqualValues(
-									t,
-									expectedTotal,
-									pi["total_children"],
-									"Total children count should match expected",
-								)
-							}
-							if expectedCompleted, ok := expectedPI["success_count"]; ok {
-								assert.EqualValues(
-									t,
-									expectedCompleted,
-									pi["success_count"],
-									"Success count should match expected",
-								)
-							}
-							// Legacy field check for backward compatibility in tests
-							if expectedCompleted, ok := expectedPI["completed_count"]; ok && expectedCompleted != nil {
-								assert.EqualValues(
-									t,
-									expectedCompleted,
-									pi["success_count"],
-									"Success count should match expected (from legacy completed_count)",
-								)
-							}
-							if expectedFailed, ok := expectedPI["failed_count"]; ok {
-								assert.EqualValues(
-									t,
-									expectedFailed,
-									pi["failed_count"],
-									"Failed count should match expected",
-								)
-							}
-						}
-					}
-				}
-			}
-		}
+// requireCompositeTask finds the composite task and asserts its existence.
+// It centralizes the shared lookup pattern used by composite verifiers.
+func requireCompositeTask(t *testing.T, result *workflow.State) *task.State {
+	t.Helper()
+	compositeTask := helpers.FindParentTask(result, task.ExecutionComposite)
+	require.NotNil(t, compositeTask, "Should have a composite task")
+	return compositeTask
+}
+
+// extractCompositeProgressInfo returns the composite progress info map when present.
+// Returning nil avoids additional branching in callers when progress is absent.
+func extractCompositeProgressInfo(compositeTask *task.State) map[string]any {
+	if compositeTask.Output == nil {
+		return nil
+	}
+	progressValue, ok := (*compositeTask.Output)["progress_info"]
+	if !ok {
+		return nil
+	}
+	progressInfo, ok := progressValue.(map[string]any)
+	if !ok {
+		return nil
+	}
+	return progressInfo
+}
+
+// assertCompositeProgressKeys verifies that required tracking fields are present.
+// It keeps key assertions separate from value comparisons.
+func assertCompositeProgressKeys(t *testing.T, progress map[string]any) {
+	t.Helper()
+	assert.Contains(t, progress, "total_children", "Progress info should contain total_children")
+	assert.Contains(t, progress, "success_count", "Progress info should contain success_count")
+	assert.Contains(t, progress, "failed_count", "Progress info should contain failed_count")
+}
+
+// assertCompositeProgressMatchesFixture compares observed progress counts with fixture expectations.
+// It supports both current and legacy field names used across fixtures.
+func assertCompositeProgressMatchesFixture(
+	t *testing.T,
+	progress map[string]any,
+	fixture *helpers.TestFixture,
+) {
+	t.Helper()
+	if len(fixture.Expected.TaskStates) == 0 {
+		return
+	}
+	expectedState := fixture.Expected.TaskStates[0]
+	if expectedState.Output == nil {
+		return
+	}
+	expectedValue, ok := expectedState.Output["progress_info"].(map[string]any)
+	if !ok {
+		return
+	}
+
+	if expectedTotal, ok := expectedValue["total_children"]; ok {
+		assert.EqualValues(t, expectedTotal, progress["total_children"],
+			"Total children count should match expected")
+	}
+	if expectedCompleted, ok := expectedValue["success_count"]; ok {
+		assert.EqualValues(t, expectedCompleted, progress["success_count"],
+			"Success count should match expected")
+	}
+	if legacyCompleted, ok := expectedValue["completed_count"]; ok && legacyCompleted != nil {
+		assert.EqualValues(t, legacyCompleted, progress["success_count"],
+			"Success count should match expected (legacy completed_count)")
+	}
+	if expectedFailed, ok := expectedValue["failed_count"]; ok {
+		assert.EqualValues(t, expectedFailed, progress["failed_count"],
+			"Failed count should match expected")
 	}
 }
 

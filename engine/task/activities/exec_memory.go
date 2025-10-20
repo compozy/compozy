@@ -61,11 +61,9 @@ func NewExecuteMemory(
 }
 
 func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*task.MainTaskResponse, error) {
-	// Validate input
-	if input.TaskConfig == nil {
-		return nil, fmt.Errorf("task_config is required for memory task")
+	if err := validateExecuteMemoryInput(input); err != nil {
+		return nil, err
 	}
-	// Load workflow state and config
 	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
@@ -73,28 +71,10 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 	if err != nil {
 		return nil, fmt.Errorf("failed to load workflow: %w", err)
 	}
-	// Use task2 normalizer for memory tasks
-	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeMemory)
+	normalizedConfig, err := a.normalizeMemoryConfig(ctx, workflowState, workflowConfig, input.TaskConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create memory normalizer: %w", err)
+		return nil, err
 	}
-	// Create context builder to build proper normalization context
-	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create context builder: %w", err)
-	}
-	// Build proper normalization context with all template variables
-	normContext := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, input.TaskConfig)
-	// Add project information for memory operations
-	if a.projectConfig != nil {
-		contextBuilder.VariableBuilder.AddProjectToVariables(normContext.Variables, a.projectConfig.Name)
-	}
-	// Normalize the task configuration
-	normalizedConfig := input.TaskConfig
-	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
-		return nil, fmt.Errorf("failed to normalize memory task: %w", err)
-	}
-	// Create state
 	state, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
 		TaskConfig:     normalizedConfig,
 		WorkflowConfig: workflowConfig,
@@ -112,20 +92,11 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 	if executionError == nil {
 		state.Output = output
 	}
-	// Use task2 ResponseHandler for memory type
 	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeMemory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memory response handler: %w", err)
 	}
-	// Prepare input for response handler
-	responseInput := &shared.ResponseInput{
-		TaskConfig:     normalizedConfig,
-		TaskState:      state,
-		WorkflowConfig: workflowConfig,
-		WorkflowState:  workflowState,
-		ExecutionError: executionError,
-	}
-	// Handle the response
+	responseInput := buildMemoryResponseInput(normalizedConfig, state, workflowConfig, workflowState, executionError)
 	result, err := handler.HandleResponse(ctx, responseInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to handle memory response: %w", err)
@@ -134,4 +105,54 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 	converter := NewResponseConverter()
 	mainTaskResponse := converter.ConvertToMainTaskResponse(result)
 	return mainTaskResponse, executionError
+}
+
+// validateExecuteMemoryInput ensures required parameters are present.
+func validateExecuteMemoryInput(input *ExecuteMemoryInput) error {
+	if input == nil || input.TaskConfig == nil {
+		return fmt.Errorf("task_config is required for memory task")
+	}
+	return nil
+}
+
+// normalizeMemoryConfig renders templates and validates the memory task configuration.
+func (a *ExecuteMemory) normalizeMemoryConfig(
+	ctx context.Context,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	taskConfig *task.Config,
+) (*task.Config, error) {
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeMemory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create memory normalizer: %w", err)
+	}
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
+	}
+	normContext := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
+	if a.projectConfig != nil {
+		contextBuilder.VariableBuilder.AddProjectToVariables(normContext.Variables, a.projectConfig.Name)
+	}
+	if err := normalizer.Normalize(ctx, taskConfig, normContext); err != nil {
+		return nil, fmt.Errorf("failed to normalize memory task: %w", err)
+	}
+	return taskConfig, nil
+}
+
+// buildMemoryResponseInput prepares the shared response input for memory handlers.
+func buildMemoryResponseInput(
+	taskConfig *task.Config,
+	taskState *task.State,
+	workflowConfig *workflow.Config,
+	workflowState *workflow.State,
+	executionError error,
+) *shared.ResponseInput {
+	return &shared.ResponseInput{
+		TaskConfig:     taskConfig,
+		TaskState:      taskState,
+		WorkflowConfig: workflowConfig,
+		WorkflowState:  workflowState,
+		ExecutionError: executionError,
+	}
 }

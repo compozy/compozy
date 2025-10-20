@@ -115,56 +115,77 @@ func ValidateRawMessages(messages []map[string]any) error {
 
 // ValidateRawMessagesWithLimits validates an array of raw message maps with configurable limits
 func ValidateRawMessagesWithLimits(messages []map[string]any, limits *ValidationLimits) error {
-	maxMessagesPerRequest := DefaultMaxMessagesPerRequest
-	maxTotalContentSize := DefaultMaxTotalContentSize
-	if limits != nil {
-		if limits.MaxMessagesPerRequest > 0 {
-			maxMessagesPerRequest = limits.MaxMessagesPerRequest
-		}
-		if limits.MaxTotalContentSize > 0 {
-			maxTotalContentSize = limits.MaxTotalContentSize
-		}
+	maxMessages, maxTotalSize := resolveMessageBatchLimits(limits)
+	if err := ensureMessagesNotEmpty(messages); err != nil {
+		return err
 	}
-	if len(messages) == 0 {
-		return memcore.NewMemoryError(
-			memcore.ErrCodeInvalidConfig,
-			"messages cannot be empty",
-			nil,
-		)
-	}
-
-	// Check maximum number of messages
-	if len(messages) > maxMessagesPerRequest {
-		return memcore.NewMemoryError(
-			memcore.ErrCodeInvalidConfig,
-			fmt.Sprintf("exceeded maximum number of messages (%d)", maxMessagesPerRequest),
-			memcore.ErrMessageLimitExceeded,
-		).WithContext("message_count", len(messages)).WithContext("max_allowed", maxMessagesPerRequest)
+	if err := validateMessageCount(len(messages), maxMessages); err != nil {
+		return err
 	}
 
 	totalContentSize := 0
 	for i, msg := range messages {
-		// Validate using configurable ValidateMessage function
 		if err := ValidateMessageWithLimits(msg, i, limits); err != nil {
 			return err
 		}
+		totalContentSize += contentLength(msg)
+	}
 
-		// Track total content size
-		if content, ok := msg["content"].(string); ok {
-			totalContentSize += len(content)
+	return validateTotalContentSize(totalContentSize, maxTotalSize)
+}
+
+func resolveMessageBatchLimits(limits *ValidationLimits) (int, int) {
+	maxMessages := DefaultMaxMessagesPerRequest
+	maxTotalSize := DefaultMaxTotalContentSize
+	if limits != nil {
+		if limits.MaxMessagesPerRequest > 0 {
+			maxMessages = limits.MaxMessagesPerRequest
+		}
+		if limits.MaxTotalContentSize > 0 {
+			maxTotalSize = limits.MaxTotalContentSize
 		}
 	}
+	return maxMessages, maxTotalSize
+}
 
-	// Check total content size
-	if totalContentSize > maxTotalContentSize {
-		return memcore.NewMemoryError(
-			memcore.ErrCodeInvalidConfig,
-			fmt.Sprintf("total content size exceeds maximum of %d bytes", maxTotalContentSize),
-			memcore.ErrTokenLimitExceeded,
-		).WithContext("total_size", totalContentSize).WithContext("max_allowed", maxTotalContentSize)
+func ensureMessagesNotEmpty(messages []map[string]any) error {
+	if len(messages) != 0 {
+		return nil
 	}
+	return memcore.NewMemoryError(
+		memcore.ErrCodeInvalidConfig,
+		"messages cannot be empty",
+		nil,
+	)
+}
 
-	return nil
+func validateMessageCount(count, maxAllowed int) error {
+	if count <= maxAllowed {
+		return nil
+	}
+	return memcore.NewMemoryError(
+		memcore.ErrCodeInvalidConfig,
+		fmt.Sprintf("exceeded maximum number of messages (%d)", maxAllowed),
+		memcore.ErrMessageLimitExceeded,
+	).WithContext("message_count", count).WithContext("max_allowed", maxAllowed)
+}
+
+func contentLength(msg map[string]any) int {
+	if content, ok := msg["content"].(string); ok {
+		return len(content)
+	}
+	return 0
+}
+
+func validateTotalContentSize(total, maxAllowed int) error {
+	if total <= maxAllowed {
+		return nil
+	}
+	return memcore.NewMemoryError(
+		memcore.ErrCodeInvalidConfig,
+		fmt.Sprintf("total content size exceeds maximum of %d bytes", maxAllowed),
+		memcore.ErrTokenLimitExceeded,
+	).WithContext("total_size", total).WithContext("max_allowed", maxAllowed)
 }
 
 // ValidateMessage validates a single message using default limits
@@ -174,54 +195,70 @@ func ValidateMessage(msg map[string]any, index int) error {
 
 // ValidateMessageWithLimits validates a single message with configurable limits
 func ValidateMessageWithLimits(msg map[string]any, index int, limits *ValidationLimits) error {
-	maxContentLength := DefaultMaxMessageContentLength
-	if limits != nil && limits.MaxMessageContentLength > 0 {
-		maxContentLength = limits.MaxMessageContentLength
+	maxContentLength := resolveContentLengthLimit(limits)
+	content, err := extractMessageContent(msg, index)
+	if err != nil {
+		return err
 	}
-	// Check content
+	if err := ensureContentWithinLimit(content, maxContentLength, index); err != nil {
+		return err
+	}
+	return validateOptionalRole(msg, index)
+}
+
+func resolveContentLengthLimit(limits *ValidationLimits) int {
+	if limits != nil && limits.MaxMessageContentLength > 0 {
+		return limits.MaxMessageContentLength
+	}
+	return DefaultMaxMessageContentLength
+}
+
+func extractMessageContent(msg map[string]any, index int) (string, error) {
 	content, ok := msg["content"].(string)
-	if !ok || content == "" {
+	if ok && content != "" {
+		return content, nil
+	}
+	return "", memcore.NewMemoryError(
+		memcore.ErrCodeInvalidConfig,
+		fmt.Sprintf("message[%d] content is required and must be a string", index),
+		nil,
+	).WithContext("message_index", index)
+}
+
+func ensureContentWithinLimit(content string, maxLength int, index int) error {
+	if len(content) <= maxLength {
+		return nil
+	}
+	return memcore.NewMemoryError(
+		memcore.ErrCodeInvalidConfig,
+		fmt.Sprintf("message[%d] content too long (max %d bytes)", index, maxLength),
+		nil,
+	).WithContext("message_index", index).WithContext("content_length", len(content)).WithContext("max_allowed", maxLength)
+}
+
+func validateOptionalRole(msg map[string]any, index int) error {
+	roleValue, exists := msg["role"]
+	if !exists {
+		return nil
+	}
+	role, ok := roleValue.(string)
+	if !ok {
 		return memcore.NewMemoryError(
 			memcore.ErrCodeInvalidConfig,
-			fmt.Sprintf("message[%d] content is required and must be a string", index),
+			fmt.Sprintf("message[%d] role must be a string", index),
 			nil,
+		).WithContext("message_index", index).WithContext("role_type", fmt.Sprintf("%T", roleValue))
+	}
+	if err := ValidateMessageRole(role); err != nil {
+		if memErr, ok := err.(*memcore.MemoryError); ok {
+			return memErr.WithContext("message_index", index)
+		}
+		return memcore.NewMemoryError(
+			memcore.ErrCodeInvalidConfig,
+			fmt.Sprintf("message[%d]: %v", index, err),
+			err,
 		).WithContext("message_index", index)
 	}
-
-	// Check content length (prevent DOS)
-	if len(content) > maxContentLength {
-		return memcore.NewMemoryError(
-			memcore.ErrCodeInvalidConfig,
-			fmt.Sprintf("message[%d] content too long (max %d bytes)", index, maxContentLength),
-			nil,
-		).WithContext("message_index", index).WithContext(
-			"content_length", len(content),
-		).WithContext("max_allowed", maxContentLength)
-	}
-
-	// Check role if provided
-	if role, exists := msg["role"]; exists {
-		roleStr, ok := role.(string)
-		if !ok {
-			return memcore.NewMemoryError(
-				memcore.ErrCodeInvalidConfig,
-				fmt.Sprintf("message[%d] role must be a string", index),
-				nil,
-			).WithContext("message_index", index).WithContext("role_type", fmt.Sprintf("%T", role))
-		}
-		if err := ValidateMessageRole(roleStr); err != nil {
-			// Wrap the error with context
-			if memErr, ok := err.(*memcore.MemoryError); ok {
-				return memErr.WithContext("message_index", index)
-			}
-			return memcore.NewMemoryError(
-				memcore.ErrCodeInvalidConfig,
-				fmt.Sprintf("message[%d]: %v", index, err),
-				err,
-			).WithContext("message_index", index)
-		}
-	}
-
 	return nil
 }
 

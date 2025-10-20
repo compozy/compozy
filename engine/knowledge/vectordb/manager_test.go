@@ -11,9 +11,16 @@ func ResetShared(ctx context.Context) {
 
 func (m *Manager) reset(ctx context.Context) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	stores := make([]Store, 0, len(m.stores))
 	for id, entry := range m.stores {
-		_ = entry.store.Close(ctx)
+		stores = append(stores, entry.store)
 		delete(m.stores, id)
+	}
+	m.mu.Unlock()
+	for _, store := range stores {
+		if store == nil {
+			continue
+		}
+		_ = store.Close(ctx)
 	}
 }

@@ -64,61 +64,51 @@ type WorkflowTableKeyMap struct {
 // DefaultWorkflowTableKeyMap returns the default key bindings
 func DefaultWorkflowTableKeyMap() WorkflowTableKeyMap {
 	return WorkflowTableKeyMap{
-		SortByName: key.NewBinding(
-			key.WithKeys("1"),
-			key.WithHelp("1", "sort by name"),
-		),
-		SortByStatus: key.NewBinding(
-			key.WithKeys("2"),
-			key.WithHelp("2", "sort by status"),
-		),
-		SortByCreated: key.NewBinding(
-			key.WithKeys("3"),
-			key.WithHelp("3", "sort by created"),
-		),
-		SortByUpdated: key.NewBinding(
-			key.WithKeys("4"),
-			key.WithHelp("4", "sort by updated"),
-		),
-		Filter: key.NewBinding(
-			key.WithKeys("/"),
-			key.WithHelp("/", "filter"),
-		),
-		ClearFilter: key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "clear filter"),
-		),
-		NextPage: key.NewBinding(
-			key.WithKeys("n", "right"),
-			key.WithHelp("n/→", "next page"),
-		),
-		PrevPage: key.NewBinding(
-			key.WithKeys("p", "left"),
-			key.WithHelp("p/←", "prev page"),
-		),
-		FirstPage: key.NewBinding(
-			key.WithKeys("home"),
-			key.WithHelp("home", "first page"),
-		),
-		LastPage: key.NewBinding(
-			key.WithKeys("end"),
-			key.WithHelp("end", "last page"),
-		),
-		Refresh: key.NewBinding(
-			key.WithKeys("r"),
-			key.WithHelp("r", "refresh"),
-		),
-		Select: key.NewBinding(
-			key.WithKeys("enter"),
-			key.WithHelp("enter", "select"),
-		),
+		SortByName:    newWorkflowBinding([]string{"1"}, "sort by name", "1"),
+		SortByStatus:  newWorkflowBinding([]string{"2"}, "sort by status", "2"),
+		SortByCreated: newWorkflowBinding([]string{"3"}, "sort by created", "3"),
+		SortByUpdated: newWorkflowBinding([]string{"4"}, "sort by updated", "4"),
+		Filter:        newWorkflowBinding([]string{"/"}, "filter", "/"),
+		ClearFilter:   newWorkflowBinding([]string{"esc"}, "clear filter", "esc"),
+		NextPage:      newWorkflowBinding([]string{"n", "right"}, "next page", "n/→"),
+		PrevPage:      newWorkflowBinding([]string{"p", "left"}, "prev page", "p/←"),
+		FirstPage:     newWorkflowBinding([]string{"home"}, "first page", "home"),
+		LastPage:      newWorkflowBinding([]string{"end"}, "last page", "end"),
+		Refresh:       newWorkflowBinding([]string{"r"}, "refresh", "r"),
+		Select:        newWorkflowBinding([]string{"enter"}, "select", "enter"),
 	}
 }
 
 // NewWorkflowTableComponent creates a new workflow table component
 func NewWorkflowTableComponent(workflows []api.Workflow) WorkflowTableComponent {
-	// Create table columns
-	columns := []table.Column{
+	columns := buildWorkflowTableColumns()
+	tableModel := newWorkflowTableModel(columns)
+	component := WorkflowTableComponent{
+		table:         tableModel,
+		workflows:     workflows,
+		sortColumn:    "name",
+		sortDirection: SortOrderAsc,
+		currentPage:   0,
+		itemsPerPage:  20,
+		totalItems:    len(workflows),
+		keyMap:        DefaultWorkflowTableKeyMap(),
+	}
+
+	component.updateFilteredRows()
+	component.updateTableRows()
+
+	return component
+}
+
+func newWorkflowBinding(keys []string, help, display string) key.Binding {
+	return key.NewBinding(
+		key.WithKeys(keys...),
+		key.WithHelp(display, help),
+	)
+}
+
+func buildWorkflowTableColumns() []table.Column {
+	return []table.Column{
 		{Title: "ID", Width: 15},
 		{Title: "Name", Width: 25},
 		{Title: "Status", Width: 12},
@@ -127,15 +117,19 @@ func NewWorkflowTableComponent(workflows []api.Workflow) WorkflowTableComponent 
 		{Title: "Updated", Width: 12},
 		{Title: "Tags", Width: 20},
 	}
+}
 
-	// Create table model
+func newWorkflowTableModel(columns []table.Column) table.Model {
 	t := table.New(
 		table.WithColumns(columns),
 		table.WithFocused(true),
 		table.WithHeight(10),
 	)
+	t.SetStyles(defaultWorkflowTableStyles())
+	return t
+}
 
-	// Apply custom styles
+func defaultWorkflowTableStyles() table.Styles {
 	s := table.DefaultStyles()
 	s.Header = s.Header.
 		BorderStyle(lipgloss.NormalBorder()).
@@ -147,25 +141,7 @@ func NewWorkflowTableComponent(workflows []api.Workflow) WorkflowTableComponent 
 		Foreground(styles.Highlight).
 		Background(styles.Surface).
 		Bold(true)
-
-	t.SetStyles(s)
-
-	component := WorkflowTableComponent{
-		table:         t,
-		workflows:     workflows,
-		sortColumn:    "name",
-		sortDirection: SortOrderAsc,
-		currentPage:   0,
-		itemsPerPage:  20,
-		totalItems:    len(workflows),
-		keyMap:        DefaultWorkflowTableKeyMap(),
-	}
-
-	// Initial data setup
-	component.updateFilteredRows()
-	component.updateTableRows()
-
-	return component
+	return s
 }
 
 // SetSize sets the table size

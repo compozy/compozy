@@ -28,7 +28,7 @@ func newMockOllamaServerWithTools(t *testing.T) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/api/chat", r.URL.Path)
 		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		assert.Contains(t, r.Header.Get("Content-Type"), "application/json")
 
 		var req api.ChatRequest
 		err := json.NewDecoder(r.Body).Decode(&req)
@@ -46,7 +46,7 @@ func newMockOllamaServerWithTools(t *testing.T) *httptest.Server {
 			assert.Equal(t, "json", format)
 		}
 
-		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.Header().Set("Content-Type", "application/json")
 		response := api.ChatResponse{
 			Model: "test-model",
 			Message: api.Message{
@@ -76,7 +76,7 @@ func TestOllamaAdapter_GenerateContent_WithTools(t *testing.T) {
 	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	t.Run("Should call Ollama API with tools", func(t *testing.T) {
 		server := newMockOllamaServerWithTools(t)
-		defer server.Close()
+		t.Cleanup(server.Close)
 		// Create adapter
 		baseAdapter := &LangChainAdapter{
 			provider: core.ProviderConfig{
@@ -236,9 +236,9 @@ func TestOllamaAdapter_ConvertToOllamaRequest(t *testing.T) {
 		assert.Equal(t, `{"value":"answer"}`, tool.Content)
 		require.NotNil(t, result.Options)
 		assert.Equal(t, 0.2, result.Options["temperature"])
-		assert.Equal(t, int32(128), result.Options["num_predict"])
+		assert.EqualValues(t, 128, result.Options["num_predict"])
 		assert.Equal(t, []string{"END"}, result.Options["stop"])
-		assert.Equal(t, 1.1, result.Options["repeat_penalty"])
+		assert.EqualValues(t, 1.1, result.Options["repeat_penalty"])
 		assert.Equal(t, 1, result.Options["mirostat"])
 		var format string
 		require.NoError(t, json.Unmarshal(result.Format, &format))
@@ -318,6 +318,25 @@ func TestOllamaAdapter_ConvertToOllamaRequest(t *testing.T) {
 		assert.Contains(t, result.Messages[0].Content, "Image omitted")
 	})
 
+	t.Run("Should include small inline binary images", func(t *testing.T) {
+		req := &LLMRequest{
+			Messages: []Message{
+				{
+					Role: RoleUser,
+					Parts: []ContentPart{
+						BinaryPart{MIMEType: "image/png", Data: make([]byte, maxInlineImageBytes-1)},
+					},
+				},
+			},
+		}
+		result, err := adapter.convertToOllamaRequest(ctx, req)
+		require.NoError(t, err)
+		require.Len(t, result.Messages, 1)
+		require.Len(t, result.Messages[0].Images, 1)
+		assert.NotEmpty(t, result.Messages[0].Images[0])
+		assert.NotContains(t, result.Messages[0].Content, "Image omitted")
+	})
+
 	t.Run("Should append directive when tool choice forbids tools", func(t *testing.T) {
 		req := &LLMRequest{
 			SystemPrompt: "Follow instructions",
@@ -327,6 +346,7 @@ func TestOllamaAdapter_ConvertToOllamaRequest(t *testing.T) {
 		result, err := adapter.convertToOllamaRequest(ctx, req)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(result.Messages), 1)
+		assert.Equal(t, RoleSystem, result.Messages[0].Role)
 		assert.Contains(t, result.Messages[0].Content, "Do not invoke any tool")
 	})
 

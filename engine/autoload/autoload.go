@@ -467,13 +467,29 @@ func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string
 
 // validateFilePath ensures the file path doesn't escape the project root
 func (al *AutoLoader) validateFilePath(filePath string) error {
-	// Canonicalize both paths: absolute then resolve symlinks
+	absFile, err := al.canonicalizeFilePath(filePath)
+	if err != nil {
+		return err
+	}
+	absProject, err := al.canonicalizeProjectRoot()
+	if err != nil {
+		return err
+	}
+	absFileNorm, absProjectNorm := normalizeComparablePaths(absFile, absProject)
+	if err := ensureWithinProjectRoot(absProjectNorm, absFileNorm); err != nil {
+		return err
+	}
+	return nil
+}
+
+// canonicalizeFilePath resolves the provided file path to its canonical form.
+func (al *AutoLoader) canonicalizeFilePath(filePath string) (string, error) {
 	absFile, err := filepath.Abs(filePath)
 	if err == nil {
 		absFile, err = filepath.EvalSymlinks(absFile)
 	}
 	if err != nil {
-		return core.NewError(
+		return "", core.NewError(
 			err,
 			"PATH_RESOLUTION_FAILED",
 			map[string]any{
@@ -482,12 +498,17 @@ func (al *AutoLoader) validateFilePath(filePath string) error {
 			},
 		)
 	}
+	return absFile, nil
+}
+
+// canonicalizeProjectRoot resolves the configured project root to its canonical form.
+func (al *AutoLoader) canonicalizeProjectRoot() (string, error) {
 	absProject, err := filepath.Abs(al.projectRoot)
 	if err == nil {
 		absProject, err = filepath.EvalSymlinks(absProject)
 	}
 	if err != nil {
-		return core.NewError(
+		return "", core.NewError(
 			err,
 			"PATH_RESOLUTION_FAILED",
 			map[string]any{
@@ -496,24 +517,27 @@ func (al *AutoLoader) validateFilePath(filePath string) error {
 			},
 		)
 	}
+	return absProject, nil
+}
 
-	// Normalize case only on Windows for case-insensitive filesystems
-	absFileNorm := absFile
-	absProjectNorm := absProject
+// normalizeComparablePaths prepares file and project paths for comparisons on all OSes.
+func normalizeComparablePaths(filePath string, projectPath string) (string, string) {
 	if runtime.GOOS == "windows" {
-		absFileNorm = strings.ToLower(absFile)
-		absProjectNorm = strings.ToLower(absProject)
+		return strings.ToLower(filePath), strings.ToLower(projectPath)
 	}
+	return filePath, projectPath
+}
 
-	// Check if the file is within the project root using filepath.Rel
-	relPath, err := filepath.Rel(absProjectNorm, absFileNorm)
+// ensureWithinProjectRoot validates that filePath stays inside projectPath.
+func ensureWithinProjectRoot(projectPath string, filePath string) error {
+	relPath, err := filepath.Rel(projectPath, filePath)
 	if err != nil || strings.HasPrefix(relPath, "..") || filepath.IsAbs(relPath) {
 		return core.NewError(
 			errors.New("file path escapes project root"),
 			"PATH_TRAVERSAL_ATTEMPT",
 			map[string]any{
-				"file":        absFileNorm,
-				"projectRoot": absProjectNorm,
+				"file":        filePath,
+				"projectRoot": projectPath,
 				"suggestion":  "File must be within the project root directory for security reasons",
 			},
 		)

@@ -431,12 +431,14 @@ type ProviderConfig struct {
 // ProviderRateLimitConfig describes concurrency and throughput limits scoped to a provider.
 // Zero values delegate to orchestrator defaults, allowing selective overrides per provider.
 type ProviderRateLimitConfig struct {
-	Concurrency       int `json:"concurrency,omitempty"         yaml:"concurrency,omitempty"         mapstructure:"concurrency,omitempty"         validate:"min=0"`
-	QueueSize         int `json:"queue_size,omitempty"          yaml:"queue_size,omitempty"          mapstructure:"queue_size,omitempty"          validate:"min=0"`
-	RequestsPerMinute int `json:"requests_per_minute,omitempty" yaml:"requests_per_minute,omitempty" mapstructure:"requests_per_minute,omitempty" validate:"min=0"`
-	TokensPerMinute   int `json:"tokens_per_minute,omitempty"   yaml:"tokens_per_minute,omitempty"   mapstructure:"tokens_per_minute,omitempty"   validate:"min=0"`
-	RequestBurst      int `json:"request_burst,omitempty"       yaml:"request_burst,omitempty"       mapstructure:"request_burst,omitempty"       validate:"min=0"`
-	TokenBurst        int `json:"token_burst,omitempty"         yaml:"token_burst,omitempty"         mapstructure:"token_burst,omitempty"         validate:"min=0"`
+	Concurrency       int `json:"concurrency,omitempty"                    yaml:"concurrency,omitempty"                    mapstructure:"concurrency,omitempty"                    validate:"min=0"`
+	QueueSize         int `json:"queue_size,omitempty"                     yaml:"queue_size,omitempty"                     mapstructure:"queue_size,omitempty"                     validate:"min=0"`
+	RequestsPerMinute int `json:"requests_per_minute,omitempty"            yaml:"requests_per_minute,omitempty"            mapstructure:"requests_per_minute,omitempty"            validate:"min=0"`
+	TokensPerMinute   int `json:"tokens_per_minute,omitempty"              yaml:"tokens_per_minute,omitempty"              mapstructure:"tokens_per_minute,omitempty"              validate:"min=0"`
+	RequestBurst      int `json:"request_burst,omitempty"                  yaml:"request_burst,omitempty"                  mapstructure:"request_burst,omitempty"                  validate:"min=0"`
+	TokenBurst        int `json:"token_burst,omitempty"                    yaml:"token_burst,omitempty"                    mapstructure:"token_burst,omitempty"                    validate:"min=0"`
+	// ReleaseSlotBeforeTokenWait releases concurrency slots before token waits when true; nil inherits defaults.
+	ReleaseSlotBeforeTokenWait *bool `json:"release_slot_before_token_wait,omitempty" yaml:"release_slot_before_token_wait,omitempty" mapstructure:"release_slot_before_token_wait,omitempty"`
 }
 
 // NewProviderConfig creates a new ProviderConfig with the specified core parameters.

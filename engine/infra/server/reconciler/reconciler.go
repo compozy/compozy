@@ -61,28 +61,28 @@ func newReconcilerMetrics(
 ) (metric.Int64Counter, metric.Int64Counter, metric.Int64Counter, metric.Float64Histogram) {
 	meter := otel.GetMeterProvider().Meter("compozy")
 	evTot, err1 := meter.Int64Counter(
-		monitoringmetrics.MetricNameWithSubsystem("reconciler", "events_total"),
+		monitoringmetrics.MetricNameWithSubsystem(reconcilerSubsystem, "events_total"),
 		metric.WithDescription("Total store events received"),
 	)
 	if err1 != nil {
 		logger.FromContext(ctx).Error("meter creation failed", "error", err1)
 	}
 	evDrop, err2 := meter.Int64Counter(
-		monitoringmetrics.MetricNameWithSubsystem("reconciler", "events_dropped_total"),
+		monitoringmetrics.MetricNameWithSubsystem(reconcilerSubsystem, "events_dropped_total"),
 		metric.WithDescription("Total store events dropped due to backpressure"),
 	)
 	if err2 != nil {
 		logger.FromContext(ctx).Error("meter creation failed", "error", err2)
 	}
 	recTot, err3 := meter.Int64Counter(
-		monitoringmetrics.MetricNameWithSubsystem("reconciler", "recompile_total"),
+		monitoringmetrics.MetricNameWithSubsystem(reconcilerSubsystem, "recompile_total"),
 		metric.WithDescription("Total recompilations attempted"),
 	)
 	if err3 != nil {
 		logger.FromContext(ctx).Error("meter creation failed", "error", err3)
 	}
 	bDur, err4 := meter.Float64Histogram(
-		monitoringmetrics.MetricNameWithSubsystem("reconciler", "batch_duration_seconds"),
+		monitoringmetrics.MetricNameWithSubsystem(reconcilerSubsystem, "batch_duration_seconds"),
 		metric.WithDescription("Batch processing duration seconds"),
 		metric.WithUnit("s"),
 	)
@@ -102,6 +102,8 @@ const (
 	modeRepo    = "repo"
 	modeBuilder = "builder"
 )
+
+const reconcilerSubsystem = "reconciler"
 
 func resolveStore(state *appstate.State) (resources.ResourceStore, error) {
 	v, ok := state.ResourceStore()

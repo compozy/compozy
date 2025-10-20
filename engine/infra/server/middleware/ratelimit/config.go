@@ -52,50 +52,9 @@ type RateConfig struct {
 // DefaultConfig returns default rate limiting configuration
 func DefaultConfig() *Config {
 	return &Config{
-		GlobalRate: RateConfig{
-			Limit:    100,
-			Period:   1 * time.Minute,
-			Disabled: false,
-		},
-		APIKeyRate: RateConfig{
-			Limit:    100,
-			Period:   1 * time.Minute,
-			Disabled: false,
-		},
-		RouteRates: map[string]RateConfig{
-			routes.Base() + "/memory": {
-				Limit:    200, // More reasonable for memory operations
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-			routes.Hooks(): {
-				Limit:    60, // Moderate default for public webhooks
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-			routes.Base() + "/workflow": {
-				Limit:    100,
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-			routes.Base() + "/task": {
-				Limit:    100,
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-			// Auth endpoints - stricter limits to prevent brute force attacks
-			routes.Base() + "/auth": {
-				Limit:    20, // Stricter limit for auth operations
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-			routes.Base() + "/users": {
-				Limit:    30, // Moderate limit for user management (admin only)
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-		},
-		// RedisAddr is the address of the Redis server. If empty, an in-memory store is used.
+		GlobalRate:          defaultGlobalRate(),
+		APIKeyRate:          defaultAPIKeyRate(),
+		RouteRates:          defaultRouteRates(),
 		RedisAddr:           "",
 		RedisPassword:       "",
 		RedisDB:             0,
@@ -103,17 +62,76 @@ func DefaultConfig() *Config {
 		MaxRetry:            3,
 		HealthCheckInterval: 30 * time.Second,
 		DisableHeaders:      false,
-		ExcludedPaths: []string{
-			"/health",                // legacy/unversioned
-			routes.HealthVersioned(), // versioned API health
-			"/healthz",               // k8s liveness probe
-			"/readyz",                // k8s readiness probe
-			"/mcp-proxy/health",      // MCP readiness probe
-			"/metrics",               // Prometheus
-			"/swagger",               // docs
+		ExcludedPaths:       defaultExcludedPaths(),
+		ExcludedIPs:         []string{},
+		FailOpen:            true,
+	}
+}
+
+// defaultGlobalRate returns the default global rate limiter configuration.
+func defaultGlobalRate() RateConfig {
+	return RateConfig{
+		Limit:    100,
+		Period:   time.Minute,
+		Disabled: false,
+	}
+}
+
+// defaultAPIKeyRate returns the default API key rate limiter configuration.
+func defaultAPIKeyRate() RateConfig {
+	return RateConfig{
+		Limit:    100,
+		Period:   time.Minute,
+		Disabled: false,
+	}
+}
+
+// defaultRouteRates returns default per-route rate limit settings.
+func defaultRouteRates() map[string]RateConfig {
+	return map[string]RateConfig{
+		routes.Base() + "/memory": {
+			Limit:    200,
+			Period:   time.Minute,
+			Disabled: false,
 		},
-		ExcludedIPs: []string{},
-		FailOpen:    true, // Default to fail-open for availability
+		routes.Hooks(): {
+			Limit:    60,
+			Period:   time.Minute,
+			Disabled: false,
+		},
+		routes.Base() + "/workflow": {
+			Limit:    100,
+			Period:   time.Minute,
+			Disabled: false,
+		},
+		routes.Base() + "/task": {
+			Limit:    100,
+			Period:   time.Minute,
+			Disabled: false,
+		},
+		routes.Base() + "/auth": {
+			Limit:    20,
+			Period:   time.Minute,
+			Disabled: false,
+		},
+		routes.Base() + "/users": {
+			Limit:    30,
+			Period:   time.Minute,
+			Disabled: false,
+		},
+	}
+}
+
+// defaultExcludedPaths returns paths excluded from rate limiting.
+func defaultExcludedPaths() []string {
+	return []string{
+		"/health",
+		routes.HealthVersioned(),
+		"/healthz",
+		"/readyz",
+		"/mcp-proxy/health",
+		"/metrics",
+		"/swagger",
 	}
 }
 

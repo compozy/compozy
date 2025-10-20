@@ -75,7 +75,7 @@ func initVectorHistograms(meter metric.Meter) error {
 	vectorMinDistance, err = meter.Float64Histogram(
 		monitoringmetrics.MetricNameWithSubsystem("vectordb", "similarity_distance_min"),
 		metric.WithDescription("Minimum distance of top result"),
-		metric.WithExplicitBucketBoundaries(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+		metric.WithExplicitBucketBoundaries(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0),
 	)
 	return err
 }
@@ -100,7 +100,6 @@ func initVectorGauge(meter metric.Meter) error {
 	}
 	var reg metric.Registration
 	reg, err = meter.RegisterCallback(func(_ context.Context, observer metric.Observer) error {
-		var callbackErr error
 		vectorPools.Range(func(key, value any) bool {
 			pool, ok := value.(*pgxpool.Pool)
 			if !ok || pool == nil {
@@ -118,7 +117,7 @@ func initVectorGauge(meter metric.Meter) error {
 			)
 			return true
 		})
-		return callbackErr
+		return nil
 	}, vectorActiveConnections)
 	if err == nil {
 		vectorGaugeReg = reg

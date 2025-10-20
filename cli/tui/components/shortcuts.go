@@ -31,66 +31,90 @@ func NewKeyboardShortcuts() KeyboardShortcuts {
 // defaultShortcutCategories returns the default shortcut categories
 func defaultShortcutCategories() []ShortcutCategory {
 	return []ShortcutCategory{
-		{
-			Name: "General",
-			Shortcuts: [][2]string{
-				{"q", "quit application"},
-				{"ctrl+c", "force quit"},
-				{"?", "toggle help"},
-				{"ctrl+k", "command palette"},
-				{escKey, "cancel/back"},
-			},
+		generalShortcuts(),
+		navigationShortcuts(),
+		listShortcuts(),
+		formShortcuts(),
+		keyManagementShortcuts(),
+		userManagementShortcuts(),
+	}
+}
+
+func generalShortcuts() ShortcutCategory {
+	return ShortcutCategory{
+		Name: "General",
+		Shortcuts: [][2]string{
+			{"q", "quit application"},
+			{"ctrl+c", "force quit"},
+			{"?", "toggle help"},
+			{"ctrl+k", "command palette"},
+			{escKey, "cancel/back"},
 		},
-		{
-			Name: "Navigation",
-			Shortcuts: [][2]string{
-				{"↑/k", "move up"},
-				{"↓/j", "move down"},
-				{"←/h", "move left"},
-				{"→/l", "move right"},
-				{"enter", "select/confirm"},
-				{"tab", "next field"},
-				{"shift+tab", "previous field"},
-			},
+	}
+}
+
+func navigationShortcuts() ShortcutCategory {
+	return ShortcutCategory{
+		Name: "Navigation",
+		Shortcuts: [][2]string{
+			{"↑/k", "move up"},
+			{"↓/j", "move down"},
+			{"←/h", "move left"},
+			{"→/l", "move right"},
+			{"enter", "select/confirm"},
+			{"tab", "next field"},
+			{"shift+tab", "previous field"},
 		},
-		{
-			Name: "Lists & Tables",
-			Shortcuts: [][2]string{
-				{"home", "go to first item"},
-				{"end", "go to last item"},
-				{"page up", "scroll up one page"},
-				{"page down", "scroll down one page"},
-				{"/", "search/filter"},
-				{"ctrl+r", "refresh"},
-			},
+	}
+}
+
+func listShortcuts() ShortcutCategory {
+	return ShortcutCategory{
+		Name: "Lists & Tables",
+		Shortcuts: [][2]string{
+			{"home", "go to first item"},
+			{"end", "go to last item"},
+			{"page up", "scroll up one page"},
+			{"page down", "scroll down one page"},
+			{"/", "search/filter"},
+			{"ctrl+r", "refresh"},
 		},
-		{
-			Name: "Forms",
-			Shortcuts: [][2]string{
-				{"ctrl+a", "select all text"},
-				{"ctrl+e", "end of line"},
-				{"ctrl+u", "clear line"},
-				{"ctrl+w", "delete word"},
-				{"ctrl+d", "delete character"},
-			},
+	}
+}
+
+func formShortcuts() ShortcutCategory {
+	return ShortcutCategory{
+		Name: "Forms",
+		Shortcuts: [][2]string{
+			{"ctrl+a", "select all text"},
+			{"ctrl+e", "end of line"},
+			{"ctrl+u", "clear line"},
+			{"ctrl+w", "delete word"},
+			{"ctrl+d", "delete character"},
 		},
-		{
-			Name: "Key Management",
-			Shortcuts: [][2]string{
-				{"g", "generate new key"},
-				{"r", "revoke selected key"},
-				{"c", "copy key to clipboard"},
-				{"d", "show key details"},
-			},
+	}
+}
+
+func keyManagementShortcuts() ShortcutCategory {
+	return ShortcutCategory{
+		Name: "Key Management",
+		Shortcuts: [][2]string{
+			{"g", "generate new key"},
+			{"r", "revoke selected key"},
+			{"c", "copy key to clipboard"},
+			{"d", "show key details"},
 		},
-		{
-			Name: "User Management",
-			Shortcuts: [][2]string{
-				{"n", "create new user"},
-				{"e", "edit selected user"},
-				{"d", "delete selected user"},
-				{"v", "view user details"},
-			},
+	}
+}
+
+func userManagementShortcuts() ShortcutCategory {
+	return ShortcutCategory{
+		Name: "User Management",
+		Shortcuts: [][2]string{
+			{"n", "create new user"},
+			{"e", "edit selected user"},
+			{"d", "delete selected user"},
+			{"v", "view user details"},
 		},
 	}
 }

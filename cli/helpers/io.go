@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -242,30 +243,23 @@ func CleanupTempFile(path string) error {
 
 // WatchFile watches a file for changes
 func WatchFile(ctx context.Context, path string, callback func([]byte) error) error {
-	if path == "" {
-		return NewCliError("INVALID_PATH", "File path cannot be empty")
+	if err := validateWatchFilePath(path); err != nil {
+		return err
 	}
 
 	log := logger.FromContext(ctx)
 	log.Info("watching file for changes", "file", path)
 
-	// Initial read
-	data, err := ReadFile(path)
-	if err != nil {
+	if err := readAndNotify(ctx, path, callback); err != nil {
 		return err
 	}
 
-	if err := callback(data); err != nil {
-		return err
-	}
-
-	// Watch for changes (simplified implementation)
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	var lastModTime time.Time
-	if info, err := os.Stat(path); err == nil {
-		lastModTime = info.ModTime()
+	lastModTime, err := fileModTime(path)
+	if err != nil {
+		return err
 	}
 
 	for {
@@ -273,32 +267,84 @@ func WatchFile(ctx context.Context, path string, callback func([]byte) error) er
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			info, err := os.Stat(path)
+			updated, modTime, err := processFileChange(ctx, path, callback, lastModTime)
 			if err != nil {
-				if os.IsNotExist(err) {
-					log.Debug("file no longer exists", "file", path)
+				if errors.Is(err, errFileMissing) {
 					continue
 				}
-				return NewCliError("FILE_STAT_ERROR", fmt.Sprintf("Failed to stat file: %s", path), err.Error())
+				return err
 			}
-
-			if info.ModTime().After(lastModTime) {
-				log.Debug("file changed", "file", path)
-				lastModTime = info.ModTime()
-
-				data, err := ReadFile(path)
-				if err != nil {
-					log.Error("failed to read changed file", "file", path, "error", err)
-					continue
-				}
-
-				if err := callback(data); err != nil {
-					log.Error("callback failed for file change", "file", path, "error", err)
-					continue
-				}
+			if updated {
+				lastModTime = modTime
 			}
 		}
 	}
+}
+
+var errFileMissing = errors.New("file missing")
+
+func validateWatchFilePath(path string) error {
+	if path != "" {
+		return nil
+	}
+	return NewCliError("INVALID_PATH", "File path cannot be empty")
+}
+
+func readAndNotify(ctx context.Context, path string, callback func([]byte) error) error {
+	data, err := ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err := callback(data); err != nil {
+		return err
+	}
+	logger.FromContext(ctx).Debug("initial file read completed", "file", path)
+	return nil
+}
+
+func fileModTime(path string) (time.Time, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return time.Time{}, errFileMissing
+		}
+		return time.Time{}, NewCliError("FILE_STAT_ERROR", fmt.Sprintf("Failed to stat file: %s", path), err.Error())
+	}
+	return info.ModTime(), nil
+}
+
+func processFileChange(
+	ctx context.Context,
+	path string,
+	callback func([]byte) error,
+	lastModTime time.Time,
+) (bool, time.Time, error) {
+	log := logger.FromContext(ctx)
+	modTime, err := fileModTime(path)
+	if err != nil {
+		if errors.Is(err, errFileMissing) {
+			log.Debug("file no longer exists", "file", path)
+		}
+		return false, lastModTime, err
+	}
+	if !modTime.After(lastModTime) {
+		return false, lastModTime, nil
+	}
+
+	log.Debug("file changed", "file", path)
+
+	data, err := ReadFile(path)
+	if err != nil {
+		log.Error("failed to read changed file", "file", path, "error", err)
+		return false, lastModTime, nil
+	}
+
+	if err := callback(data); err != nil {
+		log.Error("callback failed for file change", "file", path, "error", err)
+		return false, lastModTime, nil
+	}
+
+	return true, modTime, nil
 }
 
 // ReadJSONFile reads and parses a JSON file

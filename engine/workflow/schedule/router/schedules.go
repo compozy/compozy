@@ -33,40 +33,46 @@ func convertToScheduleInfoResponse(info *schedule.Info) ScheduleInfoResponse {
 func getScheduleManager(c *gin.Context) (schedule.Manager, bool) {
 	appState := router.GetAppState(c)
 	if appState == nil {
-		router.RespondWithError(c, http.StatusInternalServerError, router.NewRequestError(
-			http.StatusInternalServerError,
+		return respondScheduleManagerFailure(
+			c,
 			"application state not available",
 			errors.New("app state not found in context"),
-		))
-		return nil, false
+		)
 	}
 	v, ok := appState.ScheduleManager()
-	if !ok || v == nil {
-		router.RespondWithError(c, http.StatusInternalServerError, router.NewRequestError(
-			http.StatusInternalServerError,
+	return castScheduleManager(c, v, ok)
+}
+
+// castScheduleManager validates the schedule manager instance from app state before use.
+// It returns false after responding when the manager is missing or has an unexpected type.
+func castScheduleManager(c *gin.Context, manager any, ok bool) (schedule.Manager, bool) {
+	if !ok || manager == nil {
+		return respondScheduleManagerFailure(
+			c,
 			"schedule manager not initialized",
 			errors.New("schedule manager not found in app state"),
-		))
-		return nil, false
+		)
 	}
-	scheduleManager, ok := v.(schedule.Manager)
-	if !ok {
-		router.RespondWithError(c, http.StatusInternalServerError, router.NewRequestError(
-			http.StatusInternalServerError,
+	typed, typeOK := manager.(schedule.Manager)
+	if !typeOK || typed == nil {
+		return respondScheduleManagerFailure(
+			c,
 			"invalid schedule manager type",
 			errors.New("schedule manager has wrong type in app state"),
-		))
-		return nil, false
+		)
 	}
-	if scheduleManager == nil {
-		router.RespondWithError(c, http.StatusInternalServerError, router.NewRequestError(
-			http.StatusInternalServerError,
-			"schedule manager not initialized",
-			errors.New("schedule manager not found in app state"),
-		))
-		return nil, false
-	}
-	return scheduleManager, true
+	return typed, true
+}
+
+// respondScheduleManagerFailure standardizes error responses for schedule manager resolution failures.
+// It always returns nil and false so callers can return immediately.
+func respondScheduleManagerFailure(c *gin.Context, message string, err error) (schedule.Manager, bool) {
+	router.RespondWithError(c, http.StatusInternalServerError, router.NewRequestError(
+		http.StatusInternalServerError,
+		message,
+		err,
+	))
+	return nil, false
 }
 
 // listSchedules retrieves all scheduled workflows
@@ -167,6 +173,21 @@ func updateSchedule(c *gin.Context) {
 	if workflowID == "" {
 		return
 	}
+	request, ok := bindUpdateScheduleRequest(c)
+	if !ok {
+		return
+	}
+	scheduleManager, ok := getScheduleManager(c)
+	if !ok {
+		return // Error already handled by getScheduleManager
+	}
+	if !applyScheduleUpdate(c, scheduleManager, workflowID, request) {
+		return
+	}
+	respondWithUpdatedSchedule(c, scheduleManager, workflowID)
+}
+
+func bindUpdateScheduleRequest(c *gin.Context) (*UpdateScheduleRequest, bool) {
 	var req UpdateScheduleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		router.RespondWithError(c, http.StatusBadRequest, router.NewRequestError(
@@ -174,45 +195,47 @@ func updateSchedule(c *gin.Context) {
 			"invalid request body",
 			err,
 		))
-		return
+		return nil, false
 	}
-	// Validate request - at least one field must be provided
 	if req.Enabled == nil && req.Cron == nil {
 		router.RespondWithError(c, http.StatusBadRequest, router.NewRequestError(
 			http.StatusBadRequest,
 			"at least one of 'enabled' or 'cron' is required",
 			errors.New("request must contain at least one field to update"),
 		))
-		return
+		return nil, false
 	}
-	scheduleManager, ok := getScheduleManager(c)
-	if !ok {
-		return // Error already handled by getScheduleManager
-	}
-	// Update the schedule
-	updateReq := schedule.UpdateRequest{
-		Enabled: req.Enabled,
-		Cron:    req.Cron,
-	}
-	err := scheduleManager.UpdateSchedule(c.Request.Context(), workflowID, updateReq)
-	if err != nil {
+	return &req, true
+}
+
+func applyScheduleUpdate(
+	c *gin.Context,
+	manager schedule.Manager,
+	workflowID string,
+	req *UpdateScheduleRequest,
+) bool {
+	updateReq := schedule.UpdateRequest{Enabled: req.Enabled, Cron: req.Cron}
+	if err := manager.UpdateSchedule(c.Request.Context(), workflowID, updateReq); err != nil {
 		if errors.Is(err, schedule.ErrScheduleNotFound) {
 			router.RespondWithError(c, http.StatusNotFound, router.NewRequestError(
 				http.StatusNotFound,
 				"schedule not found",
 				err,
 			))
-			return
+			return false
 		}
 		router.RespondWithError(c, http.StatusInternalServerError, router.NewRequestError(
 			http.StatusInternalServerError,
 			"failed to update schedule",
 			err,
 		))
-		return
+		return false
 	}
-	// Get updated schedule info
-	info, err := scheduleManager.GetSchedule(c.Request.Context(), workflowID)
+	return true
+}
+
+func respondWithUpdatedSchedule(c *gin.Context, manager schedule.Manager, workflowID string) {
+	info, err := manager.GetSchedule(c.Request.Context(), workflowID)
 	if err != nil {
 		router.RespondWithError(c, http.StatusInternalServerError, router.NewRequestError(
 			http.StatusInternalServerError,
@@ -221,9 +244,7 @@ func updateSchedule(c *gin.Context) {
 		))
 		return
 	}
-	// Convert to response format
-	response := convertToScheduleInfoResponse(info)
-	router.RespondOK(c, "schedule updated", response)
+	router.RespondOK(c, "schedule updated", convertToScheduleInfoResponse(info))
 }
 
 // deleteSchedule removes a scheduled workflow

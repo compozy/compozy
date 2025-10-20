@@ -36,6 +36,14 @@ const (
 	scanCount             int64 = 256
 )
 
+const redisPutIfMatchScript = `local current = redis.call("GET", KEYS[1])
+if not current then return {err="NOT_FOUND"} end
+local expected = ARGV[1]
+if current ~= expected then return {err="MISMATCH"} end
+redis.call("SET", KEYS[1], ARGV[2])
+redis.call("SET", KEYS[2], ARGV[3])
+return ARGV[3]`
+
 // RedisStoreOption configures RedisResourceStore.
 type RedisStoreOption func(*RedisResourceStore)
 
@@ -133,20 +141,16 @@ func (s *RedisResourceStore) PutIfMatch(
 	if err := ctx.Err(); err != nil {
 		return ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
-	log := logger.FromContext(ctx)
 	if s.closed.Load() {
 		return ETag(""), fmt.Errorf("store is closed")
 	}
 	if value == nil {
 		return ETag(""), fmt.Errorf("nil value is not allowed")
 	}
-	cp, err := core.DeepCopy(value)
+	jsonBytes, newETag, err := prepareRedisPayload(value)
 	if err != nil {
-		return ETag(""), fmt.Errorf("deep copy failed: %w", err)
+		return ETag(""), err
 	}
-	jsonBytes := core.StableJSONBytes(cp)
-	newSum := sha256.Sum256(jsonBytes)
-	newETag := hex.EncodeToString(newSum[:])
 	valueKey := s.keyFor(key)
 	etagKey := s.etagKey(key)
 	current, err := s.r.Get(ctx, valueKey).Bytes()
@@ -154,33 +158,13 @@ func (s *RedisResourceStore) PutIfMatch(
 		etag, handleErr := s.handlePutIfMatchMiss(ctx, key, expectedETag, jsonBytes, newETag, valueKey, etagKey, err)
 		return etag, handleErr
 	}
-	curSum := sha256.Sum256(current)
-	curETag := hex.EncodeToString(curSum[:])
-	if curETag != string(expectedETag) {
-		return ETag(""), ErrETagMismatch
+	if err := ensureExpectedRedisETag(current, expectedETag); err != nil {
+		return ETag(""), err
 	}
-	const casScript = `local current = redis.call("GET", KEYS[1])
-if not current then return {err="NOT_FOUND"} end
-local expected = ARGV[1]
-if current ~= expected then return {err="MISMATCH"} end
-redis.call("SET", KEYS[1], ARGV[2])
-redis.call("SET", KEYS[2], ARGV[3])
-return ARGV[3]`
-	cmd := s.r.Eval(ctx, casScript, []string{valueKey, etagKey}, string(current), string(jsonBytes), newETag)
-	if err := cmd.Err(); err != nil {
-		switch {
-		case strings.Contains(err.Error(), "NOT_FOUND"):
-			return ETag(""), ErrNotFound
-		case strings.Contains(err.Error(), "MISMATCH"):
-			return ETag(""), ErrETagMismatch
-		default:
-			return ETag(""), fmt.Errorf("redis CAS eval: %w", err)
-		}
+	if err := s.updateValueWithCAS(ctx, valueKey, etagKey, current, jsonBytes, newETag); err != nil {
+		return ETag(""), err
 	}
-	evt := Event{Type: EventPut, Key: key, ETag: ETag(newETag), At: time.Now().UTC()}
-	if err := s.publish(ctx, key.Project, key.Type, &evt); err != nil {
-		log.Warn("publish put failed", "error", err)
-	}
+	s.emitPutEvent(ctx, key, newETag)
 	return ETag(newETag), nil
 }
 
@@ -599,51 +583,144 @@ func deliverEvent(ctx context.Context, ch chan Event, evt *Event) bool {
 		return false
 	}
 	log := logger.FromContext(ctx)
-	var (
-		waitTimer *time.Timer
-		waitStart time.Time
-	)
-	defer func() {
-		if waitTimer != nil {
-			waitTimer.Stop()
-		}
-	}()
+	state := &deliveryState{}
+	defer state.stop()
+
 	for {
 		select {
 		case ch <- *evt:
-			if !waitStart.IsZero() {
-				if delay := time.Since(waitStart); delay >= watchBackpressureWarn {
-					log.Warn(
-						"watch delivery delayed",
-						"delay", delay,
-						"project", evt.Key.Project,
-						"type", string(evt.Key.Type),
-						"id", evt.Key.ID,
-					)
-				}
-			}
+			logBackpressure(log, evt, state.start)
+			state.reset()
 			return true
 		case <-ctx.Done():
 			return false
 		default:
 		}
-		if waitTimer == nil {
-			waitTimer = time.NewTimer(watchSendInterval)
-			waitStart = time.Now()
-		} else {
-			if !waitTimer.Stop() {
-				select {
-				case <-waitTimer.C:
-				default:
-				}
-			}
-			waitTimer.Reset(watchSendInterval)
-		}
-		select {
-		case <-ctx.Done():
+
+		state.startWaiting()
+		if !state.wait(ctx) {
 			return false
-		case <-waitTimer.C:
 		}
+	}
+}
+
+type deliveryState struct {
+	timer *time.Timer
+	start time.Time
+}
+
+func (d *deliveryState) startWaiting() {
+	if d.timer == nil {
+		d.timer = time.NewTimer(watchSendInterval)
+		d.start = time.Now()
+		return
+	}
+	if !d.timer.Stop() {
+		select {
+		case <-d.timer.C:
+		default:
+		}
+	}
+	d.timer.Reset(watchSendInterval)
+	if d.start.IsZero() {
+		d.start = time.Now()
+	}
+}
+
+func (d *deliveryState) wait(ctx context.Context) bool {
+	if d.timer == nil {
+		return true
+	}
+	select {
+	case <-ctx.Done():
+		return false
+	case <-d.timer.C:
+		return true
+	}
+}
+
+func (d *deliveryState) stop() {
+	if d.timer == nil {
+		return
+	}
+	if !d.timer.Stop() {
+		select {
+		case <-d.timer.C:
+		default:
+		}
+	}
+}
+
+func (d *deliveryState) reset() {
+	d.start = time.Time{}
+}
+
+func logBackpressure(log logger.Logger, evt *Event, waitStart time.Time) {
+	if waitStart.IsZero() {
+		return
+	}
+	if delay := time.Since(waitStart); delay >= watchBackpressureWarn {
+		log.Warn(
+			"watch delivery delayed",
+			"delay", delay,
+			"project", evt.Key.Project,
+			"type", string(evt.Key.Type),
+			"id", evt.Key.ID,
+		)
+	}
+}
+
+func prepareRedisPayload(value any) ([]byte, string, error) {
+	cp, err := core.DeepCopy(value)
+	if err != nil {
+		return nil, "", fmt.Errorf("deep copy failed: %w", err)
+	}
+	jsonBytes := core.StableJSONBytes(cp)
+	sum := sha256.Sum256(jsonBytes)
+	return jsonBytes, hex.EncodeToString(sum[:]), nil
+}
+
+func ensureExpectedRedisETag(current []byte, expected ETag) error {
+	currentSum := sha256.Sum256(current)
+	if hex.EncodeToString(currentSum[:]) != string(expected) {
+		return ErrETagMismatch
+	}
+	return nil
+}
+
+func (s *RedisResourceStore) updateValueWithCAS(
+	ctx context.Context,
+	valueKey string,
+	etagKey string,
+	current []byte,
+	jsonBytes []byte,
+	newETag string,
+) error {
+	cmd := s.r.Eval(
+		ctx,
+		redisPutIfMatchScript,
+		[]string{valueKey, etagKey},
+		string(current),
+		string(jsonBytes),
+		newETag,
+	)
+	if err := cmd.Err(); err != nil {
+		switch {
+		case strings.Contains(err.Error(), "NOT_FOUND"):
+			return ErrNotFound
+		case strings.Contains(err.Error(), "MISMATCH"):
+			return ErrETagMismatch
+		default:
+			return fmt.Errorf("redis CAS eval: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *RedisResourceStore) emitPutEvent(ctx context.Context, key ResourceKey, etag string) {
+	evt := Event{Type: EventPut, Key: key, ETag: ETag(etag), At: time.Now().UTC()}
+	if err := s.publish(ctx, key.Project, key.Type, &evt); err != nil {
+		logger.FromContext(ctx).Warn("publish put failed", "error", err)
 	}
 }
 

@@ -220,129 +220,205 @@ func (uc *HandleResponse) normalizeTransitions(
 	ctx context.Context,
 	input *HandleResponseInput,
 ) (*core.SuccessTransition, *core.ErrorTransition, error) {
+	normCtx, err := uc.buildTransitionContext(ctx, input)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	successTransition, err := uc.normalizeSuccessTransition(input.TaskConfig.OnSuccess, normCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	errorTransition, err := uc.normalizeErrorTransition(input.TaskConfig.OnError, normCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return successTransition, errorTransition, nil
+}
+
+// buildTransitionContext prepares the normalization context used for transition processing.
+func (uc *HandleResponse) buildTransitionContext(
+	ctx context.Context,
+	input *HandleResponseInput,
+) (*shared.NormalizationContext, error) {
 	workflowState, err := uc.workflowRepo.GetState(ctx, input.TaskState.WorkflowExecID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get workflow state: %w", err)
+		return nil, fmt.Errorf("failed to get workflow state: %w", err)
 	}
 
-	// Create normalization context for task2 with proper Variables
 	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create context builder: %w", err)
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
+
 	normCtx := contextBuilder.BuildContext(ctx, workflowState, input.WorkflowConfig, input.TaskConfig)
 	normCtx.CurrentInput = input.TaskState.Input
+	return normCtx, nil
+}
 
-	// Normalize success transition
-	var normalizedOnSuccess *core.SuccessTransition
-	if input.TaskConfig.OnSuccess != nil {
-		// Create a copy to avoid mutating the original
-		successCopy := &core.SuccessTransition{
-			Next: input.TaskConfig.OnSuccess.Next,
-			With: input.TaskConfig.OnSuccess.With,
-		}
-		if input.TaskConfig.OnSuccess.With != nil {
-			cloned := core.CloneMap(*input.TaskConfig.OnSuccess.With)
-			withCopy := core.Input(cloned)
-			successCopy.With = &withCopy
-		}
-
-		err = uc.successTransitionNormalizer.Normalize(successCopy, normCtx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to normalize success transition: %w", err)
-		}
-		normalizedOnSuccess = successCopy
+// normalizeSuccessTransition produces a normalized copy of the success transition when present.
+func (uc *HandleResponse) normalizeSuccessTransition(
+	transition *core.SuccessTransition,
+	normCtx *shared.NormalizationContext,
+) (*core.SuccessTransition, error) {
+	if transition == nil {
+		return nil, nil
 	}
 
-	// Normalize error transition
-	var normalizedOnError *core.ErrorTransition
-	if input.TaskConfig.OnError != nil {
-		// Create a copy to avoid mutating the original
-		errorCopy := &core.ErrorTransition{
-			Next: input.TaskConfig.OnError.Next,
-			With: input.TaskConfig.OnError.With,
-		}
-		if input.TaskConfig.OnError.With != nil {
-			cloned := core.CloneMap(*input.TaskConfig.OnError.With)
-			withCopy := core.Input(cloned)
-			errorCopy.With = &withCopy
-		}
-
-		err = uc.errorTransitionNormalizer.Normalize(errorCopy, normCtx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to normalize error transition: %w", err)
-		}
-		normalizedOnError = errorCopy
+	transitionCopy := cloneSuccessTransition(transition)
+	if err := uc.successTransitionNormalizer.Normalize(transitionCopy, normCtx); err != nil {
+		return nil, fmt.Errorf("failed to normalize success transition: %w", err)
 	}
 
-	return normalizedOnSuccess, normalizedOnError, nil
+	return transitionCopy, nil
+}
+
+// normalizeErrorTransition produces a normalized copy of the error transition when present.
+func (uc *HandleResponse) normalizeErrorTransition(
+	transition *core.ErrorTransition,
+	normCtx *shared.NormalizationContext,
+) (*core.ErrorTransition, error) {
+	if transition == nil {
+		return nil, nil
+	}
+
+	transitionCopy := cloneErrorTransition(transition)
+	if err := uc.errorTransitionNormalizer.Normalize(transitionCopy, normCtx); err != nil {
+		return nil, fmt.Errorf("failed to normalize error transition: %w", err)
+	}
+
+	return transitionCopy, nil
+}
+
+// cloneSuccessTransition creates a deep copy of a success transition definition.
+func cloneSuccessTransition(transition *core.SuccessTransition) *core.SuccessTransition {
+	copyTransition := &core.SuccessTransition{
+		Next: transition.Next,
+		With: transition.With,
+	}
+	if transition.With != nil {
+		cloned := core.CloneMap(*transition.With)
+		withCopy := core.Input(cloned)
+		copyTransition.With = &withCopy
+	}
+	return copyTransition
+}
+
+// cloneErrorTransition creates a deep copy of an error transition definition.
+func cloneErrorTransition(transition *core.ErrorTransition) *core.ErrorTransition {
+	copyTransition := &core.ErrorTransition{
+		Next: transition.Next,
+		With: transition.With,
+	}
+	if transition.With != nil {
+		cloned := core.CloneMap(*transition.With)
+		withCopy := core.Input(cloned)
+		copyTransition.With = &withCopy
+	}
+	return copyTransition
 }
 
 // updateParentStatusIfNeeded updates the parent task status when a child task completes
 func (uc *HandleResponse) updateParentStatusIfNeeded(ctx context.Context, childState *task.State) error {
-	log := logger.FromContext(ctx)
-	// Only proceed if this is a child task (has a parent)
 	if childState.ParentStateID == nil {
 		return nil
 	}
-	parentStateID := *childState.ParentStateID
-	parentState, err := uc.taskRepo.GetState(ctx, parentStateID)
-	if err != nil {
-		return fmt.Errorf("failed to get parent state %s: %w", parentStateID, err)
-	}
-	if parentState.ExecutionType != task.ExecutionParallel {
-		return nil
-	}
-	// Get the parallel configuration to determine strategy
-	// The parallel strategy should be stored in the parent task's input metadata
-	strategy := task.StrategyWaitAll // Default strategy
-	if parentState.Input != nil {
-		if parallelConfig, ok := (*parentState.Input)["_parallel_config"].(map[string]any); ok {
-			if strategyValue, exists := parallelConfig["strategy"]; exists {
-				// Explicit type validation for strategy value
-				if strategyStr, ok := strategyValue.(string); ok {
-					if task.ValidateStrategy(strategyStr) {
-						strategy = task.ParallelStrategy(strategyStr)
-					} else {
-						log.Error("Invalid parallel strategy found, using default wait_all",
-							"invalid_strategy", strategyStr,
-							"parent_state_id", parentStateID,
-						)
-					}
-				} else {
-					// Strategy exists but is not a string - log the type mismatch
-					log.Error("Parallel strategy field is not a string, using default wait_all",
-						"strategy_type", fmt.Sprintf("%T", strategyValue),
-						"strategy_value", strategyValue,
-						"parent_state_id", parentStateID,
-					)
-				}
-			} else {
-				// Strategy field is missing from parallel config
-				log.Debug("No strategy field found in parallel config, using default wait_all",
-					"parent_state_id", parentStateID,
-				)
-			}
-		} else {
-			// _parallel_config exists but is not the expected map type
-			if _, exists := (*parentState.Input)["_parallel_config"]; exists {
-				log.Error("Parallel config field is not a map, using default wait_all",
-					"config_type", fmt.Sprintf("%T", (*parentState.Input)["_parallel_config"]),
-					"parent_state_id", parentStateID,
-				)
-			}
-		}
+
+	parentState, err := uc.loadParallelParentState(ctx, *childState.ParentStateID)
+	if err != nil || parentState == nil {
+		return err
 	}
 
-	// Use the shared service to update parent status
+	strategy := uc.extractParallelStrategy(ctx, parentState)
 	_, err = uc.parentStatusUpdater.UpdateParentStatus(ctx, &services.UpdateParentStatusInput{
-		ParentStateID: parentStateID,
+		ParentStateID: *childState.ParentStateID,
 		Strategy:      strategy,
 		Recursive:     true,
 		ChildState:    childState,
 	})
-
 	return err
+}
+
+// loadParallelParentState retrieves the parent task state when parallel execution applies.
+func (uc *HandleResponse) loadParallelParentState(
+	ctx context.Context,
+	parentStateID core.ID,
+) (*task.State, error) {
+	parentState, err := uc.taskRepo.GetState(ctx, parentStateID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get parent state %s: %w", parentStateID, err)
+	}
+	if parentState.ExecutionType != task.ExecutionParallel {
+		return nil, nil
+	}
+	return parentState, nil
+}
+
+// extractParallelStrategy derives the parallel execution strategy from the parent state metadata.
+func (uc *HandleResponse) extractParallelStrategy(ctx context.Context, parentState *task.State) task.ParallelStrategy {
+	log := logger.FromContext(ctx)
+	if parentState.Input == nil {
+		return task.StrategyWaitAll
+	}
+	parallelConfig, ok := uc.extractParallelConfig(log, parentState)
+	if !ok {
+		return task.StrategyWaitAll
+	}
+	return uc.strategyFromConfigValue(log, parentState, parallelConfig["strategy"])
+}
+
+// extractParallelConfig loads the parallel config map and logs fallbacks when invalid.
+func (uc *HandleResponse) extractParallelConfig(log logger.Logger, parentState *task.State) (map[string]any, bool) {
+	value, exists := (*parentState.Input)["_parallel_config"]
+	if !exists {
+		log.Debug("No strategy field found in parallel config, using default wait_all",
+			"parent_state_id", parentState.TaskExecID,
+		)
+		return nil, false
+	}
+	parallelConfig, ok := value.(map[string]any)
+	if !ok {
+		log.Error("Parallel config field is not a map, using default wait_all",
+			"config_type", fmt.Sprintf("%T", value),
+			"parent_state_id", parentState.TaskExecID,
+		)
+		return nil, false
+	}
+	return parallelConfig, true
+}
+
+// strategyFromConfigValue validates the strategy entry and returns a safe default when needed.
+func (uc *HandleResponse) strategyFromConfigValue(
+	log logger.Logger,
+	parentState *task.State,
+	raw any,
+) task.ParallelStrategy {
+	strategy := task.StrategyWaitAll
+	if raw == nil {
+		log.Debug("No strategy field found in parallel config, using default wait_all",
+			"parent_state_id", parentState.TaskExecID,
+		)
+		return strategy
+	}
+	strategyStr, ok := raw.(string)
+	if !ok {
+		log.Error("Parallel strategy field is not a string, using default wait_all",
+			"strategy_type", fmt.Sprintf("%T", raw),
+			"strategy_value", raw,
+			"parent_state_id", parentState.TaskExecID,
+		)
+		return strategy
+	}
+	if !task.ValidateStrategy(strategyStr) {
+		log.Error("Invalid parallel strategy found, using default wait_all",
+			"invalid_strategy", strategyStr,
+			"parent_state_id", parentState.TaskExecID,
+		)
+		return strategy
+	}
+	return task.ParallelStrategy(strategyStr)
 }
 
 // logParentStatusUpdateError updates parent status and logs any errors without propagating them

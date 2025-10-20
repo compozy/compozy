@@ -55,72 +55,63 @@ func (m *Metrics) init() error {
 }
 
 func (m *Metrics) initCounters() error {
-	var err error
-	m.receivedTotal, err = m.meter.Int64Counter(
-		monitoringmetrics.MetricNameWithSubsystem("webhook", "received_total"),
-		metric.WithDescription("Total webhook requests received"),
-		metric.WithUnit("1"),
+	counterDefs := []struct {
+		target      *metric.Int64Counter
+		name        string
+		description string
+		errLabel    string
+	}{
+		{&m.receivedTotal, "received_total", "Total webhook requests received", "received"},
+		{&m.verifiedTotal, "verified_total", "Total webhook requests successfully verified", "verified"},
+		{&m.duplicateTotal, "duplicate_total", "Total duplicate webhook requests detected", "duplicate"},
+		{&m.dispatchedTotal, "dispatched_total", "Total webhook events dispatched", "dispatched"},
+		{&m.noMatchTotal, "no_match_total", "Total webhook requests with no matching event", "no_match"},
+		{&m.failedTotal, "failed_total", "Total webhook processing failures by reason", "failed"},
+		{&m.eventOutcomeTotal, "events_total", "Total webhook events received", "events"},
+	}
+	for _, def := range counterDefs {
+		counter, err := m.registerInt64Counter(def.name, def.description, def.errLabel)
+		if err != nil {
+			return err
+		}
+		*def.target = counter
+	}
+	gauge, err := m.registerUpDownCounter(
+		"queue_depth",
+		"Number of webhook events waiting to be processed",
+		"queue depth gauge",
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create webhook received counter: %w", err)
+		return err
 	}
-	m.verifiedTotal, err = m.meter.Int64Counter(
-		monitoringmetrics.MetricNameWithSubsystem("webhook", "verified_total"),
-		metric.WithDescription("Total webhook requests successfully verified"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create webhook verified counter: %w", err)
-	}
-	m.duplicateTotal, err = m.meter.Int64Counter(
-		monitoringmetrics.MetricNameWithSubsystem("webhook", "duplicate_total"),
-		metric.WithDescription("Total duplicate webhook requests detected"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create webhook duplicate counter: %w", err)
-	}
-	m.dispatchedTotal, err = m.meter.Int64Counter(
-		monitoringmetrics.MetricNameWithSubsystem("webhook", "dispatched_total"),
-		metric.WithDescription("Total webhook events dispatched"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create webhook dispatched counter: %w", err)
-	}
-	m.noMatchTotal, err = m.meter.Int64Counter(
-		monitoringmetrics.MetricNameWithSubsystem("webhook", "no_match_total"),
-		metric.WithDescription("Total webhook requests with no matching event"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create webhook no_match counter: %w", err)
-	}
-	m.failedTotal, err = m.meter.Int64Counter(
-		monitoringmetrics.MetricNameWithSubsystem("webhook", "failed_total"),
-		metric.WithDescription("Total webhook processing failures by reason"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create webhook failed counter: %w", err)
-	}
-	m.eventOutcomeTotal, err = m.meter.Int64Counter(
-		monitoringmetrics.MetricNameWithSubsystem("webhook", "events_total"),
-		metric.WithDescription("Total webhook events received"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create webhook events counter: %w", err)
-	}
-	m.queueGauge, err = m.meter.Int64UpDownCounter(
-		monitoringmetrics.MetricNameWithSubsystem("webhook", "queue_depth"),
-		metric.WithDescription("Number of webhook events waiting to be processed"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create webhook queue depth gauge: %w", err)
-	}
+	m.queueGauge = gauge
 	return nil
+}
+
+// registerInt64Counter creates and names a counter under the webhook subsystem.
+func (m *Metrics) registerInt64Counter(name, description, errLabel string) (metric.Int64Counter, error) {
+	counter, err := m.meter.Int64Counter(
+		monitoringmetrics.MetricNameWithSubsystem("webhook", name),
+		metric.WithDescription(description),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create webhook %s counter: %w", errLabel, err)
+	}
+	return counter, nil
+}
+
+// registerUpDownCounter creates a gauge-style counter for queue depth tracking.
+func (m *Metrics) registerUpDownCounter(name, description, errLabel string) (metric.Int64UpDownCounter, error) {
+	gauge, err := m.meter.Int64UpDownCounter(
+		monitoringmetrics.MetricNameWithSubsystem("webhook", name),
+		metric.WithDescription(description),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create webhook %s: %w", errLabel, err)
+	}
+	return gauge, nil
 }
 
 func (m *Metrics) initHistograms() error {

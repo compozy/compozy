@@ -289,10 +289,27 @@ func deriveCloseContext(ctx context.Context) context.Context {
 
 // NewService creates a new LLM service with clean architecture
 func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Config, opts ...Option) (*Service, error) {
-	log := logger.FromContext(ctx)
-	// Build configuration
+	config, knowledgeState, err := buildServiceConfig(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	mcpClient, err := setupMCPClient(ctx, config, agent)
+	if err != nil {
+		return nil, err
+	}
+	toolRegistry, err := buildToolRegistry(ctx, runtime, agent, config, mcpClient)
+	if err != nil {
+		return nil, err
+	}
+	orchestrator, err := createOrchestrator(ctx, runtime, config, toolRegistry)
+	if err != nil {
+		return nil, err
+	}
+	return newServiceInstance(ctx, orchestrator, config, toolRegistry, knowledgeState), nil
+}
+
+func buildServiceConfig(ctx context.Context, opts []Option) (*Config, *knowledgeRuntimeState, error) {
 	config := DefaultConfig()
-	// Context-first: merge application config when available
 	if ac := appconfig.FromContext(ctx); ac != nil {
 		WithAppConfig(ctx, ac)(config)
 	}
@@ -302,27 +319,33 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	if config.ProviderMetrics == nil {
 		config.ProviderMetrics = providermetrics.Nop()
 	}
-	// Validate configuration
 	if err := config.Validate(ctx); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+		return nil, nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 	knowledgeState, err := newKnowledgeRuntimeState(ctx, config.Knowledge)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize knowledge resolver: %w", err)
+		return nil, nil, fmt.Errorf("failed to initialize knowledge resolver: %w", err)
 	}
-	if config.LLMFactory == nil {
-		factory, err := llmadapter.NewDefaultFactory(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build default LLM factory: %w", err)
-		}
-		config.LLMFactory = factory
+	if config.LLMFactory != nil {
+		return config, knowledgeState, nil
 	}
-	mcpClient, err := setupMCPClient(ctx, config, agent)
+	factory, err := llmadapter.NewDefaultFactory(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("failed to build default LLM factory: %w", err)
 	}
-	// Create tool registry
-	toolRegistry, err := NewToolRegistry(ctx, ToolRegistryConfig{
+	config.LLMFactory = factory
+	return config, knowledgeState, nil
+}
+
+func buildToolRegistry(
+	ctx context.Context,
+	runtime runtime.Runtime,
+	agent *agent.Config,
+	config *Config,
+	mcpClient *mcp.Client,
+) (ToolRegistry, error) {
+	log := logger.FromContext(ctx)
+	registry, err := NewToolRegistry(ctx, ToolRegistryConfig{
 		ProxyClient:     mcpClient,
 		CacheTTL:        config.CacheTTL,
 		AllowedMCPNames: config.AllowedMCPNames,
@@ -331,25 +354,33 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
 	}
-	if err := configureToolRegistry(ctx, toolRegistry, runtime, agent, config); err != nil {
-		if closeErr := toolRegistry.Close(); closeErr != nil {
+	if err := configureToolRegistry(ctx, registry, runtime, agent, config); err != nil {
+		if closeErr := registry.Close(); closeErr != nil {
 			log.Warn("Failed to close tool registry after configuration error", "error", core.RedactError(closeErr))
 		}
 		return nil, err
 	}
-	// Create components
+	return registry, nil
+}
+
+func createOrchestrator(
+	ctx context.Context,
+	runtime runtime.Runtime,
+	config *Config,
+	registry ToolRegistry,
+) (orchestratorpkg.Orchestrator, error) {
+	log := logger.FromContext(ctx)
 	promptBuilder := NewPromptBuilder()
 	systemPromptRenderer := NewSystemPromptRenderer()
-	// Create orchestrator
-	orchestratorConfig := assembleOrchestratorConfig(config, runtime, promptBuilder, systemPromptRenderer, toolRegistry)
+	orchestratorConfig := assembleOrchestratorConfig(config, runtime, promptBuilder, systemPromptRenderer, registry)
 	llmOrchestrator, err := orchestratorpkg.New(orchestratorConfig)
 	if err != nil {
-		if closeErr := toolRegistry.Close(); closeErr != nil {
+		if closeErr := registry.Close(); closeErr != nil {
 			log.Warn("Failed to close tool registry after orchestrator init error", "error", core.RedactError(closeErr))
 		}
 		return nil, fmt.Errorf("failed to create orchestrator: %w", err)
 	}
-	return newServiceInstance(ctx, llmOrchestrator, config, toolRegistry, knowledgeState), nil
+	return llmOrchestrator, nil
 }
 
 // GenerateContent generates content using the orchestrator
@@ -361,55 +392,91 @@ func (s *Service) GenerateContent(
 	directPrompt string,
 	attachmentParts []llmadapter.ContentPart,
 ) (*core.Output, error) {
-	if agentConfig == nil {
-		return nil, fmt.Errorf("agent config cannot be nil")
-	}
-	dp := strings.TrimSpace(directPrompt)
-	if actionID == "" && dp == "" {
-		return nil, fmt.Errorf("either actionID or directPrompt must be provided")
-	}
-
-	actionConfig, err := s.buildActionConfig(agentConfig, actionID, dp)
+	dp, err := validateGenerateInputs(agentConfig, actionID, directPrompt)
 	if err != nil {
 		return nil, err
 	}
-
-	// Defensive copy to avoid shared mutation
-	actionCopy, err := core.DeepCopy(actionConfig)
+	actionCopy, err := s.prepareAction(agentConfig, actionID, dp, taskWith)
 	if err != nil {
-		return nil, fmt.Errorf("failed to clone action config: %w", err)
+		return nil, err
 	}
-	if taskWith != nil {
-		inputCopy, err := core.DeepCopy(taskWith)
-		if err != nil {
-			return nil, fmt.Errorf("failed to clone task with: %w", err)
-		}
-		actionCopy.With = inputCopy
-	}
-
 	effectiveAgent, err := s.buildEffectiveAgent(agentConfig)
 	if err != nil {
 		return nil, err
 	}
-
 	knowledgeEntries, err := s.resolveKnowledge(ctx, agentConfig, actionCopy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve knowledge context: %w", err)
 	}
-
-	// Derive provider capabilities from agent config
-	providerConfig := agentConfig.GetProviderConfig()
-	var providerCaps llmadapter.ProviderCapabilities
-	if s.config.LLMFactory != nil && providerConfig != nil {
-		providerCaps, err = s.config.LLMFactory.Capabilities(providerConfig.Provider)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get provider capabilities: %w", err)
-		}
+	providerCaps, err := s.resolveProviderCapabilities(agentConfig)
+	if err != nil {
+		return nil, err
 	}
+	request := s.buildExecutionRequest(effectiveAgent, actionCopy, attachmentParts, knowledgeEntries, providerCaps)
+	return s.orchestrator.Execute(ctx, request)
+}
 
-	request := orchestratorpkg.Request{
-		Agent:  effectiveAgent,
-		Action: actionCopy,
+func validateGenerateInputs(agentConfig *agent.Config, actionID string, directPrompt string) (string, error) {
+	if agentConfig == nil {
+		return "", fmt.Errorf("agent config cannot be nil")
+	}
+	dp := strings.TrimSpace(directPrompt)
+	if actionID == "" && dp == "" {
+		return "", fmt.Errorf("either actionID or directPrompt must be provided")
+	}
+	return dp, nil
+}
+
+func (s *Service) prepareAction(
+	agentConfig *agent.Config,
+	actionID string,
+	directPrompt string,
+	taskWith *core.Input,
+) (*agent.ActionConfig, error) {
+	actionConfig, err := s.buildActionConfig(agentConfig, actionID, directPrompt)
+	if err != nil {
+		return nil, err
+	}
+	actionCopy, err := core.DeepCopy(actionConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone action config: %w", err)
+	}
+	if taskWith == nil {
+		return actionCopy, nil
+	}
+	inputCopy, err := core.DeepCopy(taskWith)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone task with: %w", err)
+	}
+	actionCopy.With = inputCopy
+	return actionCopy, nil
+}
+
+func (s *Service) resolveProviderCapabilities(agentConfig *agent.Config) (llmadapter.ProviderCapabilities, error) {
+	if s.config.LLMFactory == nil {
+		return llmadapter.ProviderCapabilities{}, nil
+	}
+	providerConfig := agentConfig.GetProviderConfig()
+	if providerConfig == nil {
+		return llmadapter.ProviderCapabilities{}, nil
+	}
+	caps, err := s.config.LLMFactory.Capabilities(providerConfig.Provider)
+	if err != nil {
+		return llmadapter.ProviderCapabilities{}, fmt.Errorf("failed to get provider capabilities: %w", err)
+	}
+	return caps, nil
+}
+
+func (s *Service) buildExecutionRequest(
+	agentConfig *agent.Config,
+	action *agent.ActionConfig,
+	attachmentParts []llmadapter.ContentPart,
+	knowledgeEntries []orchestratorpkg.KnowledgeEntry,
+	providerCaps llmadapter.ProviderCapabilities,
+) orchestratorpkg.Request {
+	return orchestratorpkg.Request{
+		Agent:  agentConfig,
+		Action: action,
 		Prompt: orchestratorpkg.PromptPayload{
 			Attachments: attachmentParts,
 		},
@@ -420,7 +487,6 @@ func (s *Service) GenerateContent(
 			ProviderCaps: providerCaps,
 		},
 	}
-	return s.orchestrator.Execute(ctx, request)
 }
 
 // buildActionConfig resolves the action configuration from either an action ID

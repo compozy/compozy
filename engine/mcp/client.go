@@ -553,72 +553,105 @@ type ToolCallResponse struct {
 
 // CallTool executes a tool via the proxy
 func (c *Client) CallTool(ctx context.Context, mcpName, toolName string, arguments map[string]any) (any, error) {
-	var response ToolCallResponse
-	start := time.Now()
-	err := c.withRetry(ctx, "call tool", func() error {
-		payload, err := json.Marshal(ToolCallRequest{
-			MCPName:   mcpName,
-			ToolName:  toolName,
-			Arguments: arguments,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to marshal tool call request: %w", err)
-		}
-
-		req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/admin/tools/call", bytes.NewReader(payload))
-		if err != nil {
-			return fmt.Errorf("failed to create tool call request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := c.http.Do(req)
-		if err != nil {
-			return fmt.Errorf("tool call request failed: %w", err)
-		}
-		defer resp.Body.Close()
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read response: %w", err)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return parseProxyError(resp.StatusCode, body)
-		}
-
-		if err := json.Unmarshal(body, &response); err != nil {
-			return fmt.Errorf("failed to unmarshal tool response: %w", err)
-		}
-
-		if response.Error != "" {
-			return fmt.Errorf("tool execution error: %s", response.Error)
-		}
-
-		return nil
-	})
-	duration := time.Since(start)
+	response, duration, err := c.performToolCall(ctx, mcpName, toolName, arguments)
 	if err != nil {
-		kind := categorizeToolError(err)
-		mcpmetrics.RecordToolError(ctx, mcpName, toolName, kind)
-		outcome := mcpmetrics.OutcomeError
-		if kind == mcpmetrics.ErrorKindTimeout {
-			outcome = mcpmetrics.OutcomeTimeout
-		}
-		mcpmetrics.RecordToolExecution(ctx, mcpName, toolName, duration, outcome)
+		c.recordToolErrorMetrics(ctx, mcpName, toolName, duration, err)
 		return nil, err
 	}
 	mcpmetrics.RecordToolExecution(ctx, mcpName, toolName, duration, mcpmetrics.OutcomeSuccess)
-	// Normalize proxy-wrapped content: when result is a typed text payload
-	// like {"type":"text","text":"..."}, unwrap to plain string so
-	// downstream success/error heuristics can reason over the textual content.
-	if m, ok := response.Result.(map[string]any); ok {
+	return normalizeToolResult(response.Result), nil
+}
+
+func (c *Client) performToolCall(
+	ctx context.Context,
+	mcpName string,
+	toolName string,
+	arguments map[string]any,
+) (ToolCallResponse, time.Duration, error) {
+	payload, err := c.buildToolCallPayload(mcpName, toolName, arguments)
+	if err != nil {
+		return ToolCallResponse{}, 0, err
+	}
+	var response ToolCallResponse
+	start := time.Now()
+	err = c.withRetry(ctx, "call tool", func() error {
+		req, err := c.buildToolCallRequest(ctx, payload)
+		if err != nil {
+			return err
+		}
+		return c.invokeToolRequest(req, &response)
+	})
+	return response, time.Since(start), err
+}
+
+func (c *Client) buildToolCallPayload(mcpName, toolName string, arguments map[string]any) ([]byte, error) {
+	payload, err := json.Marshal(ToolCallRequest{
+		MCPName:   mcpName,
+		ToolName:  toolName,
+		Arguments: arguments,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal tool call request: %w", err)
+	}
+	return payload, nil
+}
+
+func (c *Client) buildToolCallRequest(ctx context.Context, payload []byte) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/admin/tools/call", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tool call request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return req, nil
+}
+
+func (c *Client) invokeToolRequest(req *http.Request, response *ToolCallResponse) error {
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("tool call request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return parseProxyError(resp.StatusCode, body)
+	}
+	if err := json.Unmarshal(body, response); err != nil {
+		return fmt.Errorf("failed to unmarshal tool response: %w", err)
+	}
+	if response.Error != "" {
+		return fmt.Errorf("tool execution error: %s", response.Error)
+	}
+	return nil
+}
+
+func (c *Client) recordToolErrorMetrics(
+	ctx context.Context,
+	mcpName, toolName string,
+	duration time.Duration,
+	err error,
+) {
+	kind := categorizeToolError(err)
+	mcpmetrics.RecordToolError(ctx, mcpName, toolName, kind)
+	outcome := mcpmetrics.OutcomeError
+	if kind == mcpmetrics.ErrorKindTimeout {
+		outcome = mcpmetrics.OutcomeTimeout
+	}
+	mcpmetrics.RecordToolExecution(ctx, mcpName, toolName, duration, outcome)
+}
+
+func normalizeToolResult(result any) any {
+	if m, ok := result.(map[string]any); ok {
 		if t, ok := m["type"].(string); ok && t == "text" {
 			if txt, ok := m["text"].(string); ok {
-				return txt, nil
+				return txt
 			}
 		}
 	}
-	return response.Result, nil
+	return result
 }
 
 // Close cleans up the HTTP client resources

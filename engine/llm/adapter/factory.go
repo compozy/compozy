@@ -17,10 +17,13 @@ type DefaultFactory struct {
 // NewDefaultFactory creates a new DefaultFactory with builtin providers
 // registered against a fresh registry instance.
 func NewDefaultFactory(ctx context.Context) (Factory, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context must not be nil")
+	}
 	start := time.Now()
 	registry := NewProviderRegistry()
 	if err := RegisterProviders(ctx, registry, BuiltinProviders()...); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("register builtin providers: %w", err)
 	}
 	factory := &DefaultFactory{registry: registry}
 	factorymetrics.RecordCreate(ctx, factorymetrics.TypeProvider, "default", time.Since(start))
@@ -46,6 +49,9 @@ func NewDefaultFactoryWithRegistry(ctx context.Context, registry *Registry) (Fac
 
 // CreateClient creates a new LLMClient for the given provider.
 func (f *DefaultFactory) CreateClient(ctx context.Context, config *core.ProviderConfig) (LLMClient, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context must not be nil")
+	}
 	if config == nil {
 		return nil, fmt.Errorf("provider config must not be nil")
 	}

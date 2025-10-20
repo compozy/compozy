@@ -142,56 +142,80 @@ func (m *generateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the UI
 func (m *generateModel) View() string {
-	if m.err != nil {
-		return lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Render(fmt.Sprintf("❌ Error: %v", m.err))
+	switch {
+	case m.err != nil:
+		return renderKeyGenerationError(m.err)
+	case m.generating:
+		return renderGeneratingMessage(m.spinner.View())
+	case m.generated:
+		return renderGeneratedSummary(m)
+	default:
+		return ""
 	}
-	if m.generating {
-		return fmt.Sprintf("%s Generating API key...", m.spinner.View())
+}
+
+func renderKeyGenerationError(err error) string {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("196")).
+		Render(fmt.Sprintf("❌ Error: %v", err))
+}
+
+func renderGeneratingMessage(spinnerView string) string {
+	return fmt.Sprintf("%s Generating API key...", spinnerView)
+}
+
+func renderGeneratedSummary(m *generateModel) string {
+	style := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("69")).
+		Padding(1, 2).
+		Width(60)
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("69"))
+	keyStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("214")).
+		Bold(true)
+	content := titleStyle.Render("✅ API Key Generated Successfully!") + "\n\n"
+	partialKey := renderPartialKey(m.apiKey)
+	content += "Your new API key (showing first 16 chars):\n"
+	content += keyStyle.Render(partialKey) + "\n\n"
+	content += renderClipboardStatus(m.clipboardCopied)
+	content += renderKeyMetadata(m)
+	content += "\n" + lipgloss.NewStyle().
+		Foreground(lipgloss.Color("241")).
+		Render("⚠️  Save this key securely. You won't be able to see it again!")
+	content += "\n\nPress Enter or 'q' to exit"
+	return style.Render(content)
+}
+
+func renderPartialKey(apiKey string) string {
+	if len(apiKey) > 16 {
+		return apiKey[:16] + "..."
 	}
-	if m.generated {
-		style := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("69")).
-			Padding(1, 2).
-			Width(60)
-		titleStyle := lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("69"))
-		keyStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214")).
-			Bold(true)
-		content := titleStyle.Render("✅ API Key Generated Successfully!") + "\n\n"
-		// Show only partial key for security
-		partialKey := m.apiKey
-		if len(m.apiKey) > 16 {
-			partialKey = m.apiKey[:16] + "..."
-		}
-		content += "Your new API key (showing first 16 chars):\n"
-		content += keyStyle.Render(partialKey) + "\n\n"
-		if m.clipboardCopied {
-			content += "✅ Full key copied to clipboard!\n"
-		} else {
-			content += "Press 'c' to copy the full key to clipboard\n"
-		}
-		content += "Press 'q' to quit\n\n"
-		if m.name != "" {
-			content += fmt.Sprintf("Name: %s\n", m.name)
-		}
-		if m.description != "" {
-			content += fmt.Sprintf("Description: %s\n", m.description)
-		}
-		if m.expires != "" {
-			content += fmt.Sprintf("Expires: %s\n", m.expires)
-		}
-		content += "\n" + lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Render("⚠️  Save this key securely. You won't be able to see it again!")
-		content += "\n\nPress Enter or 'q' to exit"
-		return style.Render(content)
+	return apiKey
+}
+
+func renderClipboardStatus(copied bool) string {
+	if copied {
+		return "✅ Full key copied to clipboard!\n"
 	}
-	return ""
+	return "Press 'c' to copy the full key to clipboard\n"
+}
+
+func renderKeyMetadata(m *generateModel) string {
+	var details string
+	details += "Press 'q' to quit\n\n"
+	if m.name != "" {
+		details += fmt.Sprintf("Name: %s\n", m.name)
+	}
+	if m.description != "" {
+		details += fmt.Sprintf("Description: %s\n", m.description)
+	}
+	if m.expires != "" {
+		details += fmt.Sprintf("Expires: %s\n", m.expires)
+	}
+	return details
 }
 
 // generateKey generates the API key

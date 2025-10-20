@@ -47,6 +47,15 @@ func NewCommandPalette() CommandPalette {
 
 // defaultCommands returns the default command set
 func defaultCommands() []Command {
+	commands := make([]Command, 0, 11)
+	commands = append(commands, navigationCommands()...)
+	commands = append(commands, keyCommands()...)
+	commands = append(commands, userCommands()...)
+	commands = append(commands, helpCommands()...)
+	return commands
+}
+
+func navigationCommands() []Command {
 	return []Command{
 		{
 			ID:          "help",
@@ -62,6 +71,11 @@ func defaultCommands() []Command {
 			Category:    "Navigation",
 			Shortcut:    "q",
 		},
+	}
+}
+
+func keyCommands() []Command {
+	return []Command{
 		{
 			ID:          "generate-key",
 			Name:        "Generate API Key",
@@ -83,6 +97,11 @@ func defaultCommands() []Command {
 			Category:    "Keys",
 			Shortcut:    "",
 		},
+	}
+}
+
+func userCommands() []Command {
+	return []Command{
 		{
 			ID:          "create-user",
 			Name:        "Create User",
@@ -111,6 +130,11 @@ func defaultCommands() []Command {
 			Category:    "Users",
 			Shortcut:    "",
 		},
+	}
+}
+
+func helpCommands() []Command {
+	return []Command{
 		{
 			ID:          "tutorial",
 			Name:        "Start Tutorial",

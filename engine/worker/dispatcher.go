@@ -10,6 +10,7 @@ import (
 	"github.com/kaptinlin/jsonschema"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
+	temporalLog "go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/compozy/compozy/engine/core"
@@ -276,46 +277,62 @@ func executeChildWorkflow(
 ) bool {
 	log := workflow.GetLogger(ctx)
 	workflowExecID := generateWorkflowExecID(ctx)
-	cwo := workflow.ChildWorkflowOptions{
+	options := workflow.ChildWorkflowOptions{
 		WorkflowID:        buildWorkflowID(target.Config.ID, workflowExecID),
-		ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON, // Let child continue if parent restarts
+		ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
 	}
-	childCtx := workflow.WithChildOptions(ctx, cwo)
-	childInput := WorkflowInput{
+	childCtx := workflow.WithChildOptions(ctx, options)
+	input := WorkflowInput{
 		WorkflowID:     target.Config.ID,
 		WorkflowExecID: workflowExecID,
 		Input:          &signal.Payload,
 	}
+	logChildWorkflowStart(log, target.Config.ID, options.WorkflowID, signal.Name, correlationID)
+	childFuture := workflow.ExecuteChildWorkflow(childCtx, CompozyWorkflow, input, appConfig)
+	return awaitChildWorkflowStart(ctx, childFuture, log, options.WorkflowID, target, signal, correlationID)
+}
 
-	// Execute child workflow with comprehensive error handling
+// logChildWorkflowStart emits a structured log entry for child workflow creation.
+func logChildWorkflowStart(
+	log temporalLog.Logger,
+	targetWorkflowID string,
+	workflowID string,
+	signalName string,
+	correlationID string,
+) {
 	log.Info("Starting child workflow",
-		"targetWorkflow", target.Config.ID,
-		"workflowId", cwo.WorkflowID,
-		"signalName", signal.Name,
+		"targetWorkflow", targetWorkflowID,
+		"workflowId", workflowID,
+		"signalName", signalName,
 		"correlationId", correlationID)
+}
 
-	childFuture := workflow.ExecuteChildWorkflow(childCtx, CompozyWorkflow, childInput, appConfig)
-
-	// Get the execution to ensure deterministic behavior during replay
-	var childExecution workflow.Execution
-	err := childFuture.GetChildWorkflowExecution().Get(ctx, &childExecution)
-	if err != nil {
+// awaitChildWorkflowStart waits for the Temporal child workflow execution handle.
+func awaitChildWorkflowStart(
+	ctx workflow.Context,
+	future workflow.ChildWorkflowFuture,
+	log temporalLog.Logger,
+	workflowID string,
+	target *CompiledTrigger,
+	signal EventSignal,
+	correlationID string,
+) bool {
+	var execution workflow.Execution
+	if err := future.GetChildWorkflowExecution().Get(ctx, &execution); err != nil {
 		log.Error("Failed to get child workflow execution",
-			"workflowId", cwo.WorkflowID,
+			"workflowId", workflowID,
 			"targetWorkflow", target.Config.ID,
 			"signalName", signal.Name,
 			"correlationId", correlationID,
 			"error", err)
 		return false
 	}
-
 	log.Debug("Successfully started child workflow",
-		"workflowId", cwo.WorkflowID,
+		"workflowId", workflowID,
 		"targetWorkflow", target.Config.ID,
 		"signalName", signal.Name,
 		"correlationId", correlationID,
-		"childRunId", childExecution.RunID)
-
+		"childRunId", execution.RunID)
 	return true
 }
 
@@ -397,54 +414,118 @@ func handleSignalProcessing(
 	projectName, serverID string,
 	appConfig *config.Config,
 ) error {
-	log := workflow.GetLogger(ctx)
-	// Using constants defined at package level
+	loop := newSignalLoop(workflow.GetLogger(ctx), heartbeatCancel, projectName, serverID)
 	signalChan := workflow.GetSignalChannel(ctx, DispatcherEventChannel)
-	processed := 0
-	consecutiveErrors := 0
-	log.Debug("Dispatcher ready to process events", "maxSignalsPerRun", maxSignalsPerRun)
+	loop.log.Debug("Dispatcher ready to process events", "maxSignalsPerRun", maxSignalsPerRun)
 	for {
-		if ctx.Err() != nil {
-			log.Info("DispatcherWorkflow canceled", "processedEvents", processed)
-			return ctx.Err()
+		if err := loop.ensureContext(ctx); err != nil {
+			return err
 		}
-		if processed >= maxSignalsPerRun {
-			log.Info("Reaching max signals per run, continuing as new",
-				"processed", processed, "maxSignalsPerRun", maxSignalsPerRun)
-			heartbeatCancel()
-			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName, serverID)
+		if err := loop.enforceSignalLimit(ctx); err != nil {
+			return err
 		}
-		if consecutiveErrors >= maxConsecutiveErrors {
-			log.Warn("Too many consecutive errors, implementing backoff",
-				"consecutiveErrors", consecutiveErrors, "maxConsecutiveErrors", maxConsecutiveErrors,
-				"backoffDelay", circuitBreakerDelay)
-			if err := workflow.Sleep(ctx, circuitBreakerDelay); err != nil {
-				log.Debug("Circuit breaker sleep interrupted", "error", err)
-			}
+		if err := loop.applyCircuitBreaker(ctx); err != nil {
+			return err
 		}
-		var signal EventSignal
-		ok := signalChan.Receive(ctx, &signal)
-		if !ok {
-			heartbeatCancel()
-			return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, projectName, serverID)
-		}
-		if ctx.Err() != nil {
-			log.Debug("DispatcherWorkflow canceled while receiving signal")
-			return ctx.Err()
+		signal, err := loop.receiveSignal(ctx, signalChan)
+		if err != nil {
+			return err
 		}
 		if signal.Name == "" {
-			log.Debug("Skipping empty signal (likely initialization signal)")
-			processed++
+			loop.skipEmptySignal()
 			continue
 		}
-		success := ProcessEventSignal(ctx, signal, signalMap, appConfig)
-		if success {
-			consecutiveErrors = 0
-		} else {
-			consecutiveErrors++
-		}
-		processed++
+		loop.updateCounters(ProcessEventSignal(ctx, signal, signalMap, appConfig))
 	}
+}
+
+// signalLoop maintains processing state for dispatcher signals.
+type signalLoop struct {
+	log              temporalLog.Logger
+	heartbeatCancel  workflow.CancelFunc
+	projectName      string
+	serverID         string
+	processed        int
+	consecutiveError int
+}
+
+func newSignalLoop(
+	log temporalLog.Logger,
+	heartbeatCancel workflow.CancelFunc,
+	projectName, serverID string,
+) *signalLoop {
+	return &signalLoop{
+		log:             log,
+		heartbeatCancel: heartbeatCancel,
+		projectName:     projectName,
+		serverID:        serverID,
+	}
+}
+
+// ensureContext checks whether the workflow context has been canceled.
+func (s *signalLoop) ensureContext(ctx workflow.Context) error {
+	if ctx.Err() == nil {
+		return nil
+	}
+	s.log.Info("DispatcherWorkflow canceled", "processedEvents", s.processed)
+	return ctx.Err()
+}
+
+// enforceSignalLimit handles continue-as-new when processing limits are reached.
+func (s *signalLoop) enforceSignalLimit(ctx workflow.Context) error {
+	if s.processed < maxSignalsPerRun {
+		return nil
+	}
+	s.log.Info("Reaching max signals per run, continuing as new",
+		"processed", s.processed, "maxSignalsPerRun", maxSignalsPerRun)
+	s.heartbeatCancel()
+	return workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, s.projectName, s.serverID)
+}
+
+// applyCircuitBreaker pauses processing when error thresholds are exceeded.
+func (s *signalLoop) applyCircuitBreaker(ctx workflow.Context) error {
+	if s.consecutiveError < maxConsecutiveErrors {
+		return nil
+	}
+	s.log.Warn("Too many consecutive errors, implementing backoff",
+		"consecutiveErrors", s.consecutiveError,
+		"maxConsecutiveErrors", maxConsecutiveErrors,
+		"backoffDelay", circuitBreakerDelay)
+	if err := workflow.Sleep(ctx, circuitBreakerDelay); err != nil {
+		s.log.Debug("Circuit breaker sleep interrupted", "error", err)
+		return err
+	}
+	return nil
+}
+
+// receiveSignal reads the next dispatcher signal and handles termination cases.
+func (s *signalLoop) receiveSignal(ctx workflow.Context, signalChan workflow.ReceiveChannel) (EventSignal, error) {
+	var signal EventSignal
+	if ok := signalChan.Receive(ctx, &signal); !ok {
+		s.heartbeatCancel()
+		return EventSignal{}, workflow.NewContinueAsNewError(ctx, DispatcherWorkflow, s.projectName, s.serverID)
+	}
+	if ctx.Err() != nil {
+		s.log.Debug("DispatcherWorkflow canceled while receiving signal")
+		return EventSignal{}, ctx.Err()
+	}
+	return signal, nil
+}
+
+// skipEmptySignal tracks initialization signals without processing them.
+func (s *signalLoop) skipEmptySignal() {
+	s.log.Debug("Skipping empty signal (likely initialization signal)")
+	s.processed++
+}
+
+// updateCounters advances processed and error counters based on outcome.
+func (s *signalLoop) updateCounters(success bool) {
+	if success {
+		s.consecutiveError = 0
+	} else {
+		s.consecutiveError++
+	}
+	s.processed++
 }
 
 // DispatcherWorkflow handles event routing

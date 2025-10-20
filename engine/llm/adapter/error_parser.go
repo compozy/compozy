@@ -18,6 +18,25 @@ var retryAfterMessagePattern = regexp.MustCompile(
 	`(?i)(?:retry(?:\s|-)?after|try(?:\s|-)?again(?:\s|-)?in)[^0-9]*(\d+(?:\.\d+)?)(?:\s*(milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h))?`,
 )
 
+var (
+	rateLimitPatterns = []string{
+		"rate limit", "rate-limit", "ratelimit", "too many requests",
+		"throttled", "throttling", "quota exceeded", "quota_exceeded",
+		"requests per minute", "requests per second", "rpm", "rps",
+	}
+	unavailablePatterns = []string{
+		"service unavailable", "service_unavailable", "temporarily unavailable",
+		"overloaded", "capacity", "busy", "try again later",
+	}
+	authPatterns = []string{
+		"unauthorized", "invalid api key", "invalid_api_key", "api key",
+		"authentication failed", "invalid token", "expired token",
+		"invalid credentials", "forbidden", "permission denied",
+	}
+	invalidModelPatterns  = []string{"invalid model", "model not found"}
+	contentPolicyPatterns = []string{"content policy", "safety"}
+)
+
 // NewErrorParser creates a new error parser for the given provider
 func NewErrorParser(provider string) *ErrorParser {
 	return &ErrorParser{
@@ -104,48 +123,26 @@ func (p *ErrorParser) extractHTTPStatusCode(errMsg string) int {
 
 // matchProviderPatterns matches provider-specific error patterns
 func (p *ErrorParser) matchProviderPatterns(errMsgLower, errMsg string, originalErr error) *Error {
-	// Rate limiting patterns
-	rateLimitPatterns := []string{
-		"rate limit", "rate-limit", "ratelimit", "too many requests",
-		"throttled", "throttling", "quota exceeded", "quota_exceeded",
-		"requests per minute", "requests per second", "rpm", "rps",
+	if containsAny(errMsgLower, rateLimitPatterns) {
+		return NewError(http.StatusTooManyRequests, errMsg, p.provider, originalErr)
 	}
-	for _, pattern := range rateLimitPatterns {
-		if strings.Contains(errMsgLower, pattern) {
-			return NewError(http.StatusTooManyRequests, errMsg, p.provider, originalErr)
-		}
+	if containsAny(errMsgLower, unavailablePatterns) {
+		return NewError(http.StatusServiceUnavailable, errMsg, p.provider, originalErr)
 	}
-	// Service unavailable patterns
-	unavailablePatterns := []string{
-		"service unavailable", "service_unavailable", "temporarily unavailable",
-		"overloaded", "capacity", "busy", "try again later",
+	if containsAny(errMsgLower, authPatterns) {
+		return NewError(http.StatusUnauthorized, errMsg, p.provider, originalErr)
 	}
-	for _, pattern := range unavailablePatterns {
-		if strings.Contains(errMsgLower, pattern) {
-			return NewError(http.StatusServiceUnavailable, errMsg, p.provider, originalErr)
-		}
-	}
-	// Authorization patterns (use specific phrases to avoid overmatching e.g., "author")
-	authPatterns := []string{
-		"unauthorized", "invalid api key", "invalid_api_key", "api key",
-		"authentication failed", "invalid token", "expired token",
-		"invalid credentials", "forbidden", "permission denied",
-	}
-	for _, pattern := range authPatterns {
-		if strings.Contains(errMsgLower, pattern) {
-			return NewError(http.StatusUnauthorized, errMsg, p.provider, originalErr)
-		}
-	}
-	// Model/content policy patterns
-	if strings.Contains(errMsgLower, "invalid model") || strings.Contains(errMsgLower, "model not found") {
+	if containsAny(errMsgLower, invalidModelPatterns) {
 		return NewErrorWithCode(ErrCodeInvalidModel, errMsg, p.provider, originalErr)
 	}
-	if strings.Contains(errMsgLower, "content policy") || strings.Contains(errMsgLower, "safety") {
+	if containsAny(errMsgLower, contentPolicyPatterns) {
 		return NewErrorWithCode(ErrCodeContentPolicy, errMsg, p.provider, originalErr)
 	}
-	// Provider-specific patterns
-	providerLower := strings.ToLower(p.provider)
-	switch providerLower {
+	return p.matchProviderSpecific(errMsgLower, errMsg, originalErr)
+}
+
+func (p *ErrorParser) matchProviderSpecific(errMsgLower, errMsg string, originalErr error) *Error {
+	switch strings.ToLower(p.provider) {
 	case "openai":
 		return p.matchOpenAIPatterns(errMsgLower, errMsg, originalErr)
 	case "anthropic":
@@ -206,6 +203,15 @@ func (p *ErrorParser) matchGooglePatterns(errMsgLower, errMsg string, originalEr
 		return NewErrorWithCode(ErrCodeQuotaExceeded, errMsg, p.provider, originalErr)
 	}
 	return nil
+}
+
+func containsAny(haystack string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if strings.Contains(haystack, pattern) {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *ErrorParser) extractRetryAfter(err error) *time.Duration {

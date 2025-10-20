@@ -236,45 +236,79 @@ func resolveTool(
 	store resources.ResourceStore,
 	in *tool.Config,
 ) (*tool.Config, error) {
-	log := logger.FromContext(ctx)
 	if isToolSelector(in) {
-		if builtinCfg, err := newBuiltinToolConfig(in.ID); err != nil {
-			return nil, err
-		} else if builtinCfg != nil {
-			log.Debug("Resolved builtin tool selector", "tool_id", in.ID)
-			return builtinCfg, nil
-		}
-		key := resources.ResourceKey{Project: proj.Name, Type: resources.ResourceTool, ID: in.ID}
-		val, _, err := store.Get(ctx, key)
-		if err != nil {
-			if errors.Is(err, resources.ErrNotFound) {
-				return nil, &SelectorNotFoundError{
-					Type:       resources.ResourceTool,
-					ID:         in.ID,
-					Project:    proj.Name,
-					Candidates: nearestIDs(ctx, store, proj.Name, resources.ResourceTool, in.ID),
-				}
-			}
-			return nil, fmt.Errorf("tool lookup failed for '%s': %w", in.ID, err)
-		}
-		got, err := toolConfigFromStore(val)
-		if err != nil {
-			return nil, fmt.Errorf("tool decode failed for '%s': %w", in.ID, err)
-		}
-		if got == nil {
-			return nil, &TypeMismatchError{Type: resources.ResourceTool, ID: in.ID, Got: val}
-		}
-		clone, err := got.Clone()
-		if err != nil {
-			return nil, fmt.Errorf("failed to clone tool '%s': %w", in.ID, err)
-		}
-		ensureToolDefaults(clone)
-		if err := linkToolSchemas(ctx, proj, store, clone); err != nil {
-			return nil, err
-		}
-		log.Debug("Resolved tool selector", "tool_id", in.ID)
-		return clone, nil
+		return resolveToolSelector(ctx, proj, store, in)
 	}
+	return cloneAndLinkTool(ctx, proj, store, in)
+}
+
+// resolveToolSelector resolves selectors from builtin or resource store sources.
+func resolveToolSelector(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	in *tool.Config,
+) (*tool.Config, error) {
+	log := logger.FromContext(ctx)
+	if builtinCfg, err := newBuiltinToolConfig(in.ID); err != nil {
+		return nil, err
+	} else if builtinCfg != nil {
+		log.Debug("Resolved builtin tool selector", "tool_id", in.ID)
+		return builtinCfg, nil
+	}
+	clone, err := loadToolFromStore(ctx, proj, store, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	ensureToolDefaults(clone)
+	if err := linkToolSchemas(ctx, proj, store, clone); err != nil {
+		return nil, err
+	}
+	log.Debug("Resolved tool selector", "tool_id", in.ID)
+	return clone, nil
+}
+
+// loadToolFromStore fetches and clones a tool config from the resource store.
+func loadToolFromStore(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	toolID string,
+) (*tool.Config, error) {
+	key := resources.ResourceKey{Project: proj.Name, Type: resources.ResourceTool, ID: toolID}
+	val, _, err := store.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return nil, &SelectorNotFoundError{
+				Type:       resources.ResourceTool,
+				ID:         toolID,
+				Project:    proj.Name,
+				Candidates: nearestIDs(ctx, store, proj.Name, resources.ResourceTool, toolID),
+			}
+		}
+		return nil, fmt.Errorf("tool lookup failed for '%s': %w", toolID, err)
+	}
+	got, err := toolConfigFromStore(val)
+	if err != nil {
+		return nil, fmt.Errorf("tool decode failed for '%s': %w", toolID, err)
+	}
+	if got == nil {
+		return nil, &TypeMismatchError{Type: resources.ResourceTool, ID: toolID, Got: val}
+	}
+	clone, err := got.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone tool '%s': %w", toolID, err)
+	}
+	return clone, nil
+}
+
+// cloneAndLinkTool clones inline tool definitions and links schemas.
+func cloneAndLinkTool(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	in *tool.Config,
+) (*tool.Config, error) {
 	clone, err := in.Clone()
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone inline tool '%s': %w", in.ID, err)
@@ -766,54 +800,78 @@ func nearestIDs(
 }
 
 func rankAndSelectTopIDs(target string, ids []string, limit int) []string {
-	type cand struct {
-		id     string
-		prefix bool
-		jwsim  float64
-		lev    int
-	}
-	cands := make([]cand, 0, len(ids))
-	lower := strings.ToLower(target)
-	jwVal := jaroWinklerPool.Get()
-	jw, ok := jwVal.(*metrics.JaroWinkler)
-	if !ok || jw == nil {
-		jw = metrics.NewJaroWinkler()
-	}
+	candidates := buildRankCandidates(strings.ToLower(target), ids)
+	sort.Slice(candidates, func(i, j int) bool {
+		return rankLess(candidates[i], candidates[j])
+	})
+	return selectTopIDs(candidates, limit)
+}
+
+type rankCandidate struct {
+	id     string
+	prefix bool
+	jwsim  float64
+	lev    int
+}
+
+// buildRankCandidates prepares ranking metadata for ID selection.
+func buildRankCandidates(lowerTarget string, ids []string) []rankCandidate {
+	jw := acquireJaroWinkler()
 	defer jaroWinklerPool.Put(jw)
-	levVal := levenshteinPool.Get()
-	levm, ok := levVal.(*metrics.Levenshtein)
-	if !ok || levm == nil {
-		levm = metrics.NewLevenshtein()
-	}
-	defer levenshteinPool.Put(levm)
+	lev := acquireLevenshtein()
+	defer levenshteinPool.Put(lev)
+	candidates := make([]rankCandidate, 0, len(ids))
 	for _, id := range ids {
 		s := strings.ToLower(id)
-		c := cand{id: id}
-		if strings.HasPrefix(s, lower) {
-			c.prefix = true
+		candidate := rankCandidate{
+			id:     id,
+			prefix: strings.HasPrefix(s, lowerTarget),
+			jwsim:  strutil.Similarity(lowerTarget, s, jw),
+			lev:    lev.Distance(lowerTarget, s),
 		}
-		c.jwsim = strutil.Similarity(lower, s, jw)
-		c.lev = levm.Distance(lower, s)
-		cands = append(cands, c)
+		candidates = append(candidates, candidate)
 	}
-	sort.Slice(cands, func(i, j int) bool {
-		if cands[i].prefix != cands[j].prefix {
-			return cands[i].prefix && !cands[j].prefix
-		}
-		if cands[i].jwsim != cands[j].jwsim {
-			return cands[i].jwsim > cands[j].jwsim
-		}
-		if cands[i].lev != cands[j].lev {
-			return cands[i].lev < cands[j].lev
-		}
-		return cands[i].id < cands[j].id
-	})
-	if len(cands) < limit {
-		limit = len(cands)
+	return candidates
+}
+
+// acquireJaroWinkler retrieves a Jaro-Winkler metric from the pool.
+func acquireJaroWinkler() *metrics.JaroWinkler {
+	if jw, ok := jaroWinklerPool.Get().(*metrics.JaroWinkler); ok && jw != nil {
+		return jw
+	}
+	return metrics.NewJaroWinkler()
+}
+
+// acquireLevenshtein retrieves a Levenshtein metric from the pool.
+func acquireLevenshtein() *metrics.Levenshtein {
+	if lev, ok := levenshteinPool.Get().(*metrics.Levenshtein); ok && lev != nil {
+		return lev
+	}
+	return metrics.NewLevenshtein()
+}
+
+// compareCandidates sorts by prefix match, similarity, edit distance, and lexicographical order.
+func rankLess(a, b rankCandidate) bool {
+	if a.prefix != b.prefix {
+		return a.prefix && !b.prefix
+	}
+	if a.jwsim != b.jwsim {
+		return a.jwsim > b.jwsim
+	}
+	if a.lev != b.lev {
+		return a.lev < b.lev
+	}
+	return a.id < b.id
+}
+
+// selectTopIDs returns the top-N ranked identifiers.
+func selectTopIDs(candidates []rankCandidate, limit int) []string {
+	if len(candidates) < limit {
+		limit = len(candidates)
 	}
 	out := make([]string, 0, limit)
-	for i := 0; i < limit; i++ {
-		out = append(out, cands[i].id)
+	for idx := 0; idx < limit; idx++ {
+		out = append(out, candidates[idx].id)
 	}
 	return out
 }

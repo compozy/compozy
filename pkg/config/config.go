@@ -878,6 +878,10 @@ type LLMRateLimitConfig struct {
 	// Zero falls back to ceiling(perSecond) for compatibility.
 	DefaultTokenBurst int `koanf:"default_token_burst" json:"default_token_burst" yaml:"default_token_burst" mapstructure:"default_token_burst" validate:"min=0"`
 
+	// DefaultReleaseSlotBeforeTokenWait releases concurrency slots before waiting on token budgets when true.
+	// This favors throughput over strict slot ownership and may reduce head-of-line blocking.
+	DefaultReleaseSlotBeforeTokenWait bool `koanf:"default_release_slot_before_token_wait" json:"default_release_slot_before_token_wait" yaml:"default_release_slot_before_token_wait" mapstructure:"default_release_slot_before_token_wait"`
+
 	// PerProviderLimits customizes concurrency and queue depth for specific providers.
 	// Keys should match provider names (e.g., "openai", "groq").
 	PerProviderLimits map[string]ProviderRateLimitConfig `koanf:"per_provider_limits" json:"per_provider_limits" yaml:"per_provider_limits" mapstructure:"per_provider_limits"`
@@ -888,16 +892,18 @@ type LLMRateLimitConfig struct {
 // Concurrency controls in-flight requests, while queue size bounds waiting work. Leaving
 // fields at zero causes the limiter to fall back to global defaults.
 type ProviderRateLimitConfig struct {
-	Concurrency int `koanf:"concurrency"         json:"concurrency"         yaml:"concurrency"         mapstructure:"concurrency"         validate:"min=0"`
-	QueueSize   int `koanf:"queue_size"          json:"queue_size"          yaml:"queue_size"          mapstructure:"queue_size"          validate:"min=0"`
+	Concurrency int `koanf:"concurrency"                    json:"concurrency"                    yaml:"concurrency"                    mapstructure:"concurrency"                    validate:"min=0"`
+	QueueSize   int `koanf:"queue_size"                     json:"queue_size"                     yaml:"queue_size"                     mapstructure:"queue_size"                     validate:"min=0"`
 	// RequestsPerMinute limits average throughput; zero disables the limiter.
-	RequestsPerMinute int `koanf:"requests_per_minute" json:"requests_per_minute" yaml:"requests_per_minute" mapstructure:"requests_per_minute" validate:"min=0"`
+	RequestsPerMinute int `koanf:"requests_per_minute"            json:"requests_per_minute"            yaml:"requests_per_minute"            mapstructure:"requests_per_minute"            validate:"min=0"`
 	// TokensPerMinute constrains the total tokens consumed per minute; zero disables shaping.
-	TokensPerMinute int `koanf:"tokens_per_minute"   json:"tokens_per_minute"   yaml:"tokens_per_minute"   mapstructure:"tokens_per_minute"   validate:"min=0"`
+	TokensPerMinute int `koanf:"tokens_per_minute"              json:"tokens_per_minute"              yaml:"tokens_per_minute"              mapstructure:"tokens_per_minute"              validate:"min=0"`
 	// RequestBurst overrides the burst size for request-per-minute limiters. Zero defers to defaults.
-	RequestBurst int `koanf:"request_burst"       json:"request_burst"       yaml:"request_burst"       mapstructure:"request_burst"       validate:"min=0"`
+	RequestBurst int `koanf:"request_burst"                  json:"request_burst"                  yaml:"request_burst"                  mapstructure:"request_burst"                  validate:"min=0"`
 	// TokenBurst overrides the burst size for token-per-minute limiters. Zero defers to defaults.
-	TokenBurst int `koanf:"token_burst"         json:"token_burst"         yaml:"token_burst"         mapstructure:"token_burst"         validate:"min=0"`
+	TokenBurst int `koanf:"token_burst"                    json:"token_burst"                    yaml:"token_burst"                    mapstructure:"token_burst"                    validate:"min=0"`
+	// ReleaseSlotBeforeTokenWait releases concurrency slots before token waits when true; nil inherits defaults.
+	ReleaseSlotBeforeTokenWait *bool `koanf:"release_slot_before_token_wait" json:"release_slot_before_token_wait" yaml:"release_slot_before_token_wait" mapstructure:"release_slot_before_token_wait"`
 }
 
 // RateLimitConfig contains rate limiting configuration.

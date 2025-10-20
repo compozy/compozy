@@ -39,11 +39,25 @@ func performMetricsInitialization(ctx context.Context, meter metric.Meter) {
 
 func initCounterMetrics(ctx context.Context, meter metric.Meter) error {
 	log := logger.FromContext(ctx)
-	counters := []struct {
-		name        string
-		description string
-		target      *metric.Int64Counter
-	}{
+	for _, counter := range counterMetricSpecs() {
+		metricCounter, err := meter.Int64Counter(counter.name, metric.WithDescription(counter.description))
+		if err != nil {
+			log.Error("Failed to create counter", "name", counter.name, "error", err)
+			return err
+		}
+		*counter.target = metricCounter
+	}
+	return nil
+}
+
+type counterMetricSpec struct {
+	name        string
+	description string
+	target      *metric.Int64Counter
+}
+
+func counterMetricSpecs() []counterMetricSpec {
+	return []counterMetricSpec{
 		{
 			monitoringmetrics.MetricNameWithSubsystem("memory", "messages_total"),
 			"Total number of messages added to memory",
@@ -90,15 +104,6 @@ func initCounterMetrics(ctx context.Context, meter metric.Meter) error {
 			&memoryCircuitBreakerTrips,
 		},
 	}
-	for _, counter := range counters {
-		var err error
-		*counter.target, err = meter.Int64Counter(counter.name, metric.WithDescription(counter.description))
-		if err != nil {
-			log.Error("Failed to create counter", "name", counter.name, "error", err)
-			return err
-		}
-	}
-	return nil
 }
 
 func initHistogramMetrics(ctx context.Context, meter metric.Meter) error {

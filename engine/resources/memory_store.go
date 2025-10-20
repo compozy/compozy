@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -30,6 +31,11 @@ type watcher struct {
 	mu     sync.Mutex
 	ch     chan Event
 	closed bool
+}
+
+type storedPair struct {
+	key   ResourceKey
+	entry storedEntry
 }
 
 const defaultWatchBuffer = 256
@@ -134,47 +140,25 @@ func (s *MemoryResourceStore) PutIfMatch(
 	if err = ctx.Err(); err != nil {
 		return "", fmt.Errorf("context canceled: %w", err)
 	}
-	log := logger.FromContext(ctx)
 	if value == nil {
 		return "", fmt.Errorf("nil value is not allowed")
 	}
-	cp, copyErr := core.DeepCopy(value)
+
+	cp, etag, copyErr := copyValueForStore(value)
 	if copyErr != nil {
-		err = fmt.Errorf("deep copy failed: %w", copyErr)
+		return "", copyErr
+	}
+
+	created, watchers, err := s.storeValueIfMatch(ctx, key, cp, expectedETag, etag)
+	if err != nil {
 		return "", err
 	}
-	etag = ETag(core.ETagFromAny(cp))
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		return "", fmt.Errorf("store is closed")
-	}
-	entry, ok := s.items[key]
-	created := false
-	if !ok {
-		if expectedETag != "" {
-			s.mu.Unlock()
-			err = ErrNotFound
-			return "", err
-		}
-		s.items[key] = storedEntry{value: cp, etag: etag}
-		created = true
-	} else {
-		if entry.etag != expectedETag {
-			s.mu.Unlock()
-			resmetrics.RecordETagMismatch(ctx, string(key.Type))
-			err = ErrETagMismatch
-			return "", err
-		}
-		s.items[key] = storedEntry{value: cp, etag: etag}
-	}
+
 	evt := Event{Type: EventPut, Key: key, ETag: etag, At: time.Now().UTC()}
-	watchers := cloneWatchers(s.watchers[watcherKeyspace(key.Project, key.Type)])
-	s.mu.Unlock()
 	if created {
 		resmetrics.AdjustStoreSize(string(key.Type), 1)
 	}
-	notifyWatchers(log, watchers, &evt)
+	notifyWatchers(logger.FromContext(ctx), watchers, &evt)
 	return etag, nil
 }
 
@@ -402,52 +386,124 @@ func (s *MemoryResourceStore) ListWithValuesPage(
 	if err = ctx.Err(); err != nil {
 		return nil, 0, fmt.Errorf("context canceled: %w", err)
 	}
+
+	offset, limit = normalizePageBounds(offset, limit)
+
+	pairs, err := s.collectPairs(project, typ)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	sortPairs(pairs)
+	total = len(pairs)
+	resmetrics.SetStoreSize(string(typ), int64(total))
+
+	page := selectPage(pairs, offset, limit)
+	if len(page) == 0 {
+		return []StoredItem{}, total, nil
+	}
+
+	items, err = copyPairs(page)
+	if err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+func copyValueForStore(value any) (any, ETag, error) {
+	cp, err := core.DeepCopy(value)
+	if err != nil {
+		return nil, "", fmt.Errorf("deep copy failed: %w", err)
+	}
+	return cp, ETag(core.ETagFromAny(cp)), nil
+}
+
+func (s *MemoryResourceStore) storeValueIfMatch(
+	ctx context.Context,
+	key ResourceKey,
+	value any,
+	expectedETag ETag,
+	etag ETag,
+) (bool, []*watcher, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false, nil, fmt.Errorf("store is closed")
+	}
+
+	entry, ok := s.items[key]
+	switch {
+	case !ok:
+		if expectedETag != "" {
+			return false, nil, ErrNotFound
+		}
+		s.items[key] = storedEntry{value: value, etag: etag}
+	case entry.etag != expectedETag:
+		resmetrics.RecordETagMismatch(ctx, string(key.Type))
+		return false, nil, ErrETagMismatch
+	default:
+		s.items[key] = storedEntry{value: value, etag: etag}
+	}
+
+	watchers := cloneWatchers(s.watchers[watcherKeyspace(key.Project, key.Type)])
+	created := !ok
+	return created, watchers, nil
+}
+
+func normalizePageBounds(offset, limit int) (int, int) {
 	if offset < 0 {
 		offset = 0
 	}
 	if limit <= 0 {
-		limit = int(^uint(0) >> 1)
+		limit = math.MaxInt
 	}
+	return offset, limit
+}
+
+func (s *MemoryResourceStore) collectPairs(project string, typ ResourceType) ([]storedPair, error) {
 	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if s.closed {
-		s.mu.RUnlock()
-		return nil, 0, fmt.Errorf("store is closed")
+		return nil, fmt.Errorf("store is closed")
 	}
-	type entryPair struct {
-		key   ResourceKey
-		entry storedEntry
-	}
-	pairs := make([]entryPair, 0)
+	pairs := make([]storedPair, 0)
 	for k, e := range s.items {
 		if k.Project == project && k.Type == typ {
-			pairs = append(pairs, entryPair{key: k, entry: e})
+			pairs = append(pairs, storedPair{key: k, entry: e})
 		}
 	}
-	s.mu.RUnlock()
+	return pairs, nil
+}
 
+func sortPairs(pairs []storedPair) {
 	sort.Slice(pairs, func(i, j int) bool {
 		if pairs[i].key.ID == pairs[j].key.ID {
 			return pairs[i].key.Version < pairs[j].key.Version
 		}
 		return pairs[i].key.ID < pairs[j].key.ID
 	})
+}
 
-	total = len(pairs)
-	resmetrics.SetStoreSize(string(typ), int64(total))
+func selectPage(pairs []storedPair, offset, limit int) []storedPair {
+	total := len(pairs)
 	if offset >= total {
-		return []StoredItem{}, total, nil
+		return nil
 	}
 	end := offset + limit
 	if end > total {
 		end = total
 	}
-	items = make([]StoredItem, 0, end-offset)
-	for _, pair := range pairs[offset:end] {
-		cp, copyErr := core.DeepCopy(pair.entry.value)
-		if copyErr != nil {
-			return nil, 0, fmt.Errorf("deep copy failed: %w", copyErr)
+	return pairs[offset:end]
+}
+
+func copyPairs(pairs []storedPair) ([]StoredItem, error) {
+	items := make([]StoredItem, 0, len(pairs))
+	for _, pair := range pairs {
+		cp, err := core.DeepCopy(pair.entry.value)
+		if err != nil {
+			return nil, fmt.Errorf("deep copy failed: %w", err)
 		}
 		items = append(items, StoredItem{Key: pair.key, Value: cp, ETag: pair.entry.etag})
 	}
-	return items, total, nil
+	return items, nil
 }

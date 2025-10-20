@@ -92,11 +92,9 @@ func NewExecuteBasic(
 }
 
 func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task.MainTaskResponse, error) {
-	// Validate input
-	if input == nil || input.TaskConfig == nil {
-		return nil, fmt.Errorf("invalid ExecuteBasic input: task_config is required")
+	if err := validateExecuteBasicInput(input); err != nil {
+		return nil, err
 	}
-	// Load workflow state and config
 	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
@@ -104,37 +102,10 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	if err != nil {
 		return nil, err
 	}
-	// Use task2 normalizer for basic tasks
-	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeBasic)
+	normalizedConfig, err := a.normalizeBasicConfig(ctx, workflowState, workflowConfig, input.TaskConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create basic normalizer: %w", err)
+		return nil, err
 	}
-	// Create context builder to build proper normalization context
-	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create context builder: %w", err)
-	}
-	// Build proper normalization context with all template variables
-	normContext := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, input.TaskConfig)
-	// Don't inject raw TaskConfig.With before normalization - this causes circular dependency
-	// The workflow-level .input should be preserved for template processing
-
-	// Normalize the task configuration
-	normalizedConfig := input.TaskConfig
-	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
-		return nil, fmt.Errorf("failed to normalize basic task: %w", err)
-	}
-	// AFTER normalization - add rendered with: as .input for downstream use
-	// This makes the normalized (template-processed) values available to agents/sub-tasks
-	if normalizedConfig.With != nil {
-		normContext.CurrentInput = normalizedConfig.With
-		contextBuilder.VariableBuilder.AddCurrentInputToVariables(normContext.Variables, normalizedConfig.With)
-	}
-	// Validate task type
-	if normalizedConfig.Type != task.TaskTypeBasic {
-		return nil, fmt.Errorf("unsupported task type: %s", normalizedConfig.Type)
-	}
-	// Create task state
 	taskState, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
@@ -143,7 +114,30 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	if err != nil {
 		return nil, err
 	}
-	// Execute component
+	result, err := a.executeBasicWithResponse(ctx, normalizedConfig, workflowState, workflowConfig, taskState)
+	if err != nil {
+		return nil, err
+	}
+	if result.executionErr != nil {
+		return result.response, result.executionErr
+	}
+	return result.response, nil
+}
+
+// basicExecutionResult captures the outcome of a basic task execution.
+type basicExecutionResult struct {
+	response     *task.MainTaskResponse
+	executionErr error
+}
+
+// executeBasicWithResponse runs the task execution and builds the main task response.
+func (a *ExecuteBasic) executeBasicWithResponse(
+	ctx context.Context,
+	normalizedConfig *task.Config,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	taskState *task.State,
+) (*basicExecutionResult, error) {
 	ctx, finalizeUsage := a.attachUsageCollector(ctx, taskState)
 	status := core.StatusFailed
 	defer func() {
@@ -159,34 +153,22 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 		status = core.StatusSuccess
 	}
 	taskState.Output = output
-	// Use task2 ResponseHandler for basic type
 	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create basic response handler: %w", err)
 	}
-	// Prepare input for response handler
-	responseInput := &shared.ResponseInput{
-		TaskConfig:     normalizedConfig,
-		TaskState:      taskState,
-		WorkflowConfig: workflowConfig,
-		WorkflowState:  workflowState,
-		ExecutionError: executionError,
-	}
-	// Handle the response
+	responseInput := buildBasicResponseInput(normalizedConfig, taskState, workflowConfig, workflowState, executionError)
 	result, err := handler.HandleResponse(ctx, responseInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to handle basic response: %w", err)
 	}
-	// Convert shared.ResponseOutput to task.MainTaskResponse
-	mainTaskResponse := a.convertToMainTaskResponse(result)
 	if taskState.Status != "" {
 		status = taskState.Status
 	}
-	// If there was an execution error, return it
-	if executionError != nil {
-		return mainTaskResponse, executionError
-	}
-	return mainTaskResponse, nil
+	return &basicExecutionResult{
+		response:     a.convertToMainTaskResponse(result),
+		executionErr: executionError,
+	}, nil
 }
 
 func (a *ExecuteBasic) attachUsageCollector(
@@ -245,4 +227,58 @@ func (a *ExecuteBasic) persistUsageSummary(ctx context.Context, state *task.Stat
 func (a *ExecuteBasic) convertToMainTaskResponse(result *shared.ResponseOutput) *task.MainTaskResponse {
 	converter := NewResponseConverter()
 	return converter.ConvertToMainTaskResponse(result)
+}
+
+// validateExecuteBasicInput verifies required ExecuteBasic parameters.
+func validateExecuteBasicInput(input *ExecuteBasicInput) error {
+	if input == nil || input.TaskConfig == nil {
+		return fmt.Errorf("invalid ExecuteBasic input: task_config is required")
+	}
+	return nil
+}
+
+// normalizeBasicConfig renders templates and validates the normalized basic configuration.
+func (a *ExecuteBasic) normalizeBasicConfig(
+	ctx context.Context,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	taskConfig *task.Config,
+) (*task.Config, error) {
+	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeBasic)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create basic normalizer: %w", err)
+	}
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
+	}
+	normContext := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
+	if err := normalizer.Normalize(ctx, taskConfig, normContext); err != nil {
+		return nil, fmt.Errorf("failed to normalize basic task: %w", err)
+	}
+	if taskConfig.With != nil {
+		normContext.CurrentInput = taskConfig.With
+		contextBuilder.VariableBuilder.AddCurrentInputToVariables(normContext.Variables, taskConfig.With)
+	}
+	if taskConfig.Type != task.TaskTypeBasic {
+		return nil, fmt.Errorf("unsupported task type: %s", taskConfig.Type)
+	}
+	return taskConfig, nil
+}
+
+// buildBasicResponseInput prepares the shared response input for basic tasks.
+func buildBasicResponseInput(
+	taskConfig *task.Config,
+	taskState *task.State,
+	workflowConfig *workflow.Config,
+	workflowState *workflow.State,
+	executionError error,
+) *shared.ResponseInput {
+	return &shared.ResponseInput{
+		TaskConfig:     taskConfig,
+		TaskState:      taskState,
+		WorkflowConfig: workflowConfig,
+		WorkflowState:  workflowState,
+		ExecutionError: executionError,
+	}
 }

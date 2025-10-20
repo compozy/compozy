@@ -412,43 +412,19 @@ func (mm *Manager) createMemoryInstance(
 	resourceCfg *memcore.Resource,
 	components *memoryComponents,
 ) (memcore.Memory, error) {
-	// Build token counter for this instance
-	model := resourceCfg.Model
-	if model == "" {
-		model = DefaultTokenCounterModel
-	}
-	tokenCounter, err := mm.getOrCreateTokenCounterWithConfig(ctx, model, resourceCfg.TokenProvider)
+	tokenCounter, err := mm.resolveTokenCounter(ctx, resourceCfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create token counter: %w", err)
+		return nil, err
 	}
-	// Create async token counter wrapper with configurable workers and buffer size
-	workers := 10      // default workers
-	bufferSize := 1000 // default buffer size
-	// Use injected app config if available
-	if mm.appConfig != nil {
-		if mm.appConfig.Runtime.AsyncTokenCounterWorkers > 0 {
-			workers = mm.appConfig.Runtime.AsyncTokenCounterWorkers
-		}
-		if mm.appConfig.Runtime.AsyncTokenCounterBufferSize > 0 {
-			bufferSize = mm.appConfig.Runtime.AsyncTokenCounterBufferSize
-		}
-	}
-	asyncTokenCounter := tokens.NewAsyncTokenCounterWithContext(ctx, tokenCounter, workers, bufferSize)
-	// Use the instance builder
-	instanceBuilder := instance.NewBuilder().
-		WithInstanceID(validatedKey).
-		WithResourceID(resourceCfg.ID).
-		WithProjectID(projectIDVal).
-		WithResourceConfig(resourceCfg).
-		WithStore(components.store).
-		WithLockManager(components.lockManager).
-		WithTokenCounter(tokenCounter).
-		WithAsyncTokenCounter(asyncTokenCounter).
-		WithFlushingStrategy(components.flushingStrategy).
-		WithEvictionPolicy(components.evictionPolicy).
-		WithTemporalClient(mm.temporalClient).
-		WithTemporalTaskQueue(mm.temporalTaskQueue).
-		WithPrivacyManager(mm.privacyManager)
+	asyncTokenCounter := mm.buildAsyncTokenCounter(ctx, tokenCounter)
+	instanceBuilder := mm.newInstanceBuilder(
+		validatedKey,
+		projectIDVal,
+		resourceCfg,
+		components,
+		tokenCounter,
+		asyncTokenCounter,
+	)
 	if err := instanceBuilder.Validate(ctx); err != nil {
 		return nil, fmt.Errorf("instance builder validation failed: %w", err)
 	}
@@ -457,4 +433,66 @@ func (mm *Manager) createMemoryInstance(
 		return nil, fmt.Errorf("failed to build memory instance: %w", err)
 	}
 	return memInstance, nil
+}
+
+func (mm *Manager) resolveTokenCounter(
+	ctx context.Context,
+	resourceCfg *memcore.Resource,
+) (memcore.TokenCounter, error) {
+	model := resourceCfg.Model
+	if model == "" {
+		model = DefaultTokenCounterModel
+	}
+	counter, err := mm.getOrCreateTokenCounterWithConfig(ctx, model, resourceCfg.TokenProvider)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create token counter: %w", err)
+	}
+	return counter, nil
+}
+
+func (mm *Manager) buildAsyncTokenCounter(
+	ctx context.Context,
+	counter memcore.TokenCounter,
+) instance.AsyncTokenCounter {
+	workers, bufferSize := mm.asyncCounterSettings()
+	return tokens.NewAsyncTokenCounterWithContext(ctx, counter, workers, bufferSize)
+}
+
+func (mm *Manager) asyncCounterSettings() (int, int) {
+	workers := 10
+	bufferSize := 1000
+	if mm.appConfig == nil {
+		return workers, bufferSize
+	}
+	if mm.appConfig.Runtime.AsyncTokenCounterWorkers > 0 {
+		workers = mm.appConfig.Runtime.AsyncTokenCounterWorkers
+	}
+	if mm.appConfig.Runtime.AsyncTokenCounterBufferSize > 0 {
+		bufferSize = mm.appConfig.Runtime.AsyncTokenCounterBufferSize
+	}
+	return workers, bufferSize
+}
+
+func (mm *Manager) newInstanceBuilder(
+	validatedKey string,
+	projectID string,
+	resourceCfg *memcore.Resource,
+	components *memoryComponents,
+	tokenCounter memcore.TokenCounter,
+	asyncCounter instance.AsyncTokenCounter,
+) *instance.Builder {
+	return instance.NewBuilder().
+		WithInstanceID(validatedKey).
+		WithResourceID(resourceCfg.ID).
+		WithProjectID(projectID).
+		WithResourceConfig(resourceCfg).
+		WithStore(components.store).
+		WithLockManager(components.lockManager).
+		WithTokenCounter(tokenCounter).
+		WithAsyncTokenCounter(asyncCounter).
+		WithFlushingStrategy(components.flushingStrategy).
+		WithEvictionPolicy(components.evictionPolicy).
+		WithTemporalClient(mm.temporalClient).
+		WithTemporalTaskQueue(mm.temporalTaskQueue).
+		WithPrivacyManager(mm.privacyManager)
 }

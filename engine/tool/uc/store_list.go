@@ -37,38 +37,86 @@ func NewList(store resources.ResourceStore) *List {
 }
 
 func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error) {
-	if in == nil {
-		return nil, ErrInvalidInput
+	projectID, limit, err := validateListInput(in)
+	if err != nil {
+		return nil, err
 	}
-	projectID := strings.TrimSpace(in.Project)
-	if projectID == "" {
-		return nil, ErrProjectMissing
-	}
-	limit := resourceutil.ClampLimit(in.Limit)
-	filterIDs := map[string]struct{}{}
-	if workflowID := strings.TrimSpace(in.WorkflowID); workflowID != "" {
-		ids, err := uc.workflowTools(ctx, projectID, workflowID)
-		if err != nil {
-			return nil, err
-		}
-		for _, id := range ids {
-			filterIDs[id] = struct{}{}
-		}
+	workflowFilter, err := uc.resolveWorkflowFilter(ctx, projectID, strings.TrimSpace(in.WorkflowID))
+	if err != nil {
+		return nil, err
 	}
 	items, err := uc.store.ListWithValues(ctx, projectID, resources.ResourceTool)
 	if err != nil {
 		return nil, err
 	}
-	filtered := resourceutil.FilterStoredItems(items, strings.TrimSpace(in.Prefix))
-	if len(filterIDs) > 0 {
-		filtered = filterToolsBySet(filtered, filterIDs)
-	}
+	filtered := uc.applyToolFilters(items, strings.TrimSpace(in.Prefix), workflowFilter)
 	window, nextValue, nextDir, prevValue, prevDir := resourceutil.ApplyCursorWindow(
 		filtered,
 		strings.TrimSpace(in.CursorValue),
 		in.CursorDirection,
 		limit,
 	)
+	payload, err := uc.buildToolPayload(window)
+	if err != nil {
+		return nil, err
+	}
+	return &ListOutput{
+		Items:               payload,
+		NextCursorValue:     nextValue,
+		NextCursorDirection: nextDir,
+		PrevCursorValue:     prevValue,
+		PrevCursorDirection: prevDir,
+		Total:               len(filtered),
+	}, nil
+}
+
+// validateListInput normalizes list parameters and validates invariants
+func validateListInput(in *ListInput) (string, int, error) {
+	if in == nil {
+		return "", 0, ErrInvalidInput
+	}
+	projectID := strings.TrimSpace(in.Project)
+	if projectID == "" {
+		return "", 0, ErrProjectMissing
+	}
+	return projectID, resourceutil.ClampLimit(in.Limit), nil
+}
+
+// resolveWorkflowFilter loads workflow tools when filtering by workflow ID
+func (uc *List) resolveWorkflowFilter(
+	ctx context.Context,
+	projectID string,
+	workflowID string,
+) (map[string]struct{}, error) {
+	if workflowID == "" {
+		return nil, nil
+	}
+	ids, err := uc.workflowTools(ctx, projectID, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	set := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		set[id] = struct{}{}
+	}
+	return set, nil
+}
+
+// applyToolFilters applies prefix and workflow-based filters to the tool list
+func (uc *List) applyToolFilters(
+	items []resources.StoredItem,
+	prefix string,
+	workflowFilter map[string]struct{},
+) []resources.StoredItem {
+	filtered := resourceutil.FilterStoredItems(items, prefix)
+	if len(workflowFilter) == 0 {
+		return filtered
+	}
+	return filterToolsBySet(filtered, workflowFilter)
+}
+
+// buildToolPayload converts stored items into API payload objects
+func (uc *List) buildToolPayload(window []resources.StoredItem) ([]map[string]any, error) {
 	payload := make([]map[string]any, 0, len(window))
 	for i := range window {
 		cfg, err := decodeStoredTool(window[i].Value, window[i].Key.ID)
@@ -82,14 +130,7 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 		entry["_etag"] = string(window[i].ETag)
 		payload = append(payload, entry)
 	}
-	return &ListOutput{
-		Items:               payload,
-		NextCursorValue:     nextValue,
-		NextCursorDirection: nextDir,
-		PrevCursorValue:     prevValue,
-		PrevCursorDirection: prevDir,
-		Total:               len(filtered),
-	}, nil
+	return payload, nil
 }
 
 func (uc *List) workflowTools(ctx context.Context, project string, workflowID string) ([]string, error) {

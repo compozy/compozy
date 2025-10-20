@@ -195,59 +195,74 @@ func (tmm *TokenMemoryManager) EnforceLimitsWithPriority(
 	messages []MessageWithPriorityAndTokens, // Input messages now have priority
 	currentTotalTokens int,
 ) ([]MessageWithPriorityAndTokens, int, error) {
-	effectiveMaxTokens := tmm.config.MaxTokens // Assuming this is calculated as before
-
+	effectiveMaxTokens := tmm.config.MaxTokens
 	if effectiveMaxTokens <= 0 || currentTotalTokens <= effectiveMaxTokens {
-		return messages, currentTotalTokens, nil // No token limit or not exceeded
+		return messages, currentTotalTokens, nil
 	}
 
-	// Set original indices if not already set
+	setOriginalIndices(messages)
+	sorted := copyAndSortByPriority(messages)
+	tokensToEvict := currentTotalTokens - effectiveMaxTokens
+	kept := makeKeepMask(len(messages))
+	remainingTokens := evictByPriority(sorted, kept, tokensToEvict, currentTotalTokens)
+
+	return collectKeptMessages(messages, kept), remainingTokens, nil
+}
+
+func setOriginalIndices(messages []MessageWithPriorityAndTokens) {
 	for i := range messages {
 		if messages[i].OriginalIndex == -1 {
 			messages[i].OriginalIndex = i
 		}
 	}
+}
 
-	// Create a copy to avoid modifying the input slice
-	messagesToSort := make([]MessageWithPriorityAndTokens, len(messages))
-	copy(messagesToSort, messages)
-
-	// Sort by eviction preference: Lowest priority first, then oldest within that priority.
-	sort.SliceStable(messagesToSort, func(i, j int) bool {
-		if messagesToSort[i].Priority != messagesToSort[j].Priority {
-			// Higher priority number = lower actual priority (gets evicted first)
-			return messagesToSort[i].Priority > messagesToSort[j].Priority
+func copyAndSortByPriority(messages []MessageWithPriorityAndTokens) []MessageWithPriorityAndTokens {
+	sorted := append([]MessageWithPriorityAndTokens(nil), messages...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		if sorted[i].Priority != sorted[j].Priority {
+			return sorted[i].Priority > sorted[j].Priority
 		}
-		// Older messages evicted first within same priority
-		return messagesToSort[i].OriginalIndex < messagesToSort[j].OriginalIndex
+		return sorted[i].OriginalIndex < sorted[j].OriginalIndex
 	})
+	return sorted
+}
 
-	// Now `messagesToSort` is sorted such that `messagesToSort[0]` is the first candidate for eviction.
-	tokensToEvict := currentTotalTokens - effectiveMaxTokens
-	evictedCount := 0
-
-	// Create a map to track which messages to keep
-	keptIndices := make(map[int]bool)
-	for i := range messages {
-		keptIndices[i] = true // Start with all messages kept
+func makeKeepMask(count int) []bool {
+	mask := make([]bool, count)
+	for i := range mask {
+		mask[i] = true
 	}
+	return mask
+}
 
-	// Evict messages starting from the lowest priority
-	for i := 0; i < len(messagesToSort) && tokensToEvict > 0; i++ {
-		msg := messagesToSort[i]
+func evictByPriority(
+	messages []MessageWithPriorityAndTokens,
+	kept []bool,
+	tokensToEvict int,
+	currentTotalTokens int,
+) int {
+	remainingTokens := currentTotalTokens
+	for _, msg := range messages {
+		if tokensToEvict <= 0 {
+			break
+		}
 		tokensToEvict -= msg.TokenCount
-		currentTotalTokens -= msg.TokenCount
-		delete(keptIndices, msg.OriginalIndex)
-		evictedCount++
+		remainingTokens -= msg.TokenCount
+		kept[msg.OriginalIndex] = false
 	}
+	return remainingTokens
+}
 
-	// Reconstruct the kept messages in their original chronological order
-	finalKeptMessages := make([]MessageWithPriorityAndTokens, 0, len(messages)-evictedCount)
+func collectKeptMessages(
+	messages []MessageWithPriorityAndTokens,
+	kept []bool,
+) []MessageWithPriorityAndTokens {
+	result := make([]MessageWithPriorityAndTokens, 0, len(messages))
 	for i, msg := range messages {
-		if keptIndices[i] {
-			finalKeptMessages = append(finalKeptMessages, msg)
+		if kept[i] {
+			result = append(result, msg)
 		}
 	}
-
-	return finalKeptMessages, currentTotalTokens, nil
+	return result
 }

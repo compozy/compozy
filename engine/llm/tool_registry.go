@@ -234,16 +234,7 @@ func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 
 // ListAll returns all available tools
 func (r *toolRegistry) ListAll(ctx context.Context) ([]Tool, error) {
-	var allTools []Tool
-
-	// Add local tools
-	r.localMu.RLock()
-	for _, tool := range r.localTools {
-		allTools = append(allTools, tool)
-	}
-	r.localMu.RUnlock()
-
-	// Add MCP tools (only if not overridden by local tools)
+	allTools := r.collectLocalTools()
 	mcpTools, stale, err := r.getMCPTools(ctx)
 	if err != nil {
 		return allTools, core.NewError(err, "MCP_TOOLS_ERROR", map[string]any{
@@ -253,43 +244,9 @@ func (r *toolRegistry) ListAll(ctx context.Context) ([]Tool, error) {
 	if stale {
 		r.triggerBackgroundRefresh(ctx)
 	}
-
-	r.mcpMu.RLock()
-	totalCount := r.mcpTotalCount
-	r.mcpMu.RUnlock()
-
-	allowedCount := 0
-	filteredCount := totalCount - len(mcpTools)
-	if filteredCount < 0 {
-		filteredCount = 0
-	}
-	for _, mcpTool := range mcpTools {
-		canonical := r.canonicalize(mcpTool.Name())
-
-		// Skip if overridden by local tool
-		r.localMu.RLock()
-		_, isOverridden := r.localTools[canonical]
-		r.localMu.RUnlock()
-
-		if isOverridden {
-			continue
-		}
-
-		allowedCount++
-
-		allTools = append(allTools, &mcpToolAdapter{mcpTool})
-	}
-	logger.FromContext(ctx).Debug("MCP allowlist filtering",
-		"total", totalCount,
-		"cached_allowed", len(mcpTools),
-		"allowed", allowedCount,
-		"filtered", filteredCount,
-		"allowlist_size", len(r.allowedMCPSet),
-		"allowlist_ids", r.allowlistIDs(),
-		"denylist_size", len(r.deniedMCPSet),
-		"denylist_ids", r.denylistIDs(),
-	)
-
+	totalCount, cachedAllowed := r.snapshotMCPCounts(len(mcpTools))
+	allowedCount := r.appendAllowedMCPTools(mcpTools, &allTools)
+	r.logMCPFiltering(ctx, totalCount, cachedAllowed, allowedCount)
 	return allTools, nil
 }
 
@@ -341,13 +298,7 @@ func (r *toolRegistry) getMCPTools(ctx context.Context) ([]tools.Tool, bool, err
 func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error) {
 	log := logger.FromContext(ctx)
 	if r.config.ProxyClient == nil {
-		r.mcpMu.Lock()
-		r.mcpTools = nil
-		r.mcpToolIndex = make(map[string]tools.Tool)
-		r.mcpTotalCount = 0
-		r.mcpCacheTs = r.now()
-		r.mcpCachedEmpty = true
-		r.mcpMu.Unlock()
+		r.resetMCPStateForDisabledProxy()
 		log.Debug("Refreshed MCP tools cache (proxy disabled/absent)")
 		return []tools.Tool{}, nil
 	}
@@ -358,55 +309,9 @@ func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error
 			"operation": "list_tools",
 		})
 	}
-
-	// Convert ToolDefinitions to tools.Tool and build canonical lookup index.
-	var (
-		filteredTools []tools.Tool
-		index         = make(map[string]tools.Tool)
-		total         int
-	)
-	for _, toolDef := range toolDefs {
-		proxyTool := NewProxyTool(toolDef, r.config.ProxyClient)
-		total++
-
-		canonical := r.canonicalize(proxyTool.Name())
-		if canonical == "" {
-			continue
-		}
-		if existing, exists := index[canonical]; exists {
-			var existingMCPName, newMCPName string
-			if named, ok := any(existing).(mcpNamed); ok {
-				existingMCPName = named.MCPName()
-			}
-			if named, ok := any(proxyTool).(mcpNamed); ok {
-				newMCPName = named.MCPName()
-			}
-			logger.FromContext(ctx).Debug("duplicate MCP tool canonical name; keeping first (deterministic)",
-				"canonical", canonical,
-				"kept_mcp", existingMCPName,
-				"skipped_mcp", newMCPName)
-			continue
-		}
-		if !r.mcpToolAllowed(proxyTool) {
-			continue
-		}
-		index[canonical] = proxyTool
-		filteredTools = append(filteredTools, proxyTool)
-	}
-
-	// Cache results, including empty, to avoid repeated proxy hits.
-	r.mcpMu.Lock()
-	r.mcpTools = filteredTools
-	r.mcpToolIndex = index
-	r.mcpTotalCount = total
-	r.mcpCacheTs = r.now()
-	r.mcpCachedEmpty = len(filteredTools) == 0
-	r.mcpMu.Unlock()
-	if r.mcpCachedEmpty {
-		log.Debug("Refreshed MCP tools cache (empty)")
-	} else {
-		log.Debug("Refreshed MCP tools cache", "count", len(filteredTools), "filtered_total", total-len(filteredTools))
-	}
+	filteredTools, index, total := r.filterProxyTools(ctx, toolDefs)
+	r.storeMCPTools(filteredTools, index, total)
+	r.logCacheRefresh(log, filteredTools, total)
 	return filteredTools, nil
 }
 
@@ -504,6 +409,134 @@ func (r *toolRegistry) denylistIDs() []string {
 	}
 	sort.Strings(ids)
 	return ids
+}
+
+func (r *toolRegistry) collectLocalTools() []Tool {
+	r.localMu.RLock()
+	defer r.localMu.RUnlock()
+	if len(r.localTools) == 0 {
+		return nil
+	}
+	tools := make([]Tool, 0, len(r.localTools))
+	for _, tool := range r.localTools {
+		tools = append(tools, tool)
+	}
+	return tools
+}
+
+func (r *toolRegistry) snapshotMCPCounts(cachedAllowed int) (int, int) {
+	r.mcpMu.RLock()
+	total := r.mcpTotalCount
+	r.mcpMu.RUnlock()
+	return total, cachedAllowed
+}
+
+func (r *toolRegistry) appendAllowedMCPTools(mcpTools []tools.Tool, dest *[]Tool) int {
+	allowed := 0
+	for _, mcpTool := range mcpTools {
+		canonical := r.canonicalize(mcpTool.Name())
+		if r.hasLocalOverride(canonical) {
+			continue
+		}
+		allowed++
+		*dest = append(*dest, &mcpToolAdapter{mcpTool})
+	}
+	return allowed
+}
+
+func (r *toolRegistry) hasLocalOverride(canonical string) bool {
+	r.localMu.RLock()
+	defer r.localMu.RUnlock()
+	_, exists := r.localTools[canonical]
+	return exists
+}
+
+func (r *toolRegistry) logMCPFiltering(ctx context.Context, totalCount, cachedAllowed, allowedCount int) {
+	filteredCount := totalCount - cachedAllowed
+	if filteredCount < 0 {
+		filteredCount = 0
+	}
+	logger.FromContext(ctx).Debug("MCP allowlist filtering",
+		"total", totalCount,
+		"cached_allowed", cachedAllowed,
+		"allowed", allowedCount,
+		"filtered", filteredCount,
+		"allowlist_size", len(r.allowedMCPSet),
+		"allowlist_ids", r.allowlistIDs(),
+		"denylist_size", len(r.deniedMCPSet),
+		"denylist_ids", r.denylistIDs(),
+	)
+}
+
+func (r *toolRegistry) resetMCPStateForDisabledProxy() {
+	r.mcpMu.Lock()
+	defer r.mcpMu.Unlock()
+	r.mcpTools = nil
+	r.mcpToolIndex = make(map[string]tools.Tool)
+	r.mcpTotalCount = 0
+	r.mcpCacheTs = r.now()
+	r.mcpCachedEmpty = true
+}
+
+func (r *toolRegistry) filterProxyTools(
+	ctx context.Context,
+	toolDefs []mcp.ToolDefinition,
+) ([]tools.Tool, map[string]tools.Tool, int) {
+	log := logger.FromContext(ctx)
+	filteredTools := make([]tools.Tool, 0, len(toolDefs))
+	index := make(map[string]tools.Tool)
+	total := 0
+	for _, toolDef := range toolDefs {
+		proxyTool := NewProxyTool(toolDef, r.config.ProxyClient)
+		total++
+		canonical := r.canonicalize(proxyTool.Name())
+		if canonical == "" {
+			continue
+		}
+		if existing, exists := index[canonical]; exists {
+			var existingMCPName, newMCPName string
+			if named, ok := any(existing).(mcpNamed); ok {
+				existingMCPName = named.MCPName()
+			}
+			if named, ok := any(proxyTool).(mcpNamed); ok {
+				newMCPName = named.MCPName()
+			}
+			log.Debug("duplicate MCP tool canonical name; keeping first (deterministic)",
+				"canonical", canonical,
+				"kept_mcp", existingMCPName,
+				"skipped_mcp", newMCPName)
+			continue
+		}
+		if !r.mcpToolAllowed(proxyTool) {
+			continue
+		}
+		index[canonical] = proxyTool
+		filteredTools = append(filteredTools, proxyTool)
+	}
+	return filteredTools, index, total
+}
+
+func (r *toolRegistry) storeMCPTools(filteredTools []tools.Tool, index map[string]tools.Tool, total int) {
+	r.mcpMu.Lock()
+	defer r.mcpMu.Unlock()
+	r.mcpTools = filteredTools
+	r.mcpToolIndex = index
+	r.mcpTotalCount = total
+	r.mcpCacheTs = r.now()
+	r.mcpCachedEmpty = len(filteredTools) == 0
+}
+
+func (r *toolRegistry) logCacheRefresh(log logger.Logger, filteredTools []tools.Tool, total int) {
+	if log == nil {
+		return
+	}
+	if r.mcpCachedEmpty {
+		log.Debug("Refreshed MCP tools cache (empty)")
+		return
+	}
+	log.Debug("Refreshed MCP tools cache",
+		"count", len(filteredTools),
+		"filtered_total", total-len(filteredTools))
 }
 
 // mcpProxyTool implements tools.Tool for MCP proxy tools

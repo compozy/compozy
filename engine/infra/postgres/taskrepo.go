@@ -44,6 +44,29 @@ const taskStateColumnsSQL = "task_exec_id, task_id, workflow_exec_id, workflow_i
 	"component, status, execution_type, parent_state_id, agent_id, action_id, " +
 	"tool_id, input, output, error, created_at, updated_at"
 
+const taskStateUpsertQuery = `
+        INSERT INTO task_states (
+            task_exec_id, task_id, workflow_exec_id, workflow_id, usage, component, status,
+            execution_type, parent_state_id, agent_id, action_id, tool_id, input, output, error
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        ON CONFLICT (task_exec_id) DO UPDATE SET
+            task_id = $2,
+            workflow_exec_id = $3,
+            workflow_id = $4,
+            usage = $5,
+            component = $6,
+            status = $7,
+            execution_type = $8,
+            parent_state_id = $9,
+            agent_id = $10,
+            action_id = $11,
+            tool_id = $12,
+            input = $13,
+            output = $14,
+            error = $15,
+            updated_at = now()
+    `
+
 func maxDepthFromConfig(ctx context.Context) int {
 	cfg := config.FromContext(ctx)
 	if cfg != nil && cfg.Limits.MaxTaskContextDepth > 0 {
@@ -158,56 +181,61 @@ func decodeUsageSummary(blob []byte) (*usage.Summary, error) {
 
 // buildUpsertArgs prepares the SQL query and arguments for upserting a task state
 func (r *TaskRepo) buildUpsertArgs(state *task.State) (string, []any, error) {
+	payload, err := buildTaskStatePayload(state)
+	if err != nil {
+		return "", nil, err
+	}
+	args := []any{
+		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, payload.usage,
+		state.Component, state.Status, state.ExecutionType, payload.parentStateID,
+		state.AgentID, state.ActionID, state.ToolID,
+		payload.input, payload.output, payload.errJSON,
+	}
+	return taskStateUpsertQuery, args, nil
+}
+
+type taskStateUpsertPayload struct {
+	usage         []byte
+	input         []byte
+	output        []byte
+	errJSON       []byte
+	parentStateID *string
+}
+
+// buildTaskStatePayload marshals task state fields required for upserting.
+func buildTaskStatePayload(state *task.State) (taskStateUpsertPayload, error) {
 	usageJSON, err := ToJSONB(state.Usage)
 	if err != nil {
-		return "", nil, fmt.Errorf("marshaling usage: %w", err)
+		return taskStateUpsertPayload{}, fmt.Errorf("marshaling usage: %w", err)
 	}
 	input, err := ToJSONB(state.Input)
 	if err != nil {
-		return "", nil, fmt.Errorf("marshaling input: %w", err)
+		return taskStateUpsertPayload{}, fmt.Errorf("marshaling input: %w", err)
 	}
 	output, err := ToJSONB(state.Output)
 	if err != nil {
-		return "", nil, fmt.Errorf("marshaling output: %w", err)
+		return taskStateUpsertPayload{}, fmt.Errorf("marshaling output: %w", err)
 	}
 	errJSON, err := ToJSONB(state.Error)
 	if err != nil {
-		return "", nil, fmt.Errorf("marshaling error: %w", err)
+		return taskStateUpsertPayload{}, fmt.Errorf("marshaling error: %w", err)
 	}
-	var parentStateID *string
-	if state.ParentStateID != nil {
-		s := string(*state.ParentStateID)
-		parentStateID = &s
+	return taskStateUpsertPayload{
+		usage:         usageJSON,
+		input:         input,
+		output:        output,
+		errJSON:       errJSON,
+		parentStateID: parentStateIDString(state.ParentStateID),
+	}, nil
+}
+
+// parentStateIDString converts a parent state identifier to a string pointer.
+func parentStateIDString(id *core.ID) *string {
+	if id == nil {
+		return nil
 	}
-	query := `
-        INSERT INTO task_states (
-            task_exec_id, task_id, workflow_exec_id, workflow_id, usage, component, status,
-            execution_type, parent_state_id, agent_id, action_id, tool_id, input, output, error
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        ON CONFLICT (task_exec_id) DO UPDATE SET
-            task_id = $2,
-            workflow_exec_id = $3,
-            workflow_id = $4,
-            usage = $5,
-            component = $6,
-            status = $7,
-            execution_type = $8,
-            parent_state_id = $9,
-            agent_id = $10,
-            action_id = $11,
-            tool_id = $12,
-            input = $13,
-            output = $14,
-            error = $15,
-            updated_at = now()
-    `
-	args := []any{
-		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, usageJSON,
-		state.Component, state.Status, state.ExecutionType, parentStateID,
-		state.AgentID, state.ActionID, state.ToolID,
-		input, output, errJSON,
-	}
-	return query, args, nil
+	value := string(*id)
+	return &value
 }
 
 // UpsertState inserts or updates a task state.

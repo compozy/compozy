@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/engine/knowledge/vectordb"
 	appconfig "github.com/compozy/compozy/pkg/config"
@@ -258,19 +257,17 @@ type PGVectorConfig struct {
 type PGVectorIndexConfig struct {
 	Type           string `json:"type,omitempty"            yaml:"type,omitempty"            mapstructure:"type,omitempty"`
 	Lists          int    `json:"lists,omitempty"           yaml:"lists,omitempty"           mapstructure:"lists,omitempty"`
-	Probes         int    `json:"probes,omitempty"          yaml:"probes,omitempty"          mapstructure:"probes,omitempty"`
 	M              int    `json:"m,omitempty"               yaml:"m,omitempty"               mapstructure:"m,omitempty"`
 	EFConstruction int    `json:"ef_construction,omitempty" yaml:"ef_construction,omitempty" mapstructure:"ef_construction,omitempty"`
-	EFSearch       int    `json:"ef_search,omitempty"       yaml:"ef_search,omitempty"       mapstructure:"ef_search,omitempty"`
 }
 
 // PGVectorPoolConfig customizes pgxpool behavior for pgvector stores.
 type PGVectorPoolConfig struct {
-	MinConns          int32         `json:"min_conns,omitempty"           yaml:"min_conns,omitempty"           mapstructure:"min_conns,omitempty"`
-	MaxConns          int32         `json:"max_conns,omitempty"           yaml:"max_conns,omitempty"           mapstructure:"max_conns,omitempty"`
-	MaxConnLifetime   time.Duration `json:"max_conn_lifetime,omitempty"   yaml:"max_conn_lifetime,omitempty"   mapstructure:"max_conn_lifetime,omitempty"`
-	MaxConnIdleTime   time.Duration `json:"max_conn_idle_time,omitempty"  yaml:"max_conn_idle_time,omitempty"  mapstructure:"max_conn_idle_time,omitempty"`
-	HealthCheckPeriod time.Duration `json:"health_check_period,omitempty" yaml:"health_check_period,omitempty" mapstructure:"health_check_period,omitempty"`
+	MinConns          int32             `json:"min_conns,omitempty"           yaml:"min_conns,omitempty"           mapstructure:"min_conns,omitempty"`
+	MaxConns          int32             `json:"max_conns,omitempty"           yaml:"max_conns,omitempty"           mapstructure:"max_conns,omitempty"`
+	MaxConnLifetime   vectordb.Duration `json:"max_conn_lifetime,omitempty"   yaml:"max_conn_lifetime,omitempty"   mapstructure:"max_conn_lifetime,omitempty"`
+	MaxConnIdleTime   vectordb.Duration `json:"max_conn_idle_time,omitempty"  yaml:"max_conn_idle_time,omitempty"  mapstructure:"max_conn_idle_time,omitempty"`
+	HealthCheckPeriod vectordb.Duration `json:"health_check_period,omitempty" yaml:"health_check_period,omitempty" mapstructure:"health_check_period,omitempty"`
 }
 
 // PGVectorSearchConfig adjusts runtime search parameters for pgvector queries.
@@ -590,31 +587,38 @@ func validatePGVectorIndex(_ context.Context, vectorID string, idx *PGVectorInde
 		return nil
 	}
 	errs := make([]error, 0, 6)
-	switch normalized := strings.TrimSpace(strings.ToLower(idx.Type)); normalized {
+	errs = append(errs, validatePGVectorIndexType(vectorID, idx)...)
+	errs = append(errs, validatePGVectorIndexParameters(vectorID, idx)...)
+	return errs
+}
+
+// validatePGVectorIndexType ensures the pgvector index type is supported.
+func validatePGVectorIndexType(vectorID string, idx *PGVectorIndexConfig) []error {
+	normalized := strings.TrimSpace(strings.ToLower(idx.Type))
+	switch normalized {
 	case "":
+		return nil
 	case string(vectordb.PGVectorIndexIVFFlat):
+		return nil
 	case string(vectordb.PGVectorIndexHNSW):
+		return nil
 	default:
-		errs = append(
-			errs,
-			fmt.Errorf(
-				"knowledge: vector_db %q pgvector.index.type %q must be %q or %q",
-				vectorID,
-				idx.Type,
-				vectordb.PGVectorIndexIVFFlat,
-				vectordb.PGVectorIndexHNSW,
-			),
-		)
+		return []error{fmt.Errorf(
+			"knowledge: vector_db %q pgvector.index.type %q must be %q or %q",
+			vectorID,
+			idx.Type,
+			vectordb.PGVectorIndexIVFFlat,
+			vectordb.PGVectorIndexHNSW,
+		)}
 	}
+}
+
+// validatePGVectorIndexParameters validates numerical pgvector index parameters.
+func validatePGVectorIndexParameters(vectorID string, idx *PGVectorIndexConfig) []error {
+	errs := make([]error, 0, 3)
 	if idx.Lists < 0 {
 		errs = append(errs, fmt.Errorf(
 			"knowledge: vector_db %q pgvector.index.lists must be >= 0",
-			vectorID,
-		))
-	}
-	if idx.Probes < 0 {
-		errs = append(errs, fmt.Errorf(
-			"knowledge: vector_db %q pgvector.index.probes must be >= 0",
 			vectorID,
 		))
 	}
@@ -627,12 +631,6 @@ func validatePGVectorIndex(_ context.Context, vectorID string, idx *PGVectorInde
 	if idx.EFConstruction < 0 {
 		errs = append(errs, fmt.Errorf(
 			"knowledge: vector_db %q pgvector.index.ef_construction must be >= 0",
-			vectorID,
-		))
-	}
-	if idx.EFSearch < 0 {
-		errs = append(errs, fmt.Errorf(
-			"knowledge: vector_db %q pgvector.index.ef_search must be >= 0",
 			vectorID,
 		))
 	}

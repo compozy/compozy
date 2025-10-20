@@ -179,37 +179,37 @@ func TestCategorizeError(t *testing.T) {
 		expected memoryembeddings.ErrorType
 	}{
 		{
-			name:     "NilError",
+			name:     "Should return ServerError for nil error",
 			err:      nil,
 			expected: memoryembeddings.ErrorTypeServerError,
 		},
 		{
-			name:     "ContextDeadline",
+			name:     "Should return ServerError for context deadline",
 			err:      context.DeadlineExceeded,
 			expected: memoryembeddings.ErrorTypeServerError,
 		},
 		{
-			name:     "RateLimitMessage",
+			name:     "Should return RateLimit for rate limit message",
 			err:      errors.New("rate limit exceeded"),
 			expected: memoryembeddings.ErrorTypeRateLimit,
 		},
 		{
-			name:     "Status429",
+			name:     "Should return RateLimit for HTTP 429 status",
 			err:      errors.New("http 429 too many requests"),
 			expected: memoryembeddings.ErrorTypeRateLimit,
 		},
 		{
-			name:     "AuthFailure",
+			name:     "Should return Auth for unauthorized error",
 			err:      errors.New("unauthorized"),
 			expected: memoryembeddings.ErrorTypeAuth,
 		},
 		{
-			name:     "InvalidInput",
+			name:     "Should return InvalidInput for bad request",
 			err:      errors.New("bad request: invalid value"),
 			expected: memoryembeddings.ErrorTypeInvalidInput,
 		},
 		{
-			name:     "ServerErrorFallback",
+			name:     "Should return ServerError for internal error",
 			err:      errors.New("internal server error"),
 			expected: memoryembeddings.ErrorTypeServerError,
 		},

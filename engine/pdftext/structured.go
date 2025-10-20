@@ -147,48 +147,79 @@ func finalizeLineOutputs(outputs []*lineOutput) []finalLine {
 			continue
 		}
 		text := strings.TrimSpace(out.text)
-		if out.separatorHint != "" && text == "" {
-			pendingSeparator = out.separatorHint
+		if handleSeparatorHint(&pendingSeparator, out, text) {
 			continue
 		}
 		if text == "" {
 			continue
 		}
-		if len(final) == 0 {
-			final = append(final, finalLine{text: text, top: out.top, bottom: out.bottom, height: out.height})
-			continue
-		}
-		prev := &final[len(final)-1]
-		if shouldMergeHyphen(prev.text, text) {
-			prev.text = strings.TrimSuffix(strings.TrimRight(prev.text, " "), "-")
-			prev.text += strings.TrimLeft(text, " ")
-			if out.bottom > prev.bottom {
-				prev.bottom = out.bottom
-			}
-			if out.height > prev.height {
-				prev.height = out.height
-			}
-			continue
-		}
-		sep := pendingSeparator
-		pendingSeparator = ""
-		if sep == "" {
-			gap := out.top - prev.bottom
-			if gap > paragraphGapThreshold(prev.height, out.height) {
-				sep = "\n\n"
-			} else {
-				sep = "\n"
-			}
-		}
-		final = append(final, finalLine{
-			separator: sep,
-			text:      text,
-			top:       out.top,
-			bottom:    out.bottom,
-			height:    out.height,
-		})
+		final = appendOrMergeLine(final, text, out, &pendingSeparator)
 	}
 	return final
+}
+
+func handleSeparatorHint(pending *string, out *lineOutput, text string) bool {
+	if out.separatorHint != "" && text == "" {
+		*pending = out.separatorHint
+		return true
+	}
+	return false
+}
+
+func appendOrMergeLine(
+	final []finalLine,
+	text string,
+	out *lineOutput,
+	pending *string,
+) []finalLine {
+	if len(final) == 0 {
+		return append(final, buildFinalLine(text, "", out))
+	}
+
+	prev := &final[len(final)-1]
+	if mergeWithPrevious(prev, text, out) {
+		return final
+	}
+
+	separator := resolveSeparator(*pending, prev, out)
+	*pending = ""
+	return append(final, buildFinalLine(text, separator, out))
+}
+
+func mergeWithPrevious(prev *finalLine, text string, out *lineOutput) bool {
+	if !shouldMergeHyphen(prev.text, text) {
+		return false
+	}
+	prev.text = strings.TrimSuffix(strings.TrimRight(prev.text, " "), "-")
+	prev.text += strings.TrimLeft(text, " ")
+	if out.bottom > prev.bottom {
+		prev.bottom = out.bottom
+	}
+	if out.height > prev.height {
+		prev.height = out.height
+	}
+	return true
+}
+
+func resolveSeparator(hint string, prev *finalLine, out *lineOutput) string {
+	if hint != "" {
+		return hint
+	}
+	gap := out.top - prev.bottom
+	if gap > paragraphGapThreshold(prev.height, out.height) {
+		return "\n\n"
+	}
+	return "\n"
+}
+
+func buildFinalLine(text string, separator string, out *lineOutput) finalLine {
+	return finalLine{
+		separator: separator,
+		text:      text,
+		top:       out.top,
+		bottom:    out.bottom,
+		height:    out.height,
+	}
 }
 
 type rectSegment struct {

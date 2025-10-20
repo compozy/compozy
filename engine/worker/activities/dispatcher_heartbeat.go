@@ -121,62 +121,114 @@ func ListActiveDispatchers(
 	if contracts == nil {
 		return nil, fmt.Errorf("cache contracts not configured")
 	}
-	// Default stale threshold is 2 minutes
 	staleThreshold := resolveStaleThreshold(ctx, input.StaleThreshold)
-	// Iterate dispatcher heartbeat keys using streaming iterator to avoid buffering
-	pattern := dispatcherHeartbeatKeyPrefix + ":*"
-	it, err := contracts.Keys(ctx, pattern)
+	iterator, err := contracts.Keys(ctx, dispatcherHeartbeatKeyPrefix+":*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to start key iteration: %w", err)
 	}
-	var (
-		dispatchers   []DispatcherInfo
-		now           = time.Now()
-		totalScanned  int64
-		staleFound    int64
-		scanStartTime = time.Now()
+	scanner := newDispatcherScanner(ctx, contracts, input.ProjectName, staleThreshold, log)
+	dispatchers, err := scanner.collect(iterator)
+	if err != nil {
+		return nil, err
+	}
+	scanner.recordMetrics(ctx)
+	return &ListActiveDispatchersOutput{Dispatchers: dispatchers}, nil
+}
+
+// dispatcherScanner walks dispatcher heartbeat keys while tracking metrics.
+type dispatcherScanner struct {
+	ctx            context.Context
+	contracts      CacheContracts
+	projectFilter  string
+	staleThreshold time.Duration
+	now            time.Time
+	log            logger.Logger
+	totalScanned   int64
+	staleFound     int64
+	scanStart      time.Time
+}
+
+type keyIterator interface {
+	Next(context.Context) ([]string, bool, error)
+}
+
+func newDispatcherScanner(
+	ctx context.Context,
+	contracts CacheContracts,
+	projectFilter string,
+	staleThreshold time.Duration,
+	log logger.Logger,
+) *dispatcherScanner {
+	return &dispatcherScanner{
+		ctx:            ctx,
+		contracts:      contracts,
+		projectFilter:  projectFilter,
+		staleThreshold: staleThreshold,
+		now:            time.Now(),
+		log:            log,
+		scanStart:      time.Now(),
+	}
+}
+
+func (s *dispatcherScanner) collect(iterator keyIterator) ([]DispatcherInfo, error) {
+	const (
+		maxRetries = 3
+		retryDelay = 50 * time.Millisecond
 	)
-	// Retry parameters for transient Next() errors
-	const maxRetries = 3
-	const retryDelay = 50 * time.Millisecond
+	var dispatchers []DispatcherInfo
 	for {
-		batch, done, ierr := it.Next(ctx)
-		if ierr != nil {
-			// Simple bounded retry with backoff
-			var retried bool
-			for attempt := 1; attempt <= maxRetries; attempt++ {
-				select {
-				case <-ctx.Done():
-					return nil, ctx.Err()
-				case <-time.After(retryDelay * time.Duration(attempt)):
-				}
-				batch, done, ierr = it.Next(ctx)
-				if ierr == nil {
-					retried = true
-					break
-				}
-			}
-			if !retried && ierr != nil {
-				return nil, fmt.Errorf("failed during key iteration: %w", ierr)
+		batch, done, err := iterator.Next(s.ctx)
+		if err != nil {
+			batch, done, err = s.retryNext(iterator, maxRetries, retryDelay)
+			if err != nil {
+				return nil, fmt.Errorf("failed during key iteration: %w", err)
 			}
 		}
-		totalScanned += int64(len(batch))
-		infos, stale := buildDispatchersFromKeys(ctx, contracts, batch, input.ProjectName, staleThreshold, now)
-		staleFound += stale
+		s.totalScanned += int64(len(batch))
+		infos, stale := buildDispatchersFromKeys(s.ctx, s.contracts, batch, s.projectFilter, s.staleThreshold, s.now)
+		s.staleFound += stale
 		dispatchers = append(dispatchers, infos...)
 		if done {
 			break
 		}
 	}
-	// Record metrics and logs
-	duration := time.Since(scanStartTime)
-	interceptor.RecordDispatcherScan(ctx, totalScanned, staleFound, duration)
-	log.Debug("Dispatcher scan complete",
-		"keys_scanned", totalScanned,
-		"stale_found", staleFound,
+	return dispatchers, nil
+}
+
+// retryNext reattempts iterator advancement with bounded backoff.
+func (s *dispatcherScanner) retryNext(
+	iterator keyIterator,
+	maxRetries int,
+	retryDelay time.Duration,
+) ([]string, bool, error) {
+	var (
+		batch []string
+		done  bool
+		err   error
+	)
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		select {
+		case <-s.ctx.Done():
+			return nil, false, s.ctx.Err()
+		case <-time.After(retryDelay * time.Duration(attempt)):
+		}
+		batch, done, err = iterator.Next(s.ctx)
+		if err == nil {
+			return batch, done, nil
+		}
+	}
+	return nil, false, err
+}
+
+// recordMetrics captures scan statistics for logging and monitoring.
+func (s *dispatcherScanner) recordMetrics(ctx context.Context) {
+	duration := time.Since(s.scanStart)
+	interceptor.RecordDispatcherScan(ctx, s.totalScanned, s.staleFound, duration)
+	s.log.Debug("Dispatcher scan complete",
+		"keys_scanned", s.totalScanned,
+		"stale_found", s.staleFound,
 		"duration", duration,
-		"project_filter", input.ProjectName)
-	return &ListActiveDispatchersOutput{Dispatchers: dispatchers}, nil
+		"project_filter", s.projectFilter)
 }
 
 // buildDispatchersFromKeys loads heartbeat data and returns dispatcher infos and stale count.

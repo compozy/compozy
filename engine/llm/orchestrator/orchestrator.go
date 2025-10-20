@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
+	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/llm/telemetry"
 )
 
@@ -22,33 +23,8 @@ type orchestrator struct {
 
 //nolint:gocritic // Config must be passed by value to ensure defensive copy semantics.
 func New(cfg Config) (Orchestrator, error) {
-	if cfg.PromptBuilder == nil {
-		return nil, core.NewError(
-			fmt.Errorf("prompt builder cannot be nil"),
-			ErrCodeInvalidConfig,
-			map[string]any{"field": "PromptBuilder"},
-		)
-	}
-	if cfg.SystemPromptRenderer == nil {
-		return nil, core.NewError(
-			fmt.Errorf("system prompt renderer cannot be nil"),
-			ErrCodeInvalidConfig,
-			map[string]any{"field": "SystemPromptRenderer"},
-		)
-	}
-	if cfg.ToolRegistry == nil {
-		return nil, core.NewError(
-			fmt.Errorf("tool registry cannot be nil"),
-			ErrCodeInvalidConfig,
-			map[string]any{"field": "ToolRegistry"},
-		)
-	}
-	if cfg.LLMFactory == nil {
-		return nil, core.NewError(
-			fmt.Errorf("llm factory cannot be nil"),
-			ErrCodeInvalidConfig,
-			map[string]any{"field": "LLMFactory"},
-		)
+	if err := validateConfigDependencies(&cfg); err != nil {
+		return nil, err
 	}
 	cfgCopy := cfg
 	settings := buildSettings(&cfgCopy)
@@ -63,20 +39,9 @@ func New(cfg Config) (Orchestrator, error) {
 	responseHandler := NewResponseHandler(&settings)
 	llmInvoker := NewLLMInvoker(&settings)
 	conv := newConversationLoop(&settings, toolExec, responseHandler, llmInvoker, memoryManager)
-	trace := cfgCopy.TelemetryRecorder
-	if trace == nil {
-		opts := telemetry.Options{
-			ProjectRoot: cfgCopy.ProjectRoot,
-		}
-		if cfgCopy.TelemetryOptions != nil {
-			opts = *cfgCopy.TelemetryOptions
-			opts.ProjectRoot = cfgCopy.ProjectRoot
-		}
-		recorder, err := telemetry.NewRecorder(&opts)
-		if err != nil {
-			return nil, err
-		}
-		trace = recorder
+	trace, err := ensureTelemetryRecorder(&cfgCopy)
+	if err != nil {
+		return nil, err
 	}
 	return &orchestrator{
 		cfg:      cfgCopy,
@@ -94,68 +59,186 @@ func (o *orchestrator) Execute(ctx context.Context, request Request) (_ *core.Ou
 	if err := validateRequest(ctx, request); err != nil {
 		return nil, err
 	}
-	caps, capErr := o.cfg.LLMFactory.Capabilities(request.Agent.Model.Config.Provider)
-	if capErr != nil {
-		return nil, capErr
+	if err := o.attachCapabilities(&request); err != nil {
+		return nil, err
+	}
+	recorder := o.resolveRecorder()
+	ctx, run, startErr := recorder.StartRun(ctx, o.runMetadata(&request))
+	if startErr != nil {
+		return nil, startErr
+	}
+	defer o.closeRun(ctx, recorder, run, &err)
+
+	memoryCtx, buildResult, client, cleanup, prepErr := o.prepareExecution(ctx, &request)
+	if prepErr != nil {
+		return nil, prepErr
+	}
+	defer cleanup(ctx)
+
+	request.Prompt.DynamicContext = buildResult.PromptContext
+	state := newLoopState(&o.settings, memoryCtx, request.Action)
+	output, response, runErr := o.loop.Run(
+		ctx,
+		client,
+		&buildResult.Request,
+		request,
+		state,
+		buildResult.PromptTemplate,
+	)
+	if runErr != nil {
+		return nil, runErr
+	}
+	o.persistResponse(ctx, memoryCtx, &buildResult, &request, response)
+	o.recordRunOutput(ctx, recorder, &buildResult, response)
+	return output, nil
+}
+
+func validateConfigDependencies(cfg *Config) error {
+	if cfg == nil {
+		return core.NewError(
+			fmt.Errorf("orchestrator config cannot be nil"),
+			ErrCodeInvalidConfig,
+			map[string]any{"field": "Config"},
+		)
+	}
+	switch {
+	case cfg.PromptBuilder == nil:
+		return missingDependencyError("PromptBuilder", "prompt builder")
+	case cfg.SystemPromptRenderer == nil:
+		return missingDependencyError("SystemPromptRenderer", "system prompt renderer")
+	case cfg.ToolRegistry == nil:
+		return missingDependencyError("ToolRegistry", "tool registry")
+	case cfg.LLMFactory == nil:
+		return missingDependencyError("LLMFactory", "llm factory")
+	default:
+		return nil
+	}
+}
+
+func missingDependencyError(field, name string) error {
+	return core.NewError(
+		fmt.Errorf("%s cannot be nil", name),
+		ErrCodeInvalidConfig,
+		map[string]any{"field": field},
+	)
+}
+
+func ensureTelemetryRecorder(cfg *Config) (telemetry.RunRecorder, error) {
+	if cfg.TelemetryRecorder != nil {
+		return cfg.TelemetryRecorder, nil
+	}
+	opts := telemetry.Options{ProjectRoot: cfg.ProjectRoot}
+	if cfg.TelemetryOptions != nil {
+		opts = *cfg.TelemetryOptions
+		opts.ProjectRoot = cfg.ProjectRoot
+	}
+	recorder, err := telemetry.NewRecorder(&opts)
+	if err != nil {
+		return nil, err
+	}
+	return recorder, nil
+}
+
+func (o *orchestrator) attachCapabilities(request *Request) error {
+	caps, err := o.cfg.LLMFactory.Capabilities(request.Agent.Model.Config.Provider)
+	if err != nil {
+		return err
 	}
 	request.Execution.ProviderCaps = caps
-	recorder := o.trace
-	if recorder == nil {
-		recorder = telemetry.NopRecorder()
+	return nil
+}
+
+func (o *orchestrator) resolveRecorder() telemetry.RunRecorder {
+	if o.trace != nil {
+		return o.trace
 	}
-	runMeta := telemetry.RunMetadata{
+	return telemetry.NopRecorder()
+}
+
+func (o *orchestrator) runMetadata(request *Request) telemetry.RunMetadata {
+	if request == nil {
+		return telemetry.RunMetadata{}
+	}
+	return telemetry.RunMetadata{
 		AgentID:     request.Agent.ID,
 		ActionID:    request.Action.ID,
 		WorkflowID:  "",
 		ExecutionID: "",
 	}
-	ctx, run, startErr := recorder.StartRun(ctx, runMeta)
-	if startErr != nil {
-		return nil, startErr
-	}
-	defer func() {
-		closeErr := recorder.CloseRun(ctx, run, telemetry.RunResult{
-			Success: err == nil,
-			Error:   err,
-		})
-		if closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
+}
 
-	memoryCtx := o.memory.Prepare(ctx, request)
-	buildResult, err := o.builder.Build(ctx, request, memoryCtx)
+func (o *orchestrator) closeRun(
+	ctx context.Context,
+	recorder telemetry.RunRecorder,
+	run *telemetry.Run,
+	runErr *error,
+) {
+	var resultErr error
+	if runErr != nil {
+		resultErr = *runErr
+	}
+	closeErr := recorder.CloseRun(ctx, run, telemetry.RunResult{
+		Success: resultErr == nil,
+		Error:   resultErr,
+	})
+	if closeErr != nil && runErr != nil && *runErr == nil {
+		*runErr = closeErr
+	}
+}
+
+func (o *orchestrator) prepareExecution(
+	ctx context.Context,
+	request *Request,
+) (*MemoryContext, RequestBuildOutput, llmadapter.LLMClient, func(context.Context), error) {
+	if request == nil {
+		return nil, RequestBuildOutput{}, nil, func(context.Context) {}, fmt.Errorf("request cannot be nil")
+	}
+	memoryCtx := o.memory.Prepare(ctx, *request)
+	buildResult, err := o.builder.Build(ctx, *request, memoryCtx)
 	if err != nil {
-		return nil, err
+		return nil, RequestBuildOutput{}, nil, func(context.Context) {}, err
 	}
-	client, err := o.client.Create(ctx, request, o.cfg.LLMFactory)
+	client, err := o.client.Create(ctx, *request, o.cfg.LLMFactory)
 	if err != nil {
-		return nil, err
+		return nil, RequestBuildOutput{}, nil, func(context.Context) {}, err
 	}
-	defer o.client.Close(ctx, client)
-	state := newLoopState(&o.settings, memoryCtx, request.Action)
-	request.Prompt.DynamicContext = buildResult.PromptContext
-	output, response, err := o.loop.Run(ctx, client, &buildResult.Request, request, state, buildResult.PromptTemplate)
-	if err != nil {
-		return nil, err
+	cleanup := func(closeCtx context.Context) { o.client.Close(closeCtx, client) }
+	return memoryCtx, buildResult, client, cleanup, nil
+}
+
+func (o *orchestrator) persistResponse(
+	ctx context.Context,
+	memoryCtx *MemoryContext,
+	buildResult *RequestBuildOutput,
+	request *Request,
+	response *llmadapter.LLMResponse,
+) {
+	if o.loop.memory != nil || buildResult == nil || request == nil {
+		return
 	}
-	if o.loop.memory == nil {
-		o.memory.StoreAsync(ctx, memoryCtx, response, buildResult.Request.Messages, request)
+	o.memory.StoreAsync(ctx, memoryCtx, response, buildResult.Request.Messages, *request)
+}
+
+func (o *orchestrator) recordRunOutput(
+	ctx context.Context,
+	recorder telemetry.RunRecorder,
+	buildResult *RequestBuildOutput,
+	response *llmadapter.LLMResponse,
+) {
+	if response == nil || buildResult == nil {
+		return
 	}
-	if response != nil {
-		telemetryPayload := map[string]any{
-			"final_messages": len(buildResult.Request.Messages),
-		}
-		if telemetry.CaptureContentEnabled(ctx) {
-			telemetryPayload["final_response"] = response.Content
-		}
-		recorder.RecordEvent(ctx, &telemetry.Event{
-			Stage:    "run_output_ready",
-			Severity: telemetry.SeverityInfo,
-			Payload:  telemetryPayload,
-		})
+	payload := map[string]any{
+		"final_messages": len(buildResult.Request.Messages),
 	}
-	return output, nil
+	if telemetry.CaptureContentEnabled(ctx) {
+		payload["final_response"] = response.Content
+	}
+	recorder.RecordEvent(ctx, &telemetry.Event{
+		Stage:    "run_output_ready",
+		Severity: telemetry.SeverityInfo,
+		Payload:  payload,
+	})
 }
 
 func (o *orchestrator) Close() error {

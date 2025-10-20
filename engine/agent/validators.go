@@ -29,9 +29,9 @@ func (v *ActionsValidator) Validate(ctx context.Context) error {
 	if v.actions == nil {
 		return nil
 	}
-	for _, action := range v.actions {
+	for i, action := range v.actions {
 		if action == nil {
-			continue
+			return fmt.Errorf("action at index %d is nil", i)
 		}
 		if err := action.Validate(ctx); err != nil {
 			return err

@@ -67,6 +67,45 @@ func NewActivities(
 	toolEnv toolenv.Environment,
 ) (*Activities, error) {
 	log := logger.FromContext(ctx)
+	logWorkflowInitialization(log, workflows)
+	celEvaluator, err := newCELEvaluator()
+	if err != nil {
+		return nil, err
+	}
+	task2Factory, err := buildTaskFactory(ctx, templateEngine, workflowRepo, taskRepo)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateToolEnvironment(toolEnv); err != nil {
+		return nil, fmt.Errorf("activities: %w", err)
+	}
+	recorder := ensureProviderRecorder(providerMetrics)
+	acts := newActivitiesInstance(
+		projectConfig,
+		workflows,
+		workflowRepo,
+		taskRepo,
+		usageMetrics,
+		recorder,
+		runtime,
+		configStore,
+		signalDispatcher,
+		redisCache,
+		celEvaluator,
+		memoryManager,
+		templateEngine,
+		task2Factory,
+		toolEnv,
+		config.ManagerFromContext(ctx),
+	)
+	if err := acts.initCacheAdapters(redisCache); err != nil {
+		return nil, err
+	}
+	return acts, nil
+}
+
+// logWorkflowInitialization records workflow identifiers for diagnostics.
+func logWorkflowInitialization(log logger.Logger, workflows []*workflow.Config) {
 	ids := make([]string, 0, len(workflows))
 	for _, wf := range workflows {
 		if wf != nil {
@@ -78,17 +117,26 @@ func NewActivities(
 		ids = ids[:maxIDs]
 	}
 	log.Debug("Initializing activities", "workflow_count", len(workflows), "workflow_ids", ids)
-	// Create CEL evaluator once for reuse across all activity executions
-	celEvaluator, err := task.NewCELEvaluator()
+}
+
+// newCELEvaluator builds a reusable CEL evaluator for task activities.
+func newCELEvaluator() (*task.CELEvaluator, error) {
+	evaluator, err := task.NewCELEvaluator()
 	if err != nil {
 		return nil, fmt.Errorf("activities: create CEL evaluator: %w", err)
 	}
-	// Create memory activities instance
-	// Note: MemoryActivities will use logger.FromContext(ctx) internally for logging
-	memoryActivities := memacts.NewMemoryActivities(memoryManager)
-	// Create task2 factory
+	return evaluator, nil
+}
+
+// buildTaskFactory constructs the task2 factory with shared dependencies.
+func buildTaskFactory(
+	ctx context.Context,
+	templateEngine *tplengine.TemplateEngine,
+	workflowRepo workflow.Repository,
+	taskRepo task.Repository,
+) (task2.Factory, error) {
 	envMerger := core.NewEnvMerger()
-	task2Factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
+	factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
 		TemplateEngine: templateEngine,
 		EnvMerger:      envMerger,
 		WorkflowRepo:   workflowRepo,
@@ -97,42 +145,69 @@ func NewActivities(
 	if err != nil {
 		return nil, fmt.Errorf("activities: create task2 factory: %w", err)
 	}
-	if toolEnv == nil {
-		return nil, fmt.Errorf("activities: tool environment is required")
-	}
-	if providerMetrics == nil {
-		providerMetrics = providermetrics.Nop()
-	}
+	return factory, nil
+}
 
-	acts := &Activities{
+// ensureProviderRecorder guarantees a non-nil provider metrics recorder.
+func ensureProviderRecorder(recorder providermetrics.Recorder) providermetrics.Recorder {
+	if recorder != nil {
+		return recorder
+	}
+	return providermetrics.Nop()
+}
+
+// initCacheAdapters prepares cache adapters when Redis is configured.
+func (a *Activities) initCacheAdapters(redisCache *cache.Cache) error {
+	if redisCache == nil || redisCache.Redis == nil {
+		return nil
+	}
+	adapter, err := cache.NewRedisAdapter(redisCache.Redis)
+	if err != nil {
+		return fmt.Errorf("activities: create redis cache adapter: %w", err)
+	}
+	a.cacheKV = adapter
+	a.cacheKeys = adapter
+	return nil
+}
+
+// newActivitiesInstance composes the Activities struct with shared dependencies.
+func newActivitiesInstance(
+	projectConfig *project.Config,
+	workflows []*workflow.Config,
+	workflowRepo workflow.Repository,
+	taskRepo task.Repository,
+	usageMetrics usage.Metrics,
+	recorder providermetrics.Recorder,
+	runtime runtime.Runtime,
+	configStore services.ConfigStore,
+	signalDispatcher services.SignalDispatcher,
+	redisCache *cache.Cache,
+	celEvaluator *task.CELEvaluator,
+	memoryManager *memory.Manager,
+	templateEngine *tplengine.TemplateEngine,
+	task2Factory task2.Factory,
+	toolEnv toolenv.Environment,
+	cfgManager *config.Manager,
+) *Activities {
+	return &Activities{
 		projectConfig:    projectConfig,
 		workflows:        workflows,
 		workflowRepo:     workflowRepo,
 		taskRepo:         taskRepo,
 		usageMetrics:     usageMetrics,
-		providerMetrics:  providerMetrics,
+		providerMetrics:  recorder,
 		runtime:          runtime,
 		configStore:      configStore,
 		signalDispatcher: signalDispatcher,
 		redisCache:       redisCache,
 		celEvaluator:     celEvaluator,
 		memoryManager:    memoryManager,
-		memoryActivities: memoryActivities,
+		memoryActivities: memacts.NewMemoryActivities(memoryManager),
 		templateEngine:   templateEngine,
 		task2Factory:     task2Factory,
 		toolEnvironment:  toolEnv,
-		cfgManager:       config.ManagerFromContext(ctx),
+		cfgManager:       cfgManager,
 	}
-	// Initialize cache adapter contracts once if Redis is available
-	if redisCache != nil && redisCache.Redis != nil {
-		ad, err := cache.NewRedisAdapter(redisCache.Redis)
-		if err != nil {
-			return nil, fmt.Errorf("activities: create redis cache adapter: %w", err)
-		}
-		acts.cacheKV = ad
-		acts.cacheKeys = ad
-	}
-	return acts, nil
 }
 
 // withActivityLogger ensures a request-scoped logger is present in the activity context

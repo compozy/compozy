@@ -20,6 +20,13 @@ func TestMetricName(t *testing.T) {
 			expected: "compozy_custom_metric",
 		},
 		{name: "Should return prefix when input is blank", input: "", expected: "compozy_"},
+		{name: "Should sanitize special characters", input: "requests.total", expected: "compozy_requests_total"},
+		{name: "Should normalize case", input: "RequestsTotal", expected: "compozy_requeststotal"},
+		{
+			name:     "Should handle multiple special chars",
+			input:    "api/v1:requests-total",
+			expected: "compozy_api_v1_requests_total",
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -62,6 +69,24 @@ func TestMetricNameWithSubsystem(t *testing.T) {
 			subsystem:  "",
 			metricName: "compozy_existing_metric",
 			expected:   "compozy_existing_metric",
+		},
+		{
+			name:       "Should normalize subsystem with spaces",
+			subsystem:  "api gateway",
+			metricName: "requests",
+			expected:   "compozy_api_gateway_requests",
+		},
+		{
+			name:       "Should normalize mixed case subsystem",
+			subsystem:  "AuthService",
+			metricName: "logins",
+			expected:   "compozy_authservice_logins",
+		},
+		{
+			name:       "Should normalize subsystem and metric special chars",
+			subsystem:  " API Gateway ",
+			metricName: "requests.total",
+			expected:   "compozy_api_gateway_requests_total",
 		},
 	}
 	for _, tt := range tests {

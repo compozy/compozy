@@ -73,21 +73,34 @@ func ListFilesDefinition() builtin.BuiltinDefinition {
 func listFilesHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
 	start := time.Now()
 	var success bool
-	defer func() {
-		status := builtin.StatusFailure
-		if success {
-			status = builtin.StatusSuccess
-		}
-		builtin.RecordInvocation(
-			ctx,
-			"cp__list_files",
-			builtin.RequestIDFromContext(ctx),
-			status,
-			time.Since(start),
-			0,
-			"",
-		)
-	}()
+	defer recordListFilesInvocation(ctx, start, &success)
+	output, err := performListFiles(ctx, payload)
+	if err != nil {
+		return nil, err
+	}
+	success = true
+	return output, nil
+}
+
+// recordListFilesInvocation captures execution metrics for cp__list_files
+func recordListFilesInvocation(ctx context.Context, start time.Time, success *bool) {
+	status := builtin.StatusFailure
+	if success != nil && *success {
+		status = builtin.StatusSuccess
+	}
+	builtin.RecordInvocation(
+		ctx,
+		"cp__list_files",
+		builtin.RequestIDFromContext(ctx),
+		status,
+		time.Since(start),
+		0,
+		"",
+	)
+}
+
+// performListFiles handles decoding, validation, traversal, and logging
+func performListFiles(ctx context.Context, payload map[string]any) (core.Output, error) {
 	cfg, err := loadToolConfig(ctx)
 	if err != nil {
 		return nil, err
@@ -96,22 +109,12 @@ func listFilesHandler(ctx context.Context, payload map[string]any) (core.Output,
 	if err != nil {
 		return nil, builtin.InvalidArgument(err, nil)
 	}
-	if strings.TrimSpace(args.Dir) == "" {
-		return nil, builtin.InvalidArgument(errors.New("dir must be provided"), map[string]any{"field": "dir"})
-	}
-	resolvedPath, rootUsed, err := resolvePath(cfg, args.Dir)
-	if err != nil {
+	if err := validateListFilesArgs(args); err != nil {
 		return nil, err
 	}
-	info, err := os.Lstat(resolvedPath)
+	resolvedPath, rootUsed, err := resolveListFilesTarget(cfg, args.Dir)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, builtin.FileNotFound(err, map[string]any{"dir": args.Dir})
-		}
-		return nil, builtin.Internal(fmt.Errorf("failed to stat directory: %w", err), map[string]any{"dir": args.Dir})
-	}
-	if !info.IsDir() {
-		return nil, builtin.InvalidArgument(errors.New("path is not a directory"), map[string]any{"dir": args.Dir})
+		return nil, err
 	}
 	patterns, err := normalizeExcludePatterns(args.Exclude)
 	if err != nil {
@@ -123,8 +126,43 @@ func listFilesHandler(ctx context.Context, payload map[string]any) (core.Output,
 		return nil, err
 	}
 	logListFiles(ctx, relativePath(rootUsed, resolvedPath), len(files))
-	success = true
 	return core.Output{"files": files}, nil
+}
+
+// validateListFilesArgs ensures mandatory fields are populated
+func validateListFilesArgs(args ListFilesArgs) error {
+	if strings.TrimSpace(args.Dir) == "" {
+		return builtin.InvalidArgument(
+			errors.New("dir must be provided"),
+			map[string]any{"field": "dir"},
+		)
+	}
+	return nil
+}
+
+// resolveListFilesTarget validates that the requested directory exists
+func resolveListFilesTarget(cfg toolConfig, dir string) (string, string, error) {
+	resolvedPath, rootUsed, err := resolvePath(cfg, dir)
+	if err != nil {
+		return "", "", err
+	}
+	info, err := os.Lstat(resolvedPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", "", builtin.FileNotFound(err, map[string]any{"dir": dir})
+		}
+		return "", "", builtin.Internal(
+			fmt.Errorf("failed to stat directory: %w", err),
+			map[string]any{"dir": dir},
+		)
+	}
+	if !info.IsDir() {
+		return "", "", builtin.InvalidArgument(
+			errors.New("path is not a directory"),
+			map[string]any{"dir": dir},
+		)
+	}
+	return resolvedPath, rootUsed, nil
 }
 
 // collectFiles performs breadth-first traversal and returns relative file paths.

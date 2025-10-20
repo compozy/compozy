@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -90,39 +91,22 @@ func adminReloadHandler(c *gin.Context, server *Server) {
 	if st == nil {
 		return
 	}
-	desiredMode := resolveSourceMode(strings.TrimSpace(strings.ToLower(c.Query("source"))))
-	if desiredMode == "" {
-		router.RespondWithError(
-			c,
-			http.StatusBadRequest,
-			router.NewRequestError(http.StatusBadRequest, "invalid source parameter", nil),
-		)
+	desiredMode, ok := parseReloadSource(c)
+	if !ok {
 		return
 	}
 	opCtx, err := buildOpContext(ctx, desiredMode)
 	if err != nil {
-		router.RespondWithServerError(c, router.ErrInternalCode, "failed to prepare operation configuration", err)
+		respondReloadServerError(c, newReloadError("failed to prepare operation configuration", err))
 		return
 	}
-	cwd, file, ok := extractProjectPaths(st)
-	if !ok {
-		router.RespondWithServerError(c, router.ErrInternalCode, "project configuration not available", nil)
-		return
-	}
-	store, ok := getResourceStoreFromState(st)
-	if !ok {
-		router.RespondWithServerError(c, router.ErrInternalCode, "resource store not available", nil)
-		return
-	}
-	svc := csvc.NewService(server.envFilePath, store)
-	_, compiled, _, err := svc.LoadProject(opCtx, cwd, file)
+	compiled, err := server.loadAndReplaceWorkflows(opCtx, st)
 	if err != nil {
-		router.RespondWithServerError(c, router.ErrInternalCode, "reload failed", err)
+		respondReloadServerError(c, err)
 		return
 	}
-	st.ReplaceWorkflows(compiled)
 	if err := reconcileIfPresent(ctx, st, compiled); err != nil {
-		router.RespondWithServerError(c, router.ErrInternalCode, "schedule reconciliation failed", err)
+		respondReloadServerError(c, newReloadError("schedule reconciliation failed", err))
 		return
 	}
 	duration := time.Since(start)
@@ -133,6 +117,76 @@ func adminReloadHandler(c *gin.Context, server *Server) {
 	}
 	log.Info("admin reload completed", "source", desiredMode, "count", len(compiled), "duration", duration)
 	router.RespondOK(c, "reload completed", payload)
+}
+
+// parseReloadSource resolves the desired reload mode and handles validation errors.
+func parseReloadSource(c *gin.Context) (string, bool) {
+	desiredMode := resolveSourceMode(strings.TrimSpace(strings.ToLower(c.Query("source"))))
+	if desiredMode != "" {
+		return desiredMode, true
+	}
+	router.RespondWithError(
+		c,
+		http.StatusBadRequest,
+		router.NewRequestError(http.StatusBadRequest, "invalid source parameter", nil),
+	)
+	return "", false
+}
+
+// respondReloadServerError sends a standardized server error response for admin reload failures.
+func respondReloadServerError(c *gin.Context, err error) {
+	var detail *reloadError
+	if errors.As(err, &detail) {
+		router.RespondWithServerError(c, router.ErrInternalCode, detail.message, detail.cause)
+		return
+	}
+	router.RespondWithServerError(c, router.ErrInternalCode, "reload failed", err)
+}
+
+// loadAndReplaceWorkflows reloads project workflows and updates the application state.
+func (s *Server) loadAndReplaceWorkflows(
+	opCtx context.Context,
+	st *appstate.State,
+) ([]*workflow.Config, error) {
+	cwd, file, ok := extractProjectPaths(st)
+	if !ok {
+		return nil, newReloadError("project configuration not available", nil)
+	}
+	store, ok := getResourceStoreFromState(st)
+	if !ok {
+		return nil, newReloadError("resource store not available", nil)
+	}
+	svc := csvc.NewService(s.envFilePath, store)
+	_, compiled, _, err := svc.LoadProject(opCtx, cwd, file)
+	if err != nil {
+		return nil, newReloadError("reload failed", err)
+	}
+	st.ReplaceWorkflows(compiled)
+	return compiled, nil
+}
+
+// reloadError normalizes admin reload failures with a user-facing message and optional cause.
+type reloadError struct {
+	message string
+	cause   error
+}
+
+// Error implements the error interface.
+func (r *reloadError) Error() string {
+	if r.cause == nil {
+		return r.message
+	}
+	return fmt.Sprintf("%s: %v", r.message, r.cause)
+}
+
+// Unwrap returns the underlying cause.
+func (r *reloadError) Unwrap() error {
+	return r.cause
+}
+
+// newReloadError builds a reloadError with the provided message and cause.
+func newReloadError(message string, cause error) error {
+	return &reloadError{message: message, cause: cause}
 }
 
 func resolveSourceMode(param string) string {

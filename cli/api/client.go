@@ -121,40 +121,19 @@ func (c *client) doRequest(
 ) (*http.Response, error) {
 	log := logger.FromContext(ctx)
 	url := c.baseURL + path
-	maxRetries := 3
+	const maxRetries = 3
 	backoff := 100 * time.Millisecond
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			log.Debug("Retrying request", "attempt", attempt, "backoff", backoff)
-			timer := time.NewTimer(backoff)
-			select {
-			case <-timer.C:
-				backoff *= 2 // Exponential backoff
-			case <-ctx.Done():
-				timer.Stop()
-				return nil, ctx.Err()
+			if err := waitForBackoff(ctx, backoff); err != nil {
+				return nil, err
 			}
+			backoff *= 2
 		}
 
-		// Create a fresh body reader for each attempt to avoid issues with consumed streams
-		bodyReader, err := c.prepareRequestBody(body)
-		if err != nil {
-			return nil, err
-		}
-
-		req, err := c.createRequest(ctx, method, url, bodyReader)
-		if err != nil {
-			return nil, err
-		}
-		for k, v := range headers {
-			if strings.TrimSpace(k) == "" || strings.TrimSpace(v) == "" {
-				continue
-			}
-			req.Header.Set(k, v)
-		}
-
-		resp, err := c.httpClient.Do(req)
+		resp, err := c.executeRequestAttempt(ctx, method, url, body, headers)
 		if err != nil {
 			if attempt == maxRetries {
 				return nil, fmt.Errorf("request failed after %d attempts: %w", maxRetries+1, err)
@@ -163,9 +142,7 @@ func (c *client) doRequest(
 		}
 
 		if c.shouldRetry(resp, attempt, maxRetries) {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				log.Debug("Failed to close response body", "error", closeErr)
-			}
+			closeResponseBody(log, resp.Body)
 			if attempt == maxRetries {
 				return nil, fmt.Errorf("server error (status %d) after %d attempts", resp.StatusCode, maxRetries+1)
 			}
@@ -176,6 +153,53 @@ func (c *client) doRequest(
 	}
 
 	return nil, fmt.Errorf("request failed after all retry attempts")
+}
+
+func (c *client) executeRequestAttempt(
+	ctx context.Context,
+	method, url string,
+	body any,
+	headers map[string]string,
+) (*http.Response, error) {
+	bodyReader, err := c.prepareRequestBody(body)
+	if err != nil {
+		return nil, err
+	}
+	req, err := c.createRequest(ctx, method, url, bodyReader)
+	if err != nil {
+		return nil, err
+	}
+	applyRequestHeaders(req, headers)
+	return c.httpClient.Do(req)
+}
+
+func applyRequestHeaders(req *http.Request, headers map[string]string) {
+	for key, value := range headers {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		req.Header.Set(key, value)
+	}
+}
+
+func waitForBackoff(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func closeResponseBody(log logger.Logger, body io.ReadCloser) {
+	if body == nil {
+		return
+	}
+	if err := body.Close(); err != nil {
+		log.Debug("Failed to close response body", "error", err)
+	}
 }
 
 // parseResponse parses the API response

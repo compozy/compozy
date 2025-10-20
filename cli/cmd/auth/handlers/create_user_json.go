@@ -13,62 +13,80 @@ import (
 )
 
 // CreateUserJSON handles user creation in JSON mode using the unified executor pattern
+
 func CreateUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 	log := logger.FromContext(ctx)
-
-	// Parse flags
-	email, err := cobraCmd.Flags().GetString("email")
+	options, err := parseCreateUserFlags(cobraCmd)
 	if err != nil {
-		return fmt.Errorf("failed to get email flag: %w", err)
+		return err
 	}
-	name, err := cobraCmd.Flags().GetString("name")
-	if err != nil {
-		return fmt.Errorf("failed to get name flag: %w", err)
-	}
-	role, err := cobraCmd.Flags().GetString("role")
-	if err != nil {
-		return fmt.Errorf("failed to get role flag: %w", err)
-	}
-
-	// Validate role
-	if role != api.RoleAdmin && role != api.RoleUser {
-		return outputJSONError(fmt.Sprintf("invalid role: must be '%s' or '%s'", api.RoleAdmin, api.RoleUser))
+	if err := validateCreateUserRole(options.role); err != nil {
+		return outputJSONError(err.Error())
 	}
 
 	log.Debug("creating user in JSON mode",
-		"email", email,
-		"name", name,
-		"role", role)
+		"email", options.email,
+		"name", options.name,
+		"role", options.role)
 
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return outputJSONError("auth client not available")
 	}
 
-	// Create the user
-	req := api.CreateUserRequest{
-		Email: email,
-		Name:  name,
-		Role:  role,
-	}
-
-	user, err := authClient.CreateUser(ctx, req)
+	user, err := authClient.CreateUser(ctx, api.CreateUserRequest{
+		Email: options.email,
+		Name:  options.name,
+		Role:  options.role,
+	})
 	if err != nil {
 		return outputJSONError(fmt.Sprintf("failed to create user: %v", err))
 	}
 
-	// Prepare response
-	response := map[string]any{
+	return writeJSONResponse(map[string]any{
 		"data":    user,
 		"message": "Success",
-	}
+	})
+}
 
-	// Output JSON
+type createUserOptions struct {
+	email string
+	name  string
+	role  string
+}
+
+func parseCreateUserFlags(cobraCmd *cobra.Command) (*createUserOptions, error) {
+	email, err := cobraCmd.Flags().GetString("email")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get email flag: %w", err)
+	}
+	name, err := cobraCmd.Flags().GetString("name")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get name flag: %w", err)
+	}
+	role, err := cobraCmd.Flags().GetString("role")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get role flag: %w", err)
+	}
+	return &createUserOptions{
+		email: email,
+		name:  name,
+		role:  role,
+	}, nil
+}
+
+func validateCreateUserRole(role string) error {
+	if role == api.RoleAdmin || role == api.RoleUser {
+		return nil
+	}
+	return fmt.Errorf("invalid role: must be '%s' or '%s'", api.RoleAdmin, api.RoleUser)
+}
+
+func writeJSONResponse(payload map[string]any) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(response); err != nil {
+	if err := encoder.Encode(payload); err != nil {
 		return fmt.Errorf("failed to encode JSON response: %w", err)
 	}
-
 	return nil
 }

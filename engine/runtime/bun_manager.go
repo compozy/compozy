@@ -177,7 +177,7 @@ func (bm *BunManager) ExecuteTool(
 
 // ExecuteToolWithTimeout runs a tool with a custom timeout
 //
-//nolint:funlen // legacy implementation with detailed error handling; refactor separately
+
 func (bm *BunManager) ExecuteToolWithTimeout(
 	ctx context.Context,
 	toolID string,
@@ -187,45 +187,86 @@ func (bm *BunManager) ExecuteToolWithTimeout(
 	env core.EnvMap,
 	timeout time.Duration,
 ) (_ *core.Output, err error) {
-	log := logger.FromContext(ctx)
-	start := time.Now()
+	defer bm.recordExecutionOutcome(ctx, toolID, time.Now(), &err)
 
-	defer func() {
-		outcome := outcomeSuccess
-		if err != nil {
-			switch {
-			case errors.Is(err, context.DeadlineExceeded):
-				outcome = outcomeTimeout
-				recordToolTimeout(ctx, toolID)
-				recordToolError(ctx, toolID, errorKindTimeout)
-			default:
-				outcome = outcomeError
-				if kind, ok := extractToolErrorKind(err); ok {
-					recordToolError(ctx, toolID, kind)
-				} else {
-					recordToolError(ctx, toolID, errorKindUnknown)
-				}
-			}
-		}
-		recordToolExecution(ctx, toolID, time.Since(start), outcome)
-	}()
-
-	// Validate inputs
 	if validationErr := bm.validateInputs(toolID, toolExecID, input, env); validationErr != nil {
-		err = &ToolExecutionError{
-			ToolID:     toolID,
-			ToolExecID: toolExecID.String(),
-			Operation:  "validate inputs",
-			Err:        wrapToolError(validationErr, errorKindStart),
-		}
-		return nil, err
+		return nil, bm.toolExecutionError(
+			toolID,
+			toolExecID,
+			"validate inputs",
+			wrapToolError(validationErr, errorKindStart),
+		)
 	}
 
-	// Create execution context with timeout
 	execCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Prepare request data
+	requestData, err := bm.marshalExecutionRequest(toolID, toolExecID, input, config, env, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	response, execErr := bm.executeBunWorker(execCtx, toolID, requestData, env)
+	if execErr != nil {
+		return nil, bm.toolExecutionError(toolID, toolExecID, "execute", execErr)
+	}
+
+	logger.FromContext(ctx).Debug("Tool executed successfully",
+		"tool_id", toolID,
+		"tool_exec_id", toolExecID,
+		"timeout", timeout,
+	)
+	return response, nil
+}
+
+func (bm *BunManager) recordExecutionOutcome(
+	ctx context.Context,
+	toolID string,
+	start time.Time,
+	execErr *error,
+) {
+	outcome := outcomeSuccess
+	if execErr != nil && *execErr != nil {
+		err := *execErr
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			outcome = outcomeTimeout
+			recordToolTimeout(ctx, toolID)
+			recordToolError(ctx, toolID, errorKindTimeout)
+		default:
+			outcome = outcomeError
+			if kind, ok := extractToolErrorKind(err); ok {
+				recordToolError(ctx, toolID, kind)
+			} else {
+				recordToolError(ctx, toolID, errorKindUnknown)
+			}
+		}
+	}
+	recordToolExecution(ctx, toolID, time.Since(start), outcome)
+}
+
+func (bm *BunManager) toolExecutionError(
+	toolID string,
+	toolExecID core.ID,
+	operation string,
+	inner error,
+) error {
+	return &ToolExecutionError{
+		ToolID:     toolID,
+		ToolExecID: toolExecID.String(),
+		Operation:  operation,
+		Err:        inner,
+	}
+}
+
+func (bm *BunManager) marshalExecutionRequest(
+	toolID string,
+	toolExecID core.ID,
+	input *core.Input,
+	config *core.Input,
+	env core.EnvMap,
+	timeout time.Duration,
+) ([]byte, error) {
 	request := ToolExecuteParams{
 		ToolID:     toolID,
 		ToolExecID: toolExecID.String(),
@@ -235,36 +276,11 @@ func (bm *BunManager) ExecuteToolWithTimeout(
 		TimeoutMs:  int64(timeout / time.Millisecond),
 	}
 
-	requestData, err := json.Marshal(request)
+	data, err := json.Marshal(request)
 	if err != nil {
-		err = &ToolExecutionError{
-			ToolID:     toolID,
-			ToolExecID: toolExecID.String(),
-			Operation:  "marshal request",
-			Err:        wrapToolError(err, errorKindStart),
-		}
-		return nil, err
+		return nil, bm.toolExecutionError(toolID, toolExecID, "marshal request", wrapToolError(err, errorKindStart))
 	}
-
-	// Execute tool
-	var response *core.Output
-	response, err = bm.executeBunWorker(execCtx, toolID, requestData, env)
-	if err != nil {
-		err = &ToolExecutionError{
-			ToolID:     toolID,
-			ToolExecID: toolExecID.String(),
-			Operation:  "execute",
-			Err:        err,
-		}
-		return nil, err
-	}
-
-	log.Debug("Tool executed successfully",
-		"tool_id", toolID,
-		"tool_exec_id", toolExecID,
-		"timeout", timeout,
-	)
-	return response, nil
+	return data, nil
 }
 
 // GetGlobalTimeout returns the global tool execution timeout
@@ -459,62 +475,91 @@ func (bm *BunManager) readStderrInBackground(
 	toolID string,
 	stderr io.ReadCloser,
 ) (*bytes.Buffer, *sync.WaitGroup) {
-	var stderrBuf bytes.Buffer
-	maxCapture := bm.config.MaxStderrCaptureSize
-	if maxCapture == 0 {
-		maxCapture = MaxStderrCaptureSize
-	}
-	prealloc := maxCapture
-	if prealloc == 0 || prealloc > 64*1024 {
-		prealloc = 64 * 1024
-	}
-	stderrBuf.Grow(prealloc)
+	limit := bm.maxStderrCapture()
+	buf := &bytes.Buffer{}
+	buf.Grow(initialStderrCapacity(limit))
+
 	var stderrWg sync.WaitGroup
 	stderrWg.Add(1)
 	go func() {
 		defer stderrWg.Done()
-		log := logger.FromContext(ctx)
-		bufferSize := 64 * 1024
-		if maxCapture > bufferSize {
-			bufferSize = maxCapture
-		}
-		if bufferSize < 4096 {
-			bufferSize = 4096
-		}
-		scanner := bufio.NewScanner(stderr)
-		scanner.Buffer(make([]byte, 0, bufferSize), bufferSize)
-		captured := 0
-		for scanner.Scan() {
-			line := strings.TrimRight(scanner.Text(), "\r\n")
-			if line == "" {
-				continue
-			}
-			log.Debug("Bun worker stderr", "output", core.RedactString(line))
-			if captured < maxCapture {
-				remaining := maxCapture - captured
-				if remaining <= 0 {
-					continue
-				}
-				writeLen := len(line)
-				if writeLen > remaining {
-					writeLen = remaining
-				}
-				if writeLen > 0 {
-					stderrBuf.WriteString(line[:writeLen])
-					captured += writeLen
-				}
-				if captured < maxCapture {
-					stderrBuf.WriteByte('\n')
-					captured++
-				}
-			}
-		}
-		if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) {
-			log.Warn("stderr read error", "error", err)
-			recordToolError(ctx, toolID, errorKindStderr)
-		}
+		bm.captureStderr(ctx, toolID, stderr, buf, limit)
 	}()
-	return &stderrBuf, &stderrWg
+	return buf, &stderrWg
+}
+
+func (bm *BunManager) maxStderrCapture() int {
+	if bm.config.MaxStderrCaptureSize == 0 {
+		return MaxStderrCaptureSize
+	}
+	return bm.config.MaxStderrCaptureSize
+}
+
+func initialStderrCapacity(limit int) int {
+	if limit == 0 || limit > 64*1024 {
+		return 64 * 1024
+	}
+	return limit
+}
+
+func (bm *BunManager) captureStderr(
+	ctx context.Context,
+	toolID string,
+	stderr io.ReadCloser,
+	buf *bytes.Buffer,
+	limit int,
+) {
+	log := logger.FromContext(ctx)
+	scanner := bufio.NewScanner(stderr)
+	bufferSize := determineStderrBuffer(limit)
+	scanner.Buffer(make([]byte, 0, bufferSize), bufferSize)
+
+	captured := 0
+	for scanner.Scan() {
+		line := strings.TrimRight(scanner.Text(), "\r\n")
+		if line == "" {
+			continue
+		}
+		log.Debug("Bun worker stderr", "output", core.RedactString(line))
+		appendCapturedLine(buf, line, &captured, limit)
+	}
+	if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) {
+		log.Warn("stderr read error", "error", err)
+		recordToolError(ctx, toolID, errorKindStderr)
+	}
+}
+
+func determineStderrBuffer(limit int) int {
+	bufferSize := 64 * 1024
+	if limit > bufferSize {
+		bufferSize = limit
+	}
+	if bufferSize < 4096 {
+		bufferSize = 4096
+	}
+	return bufferSize
+}
+
+func appendCapturedLine(buf *bytes.Buffer, line string, captured *int, limit int) {
+	if limit <= 0 {
+		return
+	}
+	remaining := limit - *captured
+	if remaining <= 0 {
+		return
+	}
+	writeLen := len(line)
+	if writeLen > remaining {
+		writeLen = remaining
+	}
+	if writeLen > 0 {
+		buf.WriteString(line[:writeLen])
+		*captured += writeLen
+	}
+	if *captured < limit {
+		buf.WriteByte('\n')
+		*captured++
+	}
 }
 
 // readStdoutResponse reads the response from stdout with size limiting
@@ -566,63 +611,79 @@ func (bm *BunManager) waitForProcessCompletion(
 	stderrWg *sync.WaitGroup,
 	stderrBuf *bytes.Buffer,
 ) error {
-	// Check for context cancellation first
-	if ctx.Err() != nil {
-		return wrapToolError(fmt.Errorf("bun process canceled: %w", ctx.Err()), errorKindTimeout)
+	if err := ctx.Err(); err != nil {
+		return wrapToolError(fmt.Errorf("bun process canceled: %w", err), errorKindTimeout)
 	}
 
-	// Wait for process to complete
 	waitErr := cmd.Wait()
-
-	// Wait for stderr goroutine to finish before accessing stderrBuf
 	stderrWg.Wait()
-
 	if waitErr != nil {
-		// Try to enrich error with exit status
-		exitCode := -1 // Default to -1 for unknown exit status
-		statusKind := processStatusExit
-		signalName := ""
-		if exitErr, ok := waitErr.(*exec.ExitError); ok {
-			// Extract status info
-			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-				exitCode = status.ExitStatus()
-				if status.Signaled() {
-					sig := status.Signal()
-					statusKind = processStatusSignal
-					signalName = sig.String()
-
-					baseMessage := fmt.Sprintf("bun process for tool %s failed (signal: %s)", toolID, signalName)
-					if sig == syscall.SIGKILL {
-						baseMessage += " - possible OOM or external kill"
-					}
-					if stderrOutput := stderrBuf.String(); stderrOutput != "" {
-						baseMessage = fmt.Sprintf("%s\nstderr (truncated):\n%s", baseMessage, stderrOutput)
-					}
-
-					recordProcessExit(ctx, statusKind, exitCode, signalName)
-					return wrapToolError(fmt.Errorf("%s: %w", baseMessage, waitErr), errorKindWait)
-				}
-			}
-		}
-		recordProcessExit(ctx, statusKind, exitCode, signalName)
-		// Include stderr output in error for debugging
-		if stderrOutput := stderrBuf.String(); stderrOutput != "" {
-			return wrapToolError(fmt.Errorf(
-				"bun process for tool %s failed (exit %d): %w\nstderr (truncated): %s",
-				toolID,
-				exitCode,
-				waitErr,
-				stderrOutput,
-			), errorKindWait)
-		}
-		return wrapToolError(
-			fmt.Errorf("bun process for tool %s failed (exit %d): %w", toolID, exitCode, waitErr),
-			errorKindWait,
-		)
+		return bm.handleProcessFailure(ctx, toolID, waitErr, stderrBuf)
 	}
 
 	recordProcessExit(ctx, processStatusExit, 0, "")
 	return nil
+}
+
+func (bm *BunManager) handleProcessFailure(
+	ctx context.Context,
+	toolID string,
+	waitErr error,
+	stderrBuf *bytes.Buffer,
+) error {
+	exitCode, statusKind, signalName, signal := processStatus(waitErr)
+	recordProcessExit(ctx, statusKind, exitCode, signalName)
+
+	if statusKind == processStatusSignal {
+		message := signalFailureMessage(toolID, signal, stderrBuf)
+		return wrapToolError(fmt.Errorf("%s: %w", message, waitErr), errorKindWait)
+	}
+
+	return wrapToolError(exitFailureError(toolID, waitErr, exitCode, stderrBuf), errorKindWait)
+}
+
+func processStatus(err error) (int, toolProcessStatus, string, syscall.Signal) {
+	exitCode := -1
+	statusKind := processStatusExit
+	signalName := ""
+	var signal syscall.Signal
+
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+			exitCode = status.ExitStatus()
+			if status.Signaled() {
+				signal = status.Signal()
+				statusKind = processStatusSignal
+				signalName = signal.String()
+			}
+		}
+	}
+
+	return exitCode, statusKind, signalName, signal
+}
+
+func signalFailureMessage(toolID string, signal syscall.Signal, stderrBuf *bytes.Buffer) string {
+	message := fmt.Sprintf("bun process for tool %s failed (signal: %s)", toolID, signal)
+	if signal == syscall.SIGKILL {
+		message += " - possible OOM or external kill"
+	}
+	if stderrOutput := stderrBuf.String(); stderrOutput != "" {
+		message = fmt.Sprintf("%s\nstderr (truncated):\n%s", message, stderrOutput)
+	}
+	return message
+}
+
+func exitFailureError(toolID string, waitErr error, exitCode int, stderrBuf *bytes.Buffer) error {
+	if stderrOutput := stderrBuf.String(); stderrOutput != "" {
+		return fmt.Errorf(
+			"bun process for tool %s failed (exit %d): %w\nstderr (truncated): %s",
+			toolID,
+			exitCode,
+			waitErr,
+			stderrOutput,
+		)
+	}
+	return fmt.Errorf("bun process for tool %s failed (exit %d): %w", toolID, exitCode, waitErr)
 }
 
 // validateAndAddEnvironmentVars validates environment variables and adds them to the command env

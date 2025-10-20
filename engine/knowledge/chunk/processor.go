@@ -96,6 +96,9 @@ func (p *Processor) Process(kbID string, docs []Document) ([]Chunk, error) {
 	return chunks, nil
 }
 
+// buildChunk assembles a chunk from a document segment, handling deduplication
+// and metadata enrichment. It returns false when the segment is empty or
+// duplicated.
 func (p *Processor) buildChunk(
 	kbID string,
 	doc Document,
@@ -129,6 +132,9 @@ func (p *Processor) buildChunk(
 	}, true
 }
 
+// effectiveChunkSettings computes per-document chunk size and overlap by
+// applying sequential adjustments based on text length, content type, source
+// type, and heading density. Adjustments compound multiplicatively.
 func (p *Processor) effectiveChunkSettings(meta map[string]any, text string) (int, int) {
 	size := clampChunkSize(p.settings.Size)
 	overlap := p.settings.Overlap

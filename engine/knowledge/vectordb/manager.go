@@ -44,56 +44,69 @@ func (m *Manager) AcquireShared(ctx context.Context, cfg *Config) (Store, func(c
 		return nil, nil, errMissingID
 	}
 	signature := signatureKey(cfg)
-	m.mu.Lock()
-	if entry, ok := m.stores[id]; ok {
-		if entry.signature != signature {
-			m.mu.Unlock()
-			return nil, nil, fmt.Errorf("vector_db %q: configuration mismatch for shared store", id)
-		}
-		entry.refs++
-		store := entry.store
-		m.mu.Unlock()
-		return store, m.releaseFunc(id, signature), nil
+	if store, release, ok, err := m.tryReuseExistingStore(id, signature); err != nil || ok {
+		return store, release, err
 	}
-	m.mu.Unlock()
-
 	store, err := instantiateStore(ctx, cfg)
 	if err != nil {
 		return nil, nil, err
 	}
+	return m.registerSharedStore(ctx, id, signature, store)
+}
 
+// tryReuseExistingStore attempts to reuse a cached store with the same signature.
+func (m *Manager) tryReuseExistingStore(
+	id string,
+	signature string,
+) (Store, func(context.Context) error, bool, error) {
 	m.mu.Lock()
-	if entry, ok := m.stores[id]; ok {
+	defer m.mu.Unlock()
+	entry, ok := m.stores[id]
+	if !ok {
+		return nil, nil, false, nil
+	}
+	if entry.signature != signature {
+		return nil, nil, false, fmt.Errorf("vector_db %q: configuration mismatch for shared store", id)
+	}
+	entry.refs++
+	return entry.store, m.releaseFunc(id, signature), true, nil
+}
+
+// registerSharedStore caches the instantiated store, handling races with concurrent callers.
+func (m *Manager) registerSharedStore(
+	ctx context.Context,
+	id string,
+	signature string,
+	store Store,
+) (Store, func(context.Context) error, error) {
+	m.mu.Lock()
+	entry, ok := m.stores[id]
+	if ok {
 		if entry.signature != signature {
 			m.mu.Unlock()
-			if err := store.Close(ctx); err != nil {
-				logger.FromContext(ctx).Warn(
-					"failed to close redundant vector store",
-					"vector_id", id,
-					"error", err,
-				)
-			}
+			closeRedundantStore(ctx, id, store)
 			return nil, nil, fmt.Errorf("vector_db %q: configuration mismatch for shared store", id)
 		}
 		entry.refs++
 		existing := entry.store
 		m.mu.Unlock()
-		if err := store.Close(ctx); err != nil {
-			logger.FromContext(ctx).Warn(
-				"failed to close redundant vector store",
-				"vector_id", id,
-				"error", err,
-			)
-		}
+		closeRedundantStore(ctx, id, store)
 		return existing, m.releaseFunc(id, signature), nil
 	}
-	m.stores[id] = &sharedStoreEntry{
-		store:     store,
-		refs:      1,
-		signature: signature,
-	}
+	m.stores[id] = &sharedStoreEntry{store: store, refs: 1, signature: signature}
 	m.mu.Unlock()
 	return store, m.releaseFunc(id, signature), nil
+}
+
+// closeRedundantStore closes a redundant store instance and logs any failure.
+func closeRedundantStore(ctx context.Context, id string, store Store) {
+	if err := store.Close(ctx); err != nil {
+		logger.FromContext(ctx).Warn(
+			"failed to close redundant vector store",
+			"vector_id", id,
+			"error", err,
+		)
+	}
 }
 
 func (m *Manager) releaseFunc(id string, signature string) func(context.Context) error {
@@ -148,10 +161,8 @@ func pgVectorSignature(opts *PGVectorOptions) []string {
 	return []string{
 		strings.TrimSpace(string(index.Type)),
 		fmt.Sprintf("%d", index.Lists),
-		fmt.Sprintf("%d", index.Probes),
 		fmt.Sprintf("%d", index.M),
 		fmt.Sprintf("%d", index.EFConstruction),
-		fmt.Sprintf("%d", index.EFSearch),
 		fmt.Sprintf("%d", pool.MinConns),
 		fmt.Sprintf("%d", pool.MaxConns),
 		pool.MaxConnLifetime.String(),

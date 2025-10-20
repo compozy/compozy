@@ -245,50 +245,67 @@ func (ns *RedisNotificationSystem) receiveMessages(
 	defer close(msgChan)
 	defer pubsub.Close()
 
-	defer func() {
-		ns.metrics.mu.Lock()
-		ns.metrics.ActiveChannels--
-		ns.metrics.mu.Unlock()
-	}()
+	defer ns.decrementActiveChannels()
 
 	ch := pubsub.Channel()
-
 	for {
 		select {
 		case <-ns.closeCh:
-			// Note: Stopping message receiver
 			return
 		case <-ctx.Done():
-			// Note: Context canceled, stopping message receiver
 			return
 		case msg, ok := <-ch:
 			if !ok {
-				// Note: Redis pub/sub channel closed
 				return
 			}
-
-			// Convert Redis message to our Message type
-			message := Message{
-				Channel: msg.Channel,
-				Payload: []byte(msg.Payload),
-				Time:    time.Now(),
-			}
-
-			// Try to send message to channel (non-blocking)
-			select {
-			case msgChan <- message:
-				ns.metrics.mu.Lock()
-				ns.metrics.MessagesReceived++
-				ns.metrics.mu.Unlock()
-				// Note: Message received and processed
-			default:
-				ns.metrics.mu.Lock()
-				ns.metrics.DroppedMessages++
-				ns.metrics.mu.Unlock()
-				// Note: Message channel full, dropping message
-			}
+			ns.handleIncomingMessage(msgChan, msg)
 		}
 	}
+}
+
+// decrementActiveChannels updates active channel metrics when the receiver exits.
+func (ns *RedisNotificationSystem) decrementActiveChannels() {
+	ns.metrics.mu.Lock()
+	ns.metrics.ActiveChannels--
+	ns.metrics.mu.Unlock()
+}
+
+// handleIncomingMessage converts and forwards a Redis message to subscribers.
+func (ns *RedisNotificationSystem) handleIncomingMessage(msgChan chan<- Message, msg *redis.Message) {
+	message := Message{
+		Channel: msg.Channel,
+		Payload: []byte(msg.Payload),
+		Time:    time.Now(),
+	}
+	if ns.tryDeliverMessage(msgChan, message) {
+		ns.recordMessageReceived()
+		return
+	}
+	ns.recordDroppedMessage()
+}
+
+// tryDeliverMessage attempts a non-blocking send to the consumer channel.
+func (ns *RedisNotificationSystem) tryDeliverMessage(msgChan chan<- Message, message Message) bool {
+	select {
+	case msgChan <- message:
+		return true
+	default:
+		return false
+	}
+}
+
+// recordMessageReceived increments the received message counter.
+func (ns *RedisNotificationSystem) recordMessageReceived() {
+	ns.metrics.mu.Lock()
+	ns.metrics.MessagesReceived++
+	ns.metrics.mu.Unlock()
+}
+
+// recordDroppedMessage increments the dropped message counter.
+func (ns *RedisNotificationSystem) recordDroppedMessage() {
+	ns.metrics.mu.Lock()
+	ns.metrics.DroppedMessages++
+	ns.metrics.mu.Unlock()
 }
 
 // WorkflowEvent represents a workflow status change event

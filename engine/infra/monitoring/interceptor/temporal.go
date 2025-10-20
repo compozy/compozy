@@ -176,6 +176,23 @@ func initWorkerMetrics(ctx context.Context, meter metric.Meter) error {
 // initDispatcherMetrics initializes dispatcher-related metrics
 func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 	log := logger.FromContext(ctx)
+	if err := createDispatcherCoreMetrics(meter, log); err != nil {
+		return err
+	}
+	if err := initDispatcherTakeoverMetrics(ctx, meter); err != nil {
+		return err
+	}
+	if err := initDispatcherScanMetrics(ctx, meter); err != nil {
+		return err
+	}
+	if err := setupDispatcherUptimeGauge(meter, log); err != nil {
+		return err
+	}
+	return registerDispatcherUptime(meter, log)
+}
+
+// createDispatcherCoreMetrics defines primary dispatcher metric instruments.
+func createDispatcherCoreMetrics(meter metric.Meter, log logger.Logger) error {
 	var err error
 	dispatcherActive, err = meter.Int64UpDownCounter(
 		metrics.MetricNameWithSubsystem("dispatcher", "active_total"),
@@ -201,9 +218,12 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 		log.Error("Failed to create dispatcher lifecycle counter", "error", err, "component", "temporal_metrics")
 		return err
 	}
-	if err := initDispatcherTakeoverMetrics(ctx, meter); err != nil {
-		return err
-	}
+	return nil
+}
+
+// setupDispatcherUptimeGauge creates the observable gauge for dispatcher uptime.
+func setupDispatcherUptimeGauge(meter metric.Meter, log logger.Logger) error {
+	var err error
 	dispatcherUptimeSeconds, err = meter.Float64ObservableGauge(
 		metrics.MetricNameWithSubsystem("dispatcher", "uptime_seconds"),
 		metric.WithDescription("Dispatcher uptime in seconds"),
@@ -212,34 +232,43 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 		log.Error("Failed to create dispatcher uptime gauge", "error", err, "component", "temporal_metrics")
 		return err
 	}
+	return nil
+}
 
-	if err := initDispatcherScanMetrics(ctx, meter); err != nil {
-		return err
-	}
-	// Register dispatcher uptime callback
-	dispatcherUptimeCallback, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
-		now := time.Now()
-		dispatcherStartTimes.Range(func(key, value any) bool {
-			dispatcherID, ok := key.(string)
-			if !ok {
-				return true // Skip invalid key
-			}
-			startTime, ok := value.(time.Time)
-			if !ok {
-				return true // Skip invalid value
-			}
-			uptime := now.Sub(startTime).Seconds()
-			o.ObserveFloat64(dispatcherUptimeSeconds, uptime,
-				metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)))
-			return true
-		})
+// registerDispatcherUptime registers the callback responsible for uptime observations.
+func registerDispatcherUptime(meter metric.Meter, log logger.Logger) error {
+	callback, err := meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		reportDispatcherUptime(o)
 		return nil
 	}, dispatcherUptimeSeconds)
 	if err != nil {
 		log.Error("Failed to register dispatcher uptime callback", "error", err, "component", "temporal_metrics")
 		return err
 	}
+	dispatcherUptimeCallback = callback
 	return nil
+}
+
+// reportDispatcherUptime reports dispatcher uptime observations.
+func reportDispatcherUptime(observer metric.Observer) {
+	now := time.Now()
+	dispatcherStartTimes.Range(func(key, value any) bool {
+		dispatcherID, ok := key.(string)
+		if !ok {
+			return true
+		}
+		startTime, ok := value.(time.Time)
+		if !ok {
+			return true
+		}
+		uptime := now.Sub(startTime).Seconds()
+		observer.ObserveFloat64(
+			dispatcherUptimeSeconds,
+			uptime,
+			metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)),
+		)
+		return true
+	})
 }
 
 func initDispatcherTakeoverMetrics(ctx context.Context, meter metric.Meter) error {
@@ -364,80 +393,110 @@ type workflowInboundInterceptor struct {
 	baseCtx context.Context
 }
 
+// workflowMetricSet groups the instrumentation required for workflow observations.
+type workflowMetricSet struct {
+	started   metric.Int64Counter
+	duration  metric.Float64Histogram
+	failed    metric.Int64Counter
+	completed metric.Int64Counter
+}
+
+// collectWorkflowMetrics safely retrieves the workflow metric instruments.
+func collectWorkflowMetrics() (workflowMetricSet, bool) {
+	metricsMutex.RLock()
+	defer metricsMutex.RUnlock()
+	missingMetrics := workflowStartedTotal == nil ||
+		workflowTaskDuration == nil ||
+		workflowFailedTotal == nil ||
+		workflowCompletedTotal == nil
+	if missingMetrics {
+		return workflowMetricSet{}, false
+	}
+	return workflowMetricSet{
+		started:   workflowStartedTotal,
+		duration:  workflowTaskDuration,
+		failed:    workflowFailedTotal,
+		completed: workflowCompletedTotal,
+	}, true
+}
+
 // ExecuteWorkflow records metrics for workflow execution
 func (w *workflowInboundInterceptor) ExecuteWorkflow(
 	ctx workflow.Context,
 	in *interceptor.ExecuteWorkflowInput,
 ) (any, error) {
-	// Get local references to metrics instruments under a single lock
-	metricsMutex.RLock()
-	wst := workflowStartedTotal
-	wtd := workflowTaskDuration
-	wft := workflowFailedTotal
-	wct := workflowCompletedTotal
-	metricsMutex.RUnlock()
-	// If not initialized, proceed without metrics
-	if wst == nil {
+	metrics, ok := collectWorkflowMetrics()
+	if !ok || workflow.IsReplaying(ctx) {
 		return w.Next.ExecuteWorkflow(ctx, in)
 	}
-	// Skip metrics during replay to avoid inflating counts
-	if workflow.IsReplaying(ctx) {
-		return w.Next.ExecuteWorkflow(ctx, in)
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			// Use worker base context for logging; workflow ctx may be corrupted
-			log := logger.FromContext(w.baseCtx)
-			log.Error("Panic in Temporal metrics interceptor", "panic", r)
-			// Re-panic to let Temporal handle it properly
-			panic(r)
-		}
-	}()
-	startTime := workflow.Now(ctx) // Use deterministic time
+	defer w.recoverFromWorkflowPanic()
+	startTime := workflow.Now(ctx)
 	info := workflow.GetInfo(ctx)
 	workflowType := info.WorkflowType.Name
-	// Use base (worker) context so metrics correlate with worker traces/logs
 	otelCtx := w.baseCtx
-	wst.Add(otelCtx, 1,
-		metric.WithAttributes(attribute.String("workflow_type", workflowType)))
+	metrics.started.Add(otelCtx, 1, metric.WithAttributes(attribute.String("workflow_type", workflowType)))
 	result, err := w.Next.ExecuteWorkflow(ctx, in)
-	// Calculate duration using deterministic time
 	duration := workflow.Now(ctx).Sub(startTime).Seconds()
-	if err != nil {
-		// Distinguish between different error types for better observability
-		var resultLabel string
-		var logMessage string
-		switch {
-		case temporal.IsCanceledError(err) || err == workflow.ErrCanceled:
-			resultLabel = "canceled"
-			logMessage = "Workflow canceled"
-		case temporal.IsTimeoutError(err):
-			resultLabel = "timeout"
-			logMessage = "Workflow timed out"
-		default:
-			resultLabel = "failed"
-			logMessage = "Workflow failed"
-		}
-		wtd.Record(otelCtx, duration,
-			metric.WithAttributes(
-				attribute.String("workflow_type", workflowType),
-				attribute.String("result", resultLabel)))
-		wft.Add(otelCtx, 1,
-			metric.WithAttributes(
-				attribute.String("workflow_type", workflowType),
-				attribute.String("result", resultLabel)))
-		// Log using worker base context
-		log := logger.FromContext(w.baseCtx)
-		log.Debug(logMessage, "workflow_type", workflowType, "workflow_id", info.WorkflowExecution.ID, "error", err)
-	} else {
-		wtd.Record(otelCtx, duration,
-			metric.WithAttributes(
-				attribute.String("workflow_type", workflowType),
-				attribute.String("result", "completed")))
-		wct.Add(otelCtx, 1,
-			metric.WithAttributes(attribute.String("workflow_type", workflowType)))
-	}
+	w.recordWorkflowOutcome(otelCtx, metrics, duration, workflowType, info, err)
 	return result, err
+}
+
+// recoverFromWorkflowPanic logs and rethrows panics during workflow interception.
+func (w *workflowInboundInterceptor) recoverFromWorkflowPanic() {
+	if r := recover(); r != nil {
+		logger.FromContext(w.baseCtx).Error("Panic in Temporal metrics interceptor", "panic", r)
+		panic(r)
+	}
+}
+
+// recordWorkflowOutcome records completion or failure metrics and logs diagnostics.
+func (w *workflowInboundInterceptor) recordWorkflowOutcome(
+	ctx context.Context,
+	metrics workflowMetricSet,
+	duration float64,
+	workflowType string,
+	info *workflow.Info,
+	err error,
+) {
+	if err != nil {
+		label, message := classifyWorkflowError(err)
+		metrics.duration.Record(ctx, duration,
+			metric.WithAttributes(
+				attribute.String("workflow_type", workflowType),
+				attribute.String("result", label),
+			))
+		metrics.failed.Add(ctx, 1,
+			metric.WithAttributes(
+				attribute.String("workflow_type", workflowType),
+				attribute.String("result", label),
+			))
+		logger.FromContext(w.baseCtx).Debug(
+			message,
+			"workflow_type", workflowType,
+			"workflow_id", info.WorkflowExecution.ID,
+			"error", err,
+		)
+		return
+	}
+	metrics.duration.Record(ctx, duration,
+		metric.WithAttributes(
+			attribute.String("workflow_type", workflowType),
+			attribute.String("result", "completed"),
+		))
+	metrics.completed.Add(ctx, 1,
+		metric.WithAttributes(attribute.String("workflow_type", workflowType)))
+}
+
+// classifyWorkflowError maps workflow errors to result labels and log messages.
+func classifyWorkflowError(err error) (string, string) {
+	switch {
+	case temporal.IsCanceledError(err) || err == workflow.ErrCanceled:
+		return "canceled", "Workflow canceled"
+	case temporal.IsTimeoutError(err):
+		return "timeout", "Workflow timed out"
+	default:
+		return "failed", "Workflow failed"
+	}
 }
 
 // SetConfiguredWorkerCount sets the configured worker count gauge

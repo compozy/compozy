@@ -49,58 +49,36 @@ func (a *GetCollectionResponse) Run(
 	ctx context.Context,
 	input *GetCollectionResponseInput,
 ) (*task.CollectionResponse, error) {
-	// Fetch task config from Redis using parent state's TaskExecID
-	taskConfig, err := a.configStore.Get(ctx, input.ParentState.TaskExecID.String())
+	taskConfig, err := a.loadCollectionTaskConfig(ctx, input.ParentState.TaskExecID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get task config: %w", err)
+		return nil, err
 	}
-	if taskConfig == nil {
-		return nil, fmt.Errorf("task config not found for task execution ID: %s", input.ParentState.TaskExecID.String())
-	}
-	// Load workflow state
-	workflowState, err := a.workflowRepo.GetState(ctx, input.ParentState.WorkflowExecID)
+	workflowState, err := a.loadCollectionWorkflowState(ctx, input.ParentState.WorkflowExecID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow state: %w", err)
+		return nil, err
 	}
-	// Process the collection task
 	executionError := a.processCollectionTask(ctx, input, taskConfig)
-	// Use task2 ResponseHandler for collection type
 	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeCollection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collection response handler: %w", err)
 	}
-	// Prepare input for response handler
-	responseInput := &shared.ResponseInput{
-		TaskConfig:     taskConfig,
-		TaskState:      input.ParentState,
-		WorkflowConfig: input.WorkflowConfig,
-		WorkflowState:  workflowState,
-		ExecutionError: executionError,
-	}
-	// Handle the response
+	responseInput := a.buildCollectionResponseInput(input, workflowState, taskConfig, executionError)
 	result, err := handler.HandleResponse(ctx, responseInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to handle collection response: %w", err)
 	}
-	// Apply deferred output transformation for collection tasks after children are processed
-	// This handles collection response aggregation with child outputs
-	if collectionHandler, ok := handler.(interface {
-		ApplyDeferredOutputTransformation(context.Context, *shared.ResponseInput) error
-	}); ok {
-		// CRITICAL: Only apply transformation if no execution error
-		// This matches the condition in BaseResponseHandler.ApplyDeferredOutputTransformation
-		if executionError == nil && input.ParentState.Status != core.StatusFailed {
-			if err := collectionHandler.ApplyDeferredOutputTransformation(ctx, responseInput); err != nil {
-				return nil, fmt.Errorf("failed to apply deferred output transformation: %w", err)
-			}
-		}
+	if err := a.applyDeferredCollectionTransformation(
+		ctx,
+		handler,
+		responseInput,
+		executionError,
+		input.ParentState.Status,
+	); err != nil {
+		return nil, err
 	}
-
-	// If there was an execution error, the collection should be considered failed
 	if executionError != nil {
 		return nil, executionError
 	}
-	// Convert shared.ResponseOutput to task.CollectionResponse
 	collectionResponse := a.convertToCollectionResponse(ctx, result)
 	return collectionResponse, nil
 }
@@ -121,4 +99,71 @@ func (a *GetCollectionResponse) convertToCollectionResponse(
 ) *task.CollectionResponse {
 	converter := NewResponseConverter()
 	return converter.ConvertToCollectionResponse(ctx, result, a.configStore, a.task2Factory, a.cwd)
+}
+
+// loadCollectionTaskConfig loads the stored task configuration for the parent state.
+func (a *GetCollectionResponse) loadCollectionTaskConfig(
+	ctx context.Context,
+	taskExecID core.ID,
+) (*task.Config, error) {
+	taskConfig, err := a.configStore.Get(ctx, taskExecID.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task config: %w", err)
+	}
+	if taskConfig == nil {
+		return nil, fmt.Errorf("task config not found for task execution ID: %s", taskExecID.String())
+	}
+	return taskConfig, nil
+}
+
+// loadCollectionWorkflowState retrieves the workflow state for the parent execution.
+func (a *GetCollectionResponse) loadCollectionWorkflowState(
+	ctx context.Context,
+	workflowExecID core.ID,
+) (*workflow.State, error) {
+	workflowState, err := a.workflowRepo.GetState(ctx, workflowExecID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow state: %w", err)
+	}
+	return workflowState, nil
+}
+
+// buildCollectionResponseInput prepares the shared response input for the task2 handler.
+func (a *GetCollectionResponse) buildCollectionResponseInput(
+	input *GetCollectionResponseInput,
+	workflowState *workflow.State,
+	taskConfig *task.Config,
+	executionError error,
+) *shared.ResponseInput {
+	return &shared.ResponseInput{
+		TaskConfig:     taskConfig,
+		TaskState:      input.ParentState,
+		WorkflowConfig: input.WorkflowConfig,
+		WorkflowState:  workflowState,
+		ExecutionError: executionError,
+	}
+}
+
+// applyDeferredCollectionTransformation executes deferred output transformations when necessary.
+func (a *GetCollectionResponse) applyDeferredCollectionTransformation(
+	ctx context.Context,
+	handler shared.TaskResponseHandler,
+	responseInput *shared.ResponseInput,
+	executionError error,
+	stateStatus core.StatusType,
+) error {
+	type deferredTransformer interface {
+		ApplyDeferredOutputTransformation(context.Context, *shared.ResponseInput) error
+	}
+	if executionError != nil || stateStatus == core.StatusFailed {
+		return nil
+	}
+	collectionHandler, ok := handler.(deferredTransformer)
+	if !ok {
+		return nil
+	}
+	if err := collectionHandler.ApplyDeferredOutputTransformation(ctx, responseInput); err != nil {
+		return fmt.Errorf("failed to apply deferred output transformation: %w", err)
+	}
+	return nil
 }

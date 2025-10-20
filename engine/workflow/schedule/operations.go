@@ -199,7 +199,17 @@ func (m *manager) getScheduleInfo(
 		return nil, fmt.Errorf("failed to describe schedule: %w", err)
 	}
 	workflowID := m.workflowIDFromScheduleID(scheduleID)
-	// Extract schedule information
+	info := buildBaseScheduleInfo(scheduleID, workflowID, desc)
+	m.applyOverrideMetadata(info, workflowID)
+	populateScheduleRunTimes(info, desc)
+	return info, nil
+}
+
+func buildBaseScheduleInfo(
+	scheduleID string,
+	workflowID string,
+	desc *client.ScheduleDescription,
+) *Info {
 	spec := desc.Schedule.Spec
 	state := desc.Schedule.State
 	info := &Info{
@@ -208,61 +218,66 @@ func (m *manager) getScheduleInfo(
 		Enabled:    !state.Paused,
 		Timezone:   spec.TimeZoneName,
 	}
-	// Extract cron expression from calendar specs
 	if len(spec.CronExpressions) > 0 {
 		info.Cron = spec.CronExpressions[0]
 	}
+	return info
+}
 
-	// Check for API overrides and populate YAMLConfig
+func (m *manager) applyOverrideMetadata(info *Info, workflowID string) {
 	override, hasOverride := m.overrideCache.GetOverride(workflowID)
-	if hasOverride {
-		info.IsOverride = true
-		// Use the stored original schedule if available
-		if override.OriginalSchedule != nil {
-			info.YAMLConfig = override.OriginalSchedule
-		} else {
-			// Fallback to reconstructing from values for backwards compatibility
-			info.YAMLConfig = &workflow.Schedule{}
-
-			// Set original YAML values from override cache or defaults
-			if cronVal, ok := override.Values["original_cron"].(string); ok {
-				info.YAMLConfig.Cron = cronVal
-			}
-			if enabledVal, ok := override.Values["original_enabled"].(bool); ok {
-				info.YAMLConfig.Enabled = &enabledVal
-			}
-			if timezoneVal, ok := override.Values["original_timezone"].(string); ok {
-				info.YAMLConfig.Timezone = timezoneVal
-			}
-			if jitterVal, ok := override.Values["original_jitter"].(string); ok {
-				info.YAMLConfig.Jitter = jitterVal
-			}
-			if overlapPolicyVal, ok := override.Values["original_overlap_policy"].(string); ok {
-				info.YAMLConfig.OverlapPolicy = workflow.OverlapPolicy(overlapPolicyVal)
-			}
-			if startAtVal, ok := override.Values["original_start_at"].(time.Time); ok {
-				info.YAMLConfig.StartAt = &startAtVal
-			}
-			if endAtVal, ok := override.Values["original_end_at"].(time.Time); ok {
-				info.YAMLConfig.EndAt = &endAtVal
-			}
-			if inputVal, ok := override.Values["original_input"].(map[string]any); ok {
-				info.YAMLConfig.Input = inputVal
-			}
-		}
+	if !hasOverride {
+		return
 	}
+	info.IsOverride = true
+	if override.OriginalSchedule != nil {
+		info.YAMLConfig = override.OriginalSchedule
+		return
+	}
+	info.YAMLConfig = buildScheduleFromOverride(override.Values)
+}
 
-	// Set run times
+func buildScheduleFromOverride(values map[string]any) *workflow.Schedule {
+	scheduleConfig := &workflow.Schedule{}
+	if values == nil {
+		return scheduleConfig
+	}
+	if cronVal, ok := values["original_cron"].(string); ok {
+		scheduleConfig.Cron = cronVal
+	}
+	if enabledVal, ok := values["original_enabled"].(bool); ok {
+		scheduleConfig.Enabled = &enabledVal
+	}
+	if timezoneVal, ok := values["original_timezone"].(string); ok {
+		scheduleConfig.Timezone = timezoneVal
+	}
+	if jitterVal, ok := values["original_jitter"].(string); ok {
+		scheduleConfig.Jitter = jitterVal
+	}
+	if overlapPolicyVal, ok := values["original_overlap_policy"].(string); ok {
+		scheduleConfig.OverlapPolicy = workflow.OverlapPolicy(overlapPolicyVal)
+	}
+	if startAtVal, ok := values["original_start_at"].(time.Time); ok {
+		scheduleConfig.StartAt = &startAtVal
+	}
+	if endAtVal, ok := values["original_end_at"].(time.Time); ok {
+		scheduleConfig.EndAt = &endAtVal
+	}
+	if inputVal, ok := values["original_input"].(map[string]any); ok {
+		scheduleConfig.Input = inputVal
+	}
+	return scheduleConfig
+}
+
+func populateScheduleRunTimes(info *Info, desc *client.ScheduleDescription) {
 	if len(desc.Info.NextActionTimes) > 0 {
 		info.NextRunTime = desc.Info.NextActionTimes[0]
 	}
 	if len(desc.Info.RecentActions) > 0 {
 		lastAction := desc.Info.RecentActions[0]
 		info.LastRunTime = &lastAction.ScheduleTime
-		// Set default status since Action field is not available in SDK
 		info.LastRunStatus = "unknown"
 	}
-	return info, nil
 }
 
 // ValidateCronExpression validates a cron expression with optional logging context
@@ -273,80 +288,117 @@ func (m *manager) getScheduleInfo(
 //     Example: "0 0 9 * * 1-5" (Every weekday at 9:00:00 AM)
 //     Note: When sending to Temporal, we automatically append year field
 func ValidateCronExpression(ctx context.Context, cronExpr string, workflowID string) error {
-	log := logger.FromContext(ctx)
-	// Check if it's an @every expression
-	if after, ok := strings.CutPrefix(cronExpr, "@every "); ok {
-		durationStr := after
-		_, err := time.ParseDuration(durationStr)
-		if err != nil {
-			log.Error("Schedule validation failed - invalid @every duration",
+	handled, err := validateEveryExpression(ctx, cronExpr, workflowID)
+	if handled {
+		return err
+	}
+	return validateCronByFieldCount(ctx, normalizeCronMacros(cronExpr), workflowID)
+}
+
+// validateCronByFieldCount routes cron validation based on field count.
+// It keeps the switching logic separate so the public validator stays small.
+func validateCronByFieldCount(ctx context.Context, cronExpr string, workflowID string) error {
+	fieldCount := len(strings.Fields(cronExpr))
+	switch fieldCount {
+	case 6:
+		return validateSixFieldCron(ctx, cronExpr, workflowID)
+	case 7:
+		return validateSevenFieldCron(ctx, cronExpr, workflowID)
+	default:
+		return reportInvalidCronFieldCount(ctx, cronExpr, workflowID, fieldCount)
+	}
+}
+
+func validateEveryExpression(ctx context.Context, cronExpr string, workflowID string) (bool, error) {
+	if durationStr, ok := strings.CutPrefix(cronExpr, "@every "); ok {
+		if _, err := time.ParseDuration(durationStr); err != nil {
+			logger.FromContext(ctx).Error(
+				"Schedule validation failed - invalid @every duration",
 				"workflow_id", workflowID,
 				"cron", cronExpr,
-				"error", err)
-			return fmt.Errorf("invalid @every duration '%s': %w", durationStr, err)
+				"error", err,
+			)
+			return true, fmt.Errorf("invalid @every duration '%s': %w", durationStr, err)
 		}
-		return nil
+		return true, nil
 	}
-	// Handle standard macros
+	return false, nil
+}
+
+func normalizeCronMacros(cronExpr string) string {
 	switch cronExpr {
 	case "@yearly", "@annually":
-		cronExpr = "0 0 0 1 1 *" // sec min hour dom month dow
+		return "0 0 0 1 1 *"
 	case "@monthly":
-		cronExpr = "0 0 0 1 * *"
+		return "0 0 0 1 * *"
 	case "@weekly":
-		cronExpr = "0 0 0 * * 0"
+		return "0 0 0 * * 0"
 	case "@daily", "@midnight":
-		cronExpr = "0 0 0 * * *"
+		return "0 0 0 * * *"
 	case "@hourly":
-		cronExpr = "0 0 * * * *"
-	}
-	// Parse as 6 or 7-field cron expression
-	fields := len(strings.Fields(cronExpr))
-	switch fields {
-	case 6:
-		// 6-field format: second minute hour day month weekday
-		if _, err := cronParser6Fields.Parse(cronExpr); err != nil {
-			log.Error("Schedule validation failed",
-				"workflow_id", workflowID,
-				"error", err,
-				"cron", cronExpr)
-			return fmt.Errorf("invalid 6-field cron expression '%s': %w", cronExpr, err)
-		}
-	case 7:
-		// 7-field format: second minute hour day month weekday year
-		// Parse first 6 fields with standard parser
-		cronFields := strings.Fields(cronExpr)
-		sixFields := strings.Join(cronFields[:6], " ")
-		if _, err := cronParser6Fields.Parse(sixFields); err != nil {
-			log.Error("Schedule validation failed",
-				"workflow_id", workflowID,
-				"error", err,
-				"cron", cronExpr)
-			return fmt.Errorf("invalid 7-field cron expression '%s': %w", cronExpr, err)
-		}
-		// Validate year field (7th field) - should be * or a valid year range
-		yearField := cronFields[6]
-		if !isValidYearField(yearField) {
-			log.Error("Schedule validation failed - invalid year field",
-				"workflow_id", workflowID,
-				"cron", cronExpr,
-				"year_field", yearField)
-			return fmt.Errorf("invalid year field in cron expression '%s': %s", cronExpr, yearField)
-		}
+		return "0 0 * * * *"
 	default:
-		log.Error("Schedule validation failed - incorrect field count",
+		return cronExpr
+	}
+}
+
+func validateSixFieldCron(ctx context.Context, cronExpr string, workflowID string) error {
+	if _, err := cronParser6Fields.Parse(cronExpr); err != nil {
+		logger.FromContext(ctx).Error(
+			"Schedule validation failed",
 			"workflow_id", workflowID,
+			"error", err,
 			"cron", cronExpr,
-			"expected_fields", "6 or 7",
-			"actual_fields", fields)
-		return fmt.Errorf(
-			"invalid cron expression '%s': expected 6 or 7 fields "+
-				"(second minute hour day month weekday [year]), got %d fields",
-			cronExpr,
-			fields,
 		)
+		return fmt.Errorf("invalid 6-field cron expression '%s': %w", cronExpr, err)
 	}
 	return nil
+}
+
+func validateSevenFieldCron(ctx context.Context, cronExpr string, workflowID string) error {
+	fields := strings.Fields(cronExpr)
+	sixFields := strings.Join(fields[:6], " ")
+	if _, err := cronParser6Fields.Parse(sixFields); err != nil {
+		logger.FromContext(ctx).Error(
+			"Schedule validation failed",
+			"workflow_id", workflowID,
+			"error", err,
+			"cron", cronExpr,
+		)
+		return fmt.Errorf("invalid 7-field cron expression '%s': %w", cronExpr, err)
+	}
+	yearField := fields[6]
+	if isValidYearField(yearField) {
+		return nil
+	}
+	logger.FromContext(ctx).Error(
+		"Schedule validation failed - invalid year field",
+		"workflow_id", workflowID,
+		"cron", cronExpr,
+		"year_field", yearField,
+	)
+	return fmt.Errorf("invalid year field in cron expression '%s': %s", cronExpr, yearField)
+}
+
+func reportInvalidCronFieldCount(
+	ctx context.Context,
+	cronExpr string,
+	workflowID string,
+	fieldCount int,
+) error {
+	logger.FromContext(ctx).Error(
+		"Schedule validation failed - incorrect field count",
+		"workflow_id", workflowID,
+		"cron", cronExpr,
+		"expected_fields", "6 or 7",
+		"actual_fields", fieldCount,
+	)
+	return fmt.Errorf(
+		"invalid cron expression '%s': expected 6 or 7 fields "+
+			"(second minute hour day month weekday [year]), got %d fields",
+		cronExpr,
+		fieldCount,
+	)
 }
 
 // validateCronForSchedule validates cron expression for schedule creation
@@ -356,183 +408,229 @@ func (m *manager) validateCronForSchedule(ctx context.Context, wf *workflow.Conf
 
 // createSchedule creates a new schedule in Temporal
 func (m *manager) createSchedule(ctx context.Context, scheduleID string, wf *workflow.Config) error {
-	log := logger.FromContext(ctx).With("schedule_id", scheduleID, "workflow_id", wf.ID)
+	return m.runScheduleOperation(ctx, OperationCreate, func(status *string) error {
+		if err := m.validateCronForSchedule(ctx, wf); err != nil {
+			return err
+		}
+		spec, err := m.buildScheduleSpec(ctx, scheduleID, wf)
+		if err != nil {
+			return err
+		}
+		action := m.buildScheduleAction(wf)
+		options := m.buildScheduleOptions(scheduleID, &spec, action, wf)
+		m.warnUnsupportedOverlapPolicy(ctx, scheduleID, wf)
+		handle, err := m.client.ScheduleClient().Create(ctx, options)
+		if err != nil {
+			return fmt.Errorf("failed to create schedule: %w", err)
+		}
+		*status = OperationStatusSuccess
+		logger.FromContext(ctx).
+			With("schedule_id", scheduleID, "workflow_id", wf.ID).
+			Info("Schedule created successfully", "handle", handle.GetID())
+		return nil
+	})
+}
 
-	// Record operation metrics
-	operation := OperationCreate
-	status := OperationStatusFailure // Assume failure, will be set to success on completion
-	if m.metrics != nil {
-		defer func() {
-			m.metrics.RecordOperation(ctx, operation, status, m.projectID)
-		}()
+// updateSchedule updates an existing schedule in Temporal
+func (m *manager) updateSchedule(ctx context.Context, scheduleID string, wf *workflow.Config) error {
+	return m.runScheduleOperation(ctx, OperationUpdate, func(status *string) error {
+		if err := m.validateCronForSchedule(ctx, wf); err != nil {
+			return err
+		}
+		handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)
+		desc, err := handle.Describe(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to describe schedule for update: %w", err)
+		}
+		needsUpdate, expectedTimezone, expectedEnabled := m.checkScheduleNeedsUpdate(desc, wf)
+		log := logger.FromContext(ctx).With("schedule_id", scheduleID, "workflow_id", wf.ID)
+		if !needsUpdate {
+			*status = OperationStatusSuccess
+			log.Debug("Schedule is up to date, skipping update")
+			return nil
+		}
+		updateFn := m.buildScheduleUpdater(ctx, scheduleID, wf, expectedTimezone, expectedEnabled)
+		if err := handle.Update(ctx, client.ScheduleUpdateOptions{DoUpdate: updateFn}); err != nil {
+			return fmt.Errorf("failed to update schedule: %w", err)
+		}
+		*status = OperationStatusSuccess
+		log.Info("Schedule updated successfully")
+		return nil
+	})
+}
+
+func (m *manager) deferOperationMetric(ctx context.Context, operation string, status *string) func() {
+	if m.metrics == nil {
+		return func() {}
 	}
-	// Validate cron expression
-	if err := m.validateCronForSchedule(ctx, wf); err != nil {
+	return func() {
+		if status == nil {
+			return
+		}
+		m.metrics.RecordOperation(ctx, operation, *status, m.projectID)
+	}
+}
+
+// runScheduleOperation wraps schedule mutations with metric tracking.
+// It lets the caller mark success on the provided status pointer.
+func (m *manager) runScheduleOperation(
+	ctx context.Context,
+	operation string,
+	fn func(status *string) error,
+) error {
+	status := OperationStatusFailure
+	defer m.deferOperationMetric(ctx, operation, &status)()
+	if err := fn(&status); err != nil {
 		return err
 	}
-	// Build schedule specification
-	// Ensure cron expression is in Temporal's expected format
-	cronExpr := EnsureTemporalCron(wf.Schedule.Cron)
+	return nil
+}
+
+func (m *manager) buildScheduleSpec(
+	ctx context.Context,
+	scheduleID string,
+	wf *workflow.Config,
+) (client.ScheduleSpec, error) {
 	spec := client.ScheduleSpec{
-		CronExpressions: []string{cronExpr},
+		CronExpressions: []string{EnsureTemporalCron(wf.Schedule.Cron)},
+		TimeZoneName:    m.scheduleTimezone(wf),
 	}
-	// Set timezone
+	if jitter, hasJitter, err := m.parseScheduleJitter(ctx, scheduleID, wf); err != nil {
+		return client.ScheduleSpec{}, err
+	} else if hasJitter {
+		spec.Jitter = jitter
+	}
+	m.applyScheduleWindow(wf, &spec)
+	return spec, nil
+}
+
+func (m *manager) parseScheduleJitter(
+	ctx context.Context,
+	scheduleID string,
+	wf *workflow.Config,
+) (time.Duration, bool, error) {
+	jitterValue := wf.Schedule.Jitter
+	if jitterValue == "" {
+		return 0, false, nil
+	}
+	duration, err := time.ParseDuration(jitterValue)
+	if err != nil {
+		logger.FromContext(ctx).
+			With("schedule_id", scheduleID, "workflow_id", wf.ID).
+			Error("Schedule validation failed", "error", err, "jitter", jitterValue)
+		return 0, false, fmt.Errorf("invalid jitter duration: %w", err)
+	}
+	return duration, true, nil
+}
+
+func (m *manager) scheduleTimezone(wf *workflow.Config) string {
 	if wf.Schedule.Timezone != "" {
-		spec.TimeZoneName = wf.Schedule.Timezone
-	} else {
-		spec.TimeZoneName = DefaultTimezone
+		return wf.Schedule.Timezone
 	}
-	// Handle jitter
-	if wf.Schedule.Jitter != "" {
-		jitterDuration, err := time.ParseDuration(wf.Schedule.Jitter)
-		if err != nil {
-			log.Error("Schedule validation failed",
-				"workflow_id", wf.ID,
-				"error", err,
-				"jitter", wf.Schedule.Jitter)
-			return fmt.Errorf("invalid jitter duration: %w", err)
-		}
-		spec.Jitter = jitterDuration
-	}
-	// Handle start and end times
+	return DefaultTimezone
+}
+
+func (m *manager) applyScheduleWindow(wf *workflow.Config, spec *client.ScheduleSpec) {
 	if wf.Schedule.StartAt != nil {
 		spec.StartAt = *wf.Schedule.StartAt
+	} else {
+		spec.StartAt = time.Time{}
 	}
 	if wf.Schedule.EndAt != nil {
 		spec.EndAt = *wf.Schedule.EndAt
+	} else {
+		spec.EndAt = time.Time{}
 	}
-	// Build schedule action (workflow to run)
+}
+
+func (m *manager) buildScheduleAction(wf *workflow.Config) *client.ScheduleWorkflowAction {
 	action := &client.ScheduleWorkflowAction{
 		ID:                       wf.ID,
-		Workflow:                 worker.CompozyWorkflowName, // Use constant workflow type name
+		Workflow:                 worker.CompozyWorkflowName,
 		TaskQueue:                m.taskQueue,
-		WorkflowExecutionTimeout: 0, // Use server default
-		WorkflowRunTimeout:       0, // Use server default
-		WorkflowTaskTimeout:      0, // Use server default
+		WorkflowExecutionTimeout: 0,
+		WorkflowRunTimeout:       0,
+		WorkflowTaskTimeout:      0,
 	}
-	// Set workflow input - create TriggerInput for CompozyWorkflow
-	triggerInput := map[string]any{
+	m.populateScheduleAction(action, wf)
+	return action
+}
+
+func (m *manager) populateScheduleAction(action *client.ScheduleWorkflowAction, wf *workflow.Config) {
+	action.Workflow = worker.CompozyWorkflowName
+	action.Args = []any{triggerInputForWorkflow(wf)}
+}
+
+func triggerInputForWorkflow(wf *workflow.Config) map[string]any {
+	return map[string]any{
 		"workflow_id":      wf.ID,
-		"workflow_exec_id": "", // Will be generated by the workflow
+		"workflow_exec_id": "",
 		"input":            wf.Schedule.Input,
 	}
-	action.Args = []any{triggerInput}
-	// Note: Overlap policy is handled differently in SDK v1.34.0
-	// It's set during trigger operations rather than during creation
-	if wf.Schedule.OverlapPolicy != "" && wf.Schedule.OverlapPolicy != workflow.OverlapSkip {
-		log.Warn("OverlapPolicy is configured but not enforced by schedule creation in this SDK version",
-			"workflow_id", wf.ID,
-			"policy", wf.Schedule.OverlapPolicy,
-			"info", "Policy must be handled by the workflow or custom trigger logic")
-	}
-	// Create schedule state
-	state := client.ScheduleState{
-		Paused: false, // Default to enabled
-	}
-	if wf.Schedule.Enabled != nil && !*wf.Schedule.Enabled {
-		state.Paused = true
-	}
-	// Create schedule options - simplified version for SDK v1.34.0
-	options := client.ScheduleOptions{
+}
+
+func (m *manager) buildScheduleOptions(
+	scheduleID string,
+	spec *client.ScheduleSpec,
+	action *client.ScheduleWorkflowAction,
+	wf *workflow.Config,
+) client.ScheduleOptions {
+	paused := wf.Schedule.Enabled != nil && !*wf.Schedule.Enabled
+	return client.ScheduleOptions{
 		ID:     scheduleID,
-		Spec:   spec,
+		Spec:   *spec,
 		Action: action,
-		Paused: state.Paused,
+		Paused: paused,
 		Memo: map[string]any{
 			"project_id":  m.projectID,
 			"workflow_id": wf.ID,
 		},
 	}
-	// Create the schedule
-	handle, err := m.client.ScheduleClient().Create(ctx, options)
-	if err != nil {
-		return fmt.Errorf("failed to create schedule: %w", err)
-	}
-	status = OperationStatusSuccess // Mark operation as successful
-	log.Info("Schedule created successfully", "handle", handle.GetID())
-	return nil
 }
 
-// updateSchedule updates an existing schedule in Temporal
-func (m *manager) updateSchedule(ctx context.Context, scheduleID string, wf *workflow.Config) error {
-	log := logger.FromContext(ctx).With("schedule_id", scheduleID, "workflow_id", wf.ID)
+func (m *manager) warnUnsupportedOverlapPolicy(ctx context.Context, scheduleID string, wf *workflow.Config) {
+	policy := wf.Schedule.OverlapPolicy
+	if policy == "" || policy == workflow.OverlapSkip {
+		return
+	}
+	logger.FromContext(ctx).
+		With("schedule_id", scheduleID, "workflow_id", wf.ID).
+		Warn(
+			"OverlapPolicy is configured but not enforced by schedule creation in this SDK version",
+			"policy", policy,
+			"info", "Policy must be handled by the workflow or custom trigger logic",
+		)
+}
 
-	// Record operation metrics
-	operation := OperationUpdate
-	status := OperationStatusFailure // Assume failure, will be set to success on completion
-	if m.metrics != nil {
-		defer func() {
-			m.metrics.RecordOperation(ctx, operation, status, m.projectID)
-		}()
+func (m *manager) buildScheduleUpdater(
+	ctx context.Context,
+	scheduleID string,
+	wf *workflow.Config,
+	expectedTimezone string,
+	expectedEnabled bool,
+) func(client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {
+	return func(input client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {
+		spec := input.Description.Schedule.Spec
+		if spec == nil {
+			spec = &client.ScheduleSpec{}
+			input.Description.Schedule.Spec = spec
+		}
+		spec.CronExpressions = []string{EnsureTemporalCron(wf.Schedule.Cron)}
+		spec.TimeZoneName = expectedTimezone
+		if jitter, hasJitter, err := m.parseScheduleJitter(ctx, scheduleID, wf); err != nil {
+			return nil, err
+		} else if hasJitter {
+			spec.Jitter = jitter
+		} else {
+			spec.Jitter = 0
+		}
+		m.applyScheduleWindow(wf, spec)
+		input.Description.Schedule.State.Paused = !expectedEnabled
+		if action, ok := input.Description.Schedule.Action.(*client.ScheduleWorkflowAction); ok {
+			m.populateScheduleAction(action, wf)
+		}
+		return &client.ScheduleUpdate{Schedule: &input.Description.Schedule}, nil
 	}
-	// Validate cron expression before attempting update
-	if err := m.validateCronForSchedule(ctx, wf); err != nil {
-		return err
-	}
-	handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)
-	// Get current description to check if update is needed
-	desc, err := handle.Describe(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to describe schedule for update: %w", err)
-	}
-	// Check if update is needed
-	needsUpdate, expectedTimezone, expectedEnabled := m.checkScheduleNeedsUpdate(desc, wf)
-	if !needsUpdate {
-		status = OperationStatusSuccess // Mark as successful (no update needed)
-		log.Debug("Schedule is up to date, skipping update")
-		return nil
-	}
-	// Perform update
-	err = handle.Update(ctx, client.ScheduleUpdateOptions{
-		DoUpdate: func(input client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {
-			// Update spec
-			// Ensure cron expression is in Temporal's expected format
-			cronExpr := EnsureTemporalCron(wf.Schedule.Cron)
-			input.Description.Schedule.Spec.CronExpressions = []string{cronExpr}
-			input.Description.Schedule.Spec.TimeZoneName = expectedTimezone
-			// Update jitter
-			if wf.Schedule.Jitter != "" {
-				jitterDuration, err := time.ParseDuration(wf.Schedule.Jitter)
-				if err != nil {
-					return nil, fmt.Errorf("invalid jitter duration: %w", err)
-				}
-				input.Description.Schedule.Spec.Jitter = jitterDuration
-			} else {
-				input.Description.Schedule.Spec.Jitter = 0
-			}
-			// Update start/end times
-			if wf.Schedule.StartAt != nil {
-				input.Description.Schedule.Spec.StartAt = *wf.Schedule.StartAt
-			}
-			if wf.Schedule.EndAt != nil {
-				input.Description.Schedule.Spec.EndAt = *wf.Schedule.EndAt
-			}
-			// Note: Overlap policy is not updated in SDK v1.34.0
-			// Update enabled state
-			input.Description.Schedule.State.Paused = !expectedEnabled
-			// Update action (workflow input and type)
-			if action, ok := input.Description.Schedule.Action.(*client.ScheduleWorkflowAction); ok {
-				// Update workflow type to CompozyWorkflow
-				action.Workflow = worker.CompozyWorkflowName
-				// Create TriggerInput for CompozyWorkflow
-				triggerInput := map[string]any{
-					"workflow_id":      wf.ID,
-					"workflow_exec_id": "", // Will be generated by the workflow
-					"input":            wf.Schedule.Input,
-				}
-				action.Args = []any{triggerInput}
-			}
-			return &client.ScheduleUpdate{
-				Schedule: &input.Description.Schedule,
-			}, nil
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update schedule: %w", err)
-	}
-	status = OperationStatusSuccess // Mark operation as successful
-	log.Info("Schedule updated successfully")
-	return nil
 }
 
 // deleteSchedule deletes a schedule from Temporal

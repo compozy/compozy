@@ -43,33 +43,67 @@ type EventResponse struct {
 // @Failure     500 {object} router.Response{error=router.ErrorInfo} "Internal server error"
 // @Router      /events [post]
 func handleEvent(c *gin.Context) {
-	var req EventRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		reqErr := router.NewRequestError(http.StatusBadRequest, "Invalid event format", err)
-		router.RespondWithError(c, http.StatusBadRequest, reqErr)
+	req, ok := parseEventRequest(c)
+	if !ok {
 		return
 	}
-
 	state := router.GetAppStateWithWorker(c)
 	if state == nil {
 		return
 	}
 	workerMgr := state.Worker
-	projectName := state.ProjectConfig.Name
-	dispatcherID := workerMgr.GetDispatcherID() // Use this instance's dispatcher
-	taskQueue := workerMgr.GetTaskQueue()       // Use this instance's task queue
-
-	// Generate correlation ID for tracking
+	dispatcherID := workerMgr.GetDispatcherID()
+	taskQueue := workerMgr.GetTaskQueue()
 	eventID := core.MustNewID().String()
+	ctx, cancel := startEventContext(c.Request.Context())
+	defer cancel()
+	if err := dispatchEventSignal(
+		ctx,
+		workerMgr,
+		dispatcherID,
+		taskQueue,
+		req,
+		eventID,
+		state.ProjectConfig.Name,
+	); err != nil {
+		respondDispatchError(c, err)
+		return
+	}
+	router.RespondAccepted(c, "event received", EventResponse{
+		Message: "event received",
+		EventID: eventID,
+	})
+}
 
-	ctx := c.Request.Context()
+// parseEventRequest binds and validates the event submission payload.
+func parseEventRequest(c *gin.Context) (EventRequest, bool) {
+	var req EventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondRouterError(c, http.StatusBadRequest, "Invalid event format", err)
+		return EventRequest{}, false
+	}
+	return req, true
+}
+
+// startEventContext applies dispatch timeouts derived from global configuration.
+func startEventContext(parent context.Context) (context.Context, context.CancelFunc) {
 	timeout := workflowStartTimeoutDefault
-	if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.Worker.StartWorkflowTimeout > 0 {
+	if cfg := appconfig.FromContext(parent); cfg != nil && cfg.Worker.StartWorkflowTimeout > 0 {
 		timeout = cfg.Worker.StartWorkflowTimeout
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	// Send signal with start
+	return context.WithTimeout(parent, timeout)
+}
+
+// dispatchEventSignal forwards an event signal to the dispatcher workflow.
+func dispatchEventSignal(
+	ctx context.Context,
+	workerMgr *worker.Worker,
+	dispatcherID string,
+	taskQueue string,
+	req EventRequest,
+	eventID string,
+	projectName string,
+) error {
 	_, err := workerMgr.GetClient().SignalWithStartWorkflow(
 		ctx,
 		dispatcherID,
@@ -79,33 +113,32 @@ func handleEvent(c *gin.Context) {
 			Payload:       req.Payload,
 			CorrelationID: eventID,
 		},
-		client.StartWorkflowOptions{
-			ID:        dispatcherID,
-			TaskQueue: taskQueue,
-		},
+		client.StartWorkflowOptions{ID: dispatcherID, TaskQueue: taskQueue},
 		worker.DispatcherWorkflow,
 		projectName,
 	)
-	if err != nil {
-		statusCode := http.StatusInternalServerError
-		reason := "Failed to send event"
-		switch status.Code(err) {
-		case codes.NotFound:
-			statusCode = http.StatusNotFound
-			reason = "Not found"
-		case codes.InvalidArgument:
-			statusCode = http.StatusBadRequest
-			reason = "Invalid event"
-		case codes.AlreadyExists:
-			statusCode = http.StatusConflict
-			reason = "Conflict"
-		}
-		reqErr := router.NewRequestError(statusCode, reason, err)
-		router.RespondWithError(c, statusCode, reqErr)
-		return
+	return err
+}
+
+// respondDispatchError maps Temporal dispatch errors to HTTP responses.
+func respondDispatchError(c *gin.Context, err error) {
+	statusCode := http.StatusInternalServerError
+	reason := "Failed to send event"
+	switch status.Code(err) {
+	case codes.NotFound:
+		statusCode = http.StatusNotFound
+		reason = "Not found"
+	case codes.InvalidArgument:
+		statusCode = http.StatusBadRequest
+		reason = "Invalid event"
+	case codes.AlreadyExists:
+		statusCode = http.StatusConflict
+		reason = "Conflict"
 	}
-	router.RespondAccepted(c, "event received", EventResponse{
-		Message: "event received",
-		EventID: eventID,
-	})
+	respondRouterError(c, statusCode, reason, err)
+}
+
+// respondRouterError renders an error response with the router's envelope.
+func respondRouterError(c *gin.Context, statusCode int, reason string, err error) {
+	router.RespondWithError(c, statusCode, router.NewRequestError(statusCode, reason, err))
 }

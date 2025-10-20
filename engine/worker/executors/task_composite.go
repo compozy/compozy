@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"sort"
 
+	temporalLog "go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/workflow"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
 )
@@ -42,61 +44,92 @@ func (e *CompositeTaskExecutor) HandleCompositeTask(
 		if len(depth) > 0 {
 			currentDepth = depth[0]
 		}
-		// Create parent state for composite task
 		compositeState, err := e.CreateCompositeState(ctx, config)
 		if err != nil {
 			return nil, err
 		}
-		// Get child states that were created by CreateCompositeState
 		childStates, err := e.ListChildStates(ctx, compositeState.TaskExecID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list child states: %w", err)
 		}
-		// Load child configs from composite metadata
-		childIDs := make([]string, len(childStates))
-		for i, st := range childStates {
-			childIDs[i] = st.TaskID
-		}
-		var childCfgs map[string]*task.Config
-		err = workflow.ExecuteActivity(ctx, tkacts.LoadCompositeConfigsLabel, &tkacts.LoadCompositeConfigsInput{
-			ParentTaskExecID: compositeState.TaskExecID,
-			TaskIDs:          childIDs,
-		}).Get(ctx, &childCfgs)
+		childCfgs, err := e.loadCompositeChildConfigs(ctx, compositeState.TaskExecID, childStates)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load child configs: %w", err)
+			return nil, err
 		}
-		// Sort child states by task ID to ensure deterministic ordering
-		// This matches the order defined in config.Tasks
-		sort.Slice(childStates, func(i, j int) bool {
-			// Find index of each task in the config
-			iIdx := e.findTaskIndex(config.Tasks, childStates[i].TaskID)
-			jIdx := e.findTaskIndex(config.Tasks, childStates[j].TaskID)
-			return iIdx < jIdx
-		})
-		// Execute subtasks sequentially (composite tasks are always sequential)
-		for i, childState := range childStates {
-			childConfig := childCfgs[childState.TaskID]
-			// Execute child task
-			err := e.executeChild(ctx, compositeState.TaskExecID, childState, childConfig, currentDepth)
-			if err != nil {
-				log.Error("Child task failed",
-					"composite_task", config.ID,
-					"child_task", childState.TaskID,
-					"index", i,
-					"depth", currentDepth+1,
-					"error", err)
-				// Composite tasks always fail immediately on any child failure
-				return nil, fmt.Errorf("child task %s failed: %w", childState.TaskID, err)
-			}
-			log.Debug("Child task completed",
-				"composite_task", config.ID,
-				"child_task", childState.TaskID,
-				"index", i,
-				"depth", currentDepth+1)
+		e.sortChildStates(childStates, config.Tasks)
+		if err := e.executeCompositeChildren(
+			ctx,
+			log,
+			compositeState,
+			childStates,
+			childCfgs,
+			config,
+			currentDepth,
+		); err != nil {
+			return nil, err
 		}
-		// Generate final response using standard parent task processing
 		return e.GetCompositeResponse(ctx, compositeState)
 	}
+}
+
+// loadCompositeChildConfigs fetches child task configs for a composite parent.
+func (e *CompositeTaskExecutor) loadCompositeChildConfigs(
+	ctx workflow.Context,
+	parentTaskExecID core.ID,
+	childStates []*task.State,
+) (map[string]*task.Config, error) {
+	childIDs := make([]string, len(childStates))
+	for i, st := range childStates {
+		childIDs[i] = st.TaskID
+	}
+	var childCfgs map[string]*task.Config
+	err := workflow.ExecuteActivity(ctx, tkacts.LoadCompositeConfigsLabel, &tkacts.LoadCompositeConfigsInput{
+		ParentTaskExecID: parentTaskExecID,
+		TaskIDs:          childIDs,
+	}).Get(ctx, &childCfgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load child configs: %w", err)
+	}
+	return childCfgs, nil
+}
+
+// sortChildStates orders child states to match the composite configuration.
+func (e *CompositeTaskExecutor) sortChildStates(childStates []*task.State, tasks []task.Config) {
+	sort.Slice(childStates, func(i, j int) bool {
+		iIdx := e.findTaskIndex(tasks, childStates[i].TaskID)
+		jIdx := e.findTaskIndex(tasks, childStates[j].TaskID)
+		return iIdx < jIdx
+	})
+}
+
+// executeCompositeChildren runs composite subtasks sequentially, aborting on failure.
+func (e *CompositeTaskExecutor) executeCompositeChildren(
+	ctx workflow.Context,
+	log temporalLog.Logger,
+	compositeState *task.State,
+	childStates []*task.State,
+	childCfgs map[string]*task.Config,
+	config *task.Config,
+	currentDepth int,
+) error {
+	for index, childState := range childStates {
+		childConfig := childCfgs[childState.TaskID]
+		if err := e.executeChild(ctx, compositeState.TaskExecID, childState, childConfig, currentDepth); err != nil {
+			log.Error("Child task failed",
+				"composite_task", config.ID,
+				"child_task", childState.TaskID,
+				"index", index,
+				"depth", currentDepth+1,
+				"error", err)
+			return fmt.Errorf("child task %s failed: %w", childState.TaskID, err)
+		}
+		log.Debug("Child task completed",
+			"composite_task", config.ID,
+			"child_task", childState.TaskID,
+			"index", index,
+			"depth", currentDepth+1)
+	}
+	return nil
 }
 
 // CreateCompositeState creates a composite state via activity

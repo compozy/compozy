@@ -129,61 +129,88 @@ func setupWatcher(ctx context.Context, cwd string, watchedDirs *sync.Map) (*fsno
 // startWatcher monitors file system events and triggers server restarts
 func startWatcher(ctx context.Context, watcher *fsnotify.Watcher, restartChan chan bool, watchedDirs *sync.Map) {
 	log := logger.FromContext(ctx)
-
-	// Debounce timer to batch multiple file changes
-	var debounceTimer *time.Timer
-	var pendingRestart bool
-	debounceMutex := &sync.Mutex{}
-
-	triggerRestart := func() {
-		debounceMutex.Lock()
-		defer debounceMutex.Unlock()
-
-		if pendingRestart {
-			select {
-			case restartChan <- true:
-				log.Debug("Sending restart signal after debounce")
-			default:
-				// Restart already pending
-			}
-			pendingRestart = false
-		}
-	}
+	debouncer := newRestartDebouncer(log, restartChan)
 
 	for {
 		select {
 		case <-ctx.Done():
 			log.Info("Context canceled, stopping file watcher")
-			if debounceTimer != nil {
-				debounceTimer.Stop()
-			}
+			debouncer.stop()
 			return
 		case event, ok := <-watcher.Events:
 			if !ok {
+				debouncer.stop()
 				return
 			}
-			if handleDirectoryEvent(log, watcher, watchedDirs, event) {
-				continue
-			}
-			if shouldRestartForEvent(event) {
-				log.Debug("Detected file change, debouncing...", "file", event.Name, "op", event.Op.String())
-
-				debounceMutex.Lock()
-				pendingRestart = true
-
-				// Reset the debounce timer
-				if debounceTimer != nil {
-					debounceTimer.Stop()
-				}
-				debounceTimer = time.AfterFunc(fileChangeDebounceDelay, triggerRestart)
-				debounceMutex.Unlock()
-			}
+			processWatcherEvent(log, watcher, watchedDirs, event, debouncer)
 		case err, ok := <-watcher.Errors:
 			if !ok {
+				debouncer.stop()
 				return
 			}
 			log.Error("Watcher error", "error", err)
 		}
+	}
+}
+
+type restartDebouncer struct {
+	mu          sync.Mutex
+	timer       *time.Timer
+	log         logger.Logger
+	restartChan chan bool
+	pending     bool
+}
+
+func newRestartDebouncer(log logger.Logger, restartChan chan bool) *restartDebouncer {
+	return &restartDebouncer{log: log, restartChan: restartChan}
+}
+
+func (d *restartDebouncer) schedule() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.pending = true
+	if d.timer != nil {
+		d.timer.Stop()
+	}
+	d.timer = time.AfterFunc(fileChangeDebounceDelay, d.flush)
+}
+
+func (d *restartDebouncer) flush() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.pending {
+		return
+	}
+	select {
+	case d.restartChan <- true:
+		d.log.Debug("Sending restart signal after debounce")
+	default:
+	}
+	d.pending = false
+}
+
+func (d *restartDebouncer) stop() {
+	d.mu.Lock()
+	if d.timer != nil {
+		d.timer.Stop()
+	}
+	d.pending = false
+	d.mu.Unlock()
+}
+
+func processWatcherEvent(
+	log logger.Logger,
+	watcher *fsnotify.Watcher,
+	watchedDirs *sync.Map,
+	event fsnotify.Event,
+	debouncer *restartDebouncer,
+) {
+	if handleDirectoryEvent(log, watcher, watchedDirs, event) {
+		return
+	}
+	if shouldRestartForEvent(event) {
+		log.Debug("Detected file change, debouncing...", "file", event.Name, "op", event.Op.String())
+		debouncer.schedule()
 	}
 }
 
@@ -236,81 +263,127 @@ func runAndWatchServer(
 	if cfg == nil {
 		return fmt.Errorf("missing configuration in context")
 	}
-	var retryDelay = initialRetryDelay
+	retryDelay := initialRetryDelay
 
 	for {
-		if err := ctx.Err(); err != nil {
-			log.Info("Context canceled before server start, stopping watcher loop")
+		if err := ensureServerReady(ctx, log, cfg); err != nil {
 			return err
 		}
-		if err := cliutils.EnsurePortAvailable(ctx, cfg.Server.Host, cfg.Server.Port); err != nil {
-			return fmt.Errorf("development server port unavailable: %w", err)
-		}
-		srv, err := server.NewServer(ctx, cwd, configFile, envFilePath)
+		srv, serverErrChan, err := startDevServer(ctx, cwd, configFile, envFilePath)
 		if err != nil {
-			return fmt.Errorf("failed to create server: %w", err)
+			return err
 		}
-		serverErrChan := make(chan error, 1)
-		go func() {
-			serverErrChan <- srv.Run()
-		}()
 
 		log.Info("Server started. Watching for file changes.")
 
-		select {
-		case <-restartChan:
-			log.Info("Restart signal received. Shutting down server...")
-			srv.Shutdown()
-			shutdownErr := <-serverErrChan // Wait for shutdown to complete
-			if shutdownErr != nil {
-				log.Warn("Server returned error while shutting down", "error", shutdownErr)
-			}
-			log.Info("Server shut down. Restarting...")
-			// Reset retry delay on successful file-based restart
+		decision, err := waitForServerEvent(ctx, srv, restartChan, serverErrChan, log, cfg)
+		switch decision {
+		case serverDecisionRestart:
 			retryDelay = initialRetryDelay
-			// Drain the channel in case of multiple file change events
-			for len(restartChan) > 0 {
-				<-restartChan
-			}
-			continue // Restart the loop
-		case <-ctx.Done():
-			log.Info("Context canceled, initiating shutdown")
-			srv.Shutdown()
-			shutdownErr := <-serverErrChan
-			if shutdownErr != nil {
-				log.Warn("Server returned error while shutting down", "error", shutdownErr)
-			}
-			return ctx.Err()
-		case err := <-serverErrChan:
-			if err != nil {
-				if isAddressInUse(err) {
-					log.Error("Port already in use; stop the conflicting process or configure a new port",
-						"host", cfg.Server.Host,
-						"port", cfg.Server.Port,
-						"error", err,
-					)
-					return fmt.Errorf(
-						"development server failed to bind to %s:%d: %w",
-						cfg.Server.Host,
-						cfg.Server.Port,
-						err,
-					)
-				}
-				log.Error("Server stopped with error", "error", err)
-				// Use exponential back-off to prevent tight restart loops on server failures
-				log.Debug("Waiting before retry...", "delay", retryDelay)
-				time.Sleep(retryDelay)
-				// Double the delay for next retry, up to maximum
-				retryDelay *= 2
-				if retryDelay > maxRetryDelay {
-					retryDelay = maxRetryDelay
-				}
-				continue // Retry after back-off
-			}
-			log.Info("Server stopped.")
-			return nil
+			drainRestartSignals(restartChan)
+			continue
+		case serverDecisionRetry:
+			log.Debug("Waiting before retry...", "delay", retryDelay)
+			time.Sleep(retryDelay)
+			retryDelay = nextRetryDelay(retryDelay)
+			continue
+		case serverDecisionStop:
+			return err
 		}
 	}
+}
+
+type serverDecision int
+
+const (
+	serverDecisionRestart serverDecision = iota
+	serverDecisionRetry
+	serverDecisionStop
+)
+
+func ensureServerReady(ctx context.Context, log logger.Logger, cfg *config.Config) error {
+	if err := ctx.Err(); err != nil {
+		log.Info("Context canceled before server start, stopping watcher loop")
+		return err
+	}
+	if err := cliutils.EnsurePortAvailable(ctx, cfg.Server.Host, cfg.Server.Port); err != nil {
+		return fmt.Errorf("development server port unavailable: %w", err)
+	}
+	return nil
+}
+
+func startDevServer(ctx context.Context, cwd, configFile, envFilePath string) (*server.Server, <-chan error, error) {
+	srv, err := server.NewServer(ctx, cwd, configFile, envFilePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create server: %w", err)
+	}
+	serverErrChan := make(chan error, 1)
+	go func() {
+		serverErrChan <- srv.Run()
+	}()
+	return srv, serverErrChan, nil
+}
+
+func waitForServerEvent(
+	ctx context.Context,
+	srv *server.Server,
+	restartChan chan bool,
+	serverErrChan <-chan error,
+	log logger.Logger,
+	cfg *config.Config,
+) (serverDecision, error) {
+	select {
+	case <-restartChan:
+		log.Info("Restart signal received. Shutting down server...")
+		shutdownServer(log, srv, serverErrChan)
+		log.Info("Server shut down. Restarting...")
+		return serverDecisionRestart, nil
+	case <-ctx.Done():
+		log.Info("Context canceled, initiating shutdown")
+		shutdownServer(log, srv, serverErrChan)
+		return serverDecisionStop, ctx.Err()
+	case err := <-serverErrChan:
+		if err != nil {
+			if isAddressInUse(err) {
+				log.Error("Port already in use; stop the conflicting process or configure a new port",
+					"host", cfg.Server.Host,
+					"port", cfg.Server.Port,
+					"error", err,
+				)
+				return serverDecisionStop, fmt.Errorf(
+					"development server failed to bind to %s:%d: %w",
+					cfg.Server.Host,
+					cfg.Server.Port,
+					err,
+				)
+			}
+			log.Error("Server stopped with error", "error", err)
+			return serverDecisionRetry, err
+		}
+		log.Info("Server stopped.")
+		return serverDecisionStop, nil
+	}
+}
+
+func shutdownServer(log logger.Logger, srv *server.Server, serverErrChan <-chan error) {
+	srv.Shutdown()
+	if shutdownErr := <-serverErrChan; shutdownErr != nil {
+		log.Warn("Server returned error while shutting down", "error", shutdownErr)
+	}
+}
+
+func drainRestartSignals(restartChan chan bool) {
+	for len(restartChan) > 0 {
+		<-restartChan
+	}
+}
+
+func nextRetryDelay(current time.Duration) time.Duration {
+	next := current * 2
+	if next > maxRetryDelay {
+		return maxRetryDelay
+	}
+	return next
 }
 
 func isAddressInUse(err error) bool {

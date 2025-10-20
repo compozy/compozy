@@ -107,29 +107,7 @@ func (s *FIFOStrategy) PerformFlush(
 		}, nil
 	}
 
-	// Optimize token counting - only count tokens for messages we need
-	tokensFlushed := 0
-	remainingTokens := 0
-
-	// Count tokens for messages being removed
-	for i := range messagesToRemove {
-		count, err := s.tokenCounter.CountTokens(ctx, messages[i].Content)
-		if err != nil {
-			// Fall back to estimation on error
-			count = len(messages[i].Content) / 4
-		}
-		tokensFlushed += count
-	}
-
-	// Count tokens for remaining messages
-	for i := messagesToRemove; i < len(messages); i++ {
-		count, err := s.tokenCounter.CountTokens(ctx, messages[i].Content)
-		if err != nil {
-			// Fall back to estimation on error
-			count = len(messages[i].Content) / 4
-		}
-		remainingTokens += count
-	}
+	remainingTokens := s.countTokens(ctx, messages[messagesToRemove:])
 
 	return &core.FlushMemoryActivityOutput{
 		Success:          true,
@@ -137,6 +115,22 @@ func (s *FIFOStrategy) PerformFlush(
 		MessageCount:     len(messages) - messagesToRemove,
 		TokenCount:       remainingTokens, // Fixed: returns remaining tokens, not flushed tokens
 	}, nil
+}
+
+func (s *FIFOStrategy) countTokens(ctx context.Context, messages []llm.Message) int {
+	if len(messages) == 0 {
+		return 0
+	}
+
+	total := 0
+	for i := range messages {
+		count, err := s.tokenCounter.CountTokens(ctx, messages[i].Content)
+		if err != nil {
+			count = len(messages[i].Content) / 4
+		}
+		total += count
+	}
+	return total
 }
 
 // GetType returns the strategy type

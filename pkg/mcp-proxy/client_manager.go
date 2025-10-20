@@ -322,10 +322,30 @@ func (m *MCPClientManager) createClient(def *MCPDefinition) (*MCPClient, error) 
 
 // connectClient attempts to connect a client with retry logic
 func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient) {
-	log := logger.FromContext(ctx)
 	def := client.GetDefinition()
 	status := client.GetStatus()
 
+	maxRetries, reconnectDelay, timeout := m.connectionParameters(def)
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if m.connectionCanceled(ctx) {
+			return
+		}
+
+		if m.executeConnectionAttempt(ctx, client, status, def, attempt, maxRetries, timeout) {
+			return
+		}
+
+		if !m.waitForRetry(ctx, attempt, maxRetries, reconnectDelay) {
+			return
+		}
+	}
+
+	m.handleConnectionFailure(ctx, status, def.Name)
+}
+
+// connectionParameters resolves retry, delay, and timeout configuration for a client definition.
+func (m *MCPClientManager) connectionParameters(def *MCPDefinition) (int, time.Duration, time.Duration) {
 	maxRetries := def.MaxReconnects
 	if maxRetries == 0 {
 		maxRetries = m.config.DefaultMaxReconnects
@@ -336,68 +356,93 @@ func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient)
 		reconnectDelay = m.config.DefaultReconnectDelay
 	}
 
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		select {
-		case <-ctx.Done():
-			return
-		case <-m.ctx.Done():
-			return
-		default:
-		}
-
-		// Update status to connecting
-		status.UpdateStatus(StatusConnecting, "")
-		m.saveStatus(ctx, status)
-
-		// Attempt connection with timeout; prefer per-definition Timeout when provided
-		timeout := m.config.DefaultConnectTimeout
-		if def.Timeout > 0 {
-			timeout = def.Timeout
-		}
-		// Derive from the provided context to honor upstream cancellation
-		connectCtx, cancel := context.WithTimeout(ctx, timeout)
-		err := client.Connect(connectCtx)
-		cancel()
-
-		if err == nil {
-			// Success
-			status.UpdateStatus(StatusConnected, "")
-			m.saveStatus(ctx, status)
-			log.Debug("MCP client connected", "name", def.Name, "attempt", attempt+1)
-			return
-		}
-
-		// Failed - update status and potentially retry
-		status.UpdateStatus(StatusError, err.Error())
-		m.saveStatus(ctx, status)
-
-		log.Warn("MCP client connection failed",
-			"name", def.Name,
-			"attempt", attempt+1,
-			"maxRetries", maxRetries+1,
-			"error", err)
-
-		// Don't sleep after last attempt
-		if attempt < maxRetries {
-			// Exponential backoff with jitter to prevent thundering herd
-			backoffDelay := min(time.Duration(float64(reconnectDelay)*(1.5*float64(attempt)+1)),
-				// Cap at 60 seconds
-				MaxBackoffDelay)
-
-			select {
-			case <-time.After(backoffDelay):
-			case <-ctx.Done():
-				return
-			case <-m.ctx.Done():
-				return
-			}
-		}
+	timeout := m.config.DefaultConnectTimeout
+	if def.Timeout > 0 {
+		timeout = def.Timeout
 	}
 
-	// All attempts failed
+	return maxRetries, reconnectDelay, timeout
+}
+
+// connectionCanceled reports whether either the provided context or manager context was canceled.
+func (m *MCPClientManager) connectionCanceled(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	case <-m.ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// executeConnectionAttempt performs a single connection attempt and returns true on success.
+func (m *MCPClientManager) executeConnectionAttempt(
+	ctx context.Context,
+	client *MCPClient,
+	status *MCPStatus,
+	def *MCPDefinition,
+	attempt int,
+	maxRetries int,
+	timeout time.Duration,
+) bool {
+	status.UpdateStatus(StatusConnecting, "")
+	m.saveStatus(ctx, status)
+
+	connectCtx, cancel := context.WithTimeout(ctx, timeout)
+	err := client.Connect(connectCtx)
+	cancel()
+
+	if err == nil {
+		status.UpdateStatus(StatusConnected, "")
+		m.saveStatus(ctx, status)
+		logger.FromContext(ctx).Debug("MCP client connected", "name", def.Name, "attempt", attempt+1)
+		return true
+	}
+
+	status.UpdateStatus(StatusError, err.Error())
+	m.saveStatus(ctx, status)
+	logger.FromContext(ctx).Warn(
+		"MCP client connection failed",
+		"name", def.Name,
+		"attempt", attempt+1,
+		"maxRetries", maxRetries+1,
+		"error", err,
+	)
+
+	return false
+}
+
+// waitForRetry blocks until the next retry window or cancellation; it returns false if the loop should exit.
+func (m *MCPClientManager) waitForRetry(
+	ctx context.Context,
+	attempt, maxRetries int,
+	reconnectDelay time.Duration,
+) bool {
+	if attempt >= maxRetries {
+		return false
+	}
+
+	backoffDelay := min(
+		time.Duration(float64(reconnectDelay)*(1.5*float64(attempt)+1)),
+		MaxBackoffDelay,
+	)
+
+	select {
+	case <-time.After(backoffDelay):
+		return true
+	case <-ctx.Done():
+		return false
+	case <-m.ctx.Done():
+		return false
+	}
+}
+
+// handleConnectionFailure records a permanent connection failure and logs it.
+func (m *MCPClientManager) handleConnectionFailure(ctx context.Context, status *MCPStatus, name string) {
 	status.UpdateStatus(StatusError, "maximum connection attempts exceeded")
 	m.saveStatus(ctx, status)
-	log.Error("MCP client connection failed permanently", "name", def.Name)
+	logger.FromContext(ctx).Error("MCP client connection failed permanently", "name", name)
 }
 
 // healthMonitor runs periodic health checks on all clients
@@ -419,80 +464,88 @@ func (m *MCPClientManager) healthMonitor() {
 
 // performHealthChecks checks the health of all connected clients concurrently
 func (m *MCPClientManager) performHealthChecks() {
-	log := logger.FromContext(m.ctx)
-	// Get client list outside of individual health checks to avoid long lock
+	clients := m.clientsNeedingHealthCheck()
+	if len(clients) == 0 {
+		return
+	}
+
+	g, ctx := errgroup.WithContext(m.ctx)
+	semaphore := make(chan struct{}, max(m.config.HealthCheckParallelism, 1))
+
+	for name, client := range clients {
+		name, client := name, client
+		g.Go(func() error {
+			return m.runHealthCheck(ctx, name, client, semaphore)
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		logger.FromContext(m.ctx).Error("Health check process interrupted", "error", err)
+	}
+}
+
+// clientsNeedingHealthCheck returns a snapshot of clients that require health checks.
+func (m *MCPClientManager) clientsNeedingHealthCheck() map[string]*MCPClient {
 	m.mu.RLock()
 	clientsCopy := core.CloneMap(m.clients)
 	m.mu.RUnlock()
 
-	// Filter clients that need health checks
-	clientsToCheck := make(map[string]*MCPClient)
+	filtered := make(map[string]*MCPClient)
 	for name, client := range clientsCopy {
 		if !client.IsConnected() {
 			continue
 		}
-
-		def := client.GetDefinition()
-		if !def.HealthCheckEnabled {
+		if !client.GetDefinition().HealthCheckEnabled {
 			continue
 		}
+		filtered[name] = client
+	}
+	return filtered
+}
 
-		clientsToCheck[name] = client
+// runHealthCheck executes the health check for a single client using bounded parallelism.
+func (m *MCPClientManager) runHealthCheck(
+	ctx context.Context,
+	name string,
+	client *MCPClient,
+	semaphore chan struct{},
+) error {
+	select {
+	case semaphore <- struct{}{}:
+		defer func() { <-semaphore }()
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 
-	if len(clientsToCheck) == 0 {
-		return
+	healthCtx, cancel := context.WithTimeout(ctx, AdminHealthCheckTimeout)
+	defer cancel()
+
+	err := client.Health(healthCtx)
+	status := client.GetStatus()
+
+	if err != nil {
+		m.handleUnhealthyClient(ctx, name, client, status, err)
+	} else if status.Status != StatusConnected {
+		status.UpdateStatus(StatusConnected, "")
 	}
 
-	// Use errgroup for concurrent health checks with bounded parallelism
-	g, ctx := errgroup.WithContext(m.ctx)
+	m.saveStatus(ctx, status)
+	return nil
+}
 
-	// Create semaphore for bounded concurrency (ensure at least 1 to avoid deadlock)
-	parallelism := max(m.config.HealthCheckParallelism, 1)
-	semaphore := make(chan struct{}, parallelism)
+// handleUnhealthyClient records failures and may trigger automatic reconnection.
+func (m *MCPClientManager) handleUnhealthyClient(
+	ctx context.Context,
+	name string,
+	client *MCPClient,
+	status *MCPStatus,
+	err error,
+) {
+	logger.FromContext(ctx).Warn("MCP client health check failed", "name", name, "error", err)
+	status.UpdateStatus(StatusError, fmt.Sprintf("health check failed: %v", err))
 
-	for name, client := range clientsToCheck {
-		// Capture loop variables
-		name, client := name, client
-
-		g.Go(func() error {
-			// Acquire semaphore
-			select {
-			case semaphore <- struct{}{}:
-				defer func() { <-semaphore }()
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-
-			// Perform health check with timeout
-			healthCtx, cancel := context.WithTimeout(ctx, AdminHealthCheckTimeout)
-			defer cancel()
-
-			err := client.Health(healthCtx)
-			status := client.GetStatus()
-
-			if err != nil {
-				log.Warn("MCP client health check failed", "name", name, "error", err)
-				status.UpdateStatus(StatusError, fmt.Sprintf("health check failed: %v", err))
-
-				// Trigger reconnection if auto-reconnect is enabled
-				def := client.GetDefinition()
-				if def.AutoReconnect {
-					m.triggerReconnection(client)
-				}
-			} else if status.Status != StatusConnected {
-				// Health check passed - ensure status is connected
-				status.UpdateStatus(StatusConnected, "")
-			}
-
-			m.saveStatus(ctx, status)
-			return nil // Don't propagate health check errors as fatal
-		})
-	}
-
-	// Wait for all health checks to complete
-	if err := g.Wait(); err != nil {
-		log.Error("Health check process interrupted", "error", err)
+	if client.GetDefinition().AutoReconnect {
+		m.triggerReconnection(client)
 	}
 }
 

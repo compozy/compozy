@@ -95,14 +95,12 @@ const (
 	PGVectorIndexIVFFlat PGVectorIndexType = "ivfflat"
 )
 
-// PGVectorIndexOptions tunes index creation and runtime behavior.
+// PGVectorIndexOptions tunes index creation parameters.
 type PGVectorIndexOptions struct {
 	Type           PGVectorIndexType
 	Lists          int
-	Probes         int
 	M              int
 	EFConstruction int
-	EFSearch       int
 }
 
 // IsValidIndexType checks if the Type field contains a known index type value.

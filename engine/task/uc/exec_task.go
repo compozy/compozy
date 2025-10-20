@@ -283,11 +283,27 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	input *ExecuteTaskInput,
 	actionID string,
 ) error {
+	state := ensureRuntimeWorkflowState(input)
+	normCtx := buildRuntimeNormalizationContext(state, input)
+	if err := populateRuntimeVariables(ctx, normCtx, state, input); err != nil {
+		return err
+	}
+	agentNormalizer := task2core.NewAgentNormalizer(task2core.NewEnvMerger())
+	if err := agentNormalizer.ReparseInput(agentConfig, normCtx, actionID); err != nil {
+		return fmt.Errorf("runtime template parse failed: %w", err)
+	}
+	log := logger.FromContext(ctx)
+	log.Debug("Successfully re-parsed agent configuration at runtime",
+		"agent_id", agentConfig.ID,
+		"task_id", input.TaskConfig.ID)
+	return nil
+}
+
+// ensureRuntimeWorkflowState prepares the workflow state for runtime normalization.
+func ensureRuntimeWorkflowState(input *ExecuteTaskInput) *workflow.State {
 	state := input.WorkflowState
 	if state == nil {
-		state = &workflow.State{
-			Tasks: make(map[string]*task.State),
-		}
+		state = &workflow.State{Tasks: make(map[string]*task.State)}
 	}
 	if state.Tasks == nil {
 		state.Tasks = make(map[string]*task.State)
@@ -295,48 +311,41 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	if state.WorkflowID == "" && input.WorkflowConfig != nil {
 		state.WorkflowID = input.WorkflowConfig.ID
 	}
+	input.WorkflowState = state
+	return state
+}
 
-	// Build normalization context for runtime re-parsing
-	normCtx := &shared.NormalizationContext{
+// buildRuntimeNormalizationContext initializes the normalization context for parsing.
+func buildRuntimeNormalizationContext(
+	state *workflow.State,
+	input *ExecuteTaskInput,
+) *shared.NormalizationContext {
+	return &shared.NormalizationContext{
 		WorkflowState:  state,
 		WorkflowConfig: input.WorkflowConfig,
 		TaskConfig:     input.TaskConfig,
 		Variables:      make(map[string]any),
-		CurrentInput:   input.TaskConfig.With, // Include task's current input for collection variables
+		CurrentInput:   input.TaskConfig.With,
 	}
+}
 
-	// Build template context with all workflow data including tasks outputs
+// populateRuntimeVariables populates normalization variables from workflow context.
+func populateRuntimeVariables(
+	ctx context.Context,
+	normCtx *shared.NormalizationContext,
+	state *workflow.State,
+	input *ExecuteTaskInput,
+) error {
 	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create context builder: %w", err)
 	}
-
-	// Build full context with tasks data
 	fullCtx := contextBuilder.BuildContext(ctx, state, input.WorkflowConfig, input.TaskConfig)
 	normCtx.Variables = fullCtx.Variables
-
-	// Ensure task's current input (containing collection variables) is added to variables
 	if input.TaskConfig.With != nil {
 		vb := shared.NewVariableBuilder()
 		vb.AddCurrentInputToVariables(normCtx.Variables, input.TaskConfig.With)
 	}
-
-	// Create agent normalizer for runtime re-parsing
-	// Initialize EnvMerger to avoid nil-pointer dereference in AgentNormalizer
-	envMerger := task2core.NewEnvMerger()
-	agentNormalizer := task2core.NewAgentNormalizer(envMerger)
-
-	// Re-parse the agent configuration with runtime context
-	// Pass actionID to only reparse the specific action being executed
-	if err := agentNormalizer.ReparseInput(agentConfig, normCtx, actionID); err != nil {
-		return fmt.Errorf("runtime template parse failed: %w", err)
-	}
-
-	log := logger.FromContext(ctx)
-	log.Debug("Successfully re-parsed agent configuration at runtime",
-		"agent_id", agentConfig.ID,
-		"task_id", input.TaskConfig.ID)
-
 	return nil
 }
 
@@ -588,7 +597,6 @@ func (uc *ExecuteTask) createLLMService(
 	input *ExecuteTaskInput,
 ) (*llm.Service, error) {
 	log := logger.FromContext(ctx)
-	// Setup memory resolver and LLM options
 	llmOpts, hasMemoryConfig := uc.setupMemoryResolver(input, agentConfig)
 	if hasMemoryConfig {
 		log.Warn("Agent memory configured but runtime dependencies unavailable; disabling memory for this run",
@@ -598,42 +606,79 @@ func (uc *ExecuteTask) createLLMService(
 			"has_template_engine", uc.templateEngine != nil,
 			"has_workflow_context", input.WorkflowState != nil)
 	}
-	// Resolve tools using hierarchical inheritance
+	var err error
+	if llmOpts, err = uc.appendResolvedTools(ctx, llmOpts, agentConfig, input); err != nil {
+		return nil, err
+	}
+	llmOpts = uc.appendProjectOptions(llmOpts, input)
+	llmOpts = uc.appendMCPOptions(llmOpts, agentConfig, input)
+	if llmOpts, err = uc.appendTimeoutAndKnowledge(ctx, llmOpts, input, log); err != nil {
+		return nil, err
+	}
+	llmOpts = uc.appendToolEnvironment(llmOpts)
+	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create LLM service: %w", err)
+	}
+	return llmService, nil
+}
+
+// appendResolvedTools resolves tools and applies environment inheritance for LLM options.
+func (uc *ExecuteTask) appendResolvedTools(
+	ctx context.Context,
+	opts []llm.Option,
+	agentConfig *agent.Config,
+	input *ExecuteTaskInput,
+) ([]llm.Option, error) {
 	resolvedTools, err := uc.toolResolver.ResolveTools(ctx, input.ProjectConfig, input.WorkflowConfig, agentConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve tools: %w", err)
 	}
-	// Merge environment inheritance for tools: workflow -> task -> agent -> tool
-	if len(resolvedTools) > 0 {
-		envMerger := task2core.NewEnvMerger()
-		// Base: workflow + task
-		baseEnv := envMerger.MergeWorkflowToTask(input.WorkflowConfig, input.TaskConfig)
-		// Add agent env on top of base (if any)
-		baseWithAgent := envMerger.MergeForComponent(baseEnv, agentConfig.Env)
-		// For every resolved tool, apply component-level overrides
-		for i := range resolvedTools {
-			merged := envMerger.MergeForComponent(baseWithAgent, resolvedTools[i].Env)
-			resolvedTools[i].Env = merged
-		}
-		// Add resolved tools (with merged env) to LLM options
-		llmOpts = append(llmOpts, llm.WithResolvedTools(resolvedTools))
+	if len(resolvedTools) == 0 {
+		return opts, nil
 	}
+	envMerger := task2core.NewEnvMerger()
+	baseEnv := envMerger.MergeWorkflowToTask(input.WorkflowConfig, input.TaskConfig)
+	baseWithAgent := envMerger.MergeForComponent(baseEnv, agentConfig.Env)
+	for i := range resolvedTools {
+		merged := envMerger.MergeForComponent(baseWithAgent, resolvedTools[i].Env)
+		resolvedTools[i].Env = merged
+	}
+	return append(opts, llm.WithResolvedTools(resolvedTools)), nil
+}
+
+// appendProjectOptions appends project-level LLM options including metrics.
+func (uc *ExecuteTask) appendProjectOptions(opts []llm.Option, input *ExecuteTaskInput) []llm.Option {
 	if input != nil && input.ProjectConfig != nil {
 		if cwd := input.ProjectConfig.GetCWD(); cwd != nil {
-			llmOpts = append(llmOpts, llm.WithProjectRoot(cwd.PathStr()))
+			opts = append(opts, llm.WithProjectRoot(cwd.PathStr()))
 		}
 	}
-	llmOpts = append(llmOpts, llm.WithProviderMetrics(uc.providerMetrics))
+	return append(opts, llm.WithProviderMetrics(uc.providerMetrics))
+}
 
-	// Build MCP allowlist from agent/workflow declarations (IDs)
+// appendMCPOptions whitelists MCP integrations when configured.
+func (uc *ExecuteTask) appendMCPOptions(
+	opts []llm.Option,
+	agentConfig *agent.Config,
+	input *ExecuteTaskInput,
+) []llm.Option {
 	if ids := uc.allowedMCPIDs(agentConfig, input); len(ids) > 0 {
-		llmOpts = append(llmOpts, llm.WithAllowedMCPNames(ids))
+		opts = append(opts, llm.WithAllowedMCPNames(ids))
 	}
-	// Note: Attachment parts are now passed directly to GenerateContent method
-	// Derive LLM timeout from task -> project -> app defaults
+	return opts
+}
+
+// appendTimeoutAndKnowledge adds timeout and knowledge context options.
+func (uc *ExecuteTask) appendTimeoutAndKnowledge(
+	ctx context.Context,
+	opts []llm.Option,
+	input *ExecuteTaskInput,
+	log logger.Logger,
+) ([]llm.Option, error) {
 	effectiveTimeout := deriveLLMTimeout(ctx, input)
 	if effectiveTimeout > 0 {
-		llmOpts = append(llmOpts, llm.WithTimeout(effectiveTimeout))
+		opts = append(opts, llm.WithTimeout(effectiveTimeout))
 		log.Debug("Configured LLM timeout", "timeout", effectiveTimeout.String())
 	}
 	knowledgeCfg, err := uc.buildKnowledgeRuntimeConfig(ctx, input)
@@ -641,18 +686,17 @@ func (uc *ExecuteTask) createLLMService(
 		return nil, fmt.Errorf("failed to build knowledge context: %w", err)
 	}
 	if knowledgeCfg != nil {
-		llmOpts = append(llmOpts, llm.WithKnowledgeContext(knowledgeCfg))
+		opts = append(opts, llm.WithKnowledgeContext(knowledgeCfg))
 	}
-	// MCP registration is handled by server startup (engine/mcp.SetupForWorkflows)
-	// We no longer register workflow-level MCPs from the exec task.
+	return opts, nil
+}
+
+// appendToolEnvironment attaches the tool environment when available.
+func (uc *ExecuteTask) appendToolEnvironment(opts []llm.Option) []llm.Option {
 	if uc.toolEnvironment != nil {
-		llmOpts = append(llmOpts, llm.WithToolEnvironment(uc.toolEnvironment))
+		opts = append(opts, llm.WithToolEnvironment(uc.toolEnvironment))
 	}
-	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create LLM service: %w", err)
-	}
-	return llmService, nil
+	return opts
 }
 
 func (uc *ExecuteTask) buildKnowledgeRuntimeConfig(
@@ -1015,68 +1059,78 @@ func buildWorkflowContext(
 	projectConfig *project.Config,
 ) map[string]any {
 	context := make(map[string]any)
-
-	// Add workflow information
-	if workflowState != nil {
-		workflowData := map[string]any{
-			"id":      workflowState.WorkflowID,
-			"exec_id": workflowState.WorkflowExecID.String(),
-			"status":  workflowState.Status,
-		}
-
-		// Add workflow input data under workflow.input
-		if workflowState.Input != nil {
-			workflowData["input"] = dereferenceInput(workflowState.Input)
-			// Also maintain backward compatibility by putting input at top level
-			context["input"] = dereferenceInput(workflowState.Input)
-		}
-
-		// Add workflow outputs if available
-		if workflowState.Output != nil {
-			workflowData["output"] = *workflowState.Output
-			context["output"] = *workflowState.Output
-		}
-
-		context["workflow"] = workflowData
-	}
-
-	// Add workflow config information
-	if workflowConfig != nil {
-		context["config"] = map[string]any{
-			"id":          workflowConfig.ID,
-			"version":     workflowConfig.Version,
-			"description": workflowConfig.Description,
-		}
-	}
-
-	// Add project information - CRITICAL for memory operations
-	if projectConfig != nil {
-		context["project"] = map[string]any{
-			"id":          projectConfig.Name, // Use project name as ID for memory operations
-			"name":        projectConfig.Name,
-			"version":     projectConfig.Version,
-			"description": projectConfig.Description,
-		}
-	}
-
-	// Add current task information
-	if taskConfig != nil {
-		context["task"] = map[string]any{
-			"id":   taskConfig.ID,
-			"type": taskConfig.Type,
-		}
-
-		// Add task input if available
-		if taskConfig.With != nil {
-			context["task_input"] = *taskConfig.With
-			context["with"] = dereferenceInput(taskConfig.With)
-			if _, ok := context["input"]; !ok {
-				context["input"] = dereferenceInput(taskConfig.With)
-			}
-		}
-	}
-
+	addWorkflowStateContext(context, workflowState)
+	addWorkflowConfigContext(context, workflowConfig)
+	addProjectContext(context, projectConfig)
+	addTaskContext(context, taskConfig)
 	return context
+}
+
+// addWorkflowStateContext enriches the context with workflow execution data.
+func addWorkflowStateContext(context map[string]any, workflowState *workflow.State) {
+	if workflowState == nil {
+		return
+	}
+	workflowData := map[string]any{
+		"id":      workflowState.WorkflowID,
+		"exec_id": workflowState.WorkflowExecID.String(),
+		"status":  workflowState.Status,
+	}
+	if workflowState.Input != nil {
+		dereferenced := dereferenceInput(workflowState.Input)
+		workflowData["input"] = dereferenced
+		context["input"] = dereferenced
+	}
+	if workflowState.Output != nil {
+		workflowData["output"] = *workflowState.Output
+		context["output"] = *workflowState.Output
+	}
+	context["workflow"] = workflowData
+}
+
+// addWorkflowConfigContext includes static workflow configuration details.
+func addWorkflowConfigContext(context map[string]any, workflowConfig *workflow.Config) {
+	if workflowConfig == nil {
+		return
+	}
+	context["config"] = map[string]any{
+		"id":          workflowConfig.ID,
+		"version":     workflowConfig.Version,
+		"description": workflowConfig.Description,
+	}
+}
+
+// addProjectContext appends project metadata helpful for memory resolution.
+func addProjectContext(context map[string]any, projectConfig *project.Config) {
+	if projectConfig == nil {
+		return
+	}
+	context["project"] = map[string]any{
+		"id":          projectConfig.Name,
+		"name":        projectConfig.Name,
+		"version":     projectConfig.Version,
+		"description": projectConfig.Description,
+	}
+}
+
+// addTaskContext injects the current task metadata and inputs when available.
+func addTaskContext(context map[string]any, taskConfig *task.Config) {
+	if taskConfig == nil {
+		return
+	}
+	context["task"] = map[string]any{
+		"id":   taskConfig.ID,
+		"type": taskConfig.Type,
+	}
+	if taskConfig.With == nil {
+		return
+	}
+	context["task_input"] = *taskConfig.With
+	dereferenced := dereferenceInput(taskConfig.With)
+	context["with"] = dereferenced
+	if _, ok := context["input"]; !ok {
+		context["input"] = dereferenced
+	}
 }
 
 // dereferenceInput safely dereferences the workflow input pointer for template resolution

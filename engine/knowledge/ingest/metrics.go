@@ -22,6 +22,8 @@ const (
 	OutcomeUnknown = "unknown"
 )
 
+const meterName = "compozy.knowledge.ingest"
+
 const (
 	stageUnknownValue = "unknown"
 
@@ -31,6 +33,11 @@ const (
 	errorTypeInvalid   = "invalid"
 	errorTypeTimeout   = "timeout"
 	errorTypeCanceled  = "canceled"
+)
+
+var (
+	pipelineLatencyBuckets = []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60, 120}
+	batchSizeBuckets       = []float64{1, 5, 10, 25, 50, 100, 200}
 )
 
 var (
@@ -112,7 +119,7 @@ func RecordError(ctx context.Context, stage string, errorType string) {
 
 func ensureMetrics() error {
 	metricsOnce.Do(func() {
-		meter := otel.GetMeterProvider().Meter("compozy.knowledge.ingest")
+		meter := otel.GetMeterProvider().Meter(meterName)
 		metricsInitErr = initMetrics(meter)
 	})
 	return metricsInitErr
@@ -124,7 +131,7 @@ func initMetrics(meter metric.Meter) error {
 		monitoringmetrics.MetricNameWithSubsystem("knowledge_ingestion", "pipeline_seconds"),
 		metric.WithDescription("Ingestion pipeline stage duration"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(.1, .5, 1, 2, 5, 10, 30, 60, 120),
+		metric.WithExplicitBucketBoundaries(pipelineLatencyBuckets...),
 	)
 	if err != nil {
 		return err
@@ -149,7 +156,7 @@ func initMetrics(meter metric.Meter) error {
 		monitoringmetrics.MetricNameWithSubsystem("knowledge_ingestion", "batch_size"),
 		metric.WithDescription("Documents per ingestion batch"),
 		metric.WithUnit("1"),
-		metric.WithExplicitBucketBoundaries(1, 5, 10, 25, 50, 100, 200),
+		metric.WithExplicitBucketBoundaries(batchSizeBuckets...),
 	)
 	if err != nil {
 		return err

@@ -10,54 +10,77 @@ import (
 
 // ValidateSchedule validates the schedule configuration
 func ValidateSchedule(cfg *Schedule) error {
-	// Check if it's an @every expression
-	if after, ok := strings.CutPrefix(cfg.Cron, "@every "); ok {
-		durationStr := after
+	if err := validateScheduleCronExpression(cfg.Cron); err != nil {
+		return err
+	}
+	if err := validateScheduleTimezone(cfg.Timezone); err != nil {
+		return err
+	}
+	if err := validateScheduleOverlapPolicy(cfg.OverlapPolicy); err != nil {
+		return err
+	}
+	if err := validateScheduleJitter(cfg.Jitter); err != nil {
+		return err
+	}
+	return validateScheduleWindow(cfg.StartAt, cfg.EndAt)
+}
+
+func validateScheduleCronExpression(cronExpr string) error {
+	if durationStr, ok := strings.CutPrefix(cronExpr, "@every "); ok {
 		if _, err := time.ParseDuration(durationStr); err != nil {
 			return fmt.Errorf("invalid @every duration '%s': %w", durationStr, err)
 		}
-	} else {
-		// Validate cron expression with seconds support
-		// Compozy uses 6-field cron expressions:
-		// Format: "second minute hour day-of-month month day-of-week"
-		// - **Example**: "0 0 9 * * 1-5" (Every weekday at 9:00:00 AM)
-		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-		if _, err := parser.Parse(cfg.Cron); err != nil {
-			// Provide more specific error message for field count issues
-			fields := len(strings.Fields(cfg.Cron))
-			if fields != 6 {
-				return fmt.Errorf(
-					"invalid cron expression: expected 6 fields (second minute hour day month weekday), got %d fields",
-					fields,
-				)
-			}
-			return fmt.Errorf("invalid cron expression: %w", err)
-		}
+		return nil
 	}
-	// Validate timezone if specified
-	if cfg.Timezone != "" {
-		if _, err := time.LoadLocation(cfg.Timezone); err != nil {
-			return fmt.Errorf("invalid timezone: %w", err)
+	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	if _, err := parser.Parse(cronExpr); err != nil {
+		fields := len(strings.Fields(cronExpr))
+		if fields != 6 {
+			return fmt.Errorf(
+				"invalid cron expression: expected 6 fields (second minute hour day month weekday), got %d fields",
+				fields,
+			)
 		}
+		return fmt.Errorf("invalid cron expression: %w", err)
 	}
-	// Validate overlap policy
-	switch cfg.OverlapPolicy {
+	return nil
+}
+
+func validateScheduleTimezone(tz string) error {
+	if tz == "" {
+		return nil
+	}
+	if _, err := time.LoadLocation(tz); err != nil {
+		return fmt.Errorf("invalid timezone: %w", err)
+	}
+	return nil
+}
+
+func validateScheduleOverlapPolicy(policy OverlapPolicy) error {
+	switch policy {
 	case "", OverlapSkip, OverlapAllow, OverlapBufferOne, OverlapCancelOther:
-		// valid
+		return nil
 	default:
-		return fmt.Errorf("unsupported overlap_policy: %s", cfg.OverlapPolicy)
+		return fmt.Errorf("unsupported overlap_policy: %s", policy)
 	}
-	// Validate jitter duration format if provided
-	if cfg.Jitter != "" {
-		if _, err := time.ParseDuration(cfg.Jitter); err != nil {
-			return fmt.Errorf("invalid jitter duration: %w", err)
-		}
+}
+
+func validateScheduleJitter(jitter string) error {
+	if jitter == "" {
+		return nil
 	}
-	// Validate start and end times
-	if cfg.StartAt != nil && cfg.EndAt != nil {
-		if cfg.StartAt.After(*cfg.EndAt) {
-			return fmt.Errorf("start_at must be before end_at")
-		}
+	if _, err := time.ParseDuration(jitter); err != nil {
+		return fmt.Errorf("invalid jitter duration: %w", err)
+	}
+	return nil
+}
+
+func validateScheduleWindow(start, end *time.Time) error {
+	if start == nil || end == nil {
+		return nil
+	}
+	if start.After(*end) {
+		return fmt.Errorf("start_at must be before end_at")
 	}
 	return nil
 }

@@ -134,12 +134,30 @@ func (v *TypeValidator) Validate(ctx context.Context) error {
 }
 
 func (v *TypeValidator) validateExecutorFields(_ context.Context) error {
+	hasAgent, hasTool, hasDirectLLM, prompt := v.detectExecutorUsage()
+	if err := v.enforceExecutorExclusivity(hasAgent, hasTool, hasDirectLLM); err != nil {
+		return err
+	}
+	if err := v.validateToolExecutor(hasTool, prompt); err != nil {
+		return err
+	}
+	if err := v.validateAgentExecutor(hasAgent, prompt); err != nil {
+		return err
+	}
+	return v.validateDirectLLMExecutor(hasDirectLLM)
+}
+
+// detectExecutorUsage determines which executor types are configured for the task.
+func (v *TypeValidator) detectExecutorUsage() (bool, bool, bool, string) {
 	hasAgent := v.config.GetAgent() != nil
 	hasTool := v.config.GetTool() != nil
 	prompt := strings.TrimSpace(v.config.Prompt)
 	hasDirectLLM := v.config.ModelConfig.Provider != "" && prompt != ""
+	return hasAgent, hasTool, hasDirectLLM, prompt
+}
 
-	// Count how many executor types are specified
+// enforceExecutorExclusivity ensures only one executor type is active.
+func (v *TypeValidator) enforceExecutorExclusivity(hasAgent, hasTool, hasDirectLLM bool) error {
 	executorCount := 0
 	if hasAgent {
 		executorCount++
@@ -150,44 +168,48 @@ func (v *TypeValidator) validateExecutorFields(_ context.Context) error {
 	if hasDirectLLM {
 		executorCount++
 	}
-
-	// Ensure exactly one executor type is specified
 	if executorCount > 1 {
 		return fmt.Errorf(
 			"cannot specify multiple executor types; use only one: " +
 				"agent, tool, or direct LLM (model_config + prompt)",
 		)
 	}
+	return nil
+}
 
-	// When using tools, neither action nor prompt should be specified
-	if hasTool {
-		if v.config.Action != "" {
-			return fmt.Errorf("action is not allowed when executor type is tool")
-		}
-		if prompt != "" {
-			return fmt.Errorf("prompt is not allowed when executor type is tool")
-		}
+// validateToolExecutor checks tool-specific field constraints.
+func (v *TypeValidator) validateToolExecutor(hasTool bool, prompt string) error {
+	if !hasTool {
+		return nil
 	}
-
-	// When using agents, require at least one of action or prompt (both can be provided for enhanced context)
-	if hasAgent {
-		hasAction := v.config.Action != ""
-		hasPrompt := prompt != ""
-		if !hasAction && !hasPrompt {
-			return fmt.Errorf("tasks using agents must specify at least one of 'action' or 'prompt'")
-		}
-		// Note: Both action and prompt can be provided together for enhanced context
-		// The prompt will augment or customize the action's behavior
+	if v.config.Action != "" {
+		return fmt.Errorf("action is not allowed when executor type is tool")
 	}
-
-	// When using direct LLM, validate required fields
-	if hasDirectLLM {
-		if v.config.ModelConfig.Model == "" {
-			return fmt.Errorf("model is required in model_config for direct LLM tasks")
-		}
-		// Action is optional for direct LLM tasks (used for logging/identification)
+	if prompt != "" {
+		return fmt.Errorf("prompt is not allowed when executor type is tool")
 	}
+	return nil
+}
 
+// validateAgentExecutor verifies agent requirements are satisfied.
+func (v *TypeValidator) validateAgentExecutor(hasAgent bool, prompt string) error {
+	if !hasAgent {
+		return nil
+	}
+	if v.config.Action == "" && prompt == "" {
+		return fmt.Errorf("tasks using agents must specify at least one of 'action' or 'prompt'")
+	}
+	return nil
+}
+
+// validateDirectLLMExecutor enforces direct LLM configuration rules.
+func (v *TypeValidator) validateDirectLLMExecutor(hasDirectLLM bool) error {
+	if !hasDirectLLM {
+		return nil
+	}
+	if v.config.ModelConfig.Model == "" {
+		return fmt.Errorf("model is required in model_config for direct LLM tasks")
+	}
 	return nil
 }
 

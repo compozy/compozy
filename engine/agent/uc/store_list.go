@@ -38,38 +38,80 @@ func NewList(store resources.ResourceStore) *List {
 }
 
 func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error) {
-	if in == nil {
-		return nil, fmt.Errorf("input cannot be nil: %w", ErrInvalidInput)
-	}
-	projectID := strings.TrimSpace(in.Project)
-	if projectID == "" {
-		return nil, fmt.Errorf("project ID is required: %w", ErrProjectMissing)
+	projectID, err := uc.normalizeListInput(in)
+	if err != nil {
+		return nil, err
 	}
 	limit := resourceutil.ClampLimit(in.Limit)
-	filterIDs := map[string]struct{}{}
-	if workflowID := strings.TrimSpace(in.WorkflowID); workflowID != "" {
-		ids, err := uc.workflowAgents(ctx, projectID, workflowID)
-		if err != nil {
-			return nil, err
-		}
-		for _, id := range ids {
-			filterIDs[id] = struct{}{}
-		}
+	filterIDs, err := uc.workflowFilter(ctx, projectID, in.WorkflowID)
+	if err != nil {
+		return nil, err
 	}
 	items, err := uc.store.ListWithValues(ctx, projectID, resources.ResourceAgent)
 	if err != nil {
 		return nil, err
 	}
-	filtered := resourceutil.FilterStoredItems(items, strings.TrimSpace(in.Prefix))
-	if len(filterIDs) > 0 {
-		filtered = filterAgentsBySet(filtered, filterIDs)
-	}
+	filtered := uc.applyAgentFilters(items, strings.TrimSpace(in.Prefix), filterIDs)
 	window, nextValue, nextDir, prevValue, prevDir := resourceutil.ApplyCursorWindow(
 		filtered,
 		strings.TrimSpace(in.CursorValue),
 		in.CursorDirection,
 		limit,
 	)
+	payload, err := buildAgentPayload(window)
+	if err != nil {
+		return nil, err
+	}
+	return &ListOutput{
+		Items:               payload,
+		NextCursorValue:     nextValue,
+		NextCursorDirection: nextDir,
+		PrevCursorValue:     prevValue,
+		PrevCursorDirection: prevDir,
+		Total:               len(filtered),
+	}, nil
+}
+
+func (uc *List) normalizeListInput(in *ListInput) (string, error) {
+	if in == nil {
+		return "", fmt.Errorf("input cannot be nil: %w", ErrInvalidInput)
+	}
+	projectID := strings.TrimSpace(in.Project)
+	if projectID == "" {
+		return "", fmt.Errorf("project ID is required: %w", ErrProjectMissing)
+	}
+	return projectID, nil
+}
+
+func (uc *List) workflowFilter(ctx context.Context, projectID, workflowID string) (map[string]struct{}, error) {
+	filters := map[string]struct{}{}
+	id := strings.TrimSpace(workflowID)
+	if id == "" {
+		return filters, nil
+	}
+	ids, err := uc.workflowAgents(ctx, projectID, id)
+	if err != nil {
+		return nil, err
+	}
+	for _, agentID := range ids {
+		filters[agentID] = struct{}{}
+	}
+	return filters, nil
+}
+
+func (uc *List) applyAgentFilters(
+	items []resources.StoredItem,
+	prefix string,
+	allow map[string]struct{},
+) []resources.StoredItem {
+	filtered := resourceutil.FilterStoredItems(items, prefix)
+	if len(allow) == 0 {
+		return filtered
+	}
+	return filterAgentsBySet(filtered, allow)
+}
+
+func buildAgentPayload(window []resources.StoredItem) ([]map[string]any, error) {
 	payload := make([]map[string]any, 0, len(window))
 	for i := range window {
 		cfg, err := decodeStoredAgent(window[i].Value, window[i].Key.ID)
@@ -83,14 +125,7 @@ func (uc *List) Execute(ctx context.Context, in *ListInput) (*ListOutput, error)
 		entry["_etag"] = string(window[i].ETag)
 		payload = append(payload, entry)
 	}
-	return &ListOutput{
-		Items:               payload,
-		NextCursorValue:     nextValue,
-		NextCursorDirection: nextDir,
-		PrevCursorValue:     prevValue,
-		PrevCursorDirection: prevDir,
-		Total:               len(filtered),
-	}, nil
+	return payload, nil
 }
 
 func (uc *List) workflowAgents(ctx context.Context, project string, workflowID string) ([]string, error) {

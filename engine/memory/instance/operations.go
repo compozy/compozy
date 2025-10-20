@@ -227,54 +227,43 @@ func (o *Operations) calculateTokensFromMessages(ctx context.Context) (int, erro
 		return 0, err
 	}
 
-	// Use sync.Map for better concurrent performance
-	var contentCache sync.Map
-	var roleCache sync.Map
-
+	caches := tokenCountCaches{}
 	totalTokens := 0
 	for _, msg := range messages {
-		// Count content tokens with caching
-		var contentCount int
-		if count, exists := contentCache.Load(msg.Content); exists {
-			if cachedCount, ok := count.(int); ok {
-				contentCount = cachedCount
-			} else {
-				// Fallback if type assertion fails
-				contentCount = o.calculateTokenCountWithFallback(ctx, msg.Content, "content")
-				contentCache.Store(msg.Content, contentCount)
-			}
-		} else {
-			contentCount = o.calculateTokenCountWithFallback(ctx, msg.Content, "content")
-			contentCache.Store(msg.Content, contentCount)
-		}
-
-		// Count role tokens with caching
-		roleStr := string(msg.Role)
-		var roleCount int
-		if count, exists := roleCache.Load(roleStr); exists {
-			if cachedCount, ok := count.(int); ok {
-				roleCount = cachedCount
-			} else {
-				// Fallback if type assertion fails
-				roleCount = o.calculateTokenCountWithFallback(ctx, roleStr, "role")
-				roleCache.Store(roleStr, roleCount)
-			}
-		} else {
-			roleCount = o.calculateTokenCountWithFallback(ctx, roleStr, "role")
-			roleCache.Store(roleStr, roleCount)
-		}
-
-		// Add structure overhead and accumulate
-		structureOverhead := 2
-		totalTokens += contentCount + roleCount + structureOverhead
+		totalTokens += o.calculateMessageTokens(ctx, msg, &caches)
 	}
 
-	// Update the metadata for future use
 	if err := o.store.SetTokenCount(ctx, o.instanceID, totalTokens); err != nil {
 		o.recordMetadataError(ctx, "set_token_count_migration", err)
 	}
 
 	return totalTokens, nil
+}
+
+// calculateMessageTokens calculates the total tokens for a message using cached counts
+func (o *Operations) calculateMessageTokens(ctx context.Context, msg llm.Message, caches *tokenCountCaches) int {
+	contentCount := o.loadTokenCount(ctx, &caches.content, msg.Content, "content")
+	roleCount := o.loadTokenCount(ctx, &caches.roles, string(msg.Role), "role")
+	const structureOverhead = 2
+	return contentCount + roleCount + structureOverhead
+}
+
+// loadTokenCount reads a cached token count or calculates and stores it when missing
+func (o *Operations) loadTokenCount(ctx context.Context, cache *sync.Map, text, description string) int {
+	if count, ok := cache.Load(text); ok {
+		if cachedCount, isInt := count.(int); isInt {
+			return cachedCount
+		}
+	}
+
+	calculated := o.calculateTokenCountWithFallback(ctx, text, description)
+	cache.Store(text, calculated)
+	return calculated
+}
+
+type tokenCountCaches struct {
+	content sync.Map
+	roles   sync.Map
 }
 
 // recordMetadataError logs metadata operation errors without failing the main operation

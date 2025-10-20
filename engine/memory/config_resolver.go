@@ -460,48 +460,87 @@ func (mm *Manager) createConfigFromMap(ctx context.Context, resourceID string, c
 }
 
 func cloneConfigForValidation(cfg *Config) *Config {
-	cloned := *cfg
-	if cfg.TokenAllocation != nil {
-		allocationCopy := *cfg.TokenAllocation
-		if len(cfg.TokenAllocation.UserDefined) > 0 {
-			allocationCopy.UserDefined = core.CloneMap(cfg.TokenAllocation.UserDefined)
-		}
-		cloned.TokenAllocation = &allocationCopy
+	cloned := &Config{
+		Resource:           cfg.Resource,
+		ID:                 cfg.ID,
+		Description:        cfg.Description,
+		Version:            cfg.Version,
+		Type:               cfg.Type,
+		MaxTokens:          cfg.MaxTokens,
+		MaxMessages:        cfg.MaxMessages,
+		MaxContextRatio:    cfg.MaxContextRatio,
+		Persistence:        cfg.Persistence,
+		DefaultKeyTemplate: cfg.DefaultKeyTemplate,
+		filePath:           cfg.filePath,
+		ttlManager:         cfg.ttlManager,
 	}
-	if cfg.Flushing != nil {
-		flushingCopy := *cfg.Flushing
-		cloned.Flushing = &flushingCopy
+	cloned.TokenAllocation = cloneTokenAllocation(cfg.TokenAllocation)
+	cloned.Flushing = cloneFlushingConfig(cfg.Flushing)
+	cloned.PrivacyPolicy = clonePrivacyPolicy(cfg.PrivacyPolicy)
+	cloned.Locking = cloneLockingConfig(cfg.Locking)
+	cloned.TokenProvider = cloneTokenProvider(cfg.TokenProvider)
+	cloned.CWD = cloneCWDConfig(cfg.CWD)
+	return cloned
+}
+
+func cloneTokenAllocation(allocation *memcore.TokenAllocation) *memcore.TokenAllocation {
+	if allocation == nil {
+		return nil
 	}
-	if cfg.PrivacyPolicy != nil {
-		policyCopy := *cfg.PrivacyPolicy
-		if len(cfg.PrivacyPolicy.RedactPatterns) > 0 {
-			policyCopy.RedactPatterns = append([]string(nil), cfg.PrivacyPolicy.RedactPatterns...)
-		}
-		if len(cfg.PrivacyPolicy.NonPersistableMessageTypes) > 0 {
-			policyCopy.NonPersistableMessageTypes = append(
-				[]string(nil),
-				cfg.PrivacyPolicy.NonPersistableMessageTypes...)
-		}
-		cloned.PrivacyPolicy = &policyCopy
+	copyAllocation := *allocation
+	if len(allocation.UserDefined) > 0 {
+		copyAllocation.UserDefined = core.CloneMap(allocation.UserDefined)
 	}
-	if cfg.Locking != nil {
-		lockingCopy := *cfg.Locking
-		cloned.Locking = &lockingCopy
+	return &copyAllocation
+}
+
+func cloneFlushingConfig(flushing *memcore.FlushingStrategyConfig) *memcore.FlushingStrategyConfig {
+	if flushing == nil {
+		return nil
 	}
-	if cfg.TokenProvider != nil {
-		providerCopy := *cfg.TokenProvider
-		if len(cfg.TokenProvider.Settings) > 0 {
-			providerCopy.Settings = core.CloneMap(cfg.TokenProvider.Settings)
-		}
-		cloned.TokenProvider = &providerCopy
+	copyFlushing := *flushing
+	return &copyFlushing
+}
+
+func clonePrivacyPolicy(policy *memcore.PrivacyPolicyConfig) *memcore.PrivacyPolicyConfig {
+	if policy == nil {
+		return nil
 	}
-	if cfg.CWD != nil {
-		cwdCopy := *cfg.CWD
-		cloned.CWD = &cwdCopy
+	copyPolicy := *policy
+	if len(policy.RedactPatterns) > 0 {
+		copyPolicy.RedactPatterns = append([]string(nil), policy.RedactPatterns...)
 	}
-	if cfg.ttlManager != nil {
-		ttlManagerCopy := *cfg.ttlManager
-		cloned.ttlManager = &ttlManagerCopy
+	if len(policy.NonPersistableMessageTypes) > 0 {
+		copyPolicy.NonPersistableMessageTypes = append(
+			[]string(nil),
+			policy.NonPersistableMessageTypes...)
 	}
-	return &cloned
+	return &copyPolicy
+}
+
+func cloneLockingConfig(locking *memcore.LockConfig) *memcore.LockConfig {
+	if locking == nil {
+		return nil
+	}
+	copyLocking := *locking
+	return &copyLocking
+}
+
+func cloneTokenProvider(provider *memcore.TokenProviderConfig) *memcore.TokenProviderConfig {
+	if provider == nil {
+		return nil
+	}
+	copyProvider := *provider
+	if len(provider.Settings) > 0 {
+		copyProvider.Settings = core.CloneMap(provider.Settings)
+	}
+	return &copyProvider
+}
+
+func cloneCWDConfig(cwd *core.PathCWD) *core.PathCWD {
+	if cwd == nil {
+		return nil
+	}
+	copyCWD := *cwd
+	return &copyCWD
 }

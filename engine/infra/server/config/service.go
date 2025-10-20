@@ -56,56 +56,82 @@ func (s *service) LoadProject(
 	cwd string,
 	file string,
 ) (*project.Config, []*workflow.Config, *autoload.ConfigRegistry, error) {
-	log := logger.FromContext(ctx)
 	pCWD, err := core.CWDFromPath(cwd)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	log.Info("Starting compozy server")
-	log.Debug("Loading config file", "config_file", file)
-
-	projectConfig, err := project.Load(ctx, pCWD, file, s.envFilePath)
+	projectConfig, configRegistry, err := s.loadProjectArtifacts(ctx, pCWD, file)
 	if err != nil {
-		log.Error("Failed to load project config", "error", err)
 		return nil, nil, nil, err
-	}
-
-	if err := projectConfig.Validate(ctx); err != nil {
-		log.Error("Invalid project config", "error", err)
-		return nil, nil, nil, err
-	}
-
-	// Create shared configuration registry
-	configRegistry := autoload.NewConfigRegistry()
-
-	// Run AutoLoad if enabled
-	if projectConfig.AutoLoad != nil && projectConfig.AutoLoad.Enabled {
-		log.Info("AutoLoad enabled, discovering and loading configurations")
-		autoLoader := autoload.New(pCWD.PathStr(), projectConfig.AutoLoad, configRegistry)
-		if err := autoLoader.Load(ctx); err != nil {
-			log.Error("AutoLoad failed", "error", err)
-			return nil, nil, nil, fmt.Errorf("autoload failed: %w", err)
-		}
 	}
 	mode, err := s.resolveMode(ctx, projectConfig)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	workflows, err := s.compileByMode(ctx, projectConfig, configRegistry, mode)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return projectConfig, workflows, configRegistry, nil
+}
 
+// loadProjectArtifacts loads, validates, and optionally autoloads project assets.
+func (s *service) loadProjectArtifacts(
+	ctx context.Context,
+	cwd *core.PathCWD,
+	file string,
+) (*project.Config, *autoload.ConfigRegistry, error) {
+	log := logger.FromContext(ctx)
+	log.Info("Starting compozy server")
+	log.Debug("Loading config file", "config_file", file)
+	projectConfig, err := project.Load(ctx, cwd, file, s.envFilePath)
+	if err != nil {
+		log.Error("Failed to load project config", "error", err)
+		return nil, nil, err
+	}
+	if err := projectConfig.Validate(ctx); err != nil {
+		log.Error("Invalid project config", "error", err)
+		return nil, nil, err
+	}
+	configRegistry := autoload.NewConfigRegistry()
+	if err := s.runAutoLoad(ctx, cwd, projectConfig, configRegistry); err != nil {
+		return nil, nil, err
+	}
+	return projectConfig, configRegistry, nil
+}
+
+// runAutoLoad executes the autoload pipeline when enabled.
+func (s *service) runAutoLoad(
+	ctx context.Context,
+	cwd *core.PathCWD,
+	projectConfig *project.Config,
+	configRegistry *autoload.ConfigRegistry,
+) error {
+	if projectConfig.AutoLoad == nil || !projectConfig.AutoLoad.Enabled {
+		return nil
+	}
+	log := logger.FromContext(ctx)
+	log.Info("AutoLoad enabled, discovering and loading configurations")
+	autoLoader := autoload.New(cwd.PathStr(), projectConfig.AutoLoad, configRegistry)
+	if err := autoLoader.Load(ctx); err != nil {
+		log.Error("AutoLoad failed", "error", err)
+		return fmt.Errorf("autoload failed: %w", err)
+	}
+	return nil
+}
+
+// compileByMode compiles workflows according to the configured mode.
+func (s *service) compileByMode(
+	ctx context.Context,
+	projectConfig *project.Config,
+	configRegistry *autoload.ConfigRegistry,
+	mode string,
+) ([]*workflow.Config, error) {
 	switch mode {
 	case modeBuilder:
-		compiled, err := s.compileFromStore(ctx, projectConfig, configRegistry)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		return projectConfig, compiled, configRegistry, nil
+		return s.compileFromStore(ctx, projectConfig, configRegistry)
 	default:
-		// repo mode: load from YAML and index+compile
-		compiled, err := s.loadFromRepo(ctx, projectConfig, configRegistry)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		return projectConfig, compiled, configRegistry, nil
+		return s.loadFromRepo(ctx, projectConfig, configRegistry)
 	}
 }
 
@@ -173,46 +199,80 @@ func (s *service) compileFromStore(
 	projectConfig *project.Config,
 	configRegistry *autoload.ConfigRegistry,
 ) ([]*workflow.Config, error) {
-	log := logger.FromContext(ctx)
 	if s.store == nil {
 		return nil, fmt.Errorf("resource store not provided")
 	}
-	if configRegistry != nil {
-		if err := configRegistry.SyncToResourceStore(ctx, projectConfig.Name, s.store); err != nil {
-			return nil, fmt.Errorf("publish autoload resources failed: %w", err)
-		}
+	if err := s.publishAutoloadResources(ctx, projectConfig, configRegistry); err != nil {
+		return nil, err
 	}
-	keys, err := s.store.List(ctx, projectConfig.Name, resources.ResourceWorkflow)
+	keys, skip, err := s.workflowKeysFromStore(ctx, projectConfig, configRegistry)
 	if err != nil {
-		return nil, fmt.Errorf("list workflows from store failed (project=%s): %w", projectConfig.Name, err)
+		return nil, err
 	}
-	if len(keys) == 0 {
-		if s.shouldSeedFromRepo(ctx, projectConfig) {
-			log.Info("Store empty; seeding from repo YAML")
-			if err := s.seedFromRepo(ctx, projectConfig, configRegistry); err != nil {
-				return nil, err
-			}
-			relisted, err := s.store.List(ctx, projectConfig.Name, resources.ResourceWorkflow)
-			if err != nil {
-				return nil, fmt.Errorf("list after seed failed (project=%s): %w", projectConfig.Name, err)
-			}
-			keys = relisted
-		} else {
-			log.Info("Store empty; skipping YAML seed (disabled)")
-			return []*workflow.Config{}, nil
-		}
+	if skip {
+		return []*workflow.Config{}, nil
 	}
-	// First decode all workflows before compile to run global validations
 	decoded, err := s.decodeAllWorkflows(ctx, keys)
 	if err != nil {
 		return nil, err
 	}
-	// Validate webhook slugs parity with repo mode
 	slugs := workflow.SlugsFromList(decoded)
 	if err := project.NewWebhookSlugsValidator(slugs).Validate(ctx); err != nil {
 		return nil, fmt.Errorf("webhook configuration invalid: %w", err)
 	}
-	// Now compile
+	return s.compileDecodedWorkflows(ctx, projectConfig, decoded)
+}
+
+// publishAutoloadResources syncs autoload data into the resource store.
+func (s *service) publishAutoloadResources(
+	ctx context.Context,
+	projectConfig *project.Config,
+	configRegistry *autoload.ConfigRegistry,
+) error {
+	if configRegistry == nil {
+		return nil
+	}
+	if err := configRegistry.SyncToResourceStore(ctx, projectConfig.Name, s.store); err != nil {
+		return fmt.Errorf("publish autoload resources failed: %w", err)
+	}
+	return nil
+}
+
+// workflowKeysFromStore lists workflow keys and seeds the store when required.
+func (s *service) workflowKeysFromStore(
+	ctx context.Context,
+	projectConfig *project.Config,
+	configRegistry *autoload.ConfigRegistry,
+) ([]resources.ResourceKey, bool, error) {
+	log := logger.FromContext(ctx)
+	keys, err := s.store.List(ctx, projectConfig.Name, resources.ResourceWorkflow)
+	if err != nil {
+		return nil, false, fmt.Errorf("list workflows from store failed (project=%s): %w", projectConfig.Name, err)
+	}
+	if len(keys) > 0 {
+		return keys, false, nil
+	}
+	if !s.shouldSeedFromRepo(ctx, projectConfig) {
+		log.Info("Store empty; skipping YAML seed (disabled)")
+		return nil, true, nil
+	}
+	log.Info("Store empty; seeding from repo YAML")
+	if err := s.seedFromRepo(ctx, projectConfig, configRegistry); err != nil {
+		return nil, false, err
+	}
+	relisted, err := s.store.List(ctx, projectConfig.Name, resources.ResourceWorkflow)
+	if err != nil {
+		return nil, false, fmt.Errorf("list after seed failed (project=%s): %w", projectConfig.Name, err)
+	}
+	return relisted, false, nil
+}
+
+// compileDecodedWorkflows compiles decoded workflow configurations.
+func (s *service) compileDecodedWorkflows(
+	ctx context.Context,
+	projectConfig *project.Config,
+	decoded []*workflow.Config,
+) ([]*workflow.Config, error) {
 	compiled := make([]*workflow.Config, 0, len(decoded))
 	for _, wf := range decoded {
 		cwf, err := wf.Compile(ctx, projectConfig, s.store)

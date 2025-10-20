@@ -213,54 +213,80 @@ func (c *MCPClient) Connect(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Connecting to MCP server", "transport", c.definition.Transport, "mcp_name", c.definition.Name)
 
-	// Check if already connected (without lock to avoid deadlock)
+	if err := c.ensureDisconnected(); err != nil {
+		return err
+	}
+	if err := c.startClientIfRequired(ctx); err != nil {
+		return err
+	}
+	if err := c.initializeConnection(ctx); err != nil {
+		return err
+	}
+
+	c.markAsConnected()
+	c.startPingRoutineIfNeeded(ctx)
+
+	log.Info("Successfully connected to MCP server", "mcp_name", c.definition.Name)
+	return nil
+}
+
+// ensureDisconnected verifies the client is not already connected.
+func (c *MCPClient) ensureDisconnected() error {
 	c.mu.RLock()
 	alreadyConnected := c.connected
 	c.mu.RUnlock()
-
 	if alreadyConnected {
 		return fmt.Errorf("client is already connected")
 	}
+	return nil
+}
 
-	// Start the client if needed (for SSE/HTTP transports) - no lock held
-	if c.needManualStart {
-		if err := c.mcpClient.Start(ctx); err != nil {
-			c.updateStatus(StatusError, fmt.Sprintf("failed to start client: %v", err))
-			return fmt.Errorf("failed to start MCP client: %w", err)
-		}
+// startClientIfRequired starts transports that require manual startup.
+func (c *MCPClient) startClientIfRequired(ctx context.Context) error {
+	if !c.needManualStart {
+		return nil
 	}
+	if err := c.mcpClient.Start(ctx); err != nil {
+		c.updateStatus(StatusError, fmt.Sprintf("failed to start client: %v", err))
+		return fmt.Errorf("failed to start MCP client: %w", err)
+	}
+	return nil
+}
 
-	// Initialize the MCP connection - no lock held
+// initializeConnection initializes the MCP connection and closes on failure.
+func (c *MCPClient) initializeConnection(ctx context.Context) error {
 	if err := c.initializeMCP(ctx); err != nil {
-		// Always close to avoid leaking resources regardless of start mode.
 		if closeErr := c.mcpClient.Close(); closeErr != nil {
-			log.Error("Failed to close client after initialization failure", "error", closeErr)
+			logger.FromContext(ctx).Error("Failed to close client after initialization failure", "error", closeErr)
 		}
 		c.updateStatus(StatusError, fmt.Sprintf("failed to initialize: %v", err))
 		return fmt.Errorf("failed to initialize MCP client: %w", err)
 	}
+	return nil
+}
 
-	// Update state under lock
+// markAsConnected updates internal state to reflect a successful connection.
+func (c *MCPClient) markAsConnected() {
 	c.mu.Lock()
 	c.initialized = true
 	c.connected = true
 	c.status.UpdateStatus(StatusConnected, "")
 	c.mu.Unlock()
+}
 
-	// Start ping routine if needed - use manager context for proper lifecycle
-	if c.needPing {
-		pingCtx, pingCancel := context.WithCancel(c.managerCtx)
-		done := make(chan struct{})
-		c.mu.Lock()
-		c.pingCancel = pingCancel
-		c.pingDone = done
-		c.mu.Unlock()
-		pingCtx = logger.ContextWithLogger(pingCtx, log)
-		go c.startPingRoutine(pingCtx, done)
+// startPingRoutineIfNeeded launches the ping routine when required by the transport.
+func (c *MCPClient) startPingRoutineIfNeeded(ctx context.Context) {
+	if !c.needPing {
+		return
 	}
-
-	log.Info("Successfully connected to MCP server", "mcp_name", c.definition.Name)
-	return nil
+	pingCtx, pingCancel := context.WithCancel(c.managerCtx)
+	done := make(chan struct{})
+	c.mu.Lock()
+	c.pingCancel = pingCancel
+	c.pingDone = done
+	c.mu.Unlock()
+	pingCtx = logger.ContextWithLogger(pingCtx, logger.FromContext(ctx))
+	go c.startPingRoutine(pingCtx, done)
 }
 
 // Disconnect closes the connection to the MCP server

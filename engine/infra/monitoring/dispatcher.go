@@ -86,67 +86,80 @@ func initDispatcherHealthMetrics(ctx context.Context, meter metric.Meter) {
 	dispatcherHealthMutex.Lock()
 	defer dispatcherHealthMutex.Unlock()
 	dispatcherHealthInitOnce.Do(func() {
-		var err error
-		dispatcherHealthGauge, err = meter.Int64ObservableGauge(
-			metrics.MetricNameWithSubsystem("dispatcher", "health_status"),
-			metric.WithDescription("Dispatcher health status (1=healthy, 0=unhealthy)"),
-		)
-		if err != nil {
-			log.Error("Failed to create dispatcher health gauge", "error", err, "component", "dispatcher_health")
+		if !createDispatcherHealthInstruments(meter, log) {
 			return
 		}
-		dispatcherHeartbeatAgeSeconds, err = meter.Float64ObservableGauge(
-			metrics.MetricNameWithSubsystem("dispatcher", "heartbeat_age_seconds"),
-			metric.WithDescription("Seconds since the last dispatcher heartbeat was observed"),
-		)
-		if err != nil {
-			log.Error("Failed to create dispatcher heartbeat age gauge", "error", err, "component", "dispatcher_health")
-			return
+		registerDispatcherHealthCallback(meter, log)
+	})
+}
+
+// createDispatcherHealthInstruments sets up gauges required for dispatcher health monitoring.
+func createDispatcherHealthInstruments(meter metric.Meter, log logger.Logger) bool {
+	var err error
+	dispatcherHealthGauge, err = meter.Int64ObservableGauge(
+		metrics.MetricNameWithSubsystem("dispatcher", "health_status"),
+		metric.WithDescription("Dispatcher health status (1=healthy, 0=unhealthy)"),
+	)
+	if err != nil {
+		log.Error("Failed to create dispatcher health gauge", "error", err, "component", "dispatcher_health")
+		return false
+	}
+	dispatcherHeartbeatAgeSeconds, err = meter.Float64ObservableGauge(
+		metrics.MetricNameWithSubsystem("dispatcher", "heartbeat_age_seconds"),
+		metric.WithDescription("Seconds since the last dispatcher heartbeat was observed"),
+	)
+	if err != nil {
+		log.Error("Failed to create dispatcher heartbeat age gauge", "error", err, "component", "dispatcher_health")
+		return false
+	}
+	dispatcherFailureCount, err = meter.Int64ObservableGauge(
+		metrics.MetricNameWithSubsystem("dispatcher", "consecutive_failures"),
+		metric.WithDescription("Number of consecutive dispatcher health check failures"),
+	)
+	if err != nil {
+		log.Error("Failed to create dispatcher failure count gauge", "error", err, "component", "dispatcher_health")
+		return false
+	}
+	return true
+}
+
+// registerDispatcherHealthCallback registers the observation callback for dispatcher health metrics.
+func registerDispatcherHealthCallback(meter metric.Meter, log logger.Logger) {
+	callback, err := meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		observeDispatcherHealth(o)
+		return nil
+	}, dispatcherHealthGauge, dispatcherHeartbeatAgeSeconds, dispatcherFailureCount)
+	if err != nil {
+		log.Error("Failed to register dispatcher health callback", "error", err, "component", "dispatcher_health")
+		return
+	}
+	dispatcherHealthCallback = callback
+}
+
+// observeDispatcherHealth records dispatcher health metric observations.
+func observeDispatcherHealth(observer metric.Observer) {
+	now := time.Now()
+	dispatcherHealthStore.Range(func(key, value any) bool {
+		dispatcherID, ok := key.(string)
+		if !ok {
+			return true
 		}
-		dispatcherFailureCount, err = meter.Int64ObservableGauge(
-			metrics.MetricNameWithSubsystem("dispatcher", "consecutive_failures"),
-			metric.WithDescription("Number of consecutive dispatcher health check failures"),
-		)
-		if err != nil {
-			log.Error("Failed to create dispatcher failure count gauge", "error", err, "component", "dispatcher_health")
-			return
+		health, ok := value.(*DispatcherHealth)
+		if !ok {
+			return true
 		}
-		// Register callback for health status reporting
-		dispatcherHealthCallback, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
-			now := time.Now()
-			dispatcherHealthStore.Range(func(key, value any) bool {
-				dispatcherID, ok := key.(string)
-				if !ok {
-					return true // Skip invalid key
-				}
-				health, ok := value.(*DispatcherHealth)
-				if !ok {
-					return true // Skip invalid value
-				}
-				// Update health status before reporting
-				health.UpdateHealth()
-				// Get all metric values safely at once
-				healthValue, isStale, timeSinceHeartbeat, failures := health.getMetricValues(now)
-				o.ObserveInt64(dispatcherHealthGauge, healthValue,
-					metric.WithAttributes(
-						attribute.String("dispatcher_id", dispatcherID),
-						attribute.Bool("is_stale", isStale),
-					))
-				o.ObserveFloat64(dispatcherHeartbeatAgeSeconds, timeSinceHeartbeat,
-					metric.WithAttributes(
-						attribute.String("dispatcher_id", dispatcherID),
-					))
-				o.ObserveInt64(dispatcherFailureCount, int64(failures),
-					metric.WithAttributes(
-						attribute.String("dispatcher_id", dispatcherID),
-					))
-				return true
-			})
-			return nil
-		}, dispatcherHealthGauge, dispatcherHeartbeatAgeSeconds, dispatcherFailureCount)
-		if err != nil {
-			log.Error("Failed to register dispatcher health callback", "error", err, "component", "dispatcher_health")
-		}
+		health.UpdateHealth()
+		healthValue, isStale, timeSinceHeartbeat, failures := health.getMetricValues(now)
+		observer.ObserveInt64(dispatcherHealthGauge, healthValue,
+			metric.WithAttributes(
+				attribute.String("dispatcher_id", dispatcherID),
+				attribute.Bool("is_stale", isStale),
+			))
+		observer.ObserveFloat64(dispatcherHeartbeatAgeSeconds, timeSinceHeartbeat,
+			metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)))
+		observer.ObserveInt64(dispatcherFailureCount, int64(failures),
+			metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)))
+		return true
 	})
 }
 

@@ -28,57 +28,60 @@ var (
 
 // initMetrics initializes the HTTP metrics instruments
 func initMetrics(ctx context.Context, meter metric.Meter) {
-	// Skip initialization if meter is nil
 	if meter == nil {
 		return
 	}
-	log := logger.FromContext(ctx)
 	initOnce.Do(func() {
 		initMutex.Lock()
 		defer initMutex.Unlock()
-
-		var err error
-		httpRequestsTotal, err = meter.Int64Counter(
-			metrics.MetricNameWithSubsystem("http", "requests"),
-			metric.WithDescription("Total HTTP requests"),
-		)
-		if err != nil {
-			log.Error("Failed to create http requests total counter", "error", err)
-		}
-		httpRequestDuration, err = meter.Float64Histogram(
-			metrics.MetricNameWithSubsystem("http", "request_duration_seconds"),
-			metric.WithDescription("HTTP request latency"),
-			metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
-		)
-		if err != nil {
-			log.Error("Failed to create http request duration histogram", "error", err)
-		}
-		httpRequestSize, err = meter.Int64Histogram(
-			metrics.MetricNameWithSubsystem("http", "request_size_bytes"),
-			metric.WithDescription("Size distribution of HTTP request bodies"),
-			metric.WithUnit("bytes"),
-			metric.WithExplicitBucketBoundaries(100, 1000, 10000, 100000, 1000000, 10000000, 100000000),
-		)
-		if err != nil {
-			log.Error("Failed to create http request size histogram", "error", err)
-		}
-		httpResponseSize, err = meter.Int64Histogram(
-			metrics.MetricNameWithSubsystem("http", "response_size_bytes"),
-			metric.WithDescription("Size distribution of HTTP response bodies"),
-			metric.WithUnit("bytes"),
-			metric.WithExplicitBucketBoundaries(100, 1000, 10000, 100000, 1000000, 10000000, 100000000),
-		)
-		if err != nil {
-			log.Error("Failed to create http response size histogram", "error", err)
-		}
-		httpRequestsInFlight, err = meter.Int64UpDownCounter(
-			metrics.MetricNameWithSubsystem("http", "requests_in_flight"),
-			metric.WithDescription("Currently active HTTP requests"),
-		)
-		if err != nil {
-			log.Error("Failed to create http requests in flight counter", "error", err)
-		}
+		initializeHTTPMetrics(ctx, meter)
 	})
+}
+
+// initializeHTTPMetrics configures HTTP metric instruments and logs failures.
+func initializeHTTPMetrics(ctx context.Context, meter metric.Meter) {
+	log := logger.FromContext(ctx)
+	var err error
+	httpRequestsTotal, err = meter.Int64Counter(
+		metrics.MetricNameWithSubsystem("http", "requests"),
+		metric.WithDescription("Total HTTP requests"),
+	)
+	if err != nil {
+		log.Error("Failed to create http requests total counter", "error", err)
+	}
+	httpRequestDuration, err = meter.Float64Histogram(
+		metrics.MetricNameWithSubsystem("http", "request_duration_seconds"),
+		metric.WithDescription("HTTP request latency"),
+		metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
+	)
+	if err != nil {
+		log.Error("Failed to create http request duration histogram", "error", err)
+	}
+	httpRequestSize, err = meter.Int64Histogram(
+		metrics.MetricNameWithSubsystem("http", "request_size_bytes"),
+		metric.WithDescription("Size distribution of HTTP request bodies"),
+		metric.WithUnit("bytes"),
+		metric.WithExplicitBucketBoundaries(100, 1000, 10000, 100000, 1000000, 10000000, 100000000),
+	)
+	if err != nil {
+		log.Error("Failed to create http request size histogram", "error", err)
+	}
+	httpResponseSize, err = meter.Int64Histogram(
+		metrics.MetricNameWithSubsystem("http", "response_size_bytes"),
+		metric.WithDescription("Size distribution of HTTP response bodies"),
+		metric.WithUnit("bytes"),
+		metric.WithExplicitBucketBoundaries(100, 1000, 10000, 100000, 1000000, 10000000, 100000000),
+	)
+	if err != nil {
+		log.Error("Failed to create http response size histogram", "error", err)
+	}
+	httpRequestsInFlight, err = meter.Int64UpDownCounter(
+		metrics.MetricNameWithSubsystem("http", "requests_in_flight"),
+		metric.WithDescription("Currently active HTTP requests"),
+	)
+	if err != nil {
+		log.Error("Failed to create http requests in flight counter", "error", err)
+	}
 }
 
 // ResetMetricsForTesting resets the metrics initialization state for testing.

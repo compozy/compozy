@@ -26,6 +26,8 @@ var (
 	fallbackTemplateErr  error
 )
 
+const maxToolSuggestions = 3
+
 type RequestBuilder interface {
 	Build(ctx context.Context, request Request, memoryCtx *MemoryContext) (RequestBuildOutput, error)
 }
@@ -68,46 +70,95 @@ func (b *requestBuilder) Build(
 	if err != nil {
 		return RequestBuildOutput{}, err
 	}
-	if err := llmadapter.ValidateConversation(messages); err != nil {
-		return RequestBuildOutput{}, NewLLMError(err, ErrCodeInvalidConversation, map[string]any{
-			"agent":          request.Agent.ID,
-			"action":         request.Action.ID,
-			"messages_count": len(messages),
-		})
+	if err := b.validateConversation(messages, &request); err != nil {
+		return RequestBuildOutput{}, err
 	}
 
-	temperature := request.Agent.Model.Config.Params.Temperature
-	toolChoice := ""
-	if len(toolDefs) > 0 {
-		toolChoice, toolDefs = b.decideToolStrategy(&request, toolDefs)
-		if len(toolDefs) == 0 {
-			// Preserve empty choice when no tools are advertised so downstream adapters skip the field.
-			toolChoice = ""
-		}
-	}
-	forceJSON := b.requiresJSONMode(request, promptResult.Format)
-	logger.FromContext(ctx).Debug("LLM request prepared",
-		"agent_id", request.Agent.ID,
-		"action_id", request.Action.ID,
-		"messages_count", len(messages),
-		"tools_count", len(toolDefs),
-		"tool_choice", toolChoice,
-		"output_format", b.describeOutputFormat(promptResult.Format),
-		"force_json", forceJSON,
-	)
-	stopWords := append([]string(nil), request.Agent.Model.Config.Params.StopWords...)
-	opts := b.buildCallOptions(&request, promptResult.Format, toolChoice, forceJSON, temperature, stopWords)
-	llmReq := llmadapter.LLMRequest{
-		SystemPrompt: b.enhanceSystemPromptWithBuiltins(ctx, request.Agent.Instructions),
-		Messages:     messages,
-		Tools:        toolDefs,
-		Options:      opts,
-	}
+	llmReq := b.composeLLMRequest(ctx, &request, &promptResult, toolDefs, messages)
 	return RequestBuildOutput{
 		Request:        llmReq,
 		PromptTemplate: promptResult.Template,
 		PromptContext:  promptResult.Context,
 	}, nil
+}
+
+func (b *requestBuilder) validateConversation(messages []llmadapter.Message, request *Request) error {
+	if err := llmadapter.ValidateConversation(messages); err != nil {
+		agentID := ""
+		actionID := ""
+		if request != nil && request.Agent != nil {
+			agentID = request.Agent.ID
+		}
+		if request != nil && request.Action != nil {
+			actionID = request.Action.ID
+		}
+		return NewLLMError(err, ErrCodeInvalidConversation, map[string]any{
+			"agent":          agentID,
+			"action":         actionID,
+			"messages_count": len(messages),
+		})
+	}
+	return nil
+}
+
+func (b *requestBuilder) composeLLMRequest(
+	ctx context.Context,
+	request *Request,
+	promptResult *PromptBuildResult,
+	toolDefs []llmadapter.ToolDefinition,
+	messages []llmadapter.Message,
+) llmadapter.LLMRequest {
+	reqValue := Request{}
+	if request != nil {
+		reqValue = *request
+	}
+	promptValue := PromptBuildResult{}
+	if promptResult != nil {
+		promptValue = *promptResult
+	}
+	temperature := reqValue.Agent.Model.Config.Params.Temperature
+	toolChoice, toolDefs, forceJSON := b.prepareToolStrategy(
+		ctx,
+		&reqValue,
+		toolDefs,
+		promptValue.Format,
+		len(messages),
+	)
+	stopWords := append([]string(nil), reqValue.Agent.Model.Config.Params.StopWords...)
+	opts := b.buildCallOptions(&reqValue, promptValue.Format, toolChoice, forceJSON, temperature, stopWords)
+	return llmadapter.LLMRequest{
+		SystemPrompt: b.enhanceSystemPromptWithBuiltins(ctx, reqValue.Agent.Instructions),
+		Messages:     messages,
+		Tools:        toolDefs,
+		Options:      opts,
+	}
+}
+
+func (b *requestBuilder) prepareToolStrategy(
+	ctx context.Context,
+	request *Request,
+	toolDefs []llmadapter.ToolDefinition,
+	format llmadapter.OutputFormat,
+	messagesCount int,
+) (string, []llmadapter.ToolDefinition, bool) {
+	toolChoice := ""
+	if len(toolDefs) > 0 {
+		toolChoice, toolDefs = b.decideToolStrategy(request, toolDefs)
+		if len(toolDefs) == 0 {
+			toolChoice = ""
+		}
+	}
+	forceJSON := b.requiresJSONMode(*request, format)
+	logger.FromContext(ctx).Debug("LLM request prepared",
+		"agent_id", request.Agent.ID,
+		"action_id", request.Action.ID,
+		"messages_count", messagesCount,
+		"tools_count", len(toolDefs),
+		"tool_choice", toolChoice,
+		"output_format", b.describeOutputFormat(format),
+		"force_json", forceJSON,
+	)
+	return toolChoice, toolDefs, forceJSON
 }
 
 //nolint:gocritic // Request copied for clarity while inspecting schema and tooling state.
@@ -446,39 +497,52 @@ func (b *requestBuilder) suggestToolNames(ctx context.Context, missing string) [
 		seen[key] = struct{}{}
 		names = append(names, raw)
 	}
-	return nearestToolNames(missing, names, 3)
+	return nearestToolNames(missing, names, maxToolSuggestions)
 }
 
 func nearestToolNames(target string, names []string, limit int) []string {
-	target = canonicalToolName(target)
-	if target == "" || len(names) == 0 || limit <= 0 {
+	normalized := canonicalToolName(target)
+	if normalized == "" || len(names) == 0 || limit <= 0 {
 		return nil
 	}
+	candidates := scoreToolCandidates(normalized, names)
+	if len(candidates) == 0 {
+		return nil
+	}
+	sortToolCandidates(candidates)
+	if len(candidates) > limit {
+		candidates = candidates[:limit]
+	}
+	return extractCandidateNames(candidates)
+}
+
+type toolCandidate struct {
+	name   string
+	prefix bool
+	jwSim  float64
+	lev    int
+}
+
+func scoreToolCandidates(target string, names []string) []toolCandidate {
 	jw := metrics.NewJaroWinkler()
 	lev := metrics.NewLevenshtein()
-	type candidate struct {
-		name   string
-		prefix bool
-		jwSim  float64
-		lev    int
-	}
-	candidates := make([]candidate, 0, len(names))
+	candidates := make([]toolCandidate, 0, len(names))
 	for _, name := range names {
 		clean := canonicalToolName(name)
 		if clean == "" {
 			continue
 		}
-		cand := candidate{
+		candidates = append(candidates, toolCandidate{
 			name:   name,
 			prefix: strings.HasPrefix(clean, target),
 			jwSim:  strutil.Similarity(target, clean, jw),
 			lev:    lev.Distance(target, clean),
-		}
-		candidates = append(candidates, cand)
+		})
 	}
-	if len(candidates) == 0 {
-		return nil
-	}
+	return candidates
+}
+
+func sortToolCandidates(candidates []toolCandidate) {
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].prefix != candidates[j].prefix {
 			return candidates[i].prefix && !candidates[j].prefix
@@ -491,9 +555,9 @@ func nearestToolNames(target string, names []string, limit int) []string {
 		}
 		return canonicalToolName(candidates[i].name) < canonicalToolName(candidates[j].name)
 	})
-	if len(candidates) > limit {
-		candidates = candidates[:limit]
-	}
+}
+
+func extractCandidateNames(candidates []toolCandidate) []string {
 	out := make([]string, 0, len(candidates))
 	for _, cand := range candidates {
 		out = append(out, cand.name)

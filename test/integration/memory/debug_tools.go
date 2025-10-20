@@ -51,7 +51,7 @@ func (d *DebugTools) CaptureRedisState(t *testing.T, label string) {
 	defer file.Close()
 
 	state := d.buildRedisState(t, label)
-	d.writeStateToFile(t, file, state)
+	d.writeStateToFile(t, file, state, "Redis")
 }
 
 // createCaptureFile creates the output directory and file for capturing
@@ -161,13 +161,13 @@ func (d *DebugTools) addListInfo(ctx context.Context, redis *redis.Client, key s
 }
 
 // writeStateToFile writes the state to JSON file
-func (d *DebugTools) writeStateToFile(t *testing.T, file *os.File, state map[string]any) {
+func (d *DebugTools) writeStateToFile(t *testing.T, file *os.File, state map[string]any, subject string) {
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(state); err != nil {
-		t.Logf("Failed to write Redis state: %v", err)
+		t.Logf("Failed to write %s state: %v", subject, err)
 	} else {
-		t.Logf("Redis state captured to: %s", file.Name())
+		t.Logf("%s state captured to: %s", subject, file.Name())
 	}
 }
 
@@ -177,52 +177,63 @@ func (d *DebugTools) CaptureMemoryState(t *testing.T, instance memcore.Memory, l
 		return
 	}
 	t.Helper()
-	// Create output directory
+	file := d.createMemoryCaptureFile(t, instance, label)
+	defer file.Close()
+	state := d.initialMemoryState(instance, label)
+	d.captureMemoryDetails(t.Context(), instance, state)
+	d.writeStateToFile(t, file, state, "Memory")
+}
+
+func (d *DebugTools) createMemoryCaptureFile(t *testing.T, instance memcore.Memory, label string) *os.File {
 	err := os.MkdirAll(d.outputDir, 0755)
 	require.NoError(t, err)
-	// Create capture file
 	filename := fmt.Sprintf("memory_%s_%s_%d.json", instance.GetID(), label, time.Now().UnixNano())
-	filepath := filepath.Join(d.outputDir, filename)
-	file, err := os.Create(filepath)
+	path := filepath.Join(d.outputDir, filename)
+	file, err := os.Create(path)
 	require.NoError(t, err)
-	defer file.Close()
-	// Capture memory state
-	state := map[string]any{
+	return file
+}
+
+func (d *DebugTools) initialMemoryState(instance memcore.Memory, label string) map[string]any {
+	return map[string]any{
 		"timestamp":   time.Now().Format(time.RFC3339),
 		"label":       label,
 		"instance_id": instance.GetID(),
 	}
-	// Get messages
-	messages, err := instance.Read(t.Context())
+}
+
+func (d *DebugTools) captureMemoryDetails(ctx context.Context, instance memcore.Memory, state map[string]any) {
+	d.captureMemoryMessages(ctx, instance, state)
+	d.captureMemoryHealth(ctx, instance, state)
+	d.captureMemoryTokens(ctx, instance, state)
+}
+
+func (d *DebugTools) captureMemoryMessages(ctx context.Context, instance memcore.Memory, state map[string]any) {
+	messages, err := instance.Read(ctx)
 	if err != nil {
 		state["read_error"] = err.Error()
-	} else {
-		state["message_count"] = len(messages)
-		state["messages"] = messages
+		return
 	}
-	// Get health
-	health, err := instance.GetMemoryHealth(t.Context())
+	state["message_count"] = len(messages)
+	state["messages"] = messages
+}
+
+func (d *DebugTools) captureMemoryHealth(ctx context.Context, instance memcore.Memory, state map[string]any) {
+	health, err := instance.GetMemoryHealth(ctx)
 	if err != nil {
 		state["health_error"] = err.Error()
-	} else {
-		state["health"] = health
+		return
 	}
-	// Get token count
-	tokenCount, err := instance.GetTokenCount(t.Context())
+	state["health"] = health
+}
+
+func (d *DebugTools) captureMemoryTokens(ctx context.Context, instance memcore.Memory, state map[string]any) {
+	tokenCount, err := instance.GetTokenCount(ctx)
 	if err != nil {
 		state["token_error"] = err.Error()
-	} else {
-		state["token_count"] = tokenCount
+		return
 	}
-	// Write JSON
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	err = encoder.Encode(state)
-	if err != nil {
-		t.Logf("Failed to write memory state: %v", err)
-	} else {
-		t.Logf("Memory state captured to: %s", filepath)
-	}
+	state["token_count"] = tokenCount
 }
 
 // EnableTracing enables detailed tracing for a test
@@ -527,63 +538,93 @@ func NewInteractiveDebugger(env *TestEnvironment) *InteractiveDebugger {
 
 // Debug pauses test execution for interactive debugging
 func (d *InteractiveDebugger) Debug(t *testing.T, instance memcore.Memory) {
-	if os.Getenv("MEMORY_TEST_INTERACTIVE") != interactiveEnvValue {
+	if !d.interactiveEnabled() {
 		return
 	}
 	t.Helper()
-	fmt.Print("\n=== INTERACTIVE DEBUG MODE ===\n")
-	fmt.Printf("Test: %s\n", t.Name())
-	fmt.Printf("Instance ID: %s\n", instance.GetID())
-	fmt.Println("Commands: messages, health, tokens, redis, continue")
-	fmt.Print("==============================\n\n")
+	d.printDebugIntro(t.Name(), instance.GetID())
 	ctx := t.Context()
 	for {
 		fmt.Print("> ")
 		if !d.scanner.Scan() {
 			break
 		}
-		command := strings.TrimSpace(d.scanner.Text())
-		switch command {
-		case "messages":
-			messages, err := instance.Read(ctx)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Printf("Messages (%d):\n", len(messages))
-				for i, msg := range messages {
-					fmt.Printf("  [%d] %s: %s\n", i, msg.Role, msg.Content)
-				}
-			}
-		case "health":
-			health, err := instance.GetMemoryHealth(ctx)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Printf("Health: %+v\n", health)
-			}
-		case "tokens":
-			tokens, err := instance.GetTokenCount(ctx)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Printf("Token count: %d\n", tokens)
-			}
-		case "redis":
-			redis := d.env.GetRedis()
-			keys, err := redis.Keys(ctx, "*").Result()
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Printf("Redis keys (%d):\n", len(keys))
-				for _, key := range keys {
-					fmt.Printf("  %s\n", key)
-				}
-			}
-		case "continue":
-			fmt.Println("Continuing test execution...")
+		if d.executeCommand(ctx, strings.TrimSpace(d.scanner.Text()), instance) {
 			return
-		default:
-			fmt.Println("Unknown command. Use: messages, health, tokens, redis, continue")
 		}
+	}
+}
+
+func (d *InteractiveDebugger) interactiveEnabled() bool {
+	return os.Getenv("MEMORY_TEST_INTERACTIVE") == interactiveEnvValue
+}
+
+func (d *InteractiveDebugger) printDebugIntro(testName string, instanceID string) {
+	fmt.Print("\n=== INTERACTIVE DEBUG MODE ===\n")
+	fmt.Printf("Test: %s\n", testName)
+	fmt.Printf("Instance ID: %s\n", instanceID)
+	fmt.Println("Commands: messages, health, tokens, redis, continue")
+	fmt.Print("==============================\n\n")
+}
+
+func (d *InteractiveDebugger) executeCommand(ctx context.Context, command string, instance memcore.Memory) bool {
+	switch command {
+	case "messages":
+		d.showMessages(ctx, instance)
+	case "health":
+		d.showHealth(ctx, instance)
+	case "tokens":
+		d.showTokenCount(ctx, instance)
+	case "redis":
+		d.showRedisKeys(ctx)
+	case "continue":
+		fmt.Println("Continuing test execution...")
+		return true
+	default:
+		fmt.Println("Unknown command. Use: messages, health, tokens, redis, continue")
+	}
+	return false
+}
+
+func (d *InteractiveDebugger) showMessages(ctx context.Context, instance memcore.Memory) {
+	messages, err := instance.Read(ctx)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Printf("Messages (%d):\n", len(messages))
+	for i, msg := range messages {
+		fmt.Printf("  [%d] %s: %s\n", i, msg.Role, msg.Content)
+	}
+}
+
+func (d *InteractiveDebugger) showHealth(ctx context.Context, instance memcore.Memory) {
+	health, err := instance.GetMemoryHealth(ctx)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Printf("Health: %+v\n", health)
+}
+
+func (d *InteractiveDebugger) showTokenCount(ctx context.Context, instance memcore.Memory) {
+	tokens, err := instance.GetTokenCount(ctx)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Printf("Token count: %d\n", tokens)
+}
+
+func (d *InteractiveDebugger) showRedisKeys(ctx context.Context) {
+	redis := d.env.GetRedis()
+	keys, err := redis.Keys(ctx, "*").Result()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Printf("Redis keys (%d):\n", len(keys))
+	for _, key := range keys {
+		fmt.Printf("  %s\n", key)
 	}
 }

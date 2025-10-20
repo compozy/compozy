@@ -403,51 +403,85 @@ func (m *manager) planReconciliationOperations(
 	desiredSchedules map[string]*workflow.Config,
 	yamlModTimes map[string]time.Time,
 ) (map[string]*workflow.Config, map[string]*workflow.Config, []string, []string) {
-	log := logger.FromContext(ctx)
 	toCreate := make(map[string]*workflow.Config)
 	toUpdate := make(map[string]*workflow.Config)
-	toDelete := make([]string, 0)
-	skippedDueToOverrides := make([]string, 0)
+	skipped := m.populateReconciliationPlan(ctx, existingSchedules, desiredSchedules, yamlModTimes, toCreate, toUpdate)
+	toDelete := identifySchedulesToDelete(existingSchedules, desiredSchedules)
+	m.logReconciliationPlan(ctx, toCreate, toUpdate, toDelete, skipped)
+	return toCreate, toUpdate, toDelete, skipped
+}
 
-	// Find schedules to create or update
+func (m *manager) populateReconciliationPlan(
+	ctx context.Context,
+	existingSchedules map[string]client.ScheduleHandle,
+	desiredSchedules map[string]*workflow.Config,
+	yamlModTimes map[string]time.Time,
+	toCreate map[string]*workflow.Config,
+	toUpdate map[string]*workflow.Config,
+) []string {
+	skipped := make([]string, 0)
 	for scheduleID, wf := range desiredSchedules {
 		workflowID := m.workflowIDFromScheduleID(scheduleID)
 		yamlModTime := yamlModTimes[workflowID]
-		// Check if this workflow should be skipped due to recent API overrides
-		if m.overrideCache.ShouldSkipReconciliation(workflowID, yamlModTime) {
-			skippedDueToOverrides = append(skippedDueToOverrides, workflowID)
-			log.Debug("Skipping reconciliation due to active API override", "workflow_id", workflowID)
+		if m.shouldSkipSchedule(ctx, workflowID, yamlModTime) {
+			skipped = append(skipped, workflowID)
 			continue
 		}
-		// If we are not skipping, the YAML is the source of truth. Clear any stale override.
-		if m.overrideCache.ClearOverride(workflowID) {
-			log.Info("Cleared stale API override due to newer YAML configuration", "workflow_id", workflowID)
-		}
+		m.clearStaleOverride(ctx, workflowID)
 		if _, exists := existingSchedules[scheduleID]; exists {
 			toUpdate[scheduleID] = wf
-		} else {
-			toCreate[scheduleID] = wf
+			continue
 		}
+		toCreate[scheduleID] = wf
 	}
+	return skipped
+}
 
-	// Find schedules to delete
+func (m *manager) shouldSkipSchedule(ctx context.Context, workflowID string, yamlModTime time.Time) bool {
+	if !m.overrideCache.ShouldSkipReconciliation(workflowID, yamlModTime) {
+		return false
+	}
+	logger.FromContext(ctx).Debug("Skipping reconciliation due to active API override", "workflow_id", workflowID)
+	return true
+}
+
+func (m *manager) clearStaleOverride(ctx context.Context, workflowID string) {
+	if m.overrideCache.ClearOverride(workflowID) {
+		logger.FromContext(ctx).
+			Info("Cleared stale API override due to newer YAML configuration", "workflow_id", workflowID)
+	}
+}
+
+func identifySchedulesToDelete(
+	existingSchedules map[string]client.ScheduleHandle,
+	desiredSchedules map[string]*workflow.Config,
+) []string {
+	toDelete := make([]string, 0)
 	for scheduleID := range existingSchedules {
 		if _, desired := desiredSchedules[scheduleID]; !desired {
 			toDelete = append(toDelete, scheduleID)
 		}
 	}
+	return toDelete
+}
 
+func (m *manager) logReconciliationPlan(
+	ctx context.Context,
+	toCreate map[string]*workflow.Config,
+	toUpdate map[string]*workflow.Config,
+	toDelete []string,
+	skipped []string,
+) {
+	log := logger.FromContext(ctx)
 	log.Info("Reconciliation plan",
 		"to_create", len(toCreate),
 		"to_update", len(toUpdate),
 		"to_delete", len(toDelete),
-		"skipped_overrides", len(skippedDueToOverrides),
+		"skipped_overrides", len(skipped),
 	)
-	if len(skippedDueToOverrides) > 0 {
-		log.Debug("Skipped workflows due to API overrides", "workflows", skippedDueToOverrides)
+	if len(skipped) > 0 {
+		log.Debug("Skipped workflows due to API overrides", "workflows", skipped)
 	}
-
-	return toCreate, toUpdate, toDelete, skippedDueToOverrides
 }
 
 // finishReconciliation updates metrics and logs completion
@@ -476,35 +510,41 @@ func (m *manager) finishReconciliation(
 
 // updateWorkflowCountMetrics calculates and reports workflow count deltas
 func (m *manager) updateWorkflowCountMetrics(ctx context.Context, desiredSchedules map[string]*workflow.Config) {
-	currentCounts := map[string]int{
+	currentCounts := m.computeCurrentCounts(desiredSchedules)
+	deltas := m.collectWorkflowMetricDeltas(currentCounts)
+	m.reportWorkflowCountMetrics(ctx, deltas)
+}
+
+type workflowCountDelta struct {
+	status string
+	delta  int64
+}
+
+func (m *manager) computeCurrentCounts(desiredSchedules map[string]*workflow.Config) map[string]int {
+	counts := map[string]int{
 		"active":   0,
 		"paused":   0,
 		"override": 0,
 	}
-	// Calculate current counts based on desired state and overrides
 	for scheduleID, wf := range desiredSchedules {
 		workflowID := m.workflowIDFromScheduleID(scheduleID)
 		if _, hasOverride := m.overrideCache.GetOverride(workflowID); hasOverride {
-			currentCounts["override"]++
-		} else if wf.Schedule.Enabled != nil && !*wf.Schedule.Enabled {
-			currentCounts["paused"]++
-		} else {
-			currentCounts["active"]++
+			counts["override"]++
+			continue
 		}
+		if wf.Schedule.Enabled != nil && !*wf.Schedule.Enabled {
+			counts["paused"]++
+			continue
+		}
+		counts["active"]++
 	}
+	return counts
+}
 
-	// Minimize mutex holding time by computing deltas first
-	var deltas []struct {
-		status string
-		delta  int64
-	}
-
-	// Only lock to read/update lastScheduleCounts
+func (m *manager) collectWorkflowMetricDeltas(currentCounts map[string]int) []workflowCountDelta {
 	m.mu.Lock()
-	// Check if this is the first run (no previous counts recorded)
+	defer m.mu.Unlock()
 	isFirstRun := len(m.lastScheduleCounts) == 0
-
-	// Calculate deltas - combine keys from both maps
 	allStatuses := make(map[string]struct{})
 	for status := range currentCounts {
 		allStatuses[status] = struct{}{}
@@ -512,25 +552,25 @@ func (m *manager) updateWorkflowCountMetrics(ctx context.Context, desiredSchedul
 	for status := range m.lastScheduleCounts {
 		allStatuses[status] = struct{}{}
 	}
-
+	deltas := make([]workflowCountDelta, 0, len(allStatuses))
 	for status := range allStatuses {
 		newCount := int64(currentCounts[status])
 		lastCount := int64(m.lastScheduleCounts[status])
 		delta := newCount - lastCount
-		// On first run, report absolute values even if they're 0 to establish baseline
-		// On subsequent runs, only report non-zero deltas
 		if isFirstRun || delta != 0 {
-			deltas = append(deltas, struct {
-				status string
-				delta  int64
-			}{status: status, delta: delta})
+			deltas = append(deltas, workflowCountDelta{status: status, delta: delta})
 		}
 	}
 	m.lastScheduleCounts = currentCounts
-	m.mu.Unlock()
+	return deltas
+}
 
-	// Report metrics outside the mutex lock to avoid blocking on I/O
-	for _, d := range deltas {
+func (m *manager) reportWorkflowCountMetrics(ctx context.Context, deltas []workflowCountDelta) {
+	if m.metrics == nil {
+		return
+	}
+	for i := range deltas {
+		d := deltas[i]
 		m.metrics.UpdateWorkflowCount(ctx, m.projectID, d.status, d.delta)
 	}
 }

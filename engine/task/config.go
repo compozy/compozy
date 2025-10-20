@@ -2679,51 +2679,7 @@ func (t *Config) AsMap() (map[string]any, error) {
 // FromMap updates the provider configuration from a normalized map
 func (t *Config) FromMap(data any) error {
 	var tmp Config
-	// Build a decoder with a hook that converts any slice -> attachment.Attachments via JSON round‑trip
-	attSliceType := reflect.TypeOf(attachment.Attachments{})
-	decodeHook := func(_ reflect.Type, to reflect.Type, v any) (any, error) {
-		if to == attSliceType {
-			rv := reflect.ValueOf(v)
-			if rv.IsValid() && rv.Kind() == reflect.Slice {
-				b, err := json.Marshal(v)
-				if err != nil {
-					return nil, err
-				}
-				var atts attachment.Attachments
-				if err := json.Unmarshal(b, &atts); err != nil {
-					return nil, err
-				}
-				return atts, nil
-			}
-		}
-		return v, nil
-	}
-	// Extend decode hook to coerce string-form selectors to IDs for agent/tool
-	agentPtr := reflect.TypeOf(&agent.Config{})
-	toolPtr := reflect.TypeOf(&tool.Config{})
-	extendedHook := func(from reflect.Type, to reflect.Type, v any) (any, error) {
-		if to == agentPtr {
-			if s, ok := v.(string); ok {
-				return &agent.Config{ID: s}, nil
-			}
-		}
-		if to == toolPtr {
-			if s, ok := v.(string); ok {
-				return &tool.Config{ID: s}, nil
-			}
-		}
-		nv, err := decodeHook(from, to, v)
-		if err != nil {
-			return nil, err
-		}
-		return nv, nil
-	}
-	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		WeaklyTypedInput: true,
-		Result:           &tmp,
-		TagName:          "mapstructure",
-		DecodeHook:       mapstructure.ComposeDecodeHookFunc(extendedHook, core.StringToMapAliasPtrHook),
-	})
+	decoder, err := newConfigDecoder(&tmp)
 	if err != nil {
 		return err
 	}
@@ -2731,6 +2687,66 @@ func (t *Config) FromMap(data any) error {
 		return err
 	}
 	return t.Merge(&tmp)
+}
+
+// newConfigDecoder builds the mapstructure decoder with the required hooks.
+func newConfigDecoder(result *Config) (*mapstructure.Decoder, error) {
+	hook := mapstructure.ComposeDecodeHookFunc(
+		extendedConfigDecodeHook(),
+		core.StringToMapAliasPtrHook,
+	)
+	return mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		WeaklyTypedInput: true,
+		Result:           result,
+		TagName:          "mapstructure",
+		DecodeHook:       hook,
+	})
+}
+
+// extendedConfigDecodeHook prepares decode hooks for attachments and selectors.
+func extendedConfigDecodeHook() mapstructure.DecodeHookFunc {
+	attachmentHook := attachmentsDecodeHook()
+	agentPtr := reflect.TypeOf(&agent.Config{})
+	toolPtr := reflect.TypeOf(&tool.Config{})
+	return func(from reflect.Type, to reflect.Type, v any) (any, error) {
+		switch to {
+		case agentPtr:
+			if s, ok := v.(string); ok {
+				return &agent.Config{ID: s}, nil
+			}
+		case toolPtr:
+			if s, ok := v.(string); ok {
+				return &tool.Config{ID: s}, nil
+			}
+		}
+		if fn, ok := attachmentHook.(mapstructure.DecodeHookFuncType); ok {
+			return fn(from, to, v)
+		}
+		return v, nil
+	}
+}
+
+// attachmentsDecodeHook converts slices into attachment collections.
+func attachmentsDecodeHook() mapstructure.DecodeHookFunc {
+	attSliceType := reflect.TypeOf(attachment.Attachments{})
+	return mapstructure.DecodeHookFuncType(func(_ reflect.Type, to reflect.Type, v any) (any, error) {
+		if to != attSliceType {
+			return v, nil
+		}
+		rv := reflect.ValueOf(v)
+		if !rv.IsValid() || rv.Kind() != reflect.Slice {
+			return v, nil
+		}
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		var atts attachment.Attachments
+		if err := json.Unmarshal(b, &atts); err != nil {
+			return nil, err
+		}
+		return atts, nil
+	})
 }
 
 func (t *Config) GetSleepDuration() (time.Duration, error) {

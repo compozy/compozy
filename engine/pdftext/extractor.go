@@ -96,41 +96,90 @@ func (e *Extractor) ExtractFile(ctx context.Context, path string, runeLimit int6
 
 // ExtractBytes extracts text from a PDF byte slice.
 func (e *Extractor) ExtractBytes(ctx context.Context, data []byte, runeLimit int64) (Result, error) {
-	if e == nil {
-		return Result{}, errors.New("pdftext: extractor is nil")
+	if err := e.validateExtractBytesInput(data); err != nil {
+		return Result{}, err
 	}
-	if e.pool == nil {
-		return Result{}, errors.New("pdftext: extractor pool is uninitialized")
-	}
-	if len(data) == 0 {
-		return Result{}, errors.New("pdftext: empty pdf payload")
-	}
-	instance, err := e.pool.GetInstanceWithContext(ctx)
+
+	instance, err := e.acquireInstance(ctx)
 	if err != nil {
-		return Result{}, fmt.Errorf("pdftext: acquire pdfium instance: %w", err)
+		return Result{}, err
 	}
 	defer instance.Close()
 
-	pdfBytes := data
-	doc, err := instance.OpenDocument(&requests.OpenDocument{File: &pdfBytes})
+	doc, closeDoc, err := e.openDocument(instance, data)
 	if err != nil {
-		return Result{}, fmt.Errorf("pdftext: open document: %w", err)
+		return Result{}, err
 	}
-	defer func() {
-		if _, cerr := instance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{Document: doc.Document}); cerr != nil {
-			_ = cerr
-		}
-	}()
+	defer closeDoc()
 
-	countResp, err := instance.FPDF_GetPageCount(&requests.FPDF_GetPageCount{Document: doc.Document})
+	pageCount, err := e.pageCount(instance, doc)
 	if err != nil {
-		return Result{}, fmt.Errorf("pdftext: get page count: %w", err)
+		return Result{}, err
 	}
-	if countResp.PageCount == 0 {
+	if pageCount == 0 {
 		return Result{Stats: Stats{}}, nil
 	}
 
-	text, stats, err := e.extractPlain(ctx, instance, doc, runeLimit, countResp.PageCount)
+	return e.extractWithFallback(ctx, instance, doc, runeLimit, pageCount)
+}
+
+func (e *Extractor) validateExtractBytesInput(data []byte) error {
+	if e == nil {
+		return errors.New("pdftext: extractor is nil")
+	}
+	if e.pool == nil {
+		return errors.New("pdftext: extractor pool is uninitialized")
+	}
+	if len(data) == 0 {
+		return errors.New("pdftext: empty pdf payload")
+	}
+	return nil
+}
+
+func (e *Extractor) acquireInstance(ctx context.Context) (pdfium.Pdfium, error) {
+	instance, err := e.pool.GetInstanceWithContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("pdftext: acquire pdfium instance: %w", err)
+	}
+	return instance, nil
+}
+
+func (e *Extractor) openDocument(
+	instance pdfium.Pdfium,
+	data []byte,
+) (*responses.OpenDocument, func(), error) {
+	pdfBytes := data
+	doc, err := instance.OpenDocument(&requests.OpenDocument{File: &pdfBytes})
+	if err != nil {
+		return nil, nil, fmt.Errorf("pdftext: open document: %w", err)
+	}
+	cleanup := func() {
+		if _, cerr := instance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{Document: doc.Document}); cerr != nil {
+			_ = cerr
+		}
+	}
+	return doc, cleanup, nil
+}
+
+func (e *Extractor) pageCount(
+	instance pdfium.Pdfium,
+	doc *responses.OpenDocument,
+) (int, error) {
+	resp, err := instance.FPDF_GetPageCount(&requests.FPDF_GetPageCount{Document: doc.Document})
+	if err != nil {
+		return 0, fmt.Errorf("pdftext: get page count: %w", err)
+	}
+	return resp.PageCount, nil
+}
+
+func (e *Extractor) extractWithFallback(
+	ctx context.Context,
+	instance pdfium.Pdfium,
+	doc *responses.OpenDocument,
+	runeLimit int64,
+	pageCount int,
+) (Result, error) {
+	text, stats, err := e.extractPlain(ctx, instance, doc, runeLimit, pageCount)
 	if err != nil {
 		return Result{}, err
 	}
@@ -138,12 +187,9 @@ func (e *Extractor) ExtractBytes(ctx context.Context, data []byte, runeLimit int
 		return Result{Text: text, Stats: stats}, nil
 	}
 
-	fallbackText, fallbackStats, fallbackErr := e.extractStructured(ctx, instance, doc, runeLimit, countResp.PageCount)
+	fallbackText, fallbackStats, fallbackErr := e.extractStructured(ctx, instance, doc, runeLimit, pageCount)
 	if fallbackErr != nil {
-		return Result{
-			Text:  text,
-			Stats: stats,
-		}, fmt.Errorf("pdftext: structured fallback failed: %w", fallbackErr)
+		return Result{Text: text, Stats: stats}, fmt.Errorf("pdftext: structured fallback failed: %w", fallbackErr)
 	}
 	fallbackStats.FallbackUsed = true
 	return Result{Text: fallbackText, Stats: fallbackStats}, nil

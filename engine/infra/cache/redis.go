@@ -62,35 +62,54 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 		return nil, fmt.Errorf("redis config is required")
 	}
 
-	var client redis.UniversalClient
-	// Parse URL if provided, otherwise use individual parameters
+	client, err := buildRedisClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := pingRedis(ctx, client, cfg.PingTimeout); err != nil {
+		client.Close()
+		return nil, err
+	}
+	logRedisConnection(ctx, cfg)
+
+	return &Redis{
+		client: client,
+		config: cfg,
+		ctx:    ctx,
+	}, nil
+}
+
+// buildRedisClient configures the Redis client from the provided config.
+func buildRedisClient(cfg *Config) (redis.UniversalClient, error) {
 	if cfg.URL != "" {
 		opt, err := redis.ParseURL(cfg.URL)
 		if err != nil {
 			return nil, fmt.Errorf("parsing Redis URL: %w", err)
 		}
-		// Override with additional config
 		applyConfigToOptions(opt, cfg)
-		client = redis.NewClient(opt)
-	} else {
-		// Use individual parameters
-		opt := &redis.Options{
-			Addr:     fmt.Sprintf(`%s:%s`, cfg.Host, cfg.Port),
-			Password: cfg.Password,
-			DB:       cfg.DB,
-		}
-		applyConfigToOptions(opt, cfg)
-		client = redis.NewClient(opt)
+		return redis.NewClient(opt), nil
 	}
+	opt := &redis.Options{
+		Addr:     fmt.Sprintf(`%s:%s`, cfg.Host, cfg.Port),
+		Password: cfg.Password,
+		DB:       cfg.DB,
+	}
+	applyConfigToOptions(opt, cfg)
+	return redis.NewClient(opt), nil
+}
 
-	// Test connection with configurable timeout
-	pingCtx, pingCancel := context.WithTimeout(ctx, cfg.PingTimeout)
+// pingRedis validates connectivity within the configured timeout.
+func pingRedis(ctx context.Context, client redis.UniversalClient, timeout time.Duration) error {
+	pingCtx, pingCancel := context.WithTimeout(ctx, timeout)
 	defer pingCancel()
 	if err := client.Ping(pingCtx).Err(); err != nil {
-		client.Close()
-		return nil, fmt.Errorf("pinging Redis server: %w", err)
+		return fmt.Errorf("pinging Redis server: %w", err)
 	}
+	return nil
+}
 
+// logRedisConnection emits a diagnostic message after successful connection.
+func logRedisConnection(ctx context.Context, cfg *Config) {
 	logger.FromContext(ctx).With(
 		"cache_driver", "redis",
 		"host", cfg.Host,
@@ -99,12 +118,6 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 		"pool_size", cfg.PoolSize,
 		"tls_enabled", cfg.TLSEnabled,
 	).Info("Redis connection established")
-
-	return &Redis{
-		client: client,
-		config: cfg,
-		ctx:    ctx,
-	}, nil
 }
 
 // Close shuts down the Redis connection.

@@ -177,26 +177,44 @@ func setupFlags() {
 func collectFormParams(cmd *cobra.Command) error {
 	fmt.Println("\n🎯 Interactive Parameter Collection")
 
-	var (
-		prInput              string
-		issuesDirInput       string
-		concurrentInput      string
-		batchSizeInput       string
-		modelInput           string
-		tailLinesInput       string
-		ideInput             string
-		reasoningEffortInput string
-	)
-
+	inputs := newFormInputs()
 	builder := newFormBuilder(cmd)
-	builder.addPRField(&prInput)
-	builder.addOptionalPathField("issues-dir", &issuesDirInput)
-	builder.addConcurrentField(&concurrentInput)
-	builder.addBatchSizeField(&batchSizeInput)
-	builder.addIDEField(&ideInput)
-	builder.addModelField(&modelInput)
-	builder.addTailLinesField(&tailLinesInput)
-	builder.addReasoningEffortField(&reasoningEffortInput)
+	inputs.register(builder)
+
+	if err := builder.build().Run(); err != nil {
+		return fmt.Errorf("form canceled or error: %w", err)
+	}
+
+	inputs.apply(cmd)
+	fmt.Println("\n✅ Parameters collected successfully!")
+	return nil
+}
+
+type formInputs struct {
+	pr              string
+	issuesDir       string
+	concurrent      string
+	batchSize       string
+	ide             string
+	model           string
+	tailLines       string
+	reasoningEffort string
+}
+
+func newFormInputs() *formInputs {
+	return &formInputs{}
+}
+
+// register wires the interactive fields into the provided builder.
+func (fi *formInputs) register(builder *formBuilder) {
+	builder.addPRField(&fi.pr)
+	builder.addOptionalPathField("issues-dir", &fi.issuesDir)
+	builder.addConcurrentField(&fi.concurrent)
+	builder.addBatchSizeField(&fi.batchSize)
+	builder.addIDEField(&fi.ide)
+	builder.addModelField(&fi.model)
+	builder.addTailLinesField(&fi.tailLines)
+	builder.addReasoningEffortField(&fi.reasoningEffort)
 	builder.addConfirmField(
 		"dry-run",
 		"Dry Run?",
@@ -209,28 +227,20 @@ func collectFormParams(cmd *cobra.Command) error {
 		"Create grouped issue summaries in issues/grouped/",
 		&grouped,
 	)
+}
 
-	form := huh.NewForm(huh.NewGroup(builder.fields...)).
-		WithTheme(huh.ThemeCharm())
-
-	err := form.Run()
-	if err != nil {
-		return fmt.Errorf("form canceled or error: %w", err)
-	}
-
-	applyStringInput(cmd, "pr", prInput, func(val string) { pr = val })
-	applyStringInput(cmd, "issues-dir", issuesDirInput, func(val string) { issuesDir = val })
-	applyIntInput(cmd, "concurrent", concurrentInput, func(val int) { concurrent = val })
-	applyIntInput(cmd, "batch-size", batchSizeInput, func(val int) { batchSize = val })
-	applyStringInput(cmd, "ide", ideInput, func(val string) { ide = val })
-	applyStringInput(cmd, "model", modelInput, func(val string) { model = val })
-	applyIntInput(cmd, "tail-lines", tailLinesInput, func(val int) { tailLines = val })
-	applyStringInput(cmd, "reasoning-effort", reasoningEffortInput, func(val string) {
+// apply updates CLI flags and globals with collected form values.
+func (fi *formInputs) apply(cmd *cobra.Command) {
+	applyStringInput(cmd, "pr", fi.pr, func(val string) { pr = val })
+	applyStringInput(cmd, "issues-dir", fi.issuesDir, func(val string) { issuesDir = val })
+	applyIntInput(cmd, "concurrent", fi.concurrent, func(val int) { concurrent = val })
+	applyIntInput(cmd, "batch-size", fi.batchSize, func(val int) { batchSize = val })
+	applyStringInput(cmd, "ide", fi.ide, func(val string) { ide = val })
+	applyStringInput(cmd, "model", fi.model, func(val string) { model = val })
+	applyIntInput(cmd, "tail-lines", fi.tailLines, func(val int) { tailLines = val })
+	applyStringInput(cmd, "reasoning-effort", fi.reasoningEffort, func(val string) {
 		reasoningEffort = val
 	})
-
-	fmt.Println("\n✅ Parameters collected successfully!")
-	return nil
 }
 
 type formBuilder struct {
@@ -240,6 +250,11 @@ type formBuilder struct {
 
 func newFormBuilder(cmd *cobra.Command) *formBuilder {
 	return &formBuilder{cmd: cmd}
+}
+
+// build assembles the final form with the configured fields.
+func (fb *formBuilder) build() *huh.Form {
+	return huh.NewForm(huh.NewGroup(fb.fields...)).WithTheme(huh.ThemeCharm())
 }
 
 func (fb *formBuilder) addField(flag string, build func() huh.Field) {
@@ -632,50 +647,76 @@ func prepareJobs(
 	batchSize int,
 	grouped bool,
 ) ([]job, error) {
-	// Flatten all issues into a single list and sort by issue number
 	allIssues := flattenAndSortIssues(groups)
 	if batchSize <= 0 {
 		batchSize = 1
 	}
-	// Create batches of consecutive issues
+
 	issueBatches := createIssueBatches(allIssues, batchSize)
-	// Create jobs for each batch
 	jobs := make([]job, 0, len(issueBatches))
 	for batchIdx, batchIssues := range issueBatches {
-		batchGroups, batchFiles := groupIssuesByCodeFile(batchIssues)
-		safeName := fmt.Sprintf("batch_%03d", batchIdx+1)
-		if len(batchFiles) == 1 {
-			// Single file batch - use file-based name for backward compatibility
-			safeName = safeFileName(func() string {
-				if strings.HasPrefix(batchFiles[0], "__unknown__") {
-					return unknownFileName
-				}
-				return batchFiles[0]
-			}())
+		jb, err := buildBatchJob(pr, promptRoot, grouped, batchIdx, batchIssues)
+		if err != nil {
+			return nil, err
 		}
-		// Build the batch prompt
-		promptStr := buildBatchedIssuesPrompt(buildBatchedIssuesParams{
-			PR:          pr,
-			BatchGroups: batchGroups,
-			Grouped:     grouped,
-		})
-		outPromptPath := filepath.Join(promptRoot, fmt.Sprintf("%s.prompt.md", safeName))
-		if err := os.WriteFile(outPromptPath, []byte(promptStr), 0o600); err != nil {
-			return nil, fmt.Errorf("write prompt: %w", err)
-		}
-		outLog := filepath.Join(promptRoot, fmt.Sprintf("%s.out.log", safeName))
-		errLog := filepath.Join(promptRoot, fmt.Sprintf("%s.err.log", safeName))
-		jobs = append(jobs, job{
-			codeFiles:     batchFiles,
-			groups:        batchGroups,
-			safeName:      safeName,
-			prompt:        []byte(promptStr),
-			outPromptPath: outPromptPath,
-			outLog:        outLog,
-			errLog:        errLog,
-		})
+		jobs = append(jobs, jb)
 	}
 	return jobs, nil
+}
+
+// buildBatchJob converts a batch of issues into an executable job definition.
+func buildBatchJob(
+	pr string,
+	promptRoot string,
+	grouped bool,
+	batchIdx int,
+	batchIssues []issueEntry,
+) (job, error) {
+	batchGroups, batchFiles := groupIssuesByCodeFile(batchIssues)
+	safeName := determineBatchName(batchIdx, batchFiles)
+	promptStr := buildBatchedIssuesPrompt(buildBatchedIssuesParams{
+		PR:          pr,
+		BatchGroups: batchGroups,
+		Grouped:     grouped,
+	})
+
+	outPromptPath, outLog, errLog, err := writeBatchArtifacts(promptRoot, safeName, promptStr)
+	if err != nil {
+		return job{}, err
+	}
+
+	return job{
+		codeFiles:     batchFiles,
+		groups:        batchGroups,
+		safeName:      safeName,
+		prompt:        []byte(promptStr),
+		outPromptPath: outPromptPath,
+		outLog:        outLog,
+		errLog:        errLog,
+	}, nil
+}
+
+// determineBatchName picks a human-readable name for the generated batch artifacts.
+func determineBatchName(batchIdx int, batchFiles []string) string {
+	if len(batchFiles) == 1 {
+		filename := batchFiles[0]
+		if strings.HasPrefix(filename, "__unknown__") {
+			filename = unknownFileName
+		}
+		return safeFileName(filename)
+	}
+	return fmt.Sprintf("batch_%03d", batchIdx+1)
+}
+
+// writeBatchArtifacts persists prompt and log files for a generated job.
+func writeBatchArtifacts(promptRoot, safeName, promptStr string) (string, string, string, error) {
+	outPromptPath := filepath.Join(promptRoot, fmt.Sprintf("%s.prompt.md", safeName))
+	if err := os.WriteFile(outPromptPath, []byte(promptStr), 0o600); err != nil {
+		return "", "", "", fmt.Errorf("write prompt: %w", err)
+	}
+	outLog := filepath.Join(promptRoot, fmt.Sprintf("%s.out.log", safeName))
+	errLog := filepath.Join(promptRoot, fmt.Sprintf("%s.err.log", safeName))
+	return outPromptPath, outLog, errLog, nil
 }
 
 func flattenAndSortIssues(groups map[string][]issueEntry) []issueEntry {
@@ -716,88 +757,142 @@ func groupIssuesByCodeFile(issues []issueEntry) (map[string][]issueEntry, []stri
 
 // executeJobsWithGracefulShutdown executes jobs with proper graceful shutdown handling
 func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, args *cliArgs) (int32, []failInfo, int, error) {
-	total := len(jobs)
-	var completed int32
-	var failed int32
-	var failuresMu sync.Mutex
-	failures := []failInfo{}
-	sem := make(chan struct{}, maxInt(1, args.concurrent))
-	var wg sync.WaitGroup
-
-	cwd, err := os.Getwd()
+	execCtx, err := newJobExecutionContext(ctx, jobs, args)
 	if err != nil {
-		return 0, []failInfo{{err: fmt.Errorf("failed to get current working directory: %w", err)}}, total, nil
+		total := len(jobs)
+		return 0, []failInfo{{err: err}}, total, nil
 	}
+	defer execCtx.cleanup()
 
-	// Create aggregate token usage tracker (shared across all jobs)
-	var aggregateUsage TokenUsage
-	var aggregateMu sync.Mutex
-
-	// Setup UI if enabled
-	uiCh, uiProg := setupUI(ctx, jobs, args, !args.dryRun, &aggregateUsage, &aggregateMu)
-	defer func() {
-		if uiProg != nil {
-			close(uiCh)
-			time.Sleep(80 * time.Millisecond)
-			uiProg.Quit()
-		}
-	}()
-
-	// Start job workers
-	jobCtx, cancelJobs := context.WithCancel(ctx)
+	_, cancelJobs := execCtx.launchWorkers(ctx)
 	defer cancelJobs()
 
-	for idx := range jobs {
-		jb := &jobs[idx]
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(index int, j *job) {
-			defer func() {
-				<-sem
-				wg.Done()
-				atomic.AddInt32(&completed, 1)
-			}()
-			runOneJob(jobCtx, args, index, j, cwd, uiCh, &failed, &failuresMu, &failures, &aggregateUsage, &aggregateMu)
-		}(idx, jb)
+	done := execCtx.waitChannel()
+	return execCtx.awaitCompletion(ctx, done, cancelJobs)
+}
+
+type jobExecutionContext struct {
+	args           *cliArgs
+	jobs           []job
+	total          int
+	cwd            string
+	uiCh           chan uiMsg
+	uiProg         *tea.Program
+	sem            chan struct{}
+	aggregateUsage TokenUsage
+	aggregateMu    sync.Mutex
+	failed         int32
+	failures       []failInfo
+	failuresMu     sync.Mutex
+	completed      int32
+	wg             sync.WaitGroup
+}
+
+func newJobExecutionContext(ctx context.Context, jobs []job, args *cliArgs) (*jobExecutionContext, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current working directory: %w", err)
 	}
 
-	// Channel to signal when all jobs are done
+	execCtx := &jobExecutionContext{
+		args:  args,
+		jobs:  jobs,
+		total: len(jobs),
+		cwd:   cwd,
+		sem:   make(chan struct{}, maxInt(1, args.concurrent)),
+	}
+
+	execCtx.uiCh, execCtx.uiProg = setupUI(ctx, jobs, args, !args.dryRun, &execCtx.aggregateUsage, &execCtx.aggregateMu)
+	return execCtx, nil
+}
+
+func (j *jobExecutionContext) cleanup() {
+	if j.uiProg != nil {
+		close(j.uiCh)
+		time.Sleep(80 * time.Millisecond)
+		j.uiProg.Quit()
+	}
+}
+
+func (j *jobExecutionContext) launchWorkers(ctx context.Context) (context.Context, context.CancelFunc) {
+	jobCtx, cancel := context.WithCancel(ctx)
+	for idx := range j.jobs {
+		jb := &j.jobs[idx]
+		j.wg.Add(1)
+		j.sem <- struct{}{}
+		go j.executeJob(jobCtx, idx, jb)
+	}
+	return jobCtx, cancel
+}
+
+func (j *jobExecutionContext) executeJob(jobCtx context.Context, index int, jb *job) {
+	defer func() {
+		<-j.sem
+		j.wg.Done()
+		atomic.AddInt32(&j.completed, 1)
+	}()
+	runOneJob(
+		jobCtx,
+		j.args,
+		index,
+		jb,
+		j.cwd,
+		j.uiCh,
+		&j.failed,
+		&j.failuresMu,
+		&j.failures,
+		&j.aggregateUsage,
+		&j.aggregateMu,
+	)
+}
+
+func (j *jobExecutionContext) waitChannel() <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
-		wg.Wait()
+		j.wg.Wait()
 		close(done)
 	}()
+	return done
+}
 
-	// Wait for either completion or shutdown signal
+func (j *jobExecutionContext) awaitCompletion(
+	ctx context.Context,
+	done <-chan struct{},
+	cancelJobs context.CancelFunc,
+) (int32, []failInfo, int, error) {
 	select {
 	case <-done:
-		// All jobs completed normally - show aggregate token usage if applicable
-		if args.ide == ideClaude {
-			aggregateMu.Lock()
-			printAggregateTokenUsage(&aggregateUsage)
-			aggregateMu.Unlock()
-		}
-		return failed, failures, total, nil
+		j.reportAggregateUsage()
+		return j.failed, j.failures, j.total, nil
 	case <-ctx.Done():
-		// Shutdown signal received, cancel all jobs
 		fmt.Fprintf(os.Stderr, "\nReceived shutdown signal, canceling remaining jobs...\n")
 		cancelJobs()
+		return j.awaitShutdownAfterCancel(done)
+	}
+}
 
-		// Wait for jobs to finish with a timeout for graceful shutdown
-		shutdownTimeout := 30 * time.Second
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer shutdownCancel()
+func (j *jobExecutionContext) reportAggregateUsage() {
+	if j.args.ide != ideClaude {
+		return
+	}
+	j.aggregateMu.Lock()
+	defer j.aggregateMu.Unlock()
+	printAggregateTokenUsage(&j.aggregateUsage)
+}
 
-		select {
-		case <-done:
-			// Jobs finished within timeout
-			fmt.Fprintf(os.Stderr, "All jobs completed gracefully within %v\n", shutdownTimeout)
-			return failed, failures, total, nil
-		case <-shutdownCtx.Done():
-			// Timeout exceeded, force shutdown
-			fmt.Fprintf(os.Stderr, "Shutdown timeout exceeded (%v), forcing exit\n", shutdownTimeout)
-			return failed, failures, total, fmt.Errorf("shutdown timeout exceeded")
-		}
+func (j *jobExecutionContext) awaitShutdownAfterCancel(done <-chan struct{}) (int32, []failInfo, int, error) {
+	shutdownTimeout := 30 * time.Second
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer shutdownCancel()
+
+	select {
+	case <-done:
+		fmt.Fprintf(os.Stderr, "All jobs completed gracefully within %v\n", shutdownTimeout)
+		j.reportAggregateUsage()
+		return j.failed, j.failures, j.total, nil
+	case <-shutdownCtx.Done():
+		fmt.Fprintf(os.Stderr, "Shutdown timeout exceeded (%v), forcing exit\n", shutdownTimeout)
+		return j.failed, j.failures, j.total, fmt.Errorf("shutdown timeout exceeded")
 	}
 }
 
@@ -995,80 +1090,85 @@ func formatCodeFileLabel(codeFiles []string) string {
 func createIDECommand(ctx context.Context, args *cliArgs) *exec.Cmd {
 	model := args.model
 	if model == "" {
-		// Set default model based on IDE
-		switch args.ide {
-		case ideCodex:
-			model = defaultCodexModel
-		case ideClaude:
-			model = defaultClaudeModel
-		case ideDroid:
-			model = defaultCodexModel
-		}
+		model = defaultModelForIDE(args.ide)
 	}
-
-	reasoningEffortFlag := fmt.Sprintf("model_reasoning_effort=%s", args.reasoningEffort)
 
 	switch args.ide {
 	case ideCodex:
-		if model != "" {
-			return exec.CommandContext(
-				ctx,
-				ideCodex,
-				"--full-auto",
-				"-m", model,
-				"-c", reasoningEffortFlag,
-				"exec", "-",
-			)
-		}
-		return exec.CommandContext(
-			ctx,
-			ideCodex,
-			"--full-auto",
-			"-c", reasoningEffortFlag,
-			"exec", "-",
-		)
+		return codexCommand(ctx, model, args.reasoningEffort)
 	case ideClaude:
-		// Build system prompt based on reasoning effort
-		var thinkPrompt string
-		switch args.reasoningEffort {
-		case "low":
-			thinkPrompt = thinkPromptLow
-		case "medium":
-			thinkPrompt = thinkPromptMedium
-		case "high":
-			thinkPrompt = thinkPromptHighDescription
-		default:
-			thinkPrompt = thinkPromptMedium
-		}
-		return exec.CommandContext(
-			ctx,
-			ideClaude,
-			"--print",
-			"--output-format", "stream-json",
-			"--verbose",
-			"--model", model,
-			"--permission-mode", "bypassPermissions",
-			"--dangerously-skip-permissions",
-			"--append-system-prompt", thinkPrompt,
-		)
+		return claudeCommand(ctx, model, args.reasoningEffort)
 	case ideDroid:
-		droidArgs := []string{
-			"exec",
-			"--auto", "medium",
-			"--reasoning-effort", args.reasoningEffort,
-		}
-		if model != "" {
-			droidArgs = append(droidArgs, "--model", model)
-		}
-		droidArgs = append(droidArgs, "--file", "-")
-		return exec.CommandContext(
-			ctx,
-			ideDroid,
-			droidArgs...,
-		)
+		return droidCommand(ctx, model, args.reasoningEffort)
 	default:
 		return nil
 	}
+}
+
+// defaultModelForIDE resolves the implicit model selection for each IDE.
+func defaultModelForIDE(ide string) string {
+	switch ide {
+	case ideCodex, ideDroid:
+		return defaultCodexModel
+	case ideClaude:
+		return defaultClaudeModel
+	default:
+		return ""
+	}
+}
+
+// codexCommand builds the Codex CLI invocation with optional model override.
+func codexCommand(ctx context.Context, model, reasoning string) *exec.Cmd {
+	args := []string{"--full-auto"}
+	if model != "" {
+		args = append(args, "-m", model)
+	}
+	args = append(args, "-c", fmt.Sprintf("model_reasoning_effort=%s", reasoning), "exec", "-")
+	return exec.CommandContext(ctx, ideCodex, args...)
+}
+
+// claudeCommand prepares the Claude CLI invocation using the reasoning preset.
+func claudeCommand(ctx context.Context, model, reasoning string) *exec.Cmd {
+	prompt := claudePromptForEffort(reasoning)
+	return exec.CommandContext(
+		ctx,
+		ideClaude,
+		"--print",
+		"--output-format", "stream-json",
+		"--verbose",
+		"--model", model,
+		"--permission-mode", "bypassPermissions",
+		"--dangerously-skip-permissions",
+		"--append-system-prompt", prompt,
+	)
+}
+
+// claudePromptForEffort maps reasoning presets to system prompts.
+func claudePromptForEffort(reasoning string) string {
+	switch reasoning {
+	case "low":
+		return thinkPromptLow
+	case "high":
+		return thinkPromptHighDescription
+	case "medium":
+		return thinkPromptMedium
+	default:
+		return thinkPromptMedium
+	}
+}
+
+// droidCommand composes the Droid CLI invocation with appropriate switches.
+func droidCommand(ctx context.Context, model, reasoning string) *exec.Cmd {
+	droidArgs := []string{
+		"exec",
+		"--auto", "medium",
+		"--reasoning-effort", reasoning,
+	}
+	if model != "" {
+		droidArgs = append(droidArgs, "--model", model)
+	}
+	droidArgs = append(droidArgs, "--file", "-")
+	return exec.CommandContext(ctx, ideDroid, droidArgs...)
 }
 
 func setupCommandIO(
@@ -1083,13 +1183,8 @@ func setupCommandIO(
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
 ) (*os.File, *os.File, error) {
-	cmd.Dir = cwd
-	cmd.Stdin = bytes.NewReader(j.prompt)
-	cmd.Env = append(os.Environ(),
-		"FORCE_COLOR=1",
-		"CLICOLOR_FORCE=1",
-		"TERM=xterm-256color",
-	)
+	configureCommandEnvironment(cmd, cwd, j.prompt)
+
 	outF, err := createLogFile(j.outLog, "out")
 	if err != nil {
 		return nil, nil, fmt.Errorf("create out log: %w", err)
@@ -1099,49 +1194,109 @@ func setupCommandIO(
 		outF.Close()
 		return nil, nil, fmt.Errorf("create err log: %w", err)
 	}
-	outRing := newLineRing(tailLines)
-	errRing := newLineRing(tailLines)
-	var outTap, errTap io.Writer
-	if useUI {
-		uiTap := newUILogTap(index, false, outRing, errRing, uiCh)
-		if ideType == ideClaude {
-			// Create callback to report token usage to both UI and aggregate tracker
-			usageCallback := func(usage TokenUsage) {
-				// Update UI
-				if uiCh != nil {
-					uiCh <- tokenUsageUpdateMsg{Index: index, Usage: usage}
-				}
-				// Update aggregate usage (thread-safe)
-				if aggregateUsage != nil && aggregateMu != nil {
-					aggregateMu.Lock()
-					aggregateUsage.Add(usage)
-					aggregateMu.Unlock()
-				}
-			}
-			outTap = io.MultiWriter(outF, newJSONFormatterWithCallback(uiTap, usageCallback))
-		} else {
-			outTap = io.MultiWriter(outF, uiTap)
-		}
-		errTap = io.MultiWriter(errF, newUILogTap(index, true, outRing, errRing, uiCh))
-	} else {
-		if ideType == ideClaude {
-			// Non-UI mode: format JSON and track aggregate usage
-			usageCallback := func(usage TokenUsage) {
-				if aggregateUsage != nil && aggregateMu != nil {
-					aggregateMu.Lock()
-					aggregateUsage.Add(usage)
-					aggregateMu.Unlock()
-				}
-			}
-			outTap = io.MultiWriter(outF, newJSONFormatterWithCallback(os.Stdout, usageCallback))
-		} else {
-			outTap = io.MultiWriter(outF, os.Stdout)
-		}
-		errTap = io.MultiWriter(errF, os.Stderr)
-	}
+
+	outTap, errTap := buildCommandTaps(
+		outF,
+		errF,
+		tailLines,
+		useUI,
+		uiCh,
+		index,
+		ideType,
+		aggregateUsage,
+		aggregateMu,
+	)
+
 	cmd.Stdout = outTap
 	cmd.Stderr = errTap
 	return outF, errF, nil
+}
+
+// configureCommandEnvironment applies working directory, stdin, and color env vars.
+func configureCommandEnvironment(cmd *exec.Cmd, cwd string, prompt []byte) {
+	cmd.Dir = cwd
+	cmd.Stdin = bytes.NewReader(prompt)
+	cmd.Env = append(os.Environ(),
+		"FORCE_COLOR=1",
+		"CLICOLOR_FORCE=1",
+		"TERM=xterm-256color",
+	)
+}
+
+// buildCommandTaps configures stdout/stderr writers according to UI settings.
+func buildCommandTaps(
+	outF, errF *os.File,
+	tailLines int,
+	useUI bool,
+	uiCh chan uiMsg,
+	index int,
+	ideType string,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
+) (io.Writer, io.Writer) {
+	outRing := newLineRing(tailLines)
+	errRing := newLineRing(tailLines)
+	if useUI {
+		return buildUITaps(outF, errF, outRing, errRing, uiCh, index, ideType, aggregateUsage, aggregateMu)
+	}
+	return buildCLITaps(outF, errF, ideType, aggregateUsage, aggregateMu)
+}
+
+// buildUITaps creates stdout/stderr writers when the interactive UI is enabled.
+func buildUITaps(
+	outF, errF *os.File,
+	outRing, errRing *lineRing,
+	uiCh chan uiMsg,
+	index int,
+	ideType string,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
+) (io.Writer, io.Writer) {
+	uiTap := newUILogTap(index, false, outRing, errRing, uiCh)
+	var outTap io.Writer
+	if ideType == ideClaude {
+		usageCallback := func(usage TokenUsage) {
+			if uiCh != nil {
+				uiCh <- tokenUsageUpdateMsg{Index: index, Usage: usage}
+			}
+			if aggregateUsage != nil && aggregateMu != nil {
+				aggregateMu.Lock()
+				aggregateUsage.Add(usage)
+				aggregateMu.Unlock()
+			}
+		}
+		outTap = io.MultiWriter(outF, newJSONFormatterWithCallback(uiTap, usageCallback))
+	} else {
+		outTap = io.MultiWriter(outF, uiTap)
+	}
+	errTap := io.MultiWriter(errF, newUILogTap(index, true, outRing, errRing, uiCh))
+	return outTap, errTap
+}
+
+// buildCLITaps creates stdout/stderr writers for non-UI execution.
+func buildCLITaps(
+	outF, errF *os.File,
+	ideType string,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
+) (io.Writer, io.Writer) {
+	if ideType == ideClaude {
+		usageCallback := func(usage TokenUsage) {
+			if aggregateUsage != nil && aggregateMu != nil {
+				aggregateMu.Lock()
+				aggregateUsage.Add(usage)
+				aggregateMu.Unlock()
+			}
+		}
+		return io.MultiWriter(
+				outF,
+				newJSONFormatterWithCallback(os.Stdout, usageCallback),
+			), io.MultiWriter(
+				errF,
+				os.Stderr,
+			)
+	}
+	return io.MultiWriter(outF, os.Stdout), io.MultiWriter(errF, os.Stderr)
 }
 
 func setupCommandExecution(
@@ -1638,41 +1793,61 @@ func (m *uiModel) handleKey(v tea.KeyMsg) tea.Cmd {
 }
 
 func (m *uiModel) handleWindowSize(v tea.WindowSizeMsg) {
-	// Update window dimensions
 	m.width = v.Width
 	m.height = v.Height
 
-	sidebarWidth := int(float64(v.Width) * sidebarWidthRatio)
-	if sidebarWidth < sidebarMinWidth {
-		sidebarWidth = sidebarMinWidth
-	}
-	if sidebarWidth > sidebarMaxWidth {
-		sidebarWidth = sidebarMaxWidth
-	}
-	if sidebarWidth >= v.Width {
-		sidebarWidth = v.Width / 2
-	}
-	mainWidth := v.Width - sidebarWidth
-	if mainWidth < mainMinWidth {
-		mainWidth = mainMinWidth
-		if mainWidth >= v.Width {
-			mainWidth = v.Width - sidebarMinWidth
-		}
-		sidebarWidth = v.Width - mainWidth
-		if sidebarWidth < sidebarMinWidth {
-			sidebarWidth = sidebarMinWidth
-			mainWidth = v.Width - sidebarWidth
-		}
-	}
-	if mainWidth < 0 {
-		mainWidth = 0
-	}
+	sidebarWidth, mainWidth := m.computePaneWidths(v.Width)
+	contentHeight := m.computeContentHeight(v.Height)
 
-	contentHeight := v.Height - chromeHeight
-	if contentHeight < minContentHeight {
-		contentHeight = minContentHeight
-	}
+	m.configureViewports(sidebarWidth, mainWidth, contentHeight)
+	m.sidebarWidth = sidebarWidth
+	m.mainWidth = mainWidth
+	m.contentHeight = contentHeight
+}
 
+func (m *uiModel) computePaneWidths(totalWidth int) (int, int) {
+	sidebar := m.initialSidebarWidth(totalWidth)
+	main := totalWidth - sidebar
+	if main < mainMinWidth {
+		main = mainMinWidth
+		if main >= totalWidth {
+			main = totalWidth - sidebarMinWidth
+		}
+		sidebar = totalWidth - main
+		if sidebar < sidebarMinWidth {
+			sidebar = sidebarMinWidth
+			main = totalWidth - sidebar
+		}
+	}
+	if main < 0 {
+		main = 0
+	}
+	return sidebar, main
+}
+
+func (m *uiModel) initialSidebarWidth(totalWidth int) int {
+	sidebar := int(float64(totalWidth) * sidebarWidthRatio)
+	if sidebar < sidebarMinWidth {
+		sidebar = sidebarMinWidth
+	}
+	if sidebar > sidebarMaxWidth {
+		sidebar = sidebarMaxWidth
+	}
+	if sidebar >= totalWidth {
+		sidebar = totalWidth / 2
+	}
+	return sidebar
+}
+
+func (m *uiModel) computeContentHeight(totalHeight int) int {
+	content := totalHeight - chromeHeight
+	if content < minContentHeight {
+		return minContentHeight
+	}
+	return content
+}
+
+func (m *uiModel) configureViewports(sidebarWidth, mainWidth, contentHeight int) {
 	sidebarViewportWidth := sidebarWidth - sidebarChromeWidth
 	if sidebarViewportWidth < 10 {
 		sidebarViewportWidth = 10
@@ -1681,7 +1856,6 @@ func (m *uiModel) handleWindowSize(v tea.WindowSizeMsg) {
 	if sidebarViewportHeight < sidebarViewportMinRows {
 		sidebarViewportHeight = sidebarViewportMinRows
 	}
-
 	m.sidebarViewport.Width = sidebarViewportWidth
 	if m.sidebarViewport.YOffset > sidebarViewportHeight {
 		m.sidebarViewport.SetYOffset(sidebarViewportHeight)
@@ -1698,10 +1872,6 @@ func (m *uiModel) handleWindowSize(v tea.WindowSizeMsg) {
 	} else {
 		m.viewport.Height = contentHeight
 	}
-
-	m.sidebarWidth = sidebarWidth
-	m.mainWidth = mainWidth
-	m.contentHeight = contentHeight
 }
 
 func (m *uiModel) refreshViewportContent() {
@@ -1820,62 +1990,66 @@ func (m *uiModel) handleTokenUsageUpdate(v tokenUsageUpdateMsg) tea.Cmd {
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 func (m *uiModel) View() string {
-	// Header with padding
-	allJobsComplete := m.completed+m.failed >= m.total
-	sHeader := lipgloss.NewStyle().
+	header, headerStyle := m.renderHeader()
+	helpText, helpStyle := m.renderHelp()
+	separator := m.renderSeparator()
+
+	splitView := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		m.renderSidebar(),
+		m.renderMainContent(),
+	)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		headerStyle.Render(header),
+		helpStyle.Render(helpText),
+		separator,
+		splitView,
+	)
+}
+
+// renderHeader returns the header content and styling based on job progress.
+func (m *uiModel) renderHeader() (string, lipgloss.Style) {
+	complete := m.completed+m.failed >= m.total
+	style := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("62")).
 		MarginTop(1).
 		MarginBottom(1)
 
-	var header string
-	if allJobsComplete {
-		if m.failed > 0 {
-			header = fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded, %d failed", m.completed, m.total, m.failed)
-		} else {
-			header = fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded!", m.completed, m.total)
-		}
-		// Change color for completion
-		sHeader = sHeader.Foreground(lipgloss.Color("42")) // Green for success
-		if m.failed > 0 {
-			sHeader = sHeader.Foreground(lipgloss.Color("220")) // Yellow/orange if some failed
-		}
-	} else {
-		header = fmt.Sprintf("Processing Jobs: %d/%d completed, %d failed", m.completed, m.total, m.failed)
+	if !complete {
+		msg := fmt.Sprintf("Processing Jobs: %d/%d completed, %d failed", m.completed, m.total, m.failed)
+		return msg, style
 	}
 
-	// Help text with spacing
-	helpText := "↑↓/jk navigate • pgup/pgdn scroll logs • q quit"
-	if allJobsComplete {
-		helpText = "↑↓/jk navigate • pgup/pgdn scroll logs • Press 'q' to exit"
+	if m.failed > 0 {
+		style = style.Foreground(lipgloss.Color("220"))
+		return fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded, %d failed", m.completed, m.total, m.failed), style
 	}
-	sHelp := lipgloss.NewStyle().
+
+	style = style.Foreground(lipgloss.Color("42"))
+	return fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded!", m.completed, m.total), style
+}
+
+// renderHelp returns the help text and style depending on job completion status.
+func (m *uiModel) renderHelp() (string, lipgloss.Style) {
+	complete := m.completed+m.failed >= m.total
+	text := "↑↓/jk navigate • pgup/pgdn scroll logs • q quit"
+	if complete {
+		text = "↑↓/jk navigate • pgup/pgdn scroll logs • Press 'q' to exit"
+	}
+	style := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("245")).
 		MarginBottom(1)
+	return text, style
+}
 
-	// Separator line
-	separator := lipgloss.NewStyle().
+// renderSeparator draws a horizontal separator sized to the current viewport width.
+func (m *uiModel) renderSeparator() string {
+	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color("238")).
 		Render(strings.Repeat("─", m.width))
-
-	// Split pane: sidebar (25%) + main content (75%)
-	sidebar := m.renderSidebar()
-	mainContent := m.renderMainContent()
-
-	splitView := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		sidebar,
-		mainContent,
-	)
-
-	// Combine header, help, separator, and split view
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		sHeader.Render(header),
-		sHelp.Render(helpText),
-		separator,
-		splitView,
-	)
 }
 
 func (m *uiModel) renderSidebar() string {
@@ -1977,33 +2151,10 @@ func (m *uiModel) renderMainContent() string {
 
 	job := &m.jobs[m.selectedJob]
 	mainWidth, contentHeight := m.mainDimensions()
-	header := m.renderMainHeader(job)
-	fileListRendered := m.renderMainFileList(job)
-	status := m.renderMainStatus(job)
-	runtime := m.renderRuntime(job)
-	tokenUsage := m.renderTokenUsage(job)
-	logPaths := m.renderLogPaths(job)
-	metaSections := []string{header}
-	if strings.TrimSpace(fileListRendered) != "" {
-		metaSections = append(metaSections, fileListRendered)
-	}
-	metaSections = append(metaSections, status, runtime)
-	if strings.TrimSpace(tokenUsage) != "" {
-		metaSections = append(metaSections, tokenUsage)
-	}
-	if strings.TrimSpace(logPaths) != "" {
-		metaSections = append(metaSections, logPaths)
-	}
-	metaBlock := lipgloss.JoinVertical(lipgloss.Left, metaSections...)
-
+	metaBlock := m.buildMetaBlock(job)
 	logsHeader := m.renderLogsHeader()
 
-	usedHeight := lipgloss.Height(metaBlock) + lipgloss.Height(logsHeader)
-	available := contentHeight - usedHeight
-	if available < logViewportMinHeight {
-		available = logViewportMinHeight
-	}
-	m.viewport.Height = available
+	m.viewport.Height = m.availableLogHeight(contentHeight, metaBlock, logsHeader)
 	m.updateViewportForJob(job)
 
 	body := lipgloss.JoinVertical(
@@ -2018,6 +2169,36 @@ func (m *uiModel) renderMainContent() string {
 		Height(contentHeight).
 		Padding(0, 1).
 		Render(body)
+}
+
+// buildMetaBlock assembles the summary sections shown above the log viewport.
+func (m *uiModel) buildMetaBlock(job *uiJob) string {
+	sections := []string{m.renderMainHeader(job)}
+
+	if fileList := strings.TrimSpace(m.renderMainFileList(job)); fileList != "" {
+		sections = append(sections, fileList)
+	}
+
+	sections = append(sections, m.renderMainStatus(job), m.renderRuntime(job))
+
+	if usage := strings.TrimSpace(m.renderTokenUsage(job)); usage != "" {
+		sections = append(sections, usage)
+	}
+	if paths := strings.TrimSpace(m.renderLogPaths(job)); paths != "" {
+		sections = append(sections, paths)
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+}
+
+// availableLogHeight determines the viewport height available for streaming logs.
+func (m *uiModel) availableLogHeight(contentHeight int, metaBlock, logsHeader string) int {
+	usedHeight := lipgloss.Height(metaBlock) + lipgloss.Height(logsHeader)
+	available := contentHeight - usedHeight
+	if available < logViewportMinHeight {
+		return logViewportMinHeight
+	}
+	return available
 }
 
 func (m *uiModel) mainDimensions() (int, int) {

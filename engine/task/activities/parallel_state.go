@@ -52,72 +52,142 @@ func NewCreateParallelState(
 }
 
 func (a *CreateParallelState) Run(ctx context.Context, input *CreateParallelStateInput) (*task.State, error) {
-	// Validate task type
-	if input.TaskConfig.Type != task.TaskTypeParallel {
-		return nil, fmt.Errorf("unsupported task type: %s", input.TaskConfig.Type)
+	if err := validateParallelInput(input); err != nil {
+		return nil, err
 	}
-	// Load workflow context
+	workflowState, workflowConfig, err := a.loadWorkflowContext(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	state, err := a.createParentParallelState(ctx, workflowState, workflowConfig, input)
+	if err != nil {
+		return nil, err
+	}
+	normalizedConfig, err := a.normalizeParallelConfig(ctx, workflowState, workflowConfig, input.TaskConfig)
+	if err != nil {
+		return nil, err
+	}
+	childConfigs := extractParallelChildConfigs(normalizedConfig)
+	if err := a.storeParallelMetadata(ctx, state, normalizedConfig, childConfigs); err != nil {
+		return nil, err
+	}
+	a.addParallelMetadata(state, normalizedConfig, len(childConfigs))
+	if err := a.createChildTasks(ctx, input, state); err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
+// validateParallelInput ensures we only execute for valid parallel tasks.
+func validateParallelInput(input *CreateParallelStateInput) error {
+	if input == nil {
+		return fmt.Errorf("activity input is required")
+	}
+	if input.TaskConfig == nil {
+		return fmt.Errorf("task config is required")
+	}
+	if input.TaskConfig.Type != task.TaskTypeParallel {
+		return fmt.Errorf("unsupported task type: %s", input.TaskConfig.Type)
+	}
+	return nil
+}
+
+// loadWorkflowContext retrieves workflow state and config for the activity.
+func (a *CreateParallelState) loadWorkflowContext(
+	ctx context.Context,
+	input *CreateParallelStateInput,
+) (*workflow.State, *workflow.Config, error) {
 	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	// Create parent state first with the original parallel config
-	state, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
+	return workflowState, workflowConfig, nil
+}
+
+// createParentParallelState persists the parent parallel state prior to normalization.
+func (a *CreateParallelState) createParentParallelState(
+	ctx context.Context,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	input *CreateParallelStateInput,
+) (*task.State, error) {
+	return a.createStateUC.Execute(ctx, &uc.CreateStateInput{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 		TaskConfig:     input.TaskConfig,
 	})
-	if err != nil {
-		return nil, err
-	}
-	// Use task2 normalizer to prepare parallel task configs
+}
+
+// normalizeParallelConfig prepares the parallel configuration for downstream usage.
+func (a *CreateParallelState) normalizeParallelConfig(
+	ctx context.Context,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	cfg *task.Config,
+) (*task.Config, error) {
 	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeParallel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create parallel normalizer: %w", err)
 	}
-	// Create normalization context
 	normContext := &shared.NormalizationContext{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 	}
-	// Normalize the parallel task configuration
-	normalizedConfig := input.TaskConfig
-	if err := normalizer.Normalize(ctx, normalizedConfig, normContext); err != nil {
+	if err := normalizer.Normalize(ctx, cfg, normContext); err != nil {
 		return nil, fmt.Errorf("failed to normalize parallel task: %w", err)
 	}
-	// Get child configs from normalized parallel config
-	childConfigs := make([]*task.Config, len(normalizedConfig.Tasks))
-	for i := range normalizedConfig.Tasks {
-		childConfigs[i] = &normalizedConfig.Tasks[i]
+	return cfg, nil
+}
+
+// extractParallelChildConfigs returns pointers to normalized child configs.
+func extractParallelChildConfigs(cfg *task.Config) []*task.Config {
+	childConfigs := make([]*task.Config, len(cfg.Tasks))
+	for i := range cfg.Tasks {
+		childConfigs[i] = &cfg.Tasks[i]
 	}
-	// Store parallel metadata using task2 repository
+	return childConfigs
+}
+
+// storeParallelMetadata persists metadata required for later parallel processing.
+func (a *CreateParallelState) storeParallelMetadata(
+	ctx context.Context,
+	state *task.State,
+	cfg *task.Config,
+	childConfigs []*task.Config,
+) error {
 	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create task config repository: %w", err)
+		return fmt.Errorf("failed to create task config repository: %w", err)
 	}
-	parallelMetadata := &task2core.ParallelTaskMetadata{
+	metadata := &task2core.ParallelTaskMetadata{
 		ParentStateID: state.TaskExecID,
 		ChildConfigs:  childConfigs,
-		Strategy:      string(normalizedConfig.GetStrategy()),
-		MaxWorkers:    normalizedConfig.GetMaxWorkers(),
+		Strategy:      string(cfg.GetStrategy()),
+		MaxWorkers:    cfg.GetMaxWorkers(),
 	}
-	if err := configRepo.StoreParallelMetadata(ctx, state.TaskExecID, parallelMetadata); err != nil {
-		return nil, fmt.Errorf("failed to store parallel metadata: %w", err)
+	if err := configRepo.StoreParallelMetadata(ctx, state.TaskExecID, metadata); err != nil {
+		return fmt.Errorf("failed to store parallel metadata: %w", err)
 	}
-	// Add metadata to state output
-	a.addParallelMetadata(state, normalizedConfig, len(childConfigs))
-	// Create child tasks
+	return nil
+}
+
+// createChildTasks triggers creation of child tasks for the parallel parent.
+func (a *CreateParallelState) createChildTasks(
+	ctx context.Context,
+	input *CreateParallelStateInput,
+	state *task.State,
+) error {
 	if err := a.createChildTasksUC.Execute(ctx, &uc.CreateChildTasksInput{
 		ParentStateID:  state.TaskExecID,
 		WorkflowExecID: input.WorkflowExecID,
 		WorkflowID:     input.WorkflowID,
 	}); err != nil {
-		return nil, fmt.Errorf("failed to create child tasks: %w", err)
+		return fmt.Errorf("failed to create child tasks: %w", err)
 	}
-	return state, nil
+	return nil
 }
 
 func (a *CreateParallelState) addParallelMetadata(state *task.State, config *task.Config, childCount int) {

@@ -178,156 +178,184 @@ func verifyEmptyCollectionHandling(t *testing.T, _ *helpers.TestFixture, result 
 // are handled correctly during template processing without losing precision
 func verifyPrecisionPreservation(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying precision preservation in template processing from database state")
-
-	// Find parent collection task
 	parentTask := helpers.FindParentTask(result, task.ExecutionCollection)
 	require.NotNil(t, parentTask, "Should have a parent collection task")
-
-	// Find child tasks and verify they processed precision data correctly
-	childTasks := helpers.FindChildTasks(result, parentTask.TaskExecID)
+	childTasks := sortedChildTasks(result, parentTask.TaskExecID)
 	require.Len(t, childTasks, 2, "Should have exactly 2 child tasks for precision testing")
-
-	// Sort child tasks by ID for deterministic verification
-	// Since task IDs contain the index (process-record-0, process-record-1), this ensures correct order
-	sort.Slice(childTasks, func(i, j int) bool {
-		return childTasks[i].TaskID < childTasks[j].TaskID
-	})
-
-	expectedPrecisionData := []struct {
-		accountID string
-		balance   string
-		rate      string
-		decimal   string
-	}{
-		{"9007199254740992", "999999999999999999", "0.123456789123456789", "123456789.123456789"},
-		{"9007199254740993", "123456789012345678", "2.345678901234567890", "987654321.987654321"},
+	for i, taskState := range childTasks {
+		verifyPrecisionTask(t, taskState, expectedPrecisionData()[i])
 	}
-
-	// Verify precision in task inputs (template processing should preserve precision)
-	for i, childTask := range childTasks {
-		expected := expectedPrecisionData[i]
-
-		// Verify account ID (large integer) was preserved as string
-		if childTask.Input != nil {
-			inputMap := map[string]any(*childTask.Input)
-			assert.Equal(t, expected.accountID, inputMap["item_name"],
-				"Large integer account ID should be preserved as string without precision loss")
-		}
-
-		// Verify template processing preserved precision in additional fields
-		if childTask.Input != nil {
-			inputMap := map[string]any(*childTask.Input)
-
-			// Check balance precision preservation
-			if balanceStr, exists := inputMap["balance_str"]; exists {
-				assert.Equal(t, expected.balance, balanceStr,
-					"Large integer balance should be preserved without scientific notation")
-			}
-
-			// Check rate precision preservation (17+ significant digits)
-			if rateStr, exists := inputMap["rate_str"]; exists {
-				rateString, ok := rateStr.(string)
-				assert.True(t, ok, "rate_str should be a string")
-				assert.Equal(t, expected.rate, rateString,
-					"High precision decimal rate should preserve all significant digits")
-				// Verify it maintains more than float64's ~15-17 significant digits
-				decimalPart := rateString[strings.Index(rateString, ".")+1:]
-				assert.GreaterOrEqual(t, len(decimalPart), 15,
-					"Rate should maintain at least 15 decimal places for precision testing")
-			}
-
-			// Check decimal precision preservation
-			if decimalStr, exists := inputMap["decimal_str"]; exists {
-				decimalString, ok := decimalStr.(string)
-				assert.True(t, ok, "decimal_str should be a string")
-				assert.Equal(t, expected.decimal, decimalString,
-					"High precision decimal should preserve both integer and fractional parts")
-				// Verify fractional part precision
-				if strings.Contains(decimalString, ".") {
-					fractionalPart := decimalString[strings.Index(decimalString, ".")+1:]
-					assert.GreaterOrEqual(t, len(fractionalPart), 9,
-						"Decimal should maintain at least 9 fractional digits")
-				}
-			}
-		}
-	}
-
 	t.Log("Precision preservation verified successfully")
 }
 
+type precisionExpectation struct {
+	accountID string
+	balance   string
+	rate      string
+	decimal   string
+}
+
+func expectedPrecisionData() []precisionExpectation {
+	return []precisionExpectation{
+		{"9007199254740992", "999999999999999999", "0.123456789123456789", "123456789.123456789"},
+		{"9007199254740993", "123456789012345678", "2.345678901234567890", "987654321.987654321"},
+	}
+}
+
+func sortedChildTasks(result *workflow.State, parentExecID core.ID) []*task.State {
+	childTasks := helpers.FindChildTasks(result, parentExecID)
+	sort.Slice(childTasks, func(i, j int) bool {
+		return childTasks[i].TaskID < childTasks[j].TaskID
+	})
+	return childTasks
+}
+
+func verifyPrecisionTask(t *testing.T, taskState *task.State, expected precisionExpectation) {
+	if taskState.Input == nil {
+		t.FailNow()
+	}
+	input := map[string]any(*taskState.Input)
+	assert.Equal(
+		t,
+		expected.accountID,
+		input["item_name"],
+		"Large integer account ID should be preserved as string without precision loss",
+	)
+	assert.Equal(
+		t,
+		expected.balance,
+		input["balance_str"],
+		"Large integer balance should be preserved without scientific notation",
+	)
+	assertPrecisionString(
+		t,
+		expected.rate,
+		input["rate_str"],
+		15,
+		"Rate should maintain at least 15 decimal places for precision testing",
+	)
+	assertPrecisionString(
+		t,
+		expected.decimal,
+		input["decimal_str"],
+		9,
+		"Decimal should maintain at least 9 fractional digits",
+	)
+}
+
+func assertPrecisionString(t *testing.T, expected string, value any, minFractionDigits int, message string) {
+	actual, ok := value.(string)
+	assert.True(t, ok, "precision field should be a string")
+	assert.Equal(t, expected, actual, "Precision value mismatch")
+	if strings.Contains(actual, ".") {
+		fractionalPart := actual[strings.Index(actual, ".")+1:]
+		assert.GreaterOrEqual(t, len(fractionalPart), minFractionDigits, message)
+	}
+}
+
 // verifyDeterministicMapProcessing verifies that map iteration and template
-// processing produces consistent, deterministic results across runs
+// processing produces consistent, deterministic results across runs.
+// It orchestrates validation by delegating to focused helpers below.
 func verifyDeterministicMapProcessing(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
+	t.Helper()
 	t.Log("Verifying deterministic map processing from database state")
 
-	// Find parent collection task
+	parentTask := requireParentCollectionTask(t, result)
+	childTasks := childTasksSortedByIndex(t, result, parentTask.TaskExecID)
+	orderedConfigSets := orderedConfigSetsFromFixture(t, fixture.Input["config_sets"])
+
+	assertDeterministicChildOrder(t, childTasks, orderedConfigSets)
+	assertDeterministicWithKeys(t, childTasks)
+
+	t.Log("Deterministic map processing verified successfully")
+}
+
+// requireParentCollectionTask locates and asserts the presence of the parent collection task.
+// It helps multiple verifiers share the same lookup logic.
+func requireParentCollectionTask(t *testing.T, result *workflow.State) *task.State {
+	t.Helper()
 	parentTask := helpers.FindParentTask(result, task.ExecutionCollection)
 	require.NotNil(t, parentTask, "Should have a parent collection task")
+	return parentTask
+}
 
-	// Find child tasks and verify deterministic ordering
-	childTasks := helpers.FindChildTasks(result, parentTask.TaskExecID)
+// childTasksSortedByIndex returns child tasks sorted by deterministic index extracted from task IDs.
+// Sorting once avoids repeating ordering logic in each assertion helper.
+func childTasksSortedByIndex(t *testing.T, result *workflow.State, parentExecID core.ID) []*task.State {
+	t.Helper()
+	childTasks := helpers.FindChildTasks(result, parentExecID)
 	require.Len(t, childTasks, 3, "Should have exactly 3 child tasks for deterministic processing")
-
-	// Sort child tasks by their index (extracted from task ID) to ensure deterministic test verification
-	// The task IDs follow the pattern "process-config-N" where N is the index
 	sort.Slice(childTasks, func(i, j int) bool {
 		return extractIndexFromTaskID(childTasks[i].TaskID) < extractIndexFromTaskID(childTasks[j].TaskID)
 	})
+	return childTasks
+}
 
-	// Get the expected ordered config sets from the fixture
-	configSetsRaw := fixture.Input["config_sets"]
-
-	// Handle both []map[string]any and []any formats
-	var orderedConfigSets []map[string]any
-	switch v := configSetsRaw.(type) {
+// orderedConfigSetsFromFixture normalizes the fixture config sets into a deterministic slice.
+// It supports both strongly typed and generic fixture encodings.
+func orderedConfigSetsFromFixture(t *testing.T, raw any) []map[string]any {
+	t.Helper()
+	switch v := raw.(type) {
 	case []map[string]any:
-		orderedConfigSets = v
+		return v
 	case []any:
+		ordered := make([]map[string]any, 0, len(v))
 		for _, item := range v {
 			if itemMap, ok := item.(map[string]any); ok {
-				orderedConfigSets = append(orderedConfigSets, itemMap)
+				ordered = append(ordered, itemMap)
 			}
 		}
+		return ordered
 	default:
 		require.Fail(t, "config_sets in fixture should be an ordered slice of maps, got %T", v)
+		return nil
 	}
+}
 
-	// Verify tasks were created with deterministic task IDs and processed items
+// assertDeterministicChildOrder checks task IDs and payload sequencing against expectations.
+// It ensures both task naming and item processing follow the configured order.
+func assertDeterministicChildOrder(
+	t *testing.T,
+	childTasks []*task.State,
+	orderedConfigSets []map[string]any,
+) {
+	t.Helper()
 	for i, childTask := range childTasks {
 		expectedTaskID := fmt.Sprintf("process-config-%d", i)
 		assert.Equal(t, expectedTaskID, childTask.TaskID,
 			"Child task %d should have deterministic task ID", i)
 
-		if childTask.Input != nil {
-			inputMap := map[string]any(*childTask.Input)
-
-			// Verify that the item being processed matches the expected order
-			require.Less(t, i, len(orderedConfigSets), "Index out of bounds for orderedConfigSets")
-			expectedItemName := orderedConfigSets[i]["name"]
-			assert.Equal(t, expectedItemName, inputMap["item_name"],
-				"Item processing should follow deterministic order")
+		if childTask.Input == nil {
+			continue
 		}
+		inputMap := map[string]any(*childTask.Input)
+		require.Less(t, i, len(orderedConfigSets), "Index out of bounds for orderedConfigSets")
+		expectedItemName := orderedConfigSets[i]["name"]
+		assert.Equal(t, expectedItemName, inputMap["item_name"],
+			"Item processing should follow deterministic order")
+	}
+}
+
+// assertDeterministicWithKeys validates that the template produced expected with/env keys.
+// The first child task carries the merged context we care about.
+func assertDeterministicWithKeys(t *testing.T, childTasks []*task.State) {
+	t.Helper()
+	if len(childTasks) == 0 || childTasks[0].Input == nil {
+		return
 	}
 
-	// Verify that with/env maps were processed deterministically
-	// by checking the input contains all expected keys
-	if len(childTasks) > 0 && childTasks[0].Input != nil {
-		inputMap := map[string]any(*childTasks[0].Input)
-
-		expectedWithKeys := []string{
-			"alpha_config",
-			"beta_config",
-			"charlie_config",
-			"delta_config",
-			"gamma_config",
-			"zebra_config",
-		}
-		for _, key := range expectedWithKeys {
-			assert.Contains(t, inputMap, key, "Deterministic processing should include all with config keys")
-		}
+	inputMap := map[string]any(*childTasks[0].Input)
+	expectedWithKeys := []string{
+		"alpha_config",
+		"beta_config",
+		"charlie_config",
+		"delta_config",
+		"gamma_config",
+		"zebra_config",
 	}
-
-	t.Log("Deterministic map processing verified successfully")
+	for _, key := range expectedWithKeys {
+		assert.Contains(t, inputMap, key, "Deterministic processing should include all with config keys")
+	}
 }
 
 // verifyProgressContextIntegration verifies that progress context is available
@@ -380,94 +408,118 @@ func verifyProgressContextIntegration(t *testing.T, fixture *helpers.TestFixture
 }
 
 // verifyComplexTemplateProcessing verifies the runtime processor's ability
-// to handle deeply nested templates and complex configurations
+// to handle deeply nested templates and complex configurations.
+// It delegates validation to smaller helpers for clarity.
 func verifyComplexTemplateProcessing(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
+	t.Helper()
 	t.Log("Verifying complex template processing from database state")
 
-	// Find parent collection task
-	parentTask := helpers.FindParentTask(result, task.ExecutionCollection)
-	require.NotNil(t, parentTask, "Should have a parent collection task")
+	parentTask := requireParentCollectionTask(t, result)
+	childTasks := requireComplexTemplateChildTasks(t, result, parentTask.TaskExecID)
+	expectations := expectedComplexTemplateResults()
 
-	// Find child tasks and verify complex template processing
-	childTasks := helpers.FindChildTasks(result, parentTask.TaskExecID)
+	assertComplexTemplateTaskIDs(t, childTasks, expectations)
+	assertComplexTemplateInputs(t, childTasks, expectations)
+
+	t.Log("Complex template processing verified successfully")
+}
+
+// complexTemplateExpectation captures expected values for complex template assertions.
+// Keeping the expectations strongly typed improves readability for assertion helpers.
+type complexTemplateExpectation struct {
+	itemName   string
+	sourcePath string
+	timeoutCfg string
+	fullID     string
+}
+
+// requireComplexTemplateChildTasks ensures the expected number of complex template tasks exist.
+// It keeps repetitive find-and-assert logic out of the main verifier.
+func requireComplexTemplateChildTasks(
+	t *testing.T,
+	result *workflow.State,
+	parentExecID core.ID,
+) []*task.State {
+	t.Helper()
+	childTasks := helpers.FindChildTasks(result, parentExecID)
 	require.Len(t, childTasks, 3, "Should have exactly 3 child tasks for complex template processing")
+	return childTasks
+}
 
-	// Create a map of expected results by task ID for order-independent verification
-	expectedTemplateResults := map[string]struct {
-		itemName   string
-		sourcePath string
-		timeoutCfg string
-		fullID     string
-	}{
+// expectedComplexTemplateResults returns the deterministic expectation set for complex templates.
+// Each entry encodes the templated data we expect to find in workflow task inputs.
+func expectedComplexTemplateResults() map[string]complexTemplateExpectation {
+	return map[string]complexTemplateExpectation{
 		"task-document-0": {"doc-001", "/input/documents/doc-001.pdf", "300", "test-complex-templates_document_0"},
 		"task-image-1":    {"img-001", "/input/images/img-001.png", "180", "test-complex-templates_image_1"},
 		"task-dataset-2":  {"data-001", "/input/data/data-001.json", "600", "test-complex-templates_dataset_2"},
 	}
+}
 
-	// Verify that all expected task IDs are present
-	foundTaskIDs := make(map[string]bool)
+// assertComplexTemplateTaskIDs asserts that all expected tasks were emitted.
+// It is order-agnostic to avoid tying tests to scheduling order.
+func assertComplexTemplateTaskIDs(
+	t *testing.T,
+	childTasks []*task.State,
+	expectations map[string]complexTemplateExpectation,
+) {
+	t.Helper()
+	foundTaskIDs := make(map[string]bool, len(childTasks))
 	for _, childTask := range childTasks {
 		foundTaskIDs[childTask.TaskID] = true
 	}
-	for expectedID := range expectedTemplateResults {
+	for expectedID := range expectations {
 		assert.True(t, foundTaskIDs[expectedID], "Expected child task %s to be created", expectedID)
 	}
+}
 
-	// Verify complex template processing in child tasks
+// assertComplexTemplateInputs verifies that templated input fields match expectations.
+// It also stringifies timeout values to compare across numeric and string encodings.
+func assertComplexTemplateInputs(
+	t *testing.T,
+	childTasks []*task.State,
+	expectations map[string]complexTemplateExpectation,
+) {
+	t.Helper()
 	for _, childTask := range childTasks {
-		expected, exists := expectedTemplateResults[childTask.TaskID]
+		expected, exists := expectations[childTask.TaskID]
 		require.True(t, exists, "Unexpected child task ID: %s", childTask.TaskID)
+		if childTask.Input == nil {
+			continue
+		}
 
-		// Verify template processing through input data
-		if childTask.Input != nil {
-			inputMap := map[string]any(*childTask.Input)
+		inputMap := map[string]any(*childTask.Input)
+		assert.Equal(t, expected.itemName, inputMap["item_name"], "item_name should be correctly templated")
 
-			// Verify basic template fields
-			assert.Equal(t, expected.itemName, inputMap["item_name"], "item_name should be correctly templated")
+		if sourcePath, ok := inputMap["source_path"]; ok {
+			assert.Equal(t, expected.sourcePath, sourcePath, "source_path template should be correctly processed")
+		}
 
-			// Verify complex nested template evaluation
-			if sourcePath, exists := inputMap["source_path"]; exists {
-				assert.Equal(
-					t,
-					expected.sourcePath,
-					sourcePath,
-					"Complex nested source_path template should be correctly processed",
-				)
-			}
+		if timeoutCfg, ok := inputMap["timeout_config"]; ok {
+			assert.Equal(t, expected.timeoutCfg, stringifyTimeoutConfig(timeoutCfg),
+				"Nested timeout config should be correctly templated")
+		}
 
-			if timeoutConfig, exists := inputMap["timeout_config"]; exists {
-				// Handle both string and numeric values
-				var actualTimeout string
-				switch v := timeoutConfig.(type) {
-				case string:
-					actualTimeout = v
-				case float64:
-					actualTimeout = fmt.Sprintf("%.0f", v)
-				case int64:
-					actualTimeout = fmt.Sprintf("%d", v)
-				default:
-					actualTimeout = fmt.Sprintf("%v", v)
-				}
-				assert.Equal(
-					t,
-					expected.timeoutCfg,
-					actualTimeout,
-					"Nested timeout config should be correctly templated",
-				)
-			}
-
-			if fullID, exists := inputMap["full_id"]; exists {
-				assert.Equal(
-					t,
-					expected.fullID,
-					fullID,
-					"Complex template expression should combine multiple variables correctly",
-				)
-			}
+		if fullID, ok := inputMap["full_id"]; ok {
+			assert.Equal(t, expected.fullID, fullID,
+				"Complex template expression should combine multiple variables correctly")
 		}
 	}
+}
 
-	t.Log("Complex template processing verified successfully")
+// stringifyTimeoutConfig normalizes timeout values to a string for comparison.
+// Complex templates can emit string or numeric values depending on evaluation context.
+func stringifyTimeoutConfig(value any) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case float64:
+		return fmt.Sprintf("%.0f", v)
+	case int64:
+		return fmt.Sprintf("%d", v)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // extractIndexFromTaskID extracts the numeric index from task IDs like "process-config-N"

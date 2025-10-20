@@ -96,61 +96,57 @@ func (d *fsDiscoverer) validatePattern(pattern string) error {
 
 // applyExcludes filters out files matching exclude patterns
 func (d *fsDiscoverer) applyExcludes(files []string, excludes []string) []string {
-	if len(excludes) == 0 && len(DefaultExcludes) == 0 {
+	patterns := d.combineExcludePatterns(excludes)
+	if len(patterns) == 0 {
 		return files
 	}
-
-	// Combine default excludes with user excludes
-	allExcludes := make([]string, 0, len(DefaultExcludes)+len(excludes))
-	allExcludes = append(allExcludes, DefaultExcludes...)
-	allExcludes = append(allExcludes, excludes...)
-
-	// Pre-compute exclude pattern normalization
-	for i, pattern := range allExcludes {
-		allExcludes[i] = filepath.ToSlash(pattern)
-	}
-
 	filtered := make([]string, 0, len(files))
 	for _, file := range files {
-		excluded := false
-
-		// Make file path relative for pattern matching
-		relFile, err := filepath.Rel(d.root, file)
-		if err != nil {
-			// If we can't make it relative, include it to be safe
-			filtered = append(filtered, file)
+		if d.shouldExcludeFile(file, patterns) {
 			continue
 		}
+		filtered = append(filtered, file)
+	}
+	return filtered
+}
 
-		// Convert to forward slashes for consistent matching
-		relFile = filepath.ToSlash(relFile)
+// combineExcludePatterns merges and normalizes user and default exclude patterns.
+func (d *fsDiscoverer) combineExcludePatterns(excludes []string) []string {
+	total := len(DefaultExcludes) + len(excludes)
+	if total == 0 {
+		return nil
+	}
+	combined := make([]string, 0, total)
+	combined = append(combined, DefaultExcludes...)
+	combined = append(combined, excludes...)
+	for i, pattern := range combined {
+		combined[i] = filepath.ToSlash(pattern)
+	}
+	return combined
+}
 
-		// Check each exclude pattern
-		for _, pattern := range allExcludes {
-			// Use doublestar for pattern matching
-			matched, err := doublestar.Match(pattern, relFile)
-			if err != nil {
-				// Invalid pattern, skip it
-				continue
-			}
-
-			if matched {
-				excluded = true
-				break
-			}
-
-			// Also check against the basename for patterns like *.bak
-			matched, err = doublestar.Match(pattern, filepath.Base(file))
-			if err == nil && matched {
-				excluded = true
-				break
-			}
-		}
-
-		if !excluded {
-			filtered = append(filtered, file)
+// shouldExcludeFile determines whether a file matches any exclude pattern.
+func (d *fsDiscoverer) shouldExcludeFile(file string, patterns []string) bool {
+	relFile, err := filepath.Rel(d.root, file)
+	if err != nil {
+		return false
+	}
+	relFile = filepath.ToSlash(relFile)
+	base := filepath.Base(file)
+	for _, pattern := range patterns {
+		if matchesExcludePattern(pattern, relFile, base) {
+			return true
 		}
 	}
+	return false
+}
 
-	return filtered
+// matchesExcludePattern checks a pattern against relative and base filenames.
+func matchesExcludePattern(pattern string, relFile string, base string) bool {
+	matched, err := doublestar.Match(pattern, relFile)
+	if err == nil && matched {
+		return true
+	}
+	matched, err = doublestar.Match(pattern, base)
+	return err == nil && matched
 }

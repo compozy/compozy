@@ -49,83 +49,107 @@ func (m *Manager) WithMetrics(ctx context.Context, meter metric.Meter) *Manager 
 // Middleware returns the authentication middleware
 func (m *Manager) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Respect runtime config: short‑circuit when auth is disabled
-		// Prefer explicitly attached config in context; avoid default fallback in tests
-		if c.Request.Context().Value(config.ManagerCtxKey) != nil {
-			if cfg := config.FromContext(c.Request.Context()); cfg != nil && !cfg.Server.Auth.Enabled {
-				c.Next()
-				return
-			}
-		} else if m.config != nil && !m.config.Server.Auth.Enabled { // fallback for tests
+		if m.shouldSkipAuth(c) {
 			c.Next()
 			return
 		}
 		start := time.Now()
 		ctx := c.Request.Context()
-		log := logger.FromContext(ctx)
 		authMethod := authmetrics.AuthMethodAPIKey
-
-		// Extract bearer token
 		apiKey, err := m.extractBearerToken(c)
 		if err != nil {
-			var authErr *authError
-			recorded := false
-			if errors.As(err, &authErr) {
-				reason := categorizeHeaderError(authErr)
-				authmetrics.RecordAuthAttempt(
-					ctx,
-					authmetrics.AuthOutcomeFailure,
-					reason,
-					authMethod,
-					time.Since(start),
-				)
-				recorded = true
-				if authErr.message == "no authorization header" {
-					// Allow endpoints to continue without user context while still tracking failures
-					c.Next()
-					return
-				}
-			}
-			log.Debug("Authentication failed", "reason", err.Error())
-			if !recorded {
-				authmetrics.RecordAuthAttempt(
-					ctx,
-					authmetrics.AuthOutcomeFailure,
-					authmetrics.ReasonUnknown,
-					authMethod,
-					time.Since(start),
-				)
-			}
-			m.handleAuthError(c, err)
+			m.handleTokenExtractionFailure(ctx, c, err, start, authMethod)
 			return
 		}
-
-		validateUC := m.factory.ValidateAPIKey(apiKey)
-		user, err := validateUC.Execute(ctx)
-		if err != nil {
-			log.Debug("API key validation failed")
-			reason := categorizeValidationError(err)
-			authmetrics.RecordAuthAttempt(
-				ctx,
-				authmetrics.AuthOutcomeFailure,
-				reason,
-				authMethod,
-				time.Since(start),
-			)
-			m.handleAuthError(c, err)
+		if !m.validateAPIKeyAndSetContext(ctx, c, apiKey, start, authMethod) {
 			return
 		}
+		c.Next()
+	}
+}
 
+// shouldSkipAuth determines if authentication is disabled at runtime.
+func (m *Manager) shouldSkipAuth(c *gin.Context) bool {
+	if c.Request.Context().Value(config.ManagerCtxKey) != nil {
+		if cfg := config.FromContext(c.Request.Context()); cfg != nil && !cfg.Server.Auth.Enabled {
+			return true
+		}
+	} else if m.config != nil && !m.config.Server.Auth.Enabled {
+		return true
+	}
+	return false
+}
+
+// handleTokenExtractionFailure logs, records metrics, and responds when token extraction fails.
+func (m *Manager) handleTokenExtractionFailure(
+	ctx context.Context,
+	c *gin.Context,
+	err error,
+	start time.Time,
+	authMethod authmetrics.AuthMethod,
+) {
+	log := logger.FromContext(ctx)
+	var authErr *authError
+	recorded := false
+	if errors.As(err, &authErr) {
+		reason := categorizeHeaderError(authErr)
 		authmetrics.RecordAuthAttempt(
 			ctx,
-			authmetrics.AuthOutcomeSuccess,
-			authmetrics.ReasonNone,
+			authmetrics.AuthOutcomeFailure,
+			reason,
 			authMethod,
 			time.Since(start),
 		)
-		m.setAuthContext(c, apiKey, user)
-		c.Next()
+		recorded = true
+		if authErr.message == "no authorization header" {
+			c.Next()
+			return
+		}
 	}
+	log.Debug("Authentication failed", "reason", err.Error())
+	if !recorded {
+		authmetrics.RecordAuthAttempt(
+			ctx,
+			authmetrics.AuthOutcomeFailure,
+			authmetrics.ReasonUnknown,
+			authMethod,
+			time.Since(start),
+		)
+	}
+	m.handleAuthError(c, err)
+}
+
+// validateAPIKeyAndSetContext validates the API key and configures user context.
+func (m *Manager) validateAPIKeyAndSetContext(
+	ctx context.Context,
+	c *gin.Context,
+	apiKey string,
+	start time.Time,
+	authMethod authmetrics.AuthMethod,
+) bool {
+	user, err := m.factory.ValidateAPIKey(apiKey).Execute(ctx)
+	if err != nil {
+		logger.FromContext(ctx).Debug("API key validation failed")
+		reason := categorizeValidationError(err)
+		authmetrics.RecordAuthAttempt(
+			ctx,
+			authmetrics.AuthOutcomeFailure,
+			reason,
+			authMethod,
+			time.Since(start),
+		)
+		m.handleAuthError(c, err)
+		return false
+	}
+	authmetrics.RecordAuthAttempt(
+		ctx,
+		authmetrics.AuthOutcomeSuccess,
+		authmetrics.ReasonNone,
+		authMethod,
+		time.Since(start),
+	)
+	m.setAuthContext(c, apiKey, user)
+	return true
 }
 
 // extractBearerToken extracts and validates the bearer token

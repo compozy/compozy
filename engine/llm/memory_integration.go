@@ -63,57 +63,87 @@ func StoreResponseInMemory(
 	assistantResponse *llmadapter.Message,
 	userMessage *llmadapter.Message,
 ) error {
-	// Guard against nil pointers to prevent panics when dereferencing
+	if err := validateMemoryInputs(assistantResponse, userMessage); err != nil {
+		return err
+	}
+	if len(memories) == 0 {
+		return nil
+	}
+	log := logger.FromContext(ctx)
+	batch := buildMemoryBatch(assistantResponse, userMessage)
+	var errs []error
+	for _, ref := range memoryRefs {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("StoreResponseInMemory canceled: %w", err)
+		}
+		memory, ok := resolveWritableMemory(log, memories, ref)
+		if !ok {
+			continue
+		}
+		appendMemoryBatch(ctx, memory, ref.ID, batch, log, &errs)
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("memory storage errors: %w", errors.Join(errs...))
+	}
+	return nil
+}
+
+func validateMemoryInputs(assistantResponse, userMessage *llmadapter.Message) error {
 	if assistantResponse == nil || userMessage == nil {
 		return fmt.Errorf(
 			"StoreResponseInMemory: nil message pointer(s): assistant=%v user=%v",
 			assistantResponse == nil, userMessage == nil,
 		)
 	}
-	if len(memories) == 0 {
-		return nil
-	}
-	log := logger.FromContext(ctx)
-	var errs []error
-	// Store both user message and assistant response in each memory
-	for _, ref := range memoryRefs {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("StoreResponseInMemory canceled: %w", err)
-		}
-		memory, exists := memories[ref.ID]
-		if !exists {
-			log.Debug("Memory reference not found; skipping", "memory_id", ref.ID)
-			continue
-		}
-		// Skip read-only memories
-		if ref.Mode == core.MemoryModeReadOnly {
-			log.Debug("Skipping read-only memory", "memory_id", ref.ID)
-			continue
-		}
-		// Prepare messages for atomic storage
-		userMsg := Message{
+	return nil
+}
+
+func buildMemoryBatch(assistantResponse, userMessage *llmadapter.Message) []Message {
+	return []Message{
+		{
 			Role:    MessageRole(userMessage.Role),
 			Content: userMessage.Content,
-		}
-		assistantMsg := Message{
+		},
+		{
 			Role:    MessageRole(assistantResponse.Role),
 			Content: assistantResponse.Content,
-		}
-		msgs := []Message{userMsg, assistantMsg}
-		// Use atomic AppendMany operation to ensure both messages are stored together
-		if err := memory.AppendMany(ctx, msgs); err != nil {
-			log.Error("Failed to append messages to memory atomically",
-				"memory_id", ref.ID,
-				"error", err,
-			)
-			errs = append(errs, fmt.Errorf("failed to append messages to memory %s: %w", ref.ID, err))
-			continue
-		}
-		log.Debug("Messages stored atomically in memory", "memory_id", ref.ID)
+		},
 	}
-	// Return combined errors if any occurred (preserves causes)
-	if len(errs) > 0 {
-		return fmt.Errorf("memory storage errors: %w", errors.Join(errs...))
+}
+
+func resolveWritableMemory(
+	log logger.Logger,
+	memories map[string]Memory,
+	ref core.MemoryReference,
+) (Memory, bool) {
+	memory, exists := memories[ref.ID]
+	if !exists {
+		log.Debug("Memory reference not found; skipping", "memory_id", ref.ID)
+		return nil, false
 	}
-	return nil
+	if ref.Mode == core.MemoryModeReadOnly {
+		log.Debug("Skipping read-only memory", "memory_id", ref.ID)
+		return nil, false
+	}
+	return memory, true
+}
+
+func appendMemoryBatch(
+	ctx context.Context,
+	memory Memory,
+	memoryID string,
+	batch []Message,
+	log logger.Logger,
+	errs *[]error,
+) {
+	if err := memory.AppendMany(ctx, batch); err != nil {
+		log.Error(
+			"Failed to append messages to memory atomically",
+			"memory_id", memoryID,
+			"error", err,
+		)
+		*errs = append(*errs, fmt.Errorf("failed to append messages to memory %s: %w", memoryID, err))
+		return
+	}
+	log.Debug("Messages stored atomically in memory", "memory_id", memoryID)
 }
