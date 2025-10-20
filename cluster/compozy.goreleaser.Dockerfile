@@ -39,7 +39,8 @@ RUN chmod +x /usr/local/bin/compozy
 # Copy additional files if they exist
 COPY README.md /app/README.md
 COPY LICENSE /app/LICENSE
-COPY --chown=compozy:compozy docs /app/docs
+# Ensure documentation assets are available in the release image.
+COPY docs /app/docs
 
 # Switch to non-root user
 USER compozy

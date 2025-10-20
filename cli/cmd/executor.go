@@ -45,6 +45,14 @@ func NewCommandExecutor(cmd *cobra.Command, opts ExecutorOptions) (*CommandExecu
 	log := logger.FromContext(ctx)
 	mode := helpers.DetectMode(cmd)
 	log.Debug("detected execution mode", "mode", mode)
+	if mode == models.ModeJSON {
+		cmd.SilenceErrors = true
+		cmd.SilenceUsage = true
+		if root := cmd.Root(); root != nil {
+			root.SilenceErrors = true
+			root.SilenceUsage = true
+		}
+	}
 	executor := &CommandExecutor{
 		mode: mode,
 	}

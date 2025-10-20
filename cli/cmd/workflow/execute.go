@@ -104,7 +104,10 @@ func executeWorkflow(
 		return nil, fmt.Errorf("failed to parse input parameters: %w", err)
 	}
 	httpClient := cliutils.CreateHTTPClient(client, nil)
-	apiClient := api.NewWorkflowMutateService(client, httpClient)
+	apiClient, err := api.NewWorkflowMutateService(httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize workflow mutate service: %w", err)
+	}
 	input := api.ExecutionInput{
 		Data: inputs,
 	}

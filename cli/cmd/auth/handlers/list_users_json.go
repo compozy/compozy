@@ -158,7 +158,7 @@ func isWithinActiveWindow(activeWindow time.Duration, timestamp string) bool {
 	}
 	now := time.Now().UTC()
 	if ts.After(now) {
-		return true
+		return false
 	}
 	return now.Sub(ts) <= activeWindow
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
-	"github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -186,20 +185,23 @@ func (m *listUsersModel) updateTable() {
 
 func (m *listUsersModel) applyFilters(users []api.UserInfo) []api.UserInfo {
 	filtered := make([]api.UserInfo, 0, len(users))
-	activeWindow := activeUserWindowDuration(m.ctx)
+	var activeWindow time.Duration
 	for _, user := range users {
 		if m.roleFilter != "" && user.Role != m.roleFilter {
 			continue
 		}
 
-		if m.filter != "" {
-			if !helpers.Contains(user.Name, m.filter) && !helpers.Contains(user.Email, m.filter) {
-				continue
-			}
+		if m.filter != "" && !userMatchesTextFilter(&user, m.filter) {
+			continue
 		}
 
-		if m.activeOnly && !isUserActive(activeWindow, &user) {
-			continue
+		if m.activeOnly {
+			if activeWindow == 0 {
+				activeWindow = activeUserWindowDuration(m.ctx)
+			}
+			if !isUserActive(activeWindow, &user) {
+				continue
+			}
 		}
 
 		filtered = append(filtered, user)

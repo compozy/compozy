@@ -223,7 +223,7 @@ func WatchFile(ctx context.Context, path string, callback func([]byte) error) er
 	if err := readAndNotify(ctx, path, callback); err != nil {
 		return err
 	}
-	if err := watchFileWithFSNotify(ctx, path, callback, log); err != nil {
+	if err := watchFileWithFSNotify(ctx, path, callback); err != nil {
 		if errors.Is(err, errFSNotifyUnavailable) || errors.Is(err, errFSNotifyClosed) {
 			log.Warn("fsnotify unavailable, falling back to polling", "file", path, "error", err)
 			return watchFileWithTicker(ctx, path, callback)
@@ -255,6 +255,13 @@ func validateWatchFilePath(path string) error {
 }
 
 func readAndNotify(ctx context.Context, path string, callback func([]byte) error) error {
+	if _, err := fileModTime(path); err != nil {
+		if errors.Is(err, errFileMissing) {
+			logger.FromContext(ctx).Debug("file not found; skipping initial read", "file", path)
+			return nil
+		}
+		return err
+	}
 	data, err := ReadFile(path)
 	if err != nil {
 		return err
@@ -344,8 +351,8 @@ func watchFileWithFSNotify(
 	ctx context.Context,
 	path string,
 	callback func([]byte) error,
-	log logger.Logger,
 ) error {
+	log := logger.FromContext(ctx)
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("%w: %v", errFSNotifyUnavailable, err)
@@ -367,7 +374,7 @@ func watchFileWithFSNotify(
 			return err
 		}
 	}
-	return runFSNotifyLoop(ctx, watcher, path, callback, lastModTime, log)
+	return runFSNotifyLoop(ctx, watcher, path, callback, lastModTime)
 }
 
 // runFSNotifyLoop processes fsnotify events until the context is canceled or watcher closes.
@@ -377,7 +384,6 @@ func runFSNotifyLoop(
 	path string,
 	callback func([]byte) error,
 	lastModTime time.Time,
-	log logger.Logger,
 ) error {
 	for {
 		select {
@@ -397,7 +403,7 @@ func runFSNotifyLoop(
 				return err
 			}
 		case watchErr, ok := <-watcher.Errors:
-			if err := handleFSNotifyError(log, path, watchErr, ok); err != nil {
+			if err := handleFSNotifyError(ctx, path, watchErr, ok); err != nil {
 				return err
 			}
 		}
@@ -439,12 +445,12 @@ func handleFSNotifyEvent(
 	return lastModTime, nil
 }
 
-func handleFSNotifyError(log logger.Logger, path string, watchErr error, ok bool) error {
+func handleFSNotifyError(ctx context.Context, path string, watchErr error, ok bool) error {
 	if !ok {
 		return errFSNotifyClosed
 	}
 	if watchErr != nil {
-		log.Error("file watcher error", "file", path, "error", watchErr)
+		logger.FromContext(ctx).Error("file watcher error", "file", path, "error", watchErr)
 	}
 	return nil
 }

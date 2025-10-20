@@ -216,9 +216,6 @@ func (r *WorkflowRepo) fetchTaskStatesForExec(
 			return nil, fmt.Errorf("converting task state: %w", err)
 		}
 		key := tsdb.WorkflowExecID.String()
-		if _, ok := result[key]; !ok {
-			result[key] = make(map[string]*task.State)
-		}
 		result[key][st.TaskID] = st
 	}
 	return result, nil

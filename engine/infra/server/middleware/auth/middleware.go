@@ -230,13 +230,21 @@ func categorizeValidationError(err error) authmetrics.AuthFailureReason {
 
 // setAuthContext sets authentication information in context
 func (m *Manager) setAuthContext(c *gin.Context, apiKey string, user *model.User) {
-	c.Set(authmetrics.ContextKeyAPIKey, apiKey)
+	c.Set(authmetrics.ContextKeyAPIKey, maskAPIKey(apiKey))
 	c.Set(authmetrics.ContextKeyUserID, user.ID.String())
 	c.Set(authmetrics.ContextKeyUserRole, string(user.Role))
 	ctx := userctx.WithUser(c.Request.Context(), user)
 	c.Request = c.Request.WithContext(ctx)
 	log := logger.FromContext(ctx)
 	log.Debug("Authentication successful", "user_id", user.ID)
+}
+
+// maskAPIKey returns a masked representation of an API key for safe context usage.
+func maskAPIKey(k string) string {
+	if len(k) <= 8 {
+		return "****"
+	}
+	return fmt.Sprintf("%s...%s", k[:4], k[len(k)-4:])
 }
 
 // authError represents an authentication error

@@ -58,7 +58,7 @@ func ensureForceRevocation(force bool) error {
 }
 
 func writeRevokeResponse(keyID string) error {
-	return writeJSONResponse(map[string]any{
+	return outputJSONResponse(map[string]any{
 		"data": map[string]any{
 			"key_id":  keyID,
 			"revoked": time.Now().UTC().Format(time.RFC3339),

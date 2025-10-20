@@ -424,7 +424,7 @@ func (w *workflowInboundInterceptor) ExecuteWorkflow(
 	ctx workflow.Context,
 	in *interceptor.ExecuteWorkflowInput,
 ) (any, error) {
-	metrics, ok := collectWorkflowMetrics()
+	wms, ok := collectWorkflowMetrics()
 	if !ok || workflow.IsReplaying(ctx) {
 		return w.Next.ExecuteWorkflow(ctx, in)
 	}
@@ -433,10 +433,10 @@ func (w *workflowInboundInterceptor) ExecuteWorkflow(
 	info := workflow.GetInfo(ctx)
 	workflowType := info.WorkflowType.Name
 	otelCtx := w.baseCtx
-	metrics.started.Add(otelCtx, 1, metric.WithAttributes(attribute.String("workflow_type", workflowType)))
+	wms.started.Add(otelCtx, 1, metric.WithAttributes(attribute.String("workflow_type", workflowType)))
 	result, err := w.Next.ExecuteWorkflow(ctx, in)
 	duration := workflow.Now(ctx).Sub(startTime).Seconds()
-	w.recordWorkflowOutcome(otelCtx, metrics, duration, workflowType, info, err)
+	w.recordWorkflowOutcome(otelCtx, wms, duration, workflowType, info, err)
 	return result, err
 }
 

@@ -91,6 +91,7 @@ func createUptimeGauge(meter metric.Meter) (metric.Float64ObservableGauge, error
 	return meter.Float64ObservableGauge(
 		metrics.MetricNameWithSubsystem("system", "uptime_seconds"),
 		metric.WithDescription("Service uptime in seconds"),
+		metric.WithUnit("s"),
 	)
 }
 
@@ -126,7 +127,7 @@ func getBuildInfo() (version, commit, goVersion string) {
 	})
 	data := buildInfoCache.Load()
 	if data == nil {
-		return "", "", ""
+		return defaultVersion, defaultCommit, runtime.Version()
 	}
 	return data.version, data.commit, data.goVersion
 }

@@ -13,24 +13,23 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-// NewWorkflowMutateService builds a WorkflowMutateService backed by the authenticated HTTP client.
-func NewWorkflowMutateService(authClient AuthClient, httpClient *resty.Client) WorkflowMutateService {
-	if authClient == nil {
-		panic("authClient is required to build workflow mutate service")
-	}
+// NewWorkflowMutateService builds a WorkflowMutateService backed by the provided HTTP client.
+func NewWorkflowMutateService(httpClient *resty.Client) (WorkflowMutateService, error) {
 	if httpClient == nil {
-		panic("httpClient is required to build workflow mutate service")
+		return nil, fmt.Errorf("http client is required to build workflow mutate service")
 	}
-	return &workflowMutateAPIService{
-		authClient:     authClient,
+	if strings.TrimSpace(httpClient.BaseURL) == "" {
+		return nil, fmt.Errorf("http client must be configured with a base URL")
+	}
+	service := &workflowMutateAPIService{
 		httpClient:     httpClient,
 		isNetworkError: defaultIsNetworkError,
 		isTimeoutError: defaultIsTimeoutError,
 	}
+	return service, nil
 }
 
 type workflowMutateAPIService struct {
-	authClient     AuthClient
 	httpClient     *resty.Client
 	isNetworkError func(error) bool
 	isTimeoutError func(error) bool

@@ -122,8 +122,8 @@ func createDispatcherHealthInstruments(ctx context.Context, meter metric.Meter) 
 // registerDispatcherHealthCallback registers the observation callback for dispatcher health metrics.
 func registerDispatcherHealthCallback(ctx context.Context, meter metric.Meter) {
 	log := logger.FromContext(ctx)
-	callback, err := meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
-		observeDispatcherHealth(o)
+	callback, err := meter.RegisterCallback(func(callbackCtx context.Context, o metric.Observer) error {
+		observeDispatcherHealth(callbackCtx, o)
 		return nil
 	}, dispatcherHealthGauge, dispatcherHeartbeatAgeSeconds, dispatcherFailureCount)
 	if err != nil {
@@ -134,15 +134,18 @@ func registerDispatcherHealthCallback(ctx context.Context, meter metric.Meter) {
 }
 
 // observeDispatcherHealth records dispatcher health metric observations.
-func observeDispatcherHealth(observer metric.Observer) {
+func observeDispatcherHealth(ctx context.Context, observer metric.Observer) {
+	log := logger.FromContext(ctx)
 	now := time.Now()
 	dispatcherHealthStore.Range(func(key, value any) bool {
 		dispatcherID, ok := key.(string)
 		if !ok {
+			log.Debug("dispatcher health observation skipped: unexpected key type")
 			return true
 		}
 		health, ok := value.(*DispatcherHealth)
 		if !ok {
+			log.Debug("dispatcher health observation skipped: unexpected value type", "dispatcher_id", dispatcherID)
 			return true
 		}
 		health.UpdateHealthAt(now)

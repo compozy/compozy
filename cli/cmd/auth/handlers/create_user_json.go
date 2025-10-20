@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
@@ -37,7 +38,7 @@ func CreateUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.
 	if err != nil {
 		return outputJSONError(fmt.Sprintf("failed to create user: %v", err))
 	}
-	return writeJSONResponse(map[string]any{
+	return outputJSONResponse(map[string]any{
 		"data":    user,
 		"message": "Success",
 	})
@@ -54,9 +55,22 @@ func parseCreateUserFlags(cobraCmd *cobra.Command) (*createUserOptions, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get email flag: %w", err)
 	}
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return nil, fmt.Errorf("email is required")
+	}
+	at := strings.IndexByte(email, '@')
+	dot := strings.LastIndexByte(email, '.')
+	if at <= 0 || dot < at+2 || dot == len(email)-1 {
+		return nil, fmt.Errorf("email must be a valid address")
+	}
 	name, err := cobraCmd.Flags().GetString("name")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get name flag: %w", err)
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
 	}
 	role, err := cobraCmd.Flags().GetString("role")
 	if err != nil {

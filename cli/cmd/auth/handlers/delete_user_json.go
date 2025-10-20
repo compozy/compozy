@@ -80,7 +80,7 @@ func ensureForceDeletion(force bool) error {
 	if force {
 		return nil
 	}
-	return fmt.Errorf("user deletion requires --force flag in JSON mode")
+	return fmt.Errorf("user deletion requires --force flag in JSON mode; pass --force to proceed")
 }
 
 func writeDeleteResponse(userID string, cascade bool) error {
@@ -92,5 +92,5 @@ func writeDeleteResponse(userID string, cascade bool) error {
 		},
 		"message": "Success",
 	}
-	return writeJSONResponse(response)
+	return outputJSONResponse(response)
 }

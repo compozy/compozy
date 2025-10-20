@@ -46,6 +46,7 @@ func outputJSONResponse(response map[string]any) error {
 }
 
 // writeJSONResponse writes the payload as formatted JSON to stdout.
+// It should only be called by outputJSONResponse to preserve consistent error handling semantics.
 func writeJSONResponse(payload map[string]any) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
