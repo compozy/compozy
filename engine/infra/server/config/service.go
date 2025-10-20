@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/workflow"
-	pkgcfg "github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -288,7 +288,7 @@ func (s *service) compileDecodedWorkflows(
 // Default is disabled to avoid surprising mutations.
 // Docs: see /docs/core/configuration/server#seed-from-repo-on-empty
 func (s *service) shouldSeedFromRepo(ctx context.Context, _ *project.Config) bool {
-	if c := pkgcfg.FromContext(ctx); c != nil {
+	if c := config.FromContext(ctx); c != nil {
 		return c.Server.SourceOfTruth == "builder" && c.Server.SeedFromRepoOnEmpty
 	}
 	return false
@@ -339,7 +339,7 @@ func (s *service) normalizeMode(raw string) (string, error) {
 func (s *service) resolveMode(ctx context.Context, projectConfig *project.Config) (string, error) {
 	log := logger.FromContext(ctx)
 	mode := modeRepo
-	if c := pkgcfg.FromContext(ctx); c != nil && c.Server.SourceOfTruth != "" {
+	if c := config.FromContext(ctx); c != nil && c.Server.SourceOfTruth != "" {
 		var err error
 		mode, err = s.normalizeMode(c.Server.SourceOfTruth)
 		if err != nil {

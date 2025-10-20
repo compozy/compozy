@@ -19,8 +19,8 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
-// Pre-compiled regex for URL token redaction
-var tokenRegex = regexp.MustCompile(`token=[^&\s]+`)
+// Pre-compiled regex for URL token redaction covering multiple token parameter names
+var tokenRegex = regexp.MustCompile(`(?i)(^|[?&])(token|access_token|api_key|apikey|key)=[^&\s]+`)
 
 // NewConfigCommand creates the config command using the unified command pattern
 func NewConfigCommand() *cobra.Command {
@@ -748,9 +748,15 @@ func redactURL(urlStr string) string {
 			return urlStr[:protocolEnd] + "[REDACTED]@" + urlStr[atIndex+1:]
 		}
 	}
-	if strings.Contains(urlStr, "token=") {
+	if tokenRegex.MatchString(urlStr) {
 		// NOTE: Tokenized URLs leak sensitive query parameters unless scrubbed.
-		return tokenRegex.ReplaceAllString(urlStr, "token=[REDACTED]")
+		return tokenRegex.ReplaceAllStringFunc(urlStr, func(match string) string {
+			eqIdx := strings.Index(match, "=")
+			if eqIdx == -1 {
+				return match
+			}
+			return match[:eqIdx+1] + "[REDACTED]"
+		})
 	}
 	return urlStr
 }

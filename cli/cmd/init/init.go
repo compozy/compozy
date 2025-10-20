@@ -123,9 +123,8 @@ func executeInitCommand(cobraCmd *cobra.Command, opts *Options, args []string) e
 
 // runInitJSON handles non-interactive JSON mode
 func runInitJSON(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, opts *Options) error {
-	log := logger.FromContext(ctx)
-	log.Debug("executing init command in JSON mode")
-	logDebugMode(ctx, log)
+	logger.FromContext(ctx).Debug("executing init command in JSON mode")
+	logDebugMode(ctx)
 	if err := ensureNameProvided(opts); err != nil {
 		return err
 	}
@@ -144,9 +143,8 @@ func runInitJSON(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, 
 
 // runInitTUI handles interactive TUI mode
 func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, opts *Options) error {
-	log := logger.FromContext(ctx)
-	log.Debug("executing init command in TUI mode")
-	logDebugMode(ctx, log)
+	logger.FromContext(ctx).Debug("executing init command in TUI mode")
+	logDebugMode(ctx)
 	if err := runInteractiveForm(ctx, opts); err != nil {
 		return fmt.Errorf("interactive form failed: %w", err)
 	}
@@ -164,9 +162,9 @@ func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, o
 	return nil
 }
 
-func logDebugMode(ctx context.Context, log logger.Logger) {
+func logDebugMode(ctx context.Context) {
 	if cfg := config.FromContext(ctx); cfg != nil && cfg.CLI.Debug {
-		log.Debug("debug mode enabled from global config")
+		logger.FromContext(ctx).Debug("debug mode enabled from global config")
 	}
 }
 

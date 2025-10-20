@@ -7,7 +7,15 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/compozy/compozy/cli/tui/components"
+	ui "github.com/compozy/compozy/cli/tui/components"
+)
+
+const (
+	defaultViewportWidth  = 80
+	defaultViewportHeight = 20
+	defaultModelHeight    = 24
+	horizontalPadding     = 4
+	minViewportHeight     = 10
 )
 
 // InitModel is the Bubble Tea model that combines ASCII header and Huh form
@@ -24,15 +32,15 @@ type InitModel struct {
 // NewInitModel creates a new init model with header and form
 func NewInitModel(formData *ProjectFormData) *InitModel {
 	form := NewProjectForm(formData)
-	vp := viewport.New(80, 20)
+	vp := viewport.New(defaultViewportWidth, defaultViewportHeight)
 	vp.SetContent("")
 	vp.MouseWheelEnabled = true // Enable mouse wheel scrolling
 	return &InitModel{
 		form:     form,
 		viewport: vp,
 		formData: formData,
-		width:    80,
-		height:   24,
+		width:    defaultViewportWidth,
+		height:   defaultModelHeight,
 	}
 }
 
@@ -79,17 +87,17 @@ func (m *InitModel) handleUpdateMessage(msg tea.Msg) tea.Cmd {
 func (m *InitModel) handleWindowResize(msg tea.WindowSizeMsg) {
 	m.width = msg.Width
 	m.height = msg.Height
-	header, err := components.RenderASCIIHeader(m.width)
+	header, err := ui.RenderASCIIHeader(m.width)
 	if err != nil {
 		m.header = "Compozy CLI"
 	} else {
 		m.header = header
 	}
 	headerLines := countLines(m.header)
-	availableHeight := max(m.height-headerLines-4, 10)
+	availableHeight := max(m.height-headerLines-horizontalPadding, minViewportHeight)
 	m.viewport.Width = m.width
 	m.viewport.Height = availableHeight
-	m.form.WithWidth(m.width - 4)
+	m.form.WithWidth(m.width - horizontalPadding)
 	m.viewport.SetContent(m.renderFormContent())
 }
 
@@ -117,7 +125,7 @@ func (m *InitModel) View() string {
 		return ""
 	}
 	if m.header == "" {
-		header, err := components.RenderASCIIHeader(m.width)
+		header, err := ui.RenderASCIIHeader(m.width)
 		if err != nil {
 			m.header = "Compozy CLI"
 		} else {
@@ -135,7 +143,7 @@ func (m *InitModel) View() string {
 // renderFormContent renders the form content for the viewport
 func (m *InitModel) renderFormContent() string {
 	formContainer := lipgloss.NewStyle().
-		Width(m.width - 4).
+		Width(m.width - horizontalPadding).
 		Align(lipgloss.Left)
 	return formContainer.Render(m.form.View())
 }

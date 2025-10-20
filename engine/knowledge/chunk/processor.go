@@ -70,7 +70,10 @@ func (p *Processor) Process(kbID string, docs []Document) ([]Chunk, error) {
 	if len(docs) == 0 {
 		return nil, nil
 	}
-	seen := make(map[string]struct{})
+	var seen map[string]struct{}
+	if p.settings.Deduplicate {
+		seen = make(map[string]struct{})
+	}
 	chunks := make([]Chunk, 0, len(docs))
 	for di := range docs {
 		doc := docs[di]

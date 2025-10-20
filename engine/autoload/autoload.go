@@ -518,7 +518,8 @@ func normalizeComparablePaths(filePath string, projectPath string) (string, stri
 // ensureWithinProjectRoot validates that filePath stays inside projectPath.
 func ensureWithinProjectRoot(projectPath string, filePath string) error {
 	relPath, err := filepath.Rel(projectPath, filePath)
-	if err != nil || strings.HasPrefix(relPath, "..") || filepath.IsAbs(relPath) {
+	sep := string(filepath.Separator)
+	if err != nil || relPath == ".." || strings.HasPrefix(relPath, ".."+sep) || filepath.IsAbs(relPath) {
 		return core.NewError(
 			errors.New("file path escapes project root"),
 			"PATH_TRAVERSAL_ATTEMPT",

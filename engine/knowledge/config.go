@@ -71,9 +71,6 @@ func sanitizeDefaultsWithFallback(in Defaults, fallback Defaults) Defaults {
 	if out.EmbedderBatchSize <= 0 {
 		out.EmbedderBatchSize = fb.EmbedderBatchSize
 	}
-	if out.EmbedderBatchSize <= 0 {
-		out.EmbedderBatchSize = 1
-	}
 	if out.ChunkSize < MinChunkSize || out.ChunkSize > MaxChunkSize {
 		out.ChunkSize = fb.ChunkSize
 	}
@@ -614,7 +611,8 @@ func validatePGVectorIndexType(vectorID string, idx *PGVectorIndexConfig) []erro
 
 // validatePGVectorIndexParameters validates numerical pgvector index parameters.
 func validatePGVectorIndexParameters(vectorID string, idx *PGVectorIndexConfig) []error {
-	errs := make([]error, 0, 3)
+	errs := make([]error, 0, 5)
+	t := strings.TrimSpace(strings.ToLower(idx.Type))
 	if idx.Lists < 0 {
 		errs = append(errs, fmt.Errorf(
 			"knowledge: vector_db %q pgvector.index.lists must be >= 0",
@@ -632,6 +630,28 @@ func validatePGVectorIndexParameters(vectorID string, idx *PGVectorIndexConfig) 
 			"knowledge: vector_db %q pgvector.index.ef_construction must be >= 0",
 			vectorID,
 		))
+	}
+	switch t {
+	case string(vectordb.PGVectorIndexIVFFlat):
+		if idx.Lists == 0 {
+			errs = append(errs, fmt.Errorf(
+				"knowledge: vector_db %q pgvector.index.lists must be > 0 for type %q",
+				vectorID, vectordb.PGVectorIndexIVFFlat,
+			))
+		}
+	case string(vectordb.PGVectorIndexHNSW):
+		if idx.M == 0 {
+			errs = append(errs, fmt.Errorf(
+				"knowledge: vector_db %q pgvector.index.m must be > 0 for type %q",
+				vectorID, vectordb.PGVectorIndexHNSW,
+			))
+		}
+		if idx.EFConstruction == 0 {
+			errs = append(errs, fmt.Errorf(
+				"knowledge: vector_db %q pgvector.index.ef_construction must be > 0 for type %q",
+				vectorID, vectordb.PGVectorIndexHNSW,
+			))
+		}
 	}
 	return errs
 }

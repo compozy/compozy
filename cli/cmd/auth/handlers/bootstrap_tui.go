@@ -139,8 +139,12 @@ func handleStatusCheckFailure(ctx context.Context, checkErr error) (bool, error)
 				Value(&continueAnyway),
 		),
 	)
-	if err := form.Run(); err != nil || !continueAnyway {
-		return false, fmt.Errorf("bootstrap canceled due to status check failure")
+	if err := form.Run(); err != nil {
+		return false, fmt.Errorf("status check prompt failed: %w", err)
+	}
+	if !continueAnyway {
+		fmt.Println(styles.HelpStyle.Render("Bootstrap canceled"))
+		return false, nil
 	}
 	return true, nil
 }

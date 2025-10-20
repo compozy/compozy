@@ -69,7 +69,7 @@ func getTUIHandler(
 // workflowGetJSONHandler handles JSON output mode
 func workflowGetJSONHandler(ctx context.Context, cmd *cobra.Command, client api.AuthClient, args []string) error {
 	workflowID := core.ID(args[0])
-	service := createAPIClient(client)
+	service := createAPIClient(ctx, client)
 	workflow, err := service.Get(ctx, workflowID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow: %w", err)
@@ -99,7 +99,7 @@ func workflowGetJSONHandler(ctx context.Context, cmd *cobra.Command, client api.
 // workflowGetTUIHandler handles TUI output mode
 func workflowGetTUIHandler(ctx context.Context, cmd *cobra.Command, client api.AuthClient, args []string) error {
 	workflowID := core.ID(args[0])
-	service := createAPIClient(client)
+	service := createAPIClient(ctx, client)
 	workflow, err := service.Get(ctx, workflowID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow: %w", err)

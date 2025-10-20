@@ -15,6 +15,7 @@ import (
 	cliutils "github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/cli/tui/components"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/go-resty/resty/v2"
 	"github.com/spf13/cobra"
@@ -54,7 +55,7 @@ const (
 	updatedColumnRatio = 5 // ~20% of width (availableWidth/5)
 
 	// HTTP and timeout constants
-	httpRequestTimeoutSeconds = 30
+	httpRequestTimeoutDefault = 30 * time.Second
 
 	// TUI layout constants
 	tuiHeaderReservedSpace = 2
@@ -92,13 +93,35 @@ func calculateColumnWidths() columnWidths {
 			updated: minUpdatedColumnWidth,
 		}
 	}
-	return columnWidths{
+	cw := columnWidths{
 		id:      max(minIDColumnWidth, min(maxIDColumnWidth, availableWidth/idColumnRatio)),
 		status:  max(minStatusColumnWidth, min(maxStatusColumnWidth, availableWidth/statusColumnRatio)),
 		name:    max(minNameColumnWidth, min(maxNameColumnWidth, availableWidth/nameColumnRatio)),
 		created: max(minCreatedColumnWidth, min(maxCreatedColumnWidth, availableWidth/createdColumnRatio)),
 		updated: max(minUpdatedColumnWidth, min(maxUpdatedColumnWidth, availableWidth/updatedColumnRatio)),
 	}
+	total := cw.id + cw.status + cw.name + cw.created + cw.updated + headerSeparatorPadding
+	if total > availableWidth {
+		over := total - availableWidth
+		shrink := func(cur *int, minVal int) {
+			if over <= 0 {
+				return
+			}
+			delta := *cur - minVal
+			if delta <= 0 {
+				return
+			}
+			step := min(delta, over)
+			*cur -= step
+			over -= step
+		}
+		shrink(&cw.name, minNameColumnWidth)
+		shrink(&cw.id, minIDColumnWidth)
+		shrink(&cw.created, minCreatedColumnWidth)
+		shrink(&cw.updated, minUpdatedColumnWidth)
+		shrink(&cw.status, minStatusColumnWidth)
+	}
+	return cw
 }
 
 // ListCmd creates the workflow list command
@@ -233,7 +256,11 @@ func (m *workflowTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case tea.WindowSizeMsg:
-		m.table.SetSize(msg.Width, msg.Height-tuiHeaderReservedSpace) // Reserve space for header
+		h := msg.Height - tuiHeaderReservedSpace // reserve space for header
+		if h < 1 {
+			h = 1
+		}
+		m.table.SetSize(msg.Width, h)
 	}
 	var cmd tea.Cmd
 	m.table, cmd = m.table.Update(msg)
@@ -353,7 +380,7 @@ func getWorkflows(
 	filters *api.WorkflowFilters,
 ) ([]api.Workflow, error) {
 	log := logger.FromContext(ctx)
-	workflowService := createAPIClient(authClient)
+	workflowService := createAPIClient(ctx, authClient)
 	log.Debug("fetching workflows from API", "filters", filters)
 	workflows, err := workflowService.List(ctx, filters)
 	if err != nil {
@@ -367,16 +394,19 @@ func getWorkflows(
 }
 
 // createAPIClient creates an API client from the auth client configuration
-func createAPIClient(authClient api.AuthClient) api.WorkflowService {
+func createAPIClient(ctx context.Context, authClient api.AuthClient) api.WorkflowService {
 	// NOTE: Use the shared HTTP client helper to enforce the workflow timeout and headers.
-	config := &cliutils.HTTPClientConfig{
-		Timeout: time.Duration(httpRequestTimeoutSeconds) * time.Second,
+	timeout := httpRequestTimeoutDefault
+	if cfg := config.FromContext(ctx); cfg != nil && cfg.CLI.Timeout > 0 {
+		timeout = cfg.CLI.Timeout
+	}
+	clientConfig := &cliutils.HTTPClientConfig{
+		Timeout: timeout,
 		Headers: map[string]string{
-			"Content-Type": "application/json",
-			"Accept":       "application/json",
+			"Accept": "application/json",
 		},
 	}
-	client := cliutils.CreateHTTPClient(authClient, config)
+	client := cliutils.CreateHTTPClient(authClient, clientConfig)
 	return &workflowAPIService{
 		authClient: authClient,
 		httpClient: client,
@@ -517,7 +547,11 @@ func (s *workflowAPIService) Get(ctx context.Context, id core.ID) (*api.Workflow
 		if resp.StatusCode() >= http.StatusInternalServerError {
 			return nil, fmt.Errorf("server error (status %d): try again later", resp.StatusCode())
 		}
-		return nil, fmt.Errorf("API error: %s (status %d)", resp.String(), resp.StatusCode())
+		errorMsg := cliutils.SanitizeForJSON(resp.String())
+		if len(errorMsg) > errorMessageMaxLength {
+			errorMsg = errorMsg[:errorMessageMaxLength] + "..."
+		}
+		return nil, fmt.Errorf("API error: %s (status %d)", errorMsg, resp.StatusCode())
 	}
 	log.Debug("workflow retrieved successfully", "workflow_id", id)
 	return &result.Data, nil

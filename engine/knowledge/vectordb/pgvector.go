@@ -32,7 +32,6 @@ type pgStore struct {
 	ivfLists           int
 	hnswM              int
 	hnswEFConstruction int
-	hnswEFSearch       int
 	searchProbes       int
 	searchEFSearch     int
 }
@@ -560,9 +559,6 @@ func (p *pgStore) applySearchParametersLocal(ctx context.Context, tx pgx.Tx) err
 	switch strings.ToLower(p.indexType) {
 	case "hnsw":
 		target := p.searchEFSearch
-		if target <= 0 {
-			target = p.hnswEFSearch
-		}
 		if target <= 0 {
 			target = pgvectorDefaultHNSWEFSearch
 		}
