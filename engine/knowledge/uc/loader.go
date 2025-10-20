@@ -70,10 +70,14 @@ func loadEmbedderConfig(
 	projectID string,
 	embedderID string,
 ) (*knowledge.EmbedderConfig, error) {
+	id := strings.TrimSpace(embedderID)
+	if id == "" {
+		return nil, fmt.Errorf("load embedder: id is required")
+	}
 	embKey := resources.ResourceKey{
 		Project: projectID,
 		Type:    resources.ResourceEmbedder,
-		ID:      strings.TrimSpace(embedderID),
+		ID:      id,
 	}
 	embVal, _, err := store.Get(ctx, embKey)
 	if err != nil {
@@ -92,10 +96,14 @@ func loadVectorDBConfig(
 	projectID string,
 	vectorID string,
 ) (*knowledge.VectorDBConfig, error) {
+	id := strings.TrimSpace(vectorID)
+	if id == "" {
+		return nil, fmt.Errorf("load vector_db: id is required")
+	}
 	vecKey := resources.ResourceKey{
 		Project: projectID,
 		Type:    resources.ResourceVectorDB,
-		ID:      strings.TrimSpace(vectorID),
+		ID:      id,
 	}
 	vecVal, _, err := store.Get(ctx, vecKey)
 	if err != nil {

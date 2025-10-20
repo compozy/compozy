@@ -36,7 +36,7 @@ func configureSwaggerInfo(prefixURL string) {
 func registerDocsUI(router *gin.Engine) {
 	router.GET("/docs/*any", ginSwagger.WrapHandler(
 		swaggerFiles.Handler,
-		ginSwagger.URL("/openapi.json"),
+		ginSwagger.URL("openapi.json"),
 		ginSwagger.InstanceName(docs.SwaggerInfo.InstanceName()),
 		ginSwagger.DefaultModelsExpandDepth(swaggerModelsExpandDepthCollapsed),
 	))
@@ -52,6 +52,7 @@ func registerSwaggerRedirect(router *gin.Engine) {
 // registerOpenAPIJSON exposes the OpenAPI 3.0 document converted from the swagger specification.
 func registerOpenAPIJSON(router *gin.Engine) {
 	router.GET("/openapi.json", openAPIHandler())
+	router.GET("/docs/openapi.json", openAPIHandler())
 }
 
 // openAPIHandler converts the swagger v2 document into OpenAPI v3 on the fly.
@@ -68,7 +69,7 @@ func openAPIHandler() gin.HandlerFunc {
 			respondWithError(c, errResp)
 			return
 		}
-		c.Data(http.StatusOK, "application/json; charset=utf-8", payload)
+		c.Data(http.StatusOK, "application/vnd.oai.openapi+json; charset=utf-8", payload)
 	}
 }
 

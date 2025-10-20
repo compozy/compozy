@@ -21,17 +21,20 @@ var retryAfterMessagePattern = regexp.MustCompile(
 var (
 	rateLimitPatterns = []string{
 		"rate limit", "rate-limit", "ratelimit", "too many requests",
-		"throttled", "throttling", "quota exceeded", "quota_exceeded",
+		"throttled", "throttling",
 		"requests per minute", "requests per second", "rpm", "rps",
 	}
 	unavailablePatterns = []string{
 		"service unavailable", "service_unavailable", "temporarily unavailable",
 		"overloaded", "capacity", "busy", "try again later",
 	}
-	authPatterns = []string{
+	forbiddenPatterns = []string{
+		"forbidden", "permission denied",
+	}
+	unauthorizedPatterns = []string{
 		"unauthorized", "invalid api key", "invalid_api_key", "api key",
 		"authentication failed", "invalid token", "expired token",
-		"invalid credentials", "forbidden", "permission denied",
+		"invalid credentials",
 	}
 	invalidModelPatterns  = []string{"invalid model", "model not found"}
 	contentPolicyPatterns = []string{"content policy", "safety"}
@@ -119,13 +122,19 @@ func (p *ErrorParser) extractHTTPStatusCode(errMsg string) int {
 
 // matchProviderPatterns matches provider-specific error patterns
 func (p *ErrorParser) matchProviderPatterns(errMsgLower, errMsg string, originalErr error) *Error {
+	if containsAny(errMsgLower, []string{"quota exceeded", "quota_exceeded"}) {
+		return NewErrorWithCode(ErrCodeQuotaExceeded, errMsg, p.provider, originalErr)
+	}
 	if containsAny(errMsgLower, rateLimitPatterns) {
 		return NewError(http.StatusTooManyRequests, errMsg, p.provider, originalErr)
 	}
 	if containsAny(errMsgLower, unavailablePatterns) {
 		return NewError(http.StatusServiceUnavailable, errMsg, p.provider, originalErr)
 	}
-	if containsAny(errMsgLower, authPatterns) {
+	if containsAny(errMsgLower, forbiddenPatterns) {
+		return NewError(http.StatusForbidden, errMsg, p.provider, originalErr)
+	}
+	if containsAny(errMsgLower, unauthorizedPatterns) {
 		return NewError(http.StatusUnauthorized, errMsg, p.provider, originalErr)
 	}
 	if containsAny(errMsgLower, invalidModelPatterns) {

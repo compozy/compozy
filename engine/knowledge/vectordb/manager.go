@@ -125,7 +125,6 @@ func (m *Manager) releaseFunc(id string, signature string) func(context.Context)
 		delete(m.stores, id)
 		store := entry.store
 		m.mu.Unlock()
-		untrackVectorPool(id)
 		return store.Close(ctx)
 	}
 }

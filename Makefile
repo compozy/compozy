@@ -99,22 +99,6 @@ fmt:
 modernize:
 	$(GOCMD) run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix ./...
 
-check-func-length:
-	@echo "Checking for functions exceeding 50-line limit..."
-	@$(GOCMD) run scripts/func/check-function-length.go
-
-create-func-issues:
-	@echo "Creating issue files for function length violations..."
-	@./scripts/func/create-issues.sh
-
-solve-func-length:
-	@echo "Processing function length issues with AI..."
-	@$(GOCMD) run scripts/issues/solve_issues.go \
-		--issues-dir ai-docs/func-length-issues/issues \
-		--ide codex \
-		--concurrent 4 \
-		--batch-size 3
-
 # -----------------------------------------------------------------------------
 # Development & Dependencies
 # -----------------------------------------------------------------------------

@@ -62,7 +62,9 @@ func RunWithWatcher(ctx context.Context, cwd, configFile, envFilePath string) er
 		}
 	}()
 	restartChan := make(chan bool, 1)
-	go startWatcher(ctx, watcher, restartChan, &watchedDirs)
+	watchCtx, cancelWatch := context.WithCancel(ctx)
+	defer cancelWatch()
+	go startWatcher(watchCtx, watcher, restartChan, &watchedDirs)
 	config.ManagerFromContext(ctx).OnChange(func(_ *config.Config) {
 		log := logger.FromContext(ctx)
 		log.Info("Configuration change detected, triggering restart")
@@ -92,7 +94,7 @@ func setupWatcher(ctx context.Context, cwd string, watchedDirs *sync.Map) (*fsno
 			if isIgnoredDir(path) {
 				return filepath.SkipDir
 			}
-			if watchDirectory(log, watcher, watchedDirs, path) {
+			if watchDirectory(ctx, watcher, watchedDirs, path) {
 				dirCount++
 			}
 		}
@@ -116,7 +118,7 @@ func setupWatcher(ctx context.Context, cwd string, watchedDirs *sync.Map) (*fsno
 // startWatcher monitors file system events and triggers server restarts
 func startWatcher(ctx context.Context, watcher *fsnotify.Watcher, restartChan chan bool, watchedDirs *sync.Map) {
 	log := logger.FromContext(ctx)
-	debouncer := newRestartDebouncer(log, restartChan)
+	debouncer := newRestartDebouncer(ctx, restartChan)
 	for {
 		select {
 		case <-ctx.Done():
@@ -128,7 +130,7 @@ func startWatcher(ctx context.Context, watcher *fsnotify.Watcher, restartChan ch
 				debouncer.stop()
 				return
 			}
-			processWatcherEvent(log, watcher, watchedDirs, event, debouncer)
+			processWatcherEvent(ctx, watcher, watchedDirs, event, debouncer)
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				debouncer.stop()
@@ -142,13 +144,13 @@ func startWatcher(ctx context.Context, watcher *fsnotify.Watcher, restartChan ch
 type restartDebouncer struct {
 	mu          sync.Mutex
 	timer       *time.Timer
-	log         logger.Logger
+	ctx         context.Context
 	restartChan chan bool
 	pending     bool
 }
 
-func newRestartDebouncer(log logger.Logger, restartChan chan bool) *restartDebouncer {
-	return &restartDebouncer{log: log, restartChan: restartChan}
+func newRestartDebouncer(ctx context.Context, restartChan chan bool) *restartDebouncer {
+	return &restartDebouncer{ctx: ctx, restartChan: restartChan}
 }
 
 func (d *restartDebouncer) schedule() {
@@ -169,7 +171,7 @@ func (d *restartDebouncer) flush() {
 	}
 	select {
 	case d.restartChan <- true:
-		d.log.Debug("Sending restart signal after debounce")
+		logger.FromContext(d.ctx).Debug("Sending restart signal after debounce")
 	default:
 	}
 	d.pending = false
@@ -185,23 +187,24 @@ func (d *restartDebouncer) stop() {
 }
 
 func processWatcherEvent(
-	log logger.Logger,
+	ctx context.Context,
 	watcher *fsnotify.Watcher,
 	watchedDirs *sync.Map,
 	event fsnotify.Event,
 	debouncer *restartDebouncer,
 ) {
-	if handleDirectoryEvent(log, watcher, watchedDirs, event) {
+	if handleDirectoryEvent(ctx, watcher, watchedDirs, event) {
 		return
 	}
 	if shouldRestartForEvent(event) {
-		log.Debug("Detected file change, debouncing...", "file", event.Name, "op", event.Op.String())
+		logger.FromContext(ctx).
+			Debug("Detected file change, debouncing...", "file", event.Name, "op", event.Op.String())
 		debouncer.schedule()
 	}
 }
 
 func handleDirectoryEvent(
-	log logger.Logger,
+	ctx context.Context,
 	watcher *fsnotify.Watcher,
 	watchedDirs *sync.Map,
 	event fsnotify.Event,
@@ -215,12 +218,12 @@ func handleDirectoryEvent(
 			if isIgnoredDir(event.Name) {
 				return true
 			}
-			watchDirectory(log, watcher, watchedDirs, event.Name)
+			watchDirectory(ctx, watcher, watchedDirs, event.Name)
 			return true
 		}
 	}
 	if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-		if removeWatchedDirectory(log, watcher, watchedDirs, event.Name) {
+		if removeWatchedDirectory(ctx, watcher, watchedDirs, event.Name) {
 			return true
 		}
 	}
@@ -269,7 +272,13 @@ func runAndWatchServer(
 			continue
 		case serverDecisionRetry:
 			log.Debug("Waiting before retry...", "delay", retryDelay)
-			time.Sleep(retryDelay)
+			t := time.NewTimer(retryDelay)
+			select {
+			case <-ctx.Done():
+				t.Stop()
+				return ctx.Err()
+			case <-t.C:
+			}
 			retryDelay = nextRetryDelay(retryDelay)
 			continue
 		case serverDecisionStop:
@@ -358,8 +367,12 @@ func shutdownServer(log logger.Logger, srv *server.Server, serverErrChan <-chan 
 }
 
 func drainRestartSignals(restartChan chan bool) {
-	for len(restartChan) > 0 {
-		<-restartChan
+	for {
+		select {
+		case <-restartChan:
+		default:
+			return
+		}
 	}
 }
 
@@ -379,7 +392,8 @@ func isAddressInUse(err error) bool {
 	return strings.Contains(lowered, "address already in use")
 }
 
-func watchDirectory(log logger.Logger, watcher *fsnotify.Watcher, watchedDirs *sync.Map, dir string) bool {
+func watchDirectory(ctx context.Context, watcher *fsnotify.Watcher, watchedDirs *sync.Map, dir string) bool {
+	log := logger.FromContext(ctx)
 	if _, exists := watchedDirs.LoadOrStore(dir, struct{}{}); exists {
 		return false
 	}
@@ -392,7 +406,8 @@ func watchDirectory(log logger.Logger, watcher *fsnotify.Watcher, watchedDirs *s
 	return true
 }
 
-func removeWatchedDirectory(log logger.Logger, watcher *fsnotify.Watcher, watchedDirs *sync.Map, path string) bool {
+func removeWatchedDirectory(ctx context.Context, watcher *fsnotify.Watcher, watchedDirs *sync.Map, path string) bool {
+	log := logger.FromContext(ctx)
 	if _, exists := watchedDirs.Load(path); !exists {
 		return false
 	}

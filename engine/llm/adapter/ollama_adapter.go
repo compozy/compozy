@@ -610,6 +610,12 @@ func applyOllamaSamplingOptions(options map[string]any, opts *CallOptions) {
 		options["num_predict"] = opts.MaxTokens
 	}
 	if opts.RepetitionPenalty > 0 {
+		if opts.FrequencyPenalty > 0 {
+			options["frequency_penalty"] = opts.FrequencyPenalty
+		}
+		if opts.PresencePenalty > 0 {
+			options["presence_penalty"] = opts.PresencePenalty
+		}
 		options["repeat_penalty"] = opts.RepetitionPenalty
 	}
 	if len(opts.StopWords) > 0 {
@@ -618,13 +624,14 @@ func applyOllamaSamplingOptions(options map[string]any, opts *CallOptions) {
 }
 
 func (a *ollamaAdapter) mergeMetadataOptions(ctx context.Context, options map[string]any, metadata map[string]any) {
+	log := logger.FromContext(ctx)
 	cloned := core.CloneMap(metadata)
 	for key, value := range cloned {
 		if _, exists := options[key]; exists {
 			continue
 		}
 		if !isSupportedOllamaOptionValue(value) {
-			logger.FromContext(ctx).Debug(
+			log.Debug(
 				"Skipping unsupported Ollama option metadata value",
 				"provider", string(a.provider.Provider),
 				"key", key,

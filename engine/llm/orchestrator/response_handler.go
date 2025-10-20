@@ -131,7 +131,9 @@ func (h *responseHandler) injectFinalizeFeedback(
 		llmReq.Messages = append(llmReq.Messages, feedback)
 		return
 	}
-	llmReq.Messages = append(llmReq.Messages[:base], feedback)
+	tail := llmReq.Messages[base:]
+	llmReq.Messages = append(llmReq.Messages[:base:base], feedback)
+	llmReq.Messages = append(llmReq.Messages, tail...)
 }
 
 func (h *responseHandler) recordFinalizeRetry(

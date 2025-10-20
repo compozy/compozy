@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/compozy/compozy/cli/cmd"
@@ -84,9 +85,10 @@ func applyInitFlags(command *cobra.Command, opts *Options) {
 	command.Flags().StringVar(&opts.AuthorURL, "author-url", "", "Author URL")
 	command.Flags().BoolVarP(&opts.Interactive, "interactive", "i", false, "Force interactive mode")
 	command.Flags().BoolVar(&opts.DockerSetup, "docker", false, "Include Docker Compose setup")
+	command.Flags().BoolVar(&opts.InstallBun, "install-bun", false, "Install Bun runtime if missing")
 }
 
-func prepareInitOptions(cobraCmd *cobra.Command, opts *Options, args []string) error {
+func prepareInitOptions(_ *cobra.Command, opts *Options, args []string) error {
 	if len(args) > 0 {
 		opts.Path = args[0]
 	} else {
@@ -97,7 +99,7 @@ func prepareInitOptions(cobraCmd *cobra.Command, opts *Options, args []string) e
 		return fmt.Errorf("failed to resolve path: %w", err)
 	}
 	opts.Path = absPath
-	if opts.Name == "" && !cobraCmd.Flags().Changed("format") {
+	if opts.Name == "" {
 		opts.Interactive = true
 	}
 	return nil
@@ -305,6 +307,13 @@ func runInteractiveForm(_ context.Context, opts *Options) error {
 // installBun installs Bun using the official installer
 func installBun(ctx context.Context) error {
 	log := logger.FromContext(ctx)
+	if goruntime.GOOS == "windows" {
+		return fmt.Errorf(
+			"automatic Bun installation is not supported on Windows; please install manually from https://bun.sh",
+		)
+	}
+	log.Warn("About to run curl | bash installer from https://bun.sh/install")
+	log.Warn("This will execute a remote script with elevated privileges")
 	log.Info("Installing Bun runtime...")
 	cmd := exec.CommandContext(ctx, "bash", "-c", "curl -fsSL https://bun.sh/install | bash")
 	cmd.Stdout = os.Stdout
@@ -313,8 +322,8 @@ func installBun(ctx context.Context) error {
 		return fmt.Errorf("failed to install Bun: %w", err)
 	}
 	if !runtime.IsBunAvailable() {
-		return fmt.Errorf("bun installation completed but executable not found in PATH. " +
-			"You may need to restart your terminal or source your shell configuration")
+		return fmt.Errorf("bun installation completed but executable not found in PATH; " +
+			"you may need to restart your terminal or source your shell configuration")
 	}
 	log.Info("Bun installed successfully!")
 	return nil
