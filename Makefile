@@ -40,6 +40,7 @@ SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 .PHONY: all test lint fmt modernize clean build dev deps schemagen schemagen-watch help integration-test
 .PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker
 .PHONY: swagger swagger-deps swagger-gen swagger-serve check-go-version setup clean-go-cache
+.PHONY: check-func-length create-func-issues solve-func-length
 
 # -----------------------------------------------------------------------------
 # Setup & Version Checks

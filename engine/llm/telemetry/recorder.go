@@ -69,8 +69,6 @@ func (r *recorder) StartRun(ctx context.Context, meta RunMetadata) (context.Cont
 	}
 	ctx = ContextWithRun(ctx, run)
 	ctx = ContextWithRecorder(ctx, r)
-
-	// Record run_started event immediately.
 	startEvt := Event{
 		Stage:     "run_started",
 		Severity:  SeverityInfo,
@@ -130,7 +128,6 @@ func (r *recorder) RecordTool(ctx context.Context, entry *ToolLogEntry) {
 	} else if entry.Error != "" {
 		payload["error"] = entry.Error
 	}
-
 	r.toolMu.Lock()
 	defer r.toolMu.Unlock()
 	if r.toolFile == nil {
@@ -160,7 +157,6 @@ func (r *recorder) CloseRun(_ context.Context, run *Run, result RunResult) error
 		return nil
 	}
 	defer run.close()
-
 	event := Event{
 		Severity:  SeverityInfo,
 		Timestamp: time.Now(),

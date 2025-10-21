@@ -75,7 +75,6 @@ func NewRedisLockManager(client RedisInterface) (*RedisLockManager, error) {
 	if client == nil {
 		return nil, fmt.Errorf("redis client cannot be nil")
 	}
-
 	return &RedisLockManager{
 		client:  client,
 		metrics: &LockMetrics{},
@@ -87,18 +86,14 @@ func (m *RedisLockManager) Acquire(ctx context.Context, resource string, ttl tim
 	if ctx == nil {
 		return nil, fmt.Errorf("nil context")
 	}
-
 	start := time.Now()
 	defer func() {
 		m.metrics.mu.Lock()
 		m.metrics.AcquisitionTime = time.Since(start)
 		m.metrics.mu.Unlock()
 	}()
-
 	lockKey := fmt.Sprintf("lock:%s", resource)
 	lockValue := generateLockValue()
-
-	// Try to acquire lock with NX option (set if not exists)
 	ok, err := m.client.SetNX(ctx, lockKey, lockValue, ttl).Result()
 	if err != nil {
 		m.metrics.mu.Lock()
@@ -106,18 +101,15 @@ func (m *RedisLockManager) Acquire(ctx context.Context, resource string, ttl tim
 		m.metrics.mu.Unlock()
 		return nil, fmt.Errorf("failed to acquire lock: %w", err)
 	}
-
 	if !ok {
 		m.metrics.mu.Lock()
 		m.metrics.AcquisitionsFailed++
 		m.metrics.mu.Unlock()
 		return nil, ErrLockNotAcquired
 	}
-
 	m.metrics.mu.Lock()
 	m.metrics.AcquisitionsTotal++
 	m.metrics.mu.Unlock()
-
 	lock := &redisLock{
 		ctx:      ctx,
 		manager:  m,
@@ -127,10 +119,7 @@ func (m *RedisLockManager) Acquire(ctx context.Context, resource string, ttl tim
 		stopChan: make(chan struct{}),
 		held:     true,
 	}
-
-	// Start auto-renewal goroutine
 	go lock.autoRenew()
-
 	return lock, nil
 }
 
@@ -138,8 +127,6 @@ func (m *RedisLockManager) Acquire(ctx context.Context, resource string, ttl tim
 func (m *RedisLockManager) GetMetrics() LockMetrics {
 	m.metrics.mu.RLock()
 	defer m.metrics.mu.RUnlock()
-
-	// Return a copy of the metrics without copying the mutex
 	return LockMetrics{
 		AcquisitionsTotal:  m.metrics.AcquisitionsTotal,
 		AcquisitionsFailed: m.metrics.AcquisitionsFailed,
@@ -161,8 +148,6 @@ func (l *redisLock) Release(ctx context.Context) error {
 	l.held = false
 	close(l.stopChan) // Stop auto-renewal
 	l.mu.Unlock()
-
-	// Use Lua script to ensure we only release our own lock
 	result, err := l.manager.client.Eval(ctx, releaseLockScript, []string{l.key}, l.value).Result()
 	if err != nil {
 		l.manager.metrics.mu.Lock()
@@ -170,16 +155,12 @@ func (l *redisLock) Release(ctx context.Context) error {
 		l.manager.metrics.mu.Unlock()
 		return fmt.Errorf("failed to release lock: %w", err)
 	}
-
 	l.manager.metrics.mu.Lock()
 	l.manager.metrics.ReleasesTotal++
 	l.manager.metrics.mu.Unlock()
-
-	// result = 1 means lock was successfully deleted, 0 means we didn't own it
 	if resultVal, ok := result.(int64); !ok || resultVal == 0 {
 		return ErrLockNotOwned
 	}
-
 	return nil
 }
 
@@ -194,8 +175,6 @@ func (l *redisLock) Refresh(ctx context.Context) error {
 	value := l.value
 	ttl := l.ttl
 	l.mu.RUnlock()
-
-	// Use Lua script to ensure we only refresh our own lock
 	result, err := l.manager.client.Eval(ctx, refreshLockScript, []string{key}, value, int64(ttl/time.Millisecond)).
 		Result()
 	if err != nil {
@@ -204,19 +183,15 @@ func (l *redisLock) Refresh(ctx context.Context) error {
 		l.manager.metrics.mu.Unlock()
 		return fmt.Errorf("failed to refresh lock: %w", err)
 	}
-
 	l.manager.metrics.mu.Lock()
 	l.manager.metrics.RefreshesTotal++
 	l.manager.metrics.mu.Unlock()
-
-	// result = 1 means lock was successfully refreshed, 0 means we didn't own it
 	if resultVal, ok := result.(int64); !ok || resultVal == 0 {
 		l.mu.Lock()
 		l.held = false
 		l.mu.Unlock()
 		return ErrLockNotOwned
 	}
-
 	return nil
 }
 
@@ -234,11 +209,9 @@ func (l *redisLock) IsHeld() bool {
 
 // autoRenew automatically refreshes the lock before it expires
 func (l *redisLock) autoRenew() {
-	// Refresh at 1/3 of TTL to ensure we don't lose the lock
 	refreshInterval := l.ttl / 3
 	ticker := time.NewTicker(refreshInterval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-l.stopChan:
@@ -266,7 +239,6 @@ func generateLockValue() string {
 	bytes := make([]byte, 16)
 	_, err := rand.Read(bytes)
 	if err != nil {
-		// Enhanced fallback with timestamp and PID to reduce collision risk
 		pid := os.Getpid()
 		timestamp := time.Now().UnixNano()
 		return fmt.Sprintf("lock_%d_%d", timestamp, pid)

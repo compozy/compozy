@@ -78,21 +78,34 @@ func WriteFileDefinition() builtin.BuiltinDefinition {
 func writeFileHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
 	start := time.Now()
 	var success bool
-	defer func() {
-		status := builtin.StatusFailure
-		if success {
-			status = builtin.StatusSuccess
-		}
-		builtin.RecordInvocation(
-			ctx,
-			"cp__write_file",
-			builtin.RequestIDFromContext(ctx),
-			status,
-			time.Since(start),
-			0,
-			"",
-		)
-	}()
+	defer recordWriteFileInvocation(ctx, start, &success)
+	output, err := performWriteFile(ctx, payload)
+	if err != nil {
+		return nil, err
+	}
+	success = true
+	return output, nil
+}
+
+// recordWriteFileInvocation tracks runtime metrics for cp__write_file usage
+func recordWriteFileInvocation(ctx context.Context, start time.Time, success *bool) {
+	status := builtin.StatusFailure
+	if success != nil && *success {
+		status = builtin.StatusSuccess
+	}
+	builtin.RecordInvocation(
+		ctx,
+		"cp__write_file",
+		builtin.RequestIDFromContext(ctx),
+		status,
+		time.Since(start),
+		0,
+		"",
+	)
+}
+
+// performWriteFile handles validation, disk writes, and logging
+func performWriteFile(ctx context.Context, payload map[string]any) (core.Output, error) {
 	cfg, err := loadToolConfig(ctx)
 	if err != nil {
 		return nil, err
@@ -119,11 +132,8 @@ func writeFileHandler(ctx context.Context, payload map[string]any) (core.Output,
 		return nil, err
 	}
 	defer closeWrittenFile(ctx, file, args.Path)
-	if int64(len(args.Content)) > cfg.Limits.MaxFileBytes {
-		return nil, builtin.InvalidArgument(
-			errors.New("content exceeds maximum size"),
-			map[string]any{"limit": cfg.Limits.MaxFileBytes},
-		)
+	if err := validateWriteSize(args.Content, cfg.Limits.MaxFileBytes); err != nil {
+		return nil, err
 	}
 	if err := writeContent(file, []byte(args.Content), cfg.Limits.MaxFileBytes); err != nil {
 		return nil, err
@@ -137,24 +147,34 @@ func writeFileHandler(ctx context.Context, payload map[string]any) (core.Output,
 	}
 	metadata := fileMetadata(stat)
 	metadata["path"] = relativePath(rootUsed, resolvedPath)
-	logger.FromContext(ctx).Info(
-		"Wrote file",
-		"tool_id",
-		"cp__write_file",
-		"request_id",
-		builtin.RequestIDFromContext(ctx),
-		"path",
-		metadata["path"],
-		"bytes",
-		len(args.Content),
-		"append",
-		args.Append,
-	)
-	success = true
+	logWriteFile(ctx, metadata["path"], len(args.Content), args.Append)
 	return core.Output{
 		"success":  true,
 		"metadata": metadata,
 	}, nil
+}
+
+// validateWriteSize ensures the request payload respects configured limits
+func validateWriteSize(content string, limit int64) error {
+	if int64(len(content)) > limit {
+		return builtin.InvalidArgument(
+			errors.New("content exceeds maximum size"),
+			map[string]any{"limit": limit},
+		)
+	}
+	return nil
+}
+
+// logWriteFile emits structured logs summarizing the write operation
+func logWriteFile(ctx context.Context, path any, bytes int, appendMode bool) {
+	logger.FromContext(ctx).Info(
+		"Wrote file",
+		"tool_id", "cp__write_file",
+		"request_id", builtin.RequestIDFromContext(ctx),
+		"path", path,
+		"bytes", bytes,
+		"append", appendMode,
+	)
 }
 
 func ensureDirectory(path string) error {

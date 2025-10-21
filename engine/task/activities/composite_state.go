@@ -77,39 +77,7 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 	if err != nil {
 		return nil, err
 	}
-
-	var createdState *task.State
-	if err := a.taskRepo.WithTransaction(ctx, func(repo task.Repository) error {
-		createStateUC := uc.NewCreateState(repo, a.configStore)
-		createChildTasksUC := uc.NewCreateChildTasksUC(repo, a.configStore, a.task2Factory, a.cwd)
-		state, err := createStateUC.Execute(ctx, &uc.CreateStateInput{
-			WorkflowState:  workflowState,
-			WorkflowConfig: workflowConfig,
-			TaskConfig:     input.TaskConfig,
-		})
-		if err != nil {
-			return err
-		}
-		a.addCompositeMetadata(state, normalizedConfig, len(childConfigs))
-		if err := repo.UpsertState(ctx, state); err != nil {
-			return fmt.Errorf("failed to update state with composite metadata: %w", err)
-		}
-		if err := a.storeCompositeArtifacts(ctx, state, normalizedConfig, childConfigs); err != nil {
-			return err
-		}
-		if err := createChildTasksUC.Execute(ctx, &uc.CreateChildTasksInput{
-			ParentStateID:  state.TaskExecID,
-			WorkflowExecID: input.WorkflowExecID,
-			WorkflowID:     input.WorkflowID,
-		}); err != nil {
-			return fmt.Errorf("failed to create child tasks: %w", err)
-		}
-		createdState = state
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	return createdState, nil
+	return a.createCompositeState(ctx, input, workflowState, workflowConfig, normalizedConfig, childConfigs)
 }
 
 func (a *CreateCompositeState) loadCompositeContext(
@@ -153,6 +121,44 @@ func (a *CreateCompositeState) normalizeCompositeConfig(
 	return normalizedConfig, childConfigs, nil
 }
 
+// createCompositeState manages transactionally creating the composite parent and its artifacts.
+func (a *CreateCompositeState) createCompositeState(
+	ctx context.Context,
+	input *CreateCompositeStateInput,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	normalizedConfig *task.Config,
+	childConfigs []*task.Config,
+) (*task.State, error) {
+	var createdState *task.State
+	if err := a.taskRepo.WithTransaction(ctx, func(repo task.Repository) error {
+		state, err := a.createCompositeParentState(ctx, repo, workflowState, workflowConfig, input.TaskConfig)
+		if err != nil {
+			return err
+		}
+		a.addCompositeMetadata(state, normalizedConfig, len(childConfigs))
+		if err := repo.UpsertState(ctx, state); err != nil {
+			return fmt.Errorf("failed to update state with composite metadata: %w", err)
+		}
+		if err := a.storeCompositeArtifacts(ctx, state, normalizedConfig, childConfigs); err != nil {
+			return err
+		}
+		createChildTasksUC := uc.NewCreateChildTasksUC(repo, a.configStore, a.task2Factory, a.cwd)
+		if err := createChildTasksUC.Execute(ctx, &uc.CreateChildTasksInput{
+			ParentStateID:  state.TaskExecID,
+			WorkflowExecID: input.WorkflowExecID,
+			WorkflowID:     input.WorkflowID,
+		}); err != nil {
+			return fmt.Errorf("failed to create child tasks: %w", err)
+		}
+		createdState = state
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return createdState, nil
+}
+
 func (a *CreateCompositeState) storeCompositeArtifacts(
 	ctx context.Context,
 	state *task.State,
@@ -172,7 +178,6 @@ func (a *CreateCompositeState) storeCompositeArtifacts(
 	if err := configRepo.StoreCompositeMetadata(ctx, state.TaskExecID, metadata); err != nil {
 		return fmt.Errorf("failed to store composite metadata: %w", err)
 	}
-	// Store full config so waitForPriorSiblings can determine sibling ordering
 	cfgCopy, err := core.DeepCopy(config)
 	if err != nil {
 		return fmt.Errorf("failed to clone composite config: %w", err)
@@ -181,6 +186,22 @@ func (a *CreateCompositeState) storeCompositeArtifacts(
 		return fmt.Errorf("failed to store composite config: %w", err)
 	}
 	return nil
+}
+
+// createCompositeParentState builds the composite parent state inside the transaction boundary.
+func (a *CreateCompositeState) createCompositeParentState(
+	ctx context.Context,
+	repo task.Repository,
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	taskConfig *task.Config,
+) (*task.State, error) {
+	createStateUC := uc.NewCreateState(repo, a.configStore)
+	return createStateUC.Execute(ctx, &uc.CreateStateInput{
+		WorkflowState:  workflowState,
+		WorkflowConfig: workflowConfig,
+		TaskConfig:     taskConfig,
+	})
 }
 
 func (a *CreateCompositeState) addCompositeMetadata(state *task.State, config *task.Config, childCount int) {

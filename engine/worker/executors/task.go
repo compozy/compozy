@@ -1,8 +1,10 @@
 package executors
 
 import (
+	"errors"
 	"fmt"
 
+	temporalLog "go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/compozy/compozy/engine/task"
@@ -32,8 +34,6 @@ func NewTaskExecutor(contextBuilder *ContextBuilder) *TaskExecutor {
 	e.signalExecutor = NewTaskSignalExecutor(contextBuilder)
 	e.waitExecutor = NewTaskWaitExecutor(contextBuilder, e.HandleExecution)
 	e.memoryExecutor = NewTaskMemoryExecutor(contextBuilder)
-
-	// Initialize container task executors
 	containerHelpers := NewContainerHelpers(contextBuilder, e.HandleExecution)
 	e.parallelExecutor = NewParallelTaskExecutor(containerHelpers)
 	e.collectionExecutor = NewCollectionTaskExecutor(containerHelpers)
@@ -45,7 +45,6 @@ func (e *TaskExecutor) ExecuteFirstTask() func(ctx workflow.Context) (task.Respo
 	return func(ctx workflow.Context) (task.Response, error) {
 		ctx = e.BuildTaskContext(ctx, e.InitialTaskID)
 
-		// Load task config via activity (deterministic)
 		var taskConfig *task.Config
 		actInput := &tkacts.LoadTaskConfigInput{
 			WorkflowConfig: e.WorkflowConfig,
@@ -73,21 +72,17 @@ func (e *TaskExecutor) ExecuteTasks(response task.Response) func(ctx workflow.Co
 		}
 		taskID := taskConfig.ID
 		ctx = e.BuildTaskContext(ctx, taskID)
-		// Sleep if needed
 		if err := e.sleepTask(ctx, taskConfig); err != nil {
 			return nil, err
 		}
-		// Execute task
 		taskResponse, err := e.HandleExecution(ctx, taskConfig, 0)
 		if err != nil {
 			return nil, err
 		}
-		// Dispatch next task if there is one
 		if taskResponse.GetNextTask() == nil {
 			log.Info("No more tasks to execute", "task_id", taskID)
 			return nil, nil
 		}
-		// Ensure NextTask has a valid ID
 		nextTaskID := taskResponse.GetNextTask().ID
 		if nextTaskID == "" {
 			log.Error("NextTask has empty ID", "current_task", taskID)
@@ -96,6 +91,8 @@ func (e *TaskExecutor) ExecuteTasks(response task.Response) func(ctx workflow.Co
 		return taskResponse, nil
 	}
 }
+
+var errUnsupportedTaskType = errors.New("unsupported execution type")
 
 // HandleExecution dispatches task execution to the appropriate executor based on task type
 func (e *TaskExecutor) HandleExecution(
@@ -110,50 +107,16 @@ func (e *TaskExecutor) HandleExecution(
 	if len(depth) > 0 {
 		currentDepth = depth[0]
 	}
-	var response task.Response
-	var err error
-
-	// Handle empty task type by defaulting to basic
 	if taskType == "" {
 		taskType = task.TaskTypeBasic
 	}
-
-	switch taskType {
-	case task.TaskTypeBasic:
-		response, err = e.basicExecutor.Execute(ctx, taskConfig)
-	case task.TaskTypeRouter:
-		response, err = e.routerExecutor.Execute(ctx, taskConfig)
-	case task.TaskTypeParallel:
-		response, err = e.parallelExecutor.Execute(ctx, taskConfig, currentDepth)
-	case task.TaskTypeCollection:
-		response, err = e.collectionExecutor.Execute(ctx, taskConfig, currentDepth)
-	case task.TaskTypeAggregate:
-		response, err = e.aggregateExecutor.Execute(ctx, taskConfig)
-	case task.TaskTypeComposite:
-		response, err = e.compositeExecutor.Execute(ctx, taskConfig, currentDepth)
-	case task.TaskTypeSignal:
-		response, err = e.signalExecutor.Execute(ctx, taskConfig)
-	case task.TaskTypeWait:
-		response, err = e.waitExecutor.Execute(ctx, taskConfig)
-	case task.TaskTypeMemory:
-		response, err = e.memoryExecutor.Execute(ctx, taskConfig)
-	default:
-		log.Error(
-			"Unsupported execution type encountered",
-			"task_type",
-			taskType,
-			"task_id",
-			taskID,
-			"type_length",
-			len(string(taskType)),
-		)
-		return nil, fmt.Errorf("unsupported execution type: %s", taskType)
-	}
+	response, err := e.executeByType(ctx, taskConfig, taskType, currentDepth, log)
 	if err != nil {
-		log.Error("Failed to execute task", "task_id", taskID, "depth", currentDepth, "error", err)
+		if !errors.Is(err, errUnsupportedTaskType) {
+			log.Error("Failed to execute task", "task_id", taskID, "depth", currentDepth, "error", err)
+		}
 		return nil, err
 	}
-	// Validate response and state before accessing
 	if response == nil {
 		log.Error("Nil response returned from task execution", "task_id", taskID)
 		return nil, fmt.Errorf("nil response returned for task %s", taskID)
@@ -169,6 +132,44 @@ func (e *TaskExecutor) HandleExecution(
 		"depth", currentDepth,
 	)
 	return response, nil
+}
+
+// executeByType delegates execution to the appropriate executor based on task type.
+func (e *TaskExecutor) executeByType(
+	ctx workflow.Context,
+	taskConfig *task.Config,
+	taskType task.Type,
+	depth int,
+	log temporalLog.Logger,
+) (task.Response, error) {
+	switch taskType {
+	case task.TaskTypeBasic:
+		return e.basicExecutor.Execute(ctx, taskConfig)
+	case task.TaskTypeRouter:
+		return e.routerExecutor.Execute(ctx, taskConfig)
+	case task.TaskTypeParallel:
+		return e.parallelExecutor.Execute(ctx, taskConfig, depth)
+	case task.TaskTypeCollection:
+		return e.collectionExecutor.Execute(ctx, taskConfig, depth)
+	case task.TaskTypeAggregate:
+		return e.aggregateExecutor.Execute(ctx, taskConfig)
+	case task.TaskTypeComposite:
+		return e.compositeExecutor.Execute(ctx, taskConfig, depth)
+	case task.TaskTypeSignal:
+		return e.signalExecutor.Execute(ctx, taskConfig)
+	case task.TaskTypeWait:
+		return e.waitExecutor.Execute(ctx, taskConfig)
+	case task.TaskTypeMemory:
+		return e.memoryExecutor.Execute(ctx, taskConfig)
+	default:
+		log.Error(
+			"Unsupported execution type encountered",
+			"task_type", taskType,
+			"task_id", taskConfig.ID,
+			"type_length", len(string(taskType)),
+		)
+		return nil, fmt.Errorf("%w: %s", errUnsupportedTaskType, taskType)
+	}
 }
 
 func (e *TaskExecutor) sleepTask(ctx workflow.Context, taskConfig *task.Config) error {

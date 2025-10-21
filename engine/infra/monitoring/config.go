@@ -94,11 +94,9 @@ func (c *Config) Validate(_ context.Context) error {
 	if c.Path[0] != '/' {
 		return fmt.Errorf("monitoring path must start with '/': got %s", c.Path)
 	}
-	// Validate path doesn't conflict with API routes
 	if strings.HasPrefix(c.Path, "/api/") {
 		return fmt.Errorf("monitoring path cannot be under /api/")
 	}
-	// Path should not contain query parameters
 	if strings.ContainsRune(c.Path, '?') {
 		return fmt.Errorf("monitoring path cannot contain query parameters")
 	}
@@ -115,18 +113,15 @@ func LoadWithEnv(ctx context.Context, yamlConfig *Config) (*Config, error) {
 			config.Path = yamlConfig.Path
 		}
 	}
-	// Environment variable takes precedence for Enabled flag
 	if envEnabled := os.Getenv("MONITORING_ENABLED"); envEnabled != "" {
 		enabled, err := strconv.ParseBool(envEnabled)
 		if err == nil {
 			config.Enabled = enabled
 		}
 	}
-	// Environment variable takes precedence for Path
 	if envPath := os.Getenv("MONITORING_PATH"); envPath != "" {
 		config.Path = strings.TrimSpace(envPath)
 	}
-	// Validate configuration before returning
 	if err := config.Validate(ctx); err != nil {
 		return nil, fmt.Errorf("invalid monitoring configuration: %w", err)
 	}

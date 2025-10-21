@@ -67,7 +67,6 @@ func (s *Schema) UnmarshalYAML(value *yaml.Node) error {
 		*s = Schema(m)
 		return nil
 	default:
-		// Treat other node kinds as empty schema
 		*s = Schema(map[string]any{})
 		return nil
 	}
@@ -126,7 +125,6 @@ func (s *Schema) compileCached(ctx context.Context) (*jsonschema.Schema, error) 
 	if s == nil {
 		return nil, nil
 	}
-
 	start := time.Now()
 	fingerprint := core.ETagFromAny(map[string]any(*s))
 	entryValue, _ := compiledSchemaCache.LoadOrStore(s, &schemaCacheEntry{})
@@ -134,24 +132,19 @@ func (s *Schema) compileCached(ctx context.Context) (*jsonschema.Schema, error) 
 	if !ok {
 		return nil, fmt.Errorf("unexpected schema cache entry type %T", entryValue)
 	}
-
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
-
 	if entry.compiled != nil && entry.fingerprint == fingerprint {
 		recordSchemaCompile(ctx, time.Since(start), true)
 		return entry.compiled, nil
 	}
-
 	compiled, err := s.compileFresh(ctx)
 	if err != nil {
 		compiledSchemaCache.Delete(s)
 		return nil, err
 	}
-
 	entry.compiled = compiled
 	entry.fingerprint = fingerprint
-
 	return entry.compiled, nil
 }
 
@@ -195,9 +188,7 @@ func (s *Schema) ApplyDefaults(input map[string]any) (map[string]any, error) {
 	if input == nil {
 		input = make(map[string]any)
 	}
-	// Extract defaults from schema properties
 	defaults := s.extractDefaults()
-	// Create result by merging defaults with input (input takes precedence)
 	result := core.CopyMaps(defaults, input)
 	return result, nil
 }
@@ -206,11 +197,9 @@ func (s *Schema) ApplyDefaults(input map[string]any) (map[string]any, error) {
 func (s *Schema) extractDefaults() map[string]any {
 	defaults := make(map[string]any)
 	schemaMap := map[string]any(*s)
-	// Check if this is an object schema with properties
 	if schemaType, exists := schemaMap["type"]; exists && schemaType == "object" {
 		if properties, exists := schemaMap["properties"]; exists {
 			var propsMap map[string]any
-			// Handle both map[string]any and schema.Schema types
 			switch v := properties.(type) {
 			case map[string]any:
 				propsMap = v
@@ -219,10 +208,8 @@ func (s *Schema) extractDefaults() map[string]any {
 			default:
 				return defaults
 			}
-			// Extract defaults from each property
 			for propName, propSchema := range propsMap {
 				var propMap map[string]any
-				// Handle both map[string]any and schema.Schema types for individual properties
 				switch v := propSchema.(type) {
 				case map[string]any:
 					propMap = v
@@ -231,14 +218,12 @@ func (s *Schema) extractDefaults() map[string]any {
 				default:
 					continue
 				}
-				// Check if this property has a default value
 				if defaultValue, hasDefault := propMap["default"]; hasDefault {
 					defaults[propName] = defaultValue
 				}
 			}
 		}
 	}
-
 	return defaults
 }
 

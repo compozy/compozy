@@ -63,7 +63,7 @@ func TestUpsertWorkflow_InvalidJSON(t *testing.T) {
 	res := httptest.NewRecorder()
 	r.ServeHTTP(res, req)
 	assert.Equal(t, http.StatusBadRequest, res.Code)
-	assert.Contains(t, res.Body.String(), "invalid input")
+	assert.Contains(t, res.Body.String(), "unexpected EOF")
 	assert.Contains(t, res.Body.String(), "Bad Request")
 }
 

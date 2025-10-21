@@ -23,27 +23,22 @@ type listParams struct {
 func ListJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 	log := logger.FromContext(ctx)
 	authClient := executor.GetAuthClient()
-
 	params, err := parseListParams(cobraCmd)
 	if err != nil {
 		return err
 	}
-
 	log.Debug("listing API keys in JSON mode",
 		"sort", params.sortBy,
 		"filter", params.filter,
 		"page", params.page,
 		"limit", params.limit)
-
 	keys, err := authClient.ListKeys(ctx)
 	if err != nil {
 		return outputJSONError(fmt.Sprintf("failed to list API keys: %v", err))
 	}
-
 	keys = applyFiltering(keys, params.filter)
 	keys = applySorting(keys, params.sortBy)
 	keys, totalKeys := applyPagination(keys, params.page, params.limit)
-
 	response := buildResponse(keys, totalKeys, params)
 	return outputJSONResponse(response)
 }

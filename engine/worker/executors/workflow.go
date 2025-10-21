@@ -46,7 +46,7 @@ func (e *WorkflowExecutor) CompleteWorkflow() func(ctx workflow.Context) (*wf.St
 	return func(ctx workflow.Context) (*wf.State, error) {
 		log := workflow.GetLogger(ctx)
 
-		// Configure specific activity options for CompleteWorkflow to handle race conditions
+		// NOTE: Tighten retries and timeouts so completion updates win races with late child updates.
 		activityOptions := workflow.ActivityOptions{
 			StartToCloseTimeout: 2 * time.Minute,
 			HeartbeatTimeout:    10 * time.Second,
@@ -58,7 +58,6 @@ func (e *WorkflowExecutor) CompleteWorkflow() func(ctx workflow.Context) (*wf.St
 			},
 		}
 
-		// Override the context with specific options for CompleteWorkflow
 		ctx = workflow.WithActivityOptions(ctx, activityOptions)
 
 		actLabel := wfacts.CompleteWorkflowLabel

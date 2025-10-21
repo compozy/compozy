@@ -38,11 +38,8 @@ func (o *ConfigOrchestrator) NormalizeTask(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) error {
-	// Build task configs map
 	allTaskConfigsMap := BuildTaskConfigsMap(workflowConfig.Tasks)
-	// Build template variables and create normalization context
 	normCtx := o.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-	// Set additional fields
 	normCtx.TaskConfigs = allTaskConfigsMap
 	normCtx.ParentConfig = map[string]any{
 		"id":     workflowState.WorkflowID,
@@ -51,19 +48,16 @@ func (o *ConfigOrchestrator) NormalizeTask(
 	}
 	normCtx.CurrentInput = taskConfig.With // Set the task's With field as current input
 	normCtx.MergedEnv = taskConfig.Env     // Assume env is already merged at this point
-	// Add current input to variables for template processing
 	if taskConfig.With != nil {
 		if normCtx.Variables == nil {
 			normCtx.Variables = make(map[string]any)
 		}
 		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, taskConfig.With)
 	}
-	// Get task normalizer
 	normalizer, err := o.factory.CreateNormalizer(ctx, taskConfig.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create normalizer for task %s: %w", taskConfig.ID, err)
 	}
-	// Normalize the task
 	if err := normalizer.Normalize(ctx, taskConfig, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize task config for %s: %w", taskConfig.ID, err)
 	}
@@ -79,51 +73,19 @@ func (o *ConfigOrchestrator) NormalizeAgentComponent(
 	agentConfig *agent.Config,
 	allTaskConfigs map[string]*task.Config,
 ) error {
-	// Build complete parent context with all task config properties
-	parentConfig, err := core.AsMapDefault(taskConfig)
+	parentConfig, err := o.buildParentComponentConfig(workflowState, taskConfig)
 	if err != nil {
-		return fmt.Errorf("failed to convert task config to map: %w", err)
+		return err
 	}
-	// Add runtime state if available
-	if workflowState.Tasks != nil {
-		if taskState, exists := workflowState.Tasks[taskConfig.ID]; exists {
-			parentConfig["input"] = taskState.Input
-			parentConfig["output"] = taskState.Output
-		}
+	if err := o.mergeAgentInput(taskConfig, agentConfig); err != nil {
+		return err
 	}
-	// Merge input from task and agent
-	mergedInput, err := taskConfig.GetInput().Merge(agentConfig.GetInput())
-	if err != nil {
-		return fmt.Errorf("failed to merge input for agent %s in task %s: %w", agentConfig.ID, taskConfig.ID, err)
-	}
-	agentConfig.With = mergedInput
-	// Build template variables and create normalization context
 	normCtx := o.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-	// Set additional fields
-	normCtx.TaskConfigs = allTaskConfigs
-	normCtx.ParentConfig = parentConfig
-	normCtx.CurrentInput = agentConfig.With
-	normCtx.MergedEnv = agentConfig.Env // Assume env is already merged
-	// Ensure the newly set CurrentInput is reflected in template variables
-	if agentConfig.With != nil {
-		if normCtx.Variables == nil {
-			normCtx.Variables = make(map[string]any)
-		}
-		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, agentConfig.With)
-	}
-	// Add parent context to variables for template processing
-	if normCtx.Variables == nil {
-		normCtx.Variables = make(map[string]any)
-	}
-	normCtx.Variables["parent"] = parentConfig
-	// Get agent normalizer
+	o.prepareComponentContext(normCtx, allTaskConfigs, parentConfig, agentConfig.With, agentConfig.Env)
 	agentNormalizer := o.factory.CreateAgentNormalizer()
-	// Normalize the agent
 	if err := agentNormalizer.NormalizeAgent(agentConfig, normCtx, taskConfig.Action); err != nil {
 		return fmt.Errorf("failed to normalize agent config for %s: %w", agentConfig.ID, err)
 	}
-	// Process memory configuration for agents loaded via references
-	// This ensures memory references are created during normalization phase
 	if err := agentConfig.NormalizeAndValidateMemoryConfig(); err != nil {
 		return fmt.Errorf("failed to process memory config for agent %s: %w", agentConfig.ID, err)
 	}
@@ -139,50 +101,84 @@ func (o *ConfigOrchestrator) NormalizeToolComponent(
 	toolConfig *tool.Config,
 	allTaskConfigs map[string]*task.Config,
 ) error {
-	// Build parent context
+	parentConfig, err := o.buildParentComponentConfig(workflowState, taskConfig)
+	if err != nil {
+		return err
+	}
+	if err := o.mergeToolInput(taskConfig, toolConfig); err != nil {
+		return err
+	}
+	normCtx := o.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
+	o.prepareComponentContext(normCtx, allTaskConfigs, parentConfig, toolConfig.With, toolConfig.Env)
+	toolNormalizer := o.factory.CreateToolNormalizer()
+	if err := toolNormalizer.NormalizeTool(toolConfig, normCtx); err != nil {
+		return fmt.Errorf("failed to normalize tool config for %s: %w", toolConfig.ID, err)
+	}
+	return nil
+}
+
+// buildParentComponentConfig assembles parent configuration data with runtime state.
+func (o *ConfigOrchestrator) buildParentComponentConfig(
+	workflowState *workflow.State,
+	taskConfig *task.Config,
+) (map[string]any, error) {
 	parentConfig, err := core.AsMapDefault(taskConfig)
 	if err != nil {
-		return fmt.Errorf("failed to convert task config to map: %w", err)
+		return nil, fmt.Errorf("failed to convert task config to map: %w", err)
 	}
-	// Add runtime state if available
 	if workflowState.Tasks != nil {
 		if taskState, exists := workflowState.Tasks[taskConfig.ID]; exists {
 			parentConfig["input"] = taskState.Input
 			parentConfig["output"] = taskState.Output
 		}
 	}
-	// Merge input from task and tool
+	return parentConfig, nil
+}
+
+// mergeAgentInput merges task and agent inputs before normalization.
+func (o *ConfigOrchestrator) mergeAgentInput(taskConfig *task.Config, agentConfig *agent.Config) error {
+	mergedInput, err := taskConfig.GetInput().Merge(agentConfig.GetInput())
+	if err != nil {
+		return fmt.Errorf("failed to merge input for agent %s in task %s: %w", agentConfig.ID, taskConfig.ID, err)
+	}
+	agentConfig.With = mergedInput
+	return nil
+}
+
+// mergeToolInput merges task and tool inputs before normalization.
+func (o *ConfigOrchestrator) mergeToolInput(taskConfig *task.Config, toolConfig *tool.Config) error {
 	mergedInput, err := taskConfig.GetInput().Merge(toolConfig.GetInput())
 	if err != nil {
 		return fmt.Errorf("failed to merge input for tool %s in task %s: %w", toolConfig.ID, taskConfig.ID, err)
 	}
 	toolConfig.With = mergedInput
-	// Build template variables and create normalization context
-	normCtx := o.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-	// Set additional fields
+	return nil
+}
+
+// prepareComponentContext configures normalization context with shared component data.
+func (o *ConfigOrchestrator) prepareComponentContext(
+	normCtx *shared.NormalizationContext,
+	allTaskConfigs map[string]*task.Config,
+	parentConfig map[string]any,
+	componentInput *core.Input,
+	componentEnv *core.EnvMap,
+) {
 	normCtx.TaskConfigs = allTaskConfigs
 	normCtx.ParentConfig = parentConfig
-	normCtx.CurrentInput = toolConfig.With
-	normCtx.MergedEnv = toolConfig.Env // Assume env is already merged
-	// Ensure the newly set CurrentInput is reflected in template variables
-	if toolConfig.With != nil {
-		if normCtx.Variables == nil {
-			normCtx.Variables = make(map[string]any)
-		}
-		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, toolConfig.With)
+	normCtx.CurrentInput = componentInput
+	normCtx.MergedEnv = componentEnv
+	o.ensureContextVariables(normCtx)
+	if componentInput != nil {
+		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, componentInput)
 	}
-	// Add parent context to variables for template processing
+	normCtx.Variables["parent"] = parentConfig
+}
+
+// ensureContextVariables initializes the variables map when absent.
+func (o *ConfigOrchestrator) ensureContextVariables(normCtx *shared.NormalizationContext) {
 	if normCtx.Variables == nil {
 		normCtx.Variables = make(map[string]any)
 	}
-	normCtx.Variables["parent"] = parentConfig
-	// Get tool normalizer
-	toolNormalizer := o.factory.CreateToolNormalizer()
-	// Normalize the tool
-	if err := toolNormalizer.NormalizeTool(toolConfig, normCtx); err != nil {
-		return fmt.Errorf("failed to normalize tool config for %s: %w", toolConfig.ID, err)
-	}
-	return nil
 }
 
 // NormalizeSuccessTransition normalizes a success transition configuration
@@ -197,31 +193,24 @@ func (o *ConfigOrchestrator) NormalizeSuccessTransition(
 	if transition == nil {
 		return nil
 	}
-	// Build complete parent context with all workflow config properties
 	parentConfig, err := core.AsMapDefault(workflowConfig)
 	if err != nil {
 		return fmt.Errorf("failed to convert workflow config to map: %w", err)
 	}
-	// Add workflow runtime state
 	parentConfig["input"] = workflowState.Input
 	parentConfig["output"] = workflowState.Output
-	// Build template variables and create normalization context
 	normCtx := o.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, nil)
-	// Set additional fields
 	normCtx.TaskConfigs = allTaskConfigs
 	normCtx.ParentConfig = parentConfig
 	normCtx.CurrentInput = transition.With
 	normCtx.MergedEnv = mergedEnv
-	// Ensure the newly set CurrentInput is reflected in template variables
 	if transition.With != nil {
 		if normCtx.Variables == nil {
 			normCtx.Variables = make(map[string]any)
 		}
 		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, transition.With)
 	}
-	// Get transition normalizer
 	transitionNormalizer := o.factory.CreateSuccessTransitionNormalizer()
-	// Normalize the transition
 	if err := transitionNormalizer.Normalize(transition, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize success transition: %w", err)
 	}
@@ -240,31 +229,24 @@ func (o *ConfigOrchestrator) NormalizeErrorTransition(
 	if transition == nil {
 		return nil
 	}
-	// Build complete parent context with all workflow config properties
 	parentConfig, err := core.AsMapDefault(workflowConfig)
 	if err != nil {
 		return fmt.Errorf("failed to convert workflow config to map: %w", err)
 	}
-	// Add workflow runtime state
 	parentConfig["input"] = workflowState.Input
 	parentConfig["output"] = workflowState.Output
-	// Build template variables and create normalization context
 	normCtx := o.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, nil)
-	// Set additional fields
 	normCtx.TaskConfigs = allTaskConfigs
 	normCtx.ParentConfig = parentConfig
 	normCtx.CurrentInput = transition.With
 	normCtx.MergedEnv = mergedEnv
-	// Ensure the newly set CurrentInput is reflected in template variables
 	if transition.With != nil {
 		if normCtx.Variables == nil {
 			normCtx.Variables = make(map[string]any)
 		}
 		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, transition.With)
 	}
-	// Get transition normalizer
 	transitionNormalizer := o.factory.CreateErrorTransitionNormalizer()
-	// Normalize the transition
 	if err := transitionNormalizer.Normalize(transition, normCtx); err != nil {
 		return fmt.Errorf("failed to normalize error transition: %w", err)
 	}
@@ -283,24 +265,18 @@ func (o *ConfigOrchestrator) NormalizeTaskOutput(
 	if outputsConfig == nil || taskOutput == nil {
 		return taskOutput, nil
 	}
-	// Build task configs map
 	taskConfigs := BuildTaskConfigsMap(workflowConfig.Tasks)
-	// Build transformation context with proper Variables
 	normCtx := o.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-	// Set additional fields
 	normCtx.TaskConfigs = taskConfigs
 	normCtx.CurrentInput = taskConfig.With
 	normCtx.MergedEnv = taskConfig.Env
-	// Make CurrentInput available to templates
 	if taskConfig.With != nil {
 		if normCtx.Variables == nil {
 			normCtx.Variables = make(map[string]any)
 		}
 		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, taskConfig.With)
 	}
-	// Get output transformer
 	transformer := o.factory.CreateOutputTransformer()
-	// Transform the output
 	return transformer.TransformOutput(ctx, taskOutput, outputsConfig, normCtx, taskConfig)
 }
 
@@ -312,11 +288,8 @@ func (o *ConfigOrchestrator) NormalizeTaskWithSignal(
 	workflowConfig *workflow.Config,
 	signal any,
 ) error {
-	// Build task configs map
 	allTaskConfigsMap := BuildTaskConfigsMap(workflowConfig.Tasks)
-	// Create normalization context with proper Variables
 	normCtx := o.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, config)
-	// Set additional fields
 	normCtx.TaskConfigs = allTaskConfigsMap
 	normCtx.ParentConfig = map[string]any{
 		"id":     workflowState.WorkflowID,
@@ -324,18 +297,15 @@ func (o *ConfigOrchestrator) NormalizeTaskWithSignal(
 		"output": workflowState.Output,
 	}
 	normCtx.MergedEnv = config.Env
-	// Get wait task normalizer - it handles signal normalization for both wait tasks and their processors
 	// Note: Wait task processors can be any task type (usually basic) but still need signal context
 	normalizer, err := o.factory.CreateNormalizer(ctx, task.TaskTypeWait)
 	if err != nil {
 		return fmt.Errorf("failed to create wait normalizer: %w", err)
 	}
-	// Type assert to wait normalizer to access signal method
 	waitNormalizer, ok := normalizer.(*wait.Normalizer)
 	if !ok {
 		return fmt.Errorf("normalizer is not a wait normalizer")
 	}
-	// Normalize with signal
 	return waitNormalizer.NormalizeWithSignal(ctx, config, normCtx, signal)
 }
 

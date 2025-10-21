@@ -84,8 +84,6 @@ func (s StatusBarComponent) View() string {
 	left := s.Left
 	center := s.Center
 	right := s.Right
-
-	// Add loading indicator if loading
 	if s.Loading {
 		spinner := s.getSpinner()
 		if left != "" {
@@ -94,8 +92,6 @@ func (s StatusBarComponent) View() string {
 			left = spinner
 		}
 	}
-
-	// Add progress if set
 	if s.Progress > 0 {
 		progressBar := s.renderProgress()
 		if center != "" {
@@ -104,12 +100,9 @@ func (s StatusBarComponent) View() string {
 			center = progressBar
 		}
 	}
-
-	// Add timestamp to right if empty
 	if right == "" {
 		right = time.Now().Format("15:04:05")
 	}
-
 	return styles.RenderStatusBar(s.Width, left, center, right)
 }
 
@@ -128,17 +121,14 @@ func (s StatusBarComponent) renderProgress() string {
 	if s.Progress > 1.0 {
 		s.Progress = 1.0
 	}
-
 	width := 20
 	filled := min(int(s.Progress*float64(width)), width)
-
 	filledBar := strings.Repeat("█", filled)
 	emptyBar := strings.Repeat("░", width-filled)
 	progress := fmt.Sprintf("[%s%s] %d%%",
 		styles.ActivePageStyle.Render(filledBar),
 		emptyBar,
 		int(s.Progress*100))
-
 	return progress
 }
 

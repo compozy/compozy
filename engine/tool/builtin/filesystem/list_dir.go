@@ -102,21 +102,34 @@ func ListDirDefinition() builtin.BuiltinDefinition {
 func listDirHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
 	start := time.Now()
 	var success bool
-	defer func() {
-		status := builtin.StatusFailure
-		if success {
-			status = builtin.StatusSuccess
-		}
-		builtin.RecordInvocation(
-			ctx,
-			"cp__list_dir",
-			builtin.RequestIDFromContext(ctx),
-			status,
-			time.Since(start),
-			0,
-			"",
-		)
-	}()
+	defer recordListDirInvocation(ctx, start, &success)
+	output, err := performListDir(ctx, payload)
+	if err != nil {
+		return nil, err
+	}
+	success = true
+	return output, nil
+}
+
+// recordListDirInvocation records runtime metrics for cp__list_dir usage
+func recordListDirInvocation(ctx context.Context, start time.Time, success *bool) {
+	status := builtin.StatusFailure
+	if success != nil && *success {
+		status = builtin.StatusSuccess
+	}
+	builtin.RecordInvocation(
+		ctx,
+		"cp__list_dir",
+		builtin.RequestIDFromContext(ctx),
+		status,
+		time.Since(start),
+		0,
+		"",
+	)
+}
+
+// performListDir orchestrates argument parsing, validation, traversal, and logging
+func performListDir(ctx context.Context, payload map[string]any) (core.Output, error) {
 	cfg, err := loadToolConfig(ctx)
 	if err != nil {
 		return nil, err
@@ -125,37 +138,17 @@ func listDirHandler(ctx context.Context, payload map[string]any) (core.Output, e
 	if err != nil {
 		return nil, builtin.InvalidArgument(err, nil)
 	}
-	resolvedPath, rootUsed, err := resolvePath(cfg, args.Path)
+	resolvedPath, rootUsed, err := resolveListDirTarget(cfg, &args)
 	if err != nil {
 		return nil, err
-	}
-	info, err := os.Lstat(resolvedPath)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, builtin.FileNotFound(err, map[string]any{"path": args.Path})
-		}
-		return nil, builtin.Internal(fmt.Errorf("failed to stat directory: %w", err), map[string]any{"path": args.Path})
-	}
-	if !info.IsDir() {
-		return nil, builtin.InvalidArgument(errors.New("path is not a directory"), map[string]any{"path": args.Path})
 	}
 	pagination, err := newPagination(args.PageToken, args.PageSize, cfg.Limits.MaxListEntries)
 	if err != nil {
 		return nil, err
 	}
-	includeFiles := true
-	if args.IncludeFiles != nil {
-		includeFiles = *args.IncludeFiles
-	}
-	includeDirs := true
-	if args.IncludeDirs != nil {
-		includeDirs = *args.IncludeDirs
-	}
-	if !includeFiles && !includeDirs {
-		return nil, builtin.InvalidArgument(
-			errors.New("at least one of include_files or include_dirs must be true"),
-			nil,
-		)
+	includeFiles, includeDirs, err := determineListDirInclusions(&args)
+	if err != nil {
+		return nil, err
 	}
 	entries, nextToken, err := traverseDirectory(
 		ctx,
@@ -175,8 +168,51 @@ func listDirHandler(ctx context.Context, payload map[string]any) (core.Output, e
 		output["next_page_token"] = nextToken
 	}
 	logListDir(ctx, relativePath(rootUsed, resolvedPath), len(entries), nextToken != "")
-	success = true
 	return output, nil
+}
+
+// resolveListDirTarget ensures the requested path exists and is a directory
+func resolveListDirTarget(cfg toolConfig, args *ListDirArgs) (string, string, error) {
+	resolvedPath, rootUsed, err := resolvePath(cfg, args.Path)
+	if err != nil {
+		return "", "", err
+	}
+	info, err := os.Lstat(resolvedPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", "", builtin.FileNotFound(err, map[string]any{"path": args.Path})
+		}
+		return "", "", builtin.Internal(
+			fmt.Errorf("failed to stat directory: %w", err),
+			map[string]any{"path": args.Path},
+		)
+	}
+	if !info.IsDir() {
+		return "", "", builtin.InvalidArgument(
+			errors.New("path is not a directory"),
+			map[string]any{"path": args.Path},
+		)
+	}
+	return resolvedPath, rootUsed, nil
+}
+
+// determineListDirInclusions computes inclusion flags and validates user input
+func determineListDirInclusions(args *ListDirArgs) (bool, bool, error) {
+	includeFiles := true
+	if args.IncludeFiles != nil {
+		includeFiles = *args.IncludeFiles
+	}
+	includeDirs := true
+	if args.IncludeDirs != nil {
+		includeDirs = *args.IncludeDirs
+	}
+	if !includeFiles && !includeDirs {
+		return false, false, builtin.InvalidArgument(
+			errors.New("at least one of include_files or include_dirs must be true"),
+			nil,
+		)
+	}
+	return includeFiles, includeDirs, nil
 }
 
 func logListDir(ctx context.Context, path string, count int, hasNext bool) {

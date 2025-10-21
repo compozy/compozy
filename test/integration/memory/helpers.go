@@ -47,42 +47,32 @@ func NewTestEnvironment(t *testing.T) *TestEnvironment {
 		logger:  log,
 		cleanup: []func(){},
 	}
-	// Setup Redis
 	env.setupRedis(t)
-	// Setup Temporal (using test suite for now)
+	// NOTE: Wire a minimal Temporal mock to satisfy manager dependencies during tests.
 	env.setupTemporal(t)
-	// Setup registries
 	env.setupRegistries(t)
-	// Setup template engine
 	env.setupTemplateEngine(t)
-	// Setup memory manager
 	env.setupMemoryManager(t)
 	return env
 }
 
 func (env *TestEnvironment) setupRedis(t *testing.T) {
 	t.Helper()
-	// Create miniredis instance
 	mr, err := miniredis.Run()
 	require.NoError(t, err, "Failed to start miniredis")
 	env.miniredis = mr
-	// Create Redis client connected to miniredis
 	env.redis = redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 		DB:   0,
 	})
-	// Test connection
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	err = env.redis.Ping(ctx).Err()
 	require.NoError(t, err, "Failed to connect to miniredis")
-	// Redis client already implements RedisInterface
 	env.redisClient = env.redis
-	// Create lock manager
 	lockManager, err := cache.NewRedisLockManager(env.redisClient)
 	require.NoError(t, err)
 	env.lockManager = lockManager
-	// Cleanup function
 	env.cleanup = append(env.cleanup, func() {
 		_ = env.redis.Close()
 		env.miniredis.Close()
@@ -91,23 +81,15 @@ func (env *TestEnvironment) setupRedis(t *testing.T) {
 
 func (env *TestEnvironment) setupTemporal(t *testing.T) {
 	t.Helper()
-	// For memory integration tests, we create a minimal mock client
-	// Since most memory operations don't actually use Temporal workflows,
-	// this provides just enough to satisfy the interface requirement
 	mockClient := &mocks.Client{}
 	env.temporalClient = mockClient
-
-	// Add cleanup
 	env.cleanup = append(env.cleanup, func() {
-		// No cleanup needed for mock client
 	})
 }
 
 func (env *TestEnvironment) setupRegistries(t *testing.T) {
 	t.Helper()
-	// Create test registries
 	env.configRegistry = autoload.NewConfigRegistry()
-	// Add test memory configurations
 	env.addTestMemoryConfigs()
 }
 
@@ -118,9 +100,7 @@ func (env *TestEnvironment) setupTemplateEngine(t *testing.T) {
 
 func (env *TestEnvironment) setupMemoryManager(t *testing.T) {
 	t.Helper()
-	// Create privacy manager
 	privacyManager := privacy.NewManager()
-	// Create memory manager options with test project ID fallback
 	opts := &memory.ManagerOptions{
 		ResourceRegistry:  env.configRegistry,
 		TplEngine:         env.tplEngine,
@@ -131,7 +111,6 @@ func (env *TestEnvironment) setupMemoryManager(t *testing.T) {
 		PrivacyManager:    privacyManager,
 		FallbackProjectID: "basic-memory", // Use the same project ID as the examples
 	}
-	// Create memory manager
 	var err error
 	env.memoryManager, err = memory.NewManager(opts)
 	require.NoError(t, err)
@@ -174,80 +153,76 @@ func (env *TestEnvironment) RegisterMemoryConfig(ctx context.Context, config *me
 
 // addTestMemoryConfigs adds test-specific memory configurations
 func (env *TestEnvironment) addTestMemoryConfigs() {
-	// Register test memory resources
-	testConfigs := []struct {
-		config *memory.Config
-	}{
-		{
-			config: &memory.Config{
-				Resource:    "memory",
-				ID:          "customer-support",
-				Type:        memcore.TokenBasedMemory,
-				Description: "Customer support session memory",
-				MaxTokens:   4000,
-				MaxMessages: 100,
-				Persistence: memcore.PersistenceConfig{
-					Type: memcore.RedisPersistence,
-					TTL:  "24h",
-				},
-				Flushing: &memcore.FlushingStrategyConfig{
-					Type:               memcore.SimpleFIFOFlushing,
-					SummarizeThreshold: 0.8,
-				},
-			},
-		},
-		{
-			config: &memory.Config{
-				Resource:    "memory",
-				ID:          "shared-memory",
-				Type:        memcore.MessageCountBasedMemory,
-				Description: "Shared knowledge base memory",
-				MaxTokens:   8000,
-				MaxMessages: 500,
-				Persistence: memcore.PersistenceConfig{
-					Type: memcore.RedisPersistence,
-					TTL:  "0", // No expiration
-				},
-				Locking: &memcore.LockConfig{
-					AppendTTL: "30s",
-					ClearTTL:  "60s",
-					FlushTTL:  "120s",
-				},
-			},
-		},
-		{
-			config: &memory.Config{
-				Resource:    "memory",
-				ID:          "flushable-memory",
-				Type:        memcore.TokenBasedMemory,
-				Description: "Memory with aggressive flushing",
-				MaxTokens:   2000,
-				MaxMessages: 50,
-				Persistence: memcore.PersistenceConfig{
-					Type: memcore.RedisPersistence,
-					TTL:  "1h",
-				},
-				Flushing: &memcore.FlushingStrategyConfig{
-					Type:               memcore.SimpleFIFOFlushing,
-					SummarizeThreshold: 0.5, // Aggressive flushing at 50%
-				},
-				Locking: &memcore.LockConfig{
-					AppendTTL: "30s",
-					ClearTTL:  "60s",
-					FlushTTL:  "120s",
-				},
-			},
+	configs := []*memory.Config{
+		newCustomerSupportMemoryConfig(),
+		newSharedMemoryConfig(),
+		newFlushableMemoryConfig(),
+	}
+	for _, cfg := range configs {
+		env.mustRegisterTestConfig(cfg)
+	}
+}
+
+func newCustomerSupportMemoryConfig() *memory.Config {
+	return &memory.Config{
+		Resource:    "memory",
+		ID:          "customer-support",
+		Type:        memcore.TokenBasedMemory,
+		Description: "Customer support session memory",
+		MaxTokens:   4000,
+		MaxMessages: 100,
+		Persistence: memcore.PersistenceConfig{Type: memcore.RedisPersistence, TTL: "24h"},
+		Flushing: &memcore.FlushingStrategyConfig{
+			Type:               memcore.SimpleFIFOFlushing,
+			SummarizeThreshold: 0.8,
 		},
 	}
-	for _, tc := range testConfigs {
-		// Validate config to set ParsedTTL
-		if err := tc.config.Validate(env.ctx); err != nil {
-			panic(fmt.Sprintf("Failed to validate test config %s: %v", tc.config.ID, err))
-		}
-		err := env.configRegistry.Register(tc.config, "test")
-		if err != nil {
-			panic(fmt.Sprintf("Failed to register test config: %v", err))
-		}
+}
+
+func newSharedMemoryConfig() *memory.Config {
+	return &memory.Config{
+		Resource:    "memory",
+		ID:          "shared-memory",
+		Type:        memcore.MessageCountBasedMemory,
+		Description: "Shared knowledge base memory",
+		MaxTokens:   8000,
+		MaxMessages: 500,
+		Persistence: memcore.PersistenceConfig{Type: memcore.RedisPersistence, TTL: "0"},
+		Locking: &memcore.LockConfig{
+			AppendTTL: "30s",
+			ClearTTL:  "60s",
+			FlushTTL:  "120s",
+		},
+	}
+}
+
+func newFlushableMemoryConfig() *memory.Config {
+	return &memory.Config{
+		Resource:    "memory",
+		ID:          "flushable-memory",
+		Type:        memcore.TokenBasedMemory,
+		Description: "Memory with aggressive flushing",
+		MaxTokens:   2000,
+		MaxMessages: 50,
+		Persistence: memcore.PersistenceConfig{Type: memcore.RedisPersistence, TTL: "1h"},
+		Flushing: &memcore.FlushingStrategyConfig{
+			Type:               memcore.SimpleFIFOFlushing,
+			SummarizeThreshold: 0.5,
+		},
+		Locking: &memcore.LockConfig{
+			AppendTTL: "30s",
+			ClearTTL:  "60s",
+			FlushTTL:  "120s",
+		},
+	}
+}
+
+func (env *TestEnvironment) mustRegisterTestConfig(cfg *memory.Config) {
+	if err := cfg.Validate(env.ctx); err != nil {
+		panic(fmt.Sprintf("Failed to validate test config %s: %v", cfg.ID, err))
+	}
+	if err := env.configRegistry.Register(cfg, "test"); err != nil {
+		panic(fmt.Sprintf("Failed to register test config %s: %v", cfg.ID, err))
 	}
 }
 

@@ -143,7 +143,6 @@ func (s *Server) buildRouter(state *appstate.State) error {
 
 func (s *Server) logStartupBanner() {
 	log := logger.FromContext(s.ctx)
-	// Prefer values from runtime config context, fallback to serverConfig
 	cfg := config.FromContext(s.ctx)
 	host := s.serverConfig.Host
 	port := s.serverConfig.Port
@@ -157,7 +156,7 @@ func (s *Server) logStartupBanner() {
 	docsURL := fmt.Sprintf("%s/swagger/index.html", httpURL)
 	openapiJSON := fmt.Sprintf("%s/openapi.json", httpURL)
 	hooksURL := fmt.Sprintf("%s%s", httpURL, routes.Hooks())
-	mcp := s.mcpBaseURL
+	mcp := s.mcpBaseURLValue()
 	temporalHP := ""
 	if cfg := config.FromContext(s.ctx); cfg != nil {
 		temporalHP = cfg.Temporal.HostPort

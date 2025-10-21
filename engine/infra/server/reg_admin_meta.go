@@ -139,7 +139,6 @@ func adminListMetaChanges(c *gin.Context) {
 		}
 		return ti.After(tj)
 	})
-	// apply pagination window
 	if offset < 0 {
 		offset = 0
 	}

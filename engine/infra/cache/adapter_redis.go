@@ -206,7 +206,6 @@ type redisKeysIter struct {
 }
 
 func (a *RedisAdapter) Keys(_ context.Context, pattern string) (KeyIterator, error) {
-	// Iterator uses the provided context in Next() calls for cancellation.
 	return &redisKeysIter{client: a.client, pattern: pattern, cursor: 0, done: false, count: a.scanCount}, nil
 }
 
@@ -214,7 +213,6 @@ func (it *redisKeysIter) Next(ctx context.Context) ([]string, bool, error) {
 	if it.done {
 		return nil, true, nil
 	}
-	// Use SCAN for incremental, non-blocking iteration
 	cmd := it.client.Scan(ctx, it.cursor, it.pattern, int64(it.count))
 	keys, next, err := cmd.Result()
 	if err != nil {
@@ -297,7 +295,6 @@ func (a *RedisAdapter) AppendAndTrimWithMetadata(
 		args = append(args, m)
 	}
 	args = append(args, maxLen, tokenDelta, ttl.Milliseconds())
-
 	res, err := a.client.Eval(ctx, luaAppendTrimMeta, keys, args...).Result()
 	if err != nil {
 		logger.FromContext(ctx).With(

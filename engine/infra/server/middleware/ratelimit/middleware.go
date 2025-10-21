@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/auth"
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -42,17 +44,12 @@ func NewManager(config *Config, redisClient *redis.Client) (*Manager, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}
-
-	// Create Redis store with options
 	storeOptions := limiter.StoreOptions{
 		Prefix:   config.Prefix,
 		MaxRetry: config.MaxRetry,
 	}
-
-	// Use Redis if client provided, otherwise use in-memory store
 	var store limiter.Store
 	var err error
-
 	if redisClient != nil {
 		store, err = sredis.NewStoreWithOptions(redisClient, storeOptions)
 		if err != nil {
@@ -61,14 +58,8 @@ func NewManager(config *Config, redisClient *redis.Client) (*Manager, error) {
 	} else {
 		store = memory.NewStore()
 	}
-
-	// Create global limiter
 	globalLimiter := limiter.New(store, config.GlobalRate.ToLimiterRate())
-
-	// Create API key limiter
 	apiKeyLimiter := limiter.New(store, config.APIKeyRate.ToLimiterRate())
-
-	// Create manager
 	m := &Manager{
 		config:        config,
 		store:         store,
@@ -76,14 +67,11 @@ func NewManager(config *Config, redisClient *redis.Client) (*Manager, error) {
 		globalLimiter: globalLimiter,
 		apiKeyLimiter: apiKeyLimiter,
 	}
-
-	// Pre-create route-specific limiters
 	for route, rateConfig := range config.RouteRates {
 		if !rateConfig.Disabled {
 			m.limiters[route] = limiter.New(store, rateConfig.ToLimiterRate())
 		}
 	}
-
 	return m, nil
 }
 
@@ -98,61 +86,58 @@ func NewManagerWithMetrics(
 	if err != nil {
 		return nil, err
 	}
-
 	m.meter = meter
-
-	// Initialize metrics
 	if meter != nil {
 		if err := InitMetrics(meter); err != nil {
 			log := logger.FromContext(ctx)
 			log.Error("Failed to initialize rate limit metrics", "error", err)
 		}
 	}
-
 	return m, nil
 }
 
 // Middleware returns the rate limiting middleware for Gin
 func (m *Manager) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Check exclusions
 		if m.isRequestExcluded(c) {
 			c.Next()
 			return
 		}
 
-		// Get key and limiter
 		path := c.Request.URL.Path
 		key := m.keyGetter(c)
 		limiter := m.getLimiterForRequest(c, key)
 
-		// Check rate limit
 		lctx, err := limiter.Get(c.Request.Context(), key)
 		if err != nil {
 			log := logger.FromContext(c.Request.Context())
-			// Log key type instead of actual key to avoid exposing sensitive API keys
 			keyType := m.getKeyType(key)
 			log.Error("Rate limit check failed", "error", err, "key_type", keyType, "fail_open", m.config.FailOpen)
 			if m.config.FailOpen {
-				// Fail open: Allow the request when backing store fails
-				// This prioritizes availability over strict rate limiting enforcement
 				c.Next()
 			} else {
-				// Fail closed: Reject the request with 500 error
-				// This prioritizes rate limiting enforcement over availability
-				c.JSON(500, gin.H{
-					"error":   "Internal server error",
-					"details": "Rate limiting backend unavailable",
+				extras := map[string]any{
+					"fail_open": m.config.FailOpen,
+					"key_type":  keyType,
+				}
+				if !m.config.FailOpen {
+					extras["code"] = "rate_limit_backend_unavailable"
+				}
+				router.RespondProblem(c, &core.Problem{
+					Status:   http.StatusInternalServerError,
+					Title:    "Rate limit check failed",
+					Detail:   "Rate limiting backend unavailable",
+					Type:     "https://docs.compozy.com/problems/rate-limit-backend-unavailable",
+					Instance: c.FullPath(),
+					Extras:   extras,
 				})
 				c.Abort()
 			}
 			return
 		}
 
-		// Set rate limit headers
 		m.setRateLimitHeaders(c, lctx)
 
-		// Handle rate limit exceeded
 		if lctx.Reached {
 			m.handleRateLimitExceeded(c, lctx, path, key)
 			return
@@ -165,13 +150,11 @@ func (m *Manager) Middleware() gin.HandlerFunc {
 // isRequestExcluded checks if the request should be excluded from rate limiting
 func (m *Manager) isRequestExcluded(c *gin.Context) bool {
 	path := c.Request.URL.Path
-	// Check excluded paths
 	for _, excluded := range m.config.ExcludedPaths {
 		if strings.HasPrefix(path, excluded) {
 			return true
 		}
 	}
-	// Check excluded IPs
 	clientIP := c.ClientIP()
 	return slices.Contains(m.config.ExcludedIPs, clientIP)
 }
@@ -180,11 +163,6 @@ func (m *Manager) isRequestExcluded(c *gin.Context) bool {
 func (m *Manager) getLimiterForRequest(c *gin.Context, key string) *limiter.Limiter {
 	path := c.Request.URL.Path
 	routeLimiter := m.getRouteSpecificLimiter(path)
-
-	// Choose limiter based on priority:
-	// 1. Route-specific limits always take precedence
-	// 2. API key limits apply if no route-specific limit
-	// 3. Global limit as fallback
 	switch {
 	case routeLimiter != nil:
 		return routeLimiter
@@ -214,21 +192,22 @@ func (m *Manager) setRateLimitHeaders(c *gin.Context, lctx limiter.Context) {
 
 // handleRateLimitExceeded handles the rate limit exceeded case
 func (m *Manager) handleRateLimitExceeded(c *gin.Context, lctx limiter.Context, path, key string) {
-	// Increment blocked requests metric
 	keyType := m.getKeyType(key)
 	IncrementBlockedRequests(c.Request.Context(), path, keyType)
 	resetIn := max(lctx.Reset-time.Now().Unix(), 0)
 	detail := fmt.Sprintf("API rate limit exceeded. Retry after %d seconds", resetIn)
-	body := gin.H{
-		"type":        "https://docs.compozy.com/problems/rate-limit-exceeded",
-		"title":       "Too Many Requests",
-		"status":      http.StatusTooManyRequests,
-		"detail":      detail,
-		"retry_after": resetIn,
-	}
 	c.Header("Retry-After", fmt.Sprintf("%d", resetIn))
-	c.Header("Content-Type", "application/problem+json")
-	c.JSON(http.StatusTooManyRequests, body)
+	router.RespondProblem(c, &core.Problem{
+		Status:   http.StatusTooManyRequests,
+		Title:    "Too Many Requests",
+		Detail:   detail,
+		Type:     "https://docs.compozy.com/problems/rate-limit-exceeded",
+		Instance: c.FullPath(),
+		Extras: map[string]any{
+			"retry_after": resetIn,
+			"code":        "rate_limit_exceeded",
+		},
+	})
 	c.Abort()
 }
 
@@ -236,55 +215,39 @@ func (m *Manager) handleRateLimitExceeded(c *gin.Context, lctx limiter.Context, 
 func (m *Manager) getRouteSpecificLimiter(path string) *limiter.Limiter {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-
 	var bestMatch string
 	var bestLimiter *limiter.Limiter
-
-	// Check for exact match first
 	if limiter, exists := m.limiters[path]; exists {
 		return limiter
 	}
-
-	// Find the longest matching prefix to ensure deterministic behavior
 	for route, l := range m.limiters {
 		if strings.HasPrefix(path, route) && len(route) > len(bestMatch) {
 			bestMatch = route
 			bestLimiter = l
 		}
 	}
-
 	return bestLimiter
 }
 
 // keyGetter generates the rate limiting key based on user authentication
 func (m *Manager) keyGetter(c *gin.Context) string {
-	// Check for API key first (will be set by auth middleware in future)
 	if apiKey, exists := c.Get(auth.ContextKeyAPIKey); exists {
 		return fmt.Sprintf("apikey:%v", apiKey)
 	}
-
-	// If user is authenticated, use user ID
 	if userID, exists := c.Get(auth.ContextKeyUserID); exists {
 		return fmt.Sprintf("user:%v", userID)
 	}
-
-	// For anonymous users, use IP address
-	// Handle X-Real-IP and X-Forwarded-For headers for proxy scenarios
 	realIP := c.GetHeader("X-Real-IP")
 	if realIP != "" {
 		return fmt.Sprintf("ip:%s", realIP)
 	}
-
 	forwardedFor := c.GetHeader("X-Forwarded-For")
 	if forwardedFor != "" {
-		// Use the first IP in the chain
 		ips := strings.Split(forwardedFor, ",")
 		if len(ips) > 0 {
 			return fmt.Sprintf("ip:%s", strings.TrimSpace(ips[0]))
 		}
 	}
-
-	// Fallback to client IP
 	return fmt.Sprintf("ip:%s", c.ClientIP())
 }
 
@@ -306,14 +269,11 @@ func (m *Manager) getKeyType(key string) string {
 func (m *Manager) UpdateRouteLimit(ctx context.Context, route string, rateConfig RateConfig) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	if rateConfig.Disabled {
 		delete(m.limiters, route)
 	} else {
 		m.limiters[route] = limiter.New(m.store, rateConfig.ToLimiterRate())
 	}
-
-	// Log update using provided context
 	log := logger.FromContext(ctx)
 	log.Info("Updated rate limit for route", "route", route, "limit", rateConfig.Limit, "period", rateConfig.Period)
 }
@@ -321,9 +281,7 @@ func (m *Manager) UpdateRouteLimit(ctx context.Context, route string, rateConfig
 // GetLimitInfo returns current limit information for a key
 func (m *Manager) GetLimitInfo(c *gin.Context) (*limiter.Context, error) {
 	key := m.keyGetter(c)
-	// Use getLimiterForRequest to get the correct limiter based on full priority
 	l := m.getLimiterForRequest(c, key)
-
 	ctx, err := l.Peek(c.Request.Context(), key)
 	if err != nil {
 		return nil, err

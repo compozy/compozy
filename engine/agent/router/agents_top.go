@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	agentuc "github.com/compozy/compozy/engine/agent/uc"
-	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/core/httpdto"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	resourceutil "github.com/compozy/compozy/engine/resources/utils"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -53,7 +53,7 @@ func listAgentsTop(c *gin.Context) {
 	limit := router.LimitOrDefault(c, c.Query("limit"), defaultAgentsLimit, maxAgentsLimit)
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblemWithCode(c, http.StatusBadRequest, "invalid_request", "invalid cursor parameter")
 		return
 	}
 	input := &agentuc.ListInput{
@@ -177,17 +177,16 @@ func upsertAgentTop(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	body := make(map[string]any)
-	if err := c.ShouldBindJSON(&body); err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+	body := router.GetRequestBody[map[string]any](c)
+	if body == nil {
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblemWithCode(c, http.StatusBadRequest, "invalid_request", "invalid If-Match header")
 		return
 	}
-	input := &agentuc.UpsertInput{Project: project, ID: agentID, Body: body, IfMatch: ifMatch}
+	input := &agentuc.UpsertInput{Project: project, ID: agentID, Body: *body, IfMatch: ifMatch}
 	out, execErr := agentuc.NewUpsert(store).Execute(c.Request.Context(), input)
 	if execErr != nil {
 		respondAgentError(c, execErr)
@@ -255,19 +254,20 @@ func respondAgentError(c *gin.Context, err error) {
 	case errors.Is(err, agentuc.ErrInvalidInput),
 		errors.Is(err, agentuc.ErrProjectMissing),
 		errors.Is(err, agentuc.ErrIDMissing):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblemWithCode(c, http.StatusBadRequest, "invalid_request", err.Error())
 	case errors.Is(err, agentuc.ErrNotFound):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblemWithCode(c, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, agentuc.ErrETagMismatch), errors.Is(err, agentuc.ErrStaleIfMatch):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblemWithCode(c, http.StatusPreconditionFailed, "etag_mismatch", err.Error())
 	case errors.Is(err, agentuc.ErrWorkflowNotFound):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
+		router.RespondProblemWithCode(c, http.StatusNotFound, "workflow_not_found", "workflow not found")
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
-			resourceutil.RespondConflict(c, err, conflict.Details)
+			router.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		logger.FromContext(c.Request.Context()).Error("failed to process agent request", "error", err)
+		router.RespondProblemWithCode(c, http.StatusInternalServerError, router.ErrInternalCode, "internal error")
 	}
 }

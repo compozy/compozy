@@ -65,11 +65,9 @@ func NewOrchestrator(
 		maxBody:   maxBody,
 		dedupeTTL: dedupeTTL,
 	}
-	// Guard nil cfg to prevent panics; fall back to zero-values and local defaults below.
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	// Ensure Stripe default skew and other verifier defaults use application cfg
 	o.verifierFactory = func(v VerifyConfig) (Verifier, error) {
 		if v.Strategy == StrategyStripe && v.Skew == 0 {
 			if cfg != nil && cfg.Webhooks.StripeSkew > 0 {
@@ -102,16 +100,11 @@ func (o *Orchestrator) Process(ctx context.Context, slug string, r *http.Request
 	if ok {
 		workflowID = entry.WorkflowID
 	}
-	if o.metrics != nil {
-		o.metrics.IncrementQueueDepth(ctx)
-		defer o.metrics.DecrementQueueDepth(ctx)
-		o.metrics.OnReceived(ctx, slug, workflowID)
-	}
+	cleanup := o.trackQueueMetrics(ctx, slug, workflowID)
+	defer cleanup()
 	if !ok {
 		logger.FromContext(ctx).Warn("webhook slug not found", "slug", slug, "correlation_id", corrID)
-		if o.metrics != nil {
-			o.metrics.ObserveOverall(ctx, slug, "", time.Since(start))
-		}
+		o.observeOverall(ctx, slug, "", start)
 		return Result{Status: http.StatusNotFound}, ErrNotFound
 	}
 	logger.FromContext(ctx).
@@ -126,32 +119,25 @@ func (o *Orchestrator) Process(ctx context.Context, slug string, r *http.Request
 		)
 	body, rres, rerr := o.readBody(ctx, r)
 	if rerr != nil {
-		if o.metrics != nil {
-			o.metrics.OnFailed(ctx, slug, entry.WorkflowID, "bad_request")
-			o.metrics.ObserveOverall(ctx, slug, entry.WorkflowID, time.Since(start))
-		}
+		o.recordFailure(ctx, slug, entry.WorkflowID, "bad_request", start)
 		return rres, rerr
 	}
 	vres, verr := o.verifyWithMetrics(ctx, entry, r, body, slug)
 	if verr != nil {
-		if o.metrics != nil {
-			o.metrics.ObserveOverall(ctx, slug, entry.WorkflowID, time.Since(start))
-		}
+		o.observeOverall(ctx, slug, entry.WorkflowID, start)
 		return vres, verr
 	}
 	ires, ierr := o.checkIdempotency(ctx, entry, slug, r, body)
 	if ierr != nil {
-		if errors.Is(ierr, ErrDuplicate) && o.metrics != nil {
-			o.metrics.OnDuplicate(ctx, slug, entry.WorkflowID)
-			o.metrics.OnFailed(ctx, slug, entry.WorkflowID, "duplicate")
-			o.metrics.ObserveOverall(ctx, slug, entry.WorkflowID, time.Since(start))
+		if errors.Is(ierr, ErrDuplicate) {
+			o.recordDuplicateFailure(ctx, slug, entry.WorkflowID, start)
+		} else {
+			o.observeOverall(ctx, slug, entry.WorkflowID, start)
 		}
 		return ires, ierr
 	}
 	res, err := o.processEventsWithMetrics(ctx, entry, r, body, slug, corrID)
-	if o.metrics != nil {
-		o.metrics.ObserveOverall(ctx, slug, entry.WorkflowID, time.Since(start))
-	}
+	o.observeOverall(ctx, slug, entry.WorkflowID, start)
 	return res, err
 }
 
@@ -228,6 +214,121 @@ func (o *Orchestrator) verifyWithMetrics(
 	return res, err
 }
 
+// trackQueueMetrics increments queue depth and returns a cleanup to decrement it later.
+func (o *Orchestrator) trackQueueMetrics(ctx context.Context, slug, workflowID string) func() {
+	if o.metrics == nil {
+		return func() {}
+	}
+	o.metrics.IncrementQueueDepth(ctx)
+	o.metrics.OnReceived(ctx, slug, workflowID)
+	return func() {
+		o.metrics.DecrementQueueDepth(ctx)
+	}
+}
+
+// observeOverall captures the overall processing duration when metrics are configured.
+func (o *Orchestrator) observeOverall(ctx context.Context, slug, workflowID string, start time.Time) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ObserveOverall(ctx, slug, workflowID, time.Since(start))
+}
+
+// recordFailure tracks a failure reason and overall timing for the webhook.
+func (o *Orchestrator) recordFailure(ctx context.Context, slug, workflowID, reason string, start time.Time) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.OnFailed(ctx, slug, workflowID, reason)
+	o.metrics.ObserveOverall(ctx, slug, workflowID, time.Since(start))
+}
+
+// recordDuplicateFailure tracks duplicate submissions with associated metrics.
+func (o *Orchestrator) recordDuplicateFailure(ctx context.Context, slug, workflowID string, start time.Time) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.OnDuplicate(ctx, slug, workflowID)
+	o.metrics.OnFailed(ctx, slug, workflowID, "duplicate")
+	o.metrics.ObserveOverall(ctx, slug, workflowID, time.Since(start))
+}
+
+// handleEventWithMetrics processes a single event candidate and updates metrics accordingly.
+func (o *Orchestrator) handleEventWithMetrics(
+	eventCtx context.Context,
+	rootCtx context.Context,
+	slug string,
+	workflowID string,
+	corrID string,
+	ev EventConfig,
+	payload map[string]any,
+	ctxData map[string]any,
+	source string,
+	payloadSize int,
+) (Result, bool, error) {
+	if err := eventCtx.Err(); err != nil {
+		return Result{Status: http.StatusRequestTimeout}, true, err
+	}
+	eventType := ev.Name
+	stageStart := time.Now()
+	allow, rres, rerr := o.allowEvent(eventCtx, slug, workflowID, corrID, ev, ctxData)
+	if rerr != nil {
+		o.recordEventOutcome(rootCtx, eventType, stageStart, rerr)
+		return rres, true, rerr
+	}
+	if !allow {
+		return Result{}, false, nil
+	}
+	o.recordPayloadMetrics(rootCtx, eventType, source, payloadSize)
+	rendered, rres, rerr := o.renderEvent(eventCtx, slug, workflowID, corrID, ev, payload)
+	if rerr != nil {
+		o.recordEventOutcome(rootCtx, eventType, stageStart, rerr)
+		return rres, true, rerr
+	}
+	rres2, rerr2 := o.validateEvent(eventCtx, slug, workflowID, corrID, ev, rendered)
+	if rerr2 != nil {
+		o.recordEventOutcome(rootCtx, eventType, stageStart, rerr2)
+		return rres2, true, rerr2
+	}
+	res, err := o.dispatchEvent(eventCtx, slug, workflowID, corrID, ev, rendered)
+	o.recordEventOutcome(rootCtx, eventType, stageStart, err)
+	return res, true, err
+}
+
+// recordEventOutcome records per-event metrics for success or failure.
+func (o *Orchestrator) recordEventOutcome(ctx context.Context, eventType string, start time.Time, err error) {
+	if o.metrics == nil {
+		return
+	}
+	outcome := outcomeSuccessValue
+	if err != nil {
+		outcome = outcomeErrorValue
+	}
+	o.metrics.ObserveEventOutcome(ctx, eventType, time.Since(start), outcome)
+}
+
+// recordPayloadMetrics logs payload size metrics for the event when enabled.
+func (o *Orchestrator) recordPayloadMetrics(ctx context.Context, eventType, source string, payloadSize int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RecordPayloadSize(ctx, eventType, source, payloadSize)
+}
+
+// recordNoMatchingEvent logs no-match metrics and diagnostic log entries.
+func (o *Orchestrator) recordNoMatchingEvent(ctx context.Context, slug, workflowID, corrID string) {
+	if o.metrics != nil {
+		o.metrics.OnNoMatch(ctx, slug, workflowID)
+		o.metrics.OnFailed(ctx, slug, workflowID, "no_match")
+	}
+	logger.FromContext(ctx).Info(
+		"webhook no matching event",
+		"slug", slug,
+		"workflow_id", workflowID,
+		"correlation_id", corrID,
+	)
+}
+
 func (o *Orchestrator) checkIdempotency(
 	ctx context.Context,
 	entry RegistryEntry,
@@ -283,65 +384,28 @@ func (o *Orchestrator) processEventsWithMetrics(
 		return rres, rerr
 	}
 	ctxData := BuildContext(payload, r.Header, r.URL.Query())
-	// Add a reasonable timeout for event processing
 	eventCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	eventSource := webhookSource(r, slug)
+	source := webhookSource(r, slug)
 	payloadSize := len(body)
-
 	for _, ev := range entry.Webhook.Events {
-		if err := eventCtx.Err(); err != nil {
-			return Result{Status: http.StatusRequestTimeout}, err
+		res, handled, err := o.handleEventWithMetrics(
+			eventCtx,
+			ctx,
+			slug,
+			entry.WorkflowID,
+			corrID,
+			ev,
+			payload,
+			ctxData,
+			source,
+			payloadSize,
+		)
+		if err != nil || handled {
+			return res, err
 		}
-		eventType := ev.Name
-		stageStart := time.Now()
-		allow, rres, rerr := o.allowEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, ctxData)
-		if rerr != nil {
-			if o.metrics != nil {
-				o.metrics.ObserveEventOutcome(ctx, eventType, time.Since(stageStart), "error")
-			}
-			return rres, rerr
-		}
-		if !allow {
-			continue
-		}
-		if o.metrics != nil {
-			o.metrics.RecordPayloadSize(ctx, eventType, eventSource, payloadSize)
-		}
-		rendered, rres, rerr := o.renderEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, payload)
-		if rerr != nil {
-			if o.metrics != nil {
-				o.metrics.ObserveEventOutcome(ctx, eventType, time.Since(stageStart), "error")
-			}
-			return rres, rerr
-		}
-		rres2, rerr2 := o.validateEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, rendered)
-		if rerr2 != nil {
-			if o.metrics != nil {
-				o.metrics.ObserveEventOutcome(ctx, eventType, time.Since(stageStart), "error")
-			}
-			return rres2, rerr2
-		}
-		res, err := o.dispatchEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, rendered)
-		if o.metrics != nil {
-			outcome := "success"
-			if err != nil {
-				outcome = "error"
-			}
-			o.metrics.ObserveEventOutcome(ctx, eventType, time.Since(stageStart), outcome)
-		}
-		return res, err
 	}
-	if o.metrics != nil {
-		o.metrics.OnNoMatch(ctx, slug, entry.WorkflowID)
-		o.metrics.OnFailed(ctx, slug, entry.WorkflowID, "no_match")
-	}
-	logger.FromContext(ctx).Info(
-		"webhook no matching event",
-		"slug", slug,
-		"workflow_id", entry.WorkflowID,
-		"correlation_id", corrID,
-	)
+	o.recordNoMatchingEvent(ctx, slug, entry.WorkflowID, corrID)
 	return Result{Status: http.StatusNoContent, Payload: map[string]any{"status": "no_matching_event"}}, nil
 }
 

@@ -38,6 +38,53 @@ var readmeTemplate string
 // Template implements the Template interface for the basic project template
 type Template struct{}
 
+// authorConfig represents optional author metadata for the generated project YAML.
+type authorConfig struct {
+	Name string `yaml:"name"`
+	URL  string `yaml:"url,omitempty"`
+}
+
+// workflowRef links the default workflow file in the scaffolded project.
+type workflowRef struct {
+	Source string `yaml:"source"`
+}
+
+// modelConfig configures the default model provider used by the template.
+type modelConfig struct {
+	Provider string `yaml:"provider"`
+	Model    string `yaml:"model"`
+	APIKey   string `yaml:"api_key,omitempty"`
+	APIURL   string `yaml:"api_url,omitempty"`
+}
+
+// runtimeConfig declares the runtime entrypoint and permissions for the agent.
+type runtimeConfig struct {
+	Type        string   `yaml:"type"`
+	Entrypoint  string   `yaml:"entrypoint"`
+	Permissions []string `yaml:"permissions,omitempty"`
+}
+
+// autoloadConfig defines how project resources are auto-discovered at runtime.
+type autoloadConfig struct {
+	Enabled bool     `yaml:"enabled"`
+	Strict  bool     `yaml:"strict"`
+	Include []string `yaml:"include,omitempty"`
+	Exclude []string `yaml:"exclude,omitempty"`
+}
+
+// projectConfig mirrors the structure expected by the compozy project template.
+type projectConfig struct {
+	Name        string            `yaml:"name"`
+	Version     string            `yaml:"version"`
+	Description string            `yaml:"description"`
+	Author      *authorConfig     `yaml:"author,omitempty"`
+	Workflows   []workflowRef     `yaml:"workflows,omitempty"`
+	Models      []modelConfig     `yaml:"models,omitempty"`
+	Runtime     *runtimeConfig    `yaml:"runtime,omitempty"`
+	Autoload    *autoloadConfig   `yaml:"autoload,omitempty"`
+	Templates   map[string]string `yaml:"templates,omitempty"`
+}
+
 // Register registers the basic template with the global registry
 func Register() error {
 	return template.Register("basic", &Template{})
@@ -95,65 +142,33 @@ func (t *Template) GetFiles() []template.File {
 
 // GetDirectories returns required directories
 func (t *Template) GetDirectories() []string {
-	// Basic template only needs workflows directory
-	// The autoload configuration in compozy.yaml handles agents and tools
-	// but we don't create empty directories
 	return []string{"workflows"}
 }
 
 // GetProjectConfig generates project configuration
 func (t *Template) GetProjectConfig(opts *template.GenerateOptions) any {
-	// ProjectConfig structure matching what the templates expect
-	type AuthorConfig struct {
-		Name string `yaml:"name"`
-		URL  string `yaml:"url,omitempty"`
-	}
-	type WorkflowRef struct {
-		Source string `yaml:"source"`
-	}
-	type ModelConfig struct {
-		Provider string `yaml:"provider"`
-		Model    string `yaml:"model"`
-		APIKey   string `yaml:"api_key,omitempty"`
-		APIURL   string `yaml:"api_url,omitempty"`
-	}
-	type RuntimeConfig struct {
-		Type        string   `yaml:"type"`
-		Entrypoint  string   `yaml:"entrypoint"`
-		Permissions []string `yaml:"permissions,omitempty"`
-	}
-	type AutoloadConfig struct {
-		Enabled bool     `yaml:"enabled"`
-		Strict  bool     `yaml:"strict"`
-		Include []string `yaml:"include,omitempty"`
-		Exclude []string `yaml:"exclude,omitempty"`
-	}
-	type ProjectConfig struct {
-		Name        string            `yaml:"name"`
-		Version     string            `yaml:"version"`
-		Description string            `yaml:"description"`
-		Author      *AuthorConfig     `yaml:"author,omitempty"`
-		Workflows   []WorkflowRef     `yaml:"workflows,omitempty"`
-		Models      []ModelConfig     `yaml:"models,omitempty"`
-		Runtime     *RuntimeConfig    `yaml:"runtime,omitempty"`
-		Autoload    *AutoloadConfig   `yaml:"autoload,omitempty"`
-		Templates   map[string]string `yaml:"templates,omitempty"`
-	}
-	config := &ProjectConfig{
+	cfg := baseProjectConfig(opts)
+	cfg.Author = authorFromOptions(opts)
+	return cfg
+}
+
+// baseProjectConfig prepares the default scaffold configuration for a project.
+func baseProjectConfig(opts *template.GenerateOptions) *projectConfig {
+	return &projectConfig{
 		Name:        opts.Name,
 		Version:     opts.Version,
 		Description: opts.Description,
-		Workflows: []WorkflowRef{
+		Workflows: []workflowRef{
 			{Source: "./workflows/main.yaml"},
 		},
-		Models: []ModelConfig{
+		Models: []modelConfig{
 			{
 				Provider: "openai",
 				Model:    "gpt-4.1-2025-04-14",
 				APIKey:   "{{ .env.OPENAI_API_KEY }}",
 			},
 		},
-		Runtime: &RuntimeConfig{
+		Runtime: &runtimeConfig{
 			Type:       "bun",
 			Entrypoint: "./entrypoint.ts",
 			Permissions: []string{
@@ -162,7 +177,7 @@ func (t *Template) GetProjectConfig(opts *template.GenerateOptions) any {
 				"--allow-write",
 			},
 		},
-		Autoload: &AutoloadConfig{
+		Autoload: &autoloadConfig{
 			Enabled: true,
 			Strict:  true,
 			Include: []string{
@@ -176,14 +191,17 @@ func (t *Template) GetProjectConfig(opts *template.GenerateOptions) any {
 			},
 		},
 	}
-	// Add author if provided
-	if opts.Author != "" {
-		config.Author = &AuthorConfig{
-			Name: opts.Author,
-			URL:  opts.AuthorURL,
-		}
+}
+
+// authorFromOptions converts generator options into an author configuration.
+func authorFromOptions(opts *template.GenerateOptions) *authorConfig {
+	if opts.Author == "" {
+		return nil
 	}
-	return config
+	return &authorConfig{
+		Name: opts.Author,
+		URL:  opts.AuthorURL,
+	}
 }
 
 // AddDockerFiles adds Docker-related files when DockerSetup is enabled

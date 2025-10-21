@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	temporalLog "go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
@@ -55,46 +56,51 @@ func (h *ContainerHelpers) executeChild(
 		_, err := h.ExecuteSubtask(ctx, parentStateID, childState.TaskExecID.String())
 		return err
 	default:
-		// Recurse for container tasks - bump depth
 		response, err := h.ExecutionHandler(ctx, cfg, depth+1)
 		if err != nil {
 			return err
 		}
-		// Update child state record with final status from nested task execution
-		// This ensures parent tasks can see the completion status
-		if response != nil && response.GetState() != nil {
-			finalState := response.GetState()
-			// Create a simple activity to update the child state status
-			updateInput := tkacts.UpdateChildStateInput{
-				TaskExecID: childState.TaskExecID.String(),
-				Status:     string(finalState.Status),
-				Output:     finalState.Output,
-			}
-			// Add retry policy for this critical update
-			// We MUST wait for this to complete to ensure database consistency
-			activityOpts := workflow.ActivityOptions{
-				StartToCloseTimeout: 30 * time.Second,
-				RetryPolicy: &temporal.RetryPolicy{
-					InitialInterval:    time.Second,
-					BackoffCoefficient: 2.0,
-					MaximumInterval:    10 * time.Second,
-					MaximumAttempts:    5, // Increased attempts for critical operation
-				},
-			}
-			activityCtx := workflow.WithActivityOptions(ctx, activityOpts)
-			// CRITICAL: We must wait for this activity to complete or fail definitively
-			// This ensures the database state is updated before the parent queries it
-			err = workflow.ExecuteActivity(activityCtx, tkacts.UpdateChildStateLabel, updateInput).Get(activityCtx, nil)
-			if err != nil {
-				log.Error("Failed to update child state after nested task completion",
-					"child_task_id", childState.TaskID, "final_status", finalState.Status, "error", err)
-				// Return the error to ensure proper state synchronization
-				// The parent needs to know that the state update failed
-				return fmt.Errorf("failed to update child state %s: %w", childState.TaskID, err)
-			}
-		}
+		return h.updateChildStateAfterExecution(ctx, log, childState, response, depth)
+	}
+}
+
+// updateChildStateAfterExecution persists nested task state updates when required.
+func (h *ContainerHelpers) updateChildStateAfterExecution(
+	ctx workflow.Context,
+	log temporalLog.Logger,
+	childState *task.State,
+	response task.Response,
+	depth int,
+) error {
+	if response == nil || response.GetState() == nil {
 		return nil
 	}
+	finalState := response.GetState()
+	updateInput := tkacts.UpdateChildStateInput{
+		TaskExecID: childState.TaskExecID.String(),
+		Status:     string(finalState.Status),
+		Output:     finalState.Output,
+	}
+	activityOpts := workflow.ActivityOptions{
+		StartToCloseTimeout: 30 * time.Second,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    time.Second,
+			BackoffCoefficient: 2.0,
+			MaximumInterval:    10 * time.Second,
+			MaximumAttempts:    5,
+		},
+	}
+	activityCtx := workflow.WithActivityOptions(ctx, activityOpts)
+	future := workflow.ExecuteActivity(activityCtx, tkacts.UpdateChildStateLabel, updateInput)
+	if err := future.Get(activityCtx, nil); err != nil {
+		log.Error("Failed to update child state after nested task completion",
+			"child_task_id", childState.TaskID,
+			"final_status", finalState.Status,
+			"depth", depth+1,
+			"error", err)
+		return fmt.Errorf("failed to update child state %s: %w", childState.TaskID, err)
+	}
+	return nil
 }
 
 // ListChildStates fetches child states for a parent task
@@ -131,7 +137,7 @@ func (h *ContainerHelpers) ExecuteSubtask(
 	var response *task.SubtaskResponse
 	err := future.Get(ctx, &response)
 	if err != nil {
-		// Let the error propagate for Temporal to handle retries
+		// NOTE: Surface activity errors so Temporal can apply retry/backoff policies.
 		return nil, err
 	}
 	return response, nil
@@ -148,7 +154,6 @@ func (h *ContainerHelpers) shouldCompleteParallelTask(
 	case task.StrategyFailFast:
 		return failed > 0 || completed >= total
 	case task.StrategyRace:
-		// Race terminates on first result, either success or failure
 		return completed > 0 || failed > 0
 	default:
 		return (completed + failed) >= total
@@ -167,56 +172,83 @@ func (h *ContainerHelpers) executeChildrenInParallel(
 	maxConcurrency int,
 ) {
 	log := workflow.GetLogger(ctx)
-	// Sort child states by TaskID to ensure deterministic replay
 	sort.Slice(childStates, func(i, j int) bool {
 		return childStates[i].TaskID < childStates[j].TaskID
 	})
-	// Create semaphore to limit concurrent executions
+	limit := determineParallelLimit(maxConcurrency)
+	sem := workflow.NewSemaphore(ctx, int64(limit))
+	for i := range childStates {
+		child := childStates[i]
+		workflow.Go(ctx, func(gCtx workflow.Context) {
+			h.runParallelChild(
+				gCtx,
+				sem,
+				log,
+				parentState,
+				taskConfig,
+				child,
+				getChildConfig,
+				depth,
+				completed,
+				failed,
+			)
+		})
+	}
+}
+
+// determineParallelLimit calculates the concurrency cap respecting defaults.
+func determineParallelLimit(maxConcurrency int) int {
 	limit := MaxConcurrentChildTasks
 	if maxConcurrency > 0 && maxConcurrency < limit {
 		limit = maxConcurrency
 	}
 	if limit <= 0 {
-		limit = 1
+		return 1
 	}
-	sem := workflow.NewSemaphore(ctx, int64(limit))
-	for i := range childStates {
-		childState := childStates[i]
-		// Capture variables by value to avoid race conditions in goroutines
-		cs := childState
-		workflow.Go(ctx, func(gCtx workflow.Context) {
-			// Acquire semaphore slot
-			if err := sem.Acquire(gCtx, 1); err != nil {
-				log.Error("Failed to acquire semaphore for child task",
-					"child_task_id", cs.TaskID,
-					"error", err)
-				return
-			}
-			defer sem.Release(1)
-			if gCtx.Err() != nil {
-				return // canceled before start
-			}
-			cfg := getChildConfig(cs)
-			err := h.executeChild(gCtx, parentState.TaskExecID, cs, cfg, depth)
-			if gCtx.Err() != nil {
-				return // canceled during work
-			}
-			if err != nil {
-				log.Error("Failed to execute child task",
-					"parent_task_id", taskConfig.ID,
-					"child_task_id", cs.TaskID,
-					"depth", depth+1,
-					"error", err)
-				atomic.AddInt32(failed, 1)
-			} else {
-				atomic.AddInt32(completed, 1)
-				log.Debug("Child task completed successfully",
-					"parent_task_id", taskConfig.ID,
-					"child_task_id", cs.TaskID,
-					"depth", depth+1)
-			}
-		})
+	return limit
+}
+
+// runParallelChild executes a child task respecting the semaphore limit and metrics.
+func (h *ContainerHelpers) runParallelChild(
+	ctx workflow.Context,
+	sem workflow.Semaphore,
+	log temporalLog.Logger,
+	parentState *task.State,
+	taskConfig *task.Config,
+	childState *task.State,
+	getChildConfig func(*task.State) *task.Config,
+	depth int,
+	completed, failed *int32,
+) {
+	if err := sem.Acquire(ctx, 1); err != nil {
+		log.Error("Failed to acquire semaphore for child task",
+			"child_task_id", childState.TaskID,
+			"error", err)
+		return
 	}
+	defer sem.Release(1)
+	if ctx.Err() != nil {
+		return
+	}
+	cfg := getChildConfig(childState)
+	err := h.executeChild(ctx, parentState.TaskExecID, childState, cfg, depth)
+	if ctx.Err() != nil {
+		return
+	}
+	if err != nil {
+		log.Error("Failed to execute child task",
+			"parent_task_id", taskConfig.ID,
+			"child_task_id", childState.TaskID,
+			"depth", depth+1,
+			"error", err)
+		atomic.AddInt32(failed, 1)
+		return
+	}
+	atomic.AddInt32(completed, 1)
+	log.Debug("Child task completed successfully",
+		"parent_task_id", taskConfig.ID,
+		"child_task_id", childState.TaskID,
+		"depth", depth+1)
 }
 
 // awaitStrategyCompletion waits for tasks to complete based on strategy
@@ -227,7 +259,6 @@ func (h *ContainerHelpers) awaitStrategyCompletion(
 	completed, failed *int32,
 	total int32,
 ) error {
-	// First wait for the strategy condition to be met
 	err := workflow.Await(ctx, func() bool {
 		completedCount := atomic.LoadInt32(completed)
 		failedCount := atomic.LoadInt32(failed)
@@ -236,13 +267,10 @@ func (h *ContainerHelpers) awaitStrategyCompletion(
 	if err != nil {
 		return err
 	}
-	// Then ensure all goroutines have finished to avoid database sync issues
-	// This is critical for ensuring UpdateChildState activities complete
-	// before GetCollectionResponse queries the database
+	// NOTE: Ensure every subtask reaches a terminal state before querying aggregated responses.
 	return workflow.Await(ctx, func() bool {
 		completedCount := atomic.LoadInt32(completed)
 		failedCount := atomic.LoadInt32(failed)
-		// All tasks must have reached a terminal state
 		return (completedCount + failedCount) >= total
 	})
 }
@@ -259,64 +287,88 @@ func (h *ContainerHelpers) executeChildrenSequentially(
 	completed, failed *int32,
 ) error {
 	log := workflow.GetLogger(ctx)
-	// Sort child states by TaskID to ensure deterministic replay
 	sort.Slice(childStates, func(i, j int) bool {
 		return childStates[i].TaskID < childStates[j].TaskID
 	})
-	// Process child tasks sequentially
-	for i, childState := range childStates {
+	total := len(childStates)
+	for index, childState := range childStates {
 		log.Debug("Executing child task sequentially",
 			"parent_task_id", taskConfig.ID,
 			"child_task_id", childState.TaskID,
-			"index", i,
+			"index", index,
 			"depth", depth+1,
-			"total", len(childStates))
+			"total", total)
 		cfg := getChildConfig(childState)
-		err := h.executeChild(ctx, parentState.TaskExecID, childState, cfg, depth)
-		if err != nil {
-			atomic.AddInt32(failed, 1)
-			log.Error("Failed to execute child task",
-				"parent_task_id", taskConfig.ID,
-				"child_task_id", childState.TaskID,
-				"index", i,
-				"depth", depth+1,
-				"error", err)
-			// Handle strategy-based early termination
-			if strategy == task.StrategyFailFast {
-				log.Debug("Stopping execution due to FailFast strategy",
-					"task_id", taskConfig.ID,
-					"failed_at_index", i)
-				// Mark remaining tasks as skipped to ensure awaitStrategyCompletion works correctly
-				remainingInt := len(childStates) - i - 1
-				if remainingInt > 0 && remainingInt <= math.MaxInt32 {
-					remaining := int32(remainingInt)
-					atomic.AddInt32(failed, remaining)
-				}
-				break
-			}
-		} else {
-			atomic.AddInt32(completed, 1)
-			log.Debug("Child task completed successfully",
-				"parent_task_id", taskConfig.ID,
-				"child_task_id", childState.TaskID,
-				"index", i,
-				"depth", depth+1)
-			// Handle Race strategy - stop on first success
-			if strategy == task.StrategyRace {
-				log.Debug("Stopping execution due to Race strategy",
-					"task_id", taskConfig.ID,
-					"succeeded_at_index", i)
-				// Mark remaining tasks as completed to ensure awaitStrategyCompletion works correctly
-				remainingInt := len(childStates) - i - 1
-				if remainingInt > 0 && remainingInt <= math.MaxInt32 {
-					remaining := int32(remainingInt)
-					atomic.AddInt32(completed, remaining)
-				}
-				break
-			}
+		execErr := h.executeChild(ctx, parentState.TaskExecID, childState, cfg, depth)
+		if stop := h.handleSequentialOutcome(
+			log,
+			taskConfig,
+			childState,
+			strategy,
+			depth,
+			index,
+			total,
+			execErr,
+			completed,
+			failed,
+		); stop {
+			break
 		}
 	}
 	return nil
+}
+
+// handleSequentialOutcome updates counters and determines whether to stop iterating.
+func (h *ContainerHelpers) handleSequentialOutcome(
+	log temporalLog.Logger,
+	taskConfig *task.Config,
+	childState *task.State,
+	strategy task.ParallelStrategy,
+	depth int,
+	index int,
+	total int,
+	execErr error,
+	completed, failed *int32,
+) bool {
+	if execErr != nil {
+		atomic.AddInt32(failed, 1)
+		log.Error("Failed to execute child task",
+			"parent_task_id", taskConfig.ID,
+			"child_task_id", childState.TaskID,
+			"index", index,
+			"depth", depth+1,
+			"error", execErr)
+		if strategy == task.StrategyFailFast {
+			log.Debug("Stopping execution due to FailFast strategy",
+				"task_id", taskConfig.ID,
+				"failed_at_index", index)
+			markRemainingAs(failed, total-index-1)
+			return true
+		}
+		return false
+	}
+	atomic.AddInt32(completed, 1)
+	log.Debug("Child task completed successfully",
+		"parent_task_id", taskConfig.ID,
+		"child_task_id", childState.TaskID,
+		"index", index,
+		"depth", depth+1)
+	if strategy == task.StrategyRace {
+		log.Debug("Stopping execution due to Race strategy",
+			"task_id", taskConfig.ID,
+			"succeeded_at_index", index)
+		markRemainingAs(completed, total-index-1)
+		return true
+	}
+	return false
+}
+
+// markRemainingAs atomically adjusts counters for remaining tasks when terminating early.
+func markRemainingAs(counter *int32, remainingInt int) {
+	if remainingInt <= 0 || remainingInt > math.MaxInt32 {
+		return
+	}
+	atomic.AddInt32(counter, int32(remainingInt))
 }
 
 // findTaskIndex finds the index of a task ID in the task config slice

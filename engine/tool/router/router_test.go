@@ -24,13 +24,11 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-type errorResponse struct {
-	Status int `json:"status"`
-	Error  struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-		Details string `json:"details"`
-	} `json:"error"`
+type problemResponse struct {
+	Status  int    `json:"status"`
+	Error   string `json:"error"`
+	Details string `json:"details"`
+	Code    string `json:"code"`
 }
 
 func newTestServer(t *testing.T, workflows []*workflow.Config) *gin.Engine {
@@ -113,12 +111,12 @@ func TestRouter_ListAndGetTools(t *testing.T) {
 		srv.ServeHTTP(res, req)
 		require.Equal(t, http.StatusNotFound, res.Code)
 		ct := res.Header().Get("Content-Type")
-		assert.True(t, strings.HasPrefix(ct, "application/json"))
-		var body errorResponse
+		assert.True(t, strings.HasPrefix(ct, "application/problem+json"))
+		var body problemResponse
 		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
 		require.Equal(t, http.StatusNotFound, body.Status)
-		assert.Equal(t, "NOT_FOUND", body.Error.Code)
-		assert.Contains(t, body.Error.Message, "tool not found")
+		assert.Equal(t, infraRouter.ErrNotFoundCode, body.Code)
+		assert.Contains(t, body.Details, "tool not found")
 	})
 	t.Run("Should return 500 when app state is missing", func(t *testing.T) {
 		t.Parallel()
@@ -131,11 +129,11 @@ func TestRouter_ListAndGetTools(t *testing.T) {
 		r.ServeHTTP(res, req)
 		require.Equal(t, http.StatusInternalServerError, res.Code)
 		ct := res.Header().Get("Content-Type")
-		assert.True(t, strings.HasPrefix(ct, "application/json"))
-		var body errorResponse
+		assert.True(t, strings.HasPrefix(ct, "application/problem+json"))
+		var body problemResponse
 		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
-		assert.Equal(t, "INTERNAL_ERROR", body.Error.Code)
-		assert.NotEmpty(t, body.Error.Details)
+		assert.Equal(t, infraRouter.ErrInternalCode, body.Code)
+		assert.NotEmpty(t, body.Details)
 	})
 
 	t.Run("Should return 404 when workflow not found", func(t *testing.T) {
@@ -148,10 +146,10 @@ func TestRouter_ListAndGetTools(t *testing.T) {
 		srv.ServeHTTP(res, req)
 		require.Equal(t, http.StatusNotFound, res.Code)
 		ct := res.Header().Get("Content-Type")
-		assert.True(t, strings.HasPrefix(ct, "application/json"))
-		var body errorResponse
+		assert.True(t, strings.HasPrefix(ct, "application/problem+json"))
+		var body problemResponse
 		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
-		assert.Equal(t, "NOT_FOUND", body.Error.Code)
+		assert.Equal(t, infraRouter.ErrNotFoundCode, body.Code)
 	})
 
 	t.Run("Should list only tools for the requested workflow when multiple exist", func(t *testing.T) {
@@ -209,8 +207,8 @@ func TestRouter_ListAndGetTools(t *testing.T) {
 		res = httptest.NewRecorder()
 		srv.ServeHTTP(res, req)
 		require.Equal(t, http.StatusNotFound, res.Code)
-		var errBody errorResponse
+		var errBody problemResponse
 		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &errBody))
-		assert.Equal(t, "NOT_FOUND", errBody.Error.Code)
+		assert.Equal(t, infraRouter.ErrNotFoundCode, errBody.Code)
 	})
 }

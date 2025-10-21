@@ -35,23 +35,18 @@ func NewCreateUser(repo Repository, input *CreateUserInput) *CreateUser {
 func (uc *CreateUser) Execute(ctx context.Context) (*model.User, error) {
 	log := logger.FromContext(ctx)
 	log.Debug("Creating user", "email", uc.input.Email, "role", uc.input.Role)
-	// Check if user already exists
 	existingUser, err := uc.repo.GetUserByEmail(ctx, uc.input.Email)
 	if err != nil {
-		// If user not found, that's expected - we can proceed
-		// For any other error, we should fail fast
 		if !errors.Is(err, ErrUserNotFound) {
 			return nil, fmt.Errorf("checking existing user: %w", err)
 		}
 	} else if existingUser != nil {
 		return nil, ErrEmailExists
 	}
-	// Generate user ID
 	userID, err := core.NewID()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate user ID: %w", err)
 	}
-	// Create user
 	user := &model.User{
 		ID:        userID,
 		Email:     uc.input.Email,

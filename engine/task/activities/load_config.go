@@ -88,7 +88,6 @@ func (a *LoadBatchConfigs) Run(_ context.Context, input *LoadBatchConfigsInput) 
 		}
 		configs[taskID] = config
 	}
-
 	return configs, nil
 }
 
@@ -108,26 +107,20 @@ func (a *LoadCompositeConfigs) Run(
 	ctx context.Context,
 	input *LoadCompositeConfigsInput,
 ) (map[string]*task.Config, error) {
-	// For composite tasks, child configs are stored individually by their TaskExecID
-	// We need to map TaskID -> TaskExecID, then load each config
-	// First, get the composite metadata to find child TaskExecIDs
 	metadata, err := a.configRepo.LoadCompositeMetadata(ctx, input.ParentTaskExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load composite metadata: %w", err)
 	}
-	// Type assert the metadata to CompositeTaskMetadata
 	compositeMetadata, ok := metadata.(*task2core.CompositeTaskMetadata)
 	if !ok {
 		return nil, fmt.Errorf("invalid metadata type: expected *CompositeTaskMetadata, got %T", metadata)
 	}
-	// Create TaskID -> Config mapping for requested tasks
 	configs := make(map[string]*task.Config, len(input.TaskIDs))
 	// Optimize: Build a map of available child configs first
 	childConfigsByID := make(map[string]*task.Config)
 	for i := range compositeMetadata.ChildConfigs {
 		childConfigsByID[compositeMetadata.ChildConfigs[i].ID] = compositeMetadata.ChildConfigs[i]
 	}
-	// Return only the requested configs (memory efficient for large composite tasks)
 	for _, taskID := range input.TaskIDs {
 		config, exists := childConfigsByID[taskID]
 		if !exists {
@@ -174,24 +167,19 @@ func (a *LoadCollectionConfigs) Run(
 	ctx context.Context,
 	input *LoadCollectionConfigsInput,
 ) (map[string]*task.Config, error) {
-	// For collection tasks, child configs are stored in collection metadata
 	metadata, err := a.configRepo.LoadCollectionMetadata(ctx, input.ParentTaskExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load collection metadata: %w", err)
 	}
-	// Type assert the metadata to CollectionTaskMetadata
 	collectionMetadata, ok := metadata.(*task2core.CollectionTaskMetadata)
 	if !ok {
 		return nil, fmt.Errorf("invalid metadata type: expected *CollectionTaskMetadata, got %T", metadata)
 	}
-	// Create TaskID -> Config mapping for requested tasks
 	configs := make(map[string]*task.Config, len(input.TaskIDs))
-	// Build a map of available child configs first
 	childConfigsByID := make(map[string]*task.Config)
 	for i := range collectionMetadata.ChildConfigs {
 		childConfigsByID[collectionMetadata.ChildConfigs[i].ID] = collectionMetadata.ChildConfigs[i]
 	}
-	// Return only the requested configs
 	for _, taskID := range input.TaskIDs {
 		config, exists := childConfigsByID[taskID]
 		if !exists {

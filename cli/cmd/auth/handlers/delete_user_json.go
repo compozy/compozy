@@ -2,79 +2,95 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
 // DeleteUserJSON handles user deletion in JSON mode using the unified executor pattern
+
 func DeleteUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, args []string) error {
 	log := logger.FromContext(ctx)
-
-	// In JSON mode, require user ID as argument
-	if len(args) == 0 {
-		return outputJSONError("user ID required")
-	}
-	userID := args[0]
-
-	// Basic validation of user ID format
-	if strings.TrimSpace(userID) == "" {
-		return outputJSONError("user ID cannot be empty or whitespace")
-	}
-
-	// Parse flags
-	force, err := cobraCmd.Flags().GetBool("force")
+	userID, err := resolveUserID(args)
 	if err != nil {
-		return fmt.Errorf("failed to get force flag: %w", err)
+		return outputJSONError(err.Error())
 	}
-	cascade, err := cobraCmd.Flags().GetBool("cascade")
+	options, err := parseDeleteUserFlags(cobraCmd)
 	if err != nil {
-		return fmt.Errorf("failed to get cascade flag: %w", err)
+		return outputJSONError(err.Error())
 	}
-
+	options.userID = userID
 	log.Debug("deleting user in JSON mode",
-		"user_id", userID,
-		"force", force,
-		"cascade", cascade)
-
-	// Force flag is required for user deletion in JSON mode
-	if !force {
-		return outputJSONError("user deletion requires --force flag in JSON mode")
+		"user_id", options.userID,
+		"force", options.force,
+		"cascade", options.cascade)
+	if err := ensureForceDeletion(options.force); err != nil {
+		return outputJSONError(err.Error())
 	}
-
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return outputJSONError("auth client not available")
 	}
-
-	// Delete the user
-	err = authClient.DeleteUser(ctx, userID)
-	if err != nil {
+	if err := authClient.DeleteUser(ctx, options.userID, api.DeleteUserOptions{
+		Cascade: options.cascade,
+	}); err != nil {
 		return outputJSONError(fmt.Sprintf("failed to delete user: %v", err))
 	}
+	return writeDeleteResponse(options.userID, options.cascade)
+}
 
-	// Prepare response
+type deleteUserOptions struct {
+	userID  string
+	force   bool
+	cascade bool
+}
+
+func resolveUserID(args []string) (string, error) {
+	if len(args) == 0 {
+		return "", fmt.Errorf("user ID required")
+	}
+	id := strings.TrimSpace(args[0])
+	if id == "" {
+		return "", fmt.Errorf("user ID cannot be empty or whitespace")
+	}
+	return id, nil
+}
+
+func parseDeleteUserFlags(cobraCmd *cobra.Command) (*deleteUserOptions, error) {
+	force, err := cobraCmd.Flags().GetBool("force")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get force flag: %w", err)
+	}
+	cascade, err := cobraCmd.Flags().GetBool("cascade")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cascade flag: %w", err)
+	}
+	return &deleteUserOptions{
+		force:   force,
+		cascade: cascade,
+	}, nil
+}
+
+func ensureForceDeletion(force bool) error {
+	if force {
+		return nil
+	}
+	return fmt.Errorf("user deletion requires --force flag in JSON mode; pass --force to proceed")
+}
+
+func writeDeleteResponse(userID string, cascade bool) error {
 	response := map[string]any{
 		"data": map[string]any{
 			"user_id": userID,
-			"deleted": time.Now().Format(time.RFC3339),
+			"deleted": time.Now().UTC().Format(time.RFC3339),
 			"cascade": cascade,
 		},
 		"message": "Success",
 	}
-
-	// Output JSON
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(response); err != nil {
-		return fmt.Errorf("failed to encode JSON response: %w", err)
-	}
-
-	return nil
+	return outputJSONResponse(response)
 }

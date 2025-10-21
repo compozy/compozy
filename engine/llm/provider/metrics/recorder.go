@@ -54,45 +54,23 @@ func NewRecorder(meter metric.Meter) (Recorder, error) {
 	if meter == nil {
 		return Nop(), nil
 	}
-	requestLatency, err := meter.Float64Histogram(
-		metrics.MetricNameWithSubsystem("llm_provider", "request_seconds"),
-		metric.WithDescription("Provider API call latency"),
-		metric.WithUnit(unitSeconds),
-		metric.WithExplicitBucketBoundaries(requestLatencyBuckets...),
-	)
+	requestLatency, err := buildRequestLatencyHistogram(meter)
 	if err != nil {
 		return nil, err
 	}
-	tokensCounter, err := meter.Int64Counter(
-		metrics.MetricNameWithSubsystem("llm_provider", "tokens_total"),
-		metric.WithDescription("Total tokens consumed by provider and token type"),
-		metric.WithUnit(unitTokens),
-	)
+	tokensCounter, err := buildTokensCounter(meter)
 	if err != nil {
 		return nil, err
 	}
-	costCounter, err := meter.Float64Counter(
-		metrics.MetricNameWithSubsystem("llm_provider", "cost_usd_total"),
-		metric.WithDescription("Estimated cumulative cost in USD"),
-		metric.WithUnit(unitUSD),
-	)
+	costCounter, err := buildCostCounter(meter)
 	if err != nil {
 		return nil, err
 	}
-	errorsCounter, err := meter.Int64Counter(
-		metrics.MetricNameWithSubsystem("llm_provider", "errors_total"),
-		metric.WithDescription("Provider errors grouped by category"),
-		metric.WithUnit(unitTokens),
-	)
+	errorsCounter, err := buildErrorsCounter(meter)
 	if err != nil {
 		return nil, err
 	}
-	delayHistogram, err := meter.Float64Histogram(
-		metrics.MetricNameWithSubsystem("llm_provider", "rate_limit_delays_seconds"),
-		metric.WithDescription("Duration spent waiting due to provider rate limits"),
-		metric.WithUnit(unitSeconds),
-		metric.WithExplicitBucketBoundaries(rateLimitBuckets...),
-	)
+	delayHistogram, err := buildRateLimitHistogram(meter)
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +81,48 @@ func NewRecorder(meter metric.Meter) (Recorder, error) {
 		errorsCounter:  errorsCounter,
 		delayHistogram: delayHistogram,
 	}, nil
+}
+
+func buildRequestLatencyHistogram(meter metric.Meter) (metric.Float64Histogram, error) {
+	return meter.Float64Histogram(
+		metrics.MetricNameWithSubsystem("llm_provider", "request_seconds"),
+		metric.WithDescription("Provider API call latency"),
+		metric.WithUnit(unitSeconds),
+		metric.WithExplicitBucketBoundaries(requestLatencyBuckets...),
+	)
+}
+
+func buildTokensCounter(meter metric.Meter) (metric.Int64Counter, error) {
+	return meter.Int64Counter(
+		metrics.MetricNameWithSubsystem("llm_provider", "tokens_total"),
+		metric.WithDescription("Total tokens consumed by provider and token type"),
+		metric.WithUnit(unitTokens),
+	)
+}
+
+func buildCostCounter(meter metric.Meter) (metric.Float64Counter, error) {
+	return meter.Float64Counter(
+		metrics.MetricNameWithSubsystem("llm_provider", "cost_usd_total"),
+		metric.WithDescription("Estimated cumulative cost in USD"),
+		metric.WithUnit(unitUSD),
+	)
+}
+
+func buildErrorsCounter(meter metric.Meter) (metric.Int64Counter, error) {
+	return meter.Int64Counter(
+		metrics.MetricNameWithSubsystem("llm_provider", "errors_total"),
+		metric.WithDescription("Provider errors grouped by category"),
+		metric.WithUnit(unitTokens),
+	)
+}
+
+func buildRateLimitHistogram(meter metric.Meter) (metric.Float64Histogram, error) {
+	return meter.Float64Histogram(
+		metrics.MetricNameWithSubsystem("llm_provider", "rate_limit_delays_seconds"),
+		metric.WithDescription("Duration spent waiting due to provider rate limits"),
+		metric.WithUnit(unitSeconds),
+		metric.WithExplicitBucketBoundaries(rateLimitBuckets...),
+	)
 }
 
 // Nop returns a recorder that ignores all invocations.

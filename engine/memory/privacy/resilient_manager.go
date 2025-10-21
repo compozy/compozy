@@ -54,7 +54,6 @@ func NewResilientManager(baseManager ManagerInterface, config *ResilienceConfig)
 	if baseManager == nil {
 		baseManager = NewManager()
 	}
-	// Create circuit breaker middleware
 	cbMiddleware := circuitbreaker.NewMiddleware(circuitbreaker.Config{
 		ErrorPercentThresholdToOpen:        config.ErrorPercentThresholdToOpen,
 		MinimumRequestToOpen:               config.MinimumRequestToOpen,
@@ -63,17 +62,14 @@ func NewResilientManager(baseManager ManagerInterface, config *ResilienceConfig)
 		MetricsSlidingWindowBucketQuantity: 10,
 		MetricsBucketDuration:              1 * time.Second,
 	})
-	// Create timeout middleware
 	timeoutMiddleware := timeout.NewMiddleware(timeout.Config{
 		Timeout: config.TimeoutDuration,
 	})
-	// Create retry middleware
 	retryMiddleware := retry.NewMiddleware(retry.Config{
 		Times:    config.RetryTimes,
 		WaitBase: config.RetryWaitBase,
 	})
-	// Chain the middleware: timeout -> circuit breaker -> retry
-	// This order ensures timeouts are enforced first, then circuit breaker, then retry
+	// NOTE: Enforce timeout before circuit breaker so latency doesn't masquerade as success, then allow retries last.
 	runner := goresilience.RunnerChain(
 		timeoutMiddleware,
 		cbMiddleware,
@@ -99,36 +95,28 @@ func (rm *ResilientManager) ApplyPrivacyControls(
 		metadata memcore.PrivacyMetadata
 		err      error
 	}
-	// Execute with resilience patterns
 	err := rm.runner.Run(ctx, func(ctx context.Context) (runErr error) {
-		// Recover from panics and convert to errors
 		defer func() {
 			if r := recover(); r != nil {
 				runErr = fmt.Errorf("panic recovered: %v", r)
 			}
 		}()
-		// Call original method with resilience wrapper
 		msg, meta, err := rm.ManagerInterface.ApplyPrivacyControls(ctx, msg, resourceID, metadata)
 		result.message = msg
 		result.metadata = meta
 		result.err = err
 		return err
 	})
-	// Record metrics
 	duration := time.Since(start)
 	if err != nil {
-		// Record circuit breaker trip if it's a circuit breaker error
 		if err == errors.ErrCircuitOpen {
 			metrics.RecordCircuitBreakerTrip(ctx, resourceID, "")
 		}
-		// Resilience patterns failed - use fallback
 		return rm.handleResilienceFailure(ctx, msg, resourceID, metadata, err)
 	}
-	// Now it's safe to access result since runner.Run has completed successfully
 	opType := "privacy_apply"
 	if result.metadata.RedactionApplied {
 		opType = "privacy_redaction"
-		// Record redaction operation
 		metrics.RecordRedactionOperation(ctx, resourceID, 1, "")
 	}
 	metrics.RecordMemoryOp(ctx, resourceID, "", opType, duration, 0, result.err)
@@ -146,12 +134,11 @@ func (rm *ResilientManager) RedactContent(
 	start := time.Now()
 	var result string
 	var resultErr error
-	// Create a context with timeout for the operation; preserve values but detach cancellation
+	// NOTE: Preserve request values but detach cancelation so retries can reapply their own deadlines.
 	base := context.WithoutCancel(ctx)
 	ctx, cancel := context.WithTimeout(base, rm.config.TimeoutDuration*2)
 	defer cancel()
 	err := rm.runner.Run(ctx, func(_ context.Context) (runErr error) {
-		// Recover from panics and convert to errors
 		defer func() {
 			if r := recover(); r != nil {
 				runErr = fmt.Errorf("panic recovered: %v", r)
@@ -162,21 +149,17 @@ func (rm *ResilientManager) RedactContent(
 		resultErr = err
 		return err
 	})
-	// Record metrics
 	duration := time.Since(start)
 	if err != nil {
-		// Record circuit breaker trip if it's a circuit breaker error
 		if err == errors.ErrCircuitOpen {
 			metrics.RecordCircuitBreakerTrip(ctx, "", "")
 		}
-		// If resilience patterns fail, return safe fallback with error
 		log.Error("Redaction failed with resilience patterns",
 			"error", err,
 			"fallback", defaultRedaction)
 		return defaultRedaction, fmt.Errorf("redaction failed: %w", err)
 	}
 	if resultErr == nil && len(patterns) > 0 {
-		// Record successful redaction
 		metrics.RecordRedactionOperation(ctx, "", int64(len(patterns)), "")
 	}
 	metrics.RecordMemoryOp(ctx, "", "", "privacy_redact_content", duration, 0, resultErr)
@@ -196,7 +179,7 @@ func (rm *ResilientManager) handleResilienceFailure(
 		"resource_id", resourceID,
 		"resilience_error", resilienceErr,
 		"fallback", "no_redaction")
-	// Fallback: pass through without redaction but mark metadata
+	// NOTE: Disable persistence as a safety net when resilience layers fail.
 	metadata.RedactionApplied = false
 	metadata.DoNotPersist = true // Safe fallback - don't persist potentially sensitive data
 	return msg, metadata, nil
@@ -207,15 +190,12 @@ func (rm *ResilientManager) handleResilienceFailure(
 func (rm *ResilientManager) GetCircuitBreakerStatus(
 	ctx context.Context,
 ) (isOpen bool, consecutiveErrors int, maxErrors int) {
-	// Since goresilience doesn't expose internal state directly,
-	// we return a simplified view based on whether the circuit is allowing requests
 	testCtx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
 	defer cancel()
 	err := rm.runner.Run(testCtx, func(_ context.Context) error {
 		return nil
 	})
 	isOpen = err != nil
-	// These values are approximations since goresilience manages state internally
 	if isOpen {
 		return true, rm.config.MinimumRequestToOpen, rm.config.MinimumRequestToOpen
 	}
@@ -224,8 +204,6 @@ func (rm *ResilientManager) GetCircuitBreakerStatus(
 
 // ResetCircuitBreaker is a no-op for goresilience as it manages state internally
 func (rm *ResilientManager) ResetCircuitBreaker(ctx context.Context) {
-	// goresilience manages circuit breaker state internally
-	// and doesn't provide a direct reset mechanism
 	log := logger.FromContext(ctx)
 	log.Info("Circuit breaker reset requested - goresilience manages state internally")
 }
@@ -234,7 +212,6 @@ func (rm *ResilientManager) ResetCircuitBreaker(ctx context.Context) {
 // Note: This requires recreating the runner
 func (rm *ResilientManager) UpdateConfig(config *ResilienceConfig) {
 	rm.config = config
-	// Recreate the runner with new configuration
 	cbMiddleware := circuitbreaker.NewMiddleware(circuitbreaker.Config{
 		ErrorPercentThresholdToOpen:        config.ErrorPercentThresholdToOpen,
 		MinimumRequestToOpen:               config.MinimumRequestToOpen,

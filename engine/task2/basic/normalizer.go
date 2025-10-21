@@ -39,30 +39,23 @@ func (n *Normalizer) Normalize(
 	config *task.Config,
 	parentCtx contracts.NormalizationContext,
 ) error {
-	// Handle nil config gracefully
 	if config == nil {
+		// NOTE: Allow empty configs so caller-side validation can short-circuit gracefully.
 		return nil
 	}
-
-	// Always apply base normalization - it will handle selective processing
 	if err := n.normalizeWithSelectiveProcessing(ctx, config, parentCtx); err != nil {
 		return err
 	}
-
-	// Type assert to get the concrete type
 	normCtx, ok := parentCtx.(*shared.NormalizationContext)
 	if !ok {
 		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", parentCtx)
 	}
-
-	// Normalize agent configuration if present
 	if config.Agent != nil {
 		actionID := config.Action
 		if err := n.agentNormalizer.NormalizeAgent(config.Agent, normCtx, actionID); err != nil {
 			return fmt.Errorf("failed to normalize agent config: %w", err)
 		}
 	}
-
 	return nil
 }
 
@@ -72,35 +65,23 @@ func (n *Normalizer) normalizeWithSelectiveProcessing(
 	config *task.Config,
 	parentCtx contracts.NormalizationContext,
 ) error {
-	// Type assert to get the concrete type
 	normCtx, ok := parentCtx.(*shared.NormalizationContext)
 	if !ok {
 		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", parentCtx)
 	}
-
-	// Detect if runtime already has the .tasks map with completed task outputs
 	hasTasksVar := normCtx != nil &&
 		normCtx.Variables != nil &&
 		normCtx.Variables["tasks"] != nil
-
-	// Preserve With only when it still contains runtime references *and*
-	// the tasks variable is NOT yet available (compile-time pass).
 	var preservedWith *enginecore.Input
 	if config.With != nil && n.containsRuntimeReferences(config.With) && !hasTasksVar {
 		preservedWith = config.With
 	}
-
-	// Apply base normalization which will process all templates
 	if err := n.BaseNormalizer.Normalize(ctx, config, normCtx); err != nil {
 		return err
 	}
-
-	// Restore the preserved With field if it had runtime references
-	// that we intentionally skipped during the first pass
 	if preservedWith != nil {
 		config.With = preservedWith
 	}
-
 	return nil
 }
 
@@ -109,7 +90,6 @@ func (n *Normalizer) containsRuntimeReferences(input *enginecore.Input) bool {
 	if input == nil {
 		return false
 	}
-	// Recursively check the input map for template expressions with runtime references
 	return n.checkMapForRuntimeReferences(*input)
 }
 
@@ -126,7 +106,6 @@ func (n *Normalizer) checkMapForRuntimeReferences(m map[string]any) bool {
 				return true
 			}
 		case []any:
-			// Handle slices of any type.
 			for _, item := range val {
 				switch itemVal := item.(type) {
 				case map[string]any:

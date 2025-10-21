@@ -44,7 +44,6 @@ func NewClearMemory(
 		var err error
 		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
 		if err != nil {
-			// Log error but continue with nil service
 			return nil, err
 		}
 	}
@@ -59,12 +58,9 @@ func NewClearMemory(
 
 // Execute clears memory content
 func (uc *ClearMemory) Execute(ctx context.Context) (*ClearMemoryResult, error) {
-	// Validate inputs
 	if err := uc.validate(); err != nil {
 		return nil, err
 	}
-
-	// Use centralized service for clearing
 	resp, err := uc.service.Clear(ctx, &service.ClearRequest{
 		BaseRequest: service.BaseRequest{
 			MemoryRef: uc.memoryRef,
@@ -78,7 +74,6 @@ func (uc *ClearMemory) Execute(ctx context.Context) (*ClearMemoryResult, error) 
 	if err != nil {
 		return nil, NewErrorContext(err, "clear_memory", uc.memoryRef, uc.key)
 	}
-
 	return &ClearMemoryResult{
 		Success:         resp.Success,
 		Key:             resp.Key,

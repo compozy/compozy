@@ -23,6 +23,7 @@ const (
 	defaultRestartAfterStall       = 2
 	defaultCompactionThreshold     = 0.85
 	defaultCompactionCooldown      = 2
+	defaultToolSuggestionLimit     = 3
 )
 
 type settings struct {
@@ -54,6 +55,7 @@ type settings struct {
 	restartThresholdClamped        bool
 	rateLimiter                    *llmadapter.RateLimiterRegistry
 	providerMetrics                providermetrics.Recorder
+	toolSuggestionLimit            int
 }
 
 func buildSettings(cfg *Config) settings {
@@ -92,8 +94,8 @@ func buildSettings(cfg *Config) settings {
 		restartAfterStallRequested:     cfg.RestartStallThreshold,
 		rateLimiter:                    cfg.RateLimiter,
 		providerMetrics:                cfg.ProviderMetrics,
+		toolSuggestionLimit:            cfg.ToolSuggestionLimit,
 	}
-
 	normalizeNumericDefaults(cfg, &s)
 	if s.providerMetrics == nil {
 		s.providerMetrics = providermetrics.Nop()
@@ -125,6 +127,7 @@ func normalizeNumericDefaults(cfg *Config, s *settings) {
 		s.compactionThreshold = normalizeThreshold(s.compactionThreshold, defaultCompactionThreshold)
 		s.compactionCooldown = defaultInt(s.compactionCooldown, defaultCompactionCooldown)
 	}
+	s.toolSuggestionLimit = defaultInt(s.toolSuggestionLimit, defaultToolSuggestionLimit)
 }
 
 func normalizeMaxRestarts(cfg *Config, current int) int {

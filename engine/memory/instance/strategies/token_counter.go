@@ -34,7 +34,6 @@ func (tc *SimpleTokenCounterAdapter) CountTokens(_ context.Context, text string)
 	if text == "" {
 		return 0, nil
 	}
-	// Simple character-based estimation with minimum of 1 token
 	tokenCount := int(float64(len(text)) * tc.tokensPerChar)
 	if tokenCount < 1 {
 		return 1, nil
@@ -64,7 +63,6 @@ func (tc *GPTTokenCounterAdapter) CountTokens(_ context.Context, text string) (i
 	if text == "" {
 		return 0, nil
 	}
-	// Simple character-based estimation
 	tokenCount := int(float64(len(text)) / tc.averageTokenLength)
 	return max(1, tokenCount), nil
 }

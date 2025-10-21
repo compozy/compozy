@@ -18,7 +18,6 @@ import (
 	"github.com/tmc/langchaingo/llms/openai"
 
 	memoryembeddings "github.com/compozy/compozy/engine/memory/embeddings"
-	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -214,9 +213,8 @@ func (a *Adapter) cachedEmbedDocuments(
 	memoryembeddings.RecordGeneration(ctx, string(a.provider), a.model, len(uniqueMissing), time.Since(start), tokens)
 	for i := range embedded {
 		text := uniqueMissing[i]
-		cloned := cloneVector(embedded[i])
 		for _, idx := range missingIdxMap[text] {
-			results[idx] = cloned
+			results[idx] = cloneVector(embedded[i])
 		}
 		a.storeCache(cache, text, embedded[i])
 	}
@@ -365,7 +363,6 @@ func buildVertexEmbedder(
 	cfg *Config,
 	opts ...embeddings.Option,
 ) (embeddings.Embedder, error) {
-	appconfig.FromContext(ctx) // ensure configuration is loaded for downstream providers
 	vertexOpts := []googleai.Option{
 		googleai.WithDefaultEmbeddingModel(cfg.Model),
 	}

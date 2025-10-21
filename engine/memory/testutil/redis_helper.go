@@ -50,11 +50,9 @@ func (s *TestRedisSetup) Cleanup() {
 func setupRedisClient(t *testing.T) (*miniredis.Miniredis, *RedisTestClient) {
 	server, err := miniredis.Run()
 	require.NoError(t, err)
-
 	client := redis.NewClient(&redis.Options{
 		Addr: server.Addr(),
 	})
-
 	return server, &RedisTestClient{Client: client}
 }
 
@@ -65,9 +63,7 @@ func setupManagerDependencies(
 ) (*memory.ManagerOptions, *autoload.ConfigRegistry) {
 	lockManager, err := cache.NewRedisLockManager(testClient)
 	require.NoError(t, err)
-
 	configRegistry := autoload.NewConfigRegistry()
-
 	opts := &memory.ManagerOptions{
 		ResourceRegistry:  configRegistry,
 		TplEngine:         tplengine.NewEngine(tplengine.FormatText),
@@ -77,7 +73,6 @@ func setupManagerDependencies(
 		TemporalTaskQueue: "test-memory-queue",
 		PrivacyManager:    privacy.NewManager(),
 	}
-
 	return opts, configRegistry
 }
 
@@ -85,11 +80,9 @@ func setupManagerDependencies(
 func SetupTestRedis(t *testing.T) *TestRedisSetup {
 	server, testClient := setupRedisClient(t)
 	redisStore := store.NewRedisMemoryStore(testClient, "test")
-
 	opts, configRegistry := setupManagerDependencies(t, testClient)
 	manager, err := memory.NewManager(opts)
 	require.NoError(t, err)
-
 	return &TestRedisSetup{
 		Server:         server,
 		Client:         testClient,
@@ -101,7 +94,6 @@ func SetupTestRedis(t *testing.T) *TestRedisSetup {
 
 // CreateTestMemoryInstance creates a memory instance for testing
 func (s *TestRedisSetup) CreateTestMemoryInstance(t *testing.T, instanceID string) core.Memory {
-	// First register a test memory configuration
 	testConfig := &memory.Config{
 		Resource:    "memory",
 		ID:          instanceID,
@@ -114,75 +106,53 @@ func (s *TestRedisSetup) CreateTestMemoryInstance(t *testing.T, instanceID strin
 			TTL:  "24h",
 		},
 	}
-
-	// Validate config to set ParsedTTL
 	err := testConfig.Validate(t.Context())
 	require.NoError(t, err)
-
-	// Register the config
 	err = s.ConfigRegistry.Register(testConfig, "test")
 	require.NoError(t, err)
-
-	// Create memory reference
 	memRef := enginecore.MemoryReference{
 		ID:          instanceID,
 		Key:         instanceID,
 		ResolvedKey: instanceID,
 		Mode:        "read-write",
 	}
-
-	// Get instance from manager
 	memInstance, err := s.Manager.GetInstance(t.Context(), memRef, map[string]any{})
 	require.NoError(t, err)
-
 	return memInstance
 }
 
 // CreateTestMemoryInstanceWithFlush creates a flushable memory instance for testing
 func (s *TestRedisSetup) CreateTestMemoryInstanceWithFlush(t *testing.T, instanceID string) core.FlushableMemory {
 	memInstance := s.CreateTestMemoryInstance(t, instanceID)
-
 	flushableInstance, ok := memInstance.(core.FlushableMemory)
 	require.True(t, ok, "Memory instance should implement FlushableMemory")
-
 	return flushableInstance
 }
 
 // SetupTestMemoryManager creates a lightweight memory manager for testing
 func SetupTestMemoryManager(t *testing.T) (*memory.Manager, func()) {
 	setup := SetupTestRedis(t)
-
 	return setup.Manager, setup.Cleanup
 }
 
 // SetupTestStore creates just a Redis store for testing
 func SetupTestStore(t *testing.T) (core.Store, func()) {
 	setup := SetupTestRedis(t)
-
 	return setup.Store, setup.Cleanup
 }
 
 // SetupTestStoreWithPrefix creates a Redis store with a custom prefix
 func SetupTestStoreWithPrefix(t *testing.T, prefix string) (core.Store, func()) {
-	// Start miniredis server
 	server, err := miniredis.Run()
 	require.NoError(t, err)
-
-	// Create Redis client
 	client := redis.NewClient(&redis.Options{
 		Addr: server.Addr(),
 	})
-
-	// Create test client wrapper
 	testClient := &RedisTestClient{Client: client}
-
-	// Create Redis store with custom prefix
 	redisStore := store.NewRedisMemoryStore(testClient, prefix)
-
 	cleanup := func() {
 		client.Close()
 		server.Close()
 	}
-
 	return redisStore, cleanup
 }

@@ -8,6 +8,20 @@ import (
 	"github.com/ulule/limiter/v3"
 )
 
+const (
+	defaultGlobalRateLimit     = 100
+	defaultAPIKeyRateLimit     = 100
+	defaultMemoryRateLimit     = 200
+	defaultHooksRateLimit      = 60
+	defaultWorkflowRateLimit   = 100
+	defaultTaskRateLimit       = 100
+	defaultAuthRateLimit       = 20
+	defaultUsersRateLimit      = 30
+	defaultRatePeriod          = time.Minute
+	defaultMaxRetry            = 3
+	defaultHealthCheckInterval = 30 * time.Second
+)
+
 // Config represents rate limiting configuration
 type Config struct {
 	// Global rate limit settings
@@ -52,68 +66,86 @@ type RateConfig struct {
 // DefaultConfig returns default rate limiting configuration
 func DefaultConfig() *Config {
 	return &Config{
-		GlobalRate: RateConfig{
-			Limit:    100,
-			Period:   1 * time.Minute,
-			Disabled: false,
-		},
-		APIKeyRate: RateConfig{
-			Limit:    100,
-			Period:   1 * time.Minute,
-			Disabled: false,
-		},
-		RouteRates: map[string]RateConfig{
-			routes.Base() + "/memory": {
-				Limit:    200, // More reasonable for memory operations
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-			routes.Hooks(): {
-				Limit:    60, // Moderate default for public webhooks
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-			routes.Base() + "/workflow": {
-				Limit:    100,
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-			routes.Base() + "/task": {
-				Limit:    100,
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-			// Auth endpoints - stricter limits to prevent brute force attacks
-			routes.Base() + "/auth": {
-				Limit:    20, // Stricter limit for auth operations
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-			routes.Base() + "/users": {
-				Limit:    30, // Moderate limit for user management (admin only)
-				Period:   1 * time.Minute,
-				Disabled: false,
-			},
-		},
-		// RedisAddr is the address of the Redis server. If empty, an in-memory store is used.
+		GlobalRate:          defaultGlobalRate(),
+		APIKeyRate:          defaultAPIKeyRate(),
+		RouteRates:          defaultRouteRates(),
 		RedisAddr:           "",
 		RedisPassword:       "",
 		RedisDB:             0,
 		Prefix:              "compozy:ratelimit:",
-		MaxRetry:            3,
-		HealthCheckInterval: 30 * time.Second,
+		MaxRetry:            defaultMaxRetry,
+		HealthCheckInterval: defaultHealthCheckInterval,
 		DisableHeaders:      false,
-		ExcludedPaths: []string{
-			"/health",                // legacy/unversioned
-			routes.HealthVersioned(), // versioned API health
-			"/healthz",               // k8s liveness probe
-			"/readyz",                // k8s readiness probe
-			"/mcp-proxy/health",      // MCP readiness probe
-			"/metrics",               // Prometheus
-			"/swagger",               // docs
+		ExcludedPaths:       defaultExcludedPaths(),
+		ExcludedIPs:         nil,
+		FailOpen:            true,
+	}
+}
+
+// defaultGlobalRate returns the default global rate limiter configuration.
+func defaultGlobalRate() RateConfig {
+	return RateConfig{
+		Limit:    defaultGlobalRateLimit,
+		Period:   defaultRatePeriod,
+		Disabled: false,
+	}
+}
+
+// defaultAPIKeyRate returns the default API key rate limiter configuration.
+func defaultAPIKeyRate() RateConfig {
+	return RateConfig{
+		Limit:    defaultAPIKeyRateLimit,
+		Period:   defaultRatePeriod,
+		Disabled: false,
+	}
+}
+
+// defaultRouteRates returns default per-route rate limit settings.
+func defaultRouteRates() map[string]RateConfig {
+	return map[string]RateConfig{
+		routes.Base() + "/memory": {
+			Limit:    defaultMemoryRateLimit,
+			Period:   defaultRatePeriod,
+			Disabled: false,
 		},
-		ExcludedIPs: []string{},
-		FailOpen:    true, // Default to fail-open for availability
+		routes.Hooks(): {
+			Limit:    defaultHooksRateLimit,
+			Period:   defaultRatePeriod,
+			Disabled: false,
+		},
+		routes.Base() + "/workflow": {
+			Limit:    defaultWorkflowRateLimit,
+			Period:   defaultRatePeriod,
+			Disabled: false,
+		},
+		routes.Base() + "/task": {
+			Limit:    defaultTaskRateLimit,
+			Period:   defaultRatePeriod,
+			Disabled: false,
+		},
+		routes.Base() + "/auth": {
+			Limit:    defaultAuthRateLimit,
+			Period:   defaultRatePeriod,
+			Disabled: false,
+		},
+		routes.Base() + "/users": {
+			Limit:    defaultUsersRateLimit,
+			Period:   defaultRatePeriod,
+			Disabled: false,
+		},
+	}
+}
+
+// defaultExcludedPaths returns paths excluded from rate limiting.
+func defaultExcludedPaths() []string {
+	return []string{
+		"/health",
+		routes.HealthVersioned(),
+		"/healthz",
+		"/readyz",
+		"/mcp-proxy/health",
+		"/metrics",
+		"/swagger",
 	}
 }
 

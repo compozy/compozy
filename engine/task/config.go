@@ -2460,7 +2460,6 @@ func (t *Config) GetGlobalOpts() *core.GlobalOpts {
 // Validate performs comprehensive validation of the task configuration.
 // Checks task type validity, cycles in parallel tasks, and type-specific requirements.
 func (t *Config) Validate(ctx context.Context) error {
-	// First run basic validation
 	v := schema.NewCompositeValidator(
 		schema.NewCWDValidator(t.CWD, t.ID),
 		NewTaskTypeValidator(t),
@@ -2474,14 +2473,12 @@ func (t *Config) Validate(ctx context.Context) error {
 	if len(t.Knowledge) == 1 && strings.TrimSpace(t.Knowledge[0].ID) == "" {
 		return fmt.Errorf("task configuration error: knowledge binding requires an id reference")
 	}
-	// Then check for cycles in parallel tasks
 	if t.Type == TaskTypeParallel {
 		cycleValidator := NewCycleValidator()
 		if err := cycleValidator.ValidateConfig(t); err != nil {
 			return err
 		}
 	}
-	// Validate wait task specific fields
 	if t.Type == TaskTypeWait {
 		if err := t.validateWaitTask(ctx); err != nil {
 			return fmt.Errorf("invalid wait task '%s': %w", t.ID, err)
@@ -2490,7 +2487,6 @@ func (t *Config) Validate(ctx context.Context) error {
 	if err := t.validateBasicSelectorRules(ctx); err != nil {
 		return err
 	}
-	// Validate memory task specific fields
 	if t.Type == TaskTypeMemory {
 		if err := t.validateMemoryTask(ctx); err != nil {
 			return fmt.Errorf("invalid memory task '%s': %w", t.ID, err)
@@ -2507,7 +2503,6 @@ func (t *Config) validateBasicSelectorRules(_ context.Context) error {
 	}
 	hasAgent := t.Agent != nil
 	hasTool := t.Tool != nil
-	// Enforce mutual exclusivity only; presence is enforced at compile time
 	if hasAgent && hasTool {
 		return fmt.Errorf("basic task '%s': agent and tool are mutually exclusive", t.ID)
 	}
@@ -2517,22 +2512,18 @@ func (t *Config) validateBasicSelectorRules(_ context.Context) error {
 // validateWaitTask performs comprehensive validation for wait task configuration.
 // Ensures required fields are present and expressions are valid.
 func (t *Config) validateWaitTask(ctx context.Context) error {
-	// Required field validation
 	if t.WaitFor == "" {
 		return fmt.Errorf("wait_for field is required")
 	}
 	if t.Condition == "" {
 		return fmt.Errorf("condition field is required")
 	}
-	// CEL expression syntax validation
 	if err := t.validateWaitCondition(ctx); err != nil {
 		return fmt.Errorf("invalid condition: %w", err)
 	}
-	// Timeout validation
 	if err := t.validateWaitTimeout(ctx); err != nil {
 		return fmt.Errorf("invalid timeout: %w", err)
 	}
-	// Processor configuration validation
 	if t.Processor != nil {
 		if err := t.validateWaitProcessor(ctx); err != nil {
 			return fmt.Errorf("invalid processor configuration: %w", err)
@@ -2573,7 +2564,6 @@ func (t *Config) validateWaitProcessor(ctx context.Context) error {
 	if t.Processor.Type == "" {
 		return fmt.Errorf("processor type is required")
 	}
-	// Recursively validate the processor configuration
 	if err := t.Processor.Validate(ctx); err != nil {
 		return fmt.Errorf("processor validation failed: %w", err)
 	}
@@ -2583,19 +2573,15 @@ func (t *Config) validateWaitProcessor(ctx context.Context) error {
 // validateMemoryTask performs comprehensive validation for memory task configuration.
 // Validates operation type, required fields, and operation-specific constraints.
 func (t *Config) validateMemoryTask(ctx context.Context) error {
-	// Required field validation
 	if err := t.validateMemoryRequiredFields(ctx); err != nil {
 		return err
 	}
-	// Validate operation type
 	if err := t.validateMemoryOperation(ctx); err != nil {
 		return err
 	}
-	// Validate performance limits
 	if err := t.validateMemoryLimits(ctx); err != nil {
 		return err
 	}
-	// Operation-specific validation
 	return t.validateMemoryOperationSpecific(ctx)
 }
 
@@ -2679,51 +2665,7 @@ func (t *Config) AsMap() (map[string]any, error) {
 // FromMap updates the provider configuration from a normalized map
 func (t *Config) FromMap(data any) error {
 	var tmp Config
-	// Build a decoder with a hook that converts any slice -> attachment.Attachments via JSON round‑trip
-	attSliceType := reflect.TypeOf(attachment.Attachments{})
-	decodeHook := func(_ reflect.Type, to reflect.Type, v any) (any, error) {
-		if to == attSliceType {
-			rv := reflect.ValueOf(v)
-			if rv.IsValid() && rv.Kind() == reflect.Slice {
-				b, err := json.Marshal(v)
-				if err != nil {
-					return nil, err
-				}
-				var atts attachment.Attachments
-				if err := json.Unmarshal(b, &atts); err != nil {
-					return nil, err
-				}
-				return atts, nil
-			}
-		}
-		return v, nil
-	}
-	// Extend decode hook to coerce string-form selectors to IDs for agent/tool
-	agentPtr := reflect.TypeOf(&agent.Config{})
-	toolPtr := reflect.TypeOf(&tool.Config{})
-	extendedHook := func(from reflect.Type, to reflect.Type, v any) (any, error) {
-		if to == agentPtr {
-			if s, ok := v.(string); ok {
-				return &agent.Config{ID: s}, nil
-			}
-		}
-		if to == toolPtr {
-			if s, ok := v.(string); ok {
-				return &tool.Config{ID: s}, nil
-			}
-		}
-		nv, err := decodeHook(from, to, v)
-		if err != nil {
-			return nil, err
-		}
-		return nv, nil
-	}
-	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		WeaklyTypedInput: true,
-		Result:           &tmp,
-		TagName:          "mapstructure",
-		DecodeHook:       mapstructure.ComposeDecodeHookFunc(extendedHook, core.StringToMapAliasPtrHook),
-	})
+	decoder, err := newConfigDecoder(&tmp)
 	if err != nil {
 		return err
 	}
@@ -2731,6 +2673,66 @@ func (t *Config) FromMap(data any) error {
 		return err
 	}
 	return t.Merge(&tmp)
+}
+
+// newConfigDecoder builds the mapstructure decoder with the required hooks.
+func newConfigDecoder(result *Config) (*mapstructure.Decoder, error) {
+	hook := mapstructure.ComposeDecodeHookFunc(
+		extendedConfigDecodeHook(),
+		core.StringToMapAliasPtrHook,
+	)
+	return mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		WeaklyTypedInput: true,
+		Result:           result,
+		TagName:          "mapstructure",
+		DecodeHook:       hook,
+	})
+}
+
+// extendedConfigDecodeHook prepares decode hooks for attachments and selectors.
+func extendedConfigDecodeHook() mapstructure.DecodeHookFunc {
+	attachmentHook := attachmentsDecodeHook()
+	agentPtr := reflect.TypeOf(&agent.Config{})
+	toolPtr := reflect.TypeOf(&tool.Config{})
+	return func(from reflect.Type, to reflect.Type, v any) (any, error) {
+		switch to {
+		case agentPtr:
+			if s, ok := v.(string); ok {
+				return &agent.Config{ID: s}, nil
+			}
+		case toolPtr:
+			if s, ok := v.(string); ok {
+				return &tool.Config{ID: s}, nil
+			}
+		}
+		if fn, ok := attachmentHook.(mapstructure.DecodeHookFuncType); ok {
+			return fn(from, to, v)
+		}
+		return v, nil
+	}
+}
+
+// attachmentsDecodeHook converts slices into attachment collections.
+func attachmentsDecodeHook() mapstructure.DecodeHookFunc {
+	attSliceType := reflect.TypeOf(attachment.Attachments{})
+	return mapstructure.DecodeHookFuncType(func(_ reflect.Type, to reflect.Type, v any) (any, error) {
+		if to != attSliceType {
+			return v, nil
+		}
+		rv := reflect.ValueOf(v)
+		if !rv.IsValid() || rv.Kind() != reflect.Slice {
+			return v, nil
+		}
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		var atts attachment.Attachments
+		if err := json.Unmarshal(b, &atts); err != nil {
+			return nil, err
+		}
+		return atts, nil
+	})
 }
 
 func (t *Config) GetSleepDuration() (time.Duration, error) {
@@ -2747,16 +2749,12 @@ func (t *Config) GetSleepDuration() (time.Duration, error) {
 func (t *Config) GetStrategy() ParallelStrategy {
 	switch t.Type {
 	case TaskTypeParallel:
-		// Use the embedded ParallelTask's GetStrategy method
 		return t.ParallelTask.GetStrategy()
 	case TaskTypeCollection:
-		// Collections can have a strategy defined via the embedded ParallelTask
 		return t.ParallelTask.GetStrategy()
 	case TaskTypeComposite:
-		// Composite tasks are always sequential (WaitAll)
 		return StrategyWaitAll
 	default:
-		// Other task types don't have a strategy concept, default to WaitAll
 		return StrategyWaitAll
 	}
 }
@@ -2818,11 +2816,9 @@ func FindConfig(tasks []Config, taskID string) (*Config, error) {
 // applyDefaults sets default values for task configurations.
 // Called during task loading to ensure all required fields have sensible defaults.
 func applyDefaults(config *Config) {
-	// Apply defaults for collection tasks
 	if config.Type == TaskTypeCollection {
 		config.Default()
 	}
-	// Recursively apply defaults to sub-tasks for any task type with a tasks array
 	hasSubTasks := config.Type == TaskTypeParallel ||
 		config.Type == TaskTypeComposite ||
 		config.Type == TaskTypeCollection
@@ -2831,8 +2827,6 @@ func applyDefaults(config *Config) {
 			applyDefaults(&config.Tasks[i])
 		}
 	}
-
-	// Handle collection tasks with task template
 	if config.Type == TaskTypeCollection && config.Task != nil {
 		applyDefaults(config.Task)
 	}
@@ -2843,7 +2837,6 @@ func setCWDForTask(task *Config, parentCWD *core.PathCWD, taskType string) error
 	if task.CWD != nil || parentCWD == nil {
 		return nil
 	}
-
 	if err := task.SetCWD(parentCWD.PathStr()); err != nil {
 		return fmt.Errorf("failed to set CWD for %s %s: %w", taskType, task.ID, err)
 	}

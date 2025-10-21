@@ -21,12 +21,9 @@ func NewParamsValidator[T any](with T, schema *Schema, id string) *ParamsValidat
 }
 
 func (v *ParamsValidator) Validate(ctx context.Context) error {
-	// If there is no schema, there's nothing to validate against.
 	if v.schema == nil {
 		return nil
 	}
-
-	// If there is a schema, but no parameters are provided, this is an error.
 	if v.params == nil {
 		return fmt.Errorf(
 			"%w for %s: %s",
@@ -35,8 +32,6 @@ func (v *ParamsValidator) Validate(ctx context.Context) error {
 			"parameters are nil but a schema is defined",
 		)
 	}
-
-	// Both schema and parameters are present, proceed with validation.
 	result, err := v.schema.Validate(ctx, v.params)
 	if err != nil {
 		return fmt.Errorf("validation error for %s: %w", v.id, err)

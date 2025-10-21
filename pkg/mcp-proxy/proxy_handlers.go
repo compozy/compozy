@@ -56,99 +56,115 @@ func (p *ProxyHandlers) SetBaseURL(u string) {
 func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *MCPDefinition) error {
 	log := logger.FromContext(ctx)
 	log.Info("Registering MCP proxy", "name", name)
-
-	// Get or create MCP client
 	client, err := p.clientManager.GetClient(name)
 	if err != nil {
 		log.Error("Failed to get MCP client", "name", name, "error", err)
 		return err
 	}
-
-	// Create MCP server for this client
-	serverOpts := []server.ServerOption{
-		server.WithResourceCapabilities(true, true),
-		server.WithRecovery(),
+	proxyServer := p.buildProxyServer(name, def, client)
+	if err := p.storeProxyServer(name, proxyServer); err != nil {
+		return err
 	}
+	p.startProxyInitialization(ctx, name, proxyServer)
+	log.Info("Successfully registered MCP proxy", "name", name)
+	return nil
+}
 
-	// Add logging configuration based on MCPDefinition
-	if def != nil && def.LogEnabled {
-		serverOpts = append(serverOpts, server.WithLogging())
-	}
-
-	mcpServer := server.NewMCPServer(
-		name,
-		"1.0.0", // version
-		serverOpts...,
-	)
-
-	// Create SSE server for this MCP server
-	p.serversMutex.RLock()
-	baseURL := p.baseURL
-	p.serversMutex.RUnlock()
-	sseServer := server.NewSSEServer(mcpServer,
+// buildProxyServer constructs the MCP and SSE servers for a proxy registration.
+func (p *ProxyHandlers) buildProxyServer(
+	name string,
+	def *MCPDefinition,
+	client MCPClientInterface,
+) *ProxyServer {
+	mcpServer := server.NewMCPServer(name, "1.0.0", p.serverOptions(def)...)
+	sseServer := server.NewSSEServer(
+		mcpServer,
 		server.WithStaticBasePath(name),
-		server.WithBaseURL(baseURL),
+		server.WithBaseURL(p.currentBaseURL()),
 	)
-
-	proxyServer := &ProxyServer{
+	return &ProxyServer{
 		mcpServer: mcpServer,
 		sseServer: sseServer,
 		client:    client,
 		def:       def,
 	}
+}
 
-	// Store the proxy server BEFORE initialization to avoid race condition
-	// This allows requests to find the server, even if initialization is still in progress
+// serverOptions builds MCP server options based on configuration.
+func (p *ProxyHandlers) serverOptions(def *MCPDefinition) []server.ServerOption {
+	options := []server.ServerOption{
+		server.WithResourceCapabilities(true, true),
+		server.WithRecovery(),
+	}
+	if def != nil && def.LogEnabled {
+		options = append(options, server.WithLogging())
+	}
+	return options
+}
+
+// currentBaseURL returns the base URL with read locking.
+func (p *ProxyHandlers) currentBaseURL() string {
+	p.serversMutex.RLock()
+	defer p.serversMutex.RUnlock()
+	return p.baseURL
+}
+
+// storeProxyServer registers the proxy server in the handlers map.
+func (p *ProxyHandlers) storeProxyServer(name string, proxyServer *ProxyServer) error {
 	p.serversMutex.Lock()
+	defer p.serversMutex.Unlock()
 	if _, exists := p.servers[name]; exists {
-		p.serversMutex.Unlock()
 		return fmt.Errorf("MCP proxy %q is already registered", name)
 	}
 	p.servers[name] = proxyServer
-	p.serversMutex.Unlock()
-
-	// Initialize the client connection and add its capabilities to the server
-	// This runs in background after the server is registered
-	go func() {
-		// Derive uncancelable context from caller to keep values but avoid premature cancellation
-		bgCtx := logger.ContextWithLogger(context.WithoutCancel(ctx), log)
-		timeout := 30 * time.Second
-		if def != nil && def.Timeout > 0 {
-			timeout = def.Timeout
-		}
-		waitCtx, cancel := context.WithTimeout(bgCtx, timeout)
-		defer cancel()
-		if err := p.initializeClientConnection(waitCtx, client, mcpServer, name, def); err != nil {
-			log.Error("Failed to initialize MCP client connection", "name", name, "error", err)
-			// Update client status to reflect initialization failure
-			if status := client.GetStatus(); status != nil {
-				status.UpdateStatus(StatusError, fmt.Sprintf("initialization failed: %v", err))
-			}
-		}
-	}()
-
-	log.Info("Successfully registered MCP proxy", "name", name)
 	return nil
+}
+
+// startProxyInitialization kicks off asynchronous client initialization.
+func (p *ProxyHandlers) startProxyInitialization(ctx context.Context, name string, proxyServer *ProxyServer) {
+	go func() {
+		p.initializeProxy(ctx, name, proxyServer)
+	}()
+}
+
+// initializeProxy waits for the client to become ready and updates status on failure.
+func (p *ProxyHandlers) initializeProxy(ctx context.Context, name string, proxyServer *ProxyServer) {
+	log := logger.FromContext(ctx)
+	bgCtx := logger.ContextWithLogger(context.WithoutCancel(ctx), log)
+	timeout := 30 * time.Second
+	if proxyServer.def != nil && proxyServer.def.Timeout > 0 {
+		timeout = proxyServer.def.Timeout
+	}
+	waitCtx, cancel := context.WithTimeout(bgCtx, timeout)
+	defer cancel()
+	if err := p.initializeClientConnection(
+		waitCtx,
+		proxyServer.client,
+		proxyServer.mcpServer,
+		name,
+		proxyServer.def,
+	); err != nil {
+		log.Error("Failed to initialize MCP client connection", "name", name, "error", err)
+		if status := proxyServer.client.GetStatus(); status != nil {
+			status.UpdateStatus(StatusError, fmt.Sprintf("initialization failed: %v", err))
+		}
+	}
 }
 
 // UnregisterMCPProxy removes an MCP proxy server
 func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) error {
 	log := logger.FromContext(ctx)
 	log.Info("Unregistering MCP proxy", "name", name)
-
 	p.serversMutex.Lock()
 	proxyServer, exists := p.servers[name]
 	if exists {
 		delete(p.servers, name)
 	}
 	p.serversMutex.Unlock()
-
 	if !exists {
 		log.Debug("Proxy server not found for unregistration", "name", name)
 		return nil
 	}
-
-	// Shutdown server resources first
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if proxyServer.sseServer != nil {
@@ -156,14 +172,12 @@ func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) err
 			log.Error("Failed to shutdown SSE server", "name", name, "error", err)
 		}
 	}
-	// Disconnect the client connection
 	if proxyServer.client != nil {
 		disconnectCtx := logger.ContextWithLogger(shutdownCtx, log)
 		if err := proxyServer.client.Disconnect(disconnectCtx); err != nil {
 			log.Error("Failed to disconnect MCP client", "name", name, "error", err)
 		}
 	}
-
 	log.Info("Successfully unregistered MCP proxy", "name", name)
 	return nil
 }
@@ -190,21 +204,15 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "MCP name is required", "details": ""})
 		return
 	}
-
 	log.Debug("Handling SSE proxy request", "name", name, "path", c.Request.URL.Path)
-
-	// Get the proxy server for this MCP
 	p.serversMutex.RLock()
 	proxyServer, exists := p.servers[name]
 	p.serversMutex.RUnlock()
-
 	if !exists {
 		log.Debug("MCP proxy server not found", "name", name)
 		c.JSON(http.StatusNotFound, gin.H{"error": "MCP server not found", "details": fmt.Sprintf("name=%s", name)})
 		return
 	}
-
-	// Check if proxy server is properly initialized and ready
 	if proxyServer.client == nil || !proxyServer.client.IsConnected() {
 		log.Error("MCP proxy server not ready", "name", name)
 		c.JSON(
@@ -213,14 +221,9 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		)
 		return
 	}
-
-	// Use cached definition to avoid repeated storage queries
-
 	middlewares := []gin.HandlerFunc{
 		recoverMiddleware(name),
 	}
-
-	// Check if SSE server is available (test scenario)
 	if proxyServer.sseServer == nil {
 		c.JSON(
 			http.StatusInternalServerError,
@@ -228,8 +231,6 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		)
 		return
 	}
-
-	// Wrap SSE server with middlewares and call
 	wrappedHandler := wrapWithGinMiddlewares(proxyServer.sseServer, middlewares...)
 	wrappedHandler(c)
 }
@@ -263,11 +264,7 @@ func (p *ProxyHandlers) StreamableHTTPProxyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "MCP name is required", "details": ""})
 		return
 	}
-
 	log.Debug("Handling streamable HTTP proxy request", "name", name, "path", c.Request.URL.Path)
-
-	// For streamable HTTP, we use the same SSE handler approach
-	// The client transport handles the difference
 	p.SSEProxyHandler(c)
 }
 
@@ -281,30 +278,20 @@ func (p *ProxyHandlers) initializeClientConnection(
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("Waiting for MCP client to be connected", "name", name)
-
-	// Wait for the client to be connected by the ClientManager.
-	// This requires a way to observe the client's status. The client has WaitUntilConnected method.
 	if err := client.WaitUntilConnected(ctx); err != nil {
 		return fmt.Errorf("client connection timed out or failed: %w", err)
 	}
-
 	log.Debug("MCP client is connected, loading resources", "name", name)
-
-	// Create resource loader
 	resourceLoader := NewResourceLoader(client, mcpServer, name)
-
-	// Load critical capabilities first (tools)
 	var toolFilter *ToolFilter
 	if def != nil {
 		toolFilter = def.ToolFilter
 	}
+	// NOTE: Tools must load before prompts/resources so dependent capabilities register safely.
 	if err := resourceLoader.LoadTools(ctx, toolFilter); err != nil {
 		return err
 	}
-
-	// Load optional capabilities concurrently
 	p.loadOptionalCapabilities(ctx, resourceLoader)
-
 	return nil
 }
 
@@ -315,8 +302,6 @@ func (p *ProxyHandlers) loadOptionalCapabilities(
 ) {
 	log := logger.FromContext(ctx)
 	optionalGroup, optionalCtx := errgroup.WithContext(ctx)
-
-	// Define optional capability loaders
 	capabilities := []struct {
 		name   string
 		loader func(context.Context) error
@@ -325,8 +310,6 @@ func (p *ProxyHandlers) loadOptionalCapabilities(
 		{"resources", resourceLoader.LoadResources},
 		{"resource_templates", resourceLoader.LoadResourceTemplates},
 	}
-
-	// Load each capability concurrently
 	for _, cap := range capabilities {
 		capability := cap // capture loop variable
 		optionalGroup.Go(func() error {
@@ -338,8 +321,6 @@ func (p *ProxyHandlers) loadOptionalCapabilities(
 			return nil // Don't propagate errors for optional capabilities
 		})
 	}
-
-	// Wait for all optional operations to complete
 	if err := optionalGroup.Wait(); err != nil {
 		log.Debug("Unexpected error from optional operations", "error", err)
 	}

@@ -54,7 +54,6 @@ func (t *ProxyTool) Description() string {
 
 // Call executes the tool via the proxy
 func (t *ProxyTool) Call(ctx context.Context, input string) (string, error) {
-	// Parse the input arguments
 	if input == "" {
 		input = "{}"
 	}
@@ -62,19 +61,13 @@ func (t *ProxyTool) Call(ctx context.Context, input string) (string, error) {
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
 		return "", fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
-
-	// Validate arguments against input schema
 	if err := t.validateArguments(ctx, args); err != nil {
 		return "", fmt.Errorf("invalid tool arguments: %w", err)
 	}
-
-	// Execute the tool via proxy
 	result, err := t.executor.Execute(ctx, t.mcpName, t.name, args)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute tool '%s' from MCP '%s': %w", t.name, t.mcpName, err)
 	}
-
-	// Preserve raw strings; JSON-encode structured payloads
 	switch v := result.(type) {
 	case string:
 		return v, nil
@@ -111,14 +104,10 @@ func (t *ProxyTool) ParameterSchema() map[string]any {
 
 // validateArguments validates the provided arguments against the tool's input schema
 func (t *ProxyTool) validateArguments(ctx context.Context, args map[string]any) error {
-	// Skip validation if no schema is defined
 	if len(t.inputSchema) == 0 {
 		return nil
 	}
-
-	// Convert map[string]any to schema.Schema and use the engine/schema package
 	toolSchema := schema.Schema(t.inputSchema)
 	validator := schema.NewParamsValidator(args, &toolSchema, fmt.Sprintf("tool:%s", t.name))
-
 	return validator.Validate(ctx)
 }

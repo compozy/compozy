@@ -66,26 +66,20 @@ func (cib *ChildrenIndexBuilder) buildChildrenContextWithVisited(
 	if depth >= limits.MaxChildrenDepth || parentState == nil {
 		return make(map[string]any)
 	}
-
-	// Check for circular reference
 	parentExecID := string(parentState.TaskExecID)
 	if visited[parentExecID] {
 		return map[string]any{
 			"error": "circular reference detected in children chain",
 		}
 	}
-
-	// Mark as visited
 	visited[parentExecID] = true
 	defer func() {
 		delete(visited, parentExecID) // Clean up for other branches
 	}()
-
 	children := make(map[string]any)
 	if childTaskIDs, exists := childrenIndex[parentExecID]; exists {
 		for _, childTaskID := range childTaskIDs {
 			if childState, exists := workflowState.Tasks[childTaskID]; exists {
-				// Pass the original visited map directly since defer cleanup handles it
 				children[childTaskID] = cib.buildChildContextWithoutParentVisited(
 					ctx,
 					childTaskID,
@@ -123,7 +117,6 @@ func (cib *ChildrenIndexBuilder) buildChildContextWithoutParentVisited(
 	if taskState.Error != nil {
 		taskContext["error"] = taskState.Error
 	}
-	// Ensure output key is always present for consistency
 	if taskState.Output != nil {
 		taskContext["output"] = *taskState.Output
 	} else {
@@ -144,7 +137,6 @@ func (cib *ChildrenIndexBuilder) buildChildContextWithoutParentVisited(
 	if taskConfigs != nil {
 		if taskConfig, exists := taskConfigs[taskID]; exists {
 			if err := cib.mergeTaskConfigWithoutParent(taskContext, taskConfig); err != nil {
-				// Log error but continue - best effort merge
 				taskContext["_merge_error"] = err.Error()
 			}
 		}

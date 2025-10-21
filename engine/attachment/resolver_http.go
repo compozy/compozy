@@ -22,6 +22,13 @@ var (
 	ErrMaxSizeExceeded      = errors.New("download exceeds size limit")
 )
 
+// downloadResult carries the outcome of an HTTP download attempt.
+type downloadResult struct {
+	path string
+	mime string
+	err  error
+}
+
 // httpDownloadToTemp streams the content at urlStr into a temp file while
 // enforcing size limits, timeouts, and redirect caps. It returns the temp
 // file path and detected MIME (from initial bytes). Callers MUST Cleanup().
@@ -34,65 +41,100 @@ func httpDownloadToTemp(ctx context.Context, urlStr string, maxSize int64) (stri
 	client, redirects := makeHTTPClient(effTimeout, effMaxRedirects)
 	rctx, cancel := context.WithTimeout(ctx, effTimeout)
 	defer cancel()
-	type result struct {
-		path, mime string
-		err        error
-	}
-	done := make(chan result, 1)
+	done := make(chan downloadResult, 1)
 	go func() {
-		req, err := http.NewRequestWithContext(rctx, http.MethodGet, s, http.NoBody)
-		if err != nil {
-			done <- result{"", "", fmt.Errorf("failed to build request: %w", err)}
-			return
-		}
-		// Set user-agent for better compatibility
-		ua := HTTPUserAgent
-		if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.Attachments.HTTPUserAgent != "" {
-			ua = cfg.Attachments.HTTPUserAgent
-		}
-		req.Header.Set("User-Agent", ua)
-		resp, err := client.Do(req)
-		if err != nil {
-			done <- result{"", "", fmt.Errorf("request failed: %w", err)}
-			return
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			done <- result{"", "", fmt.Errorf("unexpected status: %d", resp.StatusCode)}
-			return
-		}
-		// Check for empty response
-		if resp.ContentLength == 0 {
-			done <- result{"", "", fmt.Errorf("empty response from server")}
-			return
-		}
-		path, written, head, err := streamToTemp(rctx, effMaxSize, resp.Body)
-		if err != nil {
-			done <- result{"", "", err}
-			return
-		}
-		if written == 0 {
-			_ = os.Remove(path)
-			done <- result{"", "", fmt.Errorf("empty response from server")}
-			return
-		}
-		mime := detectMIME(head)
-		logger.FromContext(ctx).Debug(
-			"Downloaded attachment",
-			"url", sanitizeURL(s),
-			"bytes", written,
-			"mime", mime,
-			"redirects", *redirects,
-		)
-		done <- result{path, mime, nil}
+		done <- executeHTTPDownload(ctx, rctx, client, redirects, s, effMaxSize)
 	}()
-	// Return on completion or context timeout.
+	return awaitDownload(rctx, done)
+}
+
+// executeHTTPDownload performs the HTTP download and returns its outcome.
+func executeHTTPDownload(
+	ctx context.Context,
+	requestCtx context.Context,
+	client *http.Client,
+	redirects *int,
+	url string,
+	maxSize int64,
+) downloadResult {
+	req, err := buildDownloadRequest(ctx, requestCtx, url)
+	if err != nil {
+		return downloadResult{"", "", err}
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return downloadResult{"", "", fmt.Errorf("request failed: %w", err)}
+	}
+	defer resp.Body.Close()
+	if err := validateHTTPResponse(resp); err != nil {
+		return downloadResult{"", "", err}
+	}
+	path, written, head, err := streamToTemp(requestCtx, maxSize, resp.Body)
+	if err != nil {
+		return downloadResult{"", "", err}
+	}
+	if err := ensureContentWritten(path, written); err != nil {
+		return downloadResult{"", "", err}
+	}
+	mime := detectMIME(head)
+	logDownloadSuccess(ctx, url, written, mime, redirects)
+	return downloadResult{path: path, mime: mime, err: nil}
+}
+
+// awaitDownload waits for the download result or context cancellation.
+func awaitDownload(ctx context.Context, done <-chan downloadResult) (string, string, error) {
 	select {
 	case r := <-done:
 		return r.path, r.mime, r.err
-	case <-rctx.Done():
-		return "", "", rctx.Err()
+	case <-ctx.Done():
+		return "", "", ctx.Err()
 	}
+}
+
+// buildDownloadRequest constructs the HTTP request with the effective user agent.
+func buildDownloadRequest(ctx context.Context, requestCtx context.Context, url string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build request: %w", err)
+	}
+	req.Header.Set("User-Agent", effectiveUserAgent(ctx))
+	return req, nil
+}
+
+// effectiveUserAgent resolves the user-agent header for outbound requests.
+func effectiveUserAgent(ctx context.Context) string {
+	if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.Attachments.HTTPUserAgent != "" {
+		return cfg.Attachments.HTTPUserAgent
+	}
+	return HTTPUserAgent
+}
+
+// validateHTTPResponse ensures the response status is acceptable.
+func validateHTTPResponse(resp *http.Response) error {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("unexpected status: %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// ensureContentWritten confirms bytes were written and cleans up zero-length files.
+func ensureContentWritten(path string, written int64) error {
+	if written == 0 {
+		_ = os.Remove(path)
+		return fmt.Errorf("empty response from server")
+	}
+	return nil
+}
+
+// logDownloadSuccess records download metadata for diagnostics.
+func logDownloadSuccess(ctx context.Context, url string, written int64, mime string, redirects *int) {
+	logger.FromContext(ctx).Debug(
+		"Downloaded attachment",
+		"url", sanitizeURL(url),
+		"bytes", written,
+		"mime", mime,
+		"redirects", *redirects,
+	)
 }
 
 func computeAttachmentLimits(ctx context.Context, maxSize int64) (int64, time.Duration, int) {
@@ -119,7 +161,6 @@ func makeHTTPClient(timeout time.Duration, maxRedirects int) (*http.Client, *int
 	client := &http.Client{
 		Timeout: timeout,
 		Transport: &http.Transport{
-			// Keep ResponseHeaderTimeout for slow servers
 			ResponseHeaderTimeout: timeout,
 		},
 	}
@@ -142,7 +183,6 @@ func streamToTemp(ctx context.Context, limit int64, r io.Reader) (string, int64,
 		return "", 0, nil, fmt.Errorf("temp file create failed: %w", err)
 	}
 	path := tmpf.Name()
-	// Ensure cleanup on any error
 	cleanup := func() {
 		tmpf.Close()
 		os.Remove(path)

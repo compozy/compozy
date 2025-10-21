@@ -66,12 +66,10 @@ func NewConfigRegistry() *ConfigRegistry {
 func (r *ConfigRegistry) Register(config any, source string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	// Extract resource type and ID from the configuration
 	resourceType, id, err := extractResourceInfo(config)
 	if err != nil {
 		return err
 	}
-	// Normalize resource type and ID (case-insensitive) and trim whitespace
 	resourceType = strings.TrimSpace(strings.ToLower(resourceType))
 	id = strings.TrimSpace(strings.ToLower(id))
 	if resourceType == "" || id == "" {
@@ -80,11 +78,9 @@ func (r *ConfigRegistry) Register(config any, source string) error {
 			"id":   id,
 		})
 	}
-	// Initialize the resource type map if it doesn't exist
 	if _, ok := r.configs[resourceType]; !ok {
 		r.configs[resourceType] = make(map[string]*configEntry)
 	}
-	// Check if a configuration with this ID already exists
 	if existing, exists := r.configs[resourceType][id]; exists {
 		return core.NewError(nil, "DUPLICATE_CONFIG", map[string]any{
 			"type":            resourceType,
@@ -94,7 +90,6 @@ func (r *ConfigRegistry) Register(config any, source string) error {
 			"suggestion":      "Check for duplicate resource IDs or use unique identifiers across configuration files",
 		})
 	}
-	// Add the configuration to the registry
 	r.configs[resourceType][id] = &configEntry{
 		config: config,
 		source: source,
@@ -106,7 +101,6 @@ func (r *ConfigRegistry) Register(config any, source string) error {
 func (r *ConfigRegistry) Get(resourceType, id string) (any, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	// Normalize resource type and ID for lookup (case-insensitive)
 	resourceType = strings.TrimSpace(strings.ToLower(resourceType))
 	id = strings.TrimSpace(strings.ToLower(id))
 	if configs, ok := r.configs[resourceType]; ok {
@@ -136,7 +130,6 @@ func (r *ConfigRegistry) Count() int {
 func (r *ConfigRegistry) GetAll(resourceType string) []any {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	// Normalize resource type for lookup (case-insensitive)
 	resourceType = strings.TrimSpace(strings.ToLower(resourceType))
 	if configs, ok := r.configs[resourceType]; ok {
 		result := make([]any, 0, len(configs))
@@ -158,11 +151,9 @@ func (r *ConfigRegistry) Clear() {
 
 // extractResourceInfo extracts the resource type and ID from a configuration using reflection
 func extractResourceInfo(config any) (resourceType string, id string, err error) {
-	// First, try to use the Configurable interface if available
 	if c, ok := config.(Configurable); ok {
 		return c.GetResource(), c.GetID(), nil
 	}
-	// Handle map[string]any configurations (for auto-loaded configs)
 	if configMap, ok := config.(map[string]any); ok {
 		return extractResourceInfoFromMap(configMap)
 	}
@@ -186,14 +177,12 @@ func extractResourceInfo(config any) (resourceType string, id string, err error)
 		})
 	}
 	typeName := fmt.Sprintf("%T", config)
-	// Extract resource type
 	resourceType = extractResourceType(v, typeName)
 	if resourceType == "" {
 		return "", "", core.NewError(nil, "UNKNOWN_CONFIG_TYPE", map[string]any{
 			"type": typeName,
 		})
 	}
-	// Extract ID
 	id = extractID(v, typeName)
 	if id == "" {
 		return "", "", core.NewError(nil, "EMPTY_ID", map[string]any{
@@ -206,7 +195,6 @@ func extractResourceInfo(config any) (resourceType string, id string, err error)
 
 // extractResourceType gets the resource type from config
 func extractResourceType(v reflect.Value, typeName string) string {
-	// Try to get Resource field first
 	resourceField := v.FieldByName("Resource")
 	if resourceField.IsValid() && resourceField.Kind() == reflect.String {
 		resourceValue := resourceField.String()
@@ -214,7 +202,6 @@ func extractResourceType(v reflect.Value, typeName string) string {
 			return resourceValue
 		}
 	}
-	// If Resource field is empty or not found, determine from type
 	resourceTypeMap := map[string]string{
 		"*workflow.Config":          string(core.ConfigWorkflow),
 		"*task.Config":              string(core.ConfigTask),
@@ -241,19 +228,16 @@ func extractResourceType(v reflect.Value, typeName string) string {
 
 // extractID gets the ID from config
 func extractID(v reflect.Value, typeName string) string {
-	// Direct ID field
 	idField := v.FieldByName("ID")
 	if idField.IsValid() && idField.Kind() == reflect.String {
 		return idField.String()
 	}
-	// Special case: Project uses Name field as ID
 	if typeName == "*project.Config" {
 		nameField := v.FieldByName("Name")
 		if nameField.IsValid() && nameField.Kind() == reflect.String {
 			return nameField.String()
 		}
 	}
-	// For nested structs like task.Config with BaseConfig
 	baseConfigField := v.FieldByName("BaseConfig")
 	if baseConfigField.IsValid() && baseConfigField.Kind() == reflect.Struct {
 		idField = baseConfigField.FieldByName("ID")
@@ -266,7 +250,6 @@ func extractID(v reflect.Value, typeName string) string {
 
 // extractResourceInfoFromMap extracts resource type and ID from a map configuration
 func extractResourceInfoFromMap(configMap map[string]any) (resourceType string, id string, err error) {
-	// Extract resource type
 	if resource, exists := configMap["resource"]; exists {
 		if resourceStr, ok := resource.(string); ok && resourceStr != "" {
 			resourceType = resourceStr
@@ -284,7 +267,6 @@ func extractResourceInfoFromMap(configMap map[string]any) (resourceType string, 
 			nil,
 		)
 	}
-	// Extract ID
 	if idValue, exists := configMap["id"]; exists {
 		if idStr, ok := idValue.(string); ok && idStr != "" {
 			id = idStr

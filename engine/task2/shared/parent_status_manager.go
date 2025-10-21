@@ -19,15 +19,12 @@ type DefaultParentStatusManager struct {
 
 // NewParentStatusManager creates a new parent status manager
 func NewParentStatusManager(ctx context.Context, taskRepo task.Repository) ParentStatusManager {
-	// Read batch size from config or use default
 	batchSize := DefaultBatchSize
-	// Load configuration from environment
 	service := config.NewService()
 	appConfig, err := service.Load(ctx)
 	if err == nil && appConfig.Limits.ParentUpdateBatchSize > 0 {
 		batchSize = appConfig.Limits.ParentUpdateBatchSize
 	}
-
 	return &DefaultParentStatusManager{
 		taskRepo:    taskRepo,
 		batchSize:   batchSize,
@@ -50,14 +47,12 @@ func (m *DefaultParentStatusManager) UpdateParentStatus(
 	parentStateID core.ID,
 	strategy task.ParallelStrategy,
 ) error {
-	// For batch optimization with large collections, delegate to batch method
 	if m.enableBatch {
 		return m.updateParentStatusBatch(ctx, []ParentUpdate{{
 			ParentID: parentStateID,
 			Strategy: strategy,
 		}})
 	}
-
 	return m.updateSingleParentStatus(ctx, parentStateID, strategy)
 }
 
@@ -75,8 +70,6 @@ func (m *DefaultParentStatusManager) updateParentStatusBatch(
 	if len(updates) == 0 {
 		return nil
 	}
-
-	// Process updates in batches to avoid overwhelming the database
 	for i := 0; i < len(updates); i += m.batchSize {
 		end := min(i+m.batchSize, len(updates))
 
@@ -85,7 +78,6 @@ func (m *DefaultParentStatusManager) updateParentStatusBatch(
 			return fmt.Errorf("failed to process batch %d-%d: %w", i, end, err)
 		}
 	}
-
 	return nil
 }
 
@@ -94,62 +86,82 @@ func (m *DefaultParentStatusManager) processBatch(
 	ctx context.Context,
 	batch []ParentUpdate,
 ) error {
-	// Build a map to handle duplicates and track strategies
-	updateMap := make(map[core.ID]task.ParallelStrategy, len(batch))
-
-	for _, update := range batch {
-		if err := m.validateID(update.ParentID); err != nil {
-			return fmt.Errorf("invalid parent ID %s: %w", update.ParentID, err)
-		}
-		// Last strategy wins for duplicate parent IDs
-		updateMap[update.ParentID] = update.Strategy
+	updateMap, err := m.buildUpdateMap(batch)
+	if err != nil {
+		return err
 	}
-
-	// Collect unique parent IDs from the map keys
-	parentIDs := make([]core.ID, 0, len(updateMap))
-	for parentID := range updateMap {
-		parentIDs = append(parentIDs, parentID)
-	}
-
-	// Batch fetch parent states
-	parentStates, err := m.batchGetParentStates(ctx, parentIDs)
+	parentStates, err := m.batchGetParentStates(ctx, m.extractParentIDs(updateMap))
 	if err != nil {
 		return fmt.Errorf("failed to batch get parent states: %w", err)
 	}
+	statesToUpdate, err := m.collectStatesToUpdate(ctx, parentStates, updateMap)
+	if err != nil {
+		return err
+	}
+	return m.persistStateUpdates(ctx, statesToUpdate)
+}
 
-	// Process each parent's status update
-	statesToUpdate := make([]*task.State, 0, len(parentStates))
+// buildUpdateMap validates batch input and collapses duplicates by parent ID
+func (m *DefaultParentStatusManager) buildUpdateMap(
+	batch []ParentUpdate,
+) (map[core.ID]task.ParallelStrategy, error) {
+	updateMap := make(map[core.ID]task.ParallelStrategy, len(batch))
+	for _, update := range batch {
+		if err := m.validateID(update.ParentID); err != nil {
+			return nil, fmt.Errorf("invalid parent ID %s: %w", update.ParentID, err)
+		}
+		updateMap[update.ParentID] = update.Strategy
+	}
+	return updateMap, nil
+}
 
+// extractParentIDs returns a slice containing the unique parent identifiers
+func (m *DefaultParentStatusManager) extractParentIDs(
+	updateMap map[core.ID]task.ParallelStrategy,
+) []core.ID {
+	ids := make([]core.ID, 0, len(updateMap))
+	for parentID := range updateMap {
+		ids = append(ids, parentID)
+	}
+	return ids
+}
+
+// collectStatesToUpdate evaluates each parent state and returns the ones that changed
+func (m *DefaultParentStatusManager) collectStatesToUpdate(
+	ctx context.Context,
+	parentStates []*task.State,
+	updateMap map[core.ID]task.ParallelStrategy,
+) ([]*task.State, error) {
+	updated := make([]*task.State, 0, len(parentStates))
 	for _, parentState := range parentStates {
 		strategy := updateMap[parentState.TaskExecID]
-
-		// Get children for this parent
 		children, err := m.taskRepo.ListChildren(ctx, parentState.TaskExecID)
 		if err != nil {
-			return fmt.Errorf("failed to list children for parent %s: %w", parentState.TaskExecID, err)
+			return nil, fmt.Errorf("failed to list children for parent %s: %w", parentState.TaskExecID, err)
 		}
-
 		if len(children) == 0 {
 			continue
 		}
-
-		// Calculate aggregated status
 		aggregatedStatus := m.calculateStatusWithStrategy(children, strategy)
-
-		// Only update if status changed
 		if parentState.Status != aggregatedStatus {
 			parentState.Status = aggregatedStatus
-			statesToUpdate = append(statesToUpdate, parentState)
+			updated = append(updated, parentState)
 		}
 	}
+	return updated, nil
+}
 
-	// Batch update all changed states
-	if len(statesToUpdate) > 0 {
-		if err := m.batchUpdateStates(ctx, statesToUpdate); err != nil {
-			return fmt.Errorf("failed to batch update states: %w", err)
-		}
+// persistStateUpdates saves state changes using the most efficient repository method available
+func (m *DefaultParentStatusManager) persistStateUpdates(
+	ctx context.Context,
+	states []*task.State,
+) error {
+	if len(states) == 0 {
+		return nil
 	}
-
+	if err := m.batchUpdateStates(ctx, states); err != nil {
+		return fmt.Errorf("failed to batch update states: %w", err)
+	}
 	return nil
 }
 
@@ -158,16 +170,12 @@ func (m *DefaultParentStatusManager) batchGetParentStates(
 	ctx context.Context,
 	parentIDs []core.ID,
 ) ([]*task.State, error) {
-	// Check if task repository supports batch operations
 	type batchRepo interface {
 		GetStates(ctx context.Context, ids []core.ID) ([]*task.State, error)
 	}
-
 	if br, ok := m.taskRepo.(batchRepo); ok {
 		return br.GetStates(ctx, parentIDs)
 	}
-
-	// Fallback to individual fetches
 	states := make([]*task.State, 0, len(parentIDs))
 	for _, id := range parentIDs {
 		state, err := m.taskRepo.GetState(ctx, id)
@@ -176,7 +184,6 @@ func (m *DefaultParentStatusManager) batchGetParentStates(
 		}
 		states = append(states, state)
 	}
-
 	return states, nil
 }
 
@@ -185,22 +192,17 @@ func (m *DefaultParentStatusManager) batchUpdateStates(
 	ctx context.Context,
 	states []*task.State,
 ) error {
-	// Check if task repository supports batch operations
 	type batchRepo interface {
 		UpsertStates(ctx context.Context, states []*task.State) error
 	}
-
 	if br, ok := m.taskRepo.(batchRepo); ok {
 		return br.UpsertStates(ctx, states)
 	}
-
-	// Fallback to individual updates
 	for _, state := range states {
 		if err := m.taskRepo.UpsertState(ctx, state); err != nil {
 			return fmt.Errorf("failed to update state %s: %w", state.TaskExecID, err)
 		}
 	}
-
 	return nil
 }
 
@@ -210,16 +212,13 @@ func (m *DefaultParentStatusManager) updateSingleParentStatus(
 	parentStateID core.ID,
 	strategy task.ParallelStrategy,
 ) error {
-	// Validate parent ID to prevent SQL injection
 	if err := m.validateID(parentStateID); err != nil {
 		return fmt.Errorf("invalid parent task reference: %w", err)
 	}
-	// Get parent state
 	parentState, err := m.taskRepo.GetState(ctx, parentStateID)
 	if err != nil {
 		return fmt.Errorf("unable to retrieve parent task %s: %w", parentStateID, err)
 	}
-	// Get all children of the parent task
 	children, err := m.taskRepo.ListChildren(ctx, parentStateID)
 	if err != nil {
 		return fmt.Errorf("unable to retrieve child tasks for parent %s: %w", parentStateID, err)
@@ -227,9 +226,7 @@ func (m *DefaultParentStatusManager) updateSingleParentStatus(
 	if len(children) == 0 {
 		return nil
 	}
-	// Calculate aggregated status using the appropriate strategy
 	aggregatedStatus := m.calculateStatusWithStrategy(children, strategy)
-	// Update parent status if it has changed
 	if parentState.Status != aggregatedStatus {
 		parentState.Status = aggregatedStatus
 		if err := m.taskRepo.UpsertState(ctx, parentState); err != nil {
@@ -245,7 +242,6 @@ func (m *DefaultParentStatusManager) GetAggregatedStatus(
 	parentStateID core.ID,
 	strategy task.ParallelStrategy,
 ) (core.StatusType, error) {
-	// Validate parent ID to prevent SQL injection
 	if err := m.validateID(parentStateID); err != nil {
 		return "", fmt.Errorf("invalid parent state ID: %w", err)
 	}
@@ -319,17 +315,15 @@ func (m *DefaultParentStatusManager) calculateRaceStatus(children []*task.State)
 			return core.StatusSuccess
 		}
 		if child.Status == core.StatusFailed {
-			// In race mode, continue to see if others succeed
+			// NOTE: In race mode we allow other branches to continue in case one succeeds first.
 			continue
 		}
 	}
-	// Check if any are still running
 	for _, child := range children {
 		if child.Status == core.StatusRunning || child.Status == core.StatusPending {
 			return core.StatusRunning
 		}
 	}
-	// All failed
 	return core.StatusFailed
 }
 
@@ -346,19 +340,15 @@ func (m *DefaultParentStatusManager) calculateWaitAllStatus(children []*task.Sta
 			runningCount++
 		}
 	}
-	// If any child is running, parent is running
 	if runningCount > 0 {
 		return core.StatusRunning
 	}
-	// If any child failed, parent fails
 	if failedCount > 0 {
 		return core.StatusFailed
 	}
-	// If all succeeded, parent succeeds
 	if successCount == len(children) {
 		return core.StatusSuccess
 	}
-	// Default case
 	return core.StatusRunning
 }
 
@@ -367,7 +357,6 @@ func (m *DefaultParentStatusManager) validateID(id core.ID) error {
 	if id == "" {
 		return fmt.Errorf("invalid identifier provided")
 	}
-	// Validate KSUID format
 	_, err := ksuid.Parse(id.String())
 	if err != nil {
 		return fmt.Errorf("invalid ID format: %w", err)

@@ -52,7 +52,6 @@ func NewListAgents(workflows []*workflow.Config) *ListAgents {
 func (uc *ListAgents) Execute(_ context.Context) ([]agent.Config, error) {
 	agents := make([]agent.Config, 0)
 	seen := make(map[string]bool)
-
 	for _, wf := range uc.workflows {
 		for i := range wf.Agents {
 			if !seen[wf.Agents[i].ID] {
@@ -61,6 +60,5 @@ func (uc *ListAgents) Execute(_ context.Context) ([]agent.Config, error) {
 			}
 		}
 	}
-
 	return agents, nil
 }

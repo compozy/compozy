@@ -10,15 +10,10 @@ import (
 
 // wrapWithGinMiddlewares wraps an http.Handler with gin middlewares
 func wrapWithGinMiddlewares(handler http.Handler, middlewares ...gin.HandlerFunc) gin.HandlerFunc {
-	// Create a new gin engine to properly chain middlewares
 	engine := gin.New()
-
-	// Add all middlewares to the engine
 	for _, middleware := range middlewares {
 		engine.Use(middleware)
 	}
-
-	// Add the final handler that calls the wrapped http.Handler
 	engine.Use(func(c *gin.Context) {
 		if handler == nil {
 			c.AbortWithStatusJSON(
@@ -29,8 +24,6 @@ func wrapWithGinMiddlewares(handler http.Handler, middlewares ...gin.HandlerFunc
 		}
 		handler.ServeHTTP(c.Writer, c.Request)
 	})
-
-	// Return a handler that uses the engine
 	return func(c *gin.Context) {
 		engine.HandleContext(c)
 	}

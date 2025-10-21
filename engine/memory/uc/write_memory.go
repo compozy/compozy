@@ -35,7 +35,6 @@ func NewWriteMemory(
 
 // Execute writes/replaces memory content
 func (uc *WriteMemory) Execute(ctx context.Context) (*service.WriteResponse, error) {
-	// Use centralized service for writing (validation handled by service)
 	return uc.service.Write(ctx, &service.WriteRequest{
 		BaseRequest: service.BaseRequest{
 			MemoryRef: uc.memoryRef,

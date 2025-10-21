@@ -47,7 +47,6 @@ func (r *registry) list() []Metadata {
 	for _, template := range r.templates {
 		metadataList = append(metadataList, template.GetMetadata())
 	}
-	// Sort templates by name for consistent ordering
 	sort.Slice(metadataList, func(i, j int) bool {
 		return metadataList[i].Name < metadataList[j].Name
 	})

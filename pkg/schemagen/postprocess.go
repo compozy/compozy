@@ -32,7 +32,6 @@ func postProcessAgentSchema(schema map[string]any) bool {
 		return false
 	}
 	updated := ensureArrayRef(props, "tools", "tool.json")
-
 	if ensureArrayRef(props, "mcps", "mcp.json") {
 		updated = true
 	}
@@ -60,7 +59,6 @@ func postProcessWorkflowSchema(schema map[string]any) bool {
 		return false
 	}
 	updated := ensureArrayRef(props, "tools", "tool.json")
-
 	if ensureArrayRef(props, "agents", "agent.json") {
 		updated = true
 	}
@@ -88,7 +86,6 @@ func postProcessTaskSchema(schema map[string]any) bool {
 		return false
 	}
 	updated := ensureRef(props, "agent", "agent.json")
-
 	if ensureRef(props, "tool", "tool.json") {
 		updated = true
 	}
@@ -130,7 +127,6 @@ func postProcessProjectSchema(schema map[string]any) bool {
 		return false
 	}
 	updated := ensureRef(props, "cache", "cache.json")
-
 	if ensureRef(props, "autoload", "autoload.json") {
 		updated = true
 	}
@@ -315,59 +311,80 @@ func ensureAttachmentsSchema(schema map[string]any, props map[string]any) bool {
 
 func buildAttachmentsSchema() (attachmentsSchemaBundle, error) {
 	attachmentsSchemaOnce.Do(func() {
-		bundle := attachmentsSchemaBundle{
-			arrayDefinition: map[string]any{
-				"type":        "array",
-				"description": "Attachments available at this configuration scope.",
-			},
-			variantDefinitions: make(map[string]any),
-		}
-		types := []struct {
-			name     string
-			typeName string
-			instance any
-		}{
-			{"AttachmentImage", string(attachment.TypeImage), &attachment.ImageAttachment{}},
-			{"AttachmentPDF", string(attachment.TypePDF), &attachment.PDFAttachment{}},
-			{"AttachmentAudio", string(attachment.TypeAudio), &attachment.AudioAttachment{}},
-			{"AttachmentVideo", string(attachment.TypeVideo), &attachment.VideoAttachment{}},
-			{"AttachmentURL", string(attachment.TypeURL), &attachment.URLAttachment{}},
-			{"AttachmentFile", string(attachment.TypeFile), &attachment.FileAttachment{}},
-		}
+		bundle := newAttachmentsBundle()
 		reflector := newJSONSchemaReflector()
-		oneOf := make([]any, 0, len(types))
-		for _, t := range types {
-			schema := reflector.Reflect(t.instance)
-			variantMap, err := marshalSchema(schema)
-			if err != nil {
-				attachmentsSchemaErr = err
-				return
-			}
-			ensureObjectSchema(variantMap)
-			props, _ := mapValue(variantMap, "properties")
-			if props == nil {
-				props = make(map[string]any)
-				variantMap["properties"] = props
-			}
-			typeProp := map[string]any{"const": t.typeName, "type": "string"}
-			props["type"] = typeProp
-			requiredAny, ok := variantMap["required"].([]any)
-			if !ok {
-				requiredAny = nil
-			}
-			requiredAny = appendIfMissing(requiredAny, "type")
-			variantMap["required"] = requiredAny
-			variantMap["description"] = buildAttachmentDescription(t.typeName)
-			bundle.variantDefinitions[t.name] = variantMap
-			oneOf = append(oneOf, map[string]any{"$ref": "#/$defs/" + t.name})
-		}
-		bundle.arrayDefinition["items"] = map[string]any{
-			"oneOf":         oneOf,
-			"discriminator": map[string]any{"propertyName": "type"},
+		if err := populateAttachmentVariants(reflector, attachmentDescriptors(), &bundle); err != nil {
+			attachmentsSchemaErr = err
+			return
 		}
 		attachmentsSchemaData = bundle
 	})
 	return attachmentsSchemaData, attachmentsSchemaErr
+}
+
+// newAttachmentsBundle creates the base attachments bundle with static metadata.
+func newAttachmentsBundle() attachmentsSchemaBundle {
+	return attachmentsSchemaBundle{
+		arrayDefinition: map[string]any{
+			"type":        "array",
+			"description": "Attachments available at this configuration scope.",
+		},
+		variantDefinitions: make(map[string]any),
+	}
+}
+
+type attachmentDescriptor struct {
+	name     string
+	typeName string
+	instance any
+}
+
+// attachmentDescriptors enumerates the supported attachment variants.
+func attachmentDescriptors() []attachmentDescriptor {
+	return []attachmentDescriptor{
+		{"AttachmentImage", string(attachment.TypeImage), &attachment.ImageAttachment{}},
+		{"AttachmentPDF", string(attachment.TypePDF), &attachment.PDFAttachment{}},
+		{"AttachmentAudio", string(attachment.TypeAudio), &attachment.AudioAttachment{}},
+		{"AttachmentVideo", string(attachment.TypeVideo), &attachment.VideoAttachment{}},
+		{"AttachmentURL", string(attachment.TypeURL), &attachment.URLAttachment{}},
+		{"AttachmentFile", string(attachment.TypeFile), &attachment.FileAttachment{}},
+	}
+}
+
+// populateAttachmentVariants reflects attachment types and stores the resulting schemas.
+func populateAttachmentVariants(
+	reflector *jsonschema.Reflector,
+	descriptors []attachmentDescriptor,
+	bundle *attachmentsSchemaBundle,
+) error {
+	oneOf := make([]any, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		schema := reflector.Reflect(descriptor.instance)
+		variantMap, err := marshalSchema(schema)
+		if err != nil {
+			return err
+		}
+		ensureObjectSchema(variantMap)
+		props, _ := mapValue(variantMap, "properties")
+		if props == nil {
+			props = make(map[string]any)
+			variantMap["properties"] = props
+		}
+		props["type"] = map[string]any{"const": descriptor.typeName, "type": "string"}
+		requiredAny, ok := variantMap["required"].([]any)
+		if !ok {
+			requiredAny = nil
+		}
+		variantMap["required"] = appendIfMissing(requiredAny, "type")
+		variantMap["description"] = buildAttachmentDescription(descriptor.typeName)
+		bundle.variantDefinitions[descriptor.name] = variantMap
+		oneOf = append(oneOf, map[string]any{"$ref": "#/$defs/" + descriptor.name})
+	}
+	bundle.arrayDefinition["items"] = map[string]any{
+		"oneOf":         oneOf,
+		"discriminator": map[string]any{"propertyName": "type"},
+	}
+	return nil
 }
 
 func ensureDefsMap(schema map[string]any) map[string]any {

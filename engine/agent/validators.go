@@ -29,12 +29,12 @@ func (v *ActionsValidator) Validate(ctx context.Context) error {
 	if v.actions == nil {
 		return nil
 	}
-	for _, action := range v.actions {
+	for i, action := range v.actions {
 		if action == nil {
-			continue
+			return fmt.Errorf("action at index %d is nil", i)
 		}
 		if err := action.Validate(ctx); err != nil {
-			return err
+			return fmt.Errorf("action at index %d: %w", i, err)
 		}
 	}
 	return nil
@@ -55,24 +55,15 @@ func NewMemoryValidator(refs []core.MemoryReference /*, reg *autoload.Registry *
 // Validate ensures memory references have valid IDs, keys, and access modes.
 func (v *MemoryValidator) Validate(_ context.Context) error {
 	if v.references == nil {
-		// This means no memory configuration was found or explicitly set to none, which is valid.
 		return nil
 	}
-
 	if len(v.references) == 0 {
-		// Also valid (e.g. memory: false, or just no memory fields)
 		return nil
 	}
-
 	for i, ref := range v.references {
-		// Basic structural validation should have been done by normalizeAndValidateMemoryConfig
-		// and schema.NewStructValidator if applied to core.MemoryReference itself.
-		// Here, we focus on cross-reference validation, like existence in a registry.
 		if ref.ID == "" {
-			// This should ideally be caught earlier by struct validation tags on MemoryReference
 			return fmt.Errorf("memory reference at index %d has an empty ID", i)
 		}
-		// Key may be empty in ID-only form; runtime will use the memory.Config default_key_template.
 		if ref.Mode != MemoryModeReadWrite && ref.Mode != MemoryModeReadOnly {
 			return fmt.Errorf(
 				"memory reference for ID '%s' (index %d) has invalid mode '%s'; must be '%s' or '%s'",

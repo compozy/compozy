@@ -30,7 +30,6 @@ func NewCancelExecution(worker *worker.Worker, workflowExecID core.ID) *CancelEx
 }
 
 func (uc *CancelExecution) Execute(ctx context.Context) error {
-	// Get workflow state to retrieve workflowID
 	state, err := uc.workflowRepo.GetState(ctx, uc.workflowExecID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow state: %w", err)
@@ -109,7 +108,6 @@ func NewSendSignalToExecution(
 }
 
 func (uc *SendSignalToExecution) Execute(ctx context.Context) error {
-	// Get workflow state to retrieve workflowID
 	state, err := uc.workflowRepo.GetState(ctx, uc.workflowExecID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow state: %w", err)
@@ -117,8 +115,6 @@ func (uc *SendSignalToExecution) Execute(ctx context.Context) error {
 	if state == nil {
 		return fmt.Errorf("workflow state not found for execution %s", uc.workflowExecID)
 	}
-
-	// Create signal envelope
 	signal := &task.SignalEnvelope{
 		Metadata: task.SignalMetadata{
 			SignalID:      core.MustNewID().String(),
@@ -128,11 +124,9 @@ func (uc *SendSignalToExecution) Execute(ctx context.Context) error {
 		},
 		Payload: uc.payload,
 	}
-
-	// Build the workflow ID for Temporal (workflow_id + "-" + exec_id)
+	// NOTE: Temporal workflow IDs combine definition + exec for uniqueness.
 	temporalWorkflowID := fmt.Sprintf("%s-%s", state.WorkflowID, uc.workflowExecID.String())
-
-	// Send signal to workflow using Temporal client
+	// NOTE: Signal via the Temporal client to deliver payloads to the running workflow.
 	return uc.worker.GetClient().SignalWorkflow(
 		ctx,
 		temporalWorkflowID,

@@ -13,13 +13,11 @@ import (
 // getFailedChildDetails retrieves error details from failed child tasks
 func getFailedChildDetails(ctx context.Context, taskRepo task.Repository, parentStateID core.ID) ([]string, error) {
 	log := logger.FromContext(ctx)
-
 	children, err := taskRepo.ListChildren(ctx, parentStateID)
 	if err != nil {
 		log.Error("Failed to list children for error details", "parent_id", parentStateID, "error", err)
 		return nil, fmt.Errorf("failed to list child tasks: %w", err)
 	}
-
 	var failedDetails []string
 	for _, child := range children {
 		if child.Status == core.StatusFailed {
@@ -34,12 +32,10 @@ func getFailedChildDetails(ctx context.Context, taskRepo task.Repository, parent
 			failedDetails = append(failedDetails, fmt.Sprintf("task[%s]: %s", child.TaskID, errorMsg))
 		}
 	}
-
 	log.Debug("Collected failed child task details",
 		"parent_id", parentStateID,
 		"failed_count", len(failedDetails),
 		"failed_tasks", failedDetails)
-
 	return failedDetails, nil
 }
 
@@ -51,7 +47,6 @@ func validateAndLogProgress(
 	expectedType task.Type,
 ) error {
 	log := logger.FromContext(ctx)
-
 	log.Debug("Progress info retrieved",
 		"parent_id", parentState.TaskExecID,
 		"total", progressInfo.TotalChildren,
@@ -62,17 +57,14 @@ func validateAndLogProgress(
 		"terminal", progressInfo.TerminalCount,
 		"running", progressInfo.RunningCount,
 		"status_counts", progressInfo.StatusCounts)
-
-	// Check if NO children have reached a terminal state (actual race condition)
-	// This happens when child task status updates haven't propagated to the DB yet
 	if progressInfo.TerminalCount == 0 && progressInfo.TotalChildren > 0 {
+		// NOTE: Treat missing terminal states as transient; child updates may not have reached the DB yet.
 		log.Warn("Progress not yet visible, retrying",
 			"parent_id", parentState.TaskExecID,
 			"total_children", progressInfo.TotalChildren)
 		return fmt.Errorf("%s progress not yet visible for taskExecID %s, total children: %d - retrying",
 			expectedType, parentState.TaskExecID, progressInfo.TotalChildren)
 	}
-
 	return nil
 }
 
@@ -86,11 +78,7 @@ func buildDetailedFailureError(
 	expectedType task.Type,
 ) error {
 	log := logger.FromContext(ctx)
-
-	// Get detailed error information from failed child tasks
 	failedDetails, detailErr := getFailedChildDetails(ctx, taskRepo, parentState.TaskExecID)
-
-	// Create a comprehensive error message
 	var errorMsg strings.Builder
 	errorMsg.WriteString(
 		fmt.Sprintf(
@@ -105,20 +93,17 @@ func buildDetailedFailureError(
 			progressInfo.StatusCounts,
 		),
 	)
-
 	if detailErr != nil {
 		log.Error("Failed to get child error details", "parent_id", parentState.TaskExecID, "error", detailErr)
 		errorMsg.WriteString(fmt.Sprintf(" (failed to get error details: %v)", detailErr))
 	} else if len(failedDetails) > 0 {
 		errorMsg.WriteString(fmt.Sprintf(" | Failed tasks: [%s]", strings.Join(failedDetails, "; ")))
 	}
-
 	finalError := errorMsg.String()
 	log.Error("Parent task failed with detailed errors",
 		"parent_id", parentState.TaskExecID,
 		"task_id", taskConfig.ID,
 		"error", finalError)
-
 	return fmt.Errorf("%s", finalError)
 }
 
@@ -139,15 +124,12 @@ func aggregateChildOutputs(
 			"task_type", taskType)
 		return fmt.Errorf("failed to aggregate child outputs: %w", err)
 	}
-	// Convert to map[string]any
 	outputsMap := make(map[string]any, len(childOutputs))
 	for taskID, output := range childOutputs {
 		if output != nil {
 			outputsMap[taskID] = *output
 		}
 	}
-	// Race condition check: ensure successful children have outputs
-	// We only check successful tasks because failed tasks might legitimately have no output
 	if len(outputsMap) < progressInfo.SuccessCount {
 		log.Warn("Child outputs not yet visible for successful tasks, retrying",
 			"parent_id", parentState.TaskExecID,
@@ -162,7 +144,6 @@ func aggregateChildOutputs(
 			progressInfo.SuccessCount,
 		)
 	}
-	// Store under "outputs" key to avoid collisions
 	(*parentState.Output)["outputs"] = outputsMap
 	log.Debug("Aggregated child outputs",
 		"parent_id", parentState.TaskExecID,

@@ -20,14 +20,9 @@ func SetupConfigTest(t *testing.T, filename string) (*core.PathCWD, string) {
 
 func SetupFixture(t *testing.T, pkgPath string) string {
 	t.Helper()
-
-	// Construct source path relative to the package path
 	srcPath := filepath.Join(pkgPath, "fixtures")
 	dstPath := filepath.Join(t.TempDir(), "compozy-test-"+uuid.New().String())
-
-	// Use the copy library to recursively copy the directory
 	err := copy.Copy(srcPath, dstPath)
 	require.NoError(t, err)
-
 	return dstPath
 }

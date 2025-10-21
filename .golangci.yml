@@ -42,8 +42,8 @@ linters:
       check-type-assertions: true
       check-blank: true
     funlen:
-      lines: 80
-      statements: 50
+      lines: 50
+      statements: 40
     goconst:
       min-len: 3
       min-occurrences: 3

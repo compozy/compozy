@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
+	"net/url"
 	"sync"
 	"time"
 
@@ -54,6 +56,8 @@ type Redis struct {
 	ctx    context.Context
 }
 
+const fallbackRedisPingTimeout time.Duration = 10 * time.Second
+
 // NewRedis creates a new Redis client with the provided configuration.
 func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 	log := logger.FromContext(ctx).With("component", "infra_redis")
@@ -61,50 +65,81 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("redis config is required")
 	}
-
-	var client redis.UniversalClient
-	// Parse URL if provided, otherwise use individual parameters
-	if cfg.URL != "" {
-		opt, err := redis.ParseURL(cfg.URL)
-		if err != nil {
-			return nil, fmt.Errorf("parsing Redis URL: %w", err)
-		}
-		// Override with additional config
-		applyConfigToOptions(opt, cfg)
-		client = redis.NewClient(opt)
-	} else {
-		// Use individual parameters
-		opt := &redis.Options{
-			Addr:     fmt.Sprintf(`%s:%s`, cfg.Host, cfg.Port),
-			Password: cfg.Password,
-			DB:       cfg.DB,
-		}
-		applyConfigToOptions(opt, cfg)
-		client = redis.NewClient(opt)
+	client, err := buildRedisClient(cfg)
+	if err != nil {
+		return nil, err
 	}
-
-	// Test connection with configurable timeout
-	pingCtx, pingCancel := context.WithTimeout(ctx, cfg.PingTimeout)
-	defer pingCancel()
-	if err := client.Ping(pingCtx).Err(); err != nil {
+	timeout := cfg.PingTimeout
+	if timeout <= 0 {
+		timeout = fallbackRedisPingTimeout
+	}
+	if err := pingRedis(ctx, client, timeout); err != nil {
 		client.Close()
-		return nil, fmt.Errorf("pinging Redis server: %w", err)
+		return nil, err
 	}
-
-	logger.FromContext(ctx).With(
-		"cache_driver", "redis",
-		"host", cfg.Host,
-		"port", cfg.Port,
-		"db", cfg.DB,
-		"pool_size", cfg.PoolSize,
-		"tls_enabled", cfg.TLSEnabled,
-	).Info("Redis connection established")
-
+	logRedisConnection(ctx, cfg)
 	return &Redis{
 		client: client,
 		config: cfg,
 		ctx:    ctx,
 	}, nil
+}
+
+// buildRedisClient configures the Redis client from the provided config.
+func buildRedisClient(cfg *Config) (redis.UniversalClient, error) {
+	if cfg.URL != "" {
+		opt, err := redis.ParseURL(cfg.URL)
+		if err != nil {
+			return nil, fmt.Errorf("parsing Redis URL: %w", err)
+		}
+		applyConfigToOptions(opt, cfg)
+		return redis.NewClient(opt), nil
+	}
+	opt := &redis.Options{
+		Addr:     net.JoinHostPort(cfg.Host, cfg.Port),
+		Password: cfg.Password,
+		DB:       cfg.DB,
+	}
+	applyConfigToOptions(opt, cfg)
+	return redis.NewClient(opt), nil
+}
+
+// pingRedis validates connectivity within the configured timeout.
+func pingRedis(ctx context.Context, client redis.UniversalClient, timeout time.Duration) error {
+	pingCtx, pingCancel := context.WithTimeout(ctx, timeout)
+	defer pingCancel()
+	if err := client.Ping(pingCtx).Err(); err != nil {
+		return fmt.Errorf("pinging Redis server (timeout=%s): %w", timeout, err)
+	}
+	return nil
+}
+
+// logRedisConnection emits a diagnostic message after successful connection.
+func logRedisConnection(ctx context.Context, cfg *Config) {
+	host := cfg.Host
+	port := cfg.Port
+	if cfg.URL != "" {
+		if parsed, err := url.Parse(cfg.URL); err == nil && parsed != nil {
+			if h, p, err := net.SplitHostPort(parsed.Host); err == nil {
+				if h != "" {
+					host = h
+				}
+				if p != "" {
+					port = p
+				}
+			} else if parsed.Host != "" {
+				host = parsed.Host
+			}
+		}
+	}
+	logger.FromContext(ctx).With(
+		"cache_driver", "redis",
+		"host", host,
+		"port", port,
+		"db", cfg.DB,
+		"pool_size", cfg.PoolSize,
+		"tls_enabled", cfg.TLSEnabled,
+	).Info("Redis connection established")
 }
 
 // Close shuts down the Redis connection.
@@ -267,35 +302,24 @@ func (r *Redis) TxPipeline() redis.Pipeliner {
 // HealthCheck performs a comprehensive health check
 func (r *Redis) HealthCheck(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	// Test basic connectivity
 	if err := r.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("ping failed: %w", err)
 	}
-
-	// Test basic operations
 	testKey := "health_check_test"
 	testValue := "test_value"
-
-	// Set a test value
 	if err := r.Set(ctx, testKey, testValue, 10*time.Second).Err(); err != nil {
 		return fmt.Errorf("set operation failed: %w", err)
 	}
-
-	// Get the test value
 	result, err := r.Get(ctx, testKey).Result()
 	if err != nil {
 		return fmt.Errorf("get operation failed: %w", err)
 	}
-
 	if result != testValue {
 		return fmt.Errorf("get result mismatch: expected %s, got %s", testValue, result)
 	}
-
-	// Clean up test key
 	if err := r.Del(ctx, testKey).Err(); err != nil {
 		log.Debug("failed to clean up test key", "key", testKey, "error", err)
 	}
-
 	return nil
 }
 
@@ -314,13 +338,10 @@ func applyConfigToOptions(opt *redis.Options, cfg *Config) {
 	} else {
 		opt.MinIdleConns = max(1, cfg.MaxIdleConns/2)
 	}
-
-	// TLS Configuration
 	if cfg.TLSEnabled {
 		if cfg.TLSConfig != nil {
 			opt.TLSConfig = cfg.TLSConfig
 		} else {
-			// Use default TLS config
 			opt.TLSConfig = &tls.Config{
 				ServerName: cfg.Host,
 				MinVersion: tls.VersionTLS12,

@@ -62,57 +62,78 @@ func NewMemoryResolver(
 func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemplate string) (llm.Memory, error) {
 	log := logger.FromContext(ctx)
 	log.Debug("Resolving memory access", "memory_id", memoryID)
-	if strings.TrimSpace(memoryID) == "" {
-		log.Warn("Empty memory ID provided")
+	if r.skipMemoryResolution(ctx, memoryID) {
 		return nil, nil
+	}
+	resolvedKey, err := r.prepareMemoryKey(ctx, keyTemplate)
+	if err != nil {
+		return nil, err
+	}
+	memRef := r.buildMemoryReference(memoryID, keyTemplate, resolvedKey)
+	return r.fetchMemoryInstance(ctx, memRef)
+}
+
+// skipMemoryResolution reports whether resolution should stop due to invalid setup.
+func (r *MemoryResolver) skipMemoryResolution(ctx context.Context, memoryID string) bool {
+	trimmedID := strings.TrimSpace(memoryID)
+	log := logger.FromContext(ctx)
+	if trimmedID == "" {
+		log.Warn("Empty memory ID provided")
+		return true
 	}
 	if r.memoryManager == nil {
 		log.Warn("Memory manager is nil")
-		return nil, nil
+		return true
 	}
+	return false
+}
 
-	// Allow empty keyTemplate: manager will fall back to memory.Config.default_key_template if available.
-	var resolvedKey string
-	if strings.TrimSpace(keyTemplate) != "" {
-		var err error
-		resolvedKey, err = r.resolveKey(ctx, keyTemplate)
-		if err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(resolvedKey) == "" {
-			return nil, fmt.Errorf("resolved key template to empty string: %q", keyTemplate)
-		}
+// prepareMemoryKey resolves the key template when provided.
+func (r *MemoryResolver) prepareMemoryKey(ctx context.Context, keyTemplate string) (string, error) {
+	if strings.TrimSpace(keyTemplate) == "" {
+		return "", nil
 	}
+	resolvedKey, err := r.resolveKey(ctx, keyTemplate)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(resolvedKey) == "" {
+		return "", fmt.Errorf("resolved key template to empty string: %q", keyTemplate)
+	}
+	return resolvedKey, nil
+}
 
-	// Create a memory reference for the manager
-	// Precedence: when a pre-resolved key exists we set ResolvedKey and clear Key;
-	// otherwise we pass the template in Key and let the manager resolve it.
+// buildMemoryReference constructs the reference passed to the memory manager.
+func (r *MemoryResolver) buildMemoryReference(
+	memoryID string,
+	keyTemplate string,
+	resolvedKey string,
+) core.MemoryReference {
 	memRef := core.MemoryReference{ID: memoryID, Mode: core.MemoryModeReadWrite}
 	if strings.TrimSpace(resolvedKey) != "" {
 		memRef.ResolvedKey = resolvedKey
-		memRef.Key = ""
-	} else {
-		memRef.Key = keyTemplate
+		return memRef
 	}
+	memRef.Key = keyTemplate
+	return memRef
+}
 
-	log.Debug("Passing memory reference to manager", "memory_id", memoryID)
-
-	// Get the memory instance from the manager
+// fetchMemoryInstance retrieves and adapts the underlying memory implementation.
+func (r *MemoryResolver) fetchMemoryInstance(ctx context.Context, memRef core.MemoryReference) (llm.Memory, error) {
+	log := logger.FromContext(ctx)
+	log.Debug("Passing memory reference to manager", "memory_id", memRef.ID)
 	memInstance, err := r.memoryManager.GetInstance(ctx, memRef, r.workflowContext)
 	if err != nil {
 		log.Error("Failed to get memory instance",
-			"memory_id", memoryID,
+			"memory_id", memRef.ID,
 			"error", err,
 			"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
 		)
 		return nil, fmt.Errorf("failed to get memory instance: %w", err)
 	}
-
 	if memInstance == nil {
 		return nil, nil
 	}
-
-	// Wrap the memory instance to adapt it to the llm.Memory interface
 	return &memoryResolverAdapter{memory: memInstance}, nil
 }
 
@@ -124,18 +145,14 @@ func (r *MemoryResolver) resolveKey(ctx context.Context, keyTemplate string) (st
 		"has_template_engine", r.templateEngine != nil,
 		"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
 	)
-
 	if r.templateEngine == nil {
 		if tplengine.HasTemplate(keyTemplate) {
 			log.Error("Template engine is nil but key has template syntax",
 				"key_template", keyTemplate)
 			return "", fmt.Errorf("template engine is required to resolve key template: %s", keyTemplate)
 		}
-		// If no template syntax, return as literal key
 		return keyTemplate, nil
 	}
-
-	// Execute the template with the workflow context
 	resolved, err := r.templateEngine.RenderString(keyTemplate, r.workflowContext)
 	if err != nil {
 		log.Error("Template resolution failed",
@@ -144,11 +161,9 @@ func (r *MemoryResolver) resolveKey(ctx context.Context, keyTemplate string) (st
 			"workflow_context", fmt.Sprintf("%+v", r.workflowContext))
 		return "", fmt.Errorf("failed to execute key template: %w", err)
 	}
-
 	log.Debug("Template resolved successfully",
 		"key_template", keyTemplate,
 		"resolved_key", resolved)
-
 	return resolved, nil
 }
 
@@ -157,26 +172,20 @@ func (r *MemoryResolver) resolveKey(ctx context.Context, keyTemplate string) (st
 func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.Config) (map[string]llm.Memory, error) {
 	log := logger.FromContext(ctx)
 	memoryRefs := agent.Memory
-
-	// Enhanced logging for debugging memory configuration issues
 	log.Debug("ResolveAgentMemories called",
 		"agent_id", agent.ID,
 		"memory_refs_count", len(memoryRefs),
 		"memory_refs", fmt.Sprintf("%+v", memoryRefs),
 		"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
 	)
-
 	if len(memoryRefs) == 0 {
 		log.Debug("No memory references configured for agent", "agent_id", agent.ID)
 		return nil, nil
 	}
-
 	memories := make(map[string]llm.Memory)
-	// Create a copy of memory references to avoid mutating the shared agent config
-	// This is critical for thread safety in concurrent workflow executions
+	// NOTE: Copy memory references to keep agent config immutable across concurrent executions.
 	localMemoryRefs := make([]core.MemoryReference, len(memoryRefs))
 	copy(localMemoryRefs, memoryRefs)
-
 	for i := range localMemoryRefs {
 		if localMemoryRefs[i].Mode == core.MemoryModeReadOnly {
 			log.Warn("Skipping read-only memory; mode not supported", "memory_id", localMemoryRefs[i].ID)
@@ -190,11 +199,8 @@ func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.
 
 		if memory != nil {
 			memories[localMemoryRefs[i].ID] = memory
-			// The resolved key was already computed in GetMemory
-			// and is available in the memory instance if needed for logging
 		}
 	}
-
 	log.Debug("Resolved agent memories",
 		"agent_id", agent.ID,
 		"memory_count", len(memories),

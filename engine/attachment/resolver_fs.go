@@ -99,7 +99,6 @@ func pathWithin(root, target string) (bool, error) {
 
 func detectMIMEFromFile(ctx context.Context, f *os.File) (string, error) {
 	// Note: this reads from the current file offset and advances it. Callers
-	// that need to reread from the beginning should seek back after this call.
 	head := make([]byte, mimeHeadLimit(ctx))
 	n, err := f.Read(head)
 	if err != nil && err != io.EOF {

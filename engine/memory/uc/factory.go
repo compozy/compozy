@@ -21,7 +21,6 @@ func NewFactory(
 	worker *worker.Worker,
 	memoryService service.MemoryOperationsService,
 ) (*Factory, error) {
-	// Create default service if not provided
 	if memoryService == nil && manager != nil {
 		var err error
 		memoryService, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
@@ -29,7 +28,6 @@ func NewFactory(
 			return nil, fmt.Errorf("failed to create memory operations service: %w", err)
 		}
 	}
-
 	return &Factory{
 		manager:       manager,
 		worker:        worker,

@@ -56,56 +56,72 @@ var metricsContainer runtimeMetrics
 func metricsRecorder() *runtimeMetrics {
 	metricsContainer.initOnce.Do(func() {
 		meter := otel.GetMeterProvider().Meter("compozy.runtime")
-		var err error
-
-		metricsContainer.executionLatency, err = meter.Float64Histogram(
+		metricsContainer.executionLatency = createRuntimeHistogram(
+			meter,
 			monitoringmetrics.MetricNameWithSubsystem("runtime", "tool_execute_seconds"),
-			metric.WithDescription("Latency of runtime tool executions from start to completion"),
-			metric.WithUnit("s"),
-			metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
+			"Latency of runtime tool executions from start to completion",
+			"s",
+			[]float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30},
 		)
-		if err != nil {
-			panic(fmt.Errorf("failed to create runtime tool execute histogram: %w", err))
-		}
-
-		metricsContainer.errorCounter, err = meter.Int64Counter(
+		metricsContainer.errorCounter = createRuntimeCounter(
+			meter,
 			monitoringmetrics.MetricNameWithSubsystem("runtime", "tool_errors_total"),
-			metric.WithDescription("Total runtime tool errors categorized by failure point"),
-			metric.WithUnit("1"),
+			"Total runtime tool errors categorized by failure point",
 		)
-		if err != nil {
-			panic(fmt.Errorf("failed to create runtime tool error counter: %w", err))
-		}
-
-		metricsContainer.timeoutCounter, err = meter.Int64Counter(
+		metricsContainer.timeoutCounter = createRuntimeCounter(
+			meter,
 			monitoringmetrics.MetricNameWithSubsystem("runtime", "tool_timeouts_total"),
-			metric.WithDescription("Total tool executions that exceeded timeout"),
-			metric.WithUnit("1"),
+			"Total tool executions that exceeded timeout",
 		)
-		if err != nil {
-			panic(fmt.Errorf("failed to create runtime tool timeout counter: %w", err))
-		}
-
-		metricsContainer.processExits, err = meter.Int64Counter(
+		metricsContainer.processExits = createRuntimeCounter(
+			meter,
 			monitoringmetrics.MetricNameWithSubsystem("runtime", "bun_process_exits_total"),
-			metric.WithDescription("Bun process termination reasons"),
-			metric.WithUnit("1"),
+			"Bun process termination reasons",
 		)
-		if err != nil {
-			panic(fmt.Errorf("failed to create runtime bun process exit counter: %w", err))
-		}
-
-		metricsContainer.outputSize, err = meter.Float64Histogram(
+		metricsContainer.outputSize = createRuntimeHistogram(
+			meter,
 			monitoringmetrics.MetricNameWithSubsystem("runtime", "tool_output_bytes"),
-			metric.WithDescription("Size distribution of tool stdout payloads"),
-			metric.WithUnit("By"),
-			metric.WithExplicitBucketBoundaries(100, 1000, 10000, 100000, 1000000, 10000000),
+			"Size distribution of tool stdout payloads",
+			"By",
+			[]float64{100, 1000, 10000, 100000, 1000000, 10000000},
 		)
-		if err != nil {
-			panic(fmt.Errorf("failed to create runtime tool output histogram: %w", err))
-		}
 	})
 	return &metricsContainer
+}
+
+func createRuntimeHistogram(
+	meter metric.Meter,
+	name string,
+	description string,
+	unit string,
+	boundaries []float64,
+) metric.Float64Histogram {
+	histogram, err := meter.Float64Histogram(
+		name,
+		metric.WithDescription(description),
+		metric.WithUnit(unit),
+		metric.WithExplicitBucketBoundaries(boundaries...),
+	)
+	if err != nil {
+		panic(fmt.Errorf("failed to create runtime histogram %s: %w", name, err))
+	}
+	return histogram
+}
+
+func createRuntimeCounter(
+	meter metric.Meter,
+	name string,
+	description string,
+) metric.Int64Counter {
+	counter, err := meter.Int64Counter(
+		name,
+		metric.WithDescription(description),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		panic(fmt.Errorf("failed to create runtime counter %s: %w", name, err))
+	}
+	return counter
 }
 
 func recordToolExecution(ctx context.Context, toolID string, duration time.Duration, outcome toolExecutionOutcome) {

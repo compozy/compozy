@@ -73,42 +73,79 @@ func (h *responseHandler) retryFinalize(
 	state *loopState,
 	request Request,
 ) (*core.Output, bool, error) {
-	if state == nil || !state.allowFinalizeRetry() {
+	if !h.shouldRetryFinalize(state) {
 		return nil, false, finalErr
 	}
 	attempt := state.finalizeAttemptNumber()
 	remaining := state.remainingFinalizeRetries()
+	h.logFinalizeRetry(ctx, finalErr, attempt, remaining)
+	h.injectFinalizeFeedback(llmReq, detail, finalErr, state)
+	h.recordFinalizeRetry(ctx, finalErr, attempt, remaining, request.Action)
+	return nil, true, nil
+}
+
+func (h *responseHandler) shouldRetryFinalize(state *loopState) bool {
+	return state != nil && state.allowFinalizeRetry()
+}
+
+func (h *responseHandler) logFinalizeRetry(
+	ctx context.Context,
+	finalErr error,
+	attempt int,
+	remaining int,
+) {
 	logger.FromContext(ctx).Warn(
 		"Final response invalid; requesting retry",
 		"error", core.RedactError(finalErr),
 		"attempt", attempt,
 		"remaining_retries", remaining,
 	)
-	if llmReq != nil {
-		if state.runtime.finalizeFeedbackBase < 0 {
-			state.runtime.finalizeFeedbackBase = len(llmReq.Messages)
-		}
-		base := len(llmReq.Messages)
-		if state.runtime.finalizeFeedbackBase >= 0 &&
-			state.runtime.finalizeFeedbackBase <= len(llmReq.Messages) {
-			base = state.runtime.finalizeFeedbackBase
-		}
-		feedbackDetail := detail
-		if finalErr != nil {
-			if redacted := core.RedactError(finalErr); redacted != "" {
-				feedbackDetail = redacted
-			}
-		}
-		feedback := llmadapter.Message{
-			Role:    "user",
-			Content: h.buildFinalizeFeedback(feedbackDetail, state),
-		}
-		if base < 0 || base > len(llmReq.Messages) {
-			llmReq.Messages = append(llmReq.Messages, feedback)
-		} else {
-			llmReq.Messages = append(llmReq.Messages[:base], feedback)
-		}
+}
+
+func (h *responseHandler) injectFinalizeFeedback(
+	llmReq *llmadapter.LLMRequest,
+	detail string,
+	finalErr error,
+	state *loopState,
+) {
+	if llmReq == nil {
+		return
 	}
+	if state.runtime.finalizeFeedbackBase < 0 {
+		state.runtime.finalizeFeedbackBase = len(llmReq.Messages)
+	}
+	base := len(llmReq.Messages)
+	if state.runtime.finalizeFeedbackBase >= 0 &&
+		state.runtime.finalizeFeedbackBase <= len(llmReq.Messages) {
+		base = state.runtime.finalizeFeedbackBase
+	}
+	feedbackDetail := detail
+	if redacted := core.RedactError(finalErr); redacted != "" {
+		feedbackDetail = redacted
+	}
+	feedback := llmadapter.Message{
+		Role:    "user",
+		Content: h.buildFinalizeFeedback(feedbackDetail, state),
+	}
+	if base < 0 || base > len(llmReq.Messages) {
+		llmReq.Messages = append(llmReq.Messages, feedback)
+		return
+	}
+	tail := llmReq.Messages[base:]
+	if len(tail) > 0 {
+		tail = tail[1:]
+	}
+	llmReq.Messages = append(llmReq.Messages[:base:base], feedback)
+	llmReq.Messages = append(llmReq.Messages, tail...)
+}
+
+func (h *responseHandler) recordFinalizeRetry(
+	ctx context.Context,
+	finalErr error,
+	attempt int,
+	remaining int,
+	action *agent.ActionConfig,
+) {
 	telemetry.RecordEvent(ctx, &telemetry.Event{
 		Stage:    "finalize_retry",
 		Severity: telemetry.SeverityWarn,
@@ -116,10 +153,9 @@ func (h *responseHandler) retryFinalize(
 			"attempt":           attempt,
 			"remaining_retries": remaining,
 			"detail":            core.RedactError(finalErr),
-			"action_id":         actionIDOrEmpty(request.Action),
+			"action_id":         actionIDOrEmpty(action),
 		},
 	})
-	return nil, true, nil
 }
 
 func (h *responseHandler) buildFinalizeFeedback(issue string, state *loopState) string {
@@ -176,7 +212,6 @@ func (h *responseHandler) parseContent(
 		output := core.Output(map[string]any{"response": content})
 		return &output, nil
 	}
-
 	value, err := h.parseStructuredValue(content, action)
 	if err != nil {
 		return nil, err

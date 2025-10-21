@@ -364,15 +364,12 @@ func (c *Config) UnmarshalYAML(value *yaml.Node) error {
 //
 // Call this before validation to ensure all required defaults are set.
 func (c *Config) SetDefaults() {
-	// Set default resource if not specified
 	if c.Resource == "" {
 		c.Resource = c.ID
 	}
-	// Set default protocol version if not specified
 	if c.Proto == "" {
 		c.Proto = DefaultProtocolVersion
 	}
-	// Set default transport if not specified
 	if c.Transport == "" {
 		switch {
 		case c.Command != "":
@@ -437,7 +434,6 @@ func (c *Config) SetDefaults() {
 //
 // ```
 func (c *Config) Validate(ctx context.Context) error {
-	// Ensure defaults are set before validation
 	c.SetDefaults()
 	if err := c.validateID(ctx); err != nil {
 		return err
@@ -486,14 +482,12 @@ func (c *Config) validateID(_ context.Context) error {
 }
 
 func (c *Config) validateURL(_ context.Context) error {
-	// Only HTTP-based transports require URL
 	if c.Transport == mcpproxy.TransportSSE || c.Transport == mcpproxy.TransportStreamableHTTP {
 		if c.URL == "" {
 			return errors.New("mcp url is required for HTTP transports (sse, streamable-http)")
 		}
 		return validateURLFormat(c.URL, "mcp url")
 	}
-	// stdio does not require URL
 	return nil
 }
 
@@ -522,7 +516,6 @@ func (c *Config) validateProxy(_ context.Context) error {
 	if proxyURL == "" {
 		return errors.New("MCP_PROXY_URL environment variable is required for MCP server configuration")
 	}
-
 	return validateURLFormat(proxyURL, "proxy url")
 }
 
@@ -562,15 +555,12 @@ func validateURLFormat(urlStr, context string) error {
 	if err != nil {
 		return fmt.Errorf("invalid %s format: %w", context, err)
 	}
-
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
 		return fmt.Errorf("%s must use http or https scheme, got: %s", context, parsedURL.Scheme)
 	}
-
 	if parsedURL.Host == "" {
 		return fmt.Errorf("%s must include a host", context)
 	}
-
 	return nil
 }
 
@@ -592,7 +582,6 @@ func (c *Config) validateLimits(_ context.Context) error {
 	if c.StartTimeout < 0 {
 		return errors.New("start_timeout cannot be negative")
 	}
-	// Negative or zero => unlimited sessions (allowed per documentation lines 320-329)
 	return nil
 }
 

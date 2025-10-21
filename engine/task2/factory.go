@@ -126,11 +126,8 @@ func (f *DefaultNormalizerFactory) CreateResponseHandler(
 	ctx context.Context,
 	taskType task.Type,
 ) (shared.TaskResponseHandler, error) {
-	// Create dependencies
 	parentStatusManager := f.createParentStatusManager(ctx)
 	outputTransformer := f.createOutputTransformer()
-
-	// Create base handler with all dependencies
 	baseHandler := shared.NewBaseResponseHandler(
 		f.templateEngine,
 		f.contextBuilder,
@@ -139,8 +136,6 @@ func (f *DefaultNormalizerFactory) CreateResponseHandler(
 		f.taskRepo,
 		outputTransformer,
 	)
-
-	// Create task-specific handler
 	switch taskType {
 	case task.TaskTypeBasic:
 		return basic.NewResponseHandler(f.templateEngine, f.contextBuilder, baseHandler)
@@ -189,19 +184,16 @@ func (f *DefaultNormalizerFactory) CreateTaskConfigRepository(
 
 // createParentStatusManager creates a parent status manager
 func (f *DefaultNormalizerFactory) createParentStatusManager(ctx context.Context) shared.ParentStatusManager {
-	// Use injected taskRepo if available, otherwise return nil
-	// The BaseResponseHandler will handle nil gracefully
 	if f.taskRepo != nil {
 		return shared.NewParentStatusManager(ctx, f.taskRepo)
 	}
+	// NOTE: The shared base response handler tolerates a nil status manager for tests.
 	return nil
 }
 
 // createOutputTransformer creates an output transformer adapter
 func (f *DefaultNormalizerFactory) createOutputTransformer() shared.OutputTransformer {
-	// Create the actual output transformer
 	transformer := core.NewOutputTransformer(f.templateEngine)
-	// Create an adapter that implements the shared.OutputTransformer interface
 	return &outputTransformerAdapter{
 		templateEngine: f.templateEngine,
 		contextBuilder: f.contextBuilder,
@@ -225,21 +217,17 @@ func (a *outputTransformerAdapter) TransformOutput(
 	config *task.Config,
 	workflowConfig *workflow.Config,
 ) (map[string]any, error) {
-	// If no outputs configuration, return state output as-is
 	if config.GetOutputs() == nil || state.Output == nil {
 		if state.Output != nil {
 			return state.Output.AsMap(), nil
 		}
 		return make(map[string]any), nil
 	}
-	// Get the actual workflow state
 	workflowState, err := a.workflowRepo.GetState(ctx, state.WorkflowExecID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow state for output transformation: %w", err)
 	}
-	// Build normalization context for transformation
 	normCtx := a.contextBuilder.BuildContext(ctx, workflowState, workflowConfig, config)
-	// Apply output transformation
 	transformedOutput, err := a.transformer.TransformOutput(
 		ctx,
 		state.Output,

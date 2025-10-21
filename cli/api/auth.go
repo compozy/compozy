@@ -10,9 +10,14 @@ type UserUpdater interface {
 	UpdateUser(ctx context.Context, userID string, req UpdateUserRequest) (*UserInfo, error)
 }
 
+// DeleteUserOptions controls user deletion behavior.
+type DeleteUserOptions struct {
+	Cascade bool
+}
+
 // UserDeleter defines the interface for user deletion operations
 type UserDeleter interface {
-	DeleteUser(ctx context.Context, userID string) error
+	DeleteUser(ctx context.Context, userID string, opts DeleteUserOptions) error
 }
 
 // KeyManager defines the interface for key management operations
@@ -32,7 +37,7 @@ type AuthClient interface {
 	ListUsers(ctx context.Context) ([]UserInfo, error)
 	CreateUser(ctx context.Context, req CreateUserRequest) (*UserInfo, error)
 	UpdateUser(ctx context.Context, userID string, req UpdateUserRequest) (*UserInfo, error)
-	DeleteUser(ctx context.Context, userID string) error
+	DeleteUser(ctx context.Context, userID string, opts DeleteUserOptions) error
 
 	// Client Info
 	GetBaseURL() string

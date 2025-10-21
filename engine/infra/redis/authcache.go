@@ -46,12 +46,10 @@ func (c *CachedRepository) sanitize(k *model.APIKey) *model.APIKey {
 
 func (c *CachedRepository) GetAPIKeyByHash(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
 	log := logger.FromContext(ctx)
-	// Try fingerprint -> ID mapping first
 	if c.client != nil {
 		if s, err := c.client.Get(ctx, c.fpKey(fingerprint)).Result(); err == nil && s != "" {
 			id, perr := core.ParseID(s)
 			if perr == nil {
-				// Fetch full record (contains Hash) from underlying repo by ID
 				key, gerr := c.repo.GetAPIKeyByID(ctx, id)
 				if gerr == nil {
 					return key, nil
@@ -60,12 +58,10 @@ func (c *CachedRepository) GetAPIKeyByHash(ctx context.Context, fingerprint []by
 			}
 		}
 	}
-	// Miss or error: fallback to underlying repo by fingerprint
 	key, err := c.repo.GetAPIKeyByHash(ctx, fingerprint)
 	if err != nil {
 		return nil, err
 	}
-	// Cache mapping only (no hash bytes)
 	if c.client != nil {
 		if err := c.client.Set(ctx, c.fpKey(fingerprint), key.ID.String(), c.ttl).Err(); err != nil {
 			log.Warn("redis: set fp->id mapping failed", "error", err)
@@ -103,7 +99,6 @@ func (c *CachedRepository) UpdateAPIKeyLastUsed(ctx context.Context, id core.ID)
 	if err := c.repo.UpdateAPIKeyLastUsed(ctx, id); err != nil {
 		return err
 	}
-	// Best-effort invalidation of ID cache
 	if c.client != nil {
 		if err := c.client.Del(ctx, c.idKey(id)).Err(); err != nil {
 			logger.FromContext(ctx).Warn("redis: del id cache failed", "error", err)
@@ -121,7 +116,6 @@ func (c *CachedRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 			logger.FromContext(ctx).Warn("redis: del id cache failed", "error", err)
 		}
 	}
-	// Attempt to delete fp mapping too (best-effort).
 	if c.client != nil {
 		if k, err := c.repo.GetAPIKeyByID(ctx, id); err == nil {
 			if err := c.client.Del(ctx, c.fpKey(k.Fingerprint)).Err(); err != nil {

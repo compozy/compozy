@@ -21,7 +21,6 @@ func (n *AgentNormalizer) buildTaskMetadata(id, taskType string, config any) map
 		"id":   id,
 		"type": taskType,
 	}
-	// Add config-specific fields based on type
 	switch taskType {
 	case "agent":
 		if agentCfg, ok := config.(*agent.Config); ok {
@@ -49,17 +48,14 @@ func (n *AgentNormalizer) parseInputTemplates(
 	if input == nil || *input == nil || len(*input) == 0 {
 		return input, nil
 	}
-
 	parsedAny, err := n.templateEngine.ParseAny(map[string]any(*input), templateCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse input templates: %w", err)
 	}
-
 	parsedMap, ok := parsedAny.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("parsed input is not a map (got %T)", parsedAny)
 	}
-
 	parsedInput := enginecore.Input(parsedMap)
 	return &parsedInput, nil
 }
@@ -87,59 +83,74 @@ func (n *AgentNormalizer) ReparseInput(
 	if agentCfg == nil || ctx == nil {
 		return nil
 	}
+	templateCtx := ctx.BuildTemplateContext()
+	if err := n.reparseAgentWithBlock(agentCfg, templateCtx); err != nil {
+		return err
+	}
+	return n.reparseAgentActions(agentCfg, actionID, templateCtx)
+}
 
-	// Build fresh template context with up-to-date workflow state
-	tplCtx := ctx.BuildTemplateContext()
-
-	// Re-parse agent-level With
-	parsedWith, err := n.parseInputTemplates(agentCfg.With, tplCtx)
+// reparseAgentWithBlock updates the agent-level With block with runtime context.
+func (n *AgentNormalizer) reparseAgentWithBlock(
+	agentCfg *agent.Config,
+	templateCtx map[string]any,
+) error {
+	parsedWith, err := n.parseInputTemplates(agentCfg.With, templateCtx)
 	if err != nil {
 		return fmt.Errorf("runtime template parse (agent.With) failed: %w", err)
 	}
 	agentCfg.With = parsedWith
+	return nil
+}
 
-	// Re-parse action-level With and Prompt
-	// If actionID is specified, only reparse that specific action
-	// Otherwise, reparse all actions (backward compatibility)
-	if len(agentCfg.Actions) > 0 {
-		for _, action := range agentCfg.Actions {
-			if action == nil {
-				continue
-			}
-
-			// Skip if we're targeting a specific action and this isn't it
-			if actionID != "" && action.ID != actionID {
-				continue
-			}
-
-			// Re-parse action.With
-			parsedActionWith, err := n.parseInputTemplates(action.With, tplCtx)
-			if err != nil {
-				return fmt.Errorf(
-					"runtime template parse (action.With, action %s) failed: %w",
-					action.ID, err,
-				)
-			}
-			action.With = parsedActionWith
-
-			// Re-parse action.Prompt to resolve collection variables
-			if action.Prompt != "" {
-				parsedPromptAny, err := n.templateEngine.ParseAny(action.Prompt, tplCtx)
-				if err != nil {
-					return fmt.Errorf(
-						"runtime template parse (action.Prompt, action %s) failed: %w",
-						action.ID, err,
-					)
-				}
-				promptStr, ok := parsedPromptAny.(string)
-				if !ok {
-					return fmt.Errorf("parsed prompt is not a string (action %s)", action.ID)
-				}
-				action.Prompt = promptStr
-			}
+// reparseAgentActions refreshes action inputs and prompts for runtime execution.
+func (n *AgentNormalizer) reparseAgentActions(
+	agentCfg *agent.Config,
+	actionID string,
+	templateCtx map[string]any,
+) error {
+	if len(agentCfg.Actions) == 0 {
+		return nil
+	}
+	for _, action := range agentCfg.Actions {
+		if action == nil || (actionID != "" && action.ID != actionID) {
+			continue
+		}
+		if err := n.reparseSingleAction(action, templateCtx); err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
+// reparseSingleAction reparses a specific action's With and Prompt sections.
+func (n *AgentNormalizer) reparseSingleAction(
+	action *agent.ActionConfig,
+	templateCtx map[string]any,
+) error {
+	parsedWith, err := n.parseInputTemplates(action.With, templateCtx)
+	if err != nil {
+		return fmt.Errorf(
+			"runtime template parse (action.With, action %s) failed: %w",
+			action.ID, err,
+		)
+	}
+	action.With = parsedWith
+	if action.Prompt == "" {
+		return nil
+	}
+	parsedPromptAny, err := n.templateEngine.ParseAny(action.Prompt, templateCtx)
+	if err != nil {
+		return fmt.Errorf(
+			"runtime template parse (action.Prompt, action %s) failed: %w",
+			action.ID, err,
+		)
+	}
+	promptStr, ok := parsedPromptAny.(string)
+	if !ok {
+		return fmt.Errorf("parsed prompt is not a string (action %s)", action.ID)
+	}
+	action.Prompt = promptStr
 	return nil
 }
 
@@ -152,62 +163,89 @@ func (n *AgentNormalizer) NormalizeAgent(
 	if config == nil {
 		return nil
 	}
-	// Merge environment variables across workflow -> task -> agent levels
+	n.mergeAgentEnvironment(ctx, config)
+	n.ensureAgentCurrentInput(ctx, config)
+	n.updateAgentTaskVariables(ctx, config)
+	templateCtx := ctx.BuildTemplateContext()
+	if err := n.normalizeAgentWithBlock(config, templateCtx); err != nil {
+		return err
+	}
+	if err := n.normalizeAgentConfigMap(config, templateCtx); err != nil {
+		return err
+	}
+	if err := n.normalizeAgentActions(config, ctx, actionID); err != nil {
+		return fmt.Errorf("failed to normalize agent actions: %w", err)
+	}
+	return nil
+}
+
+// mergeAgentEnvironment populates the normalization context with merged env vars.
+func (n *AgentNormalizer) mergeAgentEnvironment(ctx *shared.NormalizationContext, config *agent.Config) {
+	if ctx == nil {
+		return
+	}
 	mergedEnv := n.envMerger.MergeThreeLevels(
 		ctx.WorkflowConfig,
 		ctx.TaskConfig,
-		config.Env, // Agent's environment overrides task and workflow
+		config.Env,
 	)
-
-	// Update context with merged environment for template processing
 	ctx.MergedEnv = mergedEnv
+}
 
-	// Set current input if not already set
+// ensureAgentCurrentInput ensures the context exposes the agent With block as input.
+func (n *AgentNormalizer) ensureAgentCurrentInput(ctx *shared.NormalizationContext, config *agent.Config) {
+	if ctx == nil {
+		return
+	}
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
 	}
+}
 
-	// Refresh `.task` so that templates inside an agent (or its actions)
-	// still see the expected workflow-level variables (.workflow, .task)
-	// and that `.task` now points to *this* agent instead of its parent.
-	if ctx != nil {
-		vars := ctx.GetVariables()
-		vars["task"] = n.buildTaskMetadata(config.ID, "agent", config)
+// updateAgentTaskVariables refreshes `.task` metadata to describe the current agent.
+func (n *AgentNormalizer) updateAgentTaskVariables(ctx *shared.NormalizationContext, config *agent.Config) {
+	if ctx == nil {
+		return
 	}
+	vars := ctx.GetVariables()
+	vars["task"] = n.buildTaskMetadata(config.ID, "agent", config)
+}
 
-	// Build template context *after* the injection above
-	context := ctx.BuildTemplateContext()
-
-	// Lazily parse templates inside agent-level With block
-	parsedWith, err := n.parseInputTemplates(config.With, context)
+// normalizeAgentWithBlock parses agent-level inputs during configuration normalization.
+func (n *AgentNormalizer) normalizeAgentWithBlock(
+	config *agent.Config,
+	templateCtx map[string]any,
+) error {
+	parsedWith, err := n.parseInputTemplates(config.With, templateCtx)
 	if err != nil {
 		return fmt.Errorf("failed to parse agent input templates: %w", err)
 	}
 	config.With = parsedWith
+	return nil
+}
 
-	// Convert config to map for template processing
+// normalizeAgentConfigMap applies template parsing to general agent configuration fields.
+func (n *AgentNormalizer) normalizeAgentConfigMap(
+	config *agent.Config,
+	templateCtx map[string]any,
+) error {
 	configMap, err := config.AsMap()
 	if err != nil {
 		return fmt.Errorf("failed to convert agent config to map: %w", err)
 	}
-	// Apply template processing with appropriate filters
-	// Skip actions, tools, input, and output fields during general normalization
-	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, func(k string) bool {
-		return k == "actions" || k == "tools" || k == "input" || k == "output"
-	})
+	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, templateCtx, n.skipAgentFieldDuringParse)
 	if err != nil {
 		return fmt.Errorf("failed to normalize agent config: %w", err)
 	}
-	// Update config from normalized map
 	if err := config.FromMap(parsed); err != nil {
 		return fmt.Errorf("failed to update agent config from normalized map: %w", err)
 	}
-	// Normalize agent actions if actionID is provided
-	if err := n.normalizeAgentActions(config, ctx, actionID); err != nil {
-		return fmt.Errorf("failed to normalize agent actions: %w", err)
-	}
-	// Tools normalization happens separately via tool normalizer
 	return nil
+}
+
+// skipAgentFieldDuringParse identifies agent fields that should not be template processed.
+func (n *AgentNormalizer) skipAgentFieldDuringParse(key string) bool {
+	return key == "actions" || key == "tools" || key == "input" || key == "output"
 }
 
 // normalizeAgentActions normalizes agent actions
@@ -216,7 +254,6 @@ func (n *AgentNormalizer) normalizeAgentActions(
 	ctx *shared.NormalizationContext,
 	actionID string,
 ) error {
-	// Normalize agent actions (only if actionID is provided and actions exist)
 	if actionID != "" && len(config.Actions) > 0 {
 		aConfig, err := agent.FindActionConfig(config.Actions, actionID)
 		if err != nil {
@@ -225,13 +262,11 @@ func (n *AgentNormalizer) normalizeAgentActions(
 		if aConfig == nil {
 			return fmt.Errorf("agent action %s not found in agent config %s", actionID, config.ID)
 		}
-		// Merge input from agent and action
 		mergedInput, err := config.GetInput().Merge(aConfig.GetInput())
 		if err != nil {
 			return fmt.Errorf("failed to merge input for agent action %s: %w", aConfig.ID, err)
 		}
 		aConfig.With = mergedInput
-		// Create action context with agent as parent
 		actionCtx := &shared.NormalizationContext{
 			WorkflowState:  ctx.WorkflowState,
 			WorkflowConfig: ctx.WorkflowConfig,
@@ -240,9 +275,7 @@ func (n *AgentNormalizer) normalizeAgentActions(
 				"id":           config.ID,
 				"input":        config.With,
 				"instructions": config.Instructions,
-				// Keep key name `config` for backward template compatibility,
-				// but now it carries the resolved provider configuration.
-				"config": config.Model.Config,
+				"config":       config.Model.Config,
 			},
 			CurrentInput:  aConfig.With,
 			MergedEnv:     ctx.MergedEnv,
@@ -250,7 +283,6 @@ func (n *AgentNormalizer) normalizeAgentActions(
 			Variables:     ctx.Variables,  // Copy variables to preserve workflow context
 			ParentTask:    ctx.ParentTask, // Preserve parent task to maintain collection context
 		}
-		// Normalize the action config
 		if err := n.normalizeAgentActionConfig(aConfig, actionCtx); err != nil {
 			return fmt.Errorf("failed to normalize agent action config: %w", err)
 		}
@@ -266,58 +298,53 @@ func (n *AgentNormalizer) normalizeAgentActionConfig(
 	if config == nil {
 		return nil
 	}
-	// Ensure template context has a stable `.input` map for prompts:
-	// 1) Seed from ctx.CurrentInput (task-level With) when available
-	// 2) Overlay action-level With when provided
+	n.prepareActionVariables(ctx, config)
+	return n.applyActionTemplateNormalization(config, ctx)
+}
+
+// prepareActionVariables seeds normalization context variables for agent actions.
+func (n *AgentNormalizer) prepareActionVariables(
+	ctx *shared.NormalizationContext,
+	config *agent.ActionConfig,
+) {
+	if ctx == nil {
+		return
+	}
 	vb := shared.NewVariableBuilder()
 	if ctx.CurrentInput != nil {
 		vb.AddCurrentInputToVariables(ctx.GetVariables(), ctx.CurrentInput)
 	}
 	if config.With != nil {
-		// Also set/override from action-level With
 		if ctx.CurrentInput == nil {
 			ctx.CurrentInput = config.With
 		}
 		vb.AddCurrentInputToVariables(ctx.GetVariables(), config.With)
 	}
+	vars := ctx.GetVariables()
+	vars["task"] = n.buildTaskMetadata(config.ID, "agent_action", config)
+}
 
-	// Make sure `.task` inside the action refers to *this* action.
-	if ctx != nil {
-		vars := ctx.GetVariables()
-		vars["task"] = n.buildTaskMetadata(config.ID, "agent_action", config)
-	}
-
-	// Build template context
+// applyActionTemplateNormalization parses non-runtime fields of an action config.
+func (n *AgentNormalizer) applyActionTemplateNormalization(
+	config *agent.ActionConfig,
+	ctx *shared.NormalizationContext,
+) error {
 	context := ctx.BuildTemplateContext()
-
-	// Do NOT parse action-level With at config time.
-	// Action inputs may reference runtime-only variables (e.g., .item, .index, .output, .tasks).
-	// They are re-parsed at runtime in ExecuteTask.reparseTaskWith.
-
-	// Convert config to map for template processing
 	configMap, err := config.AsMap()
 	if err != nil {
 		return fmt.Errorf("failed to convert action config to map: %w", err)
 	}
-	// Apply template processing with appropriate filters
-	// Skip input, output, with, and prompt fields during action normalization
-	// Action prompts must ALWAYS be parsed at runtime via ReparseInput because:
-	// 1. They may reference .input which comes from the task's resolved With block
-	// 2. They may reference .item/.index in collection contexts
-	// 3. They may reference .tasks.* which is only available at runtime
-	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, func(k string) bool {
-		// Always skip runtime-only fields
-		if k == "input" || k == "output" || k == "with" || k == "prompt" {
-			return true
-		}
-		return false
-	})
+	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, skipActionRuntimeField)
 	if err != nil {
 		return fmt.Errorf("failed to normalize action config: %w", err)
 	}
-	// Update config from normalized map
 	if err := config.FromMap(parsed); err != nil {
 		return fmt.Errorf("failed to update action config from normalized map: %w", err)
 	}
 	return nil
+}
+
+// skipActionRuntimeField reports whether an action field must avoid template parsing.
+func skipActionRuntimeField(key string) bool {
+	return key == "input" || key == "output" || key == "with" || key == "prompt"
 }

@@ -55,6 +55,12 @@ func newResult() *Result {
 	}
 }
 
+func (r *Result) recordCounts(typ resources.ResourceType, imported, skipped, overwritten int) {
+	r.Imported[typ] = imported
+	r.Skipped[typ] = skipped
+	r.Overwritten[typ] = overwritten
+}
+
 func contextWithUpdatedBy(ctx context.Context, updatedBy string) context.Context {
 	trimmed := strings.TrimSpace(updatedBy)
 	if trimmed == "" {
@@ -73,14 +79,8 @@ func ImportFromDir(
 	strategy Strategy,
 	updatedBy string,
 ) (*Result, error) {
-	if project == "" {
-		return nil, fmt.Errorf("project is required")
-	}
-	if store == nil {
-		return nil, fmt.Errorf("resource store is required")
-	}
-	if rootDir == "" {
-		return nil, fmt.Errorf("root directory is required")
+	if err := validateImportArgs(project, store, rootDir); err != nil {
+		return nil, err
 	}
 	ctx = contextWithUpdatedBy(ctx, updatedBy)
 	res := newResult()
@@ -124,33 +124,19 @@ func ImportTypeFromDir(
 	updatedBy string,
 	typ resources.ResourceType,
 ) (*Result, error) {
-	if project == "" {
-		return nil, fmt.Errorf("project is required")
+	if err := validateImportArgs(project, store, rootDir); err != nil {
+		return nil, err
 	}
-	if store == nil {
-		return nil, fmt.Errorf("resource store is required")
-	}
-	if rootDir == "" {
-		return nil, fmt.Errorf("root directory is required")
-	}
-	dirName, ok := resources.DirForType(typ)
-	if !ok {
-		return nil, fmt.Errorf("unsupported resource type: %s", typ)
+	dirPath, exists, err := resolveTypeDirectory(rootDir, typ)
+	if err != nil {
+		return nil, err
 	}
 	ctx = contextWithUpdatedBy(ctx, updatedBy)
 	res := newResult()
-	absDir := filepath.Join(rootDir, dirName)
-	info, err := os.Stat(absDir)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, os.ErrNotExist) {
-			return res, nil
-		}
-		return nil, fmt.Errorf("stat %s: %w", absDir, err)
+	if !exists {
+		return res, nil
 	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("%s is not a directory", absDir)
-	}
-	files, err := listYAMLFiles(absDir)
+	files, err := listYAMLFiles(dirPath)
 	if err != nil {
 		return nil, err
 	}
@@ -165,10 +151,40 @@ func ImportTypeFromDir(
 	if err != nil {
 		return nil, err
 	}
-	res.Imported[typ] = imp
-	res.Skipped[typ] = skp
-	res.Overwritten[typ] = owr
+	res.recordCounts(typ, imp, skp, owr)
 	return res, nil
+}
+
+func validateImportArgs(project string, store resources.ResourceStore, rootDir string) error {
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if store == nil {
+		return fmt.Errorf("resource store is required")
+	}
+	if rootDir == "" {
+		return fmt.Errorf("root directory is required")
+	}
+	return nil
+}
+
+func resolveTypeDirectory(rootDir string, typ resources.ResourceType) (string, bool, error) {
+	dirName, ok := resources.DirForType(typ)
+	if !ok {
+		return "", false, fmt.Errorf("unsupported resource type: %s", typ)
+	}
+	absDir := filepath.Join(rootDir, dirName)
+	info, err := os.Stat(absDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, os.ErrNotExist) {
+			return absDir, false, nil
+		}
+		return "", false, fmt.Errorf("stat %s: %w", absDir, err)
+	}
+	if !info.IsDir() {
+		return "", false, fmt.Errorf("%s is not a directory", absDir)
+	}
+	return absDir, true, nil
 }
 
 func listYAMLFiles(dir string) ([]string, error) {

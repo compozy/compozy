@@ -135,86 +135,152 @@ func (l *conversationLoop) OnEnterEvaluateResponse(ctx context.Context, loopCtx 
 }
 
 func (l *conversationLoop) OnEnterProcessTools(ctx context.Context, loopCtx *LoopContext) transitionResult {
-	if loopCtx == nil {
-		return transitionResult{Event: EventFailure, Err: fmt.Errorf("loop context is required")}
-	}
-	if loopCtx.Response == nil {
-		return transitionResult{Event: EventFailure, Err: fmt.Errorf("missing LLM response for tool execution")}
-	}
-	if loopCtx.LLMRequest == nil {
-		return transitionResult{Event: EventFailure, Err: fmt.Errorf("llm request is required for tool execution")}
-	}
-	toolCalls := loopCtx.Response.ToolCalls
-	if len(toolCalls) == 0 {
-		return transitionResult{Event: EventFailure, Err: fmt.Errorf("no tool calls to execute")}
-	}
-	if l.tools == nil {
-		return transitionResult{Event: EventFailure, Err: fmt.Errorf("tool executor is not configured")}
+	toolCalls, err := l.validateProcessToolsInputs(loopCtx)
+	if err != nil {
+		return failureResult(err)
 	}
 	telemetry.Logger(ctx).Info(
 		"Processing tool calls",
 		"tool_calls_count", len(toolCalls),
 	)
-	for i := range toolCalls {
-		if err := l.middlewares.beforeToolExecution(ctx, loopCtx, &toolCalls[i]); err != nil {
-			return transitionResult{Event: EventFailure, Err: err}
-		}
+	if err := l.runBeforeToolExecution(ctx, loopCtx, toolCalls); err != nil {
+		return failureResult(err)
 	}
-	ctx = llmadapter.ContextWithClient(ctx, loopCtx.LLMClient)
-	ctx = llmadapter.ContextWithCallOptions(ctx, &loopCtx.LLMRequest.Options)
-	results, err := l.tools.Execute(ctx, toolCalls)
-	if err != nil {
-		telemetry.Logger(ctx).Error(
+	execCtx := l.prepareToolExecutionContext(ctx, loopCtx)
+	results, execErr := l.tools.Execute(execCtx, toolCalls)
+	if execErr != nil {
+		telemetry.Logger(execCtx).Error(
 			"Tool execution failed",
 			"tool_calls_count", len(toolCalls),
-			"error", core.RedactError(err),
+			"error", core.RedactError(execErr),
 		)
-		return transitionResult{Event: EventFailure, Err: err}
+		return failureResult(execErr)
 	}
 	loopCtx.ToolResults = results
-	for i := range loopCtx.ToolResults {
-		callPtr := &llmadapter.ToolCall{}
-		if i < len(toolCalls) {
-			callPtr = &toolCalls[i]
-		}
-		if err := l.middlewares.afterToolExecution(ctx, loopCtx, callPtr, &loopCtx.ToolResults[i]); err != nil {
-			return transitionResult{Event: EventFailure, Err: err}
-		}
+	if err := l.runAfterToolExecution(execCtx, loopCtx, toolCalls); err != nil {
+		return failureResult(err)
 	}
-	telemetry.Logger(ctx).Info(
+	telemetry.Logger(execCtx).Info(
 		"Tool execution complete",
 		"results_count", len(results),
 	)
 	return transitionResult{Event: EventToolsExecuted, Args: []any{results}}
 }
 
-func (l *conversationLoop) OnEnterUpdateBudgets(ctx context.Context, loopCtx *LoopContext) transitionResult {
+func failureResult(err error) transitionResult {
+	return transitionResult{Event: EventFailure, Err: err}
+}
+
+func (l *conversationLoop) validateProcessToolsInputs(loopCtx *LoopContext) ([]llmadapter.ToolCall, error) {
 	if loopCtx == nil {
-		return transitionResult{Event: EventFailure, Err: fmt.Errorf("loop context is required")}
+		return nil, fmt.Errorf("loop context is required")
 	}
-	if l.tools == nil {
-		return transitionResult{Event: EventFailure, Err: fmt.Errorf("tool executor is not configured")}
-	}
-	if loopCtx.State == nil {
-		return transitionResult{Event: EventFailure, Err: fmt.Errorf("loop state is required for budget evaluation")}
+	if loopCtx.Response == nil {
+		return nil, fmt.Errorf("missing LLM response for tool execution")
 	}
 	if loopCtx.LLMRequest == nil {
-		return transitionResult{Event: EventFailure, Err: fmt.Errorf("llm request is required to append tool results")}
+		return nil, fmt.Errorf("llm request is required for tool execution")
 	}
+	if l.tools == nil {
+		return nil, fmt.Errorf("tool executor is not configured")
+	}
+	toolCalls := loopCtx.Response.ToolCalls
+	if len(toolCalls) == 0 {
+		return nil, fmt.Errorf("no tool calls to execute")
+	}
+	return toolCalls, nil
+}
+
+func (l *conversationLoop) runBeforeToolExecution(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	toolCalls []llmadapter.ToolCall,
+) error {
+	for i := range toolCalls {
+		if err := l.middlewares.beforeToolExecution(ctx, loopCtx, &toolCalls[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (l *conversationLoop) prepareToolExecutionContext(ctx context.Context, loopCtx *LoopContext) context.Context {
+	ctx = llmadapter.ContextWithClient(ctx, loopCtx.LLMClient)
+	return llmadapter.ContextWithCallOptions(ctx, &loopCtx.LLMRequest.Options)
+}
+
+func (l *conversationLoop) runAfterToolExecution(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	toolCalls []llmadapter.ToolCall,
+) error {
+	for i := range loopCtx.ToolResults {
+		callPtr := &llmadapter.ToolCall{}
+		if i < len(toolCalls) {
+			callPtr = &toolCalls[i]
+		}
+		if err := l.middlewares.afterToolExecution(ctx, loopCtx, callPtr, &loopCtx.ToolResults[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (l *conversationLoop) OnEnterUpdateBudgets(ctx context.Context, loopCtx *LoopContext) transitionResult {
+	if err := l.validateBudgetInputs(loopCtx); err != nil {
+		return failureResult(err)
+	}
+	if res, handled := l.applyBudgetUpdates(ctx, loopCtx); handled {
+		return res
+	}
+	l.appendToolResultMessages(loopCtx)
+	l.injectCompletionHint(ctx, loopCtx)
+	l.refreshGuidance(loopCtx)
+	if res, handled := l.evaluateProgress(ctx, loopCtx); handled {
+		return res
+	}
+	telemetry.Logger(ctx).Info(
+		"Budget evaluation passed",
+		"tool_results_count", len(loopCtx.ToolResults),
+	)
+	return transitionResult{Event: EventBudgetOK}
+}
+
+func (l *conversationLoop) validateBudgetInputs(loopCtx *LoopContext) error {
+	if loopCtx == nil {
+		return fmt.Errorf("loop context is required")
+	}
+	if l.tools == nil {
+		return fmt.Errorf("tool executor is not configured")
+	}
+	if loopCtx.State == nil {
+		return fmt.Errorf("loop state is required for budget evaluation")
+	}
+	if loopCtx.LLMRequest == nil {
+		return fmt.Errorf("llm request is required to append tool results")
+	}
+	return nil
+}
+
+func (l *conversationLoop) applyBudgetUpdates(ctx context.Context, loopCtx *LoopContext) (transitionResult, bool) {
 	if err := l.tools.UpdateBudgets(ctx, loopCtx.ToolResults, loopCtx.State); err != nil {
 		if errors.Is(err, ErrBudgetExceeded) {
 			telemetry.Logger(ctx).Warn(
 				"Tool budget exceeded",
 				"error", core.RedactError(err),
 			)
-			return transitionResult{Event: EventBudgetExceeded, Err: err}
+			return transitionResult{Event: EventBudgetExceeded, Err: err}, true
 		}
 		telemetry.Logger(ctx).Error(
 			"Failed to update tool budgets",
 			"error", core.RedactError(err),
 		)
-		return transitionResult{Event: EventFailure, Err: err}
+		return failureResult(err), true
 	}
+	return transitionResult{}, false
+}
+
+func (l *conversationLoop) appendToolResultMessages(loopCtx *LoopContext) {
 	for i := range loopCtx.ToolResults {
 		result := loopCtx.ToolResults[i]
 		loopCtx.LLMRequest.Messages = append(
@@ -222,16 +288,24 @@ func (l *conversationLoop) OnEnterUpdateBudgets(ctx context.Context, loopCtx *Lo
 			llmadapter.Message{Role: roleTool, ToolResults: []llmadapter.ToolResult{result}},
 		)
 	}
-	if l.cfg.enableAgentCallCompletionHints && containsSuccessfulAgentCall(loopCtx.ToolResults) {
-		hint := buildAgentCallCompletionHint(loopCtx.ToolResults)
-		if hint != "" {
-			telemetry.Logger(ctx).Debug("Injecting agent call completion hint", "hint", hint)
-			loopCtx.LLMRequest.Messages = append(
-				loopCtx.LLMRequest.Messages,
-				llmadapter.Message{Role: "user", Content: hint},
-			)
-		}
+}
+
+func (l *conversationLoop) injectCompletionHint(ctx context.Context, loopCtx *LoopContext) {
+	if !l.cfg.enableAgentCallCompletionHints || !containsSuccessfulAgentCall(loopCtx.ToolResults) {
+		return
 	}
+	hint := buildAgentCallCompletionHint(loopCtx.ToolResults)
+	if hint == "" {
+		return
+	}
+	telemetry.Logger(ctx).Debug("Injecting agent call completion hint", "hint", hint)
+	loopCtx.LLMRequest.Messages = append(
+		loopCtx.LLMRequest.Messages,
+		llmadapter.Message{Role: roleUser, Content: hint},
+	)
+}
+
+func (l *conversationLoop) refreshGuidance(loopCtx *LoopContext) {
 	guidanceMessages := buildFailureGuidanceMessages(loopCtx.ToolResults)
 	loopCtx.PromptContext.FailureGuidance = extractGuidanceContent(guidanceMessages)
 	loopCtx.LLMRequest.Messages = appendFailureGuidanceMessages(
@@ -241,14 +315,6 @@ func (l *conversationLoop) OnEnterUpdateBudgets(ctx context.Context, loopCtx *Lo
 	if examples := buildSuccessfulToolExamples(loopCtx.ToolResults); len(examples) > 0 {
 		loopCtx.PromptContext.Examples = mergeExamples(loopCtx.PromptContext.Examples, examples)
 	}
-	if res, handled := l.evaluateProgress(ctx, loopCtx); handled {
-		return res
-	}
-	telemetry.Logger(ctx).Info(
-		"Budget evaluation passed",
-		"tool_results_count", len(loopCtx.ToolResults),
-	)
-	return transitionResult{Event: EventBudgetOK}
 }
 
 func (l *conversationLoop) OnEnterHandleCompletion(ctx context.Context, loopCtx *LoopContext) transitionResult {
@@ -374,51 +440,94 @@ func (l *conversationLoop) Run(
 	state *loopState,
 	template PromptTemplateState,
 ) (*core.Output, *llmadapter.LLMResponse, error) {
-	maxIter := l.cfg.maxToolIterations
-	if maxIter <= 0 {
-		maxIter = defaultMaxToolIterations
+	loopCtx := l.newLoopContext(client, llmReq, &request, state, template)
+	l.initializeIterationState(loopCtx)
+	l.warnIfRestartClamped(ctx)
+	machine := newLoopFSM(ctx, l, loopCtx)
+	if err := machine.Event(ctx, EventStartLoop, loopCtx); err != nil {
+		return nil, nil, l.resolveLoopError(loopCtx, err)
+	}
+	return resolveLoopMachineResult(machine, loopCtx)
+}
+
+func (l *conversationLoop) newLoopContext(
+	client llmadapter.LLMClient,
+	llmReq *llmadapter.LLMRequest,
+	request *Request,
+	state *loopState,
+	template PromptTemplateState,
+) *LoopContext {
+	var reqCopy Request
+	if request != nil {
+		reqCopy = *request
 	}
 	loopCtx := &LoopContext{
-		Request:          request,
+		Request:          reqCopy,
 		LLMClient:        client,
 		LLMRequest:       llmReq,
 		State:            state,
-		MaxIterations:    maxIter,
+		MaxIterations:    l.effectiveIterationLimit(),
 		BaseSystemPrompt: llmReq.SystemPrompt,
 		PromptTemplate:   template,
-		PromptContext:    request.Prompt.DynamicContext,
+		PromptContext:    reqCopy.Prompt.DynamicContext,
 	}
 	loopCtx.BaseSystemPrompt = composeSystemPrompt(loopCtx.BaseSystemPrompt, "")
 	loopCtx.LLMRequest.SystemPrompt = loopCtx.BaseSystemPrompt
-	if loopCtx.State != nil {
-		loopCtx.State.Iteration.MaxIterations = loopCtx.MaxIterations
-		loopCtx.State.Iteration.Current = loopCtx.Iteration
-	}
 	loopCtx.baseMessageCount = len(loopCtx.LLMRequest.Messages)
-	if l.cfg.restartThresholdClamped {
-		telemetry.Logger(ctx).Warn(
-			"Restart stall threshold clamped to no-progress threshold",
-			"requested_threshold", l.cfg.restartAfterStallRequested,
-			"effective_threshold", l.cfg.restartAfterStall,
-			"no_progress_threshold", l.cfg.noProgressThreshold,
-		)
-		telemetry.RecordEvent(ctx, &telemetry.Event{
-			Stage:    "restart_threshold_clamped",
-			Severity: telemetry.SeverityWarn,
-			Metadata: map[string]any{
-				"requested_threshold":   l.cfg.restartAfterStallRequested,
-				"effective_threshold":   l.cfg.restartAfterStall,
-				"no_progress_threshold": l.cfg.noProgressThreshold,
-			},
-		})
+	return loopCtx
+}
+
+func (l *conversationLoop) effectiveIterationLimit() int {
+	if l.cfg.maxToolIterations > 0 {
+		return l.cfg.maxToolIterations
 	}
-	machine := newLoopFSM(ctx, l, loopCtx)
-	if err := machine.Event(ctx, EventStartLoop, loopCtx); err != nil {
-		if loopCtx.err != nil {
-			return nil, nil, loopCtx.err
-		}
-		return nil, nil, err
+	return defaultMaxToolIterations
+}
+
+func (l *conversationLoop) initializeIterationState(loopCtx *LoopContext) {
+	if loopCtx.State == nil {
+		return
 	}
+	loopCtx.State.Iteration.MaxIterations = loopCtx.MaxIterations
+	loopCtx.State.Iteration.Current = loopCtx.Iteration
+}
+
+func (l *conversationLoop) warnIfRestartClamped(ctx context.Context) {
+	if !l.cfg.restartThresholdClamped {
+		return
+	}
+	telemetry.Logger(ctx).Warn(
+		"Restart stall threshold clamped to no-progress threshold",
+		"requested_threshold", l.cfg.restartAfterStallRequested,
+		"effective_threshold", l.cfg.restartAfterStall,
+		"no_progress_threshold", l.cfg.noProgressThreshold,
+	)
+	telemetry.RecordEvent(ctx, &telemetry.Event{
+		Stage:    "restart_threshold_clamped",
+		Severity: telemetry.SeverityWarn,
+		Metadata: map[string]any{
+			"requested_threshold":   l.cfg.restartAfterStallRequested,
+			"effective_threshold":   l.cfg.restartAfterStall,
+			"no_progress_threshold": l.cfg.noProgressThreshold,
+		},
+	})
+}
+
+func (l *conversationLoop) resolveLoopError(loopCtx *LoopContext, err error) error {
+	if loopCtx.err != nil {
+		return loopCtx.err
+	}
+	return err
+}
+
+type machineStateReader interface {
+	Current() string
+}
+
+func resolveLoopMachineResult(
+	machine machineStateReader,
+	loopCtx *LoopContext,
+) (*core.Output, *llmadapter.LLMResponse, error) {
 	switch machine.Current() {
 	case StateFinalize:
 		return loopCtx.Output, loopCtx.Response, nil
@@ -502,15 +611,38 @@ func (l *conversationLoop) recordLLMResponse(
 	}
 	l.recordUsageIfAvailable(ctx, loopCtx, response)
 	usage := computeContextUsage(loopCtx, response)
+	payload := buildResponsePayload(ctx, response, usage)
+	publishResponseEvent(ctx, loopCtx, response, usage, payload)
+	l.warnIfContextLimitUnknown(ctx, loopCtx, usage)
+	l.handleUsageThreshold(ctx, loopCtx, usage)
+}
+
+func buildResponsePayload(
+	ctx context.Context,
+	response *llmadapter.LLMResponse,
+	usage telemetry.ContextUsage,
+) map[string]any {
 	payload := map[string]any{
 		"response": snapshotResponse(ctx, response),
 		"usage":    usage,
 	}
-	if capture := telemetry.CaptureContentEnabled(ctx); !capture && response.Content != "" {
+	capture := telemetry.CaptureContentEnabled(ctx)
+	switch {
+	case !capture && response.Content != "":
 		payload["raw_content"] = telemetry.RedactedValue
-	} else if capture {
+	case capture:
 		payload["raw_content"] = response.Content
 	}
+	return payload
+}
+
+func publishResponseEvent(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	response *llmadapter.LLMResponse,
+	usage telemetry.ContextUsage,
+	payload map[string]any,
+) {
 	telemetry.RecordEvent(ctx, &telemetry.Event{
 		Stage:     "llm_response",
 		Severity:  telemetry.SeverityInfo,
@@ -526,31 +658,40 @@ func (l *conversationLoop) recordLLMResponse(
 		},
 		Payload: payload,
 	})
-	l.warnIfContextLimitUnknown(ctx, loopCtx, usage)
-	if usage.PercentOfLimit > 0 {
-		if threshold, ok := telemetry.NotifyContextUsage(ctx, usage.PercentOfLimit); ok {
-			telemetry.Logger(ctx).Warn(
-				"Context usage threshold crossed",
-				"threshold", threshold,
-				"usage_pct", usage.PercentOfLimit,
-			)
-			telemetry.RecordEvent(ctx, &telemetry.Event{
-				Stage:     "context_threshold",
-				Severity:  telemetry.SeverityWarn,
-				Iteration: loopCtx.Iteration,
-				Metadata: map[string]any{
-					"threshold": threshold,
-					"usage_pct": usage.PercentOfLimit,
-				},
-				Payload: map[string]any{"usage": usage},
-			})
-			if l.cfg.compactionThreshold > 0 && usage.PercentOfLimit >= l.cfg.compactionThreshold {
-				if loopCtx.State != nil {
-					loopCtx.State.markCompaction(threshold, usage.PercentOfLimit)
-				}
-				l.tryCompactMemory(ctx, loopCtx, usage, threshold)
-			}
+}
+
+func (l *conversationLoop) handleUsageThreshold(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	usage telemetry.ContextUsage,
+) {
+	if usage.PercentOfLimit <= 0 {
+		return
+	}
+	threshold, ok := telemetry.NotifyContextUsage(ctx, usage.PercentOfLimit)
+	if !ok {
+		return
+	}
+	telemetry.Logger(ctx).Warn(
+		"Context usage threshold crossed",
+		"threshold", threshold,
+		"usage_pct", usage.PercentOfLimit,
+	)
+	telemetry.RecordEvent(ctx, &telemetry.Event{
+		Stage:     "context_threshold",
+		Severity:  telemetry.SeverityWarn,
+		Iteration: loopCtx.Iteration,
+		Metadata: map[string]any{
+			"threshold": threshold,
+			"usage_pct": usage.PercentOfLimit,
+		},
+		Payload: map[string]any{"usage": usage},
+	})
+	if l.cfg.compactionThreshold > 0 && usage.PercentOfLimit >= l.cfg.compactionThreshold {
+		if loopCtx.State != nil {
+			loopCtx.State.markCompaction(threshold, usage.PercentOfLimit)
 		}
+		l.tryCompactMemory(ctx, loopCtx, usage, threshold)
 	}
 }
 
@@ -782,40 +923,61 @@ func (l *conversationLoop) tryCompactMemory(
 	usage telemetry.ContextUsage,
 	threshold float64,
 ) {
-	if l.memory == nil || loopCtx == nil || loopCtx.State == nil {
-		return
-	}
-	if l.cfg.compactionThreshold <= 0 {
-		return
-	}
-	if usage.PercentOfLimit < l.cfg.compactionThreshold {
+	if !l.shouldAttemptCompaction(loopCtx, usage) {
 		return
 	}
 	if !loopCtx.State.compactionPending(loopCtx.Iteration, l.cfg.compactionCooldown) {
-		if l.emitCompactionCooldown(ctx, loopCtx, usage, threshold) {
-			return
-		}
+		l.emitCompactionCooldown(ctx, loopCtx, usage, threshold)
 		return
 	}
+	l.executeCompaction(ctx, loopCtx, usage, threshold)
+}
+
+func (l *conversationLoop) shouldAttemptCompaction(
+	loopCtx *LoopContext,
+	usage telemetry.ContextUsage,
+) bool {
+	if l.memory == nil || loopCtx == nil || loopCtx.State == nil {
+		return false
+	}
+	if l.cfg.compactionThreshold <= 0 {
+		return false
+	}
+	return usage.PercentOfLimit >= l.cfg.compactionThreshold
+}
+
+func (l *conversationLoop) executeCompaction(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	usage telemetry.ContextUsage,
+	threshold float64,
+) {
 	err := l.memory.Compact(ctx, loopCtx, usage)
-	if err == nil {
+	switch {
+	case err == nil:
 		loopCtx.State.completeCompaction(loopCtx.Iteration)
 		telemetry.Logger(ctx).Info(
 			"Memory compaction triggered",
 			"usage_pct", usage.PercentOfLimit,
 			"threshold", threshold,
 		)
-		return
-	}
-	if errors.Is(err, ErrCompactionSkipped) || errors.Is(err, ErrCompactionUnavailable) {
+	case errors.Is(err, ErrCompactionSkipped) || errors.Is(err, ErrCompactionUnavailable):
 		loopCtx.State.completeCompaction(loopCtx.Iteration)
 		telemetry.Logger(ctx).Debug(
 			"Memory compaction skipped",
 			"usage_pct", usage.PercentOfLimit,
 			"threshold", threshold,
 		)
-		return
+	default:
+		l.logCompactionFailure(ctx, loopCtx, err)
 	}
+}
+
+func (l *conversationLoop) logCompactionFailure(
+	ctx context.Context,
+	loopCtx *LoopContext,
+	err error,
+) {
 	failures := loopCtx.State.recordCompactionFailure(loopCtx.Iteration)
 	log := telemetry.Logger(ctx)
 	log.Error(

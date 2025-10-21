@@ -39,75 +39,23 @@ type FlushHandler struct {
 
 // PerformFlush executes the complete memory flush operation with retry logic
 func (f *FlushHandler) PerformFlush(ctx context.Context) (*core.FlushMemoryActivityOutput, error) {
-	log := logger.FromContext(ctx)
 	start := time.Now()
-	var result *core.FlushMemoryActivityOutput
-	var finalErr error
-
-	// Retry logic with exponential backoff for transient failures
-	retryConfig := retry.WithMaxRetries(3, retry.NewExponential(100*time.Millisecond))
-
-	err := retry.Do(ctx, retryConfig, func(ctx context.Context) error {
-		// Acquire flush lock
-		unlock, err := f.lockManager.AcquireFlushLock(ctx, f.instanceID)
-		if err != nil {
-			// Check if it's a lock contention error
-			if errors.Is(err, core.ErrFlushLockFailed) || errors.Is(err, core.ErrLockAcquisitionFailed) {
-				log.Debug("Flush already in progress for instance",
-					"instance_id", f.instanceID)
-				return core.ErrFlushAlreadyPending
-			}
-			if isTransientError(err) {
-				log.Warn("Transient error acquiring flush lock, will retry",
-					"error", err,
-					"instance_id", f.instanceID)
-				return retry.RetryableError(err)
-			}
-			return fmt.Errorf("failed to acquire flush lock: %w", err)
-		}
-		defer func() {
-			if err := unlock(); err != nil {
-				log.Error("Failed to release flush lock",
-					"error", err,
-					"instance_id", f.instanceID)
-			}
-		}()
-
-		// Execute the flush directly
-		result, err = f.executeFlush(ctx)
-		if err != nil {
-			if isTransientError(err) {
-				log.Warn("Transient error during flush, will retry",
-					"error", err,
-					"instance_id", f.instanceID)
-				return retry.RetryableError(err)
-			}
-			finalErr = err
-			return err
-		}
-
-		finalErr = nil
-		return nil
-	})
-
-	// Record metrics
+	result, err := f.runFlushWithRetry(ctx)
+	duration := time.Since(start)
+	messageCount := 0
 	if result != nil {
-		f.metrics.RecordFlush(ctx, time.Since(start), result.MessageCount, finalErr)
-	} else {
-		f.metrics.RecordFlush(ctx, time.Since(start), 0, finalErr)
+		messageCount = result.MessageCount
 	}
-
+	f.metrics.RecordFlush(ctx, duration, messageCount, err)
 	return result, err
 }
 
 // executeFlush performs the actual flush operation
 func (f *FlushHandler) executeFlush(ctx context.Context) (*core.FlushMemoryActivityOutput, error) {
-	// Read all messages
 	messages, err := f.store.ReadMessages(ctx, f.instanceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read messages for flush: %w", err)
 	}
-
 	if len(messages) == 0 {
 		return &core.FlushMemoryActivityOutput{
 			Success:          true,
@@ -116,34 +64,25 @@ func (f *FlushHandler) executeFlush(ctx context.Context) (*core.FlushMemoryActiv
 			SummaryGenerated: false,
 		}, nil
 	}
-
-	// Select the strategy to use
 	strategy, err := f.selectStrategy()
 	if err != nil {
 		return nil, fmt.Errorf("failed to select flush strategy: %w", err)
 	}
-
-	// Execute flushing strategy
 	result, err := strategy.PerformFlush(ctx, messages, f.resourceConfig)
 	if err != nil {
 		return nil, fmt.Errorf("flushing strategy failed: %w", err)
 	}
-
-	// Apply the flush results
 	if err := f.applyFlushResults(ctx, result, len(messages)); err != nil {
 		return nil, fmt.Errorf("failed to apply flush results: %w", err)
 	}
-
 	return result, nil
 }
 
 // selectStrategy determines which strategy to use for the flush operation
 func (f *FlushHandler) selectStrategy() (core.FlushStrategy, error) {
-	// Use requested strategy if provided
 	if f.requestedStrategy != "" && f.strategyFactory != nil {
 		strategyConfig := &core.FlushingStrategyConfig{
-			Type: core.FlushingStrategyType(f.requestedStrategy),
-			// Copy threshold from resource config if available
+			Type:               core.FlushingStrategyType(f.requestedStrategy),
 			SummarizeThreshold: f.getThreshold(),
 		}
 
@@ -154,9 +93,72 @@ func (f *FlushHandler) selectStrategy() (core.FlushStrategy, error) {
 
 		return f.strategyFactory.CreateStrategy(strategyConfig, opts)
 	}
-
-	// Fall back to configured strategy
 	return f.flushingStrategy, nil
+}
+
+func (f *FlushHandler) runFlushWithRetry(ctx context.Context) (*core.FlushMemoryActivityOutput, error) {
+	retryConfig := retry.WithMaxRetries(3, retry.NewExponential(100*time.Millisecond))
+	var (
+		result   *core.FlushMemoryActivityOutput
+		finalErr error
+	)
+	err := retry.Do(ctx, retryConfig, func(ctx context.Context) error {
+		res, retryable, execErr := f.executeFlushWithLock(ctx)
+		if execErr != nil {
+			finalErr = execErr
+			if retryable {
+				return retry.RetryableError(execErr)
+			}
+			return execErr
+		}
+		finalErr = nil
+		result = res
+		return nil
+	})
+	if err != nil {
+		if finalErr != nil {
+			return result, finalErr
+		}
+		return result, err
+	}
+	return result, nil
+}
+
+func (f *FlushHandler) executeFlushWithLock(ctx context.Context) (*core.FlushMemoryActivityOutput, bool, error) {
+	log := logger.FromContext(ctx)
+	unlock, err := f.lockManager.AcquireFlushLock(ctx, f.instanceID)
+	if err != nil {
+		if errors.Is(err, core.ErrFlushLockFailed) || errors.Is(err, core.ErrLockAcquisitionFailed) {
+			log.Debug("Flush already in progress for instance",
+				"instance_id", f.instanceID)
+			return nil, false, core.ErrFlushAlreadyPending
+		}
+		if isTransientError(err) {
+			log.Warn("Transient error acquiring flush lock, will retry",
+				"error", err,
+				"instance_id", f.instanceID)
+			return nil, true, err
+		}
+		return nil, false, fmt.Errorf("failed to acquire flush lock: %w", err)
+	}
+	defer func() {
+		if unlockErr := unlock(); unlockErr != nil {
+			log.Error("Failed to release flush lock",
+				"error", unlockErr,
+				"instance_id", f.instanceID)
+		}
+	}()
+	result, err := f.executeFlush(ctx)
+	if err != nil {
+		if isTransientError(err) {
+			log.Warn("Transient error during flush, will retry",
+				"error", err,
+				"instance_id", f.instanceID)
+			return nil, true, err
+		}
+		return nil, false, err
+	}
+	return result, false, nil
 }
 
 // getThreshold returns the summarize threshold from the resource config
@@ -176,17 +178,12 @@ func (f *FlushHandler) applyFlushResults(
 	originalMessageCount int,
 ) error {
 	log := logger.FromContext(ctx)
-	// If no messages were flushed, nothing to do
 	if !result.Success || result.MessageCount == 0 {
 		return nil
 	}
-
-	// If all messages were flushed, we've already handled this in the strategy
 	if result.MessageCount >= originalMessageCount {
 		return nil
 	}
-
-	// Check if store supports atomic operations
 	atomicStore, ok := f.store.(store.AtomicStore)
 	if !ok {
 		log.Warn("Store doesn't support atomic trim operations",
@@ -194,13 +191,10 @@ func (f *FlushHandler) applyFlushResults(
 			"store_type", fmt.Sprintf("%T", f.store))
 		return nil
 	}
-
-	// Trim messages to keep only the remaining ones
 	err := atomicStore.TrimMessagesWithMetadata(ctx, f.instanceID, result.MessageCount, result.TokenCount)
 	if err != nil {
 		return fmt.Errorf("failed to trim messages after flush for instance %s: %w", f.instanceID, err)
 	}
-
 	return nil
 }
 
@@ -209,8 +203,6 @@ func isTransientError(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	// Common transient error patterns
 	transientPatterns := []string{
 		"connection refused",
 		"timeout",
@@ -219,26 +211,19 @@ func isTransientError(err error) bool {
 		"network is unreachable",
 		"lock timeout",
 	}
-
 	errStr := strings.ToLower(err.Error())
 	for _, pattern := range transientPatterns {
 		if strings.Contains(errStr, strings.ToLower(pattern)) {
 			return true
 		}
 	}
-
-	// Redis-specific errors
 	if errors.Is(err, redis.Nil) {
 		return false // Not found is not transient
 	}
-
-	// Network errors
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {
 		return true
 	}
-
-	// Syscall errors that are transient
 	var errno syscall.Errno
 	if errors.As(err, &errno) {
 		switch errno {
@@ -246,6 +231,5 @@ func isTransientError(err error) bool {
 			return true
 		}
 	}
-
 	return false
 }

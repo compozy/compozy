@@ -36,7 +36,6 @@ func NewCommandPalette() CommandPalette {
 	input := textinput.New()
 	input.Placeholder = "Type to search commands..."
 	input.Focus()
-
 	return CommandPalette{
 		Input:    input,
 		Visible:  false,
@@ -47,6 +46,19 @@ func NewCommandPalette() CommandPalette {
 
 // defaultCommands returns the default command set
 func defaultCommands() []Command {
+	nav := navigationCommands()
+	keys := keyCommands()
+	users := userCommands()
+	help := helpCommands()
+	commands := make([]Command, 0, len(nav)+len(keys)+len(users)+len(help))
+	commands = append(commands, nav...)
+	commands = append(commands, keys...)
+	commands = append(commands, users...)
+	commands = append(commands, help...)
+	return commands
+}
+
+func navigationCommands() []Command {
 	return []Command{
 		{
 			ID:          "help",
@@ -62,6 +74,11 @@ func defaultCommands() []Command {
 			Category:    "Navigation",
 			Shortcut:    "q",
 		},
+	}
+}
+
+func keyCommands() []Command {
+	return []Command{
 		{
 			ID:          "generate-key",
 			Name:        "Generate API Key",
@@ -83,6 +100,11 @@ func defaultCommands() []Command {
 			Category:    "Keys",
 			Shortcut:    "",
 		},
+	}
+}
+
+func userCommands() []Command {
+	return []Command{
 		{
 			ID:          "create-user",
 			Name:        "Create User",
@@ -111,6 +133,11 @@ func defaultCommands() []Command {
 			Category:    "Users",
 			Shortcut:    "",
 		},
+	}
+}
+
+func helpCommands() []Command {
+	return []Command{
 		{
 			ID:          "tutorial",
 			Name:        "Start Tutorial",
@@ -235,10 +262,8 @@ func (p *CommandPalette) filterCommands(query string) {
 		p.Filtered = p.Commands
 		return
 	}
-
 	query = strings.ToLower(query)
 	p.Filtered = nil
-
 	for _, cmd := range p.Commands {
 		if strings.Contains(strings.ToLower(cmd.Name), query) ||
 			strings.Contains(strings.ToLower(cmd.Description), query) ||
@@ -250,7 +275,6 @@ func (p *CommandPalette) filterCommands(query string) {
 
 // executeCommand executes the selected command
 func (p *CommandPalette) executeCommand(cmd *Command) tea.Cmd {
-	// Return a message that other components can handle
 	return func() tea.Msg {
 		return ExecuteCommandMsg{Command: *cmd}
 	}

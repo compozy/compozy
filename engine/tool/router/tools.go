@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/tool/uc"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -39,20 +40,28 @@ func getToolByID(c *gin.Context) {
 	}
 	wfCfg, err := workflow.FindConfig(appState.GetWorkflows(), workflowID)
 	if err != nil {
-		reqErr := router.NewRequestError(http.StatusNotFound, "workflow not found", err)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		router.RespondProblemWithCode(c, http.StatusNotFound, router.ErrNotFoundCode, "workflow not found")
 		return
 	}
 	usecase := uc.NewGetTool([]*workflow.Config{wfCfg}, toolID)
 	tool, err := usecase.Execute(c.Request.Context())
 	if err != nil {
 		if errors.Is(err, uc.ErrToolNotFound) {
-			reqErr := router.NewRequestError(http.StatusNotFound, "tool not found", err)
-			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			router.RespondProblemWithCode(c, http.StatusNotFound, router.ErrNotFoundCode, err.Error())
 			return
 		}
-		reqErr := router.NewRequestError(http.StatusInternalServerError, "failed to retrieve tool", err)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		logger.FromContext(c.Request.Context()).Error(
+			"Failed to retrieve tool",
+			"error", err,
+			"workflow_id", workflowID,
+			"tool_id", toolID,
+		)
+		router.RespondProblemWithCode(
+			c,
+			http.StatusInternalServerError,
+			router.ErrInternalCode,
+			"failed to retrieve tool",
+		)
 		return
 	}
 	router.RespondOK(c, "tool retrieved", tool)
@@ -80,19 +89,18 @@ func listTools(c *gin.Context) {
 	}
 	wfCfg, err := workflow.FindConfig(appState.GetWorkflows(), workflowID)
 	if err != nil {
-		reqErr := router.NewRequestError(http.StatusNotFound, "workflow not found", err)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		router.RespondProblemWithCode(c, http.StatusNotFound, router.ErrNotFoundCode, "workflow not found")
 		return
 	}
 	usecase := uc.NewListTools([]*workflow.Config{wfCfg})
 	tools, err := usecase.Execute(c.Request.Context())
 	if err != nil {
-		reqErr := router.NewRequestError(
-			http.StatusInternalServerError,
-			"failed to list tools",
-			err,
+		logger.FromContext(c.Request.Context()).Error(
+			"Failed to list tools",
+			"error", err,
+			"workflow_id", workflowID,
 		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		router.RespondProblemWithCode(c, http.StatusInternalServerError, router.ErrInternalCode, "failed to list tools")
 		return
 	}
 	router.RespondOK(c, "tools retrieved", gin.H{

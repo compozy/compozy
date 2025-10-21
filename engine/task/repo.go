@@ -81,7 +81,6 @@ func CreateAndPersistState(
 	result *PartialState,
 ) (*State, error) {
 	var state *State
-	// Handle empty execution type by defaulting to basic
 	executionType := result.ExecutionType
 	if executionType == "" {
 		executionType = ExecutionBasic

@@ -20,7 +20,6 @@ func CWDFromPath(path string) (*PathCWD, error) {
 		}
 		return &PathCWD{Path: CWD}, nil
 	}
-
 	var absPath string
 	if !filepath.IsAbs(path) {
 		var err error
@@ -31,12 +30,10 @@ func CWDFromPath(path string) (*PathCWD, error) {
 	} else {
 		absPath = path
 	}
-
 	fileInfo, err := os.Stat(absPath)
 	if err == nil && !fileInfo.IsDir() {
 		absPath = filepath.Dir(absPath)
 	}
-
 	return &PathCWD{Path: absPath}, nil
 }
 

@@ -14,6 +14,9 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+// defaultAuthBootstrapDBTimeout is the bounded timeout for bootstrap DB operations.
+const defaultAuthBootstrapDBTimeout = 10 * time.Second
+
 // ServiceFactory interface for dependency injection
 type ServiceFactory interface {
 	CreateService(ctx context.Context) (*bootstrap.Service, func(), error)
@@ -28,20 +31,22 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 	if cfg == nil {
 		return nil, nil, fmt.Errorf("config manager not found in context")
 	}
-
-	// Add timeout for database connection to prevent indefinite hanging
-	dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	// Apply a bounded timeout for the DB connect.
+	dbCtx, cancel := context.WithTimeout(ctx, defaultAuthBootstrapDBTimeout)
 	defer cancel()
-
-	// Always use Postgres for auth bootstrap
+	// NOTE: Auth bootstrap always uses Postgres to enforce consistent credential handling.
 	dbCfg := &postgres.Config{
-		ConnString: cfg.Database.ConnString,
-		Host:       cfg.Database.Host,
-		Port:       cfg.Database.Port,
-		User:       cfg.Database.User,
-		Password:   cfg.Database.Password,
-		DBName:     cfg.Database.DBName,
-		SSLMode:    cfg.Database.SSLMode,
+		ConnString:         cfg.Database.ConnString,
+		Host:               cfg.Database.Host,
+		Port:               cfg.Database.Port,
+		User:               cfg.Database.User,
+		Password:           cfg.Database.Password,
+		DBName:             cfg.Database.DBName,
+		SSLMode:            cfg.Database.SSLMode,
+		PingTimeout:        cfg.Database.PingTimeout,
+		HealthCheckTimeout: cfg.Database.HealthCheckTimeout,
+		HealthCheckPeriod:  cfg.Database.HealthCheckPeriod,
+		ConnectTimeout:     cfg.Database.ConnectTimeout,
 	}
 	drv, err := postgres.NewStore(dbCtx, dbCfg)
 	if err != nil {
@@ -50,11 +55,12 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 	provider := repo.NewProvider(drv.Pool())
 	authRepo := provider.NewAuthRepo()
 	cleanup := func() {
-		if err := drv.Close(ctx); err != nil {
+		closeCtx, cancelClose := context.WithTimeout(context.WithoutCancel(ctx), defaultAuthBootstrapDBTimeout)
+		defer cancelClose()
+		if err := drv.Close(closeCtx); err != nil {
 			logger.FromContext(ctx).Error("Failed to close database", "error", err)
 		}
 	}
-
 	factory := authuc.NewFactory(authRepo)
 	service := bootstrap.NewService(factory)
 	return service, cleanup, nil
@@ -65,13 +71,10 @@ func ValidateEmail(email string) error {
 	if email == "" {
 		return fmt.Errorf("email is required")
 	}
-
-	// Basic email validation regex
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 	if !emailRegex.MatchString(email) {
 		return fmt.Errorf("invalid email format")
 	}
-
 	return nil
 }
 

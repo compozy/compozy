@@ -70,7 +70,10 @@ func (p *Processor) Process(kbID string, docs []Document) ([]Chunk, error) {
 	if len(docs) == 0 {
 		return nil, nil
 	}
-	seen := make(map[string]struct{})
+	var seen map[string]struct{}
+	if p.settings.Deduplicate {
+		seen = make(map[string]struct{})
+	}
 	chunks := make([]Chunk, 0, len(docs))
 	for di := range docs {
 		doc := docs[di]
@@ -96,6 +99,9 @@ func (p *Processor) Process(kbID string, docs []Document) ([]Chunk, error) {
 	return chunks, nil
 }
 
+// buildChunk assembles a chunk from a document segment, handling deduplication
+// and metadata enrichment. It returns false when the segment is empty or
+// duplicated.
 func (p *Processor) buildChunk(
 	kbID string,
 	doc Document,
@@ -129,11 +135,13 @@ func (p *Processor) buildChunk(
 	}, true
 }
 
+// effectiveChunkSettings computes per-document chunk size and overlap by
+// applying sequential adjustments based on text length, content type, source
+// type, and heading density. Adjustments compound multiplicatively.
 func (p *Processor) effectiveChunkSettings(meta map[string]any, text string) (int, int) {
 	size := clampChunkSize(p.settings.Size)
 	overlap := p.settings.Overlap
 	length := utf8.RuneCountInString(text)
-
 	switch {
 	case length > veryLongTextThreshold:
 		size = clampChunkSize(size * 2)
@@ -144,17 +152,14 @@ func (p *Processor) effectiveChunkSettings(meta map[string]any, text string) (in
 	case length < shortTextThreshold:
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, size/2))
 	}
-
 	contentType := strings.ToLower(metadataString(meta, "content_type"))
 	filename := strings.ToLower(metadataString(meta, "filename"))
 	sourceType := strings.ToLower(metadataString(meta, "source_type"))
-
 	isPDF := strings.Contains(contentType, "pdf") || strings.HasSuffix(filename, ".pdf")
 	isMD := strings.Contains(contentType, "markdown") || strings.HasSuffix(filename, ".md")
 	isData := strings.Contains(contentType, "json") ||
 		strings.Contains(contentType, "yaml") ||
 		strings.Contains(contentType, "toml")
-
 	switch {
 	case isPDF:
 		size = clampChunkSize(size * 2)
@@ -165,17 +170,14 @@ func (p *Processor) effectiveChunkSettings(meta map[string]any, text string) (in
 	case isData:
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, size/2))
 	}
-
 	if strings.Contains(sourceType, "transcript") || strings.Contains(sourceType, "meeting") {
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, size/2))
 		overlap = maxInt(overlap, size/overlapDenTranscript)
 	}
-
 	if n := len(headingPattern.FindAllStringIndex(text, -1)); n > 0 && length/n < headingCharsPerHeading {
 		size = clampChunkSize(maxInt(minAdaptiveChunkSize, (size*3)/4))
 		overlap = maxInt(overlap, size/overlapDenHeadingDensity)
 	}
-
 	return size, clampOverlap(overlap, size)
 }
 
@@ -236,7 +238,6 @@ func clampOverlap(overlap, size int) int {
 		if size <= 4 {
 			return 0
 		}
-		// Intentional 25% cap when overlap would equal or exceed size
 		return size / 4
 	}
 	return overlap

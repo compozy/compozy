@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -75,7 +76,7 @@ func setupAdminRoutes(
 //	@Tags         admin
 //	@Accept       json
 //	@Produce      json
-//	@Param        source  query  string  false  "Reload source (repo|builder). Aliases: yaml->repo, store->builder. Defaults to 'repo'."  Enums(repo,builder)
+//	@Param source query string false "Reload source. yaml->repo, store->builder. Default repo." Enums(repo,builder)
 //	@Success      200  {object}  router.Response{data=map[string]any}  "Reload completed"
 //	@Failure      400  {object}  router.Response{error=router.ErrorInfo} "Invalid parameters"
 //	@Failure      401  {object}  router.Response{error=router.ErrorInfo} "Unauthorized"
@@ -88,41 +89,30 @@ func adminReloadHandler(c *gin.Context, server *Server) {
 	log := logger.FromContext(ctx)
 	st := router.GetAppState(c)
 	if st == nil {
+		router.RespondWithServerError(c, router.ErrInternalCode, "application state not initialized", nil)
 		return
 	}
-	desiredMode := resolveSourceMode(strings.TrimSpace(strings.ToLower(c.Query("source"))))
-	if desiredMode == "" {
-		router.RespondWithError(
-			c,
-			http.StatusBadRequest,
-			router.NewRequestError(http.StatusBadRequest, "invalid source parameter", nil),
-		)
-		return
-	}
-	opCtx, err := buildOpContext(ctx, desiredMode)
-	if err != nil {
-		router.RespondWithServerError(c, router.ErrInternalCode, "failed to prepare operation configuration", err)
-		return
-	}
-	cwd, file, ok := extractProjectPaths(st)
+	desiredMode, ok := parseReloadSource(c)
 	if !ok {
-		router.RespondWithServerError(c, router.ErrInternalCode, "project configuration not available", nil)
 		return
 	}
-	store, ok := getResourceStoreFromState(st)
-	if !ok {
-		router.RespondWithServerError(c, router.ErrInternalCode, "resource store not available", nil)
-		return
-	}
-	svc := csvc.NewService(server.envFilePath, store)
-	_, compiled, _, err := svc.LoadProject(opCtx, cwd, file)
+	opCtx, cleanup, err := buildOpContext(ctx, desiredMode)
 	if err != nil {
-		router.RespondWithServerError(c, router.ErrInternalCode, "reload failed", err)
+		respondReloadServerError(c, newReloadError("failed to prepare operation configuration", err))
 		return
 	}
-	st.ReplaceWorkflows(compiled)
+	defer func() {
+		if err := cleanup(); err != nil {
+			log.Warn("failed to release admin reload context", "error", err)
+		}
+	}()
+	compiled, err := server.loadAndReplaceWorkflows(opCtx, st)
+	if err != nil {
+		respondReloadServerError(c, err)
+		return
+	}
 	if err := reconcileIfPresent(ctx, st, compiled); err != nil {
-		router.RespondWithServerError(c, router.ErrInternalCode, "schedule reconciliation failed", err)
+		respondReloadServerError(c, newReloadError("schedule reconciliation failed", err))
 		return
 	}
 	duration := time.Since(start)
@@ -133,6 +123,100 @@ func adminReloadHandler(c *gin.Context, server *Server) {
 	}
 	log.Info("admin reload completed", "source", desiredMode, "count", len(compiled), "duration", duration)
 	router.RespondOK(c, "reload completed", payload)
+}
+
+type reloadQuery struct {
+	Source string `form:"source" binding:"omitempty,oneof=repo builder yaml store"`
+}
+
+const reloadSourceAllowedDetails = "allowed values: repo,builder; aliases: yaml->repo, store->builder"
+
+// parseReloadSource resolves the desired reload mode and handles validation errors.
+func parseReloadSource(c *gin.Context) (string, bool) {
+	var q reloadQuery
+	if err := c.ShouldBindQuery(&q); err != nil {
+		router.RespondWithError(
+			c,
+			http.StatusBadRequest,
+			router.NewRequestError(
+				http.StatusBadRequest,
+				"invalid source parameter",
+				fmt.Errorf("%s: %w", reloadSourceAllowedDetails, err),
+			),
+		)
+		return "", false
+	}
+	requested := strings.TrimSpace(strings.ToLower(q.Source))
+	desiredMode := resolveSourceMode(requested)
+	if desiredMode == "" && requested != "" {
+		router.RespondWithError(
+			c,
+			http.StatusBadRequest,
+			router.NewRequestError(
+				http.StatusBadRequest,
+				"invalid source parameter",
+				errors.New(reloadSourceAllowedDetails),
+			),
+		)
+		return "", false
+	}
+	return desiredMode, true
+}
+
+// respondReloadServerError sends a standardized server error response for admin reload failures.
+func respondReloadServerError(c *gin.Context, err error) {
+	var detail *reloadError
+	if errors.As(err, &detail) {
+		router.RespondWithServerError(c, router.ErrInternalCode, detail.message, detail.cause)
+		return
+	}
+	router.RespondWithServerError(c, router.ErrInternalCode, "reload failed", err)
+}
+
+// loadAndReplaceWorkflows reloads project workflows and updates the application state.
+func (s *Server) loadAndReplaceWorkflows(
+	opCtx context.Context,
+	st *appstate.State,
+) ([]*workflow.Config, error) {
+	cwd, file, ok := extractProjectPaths(st)
+	if !ok {
+		return nil, newReloadError("project configuration not available", nil)
+	}
+	store, ok := getResourceStoreFromState(st)
+	if !ok {
+		return nil, newReloadError("resource store not available", nil)
+	}
+	svc := csvc.NewService(s.envFilePath, store)
+	_, compiled, _, err := svc.LoadProject(opCtx, cwd, file)
+	if err != nil {
+		return nil, newReloadError("reload failed", err)
+	}
+	st.ReplaceWorkflows(compiled)
+	return compiled, nil
+}
+
+// reloadError normalizes admin reload failures with a user-facing message and optional cause.
+type reloadError struct {
+	message string
+	cause   error
+}
+
+// Error implements the error interface.
+func (r *reloadError) Error() string {
+	if r.cause == nil {
+		return r.message
+	}
+	return fmt.Sprintf("%s: %v", r.message, r.cause)
+}
+
+// Unwrap returns the underlying cause.
+func (r *reloadError) Unwrap() error {
+	return r.cause
+}
+
+// newReloadError builds a reloadError with the provided message and cause.
+func newReloadError(message string, cause error) error {
+	return &reloadError{message: message, cause: cause}
 }
 
 func resolveSourceMode(param string) string {
@@ -146,12 +230,15 @@ func resolveSourceMode(param string) string {
 	}
 }
 
-func buildOpContext(ctx context.Context, mode string) (context.Context, error) {
+func buildOpContext(ctx context.Context, mode string) (context.Context, func() error, error) {
 	base := config.ManagerFromContext(ctx)
+	baseCreated := false
 	if base == nil {
 		base = config.NewManager(ctx, config.NewService())
+		baseCreated = true
 		if _, err := base.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider()); err != nil {
-			return nil, err
+			_ = base.Close(ctx)
+			return nil, func() error { return nil }, err
 		}
 	}
 	override := &staticSource{data: map[string]any{"server": map[string]any{"source_of_truth": mode}}}
@@ -163,9 +250,25 @@ func buildOpContext(ctx context.Context, mode string) (context.Context, error) {
 	sources = append(sources, override)
 	cm := config.NewManager(ctx, base.Service)
 	if _, err := cm.Load(ctx, sources...); err != nil {
-		return nil, err
+		_ = cm.Close(ctx)
+		if baseCreated {
+			_ = base.Close(ctx)
+		}
+		return nil, func() error { return nil }, err
 	}
-	return config.ContextWithManager(ctx, cm), nil
+	cleanup := func() error {
+		var errs []error
+		if err := cm.Close(ctx); err != nil {
+			errs = append(errs, err)
+		}
+		if baseCreated {
+			if err := base.Close(ctx); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		return errors.Join(errs...)
+	}
+	return config.ContextWithManager(ctx, cm), cleanup, nil
 }
 
 func extractProjectPaths(st *appstate.State) (string, string, bool) {

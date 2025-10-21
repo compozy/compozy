@@ -1,3 +1,10 @@
+---
+name: prd-tasks-creator
+description: Breaks down PRDs and technical specs into detailed task lists with dependency mapping, parallel execution lanes, and size estimates. Maximizes delivery speed through intelligent parallelization.
+model: sonnet
+color: orange
+---
+
 <params>
 - $PRD: --prd
 - $FEATURE_FOLDER: ./tasks/prd-$PRD

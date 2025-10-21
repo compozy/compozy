@@ -34,10 +34,7 @@ func (b *ContextBuilder) BuildContext(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) *shared.NormalizationContext {
-	// Start with base context
 	normCtx := b.BaseContextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-	// Collection tasks will have item and index added during iteration
-	// This is just the base context for the collection itself
 	return normCtx
 }
 
@@ -47,7 +44,6 @@ func (b *ContextBuilder) BuildIterationContext(
 	item any,
 	index int,
 ) (*shared.NormalizationContext, error) {
-	// Create a new context for the iteration
 	iterCtx := &shared.NormalizationContext{
 		WorkflowState:  baseContext.WorkflowState,
 		WorkflowConfig: baseContext.WorkflowConfig,
@@ -57,7 +53,6 @@ func (b *ContextBuilder) BuildIterationContext(
 		ChildrenIndex:  baseContext.ChildrenIndex,
 		MergedEnv:      baseContext.MergedEnv,
 	}
-	// Copy variables from base context
 	if baseContext.Variables != nil {
 		vars, err := core.DeepCopy(baseContext.Variables)
 		if err != nil {
@@ -67,11 +62,8 @@ func (b *ContextBuilder) BuildIterationContext(
 	} else {
 		iterCtx.Variables = make(map[string]any)
 	}
-
-	// Add item and index to variables
 	iterCtx.Variables[shared.ItemKey] = item
 	iterCtx.Variables[shared.IndexKey] = index
-	// Create current input by deep-copying parent context, then override with item and index
 	var currentInput core.Input
 	if baseContext.CurrentInput != nil {
 		copied, err := core.DeepCopy(*baseContext.CurrentInput)
@@ -82,11 +74,9 @@ func (b *ContextBuilder) BuildIterationContext(
 	} else {
 		currentInput = make(core.Input)
 	}
-	// Then add/override with item and index
 	currentInput[shared.ItemKey] = item
 	currentInput[shared.IndexKey] = index
 	iterCtx.CurrentInput = &currentInput
-	// Also add to input variable
 	iterCtx.Variables[shared.InputKey] = &currentInput
 	return iterCtx, nil
 }
@@ -99,41 +89,31 @@ func (b *ContextBuilder) BuildIterationContextWithProgress(
 	index int,
 	progressState *task.ProgressState,
 ) (*shared.NormalizationContext, error) {
-	// First build the standard iteration context
 	iterCtx, err := b.BuildIterationContext(baseContext, item, index)
 	if err != nil {
 		return nil, err
 	}
-
-	// Add progress context if provided
 	if progressState != nil {
 		progressCtx := shared.BuildProgressContext(ctx, progressState)
 		iterCtx.Variables["progress"] = progressCtx
 	}
-
 	return iterCtx, nil
 }
 
 // EnrichContext adds collection-specific data to an existing context
 func (b *ContextBuilder) EnrichContext(ctx *shared.NormalizationContext, taskState *task.State) error {
-	// First apply base enrichment
 	if err := b.BaseContextBuilder.EnrichContext(ctx, taskState); err != nil {
 		return err
 	}
-	// Collection tasks might need special handling for aggregated outputs
-	// This is handled during output transformation
 	return nil
 }
 
 // ValidateContext ensures the context has all required fields for collection tasks
 func (b *ContextBuilder) ValidateContext(ctx *shared.NormalizationContext) error {
-	// First apply base validation
 	if err := b.BaseContextBuilder.ValidateContext(ctx); err != nil {
 		return err
 	}
-	// Validate collection-specific requirements
 	if ctx.TaskConfig != nil && ctx.TaskConfig.Type == task.TaskTypeCollection {
-		// Check if items field is present
 		if ctx.TaskConfig.Items == "" {
 			return fmt.Errorf("collection task config missing items field")
 		}

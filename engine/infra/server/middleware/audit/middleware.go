@@ -50,7 +50,6 @@ func getCachedLogger(c *gin.Context) logger.Logger {
 			return log
 		}
 	}
-	// Fallback to context logger if cached logger is not available
 	return logger.FromContext(c.Request.Context())
 }
 
@@ -66,7 +65,6 @@ func formatUserID(userID any) string {
 func SecurityAuditMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		// Cache logger in context for better performance
 		log := logger.FromContext(c.Request.Context())
 		c.Set("audit_logger", log)
 		logRequestDetails(c, start)

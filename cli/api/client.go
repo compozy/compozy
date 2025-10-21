@@ -30,7 +30,6 @@ func NewAuthClient(cfg *config.Config, apiKey string) (AuthClient, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &client{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
@@ -42,14 +41,12 @@ func NewAuthClient(cfg *config.Config, apiKey string) (AuthClient, error) {
 
 // getBaseURL determines the base URL from configuration with proper precedence
 func getBaseURL(cfg *config.Config) (string, error) {
-	// Highest precedence: CLI base_url
 	if cfg.CLI.BaseURL != "" {
 		if _, err := url.Parse(cfg.CLI.BaseURL); err != nil {
 			return "", fmt.Errorf("invalid base URL from CLI config: %w", err)
 		}
 		return strings.TrimRight(cfg.CLI.BaseURL, "/"), nil
 	}
-	// Fallback: construct from server host and port
 	scheme := "https"
 	if cfg.Server.Host == "localhost" || cfg.Server.Host == "127.0.0.1" || cfg.Server.Host == "0.0.0.0" ||
 		cfg.Server.Host == "[::1]" ||
@@ -104,11 +101,9 @@ func (c *client) createRequest(ctx context.Context, method, url string, bodyRead
 
 // shouldRetry determines if a response should trigger a retry
 func (c *client) shouldRetry(resp *http.Response, attempt, maxRetries int) bool {
-	// Don't retry on client errors (4xx)
 	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 		return false
 	}
-	// Retry on server errors (5xx) if not at max attempts
 	return resp.StatusCode >= 500 && attempt < maxRetries
 }
 
@@ -120,41 +115,30 @@ func (c *client) doRequest(
 	headers map[string]string,
 ) (*http.Response, error) {
 	log := logger.FromContext(ctx)
+	cfg := config.FromContext(ctx)
+	maxRetries := config.DefaultCLIMaxRetries
+	if cfg != nil {
+		switch {
+		case cfg.CLI.MaxRetries < 0:
+			maxRetries = 0
+		case cfg.CLI.MaxRetries == 0:
+			maxRetries = config.DefaultCLIMaxRetries
+		default:
+			maxRetries = cfg.CLI.MaxRetries
+		}
+	}
 	url := c.baseURL + path
-	maxRetries := 3
 	backoff := 100 * time.Millisecond
-
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			log.Debug("Retrying request", "attempt", attempt, "backoff", backoff)
-			timer := time.NewTimer(backoff)
-			select {
-			case <-timer.C:
-				backoff *= 2 // Exponential backoff
-			case <-ctx.Done():
-				timer.Stop()
-				return nil, ctx.Err()
+			if err := waitForBackoff(ctx, backoff); err != nil {
+				return nil, err
 			}
+			backoff *= 2
 		}
 
-		// Create a fresh body reader for each attempt to avoid issues with consumed streams
-		bodyReader, err := c.prepareRequestBody(body)
-		if err != nil {
-			return nil, err
-		}
-
-		req, err := c.createRequest(ctx, method, url, bodyReader)
-		if err != nil {
-			return nil, err
-		}
-		for k, v := range headers {
-			if strings.TrimSpace(k) == "" || strings.TrimSpace(v) == "" {
-				continue
-			}
-			req.Header.Set(k, v)
-		}
-
-		resp, err := c.httpClient.Do(req)
+		resp, err := c.executeRequestAttempt(ctx, method, url, body, headers)
 		if err != nil {
 			if attempt == maxRetries {
 				return nil, fmt.Errorf("request failed after %d attempts: %w", maxRetries+1, err)
@@ -163,9 +147,7 @@ func (c *client) doRequest(
 		}
 
 		if c.shouldRetry(resp, attempt, maxRetries) {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				log.Debug("Failed to close response body", "error", closeErr)
-			}
+			closeResponseBody(ctx, resp.Body)
 			if attempt == maxRetries {
 				return nil, fmt.Errorf("server error (status %d) after %d attempts", resp.StatusCode, maxRetries+1)
 			}
@@ -174,8 +156,55 @@ func (c *client) doRequest(
 
 		return resp, nil
 	}
-
 	return nil, fmt.Errorf("request failed after all retry attempts")
+}
+
+func (c *client) executeRequestAttempt(
+	ctx context.Context,
+	method, url string,
+	body any,
+	headers map[string]string,
+) (*http.Response, error) {
+	bodyReader, err := c.prepareRequestBody(body)
+	if err != nil {
+		return nil, err
+	}
+	req, err := c.createRequest(ctx, method, url, bodyReader)
+	if err != nil {
+		return nil, err
+	}
+	applyRequestHeaders(req, headers)
+	return c.httpClient.Do(req)
+}
+
+func applyRequestHeaders(req *http.Request, headers map[string]string) {
+	for key, value := range headers {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		req.Header.Set(key, value)
+	}
+}
+
+func waitForBackoff(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func closeResponseBody(ctx context.Context, body io.ReadCloser) {
+	if body == nil {
+		return
+	}
+	if err := body.Close(); err != nil {
+		log := logger.FromContext(ctx)
+		log.Debug("Failed to close response body", "error", err)
+	}
 }
 
 // parseResponse parses the API response
@@ -184,7 +213,6 @@ func (c *client) parseResponse(resp *http.Response, result any) error {
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
-
 	if resp.StatusCode >= 400 {
 		var errResp models.APIResponse
 		if err := json.Unmarshal(body, &errResp); err != nil {
@@ -195,13 +223,11 @@ func (c *client) parseResponse(resp *http.Response, result any) error {
 		}
 		return fmt.Errorf("server returned %d", resp.StatusCode)
 	}
-
 	if result != nil && len(body) > 0 {
 		if err := json.Unmarshal(body, result); err != nil {
 			return fmt.Errorf("failed to unmarshal response: %w", err)
 		}
 	}
-
 	return nil
 }
 
@@ -279,18 +305,15 @@ func (c *client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (stri
 		return "", err
 	}
 	defer resp.Body.Close()
-
 	var result struct {
 		Data struct {
 			APIKey string `json:"api_key"`
 		} `json:"data"`
 		Message string `json:"message"`
 	}
-
 	if err := c.parseResponse(resp, &result); err != nil {
 		return "", err
 	}
-
 	return result.Data.APIKey, nil
 }
 
@@ -301,18 +324,15 @@ func (c *client) ListKeys(ctx context.Context) ([]KeyInfo, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	var result struct {
 		Data struct {
 			Keys []KeyInfo `json:"keys"`
 		} `json:"data"`
 		Message string `json:"message"`
 	}
-
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
-
 	return result.Data.Keys, nil
 }
 
@@ -324,7 +344,6 @@ func (c *client) RevokeKey(ctx context.Context, keyID string) error {
 		return err
 	}
 	defer resp.Body.Close()
-
 	return c.parseResponse(resp, nil)
 }
 
@@ -335,18 +354,15 @@ func (c *client) ListUsers(ctx context.Context) ([]UserInfo, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	var result struct {
 		Data struct {
 			Users []UserInfo `json:"users"`
 		} `json:"data"`
 		Message string `json:"message"`
 	}
-
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
-
 	return result.Data.Users, nil
 }
 
@@ -357,7 +373,6 @@ func (c *client) CreateUser(ctx context.Context, req CreateUserRequest) (*UserIn
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	var result struct {
 		Data    UserInfo `json:"data"`
 		Message string   `json:"message"`
@@ -365,7 +380,6 @@ func (c *client) CreateUser(ctx context.Context, req CreateUserRequest) (*UserIn
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
-
 	return &result.Data, nil
 }
 
@@ -377,7 +391,6 @@ func (c *client) UpdateUser(ctx context.Context, userID string, req UpdateUserRe
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	var result struct {
 		Data    UserInfo `json:"data"`
 		Message string   `json:"message"`
@@ -385,18 +398,19 @@ func (c *client) UpdateUser(ctx context.Context, userID string, req UpdateUserRe
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
-
 	return &result.Data, nil
 }
 
 // DeleteUser deletes a user (admin only)
-func (c *client) DeleteUser(ctx context.Context, userID string) error {
-	path := fmt.Sprintf("/users/%s", userID)
+func (c *client) DeleteUser(ctx context.Context, userID string, opts DeleteUserOptions) error {
+	path := fmt.Sprintf("/users/%s", url.PathEscape(userID))
+	if opts.Cascade {
+		path += "?cascade=true"
+	}
 	resp, err := c.doRequest(ctx, http.MethodDelete, path, nil, nil)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-
 	return c.parseResponse(resp, nil)
 }

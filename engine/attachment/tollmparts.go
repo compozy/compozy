@@ -46,7 +46,6 @@ func ToContentPartsFromEffective(ctx context.Context, items []EffectiveItem) ([]
 				}
 			}
 		}
-		// ignore unknown types
 	}
 	return parts, func() {
 		for i := range cleanups {

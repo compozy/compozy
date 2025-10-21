@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/compozy/compozy/pkg/config"
@@ -11,8 +13,13 @@ import (
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 )
 
+const (
+	defaultReadinessPoll    = 500 * time.Millisecond
+	minReadinessPoll        = 200 * time.Millisecond
+	defaultMCPHealthTimeout = 10 * time.Second
+)
+
 func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
-	log := logger.FromContext(ctx)
 	cfg := config.FromContext(ctx)
 	if cfg == nil {
 		return nil, fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
@@ -20,60 +27,30 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 	if !shouldEmbedMCPProxy(cfg) {
 		return func() {}, nil
 	}
-	host, portStr := normalizeMCPHostAndPort(cfg)
-	initialBase := initialMCPBaseURL(host, portStr, cfg.MCPProxy.BaseURL)
-	server, driver, err := s.newMCPProxyServer(ctx, cfg, host, portStr, initialBase, cfg.MCPProxy.ShutdownTimeout)
+	server, driver, baseURL, err := s.launchMCPServer(ctx, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize MCP proxy: %w", err)
+		return nil, err
 	}
-	go func() {
-		if err := server.Start(ctx); err != nil {
-			logger.FromContext(ctx).Error("Embedded MCP proxy exited with error", "error", err)
-		}
-	}()
 	cmCfg := clientManagerConfigFromApp(cfg)
 	total := mcpProbeTimeout(cfg)
-	client := &http.Client{Timeout: cmCfg.DefaultRequestTimeout}
-	bctx, bcancel := context.WithTimeout(ctx, total)
-	select {
-	case <-server.Bound():
-	case <-bctx.Done():
-		bcancel()
-		ctx2, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.MCPProxy.ShutdownTimeout)
-		if stopErr := server.Stop(ctx2); stopErr != nil {
-			logger.FromContext(ctx).Warn("Failed to stop embedded MCP proxy after bind timeout", "error", stopErr)
-		}
-		cancel()
-		return nil, fmt.Errorf("embedded MCP proxy did not bind within timeout")
-	}
-	bcancel()
-	baseURL := server.BaseURL()
-	s.mcpBaseURL = baseURL
-	poll := cfg.LLM.MCPReadinessPollInterval
-	if poll <= 0 {
-		poll = 500 * time.Millisecond
-	}
-	ready := s.awaitMCPProxyReady(ctx, client, baseURL, total, cmCfg.DefaultRequestTimeout, poll)
-	if !ready {
-		ctx2, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.MCPProxy.ShutdownTimeout)
-		if stopErr := server.Stop(ctx2); stopErr != nil {
+	poll, reqTimeout := readinessTimings(cfg, defaultReadinessPoll, cmCfg.DefaultRequestTimeout)
+	client := &http.Client{Timeout: reqTimeout}
+	if !s.awaitMCPProxyReady(ctx, client, baseURL, total, reqTimeout, poll) {
+		if stopErr := s.shutdownMCPServer(ctx, cfg, server); stopErr != nil {
 			logger.FromContext(ctx).Warn("Failed to stop embedded MCP proxy after readiness failure", "error", stopErr)
 		}
-		cancel()
 		return nil, fmt.Errorf("embedded MCP proxy failed readiness within timeout: %s", baseURL)
 	}
 	s.afterMCPReady(ctx, cfg, baseURL, driver)
-	cleanup := func() {
-		ctx2, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.MCPProxy.ShutdownTimeout)
-		defer cancel()
-		if err := server.Stop(ctx2); err != nil {
-			log.Warn("Failed to stop embedded MCP proxy", "error", err)
+	s.mcpProxy = server
+	return func() {
+		if err := s.shutdownMCPServer(ctx, cfg, server); err != nil {
+			logger.FromContext(ctx).Warn("Failed to stop embedded MCP proxy", "error", err)
 		}
 		s.setMCPReady(false)
+		s.setMCPBaseURL("")
 		s.onReadinessMaybeChanged("mcp_stopped")
-	}
-	s.mcpProxy = server
-	return cleanup, nil
+	}, nil
 }
 
 func (s *Server) awaitMCPProxyReady(
@@ -84,50 +61,133 @@ func (s *Server) awaitMCPProxyReady(
 	requestTimeout time.Duration,
 	pollInterval time.Duration,
 ) bool {
-	cfg := config.FromContext(ctx)
-	configuredPoll := pollInterval
-	if cfg != nil && cfg.LLM.MCPReadinessPollInterval > 0 {
-		configuredPoll = cfg.LLM.MCPReadinessPollInterval
-	}
-	if configuredPoll <= 0 {
-		configuredPoll = 200 * time.Millisecond
-	}
-	reqTimeout := requestTimeout
-	if cfg != nil && cfg.LLM.MCPClientTimeout > reqTimeout {
-		reqTimeout = cfg.LLM.MCPClientTimeout
-	}
-	if reqTimeout <= 0 {
-		reqTimeout = mcpproxy.DefaultRequestTimeout
+	if total <= 0 {
+		return probeMCPProxy(ctx, client, baseURL, requestTimeout)
 	}
 	deadline := time.Now().Add(total)
-	for time.Now().Before(deadline) {
+	if probeMCPProxy(ctx, client, baseURL, requestTimeout) {
+		return true
+	}
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+	for {
 		select {
 		case <-ctx.Done():
 			return false
-		default:
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return false
+			}
+			if probeMCPProxy(ctx, client, baseURL, requestTimeout) {
+				return true
+			}
 		}
-		rctx, cancel := context.WithTimeout(ctx, reqTimeout)
-		req, reqErr := http.NewRequestWithContext(rctx, http.MethodGet, baseURL+"/healthz", http.NoBody)
-		if reqErr != nil {
-			cancel()
-			logger.FromContext(ctx).
-				Error("failed to create MCP readiness request", "error", reqErr, "url", baseURL+"/healthz")
-			time.Sleep(configuredPoll)
-			continue
+	}
+}
+
+// readinessTimings determines poll and request timeouts for readiness probing.
+func readinessTimings(
+	cfg *config.Config,
+	fallbackPoll time.Duration,
+	requestTimeout time.Duration,
+) (time.Duration, time.Duration) {
+	poll := fallbackPoll
+	if cfg != nil && cfg.LLM.MCPReadinessPollInterval > 0 {
+		poll = cfg.LLM.MCPReadinessPollInterval
+	}
+	if poll <= 0 {
+		poll = minReadinessPoll
+	}
+	timeout := requestTimeout
+	if cfg != nil && cfg.LLM.MCPClientTimeout > timeout {
+		timeout = cfg.LLM.MCPClientTimeout
+	}
+	if timeout <= 0 {
+		timeout = mcpproxy.DefaultRequestTimeout
+	}
+	return poll, timeout
+}
+
+// probeMCPProxy checks MCP readiness endpoint once.
+func probeMCPProxy(ctx context.Context, client *http.Client, baseURL string, timeout time.Duration) bool {
+	rctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	log := logger.FromContext(ctx)
+	u, jerr := url.JoinPath(baseURL, "healthz")
+	if jerr != nil {
+		log.Error("failed to build MCP readiness URL", "error", jerr, "base_url", baseURL)
+		return false
+	}
+	req, err := http.NewRequestWithContext(rctx, http.MethodGet, u, http.NoBody)
+	if err != nil {
+		log.Error("failed to create MCP readiness request", "error", err, "url", u)
+		return false
+	}
+	resp, err := client.Do(req)
+	if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
+		_ = resp.Body.Close()
+		return true
+	}
+	if err != nil {
+		log.Debug("MCP readiness probe request failed", "error", err, "url", u)
+	}
+	if resp != nil {
+		if resp.StatusCode != http.StatusOK {
+			log.Debug("MCP readiness probe non-OK", "status", resp.StatusCode, "url", u)
 		}
-		resp, err := client.Do(req)
-		if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
-			_ = resp.Body.Close()
-			cancel()
-			return true
-		}
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
-		cancel()
-		time.Sleep(configuredPoll)
+		_ = resp.Body.Close()
 	}
 	return false
+}
+
+// launchMCPServer starts the embedded MCP proxy and waits for binding.
+func (s *Server) launchMCPServer(ctx context.Context, cfg *config.Config) (*mcpproxy.Server, string, string, error) {
+	host, portStr := normalizeMCPHostAndPort(cfg)
+	initialBase := initialMCPBaseURL(host, portStr, cfg.MCPProxy.BaseURL)
+	server, driver, err := s.newMCPProxyServer(ctx, cfg, host, portStr, initialBase, cfg.MCPProxy.ShutdownTimeout)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("failed to initialize MCP proxy: %w", err)
+	}
+	go s.runMCPServer(ctx, server)
+	if err := s.waitForMCPBind(ctx, cfg, server); err != nil {
+		if stopErr := s.shutdownMCPServer(ctx, cfg, server); stopErr != nil {
+			logger.FromContext(ctx).Warn("Failed to stop embedded MCP proxy after bind timeout", "error", stopErr)
+		}
+		return nil, "", "", err
+	}
+	baseURL := server.BaseURL()
+	s.setMCPBaseURL(baseURL)
+	return server, driver, baseURL, nil
+}
+
+// runMCPServer starts the MCP server and logs terminal errors.
+func (s *Server) runMCPServer(ctx context.Context, server *mcpproxy.Server) {
+	if err := server.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		logger.FromContext(ctx).Error("Embedded MCP proxy exited with error", "error", err)
+	}
+}
+
+// waitForMCPBind waits for the MCP server to bind within the configured timeout.
+func (s *Server) waitForMCPBind(ctx context.Context, cfg *config.Config, server *mcpproxy.Server) error {
+	d := mcpProbeTimeout(cfg)
+	bctx, cancel := context.WithTimeout(ctx, d)
+	defer cancel()
+	select {
+	case <-server.Bound():
+		return nil
+	case <-bctx.Done():
+		return fmt.Errorf("embedded MCP proxy did not bind within timeout (%s)", d)
+	}
+}
+
+// shutdownMCPServer stops the MCP server gracefully.
+func (s *Server) shutdownMCPServer(ctx context.Context, cfg *config.Config, server *mcpproxy.Server) error {
+	if server == nil {
+		return nil
+	}
+	ctx2, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.MCPProxy.ShutdownTimeout)
+	defer cancel()
+	return server.Stop(ctx2)
 }
 
 func (s *Server) afterMCPReady(ctx context.Context, cfg *config.Config, baseURL, driver string) {
@@ -175,7 +235,7 @@ func initialMCPBaseURL(host, portStr, cfgBase string) string {
 
 func mcpProbeTimeout(cfg *config.Config) time.Duration {
 	if cfg.Worker.MCPProxyHealthCheckTimeout <= 0 {
-		return 10 * time.Second
+		return defaultMCPHealthTimeout
 	}
 	return cfg.Worker.MCPProxyHealthCheckTimeout
 }

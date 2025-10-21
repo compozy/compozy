@@ -29,7 +29,6 @@ func (a *GetProgress) Run(ctx context.Context, input *GetProgressInput) (*task.P
 	if input == nil || input.ParentStateID == "" {
 		return nil, fmt.Errorf("GetProgress: missing parent_state_id")
 	}
-
 	progressInfo, err := a.taskRepo.GetProgressInfo(ctx, input.ParentStateID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get progress info for parent %s: %w", input.ParentStateID, err)

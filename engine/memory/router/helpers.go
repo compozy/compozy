@@ -14,8 +14,6 @@ import (
 func handleMemoryError(c *gin.Context, err error, message string) {
 	var statusCode int
 	var errorMessage string
-
-	// Check for specific error types using switch
 	switch {
 	case errors.Is(err, memuc.ErrMemoryNotFound):
 		statusCode = http.StatusNotFound
@@ -33,11 +31,9 @@ func handleMemoryError(c *gin.Context, err error, message string) {
 		statusCode = http.StatusInternalServerError
 		errorMessage = "memory manager not available"
 	default:
-		// Default to internal server error
 		statusCode = http.StatusInternalServerError
 		errorMessage = message
 	}
-
 	reqErr := router.NewRequestError(statusCode, errorMessage, err)
 	router.RespondWithError(c, reqErr.StatusCode, reqErr)
 }
@@ -45,7 +41,6 @@ func handleMemoryError(c *gin.Context, err error, message string) {
 // convertMessagesToResponse converts LLM messages to response format
 func convertMessagesToResponse(messages []llm.Message) []map[string]any {
 	result := make([]map[string]any, 0, len(messages))
-
 	for _, msg := range messages {
 		msgMap := map[string]any{
 			"role":    string(msg.Role),
@@ -53,6 +48,5 @@ func convertMessagesToResponse(messages []llm.Message) []map[string]any {
 		}
 		result = append(result, msgMap)
 	}
-
 	return result
 }

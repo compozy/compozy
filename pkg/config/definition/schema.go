@@ -34,63 +34,115 @@ func CreateRegistry() *Registry {
 	return registry
 }
 
+func registerFieldDefs(registry *Registry, defs ...FieldDef) {
+	for i := range defs {
+		def := defs[i]
+		registry.Register(&def)
+	}
+}
+
 func registerKnowledgeFields(registry *Registry) {
-	registry.Register(&FieldDef{
-		Path:    "knowledge.embedder_batch_size",
-		Default: 512,
-		CLIFlag: "knowledge-embedder-batch-size",
-		EnvVar:  "KNOWLEDGE_EMBEDDER_BATCH_SIZE",
-		Type:    reflect.TypeOf(0),
-		Help:    "Default batch size for embedder requests when not set explicitly",
-	})
-	registry.Register(&FieldDef{
-		Path:    "knowledge.chunk_size",
-		Default: 800,
-		CLIFlag: "knowledge-chunk-size",
-		EnvVar:  "KNOWLEDGE_CHUNK_SIZE",
-		Type:    reflect.TypeOf(0),
-		Help:    "Default chunk size applied to knowledge base sources that omit chunking.size",
-	})
-	registry.Register(&FieldDef{
-		Path:    "knowledge.chunk_overlap",
-		Default: 120,
-		CLIFlag: "knowledge-chunk-overlap",
-		EnvVar:  "KNOWLEDGE_CHUNK_OVERLAP",
-		Type:    reflect.TypeOf(0),
-		Help:    "Default chunk overlap applied when chunking.overlap is not provided",
-	})
-	registry.Register(&FieldDef{
-		Path:    "knowledge.retrieval_top_k",
-		Default: 5,
-		CLIFlag: "knowledge-retrieval-top-k",
-		EnvVar:  "KNOWLEDGE_RETRIEVAL_TOP_K",
-		Type:    reflect.TypeOf(0),
-		Help:    "Default number of results to return during knowledge retrieval when unspecified",
-	})
-	registry.Register(&FieldDef{
-		Path:    "knowledge.retrieval_min_score",
-		Default: 0.0,
-		CLIFlag: "knowledge-retrieval-min-score",
-		EnvVar:  "KNOWLEDGE_RETRIEVAL_MIN_SCORE",
-		Type:    float64Type,
-		Help:    "Default minimum similarity score threshold when retrieval.min_score is not defined",
-	})
-	registry.Register(&FieldDef{
-		Path:    "knowledge.max_markdown_file_size_bytes",
-		Default: 4 * 1024 * 1024,
-		CLIFlag: "knowledge-max-markdown-file-size-bytes",
-		EnvVar:  "KNOWLEDGE_MAX_MARKDOWN_FILE_SIZE_BYTES",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum markdown file size (in bytes) accepted during knowledge ingestion",
-	})
-	registry.Register(&FieldDef{
-		Path:    "knowledge.vector_http_timeout",
-		Default: 10 * time.Second,
-		CLIFlag: "knowledge-vector-http-timeout",
-		EnvVar:  "KNOWLEDGE_VECTOR_HTTP_TIMEOUT",
-		Type:    durationType,
-		Help:    "HTTP client timeout applied to knowledge vector stores that use HTTP backends",
-	})
+	registerKnowledgeBatchingFields(registry)
+	registerKnowledgeChunkingFields(registry)
+	registerKnowledgeRetrievalFields(registry)
+	registerKnowledgeFileHandlingFields(registry)
+	registerKnowledgeVectorTimeoutField(registry)
+}
+
+// registerKnowledgeBatchingFields registers embedder batching defaults.
+// It keeps registerKnowledgeFields concise while grouping batching behavior.
+func registerKnowledgeBatchingFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "knowledge.embedder_batch_size",
+			Default: 512,
+			CLIFlag: "knowledge-embedder-batch-size",
+			EnvVar:  "KNOWLEDGE_EMBEDDER_BATCH_SIZE",
+			Type:    reflect.TypeOf(0),
+			Help:    "Default batch size for embedder requests when not set explicitly",
+		},
+	)
+}
+
+// registerKnowledgeChunkingFields configures knowledge chunk sizing defaults.
+// It covers both chunk size and overlap controls used during ingestion.
+func registerKnowledgeChunkingFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "knowledge.chunk_size",
+			Default: 800,
+			CLIFlag: "knowledge-chunk-size",
+			EnvVar:  "KNOWLEDGE_CHUNK_SIZE",
+			Type:    reflect.TypeOf(0),
+			Help:    "Default chunk size applied to knowledge base sources that omit chunking.size",
+		},
+		FieldDef{
+			Path:    "knowledge.chunk_overlap",
+			Default: 120,
+			CLIFlag: "knowledge-chunk-overlap",
+			EnvVar:  "KNOWLEDGE_CHUNK_OVERLAP",
+			Type:    reflect.TypeOf(0),
+			Help:    "Default chunk overlap applied when chunking.overlap is not provided",
+		},
+	)
+}
+
+// registerKnowledgeRetrievalFields defines retrieval ranking defaults.
+// These tune the number of returned chunks and score thresholds.
+func registerKnowledgeRetrievalFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "knowledge.retrieval_top_k",
+			Default: 5,
+			CLIFlag: "knowledge-retrieval-top-k",
+			EnvVar:  "KNOWLEDGE_RETRIEVAL_TOP_K",
+			Type:    reflect.TypeOf(0),
+			Help:    "Default number of results to return during knowledge retrieval when unspecified",
+		},
+		FieldDef{
+			Path:    "knowledge.retrieval_min_score",
+			Default: 0.0,
+			CLIFlag: "knowledge-retrieval-min-score",
+			EnvVar:  "KNOWLEDGE_RETRIEVAL_MIN_SCORE",
+			Type:    float64Type,
+			Help:    "Default minimum similarity score threshold when retrieval.min_score is not defined",
+		},
+	)
+}
+
+// registerKnowledgeFileHandlingFields governs ingestion file constraints.
+// It enforces limits on markdown payload sizes accepted by the system.
+func registerKnowledgeFileHandlingFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "knowledge.max_markdown_file_size_bytes",
+			Default: 4 * 1024 * 1024,
+			CLIFlag: "knowledge-max-markdown-file-size-bytes",
+			EnvVar:  "KNOWLEDGE_MAX_MARKDOWN_FILE_SIZE_BYTES",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum markdown file size (in bytes) accepted during knowledge ingestion",
+		},
+	)
+}
+
+// registerKnowledgeVectorTimeoutField sets network timeouts for vector stores.
+// It isolates HTTP timeout control for clarity alongside other knowledge helpers.
+func registerKnowledgeVectorTimeoutField(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "knowledge.vector_http_timeout",
+			Default: 10 * time.Second,
+			CLIFlag: "knowledge-vector-http-timeout",
+			EnvVar:  "KNOWLEDGE_VECTOR_HTTP_TIMEOUT",
+			Type:    durationType,
+			Help:    "HTTP client timeout applied to knowledge vector stores that use HTTP backends",
+		},
+	)
 }
 
 func registerServerFields(registry *Registry) {
@@ -102,7 +154,6 @@ func registerServerFields(registry *Registry) {
 func registerServerCoreFields(registry *Registry) {
 	registerServerHostPortCors(registry)
 	registerServerTimeoutField(registry)
-	// server.source_of_truth determines whether to load workflows from repo (YAML) or builder store
 	registry.Register(
 		&FieldDef{
 			Path:    "server.source_of_truth",
@@ -113,7 +164,6 @@ func registerServerCoreFields(registry *Registry) {
 			Help:    "Source of truth for workflows: repo|builder",
 		},
 	)
-	// server.seed_from_repo_on_empty controls optional seeding behavior in builder mode
 	registry.Register(
 		&FieldDef{
 			Path:    "server.seed_from_repo_on_empty",
@@ -127,8 +177,16 @@ func registerServerCoreFields(registry *Registry) {
 }
 
 func registerServerHostPortCors(registry *Registry) {
-	registry.Register(
-		&FieldDef{
+	registerServerHostPort(registry)
+	registerServerCorsFields(registry)
+}
+
+// registerServerHostPort establishes the HTTP bind host and port.
+// It isolates endpoint basics from the more verbose CORS configuration.
+func registerServerHostPort(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
 			Path:    "server.host",
 			Default: "0.0.0.0",
 			CLIFlag: "host",
@@ -136,9 +194,7 @@ func registerServerHostPortCors(registry *Registry) {
 			Type:    reflect.TypeOf(""),
 			Help:    "Host to bind the server to",
 		},
-	)
-	registry.Register(
-		&FieldDef{
+		FieldDef{
 			Path:    "server.port",
 			Default: 5001,
 			CLIFlag: "port",
@@ -147,8 +203,14 @@ func registerServerHostPortCors(registry *Registry) {
 			Help:    "Port to run the server on",
 		},
 	)
-	registry.Register(
-		&FieldDef{
+}
+
+// registerServerCorsFields defines allowed CORS behavior and metadata.
+// Keeping it separate keeps the parent helper short and focused.
+func registerServerCorsFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
 			Path:    "server.cors_enabled",
 			Default: true,
 			CLIFlag: "cors",
@@ -156,9 +218,7 @@ func registerServerHostPortCors(registry *Registry) {
 			Type:    reflect.TypeOf(true),
 			Help:    "Enable CORS",
 		},
-	)
-	registry.Register(
-		&FieldDef{
+		FieldDef{
 			Path:    "server.cors.allowed_origins",
 			Default: []string{"http://localhost:3000", "http://localhost:5001"},
 			CLIFlag: "cors-allowed-origins",
@@ -166,9 +226,7 @@ func registerServerHostPortCors(registry *Registry) {
 			Type:    reflect.TypeOf([]string{}),
 			Help:    "Allowed CORS origins (comma-separated)",
 		},
-	)
-	registry.Register(
-		&FieldDef{
+		FieldDef{
 			Path:    "server.cors.allow_credentials",
 			Default: true,
 			CLIFlag: "cors-allow-credentials",
@@ -176,9 +234,7 @@ func registerServerHostPortCors(registry *Registry) {
 			Type:    reflect.TypeOf(true),
 			Help:    "Allow credentials in CORS requests",
 		},
-	)
-	registry.Register(
-		&FieldDef{
+		FieldDef{
 			Path:    "server.cors.max_age",
 			Default: 86400,
 			CLIFlag: "cors-max-age",
@@ -203,7 +259,7 @@ func registerServerTimeoutField(registry *Registry) {
 }
 
 func registerServerAuthFields(registry *Registry) {
-	// Authentication configuration
+	// NOTE: Separate MCP client timeout avoids leaking readiness settings into HTTP requests.
 	registry.Register(&FieldDef{
 		Path:    "server.auth.enabled",
 		Default: false, // Default to disabled in development
@@ -212,7 +268,6 @@ func registerServerAuthFields(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Enable or disable authentication for API endpoints",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "server.auth.workflow_exceptions",
 		Default: []string{},
@@ -221,7 +276,6 @@ func registerServerAuthFields(registry *Registry) {
 		Type:    reflect.TypeOf([]string{}),
 		Help:    "List of workflow IDs that are exempt from authentication (comma-separated)",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "server.auth.api_key_last_used_max_concurrency",
 		Default: 10,
@@ -230,7 +284,6 @@ func registerServerAuthFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum concurrent API key last-used updates (0 disables async updates)",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "server.auth.api_key_last_used_timeout",
 		Default: 2 * time.Second,
@@ -419,126 +472,208 @@ func registerDatabaseFields(registry *Registry) {
 }
 
 func registerDatabaseConnectionFields(registry *Registry) {
-	registry.Register(&FieldDef{
-		Path:    "database.host",
-		Default: "localhost",
-		CLIFlag: "db-host",
-		EnvVar:  "DB_HOST",
-		Type:    reflect.TypeOf(""),
-		Help:    "Database host",
-	})
+	registerDatabaseEndpointFields(registry)
+	registerDatabaseCredentialFields(registry)
+	registerDatabaseConnectionOverrideFields(registry)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "database.port",
-		Default: "5432",
-		CLIFlag: "db-port",
-		EnvVar:  "DB_PORT",
-		Type:    reflect.TypeOf(""),
-		Help:    "Database port",
-	})
+// registerDatabaseEndpointFields captures core connection coordinates.
+// It separates host and port data to keep the parent helper short.
+func registerDatabaseEndpointFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "database.host",
+			Default: "localhost",
+			CLIFlag: "db-host",
+			EnvVar:  "DB_HOST",
+			Type:    reflect.TypeOf(""),
+			Help:    "Database host",
+		},
+		FieldDef{
+			Path:    "database.port",
+			Default: "5432",
+			CLIFlag: "db-port",
+			EnvVar:  "DB_PORT",
+			Type:    reflect.TypeOf(""),
+			Help:    "Database port",
+		},
+	)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "database.user",
-		Default: "postgres",
-		CLIFlag: "db-user",
-		EnvVar:  "DB_USER",
-		Type:    reflect.TypeOf(""),
-		Help:    "Database user",
-	})
+// registerDatabaseCredentialFields tracks auth and database selection settings.
+// Grouping these makes credentials easy to review in isolation.
+func registerDatabaseCredentialFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "database.user",
+			Default: "postgres",
+			CLIFlag: "db-user",
+			EnvVar:  "DB_USER",
+			Type:    reflect.TypeOf(""),
+			Help:    "Database user",
+		},
+		FieldDef{
+			Path:    "database.password",
+			Default: "",
+			CLIFlag: "db-password",
+			EnvVar:  "DB_PASSWORD",
+			Type:    reflect.TypeOf(""),
+			Help:    "Database password",
+		},
+		FieldDef{
+			Path:    "database.name",
+			Default: "compozy",
+			CLIFlag: "db-name",
+			EnvVar:  "DB_NAME",
+			Type:    reflect.TypeOf(""),
+			Help:    "Database name",
+		},
+	)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "database.password",
-		Default: "",
-		CLIFlag: "db-password",
-		EnvVar:  "DB_PASSWORD",
-		Type:    reflect.TypeOf(""),
-		Help:    "Database password",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "database.name",
-		Default: "compozy",
-		CLIFlag: "db-name",
-		EnvVar:  "DB_NAME",
-		Type:    reflect.TypeOf(""),
-		Help:    "Database name",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "database.ssl_mode",
-		Default: "disable",
-		CLIFlag: "db-ssl-mode",
-		EnvVar:  "DB_SSL_MODE",
-		Type:    reflect.TypeOf(""),
-		Help:    "Database SSL mode",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "database.conn_string",
-		Default: "",
-		CLIFlag: "db-conn-string",
-		EnvVar:  "DB_CONN_STRING",
-		Type:    reflect.TypeOf(""),
-		Help:    "Database connection string",
-	})
+// registerDatabaseConnectionOverrideFields covers SSL and DSN overrides.
+// This separates optional overrides from the baseline connection pieces.
+func registerDatabaseConnectionOverrideFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "database.ssl_mode",
+			Default: "disable",
+			CLIFlag: "db-ssl-mode",
+			EnvVar:  "DB_SSL_MODE",
+			Type:    reflect.TypeOf(""),
+			Help:    "Database SSL mode",
+		},
+		FieldDef{
+			Path:    "database.conn_string",
+			Default: "",
+			CLIFlag: "db-conn-string",
+			EnvVar:  "DB_CONN_STRING",
+			Type:    reflect.TypeOf(""),
+			Help:    "Database connection string",
+		},
+	)
 }
 
 func registerDatabaseOperationalFields(registry *Registry) {
-	registry.Register(&FieldDef{
-		Path:    "database.auto_migrate",
-		Default: true,
-		CLIFlag: "db-auto-migrate",
-		EnvVar:  "DB_AUTO_MIGRATE",
-		Type:    reflect.TypeOf(true),
-		Help:    "Automatically run database migrations on startup",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "database.migration_timeout",
-		Default: 2 * time.Minute,
-		CLIFlag: "db-migration-timeout",
-		EnvVar:  "DB_MIGRATION_TIMEOUT",
-		Type:    durationType,
-		Help:    "Maximum duration allowed for startup database migrations (must be >= 45s)",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "database.max_open_conns",
-		Default: 25,
-		CLIFlag: "db-max-open-conns",
-		EnvVar:  "DB_MAX_OPEN_CONNS",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum number of open PostgreSQL connections",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "database.max_idle_conns",
-		Default: 5,
-		CLIFlag: "db-max-idle-conns",
-		EnvVar:  "DB_MAX_IDLE_CONNS",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum number of idle connections kept in the pool",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "database.conn_max_lifetime",
-		Default: 5 * time.Minute,
-		CLIFlag: "db-conn-max-lifetime",
-		EnvVar:  "DB_CONN_MAX_LIFETIME",
-		Type:    durationType,
-		Help:    "Maximum lifetime for a pooled connection",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "database.conn_max_idle_time",
-		Default: 1 * time.Minute,
-		CLIFlag: "db-conn-max-idle-time",
-		EnvVar:  "DB_CONN_MAX_IDLE_TIME",
-		Type:    durationType,
-		Help:    "Maximum idle time before a connection is recycled",
-	})
+	registerDatabaseMigrationFields(registry)
+	registerDatabasePoolSizeFields(registry)
+	registerDatabasePoolLifetimeFields(registry)
+	registerDatabasePoolTimeoutFields(registry)
 }
 
+// registerDatabaseMigrationFields controls migration automation knobs.
+// It keeps operational automation options together for easy auditing.
+func registerDatabaseMigrationFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "database.auto_migrate",
+			Default: true,
+			CLIFlag: "db-auto-migrate",
+			EnvVar:  "DB_AUTO_MIGRATE",
+			Type:    reflect.TypeOf(true),
+			Help:    "Automatically run database migrations on startup",
+		},
+		FieldDef{
+			Path:    "database.migration_timeout",
+			Default: 2 * time.Minute,
+			CLIFlag: "db-migration-timeout",
+			EnvVar:  "DB_MIGRATION_TIMEOUT",
+			Type:    durationType,
+			Help:    "Maximum duration allowed for startup database migrations (must be >= 45s)",
+		},
+	)
+}
+
+// registerDatabasePoolSizeFields defines pool capacity constraints.
+// These settings tune the number of concurrent database connections.
+func registerDatabasePoolSizeFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "database.max_open_conns",
+			Default: 25,
+			CLIFlag: "db-max-open-conns",
+			EnvVar:  "DB_MAX_OPEN_CONNS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum number of open PostgreSQL connections",
+		},
+		FieldDef{
+			Path:    "database.max_idle_conns",
+			Default: 5,
+			CLIFlag: "db-max-idle-conns",
+			EnvVar:  "DB_MAX_IDLE_CONNS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum number of idle connections kept in the pool",
+		},
+	)
+}
+
+// registerDatabasePoolLifetimeFields manages connection lifetime tuning.
+// It keeps duration-based pool settings grouped for clarity.
+func registerDatabasePoolLifetimeFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "database.conn_max_lifetime",
+			Default: 5 * time.Minute,
+			CLIFlag: "db-conn-max-lifetime",
+			EnvVar:  "DB_CONN_MAX_LIFETIME",
+			Type:    durationType,
+			Help:    "Maximum lifetime for a pooled connection",
+		},
+		FieldDef{
+			Path:    "database.conn_max_idle_time",
+			Default: 1 * time.Minute,
+			CLIFlag: "db-conn-max-idle-time",
+			EnvVar:  "DB_CONN_MAX_IDLE_TIME",
+			Type:    durationType,
+			Help:    "Maximum idle time before a connection is recycled",
+		},
+	)
+}
+
+// registerDatabasePoolTimeoutFields covers timeout and period knobs for connectivity checks.
+func registerDatabasePoolTimeoutFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "database.ping_timeout",
+			Default: 3 * time.Second,
+			CLIFlag: "db-ping-timeout",
+			EnvVar:  "DB_PING_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for PostgreSQL ping during startup verification",
+		},
+		FieldDef{
+			Path:    "database.health_check_timeout",
+			Default: 1 * time.Second,
+			CLIFlag: "db-health-check-timeout",
+			EnvVar:  "DB_HEALTH_CHECK_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for runtime PostgreSQL health checks",
+		},
+		FieldDef{
+			Path:    "database.health_check_period",
+			Default: 30 * time.Second,
+			CLIFlag: "db-health-check-period",
+			EnvVar:  "DB_HEALTH_CHECK_PERIOD",
+			Type:    durationType,
+			Help:    "Interval between background pool health checks",
+		},
+		FieldDef{
+			Path:    "database.connect_timeout",
+			Default: 5 * time.Second,
+			CLIFlag: "db-connect-timeout",
+			EnvVar:  "DB_CONNECT_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for establishing new PostgreSQL connections",
+		},
+	)
+}
 func registerTemporalFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "temporal.host_port",
@@ -548,7 +683,6 @@ func registerTemporalFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Temporal host:port",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "temporal.namespace",
 		Default: "default",
@@ -557,7 +691,6 @@ func registerTemporalFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Temporal namespace",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "temporal.task_queue",
 		Default: "compozy-tasks",
@@ -803,77 +936,95 @@ func registerRuntimeNativeToolsCallAgentFields(registry *Registry) {
 }
 
 func registerLimitsFields(registry *Registry) {
-	registry.Register(&FieldDef{
-		Path:    "limits.max_nesting_depth",
-		Default: 20,
-		CLIFlag: "max-nesting-depth",
-		EnvVar:  "LIMITS_MAX_NESTING_DEPTH",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum nesting depth",
-	})
+	registerLimitsDepthFields(registry)
+	registerLimitsPayloadFields(registry)
+	registerLimitsBatchFields(registry)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "limits.max_config_file_nesting_depth",
-		Default: 100,
-		CLIFlag: "max-config-file-nesting-depth",
-		EnvVar:  "LIMITS_MAX_CONFIG_FILE_NESTING_DEPTH",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum nesting depth when parsing configuration files",
-	})
+// registerLimitsDepthFields covers recursion depth protections.
+// It groups task and configuration depth caps for easy inspection.
+func registerLimitsDepthFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "limits.max_nesting_depth",
+			Default: 20,
+			CLIFlag: "max-nesting-depth",
+			EnvVar:  "LIMITS_MAX_NESTING_DEPTH",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum nesting depth",
+		},
+		FieldDef{
+			Path:    "limits.max_config_file_nesting_depth",
+			Default: 100,
+			CLIFlag: "max-config-file-nesting-depth",
+			EnvVar:  "LIMITS_MAX_CONFIG_FILE_NESTING_DEPTH",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum nesting depth when parsing configuration files",
+		},
+		FieldDef{
+			Path:    "limits.max_task_context_depth",
+			Default: 5,
+			EnvVar:  "LIMITS_MAX_TASK_CONTEXT_DEPTH",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum task context depth",
+		},
+	)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "limits.max_string_length",
-		Default: 10485760, // 10MB
-		CLIFlag: "max-string-length",
-		EnvVar:  "LIMITS_MAX_STRING_LENGTH",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum string length",
-	})
+// registerLimitsPayloadFields enforces per-payload size restrictions.
+// These limits guard string, config, and message payload growth.
+func registerLimitsPayloadFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "limits.max_string_length",
+			Default: 10_485_760,
+			CLIFlag: "max-string-length",
+			EnvVar:  "LIMITS_MAX_STRING_LENGTH",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum string length",
+		},
+		FieldDef{
+			Path:    "limits.max_config_file_size",
+			Default: 10_485_760,
+			CLIFlag: "max-config-file-size",
+			EnvVar:  "LIMITS_MAX_CONFIG_FILE_SIZE",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum configuration file size in bytes",
+		},
+		FieldDef{
+			Path:    "limits.max_message_content",
+			Default: 10_240,
+			CLIFlag: "max-message-content-length",
+			EnvVar:  "LIMITS_MAX_MESSAGE_CONTENT_LENGTH",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum message content length",
+		},
+		FieldDef{
+			Path:    "limits.max_total_content_size",
+			Default: 102_400,
+			CLIFlag: "max-total-content-size",
+			EnvVar:  "LIMITS_MAX_TOTAL_CONTENT_SIZE",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum total content size",
+		},
+	)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "limits.max_config_file_size",
-		Default: 10485760, // 10MB
-		CLIFlag: "max-config-file-size",
-		EnvVar:  "LIMITS_MAX_CONFIG_FILE_SIZE",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum configuration file size in bytes",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "limits.max_message_content",
-		Default: 10240, // 10KB
-		CLIFlag: "max-message-content-length",
-		EnvVar:  "LIMITS_MAX_MESSAGE_CONTENT_LENGTH",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum message content length",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "limits.max_total_content_size",
-		Default: 102400, // 100KB
-		CLIFlag: "max-total-content-size",
-		EnvVar:  "LIMITS_MAX_TOTAL_CONTENT_SIZE",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum total content size",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "limits.max_task_context_depth",
-		Default: 5,
-		CLIFlag: "",
-		EnvVar:  "LIMITS_MAX_TASK_CONTEXT_DEPTH",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum task context depth",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "limits.parent_update_batch_size",
-		Default: 100,
-		CLIFlag: "",
-		EnvVar:  "LIMITS_PARENT_UPDATE_BATCH_SIZE",
-		Type:    reflect.TypeOf(0),
-		Help:    "Parent update batch size",
-	})
+// registerLimitsBatchFields tracks parent/update batching controls.
+// Keeping it isolated highlights operational batching defaults.
+func registerLimitsBatchFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "limits.parent_update_batch_size",
+			Default: 100,
+			EnvVar:  "LIMITS_PARENT_UPDATE_BATCH_SIZE",
+			Type:    reflect.TypeOf(0),
+			Help:    "Parent update batch size",
+		},
+	)
 }
 
 // registerAttachmentsFields registers global attachment-related configuration fields.
@@ -894,7 +1045,6 @@ func registerAttachmentsLimits(registry *Registry) {
 		Type:    reflect.TypeOf(int64(0)),
 		Help:    "Maximum download size in bytes for attachment resolution",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.download_timeout",
 		Default: 30 * time.Second,
@@ -903,7 +1053,6 @@ func registerAttachmentsLimits(registry *Registry) {
 		Type:    durationType,
 		Help:    "Timeout for downloading attachments",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.max_redirects",
 		Default: 3,
@@ -969,7 +1118,6 @@ func registerAttachmentsExtras(registry *Registry) {
 		Type:    reflect.TypeOf(int64(0)),
 		Help:    "Maximum text bytes loaded from files when converting to TextPart",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.pdf_extract_max_chars",
 		Default: 1_000_000,
@@ -978,7 +1126,6 @@ func registerAttachmentsExtras(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum characters extracted from PDF when converting to text",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.http_user_agent",
 		Default: "Compozy/1.0",
@@ -987,7 +1134,6 @@ func registerAttachmentsExtras(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "User-Agent header for attachment HTTP requests",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.mime_head_max_bytes",
 		Default: 512,
@@ -996,7 +1142,6 @@ func registerAttachmentsExtras(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Number of initial bytes used for MIME detection",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "attachments.ssrf_strict",
 		Default: false,
@@ -1016,7 +1161,6 @@ func registerMemoryFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Redis key prefix for memory storage",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "memory.ttl",
 		Default: 24 * time.Hour,
@@ -1025,7 +1169,6 @@ func registerMemoryFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Memory TTL",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "memory.max_entries",
 		Default: 10000,
@@ -1045,7 +1188,6 @@ func registerLLMFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "LLM proxy URL",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.mcp_readiness_timeout",
 		Default: 60 * time.Second,
@@ -1054,7 +1196,6 @@ func registerLLMFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Max time to wait for MCP clients to connect",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.mcp_readiness_poll_interval",
 		Default: 200 * time.Millisecond,
@@ -1063,7 +1204,6 @@ func registerLLMFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Polling interval for MCP connection readiness",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.mcp_header_template_strict",
 		Default: false,
@@ -1072,7 +1212,6 @@ func registerLLMFields(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Enable strict template validation for MCP headers",
 	})
-
 	registerLLMRetryAndLimits(registry)
 	registerLLMRateLimiterFields(registry)
 	registerLLMConversationControls(registry)
@@ -1082,7 +1221,6 @@ func registerLLMFields(registry *Registry) {
 
 // registerLLMMCPExtras splits MCP-related LLM fields to keep function sizes small
 func registerLLMMCPExtras(registry *Registry) {
-	// MCP options
 	registry.Register(&FieldDef{
 		Path:    "llm.allowed_mcp_names",
 		Default: []string{},
@@ -1091,7 +1229,6 @@ func registerLLMMCPExtras(registry *Registry) {
 		Type:    reflect.TypeOf([]string{}),
 		Help:    "Allowed MCP IDs for tool advertisement and lookup",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.fail_on_mcp_registration_error",
 		Default: false,
@@ -1100,8 +1237,6 @@ func registerLLMMCPExtras(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Fail-fast when MCP registration encounters an error",
 	})
-
-	// Complex type; CLI flag omitted due to structure complexity
 	registry.Register(&FieldDef{
 		Path:    "llm.register_mcps",
 		Default: []any{},
@@ -1110,8 +1245,6 @@ func registerLLMMCPExtras(registry *Registry) {
 		Type:    reflect.TypeOf([]any{}),
 		Help:    "Additional MCP configurations to register with the proxy",
 	})
-
-	// MCP client HTTP timeout (separate from readiness timeout)
 	registry.Register(&FieldDef{
 		Path:    "llm.mcp_client_timeout",
 		Default: 30 * time.Second,
@@ -1120,8 +1253,6 @@ func registerLLMMCPExtras(registry *Registry) {
 		Type:    durationType,
 		Help:    "HTTP client timeout for MCP proxy communication",
 	})
-
-	// Retry jitter percent applied to proxy retries (when jitter enabled)
 	registry.Register(&FieldDef{
 		Path:    "llm.retry_jitter_percent",
 		Default: 10,
@@ -1133,77 +1264,97 @@ func registerLLMMCPExtras(registry *Registry) {
 }
 
 func registerLLMRetryAndLimits(registry *Registry) {
-	registry.Register(&FieldDef{
-		Path:    "llm.provider_timeout",
-		Default: 5 * time.Minute,
-		CLIFlag: "llm-provider-timeout",
-		EnvVar:  "LLM_PROVIDER_TIMEOUT",
-		Type:    durationType,
-		Help:    "Maximum duration allowed for a single provider invocation before timing out",
-	})
+	registerLLMRetryTimingFields(registry)
+	registerLLMRetryBackoffFields(registry)
+	registerLLMToolLimitFields(registry)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "llm.retry_attempts",
-		Default: 3,
-		CLIFlag: "llm-retry-attempts",
-		EnvVar:  "LLM_RETRY_ATTEMPTS",
-		Type:    reflect.TypeOf(0),
-		Help:    "Number of retry attempts for LLM operations",
-	})
+// registerLLMRetryTimingFields sets invocation timeout and retry count defaults.
+// It keeps the high-level retry timing knobs grouped together.
+func registerLLMRetryTimingFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "llm.provider_timeout",
+			Default: 5 * time.Minute,
+			CLIFlag: "llm-provider-timeout",
+			EnvVar:  "LLM_PROVIDER_TIMEOUT",
+			Type:    durationType,
+			Help:    "Maximum duration allowed for a single provider invocation before timing out",
+		},
+		FieldDef{
+			Path:    "llm.retry_attempts",
+			Default: 3,
+			CLIFlag: "llm-retry-attempts",
+			EnvVar:  "LLM_RETRY_ATTEMPTS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Number of retry attempts for LLM operations",
+		},
+	)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "llm.retry_backoff_base",
-		Default: 100 * time.Millisecond,
-		CLIFlag: "llm-retry-backoff-base",
-		EnvVar:  "LLM_RETRY_BACKOFF_BASE",
-		Type:    durationType,
-		Help:    "Base delay for exponential backoff retry strategy",
-	})
+// registerLLMRetryBackoffFields configures exponential backoff behavior.
+// It includes base delay, maximum delay, and jitter toggles for retries.
+func registerLLMRetryBackoffFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "llm.retry_backoff_base",
+			Default: 100 * time.Millisecond,
+			CLIFlag: "llm-retry-backoff-base",
+			EnvVar:  "LLM_RETRY_BACKOFF_BASE",
+			Type:    durationType,
+			Help:    "Base delay for exponential backoff retry strategy",
+		},
+		FieldDef{
+			Path:    "llm.retry_backoff_max",
+			Default: 10 * time.Second,
+			CLIFlag: "llm-retry-backoff-max",
+			EnvVar:  "LLM_RETRY_BACKOFF_MAX",
+			Type:    durationType,
+			Help:    "Maximum delay between retry attempts",
+		},
+		FieldDef{
+			Path:    "llm.retry_jitter",
+			Default: true,
+			CLIFlag: "llm-retry-jitter",
+			EnvVar:  "LLM_RETRY_JITTER",
+			Type:    reflect.TypeOf(true),
+			Help:    "Enable random jitter in retry delays to prevent thundering herd",
+		},
+	)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "llm.retry_backoff_max",
-		Default: 10 * time.Second,
-		CLIFlag: "llm-retry-backoff-max",
-		EnvVar:  "LLM_RETRY_BACKOFF_MAX",
-		Type:    durationType,
-		Help:    "Maximum delay between retry attempts",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "llm.retry_jitter",
-		Default: true,
-		CLIFlag: "llm-retry-jitter",
-		EnvVar:  "LLM_RETRY_JITTER",
-		Type:    reflect.TypeOf(true),
-		Help:    "Enable random jitter in retry delays to prevent thundering herd",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "llm.max_concurrent_tools",
-		Default: 10,
-		CLIFlag: "llm-max-concurrent-tools",
-		EnvVar:  "LLM_MAX_CONCURRENT_TOOLS",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum number of concurrent tool executions",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "llm.max_tool_iterations",
-		Default: 100,
-		CLIFlag: "llm-max-tool-iterations",
-		EnvVar:  "LLM_MAX_TOOL_ITERATIONS",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum tool-iteration loops per request (global default)",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "llm.max_sequential_tool_errors",
-		Default: 10,
-		CLIFlag: "llm-max-sequential-tool-errors",
-		EnvVar:  "LLM_MAX_SEQUENTIAL_TOOL_ERRORS",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum sequential tool/content errors tolerated per tool before aborting",
-	})
+// registerLLMToolLimitFields constrains downstream tool execution loops.
+// It keeps concurrency and iteration safeguards in one location.
+func registerLLMToolLimitFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "llm.max_concurrent_tools",
+			Default: 10,
+			CLIFlag: "llm-max-concurrent-tools",
+			EnvVar:  "LLM_MAX_CONCURRENT_TOOLS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum number of concurrent tool executions",
+		},
+		FieldDef{
+			Path:    "llm.max_tool_iterations",
+			Default: 100,
+			CLIFlag: "llm-max-tool-iterations",
+			EnvVar:  "LLM_MAX_TOOL_ITERATIONS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum tool-iteration loops per request (global default)",
+		},
+		FieldDef{
+			Path:    "llm.max_sequential_tool_errors",
+			Default: 10,
+			CLIFlag: "llm-max-sequential-tool-errors",
+			EnvVar:  "LLM_MAX_SEQUENTIAL_TOOL_ERRORS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum sequential tool/content errors tolerated per tool before aborting",
+		},
+	)
 }
 
 func registerLLMRateLimiterFields(registry *Registry) {
@@ -1283,149 +1434,124 @@ func registerLLMRateLimiterThroughputDefaults(registry *Registry) {
 }
 
 func registerLLMRateLimiterPerProvider(registry *Registry) {
+	defaults := map[string]map[string]int{
+		"cerebras":   makeProviderLimits(10, 100, 60, 0, 0, 0),
+		"groq":       makeProviderLimits(10, 100, 60, 0, 0, 0),
+		"openai":     makeProviderLimits(50, 200, 120, 0, 0, 0),
+		"anthropic":  makeProviderLimits(20, 150, 60, 0, 0, 0),
+		"google":     makeProviderLimits(30, 150, 90, 0, 0, 0),
+		"ollama":     makeProviderLimits(10, 100, 60, 0, 0, 0),
+		"openrouter": makeProviderLimits(10, 100, 60, 0, 0, 0),
+	}
 	registry.Register(&FieldDef{
-		Path: "llm.rate_limiting.per_provider_limits",
-		Default: map[string]map[string]int{
-			"cerebras": {
-				"concurrency":         10,
-				"queue_size":          100,
-				"requests_per_minute": 60,
-				"tokens_per_minute":   0,
-				"request_burst":       0,
-				"token_burst":         0,
-			},
-			"groq": {
-				"concurrency":         10,
-				"queue_size":          100,
-				"requests_per_minute": 60,
-				"tokens_per_minute":   0,
-				"request_burst":       0,
-				"token_burst":         0,
-			},
-			"openai": {
-				"concurrency":         50,
-				"queue_size":          200,
-				"requests_per_minute": 120,
-				"tokens_per_minute":   0,
-				"request_burst":       0,
-				"token_burst":         0,
-			},
-			"anthropic": {
-				"concurrency":         20,
-				"queue_size":          150,
-				"requests_per_minute": 60,
-				"tokens_per_minute":   0,
-				"request_burst":       0,
-				"token_burst":         0,
-			},
-			"google": {
-				"concurrency":         30,
-				"queue_size":          150,
-				"requests_per_minute": 90,
-				"tokens_per_minute":   0,
-				"request_burst":       0,
-				"token_burst":         0,
-			},
-			"ollama": {
-				"concurrency":         10,
-				"queue_size":          100,
-				"requests_per_minute": 60,
-				"tokens_per_minute":   0,
-				"request_burst":       0,
-				"token_burst":         0,
-			},
-			"openrouter": {
-				"concurrency":         10,
-				"queue_size":          100,
-				"requests_per_minute": 60,
-				"tokens_per_minute":   0,
-				"request_burst":       0,
-				"token_burst":         0,
-			},
-		},
-		CLIFlag: "",
+		Path:    "llm.rate_limiting.per_provider_limits",
+		Default: defaults,
 		EnvVar:  "LLM_RATE_LIMITING_PER_PROVIDER_LIMITS",
 		Type:    reflect.TypeOf(map[string]map[string]int{}),
 		Help:    "Per-provider concurrency and queue overrides keyed by provider name",
 	})
 }
 
+//nolint:unparam // tokensPerMinute reserved for future per-provider overrides
+func makeProviderLimits(
+	concurrency, queueSize, requestsPerMinute, tokensPerMinute, requestBurst, tokenBurst int,
+) map[string]int {
+	return map[string]int{
+		"concurrency":         concurrency,
+		"queue_size":          queueSize,
+		"requests_per_minute": requestsPerMinute,
+		"tokens_per_minute":   tokensPerMinute,
+		"request_burst":       requestBurst,
+		"token_burst":         tokenBurst,
+	}
+}
+
 func registerLLMConversationControls(registry *Registry) {
-	registry.Register(&FieldDef{
-		Path:    "llm.max_consecutive_successes",
-		Default: 3,
-		CLIFlag: "llm-max-consecutive-successes",
-		EnvVar:  "LLM_MAX_CONSECUTIVE_SUCCESSES",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum successful tool calls allowed without progress before halting the loop",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "llm.enable_progress_tracking",
-		Default: false,
-		CLIFlag: "llm-enable-progress-tracking",
-		EnvVar:  "LLM_ENABLE_PROGRESS_TRACKING",
-		Type:    reflect.TypeOf(true),
-		Help:    "Enable loop progress tracking to detect stalled agent iterations",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "llm.no_progress_threshold",
-		Default: 3,
-		CLIFlag: "llm-no-progress-threshold",
-		EnvVar:  "LLM_NO_PROGRESS_THRESHOLD",
-		Type:    reflect.TypeOf(0),
-		Help:    "Number of consecutive iterations without progress tolerated before aborting",
-	})
-
+	registerLLMProgressControls(registry)
 	registerLLMRestartControls(registry)
 	registerLLMCompactionControls(registry)
 	registerLLMTelemetryControls(registry)
+	registerLLMToolCaps(registry)
+	registerLLMOutputValidation(registry)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "llm.enable_dynamic_prompt_state",
-		Default: false,
-		CLIFlag: "llm-enable-dynamic-prompt-state",
-		EnvVar:  "LLM_ENABLE_DYNAMIC_PROMPT_STATE",
-		Type:    reflect.TypeOf(true),
-		Help:    "Include dynamic loop diagnostics (usage, budgets) in the system prompt each turn",
-	})
+func registerLLMProgressControls(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "llm.max_consecutive_successes",
+			Default: 3,
+			CLIFlag: "llm-max-consecutive-successes",
+			EnvVar:  "LLM_MAX_CONSECUTIVE_SUCCESSES",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum successful tool calls allowed without progress before halting the loop",
+		},
+		FieldDef{
+			Path:    "llm.enable_progress_tracking",
+			Default: false,
+			CLIFlag: "llm-enable-progress-tracking",
+			EnvVar:  "LLM_ENABLE_PROGRESS_TRACKING",
+			Type:    reflect.TypeOf(true),
+			Help:    "Enable loop progress tracking to detect stalled agent iterations",
+		},
+		FieldDef{
+			Path:    "llm.no_progress_threshold",
+			Default: 3,
+			CLIFlag: "llm-no-progress-threshold",
+			EnvVar:  "LLM_NO_PROGRESS_THRESHOLD",
+			Type:    reflect.TypeOf(0),
+			Help:    "Number of consecutive iterations without progress tolerated before aborting",
+		},
+		FieldDef{
+			Path:    "llm.enable_dynamic_prompt_state",
+			Default: false,
+			CLIFlag: "llm-enable-dynamic-prompt-state",
+			EnvVar:  "LLM_ENABLE_DYNAMIC_PROMPT_STATE",
+			Type:    reflect.TypeOf(true),
+			Help:    "Include dynamic loop diagnostics (usage, budgets) in the system prompt each turn",
+		},
+	)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "llm.tool_call_caps.default",
-		Default: 0,
-		CLIFlag: "",
-		EnvVar:  "LLM_TOOL_CALL_CAPS_DEFAULT",
-		Type:    reflect.TypeOf(0),
-		Help:    "Default per-tool invocation cap enforced during a single orchestrator run",
-	})
+func registerLLMToolCaps(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "llm.tool_call_caps.default",
+			Default: 0,
+			EnvVar:  "LLM_TOOL_CALL_CAPS_DEFAULT",
+			Type:    reflect.TypeOf(0),
+			Help:    "Default per-tool invocation cap enforced during a single orchestrator run",
+		},
+		FieldDef{
+			Path:    "llm.tool_call_caps.overrides",
+			Default: map[string]int{},
+			Type:    reflect.TypeOf(map[string]int{}),
+			Help:    "Per-tool overrides for invocation caps (map of tool -> limit)",
+		},
+	)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "llm.tool_call_caps.overrides",
-		Default: map[string]int{},
-		CLIFlag: "",
-		EnvVar:  "",
-		Type:    reflect.TypeOf(map[string]int{}),
-		Help:    "Per-tool overrides for invocation caps (map of tool -> limit)",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "llm.finalize_output_retries",
-		Default: 0,
-		CLIFlag: "llm-finalize-output-retries",
-		EnvVar:  "LLM_FINALIZE_OUTPUT_RETRIES",
-		Type:    reflect.TypeOf(0),
-		Help:    "Number of retries allowed when validating the final structured output",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "llm.structured_output_retries",
-		Default: 2,
-		CLIFlag: "llm-structured-output-retries",
-		EnvVar:  "LLM_STRUCTURED_OUTPUT_RETRIES",
-		Type:    reflect.TypeOf(0),
-		Help:    "Retry budget for intermediate structured output validation before falling back or failing",
-	})
+func registerLLMOutputValidation(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "llm.finalize_output_retries",
+			Default: 0,
+			CLIFlag: "llm-finalize-output-retries",
+			EnvVar:  "LLM_FINALIZE_OUTPUT_RETRIES",
+			Type:    reflect.TypeOf(0),
+			Help:    "Number of retries allowed when validating the final structured output",
+		},
+		FieldDef{
+			Path:    "llm.structured_output_retries",
+			Default: 2,
+			CLIFlag: "llm-structured-output-retries",
+			EnvVar:  "LLM_STRUCTURED_OUTPUT_RETRIES",
+			Type:    reflect.TypeOf(0),
+			Help:    "Retry budget for intermediate structured output validation before falling back or failing",
+		},
+	)
 }
 
 func registerLLMRestartControls(registry *Registry) {
@@ -1437,7 +1563,6 @@ func registerLLMRestartControls(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Enable automatic loop restarts when progress remains stalled",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.restart_stall_threshold",
 		Default: 2,
@@ -1446,7 +1571,6 @@ func registerLLMRestartControls(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Number of stalled iterations required before triggering a loop restart",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.max_loop_restarts",
 		Default: 0,
@@ -1466,7 +1590,6 @@ func registerLLMCompactionControls(registry *Registry) {
 		Type:    reflect.TypeOf(true),
 		Help:    "Enable summarisation-based context compaction when usage exceeds thresholds",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.context_compaction_threshold",
 		Default: 0.85,
@@ -1475,7 +1598,6 @@ func registerLLMCompactionControls(registry *Registry) {
 		Type:    reflect.TypeOf(0.0),
 		Help:    "Context usage ratio (0-1) that triggers compaction when enabled",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "llm.context_compaction_cooldown",
 		Default: 2,
@@ -1540,62 +1662,51 @@ func registerLLMDefaultParams(registry *Registry) {
 }
 
 func registerRateLimitFields(registry *Registry) {
-	// Global rate limit
-	registry.Register(&FieldDef{
-		Path:    "ratelimit.global_rate.limit",
-		Default: int64(100),
-		CLIFlag: "",
-		EnvVar:  "RATELIMIT_GLOBAL_LIMIT",
-		Type:    reflect.TypeOf(int64(0)),
-		Help:    "Global rate limit (requests per period)",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "ratelimit.global_rate.period",
-		Default: 1 * time.Minute,
-		CLIFlag: "",
-		EnvVar:  "RATELIMIT_GLOBAL_PERIOD",
-		Type:    durationType,
-		Help:    "Global rate limit period",
-	})
-
-	// API key rate limit
-	registry.Register(&FieldDef{
-		Path:    "ratelimit.api_key_rate.limit",
-		Default: int64(100),
-		CLIFlag: "",
-		EnvVar:  "RATELIMIT_API_KEY_LIMIT",
-		Type:    reflect.TypeOf(int64(0)),
-		Help:    "API key rate limit (requests per period)",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "ratelimit.api_key_rate.period",
-		Default: 1 * time.Minute,
-		CLIFlag: "",
-		EnvVar:  "RATELIMIT_API_KEY_PERIOD",
-		Type:    durationType,
-		Help:    "API key rate limit period",
-	})
-
-	// Rate limit key prefix
-	registry.Register(&FieldDef{
-		Path:    "ratelimit.prefix",
-		Default: "compozy:ratelimit:",
-		CLIFlag: "",
-		EnvVar:  "RATELIMIT_PREFIX",
-		Type:    reflect.TypeOf(""),
-		Help:    "Key prefix for rate limit storage",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "ratelimit.max_retry",
-		Default: 3,
-		CLIFlag: "",
-		EnvVar:  "RATELIMIT_MAX_RETRY",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum retries for rate limit operations",
-	})
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "ratelimit.global_rate.limit",
+			Default: int64(100),
+			EnvVar:  "RATELIMIT_GLOBAL_LIMIT",
+			Type:    reflect.TypeOf(int64(0)),
+			Help:    "Global rate limit (requests per period)",
+		},
+		FieldDef{
+			Path:    "ratelimit.global_rate.period",
+			Default: 1 * time.Minute,
+			EnvVar:  "RATELIMIT_GLOBAL_PERIOD",
+			Type:    durationType,
+			Help:    "Global rate limit period",
+		},
+		FieldDef{
+			Path:    "ratelimit.api_key_rate.limit",
+			Default: int64(100),
+			EnvVar:  "RATELIMIT_API_KEY_LIMIT",
+			Type:    reflect.TypeOf(int64(0)),
+			Help:    "API key rate limit (requests per period)",
+		},
+		FieldDef{
+			Path:    "ratelimit.api_key_rate.period",
+			Default: 1 * time.Minute,
+			EnvVar:  "RATELIMIT_API_KEY_PERIOD",
+			Type:    durationType,
+			Help:    "API key rate limit period",
+		},
+		FieldDef{
+			Path:    "ratelimit.prefix",
+			Default: "compozy:ratelimit:",
+			EnvVar:  "RATELIMIT_PREFIX",
+			Type:    reflect.TypeOf(""),
+			Help:    "Key prefix for rate limit storage",
+		},
+		FieldDef{
+			Path:    "ratelimit.max_retry",
+			Default: 3,
+			EnvVar:  "RATELIMIT_MAX_RETRY",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum retries for rate limit operations",
+		},
+	)
 }
 
 func registerCLIFields(registry *Registry) {
@@ -1797,6 +1908,14 @@ func registerBasicCLIFields(registry *Registry) {
 		Help:    "Timeout for API requests",
 	})
 	registry.Register(&FieldDef{
+		Path:    "cli.max_retries",
+		Default: 3,
+		CLIFlag: "max-retries",
+		EnvVar:  "COMPOZY_MAX_RETRIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum retry attempts for CLI HTTP requests",
+	})
+	registry.Register(&FieldDef{
 		Path:    "cli.mode",
 		Default: "auto",
 		CLIFlag: "mode",
@@ -1832,7 +1951,6 @@ func registerOutputFormatFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Default page size for paginated results",
 	})
-	// Add output format alias flag
 	registry.Register(&FieldDef{
 		Path:      "cli.output_format_alias",
 		Default:   "",
@@ -1842,7 +1960,6 @@ func registerOutputFormatFields(registry *Registry) {
 		Type:      reflect.TypeOf(""),
 		Help:      "Output format alias (same as --format)",
 	})
-	// Add no-color flag for boolean color control
 	registry.Register(&FieldDef{
 		Path:    "cli.no_color",
 		Default: false,
@@ -1854,72 +1971,150 @@ func registerOutputFormatFields(registry *Registry) {
 }
 
 func registerBehaviorFlags(registry *Registry) {
-	registry.Register(&FieldDef{
-		Path:    "cli.debug",
-		Default: false,
-		CLIFlag: "debug",
-		EnvVar:  "COMPOZY_DEBUG",
-		Type:    reflect.TypeOf(true),
-		Help:    "Enable debug output and verbose logging",
-	})
-	registry.Register(&FieldDef{
-		Path:      "cli.quiet",
-		Default:   false,
-		CLIFlag:   "quiet",
-		Shorthand: "q",
-		EnvVar:    "COMPOZY_QUIET",
-		Type:      reflect.TypeOf(true),
-		Help:      "Suppress non-essential output for automation and scripting",
-	})
-	registry.Register(&FieldDef{
-		Path:    "cli.interactive",
-		Default: false,
-		CLIFlag: "interactive",
-		EnvVar:  "COMPOZY_INTERACTIVE",
-		Type:    reflect.TypeOf(true),
-		Help:    "Force interactive mode even when CI or non-TTY detected",
-	})
-	registry.Register(&FieldDef{
-		Path:      "cli.config_file",
-		Default:   "",
-		CLIFlag:   "config",
-		Shorthand: "c",
-		EnvVar:    "COMPOZY_CONFIG_FILE",
-		Type:      reflect.TypeOf(""),
-		Help:      "Path to configuration file",
-	})
-	registry.Register(&FieldDef{
-		Path:    "cli.cwd",
-		Default: "",
-		CLIFlag: "cwd",
-		EnvVar:  "COMPOZY_CWD",
-		Type:    reflect.TypeOf(""),
-		Help:    "Working directory for the project",
-	})
-	registry.Register(&FieldDef{
-		Path:    "cli.env_file",
-		Default: "",
-		CLIFlag: "env-file",
-		EnvVar:  "COMPOZY_ENV_FILE",
-		Type:    reflect.TypeOf(""),
-		Help:    "Path to the environment variables file",
-	})
-	registry.Register(&FieldDef{
-		Path:    "cli.port_release_timeout",
-		Default: 5 * time.Second,
-		CLIFlag: "port-release-timeout",
-		EnvVar:  "COMPOZY_PORT_RELEASE_TIMEOUT",
-		Type:    durationType,
-		Help:    "Maximum time to wait for a port to become available",
-	})
-	registry.Register(&FieldDef{
-		Path:    "cli.port_release_poll_interval",
-		Default: 100 * time.Millisecond,
-		CLIFlag: "port-release-poll-interval",
-		EnvVar:  "COMPOZY_PORT_RELEASE_POLL_INTERVAL",
-		Type:    durationType,
-		Help:    "How often to check if a port has become available",
-	})
+	registerCLIModeFlags(registry)
+	registerCLIPathFlags(registry)
+	registerCLIPortReleaseFlags(registry)
+	registerCLIDevWatcherFields(registry)
+	registerCLIUsersFields(registry)
+}
+
+// registerCLIModeFlags configures CLI verbosity and interaction toggles.
+// It bundles runtime-facing flags like debug, quiet, and interactive mode.
+func registerCLIModeFlags(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "cli.debug",
+			Default: false,
+			CLIFlag: "debug",
+			EnvVar:  "COMPOZY_DEBUG",
+			Type:    reflect.TypeOf(true),
+			Help:    "Enable debug output and verbose logging",
+		},
+		FieldDef{
+			Path:      "cli.quiet",
+			Default:   false,
+			CLIFlag:   "quiet",
+			Shorthand: "q",
+			EnvVar:    "COMPOZY_QUIET",
+			Type:      reflect.TypeOf(true),
+			Help:      "Suppress non-essential output for automation and scripting",
+		},
+		FieldDef{
+			Path:    "cli.interactive",
+			Default: false,
+			CLIFlag: "interactive",
+			EnvVar:  "COMPOZY_INTERACTIVE",
+			Type:    reflect.TypeOf(true),
+			Help:    "Force interactive mode even when CI or non-TTY detected",
+		},
+	)
+}
+
+// registerCLIPathFlags manages filesystem-related CLI inputs.
+// These fields capture config, working directory, and env file controls.
+func registerCLIPathFlags(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:      "cli.config_file",
+			Default:   "",
+			CLIFlag:   "config",
+			Shorthand: "c",
+			EnvVar:    "COMPOZY_CONFIG_FILE",
+			Type:      reflect.TypeOf(""),
+			Help:      "Path to configuration file",
+		},
+		FieldDef{
+			Path:    "cli.cwd",
+			Default: "",
+			CLIFlag: "cwd",
+			EnvVar:  "COMPOZY_CWD",
+			Type:    reflect.TypeOf(""),
+			Help:    "Working directory for the project",
+		},
+		FieldDef{
+			Path:    "cli.env_file",
+			Default: "",
+			CLIFlag: "env-file",
+			EnvVar:  "COMPOZY_ENV_FILE",
+			Type:    reflect.TypeOf(""),
+			Help:    "Path to the environment variables file",
+		},
+	)
+}
+
+// registerCLIPortReleaseFlags tunes how CLI utilities wait on ports.
+// It separates timing knobs for better readability within the registry.
+func registerCLIPortReleaseFlags(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "cli.port_release_timeout",
+			Default: 5 * time.Second,
+			CLIFlag: "port-release-timeout",
+			EnvVar:  "COMPOZY_PORT_RELEASE_TIMEOUT",
+			Type:    durationType,
+			Help:    "Maximum time to wait for a port to become available",
+		},
+		FieldDef{
+			Path:    "cli.port_release_poll_interval",
+			Default: 100 * time.Millisecond,
+			CLIFlag: "port-release-poll-interval",
+			EnvVar:  "COMPOZY_PORT_RELEASE_POLL_INTERVAL",
+			Type:    durationType,
+			Help:    "How often to check if a port has become available",
+		},
+		FieldDef{
+			Path:    "cli.file_watch_interval",
+			Default: 1 * time.Second,
+			CLIFlag: "file-watch-interval",
+			EnvVar:  "COMPOZY_FILE_WATCH_INTERVAL",
+			Type:    durationType,
+			Help:    "Polling interval for CLI file watching fallback when fsnotify support is unavailable",
+		},
+	)
+}
+
+func registerCLIDevWatcherFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "cli.dev.watcher_debounce",
+			Default: 200 * time.Millisecond,
+			EnvVar:  "COMPOZY_DEV_WATCHER_DEBOUNCE",
+			Type:    durationType,
+			Help:    "Quiet period before restarting the dev server after file changes",
+		},
+		FieldDef{
+			Path:    "cli.dev.watcher_retry_initial",
+			Default: 500 * time.Millisecond,
+			EnvVar:  "COMPOZY_DEV_WATCHER_RETRY_INITIAL",
+			Type:    durationType,
+			Help:    "Initial delay before retrying a failed dev server restart",
+		},
+		FieldDef{
+			Path:    "cli.dev.watcher_retry_max",
+			Default: 30 * time.Second,
+			EnvVar:  "COMPOZY_DEV_WATCHER_RETRY_MAX",
+			Type:    durationType,
+			Help:    "Maximum backoff between dev server restart attempts",
+		},
+	)
+}
+
+func registerCLIUsersFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "cli.users.active_window_days",
+			Default: 30,
+			CLIFlag: "cli-users-active-window-days",
+			EnvVar:  "COMPOZY_USERS_ACTIVE_WINDOW_DAYS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Number of days defining an 'active' user for CLI filtering",
+		},
+	)
 }
 
 func registerCacheFields(registry *Registry) {
@@ -1928,62 +2123,82 @@ func registerCacheFields(registry *Registry) {
 }
 
 func registerCacheDataFields(registry *Registry) {
-	registry.Register(&FieldDef{
-		Path:    "cache.enabled",
-		Default: true,
-		CLIFlag: "",
-		EnvVar:  "CACHE_ENABLED",
-		Type:    reflect.TypeOf(false),
-		Help:    "Enable or disable caching functionality",
-	})
-	registry.Register(&FieldDef{
-		Path:    "cache.ttl",
-		Default: 24 * time.Hour,
-		CLIFlag: "",
-		EnvVar:  "CACHE_TTL",
-		Type:    durationType,
-		Help:    "Default TTL for cached data",
-	})
-	registry.Register(&FieldDef{
-		Path:    "cache.prefix",
-		Default: "compozy:cache:",
-		CLIFlag: "",
-		EnvVar:  "CACHE_PREFIX",
-		Type:    reflect.TypeOf(""),
-		Help:    "Key prefix for all cache entries",
-	})
-	registry.Register(&FieldDef{
-		Path:    "cache.max_item_size",
-		Default: int64(1048576), // 1MB
-		CLIFlag: "",
-		EnvVar:  "CACHE_MAX_ITEM_SIZE",
-		Type:    reflect.TypeOf(int64(0)),
-		Help:    "Maximum size for cached items in bytes",
-	})
-	registry.Register(&FieldDef{
-		Path:    "cache.eviction_policy",
-		Default: "lru",
-		CLIFlag: "",
-		EnvVar:  "CACHE_EVICTION_POLICY",
-		Type:    reflect.TypeOf(""),
-		Help:    "Cache eviction policy (lru, lfu, ttl)",
-	})
-	registry.Register(&FieldDef{
-		Path:    "cache.stats_interval",
-		Default: 5 * time.Minute,
-		CLIFlag: "",
-		EnvVar:  "CACHE_STATS_INTERVAL",
-		Type:    durationType,
-		Help:    "Interval for logging cache statistics (0 to disable)",
-	})
-	registry.Register(&FieldDef{
-		Path:    "cache.key_scan_count",
-		Default: 100,
-		CLIFlag: "",
-		EnvVar:  "CACHE_KEY_SCAN_COUNT",
-		Type:    reflect.TypeOf(int(0)),
-		Help:    "COUNT hint used by Redis SCAN for key iteration (positive integer)",
-	})
+	registerCacheToggleFields(registry)
+	registerCacheKeyFields(registry)
+	registerCacheRuntimeFields(registry)
+}
+
+// registerCacheToggleFields toggles cache availability and TTL policies.
+// It isolates the high-level enablement and retention configuration.
+func registerCacheToggleFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "cache.enabled",
+			Default: true,
+			EnvVar:  "CACHE_ENABLED",
+			Type:    reflect.TypeOf(false),
+			Help:    "Enable or disable caching functionality",
+		},
+		FieldDef{
+			Path:    "cache.ttl",
+			Default: 24 * time.Hour,
+			EnvVar:  "CACHE_TTL",
+			Type:    durationType,
+			Help:    "Default TTL for cached data",
+		},
+	)
+}
+
+// registerCacheKeyFields configures cache namespacing and eviction.
+// Grouping these fields highlights how entries are organized and purged.
+func registerCacheKeyFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "cache.prefix",
+			Default: "compozy:cache:",
+			EnvVar:  "CACHE_PREFIX",
+			Type:    reflect.TypeOf(""),
+			Help:    "Key prefix for all cache entries",
+		},
+		FieldDef{
+			Path:    "cache.eviction_policy",
+			Default: "lru",
+			EnvVar:  "CACHE_EVICTION_POLICY",
+			Type:    reflect.TypeOf(""),
+			Help:    "Cache eviction policy (lru, lfu, ttl)",
+		},
+	)
+}
+
+// registerCacheRuntimeFields handles cache sizing and monitoring knobs.
+// It keeps item size, stats sampling, and key scanning parameters together.
+func registerCacheRuntimeFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "cache.max_item_size",
+			Default: int64(1_048_576),
+			EnvVar:  "CACHE_MAX_ITEM_SIZE",
+			Type:    reflect.TypeOf(int64(0)),
+			Help:    "Maximum size for cached items in bytes",
+		},
+		FieldDef{
+			Path:    "cache.stats_interval",
+			Default: 5 * time.Minute,
+			EnvVar:  "CACHE_STATS_INTERVAL",
+			Type:    durationType,
+			Help:    "Interval for logging cache statistics (0 to disable)",
+		},
+		FieldDef{
+			Path:    "cache.key_scan_count",
+			Default: 100,
+			EnvVar:  "CACHE_KEY_SCAN_COUNT",
+			Type:    reflect.TypeOf(int(0)),
+			Help:    "COUNT hint used by Redis SCAN for key iteration (positive integer)",
+		},
+	)
 }
 
 func registerCacheCompressionFields(registry *Registry) {
@@ -2023,7 +2238,6 @@ func registerWorkerCacheLifecycleFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "TTL for configuration data in cache",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.heartbeat_cleanup_timeout",
 		Default: 5 * time.Second,
@@ -2032,7 +2246,6 @@ func registerWorkerCacheLifecycleFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Timeout for cleaning up dispatcher heartbeats",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.mcp_shutdown_timeout",
 		Default: 30 * time.Second,
@@ -2041,7 +2254,6 @@ func registerWorkerCacheLifecycleFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Timeout for MCP server shutdown",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.mcp_proxy_health_check_timeout",
 		Default: 10 * time.Second,
@@ -2061,7 +2273,6 @@ func registerWorkerDispatcherFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "TTL for dispatcher heartbeat records",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.dispatcher.stale_threshold",
 		Default: 2 * time.Minute,
@@ -2070,7 +2281,6 @@ func registerWorkerDispatcherFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Duration after which a dispatcher heartbeat is considered stale",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.dispatcher_retry_delay",
 		Default: 50 * time.Millisecond,
@@ -2079,7 +2289,6 @@ func registerWorkerDispatcherFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Delay between dispatcher retry attempts",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.dispatcher_max_retries",
 		Default: 2,
@@ -2110,7 +2319,6 @@ func registerWorkerConcurrencyFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum concurrent activity executions (0 = auto based on CPU)",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.max_concurrent_workflow_execution_size",
 		Default: 0,
@@ -2119,7 +2327,6 @@ func registerWorkerConcurrencyFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum concurrent workflow task executions (0 = auto based on CPU)",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.max_concurrent_local_activity_execution_size",
 		Default: 0,
@@ -2139,7 +2346,6 @@ func registerWorkerActivityDefaults(registry *Registry) {
 		Type:    durationType,
 		Help:    "Default activity start-to-close timeout",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.activity_heartbeat_timeout",
 		Default: 30 * time.Second,
@@ -2148,7 +2354,6 @@ func registerWorkerActivityDefaults(registry *Registry) {
 		Type:    durationType,
 		Help:    "Default activity heartbeat timeout",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.activity_max_retries",
 		Default: 3,
@@ -2168,7 +2373,6 @@ func registerWorkerErrorHandlerFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Timeout for workflow error handler activities",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "worker.error_handler_max_retries",
 		Default: 3,
@@ -2180,81 +2384,99 @@ func registerWorkerErrorHandlerFields(registry *Registry) {
 }
 
 func registerMCPProxyFields(registry *Registry) {
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.mode",
-		Default: "standalone",
-		CLIFlag: "",
-		EnvVar:  "MCP_PROXY_MODE",
-		Type:    reflect.TypeOf(""),
-		Help:    "MCP proxy mode: 'standalone' embeds the proxy (needs fixed port); empty keeps external proxy defaults",
-	})
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.host",
-		Default: "127.0.0.1",
-		CLIFlag: "mcp-host",
-		EnvVar:  "MCP_PROXY_HOST",
-		Type:    reflect.TypeOf(""),
-		Help:    "Host interface for MCP proxy server to bind to",
-	})
+	registerMCPProxyServerFields(registry)
+	registerMCPProxyTimeoutFields(registry)
+	registerMCPProxyPoolFields(registry)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.port",
-		Default: 0,
-		CLIFlag: "mcp-port",
-		EnvVar:  "MCP_PROXY_PORT",
-		Type:    reflect.TypeOf(0),
-		Help:    "Port for MCP proxy server to listen on (0 = ephemeral)",
-	})
+// registerMCPProxyServerFields configures core MCP proxy endpoint details.
+// It isolates mode, host, port, and base URL from pooling concerns.
+func registerMCPProxyServerFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "mcp_proxy.mode",
+			Default: "standalone",
+			EnvVar:  "MCP_PROXY_MODE",
+			Type:    reflect.TypeOf(""),
+			Help:    "MCP proxy mode: 'standalone' embeds the proxy (needs fixed port); empty keeps external proxy defaults",
+		},
+		FieldDef{
+			Path:    "mcp_proxy.host",
+			Default: "127.0.0.1",
+			CLIFlag: "mcp-host",
+			EnvVar:  "MCP_PROXY_HOST",
+			Type:    reflect.TypeOf(""),
+			Help:    "Host interface for MCP proxy server to bind to",
+		},
+		FieldDef{
+			Path:    "mcp_proxy.port",
+			Default: 0,
+			CLIFlag: "mcp-port",
+			EnvVar:  "MCP_PROXY_PORT",
+			Type:    reflect.TypeOf(0),
+			Help:    "Port for MCP proxy server to listen on (0 = ephemeral)",
+		},
+		FieldDef{
+			Path:    "mcp_proxy.base_url",
+			Default: "",
+			CLIFlag: "mcp-base-url",
+			EnvVar:  "MCP_PROXY_BASE_URL",
+			Type:    reflect.TypeOf(""),
+			Help:    "Base URL for MCP proxy server (auto-generated if empty)",
+		},
+	)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.base_url",
-		Default: "",
-		CLIFlag: "mcp-base-url",
-		EnvVar:  "MCP_PROXY_BASE_URL",
-		Type:    reflect.TypeOf(""),
-		Help:    "Base URL for MCP proxy server (auto-generated if empty)",
-	})
+// registerMCPProxyTimeoutFields defines shutdown and idle timeouts.
+// It keeps timing controls clear alongside other helper functions.
+func registerMCPProxyTimeoutFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "mcp_proxy.shutdown_timeout",
+			Default: 10 * time.Second,
+			EnvVar:  "MCP_PROXY_SHUTDOWN_TIMEOUT",
+			Type:    durationType,
+			Help:    "Maximum time to wait for graceful shutdown",
+		},
+		FieldDef{
+			Path:    "mcp_proxy.idle_conn_timeout",
+			Default: 90 * time.Second,
+			EnvVar:  "MCP_PROXY_IDLE_CONN_TIMEOUT",
+			Type:    durationType,
+			Help:    "Maximum time an idle connection is kept before closing",
+		},
+	)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.shutdown_timeout",
-		Default: 10 * time.Second,
-		CLIFlag: "",
-		EnvVar:  "MCP_PROXY_SHUTDOWN_TIMEOUT",
-		Type:    durationType,
-		Help:    "Maximum time to wait for graceful shutdown",
-	})
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.max_idle_conns",
-		Default: 128,
-		CLIFlag: "",
-		EnvVar:  "MCP_PROXY_MAX_IDLE_CONNS",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum number of idle connections kept globally",
-	})
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.max_idle_conns_per_host",
-		Default: 128,
-		CLIFlag: "",
-		EnvVar:  "MCP_PROXY_MAX_IDLE_CONNS_PER_HOST",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum idle connections maintained per proxy host",
-	})
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.max_conns_per_host",
-		Default: 128,
-		CLIFlag: "",
-		EnvVar:  "MCP_PROXY_MAX_CONNS_PER_HOST",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum total concurrent connections allowed per proxy host",
-	})
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.idle_conn_timeout",
-		Default: 90 * time.Second,
-		CLIFlag: "",
-		EnvVar:  "MCP_PROXY_IDLE_CONN_TIMEOUT",
-		Type:    durationType,
-		Help:    "Maximum time an idle connection is kept before closing",
-	})
+// registerMCPProxyPoolFields configures HTTP connection pool capacities.
+// It isolates concurrency-related fields for easier auditing.
+func registerMCPProxyPoolFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "mcp_proxy.max_idle_conns",
+			Default: 128,
+			EnvVar:  "MCP_PROXY_MAX_IDLE_CONNS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum number of idle connections kept globally",
+		},
+		FieldDef{
+			Path:    "mcp_proxy.max_idle_conns_per_host",
+			Default: 128,
+			EnvVar:  "MCP_PROXY_MAX_IDLE_CONNS_PER_HOST",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum idle connections maintained per proxy host",
+		},
+		FieldDef{
+			Path:    "mcp_proxy.max_conns_per_host",
+			Default: 128,
+			EnvVar:  "MCP_PROXY_MAX_CONNS_PER_HOST",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum total concurrent connections allowed per proxy host",
+		},
+	)
 }
 
 func registerWebhooksFields(registry *Registry) {
@@ -2266,7 +2488,6 @@ func registerWebhooksFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Default HTTP method for webhook requests",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "webhooks.default_max_body",
 		Default: int64(1 << 20), // 1MB
@@ -2275,7 +2496,6 @@ func registerWebhooksFields(registry *Registry) {
 		Type:    reflect.TypeOf(int64(0)),
 		Help:    "Default maximum body size for webhook requests (bytes)",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "webhooks.default_dedupe_ttl",
 		Default: 10 * time.Minute,
@@ -2284,7 +2504,6 @@ func registerWebhooksFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Default time-to-live for webhook deduplication",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "webhooks.stripe_skew",
 		Default: 5 * time.Minute,

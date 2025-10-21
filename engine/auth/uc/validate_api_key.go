@@ -49,12 +49,8 @@ func (l *backgroundLimiter) ensure(limit int) chan struct{} {
 		return ch
 	}
 	l.mu.RUnlock()
-
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if limit < 0 {
-		limit = 0
-	}
 	if limit == l.limit {
 		return l.sem
 	}
@@ -115,13 +111,11 @@ func NewValidateAPIKey(repo Repository, plaintext string) *ValidateAPIKey {
 // Execute validates an API key and returns the associated user
 func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 	log := logger.FromContext(ctx)
-
-	// Hash the plaintext key to find it in the database (fingerprint for O(1) lookup)
 	hash := sha256.Sum256([]byte(uc.plaintext))
-
 	apiKey, err := uc.repo.GetAPIKeyByHash(ctx, hash[:])
 	if err != nil {
-		//nolint:errcheck // Intentionally ignore error for timing equalization to prevent timing attacks
+		// NOTE: Perform dummy bcrypt comparison to equalize timing with the success path and prevent timing attacks.
+		//nolint:errcheck // CompareHashAndPassword failure is expected for invalid keys.
 		_ = bcrypt.CompareHashAndPassword(
 			dummyBcryptHash,
 			[]byte(uc.plaintext),
@@ -133,21 +127,16 @@ func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 		log.Error("Failed to get API key by hash", "error", err)
 		return nil, fmt.Errorf("internal error validating API key: %w", err)
 	}
-
 	if err := bcrypt.CompareHashAndPassword(apiKey.Hash, []byte(uc.plaintext)); err != nil {
 		log.Debug("Invalid API key", "error", err)
 		return nil, ErrInvalidCredentials
 	}
-
-	// Get the associated user
 	user, err := uc.repo.GetUserByID(ctx, apiKey.UserID)
 	if err != nil {
 		log.Error("Failed to get user for valid API key", "error", err, "user_id", apiKey.UserID)
 		return nil, fmt.Errorf("failed to get user for API key: %w", err)
 	}
-
 	uc.scheduleLastUsedUpdate(ctx, apiKey)
-
 	return user, nil
 }
 
@@ -156,28 +145,25 @@ func (uc *ValidateAPIKey) scheduleLastUsedUpdate(ctx context.Context, apiKey *mo
 	maxConcurrency := defaultAPIKeyLastUsedMaxConcurrency
 	updateTimeout := defaultAPIKeyLastUsedTimeout
 	if cfg != nil {
-		if v := cfg.Server.Auth.APIKeyLastUsedMaxConcurrency; v >= 0 {
-			maxConcurrency = v
-		} else {
+		if v := cfg.Server.Auth.APIKeyLastUsedMaxConcurrency; v < 0 {
 			maxConcurrency = 0
+		} else if v > 0 {
+			maxConcurrency = v
 		}
 		if timeout := cfg.Server.Auth.APIKeyLastUsedTimeout; timeout > 0 {
 			updateTimeout = timeout
 		}
 	}
-
 	log := logger.FromContext(ctx)
 	if maxConcurrency == 0 {
 		log.Debug("Skipping API key last used update because asynchronous updates are disabled", "key_id", apiKey.ID)
 		return
 	}
-
 	releaseCh, acquired := apiKeyLastUsedLimiter.tryAcquire(maxConcurrency)
 	if !acquired {
 		log.Debug("Skipping API key last used update due to high load", "key_id", apiKey.ID)
 		return
 	}
-
 	go func(ch chan struct{}, timeout time.Duration) {
 		defer apiKeyLastUsedLimiter.release(ch)
 

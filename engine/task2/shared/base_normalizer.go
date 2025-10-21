@@ -26,8 +26,6 @@ func NewBaseNormalizer(
 	filterFunc func(string) bool,
 ) *BaseNormalizer {
 	if filterFunc == nil {
-		// Default filter for most task types
-		// Filter returns true for fields that should NOT be template processed
 		filterFunc = func(k string) bool {
 			return k == "agent" || k == "tool" || k == "outputs" || k == "output"
 		}
@@ -51,44 +49,82 @@ func (n *BaseNormalizer) Normalize(
 	config *task.Config,
 	parentCtx contracts.NormalizationContext,
 ) error {
-	// Type assert to get the concrete type
-	normCtx, ok := parentCtx.(*NormalizationContext)
-	if !ok {
-		return fmt.Errorf("invalid context type: expected *NormalizationContext, got %T", parentCtx)
+	normCtx, err := n.extractNormalizationContext(parentCtx)
+	if err != nil {
+		return err
 	}
 	if config == nil {
 		return nil
 	}
-	// Allow empty type for basic tasks and memory tasks that use basic normalizer
+	if err := n.validateConfigType(config); err != nil {
+		return err
+	}
+	context := normCtx.BuildTemplateContext()
+	parsed, existingWith, err := n.parseTaskConfigMap(config, context)
+	if err != nil {
+		return err
+	}
+	return n.applyNormalizedConfig(config, parsed, existingWith)
+}
+
+// extractNormalizationContext ensures the provided normalization context is valid.
+func (n *BaseNormalizer) extractNormalizationContext(
+	parentCtx contracts.NormalizationContext,
+) (*NormalizationContext, error) {
+	normCtx, ok := parentCtx.(*NormalizationContext)
+	if !ok {
+		return nil, fmt.Errorf("invalid context type: expected *NormalizationContext, got %T", parentCtx)
+	}
+	return normCtx, nil
+}
+
+// validateConfigType confirms the normalizer handles the provided task type.
+func (n *BaseNormalizer) validateConfigType(config *task.Config) error {
 	if n.taskType == task.TaskTypeBasic {
 		if config.Type != task.TaskTypeBasic && config.Type != "" && config.Type != task.TaskTypeMemory {
 			return fmt.Errorf("%s normalizer cannot handle task type: %s", n.taskType, config.Type)
 		}
-	} else if config.Type != n.taskType {
+		return nil
+	}
+	if config.Type != n.taskType {
 		return fmt.Errorf("%s normalizer cannot handle task type: %s", n.taskType, config.Type)
 	}
-	// Build template context
-	context := normCtx.BuildTemplateContext()
-	// Convert config to map for template processing
+	return nil
+}
+
+// parseTaskConfigMap prepares the configuration map for template processing.
+func (n *BaseNormalizer) parseTaskConfigMap(
+	config *task.Config,
+	context map[string]any,
+) (map[string]any, *core.Input, error) {
 	configMap, err := config.AsMap()
 	if err != nil {
-		return fmt.Errorf("failed to convert task config to map: %w", err)
+		return nil, nil, fmt.Errorf("failed to convert task config to map: %w", err)
 	}
-	// Preserve existing With values before normalization
 	existingWith := config.With
-	// Apply template processing with appropriate filters
 	if n.templateEngine == nil {
-		return fmt.Errorf("template engine is required for normalization")
+		return nil, nil, fmt.Errorf("template engine is required for normalization")
 	}
-	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, n.filterFunc)
+	parsedAny, err := n.templateEngine.ParseMapWithFilter(configMap, context, n.filterFunc)
 	if err != nil {
-		return fmt.Errorf("failed to normalize %s task config: %w", n.taskType, err)
+		return nil, nil, fmt.Errorf("failed to normalize %s task config: %w", n.taskType, err)
 	}
-	// Update config from normalized map
+	parsed, ok := parsedAny.(map[string]any)
+	if !ok {
+		return nil, nil, fmt.Errorf("normalized %s task config is not a map", n.taskType)
+	}
+	return parsed, existingWith, nil
+}
+
+// applyNormalizedConfig updates the config with parsed data and restores With values.
+func (n *BaseNormalizer) applyNormalizedConfig(
+	config *task.Config,
+	parsed map[string]any,
+	existingWith *core.Input,
+) error {
 	if err := config.FromMap(parsed); err != nil {
 		return fmt.Errorf("failed to update task config from normalized map: %w", err)
 	}
-	// Merge existing With values back into the normalized config
 	if existingWith != nil && config.With != nil {
 		merged := core.CopyMaps(*existingWith, *config.With)
 		mergedWith := core.Input(merged)

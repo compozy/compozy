@@ -32,7 +32,6 @@ func (p *ProgressInfo) CalculateOverallStatus(strategy ParallelStrategy) core.St
 		p.OverallStatus = core.StatusPending
 		return core.StatusPending
 	}
-
 	var status core.StatusType
 	switch strategy {
 	case StrategyWaitAll:
@@ -44,10 +43,8 @@ func (p *ProgressInfo) CalculateOverallStatus(strategy ParallelStrategy) core.St
 	case StrategyRace:
 		status = p.calculateRaceStatus()
 	default:
-		// Default to wait_all strategy
 		status = p.calculateWaitAllStatus()
 	}
-
 	p.OverallStatus = status
 	return status
 }
@@ -165,7 +162,6 @@ func (p *ProgressState) OverallStatus() core.StatusType {
 		return core.StatusPending
 	}
 	if (p.FailedCount > 0 || p.TimedOutCount > 0) && p.SuccessCount > 0 {
-		// Some succeeded, some failed - still running or partially failed
 		if p.RunningCount > 0 {
 			return core.StatusRunning
 		}

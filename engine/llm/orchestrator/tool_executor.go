@@ -149,19 +149,15 @@ func (e *toolExecutor) Execute(ctx context.Context, toolCalls []llmadapter.ToolC
 	}
 	log := telemetry.Logger(ctx)
 	log.Info("Executing tool calls", "tool_calls_count", len(toolCalls), "tools", extractToolNames(toolCalls))
-
 	results := make([]llmadapter.ToolResult, len(toolCalls))
 	workers := e.workerCount(len(toolCalls))
 	g, workerCtx := errgroup.WithContext(ctx)
 	jobs := make(chan toolJob, workers)
-
 	e.startToolWorkers(workerCtx, g, jobs, results, workers)
 	e.dispatchToolJobs(workerCtx, g, jobs, toolCalls)
-
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-
 	log.Info(
 		"All tool calls completed",
 		"results_count", len(results),
@@ -175,12 +171,10 @@ func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCa
 	log.Info("Processing tool call", "tool_name", call.Name, "tool_call_id", call.ID)
 	entry, capture, finish := e.initToolLogEntry(ctx, call)
 	defer finish()
-
 	tool, ok, result := e.ensureTool(ctx, call, capture, entry)
 	if !ok {
 		return result
 	}
-
 	if _, err := core.GetRequestID(ctx); err != nil {
 		ctx = core.WithRequestID(ctx, call.ID)
 	}
@@ -197,7 +191,6 @@ func (e *toolExecutor) executeSingle(ctx context.Context, call llmadapter.ToolCa
 		)
 		return result
 	}
-
 	log.Info("Tool execution succeeded", "tool_name", call.Name, "tool_call_id", call.ID)
 	return e.buildSuccessResult(call, raw, capture, entry)
 }

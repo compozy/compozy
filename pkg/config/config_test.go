@@ -100,6 +100,9 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, 6001, cfg.MCPProxy.Port)
 		assert.Equal(t, "", cfg.MCPProxy.BaseURL)
 
+		// CLI defaults
+		assert.Equal(t, DefaultCLIActiveWindowDays, cfg.CLI.Users.ActiveWindowDays)
+
 		// App mode removed in greenfield cleanup
 	})
 }

@@ -30,7 +30,6 @@ func NewRevokeAPIKey(repo Repository, userID, keyID core.ID) *RevokeAPIKey {
 func (uc *RevokeAPIKey) Execute(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Debug("Revoking API key", "key_id", uc.keyID)
-	// Get the API key first
 	apiKey, err := uc.repo.GetAPIKeyByID(ctx, uc.keyID)
 	if err != nil {
 		if errors.Is(err, ErrAPIKeyNotFound) {
@@ -41,11 +40,9 @@ func (uc *RevokeAPIKey) Execute(ctx context.Context) error {
 		}
 		return fmt.Errorf("failed to retrieve API key %s: %w", uc.keyID, err)
 	}
-	// Check if the key belongs to the requesting user
 	if apiKey.UserID != uc.userID {
 		return fmt.Errorf("access denied to API key %s", uc.keyID)
 	}
-	// Delete the key
 	if err := uc.repo.DeleteAPIKey(ctx, uc.keyID); err != nil {
 		return fmt.Errorf("failed to revoke API key %s: %w", uc.keyID, err)
 	}

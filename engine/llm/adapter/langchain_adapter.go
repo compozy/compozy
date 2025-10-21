@@ -54,7 +54,6 @@ func NewLangChainAdapter(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM model: %w", err)
 	}
-	// Override context window if explicitly configured
 	if config.ContextWindow > 0 {
 		capabilities.ContextWindowTokens = config.ContextWindow
 	}
@@ -103,24 +102,9 @@ func (a *LangChainAdapter) ProviderMetadata() (core.ProviderName, string) {
 
 // GenerateContent implements LLMClient interface
 func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest) (*LLMResponse, error) {
-	// Guard against nil request
-	if req == nil {
-		return nil, fmt.Errorf("nil LLMRequest")
+	if err := a.ensureRequestReady(ctx, req); err != nil {
+		return nil, err
 	}
-	// Validate role-specific constraints to catch wiring mistakes early
-	if err := ValidateConversation(req.Messages); err != nil {
-		return nil, fmt.Errorf("invalid conversation: %w", err)
-	}
-	if req.Options.ForceJSON && !a.capabilities.StructuredOutput {
-		logger.FromContext(ctx).
-			Warn(
-				"Provider does not support native structured output; falling back to prompt-based extraction",
-				"provider",
-				string(a.provider.Provider),
-			)
-		req.Options.ForceJSON = false
-	}
-	// Convert our request to langchain format
 	messages, err := a.convertMessages(ctx, req)
 	if err != nil {
 		return nil, err
@@ -130,87 +114,128 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 	if err != nil {
 		return nil, err
 	}
-	log := logger.FromContext(ctx)
-	log.Debug("Calling LLM GenerateContent",
-		"provider", string(a.provider.Provider),
-		"model", a.provider.Model,
-		"messages_count", len(messages),
-		"options_count", len(options),
-		"tools_count", len(req.Tools),
-		"tool_choice", req.Options.ToolChoice,
-	)
+	a.logGenerateInvocation(ctx, len(messages), len(options), req)
 	response, err := model.GenerateContent(ctx, messages, options...)
 	if err != nil {
-		// Try to extract structured error information before wrapping
-		// Lazy-init parser if nil to protect against zero-value construction
-		if a.errorParser == nil {
-			a.errorParser = NewErrorParser(string(a.provider.Provider))
-		}
-		if structuredErr := a.errorParser.ParseError(err); structuredErr != nil {
-			return nil, structuredErr
-		}
-		// Fallback to wrapping unknown errors with provider/model context
-		return nil, fmt.Errorf(
-			"langchain GenerateContent failed (provider=%s, model=%s): %w",
-			string(a.provider.Provider), a.provider.Model, err,
-		)
+		return nil, a.parseGenerateError(err)
 	}
-	// Convert response back to our format
 	return a.convertResponse(ctx, response)
 }
 
 // convertMessages converts our Message format to langchain MessageContent
 func (a *LangChainAdapter) convertMessages(ctx context.Context, req *LLMRequest) ([]llms.MessageContent, error) {
 	messages := make([]llms.MessageContent, 0, len(req.Messages)+1)
-
-	// Add system prompt if provided
 	if req.SystemPrompt != "" {
 		messages = append(messages, llms.TextParts(llms.ChatMessageTypeSystem, req.SystemPrompt))
 	}
-
-	// Convert each message
 	for i := range req.Messages {
-		m := &req.Messages[i]
-		msgType := a.mapMessageRole(m.Role)
-		// Build parts supporting text, tool calls, and tool results
-		parts, err := a.buildContentParts(ctx, m)
+		msg := &req.Messages[i]
+		parts, err := a.buildMessageParts(ctx, msg)
 		if err != nil {
 			return nil, err
 		}
-		// Assistant tool calls
-		if len(m.ToolCalls) > 0 {
-			for _, tc := range m.ToolCalls {
-				parts = append(parts, llms.ToolCall{
-					ID:   tc.ID,
-					Type: "function",
-					FunctionCall: &llms.FunctionCall{
-						Name:      tc.Name,
-						Arguments: string(tc.Arguments),
-					},
-				})
-			}
-		}
-		// Tool results - only append for appropriate roles
-		if len(m.ToolResults) > 0 && m.Role == RoleTool {
-			for _, tr := range m.ToolResults {
-				content := tr.Content
-				if len(tr.JSONContent) > 0 {
-					content = string(tr.JSONContent)
-				}
-				parts = append(parts, llms.ToolCallResponse{
-					ToolCallID: tr.ID,
-					Name:       tr.Name,
-					Content:    content,
-				})
-			}
-		}
-		// Only append message if it has content parts to reduce token noise
-		if len(parts) > 0 {
-			messages = append(messages, llms.MessageContent{Role: msgType, Parts: parts})
-		}
+		messages = append(messages, llms.MessageContent{
+			Role:  a.mapMessageRole(msg.Role),
+			Parts: parts,
+		})
 	}
-
 	return messages, nil
+}
+
+func (a *LangChainAdapter) ensureRequestReady(ctx context.Context, req *LLMRequest) error {
+	if req == nil {
+		return fmt.Errorf("nil LLMRequest")
+	}
+	if err := ValidateConversation(req.Messages); err != nil {
+		return fmt.Errorf("invalid conversation: %w", err)
+	}
+	if req.Options.ForceJSON && !a.capabilities.StructuredOutput {
+		logger.FromContext(ctx).
+			Warn(
+				"Provider does not support native structured output; falling back to prompt-based extraction",
+				"provider", string(a.provider.Provider),
+			)
+	}
+	return nil
+}
+
+func (a *LangChainAdapter) logGenerateInvocation(ctx context.Context, messageCount, optionCount int, req *LLMRequest) {
+	logger.FromContext(ctx).Debug(
+		"Calling LLM GenerateContent",
+		"provider", string(a.provider.Provider),
+		"model", a.provider.Model,
+		"messages_count", messageCount,
+		"options_count", optionCount,
+		"tools_count", len(req.Tools),
+		"tool_choice", req.Options.ToolChoice,
+	)
+}
+
+func (a *LangChainAdapter) parseGenerateError(err error) error {
+	if err == nil {
+		return nil
+	}
+	a.modelMu.RLock()
+	parser := a.errorParser
+	a.modelMu.RUnlock()
+	if parser == nil {
+		a.modelMu.Lock()
+		if a.errorParser == nil {
+			a.errorParser = NewErrorParser(string(a.provider.Provider))
+		}
+		parser = a.errorParser
+		a.modelMu.Unlock()
+	}
+	if structuredErr := parser.ParseError(err); structuredErr != nil {
+		return structuredErr
+	}
+	return fmt.Errorf(
+		"langchain GenerateContent failed (provider=%s, model=%s): %w",
+		string(a.provider.Provider), a.provider.Model, err,
+	)
+}
+
+func (a *LangChainAdapter) buildMessageParts(ctx context.Context, msg *Message) ([]llms.ContentPart, error) {
+	parts, err := a.buildContentParts(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+	if len(msg.ToolCalls) > 0 {
+		parts = appendToolCalls(parts, msg.ToolCalls)
+	}
+	if len(msg.ToolResults) > 0 && msg.Role == RoleTool {
+		parts = appendToolResults(parts, msg.ToolResults)
+	}
+	return parts, nil
+}
+
+func appendToolCalls(parts []llms.ContentPart, calls []ToolCall) []llms.ContentPart {
+	for _, tc := range calls {
+		parts = append(parts, llms.ToolCall{
+			ID:   tc.ID,
+			Type: "function",
+			FunctionCall: &llms.FunctionCall{
+				Name:      tc.Name,
+				Arguments: string(tc.Arguments),
+			},
+		})
+	}
+	return parts
+}
+
+func appendToolResults(parts []llms.ContentPart, results []ToolResult) []llms.ContentPart {
+	for _, tr := range results {
+		content := tr.Content
+		if len(tr.JSONContent) > 0 {
+			content = string(tr.JSONContent)
+		}
+		parts = append(parts, llms.ToolCallResponse{
+			ToolCallID: tr.ID,
+			Name:       tr.Name,
+			Content:    content,
+		})
+	}
+	return parts
 }
 
 // buildContentParts converts textual content and multimodal parts to langchaingo parts.
@@ -583,7 +608,6 @@ func createOpenAIResponseFormat(format OutputFormat) (*openai.ResponseFormat, er
 func (a *LangChainAdapter) convertTools(tools []ToolDefinition) []llms.Tool {
 	effective := a.ensureProviderTools(tools)
 	llmTools := make([]llms.Tool, 0, len(effective))
-
 	for _, tool := range effective {
 		llmTool := llms.Tool{
 			Type: "function",
@@ -595,7 +619,6 @@ func (a *LangChainAdapter) convertTools(tools []ToolDefinition) []llms.Tool {
 		}
 		llmTools = append(llmTools, llmTool)
 	}
-
 	return llmTools
 }
 
@@ -638,13 +661,10 @@ func (a *LangChainAdapter) convertResponse(ctx context.Context, resp *llms.Conte
 	if resp.Choices[0] == nil {
 		return nil, fmt.Errorf("empty response from LLM")
 	}
-
 	choice := resp.Choices[0]
 	response := &LLMResponse{
 		Content: choice.Content,
 	}
-
-	// Convert tool calls if present
 	if len(choice.ToolCalls) > 0 {
 		response.ToolCalls = make([]ToolCall, 0, len(choice.ToolCalls))
 		for _, tc := range choice.ToolCalls {
@@ -657,7 +677,6 @@ func (a *LangChainAdapter) convertResponse(ctx context.Context, resp *llms.Conte
 			}
 		}
 	}
-
 	if usage, ok := a.buildUsage(choice.GenerationInfo); ok {
 		response.Usage = usage
 	} else {
@@ -668,8 +687,6 @@ func (a *LangChainAdapter) convertResponse(ctx context.Context, resp *llms.Conte
 
 // Close implements LLMClient interface - langchain models don't require explicit cleanup
 func (a *LangChainAdapter) Close() error {
-	// LangChain models don't expose cleanup methods directly
-	// HTTP clients and connections are managed by the underlying providers
 	return nil
 }
 

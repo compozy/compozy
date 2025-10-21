@@ -62,8 +62,6 @@ func (c *Config) Validate() error {
 func NewServer(config *Config, storage Storage, clientManager ClientManager) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-
-	// Add logging middleware
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		Formatter: func(param gin.LogFormatterParams) string {
 			p := param.Path
@@ -79,7 +77,6 @@ func NewServer(config *Config, storage Storage, clientManager ClientManager) *Se
 			)
 		},
 	}))
-
 	router.Use(gin.Recovery())
 	proxyHandlers := NewProxyHandlers(storage, clientManager, config.BaseURL)
 	service := NewMCPService(storage, clientManager, proxyHandlers)
@@ -100,48 +97,34 @@ func NewServer(config *Config, storage Storage, clientManager ClientManager) *Se
 		},
 		boundCh: make(chan struct{}),
 	}
-
 	server.setupRoutes()
 	return server
 }
 
 // setupRoutes configures all server routes
 func (s *Server) setupRoutes() {
-	// Health check endpoint
 	s.Router.GET("/healthz", s.healthzHandler)
-
-	// Admin API for MCP management (no IP-based filtering; rely on external network controls)
 	admin := s.Router.Group("/admin")
 	{
-		// MCP Definition CRUD operations
 		admin.POST("/mcps", s.adminHandlers.AddMCPHandler)
 		admin.PUT("/mcps/:name", s.adminHandlers.UpdateMCPHandler)
 		admin.DELETE("/mcps/:name", s.adminHandlers.RemoveMCPHandler)
 		admin.GET("/mcps", s.adminHandlers.ListMCPsHandler)
 		admin.GET("/mcps/:name", s.adminHandlers.GetMCPHandler)
 
-		// Tools discovery endpoint
 		admin.GET("/tools", s.adminHandlers.ListToolsHandler)
 
-		// Tool execution endpoint
 		admin.POST("/tools/call", s.adminHandlers.CallToolHandler)
 
-		// Metrics endpoint
 		admin.GET("/metrics", s.metricsHandler)
 	}
-
-	// MCP Proxy endpoints - direct routes for each transport type
 	{
-		// SSE transport proxy - GET only (SSE semantics)
 		s.Router.GET("/mcp-proxy/:name/sse", s.proxyHandlers.SSEProxyHandler)
 		s.Router.GET("/mcp-proxy/:name/sse/*path", s.proxyHandlers.SSEProxyHandler)
 
-		// Streamable HTTP transport proxy
 		s.Router.Any("/mcp-proxy/:name/stream", s.proxyHandlers.StreamableHTTPProxyHandler)
 		s.Router.Any("/mcp-proxy/:name/stream/*path", s.proxyHandlers.StreamableHTTPProxyHandler)
 	}
-
-	// API versioning for legacy compatibility
 	v1 := s.Router.Group("/api/v1")
 	{
 		v1.GET("/ping", func(c *gin.Context) {
@@ -162,7 +145,6 @@ func (s *Server) healthzHandler(c *gin.Context) {
 // metricsHandler handles metrics requests
 func (s *Server) metricsHandler(c *gin.Context) {
 	metrics := s.clientManager.GetMetrics()
-
 	c.JSON(http.StatusOK, gin.H{
 		"timestamp": time.Now().UTC(),
 		"metrics":   metrics,
@@ -173,21 +155,40 @@ func (s *Server) metricsHandler(c *gin.Context) {
 func (s *Server) Start(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Starting MCP proxy server", "port", s.config.Port, "host", s.config.Host)
-	// Explicit security note to avoid confusion: the proxy does not implement
-	// any application-level IP allow/deny filtering. Protect /admin endpoints
-	// using network controls (localhost binding, firewall, reverse proxy).
 	log.Info("MCP proxy has no built-in IP filtering; secure /admin endpoints via network controls")
 	s.httpServer.BaseContext = func(_ net.Listener) context.Context { return ctx }
+	ln, err := s.bindListener(ctx)
+	if err != nil {
+		return err
+	}
+	s.boundOnce.Do(func() { close(s.boundCh) })
+	if err := s.clientManager.Start(ctx); err != nil {
+		_ = ln.Close()
+		return fmt.Errorf("failed to start client manager: %w", err)
+	}
+	errChan := s.launchHTTPServer(ln)
+	if err := s.awaitStartup(ctx, errChan); err != nil {
+		s.stopClientManagerSilently(ctx)
+		return err
+	}
+	log.Info("MCP proxy server started successfully")
+	return s.waitForShutdown(ctx, errChan)
+}
 
-	// Create listener explicitly to support port "0" binding without probe-close-bind race
+// bindListener creates the TCP listener and configures derived settings.
+func (s *Server) bindListener(ctx context.Context) (net.Listener, error) {
 	var lc net.ListenConfig
 	ln, err := lc.Listen(ctx, "tcp", s.config.Host+":"+s.config.Port)
 	if err != nil {
-		return fmt.Errorf("failed to bind listener: %w", err)
+		return nil, fmt.Errorf("failed to bind listener: %w", err)
 	}
 	s.ln = ln
+	s.configureBaseURL(ln)
+	return ln, nil
+}
 
-	// If BaseURL is empty or port is "0", compute the actual BaseURL from bound address
+// configureBaseURL computes the effective BaseURL when binding completes.
+func (s *Server) configureBaseURL(ln net.Listener) {
 	if tcp, ok := ln.Addr().(*net.TCPAddr); ok {
 		hostForURL := s.config.Host
 		if hostForURL == "0.0.0.0" || hostForURL == "::" {
@@ -198,16 +199,10 @@ func (s *Server) Start(ctx context.Context) error {
 			s.proxyHandlers.SetBaseURL(s.config.BaseURL)
 		}
 	}
-	// Signal that listener is bound and BaseURL is available
-	s.boundOnce.Do(func() { close(s.boundCh) })
+}
 
-	// Start client manager to restore existing MCP connections
-	if err := s.clientManager.Start(ctx); err != nil {
-		_ = ln.Close()
-		return fmt.Errorf("failed to start client manager: %w", err)
-	}
-
-	// Start server in a goroutine with error channel
+// launchHTTPServer runs the HTTP server in a goroutine and returns its error channel.
+func (s *Server) launchHTTPServer(ln net.Listener) chan error {
 	errChan := make(chan error, 1)
 	go func() {
 		if err := s.httpServer.Serve(ln); err != nil && err != http.ErrServerClosed {
@@ -216,46 +211,41 @@ func (s *Server) Start(ctx context.Context) error {
 			errChan <- nil
 		}
 	}()
+	return errChan
+}
 
-	// Give server time to start and check for immediate failures
+// awaitStartup waits for the HTTP server to start or fail immediately.
+func (s *Server) awaitStartup(ctx context.Context, errChan <-chan error) error {
 	select {
 	case err := <-errChan:
-		if err != nil {
-			if stopErr := s.clientManager.Stop(ctx); stopErr != nil {
-				log.Error("Failed to stop client manager during server startup failure", "error", stopErr)
-			}
-			return err
-		}
+		return err
 	case <-time.After(100 * time.Millisecond):
-		// Server started successfully
+		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
 
-	log.Info("MCP proxy server started successfully")
-
-	// Wait for shutdown signal or HTTP server failure
-	return s.waitForShutdown(ctx, errChan)
+// stopClientManagerSilently stops the client manager while logging failures.
+func (s *Server) stopClientManagerSilently(ctx context.Context) {
+	if err := s.clientManager.Stop(ctx); err != nil {
+		logger.FromContext(ctx).Error("Failed to stop client manager during server startup failure", "error", err)
+	}
 }
 
 // Stop gracefully stops the server
 func (s *Server) Stop(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Shutting down MCP proxy server")
-
 	shutdownCtx, cancel := context.WithTimeout(ctx, s.config.ShutdownTimeout)
 	defer cancel()
-
-	// Stop client manager first
 	if err := s.clientManager.Stop(shutdownCtx); err != nil {
 		log.Error("Client manager shutdown failed", "error", err)
 	}
-
 	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Error("Server shutdown failed", "error", err)
 		return err
 	}
-
 	log.Info("MCP proxy server stopped gracefully")
 	return nil
 }
@@ -263,7 +253,6 @@ func (s *Server) Stop(ctx context.Context) error {
 // waitForShutdown waits for shutdown signals and handles graceful shutdown
 func (s *Server) waitForShutdown(ctx context.Context, errChan <-chan error) error {
 	log := logger.FromContext(ctx)
-	// When embedded, do not install an OS signal handler; rely on ctx.
 	if !s.config.UseOSSignalHandler {
 		select {
 		case <-ctx.Done():
@@ -280,12 +269,9 @@ func (s *Server) waitForShutdown(ctx context.Context, errChan <-chan error) erro
 			return s.Stop(ctx)
 		}
 	}
-
-	// Standalone mode: install OS signal handler
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(quit)
-
 	select {
 	case <-ctx.Done():
 		log.Debug("Context canceled, shutting down server")

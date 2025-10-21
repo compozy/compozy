@@ -91,21 +91,33 @@ func executeWorkflowSync(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var inputPtr *core.Input
-	if req.Input != nil {
-		copyInput := req.Input
-		inputPtr = &copyInput
-	}
-	triggered, err := runner.TriggerWorkflow(c.Request.Context(), workflowID, inputPtr, req.TaskID)
-	if err != nil {
-		status := respondWorkflowStartError(c, workflowID, err)
-		recordError(status)
+	execID, ok := triggerWorkflowSync(c, runner, workflowID, workflowInputPointer(req.Input), req.TaskID, recordError)
+	if !ok {
 		return
 	}
-	execID := triggered.WorkflowExecID
+	outcome = completeWorkflowSync(
+		c,
+		repo,
+		workflowID,
+		execID,
+		req.Timeout,
+		metrics,
+		recordError,
+	)
+}
+
+func completeWorkflowSync(
+	c *gin.Context,
+	repo workflow.Repository,
+	workflowID string,
+	execID core.ID,
+	timeout int,
+	metrics *monitoring.ExecutionMetrics,
+	recordError func(int),
+) string {
 	log := logger.FromContext(c.Request.Context())
 	log.Info("Workflow execution started", "workflow_id", workflowID, "exec_id", execID.String())
-	deadline := time.Duration(req.Timeout) * workflowTimeoutUnit
+	deadline := workflowDeadline(timeout)
 	stateResult, timedOut, pollErr := waitForWorkflowCompletion(
 		c.Request.Context(),
 		repo,
@@ -114,16 +126,19 @@ func executeWorkflowSync(c *gin.Context) {
 		workflowID,
 		metrics,
 	)
-	if pollErr != nil {
-		recordError(http.StatusInternalServerError)
-		router.RespondWithServerError(c, router.ErrInternalCode, "failed to monitor workflow execution", pollErr)
-		return
-	}
-	if timedOut {
-		outcome = monitoring.ExecutionOutcomeTimeout
-		status := respondWorkflowTimeout(c, repo, workflowID, execID, stateResult, metrics)
-		recordError(status)
-		return
+	newOutcome, handled := handleWorkflowCompletionResult(
+		c,
+		repo,
+		workflowID,
+		execID,
+		stateResult,
+		timedOut,
+		pollErr,
+		metrics,
+		recordError,
+	)
+	if handled {
+		return newOutcome
 	}
 	summary := router.NewUsageSummary(stateResult.Usage)
 	response := WorkflowSyncResponse{
@@ -131,8 +146,62 @@ func executeWorkflowSync(c *gin.Context) {
 		Output:   stateResult.Output,
 		ExecID:   execID.String(),
 	}
-	outcome = monitoring.ExecutionOutcomeSuccess
 	router.RespondOK(c, "workflow execution completed", response)
+	return newOutcome
+}
+
+func triggerWorkflowSync(
+	c *gin.Context,
+	runner router.WorkflowRunner,
+	workflowID string,
+	input *core.Input,
+	taskID string,
+	recordError func(int),
+) (core.ID, bool) {
+	triggered, err := runner.TriggerWorkflow(c.Request.Context(), workflowID, input, taskID)
+	if err != nil {
+		status := respondWorkflowStartError(c, workflowID, err)
+		recordError(status)
+		var zeroID core.ID
+		return zeroID, false
+	}
+	return triggered.WorkflowExecID, true
+}
+
+func workflowInputPointer(input core.Input) *core.Input {
+	if input == nil {
+		return nil
+	}
+	copyInput := input
+	return &copyInput
+}
+
+func workflowDeadline(timeoutSeconds int) time.Duration {
+	return time.Duration(timeoutSeconds) * workflowTimeoutUnit
+}
+
+func handleWorkflowCompletionResult(
+	c *gin.Context,
+	repo workflow.Repository,
+	workflowID string,
+	execID core.ID,
+	stateResult *workflow.State,
+	timedOut bool,
+	pollErr error,
+	metrics *monitoring.ExecutionMetrics,
+	recordError func(int),
+) (string, bool) {
+	if pollErr != nil {
+		recordError(http.StatusInternalServerError)
+		router.RespondWithServerError(c, router.ErrInternalCode, "failed to monitor workflow execution", pollErr)
+		return monitoring.ExecutionOutcomeError, true
+	}
+	if timedOut {
+		status := respondWorkflowTimeout(c, repo, workflowID, execID, stateResult, metrics)
+		recordError(status)
+		return monitoring.ExecutionOutcomeTimeout, true
+	}
+	return monitoring.ExecutionOutcomeSuccess, false
 }
 
 func parseWorkflowSyncRequest(c *gin.Context) *WorkflowSyncRequest {
@@ -233,51 +302,96 @@ func waitForWorkflowCompletion(
 ) (*workflow.State, bool, error) {
 	pollCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	interval := workflowPollInitialBackoff
-	pollCount := 0
-	pollOutcome := monitoring.WorkflowPollOutcomeError
-	start := time.Now()
-	defer func() {
-		if metrics == nil {
-			return
-		}
-		metrics.RecordWorkflowPollDuration(ctx, workflowID, time.Since(start))
-		metrics.RecordWorkflowPolls(ctx, workflowID, pollCount, pollOutcome)
-	}()
-	execIDStr := execID.String()
-	var lastState *workflow.State
+	tracker := newWorkflowPollTracker(ctx, metrics, workflowID)
+	defer tracker.finish()
 	timer := time.NewTimer(0)
 	<-timer.C
 	defer timer.Stop()
+	return runWorkflowPollLoop(ctx, pollCtx, repo, execID, timer, tracker)
+}
+
+func runWorkflowPollLoop(
+	ctx context.Context,
+	pollCtx context.Context,
+	repo workflow.Repository,
+	execID core.ID,
+	timer *time.Timer,
+	tracker *workflowPollTracker,
+) (*workflow.State, bool, error) {
+	interval := workflowPollInitialBackoff
+	execIDStr := execID.String()
+	var lastState *workflow.State
 	for {
 		if pollCtx.Err() != nil {
+			tracker.setOutcome(monitoring.WorkflowPollOutcomeTimeout)
 			state, err := finalWorkflowState(ctx, repo, execID, lastState)
-			pollOutcome = monitoring.WorkflowPollOutcomeTimeout
 			return state, true, err
 		}
 		state, err := repo.GetState(pollCtx, execID)
-		pollCount++
+		tracker.increment()
 		if err != nil {
 			if !isIgnorablePollError(err) {
-				pollOutcome = monitoring.WorkflowPollOutcomeError
+				tracker.setOutcome(monitoring.WorkflowPollOutcomeError)
 				return lastState, false, err
 			}
 		} else if state != nil {
 			lastState = state
 			if isWorkflowTerminal(state.Status) {
-				pollOutcome = monitoring.WorkflowPollOutcomeCompleted
+				tracker.setOutcome(monitoring.WorkflowPollOutcomeCompleted)
 				return state, false, nil
 			}
 		}
-		attemptIndex := pollCount - 1
-		wait := applyWorkflowJitter(interval, execIDStr, attemptIndex)
+		wait := applyWorkflowJitter(interval, execIDStr, tracker.attemptIndex())
 		interval = nextWorkflowBackoff(interval)
 		if !waitForNextWorkflowPoll(pollCtx, timer, wait) {
+			tracker.setOutcome(monitoring.WorkflowPollOutcomeTimeout)
 			state, finalErr := finalWorkflowState(ctx, repo, execID, lastState)
-			pollOutcome = monitoring.WorkflowPollOutcomeTimeout
 			return state, true, finalErr
 		}
 	}
+}
+
+type workflowPollTracker struct {
+	metrics    *monitoring.ExecutionMetrics
+	ctx        context.Context
+	workflowID string
+	start      time.Time
+	outcome    string
+	count      int
+}
+
+func newWorkflowPollTracker(
+	ctx context.Context,
+	metrics *monitoring.ExecutionMetrics,
+	workflowID string,
+) *workflowPollTracker {
+	return &workflowPollTracker{
+		metrics:    metrics,
+		ctx:        ctx,
+		workflowID: workflowID,
+		start:      time.Now(),
+		outcome:    monitoring.WorkflowPollOutcomeError,
+	}
+}
+
+func (t *workflowPollTracker) increment() {
+	t.count++
+}
+
+func (t *workflowPollTracker) setOutcome(outcome string) {
+	t.outcome = outcome
+}
+
+func (t *workflowPollTracker) attemptIndex() int {
+	return t.count - 1
+}
+
+func (t *workflowPollTracker) finish() {
+	if t.metrics == nil {
+		return
+	}
+	t.metrics.RecordWorkflowPollDuration(t.ctx, t.workflowID, time.Since(t.start))
+	t.metrics.RecordWorkflowPolls(t.ctx, t.workflowID, t.count, t.outcome)
 }
 
 func isIgnorablePollError(err error) bool {
@@ -422,14 +536,28 @@ func respondWorkflowTimeout(
 	metrics *monitoring.ExecutionMetrics,
 ) int {
 	ctx := c.Request.Context()
-	log := logger.FromContext(ctx)
-	payload := gin.H{"exec_id": execID.String()}
-	if state == nil && repo != nil {
-		latest, err := repo.GetState(context.WithoutCancel(ctx), execID)
-		if err == nil && latest != nil {
-			state = latest
-		} else if err != nil && !errors.Is(err, store.ErrWorkflowNotFound) {
-			log.Warn(
+	state = resolveTimeoutState(ctx, repo, workflowID, execID, state)
+	payload := buildTimeoutPayload(ctx, repo, execID, state)
+	logger.FromContext(ctx).Warn("Workflow execution timed out", "workflow_id", workflowID, "exec_id", execID.String())
+	c.JSON(http.StatusRequestTimeout, buildTimeoutResponse(payload))
+	recordWorkflowTimeoutMetric(ctx, metrics)
+	return http.StatusRequestTimeout
+}
+
+func resolveTimeoutState(
+	ctx context.Context,
+	repo workflow.Repository,
+	workflowID string,
+	execID core.ID,
+	state *workflow.State,
+) *workflow.State {
+	if state != nil || repo == nil {
+		return state
+	}
+	latest, err := repo.GetState(context.WithoutCancel(ctx), execID)
+	if err != nil {
+		if !errors.Is(err, store.ErrWorkflowNotFound) {
+			logger.FromContext(ctx).Warn(
 				"Failed to load workflow state after timeout",
 				"workflow_id",
 				workflowID,
@@ -439,22 +567,38 @@ func respondWorkflowTimeout(
 				err,
 			)
 		}
+		return state
 	}
-	embeddedUsage := false
+	if latest == nil {
+		return state
+	}
+	return latest
+}
+
+func buildTimeoutPayload(
+	ctx context.Context,
+	repo workflow.Repository,
+	execID core.ID,
+	state *workflow.State,
+) gin.H {
+	payload := gin.H{"exec_id": execID.String()}
 	if state != nil {
 		summary := router.NewUsageSummary(state.Usage)
-		if summary != nil {
-			embeddedUsage = true
-		}
 		payload["workflow"] = newWorkflowExecutionDTO(state, summary)
+		if summary != nil {
+			return payload
+		}
 	}
-	if !embeddedUsage && repo != nil {
+	if repo != nil {
 		if summary := router.ResolveWorkflowUsageSummary(context.WithoutCancel(ctx), repo, execID); summary != nil {
 			payload["usage"] = summary
 		}
 	}
-	log.Warn("Workflow execution timed out", "workflow_id", workflowID, "exec_id", execID.String())
-	resp := router.Response{
+	return payload
+}
+
+func buildTimeoutResponse(payload gin.H) router.Response {
+	return router.Response{
 		Status:  http.StatusRequestTimeout,
 		Message: "execution timeout",
 		Data:    payload,
@@ -464,9 +608,11 @@ func respondWorkflowTimeout(
 			Details: context.DeadlineExceeded.Error(),
 		},
 	}
-	c.JSON(http.StatusRequestTimeout, resp)
-	if metrics != nil {
-		metrics.RecordTimeout(ctx, monitoring.ExecutionKindWorkflow)
+}
+
+func recordWorkflowTimeoutMetric(ctx context.Context, metrics *monitoring.ExecutionMetrics) {
+	if metrics == nil {
+		return
 	}
-	return http.StatusRequestTimeout
+	metrics.RecordTimeout(ctx, monitoring.ExecutionKindWorkflow)
 }

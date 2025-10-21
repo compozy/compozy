@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/compozy/compozy/cli/cmd"
@@ -17,18 +18,13 @@ import (
 
 // BootstrapTUI handles the bootstrap command in TUI mode
 func BootstrapTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandExecutor, _ []string) error {
-	// Parse flags
 	flags, err := parseTUIBootstrapFlags(cobraCmd)
 	if err != nil {
 		return fmt.Errorf("failed to parse flags: %w", err)
 	}
-
-	// Handle check status
 	if flags.check {
 		return handleTUIStatusCheck(ctx)
 	}
-
-	// Check existing bootstrap and get user decisions
 	shouldContinue, updatedFlags, err := checkAndPromptBootstrap(ctx, flags)
 	if err != nil {
 		return err
@@ -36,8 +32,6 @@ func BootstrapTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandEx
 	if !shouldContinue {
 		return nil
 	}
-
-	// Execute bootstrap
 	return executeTUIBootstrap(ctx, updatedFlags)
 }
 
@@ -47,17 +41,14 @@ func parseTUIBootstrapFlags(cmd *cobra.Command) (*bootstrapFlags, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get email flag: %w", err)
 	}
-
 	force, err := cmd.Flags().GetBool("force")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get force flag: %w", err)
 	}
-
 	check, err := cmd.Flags().GetBool("check")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get check flag: %w", err)
 	}
-
 	return &bootstrapFlags{
 		email: email,
 		force: force,
@@ -67,20 +58,17 @@ func parseTUIBootstrapFlags(cmd *cobra.Command) (*bootstrapFlags, error) {
 
 // handleTUIStatusCheck displays bootstrap status in TUI mode
 func handleTUIStatusCheck(ctx context.Context) error {
-	factory := &bootstrapcli.DefaultServiceFactory{}
-	service, cleanup, err := factory.CreateService(ctx)
+	service, cleanup, err := createBootstrapService(ctx)
 	if err != nil {
 		fmt.Println(styles.ErrorStyle.Render("❌ Failed to create service: " + err.Error()))
 		return err
 	}
 	defer cleanup()
-
 	status, err := service.CheckBootstrapStatus(ctx)
 	if err != nil {
 		fmt.Println(styles.ErrorStyle.Render("❌ Failed to check status: " + err.Error()))
 		return err
 	}
-
 	if status.IsBootstrapped {
 		fmt.Println(styles.SuccessStyle.Render("✅ System is bootstrapped"))
 		fmt.Printf("   Admin users: %d\n", status.AdminCount)
@@ -94,65 +82,98 @@ func handleTUIStatusCheck(ctx context.Context) error {
 
 // checkAndPromptBootstrap checks existing bootstrap and prompts user
 func checkAndPromptBootstrap(ctx context.Context, flags *bootstrapFlags) (bool, *bootstrapFlags, error) {
+	service, cleanup, err := createBootstrapService(ctx)
+	if err != nil {
+		return false, nil, err
+	}
+	defer cleanup()
+	proceed, err := ensureBootstrapEligibility(ctx, service, flags)
+	if err != nil {
+		return false, nil, err
+	}
+	if !proceed {
+		return false, nil, nil
+	}
+	if err := ensureBootstrapEmail(flags); err != nil {
+		return false, nil, err
+	}
+	if !confirmBootstrapAction(flags) {
+		return false, nil, nil
+	}
+	return true, flags, nil
+}
+
+func createBootstrapService(ctx context.Context) (*bootstrap.Service, func(), error) {
 	factory := &bootstrapcli.DefaultServiceFactory{}
 	service, cleanup, err := factory.CreateService(ctx)
 	if err != nil {
-		return false, nil, fmt.Errorf("failed to create service: %w", err)
+		return nil, nil, fmt.Errorf("failed to create service: %w", err)
 	}
-	defer cleanup()
+	return service, cleanup, nil
+}
 
-	// Check current status
+func ensureBootstrapEligibility(ctx context.Context, service *bootstrap.Service, flags *bootstrapFlags) (bool, error) {
 	status, err := service.CheckBootstrapStatus(ctx)
 	if err != nil {
-		// Log the error and inform user
-		logger.FromContext(ctx).Warn("Failed to check bootstrap status", "error", err)
-		fmt.Println(styles.WarningStyle.Render("⚠️  Could not verify bootstrap status"))
-		fmt.Println(styles.HelpStyle.Render("   This might be due to database connectivity issues"))
-
-		// Ask user if they want to continue
-		var continueAnyway bool
-		form := huh.NewForm(
-			huh.NewGroup(
-				huh.NewConfirm().
-					Title("Do you want to continue anyway?").
-					Description("This might create duplicate admin users if the system is already bootstrapped").
-					Value(&continueAnyway),
-			),
-		)
-		if err := form.Run(); err != nil || !continueAnyway {
-			return false, nil, fmt.Errorf("bootstrap canceled due to status check failure")
-		}
-		// User chose to continue despite the error
-		status = &bootstrap.Status{}
-	} else if status.IsBootstrapped && !flags.force {
+		return handleStatusCheckFailure(ctx, err)
+	}
+	if status.IsBootstrapped && !flags.force {
 		if !promptForAdditionalAdmin(status) {
 			fmt.Println(styles.HelpStyle.Render("Bootstrap canceled"))
-			return false, nil, nil
+			return false, nil
 		}
 		flags.force = true
 	}
+	return true, nil
+}
 
-	// Get email if not provided
+func handleStatusCheckFailure(ctx context.Context, checkErr error) (bool, error) {
+	logger.FromContext(ctx).Warn("Failed to check bootstrap status", "error", checkErr)
+	fmt.Println(styles.WarningStyle.Render("⚠️  Could not verify bootstrap status"))
+	fmt.Println(styles.HelpStyle.Render("   This might be due to database connectivity issues"))
+	var continueAnyway bool
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Do you want to continue anyway?").
+				Description("This might create duplicate admin users if the system is already bootstrapped").
+				Value(&continueAnyway),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return false, fmt.Errorf("status check prompt failed: %w", err)
+	}
+	if !continueAnyway {
+		fmt.Println(styles.HelpStyle.Render("Bootstrap canceled"))
+		return false, nil
+	}
+	return true, nil
+}
+
+func ensureBootstrapEmail(flags *bootstrapFlags) error {
 	if flags.email == "" {
 		email, err := promptForEmail()
 		if err != nil {
-			return false, nil, err
+			return err
 		}
 		flags.email = email
 	}
-
-	// Validate email
+	flags.email = strings.TrimSpace(flags.email)
 	if err := bootstrapcli.ValidateEmail(flags.email); err != nil {
-		return false, nil, fmt.Errorf("invalid email: %w", err)
+		return fmt.Errorf("invalid email: %w", err)
 	}
+	return nil
+}
 
-	// Get final confirmation
-	if !flags.force && !confirmBootstrap(flags.email) {
-		fmt.Println(styles.HelpStyle.Render("Bootstrap canceled"))
-		return false, nil, nil
+func confirmBootstrapAction(flags *bootstrapFlags) bool {
+	if flags.force {
+		return true
 	}
-
-	return true, flags, nil
+	if confirmBootstrap(flags.email) {
+		return true
+	}
+	fmt.Println(styles.HelpStyle.Render("Bootstrap canceled"))
+	return false
 }
 
 // promptForAdditionalAdmin prompts user about creating additional admin
@@ -160,7 +181,6 @@ func promptForAdditionalAdmin(status *bootstrap.Status) bool {
 	fmt.Println(styles.WarningStyle.Render("⚠️  System is already bootstrapped"))
 	fmt.Printf("   Admin users: %d\n", status.AdminCount)
 	fmt.Printf("   Total users: %d\n", status.UserCount)
-
 	var confirm bool
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -169,7 +189,6 @@ func promptForAdditionalAdmin(status *bootstrap.Status) bool {
 				Value(&confirm),
 		),
 	)
-
 	if err := form.Run(); err != nil {
 		return false
 	}
@@ -186,14 +205,15 @@ func promptForEmail() (string, error) {
 				Description("Enter the email for the admin user").
 				Placeholder("admin@company.com").
 				Value(&email).
-				Validate(bootstrapcli.ValidateEmail),
+				Validate(func(value string) error {
+					return bootstrapcli.ValidateEmail(strings.TrimSpace(value))
+				}),
 		),
 	)
-
 	if err := form.Run(); err != nil {
 		return "", err
 	}
-	return email, nil
+	return strings.TrimSpace(email), nil
 }
 
 // confirmBootstrap asks for final confirmation
@@ -201,7 +221,6 @@ func confirmBootstrap(email string) bool {
 	fmt.Println(styles.TitleStyle.Render("Bootstrap Configuration"))
 	fmt.Printf("   Email: %s\n", email)
 	fmt.Printf("   Role:  admin\n\n")
-
 	var confirm bool
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -212,7 +231,6 @@ func confirmBootstrap(email string) bool {
 				Negative("No"),
 		),
 	)
-
 	if err := form.Run(); err != nil {
 		return false
 	}
@@ -222,20 +240,16 @@ func confirmBootstrap(email string) bool {
 // executeTUIBootstrap performs the bootstrap operation
 func executeTUIBootstrap(ctx context.Context, flags *bootstrapFlags) error {
 	fmt.Println(styles.InfoStyle.Render("Creating admin user..."))
-
-	factory := &bootstrapcli.DefaultServiceFactory{}
-	service, cleanup, err := factory.CreateService(ctx)
+	service, cleanup, err := createBootstrapService(ctx)
 	if err != nil {
 		fmt.Println(styles.ErrorStyle.Render("❌ Failed to create service: " + err.Error()))
 		return err
 	}
 	defer cleanup()
-
 	result, err := service.BootstrapAdmin(ctx, &bootstrap.Input{
 		Email: flags.email,
 		Force: flags.force,
 	})
-
 	if err != nil {
 		var coreErr *core.Error
 		if errors.As(err, &coreErr) {
@@ -245,7 +259,6 @@ func executeTUIBootstrap(ctx context.Context, flags *bootstrapFlags) error {
 		}
 		return err
 	}
-
 	displaySuccess(result)
 	return nil
 }

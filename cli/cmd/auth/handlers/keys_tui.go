@@ -14,6 +14,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	defaultGeneratedSummaryWidth = 60    // width of the generated summary card
+	minGeneratedSummaryWidth     = 20    // minimum width to keep layout readable
+	summaryWidthMargin           = 4     // extra space to account for border/padding
+	defaultPartialKeyPrefixLen   = 16    // number of chars to reveal from the key
+	generatedSummaryBorderColor  = "69"  // accent color for summary borders
+	generatedSummaryKeyColor     = "214" // highlight color for partial key
+	generatedSummaryInfoColor    = "241" // muted tone for advisory text
+	generatedSummaryErrorColor   = "196" // error/accent color for failure states
+)
+
 // GenerateTUI handles the key generation in TUI mode
 func GenerateTUI(
 	ctx context.Context,
@@ -22,7 +33,6 @@ func GenerateTUI(
 	_ []string,
 ) error {
 	log := logger.FromContext(ctx)
-	// Parse flags for initial values
 	name, err := cobraCmd.Flags().GetString("name")
 	if err != nil {
 		return fmt.Errorf("failed to get name flag: %w", err)
@@ -36,19 +46,16 @@ func GenerateTUI(
 		return fmt.Errorf("failed to get expires flag: %w", err)
 	}
 	log.Debug("generating API key in TUI mode")
-	// Get the auth client from executor
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return fmt.Errorf("auth client not available")
 	}
-	// Create and run the TUI model
 	m := newGenerateModel(ctx, authClient, name, description, expiresStr)
 	p := tea.NewProgram(&m)
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
-	// Check if generation was successful
 	if model, ok := finalModel.(*generateModel); ok {
 		if model.err != nil {
 			return model.err
@@ -81,7 +88,7 @@ type generateModel struct {
 func newGenerateModel(ctx context.Context, client api.AuthClient, name, description, expires string) generateModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(generatedSummaryBorderColor))
 	return generateModel{
 		ctx:         ctx,
 		client:      client,
@@ -94,6 +101,7 @@ func newGenerateModel(ctx context.Context, client api.AuthClient, name, descript
 
 // Init initializes the model
 func (m *generateModel) Init() tea.Cmd {
+	m.generating = true
 	return tea.Batch(
 		m.spinner.Tick,
 		m.generateKey(),
@@ -142,56 +150,89 @@ func (m *generateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the UI
 func (m *generateModel) View() string {
-	if m.err != nil {
-		return lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Render(fmt.Sprintf("❌ Error: %v", m.err))
+	switch {
+	case m.err != nil:
+		return renderKeyGenerationError(m.err)
+	case m.generating:
+		return renderGeneratingMessage(m.spinner.View())
+	case m.generated:
+		return renderGeneratedSummary(m)
+	default:
+		return ""
 	}
-	if m.generating {
-		return fmt.Sprintf("%s Generating API key...", m.spinner.View())
+}
+
+func renderKeyGenerationError(err error) string {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(generatedSummaryErrorColor)).
+		Render(fmt.Sprintf("❌ Error: %v", err))
+}
+
+func renderGeneratingMessage(spinnerView string) string {
+	return fmt.Sprintf("%s Generating API key...", spinnerView)
+}
+
+func renderGeneratedSummary(m *generateModel) string {
+	width := defaultGeneratedSummaryWidth
+	if m.width > 0 {
+		available := m.width - summaryWidthMargin
+		if available < width {
+			width = available
+			if width < minGeneratedSummaryWidth {
+				width = minGeneratedSummaryWidth
+			}
+		}
 	}
-	if m.generated {
-		style := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("69")).
-			Padding(1, 2).
-			Width(60)
-		titleStyle := lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("69"))
-		keyStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214")).
-			Bold(true)
-		content := titleStyle.Render("✅ API Key Generated Successfully!") + "\n\n"
-		// Show only partial key for security
-		partialKey := m.apiKey
-		if len(m.apiKey) > 16 {
-			partialKey = m.apiKey[:16] + "..."
-		}
-		content += "Your new API key (showing first 16 chars):\n"
-		content += keyStyle.Render(partialKey) + "\n\n"
-		if m.clipboardCopied {
-			content += "✅ Full key copied to clipboard!\n"
-		} else {
-			content += "Press 'c' to copy the full key to clipboard\n"
-		}
-		content += "Press 'q' to quit\n\n"
-		if m.name != "" {
-			content += fmt.Sprintf("Name: %s\n", m.name)
-		}
-		if m.description != "" {
-			content += fmt.Sprintf("Description: %s\n", m.description)
-		}
-		if m.expires != "" {
-			content += fmt.Sprintf("Expires: %s\n", m.expires)
-		}
-		content += "\n" + lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Render("⚠️  Save this key securely. You won't be able to see it again!")
-		content += "\n\nPress Enter or 'q' to exit"
-		return style.Render(content)
+	style := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(generatedSummaryBorderColor)).
+		Padding(1, 2).
+		Width(width)
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(generatedSummaryBorderColor))
+	keyStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(generatedSummaryKeyColor)).
+		Bold(true)
+	content := titleStyle.Render("✅ API Key Generated Successfully!") + "\n\n"
+	partialKey := renderPartialKey(m.apiKey)
+	content += fmt.Sprintf("Your new API key (showing first %d chars):\n", defaultPartialKeyPrefixLen)
+	content += keyStyle.Render(partialKey) + "\n\n"
+	content += renderClipboardStatus(m.clipboardCopied)
+	content += renderKeyMetadata(m)
+	content += "\n" + lipgloss.NewStyle().
+		Foreground(lipgloss.Color(generatedSummaryInfoColor)).
+		Render("⚠️  Save this key securely. You won't be able to see it again!")
+	content += "\n\nPress Enter or 'q' to exit"
+	return style.Render(content)
+}
+
+func renderPartialKey(apiKey string) string {
+	if len(apiKey) > defaultPartialKeyPrefixLen {
+		return apiKey[:defaultPartialKeyPrefixLen] + "..."
 	}
-	return ""
+	return apiKey
+}
+
+func renderClipboardStatus(copied bool) string {
+	if copied {
+		return "✅ Full key copied to clipboard!\n"
+	}
+	return "Press 'c' to copy the full key to clipboard\n"
+}
+
+func renderKeyMetadata(m *generateModel) string {
+	var details string
+	if m.name != "" {
+		details += fmt.Sprintf("Name: %s\n", m.name)
+	}
+	if m.description != "" {
+		details += fmt.Sprintf("Description: %s\n", m.description)
+	}
+	if m.expires != "" {
+		details += fmt.Sprintf("Expires: %s\n", m.expires)
+	}
+	return details
 }
 
 // generateKey generates the API key

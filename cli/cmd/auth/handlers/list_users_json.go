@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
 	"github.com/compozy/compozy/cli/helpers"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -35,29 +37,20 @@ func ListUsersJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 	if authClient == nil {
 		return outputJSONError("auth client not available")
 	}
-
-	// Parse flags - convert any Go errors to JSON format
 	filters, err := parseListUsersFlags(cobraCmd)
 	if err != nil {
 		return outputJSONError(err.Error())
 	}
-
 	log.Debug("listing users in JSON mode",
 		"role", filters.roleFilter,
 		"sort", filters.sortBy,
 		"filter", filters.filterStr,
 		"activeOnly", filters.activeOnly)
-
-	// Get users from API - convert any Go errors to JSON format
 	users, err := authClient.ListUsers(ctx)
 	if err != nil {
 		return outputJSONError(fmt.Sprintf("failed to list users: %v", err))
 	}
-
-	// Apply filters and sorting
-	filteredUsers := filterAndSortUsers(users, filters)
-
-	// Prepare and output response
+	filteredUsers := filterAndSortUsers(ctx, users, filters)
 	response := buildUsersResponse(filteredUsers)
 	return outputJSONResponse(response)
 }
@@ -81,17 +74,12 @@ func parseListUsersFlags(cmd *cobra.Command) (*userFilters, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active flag: %w", err)
 	}
-
-	// Validate role filter
 	if roleFilter != "" && roleFilter != roleAdmin && roleFilter != roleUser {
 		return nil, fmt.Errorf("invalid role filter: %s (must be '%s' or '%s')", roleFilter, roleAdmin, roleUser)
 	}
-
-	// Validate sort field
 	if !isValidSortField(sortBy) {
 		return nil, fmt.Errorf("invalid sort field: %s (must be one of: %v)", sortBy, getValidSortFields())
 	}
-
 	return &userFilters{
 		roleFilter: roleFilter,
 		sortBy:     sortBy,
@@ -101,30 +89,35 @@ func parseListUsersFlags(cmd *cobra.Command) (*userFilters, error) {
 }
 
 // filterAndSortUsers applies filtering and sorting to the user list
-func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserInfo {
-	filtered := make([]api.UserInfo, 0, len(users))
+func activeUserWindowDuration(ctx context.Context) time.Duration {
+	cfg := config.FromContext(ctx)
+	days := config.DefaultCLIActiveWindowDays
+	if cfg != nil {
+		if configured := cfg.CLI.Users.ActiveWindowDays; configured > 0 {
+			days = configured
+		}
+	}
+	return time.Duration(days) * 24 * time.Hour
+}
 
+func filterAndSortUsers(ctx context.Context, users []api.UserInfo, filters *userFilters) []api.UserInfo {
+	filtered := make([]api.UserInfo, 0, len(users))
+	activeWindow := activeUserWindowDuration(ctx)
 	for _, user := range users {
-		// Apply role filter
 		if filters.roleFilter != "" && user.Role != filters.roleFilter {
 			continue
 		}
 
-		// Apply text filter (name or email)
 		if filters.filterStr != "" && !userMatchesTextFilter(&user, filters.filterStr) {
 			continue
 		}
 
-		// Apply active filter - currently based on user activity heuristics
-		// In the future, this will use KeyCount field when available from API
-		if filters.activeOnly && !isUserActive(&user) {
+		if filters.activeOnly && !isUserActive(activeWindow, &user) {
 			continue
 		}
 
 		filtered = append(filtered, user)
 	}
-
-	// Sort users
 	sort.Slice(filtered, func(i, j int) bool {
 		switch filters.sortBy {
 		case sortName:
@@ -139,33 +132,48 @@ func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserIn
 			return filtered[i].CreatedAt < filtered[j].CreatedAt
 		}
 	})
-
 	return filtered
 }
 
 // isUserActive determines if a user is considered active based on available data.
-// This is a heuristic implementation until KeyCount field is available from API.
-// Currently considers a user active if they have recent activity or are admin users.
-func isUserActive(user *api.UserInfo) bool {
-	// Admin users are always considered active
+// This is a heuristic implementation until richer activity signals are available from the API.
+func isUserActive(activeWindow time.Duration, user *api.UserInfo) bool {
 	if user.Role == roleAdmin {
 		return true
 	}
-	// For regular users, we use creation time as a proxy for activity
-	// This is a temporary heuristic until proper activity tracking is implemented
-	// Users created within the last 30 days are considered active
-	if user.CreatedAt != "" {
-		return isRecentlyCreated(user.CreatedAt)
+	if isWithinActiveWindow(activeWindow, user.UpdatedAt) {
+		return true
+	}
+	if isWithinActiveWindow(activeWindow, user.CreatedAt) {
+		return true
 	}
 	return false
 }
 
-// isRecentlyCreated checks if a user was created within the last 30 days
-func isRecentlyCreated(_ string) bool {
-	// This is a simplified check - in practice, you'd parse the timestamp
-	// and compare with current time. For now, return true to avoid filtering
-	// until proper activity tracking is implemented
-	return true
+// isWithinActiveWindow reports whether the timestamp falls within the active user window.
+func isWithinActiveWindow(activeWindow time.Duration, timestamp string) bool {
+	ts, ok := parseAPITimestamp(timestamp)
+	if !ok {
+		return false
+	}
+	now := time.Now().UTC()
+	if ts.After(now) {
+		return false
+	}
+	return now.Sub(ts) <= activeWindow
+}
+
+func parseAPITimestamp(value string) (time.Time, bool) {
+	if value == "" {
+		return time.Time{}, false
+	}
+	layouts := []string{time.RFC3339Nano, time.RFC3339}
+	for _, layout := range layouts {
+		if ts, err := time.Parse(layout, value); err == nil {
+			return ts, true
+		}
+	}
+	return time.Time{}, false
 }
 
 // isValidSortField checks if the sort field is valid

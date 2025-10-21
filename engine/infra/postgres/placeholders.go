@@ -16,8 +16,6 @@ func dollarList(start, n int) string {
 }
 
 func itoa(i int) string {
-	// Avoid importing strconv to keep this tiny helper inline.
-	// i is small (placeholders count), so this is sufficient.
 	if i == 0 {
 		return "0"
 	}

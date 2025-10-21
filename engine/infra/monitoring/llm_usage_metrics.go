@@ -89,41 +89,63 @@ func createFloat64Histogram(
 	return histogram, nil
 }
 
-func newLLMUsageMetrics(meter metric.Meter) (usage.Metrics, error) {
-	if meter == nil {
-		return &noopLLMUsageMetrics{}, nil
-	}
-	promptTokens, err := createInt64Counter(
+// llmCounterSet groups the counters used for LLM usage metrics.
+type llmCounterSet struct {
+	promptTokens     metric.Int64Counter
+	completionTokens metric.Int64Counter
+	events           metric.Int64Counter
+	failures         metric.Int64Counter
+}
+
+// buildLLMUsageCounters creates the counters required for usage tracking.
+func buildLLMUsageCounters(meter metric.Meter) (llmCounterSet, error) {
+	prompt, err := createInt64Counter(
 		meter,
 		llmPromptTokensMetric,
 		"Total prompt tokens recorded for LLM executions",
 	)
 	if err != nil {
-		return nil, err
+		return llmCounterSet{}, fmt.Errorf("build usage counters (prompt): %w", err)
 	}
-	completionTokens, err := createInt64Counter(
+	completion, err := createInt64Counter(
 		meter,
 		llmCompletionTokensMetric,
 		"Total completion tokens recorded for LLM executions",
 	)
 	if err != nil {
-		return nil, err
+		return llmCounterSet{}, fmt.Errorf("build usage counters (completion): %w", err)
 	}
-	events, err := createInt64Counter(
+	usageEvents, err := createInt64Counter(
 		meter,
 		llmUsageEventsMetric,
 		"Total LLM usage events processed by collectors",
 	)
 	if err != nil {
-		return nil, err
+		return llmCounterSet{}, fmt.Errorf("build usage counters (events): %w", err)
 	}
-	failures, err := createInt64Counter(
+	failureCounter, err := createInt64Counter(
 		meter,
 		llmUsageFailuresMetric,
 		"Total LLM usage persistence failures",
 	)
 	if err != nil {
-		return nil, err
+		return llmCounterSet{}, fmt.Errorf("build usage counters (failures): %w", err)
+	}
+	return llmCounterSet{
+		promptTokens:     prompt,
+		completionTokens: completion,
+		events:           usageEvents,
+		failures:         failureCounter,
+	}, nil
+}
+
+func newLLMUsageMetrics(meter metric.Meter) (usage.Metrics, error) {
+	if meter == nil {
+		return &noopLLMUsageMetrics{}, nil
+	}
+	counters, err := buildLLMUsageCounters(meter)
+	if err != nil {
+		return &noopLLMUsageMetrics{}, err
 	}
 	latency, err := createFloat64Histogram(
 		meter,
@@ -133,13 +155,13 @@ func newLLMUsageMetrics(meter metric.Meter) (usage.Metrics, error) {
 		llmLatencyBuckets,
 	)
 	if err != nil {
-		return nil, err
+		return &noopLLMUsageMetrics{}, err
 	}
 	return &llmUsageMetrics{
-		promptTokens:     promptTokens,
-		completionTokens: completionTokens,
-		events:           events,
-		failures:         failures,
+		promptTokens:     counters.promptTokens,
+		completionTokens: counters.completionTokens,
+		events:           counters.events,
+		failures:         counters.failures,
 		latency:          latency,
 	}, nil
 }

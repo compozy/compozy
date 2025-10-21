@@ -51,7 +51,7 @@ func TestMemoriesEndpoints(t *testing.T) {
 			map[string]string{"If-Match": "\"stale\""},
 		)
 		require.Equal(t, http.StatusPreconditionFailed, staleRes.Code)
-		assert.Contains(t, staleRes.Header().Get("Content-Type"), "application/problem+json")
+		assert.Equal(t, "application/problem+json", staleRes.Header().Get("Content-Type"))
 		client.do(http.MethodPut, "/api/v0/memories/cache", memoryPayload("cache"), nil)
 		ids := collectIDs(t, client, "/api/v0/memories?limit=1", "memories", "id")
 		assert.ElementsMatch(t, []string{"cache", "session"}, ids)
@@ -59,7 +59,7 @@ func TestMemoriesEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, delRes.Code)
 		missingRes := client.do(http.MethodGet, "/api/v0/memories/session", nil, nil)
 		require.Equal(t, http.StatusNotFound, missingRes.Code)
-		assert.Contains(t, missingRes.Header().Get("Content-Type"), "application/problem+json")
+		assert.Equal(t, "application/problem+json", missingRes.Header().Get("Content-Type"))
 	})
 	t.Run("Should prevent deleting referenced memory", func(t *testing.T) {
 		client := newResourceClient(t)
@@ -77,14 +77,14 @@ func TestMemoriesEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		delRes := client.do(http.MethodDelete, "/api/v0/memories/context", nil, nil)
 		require.Equal(t, http.StatusConflict, delRes.Code)
-		assert.Contains(t, delRes.Header().Get("Content-Type"), "application/problem+json")
+		assert.Equal(t, "application/problem+json", delRes.Header().Get("Content-Type"))
 		assert.Contains(t, delRes.Body.String(), "agents")
 	})
 	t.Run("Should reject malformed memory payload", func(t *testing.T) {
 		client := newResourceClient(t)
 		res := client.do(http.MethodPut, "/api/v0/memories/bad", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Contains(t, res.Header().Get("Content-Type"), "application/problem+json")
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 }
 
@@ -122,6 +122,6 @@ func TestMemoriesQueries(t *testing.T) {
 		client.do(http.MethodPut, "/api/v0/memories/c1", memoryPayload("c1"), nil)
 		res := client.do(http.MethodGet, "/api/v0/memories?cursor=abc", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Contains(t, res.Header().Get("Content-Type"), "application/problem+json")
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 }

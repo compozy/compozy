@@ -54,7 +54,6 @@ func normalizeModelName(model string) string {
 	if normalized == "" {
 		return modelOther
 	}
-	// Map known prefixes to stable names to prevent cardinality explosion
 	// TODO: Expand this whitelist as new stable models are identified
 	switch {
 	case strings.HasPrefix(normalized, "text-embedding-ada"):

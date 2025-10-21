@@ -12,7 +12,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
-	"github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -21,13 +20,10 @@ import (
 func ListUsersTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 	log := logger.FromContext(ctx)
 	log.Debug("listing users in TUI mode")
-
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return fmt.Errorf("auth client not available")
 	}
-
-	// Parse flags for initial filtering
 	roleFilter, err := cobraCmd.Flags().GetString("role")
 	if err != nil {
 		return fmt.Errorf("failed to get role flag: %w", err)
@@ -44,21 +40,15 @@ func ListUsersTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.Co
 	if err != nil {
 		return fmt.Errorf("failed to get active flag: %w", err)
 	}
-
-	// Create and run the TUI model
 	m := newListUsersModel(ctx, authClient, roleFilter, sortBy, filterStr, activeOnly)
 	p := tea.NewProgram(m, tea.WithAltScreen())
-
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
-
-	// Check for errors
 	if model, ok := finalModel.(*listUsersModel); ok && model.err != nil {
 		return model.err
 	}
-
 	return nil
 }
 
@@ -88,20 +78,17 @@ func newListUsersModel(
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
-
 	columns := []table.Column{
 		{Title: "Name", Width: 20},
 		{Title: "Email", Width: 40},
 		{Title: "Role", Width: 10},
 		{Title: "Created", Width: 16},
 	}
-
 	t := table.New(
 		table.WithColumns(columns),
 		table.WithFocused(true),
 		table.WithHeight(15),
 	)
-
 	return &listUsersModel{
 		ctx:        ctx,
 		client:     client,
@@ -136,7 +123,6 @@ func (m *listUsersModel) loadUsers() tea.Msg {
 
 func (m *listUsersModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -162,11 +148,9 @@ func (m *listUsersModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	}
-
 	if !m.loading {
 		m.table, cmd = m.table.Update(msg)
 	}
-
 	return m, cmd
 }
 
@@ -174,26 +158,18 @@ func (m *listUsersModel) View() string {
 	if m.quitting {
 		return ""
 	}
-
 	if m.loading {
 		return fmt.Sprintf("\n\n   %s Loading users...\n\n", m.spinner.View())
 	}
-
 	if m.err != nil {
 		return fmt.Sprintf("\n\nError: %v\n\n", m.err)
 	}
-
 	return fmt.Sprintf("\n%s\n\nUsers: %d\n\nPress q to quit\n", m.table.View(), len(m.users))
 }
 
 func (m *listUsersModel) updateTable() {
-	// Apply filters
 	filteredUsers := m.applyFilters(m.users)
-
-	// Apply sorting
 	m.applySorting(filteredUsers)
-
-	// Convert to table rows
 	rows := make([]table.Row, len(filteredUsers))
 	for i, user := range filteredUsers {
 		createdAt := formatDate(user.CreatedAt)
@@ -204,33 +180,32 @@ func (m *listUsersModel) updateTable() {
 			createdAt,
 		}
 	}
-
 	m.table.SetRows(rows)
 }
 
 func (m *listUsersModel) applyFilters(users []api.UserInfo) []api.UserInfo {
 	filtered := make([]api.UserInfo, 0, len(users))
-
+	var activeWindow time.Duration
 	for _, user := range users {
-		// Apply role filter
 		if m.roleFilter != "" && user.Role != m.roleFilter {
 			continue
 		}
 
-		// Apply text filter (name or email)
-		if m.filter != "" {
-			if !helpers.Contains(user.Name, m.filter) && !helpers.Contains(user.Email, m.filter) {
+		if m.filter != "" && !userMatchesTextFilter(&user, m.filter) {
+			continue
+		}
+
+		if m.activeOnly {
+			if activeWindow == 0 {
+				activeWindow = activeUserWindowDuration(m.ctx)
+			}
+			if !isUserActive(activeWindow, &user) {
 				continue
 			}
 		}
 
-		// TODO: Apply active filter when KeyCount field is available
-		// For now, include all users when active filter is requested
-		_ = m.activeOnly // Prevent unused variable warning
-
 		filtered = append(filtered, user)
 	}
-
 	return filtered
 }
 
@@ -256,12 +231,8 @@ func formatDate(dateStr string) string {
 	if dateStr == "" {
 		return "N/A"
 	}
-
-	// Try to parse as RFC3339 and format nicely
 	if t, err := time.Parse(time.RFC3339, dateStr); err == nil {
 		return t.Format("2006-01-02 15:04")
 	}
-
-	// If parsing fails, return the original string
 	return dateStr
 }

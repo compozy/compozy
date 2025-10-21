@@ -21,7 +21,6 @@ type UpdateParentStatus struct {
 
 // NewUpdateParentStatus creates a new UpdateParentStatus activity
 func NewUpdateParentStatus(taskRepo task.Repository) *UpdateParentStatus {
-	// Fail fast on invalid input – protects against silent no-op updates.
 	if taskRepo == nil {
 		panic("taskRepo must not be nil")
 	}

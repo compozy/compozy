@@ -55,7 +55,7 @@ func listTasksTop(c *gin.Context) {
 	expandSet := router.ParseExpandQueries(c.QueryArray("expand"))
 	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
 	if cursorErr != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
 	}
 	input := &taskuc.ListInput{
@@ -182,12 +182,12 @@ func upsertTaskTop(c *gin.Context) {
 	expandSet := router.ParseExpandQueries(c.QueryArray("expand"))
 	body := make(map[string]any)
 	if err := c.ShouldBindJSON(&body); err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
 		return
 	}
 	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	input := &taskuc.UpsertInput{Project: project, ID: taskID, Body: body, IfMatch: ifMatch}
@@ -254,20 +254,20 @@ func respondTaskError(c *gin.Context, err error) {
 	case errors.Is(err, taskuc.ErrInvalidInput),
 		errors.Is(err, taskuc.ErrProjectMissing),
 		errors.Is(err, taskuc.ErrIDMissing):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, taskuc.ErrNotFound):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, taskuc.ErrETagMismatch),
 		errors.Is(err, taskuc.ErrStaleIfMatch):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	case errors.Is(err, taskuc.ErrWorkflowNotFound):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: "workflow not found"})
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
-			resourceutil.RespondConflict(c, err, conflict.Details)
+			router.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
 }

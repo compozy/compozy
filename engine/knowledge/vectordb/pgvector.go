@@ -18,6 +18,7 @@ import (
 )
 
 type pgStore struct {
+	id                 string
 	pool               *pgxpool.Pool
 	table              string
 	tableIdent         string
@@ -31,7 +32,6 @@ type pgStore struct {
 	ivfLists           int
 	hnswM              int
 	hnswEFConstruction int
-	hnswEFSearch       int
 	searchProbes       int
 	searchEFSearch     int
 }
@@ -64,28 +64,56 @@ const (
 )
 
 func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
+	if err := validatePGStoreConfig(cfg); err != nil {
+		return nil, err
+	}
+	if err := ensurePGStoreDSN(ctx, cfg); err != nil {
+		return nil, err
+	}
+	pool, err := setupPGPool(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	store := buildPGStore(cfg, pool)
+	if err := initializePGStore(ctx, store, cfg.PGVector); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	trackVectorPool(cfg.ID, pool)
+	return store, nil
+}
+
+// validatePGStoreConfig performs basic validation on the pgvector configuration.
+func validatePGStoreConfig(cfg *Config) error {
 	if cfg == nil {
-		return nil, errors.New("vector_db config is required")
+		return errors.New("vector_db config is required")
 	}
 	if cfg.Dimension <= 0 {
-		return nil, fmt.Errorf("vector_db %q: dimension must be > 0", cfg.ID)
+		return fmt.Errorf("vector_db %q: dimension must be > 0", cfg.ID)
 	}
 	if cfg.MaxTopK < 0 {
-		return nil, fmt.Errorf("vector_db %q: max_top_k must be non-negative", cfg.ID)
+		return fmt.Errorf("vector_db %q: max_top_k must be non-negative", cfg.ID)
 	}
+	return nil
+}
+
+// ensurePGStoreDSN resolves and mutates the DSN ensuring it is present.
+func ensurePGStoreDSN(ctx context.Context, cfg *Config) error {
 	dsn := strings.TrimSpace(cfg.DSN)
 	if dsn == "" {
 		dsn = resolvePGVectorDSN(ctx, cfg)
 	}
 	if dsn == "" {
-		return nil, errors.New("vector_db dsn is required for pgvector")
+		return errors.New("vector_db dsn is required for pgvector")
 	}
 	cfg.DSN = dsn
-	pool, err := setupPGPool(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	store := &pgStore{
+	return nil
+}
+
+// buildPGStore constructs the concrete pgStore instance from configuration.
+func buildPGStore(cfg *Config, pool *pgxpool.Pool) *pgStore {
+	return &pgStore{
+		id:        cfg.ID,
 		pool:      pool,
 		table:     chooseTable(cfg),
 		indexName: chooseIndex(cfg),
@@ -94,13 +122,15 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 		ensureIdx: cfg.EnsureIndex,
 		maxTopK:   cfg.MaxTopK,
 	}
+}
+
+// initializePGStore completes store initialization and schema verification.
+func initializePGStore(ctx context.Context, store *pgStore, opts *PGVectorOptions) error {
 	if _, err := store.operatorClass(); err != nil {
-		pool.Close()
-		return nil, err
+		return err
 	}
-	if err := applyPGVectorOptions(store, cfg.PGVector); err != nil {
-		pool.Close()
-		return nil, err
+	if err := applyPGVectorOptions(store, opts); err != nil {
+		return err
 	}
 	if store.maxTopK == 0 {
 		store.maxTopK = pgvectorDefaultMaxTopK
@@ -109,12 +139,7 @@ func newPGStore(ctx context.Context, cfg *Config) (Store, error) {
 	if store.indexName != "" {
 		store.indexIdent = sanitizeIdentifier(store.indexName)
 	}
-	if err := store.ensureSchema(ctx); err != nil {
-		pool.Close()
-		return nil, err
-	}
-	trackVectorPool(cfg.ID, pool)
-	return store, nil
+	return store.ensureSchema(ctx)
 }
 
 func setupPGPool(ctx context.Context, cfg *Config) (*pgxpool.Pool, error) {
@@ -182,12 +207,6 @@ func applyPGVectorOptions(store *pgStore, opts *PGVectorOptions) error {
 		}
 		if idx.EFConstruction > 0 {
 			store.hnswEFConstruction = idx.EFConstruction
-		}
-		if idx.EFSearch > 0 {
-			store.hnswEFSearch = idx.EFSearch
-		}
-		if idx.Probes > 0 {
-			store.searchProbes = idx.Probes
 		}
 	}
 	if search := opts.Search; (search != PGVectorSearchOptions{}) {
@@ -473,7 +492,6 @@ ON CONFLICT (id) DO UPDATE SET
     document = excluded.document,
     metadata = excluded.metadata,
     updated_at = excluded.updated_at`, p.tableIdent)
-
 	batch := &pgx.Batch{}
 	ids, err := prepareBatchRecords(records, p.dimension, stmt, batch)
 	if err != nil {
@@ -510,7 +528,6 @@ func (p *pgStore) executeSearch(ctx context.Context, query []float32, opts Searc
 	sql, args := buildSearchQuery(p.tableIdent, p.metric, opts.Filters, opts.MinScore)
 	args[0] = pgvector.NewVector(query)
 	args = append(args, topK)
-
 	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("pgvector: begin transaction: %w", err)
@@ -520,11 +537,9 @@ func (p *pgStore) executeSearch(ctx context.Context, query []float32, opts Searc
 			logger.FromContext(ctx).Warn("pgvector: rollback search transaction", "error", rbErr)
 		}
 	}()
-
 	if tuneErr := p.applySearchParametersLocal(ctx, tx); tuneErr != nil {
 		return nil, tuneErr
 	}
-
 	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("pgvector: search: %w", err)
@@ -534,7 +549,6 @@ func (p *pgStore) executeSearch(ctx context.Context, query []float32, opts Searc
 	if err != nil {
 		return nil, err
 	}
-
 	if commitErr := tx.Commit(ctx); commitErr != nil {
 		return nil, fmt.Errorf("pgvector: commit search transaction: %w", commitErr)
 	}
@@ -545,9 +559,6 @@ func (p *pgStore) applySearchParametersLocal(ctx context.Context, tx pgx.Tx) err
 	switch strings.ToLower(p.indexType) {
 	case "hnsw":
 		target := p.searchEFSearch
-		if target <= 0 {
-			target = p.hnswEFSearch
-		}
 		if target <= 0 {
 			target = pgvectorDefaultHNSWEFSearch
 		}
@@ -582,9 +593,6 @@ func minDistanceForMetric(metric string, matches []Match) (float64, bool) {
 		distance := 1 - score
 		if distance < 0 {
 			distance = 0
-		}
-		if distance > 1 {
-			distance = 1
 		}
 		return distance, true
 	case metricL2:
@@ -741,6 +749,7 @@ func (p *pgStore) Delete(ctx context.Context, filter Filter) error {
 }
 
 func (p *pgStore) Close(_ context.Context) error {
+	untrackVectorPool(p.id)
 	p.pool.Close()
 	return nil
 }

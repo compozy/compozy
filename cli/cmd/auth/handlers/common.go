@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/compozy/compozy/cli/api"
+	"github.com/compozy/compozy/cli/helpers"
 )
 
 const (
@@ -30,19 +31,27 @@ func outputJSONError(message string) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(errorResponse); err != nil {
-		// Output a simple error message to stderr if JSON encoding fails
 		fmt.Fprintf(os.Stderr, "Error: %s\n", message)
 		return fmt.Errorf("failed to encode JSON error response: %w", err)
 	}
-	return nil
+	return helpers.NewJSONHandledError(message)
 }
 
 // outputJSONResponse outputs the response as JSON
 func outputJSONResponse(response map[string]any) error {
+	if err := writeJSONResponse(response); err != nil {
+		return outputJSONError(err.Error())
+	}
+	return nil
+}
+
+// writeJSONResponse writes the payload as formatted JSON to stdout.
+// It should only be called by outputJSONResponse to preserve consistent error handling semantics.
+func writeJSONResponse(payload map[string]any) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(response); err != nil {
-		return outputJSONError(fmt.Sprintf("failed to encode JSON response: %v", err))
+	if err := encoder.Encode(payload); err != nil {
+		return fmt.Errorf("failed to encode JSON response: %w", err)
 	}
 	return nil
 }

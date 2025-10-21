@@ -35,19 +35,13 @@ func NewTestSetup(t *testing.T) *TestSetup {
 	if testing.Short() {
 		t.Skip("skipping integration tests")
 	}
-
-	// Use shared database helper to avoid container creation overhead
 	ctx := t.Context()
 	taskRepo, workflowRepo, cleanup := getSharedTestRepos(ctx, t)
 	t.Cleanup(cleanup)
-
-	// Create handler dependencies - reuse mocks from centralized location
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	contextBuilder := &shared.ContextBuilder{}
 	parentStatusManager := &MockParentStatusManager{}
 	outputTransformer := &MockOutputTransformer{}
-
-	// Create base handler with real repositories
 	baseHandler := shared.NewBaseResponseHandler(
 		templateEngine,
 		contextBuilder,
@@ -56,7 +50,6 @@ func NewTestSetup(t *testing.T) *TestSetup {
 		taskRepo,
 		outputTransformer,
 	)
-
 	return &TestSetup{
 		Context:             ctx,
 		Pool:                nil, // Pool managed by shared helper
@@ -74,7 +67,6 @@ func NewTestSetup(t *testing.T) *TestSetup {
 // getSharedTestRepos provides shared database resources across all tests
 // This eliminates the need for individual container creation
 func getSharedTestRepos(ctx context.Context, t *testing.T) (task.Repository, workflow.Repository, func()) {
-	// Use the existing SetupTestRepos helper that already provides efficient database setup
 	return utils.SetupTestRepos(ctx, t)
 }
 
@@ -104,7 +96,6 @@ func (ts *TestSetup) CreateTaskState(t *testing.T, config *TaskStateConfig) *tas
 	}
 	err := ts.TaskRepo.UpsertState(ts.Context, taskState)
 	require.NoError(t, err)
-	// Verify it was saved
 	saved, err := ts.TaskRepo.GetState(ts.Context, taskState.TaskExecID)
 	require.NoError(t, err, "Failed to verify saved state")
 	require.Equal(t, taskState.TaskExecID, saved.TaskExecID, "TaskExecID mismatch after save")

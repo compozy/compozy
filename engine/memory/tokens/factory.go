@@ -30,25 +30,20 @@ func (f *CounterFactory) CreateCounter(
 	ctx context.Context,
 	config *memcore.TokenProviderConfig,
 ) (memcore.TokenCounter, error) {
-	// Create fallback counter
 	fallback, err := f.fallbackFactory()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fallback counter: %w", err)
 	}
 	if config == nil {
-		// No provider config, use fallback only
 		return fallback, nil
 	}
-	// Validate provider configuration
 	if config.Provider == "" {
 		return nil, fmt.Errorf("provider cannot be empty")
 	}
 	if config.Model == "" {
 		return nil, fmt.Errorf("model cannot be empty")
 	}
-	// Create provider config with resolved API key
 	providerConfig := f.keyResolver.ResolveProviderConfig(ctx, config)
-	// Create unified counter
 	counter, err := NewUnifiedTokenCounter(providerConfig, fallback)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create unified counter: %w", err)
@@ -67,17 +62,14 @@ func (f *CounterFactory) CreateCounterFromRegistryKey(
 	registryKey string,
 	apiKeyOrEnvVar string,
 ) (memcore.TokenCounter, error) {
-	// Create fallback counter
 	fallback, err := f.fallbackFactory()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fallback counter: %w", err)
 	}
-	// Get provider config from registry
 	config, err := f.registry.Clone(registryKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider config from registry: %w", err)
 	}
-	// Create a temporary token provider config to resolve API key
 	tempConfig := &memcore.TokenProviderConfig{
 		Provider: config.Provider,
 		Model:    config.Model,
@@ -85,9 +77,7 @@ func (f *CounterFactory) CreateCounterFromRegistryKey(
 		Endpoint: config.Endpoint,
 		Settings: config.Settings,
 	}
-	// Resolve the API key (handles env vars)
 	resolvedConfig := f.keyResolver.ResolveProviderConfig(ctx, tempConfig)
-	// Create unified counter
 	counter, err := NewUnifiedTokenCounter(resolvedConfig, fallback)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create unified counter: %w", err)

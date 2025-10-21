@@ -52,7 +52,7 @@ func TestSchemasEndpoints(t *testing.T) {
 			map[string]string{"If-Match": "\"schema-bad\""},
 		)
 		require.Equal(t, http.StatusPreconditionFailed, staleRes.Code)
-		assert.Contains(t, staleRes.Header().Get("Content-Type"), "application/problem+json")
+		assert.Equal(t, "application/problem+json", staleRes.Header().Get("Content-Type"))
 		client.do(http.MethodPut, "/api/v0/schemas/audit", schemaPayload(map[string]any{}), nil)
 		// Walk paginated list and collect schema IDs from typed items (body.id)
 		path := "/api/v0/schemas?limit=1"

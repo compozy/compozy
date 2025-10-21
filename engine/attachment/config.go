@@ -137,7 +137,6 @@ type Attachments []Attachment
 func (as *Attachments) UnmarshalYAML(unmarshal func(any) error) error {
 	var raw []map[string]any
 	if err := unmarshal(&raw); err != nil {
-		// Check if it's an empty/nil value
 		var empty any
 		if unmarshalErr := unmarshal(&empty); unmarshalErr != nil {
 			return fmt.Errorf("failed to unmarshal attachments: %w", err)
@@ -186,7 +185,6 @@ func (as *Attachments) UnmarshalYAML(unmarshal func(any) error) error {
 func (as *Attachments) UnmarshalJSON(data []byte) error {
 	var arr []json.RawMessage
 	if err := json.Unmarshal(data, &arr); err != nil {
-		// Check if it's a null value
 		if string(data) == "null" || len(data) == 0 {
 			*as = nil
 			return nil

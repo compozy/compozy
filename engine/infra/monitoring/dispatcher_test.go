@@ -78,37 +78,40 @@ func TestDispatcherHealthMonitoring(t *testing.T) {
 
 func TestDispatcherHealthUpdateHealth(t *testing.T) {
 	t.Run("Should update health status correctly", func(t *testing.T) {
+		base := time.Now()
 		health := &DispatcherHealth{
 			DispatcherID:        "test",
-			LastHeartbeat:       time.Now().Add(-5 * time.Minute),
+			LastHeartbeat:       base.Add(-5 * time.Minute),
 			IsHealthy:           true,
 			StaleThreshold:      2 * time.Minute,
-			LastHealthCheck:     time.Now().Add(-1 * time.Minute),
+			LastHealthCheck:     base.Add(-1 * time.Minute),
 			ConsecutiveFailures: 0,
 		}
 		// Should become unhealthy
-		health.UpdateHealth()
+		now := base
+		health.UpdateHealthAt(now)
 		assert.False(t, health.IsHealthy, "Should be unhealthy when stale")
 		assert.Equal(t, 1, health.ConsecutiveFailures, "Should increment failure count")
 		// Update again - failure count should increment
-		health.UpdateHealth()
+		health.UpdateHealthAt(now)
 		assert.False(t, health.IsHealthy, "Should still be unhealthy")
 		assert.Equal(t, 2, health.ConsecutiveFailures, "Should increment failure count again")
 		// Make it healthy again
-		health.LastHeartbeat = time.Now()
-		health.UpdateHealth()
+		health.LastHeartbeat = now
+		health.UpdateHealthAt(now.Add(time.Millisecond))
 		assert.True(t, health.IsHealthy, "Should be healthy after recent heartbeat")
 		assert.Equal(t, 0, health.ConsecutiveFailures, "Should reset failure count when healthy")
 	})
 	t.Run("Should correctly identify stale dispatchers", func(t *testing.T) {
+		base := time.Now()
 		health := &DispatcherHealth{
 			DispatcherID:   "test",
-			LastHeartbeat:  time.Now().Add(-30 * time.Second),
+			LastHeartbeat:  base.Add(-30 * time.Second),
 			StaleThreshold: 10 * time.Second,
 		}
 		assert.True(t, health.IsStale(), "Should be stale when heartbeat is old")
 		// Make heartbeat recent
-		health.LastHeartbeat = time.Now().Add(-5 * time.Second)
+		health.LastHeartbeat = base.Add(-5 * time.Second)
 		assert.False(t, health.IsStale(), "Should not be stale when heartbeat is recent")
 	})
 }

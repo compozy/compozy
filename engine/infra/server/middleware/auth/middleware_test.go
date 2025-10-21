@@ -110,7 +110,7 @@ func TestManager_Middleware(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.JSONEq(
 			t,
-			`{"error":"Authentication failed", "details":"Invalid authorization header format"}`,
+			`{"status":400,"error":{"code":"BAD_REQUEST","message":"Authentication failed","details":"Invalid authorization header format"}}`,
 			w.Body.String(),
 		)
 	})
@@ -131,7 +131,7 @@ func TestManager_Middleware(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.JSONEq(
 			t,
-			`{"error":"Authentication failed", "details":"Invalid authorization header format"}`,
+			`{"status":400,"error":{"code":"BAD_REQUEST","message":"Authentication failed","details":"Invalid authorization header format"}}`,
 			w.Body.String(),
 		)
 	})
@@ -154,7 +154,7 @@ func TestManager_Middleware(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 		assert.JSONEq(
 			t,
-			`{"error":"Authentication failed", "details":"Invalid or missing credentials"}`,
+			`{"status":401,"error":{"code":"UNAUTHORIZED","message":"Authentication failed","details":"Invalid or missing credentials"}}`,
 			w.Body.String(),
 		)
 	})
@@ -176,7 +176,7 @@ func TestManager_RequireAuth(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 		assert.JSONEq(
 			t,
-			`{"error":"Authentication required", "details":"This endpoint requires a valid API key"}`,
+			`{"status":401,"error":{"code":"UNAUTHORIZED","message":"Authentication required","details":"this endpoint requires a valid API key"}}`,
 			w.Body.String(),
 		)
 	})
@@ -227,7 +227,7 @@ func TestManager_RequireAdmin(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, w.Code)
 		assert.JSONEq(
 			t,
-			`{"error":"Admin access required", "details":"This endpoint requires admin privileges"}`,
+			`{"status":403,"error":{"code":"FORBIDDEN","message":"Admin access required","details":"this endpoint requires admin privileges"}}`,
 			w.Body.String(),
 		)
 	})
@@ -270,7 +270,7 @@ func TestManager_RequireAdmin(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, w.Code)
 		assert.JSONEq(
 			t,
-			`{"error":"Admin access required", "details":"This endpoint requires admin privileges"}`,
+			`{"status":403,"error":{"code":"FORBIDDEN","message":"Admin access required","details":"this endpoint requires admin privileges"}}`,
 			w.Body.String(),
 		)
 	})
@@ -297,7 +297,7 @@ func TestManager_AdminOnly(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, w.Code)
 		assert.JSONEq(
 			t,
-			`{"error":"Admin access required", "details":"This endpoint requires admin privileges"}`,
+			`{"status":403,"error":{"code":"FORBIDDEN","message":"Admin access required","details":"this endpoint requires admin privileges"}}`,
 			w.Body.String(),
 		)
 	})

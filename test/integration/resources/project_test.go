@@ -43,12 +43,12 @@ func TestProjectEndpoint(t *testing.T) {
 		client := newResourceClient(t)
 		res := client.do(http.MethodDelete, "/api/v0/project", nil, nil)
 		require.Equal(t, http.StatusMethodNotAllowed, res.Code)
-		assert.Contains(t, res.Header().Get("Content-Type"), "application/problem+json")
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 	t.Run("Should reject malformed project payload", func(t *testing.T) {
 		client := newResourceClient(t)
 		res := client.do(http.MethodPut, "/api/v0/project", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Contains(t, res.Header().Get("Content-Type"), "application/problem+json")
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 }

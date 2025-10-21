@@ -20,7 +20,6 @@ func UpdateUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 		return fmt.Errorf("user ID is required")
 	}
 	userID := args[0]
-	// Parse flags for initial values
 	email, err := cobraCmd.Flags().GetString("email")
 	if err != nil {
 		return fmt.Errorf("failed to get email flag: %w", err)
@@ -38,14 +37,12 @@ func UpdateUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 	if authClient == nil {
 		return fmt.Errorf("auth client not available")
 	}
-	// Create and run the TUI model
 	m := newUpdateUserModel(ctx, authClient, userID, email, name, role)
 	p := tea.NewProgram(m)
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
-	// Check if update was successful
 	if model, ok := finalModel.(*updateUserModel); ok {
 		if model.err != nil {
 			return model.err
@@ -98,7 +95,6 @@ func newUpdateUserModel(
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
-	// Initialize inputs with provided values
 	inputs := []string{email, name, role}
 	return &updateUserModel{
 		ctx:     ctx,

@@ -104,7 +104,6 @@ func (h *HealthMonitor) Stop() {
 func (h *HealthMonitor) monitorLoop(ctx context.Context) {
 	ticker := time.NewTicker(h.checkInterval)
 	defer ticker.Stop()
-	// Initial check
 	h.performHealthChecks(ctx)
 	for {
 		select {
@@ -135,7 +134,6 @@ func (h *HealthMonitor) checkRedisHealth(ctx context.Context) {
 		LastCheck: start,
 		Details:   make(map[string]any),
 	}
-	// Ping Redis
 	checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	err := h.env.GetRedis().Ping(checkCtx).Err()
@@ -146,12 +144,10 @@ func (h *HealthMonitor) checkRedisHealth(ctx context.Context) {
 		h.recordAlert("Redis", "error", fmt.Sprintf("Redis ping failed: %v", err), nil)
 		h.metricsCollector.redisErrors.Add(1)
 	} else {
-		// Check Redis info
 		info, err := h.env.GetRedis().Info(checkCtx).Result()
 		if err == nil {
 			status.Details["info"] = parseRedisInfo(info)
 		}
-		// Check memory usage
 		memInfo, err := h.env.GetRedis().Info(checkCtx, "memory").Result()
 		if err == nil {
 			status.Details["memory"] = parseRedisInfo(memInfo)
@@ -169,8 +165,8 @@ func (h *HealthMonitor) checkTemporalHealth(_ context.Context) {
 		LastCheck: start,
 		Details:   make(map[string]any),
 	}
-	// For now, just check if Temporal is available
 	if h.env.temporalClient == nil {
+		// NOTE: For now just ensure Temporal is wired up; deeper checks come later.
 		status.Status = statusUnhealthy
 		status.LastError = fmt.Errorf("temporal client not initialized")
 		h.recordAlert("Temporal", "warning", "Temporal client not available", nil)
@@ -188,7 +184,6 @@ func (h *HealthMonitor) checkMemoryManagerHealth(ctx context.Context) {
 		LastCheck: start,
 		Details:   make(map[string]any),
 	}
-	// Test creating a dummy instance
 	checkCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	testRef := core.MemoryReference{
@@ -209,10 +204,8 @@ func (h *HealthMonitor) checkMemoryManagerHealth(ctx context.Context) {
 		h.recordAlert("MemoryManager", "error", fmt.Sprintf("Failed to create test instance: %v", err), nil)
 		h.metricsCollector.memoryErrors.Add(1)
 	} else {
-		// Clean up test instance
 		if instance != nil {
 			if clearErr := instance.Clear(ctx); clearErr != nil {
-				// Log error but don't fail - test instance cleanup is best effort
 				status.Details["cleanup_error"] = clearErr.Error()
 			}
 		}
@@ -230,9 +223,7 @@ func (h *HealthMonitor) checkSystemResources(_ context.Context) {
 		LastCheck: start,
 		Details:   make(map[string]any),
 	}
-	// Get goroutine count
 	status.Details["goroutines"] = runtime.NumGoroutine()
-	// Get memory stats
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 	status.Details["memory"] = map[string]any{
@@ -241,7 +232,6 @@ func (h *HealthMonitor) checkSystemResources(_ context.Context) {
 		"sys_mb":         memStats.Sys / 1024 / 1024,
 		"num_gc":         memStats.NumGC,
 	}
-	// Check if memory usage is high (increased threshold for test environment)
 	if memStats.Alloc > 1024*1024*1024 { // 1GB threshold for test environment
 		status.Status = statusDegraded
 		h.recordAlert("System", "warning",
@@ -271,7 +261,6 @@ func (h *HealthMonitor) recordAlert(component, severity, message string, details
 		Details:   details,
 	}
 	h.alerts = append(h.alerts, alert)
-	// Keep only last 100 alerts
 	if len(h.alerts) > 100 {
 		h.alerts = h.alerts[len(h.alerts)-100:]
 	}
@@ -334,7 +323,6 @@ func (h *HealthMonitor) RecordOperation(component string, success bool, duration
 			collector.memoryErrors.Add(1)
 		}
 	}
-	// Update average response time (simplified moving average)
 	currentAvg := collector.averageResponseTime.Load()
 	newAvg := (currentAvg*9 + duration.Microseconds()) / 10
 	collector.averageResponseTime.Store(newAvg)
@@ -371,14 +359,12 @@ func (h *HealthMonitor) PrintHealthReport(t *testing.T) {
 // parseRedisInfo parses Redis INFO output
 func parseRedisInfo(info string) map[string]any {
 	result := make(map[string]any)
-	// Simplified parsing - just extract a few key metrics
 	lines := strings.SplitSeq(info, "\r\n")
 	for line := range lines {
 		if strings.Contains(line, ":") {
 			parts := strings.SplitN(line, ":", 2)
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			// Parse specific metrics
 			switch key {
 			case "used_memory_human", "used_memory_peak_human", "connected_clients", "uptime_in_seconds":
 				result[key] = value
@@ -449,6 +435,5 @@ func (h *HealthCheckHelper) MonitorTest(t *testing.T, testFunc func()) {
 	h.monitor.Start(ctx)
 	defer h.monitor.Stop()
 	defer h.monitor.PrintHealthReport(t)
-	// Run the test
 	testFunc()
 }

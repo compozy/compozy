@@ -46,11 +46,9 @@ func (m *TestDataManager) CleanupTest(t *testing.T, testName string) {
 	ctx := t.Context()
 	redis := m.env.GetRedis()
 	for _, instanceID := range instances {
-		// Clean up memory data
 		key := fmt.Sprintf("compozy:test-project:memory:%s", instanceID)
 		metaKey := fmt.Sprintf("%s:metadata", key)
 		pendingKey := fmt.Sprintf("__compozy_internal__:flush_pending:%s", key)
-		// Delete all related keys
 		keys := []string{key, metaKey, pendingKey}
 		err := redis.Del(ctx, keys...).Err()
 		if err != nil {
@@ -239,7 +237,6 @@ func (h *TestDataHelper) PopulateMemory(
 			return fmt.Errorf("failed to append message: %w", err)
 		}
 	}
-	// Register for cleanup
 	h.manager.RegisterInstance(t.Name(), instance.GetID())
 	return nil
 }
@@ -252,12 +249,10 @@ func (h *TestDataHelper) CreateAndPopulateMemory(
 ) (memcore.Memory, error) {
 	t.Helper()
 	ctx := t.Context()
-	// Create instance
 	instance, err := env.GetMemoryManager().GetInstance(ctx, dataSet.MemoryRef, dataSet.WorkflowCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance: %w", err)
 	}
-	// Populate with data
 	if err := h.PopulateMemory(ctx, t, instance, dataSet.Messages); err != nil {
 		return nil, err
 	}
@@ -302,7 +297,6 @@ func VerifyMemoryContent(
 // GenerateTestMessages generates test messages with specific characteristics
 func GenerateTestMessages(count int, avgTokensPerMessage int) []llm.Message {
 	messages := make([]llm.Message, count)
-	// Approximate tokens with words (roughly 1.3 tokens per word)
 	wordsPerMessage := avgTokensPerMessage * 3 / 4
 	for i := range count {
 		role := "user"

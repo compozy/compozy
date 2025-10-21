@@ -7,7 +7,15 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/compozy/compozy/cli/tui/components"
+	ui "github.com/compozy/compozy/cli/tui/components"
+)
+
+const (
+	defaultViewportWidth  = 80
+	defaultViewportHeight = 20
+	defaultModelHeight    = 24
+	horizontalPadding     = 4
+	minViewportHeight     = 10
 )
 
 // InitModel is the Bubble Tea model that combines ASCII header and Huh form
@@ -24,24 +32,20 @@ type InitModel struct {
 // NewInitModel creates a new init model with header and form
 func NewInitModel(formData *ProjectFormData) *InitModel {
 	form := NewProjectForm(formData)
-
-	// Create viewport for scrolling
-	vp := viewport.New(80, 20)
+	vp := viewport.New(defaultViewportWidth, defaultViewportHeight)
 	vp.SetContent("")
 	vp.MouseWheelEnabled = true // Enable mouse wheel scrolling
-
 	return &InitModel{
 		form:     form,
 		viewport: vp,
 		formData: formData,
-		width:    80,
-		height:   24,
+		width:    defaultViewportWidth,
+		height:   defaultModelHeight,
 	}
 }
 
 // Init implements tea.Model
 func (m *InitModel) Init() tea.Cmd {
-	// Initialize form and request window size
 	return tea.Batch(
 		m.form.Init(),
 		tea.WindowSize(),
@@ -51,69 +55,68 @@ func (m *InitModel) Init() tea.Cmd {
 // Update implements tea.Model
 func (m *InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		// Update header with new width
-		header, err := components.RenderASCIIHeader(m.width)
-		if err != nil {
-			m.header = "Compozy CLI"
-		} else {
-			m.header = header
-		}
-
-		// Calculate available height for form (subtract header, separator, and margins)
-		headerLines := countLines(m.header)
-		availableHeight := max(m.height-headerLines-4, 10)
-
-		// Update viewport dimensions
-		m.viewport.Width = m.width
-		m.viewport.Height = availableHeight
-
-		// Update form width
-		m.form.WithWidth(m.width - 4) // small margin on sides
-
-		// Force viewport to update
-		m.viewport.SetContent(m.renderFormContent())
-
-	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
-			m.quitting = true
-			return m, tea.Quit
-		}
+	if quitCmd := m.handleUpdateMessage(msg); quitCmd != nil {
+		return m, quitCmd
 	}
-
-	// Process form update first
-	var formCmd tea.Cmd
-	form, formCmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
+	if cmd := m.updateFormState(msg); cmd != nil {
+		cmds = append(cmds, cmd)
 	}
-	cmds = append(cmds, formCmd)
-
-	// Update viewport content after form update
 	m.viewport.SetContent(m.renderFormContent())
-
-	// Update viewport for scrolling
-	vpModel, vpCmd := m.viewport.Update(msg)
-	m.viewport = vpModel
-	cmds = append(cmds, vpCmd)
-
-	// Check if form is completed
-	if m.form.State == huh.StateCompleted {
-		m.quitting = true
-		cmds = append(cmds, tea.Quit)
+	viewportModel, viewportCmd := m.viewport.Update(msg)
+	m.viewport = viewportModel
+	cmds = append(cmds, viewportCmd)
+	if quitCmd := m.checkFormCompletion(); quitCmd != nil {
+		cmds = append(cmds, quitCmd)
 	}
-
-	// Check if form is aborted
-	if m.form.State == huh.StateAborted {
-		m.quitting = true
-		cmds = append(cmds, tea.Quit)
-	}
-
 	return m, tea.Batch(cmds...)
+}
+
+func (m *InitModel) handleUpdateMessage(msg tea.Msg) tea.Cmd {
+	switch typed := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.handleWindowResize(typed)
+	case tea.KeyMsg:
+		if typed.String() == "ctrl+c" {
+			m.quitting = true
+			return tea.Quit
+		}
+	}
+	return nil
+}
+
+func (m *InitModel) handleWindowResize(msg tea.WindowSizeMsg) {
+	m.width = msg.Width
+	m.height = msg.Height
+	header, err := ui.RenderASCIIHeader(m.width)
+	if err != nil {
+		m.header = "Compozy CLI"
+	} else {
+		m.header = header
+	}
+	headerLines := countLines(m.header)
+	availableHeight := max(m.height-headerLines-horizontalPadding, minViewportHeight)
+	m.viewport.Width = m.width
+	m.viewport.Height = availableHeight
+	m.form.WithWidth(m.width - horizontalPadding)
+	m.viewport.SetContent(m.renderFormContent())
+}
+
+func (m *InitModel) updateFormState(msg tea.Msg) tea.Cmd {
+	form, cmd := m.form.Update(msg)
+	if updated, ok := form.(*huh.Form); ok {
+		m.form = updated
+	}
+	return cmd
+}
+
+func (m *InitModel) checkFormCompletion() tea.Cmd {
+	switch m.form.State {
+	case huh.StateCompleted, huh.StateAborted:
+		m.quitting = true
+		return tea.Quit
+	default:
+		return nil
+	}
 }
 
 // View implements tea.Model
@@ -121,36 +124,27 @@ func (m *InitModel) View() string {
 	if m.quitting {
 		return ""
 	}
-
-	// Generate header if not cached or width changed
 	if m.header == "" {
-		header, err := components.RenderASCIIHeader(m.width)
+		header, err := ui.RenderASCIIHeader(m.width)
 		if err != nil {
 			m.header = "Compozy CLI"
 		} else {
 			m.header = header
 		}
 	}
-
-	// Create a separator
 	separator := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#333333")).
 		Width(m.width).
 		Align(lipgloss.Left).
 		Render("─────────────────────────────────────────")
-
-	// Compose the view: header, separator, then viewport
 	return fmt.Sprintf("%s\n%s\n\n%s", m.header, separator, m.viewport.View())
 }
 
 // renderFormContent renders the form content for the viewport
 func (m *InitModel) renderFormContent() string {
-	// Create a container for the form with proper width
 	formContainer := lipgloss.NewStyle().
-		Width(m.width - 4).
+		Width(m.width - horizontalPadding).
 		Align(lipgloss.Left)
-
-	// Render form within the container
 	return formContainer.Render(m.form.View())
 }
 

@@ -162,35 +162,26 @@ func ResolveActivityOptions(
 	resolved := &ResolvedActivityOptions{
 		RetryPolicy: &RetryPolicyConfig{},
 	}
-
-	// Start with defaults
 	applyDefaultTimeouts(resolved)
 	applyDefaultRetryPolicy(resolved.RetryPolicy)
-
-	// Apply project-level options
 	if projectOpts != nil {
 		mergeTimeouts(resolved, projectOpts)
 		if projectOpts.RetryPolicy != nil {
 			mergeRetryPolicy(resolved.RetryPolicy, projectOpts.RetryPolicy)
 		}
 	}
-
-	// Apply workflow-level options (overrides project)
 	if workflowOpts != nil {
 		mergeTimeouts(resolved, workflowOpts)
 		if workflowOpts.RetryPolicy != nil {
 			mergeRetryPolicy(resolved.RetryPolicy, workflowOpts.RetryPolicy)
 		}
 	}
-
-	// Apply task-level options (overrides workflow and project)
 	if taskOpts != nil {
 		mergeTimeouts(resolved, taskOpts)
 		if taskOpts.RetryPolicy != nil {
 			mergeRetryPolicy(resolved.RetryPolicy, taskOpts.RetryPolicy)
 		}
 	}
-
 	return resolved
 }
 

@@ -32,24 +32,20 @@ func NewEvaluateCondition(evaluator *task.CELEvaluator) *EvaluateCondition {
 }
 
 func (a *EvaluateCondition) Run(ctx context.Context, input *EvaluateConditionInput) (bool, error) {
-	// Convert SignalEnvelope to map for CEL evaluation
 	signalMap, err := core.AsMapDefault(input.Signal)
 	if err != nil {
 		return false, fmt.Errorf("failed to convert signal to map: %w", err)
 	}
-	// Prepare evaluation data
 	data := map[string]any{
 		"signal": signalMap,
 	}
 	if input.ProcessorOutput != nil {
-		// Convert ProcessorOutput to map as well
 		processorMap, err := core.AsMapDefault(input.ProcessorOutput)
 		if err != nil {
 			return false, fmt.Errorf("failed to convert processor output to map: %w", err)
 		}
 		data["processor"] = processorMap
 	}
-	// Evaluate the condition
 	result, err := a.evaluator.Evaluate(ctx, input.Expression, data)
 	if err != nil {
 		return false, fmt.Errorf("condition evaluation failed: %w", err)

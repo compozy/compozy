@@ -70,13 +70,10 @@ func (NoopUsageMetrics) RecordFailure(
 func CreateTestProjectConfig(_ *TestFixture, projectName string) *project.Config {
 	cwd, err := core.CWDFromPath("/tmp/test-project")
 	if err != nil {
-		// Fallback to current directory if path creation fails
 		if cwd, err = core.CWDFromPath(""); err != nil {
-			// If even current directory fails, use nil (should not happen in tests)
 			cwd = nil
 		}
 	}
-
 	return &project.Config{
 		Name: projectName,
 		CWD:  cwd,
@@ -113,8 +110,6 @@ func RegisterCommonActivities(env *testsuite.TestWorkflowEnvironment, activities
 	env.RegisterActivity(activities.GetCollectionResponse)
 	env.RegisterActivity(activities.GetParallelResponse)
 	env.RegisterActivity(activities.GetCompositeResponse)
-
-	// Register activities with specific names as per worker setup
 	env.RegisterActivityWithOptions(
 		activities.LoadTaskConfigActivity,
 		activity.RegisterOptions{Name: tkacts.LoadTaskConfigLabel},
@@ -133,64 +128,101 @@ func RegisterCommonActivities(env *testsuite.TestWorkflowEnvironment, activities
 	)
 }
 
-// CreateBasicAgentConfig creates a basic agent configuration for testing
+// CreateBasicAgentConfig creates a basic agent configuration for testing.
+// It composes the base agent with a reusable set of action templates.
 func CreateBasicAgentConfig() *agent.Config {
 	return &agent.Config{
 		ID:           "test-agent",
 		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent for integration testing",
-		Actions: []*agent.ActionConfig{
-			{
-				ID:     "process_message",
-				Prompt: "Process a message for testing. {{ if .input.message }}Message: {{ .input.message }}{{ end }}",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"message": map[string]any{"type": "string"},
-						"value":   map[string]any{"type": "number"},
-					},
-				},
+		Actions:      basicAgentActions(),
+	}
+}
+
+// basicAgentActions returns the action suite used by basic agent fixtures.
+// Keeping it separate ensures the constructor remains concise.
+func basicAgentActions() []*agent.ActionConfig {
+	return []*agent.ActionConfig{
+		createProcessMessageAction(),
+		createProcessWithErrorAction(),
+		createPrepareDataAction(),
+		createProcessDataAction(),
+		createHandleErrorAction(),
+	}
+}
+
+// createProcessMessageAction defines the simple message processing action for tests.
+// It includes optional message templating to exercise conditional rendering.
+func createProcessMessageAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "process_message",
+		Prompt: "Process a message for testing. {{ if .input.message }}Message: {{ .input.message }}{{ end }}",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"message": map[string]any{"type": "string"},
+				"value":   map[string]any{"type": "number"},
 			},
-			{
-				ID:     "process_with_error",
-				Prompt: "Process with error for testing",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"message":     map[string]any{"type": "string"},
-						"should_fail": map[string]any{"type": "boolean"},
-					},
-				},
+		},
+	}
+}
+
+// createProcessWithErrorAction defines an action path that can intentionally fail.
+// It lets integration tests verify error propagation paths.
+func createProcessWithErrorAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "process_with_error",
+		Prompt: "Process with error for testing",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"message":     map[string]any{"type": "string"},
+				"should_fail": map[string]any{"type": "boolean"},
 			},
-			{
-				ID:     "prepare_data",
-				Prompt: "Prepare data for testing",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"initial_value": map[string]any{"type": "number"},
-					},
-				},
+		},
+	}
+}
+
+// createPrepareDataAction describes the preprocessing action used by the basic agent.
+// It primes numeric values before the process_data step executes.
+func createPrepareDataAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "prepare_data",
+		Prompt: "Prepare data for testing",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"initial_value": map[string]any{"type": "number"},
 			},
-			{
-				ID:     "process_data",
-				Prompt: "Process data for testing",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"multiplier": map[string]any{"type": "number"},
-					},
-				},
+		},
+	}
+}
+
+// createProcessDataAction defines the primary processing step with multiplier support.
+// It drives calculations that downstream assertions validate.
+func createProcessDataAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "process_data",
+		Prompt: "Process data for testing",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"multiplier": map[string]any{"type": "number"},
 			},
-			{
-				ID:     "handle_error",
-				Prompt: "Handle error for testing",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"recovery_message": map[string]any{"type": "string"},
-					},
-				},
+		},
+	}
+}
+
+// createHandleErrorAction registers the fallback action for recovery scenarios.
+// It ensures tests can exercise error-handling logic in workflows.
+func createHandleErrorAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "handle_error",
+		Prompt: "Handle error for testing",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"recovery_message": map[string]any{"type": "string"},
 			},
 		},
 	}
@@ -343,74 +375,111 @@ func createHandleEmptyCollectionAction() *agent.ActionConfig {
 	}
 }
 
-// CreateParallelAgentConfig creates a parallel-specific agent configuration for testing
+// CreateParallelAgentConfig creates a parallel-specific agent configuration for testing.
+// It provides reusable action templates for parallel workflow fixtures.
 func CreateParallelAgentConfig() *agent.Config {
 	return &agent.Config{
 		ID:           "test-parallel-agent",
 		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent for parallel workflow integration testing",
-		Actions: []*agent.ActionConfig{
-			{
-				ID:     "process_parallel_task",
-				Prompt: "Process a task in parallel execution",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"task_name": map[string]any{"type": "string"},
-						"duration":  map[string]any{"type": "number"},
-						"value":     map[string]any{"type": "string"},
-					},
-				},
+		Actions:      parallelAgentActions(),
+	}
+}
+
+// parallelAgentActions returns the action list exercised by parallel workflows.
+// Splitting this logic keeps the constructor lean and readable.
+func parallelAgentActions() []*agent.ActionConfig {
+	return []*agent.ActionConfig{
+		createProcessParallelTaskAction(),
+		createSynchronizeResultsAction(),
+		createHandleParallelFailureAction(),
+		createAggregateParallelOutputsAction(),
+		createExecuteConcurrentTaskAction(),
+	}
+}
+
+// createProcessParallelTaskAction defines the base parallel task execution action.
+// It includes duration and value fields used across integration tests.
+func createProcessParallelTaskAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "process_parallel_task",
+		Prompt: "Process a task in parallel execution",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"task_name": map[string]any{"type": "string"},
+				"duration":  map[string]any{"type": "number"},
+				"value":     map[string]any{"type": "string"},
 			},
-			{
-				ID:     "synchronize_results",
-				Prompt: "Synchronize parallel task results",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"child_results": map[string]any{"type": "array"},
-						"strategy":      map[string]any{"type": "string"},
-						"total_tasks":   map[string]any{"type": "number"},
-					},
-				},
+		},
+	}
+}
+
+// createSynchronizeResultsAction captures the fan-in synchronization step.
+// It allows tests to assert aggregation of child outputs.
+func createSynchronizeResultsAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "synchronize_results",
+		Prompt: "Synchronize parallel task results",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"child_results": map[string]any{"type": "array"},
+				"strategy":      map[string]any{"type": "string"},
+				"total_tasks":   map[string]any{"type": "number"},
 			},
-			{
-				ID:     "handle_parallel_failure",
-				Prompt: "Handle failure in parallel execution",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"task_id":     map[string]any{"type": "string"},
-						"error_type":  map[string]any{"type": "string"},
-						"should_fail": map[string]any{"type": "boolean"},
-					},
-				},
+		},
+	}
+}
+
+// createHandleParallelFailureAction models failure handling in parallel flows.
+// It includes fields for error type control in tests.
+func createHandleParallelFailureAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "handle_parallel_failure",
+		Prompt: "Handle failure in parallel execution",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"task_id":     map[string]any{"type": "string"},
+				"error_type":  map[string]any{"type": "string"},
+				"should_fail": map[string]any{"type": "boolean"},
 			},
-			{
-				ID:     "aggregate_parallel_outputs",
-				Prompt: "Aggregate outputs from parallel tasks",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"outputs":        map[string]any{"type": "array"},
-						"success_count":  map[string]any{"type": "number"},
-						"failed_count":   map[string]any{"type": "number"},
-						"execution_time": map[string]any{"type": "number"},
-					},
-				},
+		},
+	}
+}
+
+// createAggregateParallelOutputsAction defines the aggregation action for parallel workflows.
+// It validates that result collation handles success/failure counts and timings.
+func createAggregateParallelOutputsAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "aggregate_parallel_outputs",
+		Prompt: "Aggregate outputs from parallel tasks",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"outputs":        map[string]any{"type": "array"},
+				"success_count":  map[string]any{"type": "number"},
+				"failed_count":   map[string]any{"type": "number"},
+				"execution_time": map[string]any{"type": "number"},
 			},
-			{
-				ID:     "execute_concurrent_task",
-				Prompt: "Execute a single task in concurrent mode",
-				InputSchema: &schema.Schema{
-					"type": "object",
-					"properties": map[string]any{
-						"task_index":   map[string]any{"type": "number"},
-						"start_time":   map[string]any{"type": "string"},
-						"max_duration": map[string]any{"type": "number"},
-						"input_data":   map[string]any{"type": "object"},
-					},
-				},
+		},
+	}
+}
+
+// createExecuteConcurrentTaskAction defines per-task execution metadata for concurrent mode.
+// It ensures workflows can emit detailed telemetry for each parallel run.
+func createExecuteConcurrentTaskAction() *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     "execute_concurrent_task",
+		Prompt: "Execute a single task in concurrent mode",
+		InputSchema: &schema.Schema{
+			"type": "object",
+			"properties": map[string]any{
+				"task_index":   map[string]any{"type": "number"},
+				"start_time":   map[string]any{"type": "string"},
+				"max_duration": map[string]any{"type": "number"},
+				"input_data":   map[string]any{"type": "object"},
 			},
 		},
 	}
@@ -432,13 +501,8 @@ func CreateTestActivities(
 ) *worker.Activities {
 	projectConfig := CreateTestProjectConfig(fixture, projectName)
 	workflows := createTestWorkflowConfigs(fixture, agentConfig)
-
-	// Create template engine for tests
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-
-	// Create memory manager for tests - use nil for now as it's not needed for most tests
 	var memoryManager *memory.Manager
-
 	ctx := t.Context()
 	mgr := config.NewManager(ctx, config.NewService())
 	_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
@@ -452,7 +516,6 @@ func CreateTestActivities(
 	}
 	toolEnv, err := builder.Build(projectConfig, workflows, workflowRepo, taskRepo, store)
 	require.NoError(t, err)
-
 	acts, err := worker.NewActivities(
 		ctx,
 		projectConfig,
@@ -506,19 +569,14 @@ func configureBasicTask(taskConfig *task.Config, agentConfig *agent.Config, cwd 
 // task, the agent is propagated to all nested basic child tasks.
 func configureCollectionTask(taskConfig *task.Config, agentConfig *agent.Config, cwd *core.PathCWD) {
 	applyAgentToTask(taskConfig, agentConfig, cwd)
-
-	// Apply to child task template if it exists
 	if taskConfig.Task != nil {
-		// Clone the child config to avoid mutating shared fixture state
 		child := *taskConfig.Task
-		// If the child has its own tasks, clone the slice header to decouple
 		if len(child.Tasks) > 0 {
 			child.Tasks = append([]task.Config(nil), child.Tasks...)
 		}
 		taskConfig.Task = &child
 		applyAgentToTask(taskConfig.Task, agentConfig, cwd)
 
-		// If child is composite, apply to its nested tasks
 		if taskConfig.Task.Type == task.TaskTypeComposite {
 			applyAgentToBasicTasks(taskConfig.Task.Tasks, agentConfig, cwd)
 		}
@@ -555,22 +613,17 @@ func configureCompositeTask(taskConfig *task.Config, agentConfig *agent.Config, 
 // each task's type. It precomputes a working directory (CWD) for tasks with a fallback to the
 // current directory and then returns a slice containing a single configured *workflow.Config.
 func createTestWorkflowConfigs(fixture *TestFixture, agentConfig *agent.Config) []*workflow.Config {
-	// Create CWD for tasks
 	cwd, err := core.CWDFromPath("/tmp/test-project")
 	if err != nil {
-		// Fallback to current directory if path creation fails
 		if cwd, err = core.CWDFromPath(""); err != nil {
-			// If even current directory fails, use nil (should not happen in tests)
 			cwd = nil
 		}
 	}
-
 	tasks := make([]task.Config, len(fixture.Workflow.Tasks))
 	for i := range fixture.Workflow.Tasks {
 		t := fixture.Workflow.Tasks[i]
 		tasks[i] = t
 
-		// Apply agent configuration based on task type
 		switch t.Type {
 		case task.TaskTypeBasic:
 			configureBasicTask(&tasks[i], agentConfig, cwd)
@@ -582,7 +635,6 @@ func createTestWorkflowConfigs(fixture *TestFixture, agentConfig *agent.Config) 
 			configureCompositeTask(&tasks[i], agentConfig, cwd)
 		}
 	}
-
 	workflowConfig := &workflow.Config{
 		ID:    fixture.Workflow.ID,
 		Tasks: tasks,
@@ -601,23 +653,15 @@ func ExecuteWorkflowAndGetState(
 	ctx := t.Context()
 	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 	defer cleanup()
-
-	// Create test suite and worker
 	testSuite := testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
-
-	// Create repositories and runtime
 	configStore := services.NewTestConfigStore(t)
 	runtime := CreateMockRuntime(t)
-
-	// Ensure proper cleanup of resources
 	defer func() {
 		if err := configStore.Close(); err != nil {
 			t.Logf("Warning: failed to close config store: %v", err)
 		}
 	}()
-
-	// Register activities with test activities
 	activities := CreateTestActivities(
 		t,
 		taskRepo,
@@ -629,34 +673,24 @@ func ExecuteWorkflowAndGetState(
 		agentConfig,
 	)
 	RegisterCommonActivities(env, activities)
-
-	// Prepare workflow input
 	workflowExecID := core.MustNewID()
-
 	var workflowInput *core.Input
 	if fixture.Input != nil {
 		input := core.Input(fixture.Input)
 		workflowInput = &input
 	}
-
 	temporalInput := worker.WorkflowInput{
 		WorkflowID:     fixture.Workflow.ID,
 		WorkflowExecID: workflowExecID,
 		Input:          workflowInput,
 		InitialTaskID:  FindInitialTaskID(fixture),
 	}
-
-	// Execute workflow through Temporal
+	// NOTE: Execute via the Temporal test environment to exercise activity wiring end-to-end.
 	env.ExecuteWorkflow(worker.CompozyWorkflow, temporalInput)
-
-	// Verify workflow completed successfully
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
-
-	// Retrieve final state from database
 	finalState, err := workflowRepo.GetState(ctx, workflowExecID)
 	require.NoError(t, err, "Failed to retrieve final workflow state")
-
 	return finalState
 }
 

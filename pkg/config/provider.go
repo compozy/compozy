@@ -24,7 +24,6 @@ func NewEnvProvider() Source {
 
 // Load returns empty map as environment loading is handled natively by koanf.
 func (e *envProvider) Load() (map[string]any, error) {
-	// Environment loading is now handled by koanf's native env provider
 	return make(map[string]any), nil
 }
 
@@ -60,29 +59,21 @@ func (c *cliProvider) Load() (map[string]any, error) {
 	if c.flags == nil {
 		return make(map[string]any), nil
 	}
-
-	// Get CLI flag mappings from the registry (single source of truth)
 	registry := definition.CreateRegistry()
 	flagToPath := registry.GetCLIFlagMapping()
-
-	// Convert flat CLI flags to nested structure
 	config := make(map[string]any)
-
 	for key, value := range c.flags {
 		if path, ok := flagToPath[key]; ok {
 			if err := setNested(config, path, value); err != nil {
 				return nil, fmt.Errorf("failed to set CLI flag %s: %w", key, err)
 			}
 		}
-		// Ignore unknown flags
 	}
-
 	return config, nil
 }
 
 // Watch is not implemented for CLI flags as they don't change at runtime.
 func (c *cliProvider) Watch(_ context.Context, _ func()) error {
-	// CLI flags don't support watching
 	return nil
 }
 
@@ -102,10 +93,8 @@ func setNested(m map[string]any, path string, value any) error {
 	if path == "" {
 		return nil // Don't set anything for empty path
 	}
-
 	parts := strings.Split(path, ".")
 	current := m
-
 	for i := 0; i < len(parts)-1; i++ {
 		part := parts[i]
 		if _, exists := current[part]; !exists {
@@ -114,12 +103,10 @@ func setNested(m map[string]any, path string, value any) error {
 
 		next, ok := current[part].(map[string]any)
 		if !ok {
-			// Structure conflict, cannot set value
 			return fmt.Errorf("configuration conflict: key %q is not a map", strings.Join(parts[:i+1], "."))
 		}
 		current = next
 	}
-
 	if len(parts) > 0 {
 		current[parts[len(parts)-1]] = value
 	}
@@ -148,21 +135,15 @@ func (y *yamlProvider) Load() (map[string]any, error) {
 	data, err := os.ReadFile(y.path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Return empty map when file doesn't exist to prevent overriding environment variables
 			return make(map[string]any), nil
 		}
 		return nil, fmt.Errorf("failed to read YAML file: %w", err)
 	}
-
 	var config map[string]any
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML file: %w", err)
 	}
-
-	// Filter out nil values to prevent overriding existing configs
-	// This ensures that missing sections in YAML don't reset environment variables
 	filtered := filterNilValues(config)
-
 	return filtered, nil
 }
 
@@ -174,10 +155,8 @@ func filterNilValues(m map[string]any) map[string]any {
 		if v == nil {
 			continue
 		}
-		// Recursively filter nested maps
 		if nestedMap, ok := v.(map[string]any); ok {
 			filtered := filterNilValues(nestedMap)
-			// Only include non-empty maps
 			if len(filtered) > 0 {
 				result[k] = filtered
 			}
@@ -191,13 +170,10 @@ func filterNilValues(m map[string]any) map[string]any {
 // Watch monitors the YAML file for changes.
 func (y *yamlProvider) Watch(ctx context.Context, callback func()) error {
 	var watchErr error
-
-	// Use sync.Once to ensure we only create and start the watcher once
 	y.watchOnce.Do(func() {
 		y.watcherMu.Lock()
 		defer y.watcherMu.Unlock()
 
-		// Create a new watcher
 		watcher, err := NewWatcher()
 		if err != nil {
 			watchErr = fmt.Errorf("failed to create watcher: %w", err)
@@ -205,25 +181,20 @@ func (y *yamlProvider) Watch(ctx context.Context, callback func()) error {
 		}
 		y.watcher = watcher
 
-		// Start watching the file
 		if err := y.watcher.Watch(ctx, y.path); err != nil {
 			watchErr = fmt.Errorf("failed to watch YAML file: %w", err)
 			return
 		}
 		y.isWatching = true
 	})
-
 	if watchErr != nil {
 		return watchErr
 	}
-
-	// Register the callback (this can be called multiple times safely)
 	y.watcherMu.Lock()
 	defer y.watcherMu.Unlock()
 	if y.watcher != nil {
 		y.watcher.OnChange(callback)
 	}
-
 	return nil
 }
 
@@ -235,8 +206,6 @@ func (y *yamlProvider) Type() SourceType {
 // Close releases any resources held by the source.
 func (y *yamlProvider) Close() error {
 	var closeErr error
-
-	// Use sync.Once to ensure we only close once
 	y.closeOnce.Do(func() {
 		y.watcherMu.Lock()
 		defer y.watcherMu.Unlock()
@@ -250,10 +219,8 @@ func (y *yamlProvider) Close() error {
 			y.isWatching = false
 		}
 
-		// Reset watchOnce to allow re-watching after close
 		y.watchOnce = sync.Once{}
 	})
-
 	return closeErr
 }
 
@@ -293,7 +260,6 @@ func (d *defaultProvider) Close() error {
 func createDefaultMap() map[string]any {
 	defaultConfig := Default()
 	result := make(map[string]any)
-	// top-level defaults
 	addCoreDefaults(result, defaultConfig)
 	addServiceDefaults(result, defaultConfig)
 	addInfraDefaults(result, defaultConfig)
@@ -374,15 +340,23 @@ func createServerDefaults(defaultConfig *Config) map[string]any {
 // createDatabaseDefaults creates database configuration defaults
 func createDatabaseDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
-		"host":              defaultConfig.Database.Host,
-		"port":              defaultConfig.Database.Port,
-		"user":              defaultConfig.Database.User,
-		"password":          defaultConfig.Database.Password,
-		"name":              defaultConfig.Database.DBName,
-		"ssl_mode":          defaultConfig.Database.SSLMode,
-		"conn_string":       defaultConfig.Database.ConnString,
-		"auto_migrate":      defaultConfig.Database.AutoMigrate,
-		"migration_timeout": defaultConfig.Database.MigrationTimeout.String(),
+		"host":                 defaultConfig.Database.Host,
+		"port":                 defaultConfig.Database.Port,
+		"user":                 defaultConfig.Database.User,
+		"password":             defaultConfig.Database.Password,
+		"name":                 defaultConfig.Database.DBName,
+		"ssl_mode":             defaultConfig.Database.SSLMode,
+		"conn_string":          defaultConfig.Database.ConnString,
+		"auto_migrate":         defaultConfig.Database.AutoMigrate,
+		"migration_timeout":    defaultConfig.Database.MigrationTimeout.String(),
+		"max_open_conns":       defaultConfig.Database.MaxOpenConns,
+		"max_idle_conns":       defaultConfig.Database.MaxIdleConns,
+		"conn_max_lifetime":    defaultConfig.Database.ConnMaxLifetime.String(),
+		"conn_max_idle_time":   defaultConfig.Database.ConnMaxIdleTime.String(),
+		"ping_timeout":         defaultConfig.Database.PingTimeout.String(),
+		"health_check_timeout": defaultConfig.Database.HealthCheckTimeout.String(),
+		"health_check_period":  defaultConfig.Database.HealthCheckPeriod.String(),
+		"connect_timeout":      defaultConfig.Database.ConnectTimeout.String(),
 	}
 }
 
@@ -529,6 +503,12 @@ func createCLIDefaults(defaultConfig *Config) map[string]any {
 		"config_file":         defaultConfig.CLI.ConfigFile,
 		"cwd":                 defaultConfig.CLI.CWD,
 		"env_file":            defaultConfig.CLI.EnvFile,
+		"max_retries":         defaultConfig.CLI.MaxRetries,
+		"dev": map[string]any{
+			"watcher_debounce":      defaultConfig.CLI.Dev.WatcherDebounce.String(),
+			"watcher_retry_initial": defaultConfig.CLI.Dev.WatcherRetryInitial.String(),
+			"watcher_retry_max":     defaultConfig.CLI.Dev.WatcherRetryMax.String(),
+		},
 	}
 }
 

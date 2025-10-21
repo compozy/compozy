@@ -300,10 +300,8 @@ func WithProjectRoot(root string) Option {
 // are advertised and callable for this service instance.
 func WithAllowedMCPNames(mcpIDs []string) Option {
 	return func(c *Config) {
-		// Shallow copy is sufficient; values are strings
 		c.AllowedMCPNames = nil
 		if len(mcpIDs) > 0 {
-			// Deduplicate and normalize
 			seen := make(map[string]struct{})
 			out := make([]string, 0, len(mcpIDs))
 			for _, id := range mcpIDs {
@@ -360,7 +358,6 @@ func WithRegisterMCPs(mcps []mcp.Config) Option {
 		if len(mcps) == 0 {
 			return
 		}
-		// Deep copy selected map fields to avoid aliasing
 		c.RegisterMCPs = make([]mcp.Config, 0, len(mcps))
 		for i := range mcps {
 			dst := mcps[i]
@@ -387,7 +384,6 @@ func WithProviderMetrics(recorder providermetrics.Recorder) Option {
 	return func(c *Config) {
 		if recorder == nil {
 			c.ProviderMetrics = providermetrics.Nop()
-			// If a registry exists, ensure it also uses NOP.
 			if c.RateLimiter != nil {
 				c.RateLimiter.SetRecorder(c.ProviderMetrics)
 			}
@@ -422,10 +418,8 @@ func WithResolvedTools(tools []tool.Config) Option {
 			c.ResolvedTools = nil
 			return
 		}
-		// Deep copy each tool to prevent external mutation of nested fields
 		c.ResolvedTools = make([]tool.Config, 0, len(tools))
 		for i := range tools {
-			// Use core.DeepCopy to clone the element; on failure, fall back to value copy
 			if cloned, err := core.DeepCopy(tools[i]); err == nil {
 				c.ResolvedTools = append(c.ResolvedTools, cloned)
 			} else {
@@ -815,7 +809,6 @@ func (c *Config) CreateMCPClient(ctx context.Context) (*mcp.Client, error) {
 	if c.ProxyURL == "" {
 		return nil, fmt.Errorf("proxy URL is required for MCP client creation")
 	}
-	// Normalize URL by adding http:// prefix if no scheme is present
 	u := c.ProxyURL
 	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
 		u = "http://" + u
@@ -827,11 +820,8 @@ func (c *Config) CreateMCPClient(ctx context.Context) (*mcp.Client, error) {
 	if client == nil {
 		return nil, fmt.Errorf("failed to create MCP proxy client")
 	}
-	// Align retry behavior with configured LLM retry settings
-	// RetryAttempts maps to retries (not attempts). Base and Max are respected.
 	attempts := max(c.RetryAttempts, 0)
 	retries := uint64(attempts) //nolint:gosec // G115: bounds checked above and values come from validated config
-	// Configure retry with jitter percentage (capped inside the client)
 	jp := uint64(0)
 	if c.RetryJitter && c.RetryJitterPercent > 0 {
 		jp = uint64(c.RetryJitterPercent)

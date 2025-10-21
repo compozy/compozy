@@ -50,7 +50,6 @@ func (uc *CreateChildTasks) Execute(ctx context.Context, input *CreateChildTasks
 	if err := uc.validateParentState(parentState); err != nil {
 		return err
 	}
-	// Load parent task config to get its environment
 	parentConfig, err := uc.configStore.Get(ctx, parentState.TaskExecID.String())
 	if err != nil {
 		return fmt.Errorf("failed to load parent task config: %w", err)
@@ -72,7 +71,6 @@ func (uc *CreateChildTasks) createParallelChildren(
 	parentState *task.State,
 	parentConfig *task.Config,
 ) error {
-	// Create config repository from factory
 	cwd := parentConfig.GetCWD()
 	if cwd == nil {
 		cwd = uc.defaultCWD
@@ -103,7 +101,6 @@ func (uc *CreateChildTasks) createCollectionChildren(
 	parentState *task.State,
 	parentConfig *task.Config,
 ) error {
-	// Create config repository from factory
 	cwd := parentConfig.GetCWD()
 	if cwd == nil {
 		cwd = uc.defaultCWD
@@ -134,7 +131,6 @@ func (uc *CreateChildTasks) createCompositeChildren(
 	parentState *task.State,
 	parentConfig *task.Config,
 ) error {
-	// Create config repository from factory
 	cwd := parentConfig.GetCWD()
 	if cwd == nil {
 		cwd = uc.defaultCWD
@@ -191,60 +187,86 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 	childConfigs []*task.Config,
 ) error {
 	log := logger.FromContext(ctx)
-	// Collect configs to save alongside prepared states
-	var configsToSave []childConfigRef
-	// Prepare all child states first
-	var childStates []*task.State
+	configsToSave, childStates, err := uc.prepareChildStates(parentState, parentConfig, childConfigs)
+	if err != nil {
+		return err
+	}
+	savedConfigIDs, err := uc.saveChildConfigs(ctx, log, configsToSave)
+	if err != nil {
+		return err
+	}
+	if err := uc.persistChildStates(ctx, childStates); err != nil {
+		uc.rollbackConfigs(ctx, log, savedConfigIDs)
+		return err
+	}
+	return nil
+}
+
+// prepareChildStates creates the in-memory state structures and associated configs.
+func (uc *CreateChildTasks) prepareChildStates(
+	parentState *task.State,
+	parentConfig *task.Config,
+	childConfigs []*task.Config,
+) ([]childConfigRef, []*task.State, error) {
+	configsToSave := make([]childConfigRef, 0, len(childConfigs))
+	childStates := make([]*task.State, 0, len(childConfigs))
 	for i := range childConfigs {
 		childConfig := childConfigs[i]
 		childTaskExecID := core.MustNewID()
-		// Create child partial state by recursively processing the child config
-		// Pass parent's environment for inheritance
 		childPartialState, err := uc.processChildConfig(childConfig, parentConfig.Env)
 		if err != nil {
-			return fmt.Errorf("failed to process child config %s: %w", childConfig.ID, err)
+			return nil, nil, fmt.Errorf("failed to process child config %s: %w", childConfig.ID, err)
 		}
-		// Create child state input with parent reference
-		childStateInput := &task.CreateStateInput{
-			WorkflowID:     parentState.WorkflowID,
-			WorkflowExecID: parentState.WorkflowExecID,
-			TaskID:         childConfig.ID,
-			TaskExecID:     childTaskExecID,
-		}
-		// Set parent relationship in partial state
-		parentID := parentState.TaskExecID
-		childPartialState.ParentStateID = &parentID
-		// Create child state (without persisting yet)
-		childState := task.CreateBasicState(childStateInput, childPartialState)
+		childState := uc.buildChildState(parentState, childConfig.ID, childTaskExecID, childPartialState)
 		childStates = append(childStates, childState)
-		// Collect config to save prior to persisting states
-		configsToSave = append(configsToSave, childConfigRef{
-			id:  childTaskExecID,
-			cfg: childConfig,
-		})
+		configsToSave = append(configsToSave, childConfigRef{id: childTaskExecID, cfg: childConfig})
 	}
-	rollbackConfigs := func(ids []core.ID) {
-		for _, savedID := range ids {
-			if deleteErr := uc.configStore.Delete(ctx, savedID.String()); deleteErr != nil {
-				log.Warn("Failed to rollback config during error recovery",
-					"config_id", savedID,
-					"rollback_error", deleteErr,
-				)
-			}
-		}
-	}
-	var savedConfigIDs []core.ID
-	for _, c := range configsToSave {
-		if err := uc.configStore.Save(ctx, c.id.String(), c.cfg); err != nil {
-			rollbackConfigs(savedConfigIDs)
-			return fmt.Errorf("failed to save child config %s before transaction (rolled back %d configs): %w",
-				c.cfg.ID, len(savedConfigIDs), err)
-		}
-		savedConfigIDs = append(savedConfigIDs, c.id)
-	}
+	return configsToSave, childStates, nil
+}
 
-	// Create all child states atomically in a single transaction
-	err := uc.taskRepo.WithTransaction(ctx, func(r task.Repository) error {
+// buildChildState constructs the child state with parent linkage.
+func (uc *CreateChildTasks) buildChildState(
+	parentState *task.State,
+	childTaskID string,
+	childExecID core.ID,
+	partial *task.PartialState,
+) *task.State {
+	input := &task.CreateStateInput{
+		WorkflowID:     parentState.WorkflowID,
+		WorkflowExecID: parentState.WorkflowExecID,
+		TaskID:         childTaskID,
+		TaskExecID:     childExecID,
+	}
+	parentID := parentState.TaskExecID
+	partial.ParentStateID = &parentID
+	return task.CreateBasicState(input, partial)
+}
+
+// saveChildConfigs stores child configs ahead of the transactional state creation.
+func (uc *CreateChildTasks) saveChildConfigs(
+	ctx context.Context,
+	log logger.Logger,
+	configs []childConfigRef,
+) ([]core.ID, error) {
+	saved := make([]core.ID, 0, len(configs))
+	for _, ref := range configs {
+		if err := uc.configStore.Save(ctx, ref.id.String(), ref.cfg); err != nil {
+			uc.rollbackConfigs(ctx, log, saved)
+			return nil, fmt.Errorf(
+				"failed to save child config %s before transaction (rolled back %d configs): %w",
+				ref.cfg.ID,
+				len(saved),
+				err,
+			)
+		}
+		saved = append(saved, ref.id)
+	}
+	return saved, nil
+}
+
+// persistChildStates writes the prepared child states inside a transaction.
+func (uc *CreateChildTasks) persistChildStates(ctx context.Context, childStates []*task.State) error {
+	return uc.taskRepo.WithTransaction(ctx, func(r task.Repository) error {
 		for i := range childStates {
 			if err := r.UpsertState(ctx, childStates[i]); err != nil {
 				return fmt.Errorf("failed to create child state %s: %w", childStates[i].TaskID, err)
@@ -252,12 +274,23 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 		}
 		return nil
 	})
-	if err != nil {
-		rollbackConfigs(savedConfigIDs)
-		return err
-	}
+}
 
-	return nil
+// rollbackConfigs removes previously saved configs when subsequent steps fail.
+func (uc *CreateChildTasks) rollbackConfigs(
+	ctx context.Context,
+	log logger.Logger,
+	ids []core.ID,
+) {
+	for _, savedID := range ids {
+		if deleteErr := uc.configStore.Delete(ctx, savedID.String()); deleteErr != nil {
+			log.Warn(
+				"Failed to rollback config during error recovery",
+				"config_id", savedID,
+				"rollback_error", deleteErr,
+			)
+		}
+	}
 }
 
 // processChildConfig processes a child task config to create its partial state
@@ -265,18 +298,14 @@ func (uc *CreateChildTasks) processChildConfig(
 	childConfig *task.Config,
 	parentEnv *core.EnvMap,
 ) (*task.PartialState, error) {
-	// Merge parent environment with child environment
 	mergedEnv := uc.mergeEnvironments(parentEnv, childConfig.Env)
-
 	executionType := childConfig.GetExecType()
 	agentConfig := childConfig.GetAgent()
 	toolConfig := childConfig.GetTool()
-
 	switch {
 	case childConfig.Type == task.TaskTypeParallel ||
 		childConfig.Type == task.TaskTypeCollection ||
 		childConfig.Type == task.TaskTypeComposite:
-		// Container tasks - create basic state for tracking, actual execution handled by executeChild
 		return &task.PartialState{
 			Component:     core.ComponentTask,
 			ExecutionType: executionType,
@@ -310,12 +339,10 @@ func (uc *CreateChildTasks) processAgent(
 	parentEnv *core.EnvMap,
 ) (*task.PartialState, error) {
 	agentID := agentConfig.ID
-	// Use childInput if provided (for collection children), otherwise use agent's With
 	input := childInput
 	if input == nil {
 		input = agentConfig.With
 	}
-	// Merge parent environment with agent environment
 	mergedEnv := uc.mergeEnvironments(parentEnv, agentConfig.Env)
 	var actionPtr *string
 	if actionID != "" {
@@ -338,12 +365,10 @@ func (uc *CreateChildTasks) processTool(
 	parentEnv *core.EnvMap,
 ) (*task.PartialState, error) {
 	toolID := toolConfig.ID
-	// Use childInput if provided (for collection children), otherwise use tool's With
 	input := childInput
 	if input == nil {
 		input = toolConfig.With
 	}
-	// Merge parent environment with tool environment
 	mergedEnv := uc.mergeEnvironments(parentEnv, toolConfig.Env)
 	return &task.PartialState{
 		Component:     core.ComponentTool,
@@ -360,7 +385,6 @@ func (uc *CreateChildTasks) mergeEnvironments(parentEnv, childEnv *core.EnvMap) 
 	if parentEnv == nil && childEnv == nil {
 		return nil
 	}
-	// Merge parent and child environment variables (child overrides parent)
 	var merged core.EnvMap
 	switch {
 	case parentEnv != nil && childEnv != nil:
@@ -370,7 +394,6 @@ func (uc *CreateChildTasks) mergeEnvironments(parentEnv, childEnv *core.EnvMap) 
 	case childEnv != nil:
 		merged = core.CloneMap(*childEnv)
 	}
-	// Return nil if the map is empty
 	if len(merged) == 0 {
 		return nil
 	}

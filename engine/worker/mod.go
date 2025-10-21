@@ -128,82 +128,39 @@ func (o *Worker) registerWorkflowActivities() {
 }
 
 func (o *Worker) registerTaskActivities() {
-	o.worker.RegisterActivityWithOptions(
-		o.activities.ExecuteBasicTask,
-		activity.RegisterOptions{Name: tkacts.ExecuteBasicLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.ExecuteRouterTask,
-		activity.RegisterOptions{Name: tkacts.ExecuteRouterLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.ExecuteAggregateTask,
-		activity.RegisterOptions{Name: tkacts.ExecuteAggregateLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.ExecuteSignalTask,
-		activity.RegisterOptions{Name: tkacts.ExecuteSignalLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.ExecuteWaitTask,
-		activity.RegisterOptions{Name: tkacts.ExecuteWaitLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.ExecuteMemoryTask,
-		activity.RegisterOptions{Name: tkacts.ExecuteMemoryLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.NormalizeWaitProcessor,
-		activity.RegisterOptions{Name: tkacts.NormalizeWaitProcessorLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.EvaluateCondition,
-		activity.RegisterOptions{Name: tkacts.EvaluateConditionLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.ExecuteSubtask,
-		activity.RegisterOptions{Name: tkacts.ExecuteSubtaskLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.CreateParallelState,
-		activity.RegisterOptions{Name: tkacts.CreateParallelStateLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.GetParallelResponse,
-		activity.RegisterOptions{Name: tkacts.GetParallelResponseLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.CreateCollectionState,
-		activity.RegisterOptions{Name: tkacts.CreateCollectionStateLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.GetCollectionResponse,
-		activity.RegisterOptions{Name: tkacts.GetCollectionResponseLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.CreateCompositeState,
-		activity.RegisterOptions{Name: tkacts.CreateCompositeStateLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.GetCompositeResponse,
-		activity.RegisterOptions{Name: tkacts.GetCompositeResponseLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.GetProgress,
-		activity.RegisterOptions{Name: tkacts.GetProgressLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.UpdateParentStatus,
-		activity.RegisterOptions{Name: tkacts.UpdateParentStatusLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.UpdateChildState,
-		activity.RegisterOptions{Name: tkacts.UpdateChildStateLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.ListChildStates,
-		activity.RegisterOptions{Name: tkacts.ListChildStatesLabel},
-	)
+	o.registerActivityBatch([]activityRegistration{
+		{o.activities.ExecuteBasicTask, tkacts.ExecuteBasicLabel},
+		{o.activities.ExecuteRouterTask, tkacts.ExecuteRouterLabel},
+		{o.activities.ExecuteAggregateTask, tkacts.ExecuteAggregateLabel},
+		{o.activities.ExecuteSignalTask, tkacts.ExecuteSignalLabel},
+		{o.activities.ExecuteWaitTask, tkacts.ExecuteWaitLabel},
+		{o.activities.ExecuteMemoryTask, tkacts.ExecuteMemoryLabel},
+		{o.activities.NormalizeWaitProcessor, tkacts.NormalizeWaitProcessorLabel},
+		{o.activities.EvaluateCondition, tkacts.EvaluateConditionLabel},
+		{o.activities.ExecuteSubtask, tkacts.ExecuteSubtaskLabel},
+		{o.activities.CreateParallelState, tkacts.CreateParallelStateLabel},
+		{o.activities.GetParallelResponse, tkacts.GetParallelResponseLabel},
+		{o.activities.CreateCollectionState, tkacts.CreateCollectionStateLabel},
+		{o.activities.GetCollectionResponse, tkacts.GetCollectionResponseLabel},
+		{o.activities.CreateCompositeState, tkacts.CreateCompositeStateLabel},
+		{o.activities.GetCompositeResponse, tkacts.GetCompositeResponseLabel},
+		{o.activities.GetProgress, tkacts.GetProgressLabel},
+		{o.activities.UpdateParentStatus, tkacts.UpdateParentStatusLabel},
+		{o.activities.UpdateChildState, tkacts.UpdateChildStateLabel},
+		{o.activities.ListChildStates, tkacts.ListChildStatesLabel},
+	})
+}
+
+type activityRegistration struct {
+	handler any
+	name    string
+}
+
+// registerActivities registers a batch of activity handlers with their labels.
+func (o *Worker) registerActivityBatch(regs []activityRegistration) {
+	for _, reg := range regs {
+		o.worker.RegisterActivityWithOptions(reg.handler, activity.RegisterOptions{Name: reg.name})
+	}
 }
 
 func (o *Worker) registerConfigActivities() {
@@ -302,12 +259,8 @@ func buildRuntimeManager(
 	if cfg == nil {
 		return nil, fmt.Errorf("config manager not found in context")
 	}
-	// Use factory to create runtime with direct unified config mapping
 	factory := runtime.NewDefaultFactory(projectRoot)
-	// Create a merged runtime config by applying project-specific overrides
 	mergedRuntimeConfig := cfg.Runtime
-
-	// Apply project-specific overrides if specified
 	if projectConfig.Runtime.Type != "" {
 		mergedRuntimeConfig.RuntimeType = projectConfig.Runtime.Type
 		log.Debug("Using project-specific runtime type", "type", projectConfig.Runtime.Type)
@@ -328,15 +281,12 @@ func buildRuntimeManager(
 			projectConfig.Runtime.ToolExecutionTimeout,
 		)
 	}
-
-	// Log final configuration being used for debugging
 	log.Debug("Using unified runtime configuration",
 		"environment", mergedRuntimeConfig.Environment,
 		"runtime_type", mergedRuntimeConfig.RuntimeType,
 		"entrypoint_path", mergedRuntimeConfig.EntrypointPath,
 		"bun_permissions", mergedRuntimeConfig.BunPermissions,
 		"tool_execution_timeout", mergedRuntimeConfig.ToolExecutionTimeout)
-
 	return factory.CreateRuntimeFromAppConfig(ctx, &mergedRuntimeConfig)
 }
 
@@ -356,6 +306,102 @@ func NewWorker(
 	if err := validateToolEnvironment(toolEnv); err != nil {
 		return nil, err
 	}
+	initResult, err := initializeWorkerComponents(ctx, config, clientConfig, projectConfig, workflows, toolEnv)
+	if err != nil {
+		return nil, err
+	}
+	interceptor.SetConfiguredWorkerCount(1)
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
+	log.Debug("Worker initialization completed", "total_duration", time.Since(workerStart))
+	return &Worker{
+		client:          initResult.client,
+		config:          config,
+		worker:          initResult.core.worker,
+		projectConfig:   projectConfig,
+		workflows:       workflows,
+		activities:      initResult.activities,
+		taskQueue:       initResult.core.taskQueue,
+		configStore:     initResult.core.configStore,
+		redisCache:      initResult.core.redisCache,
+		mcpRegister:     initResult.mcpRegister,
+		dispatcherID:    initResult.dispatcher.dispatcherID,
+		serverID:        initResult.dispatcher.serverID,
+		memoryManager:   initResult.memoryManager,
+		templateEngine:  initResult.templateEngine,
+		lifecycleCtx:    lifecycleCtx,
+		lifecycleCancel: lifecycleCancel,
+	}, nil
+}
+
+type workerInitResult struct {
+	client         *Client
+	core           *workerCoreComponents
+	mcpRegister    *mcp.RegisterService
+	templateEngine *tplengine.TemplateEngine
+	memoryManager  *memory.Manager
+	dispatcher     *dispatcherComponents
+	activities     *Activities
+}
+
+// initializeWorkerComponents wires all worker dependencies prior to instantiation.
+func initializeWorkerComponents(
+	ctx context.Context,
+	config *Config,
+	clientConfig *TemporalConfig,
+	projectConfig *project.Config,
+	workflows []*wf.Config,
+	toolEnv toolenv.Environment,
+) (*workerInitResult, error) {
+	deps, err := buildWorkerDependencies(ctx, config, clientConfig, projectConfig, workflows)
+	if err != nil {
+		return nil, err
+	}
+	projectName := ""
+	if projectConfig != nil {
+		projectName = projectConfig.Name
+	}
+	dispatcher := createDispatcher(deps.core.taskQueue, projectName, deps.client)
+	activities, err := prepareWorkerActivities(
+		ctx,
+		config,
+		projectConfig,
+		workflows,
+		deps.core,
+		dispatcher,
+		deps.memoryManager,
+		deps.templateEngine,
+		toolEnv,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &workerInitResult{
+		client:         deps.client,
+		core:           deps.core,
+		mcpRegister:    deps.mcpRegister,
+		templateEngine: deps.templateEngine,
+		memoryManager:  deps.memoryManager,
+		dispatcher:     dispatcher,
+		activities:     activities,
+	}, nil
+}
+
+type workerDependencies struct {
+	client         *Client
+	core           *workerCoreComponents
+	mcpRegister    *mcp.RegisterService
+	templateEngine *tplengine.TemplateEngine
+	memoryManager  *memory.Manager
+}
+
+// buildWorkerDependencies creates the foundational services required by the worker.
+func buildWorkerDependencies(
+	ctx context.Context,
+	config *Config,
+	clientConfig *TemporalConfig,
+	projectConfig *project.Config,
+	workflows []*wf.Config,
+) (*workerDependencies, error) {
 	client, err := createTemporalClient(ctx, clientConfig)
 	if err != nil {
 		return nil, err
@@ -372,45 +418,12 @@ func NewWorker(
 	if err != nil {
 		return nil, err
 	}
-	projectName := ""
-	if projectConfig != nil {
-		projectName = projectConfig.Name
-	}
-	dispatcher := createDispatcher(workerCore.taskQueue, projectName, client)
-	activities, err := prepareWorkerActivities(
-		ctx,
-		config,
-		projectConfig,
-		workflows,
-		workerCore,
-		dispatcher,
-		memoryManager,
-		templateEngine,
-		toolEnv,
-	)
-	if err != nil {
-		return nil, err
-	}
-	interceptor.SetConfiguredWorkerCount(1)
-	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
-	log.Debug("Worker initialization completed", "total_duration", time.Since(workerStart))
-	return &Worker{
-		client:          client,
-		config:          config,
-		worker:          workerCore.worker,
-		projectConfig:   projectConfig,
-		workflows:       workflows,
-		activities:      activities,
-		taskQueue:       workerCore.taskQueue,
-		configStore:     workerCore.configStore,
-		redisCache:      workerCore.redisCache,
-		mcpRegister:     mcpRegister,
-		dispatcherID:    dispatcher.dispatcherID,
-		serverID:        dispatcher.serverID,
-		memoryManager:   memoryManager,
-		templateEngine:  templateEngine,
-		lifecycleCtx:    lifecycleCtx,
-		lifecycleCancel: lifecycleCancel,
+	return &workerDependencies{
+		client:         client,
+		core:           workerCore,
+		mcpRegister:    mcpRegister,
+		templateEngine: templateEngine,
+		memoryManager:  memoryManager,
 	}, nil
 }
 
@@ -612,10 +625,7 @@ func setupRedisAndConfig(
 	if cfg == nil {
 		return nil, nil, fmt.Errorf("config manager not found in context")
 	}
-
-	// Build cache config from centralized Redis and cache config
 	cacheConfig := cache.FromAppConfig(cfg)
-
 	redisCache, err := cache.SetupCache(ctx, cacheConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to setup Redis cache: %w", err)
@@ -628,7 +638,6 @@ func setupRedisAndConfig(
 // setupMCPRegister initializes MCP registration for workflows
 func setupMCPRegister(ctx context.Context, workflows []*wf.Config) (*mcp.RegisterService, error) {
 	log := logger.FromContext(ctx)
-	// Initialize MCP register and register all MCPs from all workflows
 	mcpStart := time.Now()
 	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
 	for i, wf := range workflows {
@@ -657,16 +666,11 @@ func setupMemoryManager(
 		log.Warn("Resource registry not provided, memory features will be disabled")
 		return nil, nil
 	}
-
-	// Redis is a hard requirement; by this point, redisCache should be non-nil.
 	privacyManager := privacy.NewManager()
-
-	// Extract project ID for consistent namespace resolution
 	fallbackProjectID := ""
 	if projectConfig != nil {
 		fallbackProjectID = projectConfig.Name
 	}
-
 	memoryManagerOpts := &memory.ManagerOptions{
 		ResourceRegistry:  config.ResourceRegistry,
 		TplEngine:         templateEngine,
@@ -753,9 +757,7 @@ func (o *Worker) Setup(ctx context.Context) error {
 	if o.config != nil && o.config.MonitoringService != nil && o.config.MonitoringService.IsInitialized() {
 		o.startQueueDepthMonitor(ctx)
 	}
-	// Track running worker for monitoring
 	interceptor.IncrementRunningWorkers(ctx)
-	// Register dispatcher for health monitoring
 	cfg := appconfig.FromContext(ctx)
 	if cfg == nil {
 		return fmt.Errorf("config manager not found in context")
@@ -765,27 +767,19 @@ func (o *Worker) Setup(ctx context.Context) error {
 		o.dispatcherID,
 		cfg.Runtime.DispatcherStaleThreshold,
 	)
-	// Ensure dispatcher is running with independent lifecycle context
 	go o.ensureDispatcherRunning(o.lifecycleCtx)
 	return nil
 }
 
 func (o *Worker) Stop(ctx context.Context) {
 	o.stopQueueDepthMonitor()
-	// Track worker stopping for monitoring
 	interceptor.DecrementRunningWorkers(ctx)
-	// Record dispatcher stop event for monitoring
 	o.stopDispatcherMonitoring(ctx)
-	// Cancel lifecycle context to stop background operations
 	o.cancelLifecycle()
-	// Terminate this instance's dispatcher since each server has its own
 	o.terminateDispatcher(ctx)
-	// Stop the worker and close client
 	o.worker.Stop()
 	o.client.Close()
-	// Deregister all MCPs from proxy on shutdown
 	o.shutdownMCPs(ctx)
-	// Close stores
 	o.closeStores(ctx)
 }
 
@@ -1036,13 +1030,11 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 	if cfg == nil {
 		return fmt.Errorf("config manager not found in context")
 	}
-	// Check Redis cache health
 	if o.redisCache != nil {
 		if err := o.redisCache.HealthCheck(ctx); err != nil {
 			return fmt.Errorf("redis cache health check failed: %w", err)
 		}
 	}
-	// Check dispatcher health by verifying recent heartbeat
 	if o.dispatcherID != "" && o.activities != nil {
 		input := &wkacts.ListActiveDispatchersInput{
 			StaleThreshold: cfg.Runtime.DispatcherStaleThreshold,
@@ -1051,7 +1043,6 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 		if err != nil {
 			log.Warn("Failed to check dispatcher health", "error", err)
 		} else {
-			// Check if our dispatcher is in the list and not stale
 			found := false
 			for _, dispatcher := range output.Dispatchers {
 				if dispatcher.DispatcherID == o.dispatcherID {
@@ -1069,9 +1060,7 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 			}
 		}
 	}
-	// Check MCP proxy health if configured
 	if err := o.checkMCPProxyHealth(ctx); err != nil {
-		// Log error but don't fail health check since MCP proxy is optional
 		log.Warn("MCP proxy health check failed", "error", err)
 	}
 	return nil
@@ -1110,7 +1099,6 @@ func (o *Worker) TriggerWorkflow(
 	input *core.Input,
 	initTaskID string,
 ) (*WorkflowInput, error) {
-	// Start workflow
 	workflowExecID := core.MustNewID()
 	log := logger.FromContext(ctx)
 	log.Debug("TriggerWorkflow requested", "workflow_id", workflowID, "registered_workflows", len(o.workflows))
@@ -1118,79 +1106,129 @@ func (o *Worker) TriggerWorkflow(
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
 	}
-	// Apply schema defaults to input before validation and execution
+	workflowInput, mergedInput, err := o.prepareWorkflowInput(
+		ctx,
+		workflowConfig,
+		workflowID,
+		workflowExecID,
+		input,
+		initTaskID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := o.persistPendingState(ctx, workflowID, workflowExecID, mergedInput); err != nil {
+		return nil, err
+	}
+	options := client.StartWorkflowOptions{
+		ID:        buildWorkflowID(workflowID, workflowInput.WorkflowExecID),
+		TaskQueue: o.taskQueue,
+	}
+	if err := o.startWorkflowExecution(ctx, &options, workflowInput, mergedInput); err != nil {
+		return nil, err
+	}
+	o.transitionWorkflowToRunning(ctx, workflowID, workflowExecID)
+	return &workflowInput, nil
+}
+
+// prepareWorkflowInput merges defaults, validates payloads, and builds workflow input.
+func (o *Worker) prepareWorkflowInput(
+	ctx context.Context,
+	workflowConfig *wf.Config,
+	workflowID string,
+	workflowExecID core.ID,
+	input *core.Input,
+	initTaskID string,
+) (WorkflowInput, *core.Input, error) {
 	mergedInput, err := workflowConfig.ApplyInputDefaults(input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to apply input defaults: %w", err)
+		return WorkflowInput{}, nil, fmt.Errorf("failed to apply input defaults: %w", err)
 	}
-	// Validate the merged input (with defaults applied)
 	if validationErr := workflowConfig.ValidateInput(ctx, mergedInput); validationErr != nil {
-		return nil, fmt.Errorf("failed to validate workflow params: %w", validationErr)
+		return WorkflowInput{}, nil, fmt.Errorf("failed to validate workflow params: %w", validationErr)
 	}
 	workflowInput := WorkflowInput{
 		WorkflowID:     workflowID,
 		WorkflowExecID: workflowExecID,
-		Input:          mergedInput, // Use merged input with defaults
+		Input:          mergedInput,
 		InitialTaskID:  initTaskID,
 	}
 	if cfg := appconfig.FromContext(ctx); cfg != nil {
 		workflowInput.ErrorHandlerTimeout = cfg.Worker.ErrorHandlerTimeout
 		workflowInput.ErrorHandlerMaxRetries = cfg.Worker.ErrorHandlerMaxRetries
 	}
-	// Pre-persist a Pending state BEFORE starting the Temporal workflow
-	// to avoid duplicate starts on retries when persistence fails after start.
-	repo := o.config.WorkflowRepo()
-	pendingState := wf.NewState(workflowID, workflowExecID, mergedInput).WithStatus(core.StatusPending)
-	if err := repo.UpsertState(ctx, pendingState); err != nil {
-		return nil, fmt.Errorf("failed to persist initial (pending) workflow state: %w", err)
+	return workflowInput, mergedInput, nil
+}
+
+// persistPendingState stores an initial pending state prior to workflow start.
+func (o *Worker) persistPendingState(
+	ctx context.Context,
+	workflowID string,
+	workflowExecID core.ID,
+	input *core.Input,
+) error {
+	pendingState := wf.NewState(workflowID, workflowExecID, input).WithStatus(core.StatusPending)
+	if err := o.config.WorkflowRepo().UpsertState(ctx, pendingState); err != nil {
+		return fmt.Errorf("failed to persist initial (pending) workflow state: %w", err)
 	}
-	options := client.StartWorkflowOptions{
-		ID:        buildWorkflowID(workflowID, workflowInput.WorkflowExecID),
-		TaskQueue: o.taskQueue,
-	}
-	// MCPs are already registered at server startup, no need to register per workflow
-	// Bound the start call so HTTP handlers don't hang if Temporal is slow
+	return nil
+}
+
+// startWorkflowExecution starts the Temporal workflow and persists failure states when necessary.
+func (o *Worker) startWorkflowExecution(
+	ctx context.Context,
+	options *client.StartWorkflowOptions,
+	workflowInput WorkflowInput,
+	mergedInput *core.Input,
+) error {
 	timeout := workflowStartTimeoutDefault
 	if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.Worker.StartWorkflowTimeout > 0 {
 		timeout = cfg.Worker.StartWorkflowTimeout
 	}
-	sctx, cancel := context.WithTimeout(ctx, timeout)
+	startCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	_, err = o.client.ExecuteWorkflow(
-		sctx,
-		options,
-		CompozyWorkflow,
-		workflowInput,
-	)
-	if err != nil {
-		// Transition pre-persisted Pending state to Failed with error context.
-		// Best-effort: log if persistence fails but return original start error.
-		persistErr := func() error {
-			failed := wf.NewState(workflowID, workflowExecID, mergedInput).
-				WithStatus(core.StatusFailed).
-				WithError(core.NewError(err, "WORKFLOW_START_FAILED", map[string]any{
-					"workflow_id": workflowID,
-					"exec_id":     workflowExecID.String(),
-				}))
-			return repo.UpsertState(ctx, failed)
-		}()
-		if persistErr != nil {
-			logger.FromContext(ctx).Error(
-				"Failed to persist failed workflow state after start error",
-				"error", persistErr, "workflow_id", workflowID, "exec_id", workflowExecID,
-			)
-		}
-		return nil, fmt.Errorf("failed to start workflow: %w", err)
+	if _, err := o.client.ExecuteWorkflow(startCtx, *options, CompozyWorkflow, workflowInput); err != nil {
+		o.persistFailedStartState(ctx, workflowInput.WorkflowID, workflowInput.WorkflowExecID, mergedInput, err)
+		return fmt.Errorf("failed to start workflow: %w", err)
 	}
-	// Transition to Running on successful start (activity TriggerWorkflow will also upsert Running soon after).
-	if err := repo.UpdateStatus(ctx, workflowExecID, core.StatusRunning); err != nil {
-		// Do not fail the request; log and continue to avoid duplicate starts on retries.
+	return nil
+}
+
+// persistFailedStartState best-effort persists a failed state when Temporal start fails.
+func (o *Worker) persistFailedStartState(
+	ctx context.Context,
+	workflowID string,
+	workflowExecID core.ID,
+	input *core.Input,
+	startErr error,
+) {
+	repo := o.config.WorkflowRepo()
+	failed := wf.NewState(workflowID, workflowExecID, input).
+		WithStatus(core.StatusFailed).
+		WithError(core.NewError(startErr, "WORKFLOW_START_FAILED", map[string]any{
+			"workflow_id": workflowID,
+			"exec_id":     workflowExecID.String(),
+		}))
+	if err := repo.UpsertState(ctx, failed); err != nil {
+		logger.FromContext(ctx).Error(
+			"Failed to persist failed workflow state after start error",
+			"error", err, "workflow_id", workflowID, "exec_id", workflowExecID,
+		)
+	}
+}
+
+// transitionWorkflowToRunning logs errors but does not propagate failures during state promotion.
+func (o *Worker) transitionWorkflowToRunning(
+	ctx context.Context,
+	workflowID string,
+	workflowExecID core.ID,
+) {
+	if err := o.config.WorkflowRepo().UpdateStatus(ctx, workflowExecID, core.StatusRunning); err != nil {
 		logger.FromContext(ctx).Error(
 			"Failed to transition workflow state to RUNNING after start",
 			"error", err, "workflow_id", workflowID, "exec_id", workflowExecID,
 		)
 	}
-	return &workflowInput, nil
 }
 
 func (o *Worker) CancelWorkflow(ctx context.Context, workflowID string, workflowExecID core.ID) error {

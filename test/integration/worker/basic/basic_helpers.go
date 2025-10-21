@@ -17,10 +17,10 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
-	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/runtime"
+	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
@@ -62,59 +62,67 @@ func executeWorkflowAndGetState(
 	ctx := t.Context()
 	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 	defer cleanup()
-
-	// Setup Temporal test environment
-	testSuite := &testsuite.WorkflowTestSuite{}
-	temporalHelper := helpers.NewTemporalHelper(t, testSuite, "test-task-queue")
+	temporalHelper := newTestTemporalHelper(t)
 	defer temporalHelper.Cleanup(t)
-
-	// Create Redis helper for config store
 	redisHelper := helpers.NewRedisHelper(t)
 	defer redisHelper.Cleanup(t)
-
-	// Create real activities (mock the repositories they need)
 	activities := createTestActivities(t, taskRepo, workflowRepo, fixture)
-
-	// Register workflow and activities
-	temporalHelper.RegisterWorkflow(worker.CompozyWorkflow)
-	registerTestActivities(temporalHelper, activities)
-
-	// Generate workflow execution ID
+	registerWorkflowAndActivities(temporalHelper, activities)
 	workflowExecID := core.MustNewID()
+	input := buildTemporalInput(fixture, workflowExecID)
+	runWorkflowAndAssert(t, temporalHelper, input, fixture.Expected.WorkflowState.Status)
+	return fetchFinalWorkflowState(ctx, t, workflowRepo, workflowExecID)
+}
 
-	// Convert fixture input to proper type
+func newTestTemporalHelper(t *testing.T) *helpers.TemporalHelper {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	return helpers.NewTemporalHelper(t, testSuite, "test-task-queue")
+}
+
+func registerWorkflowAndActivities(helper *helpers.TemporalHelper, activities *worker.Activities) {
+	helper.RegisterWorkflow(worker.CompozyWorkflow)
+	registerTestActivities(helper, activities)
+}
+
+func buildTemporalInput(fixture *helpers.TestFixture, execID core.ID) worker.WorkflowInput {
 	var workflowInput *core.Input
 	if fixture.Input != nil {
 		input := core.Input(fixture.Input)
 		workflowInput = &input
 	}
-
-	// Create workflow input for Temporal execution
-	temporalInput := worker.WorkflowInput{
+	return worker.WorkflowInput{
 		WorkflowID:     fixture.Workflow.ID,
-		WorkflowExecID: workflowExecID,
+		WorkflowExecID: execID,
 		Input:          workflowInput,
 		InitialTaskID:  findInitialTaskID(fixture),
 	}
+}
 
-	// Execute real workflow through Temporal test environment
-	temporalHelper.ExecuteWorkflowSync(worker.CompozyWorkflow, temporalInput)
-
-	// Verify workflow completed successfully
-	require.True(t, temporalHelper.IsWorkflowCompleted(), "Workflow should complete")
-	err := temporalHelper.GetWorkflowError()
-	// Check for error based on expected status from fixture, not workflow ID naming
-	if fixture.Expected.WorkflowState.Status != "FAILED" {
+func runWorkflowAndAssert(
+	t *testing.T,
+	helper *helpers.TemporalHelper,
+	input worker.WorkflowInput,
+	expectedStatus string,
+) {
+	helper.ExecuteWorkflowSync(worker.CompozyWorkflow, input)
+	require.True(t, helper.IsWorkflowCompleted(), "Workflow should complete")
+	err := helper.GetWorkflowError()
+	if expectedStatus != "FAILED" {
 		require.NoError(t, err, "Workflow should complete without error")
-	} else {
-		require.Error(t, err, "Workflow should fail as expected")
+		return
 	}
+	require.Error(t, err, "Workflow should fail as expected")
+}
 
-	// Retrieve final workflow state from database
-	finalState, err := workflowRepo.GetState(ctx, workflowExecID)
+func fetchFinalWorkflowState(
+	ctx context.Context,
+	t *testing.T,
+	repo workflow.Repository,
+	execID core.ID,
+) *workflow.State {
+	state, err := repo.GetState(ctx, execID)
 	require.NoError(t, err, "Failed to retrieve final workflow state")
-
-	return finalState
+	return state
 }
 
 // createTestActivities creates activity instances for testing
@@ -125,32 +133,63 @@ func createTestActivities(
 	fixture *helpers.TestFixture,
 ) *worker.Activities {
 	ctx := t.Context()
-	// For testing, we need to create a minimal project config and workflow configs
-	// These would normally come from the real system setup
 	projectConfig := createTestProjectConfig(t)
 	workflows := createTestWorkflowConfigs(fixture)
-
-	// Create a test config store
 	configStore := createTestConfigStore()
-
-	// Create a mock runtime manager for testing (we don't need actual tool execution)
 	mockRuntime := createMockRuntime(t)
-
-	// Create template engine for tests
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+	toolEnv := buildTestToolEnvironment(
+		ctx,
+		t,
+		projectConfig,
+		workflows,
+		workflowRepo,
+		taskRepo,
+	)
+	return newTestActivities(
+		ctx,
+		t,
+		projectConfig,
+		workflows,
+		workflowRepo,
+		taskRepo,
+		mockRuntime,
+		configStore,
+		templateEngine,
+		toolEnv,
+	)
+}
 
-	// Create memory manager for tests - use nil for now as it's not needed for most tests
-	var memoryManager *memory.Manager
-
+func buildTestToolEnvironment(
+	ctx context.Context,
+	t *testing.T,
+	projectConfig *project.Config,
+	workflows []*workflow.Config,
+	workflowRepo workflow.Repository,
+	taskRepo task.Repository,
+) toolenv.Environment {
 	store := resources.NewMemoryResourceStore()
 	require.NoError(t, projectConfig.IndexToResourceStore(ctx, store))
 	for _, wfCfg := range workflows {
 		require.NoError(t, wfCfg.IndexToResourceStore(ctx, projectConfig.Name, store))
 	}
-	toolEnv, err := builder.Build(projectConfig, workflows, workflowRepo, taskRepo, store)
+	env, err := builder.Build(projectConfig, workflows, workflowRepo, taskRepo, store)
 	require.NoError(t, err)
+	return env
+}
 
-	// Create test activities with real repositories
+func newTestActivities(
+	ctx context.Context,
+	t *testing.T,
+	projectConfig *project.Config,
+	workflows []*workflow.Config,
+	workflowRepo workflow.Repository,
+	taskRepo task.Repository,
+	runtime runtime.Runtime,
+	configStore services.ConfigStore,
+	templateEngine *tplengine.TemplateEngine,
+	toolEnv toolenv.Environment,
+) *worker.Activities {
 	acts, err := worker.NewActivities(
 		ctx,
 		projectConfig,
@@ -159,11 +198,11 @@ func createTestActivities(
 		taskRepo,
 		&helpers.NoopUsageMetrics{},
 		providermetrics.Nop(),
-		mockRuntime,
+		runtime,
 		configStore,
-		nil, // signalDispatcher - not needed for basic test
-		nil, // redisCache - not needed for basic test
-		memoryManager,
+		nil,
+		nil,
+		nil,
 		templateEngine,
 		toolEnv,
 	)
@@ -178,8 +217,6 @@ func registerTestActivities(temporalHelper *helpers.TemporalHelper, activities *
 	temporalHelper.RegisterActivity(activities.UpdateWorkflowState)
 	temporalHelper.RegisterActivity(activities.CompleteWorkflow)
 	temporalHelper.RegisterActivity(activities.ExecuteBasicTask)
-
-	// Register activities with specific names as per worker setup
 	env := temporalHelper.GetEnvironment()
 	env.RegisterActivityWithOptions(
 		activities.LoadTaskConfigActivity,
@@ -214,92 +251,70 @@ func createTestProjectConfig(t *testing.T) *project.Config {
 
 // createTestWorkflowConfigs creates workflow configs for testing
 func createTestWorkflowConfigs(fixture *helpers.TestFixture) []*workflow.Config {
-	// For integration tests focused on workflow orchestration,
-	// we'll use agent-based tasks instead of tool-based tasks to avoid runtime complexity
-
-	// Update tasks to use agent configuration for simpler testing
-	tasks := make([]task.Config, len(fixture.Workflow.Tasks))
-	for i := range fixture.Workflow.Tasks {
-		tasks[i] = fixture.Workflow.Tasks[i]
-		if tasks[i].Type == task.TaskTypeBasic {
-			providerConfig := core.NewProviderConfig(core.ProviderMock, "test-model", "")
-			// Use a minimal agent configuration for integration testing
-			tasks[i].Agent = &agent.Config{
-				ID:           "test-agent",
-				Model:        agent.Model{Config: *providerConfig},
-				Instructions: "Test agent for integration testing",
-				With:         tasks[i].With, // Copy task's with field to agent
-				Actions: []*agent.ActionConfig{
-					{
-						ID:     "process_message",
-						Prompt: "Process a message for testing",
-						InputSchema: &schema.Schema{
-							"type": "object",
-							"properties": map[string]any{
-								"message": map[string]any{"type": "string"},
-								"value":   map[string]any{"type": "number"},
-							},
-						},
-					},
-					{
-						ID:     "process_with_error",
-						Prompt: "Process with error for testing",
-						InputSchema: &schema.Schema{
-							"type": "object",
-							"properties": map[string]any{
-								"message":     map[string]any{"type": "string"},
-								"should_fail": map[string]any{"type": "boolean"},
-							},
-						},
-					},
-					{
-						ID:     "prepare_data",
-						Prompt: "Prepare data for testing",
-						InputSchema: &schema.Schema{
-							"type": "object",
-							"properties": map[string]any{
-								"initial_value": map[string]any{"type": "number"},
-							},
-						},
-					},
-					{
-						ID:     "process_data",
-						Prompt: "Process data for testing",
-						InputSchema: &schema.Schema{
-							"type": "object",
-							"properties": map[string]any{
-								"multiplier": map[string]any{"type": "number"},
-							},
-						},
-					},
-					{
-						ID:     "handle_error",
-						Prompt: "Handle error for testing",
-						InputSchema: &schema.Schema{
-							"type": "object",
-							"properties": map[string]any{
-								"recovery_message": map[string]any{"type": "string"},
-							},
-						},
-					},
-				},
-			}
-			// Remove any tool configuration
-			tasks[i].Tool = nil
-		}
-	}
-
-	// Convert fixture workflow to workflow config
-	workflowConfig := &workflow.Config{
-		ID:    fixture.Workflow.ID,
-		Tasks: tasks,
-	}
+	tasks := cloneFixtureTasks(fixture.Workflow.Tasks)
+	applyAgentDefaults(tasks)
+	workflowConfig := &workflow.Config{ID: fixture.Workflow.ID, Tasks: tasks}
 	return []*workflow.Config{workflowConfig}
+}
+
+func cloneFixtureTasks(source []task.Config) []task.Config {
+	cloned := make([]task.Config, len(source))
+	copy(cloned, source)
+	return cloned
+}
+
+func applyAgentDefaults(tasks []task.Config) {
+	for i := range tasks {
+		if tasks[i].Type != task.TaskTypeBasic {
+			continue
+		}
+		tasks[i].Agent = newTestAgentConfig(&tasks[i])
+		tasks[i].Tool = nil
+	}
+}
+
+func newTestAgentConfig(taskCfg *task.Config) *agent.Config {
+	providerConfig := core.NewProviderConfig(core.ProviderMock, "test-model", "")
+	return &agent.Config{
+		ID:           "test-agent",
+		Model:        agent.Model{Config: *providerConfig},
+		Instructions: "Test agent for integration testing",
+		With:         taskCfg.With,
+		Actions: []*agent.ActionConfig{
+			newActionConfig("process_message", "Process a message for testing", map[string]any{
+				"message": map[string]any{"type": "string"},
+				"value":   map[string]any{"type": "number"},
+			}),
+			newActionConfig("process_with_error", "Process with error for testing", map[string]any{
+				"message":     map[string]any{"type": "string"},
+				"should_fail": map[string]any{"type": "boolean"},
+			}),
+			newActionConfig("prepare_data", "Prepare data for testing", map[string]any{
+				"initial_value": map[string]any{"type": "number"},
+			}),
+			newActionConfig("process_data", "Process data for testing", map[string]any{
+				"multiplier": map[string]any{"type": "number"},
+			}),
+			newActionConfig("handle_error", "Handle error for testing", map[string]any{
+				"recovery_message": map[string]any{"type": "string"},
+			}),
+		},
+	}
+}
+
+func newActionConfig(id, prompt string, properties map[string]any) *agent.ActionConfig {
+	return &agent.ActionConfig{
+		ID:     id,
+		Prompt: prompt,
+		InputSchema: &schema.Schema{
+			"type":       "object",
+			"properties": properties,
+		},
+	}
 }
 
 // createTestConfigStore creates a test config store
 func createTestConfigStore() services.ConfigStore {
-	// For testing, create a simple in-memory config store that implements the interface
 	return &testConfigStore{
 		data:     make(map[string]*task.Config),
 		metadata: make(map[string][]byte),
@@ -312,76 +327,82 @@ func createTestConfigStore() services.ConfigStore {
 
 func verifyBasicTaskExecution(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying basic task execution from database state")
+	basicTasks := collectBasicTaskStates(result)
+	require.NotEmpty(t, basicTasks, "Should have at least one basic task")
+	logTaskOutputs(t, basicTasks)
+	for _, taskState := range basicTasks {
+		assert.Equal(t, core.StatusSuccess, taskState.Status, "Basic task %s should be successful", taskState.TaskID)
+		require.NotNil(t, taskState.Output, "Basic task %s should have outputs", taskState.TaskID)
+		expected := findExpectedTaskState(fixture, taskState.TaskID)
+		if expected == nil || expected.Output == nil {
+			continue
+		}
+		compareTaskOutputs(t, taskState.TaskID, *taskState.Output, expected.Output)
+	}
+}
 
-	// Find all basic tasks
-	var basicTasks []*task.State
+func collectBasicTaskStates(result *workflow.State) []*task.State {
+	var tasks []*task.State
 	for _, taskState := range result.Tasks {
 		if taskState.ExecutionType == task.ExecutionBasic {
-			basicTasks = append(basicTasks, taskState)
+			tasks = append(tasks, taskState)
 		}
 	}
+	return tasks
+}
 
-	require.NotEmpty(t, basicTasks, "Should have at least one basic task")
-
-	// Debug: Print actual output for integration test development
-	for _, basicTask := range basicTasks {
+func logTaskOutputs(t *testing.T, tasks []*task.State) {
+	for _, basicTask := range tasks {
 		t.Logf("DEBUG: Task %s actual output: %+v", basicTask.TaskID, basicTask.Output)
 	}
+}
 
-	// Verify each basic task
-	for _, basicTask := range basicTasks {
-		assert.Equal(t, core.StatusSuccess, basicTask.Status, "Basic task %s should be successful", basicTask.TaskID)
-		require.NotNil(t, basicTask.Output, "Basic task %s should have outputs", basicTask.TaskID)
-
-		// Verify specific outputs match fixture expectations
-		for _, expectedTask := range fixture.Expected.TaskStates {
-			if expectedTask.Name == basicTask.TaskID && expectedTask.Output != nil {
-				for key, expectedValue := range expectedTask.Output {
-					actualValue, ok := (*basicTask.Output)[key]
-					assert.True(t, ok, "Output key %s should exist in task %s", key, basicTask.TaskID)
-
-					// Handle type conversion for JSON deserialization
-					if expectedStr, ok := expectedValue.(string); ok {
-						if actualStr, ok := actualValue.(string); ok {
-							assert.Equal(
-								t,
-								normalizeForCompare(expectedStr),
-								normalizeForCompare(actualStr),
-								"Output value mismatch for key %s in task %s",
-								key,
-								basicTask.TaskID,
-							)
-							continue
-						}
-					}
-					if expectedInt, ok := expectedValue.(int); ok {
-						if actualFloat, ok := actualValue.(float64); ok {
-							assert.Equal(
-								t,
-								float64(expectedInt),
-								actualFloat,
-								"Output value mismatch for key %s in task %s",
-								key,
-								basicTask.TaskID,
-							)
-						} else {
-							assert.Equal(t, expectedValue, actualValue, "Output value mismatch for key %s in task %s", key, basicTask.TaskID)
-						}
-					} else {
-						assert.Equal(t, expectedValue, actualValue, "Output value mismatch for key %s in task %s", key, basicTask.TaskID)
-					}
-				}
-			}
+func findExpectedTaskState(fixture *helpers.TestFixture, taskID string) *helpers.TaskStateExpectation {
+	for i := range fixture.Expected.TaskStates {
+		expected := &fixture.Expected.TaskStates[i]
+		if expected.Name == taskID {
+			return expected
 		}
 	}
+	return nil
+}
+
+func compareTaskOutputs(
+	t *testing.T,
+	taskID string,
+	actual core.Output,
+	expected map[string]any,
+) {
+	for key, expectedValue := range expected {
+		value, ok := actual[key]
+		assert.True(t, ok, "Output key %s should exist in task %s", key, taskID)
+		assertJSONEquivalent(t, expectedValue, value, "Output value mismatch for key %s in task %s", key, taskID)
+	}
+}
+
+func assertJSONEquivalent(t *testing.T, expected any, actual any, msg string, args ...any) {
+	t.Helper()
+	message := fmt.Sprintf(msg, args...)
+	switch ev := expected.(type) {
+	case string:
+		av, ok := actual.(string)
+		if ok {
+			assert.Equal(t, normalizeForCompare(ev), normalizeForCompare(av), message)
+			return
+		}
+	case int:
+		if av, ok := actual.(float64); ok {
+			assert.Equal(t, float64(ev), av, message)
+			return
+		}
+	}
+	assert.Equal(t, expected, actual, message)
 }
 
 func verifyBasicTaskInputs(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying basic task inputs from database state")
-
 	for _, taskState := range result.Tasks {
 		if taskState.ExecutionType == task.ExecutionBasic {
-			// Verify task has proper input data
 			for _, expectedTask := range fixture.Expected.TaskStates {
 				if expectedTask.Name == taskState.TaskID && expectedTask.Inputs != nil {
 					require.NotNil(t, taskState.Input, "Task should have input data")
@@ -389,7 +410,6 @@ func verifyBasicTaskInputs(t *testing.T, fixture *helpers.TestFixture, result *w
 						actualValue, ok := (*taskState.Input)[key]
 						assert.True(t, ok, "Input key %s should exist", key)
 
-						// Handle type conversion for JSON deserialization
 						if expectedInt, ok := expectedValue.(int); ok {
 							if actualFloat, ok := actualValue.(float64); ok {
 								assert.Equal(
@@ -414,17 +434,13 @@ func verifyBasicTaskInputs(t *testing.T, fixture *helpers.TestFixture, result *w
 
 func verifyBasicErrorHandling(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying error handling from database state")
-
 	var hasFailedTask bool
-
 	for _, taskState := range result.Tasks {
 		if taskState.Status == core.StatusFailed {
 			hasFailedTask = true
 			assert.NotNil(t, taskState.Error, "Failed task should have error information")
 		}
 	}
-
-	// For error scenario fixtures, verify we have the expected pattern
 	if fixture.Expected.WorkflowState.Status == "FAILED" {
 		assert.True(t, hasFailedTask, "Workflows expected to fail should have at least one failed task")
 		// Note: Error handler doesn't run for validation/execution failures (realistic behavior)
@@ -439,24 +455,17 @@ func verifyBasicErrorHandling(t *testing.T, fixture *helpers.TestFixture, result
 
 func verifyBasicTaskTransitions(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying task transitions from database state")
-
 	if len(result.Tasks) < 2 {
 		t.Log("Skipping transition verification - single task workflow")
 		return
 	}
-
-	// Convert tasks to slice for ordering
 	var tasks []*task.State
 	for _, taskState := range result.Tasks {
 		tasks = append(tasks, taskState)
 	}
-
-	// Sort by creation time using standard library
 	sort.Slice(tasks, func(i, j int) bool {
 		return tasks[i].CreatedAt.Before(tasks[j].CreatedAt)
 	})
-
-	// Verify execution order
 	for i := 1; i < len(tasks); i++ {
 		prevTask := tasks[i-1]
 		currentTask := tasks[i]
@@ -469,10 +478,8 @@ func verifyBasicTaskTransitions(t *testing.T, _ *helpers.TestFixture, result *wo
 
 func verifyFinalTaskBehavior(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying final task behavior from database state")
-
 	var finalTasks []*task.State
 	for _, taskState := range result.Tasks {
-		// Check if this task is marked as final in the fixture
 		for i := range fixture.Workflow.Tasks {
 			taskConfig := &fixture.Workflow.Tasks[i]
 			if taskConfig.ID == taskState.TaskID && taskConfig.Final {
@@ -480,7 +487,6 @@ func verifyFinalTaskBehavior(t *testing.T, fixture *helpers.TestFixture, result 
 			}
 		}
 	}
-
 	if len(finalTasks) > 0 {
 		t.Logf("Found %d final tasks", len(finalTasks))
 		for _, finalTask := range finalTasks {
@@ -559,8 +565,6 @@ func (s *testConfigStore) Close() error {
 // createMockRuntime creates a mock runtime manager for integration tests
 // This focuses on testing workflow orchestration without actual tool execution
 func createMockRuntime(t *testing.T) runtime.Runtime {
-	// Create a test runtime manager that won't be used since we're using agents
-	// We need to provide something to satisfy the interface
 	ctx := t.Context()
 	config := runtime.TestConfig()
 	factory := runtime.NewDefaultFactory("/tmp")

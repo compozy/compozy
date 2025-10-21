@@ -55,7 +55,6 @@ func NewCELEvaluator(opts ...CELEvaluatorOption) (*CELEvaluator, error) {
 		cel.Variable("parent", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("current", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("project", cel.MapType(cel.StringType, cel.DynType)),
-		// Allow webhook filters to use `{ payload, headers, query: map[string]any }`
 		cel.Variable("payload", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("headers", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("query", cel.MapType(cel.StringType, cel.DynType)),
@@ -68,11 +67,9 @@ func NewCELEvaluator(opts ...CELEvaluatorOption) (*CELEvaluator, error) {
 		costLimit:    1000, // Default cost limit
 		maxCacheSize: 100,  // Default cache size
 	}
-	// Apply options
 	for _, opt := range opts {
 		opt(evaluator)
 	}
-	// Create Ristretto cache with proper configuration
 	cache, err := ristretto.NewCache(&ristretto.Config[string, cel.Program]{
 		NumCounters: int64(evaluator.maxCacheSize * 10), // 10x the max items as recommended
 		MaxCost:     int64(evaluator.maxCacheSize),      // Each program has cost of 1
@@ -87,11 +84,9 @@ func NewCELEvaluator(opts ...CELEvaluatorOption) (*CELEvaluator, error) {
 
 // getProgram retrieves a compiled program from cache or compiles and caches it
 func (c *CELEvaluator) getProgram(expression string) (cel.Program, error) {
-	// Try to get from cache
 	if program, found := c.programCache.Get(expression); found {
 		return program, nil
 	}
-	// Not in cache, compile it
 	ast, issues := c.env.Compile(expression)
 	if issues != nil && issues.Err() != nil {
 		return nil, fmt.Errorf("CEL compilation failed: %w", issues.Err())
@@ -103,9 +98,7 @@ func (c *CELEvaluator) getProgram(expression string) (cel.Program, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CEL program: %w", err)
 	}
-	// Store in cache with cost of 1
 	c.programCache.Set(expression, program, 1)
-	// Wait for the value to be processed
 	c.programCache.Wait()
 	return program, nil
 }
@@ -115,7 +108,6 @@ func (c *CELEvaluator) Evaluate(ctx context.Context, expression string, data map
 	if err := ctx.Err(); err != nil {
 		return false, fmt.Errorf("context canceled before CEL evaluation: %w", err)
 	}
-	// Handle empty conditions as always true
 	if strings.TrimSpace(expression) == "" {
 		return true, nil
 	}

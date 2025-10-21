@@ -1,3 +1,10 @@
+---
+name: prd-techspec-creator
+description: Translates PRDs into implementation-ready technical specifications with deep repo analysis (Claude Context, Serena, Zen MCP), library research (Perplexity), and build-vs-buy decisions. Generates tech spec, docs, examples, and tests plans.
+model: sonnet
+color: cyan
+---
+
 <params>
 - $PRD: --prd
 - $FEATURE_FOLDER: ./tasks/prd-$PRD

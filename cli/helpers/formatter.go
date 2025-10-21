@@ -80,12 +80,10 @@ func (f *JSONFormatter) FormatWorkflowList(workflows any, total int, limit int, 
 	if limit > 0 {
 		pageCount = (total + limit - 1) / limit
 	}
-
 	data := map[string]any{
 		"workflows": workflows,
 		"total":     total,
 	}
-
 	metadata := &FormatterMetadata{
 		Timestamp: time.Now(),
 		Pagination: &PaginationInfo{
@@ -95,7 +93,6 @@ func (f *JSONFormatter) FormatWorkflowList(workflows any, total int, limit int, 
 			PageCount: pageCount,
 		},
 	}
-
 	return f.FormatSuccess(data, metadata)
 }
 
@@ -105,11 +102,9 @@ func (f *JSONFormatter) marshal(response JSONResponse) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal JSON: %w", err)
 	}
-
 	if f.Pretty {
 		prettyJSON := pretty.Pretty(jsonData)
 		return string(prettyJSON), nil
 	}
-
 	return string(jsonData), nil
 }

@@ -259,43 +259,21 @@ func NewDirectExecutor(
 	taskRepo task.Repository,
 	workflowRepo workflow.Repository,
 ) (DirectExecutor, error) {
-	if state == nil {
-		return nil, fmt.Errorf("app state is required")
+	if err := validateDirectExecutorArgs(state, taskRepo); err != nil {
+		return nil, err
 	}
-	if taskRepo == nil {
-		return nil, fmt.Errorf("task repository is required")
-	}
-	projCfg := state.ProjectConfig
-	if projCfg == nil {
-		return nil, fmt.Errorf("project configuration not available")
-	}
-	if workflowRepo == nil && state.Store != nil {
-		workflowRepo = state.Store.NewWorkflowRepo()
-	}
-	var usageMetrics usage.Metrics
-	providerMetrics := providermetrics.Nop()
-	if svc, ok := state.MonitoringService(); ok && svc != nil && svc.IsInitialized() {
-		usageMetrics = svc.LLMUsageMetrics()
-		providerMetrics = svc.LLMProviderMetrics()
-	}
+	workflowRepo = ensureWorkflowRepository(state, workflowRepo)
+	usageMetrics, providerMetrics := resolveMonitoringMetrics(state)
 	orchestrator, tplEng, err := setupConfigOrchestrator(ctx, workflowRepo, taskRepo)
 	if err != nil {
 		return nil, err
 	}
-	var memManager memcore.ManagerInterface
-	if state.Worker != nil {
-		memManager = state.Worker.GetMemoryManager()
-	}
+	memManager := resolveMemoryManager(state)
 	root := resolveProjectRoot(state)
-	var resourceStore resources.ResourceStore
-	if ext, ok := state.ResourceStore(); ok {
-		if store, ok := ext.(resources.ResourceStore); ok {
-			resourceStore = store
-		}
-	}
-	toolEnvironment, _ := toolenvstate.Load(state)
-	if toolEnvironment == nil {
-		return nil, fmt.Errorf("tool environment unavailable: ensure agent runner initialized")
+	resourceStore := resolveResourceStore(state)
+	toolEnvironment, err := loadToolEnvironment(state)
+	if err != nil {
+		return nil, err
 	}
 	return &directExecutor{
 		taskRepo:           taskRepo,
@@ -305,12 +283,78 @@ func NewDirectExecutor(
 		usageMetrics:       usageMetrics,
 		providerMetrics:    providerMetrics,
 		resourceStore:      resourceStore,
-		projectConfig:      projCfg,
+		projectConfig:      state.ProjectConfig,
 		memoryManager:      memManager,
 		templateEngine:     tplEng,
 		configOrchestrator: orchestrator,
 		runtimeFactory:     runtime.NewDefaultFactory(root),
 	}, nil
+}
+
+// validateDirectExecutorArgs ensures the critical dependencies are available.
+func validateDirectExecutorArgs(state *appstate.State, taskRepo task.Repository) error {
+	if state == nil {
+		return fmt.Errorf("app state is required")
+	}
+	if taskRepo == nil {
+		return fmt.Errorf("task repository is required")
+	}
+	if state.ProjectConfig == nil {
+		return fmt.Errorf("project configuration not available")
+	}
+	return nil
+}
+
+// ensureWorkflowRepository materializes a workflow repository when missing.
+func ensureWorkflowRepository(state *appstate.State, repo workflow.Repository) workflow.Repository {
+	if repo == nil && state != nil && state.Store != nil {
+		return state.Store.NewWorkflowRepo()
+	}
+	return repo
+}
+
+// resolveMonitoringMetrics extracts monitoring dependencies when available.
+func resolveMonitoringMetrics(state *appstate.State) (usage.Metrics, providermetrics.Recorder) {
+	var usageMetrics usage.Metrics
+	providerMetrics := providermetrics.Nop()
+	if state == nil {
+		return usageMetrics, providerMetrics
+	}
+	if svc, ok := state.MonitoringService(); ok && svc != nil && svc.IsInitialized() {
+		usageMetrics = svc.LLMUsageMetrics()
+		providerMetrics = svc.LLMProviderMetrics()
+	}
+	return usageMetrics, providerMetrics
+}
+
+// resolveMemoryManager returns the configured memory manager when present.
+func resolveMemoryManager(state *appstate.State) memcore.ManagerInterface {
+	if state == nil || state.Worker == nil {
+		return nil
+	}
+	return state.Worker.GetMemoryManager()
+}
+
+// resolveResourceStore safely casts the optional resource store from app state.
+func resolveResourceStore(state *appstate.State) resources.ResourceStore {
+	if state == nil {
+		return nil
+	}
+	if ext, ok := state.ResourceStore(); ok {
+		if store, ok := ext.(resources.ResourceStore); ok {
+			return store
+		}
+	}
+	return nil
+}
+
+// loadToolEnvironment loads the tool environment required for direct executions.
+func loadToolEnvironment(state *appstate.State) (toolenv.Environment, error) {
+	env, ok := toolenvstate.Load(state)
+	if !ok || env == nil {
+		return nil, fmt.Errorf("tool environment unavailable: ensure agent runner initialized")
+	}
+	return env, nil
 }
 
 func resolveProjectRoot(state *appstate.State) string {
@@ -364,11 +408,8 @@ func (d *directExecutor) ExecuteSync(
 	timeout time.Duration,
 ) (*core.Output, core.ID, error) {
 	var zeroID core.ID
-	if ctx == nil {
-		return nil, zeroID, fmt.Errorf("context is required")
-	}
-	if cfg == nil {
-		return nil, zeroID, fmt.Errorf("task config is required")
+	if err := validateExecuteSyncInput(ctx, cfg); err != nil {
+		return nil, zeroID, err
 	}
 	if meta == nil {
 		meta = &ExecMetadata{}
@@ -382,20 +423,7 @@ func (d *directExecutor) ExecuteSync(
 	if err != nil {
 		return nil, zeroID, err
 	}
-	if _, err := d.ensureRuntime(ctx); err != nil {
-		log := logger.FromContext(ctx)
-		if errUp := d.updateState(ctx, state, func(s *task.State) {
-			s.Status = core.StatusFailed
-			s.Error = core.NewError(err, "DIRECT_EXECUTION_FAILED", nil)
-			s.Output = nil
-		}); errUp != nil {
-			log.Error(
-				"Failed to update execution state",
-				"error", errUp,
-				"task_id", state.TaskID,
-				"exec_id", state.TaskExecID.String(),
-			)
-		}
+	if err := d.ensureRuntimeOrFail(ctx, state); err != nil {
 		return nil, zeroID, err
 	}
 	resultCh := make(chan execResult, 1)
@@ -420,6 +448,38 @@ func (d *directExecutor) ExecuteSync(
 		cancel()
 		return nil, execID, ctx.Err()
 	}
+}
+
+// validateExecuteSyncInput ensures the synchronous execution inputs are valid.
+func validateExecuteSyncInput(ctx context.Context, cfg *task.Config) error {
+	if ctx == nil {
+		return fmt.Errorf("context is required")
+	}
+	if cfg == nil {
+		return fmt.Errorf("task config is required")
+	}
+	return nil
+}
+
+// ensureRuntimeOrFail ensures the runtime is ready, updating state on failure.
+func (d *directExecutor) ensureRuntimeOrFail(ctx context.Context, state *task.State) error {
+	if _, err := d.ensureRuntime(ctx); err != nil {
+		log := logger.FromContext(ctx)
+		if errUp := d.updateState(ctx, state, func(s *task.State) {
+			s.Status = core.StatusFailed
+			s.Error = core.NewError(err, "DIRECT_EXECUTION_FAILED", nil)
+			s.Output = nil
+		}); errUp != nil {
+			log.Error(
+				"Failed to update execution state",
+				"error", errUp,
+				"task_id", state.TaskID,
+				"exec_id", state.TaskExecID.String(),
+			)
+		}
+		return err
+	}
+	return nil
 }
 
 func (d *directExecutor) initExecutionState(

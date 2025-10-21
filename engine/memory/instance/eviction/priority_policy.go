@@ -79,7 +79,6 @@ func (p *PriorityEvictionPolicy) SelectMessagesToEvict(
 	if len(messages) <= targetCount || targetCount < 0 {
 		return nil
 	}
-	// Convert to priority messages
 	priorityMessages := make([]messageWithPriority, len(messages))
 	for i, msg := range messages {
 		priority := p.extractPriority(msg)
@@ -90,17 +89,13 @@ func (p *PriorityEvictionPolicy) SelectMessagesToEvict(
 			index:         i,
 		}
 	}
-	// Sort by eviction preference
-	// Higher priority number = lower importance = evict first
-	// For same priority, prefer evicting older messages
 	sort.SliceStable(priorityMessages, func(i, j int) bool {
 		if priorityMessages[i].priority != priorityMessages[j].priority {
 			return priorityMessages[i].priority > priorityMessages[j].priority
 		}
-		// For same priority, evict older messages first
 		return priorityMessages[i].index < priorityMessages[j].index
 	})
-	// Never evict critical messages (system prompts)
+	// NOTE: Preserve critical system prompts regardless of eviction pressure.
 	evictCount := len(messages) - targetCount
 	evicted := make([]llm.Message, 0, evictCount)
 	evictedCount := 0
@@ -115,18 +110,15 @@ func (p *PriorityEvictionPolicy) SelectMessagesToEvict(
 
 // extractPriority determines the priority of a message based on role and content
 func (p *PriorityEvictionPolicy) extractPriority(msg llm.Message) MessagePriority {
-	// Check role-based priority
 	switch msg.Role {
 	case llm.MessageRoleSystem:
 		return PriorityCritical // Never evict system messages
 	case llm.MessageRoleAssistant:
-		// Check for important assistant messages
 		if p.containsImportantKeywords(msg.Content) {
 			return PriorityHigh
 		}
 		return PriorityMedium
 	case llm.MessageRoleUser:
-		// Check for important user messages
 		if p.containsImportantKeywords(msg.Content) {
 			return PriorityHigh
 		}
@@ -151,9 +143,7 @@ func (p *PriorityEvictionPolicy) containsImportantKeywords(content string) bool 
 
 // estimateTokens provides a token count estimate using the project's token estimator
 func (p *PriorityEvictionPolicy) estimateTokens(ctx context.Context, msg llm.Message) int {
-	// Use the token estimator for content
 	contentTokens := p.tokenEstimator.EstimateTokens(ctx, msg.Content)
-	// Add role overhead based on role length
 	roleOverhead := len(string(msg.Role)) + 2 // Role plus formatting overhead
 	return contentTokens + roleOverhead
 }

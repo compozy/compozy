@@ -40,14 +40,11 @@ func (e *Expander) ExpandItems(
 	if err := e.validateInputs(config, workflowState, workflowConfig); err != nil {
 		return nil, err
 	}
-	// Build template context for collection processing
 	templateContext := e.contextBuilder.BuildCollectionContext(ctx, workflowState, workflowConfig, config)
-	// Process collection items through expansion and filtering pipeline
 	filteredItems, skippedCount, err := e.processCollectionItems(ctx, config, templateContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process collection items: %w", err)
 	}
-	// Handle empty collection case
 	if len(filteredItems) == 0 {
 		return &shared.ExpansionResult{
 			ChildConfigs: []*task.Config{},
@@ -55,12 +52,10 @@ func (e *Expander) ExpandItems(
 			SkippedCount: skippedCount,
 		}, nil
 	}
-	// Create child configurations with collection context injection
 	childConfigs, err := e.createChildConfigs(config, filteredItems, templateContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create child configs: %w", err)
 	}
-	// Validate all child configurations
 	if err := e.validateChildConfigs(ctx, childConfigs); err != nil {
 		return nil, fmt.Errorf("failed to validate child configs: %w", err)
 	}
@@ -127,12 +122,10 @@ func (e *Expander) processCollectionItems(
 	config *task.Config,
 	templateContext map[string]any,
 ) ([]any, int, error) {
-	// Stage 1: Expand collection items from template expressions
 	items, err := e.normalizer.ExpandCollectionItems(ctx, &config.CollectionConfig, templateContext)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to expand collection items: %w", err)
 	}
-	// Stage 2: Filter items based on filter expressions
 	filteredItems, err := e.normalizer.FilterCollectionItems(ctx, &config.CollectionConfig, items, templateContext)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to filter collection items: %w", err)
@@ -149,21 +142,17 @@ func (e *Expander) createChildConfigs(
 ) ([]*task.Config, error) {
 	childConfigs := make([]*task.Config, len(filteredItems))
 	for i, item := range filteredItems {
-		// Create item-specific context for template processing
 		itemContext := e.normalizer.CreateItemContext(templateContext, &config.CollectionConfig, item, i)
-		// Build base child config from template with item context
 		childConfig, err := e.configBuilder.BuildTaskConfig(&config.CollectionConfig, config, item, i, itemContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build child config at index %d: %w", i, err)
 		}
 
-		// Ensure With is non-nil; injectCollectionContext will deep-copy and finalize
 		if childConfig.With == nil {
 			empty := core.Input{}
 			childConfig.With = &empty
 		}
 
-		// Inject collection context metadata into child config
 		e.injectCollectionContext(childConfig, config, item, i)
 		childConfigs[i] = childConfig
 	}
@@ -177,23 +166,15 @@ func (e *Expander) injectCollectionContext(
 	item any,
 	index int,
 ) {
-	// Ensure With field exists
 	if childConfig.With == nil {
 		childConfig.With = &core.Input{}
 	}
-
-	// Deep copy existing child context to avoid shared pointer mutations
 	withMap, err := core.DeepCopy(*childConfig.With) // returns core.Input
 	if err != nil {
-		// If deep copy fails, preserve current values
 		withMap = *childConfig.With
 	}
-
-	// Always publish canonical vars
 	withMap[shared.FieldCollectionItem] = item
 	withMap[shared.FieldCollectionIndex] = index
-
-	// Custom variable naming support (avoid duplicates)
 	if parentConfig != nil {
 		if iv := parentConfig.GetItemVar(); iv != "" && iv != shared.FieldCollectionItem {
 			withMap[iv] = item
@@ -202,12 +183,9 @@ func (e *Expander) injectCollectionContext(
 			withMap[ix] = index
 		}
 	}
-
-	// Merge inherited parent With after deep-copy to preserve precedence rules
 	if parentConfig != nil && parentConfig.With != nil {
 		parentMap, err := core.DeepCopy(*parentConfig.With) // returns core.Input
 		if err != nil {
-			// If deep copy fails, preserve parent values
 			parentMap = *parentConfig.With
 		}
 		for k, v := range parentMap {
@@ -216,7 +194,6 @@ func (e *Expander) injectCollectionContext(
 			}
 		}
 	}
-
 	newWith := withMap
 	childConfig.With = &newWith
 }

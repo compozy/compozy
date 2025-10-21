@@ -280,11 +280,6 @@ func (a *Config) SetCWD(path string) error {
 			return err
 		}
 	}
-	// Propagate CWD to inline tool configurations as well. Agent-level tools
-	// are validated later when creating the LLM service (via resolved tools),
-	// and require a non-empty CWD for path resolution and execution. When tools
-	// are declared at workflow/project level, CWD propagation happens there;
-	// for agent-scoped tools we must set it here to avoid validation failures.
 	for i := range a.Tools {
 		if err := a.Tools[i].SetCWD(path); err != nil {
 			return err
@@ -342,14 +337,10 @@ func (a *Config) GetMaxIterations() int {
 // This ensures all memory configurations have valid IDs, keys, and access modes before agent execution.
 func (a *Config) NormalizeAndValidateMemoryConfig() error {
 	const defaultMemoryMode = "read-write"
-
 	for i := range a.Memory {
 		if a.Memory[i].ID == "" {
 			return fmt.Errorf("memory reference %d missing required 'id' field", i)
 		}
-		// Key can be empty when using ID-only form; runtime will fall back to
-		// memory.Config.default_key_template (if provided). ResolvedKey may also
-		// be provided directly by REST APIs.
 		if a.Memory[i].Mode == "" {
 			a.Memory[i].Mode = defaultMemoryMode
 		}
@@ -367,13 +358,10 @@ func (a *Config) NormalizeAndValidateMemoryConfig() error {
 // This performs comprehensive validation including struct fields, memory configuration,
 // actions, and MCP server settings to prevent runtime errors.
 func (a *Config) Validate(ctx context.Context) error {
-	// Initial struct validation (for required fields like ID, Config, Instructions)
 	baseValidator := schema.NewStructValidator(a)
 	if err := baseValidator.Validate(ctx); err != nil {
 		return err
 	}
-
-	// Normalize and validate memory configuration first
 	if err := a.NormalizeAndValidateMemoryConfig(); err != nil {
 		return fmt.Errorf("invalid memory configuration: %w", err)
 	}
@@ -383,8 +371,6 @@ func (a *Config) Validate(ctx context.Context) error {
 	if len(a.Knowledge) == 1 && strings.TrimSpace(a.Knowledge[0].ID) == "" {
 		return fmt.Errorf("agent configuration error: knowledge binding requires an id reference")
 	}
-
-	// Now build composite validator including memory (if any)
 	v := schema.NewCompositeValidator(
 		schema.NewCWDValidator(a.CWD, a.ID),
 		NewActionsValidator(a.Actions),
@@ -393,7 +379,6 @@ func (a *Config) Validate(ctx context.Context) error {
 	if err := v.Validate(ctx); err != nil {
 		return fmt.Errorf("agent config validation failed: %w", err)
 	}
-
 	var mcpErrors []error
 	for i := range a.MCPs {
 		if err := a.MCPs[i].Validate(ctx); err != nil {
@@ -454,8 +439,6 @@ func (a *Config) FromMap(data any) error {
 	if data == nil {
 		return nil
 	}
-	// Use a local decoder to handle string→Model for the `model` field while
-	// preserving existing hooks for types like *schema.Schema.
 	var dst Config
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
@@ -464,21 +447,18 @@ func (a *Config) FromMap(data any) error {
 		DecodeHook: mapstructure.ComposeDecodeHookFunc(
 			core.StringToMapAliasPtrHook,
 			func(from reflect.Type, to reflect.Type, v any) (any, error) {
-				// Support assigning a scalar string to agent.Model
 				if from.Kind() == reflect.String && to == reflect.TypeOf(Model{}) {
 					if s, ok := v.(string); ok {
 						return Model{Ref: s}, nil
 					}
 					return v, nil
 				}
-				// Support assigning a scalar string to mcp.Config
 				if from.Kind() == reflect.String && to == reflect.TypeOf(mcp.Config{}) {
 					if s, ok := v.(string); ok {
 						return mcp.Config{ID: s}, nil
 					}
 					return v, nil
 				}
-				// Support assigning a scalar string to core.MemoryReference
 				if from.Kind() == reflect.String && to == reflect.TypeOf(core.MemoryReference{}) {
 					if s, ok := v.(string); ok {
 						return core.MemoryReference{ID: s}, nil

@@ -32,18 +32,12 @@ func (n *Normalizer) Normalize(
 	config *task.Config,
 	parentCtx contracts.NormalizationContext,
 ) error {
-	// Handle nil config gracefully
 	if config == nil {
+		// NOTE: Allow nil configs so optional memory tasks don't panic during normalization.
 		return nil
 	}
-
-	// Apply base normalization
-	// Memory task constraints are already validated in task.TypeValidator.validateMemoryTask()
 	if err := n.BaseNormalizer.Normalize(ctx, config, parentCtx); err != nil {
 		return err
 	}
-
-	// Memory tasks are simple and don't need additional normalization
-	// beyond what BaseNormalizer provides
 	return nil
 }

@@ -50,76 +50,132 @@ func processAttachment(
 ) ([]Attachment, Attachment, error) {
 	switch v := a.(type) {
 	case *ImageAttachment:
-		return expandMulti(ctx, eng, cwd, &params{
-			base:   v.baseAttachment,
-			src:    v.Source,
-			url:    v.URL,
-			path:   v.Path,
-			urls:   v.URLs,
-			paths:  v.Paths,
-			kind:   TypeImage,
-			tplCtx: tplCtx,
-		})
+		return processImageAttachment(ctx, eng, cwd, tplCtx, v)
 	case *PDFAttachment:
-		items, parent, err := expandMulti(ctx, eng, cwd, &params{
-			base:   v.baseAttachment,
-			src:    v.Source,
-			url:    v.URL,
-			path:   v.Path,
-			urls:   v.URLs,
-			paths:  v.Paths,
-			kind:   TypePDF,
-			tplCtx: tplCtx,
-		})
-		if err != nil {
-			return nil, nil, err
-		}
-		for _, it := range items {
-			if p, ok := it.(*PDFAttachment); ok {
-				p.MaxPages = v.MaxPages
-			}
-		}
-		if parentPDF, ok := parent.(*PDFAttachment); ok {
-			parentPDF.MaxPages = v.MaxPages
-		}
-		return items, parent, nil
+		return processPDFAttachment(ctx, eng, cwd, tplCtx, v)
 	case *AudioAttachment:
-		return expandMulti(ctx, eng, cwd, &params{
-			base:   v.baseAttachment,
-			src:    v.Source,
-			url:    v.URL,
-			path:   v.Path,
-			urls:   v.URLs,
-			paths:  v.Paths,
-			kind:   TypeAudio,
-			tplCtx: tplCtx,
-		})
+		return processAudioAttachment(ctx, eng, cwd, tplCtx, v)
 	case *VideoAttachment:
-		return expandMulti(ctx, eng, cwd, &params{
-			base:   v.baseAttachment,
-			src:    v.Source,
-			url:    v.URL,
-			path:   v.Path,
-			urls:   v.URLs,
-			paths:  v.Paths,
-			kind:   TypeVideo,
-			tplCtx: tplCtx,
-		})
+		return processVideoAttachment(ctx, eng, cwd, tplCtx, v)
 	case *URLAttachment:
-		s, _, err := applyTemplateString(eng, tplCtx, v.URL)
-		if err != nil {
-			return nil, nil, fmt.Errorf("url template: %w", err)
-		}
-		return []Attachment{&URLAttachment{baseAttachment: v.baseAttachment, URL: s}}, nil, nil
+		return processURLAttachment(eng, tplCtx, v)
 	case *FileAttachment:
-		s, _, err := applyTemplateString(eng, tplCtx, v.Path)
-		if err != nil {
-			return nil, nil, fmt.Errorf("file template: %w", err)
-		}
-		return []Attachment{&FileAttachment{baseAttachment: v.baseAttachment, Path: s}}, nil, nil
+		return processFileAttachment(eng, tplCtx, v)
 	default:
 		return nil, nil, fmt.Errorf("unsupported attachment type %T", a)
 	}
+}
+
+func processImageAttachment(
+	ctx context.Context,
+	eng *tplengine.TemplateEngine,
+	cwd *core.PathCWD,
+	tplCtx map[string]any,
+	attachment *ImageAttachment,
+) ([]Attachment, Attachment, error) {
+	return expandMulti(ctx, eng, cwd, &params{
+		base:   attachment.baseAttachment,
+		src:    attachment.Source,
+		url:    attachment.URL,
+		path:   attachment.Path,
+		urls:   attachment.URLs,
+		paths:  attachment.Paths,
+		kind:   TypeImage,
+		tplCtx: tplCtx,
+	})
+}
+
+func processPDFAttachment(
+	ctx context.Context,
+	eng *tplengine.TemplateEngine,
+	cwd *core.PathCWD,
+	tplCtx map[string]any,
+	attachment *PDFAttachment,
+) ([]Attachment, Attachment, error) {
+	items, parent, err := expandMulti(ctx, eng, cwd, &params{
+		base:   attachment.baseAttachment,
+		src:    attachment.Source,
+		url:    attachment.URL,
+		path:   attachment.Path,
+		urls:   attachment.URLs,
+		paths:  attachment.Paths,
+		kind:   TypePDF,
+		tplCtx: tplCtx,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, it := range items {
+		if pdf, ok := it.(*PDFAttachment); ok {
+			pdf.MaxPages = attachment.MaxPages
+		}
+	}
+	if pdfParent, ok := parent.(*PDFAttachment); ok {
+		pdfParent.MaxPages = attachment.MaxPages
+	}
+	return items, parent, nil
+}
+
+func processAudioAttachment(
+	ctx context.Context,
+	eng *tplengine.TemplateEngine,
+	cwd *core.PathCWD,
+	tplCtx map[string]any,
+	attachment *AudioAttachment,
+) ([]Attachment, Attachment, error) {
+	return expandMulti(ctx, eng, cwd, &params{
+		base:   attachment.baseAttachment,
+		src:    attachment.Source,
+		url:    attachment.URL,
+		path:   attachment.Path,
+		urls:   attachment.URLs,
+		paths:  attachment.Paths,
+		kind:   TypeAudio,
+		tplCtx: tplCtx,
+	})
+}
+
+func processVideoAttachment(
+	ctx context.Context,
+	eng *tplengine.TemplateEngine,
+	cwd *core.PathCWD,
+	tplCtx map[string]any,
+	attachment *VideoAttachment,
+) ([]Attachment, Attachment, error) {
+	return expandMulti(ctx, eng, cwd, &params{
+		base:   attachment.baseAttachment,
+		src:    attachment.Source,
+		url:    attachment.URL,
+		path:   attachment.Path,
+		urls:   attachment.URLs,
+		paths:  attachment.Paths,
+		kind:   TypeVideo,
+		tplCtx: tplCtx,
+	})
+}
+
+func processURLAttachment(
+	eng *tplengine.TemplateEngine,
+	tplCtx map[string]any,
+	attachment *URLAttachment,
+) ([]Attachment, Attachment, error) {
+	s, _, err := applyTemplateString(eng, tplCtx, attachment.URL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("url template: %w", err)
+	}
+	return []Attachment{&URLAttachment{baseAttachment: attachment.baseAttachment, URL: s}}, nil, nil
+}
+
+func processFileAttachment(
+	eng *tplengine.TemplateEngine,
+	tplCtx map[string]any,
+	attachment *FileAttachment,
+) ([]Attachment, Attachment, error) {
+	s, _, err := applyTemplateString(eng, tplCtx, attachment.Path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("file template: %w", err)
+	}
+	return []Attachment{&FileAttachment{baseAttachment: attachment.baseAttachment, Path: s}}, nil, nil
 }
 
 // NormalizePhase2 finalizes any deferred templates from phase 1 and expands remaining plural sources.
@@ -130,7 +186,6 @@ func NormalizePhase2(
 	atts []Attachment,
 	tplCtx map[string]any,
 ) ([]Attachment, error) {
-	// Re-run the same logic; any previously deferred templates should now resolve and expand.
 	return NormalizePhase1(ctx, eng, cwd, atts, tplCtx)
 }
 
@@ -279,7 +334,6 @@ func applyTemplateString(eng *tplengine.TemplateEngine, ctx map[string]any, in s
 	if !ok {
 		return "", false, fmt.Errorf("template did not resolve to string")
 	}
-	// Deferred if original template references .tasks.* and still contains template syntax after evaluation
 	deferred := strings.Contains(in, ".tasks.") && tplengine.HasTemplate(s)
 	return s, deferred, nil
 }
@@ -371,7 +425,6 @@ func newAttachmentItem(kind Type, src Source, base baseAttachment, v string) Att
 	if f, ok := attachmentSingleFactories[kind]; ok {
 		return f(base, src, v)
 	}
-	// Unreachable with supported kinds; return nil to surface misuse during tests
 	return nil
 }
 

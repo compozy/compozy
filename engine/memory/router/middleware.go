@@ -28,25 +28,20 @@ const memoryContextKey = "memoryContext"
 // ExtractMemoryContext is a middleware that extracts common memory parameters
 func ExtractMemoryContext() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Extract and validate memory reference
 		memoryRef := c.Param("memory_ref")
 		if err := validateMemoryRef(c, memoryRef); err != nil {
 			return
 		}
 
-		// Extract key based on HTTP method
 		key := extractKey(c)
 
-		// Get app state and validate dependencies
 		appState, memoryManager, tokenCounter, err := getDependencies(c)
 		if err != nil {
 			return
 		}
 
-		// Build workflow context
 		workflowContext := buildWorkflowContext(appState)
 
-		// Create and store memory context
 		ctx := &MemoryContext{
 			MemoryRef:       memoryRef,
 			Key:             key,
@@ -79,11 +74,8 @@ func extractKey(c *gin.Context) string {
 	if c.Request.Method != http.MethodGet {
 		return ""
 	}
-
 	key := c.Query("key")
 	requestPath := c.Request.URL.Path
-
-	// Validate key for GET requests that require it
 	if requiresKey(requestPath) && key == "" {
 		reqErr := router.NewRequestError(
 			http.StatusBadRequest,
@@ -94,7 +86,6 @@ func extractKey(c *gin.Context) string {
 		c.Abort()
 		return ""
 	}
-
 	return key
 }
 
@@ -111,7 +102,6 @@ func getDependencies(c *gin.Context) (*appstate.State, *memory.Manager, memcore.
 	if appState == nil {
 		return nil, nil, nil, fmt.Errorf("app state not available")
 	}
-
 	if appState.Worker == nil {
 		reqErr := router.NewRequestError(
 			http.StatusInternalServerError,
@@ -121,7 +111,6 @@ func getDependencies(c *gin.Context) (*appstate.State, *memory.Manager, memcore.
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, nil, nil, reqErr
 	}
-
 	memoryManager := appState.Worker.GetMemoryManager()
 	if memoryManager == nil {
 		reqErr := router.NewRequestError(
@@ -132,7 +121,6 @@ func getDependencies(c *gin.Context) (*appstate.State, *memory.Manager, memcore.
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, nil, nil, reqErr
 	}
-
 	tokenCounter, err := memoryManager.GetTokenCounter(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
@@ -143,7 +131,6 @@ func getDependencies(c *gin.Context) (*appstate.State, *memory.Manager, memcore.
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, nil, nil, reqErr
 	}
-
 	return appState, memoryManager, tokenCounter, nil
 }
 

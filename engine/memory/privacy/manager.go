@@ -31,7 +31,6 @@ func normalizeMetaKey(k string) string {
 
 // isSensitiveMetaKey checks if a normalized key contains sensitive information
 func isSensitiveMetaKey(k string) bool {
-	// Check exact matches first (most common cases)
 	switch k {
 	case "content", "raw", "message", "body", "payload",
 		"password", "pass", "passwd", "pwd",
@@ -43,7 +42,6 @@ func isSensitiveMetaKey(k string) bool {
 		"privatekey", "sshkey", "ssn":
 		return true
 	}
-	// Check if key contains sensitive patterns
 	if strings.Contains(k, "apikey") || strings.Contains(k, "token") ||
 		strings.Contains(k, "authorization") || strings.Contains(k, "secret") ||
 		strings.Contains(k, "privatekey") || strings.Contains(k, "sshkey") ||
@@ -81,15 +79,12 @@ func (pm *Manager) RegisterPolicy(_ context.Context, resourceID string, policy *
 		)
 	}
 	if policy == nil {
-		// No policy means no privacy controls for this resource
 		return nil
 	}
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	// Compile and validate regex patterns
 	var compiledPatterns []*regexp.Regexp
 	for _, pattern := range policy.RedactPatterns {
-		// Check for known problematic patterns
 		if err := validateRedactionPattern(pattern); err != nil {
 			return memcore.NewMemoryError(
 				memcore.ErrCodePrivacyValidation,
@@ -127,13 +122,12 @@ func (pm *Manager) ApplyPrivacyControls(
 	resourceID string,
 	metadata memcore.PrivacyMetadata,
 ) (llm.Message, memcore.PrivacyMetadata, error) {
-	// Check if message should be persisted
 	if !pm.ShouldPersistMessage(string(msg.Role), pm.getNonPersistableTypes(resourceID)) {
 		metadata.DoNotPersist = true
 		return msg, metadata, nil
 	}
-	// Apply redaction if needed
 	if !metadata.RedactionApplied {
+		// NOTE: Apply redaction only once to avoid double-scrubbing sensitive content.
 		redactedMsg, err := pm.redactMessage(ctx, resourceID, msg)
 		if err != nil {
 			return msg, metadata, err
@@ -373,20 +367,16 @@ func (pm *Manager) LogPrivacyExclusion(
 		"resource_id": resourceID,
 		"reason":      reason,
 	}
-	// Safely merge metadata with sensitive data filtering
 	for k, v := range metadata {
-		// Filter out potentially sensitive keys (normalized)
 		normalized := normalizeMetaKey(k)
 		if isSensitiveMetaKey(normalized) {
 			logData["meta."+k] = DefaultRedactionString
 			continue
 		}
-		// Prevent overriding reserved fields by prefixing
 		if _, reserved := logData[k]; reserved {
 			logData["meta."+k] = v
 			continue
 		}
-		// Add non-sensitive, non-reserved metadata
 		logData[k] = v
 	}
 	log.Info("Privacy exclusion applied", logData)

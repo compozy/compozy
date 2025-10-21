@@ -105,7 +105,6 @@ func DefaultRetryConfig() RetryConfig {
 // small random jitter is added to reduce synchronized retries.
 func (c *Client) ConfigureRetry(maxRetries uint64, base, maxDelay time.Duration, jitter bool, jitterPercent uint64) {
 	if maxRetries > 0 {
-		// Apply a conservative upper bound to avoid runaway retries
 		c.retryConf.MaxAttempts = min(maxRetries, 64)
 	}
 	if base > 0 {
@@ -216,7 +215,6 @@ func (c *Client) Register(ctx context.Context, def *Definition) error {
 		if err != nil {
 			return fmt.Errorf("failed to read response body: %w", err)
 		}
-		// Handle different status codes
 		switch resp.StatusCode {
 		case http.StatusCreated:
 			log.Info("Successfully registered MCP with proxy",
@@ -227,7 +225,6 @@ func (c *Client) Register(ctx context.Context, def *Definition) error {
 				"mcp_name", def.Name, "proxy_url", c.baseURL)
 			return nil // Treat as success - idempotent operation
 		case http.StatusUnauthorized:
-			// Parse structured error and lowercase message for test compatibility
 			err := parseProxyError(resp.StatusCode, body)
 			if perr, ok := err.(*ProxyRequestError); ok {
 				perr.Message = strings.ToLower(perr.Message)
@@ -480,7 +477,6 @@ func (c *Client) WaitForConnections(ctx context.Context, names []string, pollInt
 	nameSet := buildNameSet(names)
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
-	// Track last observed errors for clearer reporting
 	lastErrors := make(map[string]string)
 	for {
 		select {
@@ -488,7 +484,7 @@ func (c *Client) WaitForConnections(ctx context.Context, names []string, pollInt
 			if len(lastErrors) == 0 {
 				return ctx.Err()
 			}
-			// Include last seen connection errors in timeout/error message
+			// NOTE: Surface the last proxy connection failures to aid MCP troubleshooting.
 			return fmt.Errorf("%w: %s", ctx.Err(), formatConnectionErrors(lastErrors))
 		case <-ticker.C:
 			connected, err := c.checkConnections(ctx, nameSet, lastErrors)
@@ -553,77 +549,108 @@ type ToolCallResponse struct {
 
 // CallTool executes a tool via the proxy
 func (c *Client) CallTool(ctx context.Context, mcpName, toolName string, arguments map[string]any) (any, error) {
-	var response ToolCallResponse
-	start := time.Now()
-	err := c.withRetry(ctx, "call tool", func() error {
-		payload, err := json.Marshal(ToolCallRequest{
-			MCPName:   mcpName,
-			ToolName:  toolName,
-			Arguments: arguments,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to marshal tool call request: %w", err)
-		}
-
-		req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/admin/tools/call", bytes.NewReader(payload))
-		if err != nil {
-			return fmt.Errorf("failed to create tool call request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := c.http.Do(req)
-		if err != nil {
-			return fmt.Errorf("tool call request failed: %w", err)
-		}
-		defer resp.Body.Close()
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read response: %w", err)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return parseProxyError(resp.StatusCode, body)
-		}
-
-		if err := json.Unmarshal(body, &response); err != nil {
-			return fmt.Errorf("failed to unmarshal tool response: %w", err)
-		}
-
-		if response.Error != "" {
-			return fmt.Errorf("tool execution error: %s", response.Error)
-		}
-
-		return nil
-	})
-	duration := time.Since(start)
+	response, duration, err := c.performToolCall(ctx, mcpName, toolName, arguments)
 	if err != nil {
-		kind := categorizeToolError(err)
-		mcpmetrics.RecordToolError(ctx, mcpName, toolName, kind)
-		outcome := mcpmetrics.OutcomeError
-		if kind == mcpmetrics.ErrorKindTimeout {
-			outcome = mcpmetrics.OutcomeTimeout
-		}
-		mcpmetrics.RecordToolExecution(ctx, mcpName, toolName, duration, outcome)
+		c.recordToolErrorMetrics(ctx, mcpName, toolName, duration, err)
 		return nil, err
 	}
 	mcpmetrics.RecordToolExecution(ctx, mcpName, toolName, duration, mcpmetrics.OutcomeSuccess)
-	// Normalize proxy-wrapped content: when result is a typed text payload
-	// like {"type":"text","text":"..."}, unwrap to plain string so
-	// downstream success/error heuristics can reason over the textual content.
-	if m, ok := response.Result.(map[string]any); ok {
+	return normalizeToolResult(response.Result), nil
+}
+
+func (c *Client) performToolCall(
+	ctx context.Context,
+	mcpName string,
+	toolName string,
+	arguments map[string]any,
+) (ToolCallResponse, time.Duration, error) {
+	payload, err := c.buildToolCallPayload(mcpName, toolName, arguments)
+	if err != nil {
+		return ToolCallResponse{}, 0, err
+	}
+	var response ToolCallResponse
+	start := time.Now()
+	err = c.withRetry(ctx, "call tool", func() error {
+		req, err := c.buildToolCallRequest(ctx, payload)
+		if err != nil {
+			return err
+		}
+		return c.invokeToolRequest(req, &response)
+	})
+	return response, time.Since(start), err
+}
+
+func (c *Client) buildToolCallPayload(mcpName, toolName string, arguments map[string]any) ([]byte, error) {
+	payload, err := json.Marshal(ToolCallRequest{
+		MCPName:   mcpName,
+		ToolName:  toolName,
+		Arguments: arguments,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal tool call request: %w", err)
+	}
+	return payload, nil
+}
+
+func (c *Client) buildToolCallRequest(ctx context.Context, payload []byte) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/admin/tools/call", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tool call request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return req, nil
+}
+
+func (c *Client) invokeToolRequest(req *http.Request, response *ToolCallResponse) error {
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("tool call request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return parseProxyError(resp.StatusCode, body)
+	}
+	if err := json.Unmarshal(body, response); err != nil {
+		return fmt.Errorf("failed to unmarshal tool response: %w", err)
+	}
+	if response.Error != "" {
+		return fmt.Errorf("tool execution error: %s", response.Error)
+	}
+	return nil
+}
+
+func (c *Client) recordToolErrorMetrics(
+	ctx context.Context,
+	mcpName, toolName string,
+	duration time.Duration,
+	err error,
+) {
+	kind := categorizeToolError(err)
+	mcpmetrics.RecordToolError(ctx, mcpName, toolName, kind)
+	outcome := mcpmetrics.OutcomeError
+	if kind == mcpmetrics.ErrorKindTimeout {
+		outcome = mcpmetrics.OutcomeTimeout
+	}
+	mcpmetrics.RecordToolExecution(ctx, mcpName, toolName, duration, outcome)
+}
+
+func normalizeToolResult(result any) any {
+	if m, ok := result.(map[string]any); ok {
 		if t, ok := m["type"].(string); ok && t == "text" {
 			if txt, ok := m["text"].(string); ok {
-				return txt, nil
+				return txt
 			}
 		}
 	}
-	return response.Result, nil
+	return result
 }
 
 // Close cleans up the HTTP client resources
 func (c *Client) Close() error {
-	// Close idle connections
 	c.http.CloseIdleConnections()
 	return nil
 }
@@ -631,7 +658,6 @@ func (c *Client) Close() error {
 // withRetry executes the provided function with exponential backoff retry logic
 func (c *Client) withRetry(ctx context.Context, operation string, fn func() error) error {
 	log := logger.FromContext(ctx)
-	// Build backoff chain from config
 	var b = retry.NewExponential(c.retryConf.BaseDelay)
 	if c.retryConf.MaxDelay > 0 {
 		b = retry.WithCappedDuration(c.retryConf.MaxDelay, b)
@@ -644,7 +670,6 @@ func (c *Client) withRetry(ctx context.Context, operation string, fn func() erro
 		b = retry.WithJitterPercent(jp, b)
 	}
 	b = retry.WithMaxRetries(c.retryConf.MaxAttempts, b)
-
 	return retry.Do(ctx, b, func(_ context.Context) error {
 		err := fn()
 		if err != nil {
@@ -663,15 +688,10 @@ func isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	// Check for structured proxy errors
 	var proxyErr *ProxyRequestError
 	if errors.As(err, &proxyErr) {
-		// Only retry on server errors (5xx status codes)
 		return proxyErr.StatusCode >= 500 && proxyErr.StatusCode < 600
 	}
-
-	// Unwrap *url.Error and net.Error for better classification
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
 		if ne, ok := urlErr.Err.(net.Error); ok {
@@ -679,19 +699,14 @@ func isRetryableError(err error) bool {
 				return true
 			}
 		}
-		// Connection refused and similar syscall errors often wrapped; keep conservative retry
 		if strings.Contains(strings.ToLower(urlErr.Err.Error()), "connection refused") {
 			return true
 		}
 		return false
 	}
-
-	// Respect context cancellation without retry
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return false
 	}
-
-	// Generic transient patterns
 	lc := strings.ToLower(err.Error())
 	if strings.Contains(lc, "connection reset by peer") ||
 		strings.Contains(lc, "broken pipe") ||

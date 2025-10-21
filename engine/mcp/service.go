@@ -57,21 +57,17 @@ func NewWithTimeout(ctx context.Context, proxyURL string, timeout time.Duration)
 // Ensure registers an MCP with the proxy if not already registered (idempotent)
 func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
 	log := logger.FromContext(ctx)
-	// Convert MCP config to proxy definition
 	def, err := s.convertToDefinition(config)
 	if err != nil {
 		return fmt.Errorf("failed to convert MCP config to definition: %w", err)
 	}
-	// Log registration with redacted headers for security
 	if len(def.Headers) > 0 {
+		// NOTE: Redact headers before logging MCP registration to avoid leaking secrets.
 		log.Debug("Registering MCP with headers", "mcp_id", config.ID, "headers", core.RedactHeaders(def.Headers))
 	}
-
-	// Register with proxy
 	if err := s.proxy.Register(ctx, &def); err != nil {
 		return fmt.Errorf("failed to register MCP with proxy: %w", err)
 	}
-	// Track successful registrations for best-effort shutdown without admin list
 	s.registeredMu.Lock()
 	s.registered[config.ID] = struct{}{}
 	s.registeredMu.Unlock()
@@ -81,15 +77,12 @@ func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
 // Deregister removes an MCP from the proxy
 func (s *RegisterService) Deregister(ctx context.Context, mcpID string) error {
 	log := logger.FromContext(ctx)
-	// Deregister from proxy
 	if err := s.proxy.Deregister(ctx, mcpID); err != nil {
 		return fmt.Errorf("failed to deregister MCP from proxy: %w", err)
 	}
-
 	s.registeredMu.Lock()
 	delete(s.registered, mcpID)
 	s.registeredMu.Unlock()
-
 	log.Info("Successfully deregistered MCP from proxy", "mcp_id", mcpID)
 	return nil
 }
@@ -185,7 +178,6 @@ func (s *RegisterService) deregisterIDs(ctx context.Context, ids []string) {
 // HealthCheck verifies the proxy connection
 func (s *RegisterService) HealthCheck(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	// Check proxy health
 	if err := s.proxy.Health(ctx); err != nil {
 		return fmt.Errorf("proxy health check failed: %w", err)
 	}
@@ -195,63 +187,79 @@ func (s *RegisterService) HealthCheck(ctx context.Context) error {
 
 // convertToDefinition converts an MCP config to a proxy definition
 func (s *RegisterService) convertToDefinition(config *Config) (Definition, error) {
-	def := Definition{
+	def := s.definitionFromConfig(config)
+	if err := s.applyEndpointConfig(config, &def); err != nil {
+		return def, err
+	}
+	if err := validateDefinition(&def); err != nil {
+		return def, err
+	}
+	if err := ensureTransportCompatibility(&def); err != nil {
+		return def, err
+	}
+	return def, nil
+}
+
+func (s *RegisterService) definitionFromConfig(config *Config) Definition {
+	return Definition{
 		Name:      config.ID,
 		Transport: config.Transport,
 		Env:       config.Env,
 		Headers:   normalizeHeaders(config.Headers),
 		Timeout:   config.StartTimeout,
 	}
+}
 
-	// Handle different MCP types based on available fields
+func (s *RegisterService) applyEndpointConfig(config *Config, def *Definition) error {
 	switch {
 	case config.URL != "":
-		// Remote MCP (SSE or streamable-http)
 		def.URL = config.URL
 	case config.Command != "":
-		// Parse command with basic validation
 		commandParts, err := parseCommand(config.Command)
 		if err != nil {
-			return def, fmt.Errorf("invalid command format: %w", err)
+			return fmt.Errorf("invalid command format: %w", err)
 		}
 		def.Command = commandParts[0]
 		if len(commandParts) > 1 {
-			def.Args = commandParts[1:]
-		} else {
-			def.Args = []string{}
+			def.Args = append([]string{}, commandParts[1:]...)
 		}
 		if len(config.Args) > 0 {
 			def.Args = append(def.Args, config.Args...)
 		}
 	default:
-		return def, fmt.Errorf("MCP configuration must specify either URL (for remote) or Command (for stdio)")
+		return fmt.Errorf("MCP configuration must specify either URL (for remote) or Command (for stdio)")
 	}
+	return nil
+}
 
-	// Validate the definition
+func validateDefinition(def *Definition) error {
+	if def == nil {
+		return fmt.Errorf("definition cannot be nil")
+	}
 	if def.Name == "" {
-		return def, fmt.Errorf("MCP name is required")
+		return fmt.Errorf("MCP name is required")
 	}
 	if def.Transport == "" {
-		return def, fmt.Errorf("MCP transport is required")
+		return fmt.Errorf("MCP transport is required")
 	}
 	if def.URL == "" && def.Command == "" {
-		return def, fmt.Errorf("MCP must have either URL or command specified")
+		return fmt.Errorf("MCP must have either URL or command specified")
 	}
+	return nil
+}
 
-	// Enforce transport compatibility per MCP spec
+func ensureTransportCompatibility(def *Definition) error {
+	if def == nil {
+		return fmt.Errorf("definition cannot be nil")
+	}
 	t := strings.ToLower(string(def.Transport))
-	if def.URL != "" {
-		if t != "sse" && t != "streamable-http" {
-			return def, fmt.Errorf("remote MCP must use 'sse' or 'streamable-http' transport: got %q", def.Transport)
-		}
+	if def.URL != "" && t != "sse" && t != "streamable-http" {
+		return fmt.Errorf("remote MCP must use 'sse' or 'streamable-http' transport: got %q", def.Transport)
 	}
-	if def.Command != "" {
-		if t != "stdio" {
-			return def, fmt.Errorf("stdio MCP must use 'stdio' transport: got %q", def.Transport)
-		}
+	if def.Command != "" && t != "stdio" {
+		return fmt.Errorf("stdio MCP must use 'stdio' transport: got %q", def.Transport)
 	}
-
-	return def, nil
+	return nil
 }
 
 // normalizeHeaders returns a defensive copy of headers with case normalization.
@@ -297,18 +305,15 @@ func resolveHeadersWithEnv(ctx context.Context, headers map[string]string, env c
 	tplCtx := map[string]any{"env": map[string]string(env)}
 	for k, v := range headers {
 		if tplengine.HasTemplate(v) {
-			// Optional strict mode for template validation, disabled by default for compatibility.
 			if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.LLM.MCPHeaderTemplateStrict {
 				if err := validateTemplate(v); err != nil {
 					out[k] = v
 					continue
 				}
 			}
-			// Validate template doesn't contain dangerous patterns
 			if s, err := engine.ProcessString(v, tplCtx); err == nil {
 				out[k] = s
 			} else {
-				// Use original value if template processing fails
 				out[k] = v
 			}
 		} else {
@@ -630,54 +635,66 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 	if service == nil {
 		return nil, nil
 	}
-
 	allMCPs := CollectWorkflowMCPs(ctx, workflows)
 	if len(allMCPs) == 0 {
 		return service, nil
 	}
-
 	log.Info("Registering MCPs and waiting for connections", "mcp_count", len(allMCPs))
-
-	// Fresh instance per server lifecycle: deregister first to avoid reusing existing clients
-	// Log errors but proceed to re-register.
-	for i := range allMCPs {
-		if err := service.proxy.Deregister(ctx, allMCPs[i].ID); err != nil {
-			log.Debug("Failed to deregister MCP (may not exist)", "mcp", allMCPs[i].ID, "error", err)
-		}
-	}
-
-	// Register all
+	service.deregisterExistingMCPs(ctx, allMCPs)
 	if err := service.EnsureMultiple(ctx, allMCPs); err != nil {
 		return service, err
 	}
-
-	// Wait until all registered MCPs report connected
-	clientNames := make([]string, 0, len(allMCPs))
-	for i := range allMCPs {
-		clientNames = append(clientNames, allMCPs[i].ID)
+	clientNames := extractMCPClientNames(allMCPs)
+	timeout, pollInterval := readinessTimings(ctx)
+	if err := service.waitForConnections(ctx, clientNames, timeout, pollInterval); err != nil {
+		return service, err
 	}
-	// Bound the total wait; surface detailed errors on timeout
-	cfg := appconfig.FromContext(ctx)
-	var readinessTimeout time.Duration
-	if cfg != nil && cfg.LLM.MCPReadinessTimeout > 0 {
-		readinessTimeout = cfg.LLM.MCPReadinessTimeout
-	} else {
-		readinessTimeout = defaultMCPReadinessTimeout
-	}
-	var pollInterval time.Duration
-	if cfg != nil && cfg.LLM.MCPReadinessPollInterval > 0 {
-		pollInterval = cfg.LLM.MCPReadinessPollInterval
-	} else {
-		pollInterval = defaultMCPReadinessPollInterval
-	}
-	waitCtx, cancel := context.WithTimeout(ctx, readinessTimeout)
-	defer cancel()
-	if err := service.proxy.WaitForConnections(waitCtx, clientNames, pollInterval); err != nil {
-		return service, fmt.Errorf("MCP connection readiness failed: %w", err)
-	}
-
 	log.Info("All MCP clients connected", "count", len(clientNames))
 	return service, nil
+}
+
+func (s *RegisterService) deregisterExistingMCPs(ctx context.Context, configs []Config) {
+	log := logger.FromContext(ctx)
+	for i := range configs {
+		if err := s.proxy.Deregister(ctx, configs[i].ID); err != nil {
+			log.Debug("Failed to deregister MCP (may not exist)", "mcp", configs[i].ID, "error", err)
+		}
+	}
+}
+
+func extractMCPClientNames(configs []Config) []string {
+	names := make([]string, 0, len(configs))
+	for i := range configs {
+		names = append(names, configs[i].ID)
+	}
+	return names
+}
+
+func readinessTimings(ctx context.Context) (time.Duration, time.Duration) {
+	cfg := appconfig.FromContext(ctx)
+	timeout := defaultMCPReadinessTimeout
+	if cfg != nil && cfg.LLM.MCPReadinessTimeout > 0 {
+		timeout = cfg.LLM.MCPReadinessTimeout
+	}
+	poll := defaultMCPReadinessPollInterval
+	if cfg != nil && cfg.LLM.MCPReadinessPollInterval > 0 {
+		poll = cfg.LLM.MCPReadinessPollInterval
+	}
+	return timeout, poll
+}
+
+func (s *RegisterService) waitForConnections(
+	ctx context.Context,
+	clientNames []string,
+	timeout time.Duration,
+	pollInterval time.Duration,
+) error {
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if err := s.proxy.WaitForConnections(waitCtx, clientNames, pollInterval); err != nil {
+		return fmt.Errorf("MCP connection readiness failed: %w", err)
+	}
+	return nil
 }
 
 // setupRegisterServiceFromApp builds a RegisterService from application config.
@@ -701,7 +718,6 @@ func setupRegisterServiceFromApp(ctx context.Context) *RegisterService {
 		clientTimeout = defaultMCPClientTimeout
 	}
 	service := NewWithTimeout(ctx, proxyURL, clientTimeout)
-	// Avoid logging full proxy URL which may contain credentials
 	log.Info("Initialized MCP register with proxy", "proxy_configured", true)
 	return service
 }
@@ -717,7 +733,6 @@ func setupRegisterServiceFromApp(ctx context.Context) *RegisterService {
 func CollectWorkflowMCPs(ctx context.Context, workflows []WorkflowConfig) []Config {
 	seen := make(map[string]bool)
 	var allMCPs []Config
-
 	for _, workflow := range workflows {
 		mcps := workflow.GetMCPs()
 		for i := range mcps {
@@ -732,6 +747,5 @@ func CollectWorkflowMCPs(ctx context.Context, workflows []WorkflowConfig) []Conf
 			}
 		}
 	}
-
 	return allMCPs
 }

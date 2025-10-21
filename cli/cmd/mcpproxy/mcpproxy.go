@@ -33,10 +33,7 @@ func NewMCPProxyCommand() *cobra.Command {
 		Long:  "Start the MCP proxy server to provide HTTP access to MCP servers",
 		RunE:  executeMCPProxyCommand,
 	}
-
-	// MCP proxy specific debugging flag
 	cmd.Flags().Bool("debug", false, "Enable debug mode (sets log level to debug)")
-
 	return cmd
 }
 
@@ -74,9 +71,7 @@ func handleMCPProxyTUI(
 func runMCPProxyJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing mcp-proxy command in JSON mode")
-
 	return runMCPProxy(ctx, cobraCmd, executor, func(proxyConfig *mcpproxy.Config) error {
-		// Output JSON response indicating server start
 		response := map[string]any{
 			"message":  "Starting MCP proxy server",
 			"host":     proxyConfig.Host,
@@ -91,7 +86,6 @@ func runMCPProxyJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd
 func runMCPProxyTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing mcp-proxy command in TUI mode")
-
 	return runMCPProxy(ctx, cobraCmd, executor, func(_ *mcpproxy.Config) error {
 		fmt.Printf("\n💡 Press Ctrl+C to stop the server\n\n")
 		return nil
@@ -105,51 +99,35 @@ func runMCPProxy(
 	executor *cmd.CommandExecutor,
 	outputHandler func(*mcpproxy.Config) error,
 ) error {
-	// Get command-specific configuration from context-backed config
 	proxyConfig, err := buildMCPProxyConfig(ctx, cobraCmd)
 	if err != nil {
 		return err
 	}
-
-	// Setup logging using global configuration
 	loggerInstance := setupMCPProxyLogging(cobraCmd, executor)
-
-	// Create context with cancellation and logger
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	ctx = logger.ContextWithLogger(ctx, loggerInstance)
-
 	if err := proxyConfig.Validate(); err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
-
-	// Handle mode-specific output
 	if err := outputHandler(proxyConfig); err != nil {
 		return err
 	}
-
-	// Run the MCP proxy server
 	return mcpproxy.Run(ctx, proxyConfig)
 }
 
 // buildMCPProxyConfig builds MCP proxy configuration from unified config system
 func buildMCPProxyConfig(ctx context.Context, _ *cobra.Command) (*mcpproxy.Config, error) {
-	// Get unified configuration
 	cfg := config.FromContext(ctx)
 	if cfg == nil {
 		return nil, fmt.Errorf("configuration not found in context")
 	}
 	mcpConfig := cfg.MCPProxy
-
-	// Convert port from int to string as required by MCP proxy
 	port := strconv.Itoa(mcpConfig.Port)
-
-	// Set default base URL if not provided
 	baseURL := mcpConfig.BaseURL
 	if baseURL == "" {
 		baseURL = fmt.Sprintf("http://localhost:%s", port)
 	}
-
 	return &mcpproxy.Config{
 		Host:            mcpConfig.Host,
 		Port:            port,

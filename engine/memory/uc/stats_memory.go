@@ -51,7 +51,6 @@ func NewStatsMemory(
 		var err error
 		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
 		if err != nil {
-			// Log error but continue with nil service
 			return nil, err
 		}
 	}
@@ -64,56 +63,27 @@ func NewStatsMemory(
 
 // Execute gets memory statistics
 func (uc *StatsMemory) Execute(ctx context.Context, input StatsMemoryInput) (*StatsMemoryOutput, error) {
-	// Validate inputs
 	if err := uc.validateInput(input); err != nil {
 		return nil, err
 	}
-
-	// Get memory manager
-	manager, err := uc.getManager()
-	if err != nil {
+	if _, err := uc.getManager(); err != nil {
 		return nil, NewErrorContext(err, "stats_memory", input.MemoryRef, input.Key)
 	}
-
-	// Use centralized service for stats
-	resp, err := uc.service.Stats(ctx, &service.StatsRequest{
-		BaseRequest: service.BaseRequest{
-			MemoryRef: input.MemoryRef,
-			Key:       input.Key,
-		},
-		Config: &service.StatsConfig{
-			IncludeContent: true, // Always include content for role distribution
-		},
-	})
+	statsResp, err := uc.fetchStats(ctx, input)
 	if err != nil {
-		return nil, NewErrorContext(err, "stats_memory", input.MemoryRef, input.Key)
+		return nil, err
 	}
-
-	// Get token limit from memory configuration
 	tokenLimit, err := uc.getTokenLimit(ctx, input.MemoryRef)
 	if err != nil {
 		return nil, NewErrorContext(err, "stats_memory", input.MemoryRef, input.Key)
 	}
-
-	// Build basic output from service response
-	output := &StatsMemoryOutput{
-		Key:              input.Key,
-		MessageCount:     resp.MessageCount,
-		TokenCount:       resp.TokenCount,
-		TokenLimit:       tokenLimit,
-		TokenUtilization: float64(resp.TokenCount) / float64(tokenLimit),
-	}
-
-	// Calculate role distribution separately for compatibility
-	roleDistribution, paginationInfo, err := uc.calculateRoleDistribution(ctx, manager, input)
+	output := uc.buildStatsOutput(input.Key, statsResp, tokenLimit)
+	roleDistribution, paginationInfo, err := uc.calculateRoleDistribution(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-
 	output.RoleDistribution = roleDistribution
 	output.PaginationInfo = paginationInfo
-	output.ContextWindowUsed = resp.MessageCount
-
 	return output, nil
 }
 
@@ -152,33 +122,76 @@ func (uc *StatsMemory) getTokenLimit(ctx context.Context, memoryRef string) (int
 	if err != nil {
 		return 0, err
 	}
-	// Get memory resource configuration from manager
 	resource, err := manager.GetMemoryConfig(ctx, memoryRef)
 	if err != nil {
 		return 0, NewErrorContext(err, "get_memory_config", memoryRef, "")
 	}
-	// Use MaxTokens from configuration, with fallback to default context window
 	if resource.MaxTokens > 0 {
 		return resource.MaxTokens, nil
 	}
-	// Default fallback for when MaxTokens is not configured
 	return 128000, nil
 }
 
 // calculateRoleDistribution calculates role distribution with pagination using memory manager
 func (uc *StatsMemory) calculateRoleDistribution(
 	ctx context.Context,
-	_ *memory.Manager,
 	input StatsMemoryInput,
 ) (
 	map[string]int,
 	*PaginationInfo,
 	error,
 ) {
-	// Normalize pagination parameters
-	input = uc.normalizePagination(input)
+	normalized := uc.normalizePagination(input)
+	messages, err := uc.readMessages(ctx, normalized)
+	if err != nil {
+		return nil, nil, err
+	}
+	paginated, pagination := uc.applyPagination(messages, normalized)
+	return uc.countRoles(paginated), pagination, nil
+}
 
-	// Use centralized service to read messages
+// paginateMessages applies pagination to message slice
+func (uc *StatsMemory) paginateMessages(messages []llm.Message, offset, limit int) []llm.Message {
+	start := offset
+	end := offset + limit
+	if start >= len(messages) {
+		return []llm.Message{}
+	}
+	if end > len(messages) {
+		end = len(messages)
+	}
+	return messages[start:end]
+}
+
+func (uc *StatsMemory) fetchStats(ctx context.Context, input StatsMemoryInput) (*service.StatsResponse, error) {
+	resp, err := uc.service.Stats(ctx, &service.StatsRequest{
+		BaseRequest: service.BaseRequest{
+			MemoryRef: input.MemoryRef,
+			Key:       input.Key,
+		},
+		Config: &service.StatsConfig{IncludeContent: true},
+	})
+	if err != nil {
+		return nil, NewErrorContext(err, "stats_memory", input.MemoryRef, input.Key)
+	}
+	return resp, nil
+}
+
+func (uc *StatsMemory) buildStatsOutput(key string, resp *service.StatsResponse, tokenLimit int) *StatsMemoryOutput {
+	output := &StatsMemoryOutput{
+		Key:               key,
+		MessageCount:      resp.MessageCount,
+		ContextWindowUsed: resp.MessageCount,
+		TokenCount:        resp.TokenCount,
+		TokenLimit:        tokenLimit,
+	}
+	if tokenLimit > 0 {
+		output.TokenUtilization = float64(resp.TokenCount) / float64(tokenLimit)
+	}
+	return output
+}
+
+func (uc *StatsMemory) readMessages(ctx context.Context, input StatsMemoryInput) ([]llm.Message, error) {
 	resp, err := uc.service.Read(ctx, &service.ReadRequest{
 		BaseRequest: service.BaseRequest{
 			MemoryRef: input.MemoryRef,
@@ -186,51 +199,36 @@ func (uc *StatsMemory) calculateRoleDistribution(
 		},
 	})
 	if err != nil {
-		return nil, nil, NewErrorContext(err, "stats_memory", input.MemoryRef, input.Key)
+		return nil, NewErrorContext(err, "stats_memory", input.MemoryRef, input.Key)
 	}
+	return resp.Messages, nil
+}
 
-	// Apply pagination if needed
-	totalMessages := len(resp.Messages)
-	var paginationInfo *PaginationInfo
-	messages := resp.Messages
-
-	if input.Limit > 0 && totalMessages > input.Limit {
-		paginationInfo = &PaginationInfo{
-			Limit:      input.Limit,
-			Offset:     input.Offset,
-			TotalCount: totalMessages,
-			HasMore:    (input.Offset + input.Limit) < totalMessages,
-		}
-
-		// Apply pagination to messages
-		messages = uc.paginateMessages(messages, input.Offset, input.Limit)
+func (uc *StatsMemory) applyPagination(
+	messages []llm.Message,
+	input StatsMemoryInput,
+) ([]llm.Message, *PaginationInfo) {
+	total := len(messages)
+	if input.Limit <= 0 || total <= input.Limit {
+		return messages, nil
 	}
+	info := &PaginationInfo{
+		Limit:      input.Limit,
+		Offset:     input.Offset,
+		TotalCount: total,
+		HasMore:    (input.Offset + input.Limit) < total,
+	}
+	return uc.paginateMessages(messages, input.Offset, input.Limit), info
+}
 
-	// Calculate role distribution
-	roleDistribution := make(map[string]int)
+func (uc *StatsMemory) countRoles(messages []llm.Message) map[string]int {
+	distribution := make(map[string]int)
 	for _, msg := range messages {
 		role := string(msg.Role)
 		if role == "" {
 			role = "unknown"
 		}
-		roleDistribution[role]++
+		distribution[role]++
 	}
-
-	return roleDistribution, paginationInfo, nil
-}
-
-// paginateMessages applies pagination to message slice
-func (uc *StatsMemory) paginateMessages(messages []llm.Message, offset, limit int) []llm.Message {
-	start := offset
-	end := offset + limit
-
-	if start >= len(messages) {
-		return []llm.Message{}
-	}
-
-	if end > len(messages) {
-		end = len(messages)
-	}
-
-	return messages[start:end]
+	return distribution
 }

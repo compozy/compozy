@@ -39,7 +39,6 @@ func (v *Validator) Validate(ctx context.Context) error {
 	if err := validateWorkflowKnowledge(v.config); err != nil {
 		return err
 	}
-	// ScheduleValidator needs context, so call it separately
 	scheduleValidator := NewScheduleValidator(v.config)
 	return scheduleValidator.Validate(ctx)
 }
@@ -131,15 +130,12 @@ func (v *ToolsValidator) Validate(ctx context.Context) error {
 	seen := make(map[string]struct{}, len(v.config.Tools))
 	for i := range v.config.Tools {
 		tc := &v.config.Tools[i]
-		// Validate tool configuration
 		if err := tc.Validate(ctx); err != nil {
 			return fmt.Errorf("tool validation error: %s", err)
 		}
-		// Check required ID
 		if tc.ID == "" {
 			return fmt.Errorf("tool[%d] missing required ID field", i)
 		}
-		// Detect duplicates
 		if _, ok := seen[tc.ID]; ok {
 			return fmt.Errorf("duplicate tool ID '%s' found in workflow tools", tc.ID)
 		}
@@ -361,23 +357,17 @@ func NewScheduleValidator(config *Config) *ScheduleValidator {
 }
 
 func (v *ScheduleValidator) Validate(ctx context.Context) error {
-	// Skip validation if no schedule is configured
 	if v.config.Schedule == nil {
 		return nil
 	}
-	// Validate the schedule configuration
 	if err := ValidateSchedule(v.config.Schedule); err != nil {
 		return fmt.Errorf("schedule validation error: %w", err)
 	}
-	// Validate schedule input against workflow input schema if present
 	if v.config.Opts.InputSchema != nil {
-		// Use schedule input if provided, otherwise use an empty map.
-		// This ensures validation catches missing required inputs without defaults.
 		inputData := v.config.Schedule.Input
 		if inputData == nil {
 			inputData = make(map[string]any)
 		}
-		// Apply defaults from schema before validation
 		mergedInput, err := v.config.Opts.InputSchema.ApplyDefaults(inputData)
 		if err != nil {
 			return fmt.Errorf("failed to apply schedule input defaults: %w", err)

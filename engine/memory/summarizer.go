@@ -200,8 +200,6 @@ func (rbs *RuleBasedSummarizer) canFitLastMessage(
 func (rbs *RuleBasedSummarizer) getTokenCount(ctx context.Context, content string) int {
 	tokens, err := rbs.tokenCounter.CountTokens(ctx, content)
 	if err != nil {
-		// Use configurable fallback ratio for better cross-language support
-		// Most languages have higher character-to-token ratios than English
 		fallbackRatio := rbs.TokenFallbackRatio
 		if fallbackRatio <= 0 {
 			fallbackRatio = 3 // Conservative default
@@ -242,7 +240,6 @@ func (rbs *RuleBasedSummarizer) truncateUsingTokenizer(
 	base := context.WithoutCancel(ctx)
 	tokenList, err := tiktokenCounter.EncodeTokens(base, summaryStr)
 	if err != nil {
-		// Fallback to character-based estimation if tokenization fails
 		return rbs.truncateUsingCharacterEstimate(summaryStr, targetTokenCount)
 	}
 	if len(tokenList) > targetTokenCount {
@@ -257,7 +254,6 @@ func (rbs *RuleBasedSummarizer) truncateUsingTokenizer(
 		tokenList = tokenList[:cutoff]
 		truncatedStr, err := tiktokenCounter.DecodeTokens(base, tokenList)
 		if err != nil {
-			// Fallback to character-based estimation if decoding fails
 			return rbs.truncateUsingCharacterEstimate(summaryStr, targetTokenCount)
 		}
 		if reserve > 0 {
@@ -276,7 +272,6 @@ func (rbs *RuleBasedSummarizer) truncateUsingCharacterEstimate(summaryStr string
 	if len(summaryStr) <= targetChars {
 		return summaryStr
 	}
-	// If not enough room for ellipsis, return strict cut
 	if targetChars <= 3 {
 		if targetChars > len(summaryStr) {
 			targetChars = len(summaryStr)
@@ -322,8 +317,6 @@ func (hfs *HybridFlushingStrategy) ShouldFlush(tokenCount, _ int, config *memcor
 	if hfs.config == nil {
 		return false
 	}
-
-	// Determine effective max tokens for threshold calculation
 	effectiveMaxTokens := config.MaxTokens
 	if effectiveMaxTokens == 0 && config.MaxContextRatio > 0 {
 		modelContextSize := config.ModelContextSize
@@ -332,14 +325,12 @@ func (hfs *HybridFlushingStrategy) ShouldFlush(tokenCount, _ int, config *memcor
 		}
 		effectiveMaxTokens = int(float64(modelContextSize) * config.MaxContextRatio)
 	}
-
 	if effectiveMaxTokens > 0 && hfs.config.SummarizeThreshold > 0 {
 		thresholdTokens := int(float64(effectiveMaxTokens) * hfs.config.SummarizeThreshold)
 		if tokenCount >= thresholdTokens {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -353,8 +344,6 @@ func (hfs *HybridFlushingStrategy) ShouldFlushByCount(
 	if hfs.config == nil {
 		return false
 	}
-
-	// Determine effective max tokens for threshold calculation
 	effectiveMaxTokens := hfs.tokenManager.config.MaxTokens
 	if effectiveMaxTokens == 0 && hfs.tokenManager.config.MaxContextRatio > 0 {
 		modelContextSize := hfs.tokenManager.config.ModelContextSize
@@ -363,16 +352,12 @@ func (hfs *HybridFlushingStrategy) ShouldFlushByCount(
 		}
 		effectiveMaxTokens = int(float64(modelContextSize) * hfs.tokenManager.config.MaxContextRatio)
 	}
-
 	if effectiveMaxTokens > 0 && hfs.config.SummarizeThreshold > 0 {
 		thresholdTokens := int(float64(effectiveMaxTokens) * hfs.config.SummarizeThreshold)
 		if currentTotalTokens >= thresholdTokens {
 			return true
 		}
 	}
-
-	// Could add message count based threshold too if needed
-	// The messageCount parameter is available here for future use
 	return false
 }
 
@@ -479,10 +464,8 @@ func (hfs *HybridFlushingStrategy) PerformFlush(
 	messages []llm.Message,
 	_ *memcore.Resource,
 ) (*memcore.FlushMemoryActivityOutput, error) {
-	// Convert llm.Message to MessageWithTokens for internal processing
 	messagesWithTokens := make([]memcore.MessageWithTokens, len(messages))
 	for i, msg := range messages {
-		// Estimate token count if needed
 		tokenCount := len(msg.Content) / 4 // Rough estimate
 		if hfs.tokenManager != nil && hfs.tokenManager.tokenCounter != nil {
 			if count, err := hfs.tokenManager.tokenCounter.CountTokens(ctx, msg.Content); err == nil {
@@ -494,8 +477,6 @@ func (hfs *HybridFlushingStrategy) PerformFlush(
 			TokenCount: tokenCount,
 		}
 	}
-
-	// Use existing FlushMessages method
 	newMessages, newTotalTokens, summaryGenerated, err := hfs.FlushMessages(ctx, messagesWithTokens)
 	if err != nil {
 		return &memcore.FlushMemoryActivityOutput{
@@ -503,7 +484,6 @@ func (hfs *HybridFlushingStrategy) PerformFlush(
 			Error:   err.Error(),
 		}, err
 	}
-
 	return &memcore.FlushMemoryActivityOutput{
 		Success:          true,
 		SummaryGenerated: summaryGenerated,

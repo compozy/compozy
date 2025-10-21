@@ -31,12 +31,10 @@ func NewHealthHandler(healthService *HealthService) *HealthHandler {
 func (mhh *HealthHandler) GetMemorySystemHealth(c *gin.Context) {
 	ctx := c.Request.Context()
 	health := mhh.healthService.GetOverallHealth(ctx)
-
 	statusCode := http.StatusOK
 	if !health.Healthy {
 		statusCode = http.StatusServiceUnavailable
 	}
-
 	c.JSON(statusCode, health)
 }
 
@@ -58,7 +56,6 @@ func (mhh *HealthHandler) GetMemoryInstanceHealth(c *gin.Context) {
 		})
 		return
 	}
-
 	health, exists := mhh.healthService.GetInstanceHealth(memoryID)
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -67,12 +64,10 @@ func (mhh *HealthHandler) GetMemoryInstanceHealth(c *gin.Context) {
 		})
 		return
 	}
-
 	statusCode := http.StatusOK
 	if !health.Healthy {
 		statusCode = http.StatusServiceUnavailable
 	}
-
 	c.JSON(statusCode, health)
 }
 
@@ -81,9 +76,7 @@ func RegisterMemoryHealthRoutes(router gin.IRouter, healthService *HealthService
 	if healthService == nil {
 		return // Don't register routes if no health service
 	}
-
 	handler := NewHealthHandler(healthService)
-
 	memoryGroup := router.Group("/memory")
 	{
 		memoryGroup.GET("/health", handler.GetMemorySystemHealth)
@@ -99,10 +92,7 @@ func GetMemoryHealthForMainEndpoint(ctx context.Context, healthService *HealthSe
 			"error":   "memory health service not available",
 		}
 	}
-
 	health := healthService.GetOverallHealth(ctx)
-
-	// Return a simplified version for the main health endpoint
 	return gin.H{
 		"healthy":             health.Healthy,
 		"total_instances":     health.TotalInstances,

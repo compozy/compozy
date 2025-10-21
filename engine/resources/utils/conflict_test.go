@@ -1,17 +1,12 @@
 package resourceutil
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/compozy/compozy/test/helpers"
 )
 
 func TestConflictErrorDefaultMessage(t *testing.T) {
@@ -68,76 +63,41 @@ func TestConflictErrorFormatsResourceTypes(t *testing.T) {
 	})
 }
 
-func TestRespondConflictIncludesReferences(t *testing.T) {
-	t.Run("Should serialize detail and references", func(t *testing.T) {
-		c, w := setupTestContext(t)
+func TestBuildConflictProblemIncludesReferences(t *testing.T) {
+	t.Run("Should embed reference metadata", func(t *testing.T) {
 		details := []ReferenceDetail{
 			{Resource: "workflows", IDs: []string{"wf1", "wf2"}},
 			{Resource: "agents", IDs: []string{"ag1"}},
 		}
 		conflictErr := ConflictError{Details: details}
-		RespondConflict(c, conflictErr, details)
-		require.Equal(t, http.StatusConflict, w.Code)
-		assert.Equal(t, "application/problem+json", w.Header().Get("Content-Type"))
-
-		response := decodeProblemResponse(t, w.Body.Bytes())
-		detail, ok := response["detail"].(string)
-		require.True(t, ok)
-		assert.Equal(t, conflictErr.Error(), detail)
-
-		references, ok := response["references"].([]any)
-		require.True(t, ok)
-		require.Len(t, references, 2)
-	})
-}
-
-func TestRespondConflictDefaultDetail(t *testing.T) {
-	t.Run("Should fall back to default message when error empty", func(t *testing.T) {
-		c, w := setupTestContext(t)
-		RespondConflict(c, errors.New("   "), nil)
-		response := decodeProblemResponse(t, w.Body.Bytes())
-		assert.Equal(t, "resource has active references", response["detail"])
-	})
-}
-
-func TestRespondConflictWritesBody(t *testing.T) {
-	t.Run("Should respond with HTTP 409 and non-empty body", func(t *testing.T) {
-		c, w := setupTestContext(t)
-		details := []ReferenceDetail{
-			{Resource: "tasks", IDs: []string{"tk1", "tk2"}},
+		problem := BuildConflictProblem(conflictErr, details)
+		require.Equal(t, http.StatusConflict, problem.Status)
+		require.NotNil(t, problem.Extras)
+		refs, ok := problem.Extras["references"].([]map[string]any)
+		if !ok {
+			// The extras are serialized as []any when marshaled; in Go they remain []map[string]any.
+			slice, okAny := problem.Extras["references"].([]any)
+			require.True(t, okAny)
+			require.Len(t, slice, len(details))
+			return
 		}
-		err := errors.New("resource has dependencies")
-		RespondConflict(c, err, details)
-		require.Equal(t, http.StatusConflict, w.Code)
-		assert.NotEmpty(t, w.Body.String())
+		require.Len(t, refs, len(details))
 	})
 }
 
-func TestRespondConflictPreservesErrorMessage(t *testing.T) {
+func TestBuildConflictProblemDefaultDetail(t *testing.T) {
+	t.Run("Should fall back to default message when error empty", func(t *testing.T) {
+		problem := BuildConflictProblem(errors.New("   "), nil)
+		assert.Equal(t, http.StatusConflict, problem.Status)
+		assert.Equal(t, "resource has active references", problem.Detail)
+		assert.Nil(t, problem.Extras)
+	})
+}
+
+func TestBuildConflictProblemPreservesErrorMessage(t *testing.T) {
 	t.Run("Should propagate provided error detail", func(t *testing.T) {
-		c, w := setupTestContext(t)
 		err := errors.New("resource in use by workflows")
-		RespondConflict(c, err, []ReferenceDetail{})
-		response := decodeProblemResponse(t, w.Body.Bytes())
-		assert.Equal(t, "resource in use by workflows", response["detail"])
+		problem := BuildConflictProblem(err, nil)
+		assert.Equal(t, "resource in use by workflows", problem.Detail)
 	})
-}
-
-func setupTestContext(t *testing.T) (*gin.Context, *httptest.ResponseRecorder) {
-	t.Helper()
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-	ctx := helpers.NewTestContext(t)
-	req = req.WithContext(ctx)
-	c.Request = req
-	return c, w
-}
-
-func decodeProblemResponse(t *testing.T, body []byte) map[string]any {
-	t.Helper()
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(body, &payload))
-	return payload
 }

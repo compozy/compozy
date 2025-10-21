@@ -22,6 +22,8 @@ const (
 	OutcomeUnknown = "unknown"
 )
 
+const meterName = "compozy.knowledge.ingest"
+
 const (
 	stageUnknownValue = "unknown"
 
@@ -34,12 +36,17 @@ const (
 )
 
 var (
+	pipelineLatencyBucketsSeconds = []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60, 120}
+	batchSizeBucketsCount         = []float64{1, 5, 10, 25, 50, 100, 200}
+)
+
+var (
 	metricsOnce        sync.Once
 	metricsInitErr     error
 	pipelineLatency    metric.Float64Histogram
 	documentsCounter   metric.Int64Counter
 	chunksCounter      metric.Int64Counter
-	batchSizeHistogram metric.Float64Histogram
+	batchSizeHistogram metric.Int64Histogram
 	errorsCounter      metric.Int64Counter
 )
 
@@ -92,7 +99,7 @@ func RecordBatchSize(ctx context.Context, size int) {
 	if err := ensureMetrics(); err != nil || batchSizeHistogram == nil {
 		return
 	}
-	batchSizeHistogram.Record(ctx, float64(size))
+	batchSizeHistogram.Record(ctx, int64(size))
 }
 
 // RecordError counts pipeline errors annotated with stage and error type.
@@ -112,7 +119,7 @@ func RecordError(ctx context.Context, stage string, errorType string) {
 
 func ensureMetrics() error {
 	metricsOnce.Do(func() {
-		meter := otel.GetMeterProvider().Meter("compozy.knowledge.ingest")
+		meter := otel.GetMeterProvider().Meter(meterName)
 		metricsInitErr = initMetrics(meter)
 	})
 	return metricsInitErr
@@ -124,7 +131,7 @@ func initMetrics(meter metric.Meter) error {
 		monitoringmetrics.MetricNameWithSubsystem("knowledge_ingestion", "pipeline_seconds"),
 		metric.WithDescription("Ingestion pipeline stage duration"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(.1, .5, 1, 2, 5, 10, 30, 60, 120),
+		metric.WithExplicitBucketBoundaries(pipelineLatencyBucketsSeconds...),
 	)
 	if err != nil {
 		return err
@@ -145,11 +152,11 @@ func initMetrics(meter metric.Meter) error {
 	if err != nil {
 		return err
 	}
-	batchSizeHistogram, err = meter.Float64Histogram(
+	batchSizeHistogram, err = meter.Int64Histogram(
 		monitoringmetrics.MetricNameWithSubsystem("knowledge_ingestion", "batch_size"),
 		metric.WithDescription("Documents per ingestion batch"),
 		metric.WithUnit("1"),
-		metric.WithExplicitBucketBoundaries(1, 5, 10, 25, 50, 100, 200),
+		metric.WithExplicitBucketBoundaries(batchSizeBucketsCount...),
 	)
 	if err != nil {
 		return err

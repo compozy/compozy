@@ -101,7 +101,6 @@ func (r *TaskConfigRepository) StoreParallelMetadata(
 	if !ok {
 		return fmt.Errorf("metadata must be of type *ParallelTaskMetadata")
 	}
-	// Validate content - only validate strategy if provided
 	if parallelMetadata.Strategy != "" && !r.isValidStrategy(parallelMetadata.Strategy) {
 		return fmt.Errorf("invalid parallel strategy: %s", parallelMetadata.Strategy)
 	}
@@ -145,7 +144,6 @@ func (r *TaskConfigRepository) StoreCollectionMetadata(
 	if !ok {
 		return fmt.Errorf("metadata must be of type *CollectionTaskMetadata")
 	}
-	// Validate content - only validate strategy if provided
 	if collectionMetadata.Strategy != "" && !r.isValidStrategy(collectionMetadata.Strategy) {
 		return fmt.Errorf("invalid collection strategy: %s", collectionMetadata.Strategy)
 	}
@@ -189,7 +187,6 @@ func (r *TaskConfigRepository) StoreCompositeMetadata(
 	if !ok {
 		return fmt.Errorf("metadata must be of type *CompositeTaskMetadata")
 	}
-	// Validate content - only validate strategy if provided
 	if compositeMetadata.Strategy != "" && !r.isValidStrategy(compositeMetadata.Strategy) {
 		return fmt.Errorf("invalid composite strategy: %s", compositeMetadata.Strategy)
 	}
@@ -270,11 +267,9 @@ func (r *TaskConfigRepository) ExtractParallelStrategy(
 	if parentState == nil || parentState.Input == nil {
 		return defaultStrategy, nil
 	}
-	// Handle both map and JSON string formats
 	var configData ParallelConfigData
 	switch v := (*parentState.Input)["parallel_config"].(type) {
 	case map[string]any:
-		// Convert map to JSON then parse
 		jsonBytes, err := json.Marshal(v)
 		if err != nil {
 			return defaultStrategy, nil // Graceful degradation
@@ -289,7 +284,6 @@ func (r *TaskConfigRepository) ExtractParallelStrategy(
 	default:
 		return defaultStrategy, nil
 	}
-	// Validate extracted strategy
 	if !r.isValidStrategy(string(configData.Strategy)) {
 		return defaultStrategy, nil
 	}
@@ -308,22 +302,18 @@ func (r *TaskConfigRepository) ValidateStrategy(strategy string) (task.ParallelS
 func (r *TaskConfigRepository) CalculateMaxWorkers(taskType task.Type, maxWorkers int) int {
 	switch taskType {
 	case task.TaskTypeCollection:
-		// Collection tasks may have high parallelism
 		if maxWorkers <= 0 {
 			return 10 // Default for collections
 		}
 		return maxWorkers
 	case task.TaskTypeParallel:
-		// Parallel tasks should be limited
 		if maxWorkers <= 0 {
 			return 4 // Default for parallel
 		}
 		return maxWorkers
 	case task.TaskTypeComposite:
-		// Composite tasks are sequential by nature
 		return 1
 	default:
-		// Basic tasks
 		return 1
 	}
 }
@@ -360,9 +350,7 @@ func (r *TaskConfigRepository) storeMetadata(
 	if parentStateID == "" {
 		return fmt.Errorf("parent state ID cannot be empty")
 	}
-	// Propagate CWD to all child configs before storage
 	r.propagateCWDToChildren(childConfigs)
-	// Store metadata with proper key
 	key := fmt.Sprintf("%s_metadata:%s", metadataType, parentStateID.String())
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {

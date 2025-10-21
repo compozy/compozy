@@ -51,7 +51,6 @@ func NewFlushMemory(
 		var err error
 		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
 		if err != nil {
-			// Log error but continue with nil service
 			return nil, err
 		}
 	}
@@ -66,12 +65,9 @@ func NewFlushMemory(
 
 // Execute flushes memory content
 func (uc *FlushMemory) Execute(ctx context.Context) (*FlushMemoryResult, error) {
-	// Validate inputs
 	if err := uc.validate(); err != nil {
 		return nil, err
 	}
-
-	// Use centralized service for flushing
 	resp, err := uc.service.Flush(ctx, &service.FlushRequest{
 		BaseRequest: service.BaseRequest{
 			MemoryRef: uc.memoryRef,
@@ -87,7 +83,6 @@ func (uc *FlushMemory) Execute(ctx context.Context) (*FlushMemoryResult, error) 
 	if err != nil {
 		return nil, NewErrorContext(err, "flush_memory", uc.memoryRef, uc.key)
 	}
-
 	return &FlushMemoryResult{
 		Success:          resp.Success,
 		Key:              resp.Key,

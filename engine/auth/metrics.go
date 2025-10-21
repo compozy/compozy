@@ -78,7 +78,6 @@ func InitMetrics(meter metric.Meter) error {
 	if meter == nil {
 		return nil
 	}
-
 	var initErr error
 	metricsOnce.Do(func() {
 		metricsMutex.Lock()
@@ -119,7 +118,6 @@ func InitMetrics(meter metric.Meter) error {
 			metric.WithUnit("1"),
 		)
 	})
-
 	return initErr
 }
 
@@ -152,7 +150,6 @@ func RecordAuthAttempt(
 			),
 		)
 	}
-
 	if authLatencySeconds != nil && duration > 0 {
 		authLatencySeconds.Record(ctx, duration.Seconds(),
 			metric.WithAttributes(
@@ -168,12 +165,10 @@ func RecordTokenAge(ctx context.Context, issuedAt time.Time, method AuthMethod) 
 	if authTokenAgeSeconds == nil || issuedAt.IsZero() {
 		return
 	}
-
 	age := time.Since(issuedAt)
 	if age <= 0 {
 		return
 	}
-
 	authTokenAgeSeconds.Record(ctx, age.Seconds(),
 		metric.WithAttributes(
 			attribute.String("method", string(normalizeMethod(method))),
@@ -186,13 +181,11 @@ func RecordRateLimitHit(ctx context.Context, userID string, ipAddress string) {
 	if authRateLimitHits == nil {
 		return
 	}
-
 	maskedIP := maskIPAddress(ipAddress)
 	attrs := []attribute.KeyValue{
 		attribute.String("ip_address", maskedIP),
 		attribute.Bool("has_user", userID != ""),
 	}
-
 	authRateLimitHits.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
 
@@ -210,37 +203,28 @@ func maskIPAddress(ip string) string {
 	if ip == "" {
 		return maskedIPUnknownValue
 	}
-
-	// Handle host:port and bracketed IPv6 forms.
-	// Try parsing with SplitHostPort first (handles both "ip:port" and "[ipv6]:port")
 	if h, _, err := net.SplitHostPort(ip); err == nil {
 		ip = h
 	} else if strings.HasPrefix(ip, "[") && strings.HasSuffix(ip, "]") {
-		// Handle plain bracketed IPv6 without port
 		ip = strings.Trim(ip, "[]")
 	}
-	// Remove IPv6 zone-id if present (e.g., fe80::1%eth0)
 	if i := strings.IndexByte(ip, '%'); i != -1 {
 		ip = ip[:i]
 	}
-
 	ip = strings.TrimSpace(ip)
 	if ip == "" {
 		return maskedIPUnknownValue
 	}
-
 	parsed := net.ParseIP(ip)
 	if parsed == nil {
 		return maskedIPUnknownValue
 	}
-
 	if v4 := parsed.To4(); v4 != nil {
 		masked := make(net.IP, len(v4))
 		copy(masked, v4)
 		masked[3] = 0
 		return masked.String()
 	}
-
 	masked := parsed.Mask(net.CIDRMask(64, net.IPv6len*8))
 	return masked.String()
 }

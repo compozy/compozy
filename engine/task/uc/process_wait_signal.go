@@ -54,89 +54,141 @@ func (uc *ProcessWaitSignal) Execute(
 	ctx context.Context,
 	input *ProcessWaitSignalInput,
 ) (*ProcessWaitSignalOutput, error) {
-	log := logger.FromContext(ctx)
-	// Get task state
-	taskState, err := uc.taskRepo.GetState(ctx, input.TaskExecID)
+	taskState, taskConfig, err := uc.loadWaitTaskResources(ctx, input.TaskExecID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get task state: %w", err)
+		return nil, err
 	}
-	// Get task config
-	taskConfig, err := uc.configStore.Get(ctx, taskState.TaskExecID.String())
-	if err != nil {
-		return nil, fmt.Errorf("failed to load task config: %w", err)
+	if err := uc.validateWaitTaskState(taskState, taskConfig); err != nil {
+		return nil, err
 	}
-	// Validate wait task
-	if taskConfig.Type != task.TaskTypeWait {
-		return nil, fmt.Errorf("task %s is not a wait task", taskState.TaskID)
+	if mismatch := uc.handleSignalMismatch(ctx, taskConfig, input); mismatch != nil {
+		return mismatch, nil
 	}
-	// Validate task is in waiting state
-	if taskState.Status != core.StatusWaiting {
-		return nil, fmt.Errorf("task %s is not in waiting state (current: %s)", taskState.TaskID, taskState.Status)
-	}
-	// Check if signal matches expected signal
-	if taskConfig.WaitFor != input.SignalName {
-		log.Debug("Signal does not match expected signal",
-			"expected", taskConfig.WaitFor,
-			"received", input.SignalName)
-		// Return false without error - mismatched signals are a normal flow
-		return &ProcessWaitSignalOutput{
-			ConditionMet: false,
-		}, nil
-	}
-	// Build context for evaluation
 	evalContext := uc.buildEvaluationContext(input, taskState, taskConfig)
-	// Log evaluation without sensitive data
-	log.Debug("Evaluating condition",
-		"condition", taskConfig.Condition,
-		"signal_name", input.SignalName,
-		"task_id", taskState.TaskID)
-	// Evaluate condition
-	conditionMet, err := uc.evaluator.Evaluate(ctx, taskConfig.Condition, evalContext)
+	conditionMet, err := uc.evaluateWaitCondition(ctx, taskConfig, taskState, input.SignalName, evalContext)
 	if err != nil {
-		log.Error("Failed to evaluate condition",
-			"condition", taskConfig.Condition,
-			"error", err)
-		// Update task state to FAILED
-		taskState.Status = core.StatusFailed
-		taskState.Error = core.NewError(
-			fmt.Errorf("condition evaluation failed: %v", err),
-			"CONDITION_EVAL_ERROR",
-			map[string]any{
-				"condition": taskConfig.Condition,
-				"error":     err.Error(),
-			},
-		)
-		if updateErr := uc.taskRepo.UpsertState(ctx, taskState); updateErr != nil {
-			log.Error("Failed to update task state to FAILED", "error", updateErr)
-		}
-		// Return error without original error details to prevent double wrapping
-		return nil, fmt.Errorf("condition evaluation failed")
+		return nil, err
 	}
-	// Prepare output
-	output := &ProcessWaitSignalOutput{
-		ConditionMet: conditionMet,
-	}
-	// Include processor output if available
-	if taskConfig.Processor != nil && taskState.Output != nil {
-		if processorOutput, ok := (*taskState.Output)["processor_output"]; ok {
-			// Attempt type assertion with proper error handling
-			switch v := processorOutput.(type) {
-			case *core.Output:
-				output.ProcessorOutput = v
-			case core.Output:
-				// Handle non-pointer case
-				output.ProcessorOutput = &v
-			default:
-				log.Warn("Processor output has unexpected type",
-					"expectedType", "*core.Output",
-					"actualType", fmt.Sprintf("%T", processorOutput))
-			}
-		}
-	}
-	log.Debug("Signal processing complete",
+	output := &ProcessWaitSignalOutput{ConditionMet: conditionMet}
+	uc.populateProcessorOutput(ctx, taskConfig, taskState, output)
+	logger.FromContext(ctx).Debug("Signal processing complete",
 		"signal", input.SignalName,
 		"conditionMet", conditionMet)
 	return output, nil
+}
+
+// loadWaitTaskResources retrieves the task state and configuration for evaluation.
+func (uc *ProcessWaitSignal) loadWaitTaskResources(
+	ctx context.Context,
+	taskExecID core.ID,
+) (*task.State, *task.Config, error) {
+	taskState, err := uc.taskRepo.GetState(ctx, taskExecID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get task state: %w", err)
+	}
+	taskConfig, err := uc.configStore.Get(ctx, taskState.TaskExecID.String())
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load task config: %w", err)
+	}
+	return taskState, taskConfig, nil
+}
+
+// validateWaitTaskState ensures the task is a wait task in a waiting status.
+func (uc *ProcessWaitSignal) validateWaitTaskState(taskState *task.State, taskConfig *task.Config) error {
+	if taskConfig.Type != task.TaskTypeWait {
+		return fmt.Errorf("task %s is not a wait task", taskState.TaskID)
+	}
+	if taskState.Status != core.StatusWaiting {
+		return fmt.Errorf("task %s is not in waiting state (current: %s)", taskState.TaskID, taskState.Status)
+	}
+	return nil
+}
+
+// handleSignalMismatch returns a default output when the signal does not match.
+func (uc *ProcessWaitSignal) handleSignalMismatch(
+	ctx context.Context,
+	taskConfig *task.Config,
+	input *ProcessWaitSignalInput,
+) *ProcessWaitSignalOutput {
+	if taskConfig.WaitFor == input.SignalName {
+		return nil
+	}
+	logger.FromContext(ctx).Debug("Signal does not match expected signal",
+		"expected", taskConfig.WaitFor,
+		"received", input.SignalName)
+	return &ProcessWaitSignalOutput{ConditionMet: false}
+}
+
+// evaluateWaitCondition executes the wait condition and records failures.
+func (uc *ProcessWaitSignal) evaluateWaitCondition(
+	ctx context.Context,
+	taskConfig *task.Config,
+	taskState *task.State,
+	signalName string,
+	evalContext map[string]any,
+) (bool, error) {
+	log := logger.FromContext(ctx)
+	log.Debug("Evaluating condition",
+		"condition", taskConfig.Condition,
+		"signal_name", signalName,
+		"task_id", taskState.TaskID)
+	conditionMet, err := uc.evaluator.Evaluate(ctx, taskConfig.Condition, evalContext)
+	if err != nil {
+		uc.handleConditionEvaluationFailure(ctx, taskConfig, taskState, err)
+		return false, fmt.Errorf("condition evaluation failed")
+	}
+	return conditionMet, nil
+}
+
+// handleConditionEvaluationFailure updates task state when condition evaluation errors.
+func (uc *ProcessWaitSignal) handleConditionEvaluationFailure(
+	ctx context.Context,
+	taskConfig *task.Config,
+	taskState *task.State,
+	err error,
+) {
+	log := logger.FromContext(ctx)
+	log.Error("Failed to evaluate condition",
+		"condition", taskConfig.Condition,
+		"error", err)
+	taskState.Status = core.StatusFailed
+	taskState.Error = core.NewError(
+		fmt.Errorf("condition evaluation failed: %v", err),
+		"CONDITION_EVAL_ERROR",
+		map[string]any{
+			"condition": taskConfig.Condition,
+			"error":     err.Error(),
+		},
+	)
+	if updateErr := uc.taskRepo.UpsertState(ctx, taskState); updateErr != nil {
+		log.Error("Failed to update task state to FAILED", "error", updateErr)
+	}
+}
+
+// populateProcessorOutput copies processor output data into the response when present.
+func (uc *ProcessWaitSignal) populateProcessorOutput(
+	ctx context.Context,
+	taskConfig *task.Config,
+	taskState *task.State,
+	output *ProcessWaitSignalOutput,
+) {
+	if taskConfig.Processor == nil || taskState.Output == nil {
+		return
+	}
+	processorOutput, ok := (*taskState.Output)["processor_output"]
+	if !ok {
+		return
+	}
+	switch v := processorOutput.(type) {
+	case *core.Output:
+		output.ProcessorOutput = v
+	case core.Output:
+		output.ProcessorOutput = &v
+	default:
+		logger.FromContext(ctx).Warn("Processor output has unexpected type",
+			"expectedType", "*core.Output",
+			"actualType", fmt.Sprintf("%T", processorOutput))
+	}
 }
 
 // buildEvaluationContext builds the context for CEL evaluation
@@ -161,7 +213,6 @@ func (uc *ProcessWaitSignal) buildEvaluationContext(
 			"exec_id": taskState.WorkflowExecID.String(),
 		},
 	}
-	// Add processor output if available
 	if taskConfig.Processor != nil && taskState.Output != nil {
 		if processorData, ok := (*taskState.Output)["processor_output"]; ok {
 			evalContext["processor"] = map[string]any{

@@ -53,7 +53,6 @@ func NewMCPClient(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MCP client: %w", err)
 	}
-
 	clonedDef, cerr := def.Clone()
 	if cerr != nil {
 		return nil, fmt.Errorf("failed to clone definition: %w", cerr)
@@ -86,8 +85,6 @@ func (c *MCPClient) GetStatus() *MCPStatus {
 	c.mu.RLock()
 	status := c.status
 	c.mu.RUnlock()
-
-	// Return a thread-safe copy with calculated uptime
 	return status.SafeCopy()
 }
 
@@ -102,7 +99,6 @@ func (c *MCPClient) IsConnected() bool {
 func (c *MCPClient) updateStatus(status ConnectionStatus, errorMsg string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	c.status.UpdateStatus(status, errorMsg)
 	c.connected = (status == StatusConnected)
 }
@@ -112,7 +108,6 @@ func (c *MCPClient) startStderrLogger() {
 		log := logger.FromContext(c.managerCtx)
 		go func() {
 			scanner := bufio.NewScanner(reader)
-			// Allow up to 1MB per line to avoid truncation of long stderr lines.
 			scanner.Buffer(make([]byte, 0, 64*1024), 1<<20)
 			for scanner.Scan() {
 				log.Debug("MCP client stderr", "mcp_name", c.definition.Name, "line", scanner.Text())
@@ -128,7 +123,6 @@ func (c *MCPClient) startStderrLogger() {
 func (c *MCPClient) recordRequest(responseTime time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	c.status.RecordRequest(responseTime)
 }
 
@@ -137,7 +131,6 @@ func (c *MCPClient) recordError() {
 	c.mu.RLock()
 	status := c.status
 	c.mu.RUnlock()
-
 	status.IncrementErrors()
 }
 
@@ -161,15 +154,11 @@ func createStdioMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, er
 	for key, value := range def.Env {
 		envs = append(envs, fmt.Sprintf("%s=%s", key, value))
 	}
-
 	client, err := mcpclient.NewStdioMCPClient(def.Command, envs, def.Args...)
 	if err != nil {
 		return nil, false, false, fmt.Errorf("failed to create stdio client: %w", err)
 	}
-
-	// For stdio transports, the upstream client already starts the process when
-	// constructed via NewStdioMCPClient. Calling Start twice can cause races on
-	// shared stdio readers. Avoid manual Start in Connect for stdio.
+	// NOTE: Stdio clients auto-start during construction; do not call Start again.
 	return client, false, false, nil
 }
 
@@ -180,12 +169,10 @@ func createSSEMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, erro
 		hdr := core.CloneMap(def.Headers)
 		options = append(options, transport.WithHeaders(hdr))
 	}
-
 	client, err := mcpclient.NewSSEMCPClient(def.URL, options...)
 	if err != nil {
 		return nil, false, false, fmt.Errorf("failed to create SSE client: %w", err)
 	}
-
 	return client, true, true, nil
 }
 
@@ -199,12 +186,10 @@ func createStreamableHTTPMCPClient(def *MCPDefinition) (*mcpclient.Client, bool,
 	if def.Timeout > 0 {
 		options = append(options, transport.WithHTTPTimeout(def.Timeout))
 	}
-
 	client, err := mcpclient.NewStreamableHttpClient(def.URL, options...)
 	if err != nil {
 		return nil, false, false, fmt.Errorf("failed to create streamable HTTP client: %w", err)
 	}
-
 	return client, true, true, nil
 }
 
@@ -212,84 +197,98 @@ func createStreamableHTTPMCPClient(def *MCPDefinition) (*mcpclient.Client, bool,
 func (c *MCPClient) Connect(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Connecting to MCP server", "transport", c.definition.Transport, "mcp_name", c.definition.Name)
+	if err := c.ensureDisconnected(); err != nil {
+		return err
+	}
+	if err := c.startClientIfRequired(ctx); err != nil {
+		return err
+	}
+	if err := c.initializeConnection(ctx); err != nil {
+		return err
+	}
+	c.markAsConnected()
+	c.startPingRoutineIfNeeded(ctx)
+	log.Info("Successfully connected to MCP server", "mcp_name", c.definition.Name)
+	return nil
+}
 
-	// Check if already connected (without lock to avoid deadlock)
+// ensureDisconnected verifies the client is not already connected.
+func (c *MCPClient) ensureDisconnected() error {
 	c.mu.RLock()
 	alreadyConnected := c.connected
 	c.mu.RUnlock()
-
 	if alreadyConnected {
 		return fmt.Errorf("client is already connected")
 	}
+	return nil
+}
 
-	// Start the client if needed (for SSE/HTTP transports) - no lock held
-	if c.needManualStart {
-		if err := c.mcpClient.Start(ctx); err != nil {
-			c.updateStatus(StatusError, fmt.Sprintf("failed to start client: %v", err))
-			return fmt.Errorf("failed to start MCP client: %w", err)
-		}
+// startClientIfRequired starts transports that require manual startup.
+func (c *MCPClient) startClientIfRequired(ctx context.Context) error {
+	if !c.needManualStart {
+		return nil
 	}
+	if err := c.mcpClient.Start(ctx); err != nil {
+		c.updateStatus(StatusError, fmt.Sprintf("failed to start client: %v", err))
+		return fmt.Errorf("failed to start MCP client: %w", err)
+	}
+	return nil
+}
 
-	// Initialize the MCP connection - no lock held
+// initializeConnection initializes the MCP connection and closes on failure.
+func (c *MCPClient) initializeConnection(ctx context.Context) error {
 	if err := c.initializeMCP(ctx); err != nil {
-		// Always close to avoid leaking resources regardless of start mode.
 		if closeErr := c.mcpClient.Close(); closeErr != nil {
-			log.Error("Failed to close client after initialization failure", "error", closeErr)
+			logger.FromContext(ctx).Error("Failed to close client after initialization failure", "error", closeErr)
 		}
 		c.updateStatus(StatusError, fmt.Sprintf("failed to initialize: %v", err))
 		return fmt.Errorf("failed to initialize MCP client: %w", err)
 	}
+	return nil
+}
 
-	// Update state under lock
+// markAsConnected updates internal state to reflect a successful connection.
+func (c *MCPClient) markAsConnected() {
 	c.mu.Lock()
 	c.initialized = true
 	c.connected = true
 	c.status.UpdateStatus(StatusConnected, "")
 	c.mu.Unlock()
+}
 
-	// Start ping routine if needed - use manager context for proper lifecycle
-	if c.needPing {
-		pingCtx, pingCancel := context.WithCancel(c.managerCtx)
-		done := make(chan struct{})
-		c.mu.Lock()
-		c.pingCancel = pingCancel
-		c.pingDone = done
-		c.mu.Unlock()
-		pingCtx = logger.ContextWithLogger(pingCtx, log)
-		go c.startPingRoutine(pingCtx, done)
+// startPingRoutineIfNeeded launches the ping routine when required by the transport.
+func (c *MCPClient) startPingRoutineIfNeeded(ctx context.Context) {
+	if !c.needPing {
+		return
 	}
-
-	log.Info("Successfully connected to MCP server", "mcp_name", c.definition.Name)
-	return nil
+	pingCtx, pingCancel := context.WithCancel(c.managerCtx)
+	done := make(chan struct{})
+	c.mu.Lock()
+	c.pingCancel = pingCancel
+	c.pingDone = done
+	c.mu.Unlock()
+	pingCtx = logger.ContextWithLogger(pingCtx, logger.FromContext(ctx))
+	go c.startPingRoutine(pingCtx, done)
 }
 
 // Disconnect closes the connection to the MCP server
 func (c *MCPClient) Disconnect(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Disconnecting from MCP server", "mcp_name", c.definition.Name)
-
-	// Check if already disconnected (without lock to avoid deadlock)
 	c.mu.RLock()
 	alreadyDisconnected := !c.connected
 	c.mu.RUnlock()
-
 	if alreadyDisconnected {
 		return nil
 	}
-
-	// Mark as disconnected and cancel ping routine
 	c.mu.Lock()
 	c.connected = false
 	pingCancel := c.pingCancel
 	c.mu.Unlock()
-
-	// Cancel ping routine if it was started
 	if c.needPing && pingCancel != nil {
 		pingCancel()
 		<-c.pingDone // Wait for routine to exit (will be immediate now)
 	}
-
-	// Close the MCP client - no lock held during network operation
 	if err := c.mcpClient.Close(); err != nil {
 		if isExpectedCloseError(err) {
 			log.Debug("MCP client closed with expected status", "mcp_name", c.definition.Name, "error", err)
@@ -297,13 +296,10 @@ func (c *MCPClient) Disconnect(ctx context.Context) error {
 			log.Error("Error closing MCP client", "error", err, "mcp_name", c.definition.Name)
 		}
 	}
-
-	// Update remaining state under lock
 	c.mu.Lock()
 	c.initialized = false
 	c.status.UpdateStatus(StatusDisconnected, "")
 	c.mu.Unlock()
-
 	log.Info("Disconnected from MCP server", "mcp_name", c.definition.Name)
 	return nil
 }
@@ -313,22 +309,16 @@ func (c *MCPClient) SendRequest(ctx context.Context, _ []byte) ([]byte, error) {
 	if !c.IsConnected() {
 		return nil, fmt.Errorf("client is not connected")
 	}
-
 	start := time.Now()
 	defer func() {
 		responseTime := time.Since(start)
 		c.recordRequest(responseTime)
 	}()
-
-	// For now, we'll implement this as a simple ping to verify connectivity
-	// In a full implementation, you'd parse the request and route it appropriately
 	err := c.mcpClient.Ping(ctx)
 	if err != nil {
 		c.recordError()
 		return nil, fmt.Errorf("MCP request failed: %w", err)
 	}
-
-	// Return a simple success response
 	return []byte(`{"result": "success"}`), nil
 }
 
@@ -337,12 +327,9 @@ func (c *MCPClient) Health(ctx context.Context) error {
 	if !c.IsConnected() {
 		return fmt.Errorf("client is not connected")
 	}
-
-	// Use the MCP ping method for health checking
 	if err := c.mcpClient.Ping(ctx); err != nil {
 		return fmt.Errorf("MCP health check failed: %w", err)
 	}
-
 	return nil
 }
 
@@ -360,12 +347,10 @@ func (c *MCPClient) initializeMCP(ctx context.Context) error {
 		Roots:        nil,
 		Sampling:     nil,
 	}
-
 	_, err := c.mcpClient.Initialize(ctx, initRequest)
 	if err != nil {
 		return fmt.Errorf("MCP initialization failed: %w", err)
 	}
-
 	log.Info("MCP client initialized successfully", "mcp_name", c.definition.Name)
 	return nil
 }
@@ -375,14 +360,12 @@ func (c *MCPClient) startPingRoutine(ctx context.Context, done chan struct{}) {
 	log := logger.FromContext(ctx)
 	log.Debug("Starting ping routine", "mcp_name", c.definition.Name)
 	defer close(done) // Signal completion when routine exits
-
 	interval := DefaultHealthCheckInterval
 	if c.definition != nil && c.definition.HealthCheckInterval > 0 {
 		interval = c.definition.HealthCheckInterval
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -431,10 +414,8 @@ func (c *MCPClient) ListTools(ctx context.Context) ([]mcp.Tool, error) {
 	if !c.IsConnected() {
 		return nil, fmt.Errorf("client is not connected")
 	}
-
 	var allTools []mcp.Tool
 	request := mcp.ListToolsRequest{}
-
 	for {
 		response, err := c.mcpClient.ListTools(ctx, request)
 		if err != nil {
@@ -448,7 +429,6 @@ func (c *MCPClient) ListTools(ctx context.Context) ([]mcp.Tool, error) {
 		}
 		request.Params.Cursor = response.NextCursor
 	}
-
 	return allTools, nil
 }
 
@@ -457,13 +437,11 @@ func (c *MCPClient) CallTool(ctx context.Context, request mcp.CallToolRequest) (
 	if !c.IsConnected() {
 		return nil, fmt.Errorf("client is not connected")
 	}
-
 	start := time.Now()
 	defer func() {
 		responseTime := time.Since(start)
 		c.recordRequest(responseTime)
 	}()
-
 	result, err := c.mcpClient.CallTool(ctx, request)
 	if err != nil {
 		c.recordError()
@@ -507,10 +485,8 @@ func (c *MCPClient) ListPrompts(ctx context.Context) ([]mcp.Prompt, error) {
 	if !c.IsConnected() {
 		return nil, fmt.Errorf("client is not connected")
 	}
-
 	var allPrompts []mcp.Prompt
 	request := mcp.ListPromptsRequest{}
-
 	for {
 		response, err := c.mcpClient.ListPrompts(ctx, request)
 		if err != nil {
@@ -524,7 +500,6 @@ func (c *MCPClient) ListPrompts(ctx context.Context) ([]mcp.Prompt, error) {
 		}
 		request.Params.Cursor = response.NextCursor
 	}
-
 	return allPrompts, nil
 }
 
@@ -533,19 +508,16 @@ func (c *MCPClient) GetPrompt(ctx context.Context, request mcp.GetPromptRequest)
 	if !c.IsConnected() {
 		return nil, fmt.Errorf("client is not connected")
 	}
-
 	start := time.Now()
 	defer func() {
 		responseTime := time.Since(start)
 		c.recordRequest(responseTime)
 	}()
-
 	result, err := c.mcpClient.GetPrompt(ctx, request)
 	if err != nil {
 		c.recordError()
 		return nil, fmt.Errorf("failed to get prompt: %w", err)
 	}
-
 	return result, nil
 }
 
@@ -554,10 +526,8 @@ func (c *MCPClient) ListResources(ctx context.Context) ([]mcp.Resource, error) {
 	if !c.IsConnected() {
 		return nil, fmt.Errorf("client is not connected")
 	}
-
 	var allResources []mcp.Resource
 	request := mcp.ListResourcesRequest{}
-
 	for {
 		response, err := c.mcpClient.ListResources(ctx, request)
 		if err != nil {
@@ -571,7 +541,6 @@ func (c *MCPClient) ListResources(ctx context.Context) ([]mcp.Resource, error) {
 		}
 		request.Params.Cursor = response.NextCursor
 	}
-
 	return allResources, nil
 }
 
@@ -583,19 +552,16 @@ func (c *MCPClient) ReadResource(
 	if !c.IsConnected() {
 		return nil, fmt.Errorf("client is not connected")
 	}
-
 	start := time.Now()
 	defer func() {
 		responseTime := time.Since(start)
 		c.recordRequest(responseTime)
 	}()
-
 	result, err := c.mcpClient.ReadResource(ctx, request)
 	if err != nil {
 		c.recordError()
 		return nil, fmt.Errorf("failed to read resource: %w", err)
 	}
-
 	return result, nil
 }
 
@@ -604,17 +570,14 @@ func (c *MCPClient) ListPromptsWithCursor(ctx context.Context, cursor string) ([
 	if !c.IsConnected() {
 		return nil, "", fmt.Errorf("client is not connected")
 	}
-
 	request := mcp.ListPromptsRequest{}
 	if cursor != "" {
 		request.Params.Cursor = mcp.Cursor(cursor)
 	}
-
 	response, err := c.mcpClient.ListPrompts(ctx, request)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to list prompts: %w", err)
 	}
-
 	return response.Prompts, string(response.NextCursor), nil
 }
 
@@ -623,17 +586,14 @@ func (c *MCPClient) ListResourcesWithCursor(ctx context.Context, cursor string) 
 	if !c.IsConnected() {
 		return nil, "", fmt.Errorf("client is not connected")
 	}
-
 	request := mcp.ListResourcesRequest{}
 	if cursor != "" {
 		request.Params.Cursor = mcp.Cursor(cursor)
 	}
-
 	response, err := c.mcpClient.ListResources(ctx, request)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to list resources: %w", err)
 	}
-
 	return response.Resources, string(response.NextCursor), nil
 }
 
@@ -642,10 +602,8 @@ func (c *MCPClient) ListResourceTemplates(ctx context.Context) ([]mcp.ResourceTe
 	if !c.IsConnected() {
 		return nil, fmt.Errorf("client is not connected")
 	}
-
 	var allTemplates []mcp.ResourceTemplate
 	request := mcp.ListResourceTemplatesRequest{}
-
 	for {
 		response, err := c.mcpClient.ListResourceTemplates(ctx, request)
 		if err != nil {
@@ -659,7 +617,6 @@ func (c *MCPClient) ListResourceTemplates(ctx context.Context) ([]mcp.ResourceTe
 		}
 		request.Params.Cursor = response.NextCursor
 	}
-
 	return allTemplates, nil
 }
 
@@ -671,17 +628,14 @@ func (c *MCPClient) ListResourceTemplatesWithCursor(
 	if !c.IsConnected() {
 		return nil, "", fmt.Errorf("client is not connected")
 	}
-
 	request := mcp.ListResourceTemplatesRequest{}
 	if cursor != "" {
 		request.Params.Cursor = mcp.Cursor(cursor)
 	}
-
 	response, err := c.mcpClient.ListResourceTemplates(ctx, request)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to list resource templates: %w", err)
 	}
-
 	return response.ResourceTemplates, string(response.NextCursor), nil
 }
 
@@ -698,7 +652,6 @@ func (c *MCPClient) WaitUntilConnected(ctx context.Context) error {
 			if c.IsConnected() {
 				return nil
 			}
-			// Check if client is in error state
 			status := c.GetStatus()
 			if status.Status == StatusError {
 				return fmt.Errorf("client connection failed: %s", status.LastError)

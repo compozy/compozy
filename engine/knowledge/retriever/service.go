@@ -99,7 +99,6 @@ func (s *Service) Retrieve(
 		attribute.String("binding_id", binding.ID),
 	))
 	defer s.finishRetrieve(ctx, binding, span, start, &contexts, &err)
-
 	log.Info("Knowledge retrieval started", "query_length", len(query))
 	vector, err := s.embedQueryWithSpan(ctx, binding, query)
 	if err != nil {
@@ -256,6 +255,7 @@ func (s *Service) finishRetrieve(
 		"kb_id", binding.KnowledgeBase.ID,
 		"binding_id", binding.ID,
 	)
+	span.SetAttributes(attribute.String("strategy", strategy))
 	seconds := duration.Seconds()
 	if runErr != nil && *runErr != nil {
 		err := *runErr

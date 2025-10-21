@@ -175,9 +175,24 @@ func (s *Server) setMCPReady(v bool) {
 	s.onReadinessMaybeChanged("mcp")
 }
 
+// setMCPBaseURL stores the MCP proxy base URL using the readiness mutex.
+func (s *Server) setMCPBaseURL(u string) {
+	s.readinessMu.Lock()
+	s.mcpBaseURL = u
+	s.readinessMu.Unlock()
+}
+
 func (s *Server) isMCPReady() bool {
 	s.readinessMu.RLock()
 	ready := s.mcpReady
 	s.readinessMu.RUnlock()
 	return ready
+}
+
+// mcpBaseURLValue returns the stored MCP proxy base URL.
+func (s *Server) mcpBaseURLValue() string {
+	s.readinessMu.RLock()
+	baseURL := s.mcpBaseURL
+	s.readinessMu.RUnlock()
+	return baseURL
 }

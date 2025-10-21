@@ -34,24 +34,19 @@ type TestEnvironment struct {
 // SetupTestEnvironment creates a test environment with real database
 func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 	t.Helper()
-	// Use a cancellable context with timeout to prevent hanging tests.
+	// NOTE: Bound test contexts to avoid leaked goroutines when tool calls hang.
 	ctx, cancel := context.WithTimeout(t.Context(), defaultTestTimeout)
-	// Ensure cancel is called even on test panic or early return.
 	t.Cleanup(cancel)
-	// Use shared container for better performance
 	pool, dbCleanup := helpers.GetSharedPostgresDB(t)
-	// Ensure tables exist (shared container migrations)
 	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
 	env := &TestEnvironment{
 		ctx:  ctx,
 		pool: pool,
 		cleanup: func() {
 			dbCleanup()
-			// Cancel context to clean up any pending operations
 			cancel()
 		},
 	}
-	// Prefer t.Cleanup to ensure cleanup runs even on panic
 	t.Cleanup(env.Cleanup)
 	return env
 }
@@ -70,10 +65,8 @@ func CreateTestProjectConfig(tools []tool.Config) *project.Config {
 		Version: "1.0",
 		Tools:   tools,
 	}
-	// Ensure CWD is set for validation and set CWD on tools
 	if err := cfg.SetCWD("."); err == nil {
 		for i := range cfg.Tools {
-			// Best-effort; ignore errors in helper
 			_ = cfg.Tools[i].SetCWD(cfg.CWD.PathStr()) //nolint:errcheck // Best-effort; ignore errors in test helper
 		}
 	}
@@ -87,7 +80,6 @@ func CreateTestWorkflowConfig(tools []tool.Config) *workflow.Config {
 		Description: "Test Workflow",
 		Tools:       tools,
 	}
-	// Ensure CWD is set for validation and set CWD on tools
 	if err := cfg.SetCWD("."); err == nil {
 		for i := range cfg.Tools {
 			_ = cfg.Tools[i].SetCWD(cfg.CWD.PathStr()) //nolint:errcheck // Best-effort; ignore errors in test helper
@@ -109,7 +101,6 @@ func CreateTestAgentConfig(tools []tool.Config) *agent.Config {
 			Tools: tools,
 		},
 	}
-	// Set CWD for completeness; agent tools short-circuit inheritance
 	_ = cfg.SetCWD(".") //nolint:errcheck // Intentionally ignore SetCWD errors in test helper
 	return cfg
 }
@@ -120,7 +111,6 @@ func CreateTestTool(id, description string) tool.Config {
 		ID:          id,
 		Description: description,
 	}
-	// Set a valid CWD so validation passes in resolver
 	_ = t.SetCWD(".") //nolint:errcheck // Intentionally ignore SetCWD errors in test helper
 	return t
 }

@@ -92,28 +92,69 @@ type commandRunInfo struct {
 	timedOut  bool
 }
 
+// totalBytes returns the combined bytes captured from stdout and stderr buffers
+func (info commandRunInfo) totalBytes() int {
+	total := 0
+	if info.stdoutBuf != nil {
+		total += int(info.stdoutBuf.Written())
+	}
+	if info.stderrBuf != nil {
+		total += int(info.stderrBuf.Written())
+	}
+	return total
+}
+
+// recordExecInvocation captures execution metrics for analytics reporting
+func recordExecInvocation(
+	ctx context.Context,
+	start time.Time,
+	info commandRunInfo,
+	status string,
+	errorCode string,
+) {
+	builtin.RecordInvocation(
+		ctx,
+		toolID,
+		builtin.RequestIDFromContext(ctx),
+		status,
+		time.Since(start),
+		info.totalBytes(),
+		errorCode,
+	)
+}
+
+// extractCoreErrorCode unwraps a core.Error to retain the underlying classification
+func extractCoreErrorCode(err error) string {
+	var coreErr *core.Error
+	if errors.As(err, &coreErr) && coreErr != nil {
+		return coreErr.Code
+	}
+	return ""
+}
+
+// evaluateExecutionOutcome updates handler status and error code after command execution
+func evaluateExecutionOutcome(result core.Output, info commandRunInfo) (string, string) {
+	if info.timedOut {
+		return builtin.StatusFailure, "Timeout"
+	}
+	if info.exitCode != 0 {
+		return builtin.StatusFailure, "NonZeroExit"
+	}
+	if success, ok := result["success"].(bool); ok && !success {
+		return builtin.StatusFailure, ""
+	}
+	return builtin.StatusSuccess, ""
+}
+
 func executeHandler(ctx context.Context, payload map[string]any) (core.Output, error) {
 	start := time.Now()
 	status := builtin.StatusFailure
-	var errorCode string
-	var info commandRunInfo
+	var (
+		errorCode string
+		info      commandRunInfo
+	)
 	defer func() {
-		bytes := 0
-		if info.stdoutBuf != nil {
-			bytes += int(info.stdoutBuf.Written())
-		}
-		if info.stderrBuf != nil {
-			bytes += int(info.stderrBuf.Written())
-		}
-		builtin.RecordInvocation(
-			ctx,
-			toolID,
-			builtin.RequestIDFromContext(ctx),
-			status,
-			time.Since(start),
-			bytes,
-			errorCode,
-		)
+		recordExecInvocation(ctx, start, info, status, errorCode)
 	}()
 	toolCfg := loadToolConfig(ctx)
 	args, err := decodeArgs(payload)
@@ -124,26 +165,10 @@ func executeHandler(ctx context.Context, payload map[string]any) (core.Output, e
 	result, runInfo, err := runCommand(ctx, toolCfg, args)
 	info = runInfo
 	if err != nil {
-		var coreErr *core.Error
-		if errors.As(err, &coreErr) && coreErr != nil {
-			errorCode = coreErr.Code
-		}
+		errorCode = extractCoreErrorCode(err)
 		return nil, err
 	}
-	if info.timedOut {
-		errorCode = "Timeout"
-		status = builtin.StatusFailure
-		return result, nil
-	}
-	if info.exitCode != 0 {
-		errorCode = "NonZeroExit"
-		// leave status as failure to surface non-zero exits
-		return result, nil
-	}
-	if success, ok := result["success"].(bool); ok && !success {
-		return result, nil
-	}
-	status = builtin.StatusSuccess
+	status, errorCode = evaluateExecutionOutcome(result, info)
 	return result, nil
 }
 
@@ -238,61 +263,98 @@ func executePreparedCommand(
 ) (core.Output, commandRunInfo, error) {
 	start := time.Now()
 	if err := cmd.Run(); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			duration := time.Since(start)
-			info := commandRunInfo{
-				stdoutBuf: stdoutBuf,
-				stderrBuf: stderrBuf,
-				duration:  duration,
-				exitCode:  timeoutExitCode,
-				timedOut:  true,
-			}
-			return buildExecOutput(
-				cmdCtx,
-				policy,
-				stdoutBuf,
-				stderrBuf,
-				info.exitCode,
-				info.duration,
-				info.timedOut,
-			), info, nil
-		}
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			duration := time.Since(start)
-			timedOut := cmdCtx.Err() != nil && errors.Is(cmdCtx.Err(), context.DeadlineExceeded)
-			info := commandRunInfo{
-				stdoutBuf: stdoutBuf,
-				stderrBuf: stderrBuf,
-				duration:  duration,
-				exitCode:  exitErr.ExitCode(),
-				timedOut:  timedOut,
-			}
-			return buildExecOutput(
-				cmdCtx,
-				policy,
-				stdoutBuf,
-				stderrBuf,
-				info.exitCode,
-				info.duration,
-				info.timedOut,
-			), info, nil
-		}
-		return nil, commandRunInfo{}, builtin.Internal(
-			fmt.Errorf("failed to execute command: %w", err),
-			map[string]any{"command": policy.Path},
+		return handleCommandExecutionError(
+			cmdCtx,
+			policy,
+			stdoutBuf,
+			stderrBuf,
+			start,
+			err,
 		)
 	}
+	output, info := buildSuccessfulCommandResult(cmdCtx, policy, stdoutBuf, stderrBuf, start)
+	return output, info, nil
+}
+
+// handleCommandExecutionError converts command execution failures into structured results
+func handleCommandExecutionError(
+	cmdCtx context.Context,
+	policy *commandPolicy,
+	stdoutBuf *limitedBuffer,
+	stderrBuf *limitedBuffer,
+	start time.Time,
+	runErr error,
+) (core.Output, commandRunInfo, error) {
+	if errors.Is(runErr, context.DeadlineExceeded) {
+		info := newCommandRunInfo(stdoutBuf, stderrBuf, time.Since(start), timeoutExitCode, true)
+		return buildExecOutput(
+			cmdCtx,
+			policy,
+			stdoutBuf,
+			stderrBuf,
+			info.exitCode,
+			info.duration,
+			info.timedOut,
+		), info, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(runErr, &exitErr) {
+		timedOut := cmdCtx.Err() != nil && errors.Is(cmdCtx.Err(), context.DeadlineExceeded)
+		info := newCommandRunInfo(stdoutBuf, stderrBuf, time.Since(start), exitErr.ExitCode(), timedOut)
+		return buildExecOutput(
+			cmdCtx,
+			policy,
+			stdoutBuf,
+			stderrBuf,
+			info.exitCode,
+			info.duration,
+			info.timedOut,
+		), info, nil
+	}
+	return nil, commandRunInfo{}, builtin.Internal(
+		fmt.Errorf("failed to execute command: %w", runErr),
+		map[string]any{"command": policy.Path},
+	)
+}
+
+// buildSuccessfulCommandResult assembles the command output for successful runs
+func buildSuccessfulCommandResult(
+	cmdCtx context.Context,
+	policy *commandPolicy,
+	stdoutBuf *limitedBuffer,
+	stderrBuf *limitedBuffer,
+	start time.Time,
+) (core.Output, commandRunInfo) {
 	duration := time.Since(start)
 	timedOut := cmdCtx.Err() != nil && errors.Is(cmdCtx.Err(), context.DeadlineExceeded)
-	info := commandRunInfo{
+	info := newCommandRunInfo(stdoutBuf, stderrBuf, duration, 0, timedOut)
+	output := buildExecOutput(
+		cmdCtx,
+		policy,
+		stdoutBuf,
+		stderrBuf,
+		info.exitCode,
+		info.duration,
+		info.timedOut,
+	)
+	return output, info
+}
+
+// newCommandRunInfo centralizes construction of command run metadata
+func newCommandRunInfo(
+	stdoutBuf *limitedBuffer,
+	stderrBuf *limitedBuffer,
+	duration time.Duration,
+	exitCode int,
+	timedOut bool,
+) commandRunInfo {
+	return commandRunInfo{
 		stdoutBuf: stdoutBuf,
 		stderrBuf: stderrBuf,
 		duration:  duration,
-		exitCode:  0,
+		exitCode:  exitCode,
 		timedOut:  timedOut,
 	}
-	return buildExecOutput(cmdCtx, policy, stdoutBuf, stderrBuf, 0, duration, timedOut), info, nil
 }
 
 func buildExecOutput(

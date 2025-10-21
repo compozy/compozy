@@ -20,7 +20,6 @@ func SleepWithPause(ctx workflow.Context, dur time.Duration) error {
 	timerDone := false
 	timer := workflow.NewTimer(ctx, dur)
 	for !timerDone {
-		// Check cancellation before each iteration
 		if temporal.IsCanceledError(ctx.Err()) {
 			log.Info("Sleep interrupted by cancellation")
 			return workflow.ErrCanceled
@@ -28,7 +27,6 @@ func SleepWithPause(ctx workflow.Context, dur time.Duration) error {
 		sel := workflow.NewSelector(ctx)
 		sel.AddFuture(timer, func(workflow.Future) { timerDone = true })
 		sel.Select(ctx)
-		// Check again after select
 		if temporal.IsCanceledError(ctx.Err()) {
 			log.Info("Sleep interrupted by cancellation")
 			return workflow.ErrCanceled
@@ -53,7 +51,6 @@ func actHandler[T any](
 			if temporal.IsCanceledError(err) {
 				return zero, errHandler(err)
 			}
-			// Handle other errors through error handler
 			return zero, errHandler(err)
 		}
 		return result, nil

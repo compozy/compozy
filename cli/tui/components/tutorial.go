@@ -40,55 +40,83 @@ func NewTutorial() Tutorial {
 // defaultTutorialSteps returns the default tutorial steps
 func defaultTutorialSteps() []TutorialStep {
 	return []TutorialStep{
-		{
-			Title: "Welcome to Compozy Auth",
-			Description: "This tutorial will guide you through the basic features of the Compozy Auth CLI. " +
-				"Use arrow keys to navigate and Enter to continue.",
-			Action:     "Press Enter to continue",
-			KeyBinding: "enter",
-		},
-		{
-			Title: "Getting Help",
-			Description: "Press '?' at any time to see context-sensitive help for the current screen. " +
-				"This shows all available keyboard shortcuts and actions.",
-			Action:     "Try pressing '?' now",
-			KeyBinding: "?",
-		},
-		{
-			Title: "Command Palette",
-			Description: "Press Ctrl+K to open the command palette. " +
-				"This provides quick access to all available actions and commands.",
-			Action:     "Try pressing Ctrl+K",
-			KeyBinding: "ctrl+k",
-		},
-		{
-			Title: "Navigation",
-			Description: "Use arrow keys or Vim-style keys (h/j/k/l) to navigate through lists and forms. " +
-				"Tab moves between form fields.",
-			Action:     "Practice with arrow keys",
-			KeyBinding: "arrows",
-		},
-		{
-			Title: "Key Management",
-			Description: "Generate API keys with 'compozy auth generate', list them with 'compozy auth list', " +
-				"and revoke them when no longer needed.",
-			Action:     "Remember these commands",
-			KeyBinding: "enter",
-		},
-		{
-			Title: "User Management",
-			Description: "Admin users can create, list, update, and delete user accounts. " +
-				"Regular users can only view their own information.",
-			Action:     "Understand user roles",
-			KeyBinding: "enter",
-		},
-		{
-			Title: "Tutorial Complete",
-			Description: "You've completed the tutorial! You can restart it anytime from the command palette. " +
-				"Press Esc to close this tutorial.",
-			Action:     "Press Esc to finish",
-			KeyBinding: escKey,
-		},
+		tutorialWelcomeStep(),
+		tutorialHelpStep(),
+		tutorialPaletteStep(),
+		tutorialNavigationStep(),
+		tutorialKeyManagementStep(),
+		tutorialUserManagementStep(),
+		tutorialCompletionStep(),
+	}
+}
+
+func tutorialWelcomeStep() TutorialStep {
+	return TutorialStep{
+		Title: "Welcome to Compozy Auth",
+		Description: "This tutorial will guide you through the basic features of the Compozy Auth CLI. " +
+			"Use arrow keys to navigate and Enter to continue.",
+		Action:     "Press Enter to continue",
+		KeyBinding: "enter",
+	}
+}
+
+func tutorialHelpStep() TutorialStep {
+	return TutorialStep{
+		Title: "Getting Help",
+		Description: "Press '?' at any time to see context-sensitive help for the current screen. " +
+			"This shows all available keyboard shortcuts and actions.",
+		Action:     "Try pressing '?' now",
+		KeyBinding: "?",
+	}
+}
+
+func tutorialPaletteStep() TutorialStep {
+	return TutorialStep{
+		Title: "Command Palette",
+		Description: "Press Ctrl+K to open the command palette. " +
+			"This provides quick access to all available actions and commands.",
+		Action:     "Try pressing Ctrl+K",
+		KeyBinding: "ctrl+k",
+	}
+}
+
+func tutorialNavigationStep() TutorialStep {
+	return TutorialStep{
+		Title: "Navigation",
+		Description: "Use arrow keys or Vim-style keys (h/j/k/l) to navigate through lists and forms. " +
+			"Tab moves between form fields.",
+		Action:     "Practice with arrow keys",
+		KeyBinding: "arrows",
+	}
+}
+
+func tutorialKeyManagementStep() TutorialStep {
+	return TutorialStep{
+		Title: "Key Management",
+		Description: "Generate API keys with 'compozy auth generate', list them with 'compozy auth list', " +
+			"and revoke them when no longer needed.",
+		Action:     "Remember these commands",
+		KeyBinding: "enter",
+	}
+}
+
+func tutorialUserManagementStep() TutorialStep {
+	return TutorialStep{
+		Title: "User Management",
+		Description: "Admin users can create, list, update, and delete user accounts. " +
+			"Regular users can only view their own information.",
+		Action:     "Understand user roles",
+		KeyBinding: "enter",
+	}
+}
+
+func tutorialCompletionStep() TutorialStep {
+	return TutorialStep{
+		Title: "Tutorial Complete",
+		Description: "You've completed the tutorial! You can restart it anytime from the command palette. " +
+			"Press Esc to close this tutorial.",
+		Action:     "Press Esc to finish",
+		KeyBinding: escKey,
 	}
 }
 
@@ -166,7 +194,6 @@ func (t *Tutorial) Update(msg tea.Msg) tea.Cmd {
 	case HideTutorialMsg:
 		t.Hide()
 	}
-
 	return nil
 }
 
@@ -175,37 +202,22 @@ func (t *Tutorial) View() string {
 	if !t.Visible {
 		return ""
 	}
-
 	step := t.Steps[t.Current]
 	content := t.renderStep(step)
-
-	// Wrap in dialog
 	dialog := styles.DialogStyle.
 		Width(t.Width - 8).
 		Render(content)
-
-	// Center the dialog
 	return lipgloss.Place(t.Width, t.Height, lipgloss.Center, lipgloss.Center, dialog)
 }
 
 // renderStep renders a tutorial step
 func (t *Tutorial) renderStep(step TutorialStep) string {
 	var content string
-
-	// Progress indicator
 	progress := styles.HelpStyle.Render(fmt.Sprintf("Step %d of %d", t.Current+1, len(t.Steps)))
 	content += progress + "\n\n"
-
-	// Title
 	content += styles.RenderTitle(step.Title) + "\n\n"
-
-	// Description
 	content += step.Description + "\n\n"
-
-	// Action
 	content += styles.HelpKeyStyle.Render(step.Action) + "\n\n"
-
-	// Navigation help
 	nav := ""
 	if t.Current > 0 {
 		nav += styles.HelpStyle.Render("← previous")
@@ -219,10 +231,7 @@ func (t *Tutorial) renderStep(step TutorialStep) string {
 	if nav != "" {
 		content += nav + "\n"
 	}
-
-	// Close instruction
 	content += styles.HelpStyle.Render("Press q or esc to close tutorial")
-
 	return content
 }
 

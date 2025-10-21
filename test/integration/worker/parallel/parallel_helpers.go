@@ -17,10 +17,7 @@ func executeWorkflowAndGetState(
 	fixture *helpers.TestFixture,
 	dbHelper *helpers.DatabaseHelper,
 ) *workflow.State {
-	// Use basic agent configuration which has process_message action required by simple_parallel fixture
 	agentConfig := helpers.CreateBasicAgentConfig()
-
-	// Execute real workflow using common helper
 	return helpers.ExecuteWorkflowAndGetState(
 		t,
 		fixture,
@@ -35,20 +32,13 @@ func executeWorkflowAndGetState(
 func verifyParallelTaskExecution(t *testing.T, _ *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying parallel task execution from database state")
-
 	parentTask := helpers.FindParentTask(result, task.ExecutionParallel)
 	require.NotNil(t, parentTask, "Should have a parent parallel task")
-
-	// Verify parent task has correct execution type and is properly configured
 	assert.Equal(t, task.ExecutionParallel, parentTask.ExecutionType, "Parent task should be parallel type")
 	assert.NotEmpty(t, parentTask.TaskID, "Parent task should have ID")
 	assert.NotEmpty(t, parentTask.TaskExecID, "Parent task should have execution ID")
-
-	// Find and verify child tasks
 	childTasks := helpers.FindChildTasks(result, parentTask.TaskExecID)
 	assert.Greater(t, len(childTasks), 0, "Should have child tasks")
-
-	// Verify each child task has proper configuration
 	for _, childTask := range childTasks {
 		assert.NotEmpty(t, childTask.TaskID, "Child task should have ID")
 		assert.NotEmpty(t, childTask.TaskExecID, "Child task should have execution ID")
@@ -60,11 +50,8 @@ func verifyParallelTaskExecution(t *testing.T, _ *helpers.TestFixture, result *w
 func verifyParallelChildTaskCreation(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying parallel child task creation from database state")
-
 	parentTask := helpers.FindParentTask(result, task.ExecutionParallel)
 	require.NotNil(t, parentTask, "Should have a parent parallel task")
-
-	// Count expected child tasks from fixture based on parent relationship
 	expectedChildCount := 0
 	for _, expected := range fixture.Expected.TaskStates {
 		if expected.Parent != "" {
@@ -72,8 +59,6 @@ func verifyParallelChildTaskCreation(t *testing.T, fixture *helpers.TestFixture,
 		}
 	}
 	helpers.VerifyChildTaskCount(t, result, parentTask.TaskExecID, expectedChildCount, "parallel task")
-
-	// Verify child task properties
 	childTasks := helpers.FindChildTasks(result, parentTask.TaskExecID)
 	for _, childTask := range childTasks {
 		assert.NotEmpty(t, childTask.TaskID, "Child task should have ID")
@@ -86,15 +71,11 @@ func verifyParallelChildTaskCreation(t *testing.T, fixture *helpers.TestFixture,
 func verifyParallelOutputAggregation(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Helper()
 	t.Log("Verifying parallel output aggregation from database state")
-
 	parentTask := helpers.FindParentTask(result, task.ExecutionParallel)
 	require.NotNil(t, parentTask, "Should have a parent parallel task")
-
-	// Verify parent task has expected output
 	for _, expected := range fixture.Expected.TaskStates {
 		if expected.Name == parentTask.TaskID && expected.Output != nil {
 			helpers.VerifyTaskHasOutput(t, parentTask, "parallel parent task")
-			// Verify specific output fields from fixture
 			if expectedOutput, ok := expected.Output["total_tasks"]; ok {
 				assert.Contains(t, *parentTask.Output, "total_tasks", "Parent output should contain total_tasks")
 				if actualTotal, exists := (*parentTask.Output)["total_tasks"]; exists {
@@ -111,8 +92,5 @@ func verifyParallelOutputAggregation(t *testing.T, fixture *helpers.TestFixture,
 func testRedisOperations(t *testing.T, _ *helpers.TestFixture, redisHelper *helpers.RedisHelper) {
 	t.Helper()
 	t.Log("Testing Redis operations for parallel workflow")
-
-	// Redis operations would be tested here when implemented
-	// For now, just verify the helper is functional
 	assert.NotNil(t, redisHelper, "Redis helper should be available")
 }

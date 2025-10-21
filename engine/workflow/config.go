@@ -491,7 +491,6 @@ func (w *Config) ValidateInput(ctx context.Context, input *core.Input) error {
 // ApplyInputDefaults merges default values from the input schema with the provided input
 func (w *Config) ApplyInputDefaults(input *core.Input) (*core.Input, error) {
 	if w.Opts.InputSchema == nil {
-		// No schema, return input as-is
 		if input == nil {
 			input = &core.Input{}
 		}
@@ -503,7 +502,6 @@ func (w *Config) ApplyInputDefaults(input *core.Input) (*core.Input, error) {
 	} else {
 		inputMap = *input
 	}
-	// Apply defaults from schema
 	mergedInput, err := w.Opts.InputSchema.ApplyDefaults(inputMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply input defaults for workflow %s: %w", w.ID, err)
@@ -513,7 +511,6 @@ func (w *Config) ApplyInputDefaults(input *core.Input) (*core.Input, error) {
 }
 
 func (w *Config) ValidateOutput(_ context.Context, _ *core.Output) error {
-	// Does not make sense the workflow having a schema
 	return nil
 }
 
@@ -587,7 +584,6 @@ func (w *Config) DetermineNextTask(
 	if nextTaskID == "" {
 		return nil
 	}
-	// Find the next task config
 	nextTask, err := task.FindConfig(w.Tasks, nextTaskID)
 	if err != nil {
 		return nil
@@ -666,7 +662,6 @@ func (w *Config) Compile(
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone workflow '%s': %w", w.ID, err)
 	}
-	// Link workflow-scoped schema references (config input, triggers)
 	if err = linkWorkflowSchemas(ctx, proj, store, compiled); err == nil {
 		for i := range compiled.Tasks {
 			if err = compileTaskRecursive(ctx, proj, store, &compiled.Tasks[i]); err != nil {
@@ -693,7 +688,6 @@ func compileTaskRecursive(
 	if t == nil {
 		return nil
 	}
-	// Link task-level schema references
 	if err := linkTaskSchemas(ctx, proj, store, t); err != nil {
 		return withCompileTaskErr(t.ID, err)
 	}
@@ -746,10 +740,7 @@ func compileRouterInline(
 			}
 			t.Routes[rk] = inline
 		case string:
-			// String routes refer to an existing task by ID.
-			// Leave as-is for resolution at runtime by ExecuteRouter.
 		case task.Config:
-			// Inline task config provided as value type; compile recursively
 			inline := route
 			if err := compileTaskRecursive(ctx, proj, store, &inline); err != nil {
 				return fmt.Errorf("router route '%s' compile failed: %w", rk, err)
@@ -763,7 +754,6 @@ func compileRouterInline(
 				return fmt.Errorf("router route '%s' compile failed: %w", rk, err)
 			}
 		default:
-			// For any other type, surface a helpful error
 			return fmt.Errorf("router route '%s' has unsupported type %T", rk, rv)
 		}
 	}
@@ -771,15 +761,11 @@ func compileRouterInline(
 }
 
 func compileSelectors(ctx context.Context, proj *project.Config, store resources.ResourceStore, t *task.Config) error {
-	// Enforce PRD selector grammar at compile time for basic tasks
 	if t.Type == task.TaskTypeBasic {
 		hasAgent := t.Agent != nil
 		hasTool := t.Tool != nil
-		// Direct LLM (prompt-only) mode: model_config (+fallbacks) + prompt
 		hasDirect := strings.TrimSpace(t.Prompt) != ""
 		// Note: provider/model defaults may be injected later; runtime validation ensures
-		// concrete availability. Compile-time only needs to gate on prompt presence.
-		// Exactly one executor must be selected among agent, tool, direct LLM.
 		execCount := 0
 		if hasAgent {
 			execCount++

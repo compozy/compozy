@@ -102,7 +102,6 @@ type InputSanitizer struct {
 // NewInputSanitizer creates a new input sanitizer with configurable string length limit
 func NewInputSanitizer(ctx context.Context) *InputSanitizer {
 	maxStringLength := 10485760 // 10MB default
-	// Load configuration from environment
 	service := config.NewService()
 	appConfig, err := service.Load(ctx)
 	if err == nil && appConfig.Limits.MaxStringLength > 0 {

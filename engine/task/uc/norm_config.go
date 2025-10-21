@@ -37,13 +37,10 @@ func NewNormalizeConfig(ctx context.Context) (*NormalizeConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create normalizer factory: %w", err)
 	}
-
-	// Create orchestrator
 	orchestrator, err := task2.NewConfigOrchestrator(ctx, factory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config orchestrator: %w", err)
 	}
-
 	return &NormalizeConfig{
 		orchestrator: orchestrator,
 	}, nil

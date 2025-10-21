@@ -34,27 +34,19 @@ func (h *ResponseHandler) HandleResponse(
 	ctx context.Context,
 	input *shared.ResponseInput,
 ) (*shared.ResponseOutput, error) {
-	// Validate input
 	if err := h.baseHandler.ValidateInput(input); err != nil {
 		return nil, err
 	}
-	// Validate task type matches handler
 	if input.TaskConfig.Type != task.TaskTypeParallel {
 		return nil, &shared.ValidationError{
 			Field:   "task_type",
 			Message: "handler type does not match task type",
 		}
 	}
-	// Delegate to base handler for common logic
 	response, err := h.baseHandler.ProcessMainTaskResponse(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-
-	// Parallel tasks use deferred output transformation
-	// The transformation happens after child tasks complete based on strategy
-	// This is handled by the orchestrator calling ApplyDeferredOutputTransformation
-
 	return response, nil
 }
 
@@ -69,20 +61,15 @@ func (h *ResponseHandler) ApplyDeferredOutputTransformation(
 	ctx context.Context,
 	input *shared.ResponseInput,
 ) error {
-	// Validate input
 	if err := h.baseHandler.ValidateInput(input); err != nil {
 		return err
 	}
-	// Ensure we should defer transformation for this task type
 	if !h.baseHandler.ShouldDeferOutputTransformation(input.TaskConfig) {
 		return nil
 	}
-
-	// Apply the deferred transformation using the base handler
 	if err := h.baseHandler.ApplyDeferredOutputTransformation(ctx, input); err != nil {
 		return fmt.Errorf("parallel deferred transformation failed: %w", err)
 	}
-
 	return nil
 }
 
@@ -95,10 +82,6 @@ func (h *ResponseHandler) HandleSubtaskResponse(
 	childConfig *task.Config,
 	_ task.ParallelStrategy,
 ) (*task.SubtaskResponse, error) {
-	// Strategy-specific handling is managed by the orchestrator
-	// This handler only needs to return the subtask response
-	// The orchestrator will determine parent readiness based on strategy
-
 	return &task.SubtaskResponse{
 		TaskID: childConfig.ID,
 		Output: childState.Output,

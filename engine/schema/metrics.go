@@ -40,49 +40,75 @@ func ensureSchemaMetrics() {
 
 func initSchemaMetrics(meter metric.Meter) error {
 	var err error
-	schemaCompileCounter, err = meter.Int64Counter(
+	schemaCompileCounter, err = createSchemaCounter(
+		meter,
 		monitoringmetrics.MetricNameWithSubsystem(schemaMetricSubsystem, "compiles_total"),
-		metric.WithDescription("Total schema compilation attempts"),
-		metric.WithUnit("1"),
+		"Total schema compilation attempts",
 	)
 	if err != nil {
 		return err
 	}
-	schemaCompileCacheHitCounter, err = meter.Int64Counter(
+	schemaCompileCacheHitCounter, err = createSchemaCounter(
+		meter,
 		monitoringmetrics.MetricNameWithSubsystem(schemaMetricSubsystem, "compile_cache_hits_total"),
-		metric.WithDescription("Schema compilation cache hits"),
-		metric.WithUnit("1"),
+		"Schema compilation cache hits",
 	)
 	if err != nil {
 		return err
 	}
-	schemaValidationCounter, err = meter.Int64Counter(
+	schemaValidationCounter, err = createSchemaCounter(
+		meter,
 		monitoringmetrics.MetricNameWithSubsystem(schemaMetricSubsystem, "validations_total"),
-		metric.WithDescription("Schema validations performed"),
+		"Schema validations performed",
+	)
+	if err != nil {
+		return err
+	}
+	schemaCompileHistogram, err = createSchemaHistogram(
+		meter,
+		monitoringmetrics.MetricNameWithSubsystem(schemaMetricSubsystem, "compile_duration_seconds"),
+		"Schema compilation duration",
+		schemaCompileBuckets,
+	)
+	if err != nil {
+		return err
+	}
+	schemaValidateHistogram, err = createSchemaHistogram(
+		meter,
+		monitoringmetrics.MetricNameWithSubsystem(schemaMetricSubsystem, "validate_duration_seconds"),
+		"Schema validation duration",
+		schemaValidateBuckets,
+	)
+	if err != nil {
+		return err
+	}
+	return registerSchemaGauge(meter)
+}
+
+func createSchemaCounter(meter metric.Meter, name string, description string) (metric.Int64Counter, error) {
+	return meter.Int64Counter(
+		name,
+		metric.WithDescription(description),
 		metric.WithUnit("1"),
 	)
-	if err != nil {
-		return err
-	}
-	schemaCompileHistogram, err = meter.Float64Histogram(
-		monitoringmetrics.MetricNameWithSubsystem(schemaMetricSubsystem, "compile_duration_seconds"),
-		metric.WithDescription("Schema compilation duration"),
+}
+
+func createSchemaHistogram(
+	meter metric.Meter,
+	name string,
+	description string,
+	buckets []float64,
+) (metric.Float64Histogram, error) {
+	return meter.Float64Histogram(
+		name,
+		metric.WithDescription(description),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(schemaCompileBuckets...),
+		metric.WithExplicitBucketBoundaries(buckets...),
 	)
-	if err != nil {
-		return err
-	}
-	schemaValidateHistogram, err = meter.Float64Histogram(
-		monitoringmetrics.MetricNameWithSubsystem(schemaMetricSubsystem, "validate_duration_seconds"),
-		metric.WithDescription("Schema validation duration"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(schemaValidateBuckets...),
-	)
-	if err != nil {
-		return err
-	}
-	schemaCacheGauge, err = meter.Int64ObservableGauge(
+}
+
+func registerSchemaGauge(meter metric.Meter) error {
+	gauge, err := meter.Int64ObservableGauge(
 		monitoringmetrics.MetricNameWithSubsystem(schemaMetricSubsystem, "cache_size"),
 		metric.WithDescription("Number of compiled schemas in cache"),
 		metric.WithUnit("1"),
@@ -95,10 +121,11 @@ func initSchemaMetrics(meter metric.Meter) error {
 			return fmt.Errorf("schema metrics: unregister callback: %w", err)
 		}
 	}
-	registration, err := meter.RegisterCallback(observeSchemaMetrics, schemaCacheGauge)
+	registration, err := meter.RegisterCallback(observeSchemaMetrics, gauge)
 	if err != nil {
 		return err
 	}
+	schemaCacheGauge = gauge
 	schemaMetricsRegistration = registration
 	return nil
 }

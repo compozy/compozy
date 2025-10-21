@@ -16,8 +16,6 @@ import (
 // CreateUserTUI handles user creation in TUI mode using the unified executor pattern
 func CreateUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 	log := logger.FromContext(ctx)
-
-	// Parse flags for initial values
 	email, err := cobraCmd.Flags().GetString("email")
 	if err != nil {
 		return fmt.Errorf("failed to get email flag: %w", err)
@@ -30,24 +28,17 @@ func CreateUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 	if err != nil {
 		return fmt.Errorf("failed to get role flag: %w", err)
 	}
-
 	log.Debug("creating user in TUI mode")
-
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return fmt.Errorf("auth client not available")
 	}
-
-	// Create and run the TUI model
 	m := newCreateUserModel(ctx, authClient, email, name, role)
 	p := tea.NewProgram(m)
-
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
-
-	// Check if creation was successful
 	if model, ok := finalModel.(*createUserModel); ok {
 		if model.err != nil {
 			return model.err
@@ -56,7 +47,6 @@ func CreateUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 			return fmt.Errorf("user creation canceled")
 		}
 	}
-
 	return nil
 }
 
@@ -96,15 +86,10 @@ func newCreateUserModel(ctx context.Context, client api.AuthClient, email, name,
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
-
-	// Initialize inputs with provided values
 	inputs := []string{email, name, role}
-
-	// Set default role if empty
 	if inputs[2] == "" {
 		inputs[2] = roleUser
 	}
-
 	return &createUserModel{
 		ctx:     ctx,
 		client:  client,
@@ -168,7 +153,6 @@ func (m *createUserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	}
-
 	return m, nil
 }
 
@@ -191,7 +175,6 @@ func (m *createUserModel) handleInputting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", keyCtrlC:
 		return m, tea.Quit
 	case keyEnter:
-		// Validate inputs
 		if err := m.validateInputs(); err != nil {
 			m.err = err
 			return m, tea.Quit
@@ -210,7 +193,6 @@ func (m *createUserModel) handleInputting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.inputs[m.cursorPos] = m.inputs[m.cursorPos][:len(m.inputs[m.cursorPos])-1]
 		}
 	default:
-		// Add character to current input
 		if len(msg.String()) == 1 {
 			m.inputs[m.cursorPos] += msg.String()
 		}
@@ -254,7 +236,6 @@ func (m *createUserModel) View() string {
 			Foreground(lipgloss.Color("196")).
 			Render(fmt.Sprintf("❌ Error: %v", m.err))
 	}
-
 	switch m.state {
 	case stateUserInputting:
 		return m.viewInputting()
@@ -265,7 +246,6 @@ func (m *createUserModel) View() string {
 	case stateUserCompleted:
 		return m.viewCompleted()
 	}
-
 	return ""
 }
 
@@ -276,14 +256,11 @@ func (m *createUserModel) viewInputting() string {
 		BorderForeground(lipgloss.Color("69")).
 		Padding(1, 2).
 		Width(60)
-
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("69"))
-
 	labels := []string{"Email:", "Name:", "Role:"}
 	content := titleStyle.Render("👤 Create New User") + "\n\n"
-
 	for i, label := range labels {
 		inputStyle := lipgloss.NewStyle()
 		if i == m.cursorPos {
@@ -297,11 +274,9 @@ func (m *createUserModel) viewInputting() string {
 
 		content += fmt.Sprintf("%s %s\n", label, inputStyle.Render(value))
 	}
-
 	content += "\n" + lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241")).
 		Render("Tab/↓ to navigate • Enter to confirm • q to quit")
-
 	return style.Render(content)
 }
 
@@ -312,20 +287,16 @@ func (m *createUserModel) viewConfirming() string {
 		BorderForeground(lipgloss.Color("214")).
 		Padding(1, 2).
 		Width(50)
-
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("214"))
-
 	content := titleStyle.Render("📝 Confirm User Creation") + "\n\n"
 	content += fmt.Sprintf("Email: %s\n", m.inputs[0])
 	content += fmt.Sprintf("Name: %s\n", m.inputs[1])
 	content += fmt.Sprintf("Role: %s\n", m.inputs[2])
-
 	content += "\n" + lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241")).
 		Render("y/Y to create • n/N to edit • q to quit")
-
 	return style.Render(content)
 }
 
@@ -336,22 +307,18 @@ func (m *createUserModel) viewCompleted() string {
 		BorderForeground(lipgloss.Color("10")).
 		Padding(1, 2).
 		Width(50)
-
 	content := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("10")).
 		Render("✅ User Created Successfully")
-
 	if m.createdUser != nil {
 		content += fmt.Sprintf("\n\nUser ID: %s", m.createdUser.ID)
 		content += fmt.Sprintf("\nEmail: %s", m.createdUser.Email)
 		content += fmt.Sprintf("\nName: %s", m.createdUser.Name)
 		content += fmt.Sprintf("\nRole: %s", m.createdUser.Role)
 	}
-
 	content += "\n\n" + lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241")).
 		Render("Press any key to exit")
-
 	return style.Render(content)
 }

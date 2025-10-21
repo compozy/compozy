@@ -26,7 +26,6 @@ func NewAPIKeyResolver() *APIKeyResolver {
 // 3. Otherwise use APIKey directly (for development/testing only)
 func (r *APIKeyResolver) ResolveAPIKey(ctx context.Context, config *memcore.TokenProviderConfig) string {
 	log := logger.FromContext(ctx)
-	// First priority: explicit environment variable reference
 	if config.APIKeyEnv != "" {
 		value := os.Getenv(config.APIKeyEnv)
 		if value == "" {
@@ -35,7 +34,6 @@ func (r *APIKeyResolver) ResolveAPIKey(ctx context.Context, config *memcore.Toke
 		}
 		return value
 	}
-	// Second priority: inline environment variable reference
 	if strings.HasPrefix(config.APIKey, "${") && strings.HasSuffix(config.APIKey, "}") {
 		envVar := strings.TrimSuffix(strings.TrimPrefix(config.APIKey, "${"), "}")
 		value := os.Getenv(envVar)
@@ -45,7 +43,6 @@ func (r *APIKeyResolver) ResolveAPIKey(ctx context.Context, config *memcore.Toke
 		}
 		return value
 	}
-	// Third priority: direct value (log warning in production)
 	if config.APIKey != "" &&
 		(os.Getenv("GO_ENV") == "production" || os.Getenv("APP_ENV") == "production") {
 		log.Warn("API key is stored in plain text configuration - consider using environment variables",

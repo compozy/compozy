@@ -1,22 +1,18 @@
 package core
 
-import (
-	"net/http"
+import "net/http"
 
-	"github.com/compozy/compozy/pkg/logger"
-	"github.com/gin-gonic/gin"
-)
-
-// ProblemDocument models an RFC 7807 error envelope for API responses.
+// ProblemDocument models the canonical error envelope for API responses.
 type ProblemDocument struct {
-	Type     string `json:"type,omitempty"     example:"about:blank"`
-	Title    string `json:"title"              example:"Bad Request"`
 	Status   int    `json:"status"             example:"400"`
-	Detail   string `json:"detail,omitempty"   example:"Invalid cursor parameter"`
-	Instance string `json:"instance,omitempty" example:"/api/v0/workflows"`
+	Error    string `json:"error"              example:"Bad Request"`
+	Details  string `json:"details,omitempty"  example:"Invalid cursor parameter"`
 	Code     string `json:"code,omitempty"     example:"invalid_cursor"`
+	Type     string `json:"type,omitempty"     example:"about:blank"`
+	Instance string `json:"instance,omitempty" example:"/api/v0/workflows"`
 }
 
+// Problem captures the information returned in an RFC 7807 error response.
 type Problem struct {
 	Type     string
 	Title    string
@@ -26,9 +22,8 @@ type Problem struct {
 	Extras   map[string]any
 }
 
-// RespondProblem writes an RFC7807 problem+json response.
-// Accepts a pointer to avoid copying a potentially large struct and to satisfy linters.
-func RespondProblem(c *gin.Context, problem *Problem) {
+// NormalizeProblem ensures the provided problem includes canonical defaults.
+func NormalizeProblem(problem *Problem) *Problem {
 	if problem == nil {
 		problem = &Problem{}
 	}
@@ -38,60 +33,50 @@ func RespondProblem(c *gin.Context, problem *Problem) {
 	if problem.Title == "" {
 		problem.Title = http.StatusText(problem.Status)
 	}
-	body := gin.H{
+	if problem.Type == "" {
+		problem.Type = "about:blank"
+	}
+	return problem
+}
+
+// BuildProblemBody assembles the serialized representation of the problem.
+func BuildProblemBody(problem *Problem) map[string]any {
+	body := map[string]any{
 		"status": problem.Status,
-		"title":  problem.Title,
+		"error":  problem.Title,
+	}
+	if problem.Detail != "" {
+		body["details"] = problem.Detail
+	}
+	if code, ok := problem.Extras["code"]; ok {
+		body["code"] = code
 	}
 	if problem.Type != "" {
 		body["type"] = problem.Type
 	}
-	if problem.Detail != "" {
-		body["detail"] = problem.Detail
-	}
 	if problem.Instance != "" {
 		body["instance"] = problem.Instance
 	}
-	for k, v := range problem.Extras {
-		if k != "status" && k != "title" && k != "type" && k != "detail" && k != "instance" {
-			body[k] = v
+	if len(problem.Extras) == 0 {
+		return body
+	}
+	filteredExtras := make(map[string]any, len(problem.Extras))
+	for key, value := range problem.Extras {
+		if !isReservedProblemKey(key) {
+			filteredExtras[key] = value
 		}
 	}
-	c.Header("Content-Type", "application/problem+json")
-	log := logger.FromContext(c.Request.Context())
-	if problem.Status >= http.StatusInternalServerError {
-		log.Error(
-			"request failed",
-			"status",
-			problem.Status,
-			"title",
-			problem.Title,
-			"detail",
-			problem.Detail,
-			"path",
-			c.FullPath(),
-		)
-	} else {
-		log.Warn(
-			"request failed",
-			"status",
-			problem.Status,
-			"title",
-			problem.Title,
-			"detail",
-			problem.Detail,
-			"path",
-			c.FullPath(),
-		)
+	if len(filteredExtras) == 0 {
+		return body
 	}
-	c.JSON(problem.Status, body)
+	return CopyMaps(body, filteredExtras)
 }
 
-func RespondProblemWithCode(c *gin.Context, status int, code string, detail string) {
-	problem := Problem{
-		Status: status,
-		Title:  http.StatusText(status),
-		Detail: detail,
-		Extras: map[string]any{"code": code},
+func isReservedProblemKey(key string) bool {
+	switch key {
+	case "status", "error", "detail", "details", "code", "type", "instance":
+		return true
+	default:
+		return false
 	}
-	RespondProblem(c, &problem)
 }

@@ -31,7 +31,6 @@ func (f *FormWrapper) Init() tea.Cmd {
 
 // Update handles form updates
 func (f *FormWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Handle key messages for cancellation
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
 		case "ctrl+c", "q":
@@ -39,11 +38,7 @@ func (f *FormWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return f, tea.Quit
 		}
 	}
-
-	// Handle base model updates (like window size)
 	f.BaseModel.Update(msg)
-
-	// Delegate to huh form
 	form, cmd := f.form.Update(msg)
 	if frm, ok := form.(*huh.Form); ok {
 		f.form = frm
@@ -56,7 +51,6 @@ func (f *FormWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return f, tea.Quit
 		}
 	}
-
 	return f, cmd
 }
 

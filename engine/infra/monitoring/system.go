@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,10 +31,8 @@ var (
 	startTime             time.Time
 	systemInitOnce        sync.Once
 	systemResetMutex      sync.Mutex
-	// Build info cache with thread safety
-	buildInfoCache      buildInfoData
-	buildInfoOnce       sync.Once
-	buildInfoCacheMutex sync.RWMutex
+	buildInfoCache        atomic.Pointer[buildInfoData]
+	buildInfoOnce         sync.Once
 )
 
 type buildInfoData struct {
@@ -44,83 +43,101 @@ type buildInfoData struct {
 
 // initSystemMetrics initializes system health metrics
 func initSystemMetrics(ctx context.Context, meter metric.Meter) {
-	log := logger.FromContext(ctx)
 	if meter == nil {
 		return
 	}
+	systemResetMutex.Lock()
+	defer systemResetMutex.Unlock()
 	systemInitOnce.Do(func() {
-		var err error
-		// Record start time immediately for accurate uptime
-		startTime = time.Now()
-		// Create gauges first (fast operations)
-		buildInfo, err = meter.Float64ObservableGauge(
-			metrics.MetricNameWithSubsystem("system", "build_info"),
-			metric.WithDescription("Build information (value=1)"),
-		)
-		if err != nil {
-			log.Error("Failed to create build info gauge", "error", err)
-			return
-		}
-		// Create observable gauge for uptime
-		uptimeGauge, err = meter.Float64ObservableGauge(
-			metrics.MetricNameWithSubsystem("system", "uptime_seconds"),
-			metric.WithDescription("Service uptime in seconds"),
-		)
-		if err != nil {
-			log.Error("Failed to create uptime gauge", "error", err)
-			return
-		}
-		// Register callbacks (also fast)
-		uptimeRegistration, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
-			uptime := time.Since(startTime).Seconds()
-			o.ObserveFloat64(uptimeGauge, uptime)
-			return nil
-		}, uptimeGauge)
-		if err != nil {
-			log.Error("Failed to register uptime callback", "error", err)
-		}
-		// Register callback for build info (values loaded dynamically)
-		buildInfoRegistration, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
-			// Get build info dynamically to pick up async loaded values
-			version, commit, goVersion := getBuildInfo()
-			o.ObserveFloat64(buildInfo, 1,
-				metric.WithAttributes(
-					attribute.String("version", version),
-					attribute.String("commit_hash", commit),
-					attribute.String("go_version", goVersion),
-				),
-			)
-			return nil
-		}, buildInfo)
-		if err != nil {
-			log.Error("Failed to register build info callback", "error", err)
-		}
-		// Build info will be logged asynchronously when loaded
-		// No need for a separate goroutine here
+		initializeSystemInstruments(ctx, meter)
 	})
+}
+
+// initializeSystemInstruments creates system metrics instruments and callbacks.
+func initializeSystemInstruments(ctx context.Context, meter metric.Meter) {
+	log := logger.FromContext(ctx)
+	startTime = time.Now()
+	var err error
+	buildInfo, err = createBuildInfoGauge(meter)
+	if err != nil {
+		log.Error("Failed to create build info gauge", "error", err)
+		return
+	}
+	uptimeGauge, err = createUptimeGauge(meter)
+	if err != nil {
+		log.Error("Failed to create uptime gauge", "error", err)
+		return
+	}
+	uptimeRegistration, err = registerUptimeCallback(meter)
+	if err != nil {
+		log.Error("Failed to register uptime callback", "error", err)
+	}
+	buildInfoRegistration, err = registerBuildInfoCallback(meter)
+	if err != nil {
+		log.Error("Failed to register build info callback", "error", err)
+	}
+}
+
+// createBuildInfoGauge creates the build info observable gauge.
+func createBuildInfoGauge(meter metric.Meter) (metric.Float64ObservableGauge, error) {
+	return meter.Float64ObservableGauge(
+		metrics.MetricNameWithSubsystem("system", "build_info"),
+		metric.WithDescription("Build information (value=1)"),
+	)
+}
+
+// createUptimeGauge creates the uptime observable gauge.
+func createUptimeGauge(meter metric.Meter) (metric.Float64ObservableGauge, error) {
+	return meter.Float64ObservableGauge(
+		metrics.MetricNameWithSubsystem("system", "uptime_seconds"),
+		metric.WithDescription("Service uptime in seconds"),
+		metric.WithUnit("s"),
+	)
+}
+
+// registerUptimeCallback registers the uptime observer callback.
+func registerUptimeCallback(meter metric.Meter) (metric.Registration, error) {
+	return meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		uptime := time.Since(startTime).Seconds()
+		o.ObserveFloat64(uptimeGauge, uptime)
+		return nil
+	}, uptimeGauge)
+}
+
+// registerBuildInfoCallback registers the build info observer callback.
+func registerBuildInfoCallback(meter metric.Meter) (metric.Registration, error) {
+	return meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		versionVal, commit, goVersion := getBuildInfo()
+		o.ObserveFloat64(buildInfo, 1,
+			metric.WithAttributes(
+				attribute.String("version", versionVal),
+				attribute.String("commit_hash", commit),
+				attribute.String("go_version", goVersion),
+			),
+		)
+		return nil
+	}, buildInfo)
 }
 
 // getBuildInfo returns build information with lazy loading and caching
 func getBuildInfo() (version, commit, goVersion string) {
 	buildInfoOnce.Do(func() {
-		buildInfoCacheMutex.Lock()
-		buildInfoCache = loadBuildInfo()
-		buildInfoCacheMutex.Unlock()
+		data := loadBuildInfo()
+		buildInfoCache.Store(&data)
 	})
-	buildInfoCacheMutex.RLock()
-	defer buildInfoCacheMutex.RUnlock()
-	return buildInfoCache.version, buildInfoCache.commit, buildInfoCache.goVersion
+	data := buildInfoCache.Load()
+	if data == nil {
+		return defaultVersion, defaultCommit, runtime.Version()
+	}
+	return data.version, data.commit, data.goVersion
 }
 
 // loadBuildInfo loads build information from various sources
 func loadBuildInfo() buildInfoData {
 	versionStr := version.GetVersion()
 	commit := version.GetCommitHash()
-	// If injected build variables are set to non-default values, use them
 	useLdflags := versionStr != defaultVersion && commit != defaultCommit
-	// For tests, avoid slow I/O operations
 	if !useLdflags && !testing.Testing() {
-		// Try to get build info from runtime
 		if info, ok := debug.ReadBuildInfo(); ok {
 			if versionStr == defaultVersion && info.Main.Version != "" && info.Main.Version != "(devel)" {
 				versionStr = info.Main.Version
@@ -150,7 +167,6 @@ func InitSystemMetrics(ctx context.Context, meter metric.Meter) {
 // resetSystemMetrics is used for testing purposes only
 func resetSystemMetrics(ctx context.Context) {
 	log := logger.FromContext(ctx)
-	// Unregister callbacks if they exist
 	if uptimeRegistration != nil {
 		err := uptimeRegistration.Unregister()
 		if err != nil {
@@ -169,10 +185,8 @@ func resetSystemMetrics(ctx context.Context) {
 	uptimeGauge = nil
 	startTime = time.Time{}
 	systemInitOnce = sync.Once{}
-	buildInfoCacheMutex.Lock()
 	buildInfoOnce = sync.Once{}
-	buildInfoCache = buildInfoData{}
-	buildInfoCacheMutex.Unlock()
+	buildInfoCache = atomic.Pointer[buildInfoData]{}
 }
 
 // ResetSystemMetricsForTesting resets the system metrics initialization state for testing

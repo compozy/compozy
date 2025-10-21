@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -74,6 +75,159 @@ func (h *Handler) getUserIDFromContext(c *gin.Context) (core.ID, bool) {
 	return userID, true
 }
 
+// parseIDParam extracts a path parameter and parses it as a core.ID.
+func (h *Handler) parseIDParam(c *gin.Context, param string, invalidMessage string) (core.ID, bool) {
+	idStr := c.Param(param)
+	id, err := core.ParseID(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": invalidMessage, "details": err.Error()})
+		return "", false
+	}
+	return id, true
+}
+
+// parseRole converts a string into a valid model.Role.
+func parseRole(role string) (model.Role, bool) {
+	switch role {
+	case string(model.RoleAdmin):
+		return model.RoleAdmin, true
+	case string(model.RoleUser):
+		return model.RoleUser, true
+	default:
+		return "", false
+	}
+}
+
+// buildCreateUserInput validates the incoming request payload for user creation.
+func (h *Handler) buildCreateUserInput(c *gin.Context) (*uc.CreateUserInput, bool) {
+	var req CreateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return nil, false
+	}
+	role := model.RoleUser
+	if req.Role != "" {
+		parsedRole, ok := parseRole(req.Role)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Invalid role",
+				"details": "Role must be 'admin' or 'user'",
+			})
+			return nil, false
+		}
+		role = parsedRole
+	}
+	return &uc.CreateUserInput{
+		Email: req.Email,
+		Role:  role,
+	}, true
+}
+
+// buildUpdateUserInput validates the request payload for updating user data.
+func (h *Handler) buildUpdateUserInput(c *gin.Context) (*uc.UpdateUserInput, bool) {
+	var req UpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return nil, false
+	}
+	var rolePtr *model.Role
+	if req.Role != nil {
+		parsedRole, ok := parseRole(*req.Role)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Invalid role",
+				"details": "Role must be 'admin' or 'user'",
+			})
+			return nil, false
+		}
+		role := parsedRole
+		rolePtr = &role
+	}
+	return &uc.UpdateUserInput{
+		Email: req.Email,
+		Role:  rolePtr,
+	}, true
+}
+
+// handleRevokeKeyError centralizes revoke key error logging and responses.
+func (h *Handler) handleRevokeKeyError(ctx context.Context, c *gin.Context, keyID core.ID, err error) {
+	log := logger.FromContext(ctx)
+	log.Error("Failed to revoke API key", "error", err, "key_id", keyID)
+	if errors.Is(err, uc.ErrAPIKeyNotFound) {
+		c.JSON(
+			http.StatusNotFound,
+			gin.H{
+				"error":   "API key not found",
+				"details": "The specified API key does not exist",
+			},
+		)
+		return
+	}
+	var coreErr *core.Error
+	if errors.As(err, &coreErr) && coreErr.Code == auth.ErrCodeForbidden {
+		c.JSON(
+			http.StatusForbidden,
+			gin.H{"error": "Access denied", "details": "You don't have permission to revoke this API key"},
+		)
+		return
+	}
+	c.JSON(
+		http.StatusInternalServerError,
+		gin.H{"error": "Failed to revoke API key", "details": err.Error()},
+	)
+}
+
+// handleCreateUserError centralizes create user error logging and responses.
+func (h *Handler) handleCreateUserError(ctx context.Context, c *gin.Context, err error) {
+	log := logger.FromContext(ctx)
+	log.Error("Failed to create user", "error", err)
+	if errors.Is(err, uc.ErrEmailExists) {
+		c.JSON(
+			http.StatusConflict,
+			gin.H{
+				"error":   "Email already exists",
+				"details": "A user with this email address already exists",
+			},
+		)
+		return
+	}
+	var coreErr *core.Error
+	if errors.As(err, &coreErr) {
+		switch coreErr.Code {
+		case auth.ErrCodeInvalidEmail, auth.ErrCodeWeakPassword, auth.ErrCodeInvalidRole:
+			c.JSON(http.StatusBadRequest, gin.H{"error": coreErr.Message, "details": coreErr.Error()})
+			return
+		}
+	}
+	c.JSON(
+		http.StatusInternalServerError,
+		gin.H{"error": "Failed to create user", "details": err.Error()},
+	)
+}
+
+// handleUpdateUserError centralizes update user error logging and responses.
+func (h *Handler) handleUpdateUserError(ctx context.Context, c *gin.Context, userID core.ID, err error) {
+	log := logger.FromContext(ctx)
+	log.Error("Failed to update user", "error", err, "user_id", userID)
+	switch {
+	case errors.Is(err, uc.ErrUserNotFound):
+		c.JSON(
+			http.StatusNotFound,
+			gin.H{"error": "User not found", "details": "The specified user does not exist"},
+		)
+	case errors.Is(err, uc.ErrEmailExists):
+		c.JSON(
+			http.StatusConflict,
+			gin.H{
+				"error":   "Email already exists",
+				"details": "Another user with this email address already exists",
+			},
+		)
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user", "details": err.Error()})
+	}
+}
+
 // GenerateKey godoc
 // @Summary Generate a new API key
 // @Description Generate a new API key for the authenticated user
@@ -88,12 +242,10 @@ func (h *Handler) getUserIDFromContext(c *gin.Context) (core.ID, bool) {
 func (h *Handler) GenerateKey(c *gin.Context) {
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
-	// Regular API key generation flow
 	userID, ok := h.getUserIDFromContext(c)
 	if !ok {
 		return // Error response already sent by helper
 	}
-	// Generate the API key
 	generateUC := h.factory.GenerateAPIKey(userID)
 	apiKey, err := generateUC.Execute(ctx)
 	if err != nil {
@@ -123,12 +275,10 @@ func (h *Handler) GenerateKey(c *gin.Context) {
 func (h *Handler) ListKeys(c *gin.Context) {
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
-	// Get user ID from context
 	userID, ok := h.getUserIDFromContext(c)
 	if !ok {
 		return // Error response already sent by helper
 	}
-	// List API keys
 	listUC := h.factory.ListAPIKeys(userID)
 	keys, err := listUC.Execute(ctx)
 	if err != nil {
@@ -136,7 +286,7 @@ func (h *Handler) ListKeys(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list API keys", "details": err.Error()})
 		return
 	}
-	// Mask the hash field for security
+	// NOTE: Exclude hashed API key material from responses to avoid leaking secrets.
 	maskedKeys := make([]APIKeyMetadataResponse, len(keys))
 	for i, key := range keys {
 		metadata := APIKeyMetadataResponse{
@@ -144,7 +294,6 @@ func (h *Handler) ListKeys(c *gin.Context) {
 			Prefix:    key.Prefix,
 			CreatedAt: key.CreatedAt,
 		}
-		// Handle nullable LastUsed
 		if key.LastUsed.Valid {
 			metadata.LastUsed = &key.LastUsed.Time
 		}
@@ -173,55 +322,17 @@ func (h *Handler) ListKeys(c *gin.Context) {
 // @Router /auth/keys/{id} [delete]
 func (h *Handler) RevokeKey(c *gin.Context) {
 	ctx := c.Request.Context()
-	log := logger.FromContext(ctx)
-	// Get user ID from context
 	userID, ok := h.getUserIDFromContext(c)
 	if !ok {
 		return // Error response already sent by helper
 	}
-	// Get key ID from URL
-	keyIDStr := c.Param("id")
-	keyID, err := core.ParseID(keyIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid key ID", "details": err.Error()})
+	keyID, ok := h.parseIDParam(c, "id", "Invalid key ID")
+	if !ok {
 		return
 	}
-	// Revoke the key (authorization check is now in the use case)
 	revokeUC := h.factory.RevokeAPIKey(userID, keyID)
-	err = revokeUC.Execute(ctx)
-	if err != nil {
-		log.Error("Failed to revoke API key", "error", err, "key_id", keyID)
-		if errors.Is(err, uc.ErrAPIKeyNotFound) {
-			c.JSON(
-				http.StatusNotFound,
-				gin.H{
-					"error":   "API key not found",
-					"details": "The specified API key does not exist",
-				},
-			)
-			return
-		}
-		// Handle specific error types
-		if coreErr, ok := err.(*core.Error); ok {
-			switch coreErr.Code {
-			case auth.ErrCodeNotFound:
-				c.JSON(
-					http.StatusNotFound,
-					gin.H{"error": "API key not found", "details": "The specified API key does not exist"},
-				)
-				return
-			case auth.ErrCodeForbidden:
-				c.JSON(
-					http.StatusForbidden,
-					gin.H{"error": "Access denied", "details": "You don't have permission to revoke this API key"},
-				)
-				return
-			}
-		}
-		c.JSON(
-			http.StatusInternalServerError,
-			gin.H{"error": "Failed to revoke API key", "details": err.Error()},
-		)
+	if err := revokeUC.Execute(ctx); err != nil {
+		h.handleRevokeKeyError(ctx, c, keyID, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -246,53 +357,14 @@ func (h *Handler) RevokeKey(c *gin.Context) {
 // @Router /users [post]
 func (h *Handler) CreateUser(c *gin.Context) {
 	ctx := c.Request.Context()
-	log := logger.FromContext(ctx)
-	var req CreateUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+	input, ok := h.buildCreateUserInput(c)
+	if !ok {
 		return
 	}
-	// Validate role
-	role := model.RoleUser // default
-	if req.Role != "" {
-		switch req.Role {
-		case string(model.RoleAdmin), string(model.RoleUser):
-			role = model.Role(req.Role)
-		default:
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role", "details": "Role must be 'admin' or 'user'"})
-			return
-		}
-	}
-	// Create user through use case
-	createUC := h.factory.CreateUser(&uc.CreateUserInput{
-		Email: req.Email,
-		Role:  role,
-	})
+	createUC := h.factory.CreateUser(input)
 	user, err := createUC.Execute(ctx)
 	if err != nil {
-		log.Error("Failed to create user", "error", err)
-		if errors.Is(err, uc.ErrEmailExists) {
-			c.JSON(
-				http.StatusConflict,
-				gin.H{"error": "Email already exists", "details": "A user with this email address already exists"},
-			)
-			return
-		}
-		// Handle specific error types
-		if coreErr, ok := err.(*core.Error); ok {
-			switch coreErr.Code {
-			case auth.ErrCodeInvalidEmail, auth.ErrCodeWeakPassword, auth.ErrCodeInvalidRole:
-				c.JSON(http.StatusBadRequest, gin.H{"error": coreErr.Message, "details": coreErr.Error()})
-				return
-			case auth.ErrCodeEmailExists:
-				c.JSON(
-					http.StatusConflict,
-					gin.H{"error": "Email already exists", "details": "A user with this email address already exists"},
-				)
-				return
-			}
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user", "details": err.Error()})
+		h.handleCreateUserError(ctx, c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{
@@ -316,7 +388,6 @@ func (h *Handler) CreateUser(c *gin.Context) {
 func (h *Handler) ListUsers(c *gin.Context) {
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
-	// List users through use case
 	listUC := h.factory.ListUsers()
 	users, err := listUC.Execute(ctx)
 	if err != nil {
@@ -350,77 +421,18 @@ func (h *Handler) ListUsers(c *gin.Context) {
 // @Router /users/{id} [patch]
 func (h *Handler) UpdateUser(c *gin.Context) {
 	ctx := c.Request.Context()
-	log := logger.FromContext(ctx)
-	// Get user ID from URL
-	userIDStr := c.Param("id")
-	userID, err := core.ParseID(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID", "details": err.Error()})
+	userID, ok := h.parseIDParam(c, "id", "Invalid user ID")
+	if !ok {
 		return
 	}
-	var req UpdateUserRequest
-	if bindErr := c.ShouldBindJSON(&req); bindErr != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": bindErr.Error()})
+	input, ok := h.buildUpdateUserInput(c)
+	if !ok {
 		return
 	}
-	// Validate role if provided
-	var rolePtr *model.Role
-	if req.Role != nil {
-		switch *req.Role {
-		case string(model.RoleAdmin), string(model.RoleUser):
-			role := model.Role(*req.Role)
-			rolePtr = &role
-		default:
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role", "details": "Role must be 'admin' or 'user'"})
-			return
-		}
-	}
-	// Update user through use case
-	updateUC := h.factory.UpdateUser(userID, &uc.UpdateUserInput{
-		Email: req.Email,
-		Role:  rolePtr,
-	})
+	updateUC := h.factory.UpdateUser(userID, input)
 	user, err := updateUC.Execute(ctx)
 	if err != nil {
-		log.Error("Failed to update user", "error", err, "user_id", userID)
-		if errors.Is(err, uc.ErrUserNotFound) {
-			c.JSON(
-				http.StatusNotFound,
-				gin.H{"error": "User not found", "details": "The specified user does not exist"},
-			)
-			return
-		}
-		if errors.Is(err, uc.ErrEmailExists) {
-			c.JSON(
-				http.StatusConflict,
-				gin.H{
-					"error":   "Email already exists",
-					"details": "Another user with this email address already exists",
-				},
-			)
-			return
-		}
-		// Handle specific error types
-		if coreErr, ok := err.(*core.Error); ok {
-			switch coreErr.Code {
-			case auth.ErrCodeNotFound:
-				c.JSON(
-					http.StatusNotFound,
-					gin.H{"error": "User not found", "details": "The specified user does not exist"},
-				)
-				return
-			case auth.ErrCodeEmailExists:
-				c.JSON(
-					http.StatusConflict,
-					gin.H{
-						"error":   "Email already exists",
-						"details": "Another user with this email address already exists",
-					},
-				)
-				return
-			}
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user", "details": err.Error()})
+		h.handleUpdateUserError(ctx, c, userID, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -446,16 +458,12 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 func (h *Handler) DeleteUser(c *gin.Context) {
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
-	// Get user ID from URL
-	userIDStr := c.Param("id")
-	userID, err := core.ParseID(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID", "details": err.Error()})
+	userID, ok := h.parseIDParam(c, "id", "Invalid user ID")
+	if !ok {
 		return
 	}
-	// Delete user through use case
 	deleteUC := h.factory.DeleteUser(userID)
-	err = deleteUC.Execute(ctx)
+	err := deleteUC.Execute(ctx)
 	if err != nil {
 		log.Error("Failed to delete user", "error", err, "user_id", userID)
 		if errors.Is(err, uc.ErrUserNotFound) {
@@ -464,16 +472,6 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 				gin.H{"error": "User not found", "details": "The specified user does not exist"},
 			)
 			return
-		}
-		// Handle specific error types
-		if coreErr, ok := err.(*core.Error); ok {
-			if coreErr.Code == auth.ErrCodeNotFound {
-				c.JSON(
-					http.StatusNotFound,
-					gin.H{"error": "User not found", "details": "The specified user does not exist"},
-				)
-				return
-			}
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user", "details": err.Error()})
 		return

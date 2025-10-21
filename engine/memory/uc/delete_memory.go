@@ -25,7 +25,6 @@ func NewDeleteMemory(
 		var err error
 		svc, err = service.NewMemoryOperationsService(manager, nil, nil, nil, nil)
 		if err != nil {
-			// Log error but continue with nil service
 			return nil, err
 		}
 	}
@@ -39,7 +38,6 @@ func NewDeleteMemory(
 
 // Execute deletes memory content
 func (uc *DeleteMemory) Execute(ctx context.Context) (*service.DeleteResponse, error) {
-	// Use centralized service for deleting (validation handled by service)
 	return uc.service.Delete(ctx, &service.DeleteRequest{
 		BaseRequest: service.BaseRequest{
 			MemoryRef: uc.memoryRef,

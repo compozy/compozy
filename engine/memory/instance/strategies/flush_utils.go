@@ -51,22 +51,18 @@ func (fde *FlushDecisionEngine) shouldFlushMessageBased(messageCount int, config
 
 // shouldFlushBuffer checks both limits for buffer memory
 func (fde *FlushDecisionEngine) shouldFlushBuffer(tokenCount, messageCount int, config *core.Resource) bool {
-	// Check token threshold if configured
 	if config.MaxTokens > 0 {
 		tokenThreshold := float64(config.MaxTokens) * fde.thresholdPercent
 		if float64(tokenCount) >= tokenThreshold {
 			return true
 		}
 	}
-
-	// Check message threshold if configured
 	if config.MaxMessages > 0 {
 		messageThreshold := float64(config.MaxMessages) * fde.thresholdPercent
 		if float64(messageCount) >= messageThreshold {
 			return true
 		}
 	}
-
 	return false
 }
 

@@ -134,30 +134,12 @@ func (r *Runner) ExecutePrepared(ctx context.Context, prepared *PreparedExecutio
 
 // Prepare validates the request, loads configuration, and resolves execution dependencies.
 func (r *Runner) Prepare(ctx context.Context, req ExecuteRequest) (*PreparedExecution, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("context is required")
+	if err := r.validatePreparePreconditions(ctx, req); err != nil {
+		return nil, err
 	}
-	if r.state == nil {
-		return nil, ErrStateRequired
-	}
-	if r.repo == nil {
-		return nil, ErrRepositoryRequired
-	}
-	if r.store == nil {
-		return nil, ErrResourceStoreRequired
-	}
-	if req.AgentID == "" {
-		return nil, ErrAgentIDRequired
-	}
-	if req.Action == "" && req.Prompt == "" {
-		return nil, ErrActionOrPromptRequired
-	}
-	projectName := ""
-	if r.state.ProjectConfig != nil {
-		projectName = r.state.ProjectConfig.Name
-	}
-	if projectName == "" {
-		return nil, ErrProjectNameRequired
+	projectName, err := r.projectName()
+	if err != nil {
+		return nil, err
 	}
 	timeout, err := normalizeTimeout(req.Timeout)
 	if err != nil {
@@ -175,18 +157,55 @@ func (r *Runner) Prepare(ctx context.Context, req ExecuteRequest) (*PreparedExec
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize executor: %w", err)
 	}
-	meta := tkrouter.ExecMetadata{
-		Component: core.ComponentAgent,
-		AgentID:   req.AgentID,
-		ActionID:  resolveAgentActionID(req, taskCfg),
-		TaskID:    taskCfg.ID,
-	}
 	return &PreparedExecution{
 		Config:   taskCfg,
-		Metadata: meta,
+		Metadata: buildExecMetadata(req, taskCfg),
 		Executor: executor,
 		Timeout:  timeout,
 	}, nil
+}
+
+func (r *Runner) validatePreparePreconditions(ctx context.Context, req ExecuteRequest) error {
+	if ctx == nil {
+		return fmt.Errorf("context is required")
+	}
+	if r.state == nil {
+		return ErrStateRequired
+	}
+	if r.repo == nil {
+		return ErrRepositoryRequired
+	}
+	if r.store == nil {
+		return ErrResourceStoreRequired
+	}
+	if req.AgentID == "" {
+		return ErrAgentIDRequired
+	}
+	if req.Action == "" && req.Prompt == "" {
+		return ErrActionOrPromptRequired
+	}
+	return nil
+}
+
+func (r *Runner) projectName() (string, error) {
+	if r.state != nil && r.state.ProjectConfig != nil {
+		if name := r.state.ProjectConfig.Name; name != "" {
+			return name, nil
+		}
+	}
+	return "", ErrProjectNameRequired
+}
+
+func buildExecMetadata(req ExecuteRequest, cfg *task.Config) tkrouter.ExecMetadata {
+	metadata := tkrouter.ExecMetadata{
+		Component: core.ComponentAgent,
+		AgentID:   req.AgentID,
+	}
+	if cfg != nil {
+		metadata.TaskID = cfg.ID
+	}
+	metadata.ActionID = resolveAgentActionID(req, cfg)
+	return metadata
 }
 
 // NewEnvironment constructs a tool execution environment backed by the runner.

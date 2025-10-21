@@ -2,11 +2,14 @@ package helpers
 
 import (
 	"fmt"
+	"os"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/term"
 )
 
 // FlagCategory represents a group of related flags
@@ -193,60 +196,74 @@ func getInfrastructureCategories() []FlagCategory {
 
 // SetupCategorizedHelp configures the command to use categorized help
 func SetupCategorizedHelp(cmd *cobra.Command) {
-	// Since Cobra doesn't support custom FuncMap in SetHelpTemplate,
-	// we use SetHelpFunc which is the official way for complex help customization
 	cmd.SetHelpFunc(categorizedHelpFunc)
 }
 
 // Define ANSI color codes
 const (
-	colorReset   = "\033[0m"
-	colorBold    = "\033[1m"
-	colorPrimary = "\033[36m" // Cyan
-	colorSuccess = "\033[32m" // Green
-	colorMuted   = "\033[90m" // Bright black (gray)
+	colorReset                 = "\033[0m"
+	colorBold                  = "\033[1m"
+	colorPrimary               = "\033[36m" // Cyan
+	colorSuccess               = "\033[32m" // Green
+	colorMuted                 = "\033[90m" // Bright black (gray)
+	flagDescriptionColumnWidth = 50         // width reserved for flag descriptions
 )
 
 // createSeparator creates a styled separator line
 func createSeparator(width int, noColor bool) string {
 	if noColor {
-		// Simple dashed line for no-color mode
 		return strings.Repeat("─", width)
 	}
-
-	// Create a lipgloss style for the separator
 	separatorStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")). // Dark gray
 		Width(width)
-
-	// Use box-drawing character for a clean line
 	return separatorStyle.Render(strings.Repeat("─", width))
 }
 
 // getTerminalWidth attempts to get terminal width, with fallback
 func getTerminalWidth() int {
-	width := lipgloss.Width(strings.Repeat("x", 80)) // Start with default
-	if lipgloss.Width(strings.Repeat("x", 100)) == 100 {
-		// If we can display 100 chars, use 100 as width
-		width = 100
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+		return w
 	}
-	return width
+	return 80
 }
 
 // categorizedHelpFunc is a custom help function that groups flags by category
 func categorizedHelpFunc(cmd *cobra.Command, _ []string) {
-	// Check if color should be disabled
-	noColor := cmd.Flag("no-color") != nil && cmd.Flag("no-color").Value.String() == "true"
+	noColor := isNoColorEnabled(cmd)
+	printCommandDescription(cmd)
+	printUsageSection(cmd, noColor)
+	printAvailableCommands(cmd, noColor)
+	if cmd.Parent() != nil {
+		printCommandSpecificFlags(cmd, noColor)
+	}
+	printCategorizedFlags(cmd, noColor)
+	printHelpFooter(cmd)
+}
 
-	// Print description
+func isNoColorEnabled(cmd *cobra.Command) bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return true
+	}
+	if f := cmd.Flags().Lookup("color-mode"); f != nil && strings.EqualFold(f.Value.String(), "never") {
+		return true
+	}
+	if f := cmd.Flags().Lookup("no-color"); f != nil && f.Value.String() == "true" {
+		return true
+	}
+	return false
+}
+
+func printCommandDescription(cmd *cobra.Command) {
 	if cmd.Long != "" {
 		fmt.Println(cmd.Long)
 	} else if cmd.Short != "" {
 		fmt.Println(cmd.Short)
 	}
 	fmt.Println()
+}
 
-	// Print usage
+func printUsageSection(cmd *cobra.Command, noColor bool) {
 	fmt.Printf("%sUsage:%s\n", applyColor(colorBold, noColor), applyColor(colorReset, noColor))
 	if cmd.Runnable() {
 		fmt.Printf("  %s\n", cmd.UseLine())
@@ -255,33 +272,27 @@ func categorizedHelpFunc(cmd *cobra.Command, _ []string) {
 		fmt.Printf("  %s [command]\n", cmd.CommandPath())
 	}
 	fmt.Println()
+}
 
-	// Print available commands
-	if cmd.HasAvailableSubCommands() {
-		fmt.Printf("%sAvailable Commands:%s\n", applyColor(colorBold, noColor), applyColor(colorReset, noColor))
-		for _, c := range cmd.Commands() {
-			if c.IsAvailableCommand() || c.Name() == "help" {
-				fmt.Printf("  %s%-*s%s %s\n",
-					applyColor(colorSuccess, noColor),
-					cmd.NamePadding(),
-					c.Name(),
-					applyColor(colorReset, noColor),
-					c.Short)
-			}
+func printAvailableCommands(cmd *cobra.Command, noColor bool) {
+	if !cmd.HasAvailableSubCommands() {
+		return
+	}
+	fmt.Printf("%sAvailable Commands:%s\n", applyColor(colorBold, noColor), applyColor(colorReset, noColor))
+	for _, c := range cmd.Commands() {
+		if c.IsAvailableCommand() || c.Name() == "help" {
+			fmt.Printf("  %s%-*s%s %s\n",
+				applyColor(colorSuccess, noColor),
+				cmd.NamePadding(),
+				c.Name(),
+				applyColor(colorReset, noColor),
+				c.Short)
 		}
-		fmt.Println()
 	}
+	fmt.Println()
+}
 
-	// Check if this is a subcommand (not root)
-	if cmd.Parent() != nil {
-		// Print command-specific flags first
-		printCommandSpecificFlags(cmd, noColor)
-	}
-
-	// Print categorized global flags
-	printCategorizedFlags(cmd, noColor)
-
-	// Print footer
+func printHelpFooter(cmd *cobra.Command) {
 	if cmd.HasAvailableSubCommands() {
 		fmt.Printf("Use \"%s [command] --help\" for more information about a command.\n", cmd.CommandPath())
 	}
@@ -301,20 +312,15 @@ func printCommandSpecificFlags(cmd *cobra.Command, noColor bool) {
 	if !localFlags.HasAvailableFlags() {
 		return
 	}
-
-	// Count visible local flags
 	visibleCount := 0
 	localFlags.VisitAll(func(flag *pflag.Flag) {
 		if !flag.Hidden {
 			visibleCount++
 		}
 	})
-
 	if visibleCount == 0 {
 		return
 	}
-
-	// Print section with separators
 	width := getTerminalWidth()
 	fmt.Println(createSeparator(width, noColor))
 	fmt.Printf(
@@ -324,8 +330,6 @@ func printCommandSpecificFlags(cmd *cobra.Command, noColor bool) {
 	)
 	fmt.Println(createSeparator(width, noColor))
 	fmt.Println() // Extra line after header
-
-	// Print each local flag
 	localFlags.VisitAll(func(flag *pflag.Flag) {
 		if !flag.Hidden {
 			printFlag(flag, noColor)
@@ -340,13 +344,10 @@ func printCategorizedFlags(cmd *cobra.Command, noColor bool) {
 	flagMap := collectAllFlags(cmd)
 	displayedFlags := make(map[string]bool)
 	isSubcommand := cmd.Parent() != nil
-
-	// If this is a subcommand, mark local flags as already displayed
 	if isSubcommand {
 		markLocalFlagsDisplayed(cmd, displayedFlags)
 		printGlobalFlagsHeader(flagMap, displayedFlags, noColor)
 	} else {
-		// For root command, print main flags header
 		width := getTerminalWidth()
 		fmt.Println(createSeparator(width, noColor))
 		fmt.Printf(
@@ -357,11 +358,7 @@ func printCategorizedFlags(cmd *cobra.Command, noColor bool) {
 		fmt.Println(createSeparator(width, noColor))
 		fmt.Println() // Extra line after header
 	}
-
-	// Process each category
 	printFlagCategories(categories, flagMap, displayedFlags, noColor)
-
-	// Handle uncategorized flags
 	printUncategorizedFlags(flagMap, displayedFlags, noColor)
 }
 
@@ -443,7 +440,6 @@ func printUncategorizedFlags(flagMap map[string]*pflag.Flag, displayedFlags map[
 		}
 	}
 	if len(uncategorizedFlags) > 0 {
-		// Print section header with separators
 		width := getTerminalWidth()
 		fmt.Println(createSeparator(width, noColor))
 		fmt.Printf(
@@ -453,8 +449,9 @@ func printUncategorizedFlags(flagMap map[string]*pflag.Flag, displayedFlags map[
 		)
 		fmt.Println(createSeparator(width, noColor))
 		fmt.Println() // Extra line after header
-
-		// Print the flags
+		sort.Slice(uncategorizedFlags, func(i, j int) bool {
+			return uncategorizedFlags[i].Name < uncategorizedFlags[j].Name
+		})
 		for _, flag := range uncategorizedFlags {
 			printFlag(flag, noColor)
 		}
@@ -464,64 +461,81 @@ func printUncategorizedFlags(flagMap map[string]*pflag.Flag, displayedFlags map[
 
 // printFlag prints a single flag with formatting
 func printFlag(flag *pflag.Flag, noColor bool) {
-	// Build the flag line
-	var line strings.Builder
-	line.WriteString("  ")
+	line := buildFlagLine(flag, noColor)
+	appendFlagUsage(line, flag)
+	fmt.Println(line.String())
+}
 
-	// Add shorthand if available
+func buildFlagLine(flag *pflag.Flag, noColor bool) *strings.Builder {
+	line := &strings.Builder{}
+	line.WriteString("  ")
 	if flag.Shorthand != "" {
-		line.WriteString(fmt.Sprintf("-%s, ", flag.Shorthand))
+		fmt.Fprintf(line, "-%s, ", flag.Shorthand)
 	} else {
 		line.WriteString("    ")
 	}
-
-	// Add the flag name with color
-	line.WriteString(
-		fmt.Sprintf("%s--%s%s", applyColor(colorSuccess, noColor), flag.Name, applyColor(colorReset, noColor)),
+	fmt.Fprintf(
+		line,
+		"%s--%s%s",
+		applyColor(colorSuccess, noColor),
+		flag.Name,
+		applyColor(colorReset, noColor),
 	)
-
-	// Add type indicator for non-boolean flags
-	if flag.Value.Type() != "bool" {
-		typeStr := flag.Value.Type()
-		switch typeStr {
-		case "stringSlice":
-			typeStr = "strings"
-		case "duration":
-			typeStr = "duration"
-		case "int", "int64":
-			typeStr = "int"
-		}
-		line.WriteString(
-			fmt.Sprintf(" %s%s%s", applyColor(colorMuted, noColor), typeStr, applyColor(colorReset, noColor)),
-		)
+	if hint := flagTypeHint(flag, noColor); hint != "" {
+		line.WriteString(hint)
 	}
+	padFlagLine(line)
+	return line
+}
 
-	// Calculate padding for alignment
-	// Account for ANSI codes when calculating length
+func flagTypeHint(flag *pflag.Flag, noColor bool) string {
+	if flag.Value.Type() == "bool" {
+		return ""
+	}
+	typeStr := flag.Value.Type()
+	switch typeStr {
+	case "stringSlice", "stringArray":
+		typeStr = "strings"
+	case "stringToString":
+		typeStr = "map"
+	case "duration":
+		typeStr = "duration"
+	case "int", "int64":
+		typeStr = "int"
+	case "intSlice":
+		typeStr = "ints"
+	case "float64", "float32":
+		typeStr = "float"
+	}
+	return fmt.Sprintf(" %s%s%s", applyColor(colorMuted, noColor), typeStr, applyColor(colorReset, noColor))
+}
+
+func padFlagLine(line *strings.Builder) {
 	visibleLength := calculateVisibleLength(line.String())
-	const columnWidth = 50
-	if visibleLength < columnWidth {
-		line.WriteString(strings.Repeat(" ", columnWidth-visibleLength))
+	if visibleLength < flagDescriptionColumnWidth {
+		line.WriteString(strings.Repeat(" ", flagDescriptionColumnWidth-visibleLength))
 	} else {
 		line.WriteString(" ")
 	}
+}
 
-	// Add the usage/help text
+func appendFlagUsage(line *strings.Builder, flag *pflag.Flag) {
 	usage := flag.Usage
-	if usage != "" {
-		// Check if there's a default value
-		if flag.DefValue != "" && flag.DefValue != "false" && flag.DefValue != "[]" {
+	if usage == "" {
+		return
+	}
+	if flag.DefValue != "" && flag.DefValue != "false" && flag.DefValue != "[]" {
+		if flag.Value.Type() == "string" {
+			usage += fmt.Sprintf(" (default %q)", flag.DefValue)
+		} else {
 			usage += fmt.Sprintf(" (default %s)", flag.DefValue)
 		}
-		line.WriteString(usage)
 	}
-
-	fmt.Println(line.String())
+	line.WriteString(usage)
 }
 
 // calculateVisibleLength calculates the visible length of a string, excluding ANSI codes
 func calculateVisibleLength(s string) int {
-	// Simple implementation: count characters that are not part of ANSI sequences
 	inANSI := false
 	length := 0
 	for _, r := range s {

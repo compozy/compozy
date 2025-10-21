@@ -47,7 +47,6 @@ func NewMockMCPClient(name string) *MockMCPClient {
 		Args:        []string{"hello"},
 	}
 	definition.SetDefaults()
-
 	return &MockMCPClient{
 		definition: definition,
 		status:     NewMCPStatus(name),
@@ -254,14 +253,11 @@ func NewMockClientManager() *MockClientManager {
 func (m *MockClientManager) AddClient(_ context.Context, def *MCPDefinition) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	mockClient := NewMockMCPClient(def.Name)
-	// Set up default mock behavior
 	mockClient.On("GetStatus").Return((*MCPStatus)(nil)).Maybe()
 	mockClient.On("IsConnected").Return(true).Maybe()
 	mockClient.On("WaitUntilConnected", mock.Anything).Return(nil).Maybe()
 	mockClient.On("ListTools", mock.Anything).Return([]mcp.Tool{}, nil).Maybe()
-
 	m.clients[def.Name] = mockClient
 	return nil
 }

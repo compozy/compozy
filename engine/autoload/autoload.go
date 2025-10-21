@@ -67,11 +67,9 @@ func New(projectRoot string, config *Config, registry *ConfigRegistry, opts ...O
 	if registry == nil {
 		registry = NewConfigRegistry()
 	}
-
 	if config == nil {
 		config = NewConfig()
 	}
-
 	loader := &AutoLoader{
 		projectRoot: projectRoot,
 		projectName: deriveProjectName(projectRoot),
@@ -127,11 +125,9 @@ func (al *AutoLoader) Load(ctx context.Context) error {
 		log.Error("AutoLoad failed", "error", err, "files_processed", result.FilesProcessed)
 		return err
 	}
-
 	if len(result.Errors) > 0 && !al.config.Strict {
 		log.Warn("Some files failed to load but were skipped (non-strict mode)", "failed_count", len(result.Errors))
 	}
-
 	return nil
 }
 
@@ -178,7 +174,7 @@ func (al *AutoLoader) LoadWithResult(ctx context.Context) (*LoadResult, error) {
 // discoverFiles handles file discovery and returns the list of files to process
 func (al *AutoLoader) discoverFiles(ctx context.Context) ([]string, error) {
 	log := logger.FromContext(ctx)
-	files, err := al.discoverer.Discover(al.config.Include, al.config.Exclude)
+	files, err := al.discoverer.Discover(ctx, al.config.Include, al.config.Exclude)
 	if err != nil {
 		log.Error(
 			"File discovery failed",
@@ -389,8 +385,8 @@ func (al *AutoLoader) logCompletionStats(ctx context.Context, startTime time.Tim
 }
 
 // Discover returns the list of files that would be loaded
-func (al *AutoLoader) Discover(_ context.Context) ([]string, error) {
-	return al.discoverer.Discover(al.config.Include, al.config.Exclude)
+func (al *AutoLoader) Discover(ctx context.Context) ([]string, error) {
+	return al.discoverer.Discover(ctx, al.config.Include, al.config.Exclude)
 }
 
 // GetRegistry returns the config registry
@@ -416,10 +412,7 @@ func (al *AutoLoader) Stats() map[string]int {
 
 // Validate performs a dry-run validation of all discoverable files
 func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
-	// Create a temporary registry for validation
 	tempRegistry := NewConfigRegistry()
-
-	// Create a config copy with strict mode disabled to collect all errors
 	tempConfig := &Config{
 		Enabled:      al.config.Enabled,
 		Strict:       false, // Force non-strict mode to collect all errors
@@ -427,7 +420,6 @@ func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 		Exclude:      al.config.Exclude,
 		WatchEnabled: al.config.WatchEnabled,
 	}
-
 	tempLoader := &AutoLoader{
 		projectRoot: al.projectRoot,
 		projectName: al.projectMetricLabel(),
@@ -435,18 +427,14 @@ func (al *AutoLoader) Validate(ctx context.Context) (*LoadResult, error) {
 		registry:    tempRegistry,
 		discoverer:  al.discoverer,
 	}
-
-	// Run load with temporary registry
 	return tempLoader.LoadWithResult(ctx)
 }
 
 // loadAndRegisterConfig loads a configuration file and registers it in the registry
 func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string) (string, error) {
-	// Security: Verify the file path doesn't escape the project root
 	if err := al.validateFilePath(filePath); err != nil {
 		return "", err
 	}
-	// First, load the file as a map to determine the resource type
 	configMap, err := core.MapFromFilePath(ctx, filePath)
 	if err != nil {
 		return "", core.NewError(err, "PARSE_ERROR", map[string]any{
@@ -458,7 +446,6 @@ func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string
 	if resourceErr != nil {
 		return "", resourceErr
 	}
-	// Register the configuration map - validation happens in the registry
 	if err := al.registry.Register(configMap, "autoload"); err != nil {
 		return "", err
 	}
@@ -467,13 +454,29 @@ func (al *AutoLoader) loadAndRegisterConfig(ctx context.Context, filePath string
 
 // validateFilePath ensures the file path doesn't escape the project root
 func (al *AutoLoader) validateFilePath(filePath string) error {
-	// Canonicalize both paths: absolute then resolve symlinks
+	absFile, err := al.canonicalizeFilePath(filePath)
+	if err != nil {
+		return err
+	}
+	absProject, err := al.canonicalizeProjectRoot()
+	if err != nil {
+		return err
+	}
+	absFileNorm, absProjectNorm := normalizeComparablePaths(absFile, absProject)
+	if err := ensureWithinProjectRoot(absProjectNorm, absFileNorm); err != nil {
+		return err
+	}
+	return nil
+}
+
+// canonicalizeFilePath resolves the provided file path to its canonical form.
+func (al *AutoLoader) canonicalizeFilePath(filePath string) (string, error) {
 	absFile, err := filepath.Abs(filePath)
 	if err == nil {
 		absFile, err = filepath.EvalSymlinks(absFile)
 	}
 	if err != nil {
-		return core.NewError(
+		return "", core.NewError(
 			err,
 			"PATH_RESOLUTION_FAILED",
 			map[string]any{
@@ -482,12 +485,17 @@ func (al *AutoLoader) validateFilePath(filePath string) error {
 			},
 		)
 	}
+	return absFile, nil
+}
+
+// canonicalizeProjectRoot resolves the configured project root to its canonical form.
+func (al *AutoLoader) canonicalizeProjectRoot() (string, error) {
 	absProject, err := filepath.Abs(al.projectRoot)
 	if err == nil {
 		absProject, err = filepath.EvalSymlinks(absProject)
 	}
 	if err != nil {
-		return core.NewError(
+		return "", core.NewError(
 			err,
 			"PATH_RESOLUTION_FAILED",
 			map[string]any{
@@ -496,24 +504,28 @@ func (al *AutoLoader) validateFilePath(filePath string) error {
 			},
 		)
 	}
+	return absProject, nil
+}
 
-	// Normalize case only on Windows for case-insensitive filesystems
-	absFileNorm := absFile
-	absProjectNorm := absProject
-	if runtime.GOOS == "windows" {
-		absFileNorm = strings.ToLower(absFile)
-		absProjectNorm = strings.ToLower(absProject)
+// normalizeComparablePaths prepares file and project paths for comparisons on all OSes.
+func normalizeComparablePaths(filePath string, projectPath string) (string, string) {
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		return strings.ToLower(filePath), strings.ToLower(projectPath)
 	}
+	return filePath, projectPath
+}
 
-	// Check if the file is within the project root using filepath.Rel
-	relPath, err := filepath.Rel(absProjectNorm, absFileNorm)
-	if err != nil || strings.HasPrefix(relPath, "..") || filepath.IsAbs(relPath) {
+// ensureWithinProjectRoot validates that filePath stays inside projectPath.
+func ensureWithinProjectRoot(projectPath string, filePath string) error {
+	relPath, err := filepath.Rel(projectPath, filePath)
+	sep := string(filepath.Separator)
+	if err != nil || relPath == ".." || strings.HasPrefix(relPath, ".."+sep) || filepath.IsAbs(relPath) {
 		return core.NewError(
 			errors.New("file path escapes project root"),
 			"PATH_TRAVERSAL_ATTEMPT",
 			map[string]any{
-				"file":        absFileNorm,
-				"projectRoot": absProjectNorm,
+				"file":        filePath,
+				"projectRoot": projectPath,
 				"suggestion":  "File must be within the project root directory for security reasons",
 			},
 		)
@@ -526,11 +538,8 @@ func (al *AutoLoader) categorizeError(err error, summary *ErrorSummary, file str
 	summary.TotalErrors++
 	summary.ByFile[file]++
 	label := errorLabelValidation
-
-	// Prefer categorization by structured error code if available
 	var ce *core.Error
 	if errors.As(err, &ce) {
-		// Use error codes from core.Error for reliable categorization
 		switch ce.Code {
 		case "PATH_TRAVERSAL_ATTEMPT", "PATH_RESOLUTION_FAILED":
 			summary.SecurityErrors++
@@ -544,13 +553,10 @@ func (al *AutoLoader) categorizeError(err error, summary *ErrorSummary, file str
 		case "INVALID_RESOURCE_INFO", "RESOURCE_NOT_FOUND", "UNKNOWN_CONFIG_TYPE":
 			summary.ValidationErrors++
 		default:
-			// Fallback for unknown core.Error codes
 			summary.ValidationErrors++
 		}
 		return label
 	}
-
-	// Fallback for non-core.Error types using string matching
 	errStr := err.Error()
 	switch {
 	case strings.Contains(errStr, "YAML") || strings.Contains(errStr, "JSON") || strings.Contains(errStr, "syntax"):

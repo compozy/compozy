@@ -10,6 +10,74 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func requireMemoryContext(c *gin.Context) (*MemoryContext, bool) {
+	memCtx, ok := GetMemoryContext(c)
+	if ok {
+		return memCtx, true
+	}
+	reqErr := router.NewRequestError(
+		http.StatusInternalServerError,
+		"memory context not found",
+		nil,
+	)
+	router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	return nil, false
+}
+
+func bindJSONOrRespond[T any](c *gin.Context, target *T, message string) bool {
+	if err := c.ShouldBindJSON(target); err != nil {
+		reqErr := router.NewRequestError(http.StatusBadRequest, message, err)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return false
+	}
+	return true
+}
+
+func buildMemoryOperationsService(
+	c *gin.Context,
+	memCtx *MemoryContext,
+) (service.MemoryOperationsService, bool) {
+	memService, err := service.NewMemoryOperationsService(
+		memCtx.Manager,
+		nil, // template engine
+		memCtx.TokenCounter,
+		nil, // use default config
+		memCtx.WorkflowContext,
+	)
+	if err != nil {
+		reqErr := router.NewRequestError(
+			http.StatusInternalServerError,
+			"failed to create memory service",
+			err,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil, false
+	}
+	return memService, true
+}
+
+func parsePaginationParams(c *gin.Context, defaultLimit, maxLimit int) (int, int) {
+	limit := defaultLimit
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if maxLimit > 0 {
+		limit = min(limit, maxLimit)
+	}
+	if limit <= 0 {
+		limit = defaultLimit
+	}
+	offset := 0
+	if offsetStr := c.Query("offset"); offsetStr != "" {
+		if parsed, err := strconv.Atoi(offsetStr); err == nil {
+			offset = max(parsed, 0)
+		}
+	}
+	return limit, offset
+}
+
 // -----
 // Read Memory
 // -----
@@ -31,84 +99,34 @@ import (
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/read [get]
 func readMemory(c *gin.Context) {
-	// Get memory context from middleware
-	memCtx, ok := GetMemoryContext(c)
+	memCtx, ok := requireMemoryContext(c)
 	if !ok {
-		reqErr := router.NewRequestError(
-			http.StatusInternalServerError,
-			"memory context not found",
-			nil,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
-	// Parse pagination parameters
-	limit := 50 // default
-	offset := 0 // default
-
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if parsedLimit, err := strconv.Atoi(limitStr); err == nil {
-			limit = parsedLimit
-			// Enforce maximum limit
-			limit = min(limit, 1000)
-			if limit <= 0 {
-				limit = 50
-			}
-		}
-	}
-
-	if offsetStr := c.Query("offset"); offsetStr != "" {
-		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil {
-			offset = max(parsedOffset, 0)
-		}
-	}
-
-	// Create service with workflow context from middleware
-	svc, err := service.NewMemoryOperationsService(
-		memCtx.Manager,
-		nil, // template engine
-		memCtx.TokenCounter,
-		nil, // use default config
-		memCtx.WorkflowContext,
-	)
-	if err != nil {
-		reqErr := router.NewRequestError(
-			http.StatusInternalServerError,
-			"failed to create memory service",
-			err,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	limit, offset := parsePaginationParams(c, 50, 1000)
+	svc, ok := buildMemoryOperationsService(c, memCtx)
+	if !ok {
 		return
 	}
-
-	// Execute use case
 	uc := memuc.NewReadMemory(memCtx.Manager, memCtx.Worker, svc)
-
-	input := memuc.ReadMemoryInput{
+	output, err := uc.Execute(c.Request.Context(), memuc.ReadMemoryInput{
 		MemoryRef: memCtx.MemoryRef,
 		Key:       memCtx.Key,
 		Limit:     limit,
 		Offset:    offset,
-	}
-
-	output, err := uc.Execute(c.Request.Context(), input)
+	})
 	if err != nil {
 		handleMemoryError(c, err, "failed to read memory")
 		return
 	}
-
-	// Convert messages to response format
-	result := map[string]any{
+	router.RespondOK(c, "memory read successfully", map[string]any{
 		"key":         memCtx.Key,
 		"messages":    convertMessagesToResponse(output.Messages),
 		"total_count": output.TotalCount,
 		"has_more":    output.HasMore,
 		"limit":       limit,
 		"offset":      offset,
-	}
-
-	router.RespondOK(c, "memory read successfully", result)
+	})
 }
 
 // -----
@@ -129,61 +147,26 @@ func readMemory(c *gin.Context) {
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/write [post]
 func writeMemory(c *gin.Context) {
-	// Get memory context from middleware
-	memCtx, ok := GetMemoryContext(c)
+	memCtx, ok := requireMemoryContext(c)
 	if !ok {
-		reqErr := router.NewRequestError(
-			http.StatusInternalServerError,
-			"memory context not found",
-			nil,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
-	// Parse request body with key
 	var req WriteMemoryRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		reqErr := router.NewRequestError(
-			http.StatusBadRequest,
-			"invalid request body",
-			err,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	if !bindJSONOrRespond(c, &req, "invalid request body") {
 		return
 	}
-
-	// Create input for use case
-	input := memuc.WriteMemoryInput{
+	memService, ok := buildMemoryOperationsService(c, memCtx)
+	if !ok {
+		return
+	}
+	uc := memuc.NewWriteMemory(memService, memCtx.MemoryRef, req.Key, &memuc.WriteMemoryInput{
 		Messages: req.Messages,
-	}
-
-	// Create service with workflow context from middleware
-	memService, err := service.NewMemoryOperationsService(
-		memCtx.Manager,
-		nil, // template engine
-		memCtx.TokenCounter,
-		nil, // use default config
-		memCtx.WorkflowContext,
-	)
-	if err != nil {
-		reqErr := router.NewRequestError(
-			http.StatusInternalServerError,
-			"failed to create memory service",
-			err,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return
-	}
-
-	// Execute use case
-	uc := memuc.NewWriteMemory(memService, memCtx.MemoryRef, req.Key, &input)
+	})
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to write memory")
 		return
 	}
-
 	router.RespondOK(c, "memory written successfully", result)
 }
 
@@ -205,61 +188,26 @@ func writeMemory(c *gin.Context) {
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/append [post]
 func appendMemory(c *gin.Context) {
-	// Get memory context from middleware
-	memCtx, ok := GetMemoryContext(c)
+	memCtx, ok := requireMemoryContext(c)
 	if !ok {
-		reqErr := router.NewRequestError(
-			http.StatusInternalServerError,
-			"memory context not found",
-			nil,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
-	// Parse request body with key
 	var req AppendMemoryRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		reqErr := router.NewRequestError(
-			http.StatusBadRequest,
-			"invalid request body",
-			err,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	if !bindJSONOrRespond(c, &req, "invalid request body") {
 		return
 	}
-
-	// Create input for use case
-	input := memuc.AppendMemoryInput{
+	memService, ok := buildMemoryOperationsService(c, memCtx)
+	if !ok {
+		return
+	}
+	uc := memuc.NewAppendMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &memuc.AppendMemoryInput{
 		Messages: req.Messages,
-	}
-
-	// Create service with workflow context from middleware
-	memService, err := service.NewMemoryOperationsService(
-		memCtx.Manager,
-		nil, // template engine
-		memCtx.TokenCounter,
-		nil, // use default config
-		memCtx.WorkflowContext,
-	)
-	if err != nil {
-		reqErr := router.NewRequestError(
-			http.StatusInternalServerError,
-			"failed to create memory service",
-			err,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return
-	}
-
-	// Execute use case
-	uc := memuc.NewAppendMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, memService)
+	}, memService)
 	result, err := uc.Execute(c.Request.Context())
 	if err != nil {
 		handleMemoryError(c, err, "failed to append to memory")
 		return
 	}
-
 	router.RespondOK(c, "memory appended successfully", result)
 }
 
@@ -281,7 +229,6 @@ func appendMemory(c *gin.Context) {
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/delete [post]
 func deleteMemory(c *gin.Context) {
-	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
 	if !ok {
 		reqErr := router.NewRequestError(
@@ -292,8 +239,6 @@ func deleteMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
-	// Parse request body with key
 	var req DeleteMemoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		reqErr := router.NewRequestError(
@@ -304,8 +249,6 @@ func deleteMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
-	// Execute use case
 	uc, err := memuc.NewDeleteMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, nil)
 	if err != nil {
 		handleMemoryError(c, err, "failed to create delete memory use case")
@@ -316,7 +259,6 @@ func deleteMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to delete memory")
 		return
 	}
-
 	router.RespondOK(c, "memory deleted successfully", result)
 }
 
@@ -338,7 +280,6 @@ func deleteMemory(c *gin.Context) {
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/flush [post]
 func flushMemory(c *gin.Context) {
-	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
 	if !ok {
 		reqErr := router.NewRequestError(
@@ -349,8 +290,6 @@ func flushMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
-	// Parse request body with key
 	var req FlushMemoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		reqErr := router.NewRequestError(
@@ -361,16 +300,12 @@ func flushMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
-	// Create input for use case
 	input := memuc.FlushMemoryInput{
 		Force:    req.Force,
 		DryRun:   req.DryRun,
 		MaxKeys:  req.MaxKeys,
 		Strategy: req.Strategy,
 	}
-
-	// Execute use case
 	uc, err := memuc.NewFlushMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
 	if err != nil {
 		handleMemoryError(c, err, "failed to create flush memory use case")
@@ -381,7 +316,6 @@ func flushMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to flush memory")
 		return
 	}
-
 	router.RespondOK(c, "memory flushed successfully", result)
 }
 
@@ -404,7 +338,6 @@ func flushMemory(c *gin.Context) {
 //	@Failure		500				{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/health [get]
 func healthMemory(c *gin.Context) {
-	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
 	if !ok {
 		reqErr := router.NewRequestError(
@@ -415,11 +348,7 @@ func healthMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
-	// Get query parameter
 	includeStats := c.Query("include_stats") == "true"
-
-	// Execute use case
 	input := &memuc.HealthMemoryInput{
 		IncludeStats: includeStats,
 	}
@@ -433,7 +362,6 @@ func healthMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to get memory health")
 		return
 	}
-
 	router.RespondOK(c, "memory health retrieved successfully", result)
 }
 
@@ -455,7 +383,6 @@ func healthMemory(c *gin.Context) {
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/clear [post]
 func clearMemory(c *gin.Context) {
-	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
 	if !ok {
 		reqErr := router.NewRequestError(
@@ -466,8 +393,6 @@ func clearMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
-	// Parse request body with key
 	var req ClearMemoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		reqErr := router.NewRequestError(
@@ -478,14 +403,10 @@ func clearMemory(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
-	// Create input for use case
 	input := memuc.ClearMemoryInput{
 		Confirm: req.Confirm,
 		Backup:  req.Backup,
 	}
-
-	// Execute use case
 	uc, err := memuc.NewClearMemory(memCtx.Manager, memCtx.MemoryRef, req.Key, &input, nil)
 	if err != nil {
 		handleMemoryError(c, err, "failed to create clear memory use case")
@@ -496,7 +417,6 @@ func clearMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to clear memory")
 		return
 	}
-
 	router.RespondOK(c, "memory cleared successfully", result)
 }
 
@@ -520,60 +440,20 @@ func clearMemory(c *gin.Context) {
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
 //	@Router			/memory/{memory_ref}/stats [get]
 func statsMemory(c *gin.Context) {
-	// Get memory context from middleware
-	memCtx, ok := GetMemoryContext(c)
+	memCtx, ok := requireMemoryContext(c)
 	if !ok {
-		reqErr := router.NewRequestError(
-			http.StatusInternalServerError,
-			"memory context not found",
-			nil,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-
-	// Parse pagination parameters for role distribution
-	limit := 100 // default for stats
-	offset := 0  // default
-
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if parsedLimit, err := strconv.Atoi(limitStr); err == nil {
-			limit = parsedLimit
-		}
-	}
-
-	if offsetStr := c.Query("offset"); offsetStr != "" {
-		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil {
-			offset = parsedOffset
-		}
-	}
-
-	// Create service with workflow context from middleware
-	memService, err := service.NewMemoryOperationsService(
-		memCtx.Manager,
-		nil, // template engine
-		memCtx.TokenCounter,
-		nil, // use default config
-		memCtx.WorkflowContext,
-	)
-	if err != nil {
-		reqErr := router.NewRequestError(
-			http.StatusInternalServerError,
-			"failed to create memory service",
-			err,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	limit, offset := parsePaginationParams(c, 100, 10000)
+	memService, ok := buildMemoryOperationsService(c, memCtx)
+	if !ok {
 		return
 	}
-
-	// Create use case with properly configured service
 	uc, err := memuc.NewStatsMemory(memCtx.Manager, memCtx.Worker, memService)
 	if err != nil {
 		handleMemoryError(c, err, "failed to create stats memory use case")
 		return
 	}
-
-	// Execute
 	result, err := uc.Execute(c.Request.Context(), memuc.StatsMemoryInput{
 		MemoryRef: memCtx.MemoryRef,
 		Key:       memCtx.Key,
@@ -584,6 +464,5 @@ func statsMemory(c *gin.Context) {
 		handleMemoryError(c, err, "failed to get memory statistics")
 		return
 	}
-
 	router.RespondOK(c, "memory statistics retrieved successfully", result)
 }

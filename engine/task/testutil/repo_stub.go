@@ -35,13 +35,11 @@ func (r *InMemoryRepo) AddState(state *task.State) {
 func (r *InMemoryRepo) GetState(_ context.Context, taskExecID core.ID) (*task.State, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
 	state, exists := r.states[taskExecID]
 	if !exists {
 		return nil, fmt.Errorf("state not found for task exec ID: %s", taskExecID)
 	}
-
-	// Return a copy to prevent race conditions
+	// NOTE: Return a copy so tests don't mutate shared in-memory state across goroutines.
 	stateCopy := *state
 	return &stateCopy, nil
 }
@@ -62,10 +60,8 @@ func (r *InMemoryRepo) GetUsageSummary(ctx context.Context, taskExecID core.ID) 
 func (r *InMemoryRepo) UpsertState(_ context.Context, state *task.State) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	// Store a copy to prevent external modifications
+	// NOTE: Persist a copy to simulate database isolation between callers.
 	stateCopy := *state
-	// Update the timestamp to simulate database behavior
 	stateCopy.UpdatedAt = time.Now()
 	r.states[state.TaskExecID] = &stateCopy
 	return nil
@@ -85,16 +81,14 @@ func (r *InMemoryRepo) WithTransaction(_ context.Context, fn func(task.Repositor
 func (r *InMemoryRepo) ListChildren(_ context.Context, parentStateID core.ID) ([]*task.State, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
 	var children []*task.State
 	for _, state := range r.states {
 		if state.ParentStateID != nil && *state.ParentStateID == parentStateID {
-			// Return a copy to prevent race conditions
+			// NOTE: Provide copies so tests can't race on shared children state.
 			stateCopy := *state
 			children = append(children, &stateCopy)
 		}
 	}
-
 	return children, nil
 }
 
@@ -102,16 +96,14 @@ func (r *InMemoryRepo) ListChildren(_ context.Context, parentStateID core.ID) ([
 func (r *InMemoryRepo) ListChildrenOutputs(_ context.Context, parentStateID core.ID) (map[string]*core.Output, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
 	outputs := make(map[string]*core.Output)
 	for _, state := range r.states {
 		if state.ParentStateID != nil && *state.ParentStateID == parentStateID && state.Output != nil {
-			// Return a copy of the output to prevent race conditions
+			// NOTE: Copy outputs to avoid sharing mutable pointers with callers.
 			outputCopy := *state.Output
 			outputs[state.TaskID] = &outputCopy
 		}
 	}
-
 	return outputs, nil
 }
 
@@ -119,15 +111,13 @@ func (r *InMemoryRepo) ListChildrenOutputs(_ context.Context, parentStateID core
 func (r *InMemoryRepo) GetChildByTaskID(_ context.Context, parentStateID core.ID, taskID string) (*task.State, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
 	for _, state := range r.states {
 		if state.ParentStateID != nil && *state.ParentStateID == parentStateID && state.TaskID == taskID {
-			// Return a copy to prevent race conditions
+			// NOTE: Return a cloned child to prevent test races from mutating repository state.
 			stateCopy := *state
 			return &stateCopy, nil
 		}
 	}
-
 	return nil, fmt.Errorf("child state not found for parent %s and task %s", parentStateID, taskID)
 }
 
@@ -137,12 +127,10 @@ func (r *InMemoryRepo) MergeUsage(_ context.Context, taskExecID core.ID, summary
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
 	state, ok := r.states[taskExecID]
 	if !ok {
 		return fmt.Errorf("state not found for task exec ID: %s", taskExecID)
 	}
-
 	merged := summary.Clone()
 	if state.Usage != nil {
 		base := state.Usage.Clone()
@@ -154,7 +142,6 @@ func (r *InMemoryRepo) MergeUsage(_ context.Context, taskExecID core.ID, summary
 		state.Usage = base
 		return nil
 	}
-
 	merged.Sort()
 	state.Usage = merged
 	return nil
@@ -166,12 +153,10 @@ func (r *InMemoryRepo) GetProgressInfo(ctx context.Context, parentStateID core.I
 	if err != nil {
 		return nil, err
 	}
-
 	progressInfo := &task.ProgressInfo{
 		TotalChildren: len(children),
 		StatusCounts:  make(map[core.StatusType]int),
 	}
-
 	for _, child := range children {
 		progressInfo.StatusCounts[child.Status]++
 
@@ -190,14 +175,10 @@ func (r *InMemoryRepo) GetProgressInfo(ctx context.Context, parentStateID core.I
 			progressInfo.PendingCount++
 		}
 	}
-
-	// Calculate terminal count
 	progressInfo.TerminalCount = progressInfo.SuccessCount +
 		progressInfo.FailedCount +
 		progressInfo.CanceledCount +
 		progressInfo.TimedOutCount
-
-	// Calculate rates
 	if progressInfo.TotalChildren > 0 {
 		progressInfo.CompletionRate = float64(progressInfo.SuccessCount) / float64(progressInfo.TotalChildren)
 		progressInfo.FailureRate = float64(
@@ -206,7 +187,6 @@ func (r *InMemoryRepo) GetProgressInfo(ctx context.Context, parentStateID core.I
 			progressInfo.TotalChildren,
 		)
 	}
-
 	return progressInfo, nil
 }
 

@@ -73,7 +73,6 @@ func isMissingKeyErr(err error) bool {
 	if errors.Is(err, tplengine.ErrMissingKey) {
 		return true
 	}
-	// Fallback for legacy errors; guard with stricter patterns
 	msg := err.Error()
 	return strings.Contains(msg, "map has no entry for key") || strings.Contains(msg, "missing key") ||
 		strings.Contains(msg, "missingkey")

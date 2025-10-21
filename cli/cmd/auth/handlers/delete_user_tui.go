@@ -16,14 +16,10 @@ import (
 // DeleteUserTUI handles user deletion in TUI mode using the unified executor pattern
 func DeleteUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, args []string) error {
 	log := logger.FromContext(ctx)
-
-	// Get user ID from arguments
 	if len(args) == 0 {
 		return fmt.Errorf("user ID required")
 	}
 	userID := args[0]
-
-	// Parse flags
 	force, err := cobraCmd.Flags().GetBool("force")
 	if err != nil {
 		return fmt.Errorf("failed to get force flag: %w", err)
@@ -32,27 +28,20 @@ func DeleteUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 	if err != nil {
 		return fmt.Errorf("failed to get cascade flag: %w", err)
 	}
-
 	log.Debug("deleting user in TUI mode",
 		"user_id", userID,
 		"force", force,
 		"cascade", cascade)
-
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return fmt.Errorf("auth client not available")
 	}
-
-	// Create and run the TUI model
 	m := newDeleteUserModel(ctx, authClient, userID, force, cascade)
 	p := tea.NewProgram(m)
-
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
-
-	// Check if deletion was successful
 	if model, ok := finalModel.(*deleteUserModel); ok {
 		if model.err != nil {
 			return model.err
@@ -61,7 +50,6 @@ func DeleteUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 			return fmt.Errorf("user deletion canceled")
 		}
 	}
-
 	return nil
 }
 
@@ -102,13 +90,10 @@ func newDeleteUserModel(
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
-
-	// If force is already set, skip confirmation
 	initialState := stateDeleteConfirming
 	if force {
 		initialState = stateDeleteDeleting
 	}
-
 	return &deleteUserModel{
 		ctx:     ctx,
 		client:  client,
@@ -123,7 +108,6 @@ func newDeleteUserModel(
 // Init initializes the model
 func (m *deleteUserModel) Init() tea.Cmd {
 	if m.force {
-		// If force is set, start deletion immediately
 		m.loading = true
 		return tea.Batch(m.spinner.Tick, m.deleteUser())
 	}
@@ -133,7 +117,9 @@ func (m *deleteUserModel) Init() tea.Cmd {
 // deleteUser deletes the user
 func (m *deleteUserModel) deleteUser() tea.Cmd {
 	return func() tea.Msg {
-		err := m.client.DeleteUser(m.ctx, m.userID)
+		err := m.client.DeleteUser(m.ctx, m.userID, api.DeleteUserOptions{
+			Cascade: m.cascade,
+		})
 		if err != nil {
 			return errMsg{err}
 		}
@@ -169,7 +155,6 @@ func (m *deleteUserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	}
-
 	return m, nil
 }
 
@@ -205,7 +190,6 @@ func (m *deleteUserModel) View() string {
 			Foreground(lipgloss.Color("196")).
 			Render(fmt.Sprintf("❌ Error: %v", m.err))
 	}
-
 	switch m.state {
 	case stateDeleteConfirming:
 		return m.viewConfirming()
@@ -214,7 +198,6 @@ func (m *deleteUserModel) View() string {
 	case stateDeleteCompleted:
 		return m.viewCompleted()
 	}
-
 	return ""
 }
 
@@ -225,29 +208,23 @@ func (m *deleteUserModel) viewConfirming() string {
 		BorderForeground(lipgloss.Color("196")).
 		Padding(1, 2).
 		Width(60)
-
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("196"))
-
 	content := titleStyle.Render("⚠️  Delete User Confirmation") + "\n\n"
 	content += fmt.Sprintf("You are about to delete user: %s\n", m.userID)
-
 	if m.cascade {
 		content += "\n" + lipgloss.NewStyle().
 			Foreground(lipgloss.Color("214")).
 			Render("⚠️  CASCADE MODE: This will also delete all related data!")
 	}
-
 	content += "\n\n" + lipgloss.NewStyle().
 		Foreground(lipgloss.Color("196")).
 		Bold(true).
 		Render("This action cannot be undone!")
-
 	content += "\n\n" + lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241")).
 		Render("y/Y to delete • n/N/q to cancel")
-
 	return style.Render(content)
 }
 
@@ -258,23 +235,18 @@ func (m *deleteUserModel) viewCompleted() string {
 		BorderForeground(lipgloss.Color("10")).
 		Padding(1, 2).
 		Width(50)
-
 	content := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("10")).
 		Render("✅ User Deleted Successfully")
-
 	content += fmt.Sprintf("\n\nUser ID: %s", m.userID)
-
 	if m.cascade {
 		content += "\n" + lipgloss.NewStyle().
 			Foreground(lipgloss.Color("214")).
 			Render("Related data was also deleted (cascade mode)")
 	}
-
 	content += "\n\n" + lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241")).
 		Render("Press any key to exit")
-
 	return style.Render(content)
 }

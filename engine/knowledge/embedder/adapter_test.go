@@ -28,7 +28,7 @@ func newTestContext(t *testing.T) context.Context {
 }
 
 func TestAdapter_EmbedDocuments(t *testing.T) {
-	t.Run("ShouldBatchInputsAccordingToConfig", func(t *testing.T) {
+	t.Run("Should batch inputs according to config", func(t *testing.T) {
 		ctx := newTestContext(t)
 		client := &fakeClient{}
 		impl, err := embeddings.NewEmbedder(client, embeddings.WithBatchSize(2), embeddings.WithStripNewLines(true))
@@ -54,7 +54,7 @@ func TestAdapter_EmbedDocuments(t *testing.T) {
 		require.Len(t, vectors, len(documents))
 	})
 
-	t.Run("ShouldWrapProviderErrors", func(t *testing.T) {
+	t.Run("Should wrap provider errors", func(t *testing.T) {
 		ctx := newTestContext(t)
 		client := &fakeClient{failAfter: 1}
 		impl, err := embeddings.NewEmbedder(client, embeddings.WithBatchSize(1))
@@ -75,7 +75,7 @@ func TestAdapter_EmbedDocuments(t *testing.T) {
 		assert.ErrorContains(t, err, `embedder "failing"`)
 	})
 
-	t.Run("ShouldEmbedQueryViaUnderlyingClient", func(t *testing.T) {
+	t.Run("Should embed query via underlying client", func(t *testing.T) {
 		ctx := newTestContext(t)
 		client := &fakeClient{}
 		impl, err := embeddings.NewEmbedder(client)
@@ -179,37 +179,37 @@ func TestCategorizeError(t *testing.T) {
 		expected memoryembeddings.ErrorType
 	}{
 		{
-			name:     "NilError",
+			name:     "Should return ServerError for nil error",
 			err:      nil,
 			expected: memoryembeddings.ErrorTypeServerError,
 		},
 		{
-			name:     "ContextDeadline",
+			name:     "Should return ServerError for context deadline",
 			err:      context.DeadlineExceeded,
 			expected: memoryembeddings.ErrorTypeServerError,
 		},
 		{
-			name:     "RateLimitMessage",
+			name:     "Should return RateLimit for rate limit message",
 			err:      errors.New("rate limit exceeded"),
 			expected: memoryembeddings.ErrorTypeRateLimit,
 		},
 		{
-			name:     "Status429",
+			name:     "Should return RateLimit for HTTP 429 status",
 			err:      errors.New("http 429 too many requests"),
 			expected: memoryembeddings.ErrorTypeRateLimit,
 		},
 		{
-			name:     "AuthFailure",
+			name:     "Should return Auth for unauthorized error",
 			err:      errors.New("unauthorized"),
 			expected: memoryembeddings.ErrorTypeAuth,
 		},
 		{
-			name:     "InvalidInput",
+			name:     "Should return InvalidInput for bad request",
 			err:      errors.New("bad request: invalid value"),
 			expected: memoryembeddings.ErrorTypeInvalidInput,
 		},
 		{
-			name:     "ServerErrorFallback",
+			name:     "Should return ServerError for internal error",
 			err:      errors.New("internal server error"),
 			expected: memoryembeddings.ErrorTypeServerError,
 		},
@@ -223,7 +223,7 @@ func TestCategorizeError(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	t.Run("ShouldReturnErrorForUnsupportedProvider", func(t *testing.T) {
+	t.Run("Should return error for unsupported provider", func(t *testing.T) {
 		ctx := newTestContext(t)
 		cfg := &Config{
 			ID:            "unknown",
@@ -238,7 +238,7 @@ func TestNew(t *testing.T) {
 		assert.ErrorContains(t, err, "provider")
 	})
 
-	t.Run("ShouldValidateDimension", func(t *testing.T) {
+	t.Run("Should validate dimension", func(t *testing.T) {
 		ctx := newTestContext(t)
 		cfg := &Config{
 			ID:            "bad",

@@ -168,6 +168,8 @@ jobs:
   govulncheck:
     name: Go Vulnerability Scan
     runs-on: ubuntu-latest
+    env:
+      GOVULNCHECK_GO_VERSION: "1.24.9"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -175,7 +177,8 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
-          go-version: ${{ env.GO_VERSION }}
+          # Go 1.25.x triggers golang/go#73871 when govulncheck analyzes jsonv2 packages.
+          go-version: ${{ env.GOVULNCHECK_GO_VERSION }}
           install-tools: "false"
 
       - name: Install govulncheck

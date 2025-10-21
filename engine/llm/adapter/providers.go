@@ -509,12 +509,7 @@ func (m *MockLLM) GenerateContent(
 	messages []llms.MessageContent,
 	_ ...llms.CallOption,
 ) (*llms.ContentResponse, error) {
-	// Extract prompt from messages
 	prompt := m.extractPrompt(messages)
-
-	// Attachments echo mode for tests: if the prompt contains attachmentsEchoToken,
-	// summarize how many image URLs and binary parts were provided. This is only
-	// used in tests that deliberately include that token in the user message.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -532,18 +527,12 @@ func (m *MockLLM) GenerateContent(
 		}
 		return &llms.ContentResponse{Choices: []*llms.ContentChoice{{Content: string(content)}}}, nil
 	}
-
-	// Check for error conditions
 	if err := m.checkErrorConditions(prompt); err != nil {
 		return nil, err
 	}
-
-	// Handle delay simulation if needed
 	if err := m.handleDelaySimulation(ctx, prompt); err != nil {
 		return nil, err
 	}
-
-	// Generate response
 	return m.generateResponse(prompt), nil
 }
 
@@ -551,7 +540,6 @@ func (m *MockLLM) GenerateContent(
 func (m *MockLLM) extractPrompt(messages []llms.MessageContent) string {
 	var prompt string
 	for _, message := range messages {
-		// Check both system and human messages for trigger patterns
 		if message.Role == llms.ChatMessageTypeHuman || message.Role == llms.ChatMessageTypeSystem {
 			for _, part := range message.Parts {
 				if textPart, ok := part.(llms.TextContent); ok {
@@ -581,20 +569,13 @@ func (m *MockLLM) countMediaParts(messages []llms.MessageContent) (int, int) {
 
 // checkErrorConditions checks if the prompt should trigger an error
 func (m *MockLLM) checkErrorConditions(prompt string) error {
-	// For "Process with error for testing" action, always fail
-	// This is used by test fixtures that expect failure
 	if strings.Contains(prompt, "Process with error for testing") {
 		return fmt.Errorf("mock agent error: simulated failure for testing")
 	}
-
-	// For other actions that may fail, check for should_fail parameter
 	if strings.Contains(prompt, "Process item that may fail") ||
 		strings.Contains(prompt, "handle_parallel_failure") {
-		// In real scenarios, should_fail would be in the prompt
-		// For now, these actions fail by default in tests
 		return fmt.Errorf("mock agent error: simulated failure for testing")
 	}
-
 	return nil
 }
 
@@ -605,7 +586,6 @@ func (m *MockLLM) handleDelaySimulation(ctx context.Context, prompt string) erro
 		strings.Contains(prompt, "cancellation-test") ||
 		strings.Contains(prompt, "slow") ||
 		strings.Contains(prompt, "long-") {
-		// Use a very short delay for testing
 		totalDelay := 100 * time.Millisecond
 
 		select {
@@ -621,7 +601,6 @@ func (m *MockLLM) handleDelaySimulation(ctx context.Context, prompt string) erro
 // generateResponse generates a mock response based on the prompt
 func (m *MockLLM) generateResponse(prompt string) *llms.ContentResponse {
 	responseText := m.routeResponse(prompt)
-
 	return &llms.ContentResponse{
 		Choices: []*llms.ContentChoice{
 			{

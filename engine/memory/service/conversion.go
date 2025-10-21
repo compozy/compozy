@@ -21,8 +21,6 @@ func MapToMessageWithLimits(msg map[string]any, limits *ValidationLimits) (llm.M
 			nil,
 		)
 	}
-
-	// Validate content length if limits are provided
 	if limits != nil && limits.MaxMessageContentLength > 0 && len(content) > limits.MaxMessageContentLength {
 		return llm.Message{}, memcore.NewMemoryError(
 			memcore.ErrCodeInvalidConfig,
@@ -30,8 +28,6 @@ func MapToMessageWithLimits(msg map[string]any, limits *ValidationLimits) (llm.M
 			nil,
 		).WithContext("content_length", len(content)).WithContext("max_allowed", limits.MaxMessageContentLength)
 	}
-
-	// Validate role
 	if err := ValidateMessageRole(role); err != nil {
 		return llm.Message{}, err
 	}
@@ -52,69 +48,89 @@ func PayloadToMessagesWithLimits(payload any, limits *ValidationLimits) ([]llm.M
 			nil,
 		)
 	}
-	// Handle single message
-	if msg, ok := payload.(map[string]any); ok {
+	switch value := payload.(type) {
+	case map[string]any:
+		return convertSingleMap(value, limits)
+	case []map[string]any:
+		return convertMapSlice(value, limits)
+	case []any:
+		return convertAnySlice(value, limits)
+	case string:
+		return convertStringPayload(value, limits)
+	default:
+		return nil, memcore.NewMemoryError(
+			memcore.ErrCodeInvalidConfig,
+			"unsupported payload format",
+			nil,
+		).WithContext("payload_type", fmt.Sprintf("%T", payload))
+	}
+}
+
+func convertSingleMap(msg map[string]any, limits *ValidationLimits) ([]llm.Message, error) {
+	message, err := MapToMessageWithLimits(msg, limits)
+	if err != nil {
+		return nil, err
+	}
+	return []llm.Message{message}, nil
+}
+
+func convertMapSlice(messages []map[string]any, limits *ValidationLimits) ([]llm.Message, error) {
+	result := make([]llm.Message, 0, len(messages))
+	for i, msg := range messages {
 		message, err := MapToMessageWithLimits(msg, limits)
 		if err != nil {
-			return nil, err
+			return nil, wrapMessageError(i, err)
 		}
-		return []llm.Message{message}, nil
+		result = append(result, message)
 	}
-	// Handle array of messages ([]map[string]any)
-	if messages, ok := payload.([]map[string]any); ok {
-		result := make([]llm.Message, 0, len(messages))
-		for i, msg := range messages {
-			message, err := MapToMessageWithLimits(msg, limits)
-			if err != nil {
-				return nil, memcore.NewMemoryError(
-					memcore.ErrCodeInvalidConfig,
-					fmt.Sprintf("message[%d]", i),
-					err,
-				).WithContext("index", i)
-			}
-			result = append(result, message)
-		}
-		return result, nil
-	}
-	// Handle array of messages ([]any)
-	if messages, ok := payload.([]any); ok {
-		result := make([]llm.Message, 0, len(messages))
-		for i, item := range messages {
-			if msg, ok := item.(map[string]any); ok {
-				message, err := MapToMessageWithLimits(msg, limits)
-				if err != nil {
-					return nil, memcore.NewMemoryError(
-						memcore.ErrCodeInvalidConfig,
-						fmt.Sprintf("message[%d]", i),
-						err,
-					).WithContext("index", i)
-				}
-				result = append(result, message)
-			} else {
-				return nil, memcore.NewMemoryError(
-					memcore.ErrCodeInvalidConfig,
-					fmt.Sprintf("invalid message format at index %d", i),
-					nil,
-				).WithContext("index", i)
-			}
-		}
-		return result, nil
-	}
-	// Handle string payload as user message
-	if content, ok := payload.(string); ok {
-		// Validate string content length if limits are provided
-		if limits != nil && limits.MaxMessageContentLength > 0 && len(content) > limits.MaxMessageContentLength {
+	return result, nil
+}
+
+func convertAnySlice(messages []any, limits *ValidationLimits) ([]llm.Message, error) {
+	result := make([]llm.Message, 0, len(messages))
+	for i, item := range messages {
+		msg, ok := item.(map[string]any)
+		if !ok {
 			return nil, memcore.NewMemoryError(
 				memcore.ErrCodeInvalidConfig,
-				fmt.Sprintf("string content too long (max %d bytes)", limits.MaxMessageContentLength),
+				fmt.Sprintf("invalid message format at index %d", i),
 				nil,
-			).WithContext("content_length", len(content)).WithContext("max_allowed", limits.MaxMessageContentLength)
+			).WithContext("index", i)
 		}
-		return []llm.Message{{Role: llm.MessageRoleUser, Content: content}}, nil
+		message, err := MapToMessageWithLimits(msg, limits)
+		if err != nil {
+			return nil, wrapMessageError(i, err)
+		}
+		result = append(result, message)
 	}
-	return nil, memcore.NewMemoryError(
+	return result, nil
+}
+
+func convertStringPayload(content string, limits *ValidationLimits) ([]llm.Message, error) {
+	if err := validateStringContent(content, limits); err != nil {
+		return nil, err
+	}
+	return []llm.Message{{Role: llm.MessageRoleUser, Content: content}}, nil
+}
+
+func wrapMessageError(index int, err error) error {
+	return memcore.NewMemoryError(
 		memcore.ErrCodeInvalidConfig,
-		"unsupported payload format",
-		nil,
-	).WithContext("payload_type", fmt.Sprintf("%T", payload))
+		fmt.Sprintf("message[%d]", index),
+		err,
+	).WithContext("index", index)
+}
+
+func validateStringContent(content string, limits *ValidationLimits) error {
+	if limits == nil || limits.MaxMessageContentLength <= 0 {
+		return nil
+	}
+	if len(content) > limits.MaxMessageContentLength {
+		return memcore.NewMemoryError(
+			memcore.ErrCodeInvalidConfig,
+			fmt.Sprintf("string content too long (max %d bytes)", limits.MaxMessageContentLength),
+			nil,
+		).WithContext("content_length", len(content)).WithContext("max_allowed", limits.MaxMessageContentLength)
+	}
+	return nil
 }

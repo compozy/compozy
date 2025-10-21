@@ -39,18 +39,14 @@ func (n *Normalizer) Normalize(
 	config *task.Config,
 	parentCtx contracts.NormalizationContext,
 ) error {
-	// Call base normalization first
 	if err := n.BaseNormalizer.Normalize(ctx, config, parentCtx); err != nil {
 		return err
 	}
-	// Type assert to get the concrete type for router-specific logic
 	normCtx, ok := parentCtx.(*shared.NormalizationContext)
 	if !ok {
 		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", parentCtx)
 	}
-	// Build template context for router-specific fields
 	context := normCtx.BuildTemplateContext()
-	// Normalize router-specific fields
 	if config.Routes != nil {
 		if err := n.normalizeRoutes(config, config.Routes, context); err != nil {
 			return fmt.Errorf("failed to normalize routes: %w", err)
@@ -64,55 +60,80 @@ func (n *Normalizer) normalizeRoutes(parentConfig *task.Config, routes map[strin
 	if len(routes) == 0 {
 		return nil
 	}
-	// Process each route in sorted order for deterministic processing
-	err := shared.IterateSortedMap(routes, func(routeName string, routeValue any) error {
-		// Routes can be either:
-		// 1. Simple string (task ID)
-		// 2. Map with condition and task_id
-		// 3. Inline task configuration (map with type field)
-		switch v := routeValue.(type) {
-		case string:
-			// Simple string - process as task ID template
-			processed, err := n.templateEngine.ParseAny(v, context)
-			if err != nil {
-				return fmt.Errorf("failed to process route %s task ID: %w", routeName, err)
-			}
-			routes[routeName] = processed
-		case map[string]any:
-			// Check if this is an inline task configuration (has "type" field)
-			if _, hasType := v["type"]; hasType {
-				// This is an inline task config - convert to Config for inheritance
-				childConfig := &task.Config{}
-				if err := childConfig.FromMap(v); err != nil {
-					return fmt.Errorf("invalid inline task config for route %q: %w", routeName, err)
-				}
-				// Apply inheritance from router task to inline task config
-				if err := shared.InheritTaskConfig(childConfig, parentConfig); err != nil {
-					return fmt.Errorf("failed to inherit task config: %w", err)
-				}
-				// Convert back to map after inheritance
-				updatedMap, err := childConfig.AsMap()
-				if err != nil {
-					return fmt.Errorf("failed to convert inherited config to map: %w", err)
-				}
-				// Process templates in the inherited config
-				processed, err := n.templateEngine.ParseAny(updatedMap, context)
-				if err != nil {
-					return fmt.Errorf("failed to process route %s: %w", routeName, err)
-				}
-				routes[routeName] = processed
-			} else {
-				// Regular map (condition/task_id structure) - just process templates
-				processedRoute, err := n.templateEngine.ParseAny(v, context)
-				if err != nil {
-					return fmt.Errorf("failed to process route %s: %w", routeName, err)
-				}
-				routes[routeName] = processedRoute
-			}
-		default:
-			// Leave other types as-is
+	return shared.IterateSortedMap(routes, func(routeName string, routeValue any) error {
+		normalizedValue, err := n.normalizeRouteValue(parentConfig, routeName, routeValue, context)
+		if err != nil {
+			return err
 		}
+		routes[routeName] = normalizedValue
 		return nil
 	})
-	return err
+}
+
+// normalizeRouteValue normalizes an individual route entry.
+func (n *Normalizer) normalizeRouteValue(
+	parentConfig *task.Config,
+	routeName string,
+	routeValue any,
+	context map[string]any,
+) (any, error) {
+	switch v := routeValue.(type) {
+	case string:
+		return n.processRouteString(routeName, v, context)
+	case map[string]any:
+		return n.processRouteMap(parentConfig, routeName, v, context)
+	default:
+		return routeValue, nil
+	}
+}
+
+// processRouteString resolves templates for string-based routes.
+func (n *Normalizer) processRouteString(routeName string, value string, context map[string]any) (any, error) {
+	processed, err := n.templateEngine.ParseAny(value, context)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process route %s task ID: %w", routeName, err)
+	}
+	return processed, nil
+}
+
+// processRouteMap normalizes map-based route definitions.
+func (n *Normalizer) processRouteMap(
+	parentConfig *task.Config,
+	routeName string,
+	value map[string]any,
+	context map[string]any,
+) (any, error) {
+	if _, hasType := value["type"]; hasType {
+		return n.processInlineTaskRoute(parentConfig, routeName, value, context)
+	}
+	processedRoute, err := n.templateEngine.ParseAny(value, context)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process route %s: %w", routeName, err)
+	}
+	return processedRoute, nil
+}
+
+// processInlineTaskRoute inherits and normalizes inline task configurations.
+func (n *Normalizer) processInlineTaskRoute(
+	parentConfig *task.Config,
+	routeName string,
+	value map[string]any,
+	context map[string]any,
+) (any, error) {
+	childConfig := &task.Config{}
+	if err := childConfig.FromMap(value); err != nil {
+		return nil, fmt.Errorf("invalid inline task config for route %q: %w", routeName, err)
+	}
+	if err := shared.InheritTaskConfig(childConfig, parentConfig); err != nil {
+		return nil, fmt.Errorf("failed to inherit task config: %w", err)
+	}
+	updatedMap, err := childConfig.AsMap()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert inherited config to map: %w", err)
+	}
+	processed, err := n.templateEngine.ParseAny(updatedMap, context)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process route %s: %w", routeName, err)
+	}
+	return processed, nil
 }

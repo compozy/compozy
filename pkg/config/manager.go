@@ -46,24 +46,17 @@ func NewManager(ctx context.Context, service Service) *Manager {
 
 // Load loads configuration from sources and starts watching for changes.
 func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) {
-	// Store sources for reload (copy to avoid caller mutation)
 	m.reloadMu.Lock()
 	m.sources = append([]Source(nil), sources...)
 	m.reloadMu.Unlock()
-
-	// Initial load
 	config, err := m.Service.Load(ctx, sources...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
-
-	// Apply configuration atomically and notify callbacks
 	m.applyConfig(config)
-
-	// Rebind internal watch context to a non-canceling derivative of the caller's context
 	if ctx != nil {
-		// Cancel any existing watcher ctx to prevent leaks
 		if m.watchCancel != nil {
+			// NOTE: Tear down the prior watcher context to avoid leaking goroutines across reloads.
 			m.watchCancel()
 		}
 		m.watchMu.Lock()
@@ -80,10 +73,7 @@ func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) 
 		m.watchWg = &errgroup.Group{}
 		m.watchMu.Unlock()
 	}
-
-	// Start watching sources that support it
 	m.startWatching(sources)
-
 	return config, nil
 }
 
@@ -116,21 +106,14 @@ func (m *Manager) Get() *Config {
 func (m *Manager) Reload(ctx context.Context) error {
 	m.reloadMu.Lock()
 	defer m.reloadMu.Unlock()
-
-	// Load configuration from sources
 	newConfig, err := m.Service.Load(ctx, m.sources...)
 	if err != nil {
 		return fmt.Errorf("failed to reload configuration: %w", err)
 	}
-
-	// Validate the new configuration before applying
 	if err := m.Service.Validate(newConfig); err != nil {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
-
-	// Apply the new configuration atomically
 	m.applyConfig(newConfig)
-
 	return nil
 }
 
@@ -149,14 +132,11 @@ func (m *Manager) OnChange(callback func(*Config)) {
 
 // Close stops watching and releases resources.
 func (m *Manager) Close(ctx context.Context) error {
-	// Use sync.Once to ensure we only close once
 	m.closeOnce.Do(func() {
-		// Cancel watch context
 		if m.watchCancel != nil {
 			m.watchCancel()
 		}
 
-		// Wait for all watchers to finish
 		m.watchMu.Lock()
 		currentGroup := m.watchWg
 		m.watchMu.Unlock()
@@ -169,7 +149,6 @@ func (m *Manager) Close(ctx context.Context) error {
 		m.reloadMu.Lock()
 		sourcesCopy := append([]Source(nil), m.sources...)
 		m.reloadMu.Unlock()
-		// Close all sources using a copy to avoid holding locks during Close()
 		for _, source := range sourcesCopy {
 			if source != nil {
 				if err := source.Close(); err != nil {
@@ -178,7 +157,6 @@ func (m *Manager) Close(ctx context.Context) error {
 			}
 		}
 	})
-
 	return nil
 }
 
@@ -218,22 +196,15 @@ func (m *Manager) startWatching(sources []Source) {
 
 // applyConfig applies a new configuration atomically and notifies callbacks.
 func (m *Manager) applyConfig(config *Config) {
-	// Store new configuration atomically
 	oldConfig := m.Get()
 	m.current.Store(config)
-
-	// Skip callbacks if configuration hasn't changed
 	if oldConfig != nil && configEqual(oldConfig, config) {
 		return
 	}
-
-	// Get callbacks under lock
 	m.callbackMu.RLock()
 	callbacks := make([]func(*Config), len(m.callbacks))
 	copy(callbacks, m.callbacks)
 	m.callbackMu.RUnlock()
-
-	// Invoke callbacks outside of lock
 	for _, callback := range callbacks {
 		if callback != nil {
 			callback(config)

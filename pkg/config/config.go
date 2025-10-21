@@ -358,6 +358,26 @@ type DatabaseConfig struct {
 	//
 	// Default: `1m`
 	ConnMaxIdleTime time.Duration `koanf:"conn_max_idle_time" json:"conn_max_idle_time" yaml:"conn_max_idle_time" mapstructure:"conn_max_idle_time" env:"DB_CONN_MAX_IDLE_TIME"`
+
+	// PingTimeout bounds how long connectivity checks may wait when establishing the pool.
+	//
+	// Default: `3s`
+	PingTimeout time.Duration `koanf:"ping_timeout" json:"ping_timeout" yaml:"ping_timeout" mapstructure:"ping_timeout" env:"DB_PING_TIMEOUT"`
+
+	// HealthCheckTimeout limits the runtime health check duration before reporting failure.
+	//
+	// Default: `1s`
+	HealthCheckTimeout time.Duration `koanf:"health_check_timeout" json:"health_check_timeout" yaml:"health_check_timeout" mapstructure:"health_check_timeout" env:"DB_HEALTH_CHECK_TIMEOUT"`
+
+	// HealthCheckPeriod configures how frequently the pool performs background health checks.
+	//
+	// Default: `30s`
+	HealthCheckPeriod time.Duration `koanf:"health_check_period" json:"health_check_period" yaml:"health_check_period" mapstructure:"health_check_period" env:"DB_HEALTH_CHECK_PERIOD"`
+
+	// ConnectTimeout bounds how long the driver may spend establishing new PostgreSQL connections.
+	//
+	// Default: `5s`
+	ConnectTimeout time.Duration `koanf:"connect_timeout" json:"connect_timeout" yaml:"connect_timeout" mapstructure:"connect_timeout" env:"DB_CONNECT_TIMEOUT"`
 }
 
 // TemporalConfig contains Temporal workflow engine configuration.
@@ -878,6 +898,10 @@ type LLMRateLimitConfig struct {
 	// Zero falls back to ceiling(perSecond) for compatibility.
 	DefaultTokenBurst int `koanf:"default_token_burst" json:"default_token_burst" yaml:"default_token_burst" mapstructure:"default_token_burst" validate:"min=0"`
 
+	// DefaultReleaseSlotBeforeTokenWait releases concurrency slots before waiting on token budgets when true.
+	// This favors throughput over strict slot ownership and may reduce head-of-line blocking.
+	DefaultReleaseSlotBeforeTokenWait bool `koanf:"default_release_slot_before_token_wait" json:"default_release_slot_before_token_wait" yaml:"default_release_slot_before_token_wait" mapstructure:"default_release_slot_before_token_wait"`
+
 	// PerProviderLimits customizes concurrency and queue depth for specific providers.
 	// Keys should match provider names (e.g., "openai", "groq").
 	PerProviderLimits map[string]ProviderRateLimitConfig `koanf:"per_provider_limits" json:"per_provider_limits" yaml:"per_provider_limits" mapstructure:"per_provider_limits"`
@@ -888,16 +912,18 @@ type LLMRateLimitConfig struct {
 // Concurrency controls in-flight requests, while queue size bounds waiting work. Leaving
 // fields at zero causes the limiter to fall back to global defaults.
 type ProviderRateLimitConfig struct {
-	Concurrency int `koanf:"concurrency"         json:"concurrency"         yaml:"concurrency"         mapstructure:"concurrency"         validate:"min=0"`
-	QueueSize   int `koanf:"queue_size"          json:"queue_size"          yaml:"queue_size"          mapstructure:"queue_size"          validate:"min=0"`
+	Concurrency int `koanf:"concurrency"                    json:"concurrency"                    yaml:"concurrency"                    mapstructure:"concurrency"                    validate:"min=0"`
+	QueueSize   int `koanf:"queue_size"                     json:"queue_size"                     yaml:"queue_size"                     mapstructure:"queue_size"                     validate:"min=0"`
 	// RequestsPerMinute limits average throughput; zero disables the limiter.
-	RequestsPerMinute int `koanf:"requests_per_minute" json:"requests_per_minute" yaml:"requests_per_minute" mapstructure:"requests_per_minute" validate:"min=0"`
+	RequestsPerMinute int `koanf:"requests_per_minute"            json:"requests_per_minute"            yaml:"requests_per_minute"            mapstructure:"requests_per_minute"            validate:"min=0"`
 	// TokensPerMinute constrains the total tokens consumed per minute; zero disables shaping.
-	TokensPerMinute int `koanf:"tokens_per_minute"   json:"tokens_per_minute"   yaml:"tokens_per_minute"   mapstructure:"tokens_per_minute"   validate:"min=0"`
+	TokensPerMinute int `koanf:"tokens_per_minute"              json:"tokens_per_minute"              yaml:"tokens_per_minute"              mapstructure:"tokens_per_minute"              validate:"min=0"`
 	// RequestBurst overrides the burst size for request-per-minute limiters. Zero defers to defaults.
-	RequestBurst int `koanf:"request_burst"       json:"request_burst"       yaml:"request_burst"       mapstructure:"request_burst"       validate:"min=0"`
+	RequestBurst int `koanf:"request_burst"                  json:"request_burst"                  yaml:"request_burst"                  mapstructure:"request_burst"                  validate:"min=0"`
 	// TokenBurst overrides the burst size for token-per-minute limiters. Zero defers to defaults.
-	TokenBurst int `koanf:"token_burst"         json:"token_burst"         yaml:"token_burst"         mapstructure:"token_burst"         validate:"min=0"`
+	TokenBurst int `koanf:"token_burst"                    json:"token_burst"                    yaml:"token_burst"                    mapstructure:"token_burst"                    validate:"min=0"`
+	// ReleaseSlotBeforeTokenWait releases concurrency slots before token waits when true; nil inherits defaults.
+	ReleaseSlotBeforeTokenWait *bool `koanf:"release_slot_before_token_wait" json:"release_slot_before_token_wait" yaml:"release_slot_before_token_wait" mapstructure:"release_slot_before_token_wait"`
 }
 
 // RateLimitConfig contains rate limiting configuration.
@@ -1421,9 +1447,37 @@ type MCPProxyConfig struct {
 //	  quiet: false                      # Suppress output
 //	  interactive: true                 # Interactive prompts
 const (
-	DefaultPortReleaseTimeout      = 5 * time.Second
-	DefaultPortReleasePollInterval = 100 * time.Millisecond
+	DefaultPortReleaseTimeout        = 5 * time.Second
+	DefaultPortReleasePollInterval   = 100 * time.Millisecond
+	DefaultCLIMaxRetries             = 3
+	DefaultCLIActiveWindowDays       = 30
+	DefaultCLIDevWatcherDebounce     = 200 * time.Millisecond
+	DefaultCLIDevWatcherInitialDelay = 500 * time.Millisecond
+	DefaultCLIDevWatcherMaxDelay     = 30 * time.Second
 )
+
+// CLIDevConfig contains development tooling settings for the CLI.
+//
+// These options let operators tune hot-reload behavior when running
+// `compozy dev`, including how aggressively file changes trigger restarts.
+type CLIDevConfig struct {
+	// WatcherDebounce defines the quiet period before restarting the dev server after a file change.
+	// Lower values trigger faster restarts; higher values reduce churn when many files change at once.
+	//
+	// **Default**: `200ms`
+	WatcherDebounce time.Duration `koanf:"watcher_debounce" env:"COMPOZY_DEV_WATCHER_DEBOUNCE" json:"WatcherDebounce" yaml:"watcher_debounce" mapstructure:"watcher_debounce" validate:"min=0"`
+
+	// WatcherRetryInitial controls the first backoff duration after an unexpected server failure.
+	// The delay doubles after each failure until WatcherRetryMax is reached.
+	//
+	// **Default**: `500ms`
+	WatcherRetryInitial time.Duration `koanf:"watcher_retry_initial" env:"COMPOZY_DEV_WATCHER_RETRY_INITIAL" json:"WatcherRetryInitial" yaml:"watcher_retry_initial" mapstructure:"watcher_retry_initial" validate:"min=0"`
+
+	// WatcherRetryMax caps the exponential backoff window when the dev server repeatedly fails to start.
+	//
+	// **Default**: `30s`
+	WatcherRetryMax time.Duration `koanf:"watcher_retry_max" env:"COMPOZY_DEV_WATCHER_RETRY_MAX" json:"WatcherRetryMax" yaml:"watcher_retry_max" mapstructure:"watcher_retry_max" validate:"min=0"`
+}
 
 type CLIConfig struct {
 	// APIKey authenticates CLI requests to the Compozy API.
@@ -1530,6 +1584,33 @@ type CLIConfig struct {
 	//
 	// Default: 100ms
 	PortReleasePollInterval time.Duration `koanf:"port_release_poll_interval" env:"COMPOZY_PORT_RELEASE_POLL_INTERVAL" json:"PortReleasePollInterval" yaml:"port_release_poll_interval" mapstructure:"port_release_poll_interval" validate:"min=0"`
+
+	// FileWatchInterval controls the polling cadence when filesystem notifications are unavailable.
+	//
+	// Default: 1s
+	// Set to 0 to use the built-in default.
+	FileWatchInterval time.Duration `koanf:"file_watch_interval" env:"COMPOZY_FILE_WATCH_INTERVAL" json:"FileWatchInterval" yaml:"file_watch_interval" mapstructure:"file_watch_interval" validate:"min=0"`
+
+	// MaxRetries sets the maximum retry attempts for CLI HTTP requests.
+	// Default: 3. Set to a non-negative value; 0 reverts to the default and negative disables retries.
+	MaxRetries int `koanf:"max_retries" env:"COMPOZY_MAX_RETRIES" json:"MaxRetries" yaml:"max_retries" mapstructure:"max_retries"`
+
+	// Dev exposes local development settings, including watcher debounce and restart backoff.
+	Dev CLIDevConfig `koanf:"dev" json:"Dev" yaml:"dev" mapstructure:"dev"`
+
+	// Users configures CLI behavior for user-management commands.
+	//
+	// Provides operator-tunable knobs for filters and heuristics like the active-user window.
+	Users CLIUsersConfig `koanf:"users" json:"Users" yaml:"users" mapstructure:"users"`
+}
+
+// CLIUsersConfig controls CLI user-management heuristics and filters.
+type CLIUsersConfig struct {
+	// ActiveWindowDays specifies how many days define an "active" user.
+	//
+	// Used by commands like `auth users list --active` to determine recent activity.
+	// Default: 30 days.
+	ActiveWindowDays int `koanf:"active_window_days" env:"COMPOZY_USERS_ACTIVE_WINDOW_DAYS" json:"ActiveWindowDays" yaml:"active_window_days" mapstructure:"active_window_days" validate:"min=0"`
 }
 
 // WebhooksConfig contains webhook processing and validation configuration.
@@ -1732,7 +1813,6 @@ func getStringSlice(registry *definition.Registry, path string) []string {
 		if slice, ok := val.([]string); ok {
 			return slice
 		}
-		// Handle case where it might be stored as []interface{}
 		if interfaceSlice, ok := val.([]any); ok {
 			result := make([]string, len(interfaceSlice))
 			for i, v := range interfaceSlice {
@@ -2110,6 +2190,10 @@ func buildCLIConfig(registry *definition.Registry) CLIConfig {
 	if prpi <= 0 {
 		prpi = DefaultPortReleasePollInterval
 	}
+	activeWindowDays := getInt(registry, "cli.users.active_window_days")
+	if activeWindowDays <= 0 {
+		activeWindowDays = DefaultCLIActiveWindowDays
+	}
 	return CLIConfig{
 		APIKey:                  SensitiveString(getString(registry, "cli.api_key")),
 		BaseURL:                 getString(registry, "cli.base_url"),
@@ -2128,6 +2212,31 @@ func buildCLIConfig(registry *definition.Registry) CLIConfig {
 		EnvFile:                 getString(registry, "cli.env_file"),
 		PortReleaseTimeout:      prt,
 		PortReleasePollInterval: prpi,
+		MaxRetries:              getInt(registry, "cli.max_retries"),
+		Dev:                     buildCLIDevConfig(registry),
+		Users: CLIUsersConfig{
+			ActiveWindowDays: activeWindowDays,
+		},
+	}
+}
+
+func buildCLIDevConfig(registry *definition.Registry) CLIDevConfig {
+	debounce := getDuration(registry, "cli.dev.watcher_debounce")
+	if debounce <= 0 {
+		debounce = DefaultCLIDevWatcherDebounce
+	}
+	initial := getDuration(registry, "cli.dev.watcher_retry_initial")
+	if initial <= 0 {
+		initial = DefaultCLIDevWatcherInitialDelay
+	}
+	maxDelay := getDuration(registry, "cli.dev.watcher_retry_max")
+	if maxDelay <= 0 {
+		maxDelay = DefaultCLIDevWatcherMaxDelay
+	}
+	return CLIDevConfig{
+		WatcherDebounce:     debounce,
+		WatcherRetryInitial: initial,
+		WatcherRetryMax:     maxDelay,
 	}
 }
 

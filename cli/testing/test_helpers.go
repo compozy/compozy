@@ -32,13 +32,10 @@ func TestCommand() *cobra.Command {
 		Use:   "test",
 		Short: "Test command",
 	}
-
-	// Add common flags
 	cmd.Flags().Bool("json", false, "JSON output")
 	cmd.Flags().Bool("tui", false, "TUI output")
 	cmd.Flags().String("output", "", "Output format")
 	cmd.Flags().String("format", "", "Format (deprecated)")
-
 	return cmd
 }
 
@@ -129,7 +126,6 @@ func (ct *CommandTest) Execute(args ...string) error {
 	ct.cmd.SetOut(ct.capture.StdoutWriter())
 	ct.cmd.SetErr(ct.capture.StderrWriter())
 	ct.cmd.SetContext(ct.ctx)
-
 	return ct.cmd.Execute()
 }
 

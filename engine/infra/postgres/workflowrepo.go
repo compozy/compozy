@@ -14,12 +14,18 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
 const selectWorkflowStateByExecID = "SELECT " +
 	"workflow_exec_id, workflow_id, status, usage, input, output, error " +
 	"FROM workflow_states WHERE workflow_exec_id = $1"
+
+const (
+	taskStatesByExecQueryUUID = "SELECT * FROM task_states WHERE workflow_exec_id = ANY($1::uuid[])"
+	taskStatesByExecQueryText = "SELECT * FROM task_states WHERE workflow_exec_id = ANY($1::text[])"
+)
 
 // WorkflowRepo implements the workflow.Repository interface.
 type WorkflowRepo struct {
@@ -113,9 +119,31 @@ func (r *WorkflowRepo) populateTaskStatesWithTx(ctx context.Context, tx pgx.Tx, 
 }
 
 func (r *WorkflowRepo) ListStates(ctx context.Context, filter *workflow.StateFilter) ([]*workflow.State, error) {
+	sql, args, err := buildListStatesQuery(filter)
+	if err != nil {
+		return nil, err
+	}
+	statesDB, err := r.selectWorkflowStates(ctx, sql, args)
+	if err != nil {
+		return nil, err
+	}
+	if len(statesDB) == 0 {
+		return []*workflow.State{}, nil
+	}
+	execIDs := workflowExecIDs(statesDB)
+	tasksByExec, err := r.fetchTaskStatesForExec(ctx, execIDs)
+	if err != nil {
+		return nil, err
+	}
+	return assembleWorkflowStates(statesDB, tasksByExec)
+}
+
+// buildListStatesQuery constructs the workflow states selection query.
+func buildListStatesQuery(filter *workflow.StateFilter) (string, []any, error) {
 	sb := squirrel.Select("workflow_exec_id", "workflow_id", "status", "usage", "input", "output", "error").
 		From("workflow_states").
-		PlaceholderFormat(squirrel.Dollar)
+		PlaceholderFormat(squirrel.Dollar).
+		OrderBy("updated_at DESC")
 	if filter != nil {
 		if filter.Status != nil {
 			sb = sb.Where("status = ?", *filter.Status)
@@ -129,44 +157,106 @@ func (r *WorkflowRepo) ListStates(ctx context.Context, filter *workflow.StateFil
 	}
 	sql, args, err := sb.ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("building query: %w", err)
+		return "", nil, fmt.Errorf("building query: %w", err)
 	}
+	return sql, args, nil
+}
+
+// selectWorkflowStates executes the workflow states query.
+func (r *WorkflowRepo) selectWorkflowStates(ctx context.Context, sql string, args []any) ([]*workflow.StateDB, error) {
 	var statesDB []*workflow.StateDB
 	if err := pgxscan.Select(ctx, r.db, &statesDB, sql, args...); err != nil {
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
-	if len(statesDB) == 0 {
-		return []*workflow.State{}, nil
-	}
-	execIDs := make([]string, 0, len(statesDB))
+	return statesDB, nil
+}
+
+// workflowExecIDs extracts execution identifiers from the state list.
+func workflowExecIDs(statesDB []*workflow.StateDB) []core.ID {
+	ids := make([]core.ID, 0, len(statesDB))
 	for _, sdb := range statesDB {
-		execIDs = append(execIDs, sdb.WorkflowExecID.String())
+		ids = append(ids, sdb.WorkflowExecID)
 	}
-	// Fetch all tasks for the returned workflow executions in a single query
+	return ids
+}
+
+// fetchTaskStatesForExec loads task states for the provided workflow executions.
+func (r *WorkflowRepo) fetchTaskStatesForExec(
+	ctx context.Context,
+	execIDs []core.ID,
+) (map[string]map[string]*task.State, error) {
+	if len(execIDs) == 0 {
+		return map[string]map[string]*task.State{}, nil
+	}
 	var taskStatesDB []*task.StateDB
-	// Using ANY($1) with text[] to avoid N+1 queries
-	if err := pgxscan.Select(ctx, r.db, &taskStatesDB, `SELECT * FROM task_states WHERE workflow_exec_id = ANY($1)`, execIDs); err != nil {
-		return nil, fmt.Errorf("scanning task states: %w", err)
+	uuidIDs, useUUID := parseExecIDsAsUUID(execIDs)
+	var (
+		selectErr error
+		stringIDs []string
+	)
+	if useUUID {
+		selectErr = pgxscan.Select(ctx, r.db, &taskStatesDB, taskStatesByExecQueryUUID, uuidIDs)
+	} else {
+		stringIDs = execIDStrings(execIDs)
+		selectErr = pgxscan.Select(ctx, r.db, &taskStatesDB, taskStatesByExecQueryText, stringIDs)
 	}
-	tasksByExec := make(map[string]map[string]*task.State)
+	if selectErr != nil {
+		return nil, fmt.Errorf("scanning task states: %w", selectErr)
+	}
+	if stringIDs == nil {
+		stringIDs = execIDStrings(execIDs)
+	}
+	result := make(map[string]map[string]*task.State, len(stringIDs))
+	for _, id := range stringIDs {
+		result[id] = make(map[string]*task.State)
+	}
 	for _, tsdb := range taskStatesDB {
 		st, err := tsdb.ToState()
 		if err != nil {
 			return nil, fmt.Errorf("converting task state: %w", err)
 		}
 		key := tsdb.WorkflowExecID.String()
-		if _, ok := tasksByExec[key]; !ok {
-			tasksByExec[key] = make(map[string]*task.State)
-		}
-		tasksByExec[key][st.TaskID] = st
+		result[key][st.TaskID] = st
 	}
-	var states []*workflow.State
+	return result, nil
+}
+
+func parseExecIDsAsUUID(execIDs []core.ID) ([]uuid.UUID, bool) {
+	uuidIDs := make([]uuid.UUID, len(execIDs))
+	for i, id := range execIDs {
+		parsed, err := uuid.Parse(id.String())
+		if err != nil {
+			return nil, false
+		}
+		uuidIDs[i] = parsed
+	}
+	return uuidIDs, true
+}
+
+func execIDStrings(execIDs []core.ID) []string {
+	stringIDs := make([]string, len(execIDs))
+	for i := range execIDs {
+		stringIDs[i] = execIDs[i].String()
+	}
+	return stringIDs
+}
+
+// assembleWorkflowStates converts database states into API models.
+func assembleWorkflowStates(
+	statesDB []*workflow.StateDB,
+	tasksByExec map[string]map[string]*task.State,
+) ([]*workflow.State, error) {
+	states := make([]*workflow.State, 0, len(statesDB))
 	for _, stateDB := range statesDB {
 		state, err := stateDB.ToState()
 		if err != nil {
 			return nil, fmt.Errorf("converting state: %w", err)
 		}
-		state.Tasks = tasksByExec[state.WorkflowExecID.String()]
+		if tasks := tasksByExec[state.WorkflowExecID.String()]; tasks != nil {
+			state.Tasks = tasks
+		} else {
+			state.Tasks = make(map[string]*task.State)
+		}
 		states = append(states, state)
 	}
 	return states, nil

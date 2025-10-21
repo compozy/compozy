@@ -6,6 +6,11 @@ import (
 	"github.com/compozy/compozy/cli/tui/styles"
 )
 
+const (
+	headerHeight = 2 // title line + newline
+	footerHeight = 1 // status bar line
+)
+
 // LayoutComponent provides a consistent layout system
 type LayoutComponent struct {
 	Width  int
@@ -106,23 +111,22 @@ func (l *LayoutComponent) ClearError() *LayoutComponent {
 func (l *LayoutComponent) Update(msg tea.Msg) (*LayoutComponent, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
-
-	// Update size
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		l = l.SetSize(windowMsg.Width, windowMsg.Height)
 	}
-
-	// Update child components
 	l.StatusBar, cmd = l.StatusBar.Update(msg)
 	cmds = append(cmds, cmd)
-
 	l.Help, cmd = l.Help.Update(msg)
 	cmds = append(cmds, cmd)
-
 	l.Error, cmd = l.Error.Update(msg)
 	cmds = append(cmds, cmd)
-
 	return l, tea.Batch(cmds...)
+}
+
+type layoutMetrics struct {
+	availableHeight int
+	contentWidth    int
+	sidebarWidth    int
 }
 
 // View renders the layout
@@ -130,41 +134,34 @@ func (l *LayoutComponent) View() string {
 	if l.Width <= 0 || l.Height <= 0 {
 		return ""
 	}
+	metrics := l.calculateLayoutMetrics()
+	sections := l.collectLayoutSections(metrics)
+	layout := lipgloss.JoinVertical(lipgloss.Left, sections...)
+	if l.Help.Visible {
+		helpView := l.Help.View()
+		layout = lipgloss.Place(l.Width, l.Height, lipgloss.Center, lipgloss.Center, helpView)
+	}
+	return layout
+}
 
-	// Calculate available dimensions
+func (l *LayoutComponent) calculateLayoutMetrics() layoutMetrics {
 	availableHeight := l.Height
 	availableWidth := l.Width
-
-	// Reserve space for header
-	headerHeight := 0
 	if l.ShowHeader {
-		headerHeight = 2 // Title + spacing
 		availableHeight -= headerHeight
 	}
-
-	// Reserve space for footer/status bar
-	footerHeight := 0
 	if l.ShowFooter {
-		footerHeight = 1
 		availableHeight -= footerHeight
 	}
-
-	// Reserve space for error component
-	errorHeight := l.Error.Height()
-	availableHeight -= errorHeight
-
-	// Validate dimensions haven't become negative
+	availableHeight -= l.Error.Height()
 	if availableHeight < 0 {
 		availableHeight = 0
 	}
 	if availableWidth < 0 {
 		availableWidth = 0
 	}
-
-	// Calculate content area
 	contentWidth := availableWidth
 	sidebarWidth := 0
-
 	if l.ShowSidebar {
 		sidebarWidth = l.SidebarWidth
 		contentWidth -= sidebarWidth
@@ -172,45 +169,31 @@ func (l *LayoutComponent) View() string {
 			contentWidth = 0
 		}
 	}
-
-	// Build layout sections
-	var sections []string
-
-	// Header
-	if l.ShowHeader {
-		header := l.renderHeader()
-		sections = append(sections, header)
+	return layoutMetrics{
+		availableHeight: availableHeight,
+		contentWidth:    contentWidth,
+		sidebarWidth:    sidebarWidth,
 	}
+}
 
-	// Error component
+func (l *LayoutComponent) collectLayoutSections(metrics layoutMetrics) []string {
+	sections := make([]string, 0, 4)
+	if l.ShowHeader {
+		sections = append(sections, l.renderHeader())
+	}
 	if l.Error.Error != nil {
 		sections = append(sections, l.Error.View())
 	}
-
-	// Main content area
-	mainContent := l.renderMainContent(contentWidth, availableHeight)
+	mainContent := l.renderMainContent(metrics.contentWidth, metrics.availableHeight)
 	if l.ShowSidebar {
-		sidebar := l.renderSidebar(sidebarWidth, availableHeight)
+		sidebar := l.renderSidebar(metrics.sidebarWidth, metrics.availableHeight)
 		mainContent = lipgloss.JoinHorizontal(lipgloss.Top, mainContent, sidebar)
 	}
 	sections = append(sections, mainContent)
-
-	// Footer/Status bar
 	if l.ShowFooter {
-		footer := l.StatusBar.View()
-		sections = append(sections, footer)
+		sections = append(sections, l.StatusBar.View())
 	}
-
-	// Join all sections
-	layout := lipgloss.JoinVertical(lipgloss.Left, sections...)
-
-	// Overlay help if visible
-	if l.Help.Visible {
-		helpView := l.Help.View()
-		layout = lipgloss.Place(l.Width, l.Height, lipgloss.Center, lipgloss.Center, helpView)
-	}
-
-	return layout
+	return sections
 }
 
 // renderHeader renders the header section
@@ -218,7 +201,6 @@ func (l *LayoutComponent) renderHeader() string {
 	if l.Header != "" {
 		return l.Header
 	}
-
 	title := styles.RenderTitle(l.Title)
 	return title + "\n"
 }
@@ -229,12 +211,9 @@ func (l *LayoutComponent) renderMainContent(width, height int) string {
 		Width(width).
 		Height(height).
 		Padding(0, 1)
-
 	if l.Content == "" {
-		// Return empty space with consistent dimensions to match GetContentSize calculations
 		return contentStyle.Render("")
 	}
-
 	return contentStyle.Render(l.Content)
 }
 
@@ -243,42 +222,22 @@ func (l *LayoutComponent) renderSidebar(width, height int) string {
 	if l.Sidebar == "" {
 		return ""
 	}
-
 	sidebarStyle := lipgloss.NewStyle().
 		Width(width).
 		Height(height).
 		Border(lipgloss.NormalBorder(), false, false, false, true).
 		BorderForeground(styles.Border).
 		Padding(0, 1)
-
 	return sidebarStyle.Render(l.Sidebar)
 }
 
 // GetContentSize returns the available content size
 func (l *LayoutComponent) GetContentSize() (width, height int) {
-	width = l.Width
-	height = l.Height
-
-	// Subtract header
-	if l.ShowHeader {
-		height -= 2
+	metrics := l.calculateLayoutMetrics()
+	width = metrics.contentWidth - 2
+	if width < 0 {
+		width = 0
 	}
-
-	// Subtract footer
-	if l.ShowFooter {
-		height--
-	}
-
-	// Subtract error component
-	height -= l.Error.Height()
-
-	// Subtract sidebar
-	if l.ShowSidebar {
-		width -= l.SidebarWidth
-	}
-
-	// Subtract horizontal padding applied in renderMainContent
-	width -= 2
-
+	height = metrics.availableHeight
 	return width, height
 }

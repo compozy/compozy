@@ -417,6 +417,7 @@ func fetchTaskQueueDepth(ctx context.Context, client *Client, queue string) (int
 		return 0, err
 	}
 	var total int64
+	//lint:ignore SA1019 The Temporal Go SDK continues to expose VersionsInfo as the only way to obtain backlog statistics.
 	for _, versionInfo := range desc.VersionsInfo {
 		for _, typeInfo := range versionInfo.TypesInfo {
 			if typeInfo.Stats != nil {

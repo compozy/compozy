@@ -43,74 +43,83 @@ func (uc *ExecuteMemoryOperation) Execute(
 	ctx context.Context,
 	input *ExecuteMemoryOperationInput,
 ) (*core.Output, error) {
-	// Set up evaluator context following project standards
-	evalContext := map[string]any{
-		"workflow": map[string]any{
+	evalContext := buildMemoryEvalContext(input)
+	memRef, resolvedKey, err := uc.resolveMemoryInstance(ctx, input, evalContext)
+	if err != nil {
+		return nil, err
+	}
+	return uc.dispatchMemoryOperation(ctx, input, memRef, resolvedKey)
+}
+
+// buildMemoryEvalContext creates the evaluation context for memory operations.
+func buildMemoryEvalContext(input *ExecuteMemoryOperationInput) map[string]any {
+	ctx := map[string]any{
+		"tasks": nil,
+	}
+	if input.WorkflowState != nil {
+		ctx["tasks"] = input.WorkflowState.Tasks
+		ctx["workflow"] = map[string]any{
 			"id":      input.WorkflowState.WorkflowID,
 			"exec_id": input.WorkflowState.WorkflowExecID,
 			"input":   input.WorkflowState.Input,
-		},
-		"tasks": input.WorkflowState.Tasks,
+		}
 	}
-	// Add merged input as "input" at top level for task context
 	if input.MergedInput != nil {
-		evalContext["input"] = input.MergedInput
+		ctx["input"] = input.MergedInput
 	}
-	// Validate key template is provided for memory scoping
+	return ctx
+}
+
+// resolveMemoryInstance loads the memory instance and validates configuration.
+func (uc *ExecuteMemoryOperation) resolveMemoryInstance(
+	ctx context.Context,
+	input *ExecuteMemoryOperationInput,
+	evalContext map[string]any,
+) (core.MemoryReference, string, error) {
 	if input.TaskConfig.KeyTemplate == "" {
-		return nil, fmt.Errorf("key_template is required for memory scoping")
+		return core.MemoryReference{}, "", fmt.Errorf("key_template is required for memory scoping")
 	}
-	// Get memory reference
 	memRef := core.MemoryReference{
 		ID:  input.TaskConfig.MemoryRef,
 		Key: input.TaskConfig.KeyTemplate,
 	}
-	// Get memory instance
 	memInstance, err := uc.memoryManager.GetInstance(ctx, memRef, evalContext)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get memory instance: %w", err)
+		return core.MemoryReference{}, "", fmt.Errorf("failed to get memory instance: %w", err)
 	}
 	if memInstance == nil {
-		return nil, fmt.Errorf("memory manager returned nil instance")
+		return core.MemoryReference{}, "", fmt.Errorf("memory manager returned nil instance")
 	}
-	// Note: Wildcard key patterns and batch processing are planned features
-	// that will enhance performance for large-scale memory operations
-	// Get resolved key once for efficiency
-	resolvedKey := memInstance.GetID()
-	// Execute operation based on type using centralized service
-	switch input.TaskConfig.Operation {
+	return memRef, memInstance.GetID(), nil
+}
+
+// dispatchMemoryOperation routes the memory operation to the correct handler.
+func (uc *ExecuteMemoryOperation) dispatchMemoryOperation(
+	ctx context.Context,
+	input *ExecuteMemoryOperationInput,
+	memRef core.MemoryReference,
+	resolvedKey string,
+) (*core.Output, error) {
+	cfg := input.TaskConfig
+	switch cfg.Operation {
 	case task.MemoryOpRead:
 		return uc.executeRead(ctx, memRef.ID, resolvedKey)
 	case task.MemoryOpWrite:
-		return uc.executeWrite(
-			ctx,
-			memRef.ID,
-			resolvedKey,
-			input.TaskConfig.Payload,
-			input.MergedInput,
-			input.WorkflowState,
-		)
+		return uc.executeWrite(ctx, memRef.ID, resolvedKey, cfg.Payload, input.MergedInput, input.WorkflowState)
 	case task.MemoryOpAppend:
-		return uc.executeAppend(
-			ctx,
-			memRef.ID,
-			resolvedKey,
-			input.TaskConfig.Payload,
-			input.MergedInput,
-			input.WorkflowState,
-		)
+		return uc.executeAppend(ctx, memRef.ID, resolvedKey, cfg.Payload, input.MergedInput, input.WorkflowState)
 	case task.MemoryOpDelete:
 		return uc.executeDelete(ctx, memRef.ID, resolvedKey)
 	case task.MemoryOpFlush:
-		return uc.executeFlush(ctx, memRef.ID, resolvedKey, input.TaskConfig.FlushConfig)
+		return uc.executeFlush(ctx, memRef.ID, resolvedKey, cfg.FlushConfig)
 	case task.MemoryOpHealth:
-		return uc.executeHealth(ctx, memRef.ID, resolvedKey, input.TaskConfig.HealthConfig)
+		return uc.executeHealth(ctx, memRef.ID, resolvedKey, cfg.HealthConfig)
 	case task.MemoryOpClear:
-		return uc.executeClear(ctx, memRef.ID, resolvedKey, input.TaskConfig.ClearConfig)
+		return uc.executeClear(ctx, memRef.ID, resolvedKey, cfg.ClearConfig)
 	case task.MemoryOpStats:
-		return uc.executeStats(ctx, memRef.ID, resolvedKey, input.TaskConfig.StatsConfig)
+		return uc.executeStats(ctx, memRef.ID, resolvedKey, cfg.StatsConfig)
 	default:
-		return nil, fmt.Errorf("unsupported memory operation: %s", input.TaskConfig.Operation)
+		return nil, fmt.Errorf("unsupported memory operation: %s", cfg.Operation)
 	}
 }
 
@@ -143,7 +152,6 @@ func (uc *ExecuteMemoryOperation) executeWrite(
 	mergedInput *core.Input,
 	workflowState *workflow.State,
 ) (*core.Output, error) {
-	// Let the service handle template resolution
 	resp, err := uc.memoryService.Write(ctx, &service.WriteRequest{
 		BaseRequest: service.BaseRequest{
 			MemoryRef: memoryRef,
@@ -171,7 +179,6 @@ func (uc *ExecuteMemoryOperation) executeAppend(
 	mergedInput *core.Input,
 	workflowState *workflow.State,
 ) (*core.Output, error) {
-	// Let the service handle template resolution
 	resp, err := uc.memoryService.Append(ctx, &service.AppendRequest{
 		BaseRequest: service.BaseRequest{
 			MemoryRef: memoryRef,
@@ -218,7 +225,6 @@ func (uc *ExecuteMemoryOperation) executeFlush(
 	key string,
 	config *task.FlushConfig,
 ) (*core.Output, error) {
-	// Convert task flush config to service flush config
 	flushConfig := &service.FlushConfig{}
 	if config != nil {
 		flushConfig.Force = config.Force
@@ -264,7 +270,6 @@ func (uc *ExecuteMemoryOperation) executeHealth(
 	if config == nil {
 		return nil, fmt.Errorf("health operation requires health_config to be provided")
 	}
-	// Convert task health config to service health config
 	healthConfig := &service.HealthConfig{
 		IncludeStats: config.IncludeStats,
 	}
@@ -304,7 +309,6 @@ func (uc *ExecuteMemoryOperation) executeClear(
 	if config == nil {
 		return nil, fmt.Errorf("clear operation requires clear_config to be provided")
 	}
-	// Convert task clear config to service clear config
 	clearConfig := &service.ClearConfig{
 		Confirm: config.Confirm,
 		Backup:  config.Backup,
@@ -336,7 +340,6 @@ func (uc *ExecuteMemoryOperation) executeStats(
 	if config == nil {
 		return nil, fmt.Errorf("stats operation requires stats_config to be provided")
 	}
-	// Convert task stats config to service stats config
 	statsConfig := &service.StatsConfig{
 		IncludeContent: config.IncludeContent,
 	}

@@ -23,7 +23,6 @@ func (m *memSvc) CheckAndSet(_ context.Context, key string, ttl time.Duration) e
 	now := time.Now()
 	exp := now.Add(ttl)
 	m.mu.Lock()
-	// Lazy sweep: delete expired key if present
 	if cur, ok := m.data[key]; ok {
 		if cur.After(now) {
 			m.mu.Unlock()

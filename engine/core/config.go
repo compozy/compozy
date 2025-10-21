@@ -62,7 +62,6 @@ func AsMapDefault(config any) (map[string]any, error) {
 // or decoding fails.
 func FromMapDefault[T any](data any) (T, error) {
 	var config T
-
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
 		Result:           &config,
@@ -72,7 +71,6 @@ func FromMapDefault[T any](data any) (T, error) {
 	if err != nil {
 		return config, err
 	}
-
 	return config, decoder.Decode(data)
 }
 
@@ -91,7 +89,6 @@ func StringToMapAliasPtrHook(from reflect.Type, to reflect.Type, data any) (any,
 	if from.Kind() != reflect.String {
 		return data, nil
 	}
-	// Expect pointer to a named map type with map[string]any underlying
 	if to.Kind() != reflect.Ptr {
 		return data, nil
 	}
@@ -102,7 +99,6 @@ func StringToMapAliasPtrHook(from reflect.Type, to reflect.Type, data any) (any,
 	if elem.Key().Kind() != reflect.String || elem.Elem().Kind() != reflect.Interface {
 		return data, nil
 	}
-	// Construct map and set sentinel reference
 	id, ok := data.(string)
 	if !ok {
 		return data, nil

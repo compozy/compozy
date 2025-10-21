@@ -61,7 +61,6 @@ func BuildContext(payload map[string]any, headers http.Header, query url.Values)
 func normHeaders(headers http.Header) map[string]any {
 	normalizedHeaders := make(map[string]any)
 	for key, values := range headers {
-		// HTTP headers are case-insensitive, so normalize to lowercase
 		lowerKey := strings.ToLower(key)
 		if len(values) == 1 {
 			normalizedHeaders[lowerKey] = values[0]

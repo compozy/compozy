@@ -34,7 +34,6 @@ func (m *MemoryReference) UnmarshalYAML(value *yaml.Node) error {
 	if value == nil {
 		return nil
 	}
-	// Treat YAML null as zero value
 	if value.Tag == "!!null" {
 		*m = MemoryReference{}
 		return nil
@@ -61,7 +60,6 @@ func (m *MemoryReference) UnmarshalYAML(value *yaml.Node) error {
 
 // UnmarshalJSON accepts either a JSON string (ID ref) or a full object.
 func (m *MemoryReference) UnmarshalJSON(b []byte) error {
-	// Accept JSON null or empty as zero value
 	switch string(bytes.TrimSpace(b)) {
 	case "null", "":
 		*m = MemoryReference{}

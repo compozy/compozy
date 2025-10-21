@@ -119,7 +119,7 @@ func TestToolsEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		delRes := client.do(http.MethodDelete, "/api/v0/tools/notify", nil, nil)
 		require.Equal(t, http.StatusConflict, delRes.Code)
-		assert.Contains(t, delRes.Header().Get("Content-Type"), "application/problem+json")
+		assert.Equal(t, "application/problem+json", delRes.Header().Get("Content-Type"))
 		bodyStr := delRes.Body.String()
 		assert.Contains(t, bodyStr, "workflows")
 		assert.Contains(t, bodyStr, "tasks")
@@ -128,7 +128,7 @@ func TestToolsEndpoints(t *testing.T) {
 		client := newResourceClient(t)
 		res := client.do(http.MethodPut, "/api/v0/tools/bad", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Contains(t, res.Header().Get("Content-Type"), "application/problem+json")
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 }
 
@@ -185,6 +185,6 @@ func TestToolsQueries(t *testing.T) {
 		client.do(http.MethodPut, "/api/v0/tools/c1", toolPayload("c1", "GET", "https://e.com"), nil)
 		res := client.do(http.MethodGet, "/api/v0/tools?cursor=abc", nil, nil)
 		require.Equal(t, http.StatusBadRequest, res.Code)
-		assert.Contains(t, res.Header().Get("Content-Type"), "application/problem+json")
+		assert.Equal(t, "application/problem+json", res.Header().Get("Content-Type"))
 	})
 }

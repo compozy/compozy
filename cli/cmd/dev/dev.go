@@ -15,6 +15,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const defaultConfigFile = "compozy.yaml"
+
 // NewDevCommand creates the dev command using the unified command pattern
 func NewDevCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -22,10 +24,7 @@ func NewDevCommand() *cobra.Command {
 		Short: "Run the Compozy development server",
 		RunE:  executeDevCommand,
 	}
-
-	// Add development-specific flags
 	cmd.Flags().Bool("watch", false, "Enable file watcher to restart server on change")
-
 	return cmd
 }
 
@@ -51,11 +50,26 @@ func handleDevTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandEx
 
 // runDevServer runs the development server with the provided configuration
 func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
+	log := logger.FromContext(ctx)
 	cfg := config.FromContext(ctx)
 	if cfg == nil {
 		return fmt.Errorf("missing config in context; ensure config.ContextWithManager is set in root command")
 	}
-	// Embedded Temporal dev server is no longer supported; external Temporal is required.
+	manager := config.ManagerFromContext(ctx)
+	if manager == nil {
+		return fmt.Errorf("configuration manager missing from context")
+	}
+	ctxManager, ok := ctx.Value(config.ManagerCtxKey).(*config.Manager)
+	owned := ok && ctxManager == manager
+	defer func() {
+		if !owned {
+			return
+		}
+		if err := manager.Close(ctx); err != nil {
+			log.Warn("failed to close config manager", "error", err)
+		}
+	}()
+	// NOTE: Embedded Temporal dev server is no longer supported; require an external Temporal endpoint.
 	setupGinMode(cfg)
 	CWD, err := setupWorkingDirectory(ctx, cfg)
 	if err != nil {
@@ -76,15 +90,10 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to create server: %w", err)
 	}
-	manager := config.ManagerFromContext(ctx)
-	if manager == nil {
-		return fmt.Errorf("configuration manager missing from context")
-	}
 	if runErr := srv.Run(); runErr != nil {
-		_ = manager.Close(ctx)
 		return runErr
 	}
-	return manager.Close(ctx)
+	return nil
 }
 
 // setupGinMode configures Gin mode based on debug configuration
@@ -114,19 +123,16 @@ func resolveEnvFilePath(cobraCmd *cobra.Command, baseDir string) string {
 	if filepath.IsAbs(envFilePath) {
 		return envFilePath
 	}
-
 	candidate := filepath.Join(baseDir, envFilePath)
 	if _, err := os.Stat(candidate); err == nil {
 		return candidate
 	}
-
 	if wd, err := os.Getwd(); err == nil {
 		fallback := filepath.Join(wd, envFilePath)
 		if _, statErr := os.Stat(fallback); statErr == nil {
 			return fallback
 		}
 	}
-
 	return candidate
 }
 
@@ -170,7 +176,7 @@ func getCommandFlags(cobraCmd *cobra.Command) (bool, string, error) {
 		return false, "", fmt.Errorf("failed to get config flag: %w", err)
 	}
 	if configFile == "" {
-		configFile = "compozy.yaml"
+		configFile = defaultConfigFile
 	}
 	return watch, configFile, nil
 }

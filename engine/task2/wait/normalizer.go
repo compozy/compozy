@@ -28,7 +28,6 @@ func NewNormalizer(
 			contextBuilder,
 			task.TaskTypeWait,
 			func(k string) bool {
-				// Wait tasks skip "processor" field - it contains signal templates that need deferred evaluation
 				return k == "agent" || k == "tool" || k == "outputs" || k == "output" || k == "processor"
 			},
 		),
@@ -37,11 +36,9 @@ func NewNormalizer(
 
 // Normalize applies wait task-specific normalization rules
 func (n *Normalizer) Normalize(ctx context.Context, config *task.Config, normCtx contracts.NormalizationContext) error {
-	// Call base normalization first
 	if err := n.BaseNormalizer.Normalize(ctx, config, normCtx); err != nil {
 		return err
 	}
-	// Apply inheritance to processor if present
 	if config != nil && config.Processor != nil {
 		if err := shared.InheritTaskConfig(config.Processor, config); err != nil {
 			return fmt.Errorf("failed to inherit task config: %w", err)
@@ -61,47 +58,75 @@ func (n *Normalizer) NormalizeWithSignal(
 	if config == nil {
 		return nil
 	}
-	// Build the full normalization context
-	context := normCtx.BuildTemplateContext()
-	// Add signal data to the context (convert to map for template engine)
-	if signal != nil {
-		signalMap, err := core.AsMapDefault(signal)
-		if err != nil {
-			return fmt.Errorf("failed to convert signal to map: %w", err)
-		}
-		context["signal"] = signalMap
-	} else {
-		context["signal"] = nil
-	}
-	// Convert config to map for template processing
-	configMap, err := config.AsMap()
+	context, err := n.buildContextWithSignal(normCtx, signal)
 	if err != nil {
-		return fmt.Errorf("failed to convert task config to map: %w", err)
+		return err
 	}
-	// Preserve existing With values before normalization
 	existingWith := config.With
-	// Parse all templates with the signal-augmented context
-	parsed, err := n.TemplateEngine().ParseAny(configMap, context)
+	parsed, err := n.parseConfigTemplates(config, context)
 	if err != nil {
-		return fmt.Errorf("failed to normalize task config with signal context: %w", err)
+		return err
 	}
 	if err := config.FromMap(parsed); err != nil {
 		return fmt.Errorf("failed to update task config from normalized map: %w", err)
 	}
-	// Merge existing With values back into the normalized config
-	if existingWith != nil && config.With != nil {
-		// Keep consistency with BaseNormalizer: normalized config.With wins on key conflicts
+	n.restoreWithValues(config, existingWith)
+	return nil
+}
+
+// buildContextWithSignal enriches the normalization context with optional signal data
+func (n *Normalizer) buildContextWithSignal(
+	normCtx *shared.NormalizationContext,
+	signal any,
+) (map[string]any, error) {
+	context := normCtx.BuildTemplateContext()
+	if signal == nil {
+		context["signal"] = nil
+		return context, nil
+	}
+	signalMap, err := core.AsMapDefault(signal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert signal to map: %w", err)
+	}
+	context["signal"] = signalMap
+	return context, nil
+}
+
+// parseConfigTemplates converts the config to a map and applies template parsing
+func (n *Normalizer) parseConfigTemplates(
+	config *task.Config,
+	context map[string]any,
+) (map[string]any, error) {
+	configMap, err := config.AsMap()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert task config to map: %w", err)
+	}
+	parsed, err := n.TemplateEngine().ParseAny(configMap, context)
+	if err != nil {
+		return nil, fmt.Errorf("failed to normalize task config with signal context: %w", err)
+	}
+	parsedMap, ok := parsed.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("unexpected normalized task config type %T", parsed)
+	}
+	return parsedMap, nil
+}
+
+// restoreWithValues merges the original With values back into the normalized config
+func (n *Normalizer) restoreWithValues(config *task.Config, existingWith *core.Input) {
+	if existingWith == nil {
+		return
+	}
+	if config.With != nil {
 		merged := core.CopyMaps(*existingWith, *config.With)
 		mergedWith := core.Input(merged)
 		config.With = &mergedWith
-	} else if existingWith != nil {
-		cloned, err := core.DeepCopy(*existingWith)
-		if err == nil {
-			config.With = &cloned
-		} else {
-			// Fall back to original to avoid dropping values if a deep copy fails
-			config.With = existingWith
-		}
+		return
 	}
-	return nil
+	cloned, err := core.DeepCopy(*existingWith)
+	if err == nil {
+		config.With = &cloned
+		return
+	}
+	config.With = existingWith
 }

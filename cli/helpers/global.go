@@ -275,7 +275,6 @@ func extractInt64Flag(cmd *cobra.Command, flags map[string]any, field *definitio
 
 // postProcessFlags handles special flag logic like --output alias and --no-color conversion
 func postProcessFlags(cmd *cobra.Command, flags map[string]any) error {
-	// Handle --output alias for --format
 	if cmd.Flags().Changed("output") && cmd.Flags().Changed("format") {
 		return fmt.Errorf("cannot specify both --format and --output flags")
 	}
@@ -286,7 +285,6 @@ func postProcessFlags(cmd *cobra.Command, flags map[string]any) error {
 		}
 		flags["format"] = output
 	}
-	// Handle --no-color flag by setting color-mode to "off"
 	if cmd.Flags().Changed("no-color") {
 		noColor, err := cmd.Flags().GetBool("no-color")
 		if err != nil {

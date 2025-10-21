@@ -569,7 +569,6 @@ func (p *Config) ValidateInput(_ context.Context, _ *core.Input) error {
 }
 
 func (p *Config) ValidateOutput(_ context.Context, _ *core.Output) error {
-	// Does not make sense the project having a schema
 	return nil
 }
 
@@ -641,11 +640,9 @@ func (p *Config) validateTools(ctx context.Context) error {
 	}
 	toolIDs := make(map[string]struct{}, len(p.Tools))
 	for i := range p.Tools {
-		// Validate tool configuration
 		if err := p.Tools[i].Validate(ctx); err != nil {
 			return fmt.Errorf("tool[%d] validation failed: %w", i, err)
 		}
-		// Check for duplicate tool IDs
 		if p.Tools[i].ID == "" {
 			return fmt.Errorf("tool[%d] missing required ID field", i)
 		}
@@ -666,7 +663,6 @@ func (p *Config) validateMemories(ctx context.Context) error {
 	}
 	ids := make(map[string]struct{}, len(p.Memories))
 	for i := range p.Memories {
-		// Default resource kind for inline definitions
 		if strings.TrimSpace(p.Memories[i].Resource) == "" {
 			p.Memories[i].Resource = string(core.ConfigMemory)
 		}
@@ -676,7 +672,6 @@ func (p *Config) validateMemories(ctx context.Context) error {
 		if _, ok := ids[p.Memories[i].ID]; ok {
 			return fmt.Errorf("duplicate memory ID '%s' found in project memories", p.Memories[i].ID)
 		}
-		// Reuse memory.Config.Validate to ensure parity with REST validation
 		if err := p.Memories[i].Validate(ctx); err != nil {
 			return fmt.Errorf("memory[%d] validation failed: %w", i, err)
 		}
@@ -707,15 +702,11 @@ func (p *Config) validateKnowledge(ctx context.Context) error {
 // validateRuntimeConfig validates the runtime configuration fields with detailed error messages
 func (p *Config) validateRuntimeConfig(ctx context.Context) error {
 	runtime := &p.Runtime
-
-	// Validate runtime type if specified
 	if runtime.Type != "" {
 		if err := validateRuntimeType(ctx, runtime.Type); err != nil {
 			return err
 		}
 	}
-
-	// Validate entrypoint path if specified
 	if runtime.Entrypoint != "" {
 		if err := validateEntrypointPath(ctx, p.CWD, runtime.Entrypoint); err != nil {
 			return err
@@ -724,9 +715,8 @@ func (p *Config) validateRuntimeConfig(ctx context.Context) error {
 			return err
 		}
 	}
-
-	// Validate tool execution timeout if specified
 	if runtime.ToolExecutionTimeout < 0 {
+		// WARNING: Negative tool timeouts would bypass execution safeguards.
 		return fmt.Errorf("runtime configuration error: tool_execution_timeout must be non-negative if specified")
 	}
 	if runtime.TaskExecutionTimeoutDefault < 0 {
@@ -742,7 +732,6 @@ func (p *Config) validateRuntimeConfig(ctx context.Context) error {
 			"runtime configuration error: task_execution_timeout_default must not exceed task_execution_timeout_max",
 		)
 	}
-
 	return nil
 }
 
@@ -901,12 +890,9 @@ func readProjectConfig(ctx context.Context, cwd *core.PathCWD, filePath string) 
 // setRuntimeDefaults applies minimal runtime defaults for project-level compatibility
 // These defaults ensure backward compatibility with existing tests and expected behavior
 func (p *Config) setRuntimeDefaults() {
-	// When runtime config is not specified in YAML, provide standard defaults
 	if p.Runtime.Type == "" {
 		p.Runtime.Type = "bun"
 	}
-	// Set default permissions for project runtime if not specified
-	// Use nil check to distinguish between unspecified (nil) and explicitly empty ([]string{})
 	if p.Runtime.Permissions == nil {
 		p.Runtime.Permissions = []string{"--allow-read"}
 	}

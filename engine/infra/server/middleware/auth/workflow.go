@@ -8,31 +8,25 @@ import (
 // WorkflowAuthMiddleware creates workflow-specific authentication middleware
 // that checks for workflow exceptions and bypasses authentication for specific workflow IDs
 func WorkflowAuthMiddleware(authManager *Manager, cfg *config.Config) gin.HandlerFunc {
-	// If auth is explicitly disabled, become a no-op
 	if cfg != nil && !cfg.Server.Auth.Enabled {
 		return func(c *gin.Context) { c.Next() }
 	}
 	if cfg == nil {
-		// Secure default: no exceptions when config is unavailable
 		return func(c *gin.Context) {
 			authManager.RequireAuth()(c)
 		}
 	}
-	// Pre-compute workflow exceptions map for O(1) lookup performance
 	exceptionsMap := make(map[string]struct{}, len(cfg.Server.Auth.WorkflowExceptions))
 	for _, workflowID := range cfg.Server.Auth.WorkflowExceptions {
 		exceptionsMap[workflowID] = struct{}{}
 	}
 	return func(c *gin.Context) {
 		workflowID := c.Param("workflow_id")
-		// Check if this workflow is in the exception list
 		if _, exists := exceptionsMap[workflowID]; exists {
 			c.Next()
 			return
 		}
-		// Apply authentication for this workflow
 		authManager.RequireAuth()(c)
-		// Ensure we don't continue if auth failed
 		if c.IsAborted() {
 			return
 		}

@@ -1,6 +1,7 @@
 package schemarouter
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,6 +16,8 @@ import (
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/gin-gonic/gin"
 )
+
+var errSchemaExceedsLimit = errors.New("stored schema exceeds configured size limit")
 
 // listSchemas handles GET /schemas.
 //
@@ -44,59 +47,32 @@ func listSchemas(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
-	cursor, cursorErr := router.DecodeCursor(c.Query("cursor"))
-	if cursorErr != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
+	input, limit, parseErr := parseListSchemasInput(c, project)
+	if parseErr != nil {
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid cursor parameter"})
 		return
-	}
-	input := &schemauc.ListInput{
-		Project:         project,
-		Prefix:          strings.TrimSpace(c.Query("q")),
-		CursorValue:     cursor.Value,
-		CursorDirection: resourceutil.CursorDirection(cursor.Direction),
-		Limit:           limit,
 	}
 	out, err := schemauc.NewList(store).Execute(c.Request.Context(), input)
 	if err != nil {
 		respondSchemaError(c, err)
 		return
 	}
-	nextCursor := ""
-	prevCursor := ""
-	if out.NextCursorValue != "" && out.NextCursorDirection != resourceutil.CursorDirectionNone {
-		nextCursor = router.EncodeCursor(string(out.NextCursorDirection), out.NextCursorValue)
-	}
-	if out.PrevCursorValue != "" && out.PrevCursorDirection != resourceutil.CursorDirectionNone {
-		prevCursor = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
-	}
+	nextCursor, prevCursor := buildSchemaPagination(out)
 	router.SetLinkHeaders(c, nextCursor, prevCursor)
-	// Enforce size limits via config for the marshaled schema body
-	maxBytes := 0
-	if cfg := config.FromContext(c.Request.Context()); cfg != nil {
-		maxBytes = cfg.Limits.MaxConfigFileSize
-	}
-	items := make([]SchemaListItem, 0, len(out.Items))
-	for i := range out.Items {
-		dto, n, err := toSchemaListItem(out.Items[i])
-		if err != nil {
-			core.RespondProblem(
+	items, buildErr := buildSchemaListItems(c.Request.Context(), out.Items)
+	if buildErr != nil {
+		if errors.Is(buildErr, errSchemaExceedsLimit) {
+			router.RespondProblem(
 				c,
-				&core.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
+				&core.Problem{Status: http.StatusInternalServerError, Detail: buildErr.Error()},
 			)
 			return
 		}
-		if maxBytes > 0 && n > maxBytes {
-			core.RespondProblem(
-				c,
-				&core.Problem{
-					Status: http.StatusInternalServerError,
-					Detail: "stored schema exceeds configured size limit",
-				},
-			)
-			return
-		}
-		items = append(items, dto)
+		router.RespondProblem(
+			c,
+			&core.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
+		)
+		return
 	}
 	page := httpdto.PageInfoDTO{Limit: limit, Total: out.Total, NextCursor: nextCursor, PrevCursor: prevCursor}
 	router.RespondOK(c, "schemas retrieved", SchemasListResponse{Schemas: items, Page: page})
@@ -145,14 +121,14 @@ func getSchema(c *gin.Context) {
 	}
 	dto, n, err := toSchemaDTO(out.Schema)
 	if err != nil {
-		core.RespondProblem(
+		router.RespondProblem(
 			c,
 			&core.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
 		)
 		return
 	}
 	if maxBytes > 0 && n > maxBytes {
-		core.RespondProblem(
+		router.RespondProblem(
 			c,
 			&core.Problem{
 				Status: http.StatusInternalServerError,
@@ -205,33 +181,14 @@ func upsertSchema(c *gin.Context) {
 	if project == "" {
 		return
 	}
-	// Enforce request body size before binding
-	maxReq := int64(0)
-	if cfg := config.FromContext(c.Request.Context()); cfg != nil {
-		maxReq = int64(cfg.Limits.MaxConfigFileSize)
-	}
-	if maxReq > 0 {
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxReq)
-	}
-	body := make(map[string]any)
-	if err := c.ShouldBindJSON(&body); err != nil {
-		var mbe *http.MaxBytesError
-		if errors.As(err, &mbe) {
-			core.RespondProblem(
-				c,
-				&core.Problem{
-					Status: http.StatusRequestEntityTooLarge,
-					Detail: "request body exceeds configured size limit",
-				},
-			)
-			return
-		}
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid request body"})
+	body, err := readSchemaBody(c)
+	if err != nil {
+		respondSchemaBodyError(c, err)
 		return
 	}
-	ifMatch, err := router.ParseStrongETag(c.GetHeader("If-Match"))
+	ifMatch, err := parseIfMatchHeader(c)
 	if err != nil {
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: "invalid If-Match header"})
 		return
 	}
 	input := &schemauc.UpsertInput{Project: project, ID: schemaID, Body: body, IfMatch: ifMatch}
@@ -241,27 +198,9 @@ func upsertSchema(c *gin.Context) {
 		return
 	}
 	c.Header("ETag", fmt.Sprintf("%q", out.ETag))
-	// Marshal response DTO (no size check here—ingress already enforced)
-	dto, _, err := toSchemaDTO(out.Schema)
-	if err != nil {
-		core.RespondProblem(
-			c,
-			&core.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
-		)
+	if err := respondUpsertResult(c, schemaID, out); err != nil {
 		return
 	}
-	status := http.StatusOK
-	message := "schema updated"
-	if out.Created {
-		status = http.StatusCreated
-		message = "schema created"
-		c.Header("Location", routes.Schemas()+"/"+schemaID)
-	}
-	if status == http.StatusCreated {
-		router.RespondCreated(c, message, dto)
-		return
-	}
-	router.RespondOK(c, message, dto)
 }
 
 // deleteSchema handles DELETE /schemas/{schema_id}.
@@ -307,20 +246,140 @@ func respondSchemaError(c *gin.Context, err error) {
 		errors.Is(err, schemauc.ErrProjectMissing),
 		errors.Is(err, schemauc.ErrIDMissing),
 		errors.Is(err, schemauc.ErrIDMismatch):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrNotFound):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrETagMismatch),
 		errors.Is(err, schemauc.ErrStaleIfMatch):
-		core.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusPreconditionFailed, Detail: err.Error()})
 	case errors.Is(err, schemauc.ErrReferenced):
-		resourceutil.RespondConflict(c, err, nil)
+		router.RespondConflict(c, err, nil)
 	default:
 		var conflict resourceutil.ConflictError
 		if errors.As(err, &conflict) {
-			resourceutil.RespondConflict(c, err, conflict.Details)
+			router.RespondConflict(c, err, conflict.Details)
 			return
 		}
-		core.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
+		router.RespondProblem(c, &core.Problem{Status: http.StatusInternalServerError, Detail: err.Error()})
 	}
+}
+
+// parseListSchemasInput builds the UC input for schema listing while enforcing cursor constraints.
+func parseListSchemasInput(c *gin.Context, project string) (*schemauc.ListInput, int, error) {
+	limit := router.LimitOrDefault(c, c.Query("limit"), 50, 500)
+	cursor, err := router.DecodeCursor(c.Query("cursor"))
+	if err != nil {
+		return nil, 0, err
+	}
+	return &schemauc.ListInput{
+		Project:         project,
+		Prefix:          strings.TrimSpace(c.Query("q")),
+		CursorValue:     cursor.Value,
+		CursorDirection: resourceutil.CursorDirection(cursor.Direction),
+		Limit:           limit,
+	}, limit, nil
+}
+
+// buildSchemaPagination computes RFC 8288 pagination links.
+func buildSchemaPagination(out *schemauc.ListOutput) (string, string) {
+	if out == nil {
+		return "", ""
+	}
+	next := ""
+	prev := ""
+	if out.NextCursorValue != "" && out.NextCursorDirection != resourceutil.CursorDirectionNone {
+		next = router.EncodeCursor(string(out.NextCursorDirection), out.NextCursorValue)
+	}
+	if out.PrevCursorValue != "" && out.PrevCursorDirection != resourceutil.CursorDirectionNone {
+		prev = router.EncodeCursor(string(out.PrevCursorDirection), out.PrevCursorValue)
+	}
+	return next, prev
+}
+
+// buildSchemaListItems converts raw schemas to response DTOs while enforcing size limits.
+func buildSchemaListItems(ctx context.Context, items []map[string]any) ([]SchemaListItem, error) {
+	maxBytes := schemaSizeLimit(ctx)
+	list := make([]SchemaListItem, 0, len(items))
+	for i := range items {
+		dto, n, err := toSchemaListItem(items[i])
+		if err != nil {
+			return nil, err
+		}
+		if maxBytes > 0 && n > maxBytes {
+			return nil, errSchemaExceedsLimit
+		}
+		list = append(list, dto)
+	}
+	return list, nil
+}
+
+// schemaSizeLimit returns the configured schema size limit in bytes, or zero when unrestricted.
+func schemaSizeLimit(ctx context.Context) int {
+	if cfg := config.FromContext(ctx); cfg != nil {
+		return cfg.Limits.MaxConfigFileSize
+	}
+	return 0
+}
+
+var errSchemaBodyTooLarge = errors.New("schema body exceeds configured size limit")
+
+// readSchemaBody decodes the schema request payload while enforcing size limits.
+func readSchemaBody(c *gin.Context) (map[string]any, error) {
+	maxReq := schemaSizeLimit(c.Request.Context())
+	if maxReq > 0 {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, int64(maxReq))
+	}
+	body := make(map[string]any)
+	if err := c.ShouldBindJSON(&body); err != nil {
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			return nil, errSchemaBodyTooLarge
+		}
+		return nil, err
+	}
+	return body, nil
+}
+
+// parseIfMatchHeader validates the If-Match header and returns the strong ETag value.
+func parseIfMatchHeader(c *gin.Context) (string, error) {
+	tag, err := router.ParseStrongETag(c.GetHeader("If-Match"))
+	if err != nil {
+		return "", err
+	}
+	return tag, nil
+}
+
+// respondSchemaBodyError maps parsing errors to proper HTTP problems.
+func respondSchemaBodyError(c *gin.Context, err error) {
+	var detail string
+	status := http.StatusBadRequest
+	switch {
+	case errors.Is(err, http.ErrBodyNotAllowed):
+		detail = "invalid request body"
+	case errors.Is(err, errSchemaBodyTooLarge):
+		detail = "request body exceeds configured size limit"
+		status = http.StatusRequestEntityTooLarge
+	default:
+		detail = "invalid request body"
+	}
+	router.RespondProblem(c, &core.Problem{Status: status, Detail: detail})
+}
+
+// respondUpsertResult writes the upsert response payload based on creation status.
+func respondUpsertResult(c *gin.Context, schemaID string, out *schemauc.UpsertOutput) error {
+	dto, _, err := toSchemaDTO(out.Schema)
+	if err != nil {
+		router.RespondProblem(
+			c,
+			&core.Problem{Status: http.StatusInternalServerError, Detail: "failed to encode schema"},
+		)
+		return err
+	}
+	if out.Created {
+		c.Header("Location", routes.Schemas()+"/"+schemaID)
+		router.RespondCreated(c, "schema created", dto)
+		return nil
+	}
+	router.RespondOK(c, "schema updated", dto)
+	return nil
 }

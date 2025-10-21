@@ -28,8 +28,6 @@ func NewNormalizer(
 	templateEngine *tplengine.TemplateEngine,
 	contextBuilder *shared.ContextBuilder,
 ) *Normalizer {
-	// For nil template engine, the normalizer will fail during Normalize()
-	// This allows tests to verify proper error handling
 	var filterEval *FilterEvaluator
 	var configBuilder *ConfigBuilder
 	if templateEngine != nil {
@@ -56,19 +54,16 @@ func (n *Normalizer) Normalize(
 	config *task.Config,
 	parentCtx contracts.NormalizationContext,
 ) error {
-	// Validate inputs
 	if err := n.validateInputs(config, parentCtx); err != nil {
 		return err
 	}
 	if config == nil {
 		return nil
 	}
-	// Type assert to get the concrete type
 	normCtx, ok := parentCtx.(*shared.NormalizationContext)
 	if !ok {
 		return fmt.Errorf("invalid context type: expected *shared.NormalizationContext, got %T", parentCtx)
 	}
-	// Normalize the config
 	return n.normalizeConfig(config, normCtx)
 }
 
@@ -82,19 +77,15 @@ func (n *Normalizer) validateInputs(config *task.Config, _ contracts.Normalizati
 
 // normalizeConfig performs the actual normalization
 func (n *Normalizer) normalizeConfig(config *task.Config, normCtx *shared.NormalizationContext) error {
-	// Build template context
 	context := normCtx.BuildTemplateContext()
-	// Convert config to map for template processing
 	configMap, err := config.AsMap()
 	if err != nil {
 		return fmt.Errorf("failed to convert task config to map: %w", err)
 	}
-	// Store the task field before normalization to preserve it
 	var childTaskConfig *task.Config
 	if config.Task != nil {
 		childTaskConfig = config.Task
 	}
-	// Normalize the collection task fields (excluding collection-specific fields)
 	if n.templateEngine == nil {
 		return fmt.Errorf("template engine is required for normalization")
 	}
@@ -102,31 +93,22 @@ func (n *Normalizer) normalizeConfig(config *task.Config, normCtx *shared.Normal
 	if err != nil {
 		return fmt.Errorf("failed to normalize collection task config: %w", err)
 	}
-	// Apply precision conversion to numeric values in the parsed result
-	// Collection tasks require precision preservation for numeric values
 	parsed = n.applyPrecisionConversion(parsed)
-	// Update config from normalized map
 	if err := config.FromMap(parsed); err != nil {
 		return fmt.Errorf("failed to update task config from normalized map: %w", err)
 	}
-	// Restore the task field to ensure it's not modified during normalization
-	// The task field contains templates with {{ .item }} references that
-	// should only be processed at runtime when collection items are available
 	if childTaskConfig != nil {
 		config.Task = childTaskConfig
-		// Apply context inheritance to the child task template
 		if err := shared.InheritTaskConfig(config.Task, config); err != nil {
 			return fmt.Errorf("failed to inherit task config: %w", err)
 		}
 	}
 	// Note: Collection-specific normalization (items expansion, filtering) happens at runtime
-	// during task execution, not during config normalization phase
 	return nil
 }
 
 // shouldSkipField determines if a field should be skipped during normalization
 func (n *Normalizer) shouldSkipField(k string) bool {
-	// Skip fields that need special handling
 	return k == "agent" || k == "tool" || k == "outputs" || k == "output" ||
 		k == "collection" || k == "items" || k == "filter" || k == "task" || k == "tasks"
 }
@@ -141,25 +123,18 @@ func (n *Normalizer) ExpandCollectionItems(
 	if config.Items == "" {
 		return nil, fmt.Errorf("collection config: items field is required")
 	}
-	// First, process any templates in the items expression
 	processedString, err := n.templateEngine.ParseAny(config.Items, templateContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process items expression: %w", err)
 	}
-
-	// If the result is a string, try to parse it as JSON with precision handling
 	if strValue, ok := processedString.(string); ok {
 		var parsedValue any
 		decoder := json.NewDecoder(strings.NewReader(strValue))
 		decoder.UseNumber() // Preserve numeric precision
 		if err := decoder.Decode(&parsedValue); err == nil {
-			// Successfully parsed JSON, use the parsed value
 			processedString = parsedValue
 		}
-		// If JSON parsing fails, keep the string as is (for range expressions like "1..3")
 	}
-
-	// Convert to a slice of items
 	items := n.converter.ConvertToSlice(processedString)
 	return items, nil
 }
@@ -172,14 +147,11 @@ func (n *Normalizer) FilterCollectionItems(
 	templateContext map[string]any,
 ) ([]any, error) {
 	if config.Filter == "" {
-		// No filter, return all items
 		return items, nil
 	}
 	var filteredItems []any
 	for i, item := range items {
-		// Create context with item and index variables
 		filterContext := n.createItemContext(templateContext, config, item, i)
-		// Evaluate filter expression
 		include, err := n.filterEval.EvaluateFilter(config.Filter, filterContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate filter expression for item %d: %w", i, err)
@@ -208,16 +180,13 @@ func (n *Normalizer) createItemContext(
 	item any,
 	index int,
 ) map[string]any {
-	// Clone base context in deterministic order
 	itemContext := make(map[string]any)
 	keys := shared.SortedMapKeys(baseContext)
 	for _, k := range keys {
 		itemContext[k] = baseContext[k]
 	}
-	// Add item and index
 	itemContext["item"] = item
 	itemContext["index"] = index
-	// Add custom keys if specified
 	if config.GetItemVar() != "" {
 		itemContext[config.GetItemVar()] = item
 	}
@@ -234,7 +203,6 @@ func (n *Normalizer) BuildCollectionContext(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) map[string]any {
-	// Use the context builder's collection context method
 	return n.contextBuilder.BuildCollectionContext(
 		ctx,
 		workflowState,
@@ -260,7 +228,6 @@ func (n *Normalizer) applyPrecisionConversion(value any) any {
 		}
 		return result
 	case string:
-		// Use precision converter to preserve numeric precision
 		return pc.ConvertWithPrecision(v)
 	default:
 		return v

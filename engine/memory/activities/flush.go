@@ -174,7 +174,6 @@ func (ma *MemoryActivities) ClearFlushPendingFlag(
 ) error {
 	log := logger.FromContext(ctx)
 	log.Info("ClearFlushPendingFlag activity started", "MemoryKey", input.MemoryInstanceKey)
-	// Use the real resource ID to get a proper memory instance
 	memRef := core.MemoryReference{
 		ID:  input.MemoryResourceID, // Use the real resource ID
 		Key: input.MemoryInstanceKey,
@@ -184,19 +183,14 @@ func (ma *MemoryActivities) ClearFlushPendingFlag(
 		"memory_resource_id":  input.MemoryResourceID,
 		"project.id":          input.ProjectID,
 	}
-	// Try to get the memory instance to access its store
 	memInstance, err := ma.MemoryManager.GetInstance(ctx, memRef, workflowContext)
 	if err != nil {
-		// If we can't get the instance, this cleanup is likely not critical
-		// Log the error but don't fail the cleanup activity
+		// NOTE: Missing instances are expected sometimes; allow TTL-based cleanup to handle it.
 		log.Warn("Could not get memory instance for cleanup, flag will expire naturally", "Error", err)
 		return nil
 	}
-	// Cast to FlushableMemory to access the MarkFlushPending method
 	flushable, ok := memInstance.(memcore.FlushableMemory)
 	if !ok {
-		// This is an application error - memory instance should implement FlushableMemory
-		// if we're trying to clear a flush pending flag
 		log.Error("Memory instance does not implement FlushableMemory interface",
 			"MemoryKey", input.MemoryInstanceKey,
 			"ResourceID", input.MemoryResourceID)
@@ -208,7 +202,6 @@ func (ma *MemoryActivities) ClearFlushPendingFlag(
 	}
 	if err := flushable.MarkFlushPending(ctx, false); err != nil {
 		log.Warn("Failed to clear flush pending flag during cleanup", "Error", err)
-		// Don't fail the activity, just log the warning
 	} else {
 		log.Info("Successfully cleared flush pending flag", "MemoryKey", input.MemoryInstanceKey)
 	}

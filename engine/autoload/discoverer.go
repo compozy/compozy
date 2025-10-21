@@ -1,18 +1,21 @@
 package autoload
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // FileDiscoverer interface for discovering configuration files
 type FileDiscoverer interface {
-	Discover(includes, excludes []string) ([]string, error)
+	Discover(ctx context.Context, includes, excludes []string) ([]string, error)
 }
 
 // fsDiscoverer implements FileDiscoverer using the filesystem
@@ -26,33 +29,26 @@ func NewFileDiscoverer(root string) FileDiscoverer {
 }
 
 // Discover finds all files matching include patterns and filters out exclude patterns
-func (d *fsDiscoverer) Discover(includes, excludes []string) ([]string, error) {
+func (d *fsDiscoverer) Discover(ctx context.Context, includes, excludes []string) ([]string, error) {
 	if len(includes) == 0 {
 		return []string{}, nil
 	}
-
-	discoveredFiles := make(map[string]bool)
-
-	// Process each include pattern
+	discoveredFiles := make(map[string]struct{})
 	for _, pattern := range includes {
-		// Validate pattern for security
+		// NOTE: Validate patterns early to block traversal or absolute path injections.
 		if err := d.validatePattern(pattern); err != nil {
 			return nil, err
 		}
 
-		// Build full pattern path
 		fullPattern := filepath.Join(d.root, pattern)
 
-		// Use doublestar.FilepathGlob for better pattern support
 		// Note: doublestar does not follow symbolic links by default
 		matches, err := doublestar.FilepathGlob(fullPattern)
 		if err != nil {
 			return nil, fmt.Errorf("invalid glob pattern %q: %w", pattern, err)
 		}
 
-		// Add matches to set (deduplicates)
 		for _, match := range matches {
-			// Ensure the discovered path is really inside the root directory.
 			rel, err := filepath.Rel(d.root, match)
 			if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
 				return nil, core.NewError(nil, "PATH_ESCAPE_ATTEMPT", map[string]any{
@@ -60,97 +56,85 @@ func (d *fsDiscoverer) Discover(includes, excludes []string) ([]string, error) {
 					"root": d.root,
 				})
 			}
-			discoveredFiles[match] = true
+			discoveredFiles[match] = struct{}{}
 		}
 	}
-
-	// Convert map to slice
 	files := make([]string, 0, len(discoveredFiles))
 	for file := range discoveredFiles {
 		files = append(files, file)
 	}
-
-	// Apply exclude patterns
-	files = d.applyExcludes(files, excludes)
-
+	files = d.applyExcludes(ctx, files, excludes)
+	sort.Strings(files)
 	return files, nil
 }
 
 // validatePattern validates a pattern for security issues
 func (d *fsDiscoverer) validatePattern(pattern string) error {
-	// Clean the pattern
 	cleanPattern := filepath.Clean(pattern)
-
-	// Reject absolute paths
 	if filepath.IsAbs(cleanPattern) {
 		return fmt.Errorf("INVALID_PATTERN: absolute paths not allowed: %s", pattern)
 	}
-
-	// Reject parent directory references
 	if slices.Contains(strings.Split(cleanPattern, string(filepath.Separator)), "..") {
 		return fmt.Errorf("INVALID_PATTERN: parent directory references not allowed: %s", pattern)
 	}
-
 	return nil
 }
 
 // applyExcludes filters out files matching exclude patterns
-func (d *fsDiscoverer) applyExcludes(files []string, excludes []string) []string {
-	if len(excludes) == 0 && len(DefaultExcludes) == 0 {
+func (d *fsDiscoverer) applyExcludes(ctx context.Context, files []string, excludes []string) []string {
+	patterns := d.combineExcludePatterns(excludes)
+	if len(patterns) == 0 {
 		return files
 	}
-
-	// Combine default excludes with user excludes
-	allExcludes := make([]string, 0, len(DefaultExcludes)+len(excludes))
-	allExcludes = append(allExcludes, DefaultExcludes...)
-	allExcludes = append(allExcludes, excludes...)
-
-	// Pre-compute exclude pattern normalization
-	for i, pattern := range allExcludes {
-		allExcludes[i] = filepath.ToSlash(pattern)
-	}
-
 	filtered := make([]string, 0, len(files))
 	for _, file := range files {
-		excluded := false
-
-		// Make file path relative for pattern matching
-		relFile, err := filepath.Rel(d.root, file)
-		if err != nil {
-			// If we can't make it relative, include it to be safe
-			filtered = append(filtered, file)
+		if d.shouldExcludeFile(ctx, file, patterns) {
 			continue
 		}
+		filtered = append(filtered, file)
+	}
+	return filtered
+}
 
-		// Convert to forward slashes for consistent matching
-		relFile = filepath.ToSlash(relFile)
+// combineExcludePatterns merges and normalizes user and default exclude patterns.
+func (d *fsDiscoverer) combineExcludePatterns(excludes []string) []string {
+	total := len(DefaultExcludes) + len(excludes)
+	if total == 0 {
+		return nil
+	}
+	combined := make([]string, 0, total)
+	combined = append(combined, DefaultExcludes...)
+	combined = append(combined, excludes...)
+	for i, pattern := range combined {
+		combined[i] = filepath.ToSlash(pattern)
+	}
+	return combined
+}
 
-		// Check each exclude pattern
-		for _, pattern := range allExcludes {
-			// Use doublestar for pattern matching
-			matched, err := doublestar.Match(pattern, relFile)
-			if err != nil {
-				// Invalid pattern, skip it
-				continue
-			}
-
-			if matched {
-				excluded = true
-				break
-			}
-
-			// Also check against the basename for patterns like *.bak
-			matched, err = doublestar.Match(pattern, filepath.Base(file))
-			if err == nil && matched {
-				excluded = true
-				break
-			}
-		}
-
-		if !excluded {
-			filtered = append(filtered, file)
+// shouldExcludeFile determines whether a file matches any exclude pattern.
+func (d *fsDiscoverer) shouldExcludeFile(ctx context.Context, file string, patterns []string) bool {
+	relFile, err := filepath.Rel(d.root, file)
+	if err != nil {
+		log := logger.FromContext(ctx).With("component", "autoload_discoverer", "root", d.root, "file", file)
+		log.Debug("failed to compute relative path for exclude evaluation", "error", err)
+		return false
+	}
+	relFile = filepath.ToSlash(relFile)
+	base := filepath.Base(file)
+	for _, pattern := range patterns {
+		if matchesExcludePattern(pattern, relFile, base) {
+			return true
 		}
 	}
+	return false
+}
 
-	return filtered
+// matchesExcludePattern checks a pattern against relative and base filenames.
+func matchesExcludePattern(pattern string, relFile string, base string) bool {
+	matched, err := doublestar.Match(pattern, relFile)
+	if err == nil && matched {
+		return true
+	}
+	matched, err = doublestar.Match(pattern, base)
+	return err == nil && matched
 }

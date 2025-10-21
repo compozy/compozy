@@ -54,7 +54,6 @@ func DeriveKey(h http.Header, body []byte, jsonField string) (string, error) {
 	if err := json.Unmarshal(body, &m); err != nil {
 		return "", fmt.Errorf("derive idempotency key: invalid json: %w", err)
 	}
-	// walk dot-paths like "data.id"
 	cur := m
 	for seg := range strings.SplitSeq(jsonField, ".") {
 		mm, ok := cur.(map[string]any)

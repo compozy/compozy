@@ -63,7 +63,6 @@ func RegisterPublic(r *gin.RouterGroup, p Processor) {
 			c.JSON(statusCode, errorResponse)
 			return
 		}
-		// Always return responses using the mandated envelope {data, message}
 		status := res.Status
 		if status == http.StatusNoContent {
 			status = http.StatusOK

@@ -120,7 +120,6 @@ func (atc *AsyncTokenCounter) ProcessAsync(ctx context.Context, memoryRef string
 	log := logger.FromContext(ctx)
 	defer func() {
 		if r := recover(); r != nil {
-			// Handle panic from sending on closed channel
 			log.Warn("Cannot process token count, counter is shut down",
 				"memory_ref", memoryRef,
 				"panic", r,
@@ -128,15 +127,14 @@ func (atc *AsyncTokenCounter) ProcessAsync(ctx context.Context, memoryRef string
 			atc.metrics.IncrementDropped()
 		}
 	}()
+	// NOTE: Wait for the worker response but respect the caller's context deadline.
 	select {
 	case atc.queue <- &tokenCountRequest{
 		ctx:       ctx,
 		memoryRef: memoryRef,
 		text:      text,
 	}:
-		// Successfully queued
 	default:
-		// Queue full, log and continue
 		log.Warn("Token counter queue full, skipping message",
 			"memory_ref", memoryRef,
 		)
@@ -154,7 +152,6 @@ func (atc *AsyncTokenCounter) ProcessWithResult(ctx context.Context, memoryRef s
 		text:       text,
 		resultChan: resultChan,
 	}:
-		// Wait for result with timeout
 		select {
 		case result := <-resultChan:
 			return result.count, result.err

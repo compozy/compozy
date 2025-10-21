@@ -160,7 +160,6 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 		log.Debug("Monitoring disabled, using no-op meter")
 		return newDisabledService(cfg, nil), nil
 	}
-	// Check for context cancellation early
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -181,10 +180,8 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 	if err := initServiceMetrics(service); err != nil {
 		return nil, err
 	}
-	// Check for context cancellation before system metrics
 	select {
 	case <-ctx.Done():
-		// Clean up if context was canceled
 		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 		defer cancel()
 		if shutdownErr := otel.provider.Shutdown(shutdownCtx); shutdownErr != nil {
@@ -236,7 +233,6 @@ func (s *Service) GinMiddleware(ctx context.Context) gin.HandlerFunc {
 			c.Next()
 		}
 	}
-	// Return only the custom HTTP metrics middleware
 	return middleware.HTTPMetrics(ctx, s.meter)
 }
 
@@ -297,9 +293,6 @@ func NewMonitoringServiceWithFallback(ctx context.Context, cfg *Config) *Service
 	service, err := NewMonitoringService(ctx, cfg)
 	if err != nil {
 		log.Error("Failed to initialize monitoring, using no-op implementation", "error", err)
-		// Return a degraded service with no-op meter
-		// The cfg is guaranteed to be non-nil here because NewMonitoringService
-		// only returns an error for non-nil invalid configs
 		return newDisabledService(cfg, err)
 	}
 	return service
