@@ -2,6 +2,7 @@ package activities
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -121,6 +122,110 @@ func TestExecuteWait_Run(t *testing.T) {
 		assert.Equal(t, "wait-task", savedState.TaskID)
 		assert.Equal(t, workflowExecID, savedState.WorkflowExecID)
 		assert.Equal(t, task.ExecutionWait, savedState.ExecutionType)
+	})
+
+	t.Run("Should resolve templated timeout from prior task output", func(t *testing.T) {
+		ctx := t.Context()
+
+		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+		defer cleanup()
+
+		configStore := services.NewTestConfigStore(t)
+		defer configStore.Close()
+
+		workflowID := "wait-dynamic-timeout"
+		workflowExecID := core.MustNewID()
+		cwd, _ := core.CWDFromPath("/tmp")
+
+		now := time.Now().UTC()
+		calcExecID := core.MustNewID()
+		calculateDelayState := &task.State{
+			Component:      core.ComponentTask,
+			Status:         core.StatusSuccess,
+			TaskID:         "calculate-delay",
+			TaskExecID:     calcExecID,
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			Output: &core.Output{
+				"duration": "2h5m",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		workflowState := &workflow.State{
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			Status:         core.StatusRunning,
+			Tasks: map[string]*task.State{
+				"calculate-delay": calculateDelayState,
+			},
+		}
+		require.NoError(t, workflowRepo.UpsertState(ctx, workflowState))
+		require.NoError(t, taskRepo.UpsertState(ctx, calculateDelayState))
+
+		workflowConfig := &workflow.Config{
+			ID: workflowID,
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "calculate-delay",
+						Type: task.TaskTypeBasic,
+					},
+				},
+				{
+					BaseConfig: task.BaseConfig{
+						ID:        "wait-reminder",
+						Type:      task.TaskTypeWait,
+						CWD:       cwd,
+						Condition: "true",
+						Timeout:   "{{ .tasks.calculate-delay.output.duration }}",
+					},
+					WaitTask: task.WaitTask{
+						WaitFor: "reminder-signal",
+					},
+				},
+			},
+		}
+
+		waitConfigCopy := workflowConfig.Tasks[1]
+		require.NoError(t, (&waitConfigCopy).Validate(ctx))
+
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
+			TemplateEngine: templateEngine,
+			EnvMerger:      task2core.NewEnvMerger(),
+			WorkflowRepo:   workflowRepo,
+			TaskRepo:       taskRepo,
+		})
+		require.NoError(t, err)
+
+		activity, err := NewExecuteWait(
+			[]*workflow.Config{workflowConfig},
+			workflowRepo,
+			taskRepo,
+			configStore,
+			cwd,
+			task2Factory,
+			templateEngine,
+		)
+		require.NoError(t, err)
+
+		input := &ExecuteWaitInput{
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			TaskConfig:     &workflowConfig.Tasks[1],
+		}
+
+		response, err := activity.Run(ctx, input)
+		require.NoError(t, err)
+		require.NotNil(t, response)
+
+		assert.Equal(t, "2h5m", workflowConfig.Tasks[1].Timeout)
+		require.NotNil(t, response.State)
+		assert.NotNil(t, response.State.Output)
+		waitOutput := *response.State.Output
+		assert.Equal(t, "reminder-signal", waitOutput["signal_name"])
 	})
 	t.Run("Should handle nil task config", func(t *testing.T) {
 		// Arrange

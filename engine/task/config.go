@@ -2546,6 +2546,9 @@ func (t *Config) validateWaitTimeout(_ context.Context) error {
 	if t.Timeout == "" {
 		return nil // Timeout is optional
 	}
+	if tplengine.HasTemplate(t.Timeout) {
+		return nil
+	}
 	duration, err := core.ParseHumanDuration(t.Timeout)
 	if err != nil {
 		return fmt.Errorf("invalid timeout format '%s': %w", t.Timeout, err)

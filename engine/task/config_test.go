@@ -2065,6 +2065,21 @@ func TestConfig_validateWaitTimeout(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("Should allow templated timeout for runtime resolution", func(t *testing.T) {
+		CWD, _ := core.CWDFromPath("/tmp")
+		config := &Config{
+			BaseConfig: BaseConfig{
+				ID:        "test-wait",
+				Type:      TaskTypeWait,
+				CWD:       CWD,
+				Condition: `signal.payload.status == "approved"`,
+				Timeout:   "{{ .tasks.calculate_delay.output.duration }}",
+			},
+		}
+		err := config.validateWaitTimeout(t.Context())
+		assert.NoError(t, err)
+	})
+
 	t.Run("Should validate duration formats", func(t *testing.T) {
 		CWD, _ := core.CWDFromPath("/tmp")
 		config := &Config{
