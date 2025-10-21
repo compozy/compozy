@@ -8,11 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ♻️  Refactoring
 
+- *(repo)* Broad list of improvements ([#289](https://github.com/compozy/compozy/issues/289))
+- *(repo)* Improve functions length ([#291](https://github.com/compozy/compozy/issues/291))
+
+### 🎉 Features
+
+- *(repo)* Enable template for wait timeouts
+
+### 📚 Documentation
+
+- *(repo)* Improve docs
+
+### 🔧 CI/CD
+
+- *(repo)* Fix release
+
+## 0.0.18 - 2025-10-17
+
+### ♻️  Refactoring
+
 - *(repo)* Standardize executions routes
 
 ### 🎉 Features
 
 - *(repo)* Add usage data for executions ([#286](https://github.com/compozy/compozy/issues/286))
+
+### 🔧 CI/CD
+
+- *(release)* Release v0.0.18 ([#287](https://github.com/compozy/compozy/issues/287))
 
 ## 0.0.17 - 2025-10-15
 
@@ -383,6 +406,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(repo)* Fix testcontainer timeouts
 - *(server)* Add basic tests for server
 
+[0.0.18]: https://github.com/compozy/compozy/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/compozy/compozy/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/compozy/compozy/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/compozy/compozy/compare/v0.0.14...v0.0.15
