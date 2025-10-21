@@ -252,8 +252,9 @@ dockers_v2:
       org.opencontainers.image.licenses: "BSL-1.1"
       org.opencontainers.image.vendor: "Compozy"
     extra_files:
-      - README.md
       - LICENSE
+      - README.md
+      - docs
 
   - id: mcp-proxy
     ids:
