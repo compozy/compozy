@@ -27,12 +27,13 @@ const (
 type ExtensionKey string
 
 const (
-	extensionScheduleManagerKey   ExtensionKey = "scheduleManager"
-	extensionWebhookRegistryKey   ExtensionKey = "webhook.registry"
-	extensionResourceStoreKey     ExtensionKey = "resource.store"
-	extensionConfigRegistryKey    ExtensionKey = "config.registry"
-	extensionAPIIdempotencyKey    ExtensionKey = "api.idempotency"
-	extensionMonitoringServiceKey ExtensionKey = "monitoring.service"
+	extensionScheduleManagerKey     ExtensionKey = "scheduleManager"
+	extensionWebhookRegistryKey     ExtensionKey = "webhook.registry"
+	extensionResourceStoreKey       ExtensionKey = "resource.store"
+	extensionConfigRegistryKey      ExtensionKey = "config.registry"
+	extensionAPIIdempotencyKey      ExtensionKey = "api.idempotency"
+	extensionMonitoringServiceKey   ExtensionKey = "monitoring.service"
+	extensionWorkflowQueryClientKey ExtensionKey = "workflow.query.client"
 )
 
 type BaseDeps struct {
@@ -155,6 +156,16 @@ func (s *State) ScheduleManager() (any, bool) {
 	defer s.mu.RUnlock()
 	v, ok := s.Extensions[extensionScheduleManagerKey]
 	return v, ok
+}
+
+// SetWorkflowQueryClient stores the workflow query client adapter in extensions.
+func (s *State) SetWorkflowQueryClient(v any) {
+	s.SetExtension(extensionWorkflowQueryClientKey, v)
+}
+
+// WorkflowQueryClient retrieves the stored workflow query client adapter if present.
+func (s *State) WorkflowQueryClient() (any, bool) {
+	return s.Extension(extensionWorkflowQueryClientKey)
 }
 
 // SetResourceStore stores the resources.ResourceStore in extensions with type safety
