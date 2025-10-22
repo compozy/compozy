@@ -37,6 +37,7 @@ type Service struct {
 	executionMetrics   *ExecutionMetrics
 	llmUsageMetrics    usage.Metrics
 	llmProviderMetrics providermetrics.Recorder
+	streamingMetrics   *StreamingMetrics
 }
 
 // newDisabledService creates a service instance with no-op implementations
@@ -54,6 +55,10 @@ func newDisabledService(cfg *Config, initErr error) *Service {
 	if providerErr != nil || providerMetrics == nil {
 		providerMetrics = providermetrics.Nop()
 	}
+	streamMetrics, streamErr := newStreamingMetrics(m)
+	if streamErr != nil || streamMetrics == nil {
+		streamMetrics = &StreamingMetrics{}
+	}
 	return &Service{
 		config:             cfg,
 		meter:              m,
@@ -62,6 +67,7 @@ func newDisabledService(cfg *Config, initErr error) *Service {
 		executionMetrics:   execMetrics,
 		llmUsageMetrics:    llmMetrics,
 		llmProviderMetrics: providerMetrics,
+		streamingMetrics:   streamMetrics,
 	}
 }
 
@@ -95,30 +101,37 @@ func initOTEL(ctx context.Context) (*otelComponents, error) {
 	}, nil
 }
 
-func buildMonitoringMetrics(meter metric.Meter) (*ExecutionMetrics, usage.Metrics, providermetrics.Recorder, error) {
+func buildMonitoringMetrics(
+	meter metric.Meter,
+) (*ExecutionMetrics, usage.Metrics, providermetrics.Recorder, *StreamingMetrics, error) {
 	execMetrics, err := newExecutionMetrics(meter)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	llmMetrics, err := newLLMUsageMetrics(meter)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	providerMetrics, err := providermetrics.NewRecorder(meter)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	return execMetrics, llmMetrics, providerMetrics, nil
+	streamMetrics, err := newStreamingMetrics(meter)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	return execMetrics, llmMetrics, providerMetrics, streamMetrics, nil
 }
 
 func initServiceMetrics(service *Service) error {
-	execMetrics, llmMetrics, providerMetrics, err := buildMonitoringMetrics(service.meter)
+	execMetrics, llmMetrics, providerMetrics, streamMetrics, err := buildMonitoringMetrics(service.meter)
 	if err != nil {
 		return err
 	}
 	service.executionMetrics = execMetrics
 	service.llmUsageMetrics = llmMetrics
 	service.llmProviderMetrics = providerMetrics
+	service.streamingMetrics = streamMetrics
 	return nil
 }
 
@@ -198,6 +211,11 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 // Meter returns the OpenTelemetry meter for custom instrumentation
 func (s *Service) Meter() metric.Meter {
 	return s.meter
+}
+
+// StreamingMetrics returns the SSE telemetry instruments.
+func (s *Service) StreamingMetrics() *StreamingMetrics {
+	return s.streamingMetrics
 }
 
 // ExecutionMetrics exposes execution-specific instruments to request handlers.

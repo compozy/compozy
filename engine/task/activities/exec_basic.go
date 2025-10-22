@@ -42,6 +42,7 @@ type ExecuteBasic struct {
 	memoryManager   memcore.ManagerInterface
 	templateEngine  *tplengine.TemplateEngine
 	projectConfig   *project.Config
+	streamPublisher services.StreamPublisher
 }
 
 // NewExecuteBasic creates and returns a configured ExecuteBasic activity.
@@ -64,6 +65,7 @@ func NewExecuteBasic(
 	projectConfig *project.Config,
 	task2Factory task2.Factory,
 	toolEnvironment toolenv.Environment,
+	streamPublisher services.StreamPublisher,
 ) (*ExecuteBasic, error) {
 	if toolEnvironment == nil {
 		return nil, fmt.Errorf("tool environment is required for execute basic activity")
@@ -88,6 +90,7 @@ func NewExecuteBasic(
 		memoryManager:   memoryManager,
 		templateEngine:  templateEngine,
 		projectConfig:   projectConfig,
+		streamPublisher: streamPublisher,
 	}, nil
 }
 
@@ -153,6 +156,9 @@ func (a *ExecuteBasic) executeBasicWithResponse(
 		status = core.StatusSuccess
 	}
 	taskState.Output = output
+	if executionError == nil {
+		a.publishTextChunks(ctx, normalizedConfig, taskState)
+	}
 	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create basic response handler: %w", err)
@@ -169,6 +175,13 @@ func (a *ExecuteBasic) executeBasicWithResponse(
 		response:     a.convertToMainTaskResponse(result),
 		executionErr: executionError,
 	}, nil
+}
+
+func (a *ExecuteBasic) publishTextChunks(ctx context.Context, cfg *task.Config, state *task.State) {
+	if a == nil || a.streamPublisher == nil {
+		return
+	}
+	a.streamPublisher.Publish(ctx, cfg, state)
 }
 
 func (a *ExecuteBasic) attachUsageCollector(

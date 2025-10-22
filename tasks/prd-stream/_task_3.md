@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/agent/router</domain>
@@ -27,10 +27,10 @@ Add GET /executions/agents/:exec_id/stream. If output schema exists, emit struct
 
 ## Subtasks
 
-- [ ] 3.1 Implement agent stream handler and route
-- [ ] 3.2 Repo polling path for structured JSON
-- [ ] 3.3 Pub/Sub subscribe path for text chunks; graceful shutdown
-- [ ] 3.4 Unit/integration tests (miniredis for Pub/Sub)
+- [x] 3.1 Implement agent stream handler and route
+- [x] 3.2 Repo polling path for structured JSON
+- [x] 3.3 Pub/Sub subscribe path for text chunks; graceful shutdown
+- [x] 3.4 Unit/integration tests (miniredis for Pub/Sub)
 
 ## Implementation Details
 
@@ -54,8 +54,8 @@ See Tech Spec Option A branching rules and Pub/Sub design.
 ## Tests
 
 - Tests mapped from \_tests.md:
-  - [ ] Structured: JSON deltas and completion
-  - [ ] Text: llm_chunk forwarding via miniredis
+- [x] Structured: JSON deltas and completion
+- [x] Text: llm_chunk forwarding via miniredis
 
 ## Success Criteria
 

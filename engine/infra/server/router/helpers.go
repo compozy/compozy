@@ -356,6 +356,18 @@ func ResolveExecutionMetrics(c *gin.Context, state *appstate.State) *monitoring.
 	return metrics
 }
 
+// ResolveStreamingMetrics retrieves streaming instrumentation from the monitoring service when available.
+func ResolveStreamingMetrics(_ *gin.Context, state *appstate.State) *monitoring.StreamingMetrics {
+	if state == nil {
+		return nil
+	}
+	service, ok := state.MonitoringService()
+	if !ok || service == nil {
+		return nil
+	}
+	return service.StreamingMetrics()
+}
+
 func SyncExecutionMetricsScope(
 	c *gin.Context,
 	state *appstate.State,

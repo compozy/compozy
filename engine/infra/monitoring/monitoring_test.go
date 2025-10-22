@@ -82,6 +82,21 @@ func TestMonitoringService_Meter(t *testing.T) {
 	})
 }
 
+func TestMonitoringService_StreamingMetrics(t *testing.T) {
+	t.Run("Should expose streaming metrics regardless of initialization", func(t *testing.T) {
+		cfg := &Config{Enabled: false, Path: "/metrics"}
+		service, err := NewMonitoringService(t.Context(), cfg)
+		require.NoError(t, err)
+		assert.NotNil(t, service.StreamingMetrics())
+	})
+	t.Run("Should expose initialized streaming metrics when enabled", func(t *testing.T) {
+		cfg := &Config{Enabled: true, Path: "/metrics"}
+		service, err := NewMonitoringService(t.Context(), cfg)
+		require.NoError(t, err)
+		assert.NotNil(t, service.StreamingMetrics())
+	})
+}
+
 func TestMonitoringService_GinMiddleware(t *testing.T) {
 	t.Run("Should return functional middleware when initialized", func(t *testing.T) {
 		cfg := &Config{Enabled: true, Path: "/metrics"}

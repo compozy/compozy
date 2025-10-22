@@ -38,15 +38,16 @@ type ExecuteSubtaskInput struct {
 }
 
 type ExecuteSubtask struct {
-	loadWorkflowUC *uc.LoadWorkflow
-	executeTaskUC  *uc.ExecuteTask
-	task2Factory   task2.Factory
-	templateEngine *tplengine.TemplateEngine
-	workflowRepo   workflow.Repository
-	taskRepo       task.Repository
-	configStore    services.ConfigStore
-	projectConfig  *project.Config
-	usageMetrics   usage.Metrics
+	loadWorkflowUC  *uc.LoadWorkflow
+	executeTaskUC   *uc.ExecuteTask
+	task2Factory    task2.Factory
+	templateEngine  *tplengine.TemplateEngine
+	workflowRepo    workflow.Repository
+	taskRepo        task.Repository
+	configStore     services.ConfigStore
+	projectConfig   *project.Config
+	usageMetrics    usage.Metrics
+	streamPublisher services.StreamPublisher
 }
 
 // NewExecuteSubtask creates and returns an ExecuteSubtask wired with the provided dependencies.
@@ -65,6 +66,7 @@ func NewExecuteSubtask(
 	usageMetrics usage.Metrics,
 	providerMetrics providermetrics.Recorder,
 	toolEnvironment toolenv.Environment,
+	streamPublisher services.StreamPublisher,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
@@ -77,13 +79,14 @@ func NewExecuteSubtask(
 			providerMetrics,
 			toolEnvironment,
 		),
-		task2Factory:   task2Factory,
-		templateEngine: templateEngine,
-		workflowRepo:   workflowRepo,
-		taskRepo:       taskRepo,
-		configStore:    configStore,
-		projectConfig:  projectConfig,
-		usageMetrics:   usageMetrics,
+		task2Factory:    task2Factory,
+		templateEngine:  templateEngine,
+		workflowRepo:    workflowRepo,
+		taskRepo:        taskRepo,
+		configStore:     configStore,
+		projectConfig:   projectConfig,
+		usageMetrics:    usageMetrics,
+		streamPublisher: streamPublisher,
 	}
 }
 
@@ -189,6 +192,9 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 	if err != nil {
 		return nil, err
 	}
+	if executionError == nil {
+		a.publishTextChunks(ctx, taskConfig, taskState)
+	}
 	result, err := a.handleSubtaskResponse(ctx, taskConfig, workflowState, workflowConfig, taskState, executionError)
 	if err != nil {
 		return nil, fmt.Errorf("failed to handle subtask response: %w", err)
@@ -201,6 +207,13 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 		return subtaskResponse, executionError
 	}
 	return subtaskResponse, nil
+}
+
+func (a *ExecuteSubtask) publishTextChunks(ctx context.Context, cfg *task.Config, state *task.State) {
+	if a == nil || a.streamPublisher == nil {
+		return
+	}
+	a.streamPublisher.Publish(ctx, cfg, state)
 }
 
 // attachUsageCollector adds a usage collector to the context and provides a finalize callback.

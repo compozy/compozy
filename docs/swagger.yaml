@@ -770,8 +770,11 @@ definitions:
       code:
         example: invalid_cursor
         type: string
-      detail:
+      details:
         example: Invalid cursor parameter
+        type: string
+      error:
+        example: Bad Request
         type: string
       instance:
         example: /api/v0/workflows
@@ -779,9 +782,6 @@ definitions:
       status:
         example: 400
         type: integer
-      title:
-        example: Bad Request
-        type: string
       type:
         example: about:blank
         type: string
@@ -1046,6 +1046,10 @@ definitions:
       queue_size:
         minimum: 0
         type: integer
+      release_slot_before_token_wait:
+        description: ReleaseSlotBeforeTokenWait releases concurrency slots before token waits when true;
+          nil inherits defaults.
+        type: boolean
       request_burst:
         minimum: 0
         type: integer
@@ -4500,8 +4504,7 @@ paths:
         Rebuild compiled workflows from repo|builder and trigger schedule reconciliation. Admin only.
         Aliases: yaml -> repo, store -> builder.
       parameters:
-        - description: 'Reload source (repo|builder). Aliases: yaml->repo, store->builder. Defaults to
-            ''repo''.'
+        - description: Reload source. yaml->repo, store->builder. Default repo.
           enum:
             - repo
             - builder
@@ -5330,6 +5333,80 @@ paths:
       summary: Send event
       tags:
         - events
+  /executions/agents/{agent_exec_id}/stream:
+    get:
+      consumes:
+        - '*/*'
+      description: Streams agent execution updates over Server-Sent Events, emitting structured JSON or
+        llm_chunk text depending on the output schema.
+      parameters:
+        - description: Agent execution ID
+          example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
+          in: path
+          name: agent_exec_id
+          required: true
+          type: string
+        - description: Resume the stream from the provided event id
+          example: '"42"'
+          in: header
+          name: Last-Event-ID
+          type: string
+        - description: Polling interval (milliseconds). Default 500, min 250, max 2000.
+          example: 500
+          in: query
+          name: poll_ms
+          type: integer
+        - description: 'Comma-separated list of event types to emit (default: all events).'
+          example: '"agent_status,llm_chunk,complete"'
+          in: query
+          name: events
+          type: string
+      produces:
+        - text/event-stream
+      responses:
+        "200":
+          description: SSE stream
+          schema:
+            type: string
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Execution not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "503":
+          description: Pub/Sub provider unavailable
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Stream agent execution events
+      tags:
+        - executions
   /executions/agents/{exec_id}:
     get:
       description: Retrieve the latest status for a direct agent execution. The response includes a usage
@@ -5420,6 +5497,80 @@ paths:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Get task execution status
+      tags:
+        - executions
+  /executions/tasks/{task_exec_id}/stream:
+    get:
+      consumes:
+        - '*/*'
+      description: Streams task execution updates over Server-Sent Events, emitting structured JSON or
+        llm_chunk text depending on the task output schema.
+      parameters:
+        - description: Task execution ID
+          example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
+          in: path
+          name: task_exec_id
+          required: true
+          type: string
+        - description: Resume the stream from the provided event id
+          example: '"42"'
+          in: header
+          name: Last-Event-ID
+          type: string
+        - description: Polling interval (milliseconds). Default 500, min 250, max 2000.
+          example: 500
+          in: query
+          name: poll_ms
+          type: integer
+        - description: 'Comma-separated list of event types to emit (default: all events).'
+          example: '"task_status,llm_chunk,complete"'
+          in: query
+          name: events
+          type: string
+      produces:
+        - text/event-stream
+      responses:
+        "200":
+          description: SSE stream
+          schema:
+            type: string
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Execution not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "503":
+          description: Pub/Sub provider unavailable
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Stream task execution events
       tags:
         - executions
   /executions/workflows:
@@ -5763,6 +5914,80 @@ paths:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Send signal to workflow execution
+      tags:
+        - executions
+  /executions/workflows/{exec_id}/stream:
+    get:
+      consumes:
+        - '*/*'
+      description: Streams workflow progress over Server-Sent Events with Last-Event-ID resume support
+        and configurable polling.
+      parameters:
+        - description: Workflow execution ID
+          example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
+          in: path
+          name: exec_id
+          required: true
+          type: string
+        - description: Resume the stream from the provided event id
+          example: '"42"'
+          in: header
+          name: Last-Event-ID
+          type: string
+        - description: Polling interval (milliseconds). Default 500, min 250, max 2000.
+          example: 500
+          in: query
+          name: poll_ms
+          type: integer
+        - description: 'Comma-separated list of event types to emit (default: all events).'
+          example: '"workflow_status,tool_call,llm_chunk,complete"'
+          in: query
+          name: events
+          type: string
+      produces:
+        - text/event-stream
+      responses:
+        "200":
+          description: SSE stream
+          schema:
+            type: string
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Execution not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "503":
+          description: Worker unavailable
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Stream workflow execution events
       tags:
         - executions
   /health:

@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/workflow/router</domain>
@@ -27,10 +27,10 @@ Add GET /executions/workflows/:exec_id/stream. Poll Temporal Query handler (getS
 
 ## Subtasks
 
-- [ ] 2.1 Implement handler stream.go using SSE helpers
-- [ ] 2.2 Add route in register.go
-- [ ] 2.3 Temporal: add SetQueryHandler("getStreamState") in workflow code to return WorkflowStreamState
-- [ ] 2.4 Unit tests: cursoring, Last-Event-ID, completion
+- [x] 2.1 Implement handler stream.go using SSE helpers
+- [x] 2.2 Add route in register.go
+- [x] 2.3 Temporal: add SetQueryHandler("getStreamState") in workflow code to return WorkflowStreamState
+- [x] 2.4 Unit tests: cursoring, Last-Event-ID, completion
 
 ## Implementation Details
 
@@ -53,9 +53,9 @@ Refer to Tech Spec sections “Workflow layer (Temporal)” and “Workflow stre
 ## Tests
 
 - Unit/integration tests mapped from \_tests.md:
-  - [ ] Emit only new events since cursor
-  - [ ] Honor Last-Event-ID and resume
-  - [ ] Close on completed status
+- [x] Emit only new events since cursor
+- [x] Honor Last-Event-ID and resume
+- [x] Close on completed status
 
 ## Success Criteria
 

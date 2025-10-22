@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/task/uc</domain>
@@ -27,9 +27,9 @@ Publish simulated per-line text chunks to Redis Pub/Sub channel stream:tokens:<e
 
 ## Subtasks
 
-- [ ] 5.1 Hook into executeAgent path after final output computed
-- [ ] 5.2 Implement publisher to Redis Pub/Sub with exec-scoped channel
-- [ ] 5.3 Unit/integration tests with miniredis
+- [x] 5.1 Hook into executeAgent path after final output computed
+- [x] 5.2 Implement publisher to Redis Pub/Sub with exec-scoped channel
+- [x] 5.3 Unit/integration tests with miniredis
 
 ## Implementation Details
 
@@ -52,7 +52,7 @@ Refer to Tech Spec Phase 3 (worker emission) and Pub/Sub design.
 ## Tests
 
 - Tests mapped from \_tests.md:
-  - [ ] Publish sequence observed by subscriber in order
+- [x] Publish sequence observed by subscriber in order
 
 ## Success Criteria
 

@@ -31,13 +31,13 @@
 
 ## Tasks
 
-- [ ] 1.0 SSE Helper Utilities (S)
-- [ ] 2.0 Workflow Stream Endpoint + Temporal Query Wiring (M)
-- [ ] 3.0 Agent Stream Endpoint (structured + text) (M)
-- [ ] 4.0 Task Stream Endpoint (structured + text) (M)
-- [ ] 5.0 Worker Publisher for Text Chunks (Phase 1 shim) (M)
+- [x] 1.0 SSE Helper Utilities (S)
+- [x] 2.0 Workflow Stream Endpoint + Temporal Query Wiring (M)
+- [x] 3.0 Agent Stream Endpoint (structured + text) (M)
+- [x] 4.0 Task Stream Endpoint (structured + text) (M)
+- [x] 5.0 Worker Publisher for Text Chunks (Phase 1 shim) (M)
 - [ ] 6.0 Swagger + Docs Updates (S)
-- [ ] 7.0 Examples: Browser + Node consumers (S)
+- [ ] 7.0 Streaming Observability & Telemetry (M)
 
 Notes on sizing:
 
@@ -67,7 +67,8 @@ Notes
 
 ## Batch Plan (Grouped Commits)
 
-- [ ] Batch 1 — Foundations: 1.0, 2.0
-- [ ] Batch 2 — Endpoints: 3.0, 4.0
-- [ ] Batch 3 — Emission & Tests: 5.0
-- [ ] Batch 4 — Docs & Examples: 6.0, 7.0
+- [x] Batch 1 — Foundations: 1.0, 2.0
+- [x] Batch 2 — Endpoints: 3.0, 4.0
+- [x] Batch 3 — Emission & Tests: 5.0
+- [ ] Batch 4 — Docs & Examples: 6.0
+- [ ] Batch 5 — Observability & Telemetry: 7.0

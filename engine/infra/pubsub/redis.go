@@ -10,11 +10,11 @@ import (
 
 // RedisProvider implements the Provider interface using Redis Pub/Sub.
 type RedisProvider struct {
-	client *redis.Client
+	client redis.UniversalClient
 }
 
 // NewRedisProvider constructs a Provider backed by a Redis client.
-func NewRedisProvider(client *redis.Client) (*RedisProvider, error) {
+func NewRedisProvider(client redis.UniversalClient) (*RedisProvider, error) {
 	if client == nil {
 		return nil, errors.New("pubsub: redis client is nil")
 	}
@@ -57,6 +57,13 @@ func (p *RedisProvider) Subscribe(ctx context.Context, channel string) (Subscrip
 	}(pubsub.Channel())
 
 	return &redisSubscription{pubsub: pubsub, cancel: cancel, messages: out}, nil
+}
+
+func (p *RedisProvider) Publish(ctx context.Context, channel string, payload []byte) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return p.client.Publish(ctx, channel, payload).Err()
 }
 
 type redisSubscription struct {

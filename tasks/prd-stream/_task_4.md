@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/task/router</domain>
@@ -27,10 +27,10 @@ Add GET /executions/tasks/:exec_id/stream mirroring agent behavior. Structured J
 
 ## Subtasks
 
-- [ ] 4.1 Implement task stream handler and route
-- [ ] 4.2 Structured repo polling
-- [ ] 4.3 Pub/Sub subscribe path
-- [ ] 4.4 Unit/integration tests (miniredis)
+- [x] 4.1 Implement task stream handler and route
+- [x] 4.2 Structured repo polling
+- [x] 4.3 Pub/Sub subscribe path
+- [x] 4.4 Unit/integration tests (miniredis)
 
 ## Implementation Details
 
@@ -54,8 +54,8 @@ Follow agent stream design; share helpers where possible.
 ## Tests
 
 - Tests mapped from \_tests.md:
-  - [ ] Structured: JSON deltas and completion
-  - [ ] Text: llm_chunk forwarding via miniredis
+- [x] Structured: JSON deltas and completion
+- [x] Text: llm_chunk forwarding via miniredis
 
 ## Success Criteria
 

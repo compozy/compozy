@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/infra/cache"
+	"github.com/compozy/compozy/engine/infra/pubsub"
 	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/memory"
@@ -43,6 +44,7 @@ type Activities struct {
 	templateEngine   *tplengine.TemplateEngine
 	task2Factory     task2.Factory
 	toolEnvironment  toolenv.Environment
+	streamPublisher  services.StreamPublisher
 	// Cached cache adapter contracts to avoid per-call instantiation
 	cacheKV   cache.KV
 	cacheKeys cache.KeysProvider
@@ -97,7 +99,7 @@ func NewActivities(
 		toolEnv,
 		config.ManagerFromContext(ctx),
 	)
-	if err := acts.initCacheAdapters(redisCache); err != nil {
+	if err := acts.initializeCache(ctx, redisCache); err != nil {
 		return nil, err
 	}
 	return acts, nil
@@ -190,6 +192,26 @@ func (a *Activities) initCacheAdapters(redisCache *cache.Cache) error {
 	}
 	a.cacheKV = adapter
 	a.cacheKeys = adapter
+	return nil
+}
+
+func (a *Activities) initStreamPublisher(ctx context.Context, redisCache *cache.Cache) {
+	if redisCache == nil || redisCache.Redis == nil {
+		return
+	}
+	provider, err := pubsub.NewRedisProvider(redisCache.Redis.Client())
+	if err != nil {
+		logger.FromContext(ctx).Warn("activities: failed to initialize stream publisher", "error", err)
+		return
+	}
+	a.streamPublisher = services.NewTextStreamPublisher(provider)
+}
+
+func (a *Activities) initializeCache(ctx context.Context, redisCache *cache.Cache) error {
+	if err := a.initCacheAdapters(redisCache); err != nil {
+		return err
+	}
+	a.initStreamPublisher(ctx, redisCache)
 	return nil
 }
 
@@ -332,6 +354,7 @@ func (a *Activities) ExecuteBasicTask(
 		a.projectConfig,
 		a.task2Factory,
 		a.toolEnvironment,
+		a.streamPublisher,
 	)
 	if err != nil {
 		return nil, err
@@ -403,6 +426,7 @@ func (a *Activities) ExecuteSubtask(
 		a.usageMetrics,
 		a.providerMetrics,
 		a.toolEnvironment,
+		a.streamPublisher,
 	)
 	return act.Run(ctx, input)
 }

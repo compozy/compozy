@@ -98,6 +98,47 @@ compozy executions agents get <agent-exec-id> [flags]
 compozy executions agents get 01JZMB8Z7F7T25N1M1SC1JW4S2 --format json | jq '.usage'
 ```
 
+## Streaming From the API
+
+The CLI `--follow` flag polls periodically. Use the REST streaming endpoints when you need sub-second updates, resumable processing, or custom rendering pipelines.
+
+<Tabs items={["JavaScript", "curl"]}>
+
+<Tab>
+```javascript
+const execId = process.argv[2];
+const stream = new EventSource(
+  `${process.env.COMPOZY_BASE_URL}/api/v0/executions/tasks/${execId}/stream`
+);
+
+stream.addEventListener("task_status", event => {
+  const payload = JSON.parse(event.data);
+  console.log("Task status:", payload.status, "-", payload.component);
+});
+
+stream.addEventListener("llm_chunk", event => {
+  process.stdout.write(event.data);
+});
+
+stream.addEventListener("complete", () => {
+  stream.close();
+  console.log("\nExecution completed.");
+});
+```
+</Tab>
+
+<Tab>
+```bash
+curl -N "https://api.example.com/api/v0/executions/workflows/${EXEC_ID}/stream?poll_ms=500" \
+  -H "Authorization: Bearer ${COMPOZY_API_KEY}" \
+  -H "Accept: text/event-stream" \
+  -H "Last-Event-ID: 128"
+```
+</Tab>
+</Tabs>
+
+> **Resume tip:** Persist the last `id:` you processed and send it back through `Last-Event-ID` to continue a workflow stream without duplicates.
+
 ## Filtering & Formats
 
 All execution commands support the common flags:
@@ -117,6 +158,12 @@ All execution commands support the common flags:
     description="Field-level documentation for the usage object returned by the CLI and APIs."
     href="/docs/schema/execution-usage"
     icon="FileJson"
+  />
+  <ReferenceCard
+    title="Execution Stream Events"
+    description="Understand event types, resumption semantics, and text vs JSON payloads."
+    href="/docs/schema/execution-stream-events"
+    icon="Activity"
   />
   <ReferenceCard
     title="Monitor LLM Usage"

@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/infra/server/router</domain>
@@ -27,10 +27,10 @@ Create reusable SSE helpers for handlers: set headers, write events with id/even
 
 ## Subtasks
 
-- [ ] 1.1 Implement StartSSE to set headers and return a flush controller
-- [ ] 1.2 Implement WriteEvent with flush
-- [ ] 1.3 Implement WriteHeartbeat and interval helper
-- [ ] 1.4 Unit tests for headers, event formatting, heartbeats
+- [x] 1.1 Implement StartSSE to set headers and return a flush controller
+- [x] 1.2 Implement WriteEvent with flush
+- [x] 1.3 Implement WriteHeartbeat and interval helper
+- [x] 1.4 Unit tests for headers, event formatting, heartbeats
 
 ## Implementation Details
 
@@ -55,8 +55,8 @@ Refer to Tech Spec section “API Implementation Sketch — Shared SSE helper”
 ## Tests
 
 - Unit tests mapped from \_tests.md:
-  - [ ] Headers and flush are set correctly
-  - [ ] Heartbeats emitted without breaking stream
+- [x] Headers and flush are set correctly
+- [x] Heartbeats emitted without breaking stream
 
 ## Success Criteria
 

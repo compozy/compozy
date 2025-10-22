@@ -18,4 +18,5 @@ type Subscription interface {
 // delivering messages published to them.
 type Provider interface {
 	Subscribe(ctx context.Context, channel string) (Subscription, error)
+	Publish(ctx context.Context, channel string, payload []byte) error
 }
