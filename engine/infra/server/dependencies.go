@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/postgres"
+	"github.com/compozy/compozy/engine/infra/pubsub"
 	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
@@ -196,6 +197,13 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	)
 	if err != nil {
 		return nil, cleanupFuncs, err
+	}
+	if s.redisClient != nil {
+		provider, err := pubsub.NewRedisProvider(s.redisClient)
+		if err != nil {
+			return nil, cleanupFuncs, fmt.Errorf("failed to initialize pubsub provider: %w", err)
+		}
+		state.SetPubSubProvider(provider)
 	}
 	if err := s.startReconcilerIfNeeded(state, &cleanupFuncs); err != nil {
 		return nil, cleanupFuncs, err

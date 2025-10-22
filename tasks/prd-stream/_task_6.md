@@ -16,7 +16,10 @@
 
 Add swagger annotations for three /stream endpoints with text/event-stream content type. Update API pages, overview, schema event catalog, and CLI notes per \_docs.md.
 
-<critical>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</critical>
+<critical>
+- **MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc
+- swagger.json, swagger.yaml and docs.go are auto generated through the make swagger-gen so you don't need to modify them directly, but add a proper comments to generate this
+</critical>
 
 <requirements>
 - Swagger: add three GET operations, headers (Last-Event-ID), query (poll_ms, events), content type.

@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
+	"github.com/compozy/compozy/engine/infra/pubsub"
 	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/webhook"
@@ -34,6 +35,7 @@ const (
 	extensionAPIIdempotencyKey      ExtensionKey = "api.idempotency"
 	extensionMonitoringServiceKey   ExtensionKey = "monitoring.service"
 	extensionWorkflowQueryClientKey ExtensionKey = "workflow.query.client"
+	extensionPubSubProviderKey      ExtensionKey = "pubsub.provider"
 )
 
 type BaseDeps struct {
@@ -254,6 +256,28 @@ func (s *State) GetWorkflows() []*workflow.Config {
 	out := make([]*workflow.Config, len(s.Workflows))
 	copy(out, s.Workflows)
 	return out
+}
+
+// SetPubSubProvider registers the pub/sub provider used by API handlers.
+func (s *State) SetPubSubProvider(provider pubsub.Provider) {
+	if provider == nil {
+		s.SetExtension(extensionPubSubProviderKey, nil)
+		return
+	}
+	s.SetExtension(extensionPubSubProviderKey, provider)
+}
+
+// PubSubProvider retrieves the configured pub/sub provider when available.
+func (s *State) PubSubProvider() (pubsub.Provider, bool) {
+	v, ok := s.Extension(extensionPubSubProviderKey)
+	if !ok || v == nil {
+		return nil, false
+	}
+	provider, ok := v.(pubsub.Provider)
+	if !ok {
+		return nil, false
+	}
+	return provider, true
 }
 
 func StateMiddleware(state *State) gin.HandlerFunc {

@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/auth/userctx"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
+	"github.com/compozy/compozy/engine/infra/pubsub"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/resources/importer"
@@ -441,5 +442,22 @@ func ResolveWorkflowRunner(c *gin.Context, state *appstate.State) WorkflowRunner
 		SetWorkflowRunner(c, state.Worker)
 		return state.Worker
 	}
+	return nil
+}
+
+func ResolvePubSubProvider(c *gin.Context, state *appstate.State) pubsub.Provider {
+	if state == nil {
+		return nil
+	}
+	provider, ok := state.PubSubProvider()
+	if ok && provider != nil {
+		return provider
+	}
+	RespondProblemWithCode(
+		c,
+		http.StatusServiceUnavailable,
+		ErrServiceUnavailableCode,
+		"pubsub provider unavailable",
+	)
 	return nil
 }
