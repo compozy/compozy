@@ -13,6 +13,7 @@ import (
 	appstate "github.com/compozy/compozy/engine/infra/server/appstate"
 	routerpkg "github.com/compozy/compozy/engine/infra/server/router"
 	routertest "github.com/compozy/compozy/engine/infra/server/router/routertest"
+	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	taskdomain "github.com/compozy/compozy/engine/task"
@@ -39,7 +40,7 @@ func newTaskStreamRouter(t *testing.T, repo taskdomain.Repository, state *appsta
 	})
 	r.Use(appstate.StateMiddleware(state))
 	r.Use(routerpkg.ErrorHandler())
-	api := r.Group("/api/v0")
+	api := r.Group(routes.Base())
 	Register(api)
 	return r
 }

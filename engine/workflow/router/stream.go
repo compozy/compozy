@@ -225,14 +225,13 @@ func initWorkflowTelemetry(
 	lastEventID int64,
 	status core.StatusType,
 	metrics *monitoring.StreamingMetrics,
-	log logger.Logger,
 ) (context.Context, router.StreamTelemetry, *router.StreamCloseInfo, func()) {
 	closeInfo := &router.StreamCloseInfo{
 		Reason:      router.StreamReasonInitializing,
 		Status:      status,
 		LastEventID: lastEventID,
 	}
-	telemetry := router.NewStreamTelemetry(ctx, monitoring.ExecutionKindWorkflow, execID, metrics, log)
+	telemetry := router.NewStreamTelemetry(ctx, monitoring.ExecutionKindWorkflow, execID, metrics)
 	if telemetry != nil {
 		telemetry.Connected(lastEventID, "Workflow stream connected", "poll_interval", pollInterval)
 		return telemetry.Context(), telemetry, closeInfo, func() {
@@ -240,6 +239,7 @@ func initWorkflowTelemetry(
 		}
 	}
 	started := time.Now()
+	log := logger.FromContext(ctx)
 	if log != nil {
 		log.Info(
 			"Workflow stream connected",
@@ -248,16 +248,17 @@ func initWorkflowTelemetry(
 			"poll_interval", pollInterval,
 		)
 	}
-	return ctx, nil, closeInfo, buildWorkflowFinalize(log, execID, started, closeInfo)
+	return ctx, nil, closeInfo, buildWorkflowFinalize(ctx, execID, started, closeInfo)
 }
 
 func buildWorkflowFinalize(
-	log logger.Logger,
+	ctx context.Context,
 	execID core.ID,
 	started time.Time,
 	closeInfo *router.StreamCloseInfo,
 ) func() {
 	return func() {
+		log := logger.FromContext(ctx)
 		if log == nil {
 			return
 		}
@@ -276,7 +277,7 @@ func buildWorkflowFinalize(
 			fields = append(fields, "status", info.Status)
 		}
 		if info.Error != nil {
-			log.Warn("workflow stream terminated", append(fields, "error", info.Error)...)
+			log.Warn("workflow stream terminated", append(fields, "error", core.RedactError(info.Error))...)
 			return
 		}
 		log.Info("Workflow stream disconnected", fields...)
@@ -306,7 +307,6 @@ func processWorkflowStream(
 		lastEventID,
 		status,
 		metrics,
-		log,
 	)
 	defer finalize()
 	workflowStreamLifecycle(
@@ -379,7 +379,7 @@ func handleWorkflowSnapshotResult(
 	}
 	if snapErr != nil {
 		if closeInfo != nil {
-			closeInfo.Reason = "initial_snapshot_failed"
+			closeInfo.Reason = router.StreamReasonInitialSnapshotFailed
 			closeInfo.Error = snapErr
 		}
 		return true
@@ -406,19 +406,19 @@ func finalizeWorkflowResult(
 	if loopErr != nil {
 		if errors.Is(loopErr, context.Canceled) {
 			if closeInfo != nil {
-				closeInfo.Reason = "context_canceled"
+				closeInfo.Reason = router.StreamReasonContextCanceled
 				closeInfo.Error = nil
 			}
 			return
 		}
 		if closeInfo != nil {
-			closeInfo.Reason = "stream_error"
+			closeInfo.Reason = router.StreamReasonStreamError
 			closeInfo.Error = loopErr
 		}
 		return
 	}
 	if closeInfo != nil {
-		closeInfo.Reason = "completed"
+		closeInfo.Reason = router.StreamReasonCompleted
 		closeInfo.Error = nil
 	}
 }
@@ -436,7 +436,7 @@ func writeInitialSnapshot(
 	updatedID, err := emitWorkflowEvents(stream, snapshot, lastEventID, telemetry, allowedEvents)
 	if err != nil {
 		if log != nil {
-			log.Warn("workflow stream write failed", "exec_id", execID, "error", err)
+			log.Warn("workflow stream write failed", "exec_id", execID, "error", core.RedactError(err))
 		}
 		return lastEventID, false, err
 	}

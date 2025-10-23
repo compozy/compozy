@@ -28,6 +28,14 @@ const (
 	StreamReasonInitializing = "initializing"
 	// StreamReasonTerminal marks terminal status completions.
 	StreamReasonTerminal = "terminal_status"
+	// StreamReasonCompleted indicates successful stream completion.
+	StreamReasonCompleted = "completed"
+	// StreamReasonContextCanceled indicates the stream was canceled via context.
+	StreamReasonContextCanceled = "context_canceled"
+	// StreamReasonInitialSnapshotFailed indicates initial snapshot failed.
+	StreamReasonInitialSnapshotFailed = "initial_snapshot_failed"
+	// StreamReasonStreamError indicates a generic stream error occurred.
+	StreamReasonStreamError = "stream_error"
 )
 
 type StreamTelemetry interface {
@@ -57,13 +65,9 @@ func NewStreamTelemetry(
 	kind string,
 	execID core.ID,
 	metrics *monitoring.StreamingMetrics,
-	log logger.Logger,
 ) StreamTelemetry {
 	if ctx == nil {
 		return nil
-	}
-	if log != nil && logger.FromContext(ctx) == nil {
-		ctx = logger.ContextWithLogger(ctx, log)
 	}
 	tracer := otel.Tracer(streamTracerName)
 	spanCtx, span := tracer.Start(

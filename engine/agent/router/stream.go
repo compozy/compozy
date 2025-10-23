@@ -147,8 +147,7 @@ func initAgentTelemetry(
 		LastEventID: cfg.lastEventID,
 		ExtraFields: []any{"mode", cfg.mode.String()},
 	}
-	log := logger.FromContext(ctx)
-	telemetry := router.NewStreamTelemetry(ctx, monitoring.ExecutionKindAgent, cfg.execID, cfg.metrics, log)
+	telemetry := router.NewStreamTelemetry(ctx, monitoring.ExecutionKindAgent, cfg.execID, cfg.metrics)
 	if telemetry != nil {
 		telemetry.Connected(cfg.lastEventID, "Agent stream connected", "mode", cfg.mode.String())
 		return telemetry.Context(), telemetry, closeInfo, func() {
@@ -156,6 +155,7 @@ func initAgentTelemetry(
 		}
 	}
 	started := time.Now()
+	log := logger.FromContext(ctx)
 	if log != nil {
 		log.Info(
 			"Agent stream connected",
@@ -821,7 +821,7 @@ func shouldEmit(cfg *agentStreamConfig, event string) bool {
 }
 
 func redisTokenChannel(execID core.ID) string {
-	return fmt.Sprintf("stream:tokens:%s", execID.String())
+	return fmt.Sprintf("%s%s", task.DefaultStreamChannelPrefix, execID.String())
 }
 
 func handleAgentChunk(

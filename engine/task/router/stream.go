@@ -124,34 +124,15 @@ func streamTaskExecution(c *gin.Context) {
 	runTaskStream(ctx, cfg, stream)
 }
 
-func initTaskTelemetry(
+func createTaskStreamFinalize(
 	ctx context.Context,
 	cfg *taskStreamConfig,
-) (context.Context, router.StreamTelemetry, *router.StreamCloseInfo, func()) {
-	closeInfo := &router.StreamCloseInfo{
-		Reason:      router.StreamReasonInitializing,
-		Status:      cfg.initial.Status,
-		LastEventID: cfg.lastEventID,
-		ExtraFields: []any{"mode", cfg.mode.String()},
-	}
-	telemetry := router.NewStreamTelemetry(ctx, monitoring.ExecutionKindTask, cfg.execID, cfg.metrics, cfg.log)
-	if telemetry != nil {
-		telemetry.Connected(cfg.lastEventID, "Task stream connected", "mode", cfg.mode.String())
-		return telemetry.Context(), telemetry, closeInfo, func() {
-			telemetry.Close(closeInfo)
-		}
-	}
-	started := time.Now()
-	if cfg.log != nil {
-		cfg.log.Info(
-			"Task stream connected",
-			"exec_id", cfg.execID,
-			"mode", cfg.mode.String(),
-			"last_event_id", cfg.lastEventID,
-		)
-	}
-	finalize := func() {
-		if cfg.log == nil {
+	closeInfo *router.StreamCloseInfo,
+	started time.Time,
+) func() {
+	return func() {
+		log := logger.FromContext(ctx)
+		if log == nil {
 			return
 		}
 		duration := time.Since(started)
@@ -168,11 +149,41 @@ func initTaskTelemetry(
 			fields = append(fields, closeInfo.ExtraFields...)
 		}
 		if closeInfo.Error != nil {
-			cfg.log.Warn("task stream terminated", append(fields, "error", closeInfo.Error)...)
+			log.Warn("task stream terminated", append(fields, "error", closeInfo.Error)...)
 			return
 		}
-		cfg.log.Info("Task stream disconnected", fields...)
+		log.Info("Task stream disconnected", fields...)
 	}
+}
+
+func initTaskTelemetry(
+	ctx context.Context,
+	cfg *taskStreamConfig,
+) (context.Context, router.StreamTelemetry, *router.StreamCloseInfo, func()) {
+	closeInfo := &router.StreamCloseInfo{
+		Reason:      router.StreamReasonInitializing,
+		Status:      cfg.initial.Status,
+		LastEventID: cfg.lastEventID,
+		ExtraFields: []any{"mode", cfg.mode.String()},
+	}
+	telemetry := router.NewStreamTelemetry(ctx, monitoring.ExecutionKindTask, cfg.execID, cfg.metrics)
+	if telemetry != nil {
+		telemetry.Connected(cfg.lastEventID, "Task stream connected", "mode", cfg.mode.String())
+		return telemetry.Context(), telemetry, closeInfo, func() {
+			telemetry.Close(closeInfo)
+		}
+	}
+	started := time.Now()
+	log := logger.FromContext(ctx)
+	if log != nil {
+		log.Info(
+			"Task stream connected",
+			"exec_id", cfg.execID,
+			"mode", cfg.mode.String(),
+			"last_event_id", cfg.lastEventID,
+		)
+	}
+	finalize := createTaskStreamFinalize(ctx, cfg, closeInfo, started)
 	return ctx, nil, closeInfo, finalize
 }
 
@@ -491,7 +502,7 @@ func runTaskStream(ctx context.Context, cfg *taskStreamConfig, stream *router.SS
 		runTaskTextStream(ctx, cfg, stream, telemetry, closeInfo)
 	}
 	if closeInfo.Reason == router.StreamReasonInitializing {
-		closeInfo.Reason = "completed"
+		closeInfo.Reason = router.StreamReasonCompleted
 	}
 }
 
@@ -519,18 +530,14 @@ func runTaskStructuredStream(
 		select {
 		case <-ctx.Done():
 			if closeInfo != nil {
-				closeInfo.Reason = "context_canceled"
+				closeInfo.Reason = router.StreamReasonContextCanceled
 				closeInfo.Error = nil
 			}
 			logTaskCancellation(cfg)
 			return
 		case <-heartbeat.C:
-			if err := stream.WriteHeartbeat(); err != nil {
-				logTaskStreamError(cfg, "heartbeat", err, closeInfo)
+			if !taskStreamHeartbeatTick(stream, telemetry, cfg, closeInfo) {
 				return
-			}
-			if telemetry != nil {
-				telemetry.RecordHeartbeat()
 			}
 		case <-ticker.C:
 			updatedID, ok := handleTaskPoll(ctx, stream, cfg, telemetry, closeInfo, nextID, &lastStatus, &lastUpdated)
@@ -752,11 +759,11 @@ func logTaskStreamError(cfg *taskStreamConfig, phase string, err error, closeInf
 		"task stream terminated with error",
 		"exec_id", cfg.execID,
 		"phase", phase,
-		"error", err,
+		"error", core.RedactError(err),
 	)
 	if closeInfo != nil && err != nil && closeInfo.Error == nil {
 		closeInfo.Reason = fmt.Sprintf("%s_error", phase)
-		closeInfo.Error = err
+		closeInfo.Error = fmt.Errorf("%s", core.RedactError(err))
 	}
 }
 
