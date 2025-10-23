@@ -35,7 +35,7 @@ const (
 	completeEvent           = "complete"
 	errorEvent              = "error"
 	llmChunkEvent           = "llm_chunk"
-	taskReplayLimit         = 500
+	defaultTaskReplayLimit  = 500
 )
 
 type taskStreamMode int
@@ -70,6 +70,7 @@ type taskStreamConfig struct {
 	events        map[string]struct{}
 	channelPrefix string
 	publisher     streaming.Publisher
+	replayLimit   int
 }
 
 type taskStreamTunables struct {
@@ -78,6 +79,7 @@ type taskStreamTunables struct {
 	maxPoll       time.Duration
 	heartbeat     time.Duration
 	channelPrefix string
+	replayLimit   int
 }
 
 type taskStreamDeps struct {
@@ -101,7 +103,7 @@ type taskStreamDeps struct {
 //	@Success		200				{string}	string											"SSE stream"
 //	@Failure		400				{object}	router.Response{error=router.ErrorInfo}			"Invalid request"
 //	@Failure		404				{object}	router.Response{error=router.ErrorInfo}			"Execution not found"
-//	@Failure		503				{object}	router.Response{error=router.ErrorInfo}			"Pub/Sub provider unavailable"
+//	@Failure		503				{object}	router.Response{error=router.ErrorInfo}			"Streaming infrastructure unavailable"
 //	@Failure		500				{object}	router.Response{error=router.ErrorInfo}			"Internal server error"
 //	@Router			/executions/tasks/{exec_id}/stream [get]
 func streamTaskExecution(c *gin.Context) {
@@ -262,6 +264,7 @@ func prepareTaskStreamConfig(ctx context.Context, c *gin.Context, execID core.ID
 		events:        events,
 		channelPrefix: tunables.channelPrefix,
 		publisher:     publisher,
+		replayLimit:   tunables.replayLimit,
 	}, true
 }
 
@@ -351,6 +354,7 @@ func resolveTaskStreamTunables(ctx context.Context) taskStreamTunables {
 		maxPoll:       taskStreamMaxPoll,
 		heartbeat:     taskStreamHeartbeatFreq,
 		channelPrefix: taskdomain.DefaultStreamChannelPrefix,
+		replayLimit:   defaultTaskReplayLimit,
 	}
 	cfg := config.FromContext(ctx)
 	if cfg != nil {
@@ -369,7 +373,14 @@ func resolveTaskStreamTunables(ctx context.Context) taskStreamTunables {
 		if prefix := strings.TrimSpace(cfg.Stream.Task.RedisChannelPrefix); prefix != "" {
 			values.channelPrefix = prefix
 		}
+		if limit := cfg.Stream.Task.ReplayLimit; limit > 0 {
+			values.replayLimit = limit
+		}
 	}
+	return normalizeTaskStreamTunables(values)
+}
+
+func normalizeTaskStreamTunables(values taskStreamTunables) taskStreamTunables {
 	if values.minPoll <= 0 {
 		values.minPoll = taskStreamMinPoll
 	}
@@ -393,6 +404,9 @@ func resolveTaskStreamTunables(ctx context.Context) taskStreamTunables {
 	}
 	if values.defaultPoll > values.maxPoll {
 		values.defaultPoll = values.maxPoll
+	}
+	if values.replayLimit <= 0 {
+		values.replayLimit = defaultTaskReplayLimit
 	}
 	return values
 }
@@ -735,7 +749,11 @@ func emitTaskReplayEvents(
 	if cfg.publisher == nil {
 		return lastID, true
 	}
-	envelopes, err := cfg.publisher.Replay(ctx, cfg.execID, lastID, taskReplayLimit)
+	limit := cfg.replayLimit
+	if limit <= 0 {
+		limit = defaultTaskReplayLimit
+	}
+	envelopes, err := cfg.publisher.Replay(ctx, cfg.execID, lastID, limit)
 	if err != nil {
 		logTaskStreamError(cfg, "replay", err, closeInfo)
 		return lastID, false
@@ -833,7 +851,7 @@ func emitTaskStatus(
 	if !shouldEmit(cfg, taskStatusEvent) {
 		return lastID, nil
 	}
-	nextID := lastID
+	nextID := lastID + 1
 	if err := stream.WriteEvent(nextID, taskStatusEvent, data); err != nil {
 		return lastID, err
 	}

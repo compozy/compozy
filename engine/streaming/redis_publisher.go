@@ -62,6 +62,9 @@ func (p *RedisPublisher) Publish(ctx context.Context, execID core.ID, event Even
 	if p == nil {
 		return Envelope{}, errors.New("streaming: publisher is nil")
 	}
+	if execID.IsZero() {
+		return Envelope{}, errors.New("streaming: exec id is required")
+	}
 	id, err := p.nextID(ctx, execID)
 	if err != nil {
 		return Envelope{}, err
@@ -92,7 +95,11 @@ func (p *RedisPublisher) Replay(ctx context.Context, execID core.ID, afterID int
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return nil, fmt.Errorf("streaming: fetch backlog: %w", err)
 	}
-	result := make([]Envelope, 0, min(limit, len(values)))
+	capN := len(values)
+	if capN > limit {
+		capN = limit
+	}
+	result := make([]Envelope, 0, capN)
 	for i := len(values) - 1; i >= 0; i-- {
 		var envelope Envelope
 		if err := json.Unmarshal([]byte(values[i]), &envelope); err != nil {

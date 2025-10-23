@@ -165,7 +165,7 @@ func resolveWorkflowStreamContext(
 //	@Success		200			{string}	string											"SSE stream"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}			"Invalid request"
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}			"Execution not found"
-//	@Failure		503			{object}	router.Response{error=router.ErrorInfo}			"Worker unavailable"
+//	@Failure		503			{object}	router.Response{error=router.ErrorInfo}			"Streaming infrastructure unavailable"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}			"Internal server error"
 //	@Router			/executions/workflows/{exec_id}/stream [get]
 func streamWorkflowExecution(c *gin.Context) {
@@ -665,6 +665,10 @@ func resolveWorkflowStreamTunables(ctx context.Context) workflowStreamTunables {
 			values.queryTimeout = timeout
 		}
 	}
+	return normalizeWorkflowStreamTunables(values)
+}
+
+func normalizeWorkflowStreamTunables(values workflowStreamTunables) workflowStreamTunables {
 	if values.minPoll <= 0 {
 		values.minPoll = workflowStreamMinPoll
 	}

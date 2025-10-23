@@ -47,7 +47,7 @@ func publish(
 			"Failed to publish execution event",
 			"event_type", eventType,
 			"task_exec_id", state.TaskExecID.String(),
-			"error", err,
+			"error", core.RedactError(err),
 		)
 	}
 }

@@ -37,7 +37,7 @@ const (
 	errorEvent                  = "error"
 	llmChunkEvent               = "llm_chunk"
 	promptActionID              = "__prompt__"
-	agentReplayLimit            = 500
+	defaultAgentReplayLimit     = 500
 )
 
 type agentStreamTunables struct {
@@ -45,6 +45,7 @@ type agentStreamTunables struct {
 	minPoll     time.Duration
 	maxPoll     time.Duration
 	heartbeat   time.Duration
+	replayLimit int
 }
 
 type streamMode int
@@ -77,6 +78,7 @@ type agentStreamConfig struct {
 	metrics      *monitoring.StreamingMetrics
 	events       map[string]struct{}
 	publisher    streaming.Publisher
+	replayLimit  int
 }
 
 type agentStreamDeps struct {
@@ -114,7 +116,7 @@ type agentLoop struct {
 //	@Success		200				{string}	string											"SSE stream"
 //	@Failure		400				{object}	router.Response{error=router.ErrorInfo}			"Invalid request"
 //	@Failure		404				{object}	router.Response{error=router.ErrorInfo}			"Execution not found"
-//	@Failure		503				{object}	router.Response{error=router.ErrorInfo}			"Pub/Sub provider unavailable"
+//	@Failure		503				{object}	router.Response{error=router.ErrorInfo}			"Streaming infrastructure unavailable"
 //	@Failure		500				{object}	router.Response{error=router.ErrorInfo}			"Internal server error"
 //	@Router			/executions/agents/{exec_id}/stream [get]
 func streamAgentExecution(c *gin.Context) {
@@ -167,7 +169,7 @@ func initAgentTelemetry(
 			"last_event_id", cfg.lastEventID,
 		)
 	}
-	return ctx, nil, closeInfo, buildAgentFinalize(log, started, cfg.execID, closeInfo)
+	return ctx, nil, closeInfo, buildAgentFinalize(ctx, started, cfg.execID, closeInfo)
 }
 
 func prepareAgentStreamConfig(ctx context.Context, c *gin.Context, execID core.ID) (*agentStreamConfig, bool) {
@@ -207,6 +209,7 @@ func prepareAgentStreamConfig(ctx context.Context, c *gin.Context, execID core.I
 		metrics:      metrics,
 		events:       params.events,
 		publisher:    publisher,
+		replayLimit:  deps.tunables.replayLimit,
 	}, true
 }
 
@@ -348,10 +351,11 @@ func resolveAgentStreamTunables(ctx context.Context) agentStreamTunables {
 		minPoll:     defaultAgentStreamMinPoll,
 		maxPoll:     defaultAgentStreamMaxPoll,
 		heartbeat:   defaultAgentStreamHeartbeat,
+		replayLimit: defaultAgentReplayLimit,
 	}
 	cfg := config.FromContext(ctx)
 	if cfg == nil {
-		return values
+		return normalizeAgentStreamTunables(values)
 	}
 	if poll := cfg.Stream.Agent.DefaultPoll; poll > 0 {
 		values.defaultPoll = poll
@@ -365,6 +369,25 @@ func resolveAgentStreamTunables(ctx context.Context) agentStreamTunables {
 	if hb := cfg.Stream.Agent.HeartbeatFrequency; hb > 0 {
 		values.heartbeat = hb
 	}
+	if limit := cfg.Stream.Agent.ReplayLimit; limit > 0 {
+		values.replayLimit = limit
+	}
+	return normalizeAgentStreamTunables(values)
+}
+
+func normalizeAgentStreamTunables(values agentStreamTunables) agentStreamTunables {
+	if values.minPoll <= 0 {
+		values.minPoll = defaultAgentStreamMinPoll
+	}
+	if values.maxPoll <= 0 {
+		values.maxPoll = defaultAgentStreamMaxPoll
+	}
+	if values.defaultPoll <= 0 {
+		values.defaultPoll = defaultAgentStreamPoll
+	}
+	if values.heartbeat <= 0 {
+		values.heartbeat = defaultAgentStreamHeartbeat
+	}
 	if values.minPoll > values.maxPoll {
 		values.minPoll = values.maxPoll
 	}
@@ -373,6 +396,9 @@ func resolveAgentStreamTunables(ctx context.Context) agentStreamTunables {
 	}
 	if values.defaultPoll > values.maxPoll {
 		values.defaultPoll = values.maxPoll
+	}
+	if values.replayLimit <= 0 {
+		values.replayLimit = defaultAgentReplayLimit
 	}
 	return values
 }
@@ -729,7 +755,11 @@ func emitAgentReplayEvents(
 	if cfg.publisher == nil {
 		return lastID, true
 	}
-	envelopes, err := cfg.publisher.Replay(ctx, cfg.execID, lastID, agentReplayLimit)
+	limit := cfg.replayLimit
+	if limit <= 0 {
+		limit = defaultAgentReplayLimit
+	}
+	envelopes, err := cfg.publisher.Replay(ctx, cfg.execID, lastID, limit)
 	if err != nil {
 		logAgentStreamError(ctx, cfg, "replay", err, closeInfo)
 		return lastID, false
@@ -900,8 +930,9 @@ func logAgentCancellation(ctx context.Context, cfg *agentStreamConfig) {
 	}
 }
 
-func buildAgentFinalize(log logger.Logger, started time.Time, execID core.ID, info *router.StreamCloseInfo) func() {
+func buildAgentFinalize(ctx context.Context, started time.Time, execID core.ID, info *router.StreamCloseInfo) func() {
 	return func() {
+		log := logger.FromContext(ctx)
 		if log == nil {
 			return
 		}
@@ -1106,23 +1137,36 @@ func handleAgentPoll(
 		}
 	}
 	if isTerminalStatus(state.Status) {
-		eventType := terminalEventType(state.Status)
-		if shouldEmit(cfg, eventType) {
-			updatedID, err = emitAgentTerminal(stream, telemetry, state, updatedID)
-			if err != nil {
-				logAgentStreamError(ctx, cfg, "terminal", err, closeInfo)
-				return lastID, false
-			}
-		}
-		if closeInfo != nil {
-			closeInfo.LastEventID = updatedID
-			closeInfo.Status = state.Status
-			closeInfo.Reason = router.StreamReasonTerminal
-		}
-		logAgentCompletion(ctx, cfg, updatedID, state.Status)
-		return updatedID, false
+		return handleAgentTerminalOnPoll(ctx, stream, cfg, telemetry, closeInfo, state, updatedID)
 	}
 	return updatedID, true
+}
+
+func handleAgentTerminalOnPoll(
+	ctx context.Context,
+	stream *router.SSEStream,
+	cfg *agentStreamConfig,
+	telemetry router.StreamTelemetry,
+	closeInfo *router.StreamCloseInfo,
+	state *task.State,
+	currentID int64,
+) (int64, bool) {
+	updatedID := currentID
+	if shouldEmit(cfg, terminalEventType(state.Status)) {
+		var err error
+		updatedID, err = emitAgentTerminal(stream, telemetry, state, updatedID)
+		if err != nil {
+			logAgentStreamError(ctx, cfg, "terminal", err, closeInfo)
+			return currentID, false
+		}
+	}
+	if closeInfo != nil {
+		closeInfo.LastEventID = updatedID
+		closeInfo.Status = state.Status
+		closeInfo.Reason = router.StreamReasonTerminal
+	}
+	logAgentCompletion(ctx, cfg, updatedID, state.Status)
+	return updatedID, false
 }
 
 type agentStatusPayload struct {

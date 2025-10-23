@@ -54,7 +54,11 @@ func TestStreamTask_InvalidLastEventID(t *testing.T) {
 		r := newTaskStreamRouter(t, repo, state)
 		execID := core.MustNewID()
 		repo.AddState(newRunningTaskState(execID, core.MustNewID(), "demo-task"))
-		req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+execID.String()+"/stream", http.NoBody)
+		req := httptest.NewRequest(
+			http.MethodGet,
+			routes.Base()+"/executions/tasks/"+execID.String()+"/stream",
+			http.NoBody,
+		)
 		req.Header.Set("Last-Event-ID", "invalid")
 		res := httptest.NewRecorder()
 		r.ServeHTTP(res, req)
@@ -86,7 +90,7 @@ func TestStreamTask_StructuredStream(t *testing.T) {
 
 		req := httptest.NewRequest(
 			http.MethodGet,
-			"/api/v0/executions/tasks/"+execID.String()+"/stream?poll_ms=250",
+			routes.Base()+"/executions/tasks/"+execID.String()+"/stream?poll_ms=250",
 			http.NoBody,
 		)
 		res := httptest.NewRecorder()
@@ -142,7 +146,7 @@ func TestStreamTask_TextStream(t *testing.T) {
 
 		req := httptest.NewRequest(
 			http.MethodGet,
-			"/api/v0/executions/tasks/"+execID.String()+"/stream?poll_ms=250",
+			routes.Base()+"/executions/tasks/"+execID.String()+"/stream?poll_ms=250",
 			http.NoBody,
 		)
 		res := httptest.NewRecorder()
@@ -176,7 +180,7 @@ func TestStreamTask_TextStream(t *testing.T) {
 
 		req := httptest.NewRequest(
 			http.MethodGet,
-			"/api/v0/executions/tasks/"+execID.String()+"/stream?poll_ms=250&events="+taskStatusEvent,
+			routes.Base()+"/executions/tasks/"+execID.String()+"/stream?poll_ms=250&events="+taskStatusEvent,
 			http.NoBody,
 		)
 		res := httptest.NewRecorder()
@@ -200,7 +204,11 @@ func TestStreamTask_TextStreamMissingRedis(t *testing.T) {
 
 		execID := core.MustNewID()
 		repo.AddState(newRunningTaskState(execID, core.MustNewID(), "demo-task"))
-		req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+execID.String()+"/stream", http.NoBody)
+		req := httptest.NewRequest(
+			http.MethodGet,
+			routes.Base()+"/executions/tasks/"+execID.String()+"/stream",
+			http.NoBody,
+		)
 		res := httptest.NewRecorder()
 		r.ServeHTTP(res, req)
 		require.Equal(t, http.StatusServiceUnavailable, res.Code)

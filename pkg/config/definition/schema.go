@@ -80,11 +80,19 @@ func registerAgentStreamFields(registry *Registry) {
 			Type:    durationType,
 			Help:    "Frequency for emitting heartbeat frames on agent streams",
 		},
+		FieldDef{
+			Path:    "stream.agent.replay_limit",
+			Default: 500,
+			EnvVar:  "STREAM_AGENT_REPLAY_LIMIT",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum events to replay when resuming an agent stream",
+		},
 	)
 }
 
 func registerTaskStreamFields(registry *Registry) {
 	registerTaskPollFields(registry)
+	registerTaskRedisFields(registry)
 	registerTaskTextFields(registry)
 }
 
@@ -119,12 +127,53 @@ func registerTaskPollFields(registry *Registry) {
 			Type:    durationType,
 			Help:    "Frequency for emitting heartbeat frames on task streams",
 		},
+	)
+}
+
+func registerTaskRedisFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
 		FieldDef{
 			Path:    "stream.task.redis_channel_prefix",
 			Default: "stream:tokens:",
 			EnvVar:  "STREAM_TASK_REDIS_CHANNEL_PREFIX",
 			Type:    reflect.TypeOf(""),
 			Help:    "Redis channel prefix for task text streaming",
+		},
+		FieldDef{
+			Path:    "stream.task.redis_log_prefix",
+			Default: "stream:events:log:",
+			EnvVar:  "STREAM_TASK_REDIS_LOG_PREFIX",
+			Type:    reflect.TypeOf(""),
+			Help:    "Redis list key prefix for task stream event backlog",
+		},
+		FieldDef{
+			Path:    "stream.task.redis_seq_prefix",
+			Default: "stream:events:seq:",
+			EnvVar:  "STREAM_TASK_REDIS_SEQ_PREFIX",
+			Type:    reflect.TypeOf(""),
+			Help:    "Redis key prefix for task stream sequence counters",
+		},
+		FieldDef{
+			Path:    "stream.task.redis_max_entries",
+			Default: int64(500),
+			EnvVar:  "STREAM_TASK_REDIS_MAX_ENTRIES",
+			Type:    reflect.TypeOf(int64(0)),
+			Help:    "Maximum backlog entries to retain per task stream",
+		},
+		FieldDef{
+			Path:    "stream.task.redis_ttl",
+			Default: 24 * time.Hour,
+			EnvVar:  "STREAM_TASK_REDIS_TTL",
+			Type:    durationType,
+			Help:    "Time-to-live for task stream backlog keys",
+		},
+		FieldDef{
+			Path:    "stream.task.replay_limit",
+			Default: 500,
+			EnvVar:  "STREAM_TASK_REPLAY_LIMIT",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum events to replay when resuming a task stream",
 		},
 	)
 }

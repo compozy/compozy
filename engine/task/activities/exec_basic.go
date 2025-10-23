@@ -145,9 +145,9 @@ func (a *ExecuteBasic) executeBasicWithResponse(
 ) (*basicExecutionResult, error) {
 	ctx, finalizeUsage := a.attachUsageCollector(ctx, taskState)
 	status := core.StatusFailed
-	defer func() {
-		finalizeUsage(status)
-	}()
+	var mainResponse *task.MainTaskResponse
+	var execErr error
+	defer a.finalizeBasicExecution(ctx, taskState, finalizeUsage, &status, &mainResponse, &execErr)
 	output, executionError := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
 		TaskConfig:     normalizedConfig,
 		WorkflowState:  workflowState,
@@ -155,6 +155,7 @@ func (a *ExecuteBasic) executeBasicWithResponse(
 		ProjectConfig:  a.projectConfig,
 		TaskState:      taskState,
 	})
+	execErr = executionError
 	if executionError == nil {
 		status = core.StatusSuccess
 	}
@@ -171,16 +172,43 @@ func (a *ExecuteBasic) executeBasicWithResponse(
 	if taskState.Status != "" {
 		status = taskState.Status
 	}
-	mainResponse := a.convertToMainTaskResponse(result)
-	if executionError != nil {
-		services.PublishError(ctx, a.streamPublisher, taskState, executionError)
-	} else {
-		services.PublishComplete(ctx, a.streamPublisher, taskState, mainResponse)
-	}
+	mainResponse = a.convertToMainTaskResponse(result)
 	return &basicExecutionResult{
 		response:     mainResponse,
 		executionErr: executionError,
 	}, nil
+}
+
+func (a *ExecuteBasic) finalizeBasicExecution(
+	ctx context.Context,
+	taskState *task.State,
+	finalizeUsage func(core.StatusType),
+	status *core.StatusType,
+	response **task.MainTaskResponse,
+	execErr *error,
+) {
+	if finalizeUsage != nil && status != nil {
+		finalizeUsage(*status)
+	}
+	if a.streamPublisher == nil || taskState == nil {
+		return
+	}
+	var errVal error
+	if execErr != nil {
+		errVal = *execErr
+	}
+	var respVal *task.MainTaskResponse
+	if response != nil {
+		respVal = *response
+	}
+	if errVal == nil && respVal == nil {
+		return
+	}
+	if errVal != nil {
+		services.PublishError(ctx, a.streamPublisher, taskState, errVal)
+		return
+	}
+	services.PublishComplete(ctx, a.streamPublisher, taskState, respVal)
 }
 
 func (a *ExecuteBasic) attachUsageCollector(

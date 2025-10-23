@@ -34,6 +34,12 @@ func newAgentStreamRouter(t *testing.T, repo *routertest.StubTaskRepo, state *ap
 		manager := config.NewManager(t.Context(), config.NewService())
 		_, err := manager.Load(t.Context(), config.NewDefaultProvider())
 		require.NoError(t, err)
+		cfg := manager.Get()
+		require.NotNil(t, cfg)
+		cfg.Stream.Agent.MinPoll = 20 * time.Millisecond
+		if cfg.Stream.Agent.DefaultPoll < cfg.Stream.Agent.MinPoll {
+			cfg.Stream.Agent.DefaultPoll = cfg.Stream.Agent.MinPoll
+		}
 		ctx = config.ContextWithManager(ctx, manager)
 		c.Request = c.Request.WithContext(ctx)
 		routerpkg.SetTaskRepository(c, repo)
@@ -130,7 +136,7 @@ func TestStreamAgent_StructuredStream(t *testing.T) {
 		})
 		req := httptest.NewRequest(
 			http.MethodGet,
-			routes.Base()+"/executions/agents/"+execID.String()+"/stream?poll_ms=250",
+			routes.Base()+"/executions/agents/"+execID.String()+"/stream?poll_ms=50",
 			http.NoBody,
 		)
 		res := httptest.NewRecorder()
@@ -235,7 +241,7 @@ func TestStreamAgent_TextStream(t *testing.T) {
 		}()
 		req := httptest.NewRequest(
 			http.MethodGet,
-			routes.Base()+"/executions/agents/"+execID.String()+"/stream?poll_ms=250",
+			routes.Base()+"/executions/agents/"+execID.String()+"/stream?poll_ms=50",
 			http.NoBody,
 		)
 		res := httptest.NewRecorder()

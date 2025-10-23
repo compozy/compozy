@@ -200,13 +200,28 @@ func (a *Activities) initStreamPublisher(ctx context.Context, redisCache *cache.
 		return
 	}
 	client := redisCache.Redis.Client()
+	log := logger.FromContext(ctx)
 	if client == nil {
-		logger.FromContext(ctx).Debug("activities: redis client missing; stream publisher disabled")
+		if log != nil {
+			log.Debug("activities: redis client missing; stream publisher disabled")
+		}
 		return
 	}
-	publisher, err := streaming.NewRedisPublisher(client, nil)
+	var opts *streaming.RedisOptions
+	if cfg := config.FromContext(ctx); cfg != nil {
+		opts = &streaming.RedisOptions{
+			ChannelPrefix: cfg.Stream.Task.RedisChannelPrefix,
+			LogPrefix:     cfg.Stream.Task.RedisLogPrefix,
+			SeqPrefix:     cfg.Stream.Task.RedisSeqPrefix,
+			MaxEntries:    cfg.Stream.Task.RedisMaxEntries,
+			TTL:           cfg.Stream.Task.RedisTTL,
+		}
+	}
+	publisher, err := streaming.NewRedisPublisher(client, opts)
 	if err != nil {
-		logger.FromContext(ctx).Warn("activities: failed to initialize event publisher", "error", err)
+		if log != nil {
+			log.Warn("activities: failed to initialize event publisher", "error", err)
+		}
 		return
 	}
 	a.streamPublisher = publisher

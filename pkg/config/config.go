@@ -540,6 +540,7 @@ type AgentStreamConfig struct {
 	MinPoll            time.Duration `koanf:"min_poll"            env:"STREAM_AGENT_MIN_POLL"            json:"min_poll"            yaml:"min_poll"            mapstructure:"min_poll"            validate:"min=0"`
 	MaxPoll            time.Duration `koanf:"max_poll"            env:"STREAM_AGENT_MAX_POLL"            json:"max_poll"            yaml:"max_poll"            mapstructure:"max_poll"            validate:"min=0"`
 	HeartbeatFrequency time.Duration `koanf:"heartbeat_frequency" env:"STREAM_AGENT_HEARTBEAT_FREQUENCY" json:"heartbeat_frequency" yaml:"heartbeat_frequency" mapstructure:"heartbeat_frequency" validate:"min=0"`
+	ReplayLimit        int           `koanf:"replay_limit"        env:"STREAM_AGENT_REPLAY_LIMIT"        json:"replay_limit"        yaml:"replay_limit"        mapstructure:"replay_limit"        validate:"min=0"`
 }
 
 // TaskStreamEndpointConfig defines tunables for task streaming endpoints.
@@ -549,6 +550,11 @@ type TaskStreamEndpointConfig struct {
 	MaxPoll            time.Duration        `koanf:"max_poll"             env:"STREAM_TASK_MAX_POLL"             json:"max_poll"             yaml:"max_poll"             mapstructure:"max_poll"             validate:"min=0"`
 	HeartbeatFrequency time.Duration        `koanf:"heartbeat_frequency"  env:"STREAM_TASK_HEARTBEAT_FREQUENCY"  json:"heartbeat_frequency"  yaml:"heartbeat_frequency"  mapstructure:"heartbeat_frequency"  validate:"min=0"`
 	RedisChannelPrefix string               `koanf:"redis_channel_prefix" env:"STREAM_TASK_REDIS_CHANNEL_PREFIX" json:"redis_channel_prefix" yaml:"redis_channel_prefix" mapstructure:"redis_channel_prefix"`
+	RedisLogPrefix     string               `koanf:"redis_log_prefix"     env:"STREAM_TASK_REDIS_LOG_PREFIX"     json:"redis_log_prefix"     yaml:"redis_log_prefix"     mapstructure:"redis_log_prefix"`
+	RedisSeqPrefix     string               `koanf:"redis_seq_prefix"     env:"STREAM_TASK_REDIS_SEQ_PREFIX"     json:"redis_seq_prefix"     yaml:"redis_seq_prefix"     mapstructure:"redis_seq_prefix"`
+	RedisMaxEntries    int64                `koanf:"redis_max_entries"    env:"STREAM_TASK_REDIS_MAX_ENTRIES"    json:"redis_max_entries"    yaml:"redis_max_entries"    mapstructure:"redis_max_entries"    validate:"min=0"`
+	RedisTTL           time.Duration        `koanf:"redis_ttl"            env:"STREAM_TASK_REDIS_TTL"            json:"redis_ttl"            yaml:"redis_ttl"            mapstructure:"redis_ttl"`
+	ReplayLimit        int                  `koanf:"replay_limit"         env:"STREAM_TASK_REPLAY_LIMIT"         json:"replay_limit"         yaml:"replay_limit"         mapstructure:"replay_limit"         validate:"min=0"`
 	Text               TaskTextStreamConfig `koanf:"text"                                                        json:"text"                 yaml:"text"                 mapstructure:"text"`
 }
 
@@ -1807,6 +1813,7 @@ func buildStreamConfig(registry *definition.Registry) StreamConfig {
 			MinPoll:            getDuration(registry, "stream.agent.min_poll"),
 			MaxPoll:            getDuration(registry, "stream.agent.max_poll"),
 			HeartbeatFrequency: getDuration(registry, "stream.agent.heartbeat_frequency"),
+			ReplayLimit:        getInt(registry, "stream.agent.replay_limit"),
 		},
 		Task: TaskStreamEndpointConfig{
 			DefaultPoll:        getDuration(registry, "stream.task.default_poll"),
@@ -1814,6 +1821,11 @@ func buildStreamConfig(registry *definition.Registry) StreamConfig {
 			MaxPoll:            getDuration(registry, "stream.task.max_poll"),
 			HeartbeatFrequency: getDuration(registry, "stream.task.heartbeat_frequency"),
 			RedisChannelPrefix: getString(registry, "stream.task.redis_channel_prefix"),
+			RedisLogPrefix:     getString(registry, "stream.task.redis_log_prefix"),
+			RedisSeqPrefix:     getString(registry, "stream.task.redis_seq_prefix"),
+			RedisMaxEntries:    getInt64(registry, "stream.task.redis_max_entries"),
+			RedisTTL:           getDuration(registry, "stream.task.redis_ttl"),
+			ReplayLimit:        getInt(registry, "stream.task.replay_limit"),
 			Text: TaskTextStreamConfig{
 				MaxSegmentRunes: getInt(registry, "stream.task.text.max_segment_runes"),
 				PublishTimeout:  getDuration(registry, "stream.task.text.publish_timeout"),
