@@ -161,7 +161,7 @@ func resolveWorkflowStreamContext(
 //	@Param			exec_id		path		string											true	"Workflow execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
 //	@Param			Last-Event-ID	header		string										false	"Resume the stream from the provided event id"		example("42")
 //	@Param			poll_ms		query		int												false	"Polling interval (milliseconds). Default 500, min 250, max 2000."	example(500)
-//	@Param			events		query		string											false	"Comma-separated list of event types to emit (default: all events)."	example("workflow_status,tool_call,llm_chunk,complete")
+//	@Param			events		query		string											false	"Comma-separated list of event types to emit (default: all events)."	example("workflow_start,workflow_status,complete,error")
 //	@Success		200			{string}	string											"SSE stream"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}			"Invalid request"
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}			"Execution not found"
@@ -509,14 +509,11 @@ func runWorkflowStreamLoop(
 		case <-ctx.Done():
 			return status, ctx.Err()
 		case <-heartbeatTicker.C:
-			if err := stream.WriteHeartbeat(); err != nil {
+			if err := workflowHeartbeatTick(stream, telemetry); err != nil {
 				return status, err
 			}
-			if telemetry != nil {
-				telemetry.RecordHeartbeat()
-			}
 		case <-pollTicker.C:
-			currentStatus, err := processWorkflowPoll(
+			s, err := workflowPollTick(
 				ctx,
 				stream,
 				execID,
@@ -529,12 +526,35 @@ func runWorkflowStreamLoop(
 			if err != nil {
 				return status, err
 			}
-			status = currentStatus
-			if isWorkflowTerminalStatus(currentStatus) {
+			status = s
+			if isWorkflowTerminalStatus(s) {
 				return status, nil
 			}
 		}
 	}
+}
+
+func workflowHeartbeatTick(stream *router.SSEStream, telemetry router.StreamTelemetry) error {
+	if err := stream.WriteHeartbeat(); err != nil {
+		return err
+	}
+	if telemetry != nil {
+		telemetry.RecordHeartbeat()
+	}
+	return nil
+}
+
+func workflowPollTick(
+	ctx context.Context,
+	stream *router.SSEStream,
+	execID core.ID,
+	client workflowQueryClient,
+	lastEventID *int64,
+	telemetry router.StreamTelemetry,
+	allowedEvents map[string]struct{},
+	tunables workflowStreamTunables,
+) (core.StatusType, error) {
+	return processWorkflowPoll(ctx, stream, execID, client, lastEventID, telemetry, allowedEvents, tunables)
 }
 
 func processWorkflowPoll(

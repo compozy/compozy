@@ -115,8 +115,8 @@ type agentLoop struct {
 //	@Failure		500				{object}	router.Response{error=router.ErrorInfo}			"Internal server error"
 //	@Router			/executions/agents/{exec_id}/stream [get]
 func streamAgentExecution(c *gin.Context) {
-	execID := router.GetAgentExecID(c)
-	if execID == "" {
+	execID, ok := parseAgentExecID(c)
+	if !ok {
 		return
 	}
 	ctx := c.Request.Context()
@@ -242,6 +242,21 @@ func parseAgentRequestParams(c *gin.Context, tunables agentStreamTunables) (*age
 		return nil, false
 	}
 	return &agentRequestParams{pollInterval: poll, lastEventID: lastEventID, events: events}, true
+}
+
+func parseAgentExecID(c *gin.Context) (core.ID, bool) {
+	execID := router.GetAgentExecID(c)
+	if execID == "" {
+		reqErr := router.NewRequestError(http.StatusBadRequest, "missing execution id", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return "", false
+	}
+	if _, err := core.ParseID(execID.String()); err != nil {
+		reqErr := router.NewRequestError(http.StatusBadRequest, "invalid execution id", err)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return "", false
+	}
+	return execID, true
 }
 
 func (l *agentLoop) cancel() {
@@ -482,6 +497,8 @@ func resolveAgentPubSubDependency(
 	}
 	provider := router.ResolvePubSubProvider(c, state)
 	if provider == nil {
+		reqErr := router.NewRequestError(http.StatusServiceUnavailable, "pub/sub provider unavailable", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, false
 	}
 	return provider, true

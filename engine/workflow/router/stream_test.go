@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	appstate "github.com/compozy/compozy/engine/infra/server/appstate"
 	routerpkg "github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/worker"
 	wf "github.com/compozy/compozy/engine/workflow"
@@ -74,7 +75,7 @@ func newWorkflowStreamTestRouter(t *testing.T, client workflowQueryClient) *gin.
 	})
 	r.Use(appstate.StateMiddleware(state))
 	r.Use(routerpkg.ErrorHandler())
-	api := r.Group("/api/v0")
+	api := r.Group(routes.Base())
 	Register(api)
 	return r
 }
@@ -101,7 +102,11 @@ func TestStreamWorkflow_InvalidLastEventID(t *testing.T) {
 	}}
 	r := newWorkflowStreamTestRouter(t, client)
 	execID := core.MustNewID()
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/workflows/"+execID.String()+"/stream", http.NoBody)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		routes.Base()+"/executions/workflows/"+execID.String()+"/stream",
+		http.NoBody,
+	)
 	req.Header.Set("Last-Event-ID", "not-a-number")
 	res := httptest.NewRecorder()
 	r.ServeHTTP(res, req)
@@ -120,7 +125,7 @@ func TestStreamWorkflow_InvalidPollInterval(t *testing.T) {
 	execID := core.MustNewID()
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/api/v0/executions/workflows/"+execID.String()+"/stream?poll_ms=42",
+		routes.Base()+"/executions/workflows/"+execID.String()+"/stream?poll_ms=42",
 		http.NoBody,
 	)
 	res := httptest.NewRecorder()
@@ -161,7 +166,7 @@ func TestStreamWorkflow_StreamBehaviors(t *testing.T) {
 		execID := core.MustNewID()
 		req := httptest.NewRequest(
 			http.MethodGet,
-			"/api/v0/executions/workflows/"+execID.String()+"/stream?poll_ms=250",
+			routes.Base()+"/executions/workflows/"+execID.String()+"/stream?poll_ms=250",
 			http.NoBody,
 		)
 		req.Header.Set("Last-Event-ID", "1")
@@ -178,7 +183,7 @@ func TestStreamWorkflow_StreamBehaviors(t *testing.T) {
 		execID := core.MustNewID()
 		req := httptest.NewRequest(
 			http.MethodGet,
-			"/api/v0/executions/workflows/"+execID.String()+"/stream?poll_ms=250&events="+wf.StreamEventWorkflowStatus,
+			routes.Base()+"/executions/workflows/"+execID.String()+"/stream?poll_ms=250&events="+wf.StreamEventWorkflowStatus,
 			http.NoBody,
 		)
 		req.Header.Set("Last-Event-ID", "1")

@@ -1887,6 +1887,84 @@ const docTemplate = `{
                 }
             }
         },
+        "/executions/agents/{exec_id}": {
+            "get": {
+                "description": "Retrieve the latest status for a direct agent execution. The response includes a usage field containing aggregated LLM token counts grouped by provider and model.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Get agent execution status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
+                        "description": "Agent execution ID",
+                        "name": "exec_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Execution status retrieved. The data.usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination.",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/agentrouter.ExecutionStatusDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Execution not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to load execution",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/executions/agents/{exec_id}/stream": {
             "get": {
                 "description": "Streams agent execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the output schema.",
@@ -1994,84 +2072,6 @@ const docTemplate = `{
                     },
                     "503": {
                         "description": "Pub/Sub provider unavailable",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/executions/agents/{exec_id}": {
-            "get": {
-                "description": "Retrieve the latest status for a direct agent execution. The response includes a usage field containing aggregated LLM token counts grouped by provider and model.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "executions"
-                ],
-                "summary": "Get agent execution status",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
-                        "description": "Agent execution ID",
-                        "name": "exec_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Execution status retrieved. The data.usage field is an array of usage entries with prompt_tokens, completion_tokens, total_tokens, and optional reasoning_tokens, cached_prompt_tokens, input_audio_tokens, and output_audio_tokens per provider/model combination.",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/agentrouter.ExecutionStatusDTO"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Execution not found",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to load execution",
                         "schema": {
                             "allOf": [
                                 {
@@ -2952,7 +2952,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "\"workflow_status,tool_call,llm_chunk,complete\"",
+                        "example": "\"workflow_start,workflow_status,complete,error\"",
                         "description": "Comma-separated list of event types to emit (default: all events).",
                         "name": "events",
                         "in": "query"

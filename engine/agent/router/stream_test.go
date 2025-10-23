@@ -14,6 +14,7 @@ import (
 	appstate "github.com/compozy/compozy/engine/infra/server/appstate"
 	routerpkg "github.com/compozy/compozy/engine/infra/server/router"
 	routertest "github.com/compozy/compozy/engine/infra/server/router/routertest"
+	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
@@ -40,7 +41,7 @@ func newAgentStreamRouter(t *testing.T, repo *routertest.StubTaskRepo, state *ap
 	})
 	r.Use(appstate.StateMiddleware(state))
 	r.Use(routerpkg.ErrorHandler())
-	api := r.Group("/api/v0")
+	api := r.Group(routes.Base())
 	Register(api)
 	return r
 }
@@ -75,7 +76,11 @@ func TestStreamAgent_InvalidLastEventID(t *testing.T) {
 			CreatedAt:      time.Unix(0, 0).UTC(),
 			UpdatedAt:      time.Unix(0, 0).UTC(),
 		})
-		req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/agents/"+execID.String()+"/stream", http.NoBody)
+		req := httptest.NewRequest(
+			http.MethodGet,
+			routes.Base()+"/executions/agents/"+execID.String()+"/stream",
+			http.NoBody,
+		)
 		req.Header.Set("Last-Event-ID", "invalid")
 		res := httptest.NewRecorder()
 		router.ServeHTTP(res, req)
@@ -120,12 +125,12 @@ func TestStreamAgent_StructuredStream(t *testing.T) {
 		successState.Status = core.StatusSuccess
 		successState.Output = &core.Output{"message": "done"}
 		successState.UpdatedAt = time.Unix(5, 0).UTC()
-		time.AfterFunc(80*time.Millisecond, func() {
+		time.AfterFunc(20*time.Millisecond, func() {
 			repo.AddState(&successState)
 		})
 		req := httptest.NewRequest(
 			http.MethodGet,
-			"/api/v0/executions/agents/"+execID.String()+"/stream?poll_ms=250",
+			routes.Base()+"/executions/agents/"+execID.String()+"/stream?poll_ms=250",
 			http.NoBody,
 		)
 		res := httptest.NewRecorder()
@@ -179,7 +184,7 @@ func TestStreamAgent_StructuredStream(t *testing.T) {
 		repo.AddState(&terminal)
 		req := httptest.NewRequest(
 			http.MethodGet,
-			"/api/v0/executions/agents/"+execID.String()+"/stream?events=complete",
+			routes.Base()+"/executions/agents/"+execID.String()+"/stream?events=complete",
 			http.NoBody,
 		)
 		res := httptest.NewRecorder()
@@ -230,7 +235,7 @@ func TestStreamAgent_TextStream(t *testing.T) {
 		}()
 		req := httptest.NewRequest(
 			http.MethodGet,
-			"/api/v0/executions/agents/"+execID.String()+"/stream?poll_ms=250",
+			routes.Base()+"/executions/agents/"+execID.String()+"/stream?poll_ms=250",
 			http.NoBody,
 		)
 		res := httptest.NewRecorder()
@@ -266,7 +271,11 @@ func TestStreamAgent_TextStreamMissingRedis(t *testing.T) {
 			UpdatedAt:      time.Unix(0, 0).UTC(),
 		}
 		repo.AddState(runningState)
-		req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/agents/"+execID.String()+"/stream", http.NoBody)
+		req := httptest.NewRequest(
+			http.MethodGet,
+			routes.Base()+"/executions/agents/"+execID.String()+"/stream",
+			http.NoBody,
+		)
 		res := httptest.NewRecorder()
 		router.ServeHTTP(res, req)
 		require.Equal(t, http.StatusServiceUnavailable, res.Code)

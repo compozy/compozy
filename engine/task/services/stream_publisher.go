@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	defaultTaskStreamChannelPrefix = "stream:tokens:"
-	defaultMaxSegmentRunes         = 200
-	defaultPublishTimeout          = 2 * time.Second
+	defaultMaxSegmentRunes = 200
+	defaultPublishTimeout  = 2 * time.Second
 )
 
 type contextKey int
@@ -44,7 +43,7 @@ func streamChunkLimitFromContext(ctx context.Context) int {
 
 func resolveTextStreamTunables(ctx context.Context) textStreamTunables {
 	values := textStreamTunables{
-		channelPrefix:  defaultTaskStreamChannelPrefix,
+		channelPrefix:  task.DefaultStreamChannelPrefix,
 		segmentLimit:   defaultMaxSegmentRunes,
 		publishTimeout: defaultPublishTimeout,
 	}

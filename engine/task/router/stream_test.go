@@ -1,7 +1,6 @@
 package tkrouter
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -132,7 +131,7 @@ func TestStreamTask_TextStream(t *testing.T) {
 		errCh := make(chan error, 1)
 		go func() {
 			time.Sleep(50 * time.Millisecond)
-			channel := redisTokenChannel(defaultTaskRedisChannelPrefix, execID)
+			channel := redisTokenChannel(taskdomain.DefaultStreamChannelPrefix, execID)
 			err := redisHelper.GetClient().Publish(t.Context(), channel, "chunk").Err()
 			if err == nil {
 				repo.AddState(success)
@@ -166,7 +165,7 @@ func TestStreamTask_TextStream(t *testing.T) {
 		errCh := make(chan error, 1)
 		go func() {
 			time.Sleep(50 * time.Millisecond)
-			channel := redisTokenChannel(defaultTaskRedisChannelPrefix, execID)
+			channel := redisTokenChannel(taskdomain.DefaultStreamChannelPrefix, execID)
 			err := redisHelper.GetClient().Publish(t.Context(), channel, "chunk").Err()
 			if err == nil {
 				repo.AddState(success)
@@ -210,7 +209,7 @@ func TestStreamTask_TextStreamMissingRedis(t *testing.T) {
 
 func storeTaskConfig(t *testing.T, store resources.ResourceStore, project string, cfg *taskdomain.Config) {
 	t.Helper()
-	_, err := store.Put(context.Background(), resources.ResourceKey{
+	_, err := store.Put(t.Context(), resources.ResourceKey{
 		Project: project,
 		Type:    resources.ResourceTask,
 		ID:      cfg.ID,

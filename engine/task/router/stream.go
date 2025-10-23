@@ -26,15 +26,14 @@ import (
 )
 
 const (
-	taskStreamDefaultPoll         = 500 * time.Millisecond
-	taskStreamMinPoll             = 250 * time.Millisecond
-	taskStreamMaxPoll             = 2000 * time.Millisecond
-	taskStreamHeartbeatFreq       = 15 * time.Second
-	defaultTaskRedisChannelPrefix = "stream:tokens:"
-	taskStatusEvent               = "task_status"
-	completeEvent                 = "complete"
-	errorEvent                    = "error"
-	llmChunkEvent                 = "llm_chunk"
+	taskStreamDefaultPoll   = 500 * time.Millisecond
+	taskStreamMinPoll       = 250 * time.Millisecond
+	taskStreamMaxPoll       = 2000 * time.Millisecond
+	taskStreamHeartbeatFreq = 15 * time.Second
+	taskStatusEvent         = "task_status"
+	completeEvent           = "complete"
+	errorEvent              = "error"
+	llmChunkEvent           = "llm_chunk"
 )
 
 type taskStreamMode int
@@ -335,7 +334,7 @@ func resolveTaskStreamTunables(ctx context.Context) taskStreamTunables {
 		minPoll:       taskStreamMinPoll,
 		maxPoll:       taskStreamMaxPoll,
 		heartbeat:     taskStreamHeartbeatFreq,
-		channelPrefix: defaultTaskRedisChannelPrefix,
+		channelPrefix: taskdomain.DefaultStreamChannelPrefix,
 	}
 	cfg := config.FromContext(ctx)
 	if cfg != nil {
@@ -368,7 +367,7 @@ func resolveTaskStreamTunables(ctx context.Context) taskStreamTunables {
 		values.heartbeat = taskStreamHeartbeatFreq
 	}
 	if strings.TrimSpace(values.channelPrefix) == "" {
-		values.channelPrefix = defaultTaskRedisChannelPrefix
+		values.channelPrefix = taskdomain.DefaultStreamChannelPrefix
 	}
 	if values.minPoll > values.maxPoll {
 		values.minPoll = values.maxPoll
@@ -563,7 +562,7 @@ func runTaskTextStream(
 		}
 		return
 	}
-	taskTextStreamLoop(ctx, cfg, telemetry, closeInfo, stream, subscription.Messages(), nextID)
+	taskTextStreamLoop(ctx, cfg, telemetry, closeInfo, stream, subscription, nextID)
 }
 
 func taskTextStreamLoop(
@@ -572,7 +571,7 @@ func taskTextStreamLoop(
 	telemetry router.StreamTelemetry,
 	closeInfo *router.StreamCloseInfo,
 	stream *router.SSEStream,
-	messages <-chan pubsub.Message,
+	sub pubsub.Subscription,
 	startID int64,
 ) {
 	ticker := time.NewTicker(cfg.pollInterval)
@@ -592,14 +591,13 @@ func taskTextStreamLoop(
 			logTaskCancellation(cfg)
 			return
 		case <-heartbeat.C:
-			if err := stream.WriteHeartbeat(); err != nil {
-				logTaskStreamError(cfg, "heartbeat", err, closeInfo)
+			if !taskStreamHeartbeatTick(stream, telemetry, cfg, closeInfo) {
 				return
 			}
-			if telemetry != nil {
-				telemetry.RecordHeartbeat()
-			}
-		case msg, ok := <-messages:
+		case <-sub.Done():
+			taskStreamHandleSubscriptionDone(sub, cfg, closeInfo)
+			return
+		case msg, ok := <-sub.Messages():
 			updatedID, ok := handleTaskChunk(stream, cfg, telemetry, closeInfo, nextID, msg, ok)
 			if !ok {
 				return
@@ -612,6 +610,36 @@ func taskTextStreamLoop(
 			}
 			nextID = updatedID
 		}
+	}
+}
+
+func taskStreamHeartbeatTick(
+	stream *router.SSEStream,
+	telemetry router.StreamTelemetry,
+	cfg *taskStreamConfig,
+	closeInfo *router.StreamCloseInfo,
+) bool {
+	if err := stream.WriteHeartbeat(); err != nil {
+		logTaskStreamError(cfg, "heartbeat", err, closeInfo)
+		return false
+	}
+	if telemetry != nil {
+		telemetry.RecordHeartbeat()
+	}
+	return true
+}
+
+func taskStreamHandleSubscriptionDone(
+	sub pubsub.Subscription,
+	cfg *taskStreamConfig,
+	closeInfo *router.StreamCloseInfo,
+) {
+	if err := sub.Err(); err != nil {
+		logTaskStreamError(cfg, "pubsub", err, closeInfo)
+		return
+	}
+	if closeInfo != nil && closeInfo.Reason == router.StreamReasonInitializing {
+		closeInfo.Reason = router.StreamReasonTerminal
 	}
 }
 

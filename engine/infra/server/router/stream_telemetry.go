@@ -43,7 +43,6 @@ type streamTelemetry struct {
 	kind               string
 	execID             string
 	metrics            *monitoring.StreamingMetrics
-	log                logger.Logger
 	start              time.Time
 	firstEventRecorded bool
 	firstEventLatency  time.Duration
@@ -63,6 +62,9 @@ func NewStreamTelemetry(
 	if ctx == nil {
 		return nil
 	}
+	if log != nil && logger.FromContext(ctx) == nil {
+		ctx = logger.ContextWithLogger(ctx, log)
+	}
 	tracer := otel.Tracer(streamTracerName)
 	spanCtx, span := tracer.Start(
 		ctx,
@@ -78,7 +80,6 @@ func NewStreamTelemetry(
 		kind:    kind,
 		execID:  execID.String(),
 		metrics: metrics,
-		log:     log,
 		start:   time.Now(),
 		span:    span,
 	}
@@ -99,9 +100,9 @@ func (t *streamTelemetry) Connected(lastEventID int64, message string, fields ..
 	if t == nil {
 		return
 	}
-	if t.log != nil {
+	if log := logger.FromContext(t.ctx); log != nil {
 		payload := append([]any{"exec_id", t.execID, "last_event_id", lastEventID}, fields...)
-		t.log.Info(message, payload...)
+		log.Info(message, payload...)
 	}
 	if t.span != nil {
 		t.span.AddEvent(
@@ -217,8 +218,8 @@ func (t *streamTelemetry) closeLogFields(duration time.Duration, info *StreamClo
 }
 
 func (t *streamTelemetry) logError(fields []any, err error) {
-	if t.log != nil {
-		t.log.Error("Stream terminated with error", append(fields, "error", err)...)
+	if log := logger.FromContext(t.ctx); log != nil {
+		log.Error("Stream terminated with error", append(fields, "error", err)...)
 	}
 	if t.span != nil {
 		t.span.RecordError(err)
@@ -227,8 +228,8 @@ func (t *streamTelemetry) logError(fields []any, err error) {
 }
 
 func (t *streamTelemetry) logSuccess(fields []any) {
-	if t.log != nil {
-		t.log.Info("Stream disconnected", fields...)
+	if log := logger.FromContext(t.ctx); log != nil {
+		log.Info("Stream disconnected", fields...)
 	}
 	if t.span != nil {
 		t.span.SetStatus(codes.Ok, "completed")

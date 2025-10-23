@@ -63,10 +63,10 @@ func TestTextStreamPublisherPublishesRedactedLines(t *testing.T) {
 		TaskExecID: core.MustNewID(),
 		Output:     &output,
 	}
-	publisher.Publish(context.Background(), cfg, state)
+	publisher.Publish(t.Context(), cfg, state)
 	require.Len(t, provider.channels, 2)
 	for _, channel := range provider.channels {
-		require.Equal(t, fmt.Sprintf("%s%s", defaultTaskStreamChannelPrefix, state.TaskExecID.String()), channel)
+		require.Equal(t, fmt.Sprintf("%s%s", task.DefaultStreamChannelPrefix, state.TaskExecID.String()), channel)
 	}
 	require.Equal(t, "hello", provider.payloads[0])
 	require.Equal(t, "Bearer [REDACTED]", provider.payloads[1])
@@ -78,7 +78,7 @@ func TestTextStreamPublisherSkipsStructuredOutput(t *testing.T) {
 	output := core.Output{"response": "ignored"}
 	state := &task.State{TaskExecID: core.MustNewID(), Output: &output}
 	cfg := &task.Config{BaseConfig: task.BaseConfig{OutputSchema: &schema.Schema{"type": "object"}}}
-	publisher.Publish(context.Background(), cfg, state)
+	publisher.Publish(t.Context(), cfg, state)
 	require.Empty(t, provider.channels)
 	require.Empty(t, provider.payloads)
 }
@@ -89,7 +89,7 @@ func TestTextStreamPublisherSegmentsLongLines(t *testing.T) {
 	longLine := strings.Repeat("a", defaultMaxSegmentRunes*2+50)
 	output := core.Output{"response": longLine}
 	state := &task.State{TaskExecID: core.MustNewID(), Output: &output}
-	publisher.Publish(context.Background(), &task.Config{}, state)
+	publisher.Publish(t.Context(), &task.Config{}, state)
 	require.Len(t, provider.payloads, 3)
 	require.Equal(t, defaultMaxSegmentRunes, utf8.RuneCountInString(provider.payloads[0]))
 	require.Equal(t, defaultMaxSegmentRunes, utf8.RuneCountInString(provider.payloads[1]))
@@ -101,7 +101,7 @@ func TestTextStreamPublisherHonorsChunkLimit(t *testing.T) {
 	publisher := NewTextStreamPublisher(provider)
 	output := core.Output{"response": "first\nsecond\nthird"}
 	state := &task.State{TaskExecID: core.MustNewID(), Output: &output}
-	ctx := WithStreamChunkLimit(context.Background(), 2)
+	ctx := WithStreamChunkLimit(t.Context(), 2)
 	publisher.Publish(ctx, &task.Config{}, state)
 	require.Len(t, provider.payloads, 2)
 }
