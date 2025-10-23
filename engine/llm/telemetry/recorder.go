@@ -94,11 +94,15 @@ func (r *recorder) RecordEvent(ctx context.Context, evt *Event) {
 
 // RecordEvent emits a run event when a recorder is present on the context.
 func RecordEvent(ctx context.Context, evt *Event) {
-	rec := recorderFromContext(ctx)
-	if rec == nil {
+	if evt == nil {
 		return
 	}
-	rec.RecordEvent(ctx, evt)
+	if rec := recorderFromContext(ctx); rec != nil {
+		rec.RecordEvent(ctx, evt)
+	}
+	if obs := observerFromContext(ctx); obs != nil {
+		obs.OnEvent(ctx, evt)
+	}
 }
 
 // RecordTool appends a tool log event to the shared NDJSON log.
@@ -144,11 +148,15 @@ func (r *recorder) RecordTool(ctx context.Context, entry *ToolLogEntry) {
 
 // RecordTool stores the provided tool log entry using the recorder from context.
 func RecordTool(ctx context.Context, entry *ToolLogEntry) {
-	rec := recorderFromContext(ctx)
-	if rec == nil {
+	if entry == nil {
 		return
 	}
-	rec.RecordTool(ctx, entry)
+	if rec := recorderFromContext(ctx); rec != nil {
+		rec.RecordTool(ctx, entry)
+	}
+	if obs := observerFromContext(ctx); obs != nil {
+		obs.OnTool(ctx, entry)
+	}
 }
 
 // CloseRun finalizes the run, recording completion state.

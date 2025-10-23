@@ -412,7 +412,20 @@ func (s *Service) GenerateContent(
 		return nil, err
 	}
 	request := s.buildExecutionRequest(effectiveAgent, actionCopy, attachmentParts, knowledgeEntries, providerCaps)
-	return s.orchestrator.Execute(ctx, request)
+	session := newStreamSession(s.config.Stream)
+	if session != nil {
+		ctx = telemetry.ContextWithObserver(ctx, session.observer())
+		ctx = withStreamSession(ctx, session)
+	}
+	output, err := s.orchestrator.Execute(ctx, request)
+	if session != nil {
+		if err != nil {
+			session.emitError(ctx, err)
+		} else {
+			session.finalize(ctx, output)
+		}
+	}
+	return output, err
 }
 
 func validateGenerateInputs(agentConfig *agent.Config, actionID string, directPrompt string) (string, error) {

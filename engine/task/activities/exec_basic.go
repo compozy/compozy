@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
@@ -42,7 +43,7 @@ type ExecuteBasic struct {
 	memoryManager   memcore.ManagerInterface
 	templateEngine  *tplengine.TemplateEngine
 	projectConfig   *project.Config
-	streamPublisher services.StreamPublisher
+	streamPublisher streaming.Publisher
 }
 
 // NewExecuteBasic creates and returns a configured ExecuteBasic activity.
@@ -65,7 +66,7 @@ func NewExecuteBasic(
 	projectConfig *project.Config,
 	task2Factory task2.Factory,
 	toolEnvironment toolenv.Environment,
-	streamPublisher services.StreamPublisher,
+	streamPublisher streaming.Publisher,
 ) (*ExecuteBasic, error) {
 	if toolEnvironment == nil {
 		return nil, fmt.Errorf("tool environment is required for execute basic activity")
@@ -81,6 +82,7 @@ func NewExecuteBasic(
 			nil,
 			providerMetrics,
 			toolEnvironment,
+			streamPublisher,
 		),
 		task2Factory:    task2Factory,
 		workflowRepo:    workflowRepo,
@@ -151,14 +153,12 @@ func (a *ExecuteBasic) executeBasicWithResponse(
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 		ProjectConfig:  a.projectConfig,
+		TaskState:      taskState,
 	})
 	if executionError == nil {
 		status = core.StatusSuccess
 	}
 	taskState.Output = output
-	if executionError == nil {
-		a.publishTextChunks(ctx, normalizedConfig, taskState)
-	}
 	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create basic response handler: %w", err)
@@ -171,17 +171,16 @@ func (a *ExecuteBasic) executeBasicWithResponse(
 	if taskState.Status != "" {
 		status = taskState.Status
 	}
+	mainResponse := a.convertToMainTaskResponse(result)
+	if executionError != nil {
+		services.PublishError(ctx, a.streamPublisher, taskState, executionError)
+	} else {
+		services.PublishComplete(ctx, a.streamPublisher, taskState, mainResponse)
+	}
 	return &basicExecutionResult{
-		response:     a.convertToMainTaskResponse(result),
+		response:     mainResponse,
 		executionErr: executionError,
 	}, nil
-}
-
-func (a *ExecuteBasic) publishTextChunks(ctx context.Context, cfg *task.Config, state *task.State) {
-	if a == nil || a.streamPublisher == nil {
-		return
-	}
-	a.streamPublisher.Publish(ctx, cfg, state)
 }
 
 func (a *ExecuteBasic) attachUsageCollector(

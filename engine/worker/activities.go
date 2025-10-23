@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/infra/cache"
-	"github.com/compozy/compozy/engine/infra/pubsub"
 	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/memory"
@@ -14,6 +13,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/task"
 	tkfacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
@@ -44,7 +44,7 @@ type Activities struct {
 	templateEngine   *tplengine.TemplateEngine
 	task2Factory     task2.Factory
 	toolEnvironment  toolenv.Environment
-	streamPublisher  services.StreamPublisher
+	streamPublisher  streaming.Publisher
 	// Cached cache adapter contracts to avoid per-call instantiation
 	cacheKV   cache.KV
 	cacheKeys cache.KeysProvider
@@ -204,12 +204,12 @@ func (a *Activities) initStreamPublisher(ctx context.Context, redisCache *cache.
 		logger.FromContext(ctx).Debug("activities: redis client missing; stream publisher disabled")
 		return
 	}
-	provider, err := pubsub.NewRedisProvider(client)
+	publisher, err := streaming.NewRedisPublisher(client, nil)
 	if err != nil {
-		logger.FromContext(ctx).Warn("activities: failed to initialize stream publisher", "error", err)
+		logger.FromContext(ctx).Warn("activities: failed to initialize event publisher", "error", err)
 		return
 	}
-	a.streamPublisher = services.NewTextStreamPublisher(provider)
+	a.streamPublisher = publisher
 }
 
 func (a *Activities) initializeCache(ctx context.Context, redisCache *cache.Cache) error {

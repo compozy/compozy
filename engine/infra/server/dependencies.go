@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/reconciler"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
@@ -198,18 +199,32 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-	if s.redisClient != nil {
-		provider, err := pubsub.NewRedisProvider(s.redisClient)
-		if err != nil {
-			return nil, cleanupFuncs, fmt.Errorf("failed to initialize pubsub provider: %w", err)
-		}
-		state.SetPubSubProvider(provider)
+	if err := s.attachStreamingProviders(state); err != nil {
+		return nil, cleanupFuncs, err
 	}
 	if err := s.startReconcilerIfNeeded(state, &cleanupFuncs); err != nil {
 		return nil, cleanupFuncs, err
 	}
 	s.emitStartupSummary(time.Since(setupStart))
 	return state, cleanupFuncs, nil
+}
+
+func (s *Server) attachStreamingProviders(state *appstate.State) error {
+	if s.redisClient == nil {
+		return nil
+	}
+	provider, err := pubsub.NewRedisProvider(s.redisClient)
+	if err != nil {
+		return fmt.Errorf("failed to initialize pubsub provider: %w", err)
+	}
+	state.SetPubSubProvider(provider)
+	publisher, err := streaming.NewRedisPublisher(s.redisClient, nil)
+	if err != nil {
+		logger.FromContext(s.ctx).Warn("Failed to initialize stream publisher", "error", err)
+		return nil
+	}
+	state.SetStreamPublisher(publisher)
+	return nil
 }
 
 // initRuntimeServices wires monitoring, database, and MCP proxy services.

@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
@@ -36,7 +37,6 @@ const (
 	defaultChildStateRetryBase time.Duration = 50 * time.Millisecond
 	defaultSiblingPollInterval               = 200 * time.Millisecond
 	defaultSiblingPollTimeout                = 30 * time.Second
-	defaultStreamMaxChunks                   = 100
 )
 
 type ExecuteSubtaskInput struct {
@@ -56,7 +56,7 @@ type ExecuteSubtask struct {
 	configStore     services.ConfigStore
 	projectConfig   *project.Config
 	usageMetrics    usage.Metrics
-	streamPublisher services.StreamPublisher
+	streamPublisher streaming.Publisher
 }
 
 // NewExecuteSubtask creates and returns an ExecuteSubtask wired with the provided dependencies.
@@ -75,7 +75,7 @@ func NewExecuteSubtask(
 	usageMetrics usage.Metrics,
 	providerMetrics providermetrics.Recorder,
 	toolEnvironment toolenv.Environment,
-	streamPublisher services.StreamPublisher,
+	streamPublisher streaming.Publisher,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
@@ -87,6 +87,7 @@ func NewExecuteSubtask(
 			nil,
 			providerMetrics,
 			toolEnvironment,
+			streamPublisher,
 		),
 		task2Factory:    task2Factory,
 		templateEngine:  templateEngine,
@@ -196,13 +197,11 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 		ProjectConfig:  a.projectConfig,
+		TaskState:      taskState,
 	})
 	status, err = a.applySubtaskExecutionResult(ctx, taskState, output, executionError)
 	if err != nil {
 		return nil, err
-	}
-	if executionError == nil {
-		a.publishTextChunks(ctx, taskConfig, taskState)
 	}
 	result, err := a.handleSubtaskResponse(ctx, taskConfig, workflowState, workflowConfig, taskState, executionError)
 	if err != nil {
@@ -213,32 +212,11 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 	}
 	subtaskResponse := a.buildSubtaskResponse(result)
 	if executionError != nil {
+		services.PublishError(ctx, a.streamPublisher, taskState, executionError)
 		return subtaskResponse, executionError
 	}
+	services.PublishComplete(ctx, a.streamPublisher, taskState, subtaskResponse)
 	return subtaskResponse, nil
-}
-
-func (a *ExecuteSubtask) publishTextChunks(ctx context.Context, cfg *task.Config, state *task.State) {
-	if a == nil || a.streamPublisher == nil || cfg == nil || state == nil || ctx == nil {
-		return
-	}
-	if err := ctx.Err(); err != nil {
-		return
-	}
-	log := logger.FromContext(ctx)
-	limit := resolveStreamChunkLimit(ctx)
-	safeCtx := services.WithStreamChunkLimit(ctx, limit)
-	defer func() {
-		if r := recover(); r != nil {
-			if log != nil {
-				log.Warn("Recovered from stream chunk publish panic",
-					"task_exec_id", state.TaskExecID.String(),
-					"panic", r,
-				)
-			}
-		}
-	}()
-	a.streamPublisher.Publish(safeCtx, cfg, state)
 }
 
 // attachUsageCollector adds a usage collector to the context and provides a finalize callback.
@@ -632,14 +610,4 @@ func resolveSiblingWaitSettings(ctx context.Context) (time.Duration, time.Durati
 		}
 	}
 	return interval, timeout
-}
-
-func resolveStreamChunkLimit(ctx context.Context) int {
-	limit := defaultStreamMaxChunks
-	if cfg := config.FromContext(ctx); cfg != nil {
-		if value := cfg.Tasks.Stream.MaxChunks; value >= 0 {
-			limit = value
-		}
-	}
-	return limit
 }

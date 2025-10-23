@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/task"
 	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/task2/shared"
@@ -34,6 +35,7 @@ type ExecuteTaskInput struct {
 	WorkflowState  *workflow.State  `json:"workflow_state"`
 	WorkflowConfig *workflow.Config `json:"workflow_config"`
 	ProjectConfig  *project.Config  `json:"project_config"`
+	TaskState      *task.State      `json:"task_state"`
 }
 
 type ExecuteTask struct {
@@ -44,6 +46,7 @@ type ExecuteTask struct {
 	toolResolver    resolver.ToolResolver
 	toolEnvironment toolenv.Environment
 	providerMetrics providermetrics.Recorder
+	streamPublisher streaming.Publisher
 }
 
 // NewExecuteTask creates a new ExecuteTask configured with the provided runtime, workflow
@@ -57,6 +60,7 @@ func NewExecuteTask(
 	toolResolver resolver.ToolResolver,
 	providerMetrics providermetrics.Recorder,
 	toolEnvironment toolenv.Environment,
+	streamPublisher streaming.Publisher,
 ) *ExecuteTask {
 	if providerMetrics == nil {
 		providerMetrics = providermetrics.Nop()
@@ -74,6 +78,7 @@ func NewExecuteTask(
 		}(),
 		toolEnvironment: toolEnvironment,
 		providerMetrics: providerMetrics,
+		streamPublisher: streamPublisher,
 	}
 }
 
@@ -569,6 +574,7 @@ func (uc *ExecuteTask) createLLMService(
 		return nil, err
 	}
 	llmOpts = uc.appendToolEnvironment(llmOpts)
+	llmOpts = uc.appendStreamOptions(llmOpts, input)
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
@@ -650,6 +656,26 @@ func (uc *ExecuteTask) appendToolEnvironment(opts []llm.Option) []llm.Option {
 		opts = append(opts, llm.WithToolEnvironment(uc.toolEnvironment))
 	}
 	return opts
+}
+
+func (uc *ExecuteTask) appendStreamOptions(opts []llm.Option, input *ExecuteTaskInput) []llm.Option {
+	if uc.streamPublisher == nil || input == nil || input.TaskState == nil {
+		return opts
+	}
+	execID := input.TaskState.TaskExecID
+	if execID.IsZero() {
+		return opts
+	}
+	structured := input.TaskConfig != nil && input.TaskConfig.OutputSchema != nil
+	options := &llm.StreamOptions{
+		Publisher:      uc.streamPublisher,
+		ExecID:         execID,
+		WorkflowExecID: input.TaskState.WorkflowExecID,
+		TaskID:         input.TaskState.TaskID,
+		Component:      input.TaskState.Component,
+		Structured:     structured,
+	}
+	return append(opts, llm.WithStreamOptions(options))
 }
 
 func (uc *ExecuteTask) buildKnowledgeRuntimeConfig(

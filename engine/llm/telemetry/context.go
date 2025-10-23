@@ -11,7 +11,14 @@ type ctxKey string
 const (
 	runKey      ctxKey = "llm_run_ctx"
 	recorderKey ctxKey = "llm_run_recorder"
+	observerKey ctxKey = "llm_run_observer"
 )
+
+// Observer receives telemetry events in real time when attached to a context.
+type Observer interface {
+	OnEvent(ctx context.Context, evt *Event)
+	OnTool(ctx context.Context, entry *ToolLogEntry)
+}
 
 // Logger returns a logger enriched with run metadata (run_id) when available.
 func Logger(ctx context.Context) logger.Logger {
@@ -44,6 +51,24 @@ func recorderFromContext(ctx context.Context) RunRecorder {
 	}
 	if rec, ok := ctx.Value(recorderKey).(RunRecorder); ok {
 		return rec
+	}
+	return nil
+}
+
+// ContextWithObserver attaches a telemetry observer to the context.
+func ContextWithObserver(ctx context.Context, observer Observer) context.Context {
+	if observer == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, observerKey, observer)
+}
+
+func observerFromContext(ctx context.Context) Observer {
+	if ctx == nil {
+		return nil
+	}
+	if obs, ok := ctx.Value(observerKey).(Observer); ok {
+		return obs
 	}
 	return nil
 }

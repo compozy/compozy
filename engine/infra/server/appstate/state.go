@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/pubsub"
 	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/webhook"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
@@ -36,6 +37,7 @@ const (
 	extensionMonitoringServiceKey   ExtensionKey = "monitoring.service"
 	extensionWorkflowQueryClientKey ExtensionKey = "workflow.query.client"
 	extensionPubSubProviderKey      ExtensionKey = "pubsub.provider"
+	extensionStreamPublisherKey     ExtensionKey = "stream.publisher"
 )
 
 type BaseDeps struct {
@@ -278,6 +280,28 @@ func (s *State) PubSubProvider() (pubsub.Provider, bool) {
 		return nil, false
 	}
 	return provider, true
+}
+
+// SetStreamPublisher stores the execution event publisher for API handlers.
+func (s *State) SetStreamPublisher(publisher streaming.Publisher) {
+	if publisher == nil {
+		s.SetExtension(extensionStreamPublisherKey, nil)
+		return
+	}
+	s.SetExtension(extensionStreamPublisherKey, publisher)
+}
+
+// StreamPublisher retrieves the configured execution event publisher.
+func (s *State) StreamPublisher() (streaming.Publisher, bool) {
+	v, ok := s.Extension(extensionStreamPublisherKey)
+	if !ok || v == nil {
+		return nil, false
+	}
+	publisher, ok := v.(streaming.Publisher)
+	if !ok {
+		return nil, false
+	}
+	return publisher, true
 }
 
 func StateMiddleware(state *State) gin.HandlerFunc {

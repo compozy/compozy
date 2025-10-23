@@ -14,6 +14,7 @@ import (
 	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/config"
 )
@@ -114,6 +115,8 @@ type Config struct {
 	RegisterMCPs []mcp.Config
 	// ToolEnvironment provides dependency access for builtin tools.
 	ToolEnvironment toolenv.Environment
+	// Stream configures execution streaming when enabled.
+	Stream *StreamOptions
 }
 
 type KnowledgeRuntimeConfig struct {
@@ -160,6 +163,24 @@ func DefaultConfig() *Config {
 	}
 }
 
+// StreamOptions configures execution streaming behavior.
+type StreamOptions struct {
+	Publisher      streaming.Publisher
+	ExecID         core.ID
+	WorkflowExecID core.ID
+	TaskID         string
+	Component      core.ComponentType
+	Structured     bool
+}
+
+func (o *StreamOptions) clone() *StreamOptions {
+	if o == nil {
+		return nil
+	}
+	clone := *o
+	return &clone
+}
+
 // Option represents a configuration option
 type Option func(*Config)
 
@@ -188,6 +209,17 @@ func WithTimeout(timeout time.Duration) Option {
 func WithMaxConcurrentTools(maxTools int) Option {
 	return func(c *Config) {
 		c.MaxConcurrentTools = maxTools
+	}
+}
+
+// WithStreamOptions enables execution streaming when a publisher is provided.
+func WithStreamOptions(opts *StreamOptions) Option {
+	return func(c *Config) {
+		clone := opts.clone()
+		c.Stream = clone
+		if clone != nil && clone.Publisher != nil {
+			c.OrchestratorMiddlewares = append(c.OrchestratorMiddlewares, newStreamMiddleware())
+		}
 	}
 }
 

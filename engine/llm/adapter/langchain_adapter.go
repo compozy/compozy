@@ -418,6 +418,7 @@ func (a *LangChainAdapter) buildCallOptions(req *LLMRequest) []llms.CallOption {
 	options = append(options, buildProviderSpecificOptions(req)...)
 	options = append(options, buildToolOptions(a, req)...)
 	options = append(options, buildOutputOptions(a, req)...)
+	options = append(options, buildStreamingOptions(req)...)
 	return options
 }
 
@@ -501,6 +502,13 @@ func buildOutputOptions(a *LangChainAdapter, req *LLMRequest) []llms.CallOption 
 		options = append(options, llms.WithResponseMIMEType(req.Options.ResponseMIME))
 	}
 	return options
+}
+
+func buildStreamingOptions(req *LLMRequest) []llms.CallOption {
+	if req == nil || req.Options.StreamingHandler == nil {
+		return nil
+	}
+	return []llms.CallOption{llms.WithStreamingFunc(req.Options.StreamingHandler)}
 }
 
 const defaultModelCacheKey = "default"
