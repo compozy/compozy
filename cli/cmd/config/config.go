@@ -387,6 +387,8 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	flattenDatabaseConfig(cfg, result)
 	flattenTemporalConfig(cfg, result)
 	flattenRuntimeConfig(cfg, result)
+	flattenStreamConfig(cfg, result)
+	flattenTasksConfig(cfg, result)
 	flattenLimitsConfig(cfg, result)
 	flattenAttachmentsConfig(cfg, result)
 	flattenMemoryConfig(cfg, result)
@@ -445,6 +447,21 @@ func flattenRuntimeConfig(cfg *config.Config, result map[string]string) {
 	result["runtime.task_execution_timeout_default"] = cfg.Runtime.TaskExecutionTimeoutDefault.String()
 	result["runtime.task_execution_timeout_max"] = cfg.Runtime.TaskExecutionTimeoutMax.String()
 	result["runtime.tool_execution_timeout"] = cfg.Runtime.ToolExecutionTimeout.String()
+}
+
+func flattenStreamConfig(cfg *config.Config, result map[string]string) {
+	result["stream.agent.default_poll"] = cfg.Stream.Agent.DefaultPoll.String()
+	result["stream.agent.min_poll"] = cfg.Stream.Agent.MinPoll.String()
+	result["stream.agent.max_poll"] = cfg.Stream.Agent.MaxPoll.String()
+	result["stream.agent.heartbeat_frequency"] = cfg.Stream.Agent.HeartbeatFrequency.String()
+}
+
+func flattenTasksConfig(cfg *config.Config, result map[string]string) {
+	result["tasks.retry.child_state.max_attempts"] = fmt.Sprintf("%d", cfg.Tasks.Retry.ChildState.MaxAttempts)
+	result["tasks.retry.child_state.base_backoff"] = cfg.Tasks.Retry.ChildState.BaseBackoff.String()
+	result["tasks.wait.siblings.poll_interval"] = cfg.Tasks.Wait.Siblings.PollInterval.String()
+	result["tasks.wait.siblings.timeout"] = cfg.Tasks.Wait.Siblings.Timeout.String()
+	result["tasks.stream.max_chunks"] = fmt.Sprintf("%d", cfg.Tasks.Stream.MaxChunks)
 }
 
 // flattenLimitsConfig flattens limits configuration

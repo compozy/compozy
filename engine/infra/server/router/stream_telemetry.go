@@ -213,9 +213,6 @@ func (t *streamTelemetry) closeLogFields(duration time.Duration, info *StreamClo
 	if len(info.ExtraFields) > 0 {
 		fields = append(fields, info.ExtraFields...)
 	}
-	if len(info.ExtraFields) > 0 {
-		fields = append(fields, info.ExtraFields...)
-	}
 	return fields
 }
 

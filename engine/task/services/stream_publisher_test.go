@@ -18,7 +18,17 @@ import (
 
 type stubSubscription struct{}
 
+var closedDoneChan = func() <-chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}()
+
 func (s *stubSubscription) Messages() <-chan pubsub.Message { return nil }
+
+func (s *stubSubscription) Done() <-chan struct{} { return closedDoneChan }
+
+func (s *stubSubscription) Err() error { return nil }
 
 func (s *stubSubscription) Close() error { return nil }
 
@@ -84,4 +94,14 @@ func TestTextStreamPublisherSegmentsLongLines(t *testing.T) {
 	require.Equal(t, maxSegmentRunes, utf8.RuneCountInString(provider.payloads[0]))
 	require.Equal(t, maxSegmentRunes, utf8.RuneCountInString(provider.payloads[1]))
 	require.Equal(t, 50, utf8.RuneCountInString(provider.payloads[2]))
+}
+
+func TestTextStreamPublisherHonorsChunkLimit(t *testing.T) {
+	provider := &stubProvider{}
+	publisher := NewTextStreamPublisher(provider)
+	output := core.Output{"response": "first\nsecond\nthird"}
+	state := &task.State{TaskExecID: core.MustNewID(), Output: &output}
+	ctx := WithStreamChunkLimit(context.Background(), 2)
+	publisher.Publish(ctx, &task.Config{}, state)
+	require.Len(t, provider.payloads, 2)
 }

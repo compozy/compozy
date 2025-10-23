@@ -17,6 +17,8 @@ const (
 	heartbeatFrameBody = ": ping\n\n"
 )
 
+var eventNameSanitizer = strings.NewReplacer("\r", "", "\n", "")
+
 // SSEStream manages writing Server-Sent Events frames with flushing support.
 type SSEStream struct {
 	writer      http.ResponseWriter
@@ -65,9 +67,9 @@ func (s *SSEStream) WriteEvent(id int64, event string, data []byte) error {
 	payload.WriteString("id: ")
 	payload.WriteString(strconv.FormatInt(id, 10))
 	payload.WriteByte('\n')
-	if event != "" {
+	if sanitized := sanitizeSSEToken(event); sanitized != "" {
 		payload.WriteString("event: ")
-		payload.WriteString(event)
+		payload.WriteString(sanitized)
 		payload.WriteByte('\n')
 	}
 	if len(data) == 0 {
@@ -85,6 +87,13 @@ func (s *SSEStream) WriteEvent(id int64, event string, data []byte) error {
 		return err
 	}
 	return s.flush()
+}
+
+func sanitizeSSEToken(value string) string {
+	if value == "" {
+		return ""
+	}
+	return eventNameSanitizer.Replace(value)
 }
 
 // WriteHeartbeat emits an SSE heartbeat comment frame and flushes the response.

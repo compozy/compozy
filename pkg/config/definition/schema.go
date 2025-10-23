@@ -19,6 +19,8 @@ func CreateRegistry() *Registry {
 	registerDatabaseFields(registry)
 	registerTemporalFields(registry)
 	registerRuntimeFields(registry)
+	registerStreamFields(registry)
+	registerTasksFields(registry)
 	registerLimitsFields(registry)
 	registerAttachmentsFields(registry)
 	registerMemoryFields(registry)
@@ -39,6 +41,81 @@ func registerFieldDefs(registry *Registry, defs ...FieldDef) {
 		def := defs[i]
 		registry.Register(&def)
 	}
+}
+
+func registerStreamFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "stream.agent.default_poll",
+			Default: 500 * time.Millisecond,
+			EnvVar:  "STREAM_AGENT_DEFAULT_POLL",
+			Type:    durationType,
+			Help:    "Default polling interval for agent streaming when poll_ms is omitted",
+		},
+		FieldDef{
+			Path:    "stream.agent.min_poll",
+			Default: 250 * time.Millisecond,
+			EnvVar:  "STREAM_AGENT_MIN_POLL",
+			Type:    durationType,
+			Help:    "Minimum allowed polling interval for agent streaming",
+		},
+		FieldDef{
+			Path:    "stream.agent.max_poll",
+			Default: 2000 * time.Millisecond,
+			EnvVar:  "STREAM_AGENT_MAX_POLL",
+			Type:    durationType,
+			Help:    "Maximum allowed polling interval for agent streaming",
+		},
+		FieldDef{
+			Path:    "stream.agent.heartbeat_frequency",
+			Default: 15 * time.Second,
+			EnvVar:  "STREAM_AGENT_HEARTBEAT_FREQUENCY",
+			Type:    durationType,
+			Help:    "Frequency for emitting heartbeat frames on agent streams",
+		},
+	)
+}
+
+func registerTasksFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "tasks.retry.child_state.max_attempts",
+			Default: 5,
+			EnvVar:  "TASKS_RETRY_CHILD_MAX_ATTEMPTS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum attempts to fetch child task state before failing",
+		},
+		FieldDef{
+			Path:    "tasks.retry.child_state.base_backoff",
+			Default: 50 * time.Millisecond,
+			EnvVar:  "TASKS_RETRY_CHILD_BASE_BACKOFF",
+			Type:    durationType,
+			Help:    "Base exponential backoff used between child state fetch retries",
+		},
+		FieldDef{
+			Path:    "tasks.wait.siblings.poll_interval",
+			Default: 200 * time.Millisecond,
+			EnvVar:  "TASKS_WAIT_SIBLINGS_POLL_INTERVAL",
+			Type:    durationType,
+			Help:    "Polling interval when waiting for prior sibling tasks to complete",
+		},
+		FieldDef{
+			Path:    "tasks.wait.siblings.timeout",
+			Default: 30 * time.Second,
+			EnvVar:  "TASKS_WAIT_SIBLINGS_TIMEOUT",
+			Type:    durationType,
+			Help:    "Maximum time to wait for prior sibling tasks to finish",
+		},
+		FieldDef{
+			Path:    "tasks.stream.max_chunks",
+			Default: 100,
+			EnvVar:  "TASKS_STREAM_MAX_CHUNKS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum text chunks to publish per task output stream (0 disables)",
+		},
+	)
 }
 
 func registerKnowledgeFields(registry *Registry) {

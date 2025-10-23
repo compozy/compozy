@@ -64,6 +64,12 @@ type Config struct {
 	// $ref: schema://application#runtime
 	Runtime RuntimeConfig `koanf:"runtime" json:"runtime" yaml:"runtime" mapstructure:"runtime" validate:"required"`
 
+	// Stream configures real-time streaming defaults.
+	Stream StreamConfig `koanf:"stream" json:"stream" yaml:"stream" mapstructure:"stream"`
+
+	// Tasks configures task execution tunables.
+	Tasks TasksConfig `koanf:"tasks" json:"tasks" yaml:"tasks" mapstructure:"tasks"`
+
 	// Limits defines system resource limits and constraints.
 	//
 	// $ref: schema://application#limits
@@ -519,6 +525,53 @@ type RuntimeConfig struct {
 
 	// NativeTools configures native cp__ tool behavior and guards.
 	NativeTools NativeToolsConfig `koanf:"native_tools" json:"native_tools" yaml:"native_tools" mapstructure:"native_tools"`
+}
+
+// StreamConfig holds defaults for streaming endpoints.
+type StreamConfig struct {
+	Agent AgentStreamConfig `koanf:"agent" json:"agent" yaml:"agent" mapstructure:"agent"`
+}
+
+// AgentStreamConfig defines tunables for agent execution streaming.
+type AgentStreamConfig struct {
+	DefaultPoll        time.Duration `koanf:"default_poll"        env:"STREAM_AGENT_DEFAULT_POLL"        json:"default_poll"        yaml:"default_poll"        mapstructure:"default_poll"        validate:"min=0"`
+	MinPoll            time.Duration `koanf:"min_poll"            env:"STREAM_AGENT_MIN_POLL"            json:"min_poll"            yaml:"min_poll"            mapstructure:"min_poll"            validate:"min=0"`
+	MaxPoll            time.Duration `koanf:"max_poll"            env:"STREAM_AGENT_MAX_POLL"            json:"max_poll"            yaml:"max_poll"            mapstructure:"max_poll"            validate:"min=0"`
+	HeartbeatFrequency time.Duration `koanf:"heartbeat_frequency" env:"STREAM_AGENT_HEARTBEAT_FREQUENCY" json:"heartbeat_frequency" yaml:"heartbeat_frequency" mapstructure:"heartbeat_frequency" validate:"min=0"`
+}
+
+// TasksConfig aggregates task execution tunables.
+type TasksConfig struct {
+	Retry  TaskRetryConfig  `koanf:"retry"  json:"retry"  yaml:"retry"  mapstructure:"retry"`
+	Wait   TaskWaitConfig   `koanf:"wait"   json:"wait"   yaml:"wait"   mapstructure:"wait"`
+	Stream TaskStreamConfig `koanf:"stream" json:"stream" yaml:"stream" mapstructure:"stream"`
+}
+
+// TaskRetryConfig captures retry behavior for dependent lookups.
+type TaskRetryConfig struct {
+	ChildState TaskChildStateRetryConfig `koanf:"child_state" json:"child_state" yaml:"child_state" mapstructure:"child_state"`
+}
+
+// TaskChildStateRetryConfig defines retry strategy for child state lookups.
+type TaskChildStateRetryConfig struct {
+	MaxAttempts int           `koanf:"max_attempts" env:"TASKS_RETRY_CHILD_MAX_ATTEMPTS" json:"max_attempts" yaml:"max_attempts" mapstructure:"max_attempts" validate:"min=1"`
+	BaseBackoff time.Duration `koanf:"base_backoff" env:"TASKS_RETRY_CHILD_BASE_BACKOFF" json:"base_backoff" yaml:"base_backoff" mapstructure:"base_backoff" validate:"min=0"`
+}
+
+// TaskWaitConfig captures sibling wait tunables.
+type TaskWaitConfig struct {
+	Siblings TaskSiblingWaitConfig `koanf:"siblings" json:"siblings" yaml:"siblings" mapstructure:"siblings"`
+}
+
+// TaskSiblingWaitConfig tunes sibling polling behavior.
+type TaskSiblingWaitConfig struct {
+	PollInterval time.Duration `koanf:"poll_interval" env:"TASKS_WAIT_SIBLINGS_POLL_INTERVAL" json:"poll_interval" yaml:"poll_interval" mapstructure:"poll_interval" validate:"min=0"`
+	Timeout      time.Duration `koanf:"timeout"       env:"TASKS_WAIT_SIBLINGS_TIMEOUT"       json:"timeout"       yaml:"timeout"       mapstructure:"timeout"       validate:"min=0"`
+}
+
+// TaskStreamConfig limits stream chunk publication.
+type TaskStreamConfig struct {
+	MaxChunks int `koanf:"max_chunks" env:"TASKS_STREAM_MAX_CHUNKS" json:"max_chunks" yaml:"max_chunks" mapstructure:"max_chunks"`
 }
 
 // LimitsConfig contains system limits and constraints.
@@ -1703,6 +1756,8 @@ func defaultFromRegistry() *Config {
 		Database:    buildDatabaseConfig(registry),
 		Temporal:    buildTemporalConfig(registry),
 		Runtime:     buildRuntimeConfig(registry),
+		Stream:      buildStreamConfig(registry),
+		Tasks:       buildTasksConfig(registry),
 		Limits:      buildLimitsConfig(registry),
 		Attachments: buildAttachmentsConfig(registry),
 		Memory:      buildMemoryConfig(registry),
@@ -1715,6 +1770,37 @@ func defaultFromRegistry() *Config {
 		Worker:      buildWorkerConfig(registry),
 		MCPProxy:    buildMCPProxyConfig(registry),
 		Webhooks:    buildWebhooksConfig(registry),
+	}
+}
+
+func buildStreamConfig(registry *definition.Registry) StreamConfig {
+	return StreamConfig{
+		Agent: AgentStreamConfig{
+			DefaultPoll:        getDuration(registry, "stream.agent.default_poll"),
+			MinPoll:            getDuration(registry, "stream.agent.min_poll"),
+			MaxPoll:            getDuration(registry, "stream.agent.max_poll"),
+			HeartbeatFrequency: getDuration(registry, "stream.agent.heartbeat_frequency"),
+		},
+	}
+}
+
+func buildTasksConfig(registry *definition.Registry) TasksConfig {
+	return TasksConfig{
+		Retry: TaskRetryConfig{
+			ChildState: TaskChildStateRetryConfig{
+				MaxAttempts: getInt(registry, "tasks.retry.child_state.max_attempts"),
+				BaseBackoff: getDuration(registry, "tasks.retry.child_state.base_backoff"),
+			},
+		},
+		Wait: TaskWaitConfig{
+			Siblings: TaskSiblingWaitConfig{
+				PollInterval: getDuration(registry, "tasks.wait.siblings.poll_interval"),
+				Timeout:      getDuration(registry, "tasks.wait.siblings.timeout"),
+			},
+		},
+		Stream: TaskStreamConfig{
+			MaxChunks: getInt(registry, "tasks.stream.max_chunks"),
+		},
 	}
 }
 

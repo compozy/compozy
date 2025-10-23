@@ -19,8 +19,8 @@ func Register(apiBase *gin.RouterGroup) {
 	execGroup := apiBase.Group("/executions")
 	{
 		taskExecGroup := execGroup.Group("/tasks")
-		taskExecGroup.GET("/:task_exec_id", getTaskExecutionStatus)
-		taskExecGroup.GET("/:task_exec_id/stream", streamTaskExecution)
+		taskExecGroup.GET("/:exec_id", getTaskExecutionStatus)
+		taskExecGroup.GET("/:exec_id/stream", streamTaskExecution)
 	}
 	workflowsGroup := apiBase.Group("/workflows/:workflow_id")
 	{

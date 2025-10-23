@@ -7,10 +7,12 @@ type Message struct {
 	Payload []byte
 }
 
-// Subscription exposes a stream of messages and allows callers to release
-// underlying resources when the stream is no longer needed.
+// Subscription exposes a stream of messages and allows callers to observe
+// termination state. Close must be safe to call multiple times.
 type Subscription interface {
 	Messages() <-chan Message
+	Done() <-chan struct{}
+	Err() error
 	Close() error
 }
 

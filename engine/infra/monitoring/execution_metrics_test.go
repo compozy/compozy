@@ -7,7 +7,6 @@ import (
 
 	monitoringmetrics "github.com/compozy/compozy/engine/infra/monitoring/metrics"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
@@ -88,18 +87,4 @@ func TestExecutionMetrics_Recorders(t *testing.T) {
 		require.True(t, errorFound, "expected error counter to be collected")
 		require.True(t, asyncFound, "expected async started counter to be collected")
 	})
-}
-
-func attrString(t *testing.T, set attribute.Set, key string) string {
-	t.Helper()
-	value, ok := set.Value(attribute.Key(key))
-	require.True(t, ok, "expected attribute %q", key)
-	return value.AsString()
-}
-
-func attrInt(t *testing.T, set attribute.Set, key string) int64 {
-	t.Helper()
-	value, ok := set.Value(attribute.Key(key))
-	require.True(t, ok, "expected attribute %q", key)
-	return value.AsInt64()
 }

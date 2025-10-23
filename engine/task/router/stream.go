@@ -72,7 +72,7 @@ type taskStreamConfig struct {
 //	@Tags			executions
 //	@Accept			*/*
 //	@Produce		text/event-stream
-//	@Param			task_exec_id	path		string											true	"Task execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
+//	@Param			exec_id	path		string											true	"Task execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
 //	@Param			Last-Event-ID	header		string											false	"Resume the stream from the provided event id"	example("42")
 //	@Param			poll_ms			query		int												false	"Polling interval (milliseconds). Default 500, min 250, max 2000."	example(500)
 //	@Param			events			query		string											false	"Comma-separated list of event types to emit (default: all events)."	example("task_status,llm_chunk,complete")
@@ -81,7 +81,7 @@ type taskStreamConfig struct {
 //	@Failure		404				{object}	router.Response{error=router.ErrorInfo}			"Execution not found"
 //	@Failure		503				{object}	router.Response{error=router.ErrorInfo}			"Pub/Sub provider unavailable"
 //	@Failure		500				{object}	router.Response{error=router.ErrorInfo}			"Internal server error"
-//	@Router			/executions/tasks/{task_exec_id}/stream [get]
+//	@Router			/executions/tasks/{exec_id}/stream [get]
 func streamTaskExecution(c *gin.Context) {
 	execID := router.GetTaskExecID(c)
 	if execID == "" {

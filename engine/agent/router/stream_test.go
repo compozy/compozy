@@ -1,7 +1,6 @@
 package agentrouter
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -47,193 +46,232 @@ func newAgentStreamRouter(t *testing.T, repo *routertest.StubTaskRepo, state *ap
 }
 
 func TestStreamAgent_InvalidLastEventID(t *testing.T) {
-	state := routertest.NewTestAppState(t)
-	resourceStore := routertest.NewResourceStore(state)
-	repo := routertest.NewStubTaskRepo()
-	outputSchema := &schema.Schema{"type": "object"}
-	agentCfg := &agent.Config{
-		ID: "demo-agent",
-		Actions: []*agent.ActionConfig{{
-			ID:           "structured",
-			OutputSchema: outputSchema,
-		}},
-	}
-	_, err := resourceStore.Put(context.Background(), resources.ResourceKey{
-		Project: state.ProjectConfig.Name,
-		Type:    resources.ResourceAgent,
-		ID:      agentCfg.ID,
-	}, agentCfg)
-	require.NoError(t, err)
-	router := newAgentStreamRouter(t, repo, state)
-	execID := core.MustNewID()
-	repo.AddState(&task.State{
-		TaskExecID:     execID,
-		WorkflowExecID: core.MustNewID(),
-		Status:         core.StatusRunning,
-		AgentID:        strPtr("demo-agent"),
-		ActionID:       strPtr("structured"),
-		CreatedAt:      time.Unix(0, 0).UTC(),
-		UpdatedAt:      time.Unix(0, 0).UTC(),
+	t.Run("Should return 400 on invalid Last-Event-ID", func(t *testing.T) {
+		state := routertest.NewTestAppState(t)
+		resourceStore := routertest.NewResourceStore(state)
+		repo := routertest.NewStubTaskRepo()
+		outputSchema := &schema.Schema{"type": "object"}
+		agentCfg := &agent.Config{
+			ID: "demo-agent",
+			Actions: []*agent.ActionConfig{{
+				ID:           "structured",
+				OutputSchema: outputSchema,
+			}},
+		}
+		_, err := resourceStore.Put(t.Context(), resources.ResourceKey{
+			Project: state.ProjectConfig.Name,
+			Type:    resources.ResourceAgent,
+			ID:      agentCfg.ID,
+		}, agentCfg)
+		require.NoError(t, err)
+		router := newAgentStreamRouter(t, repo, state)
+		execID := core.MustNewID()
+		repo.AddState(&task.State{
+			TaskExecID:     execID,
+			WorkflowExecID: core.MustNewID(),
+			Status:         core.StatusRunning,
+			AgentID:        strPtr("demo-agent"),
+			ActionID:       strPtr("structured"),
+			CreatedAt:      time.Unix(0, 0).UTC(),
+			UpdatedAt:      time.Unix(0, 0).UTC(),
+		})
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/agents/"+execID.String()+"/stream", http.NoBody)
+		req.Header.Set("Last-Event-ID", "invalid")
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		require.Equal(t, http.StatusBadRequest, res.Code)
+		require.Contains(t, res.Body.String(), "Last-Event-ID")
 	})
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/agents/"+execID.String()+"/stream", http.NoBody)
-	req.Header.Set("Last-Event-ID", "invalid")
-	res := httptest.NewRecorder()
-	router.ServeHTTP(res, req)
-	require.Equal(t, http.StatusBadRequest, res.Code)
-	require.Contains(t, res.Body.String(), "Last-Event-ID")
 }
 
 func TestStreamAgent_StructuredStream(t *testing.T) {
-	state := routertest.NewTestAppState(t)
-	projectName := state.ProjectConfig.Name
-	resourceStore := routertest.NewResourceStore(state)
-	repo := routertest.NewStubTaskRepo()
-	router := newAgentStreamRouter(t, repo, state)
-
-	outputSchema := &schema.Schema{"type": "object"}
-	agentCfg := &agent.Config{
-		ID: "demo-agent",
-		Actions: []*agent.ActionConfig{{
-			ID:           "structured",
-			OutputSchema: outputSchema,
-		}},
-	}
-	_, err := resourceStore.Put(context.Background(), resources.ResourceKey{
-		Project: projectName,
-		Type:    resources.ResourceAgent,
-		ID:      agentCfg.ID,
-	}, agentCfg)
-	require.NoError(t, err)
-
-	execID := core.MustNewID()
-	workflowExecID := core.MustNewID()
-	createdAt := time.Unix(0, 0).UTC()
-	runningState := &task.State{
-		TaskExecID:     execID,
-		WorkflowExecID: workflowExecID,
-		Status:         core.StatusRunning,
-		AgentID:        strPtr("demo-agent"),
-		ActionID:       strPtr("structured"),
-		CreatedAt:      createdAt,
-		UpdatedAt:      createdAt,
-	}
-	repo.AddState(runningState)
-
-	successState := *runningState
-	successState.Status = core.StatusSuccess
-	successState.Output = &core.Output{"message": "done"}
-	successState.UpdatedAt = time.Unix(5, 0).UTC()
-
-	time.AfterFunc(80*time.Millisecond, func() {
-		repo.AddState(&successState)
+	t.Run("Should stream structured events", func(t *testing.T) {
+		state := routertest.NewTestAppState(t)
+		resourceStore := routertest.NewResourceStore(state)
+		repo := routertest.NewStubTaskRepo()
+		router := newAgentStreamRouter(t, repo, state)
+		outputSchema := &schema.Schema{"type": "object"}
+		agentCfg := &agent.Config{
+			ID: "demo-agent",
+			Actions: []*agent.ActionConfig{{
+				ID:           "structured",
+				OutputSchema: outputSchema,
+			}},
+		}
+		_, err := resourceStore.Put(t.Context(), resources.ResourceKey{
+			Project: state.ProjectConfig.Name,
+			Type:    resources.ResourceAgent,
+			ID:      agentCfg.ID,
+		}, agentCfg)
+		require.NoError(t, err)
+		execID := core.MustNewID()
+		workflowExecID := core.MustNewID()
+		runningState := &task.State{
+			TaskExecID:     execID,
+			WorkflowExecID: workflowExecID,
+			Status:         core.StatusRunning,
+			AgentID:        strPtr("demo-agent"),
+			ActionID:       strPtr("structured"),
+			CreatedAt:      time.Unix(0, 0).UTC(),
+			UpdatedAt:      time.Unix(0, 0).UTC(),
+		}
+		repo.AddState(runningState)
+		successState := *runningState
+		successState.Status = core.StatusSuccess
+		successState.Output = &core.Output{"message": "done"}
+		successState.UpdatedAt = time.Unix(5, 0).UTC()
+		time.AfterFunc(80*time.Millisecond, func() {
+			repo.AddState(&successState)
+		})
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/v0/executions/agents/"+execID.String()+"/stream?poll_ms=250",
+			http.NoBody,
+		)
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		if res.Code != http.StatusOK {
+			t.Logf("response: %d %s", res.Code, res.Body.String())
+		}
+		require.Equal(t, http.StatusOK, res.Code)
+		body := res.Body.String()
+		require.Contains(t, body, "event: agent_status")
+		require.Contains(t, body, "\"status\":\"RUNNING\"")
+		require.Contains(t, body, "event: complete")
+		require.Contains(t, body, "\"status\":\"SUCCESS\"")
+		require.Contains(t, body, "\"message\":\"done\"")
 	})
 
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/api/v0/executions/agents/"+execID.String()+"/stream?poll_ms=250",
-		http.NoBody,
-	)
-	res := httptest.NewRecorder()
-	router.ServeHTTP(res, req)
-	if res.Code != http.StatusOK {
-		t.Logf("response: %d %s", res.Code, res.Body.String())
-	}
-
-	require.Equal(t, http.StatusOK, res.Code)
-	body := res.Body.String()
-	require.Contains(t, body, "event: agent_status")
-	require.Contains(t, body, "\"status\":\"RUNNING\"")
-	require.Contains(t, body, "event: complete")
-	require.Contains(t, body, "\"status\":\"SUCCESS\"")
-	require.Contains(t, body, "\"message\":\"done\"")
+	t.Run("Should filter events by query parameter", func(t *testing.T) {
+		state := routertest.NewTestAppState(t)
+		resourceStore := routertest.NewResourceStore(state)
+		repo := routertest.NewStubTaskRepo()
+		router := newAgentStreamRouter(t, repo, state)
+		outputSchema := &schema.Schema{"type": "object"}
+		agentCfg := &agent.Config{
+			ID: "demo-agent",
+			Actions: []*agent.ActionConfig{{
+				ID:           "structured",
+				OutputSchema: outputSchema,
+			}},
+		}
+		_, err := resourceStore.Put(t.Context(), resources.ResourceKey{
+			Project: state.ProjectConfig.Name,
+			Type:    resources.ResourceAgent,
+			ID:      agentCfg.ID,
+		}, agentCfg)
+		require.NoError(t, err)
+		execID := core.MustNewID()
+		workflowExecID := core.MustNewID()
+		runningState := &task.State{
+			TaskExecID:     execID,
+			WorkflowExecID: workflowExecID,
+			Status:         core.StatusRunning,
+			AgentID:        strPtr("demo-agent"),
+			ActionID:       strPtr("structured"),
+			CreatedAt:      time.Unix(0, 0).UTC(),
+			UpdatedAt:      time.Unix(0, 0).UTC(),
+		}
+		repo.AddState(runningState)
+		terminal := *runningState
+		terminal.Status = core.StatusSuccess
+		terminal.UpdatedAt = time.Unix(2, 0).UTC()
+		repo.AddState(&terminal)
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/v0/executions/agents/"+execID.String()+"/stream?events=complete",
+			http.NoBody,
+		)
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		require.Equal(t, http.StatusOK, res.Code)
+		body := res.Body.String()
+		require.NotContains(t, body, "event: agent_status")
+		require.Contains(t, body, "event: complete")
+	})
 }
 
 func TestStreamAgent_TextStream(t *testing.T) {
-	state := routertest.NewTestAppState(t)
-	_ = routertest.NewResourceStore(state)
-	redisHelper := helpers.NewRedisHelper(t)
-	defer redisHelper.Cleanup(t)
-	provider, err := pubsub.NewRedisProvider(redisHelper.GetClient())
-	require.NoError(t, err)
-	state.SetPubSubProvider(provider)
-
-	repo := routertest.NewStubTaskRepo()
-	router := newAgentStreamRouter(t, repo, state)
-
-	execID := core.MustNewID()
-	workflowExecID := core.MustNewID()
-	createdAt := time.Unix(0, 0).UTC()
-	runningState := &task.State{
-		TaskExecID:     execID,
-		WorkflowExecID: workflowExecID,
-		Status:         core.StatusRunning,
-		AgentID:        strPtr("demo-agent"),
-		ActionID:       strPtr(promptActionID),
-		CreatedAt:      createdAt,
-		UpdatedAt:      createdAt,
-	}
-	repo.AddState(runningState)
-
-	successState := *runningState
-	successState.Status = core.StatusSuccess
-	successState.Output = &core.Output{"text": "final"}
-	successState.UpdatedAt = time.Unix(3, 0).UTC()
-
-	errCh := make(chan error, 1)
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		channel := redisTokenChannel(execID)
-		err := redisHelper.GetClient().Publish(context.Background(), channel, "hello").Err()
-		if err == nil {
-			repo.AddState(&successState)
+	t.Run("Should stream text chunks via pubsub", func(t *testing.T) {
+		state := routertest.NewTestAppState(t)
+		_ = routertest.NewResourceStore(state)
+		redisHelper := helpers.NewRedisHelper(t)
+		defer redisHelper.Cleanup(t)
+		provider, err := pubsub.NewRedisProvider(redisHelper.GetClient())
+		require.NoError(t, err)
+		state.SetPubSubProvider(provider)
+		repo := routertest.NewStubTaskRepo()
+		router := newAgentStreamRouter(t, repo, state)
+		execID := core.MustNewID()
+		workflowExecID := core.MustNewID()
+		runningState := &task.State{
+			TaskExecID:     execID,
+			WorkflowExecID: workflowExecID,
+			Status:         core.StatusRunning,
+			AgentID:        strPtr("demo-agent"),
+			ActionID:       strPtr(promptActionID),
+			CreatedAt:      time.Unix(0, 0).UTC(),
+			UpdatedAt:      time.Unix(0, 0).UTC(),
 		}
-		errCh <- err
-	}()
-
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/api/v0/executions/agents/"+execID.String()+"/stream?poll_ms=250",
-		http.NoBody,
-	)
-	res := httptest.NewRecorder()
-	router.ServeHTTP(res, req)
-	if res.Code != http.StatusOK {
-		t.Logf("response: %d %s", res.Code, res.Body.String())
-	}
-	require.NoError(t, <-errCh)
-
-	require.Equal(t, http.StatusOK, res.Code)
-	body := res.Body.String()
-	require.Contains(t, body, "event: agent_status")
-	require.Contains(t, body, "event: llm_chunk")
-	require.Contains(t, body, "hello")
-	require.Contains(t, body, "event: complete")
-	require.Contains(t, body, "\"status\":\"SUCCESS\"")
+		repo.AddState(runningState)
+		successState := *runningState
+		successState.Status = core.StatusSuccess
+		successState.Output = &core.Output{"text": "final"}
+		successState.UpdatedAt = time.Unix(3, 0).UTC()
+		errCh := make(chan error, 1)
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			channel := redisTokenChannel(execID)
+			err := redisHelper.GetClient().Publish(t.Context(), channel, "hello").Err()
+			if err == nil {
+				repo.AddState(&successState)
+			}
+			errCh <- err
+		}()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/v0/executions/agents/"+execID.String()+"/stream?poll_ms=250",
+			http.NoBody,
+		)
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		if res.Code != http.StatusOK {
+			t.Logf("response: %d %s", res.Code, res.Body.String())
+		}
+		require.NoError(t, <-errCh)
+		require.Equal(t, http.StatusOK, res.Code)
+		body := res.Body.String()
+		require.Contains(t, body, "event: agent_status")
+		require.Contains(t, body, "event: llm_chunk")
+		require.Contains(t, body, "hello")
+		require.Contains(t, body, "event: complete")
+		require.Contains(t, body, "\"status\":\"SUCCESS\"")
+	})
 }
 
 func TestStreamAgent_TextStreamMissingRedis(t *testing.T) {
-	state := routertest.NewTestAppState(t)
-	routertest.NewResourceStore(state)
-	repo := routertest.NewStubTaskRepo()
-	router := newAgentStreamRouter(t, repo, state)
-
-	execID := core.MustNewID()
-	runningState := &task.State{
-		TaskExecID:     execID,
-		WorkflowExecID: core.MustNewID(),
-		Status:         core.StatusRunning,
-		AgentID:        strPtr("demo-agent"),
-		ActionID:       strPtr(promptActionID),
-		CreatedAt:      time.Unix(0, 0).UTC(),
-		UpdatedAt:      time.Unix(0, 0).UTC(),
-	}
-	repo.AddState(runningState)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/agents/"+execID.String()+"/stream", http.NoBody)
-	res := httptest.NewRecorder()
-	router.ServeHTTP(res, req)
-	require.Equal(t, http.StatusServiceUnavailable, res.Code)
-	require.Contains(t, res.Body.String(), "pubsub")
+	t.Run("Should fail when pubsub unavailable", func(t *testing.T) {
+		state := routertest.NewTestAppState(t)
+		routertest.NewResourceStore(state)
+		repo := routertest.NewStubTaskRepo()
+		router := newAgentStreamRouter(t, repo, state)
+		execID := core.MustNewID()
+		runningState := &task.State{
+			TaskExecID:     execID,
+			WorkflowExecID: core.MustNewID(),
+			Status:         core.StatusRunning,
+			AgentID:        strPtr("demo-agent"),
+			ActionID:       strPtr(promptActionID),
+			CreatedAt:      time.Unix(0, 0).UTC(),
+			UpdatedAt:      time.Unix(0, 0).UTC(),
+		}
+		repo.AddState(runningState)
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/agents/"+execID.String()+"/stream", http.NoBody)
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		require.Equal(t, http.StatusServiceUnavailable, res.Code)
+		require.Contains(t, res.Body.String(), "pubsub")
+	})
 }
 
 func strPtr(value string) *string {

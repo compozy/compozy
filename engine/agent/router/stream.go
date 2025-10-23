@@ -22,20 +22,28 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
 const (
-	agentStreamDefaultPoll   = 500 * time.Millisecond
-	agentStreamMinPoll       = 250 * time.Millisecond
-	agentStreamMaxPoll       = 2000 * time.Millisecond
-	agentStreamHeartbeatFreq = 15 * time.Second
-	agentStatusEvent         = "agent_status"
-	completeEvent            = "complete"
-	errorEvent               = "error"
-	llmChunkEvent            = "llm_chunk"
-	promptActionID           = "__prompt__"
+	defaultAgentStreamPoll      = 500 * time.Millisecond
+	defaultAgentStreamMinPoll   = 250 * time.Millisecond
+	defaultAgentStreamMaxPoll   = 2000 * time.Millisecond
+	defaultAgentStreamHeartbeat = 15 * time.Second
+	agentStatusEvent            = "agent_status"
+	completeEvent               = "complete"
+	errorEvent                  = "error"
+	llmChunkEvent               = "llm_chunk"
+	promptActionID              = "__prompt__"
 )
+
+type agentStreamTunables struct {
+	defaultPoll time.Duration
+	minPoll     time.Duration
+	maxPoll     time.Duration
+	heartbeat   time.Duration
+}
 
 type streamMode int
 
@@ -61,10 +69,32 @@ type agentStreamConfig struct {
 	pubsub       pubsub.Provider
 	initial      *task.State
 	pollInterval time.Duration
+	heartbeat    time.Duration
 	lastEventID  int64
 	mode         streamMode
-	log          logger.Logger
 	metrics      *monitoring.StreamingMetrics
+	events       map[string]struct{}
+}
+
+type agentStreamDeps struct {
+	state         *appstate.State
+	repo          task.Repository
+	resourceStore resources.ResourceStore
+	tunables      agentStreamTunables
+}
+
+type agentRequestParams struct {
+	pollInterval time.Duration
+	lastEventID  int64
+	events       map[string]struct{}
+}
+
+type agentLoop struct {
+	ctx       context.Context
+	cfg       *agentStreamConfig
+	stream    *router.SSEStream
+	telemetry router.StreamTelemetry
+	closeInfo *router.StreamCloseInfo
 }
 
 // streamAgentExecution streams Server-Sent Events for agent executions.
@@ -74,7 +104,7 @@ type agentStreamConfig struct {
 //	@Tags			executions
 //	@Accept			*/*
 //	@Produce		text/event-stream
-//	@Param			agent_exec_id	path		string											true	"Agent execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
+//	@Param			exec_id	path		string											true	"Agent execution ID"	example("2Z4PVTL6K27XVT4A3NPKMDD5BG")
 //	@Param			Last-Event-ID	header		string											false	"Resume the stream from the provided event id"	example("42")
 //	@Param			poll_ms			query		int												false	"Polling interval (milliseconds). Default 500, min 250, max 2000."	example(500)
 //	@Param			events			query		string											false	"Comma-separated list of event types to emit (default: all events)."	example("agent_status,llm_chunk,complete")
@@ -83,7 +113,7 @@ type agentStreamConfig struct {
 //	@Failure		404				{object}	router.Response{error=router.ErrorInfo}			"Execution not found"
 //	@Failure		503				{object}	router.Response{error=router.ErrorInfo}			"Pub/Sub provider unavailable"
 //	@Failure		500				{object}	router.Response{error=router.ErrorInfo}			"Internal server error"
-//	@Router			/executions/agents/{agent_exec_id}/stream [get]
+//	@Router			/executions/agents/{exec_id}/stream [get]
 func streamAgentExecution(c *gin.Context) {
 	execID := router.GetAgentExecID(c)
 	if execID == "" {
@@ -117,7 +147,8 @@ func initAgentTelemetry(
 		LastEventID: cfg.lastEventID,
 		ExtraFields: []any{"mode", cfg.mode.String()},
 	}
-	telemetry := router.NewStreamTelemetry(ctx, monitoring.ExecutionKindAgent, cfg.execID, cfg.metrics, cfg.log)
+	log := logger.FromContext(ctx)
+	telemetry := router.NewStreamTelemetry(ctx, monitoring.ExecutionKindAgent, cfg.execID, cfg.metrics, log)
 	if telemetry != nil {
 		telemetry.Connected(cfg.lastEventID, "Agent stream connected", "mode", cfg.mode.String())
 		return telemetry.Context(), telemetry, closeInfo, func() {
@@ -125,41 +156,56 @@ func initAgentTelemetry(
 		}
 	}
 	started := time.Now()
-	if cfg.log != nil {
-		cfg.log.Info(
+	if log != nil {
+		log.Info(
 			"Agent stream connected",
 			"exec_id", cfg.execID,
 			"mode", cfg.mode.String(),
 			"last_event_id", cfg.lastEventID,
 		)
 	}
-	finalize := func() {
-		if cfg.log == nil {
-			return
-		}
-		duration := time.Since(started)
-		fields := []any{
-			"exec_id", cfg.execID,
-			"duration", duration,
-			"last_event_id", closeInfo.LastEventID,
-			"reason", closeInfo.Reason,
-		}
-		if closeInfo.Status != nil {
-			fields = append(fields, "status", closeInfo.Status)
-		}
-		if len(closeInfo.ExtraFields) > 0 {
-			fields = append(fields, closeInfo.ExtraFields...)
-		}
-		if closeInfo.Error != nil {
-			cfg.log.Warn("agent stream terminated", append(fields, "error", closeInfo.Error)...)
-			return
-		}
-		cfg.log.Info("Agent stream disconnected", fields...)
-	}
-	return ctx, nil, closeInfo, finalize
+	return ctx, nil, closeInfo, buildAgentFinalize(log, started, cfg.execID, closeInfo)
 }
 
 func prepareAgentStreamConfig(ctx context.Context, c *gin.Context, execID core.ID) (*agentStreamConfig, bool) {
+	deps, ok := resolveAgentStreamDependencies(ctx, c)
+	if !ok {
+		return nil, false
+	}
+	taskState, ok := fetchAgentTaskState(ctx, c, deps.repo, execID)
+	if !ok {
+		return nil, false
+	}
+	params, ok := parseAgentRequestParams(c, deps.tunables)
+	if !ok {
+		return nil, false
+	}
+	mode, err := determineAgentStreamMode(ctx, deps.state, deps.resourceStore, taskState)
+	if err != nil {
+		reqErr := router.NewRequestError(http.StatusInternalServerError, "failed to resolve agent stream mode", err)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil, false
+	}
+	provider, ok := resolveAgentPubSubDependency(c, deps.state, mode)
+	if !ok {
+		return nil, false
+	}
+	metrics := router.ResolveStreamingMetrics(c, deps.state)
+	return &agentStreamConfig{
+		execID:       execID,
+		repo:         deps.repo,
+		pubsub:       provider,
+		initial:      taskState,
+		pollInterval: params.pollInterval,
+		heartbeat:    deps.tunables.heartbeat,
+		lastEventID:  params.lastEventID,
+		mode:         mode,
+		metrics:      metrics,
+		events:       params.events,
+	}, true
+}
+
+func resolveAgentStreamDependencies(ctx context.Context, c *gin.Context) (*agentStreamDeps, bool) {
 	state := router.GetAppState(c)
 	if state == nil {
 		return nil, false
@@ -170,15 +216,20 @@ func prepareAgentStreamConfig(ctx context.Context, c *gin.Context, execID core.I
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, false
 	}
-	resourceStore, ok := router.GetResourceStore(c)
+	store, ok := router.GetResourceStore(c)
 	if !ok {
 		return nil, false
 	}
-	taskState, ok := fetchAgentTaskState(ctx, c, repo, execID)
-	if !ok {
-		return nil, false
-	}
-	pollInterval, ok := parseAgentPollIntervalParam(c)
+	return &agentStreamDeps{
+		state:         state,
+		repo:          repo,
+		resourceStore: store,
+		tunables:      resolveAgentStreamTunables(ctx),
+	}, true
+}
+
+func parseAgentRequestParams(c *gin.Context, tunables agentStreamTunables) (*agentRequestParams, bool) {
+	poll, ok := parseAgentPollIntervalParam(c, tunables)
 	if !ok {
 		return nil, false
 	}
@@ -186,29 +237,38 @@ func prepareAgentStreamConfig(ctx context.Context, c *gin.Context, execID core.I
 	if !ok {
 		return nil, false
 	}
-	mode, err := determineAgentStreamMode(ctx, state, resourceStore, taskState)
-	if err != nil {
-		reqErr := router.NewRequestError(http.StatusInternalServerError, "failed to resolve agent stream mode", err)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
-		return nil, false
-	}
-	pubsubProvider, ok := resolveAgentPubSubDependency(c, state, mode)
+	events, ok := parseAgentEventsParam(c)
 	if !ok {
 		return nil, false
 	}
-	log := logger.FromContext(ctx)
-	metrics := router.ResolveStreamingMetrics(c, state)
-	return &agentStreamConfig{
-		execID:       execID,
-		repo:         repo,
-		pubsub:       pubsubProvider,
-		initial:      taskState,
-		pollInterval: pollInterval,
-		lastEventID:  lastEventID,
-		mode:         mode,
-		log:          log,
-		metrics:      metrics,
-	}, true
+	return &agentRequestParams{pollInterval: poll, lastEventID: lastEventID, events: events}, true
+}
+
+func (l *agentLoop) cancel() {
+	if l.closeInfo != nil {
+		l.closeInfo.Reason = "context_canceled"
+		l.closeInfo.Error = nil
+	}
+	logAgentCancellation(l.ctx, l.cfg)
+}
+
+func (l *agentLoop) handleHeartbeat() bool {
+	if err := l.stream.WriteHeartbeat(); err != nil {
+		logAgentStreamError(l.ctx, l.cfg, "heartbeat", err, l.closeInfo)
+		return false
+	}
+	if l.telemetry != nil {
+		l.telemetry.RecordHeartbeat()
+	}
+	return true
+}
+
+func (l *agentLoop) handlePoll(nextID int64, lastStatus *core.StatusType, lastUpdated *time.Time) (int64, bool) {
+	return handleAgentPoll(l.ctx, l.stream, l.cfg, l.telemetry, l.closeInfo, nextID, lastStatus, lastUpdated)
+}
+
+func (l *agentLoop) handleChunk(lastID int64, msg pubsub.Message, ok bool) (int64, bool) {
+	return handleAgentChunk(l.ctx, l.stream, l.cfg, l.telemetry, l.closeInfo, lastID, msg, ok)
 }
 
 func fetchAgentTaskState(
@@ -231,8 +291,8 @@ func fetchAgentTaskState(
 	return state, true
 }
 
-func parseAgentPollIntervalParam(c *gin.Context) (time.Duration, bool) {
-	interval, err := parseAgentPollInterval(c.Query("poll_ms"))
+func parseAgentPollIntervalParam(c *gin.Context, tunables agentStreamTunables) (time.Duration, bool) {
+	interval, err := parseAgentPollInterval(c.Query("poll_ms"), tunables)
 	if err != nil {
 		reqErr := router.NewRequestError(http.StatusBadRequest, "invalid poll interval", err)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
@@ -241,21 +301,86 @@ func parseAgentPollIntervalParam(c *gin.Context) (time.Duration, bool) {
 	return interval, true
 }
 
-func parseAgentPollInterval(raw string) (time.Duration, error) {
+func parseAgentPollInterval(raw string, tunables agentStreamTunables) (time.Duration, error) {
 	if raw == "" {
-		return agentStreamDefaultPoll, nil
+		return tunables.defaultPoll, nil
 	}
 	ms, err := strconv.Atoi(raw)
 	if err != nil {
 		return 0, fmt.Errorf("invalid poll_ms: %w", err)
 	}
-	if ms < int(agentStreamMinPoll/time.Millisecond) {
-		return 0, fmt.Errorf("poll_ms must be >= %d", agentStreamMinPoll/time.Millisecond)
+	if ms < int(tunables.minPoll/time.Millisecond) {
+		return 0, fmt.Errorf("poll_ms must be >= %d", tunables.minPoll/time.Millisecond)
 	}
-	if ms > int(agentStreamMaxPoll/time.Millisecond) {
-		return 0, fmt.Errorf("poll_ms must be <= %d", agentStreamMaxPoll/time.Millisecond)
+	if ms > int(tunables.maxPoll/time.Millisecond) {
+		return 0, fmt.Errorf("poll_ms must be <= %d", tunables.maxPoll/time.Millisecond)
 	}
 	return time.Duration(ms) * time.Millisecond, nil
+}
+
+func resolveAgentStreamTunables(ctx context.Context) agentStreamTunables {
+	values := agentStreamTunables{
+		defaultPoll: defaultAgentStreamPoll,
+		minPoll:     defaultAgentStreamMinPoll,
+		maxPoll:     defaultAgentStreamMaxPoll,
+		heartbeat:   defaultAgentStreamHeartbeat,
+	}
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return values
+	}
+	if poll := cfg.Stream.Agent.DefaultPoll; poll > 0 {
+		values.defaultPoll = poll
+	}
+	if minPoll := cfg.Stream.Agent.MinPoll; minPoll > 0 {
+		values.minPoll = minPoll
+	}
+	if maxPoll := cfg.Stream.Agent.MaxPoll; maxPoll > 0 {
+		values.maxPoll = maxPoll
+	}
+	if hb := cfg.Stream.Agent.HeartbeatFrequency; hb > 0 {
+		values.heartbeat = hb
+	}
+	if values.minPoll > values.maxPoll {
+		values.minPoll = values.maxPoll
+	}
+	if values.defaultPoll < values.minPoll {
+		values.defaultPoll = values.minPoll
+	}
+	if values.defaultPoll > values.maxPoll {
+		values.defaultPoll = values.maxPoll
+	}
+	return values
+}
+
+func parseAgentEventsParam(c *gin.Context) (map[string]struct{}, bool) {
+	raw := strings.TrimSpace(c.Query("events"))
+	if raw == "" {
+		return nil, true
+	}
+	allowed := map[string]struct{}{
+		agentStatusEvent: {},
+		llmChunkEvent:    {},
+		completeEvent:    {},
+		errorEvent:       {},
+	}
+	set := make(map[string]struct{}, len(allowed))
+	for _, token := range strings.Split(raw, ",") {
+		event := strings.TrimSpace(token)
+		if event == "" {
+			continue
+		}
+		if _, ok := allowed[event]; !ok {
+			reqErr := router.NewRequestError(http.StatusBadRequest, "unknown event type", fmt.Errorf("%s", event))
+			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			return nil, false
+		}
+		set[event] = struct{}{}
+	}
+	if len(set) == 0 {
+		return nil, true
+	}
+	return set, true
 }
 
 func parseAgentLastEventID(c *gin.Context) (int64, bool) {
@@ -383,15 +508,16 @@ func runAgentStructuredStream(
 	telemetry router.StreamTelemetry,
 	closeInfo *router.StreamCloseInfo,
 ) {
-	nextID, cont := emitAgentInitialEvents(stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
+	nextID, cont := emitAgentInitialEvents(ctx, stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
 	if !cont {
 		if closeInfo != nil && closeInfo.Reason == router.StreamReasonInitializing {
 			closeInfo.Reason = router.StreamReasonTerminal
 		}
 		return
 	}
+	loop := agentLoop{ctx: ctx, cfg: cfg, stream: stream, telemetry: telemetry, closeInfo: closeInfo}
 	ticker := time.NewTicker(cfg.pollInterval)
-	heartbeat := time.NewTicker(agentStreamHeartbeatFreq)
+	heartbeat := time.NewTicker(cfg.heartbeat)
 	defer ticker.Stop()
 	defer heartbeat.Stop()
 	lastStatus := cfg.initial.Status
@@ -399,22 +525,14 @@ func runAgentStructuredStream(
 	for {
 		select {
 		case <-ctx.Done():
-			if closeInfo != nil {
-				closeInfo.Reason = "context_canceled"
-				closeInfo.Error = nil
-			}
-			logAgentCancellation(cfg)
+			loop.cancel()
 			return
 		case <-heartbeat.C:
-			if err := stream.WriteHeartbeat(); err != nil {
-				logAgentStreamError(cfg, "heartbeat", err, closeInfo)
+			if !loop.handleHeartbeat() {
 				return
 			}
-			if telemetry != nil {
-				telemetry.RecordHeartbeat()
-			}
 		case <-ticker.C:
-			updatedID, ok := handleAgentPoll(ctx, stream, cfg, telemetry, closeInfo, nextID, &lastStatus, &lastUpdated)
+			updatedID, ok := loop.handlePoll(nextID, &lastStatus, &lastUpdated)
 			if !ok {
 				return
 			}
@@ -432,18 +550,18 @@ func runAgentTextStream(
 ) {
 	subscription, err := cfg.pubsub.Subscribe(ctx, redisTokenChannel(cfg.execID))
 	if err != nil {
-		logAgentStreamError(cfg, "subscribe", err, closeInfo)
+		logAgentStreamError(ctx, cfg, "subscribe", err, closeInfo)
 		return
 	}
 	defer subscription.Close()
-	nextID, cont := emitAgentInitialEvents(stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
+	nextID, cont := emitAgentInitialEvents(ctx, stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
 	if !cont {
 		if closeInfo != nil && closeInfo.Reason == router.StreamReasonInitializing {
 			closeInfo.Reason = router.StreamReasonTerminal
 		}
 		return
 	}
-	agentTextStreamLoop(ctx, cfg, telemetry, closeInfo, stream, subscription.Messages(), nextID)
+	agentTextStreamLoop(ctx, cfg, telemetry, closeInfo, stream, subscription, nextID)
 }
 
 func agentTextStreamLoop(
@@ -452,50 +570,50 @@ func agentTextStreamLoop(
 	telemetry router.StreamTelemetry,
 	closeInfo *router.StreamCloseInfo,
 	stream *router.SSEStream,
-	messages <-chan pubsub.Message,
+	subscription pubsub.Subscription,
 	startID int64,
 ) {
+	loop := agentLoop{ctx: ctx, cfg: cfg, stream: stream, telemetry: telemetry, closeInfo: closeInfo}
 	ticker := time.NewTicker(cfg.pollInterval)
-	heartbeat := time.NewTicker(agentStreamHeartbeatFreq)
+	heartbeat := time.NewTicker(cfg.heartbeat)
 	defer ticker.Stop()
 	defer heartbeat.Stop()
 	lastStatus := cfg.initial.Status
 	lastUpdated := cfg.initial.UpdatedAt
 	nextID := startID
+	messages := subscription.Messages()
 	for {
 		select {
 		case <-ctx.Done():
-			if closeInfo != nil {
-				closeInfo.Reason = "context_canceled"
-				closeInfo.Error = nil
-			}
-			logAgentCancellation(cfg)
+			loop.cancel()
 			return
 		case <-heartbeat.C:
-			if err := stream.WriteHeartbeat(); err != nil {
-				logAgentStreamError(cfg, "heartbeat", err, closeInfo)
+			if !loop.handleHeartbeat() {
 				return
 			}
-			if telemetry != nil {
-				telemetry.RecordHeartbeat()
-			}
 		case msg, ok := <-messages:
-			updatedID, ok := handleAgentChunk(stream, cfg, telemetry, closeInfo, nextID, msg, ok)
+			updatedID, ok := loop.handleChunk(nextID, msg, ok)
 			if !ok {
 				return
 			}
 			nextID = updatedID
 		case <-ticker.C:
-			updatedID, ok := handleAgentPoll(ctx, stream, cfg, telemetry, closeInfo, nextID, &lastStatus, &lastUpdated)
+			updatedID, ok := loop.handlePoll(nextID, &lastStatus, &lastUpdated)
 			if !ok {
 				return
 			}
 			nextID = updatedID
+		case <-subscription.Done():
+			if err := subscription.Err(); err != nil {
+				logAgentStreamError(ctx, cfg, "pubsub", err, closeInfo)
+			}
+			return
 		}
 	}
 }
 
 func emitAgentInitialEvents(
+	ctx context.Context,
 	stream *router.SSEStream,
 	telemetry router.StreamTelemetry,
 	cfg *agentStreamConfig,
@@ -503,30 +621,40 @@ func emitAgentInitialEvents(
 	lastID int64,
 	closeInfo *router.StreamCloseInfo,
 ) (int64, bool) {
-	nextID, err := emitAgentStatus(stream, telemetry, state, lastID)
-	if err != nil {
-		logAgentStreamError(cfg, "status", err, closeInfo)
-		return lastID, false
+	nextID := lastID
+	if shouldEmit(cfg, agentStatusEvent) {
+		statusID, err := emitAgentStatus(stream, telemetry, state, lastID)
+		if err != nil {
+			logAgentStreamError(ctx, cfg, "status", err, closeInfo)
+			return lastID, false
+		}
+		nextID = statusID
+		if closeInfo != nil {
+			closeInfo.LastEventID = statusID
+			closeInfo.Status = state.Status
+		}
+	} else if closeInfo != nil {
+		closeInfo.Status = state.Status
+	}
+	if !isTerminalStatus(state.Status) {
+		return nextID, true
+	}
+	eventType := terminalEventType(state.Status)
+	if shouldEmit(cfg, eventType) {
+		updatedID, termErr := emitAgentTerminal(stream, telemetry, state, nextID)
+		if termErr != nil {
+			logAgentStreamError(ctx, cfg, "terminal", termErr, closeInfo)
+			return nextID, false
+		}
+		nextID = updatedID
 	}
 	if closeInfo != nil {
 		closeInfo.LastEventID = nextID
 		closeInfo.Status = state.Status
+		closeInfo.Reason = router.StreamReasonTerminal
 	}
-	if isTerminalStatus(state.Status) {
-		updatedID, termErr := emitAgentTerminal(stream, telemetry, state, nextID)
-		if termErr != nil {
-			logAgentStreamError(cfg, "terminal", termErr, closeInfo)
-			return nextID, false
-		}
-		if closeInfo != nil {
-			closeInfo.LastEventID = updatedID
-			closeInfo.Status = state.Status
-			closeInfo.Reason = router.StreamReasonTerminal
-		}
-		logAgentCompletion(cfg, updatedID, state.Status)
-		return updatedID, false
-	}
-	return nextID, true
+	logAgentCompletion(ctx, cfg, nextID, state.Status)
+	return nextID, false
 }
 
 func emitAgentStatus(
@@ -570,10 +698,7 @@ func emitAgentTerminal(
 	if err != nil {
 		return lastID, err
 	}
-	eventType := completeEvent
-	if state.Status != core.StatusSuccess {
-		eventType = errorEvent
-	}
+	eventType := terminalEventType(state.Status)
 	nextID := lastID + 1
 	if err := stream.WriteEvent(nextID, eventType, data); err != nil {
 		return lastID, err
@@ -584,27 +709,34 @@ func emitAgentTerminal(
 	return nextID, nil
 }
 
-func logAgentStreamError(cfg *agentStreamConfig, phase string, err error, closeInfo *router.StreamCloseInfo) {
-	if cfg.log == nil {
-		return
+func logAgentStreamError(
+	ctx context.Context,
+	cfg *agentStreamConfig,
+	phase string,
+	err error,
+	closeInfo *router.StreamCloseInfo,
+) {
+	log := logger.FromContext(ctx)
+	if log != nil {
+		log.Warn(
+			"agent stream terminated with error",
+			"exec_id", cfg.execID,
+			"phase", phase,
+			"error", err,
+		)
 	}
-	cfg.log.Warn(
-		"agent stream terminated with error",
-		"exec_id", cfg.execID,
-		"phase", phase,
-		"error", err,
-	)
 	if closeInfo != nil && err != nil && closeInfo.Error == nil {
 		closeInfo.Reason = fmt.Sprintf("%s_error", phase)
 		closeInfo.Error = err
 	}
 }
 
-func logAgentCompletion(cfg *agentStreamConfig, lastID int64, status core.StatusType) {
-	if cfg.log == nil {
+func logAgentCompletion(ctx context.Context, cfg *agentStreamConfig, lastID int64, status core.StatusType) {
+	log := logger.FromContext(ctx)
+	if log == nil {
 		return
 	}
-	cfg.log.Info(
+	log.Info(
 		"Agent stream disconnected",
 		"exec_id", cfg.execID,
 		"last_event_id", lastID,
@@ -612,11 +744,36 @@ func logAgentCompletion(cfg *agentStreamConfig, lastID int64, status core.Status
 	)
 }
 
-func logAgentCancellation(cfg *agentStreamConfig) {
-	if cfg.log == nil {
-		return
+func logAgentCancellation(ctx context.Context, cfg *agentStreamConfig) {
+	log := logger.FromContext(ctx)
+	if log != nil {
+		log.Info("Agent stream canceled", "exec_id", cfg.execID)
 	}
-	cfg.log.Info("Agent stream canceled", "exec_id", cfg.execID)
+}
+
+func buildAgentFinalize(log logger.Logger, started time.Time, execID core.ID, info *router.StreamCloseInfo) func() {
+	return func() {
+		if log == nil {
+			return
+		}
+		fields := []any{"exec_id", execID, "duration", time.Since(started)}
+		if info == nil {
+			log.Info("Agent stream disconnected", fields...)
+			return
+		}
+		fields = append(fields, "last_event_id", info.LastEventID, "reason", info.Reason)
+		if info.Status != nil {
+			fields = append(fields, "status", info.Status)
+		}
+		if len(info.ExtraFields) > 0 {
+			fields = append(fields, info.ExtraFields...)
+		}
+		if info.Error != nil {
+			log.Warn("agent stream terminated", append(fields, "error", info.Error)...)
+			return
+		}
+		log.Info("Agent stream disconnected", fields...)
+	}
 }
 
 func isTerminalStatus(status core.StatusType) bool {
@@ -628,11 +785,30 @@ func isTerminalStatus(status core.StatusType) bool {
 	}
 }
 
+func terminalEventType(status core.StatusType) string {
+	if status == core.StatusSuccess {
+		return completeEvent
+	}
+	return errorEvent
+}
+
+func shouldEmit(cfg *agentStreamConfig, event string) bool {
+	if cfg == nil {
+		return true
+	}
+	if len(cfg.events) == 0 {
+		return true
+	}
+	_, ok := cfg.events[event]
+	return ok
+}
+
 func redisTokenChannel(execID core.ID) string {
 	return fmt.Sprintf("stream:tokens:%s", execID.String())
 }
 
 func handleAgentChunk(
+	ctx context.Context,
 	stream *router.SSEStream,
 	cfg *agentStreamConfig,
 	telemetry router.StreamTelemetry,
@@ -642,12 +818,18 @@ func handleAgentChunk(
 	ok bool,
 ) (int64, bool) {
 	if !ok {
-		logAgentStreamError(cfg, "pubsub", errors.New("message channel closed"), closeInfo)
+		logAgentStreamError(ctx, cfg, "pubsub", errors.New("message channel closed"), closeInfo)
 		return lastID, false
+	}
+	if !shouldEmit(cfg, llmChunkEvent) {
+		if closeInfo != nil {
+			closeInfo.LastEventID = lastID
+		}
+		return lastID, true
 	}
 	nextID := lastID + 1
 	if err := stream.WriteEvent(nextID, llmChunkEvent, msg.Payload); err != nil {
-		logAgentStreamError(cfg, "chunk", err, closeInfo)
+		logAgentStreamError(ctx, cfg, "chunk", err, closeInfo)
 		return lastID, false
 	}
 	if telemetry != nil {
@@ -671,15 +853,19 @@ func handleAgentPoll(
 ) (int64, bool) {
 	state, err := cfg.repo.GetState(ctx, cfg.execID)
 	if err != nil {
-		logAgentStreamError(cfg, "poll", err, closeInfo)
+		logAgentStreamError(ctx, cfg, "poll", err, closeInfo)
 		return lastID, false
 	}
 	updatedID := lastID
 	if state.Status != *lastStatus || state.UpdatedAt.After(*lastUpdated) {
-		updatedID, err = emitAgentStatus(stream, telemetry, state, lastID)
-		if err != nil {
-			logAgentStreamError(cfg, "status", err, closeInfo)
-			return lastID, false
+		if shouldEmit(cfg, agentStatusEvent) {
+			updatedID, err = emitAgentStatus(stream, telemetry, state, lastID)
+			if err != nil {
+				logAgentStreamError(ctx, cfg, "status", err, closeInfo)
+				return lastID, false
+			}
+		} else {
+			updatedID = lastID
 		}
 		*lastStatus = state.Status
 		*lastUpdated = state.UpdatedAt
@@ -689,17 +875,20 @@ func handleAgentPoll(
 		}
 	}
 	if isTerminalStatus(state.Status) {
-		updatedID, err = emitAgentTerminal(stream, telemetry, state, updatedID)
-		if err != nil {
-			logAgentStreamError(cfg, "terminal", err, closeInfo)
-			return lastID, false
+		eventType := terminalEventType(state.Status)
+		if shouldEmit(cfg, eventType) {
+			updatedID, err = emitAgentTerminal(stream, telemetry, state, updatedID)
+			if err != nil {
+				logAgentStreamError(ctx, cfg, "terminal", err, closeInfo)
+				return lastID, false
+			}
 		}
 		if closeInfo != nil {
 			closeInfo.LastEventID = updatedID
 			closeInfo.Status = state.Status
 			closeInfo.Reason = router.StreamReasonTerminal
 		}
-		logAgentCompletion(cfg, updatedID, state.Status)
+		logAgentCompletion(ctx, cfg, updatedID, state.Status)
 		return updatedID, false
 	}
 	return updatedID, true

@@ -19,6 +19,28 @@ const (
 	publishTimeout       = 2 * time.Second
 )
 
+type contextKey int
+
+const chunkLimitKey contextKey = iota
+
+// WithStreamChunkLimit injects a maximum number of chunks to emit into the context chain.
+func WithStreamChunkLimit(ctx context.Context, limit int) context.Context {
+	if limit <= 0 || ctx == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, chunkLimitKey, limit)
+}
+
+func streamChunkLimitFromContext(ctx context.Context) int {
+	if ctx == nil {
+		return 0
+	}
+	if value, ok := ctx.Value(chunkLimitKey).(int); ok {
+		return value
+	}
+	return 0
+}
+
 // StreamPublisher publishes task output chunks to streaming subscribers.
 type StreamPublisher interface {
 	Publish(ctx context.Context, cfg *task.Config, state *task.State)
@@ -39,7 +61,10 @@ func NewTextStreamPublisher(provider pubsub.Provider) *TextStreamPublisher {
 
 // Publish emits best-effort text chunks for tasks lacking structured output schemas.
 func (p *TextStreamPublisher) Publish(ctx context.Context, cfg *task.Config, state *task.State) {
-	if p == nil || p.provider == nil || cfg == nil || state == nil {
+	if p == nil || p.provider == nil || cfg == nil || state == nil || ctx == nil {
+		return
+	}
+	if ctx.Err() != nil {
 		return
 	}
 	if cfg.OutputSchema != nil || state.Output == nil || state.TaskExecID.IsZero() {
@@ -51,9 +76,34 @@ func (p *TextStreamPublisher) Publish(ctx context.Context, cfg *task.Config, sta
 	}
 	channel := fmt.Sprintf(streamChannelPattern, state.TaskExecID.String())
 	lines := splitLines(text)
+	limit := streamChunkLimitFromContext(ctx)
 	log := logger.FromContext(ctx)
+	p.publishChunks(ctx, channel, state.TaskExecID.String(), lines, limit, log)
+}
+
+func (p *TextStreamPublisher) publishChunks(
+	ctx context.Context,
+	channel string,
+	taskExecID string,
+	lines []string,
+	limit int,
+	log logger.Logger,
+) {
+	emitted := 0
 	for _, line := range lines {
+		if limit > 0 && emitted >= limit {
+			return
+		}
+		if ctx.Err() != nil {
+			return
+		}
 		for _, segment := range segmentLine(line, maxSegmentRunes) {
+			if limit > 0 && emitted >= limit {
+				return
+			}
+			if ctx.Err() != nil {
+				return
+			}
 			sanitized := strings.TrimSpace(core.RedactString(segment))
 			if sanitized == "" {
 				continue
@@ -62,13 +112,17 @@ func (p *TextStreamPublisher) Publish(ctx context.Context, cfg *task.Config, sta
 			err := p.provider.Publish(pubCtx, channel, []byte(sanitized))
 			cancel()
 			if err != nil {
-				log.Warn("Failed to publish stream chunk",
-					"task_exec_id", state.TaskExecID.String(),
-					"channel", channel,
-					"error", core.RedactError(err),
-				)
-				return
+				if log != nil {
+					log.Warn(
+						"Failed to publish stream chunk",
+						"task_exec_id", taskExecID,
+						"channel", channel,
+						"error", core.RedactError(err),
+					)
+				}
+				continue
 			}
+			emitted++
 		}
 	}
 }

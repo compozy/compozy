@@ -1887,7 +1887,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/executions/agents/{agent_exec_id}/stream": {
+        "/executions/agents/{exec_id}/stream": {
             "get": {
                 "description": "Streams agent execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the output schema.",
                 "consumes": [
@@ -1905,7 +1905,7 @@ const docTemplate = `{
                         "type": "string",
                         "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
                         "description": "Agent execution ID",
-                        "name": "agent_exec_id",
+                        "name": "exec_id",
                         "in": "path",
                         "required": true
                     },
@@ -2169,7 +2169,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/executions/tasks/{task_exec_id}/stream": {
+        "/executions/tasks/{exec_id}/stream": {
             "get": {
                 "description": "Streams task execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the task output schema.",
                 "consumes": [
@@ -2187,7 +2187,7 @@ const docTemplate = `{
                         "type": "string",
                         "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
                         "description": "Task execution ID",
-                        "name": "task_exec_id",
+                        "name": "exec_id",
                         "in": "path",
                         "required": true
                     },

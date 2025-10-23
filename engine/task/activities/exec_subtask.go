@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/engine/task2"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/sethvargo/go-retry"
@@ -29,6 +30,14 @@ import (
 )
 
 const ExecuteSubtaskLabel = "ExecuteSubtask"
+
+const (
+	defaultChildStateRetryMax  uint64        = 5
+	defaultChildStateRetryBase time.Duration = 50 * time.Millisecond
+	defaultSiblingPollInterval               = 200 * time.Millisecond
+	defaultSiblingPollTimeout                = 30 * time.Second
+	defaultStreamMaxChunks                   = 100
+)
 
 type ExecuteSubtaskInput struct {
 	WorkflowID     string  `json:"workflow_id"`
@@ -210,10 +219,26 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 }
 
 func (a *ExecuteSubtask) publishTextChunks(ctx context.Context, cfg *task.Config, state *task.State) {
-	if a == nil || a.streamPublisher == nil {
+	if a == nil || a.streamPublisher == nil || cfg == nil || state == nil || ctx == nil {
 		return
 	}
-	a.streamPublisher.Publish(ctx, cfg, state)
+	if err := ctx.Err(); err != nil {
+		return
+	}
+	log := logger.FromContext(ctx)
+	limit := resolveStreamChunkLimit(ctx)
+	safeCtx := services.WithStreamChunkLimit(ctx, limit)
+	defer func() {
+		if r := recover(); r != nil {
+			if log != nil {
+				log.Warn("Recovered from stream chunk publish panic",
+					"task_exec_id", state.TaskExecID.String(),
+					"panic", r,
+				)
+			}
+		}
+	}()
+	a.streamPublisher.Publish(safeCtx, cfg, state)
 }
 
 // attachUsageCollector adds a usage collector to the context and provides a finalize callback.
@@ -329,9 +354,10 @@ func (a *ExecuteSubtask) getChildStateWithRetry(
 	taskID string,
 ) (*task.State, error) {
 	var taskState *task.State
+	maxRetries, baseBackoff := resolveChildStateRetry(ctx)
 	err := retry.Do(
 		ctx,
-		retry.WithMaxRetries(5, retry.NewExponential(50*time.Millisecond)),
+		retry.WithMaxRetries(maxRetries, retry.NewExponential(baseBackoff)),
 		func(ctx context.Context) error {
 			var err error
 			taskState, err = a.getChildState(ctx, parentStateID, taskID)
@@ -489,10 +515,7 @@ func (a *ExecuteSubtask) waitOnSiblingSequence(
 	currentTaskID string,
 	priorSiblingIDs []string,
 ) error {
-	const (
-		pollInterval = 200 * time.Millisecond
-		pollTimeout  = 30 * time.Second
-	)
+	pollInterval, pollTimeout := resolveSiblingWaitSettings(ctx)
 	for _, siblingID := range priorSiblingIDs {
 		if err := a.waitForSingleSibling(
 			ctx,
@@ -581,4 +604,42 @@ func (a *ExecuteSubtask) waitForNextPoll(
 	case <-time.After(pollInterval + jitter):
 		return nil
 	}
+}
+
+func resolveChildStateRetry(ctx context.Context) (uint64, time.Duration) {
+	attempts := defaultChildStateRetryMax
+	base := defaultChildStateRetryBase
+	if cfg := config.FromContext(ctx); cfg != nil {
+		if value := cfg.Tasks.Retry.ChildState.MaxAttempts; value > 0 {
+			attempts = uint64(value)
+		}
+		if value := cfg.Tasks.Retry.ChildState.BaseBackoff; value > 0 {
+			base = value
+		}
+	}
+	return attempts, base
+}
+
+func resolveSiblingWaitSettings(ctx context.Context) (time.Duration, time.Duration) {
+	interval := defaultSiblingPollInterval
+	timeout := defaultSiblingPollTimeout
+	if cfg := config.FromContext(ctx); cfg != nil {
+		if value := cfg.Tasks.Wait.Siblings.PollInterval; value > 0 {
+			interval = value
+		}
+		if value := cfg.Tasks.Wait.Siblings.Timeout; value > 0 {
+			timeout = value
+		}
+	}
+	return interval, timeout
+}
+
+func resolveStreamChunkLimit(ctx context.Context) int {
+	limit := defaultStreamMaxChunks
+	if cfg := config.FromContext(ctx); cfg != nil {
+		if value := cfg.Tasks.Stream.MaxChunks; value >= 0 {
+			limit = value
+		}
+	}
+	return limit
 }

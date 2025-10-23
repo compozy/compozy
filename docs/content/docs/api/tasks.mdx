@@ -29,15 +29,15 @@ Task management operations
 
 ## Streaming Endpoint
 
-`GET /executions/tasks/{task_exec_id}/stream` mirrors the agent streaming behavior for task executions. Structured outputs stream as JSON events; tasks without an output schema stream human-readable `llm_chunk` text lines for fast console-style updates.
+`GET /executions/tasks/{exec_id}/stream` mirrors the agent streaming behavior for task executions. Structured outputs stream as JSON events; tasks without an output schema stream human-readable `llm_chunk` text lines for fast console-style updates.
 
 | Parameter | Location | Details |
 | --- | --- | --- |
-| `task_exec_id` | Path | Task execution identifier. |
+| `exec_id` | Path | Task execution identifier. |
 | `Last-Event-ID` | Header | Resume structured streams from the last delivered event ID. |
 | `poll_ms` | Query | Polling interval for repository snapshots (default `500`, min `250`, max `2000`). |
 | `events` | Query | Comma-separated allowlist to reduce event types (default: all). |
 
 Heartbeats are emitted every 15 seconds to keep load balancers aware of the connection. Text-mode reconnects start streaming new chunks while final status events remain durable. Review the [Execution Stream Events schema](/docs/schema/execution-stream-events) for payload definitions.
 
-<APIPage document={"swagger.json"} operations={[{"path":"/tasks","method":"get"},{"path":"/tasks/export","method":"post"},{"path":"/tasks/import","method":"post"},{"path":"/tasks/{task_id}","method":"get"},{"path":"/tasks/{task_id}","method":"delete"},{"path":"/tasks/{task_id}","method":"put"},{"path":"/tasks/{task_id}/executions","method":"post"},{"path":"/tasks/{task_id}/executions/sync","method":"post"},{"path":"/executions/tasks/{task_exec_id}/stream","method":"get"}]} webhooks={[]} hasHead={true} />
+<APIPage document={"swagger.json"} operations={[{"path":"/tasks","method":"get"},{"path":"/tasks/export","method":"post"},{"path":"/tasks/import","method":"post"},{"path":"/tasks/{task_id}","method":"get"},{"path":"/tasks/{task_id}","method":"delete"},{"path":"/tasks/{task_id}","method":"put"},{"path":"/tasks/{task_id}/executions","method":"post"},{"path":"/tasks/{task_id}/executions/sync","method":"post"},{"path":"/executions/tasks/{exec_id}/stream","method":"get"}]} webhooks={[]} hasHead={true} />
